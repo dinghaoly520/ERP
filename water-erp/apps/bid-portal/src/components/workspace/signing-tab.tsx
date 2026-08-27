@@ -31,7 +31,6 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
   const [signRefreshTick, setSignRefreshTick] = useState(0);
   const batchInputRef = useRef<HTMLInputElement | null>(null);
-  const combinedInputRef = useRef<HTMLInputElement | null>(null);
 
   /** 文件名 → 回传目标路由（含专家名/关键词匹配；先到先得，重复与未识别留待单传）。hasPacket=false 时不含主报告页（该端点依赖签字包存在） */
   const routeFiles = (files: File[], experts: SignPacketExpertRow[], hasPacket: boolean) => {
@@ -178,18 +177,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         onChange={(e) => {
           const fs = [...(e.target.files ?? [])];
           e.target.value = '';
-          void onBatchUpload(fs);
-        }}
-      />
-      <input
-        ref={combinedInputRef}
-        type="file"
-        accept="application/pdf,image/jpeg,image/png"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = '';
-          if (f) void onCombinedUpload(f);
+          if (fs.length === 1) void onCombinedUpload(fs[0]);
+          else void onBatchUpload(fs);
         }}
       />
       {error && (
@@ -210,16 +199,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             className="neu-btn-primary !h-[34px] !text-xs"
             title="多选扫描件一次上传，按文件名自动分配去向（含主持人/监督人/专家名；主报告页须签字包生成后回传）"
           >
-            {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 批量回传签字扫描件
-          </button>
-          <button
-            type="button"
-            disabled={batchBusy}
-            onClick={() => combinedInputRef.current?.click()}
-            className="neu-btn-soft !h-[34px] !text-xs"
-            title="全部签字页合并为一份 PDF：一次扫描一次上传，自动应用到所有签字项（各签字项引用同一文件，签字页在文件内可查即归属成立）"
-          >
-            <Upload size={13} /> 上传合并扫描件
+            {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
           </button>
           <button
             type="button"
@@ -257,18 +237,9 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                     disabled={batchBusy}
                     onClick={() => batchInputRef.current?.click()}
                     className="neu-btn-primary !h-[34px] !text-xs"
-                    title="多选扫描件一次上传，按文件名自动分配去向（含主持人/监督人/报告/专家名）"
+                    title="选 1 份（合并扫描 PDF）→ 自动应用到所有签字项；选多份 → 按文件名自动分配去向（含主持人/监督人/报告/专家名）"
                   >
-                    {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 批量回传签字扫描件
-                  </button>
-                  <button
-                    type="button"
-                    disabled={batchBusy}
-                    onClick={() => combinedInputRef.current?.click()}
-                    className="neu-btn-soft !h-[34px] !text-xs"
-                    title="全部签字页合并为一份 PDF：一次扫描一次上传，自动应用到所有签字项（各签字项引用同一文件，签字页在文件内可查即归属成立）"
-                  >
-                    <Upload size={13} /> 上传合并扫描件
+                    {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
                   </button>
                 </>
               )}
@@ -356,21 +327,6 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   {e.signScanUrl ? (
                     <a href={e.signScanUrl} target="_blank" rel="noopener" className="text-[var(--accent)] hover:underline">查看</a>
                   ) : <span className="text-[var(--muted-foreground)]">—</span>}
-                  {!e.signScanUrl && !closed && e.role === EXPERT_ROLE.REGULAR && (
-                    <label className="ml-2 inline-flex cursor-pointer items-center gap-0.5 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--accent)]">
-                      <Upload size={10} /> 上传
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,application/pdf"
-                        className="hidden"
-                        onChange={async (ev) => {
-                          const f = ev.target.files?.[0];
-                          if (f) await run(`scan-${e.expertId}`, () => uploadExpertScan(projectId, e.expertId, f));
-                          ev.target.value = '';
-                        }}
-                      />
-                    </label>
-                  )}
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   {!closed && e.role === EXPERT_ROLE.REGULAR && (
