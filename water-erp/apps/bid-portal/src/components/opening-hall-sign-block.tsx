@@ -95,10 +95,6 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
         <button type="button" onClick={onUpload} disabled={busy} className="neu-btn-soft !h-[34px] !text-xs">
           <Upload size={13} /> 上传签字扫描件
         </button>
-        <span className="text-[11px] text-[var(--muted-foreground)]">
-          主持人{status.hostScanUploaded ? '✓' : '—'}
-          {status.supervisor && <>　监督人{status.supervisorScanUploaded ? '✓' : '—'}</>}
-        </span>
       </div>
       {msg && <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">{msg}</p>}
     </div>
