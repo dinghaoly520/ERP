@@ -8,8 +8,10 @@ import {
 } from '@/lib/api/bid';
 
 /** P1-3①A：开标记录签字块——生成签字页 → 打印签字 → 扫描回传 → 登记闭环（进开标文件包哈希链）。
- * 显示条件：完成开标（handoverAt 存在）后。 */
-export function OpeningSignBlock({ projectId }: { projectId: string }) {
+ * 显示条件：完成开标（handoverAt 存在）后。
+ * variant：standalone=开标大厅原位（即时签）；merged=评标签字 tab 合并办理位（未闭环才显示，
+ * 供「评标结束一次性打印、一次签完」的运营口径——签字时点证据已由线上确认+哈希固化承载，可延后）。 */
+export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projectId: string; variant?: 'standalone' | 'merged' }) {
   const [status, setStatus] = useState<OpeningSignStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -21,6 +23,7 @@ export function OpeningSignBlock({ projectId }: { projectId: string }) {
 
   if (!status?.hasSession) return null;
   const registered = !!status.registeredAt;
+  if (variant === 'merged' && registered) return null;
 
   const onGenerate = async () => {
     setBusy(true); setMsg('');
@@ -71,7 +74,9 @@ export function OpeningSignBlock({ projectId }: { projectId: string }) {
         )}
       </div>
       <p className="mb-3 text-xs text-[color:var(--muted-foreground)]">
-        纸面签字过渡方案：生成签字页 → 打印 → 主持人{status.supervisor ? '/监督人' : ''}手写签字 → 扫描回传 → 登记闭环（扫描件哈希进开标文件包）。
+        {variant === 'merged'
+          ? <>纸面签字过渡方案：<b>建议与评标签字包一并打印、一次签完、随本批回传登记</b>（扫描件哈希进开标文件包；也可在「开标大厅」tab 即时办理）。</>
+          : <>纸面签字过渡方案：生成签字页 → 打印 → 主持人{status.supervisor ? '/监督人' : ''}手写签字 → 扫描回传 → 登记闭环（扫描件哈希进开标文件包）。可延后至评标结束，与评标签字包一并办理。</>}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={onGenerate} disabled={busy || registered} className="neu-btn-soft !h-[34px] !text-xs">

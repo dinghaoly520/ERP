@@ -13,7 +13,8 @@ class SignScanDto {
 
 @ApiTags('开标签字')
 @Controller('bid/projects/:id/opening')
-@Roles('admin', 'bid_host')
+// :3007 工作区准入同款角色集——被指派为主持人的 leader/staff 同样有资格办理开标记录签字
+@Roles('admin', 'bid_host', 'leader', 'staff')
 export class OpeningSignController {
   constructor(private readonly openingSignService: OpeningSignService) {}
 

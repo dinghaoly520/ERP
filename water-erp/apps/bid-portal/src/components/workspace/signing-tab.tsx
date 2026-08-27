@@ -9,6 +9,7 @@ import {
   type SignPacketResponse, type SignPacketExpertRow,
 } from '@/lib/api/sign-packet';
 import SignRegisterDialog from './sign-register-dialog';
+import { OpeningSignBlock } from '../opening-hall-sign-block';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
@@ -59,13 +60,16 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
     return <div className="p-8 text-sm text-[var(--muted-foreground)]">{error ?? '无法加载签字状态'}</div>;
   }
 
-  // 引导空态：评标结果未生成
+  // 引导空态：评标结果未生成（开标记录签字若未闭环，仍给合并办理入口——打印时机在评标结束，此处即可提前/一并处理）
   if (!data.resultsGenerated) {
     return (
-      <div className="rounded-2xl border border-[var(--hairline)] p-10 text-center">
-        <PenLine size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]" strokeWidth={1.5} />
-        <p className="text-sm font-semibold text-[var(--foreground)]">评标结果尚未生成</p>
-        <p className="mt-1 text-xs text-[var(--muted-foreground)]">请在「评标管理」完成 3 步生成向导后，再来生成签字包。</p>
+      <div className="space-y-4">
+        <OpeningSignBlock projectId={projectId} variant="merged" />
+        <div className="rounded-2xl border border-[var(--hairline)] p-10 text-center">
+          <PenLine size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]" strokeWidth={1.5} />
+          <p className="text-sm font-semibold text-[var(--foreground)]">评标结果尚未生成</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">请在「评标管理」完成 3 步生成向导后，再来生成签字包。</p>
+        </div>
       </div>
     );
   }
@@ -74,6 +78,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
   return (
     <div className="space-y-4">
+      <OpeningSignBlock projectId={projectId} variant="merged" />
       {error && (
         <div className="rounded-xl border border-[color-mix(in_oklch,var(--danger)_30%,transparent)] px-4 py-2.5 text-xs text-[var(--danger)]">{error}</div>
       )}
