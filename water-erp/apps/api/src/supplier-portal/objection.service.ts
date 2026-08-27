@@ -38,12 +38,33 @@ export class ObjectionService {
 
     // 异议对象必须可定位：公告 ID 或业务编号至少其一
     let projectId: string | null = null;
+    let relatedCode: string | null = null;
     if (dto.announcementId) {
       const ann = await this.prisma.announcement.findUnique({
         where: { id: dto.announcementId },
         select: { id: true, relatedProjectCode: true },
       });
       if (!ann) throw new BadRequestException({ error: '异议对象公告不存在', code: 'ANN_NOT_FOUND' });
+      relatedCode = ann.relatedProjectCode ?? null;
+    }
+
+    // 4.1.4.1/4.2.2.1：异议应在采购文件约定的时间内提出——
+    // 结果异议（result）默认窗口 = 预成交公示期；公示期满后引导走投诉渠道（escalate 登记制）
+    if (dto.phase === 'result') {
+      const code = dto.projectCode?.trim() || relatedCode;
+      const notice = code
+        ? await this.prisma.announcement.findFirst({
+            where: { relatedProjectCode: code, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
+            orderBy: { createdAt: 'desc' },
+            select: { publicityEnd: true },
+          })
+        : null;
+      if (notice?.publicityEnd && new Date() > new Date(notice.publicityEnd)) {
+        throw new BadRequestException({
+          error: `结果异议应在预成交公示期内提出（公示截止 ${new Date(notice.publicityEnd).toLocaleDateString('zh-CN')}，GB/T 43711 4.2.2.1）；如对结果仍有异议，请通过异议工单备注说明并联系采购人转投诉处理`,
+          code: 'OBJECTION_WINDOW_CLOSED',
+        });
+      }
     }
     const code = dto.projectCode?.trim() || null;
     if (code) {

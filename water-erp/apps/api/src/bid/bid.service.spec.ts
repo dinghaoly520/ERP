@@ -137,7 +137,7 @@ describe('BidService — stage transitions', () => {
       announcement: { count: jest.fn(), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn().mockResolvedValue({ generatedAt: new Date(Date.now() - 3600_000) }) },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       // T17：getProject 派生下发 envelopeVersion/outerDecryptedAt/packageFetchedAt 需要 findMany（默认空）
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -3098,7 +3098,7 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
       announcement: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
-      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn().mockResolvedValue({ generatedAt: new Date(Date.now() - 3600_000) }) },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       // T17：getProject 派生下发 envelopeVersion/outerDecryptedAt/packageFetchedAt 需要 findMany（默认空）
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -3170,7 +3170,8 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
   });
 
   it('已存在预成交公示或成交公告时不重复创建（幂等）', async () => {
-    prisma.announcement.findFirst.mockResolvedValue({ id: 'wn1' });
+    // 幂等口径（按轮）：已有公示创建时间晚于本轮评标结果生成时间 → 跳过
+    prisma.announcement.findFirst.mockResolvedValue({ id: 'wn1', createdAt: new Date() });
     await service.archiveAll('p1', 'u1');
     expect(prisma.announcement.create).not.toHaveBeenCalled();
   });
@@ -5830,6 +5831,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
       bidEvaluationResult: { findFirst: jest.fn() },
       awardLetterDelivery: { upsert: jest.fn() },
       supplier: { findUnique: jest.fn() },
+      projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() }, // CTS A-203 定标回写
     };
     notification = { sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}) };
     const { Test } = require('@nestjs/testing');
@@ -5896,6 +5898,29 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     }));
     expect(notification.sendToUser).toHaveBeenCalledWith('u-win', ['in_app'], expect.objectContaining({ type: 'AWARD_LETTER' }));
     expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalled(); // 无宿主 PMI → 不回写
+  });
+
+  it('定标回写（拍板#7）：中标人与台账不一致 → 自动回写 PMI.awardedSupplier；一致 → 幂等跳过', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+
+    // 不一致 → 回写
+    prisma.projectManagementItem.findFirst.mockResolvedValueOnce({ id: 'pmi-1', awardedSupplier: '旧手工值' });
+    await svc.deliverAwardLetter('p1', { winnerName: '中标公司' });
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
+      where: { id: 'pmi-1' },
+      data: { awardedSupplier: '中标公司' },
+    });
+
+    // 一致 → 跳过
+    prisma.projectManagementItem.update.mockClear();
+    prisma.projectManagementItem.findFirst.mockResolvedValueOnce({ id: 'pmi-1', awardedSupplier: '中标公司' });
+    await svc.deliverAwardLetter('p1', { winnerName: '中标公司' });
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
   });
 
   it('winnerSupplierId 与 rank1 不符 → 400 WINNER_MISMATCH 零 upsert', async () => {

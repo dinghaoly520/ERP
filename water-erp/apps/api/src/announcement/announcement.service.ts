@@ -213,6 +213,10 @@ export class AnnouncementService {
     if (announcement.status !== 'PUBLISHED') {
       throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });
     }
+    // A2（表 B.1）：与列表同口径——应保密/可公开（未发布到公开级）的公告详情不可按 id 直取
+    if (announcement.dataClass && !(PUBLIC_VISIBLE_CLASSES as readonly string[]).includes(announcement.dataClass)) {
+      throw new BadRequestException({ error: '公告不存在或不可公开', code: 'NOT_PUBLIC' });
+    }
     await this.prisma.announcement.update({
       where: { id },
       data: { viewCount: { increment: 1 } },
@@ -474,6 +478,23 @@ export class AnnouncementService {
     }
     if (!pre.publicityEnd || new Date() < new Date(pre.publicityEnd)) {
       throw new BadRequestException({ error: '公示期未满，暂不能发布成交公告', code: 'PUBLICITY_NOT_ENDED' });
+    }
+
+    // 7.5.2.5：公示期内"未发生否决情形"方可成交——未决异议（待答复/投诉处理中）阻断确认
+    const pendingObjections = await this.prisma.supplierObjection.count({
+      where: {
+        status: { in: ['open', 'complaint'] },
+        OR: [
+          { announcementId: pre.id },
+          ...(pre.relatedProjectCode ? [{ projectCode: pre.relatedProjectCode }] : []),
+        ],
+      },
+    });
+    if (pendingObjections > 0) {
+      throw new BadRequestException({
+        error: `该公示存在 ${pendingObjections} 项未决异议（待答复/投诉处理中），须先答复或处理完毕（7.5.2.5/7.5.2.6）`,
+        code: 'OBJECTION_PENDING',
+      });
     }
 
     // 幂等：同项目已存在成交公告则不重复生成

@@ -5117,13 +5117,24 @@ export class BidService {
       return;
     }
 
-    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试；
-    // 已有预成交公示或成交公告（存量两段式/直发）均视为已生成，避免重复
-    const existing = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
-      select: { id: true },
-    });
-    if (existing) return;
+    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试。
+    // 幂等口径（按轮）：仅当已有公示/成交公告创建于【本轮评标结果生成之后】才跳过——
+    // 多轮采购（round≥2）上一轮的 WIN 不得挡住本轮生成新 PRE（否则第二轮永不公示）
+    const codes = await this.resolveAnnouncementCodes(project);
+    const [existing, latestResult] = await Promise.all([
+      this.prisma.announcement.findFirst({
+        where: { relatedProjectCode: { in: codes }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, createdAt: true },
+      }),
+      this.prisma.bidEvaluationResult.findFirst({
+        where: { projectId },
+        orderBy: { generatedAt: 'desc' },
+        select: { generatedAt: true },
+      }),
+    ]);
+    if (existing && latestResult && existing.createdAt > latestResult.generatedAt) return;
+    if (existing && !latestResult) return; // 无评标结果的登记制场景，保持原幂等
 
     const winner = project.evaluationResults.find(r => r.rank === 1);
     const candidates = project.evaluationResults.filter(r => r.recommended);
@@ -5161,9 +5172,23 @@ export class BidService {
       select: { projectCode: true, projectManagementItemId: true },
     });
     if (!project) return null;
-    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试
+    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试；本轮（最近评标结果之后）优先
+    const codes = await this.resolveAnnouncementCodes(project);
+    const latestResult = await this.prisma.bidEvaluationResult.findFirst({
+      where: { projectId },
+      orderBy: { generatedAt: 'desc' },
+      select: { generatedAt: true },
+    });
+    if (latestResult) {
+      const current = await this.prisma.announcement.findFirst({
+        where: { relatedProjectCode: { in: codes }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] }, createdAt: { gt: latestResult.generatedAt } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (current) return current;
+    }
     return this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
+      where: { relatedProjectCode: { in: codes }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -5176,15 +5201,32 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
     // C1（7.5.2）：优先取预成交公示（两段式第一段）；无则回落存量 WIN_NOTICE（老"中标公示"，
-    // 其 publicityEnd 语义同为公示期），保证在途项目平滑过渡
+    // 其 publicityEnd 语义同为公示期）。多轮采购取"本轮"（最近评标结果之后）的公告——
+    // 上一轮已确认的公示不应继续给第二轮项目当公示状态（否则二轮永远"已公示"）。
     const codes = await this.resolveAnnouncementCodes(project);
+    const latestResult = await this.prisma.bidEvaluationResult.findFirst({
+      where: { projectId },
+      orderBy: { generatedAt: 'desc' },
+      select: { generatedAt: true },
+    });
+    const roundFilter = latestResult ? { createdAt: { gt: latestResult.generatedAt } } : {};
+    const pick = (type: any) => this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: { in: codes }, type, ...roundFilter },
+      orderBy: { createdAt: 'desc' },
+      select: { status: true, publishDate: true, publicityEnd: true },
+    });
     const notice =
+      (await pick('PRE_WIN_NOTICE')
+        .then(r => r ?? pick('WIN_NOTICE'))) ??
+      // 本轮无任何公示 → 回落全量（在途/登记制场景）
       (await this.prisma.announcement.findFirst({
         where: { relatedProjectCode: { in: codes }, type: 'PRE_WIN_NOTICE' },
+        orderBy: { createdAt: 'desc' },
         select: { status: true, publishDate: true, publicityEnd: true },
       })) ??
       (await this.prisma.announcement.findFirst({
         where: { relatedProjectCode: { in: codes }, type: 'WIN_NOTICE' },
+        orderBy: { createdAt: 'desc' },
         select: { status: true, publishDate: true, publicityEnd: true },
       }));
 
@@ -5325,6 +5367,24 @@ export class BidService {
         deliveredAt: new Date(),
       },
     });
+
+    // CTS A-203 / 拍板 #7（2026-08-27）：定标（发出中标通知书）即从交易链自动回写台账中标信息，
+    // 替代手工维护 awardedSupplier 的双头不一致；管理端手工值仍可兜底覆盖（回写幂等，值一致则跳过）。
+    try {
+      // PMI.bidProjects（1:N）：通过 BidProject.projectManagementItemId 反查宿主台账项
+      const pmi = await this.prisma.projectManagementItem.findFirst({
+        where: { bidProjects: { some: { id: projectId } } },
+        select: { id: true, awardedSupplier: true },
+      });
+      if (pmi && pmi.awardedSupplier !== supplierName) {
+        await this.prisma.projectManagementItem.update({
+          where: { id: pmi.id },
+          data: { awardedSupplier: supplierName },
+        });
+      }
+    } catch {
+      // 回写失败不阻断通知书发出（台账可手工兜底）
+    }
 
     // P1-8：定向通知中标供应商（不再广播全体供应商）
     try {

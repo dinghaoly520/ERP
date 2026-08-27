@@ -194,6 +194,14 @@ export class FrameworkService {
     if (fa.validUntil < new Date()) {
       throw new BadRequestException({ error: '框架协议已过有效期', code: 'EXPIRED' });
     }
+    // D.2.5：定商框架协议第二阶段【应】通过竞争方式确定成交供应商——
+    // 直接登记时必须填写 selectionRule 说明本轮竞争情况（竞争后登记），否则拒绝
+    if (fa.variant === 'supplier_only' && !dto.selectionRule?.trim()) {
+      throw new BadRequestException({
+        error: '定商框架协议第二阶段应通过竞争方式确定成交供应商（GB/T 43711 D.2.5），请在 selectionRule 中说明本轮竞争情况',
+        code: 'COMPETITION_REQUIRED',
+      });
+    }
 
     // 复用合同域生成订单（projectCode 用 faCode 承载关联）
     const contractCode = await this.nextOrderCode();

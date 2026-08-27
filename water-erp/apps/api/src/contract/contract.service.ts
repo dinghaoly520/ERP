@@ -195,6 +195,20 @@ export class ContractService {
     if (!dto.approved && !dto.note?.trim()) {
       throw new BadRequestException({ error: '驳回必须填写内审意见', code: 'NOTE_REQUIRED' });
     }
+    // 7.5.4.3 闸门与 sign() 同口径：内审通过即落签署，同样必须先过一致性校验
+    // （否则 approved 路径成为绕过 sign() 闸门的旁路）
+    if (dto.approved) {
+      const consistency = (contract.consistencyResult as ConsistencyResult | null) ?? null;
+      if (!consistency) {
+        throw new BadRequestException({ error: '请先运行一致性校验（7.5.4.3）', code: 'CONSISTENCY_REQUIRED' });
+      }
+      if (!consistency.consistent) {
+        throw new BadRequestException({
+          error: `合同与成交记录不一致：${consistency.issues.map(i => `${i.field} 应为 ${i.expected} 实为 ${i.actual}`).join('；')}`,
+          code: 'CONSISTENCY_FAILED',
+        });
+      }
+    }
     return this.prisma.contract.update({
       where: { id },
       data: {
