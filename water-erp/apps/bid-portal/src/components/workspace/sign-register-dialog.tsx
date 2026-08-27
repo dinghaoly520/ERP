@@ -19,7 +19,6 @@ export default function SignRegisterDialog({
 }) {
   const [status, setStatus] = useState<StatusChoice>(expert.signStatus === 'PENDING' ? 'SIGNED' : (expert.signStatus as StatusChoice));
   const [opinion, setOpinion] = useState(expert.dissentingOpinion ?? '');
-  const [reason, setReason] = useState(expert.dissentingReason ?? '');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +34,6 @@ export default function SignRegisterDialog({
       const res = await registerSign(projectId, expert.expertId, {
         status,
         dissentingOpinion: opinion.trim() || undefined,
-        dissentingReason: reason.trim() || undefined,
       });
       onDone(res);
     } catch (e: any) {
@@ -91,14 +89,7 @@ export default function SignRegisterDialog({
               value={opinion}
               onChange={(e) => setOpinion(e.target.value)}
               placeholder={status === 'REFUSED_DISSENT' ? '书面不同意见（必填）' : '书面不同意见（可选）'}
-              rows={3}
-              className="w-full resize-none rounded-xl border border-[var(--hairline)] bg-transparent px-3 py-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
-            />
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="不同意见理由（必填于拒绝场景）"
-              rows={2}
+              rows={5}
               className="w-full resize-none rounded-xl border border-[var(--hairline)] bg-transparent px-3 py-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
             />
           </div>
