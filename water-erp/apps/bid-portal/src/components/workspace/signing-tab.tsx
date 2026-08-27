@@ -31,6 +31,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
   const [signRefreshTick, setSignRefreshTick] = useState(0);
   const batchInputRef = useRef<HTMLInputElement | null>(null);
+  const combinedInputRef = useRef<HTMLInputElement | null>(null);
 
   /** 文件名 → 回传目标路由（含专家名/关键词匹配；先到先得，重复与未识别留待单传）。hasPacket=false 时不含主报告页（该端点依赖签字包存在） */
   const routeFiles = (files: File[], experts: SignPacketExpertRow[], hasPacket: boolean) => {
@@ -78,6 +79,35 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
     // 开标记录件到齐即自动登记（与签字卡同一口径；无监督人场景主持人件即齐）
     if (hostRouted && results.every((x) => x.status !== 'fail')) {
       try { await registerOpeningSign(projectId); } catch { /* 有监督人且未到齐等场景按需单传后再看 */ }
+    }
+    setBatchResult(results);
+    setSignRefreshTick((t) => t + 1);
+    await refresh();
+    setBatchBusy(false);
+  };
+
+  /** 合并扫描件模式：一整份 PDF（含全部签字页）一次性应用到所有签字项——纸件核对后一遍扫描即可存档，各签字项引用同一文件（归属=每人签字页在文件内可查） */
+  const onCombinedUpload = async (file: File) => {
+    if (!data) return;
+    setBatchBusy(true);
+    const results: Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> = [];
+    const apply = async (label: string, fn: () => Promise<unknown>, tolerate?: string) => {
+      try { await fn(); results.push({ file: file.name, target: label, status: 'ok' }); }
+      catch (e: any) {
+        const msg: string = e?.message ?? '失败';
+        if (tolerate && msg.includes(tolerate)) { results.push({ file: file.name, target: label, status: 'ok', note: '不适用，跳过' }); return; }
+        results.push({ file: file.name, target: label, status: 'fail', note: msg });
+      }
+    };
+    await apply('主持人签字（开标记录）', () => uploadOpeningSignScan(projectId, 'host', file));
+    await apply('监督人签字（开标记录）', () => uploadOpeningSignScan(projectId, 'supervisor', file), 'NO_SUPERVISOR');
+    if (data.packet) await apply('主报告签字页（共签）', () => uploadSignaturePageScan(projectId, file));
+    for (const e of data.experts ?? []) {
+      if (e.role !== EXPERT_ROLE.REGULAR) continue;
+      await apply(`专家·${e.name}`, () => uploadExpertScan(projectId, e.expertId, file));
+    }
+    if (results.some((x) => x.target.startsWith('主持人')) && results.every((x) => x.status !== 'fail')) {
+      try { await registerOpeningSign(projectId); } catch { /* 未到齐等场景由清单呈现 */ }
     }
     setBatchResult(results);
     setSignRefreshTick((t) => t + 1);
@@ -151,6 +181,17 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
           void onBatchUpload(fs);
         }}
       />
+      <input
+        ref={combinedInputRef}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) void onCombinedUpload(f);
+        }}
+      />
       {error && (
         <div className="rounded-xl border border-[color-mix(in_oklch,var(--danger)_30%,transparent)] px-4 py-2.5 text-xs text-[var(--danger)]">{error}</div>
       )}
@@ -170,6 +211,15 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             title="多选扫描件一次上传，按文件名自动分配去向（含主持人/监督人/专家名；主报告页须签字包生成后回传）"
           >
             {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 批量回传签字扫描件
+          </button>
+          <button
+            type="button"
+            disabled={batchBusy}
+            onClick={() => combinedInputRef.current?.click()}
+            className="neu-btn-soft !h-[34px] !text-xs"
+            title="全部签字页合并为一份 PDF：一次扫描一次上传，自动应用到所有签字项（各签字项引用同一文件，签字页在文件内可查即归属成立）"
+          >
+            <Upload size={13} /> 上传合并扫描件
           </button>
           <button
             type="button"
@@ -210,6 +260,15 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                     title="多选扫描件一次上传，按文件名自动分配去向（含主持人/监督人/报告/专家名）"
                   >
                     {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 批量回传签字扫描件
+                  </button>
+                  <button
+                    type="button"
+                    disabled={batchBusy}
+                    onClick={() => combinedInputRef.current?.click()}
+                    className="neu-btn-soft !h-[34px] !text-xs"
+                    title="全部签字页合并为一份 PDF：一次扫描一次上传，自动应用到所有签字项（各签字项引用同一文件，签字页在文件内可查即归属成立）"
+                  >
+                    <Upload size={13} /> 上传合并扫描件
                   </button>
                 </>
               )}
