@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SupplierPortalService } from './supplier-portal.service';
+import { BidService } from '../bid/bid.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -142,6 +143,8 @@ describe('SupplierPortalService', () => {
         { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
         // 构造器第 6 参（BidGateway 为 @Optional，无需提供；本 spec 不触达 LLM）
         { provide: LlmService, useValue: {} },
+        // 终局即固化（A）：BidService 仅用 autoHandoverIfDone 钩子（no-op 桩，不触达真实移交）
+        { provide: BidService, useValue: { autoHandoverIfDone: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 
@@ -1937,6 +1940,7 @@ describe('SupplierPortalService', () => {
           { provide: NotificationService, useValue: notification },
           { provide: 'REDIS_CLIENT', useValue: {} },
           { provide: LlmService, useValue: {} },
+          { provide: BidService, useValue: { autoHandoverIfDone: jest.fn().mockResolvedValue(undefined) } },
           { provide: BidGateway, useValue: gateway },
         ],
       }).compile();
@@ -2279,12 +2283,12 @@ describe('投标回执签名（A-101）', () => {
   });
 
   it('未绑定 SM2 公钥 → 400 SM2_PUBLIC_KEY_MISSING', async () => {
-    const svcA = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svcA = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svcA.getReceiptPayloadFor('sb-1', 'sup-1')).rejects.toMatchObject({ response: { code: 'SM2_PUBLIC_KEY_MISSING' } });
   });
 
   it('非本人提交 → 403', async () => {
-    const svcB = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svcB = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svcB.getReceiptPayloadFor('sb-1', 'sup-other')).rejects.toMatchObject({ status: 403 });
   });
 
@@ -2295,7 +2299,7 @@ describe('投标回执签名（A-101）', () => {
     const pubKey = '04' + kp.publicKey.replace(/^04/, '');
     const prisma = mkReceipt({ supplier: { sm2PublicKey: pubKey } });
     // 用独立实例（绕过共享 service 的注入 mock）
-    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     const { payload, canonical } = await svc2.getReceiptPayloadFor('sb-1', 'sup-1');
     expect(payload).toMatchObject({ submissionId: 'sb-1', projectId: 'p1', filesCommit: 'hash-x' });
     const signature = sm2.doSignature(canonical, privKey, { hash: true, pubKey: pubKey });
@@ -2305,14 +2309,14 @@ describe('投标回执签名（A-101）', () => {
     );
     // 幂等：已签名再签 → 直接返回现存
     const prisma2 = mkReceipt({ supplier: { sm2PublicKey: pubKey }, sub: { receiptSignature: { already: true }, receiptSignedAt: new Date() } });
-    const svc3 = new SupplierPortalService(prisma2 as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svc3 = new SupplierPortalService(prisma2 as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svc3.signSubmissionReceipt('sb-1', 'sup-1', 'anysig')).resolves.toMatchObject({ receiptSignature: { already: true } });
   });
 
   it('签名不匹配 → 400 RECEIPT_SIGNATURE_INVALID', async () => {
     const kp = sm2.generateKeyPairHex();
     const prisma = mkReceipt({ supplier: { sm2PublicKey: '04' + kp.publicKey.replace(/^04/, '') } });
-    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svc2.signSubmissionReceipt('sb-1', 'sup-1', 'deadbeef')).rejects.toMatchObject({
       response: { code: 'RECEIPT_SIGNATURE_INVALID' },
     });

@@ -6173,3 +6173,114 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 });
+
+/* ═══ 终局即固化（A）+ 启动评标兜底（B）：completeOpening 自动化 ═══ */
+
+describe('autoHandoverIfDone / startEvaluation 移交兜底', () => {
+  function buildModule(prisma: any) {
+    return Test.createTestingModule({
+      providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: BidGateway, useValue: { notifySupervisionLog: jest.fn() } },
+      ],
+    }).compile();
+  }
+
+  it('A·no-op：会话不存在 → 不触发 completeOpening', async () => {
+    const prisma: any = {
+      bidOpeningSession: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+    };
+    const service = (await (await buildModule(prisma)).get(BidService) as any);
+    const spy = jest.spyOn(service as any, 'completeOpening').mockResolvedValue({} as any);
+    await service.autoHandoverIfDone('p1', '测试');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('A·no-op：已开标完成（幂等短路） → 不触发', async () => {
+    const prisma: any = {
+      bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ status: '开标完成' }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    const spy = jest.spyOn(service as any, 'completeOpening').mockResolvedValue({} as any);
+    await service.autoHandoverIfDone('p1', '测试');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('A·no-op：阶段已非 OPENING → 不触发（阶段棘轮保护）', async () => {
+    const prisma: any = {
+      bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ status: '待开标' }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    const spy = jest.spyOn(service as any, 'completeOpening').mockResolvedValue({} as any);
+    await service.autoHandoverIfDone('p1', '测试');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('A·no-op：仍有供应商未到终局态 → 不触发', async () => {
+    const prisma: any = {
+      bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ status: '待开标' }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    jest.spyOn(service as any, 'getOpeningNotReady').mockResolvedValue(['甲公司']);
+    const spy = jest.spyOn(service as any, 'completeOpening').mockResolvedValue({} as any);
+    await service.autoHandoverIfDone('p1', '测试');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('A·触发：全体终局 → 以 auto 标记调用 completeOpening', async () => {
+    const prisma: any = {
+      bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ status: '待开标' }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    jest.spyOn(service as any, 'getOpeningNotReady').mockResolvedValue([]);
+    const spy = jest.spyOn(service as any, 'completeOpening').mockResolvedValue({} as any);
+    await service.autoHandoverIfDone('p1', '供应商确认唱标');
+    expect(spy).toHaveBeenCalledWith('p1', undefined, { auto: true, trigger: '供应商确认唱标' });
+  });
+
+  it('A·吞错：completeOpening 失败不向上抛（绝不阻塞业务路径）', async () => {
+    const prisma: any = {
+      bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ status: '待开标' }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    jest.spyOn(service as any, 'getOpeningNotReady').mockResolvedValue([]);
+    jest.spyOn(service as any, 'completeOpening').mockRejectedValue(new Error('MinIO down'));
+    await expect(service.autoHandoverIfDone('p1', '测试')).resolves.toBeUndefined();
+  });
+
+  it('B·兜底：startEvaluation 在阶段离开 OPENING 前先调 autoHandoverIfDone（随后因无专家抛错也不影响断言）', async () => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING', name: 'X', procurementMethod: '公开招标', roundMode: 'single', projectManagementItemId: null }) },
+      bidExpert: { count: jest.fn().mockResolvedValue(0) },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    const heal = jest.spyOn(service as any, 'autoHandoverIfDone').mockResolvedValue(undefined);
+    await expect(service.startEvaluation('p1', 'u1')).rejects.toThrow();
+    // 第三参=复用已查项目行（少一次查询，不吞上游 findUnique mock 序列）
+    expect(heal).toHaveBeenCalledWith('p1', '启动评标兜底', expect.objectContaining({ stage: 'OPENING' }));
+  });
+
+  it('B·非 OPENING 项目启动评标不触发兜底（如跳步场景）', async () => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'DOWNLOAD', name: 'X', procurementMethod: '公开招标', roundMode: 'single', projectManagementItemId: null }) },
+      bidExpert: { count: jest.fn().mockResolvedValue(0) },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    const heal = jest.spyOn(service as any, 'autoHandoverIfDone').mockResolvedValue(undefined);
+    await expect(service.startEvaluation('p1', 'u1')).rejects.toThrow();
+    expect(heal).not.toHaveBeenCalled();
+  });
+});

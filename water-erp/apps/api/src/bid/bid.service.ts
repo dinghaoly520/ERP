@@ -915,7 +915,7 @@ export class BidService {
    * 并向 leader/staff 发站内信（深链直达 :3005 开标确认面板）。
    * 非闸门：:3005 启动评标不依赖本动作（H4 口径独立满足即可）。
    */
-  async completeOpening(id: string, actorId?: string) {
+  async completeOpening(id: string, actorId?: string, opts?: { auto?: boolean; trigger?: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { id: true, projectCode: true, name: true, stage: true, procurementMethod: true, openTime: true, deadline: true, projectManagementItemId: true },
@@ -997,7 +997,7 @@ export class BidService {
         data: { status: '开标完成', handoverAt: now, handoverAssetId: asset.id },
       });
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: now, role: existing.host, target: project.name, action: '完成开标·资料移交', result: '开标文件包已生成并移交采购管理工作台', riskFlag: '无' },
+        data: { projectId: id, time: now, role: existing.host, target: project.name, action: '完成开标·资料移交', result: `${opts?.auto ? `[自动固化·${opts.trigger ?? '终局'}] ` : ''}开标文件包已生成并移交采购管理工作台`, riskFlag: '无' },
       });
       if (actorId) {
         let integrityStamp: { ts: string; sig: string } | null = null;
@@ -1014,7 +1014,7 @@ export class BidService {
       handoverAt: (session.handoverAt ?? new Date()).toISOString(),
       handoverAssetId: session.handoverAssetId ?? '',
     });
-    this.gateway?.notifySupervisionLog(id, { role: existing.host, action: '完成开标·资料移交', target: project.name, result: '开标文件包已生成并移交采购管理工作台', riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(id, { role: existing.host, action: '完成开标·资料移交', target: project.name, result: `${opts?.auto ? `[自动固化·${opts.trigger ?? '终局'}] ` : ''}开标文件包已生成并移交采购管理工作台`, riskFlag: '无' });
     const pmLink = project.projectManagementItemId
       ? `/projects?projectId=${project.projectManagementItemId}&panel=bid-confirm`
       : '/projects';
@@ -1022,8 +1022,10 @@ export class BidService {
       try {
         await this.notificationService.sendToRole(role, {
           type: 'BID_OPENING_HANDED_OVER',
-          title: `项目${project.name}开标完成，资料已移交`,
-          content: '开标文件包已生成，可在开标确认面板启动评标或执行后续流程',
+          title: opts?.auto ? `项目${project.name}开标完成，开标资料已自动固化移交` : `项目${project.name}开标完成，资料已移交`,
+          content: opts?.auto
+            ? `全部投标人已到终局态（触发：${opts.trigger ?? '终局'}），开标文件包已自动生成固化`
+            : '开标文件包已生成，可在开标确认面板启动评标或执行后续流程',
           link: pmLink,
         });
       } catch { /* 通知失败不阻塞移交 */ }
@@ -1035,6 +1037,28 @@ export class BidService {
       handoverAssetId: session.handoverAssetId,
       downloadUrl: `/api/upload/files/${session.handoverAssetId}`,
     };
+  }
+
+  /** 终局即固化（A）：全部供应商到终局态后自动生成开标文件包并移交 :3005。
+   *  幂等、内部吞错仅告警——绝不阻塞触发它的业务路径；startEvaluation 另有兜底（B），
+   *  :3007 手动按钮保留为幂等补触。触发点：供应商确认唱标 / 供应商解密终局 / 主持端解密归因·裁决·接受 / 启动评标兜底。 */
+  async autoHandoverIfDone(projectId: string, trigger: string, knownProject?: { stage: string }): Promise<void> {
+    try {
+      // knownProject：调用方已查得的项目行（如 startEvaluation 自身的前置读）——复用可少一次查询，
+      // 也避免吞掉测试/上游精心排队的 findUnique mock 序列
+      const [session, project] = await Promise.all([
+        this.prisma.bidOpeningSession.findUnique({ where: { projectId }, select: { status: true } }),
+        knownProject
+          ? Promise.resolve(knownProject)
+          : this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } }),
+      ]);
+      if (!session || session.status === '开标完成' || project?.stage !== 'OPENING') return;
+      if ((await this.getOpeningNotReady(projectId)).length > 0) return;
+      await this.completeOpening(projectId, undefined, { auto: true, trigger });
+      this.logger.log(`开标文件包已自动固化移交（trigger=${trigger}）`);
+    } catch (e: any) {
+      this.logger.warn(`开标文件包自动固化失败（trigger=${trigger}，不阻塞业务）：${e?.message}`);
+    }
   }
 
   /** 开标文件包：开标环节全部资料（会话/供应商/开标记录/监督日志）+ 内容指纹。 */
@@ -1648,20 +1672,27 @@ export class BidService {
    * 入口首行惰性执行 §5.5 新轨解密失败归因矩阵（幂等）：
    * 归因 BIDDER 的家转终局态后自然放行；UNKNOWN 家仍 PENDING 继续阻塞。
    */
-  private async assertOpeningDone(id: string): Promise<void> {
+  /** H4 共享守卫（非抛错版）：返回未到终局态的供应商名单（空数组=开标已完成）——assertOpeningDone 与自动固化钩子共用 */
+  private async getOpeningNotReady(id: string): Promise<string[]> {
     await this.attributePendingDualSuppliers(id);
     const activeSuppliers = await this.prisma.bidSupplier.findMany({
       where: { projectId: id, submitStatus: { not: '已撤回' } },
       select: { supplierName: true, decryptStatus: true, confirmStatus: true },
     });
-    const notReady = activeSuppliers.filter(s => {
-      if (s.decryptStatus === 'DANGER') return false;                              // 解密异常已定性
-      if (s.decryptStatus !== 'SUCCESS') return true;                              // PENDING/RUNNING 未解密
-      return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';   // 解密成功但确认未闭环
-    });
+    return activeSuppliers
+      .filter(s => {
+        if (s.decryptStatus === 'DANGER') return false;                             // 解密异常已定性
+        if (s.decryptStatus !== 'SUCCESS') return true;                             // PENDING/RUNNING 未解密
+        return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';  // 解密成功但确认未闭环
+      })
+      .map(s => s.supplierName);
+  }
+
+  private async assertOpeningDone(id: string): Promise<void> {
+    const notReady = await this.getOpeningNotReady(id);
     if (notReady.length > 0) {
       throw new ConflictException({
-        error: `开标尚未完成，以下供应商未到终局态（解密/确认/异议未结）：${notReady.map(s => s.supplierName).join('、')}`,
+        error: `开标尚未完成，以下供应商未到终局态（解密/确认/异议未结）：${notReady.join('、')}`,
         code: 'OPENING_NOT_DONE',
       });
     }
@@ -1795,6 +1826,8 @@ export class BidService {
       select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // 移交兜底（B）：阶段离开 OPENING 前自动补齐开标文件包（幂等；失败仅告警——移交本非启动评标闸门）
+    if (project.stage === 'OPENING') await this.autoHandoverIfDone(id, '启动评标兜底', project);
     assertBidStageTransition(project.stage, 'EVALUATING');
 
     // 多轮报价项目——价格同步在 generateEvaluationResults 中执行（评标完成后才报价）
@@ -2699,6 +2732,9 @@ export class BidService {
       this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密成功，等待供应商确认唱标信息${legacyNote2}`, riskFlag: '无' });
     }
 
+    // 终局即固化（A）：解密异常定性为终局态，若全体已终局则自动固化开标文件包（幂等、不阻塞）
+    void this.autoHandoverIfDone(projectId, '主持端解密归因');
+
     return finalState;
   }
 
@@ -2878,6 +2914,8 @@ export class BidService {
     });
     this.gateway?.notifyDecryptStatus(projectId, supplierId, supplierName, 'DANGER');
     if (bidSupplier.supplierId) this.notifySupplierDecryptAttribution(bidSupplier.supplierId, supplierName, projectId, attribution);
+    // 终局即固化（A）：归因裁决为终局态写入，若全体已终局则自动固化开标文件包（幂等、不阻塞）
+    void this.autoHandoverIfDone(projectId, '解密归因裁决');
     return { adjudged: true, supplierId, supplierName, attribution };
   }
 
@@ -2937,6 +2975,9 @@ export class BidService {
       role: '开标主持人', action: '确认接受解密失败', target: bidSupplier.supplierName,
       result: windowExpired && undecrypted ? finalReason : reason, riskFlag: '高风险',
     });
+
+    // 终局即固化（A）：接受解密失败为终局态，若全体已终局则自动固化开标文件包（幂等、不阻塞）
+    void this.autoHandoverIfDone(projectId, '主持人接受解密失败');
 
     return { accepted: true, supplierId, supplierName: bidSupplier.supplierName };
   }

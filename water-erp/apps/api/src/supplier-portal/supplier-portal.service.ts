@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
+import { BidService } from '../bid/bid.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
@@ -144,6 +145,7 @@ export class SupplierPortalService {
     @Inject('REDIS_CLIENT') private redis: Redis,
     private llm: LlmService,
     private notificationService: NotificationService,
+    private readonly bidService: BidService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
 
@@ -2012,6 +2014,8 @@ export class SupplierPortalService {
         result: '供应商解密成功，等待供应商确认唱标信息', riskFlag: '无',
       });
     }
+    // 终局即固化（A）：解密异常(DANGER)即终局态——全体终局则自动固化开标文件包（幂等、不阻塞解密响应）
+    void this.bidService.autoHandoverIfDone(projectId, '供应商解密终局');
     return finalState;
   }
 
@@ -2291,6 +2295,8 @@ export class SupplierPortalService {
     this.gateway?.notifyOpeningConfirmed(projectId, supplierId, {
       projectId, supplierId, supplierName: bidSupplier.supplierName, timestamp: Date.now(),
     });
+    // 终局即固化（A）：确认唱标是最后一类终局写入——全体终局则自动固化开标文件包（幂等、不阻塞确认响应）
+    void this.bidService.autoHandoverIfDone(projectId, '供应商确认唱标');
     return { success: true };
   }
 
