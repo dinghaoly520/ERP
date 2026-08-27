@@ -7,11 +7,9 @@ import {
   type OpeningSignStatus,
 } from '@/lib/api/bid';
 
-/** P1-3①A：开标记录签字块——生成签字页 → 打印签字 → 扫描回传 → 登记闭环（进开标文件包哈希链）。
- * 显示条件：完成开标（handoverAt 存在）后。
- * variant：standalone=开标大厅原位（即时签）；merged=评标签字 tab 合并办理位（未闭环才显示，
- * 供「评标结束一次性打印、一次签完」的运营口径——签字时点证据已由线上确认+哈希固化承载，可延后）。 */
-export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projectId: string; variant?: 'standalone' | 'merged' }) {
+/** P1-3①A：开标记录签字卡——唯一入口在「评标签字」tab（评标结束一次性打印、一次签完的运营口径）。
+ * 未闭环才显示、登记闭环即隐；签字时点证据由线上确认+哈希固化承载，故不要求当场签。 */
+export function OpeningSignBlock({ projectId }: { projectId: string }) {
   const [status, setStatus] = useState<OpeningSignStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -23,7 +21,7 @@ export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projec
 
   if (!status?.hasSession) return null;
   const registered = !!status.registeredAt;
-  if (variant === 'merged' && registered) return null;
+  if (registered) return null;
 
   const onGenerate = async () => {
     setBusy(true); setMsg('');
@@ -74,9 +72,7 @@ export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projec
         )}
       </div>
       <p className="mb-3 text-xs text-[color:var(--muted-foreground)]">
-        {variant === 'merged'
-          ? <>开标记录尚未签字。下载签字页，与评标签字包一起打印、一起签，再上传扫描件完成登记。如需单独办理，请前往「开标大厅」。</>
-          : <>下载签字页打印，由主持人{status.supervisor ? '、监督人' : ''}签字后扫描上传，完成登记。不急的话，可以等评标结束和评标签字包一起办理。</>}
+        开标记录尚未签字。下载签字页，与评标签字包一起打印、一起签，再上传扫描件完成登记。
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={onGenerate} disabled={busy || registered} className="neu-btn-soft !h-[34px] !text-xs">

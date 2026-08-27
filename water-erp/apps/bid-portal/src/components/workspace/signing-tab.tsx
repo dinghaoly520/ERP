@@ -64,7 +64,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   if (!data.resultsGenerated) {
     return (
       <div className="space-y-4">
-        <OpeningSignBlock projectId={projectId} variant="merged" />
+        <OpeningSignBlock projectId={projectId} />
         <div className="rounded-2xl border border-[var(--hairline)] p-10 text-center">
           <PenLine size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]" strokeWidth={1.5} />
           <p className="text-sm font-semibold text-[var(--foreground)]">评标结果尚未生成</p>
@@ -78,7 +78,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
   return (
     <div className="space-y-4">
-      <OpeningSignBlock projectId={projectId} variant="merged" />
+      <OpeningSignBlock projectId={projectId} />
       {error && (
         <div className="rounded-xl border border-[color-mix(in_oklch,var(--danger)_30%,transparent)] px-4 py-2.5 text-xs text-[var(--danger)]">{error}</div>
       )}
