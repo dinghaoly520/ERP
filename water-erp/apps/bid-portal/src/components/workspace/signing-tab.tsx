@@ -262,7 +262,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             </div>
           </div>
 
-          {/* 主报告签字页扫描（全员共签页）——上传交互 Task 8 叠加，此处只读展示 */}
+          {/* 主报告签字页扫描（全员共签页）——只读展示；扫描回传统一走「回传签字扫描件」入口 */}
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--hairline)] pt-3">
             <span className="text-xs text-[var(--muted-foreground)]">主报告签字页扫描（全员共签）：</span>
             {data.packet.signPageScanUrl ? (
@@ -272,21 +272,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             ) : (
               <span className="text-xs text-[var(--warning,#b7791f)]">未回传</span>
             )}
-            {!closed && (
-              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--accent)]">
-                <Upload size={11} /> 上传扫描
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,application/pdf"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (f) await run('signPage', () => uploadSignaturePageScan(projectId, f));
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-            )}
+
           </div>
         </div>
       )}
