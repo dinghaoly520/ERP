@@ -255,6 +255,31 @@ export class BidSignPacketDocxService {
     return out;
   }
 
+  /** 《不同意见书》模板页（办法第43条：拒绝签字须书面陈述不同意见，拒绝且不陈述视为同意）——随签字包打印，拒签专家当场手写签名，扫描经「回传签字扫描件」归档 */
+  private buildDissentTemplate(s: SignPacketSnapshot): (Paragraph | Table)[] {
+    const handwritingArea = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [new TableRow({
+        children: [new TableCell({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          children: Array.from({ length: 14 }, () => new Paragraph({ children: [new TextRun({ text: '' })], spacing: { line: 400, lineRule: 'exact' } })),
+        })],
+      })],
+    });
+    return [
+      new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '不同意见书（模板）', bold: true, size: 30 })] }),
+      this.kvTable([
+        ['项目名称', s.project.name], ['项目编号', s.project.projectCode],
+        ['专家姓名', '　　　　'], ['专业／角色', '　　　　'],
+      ]),
+      this.para('依据《评标委员会和评标方法暂行规定》第四十三条：对评标结论持有异议的评标专家，应当以书面方式阐述其不同意见并签名；拒绝签字又不陈述书面不同意见的，视为同意评标结论。'),
+      this.h2('不同意见（由专家本人书写）'),
+      handwritingArea,
+      this.kvTable([['专家签名', '　　　　　　'], ['日期', '　　　　年　　月　　日']]),
+      this.para('注：本页随签字包打印。如有专家拒绝签字，请其当场手写不同意见并签名；扫描件经「回传签字扫描件」上传归档（文件名含专家姓名）。'),
+    ];
+  }
+
   /** 组装全部子块（公开以便测试直接断言内容；generateDocument 内部消费） */
   buildChildren(s: SignPacketSnapshot): (Paragraph | Table)[] {
     return [
@@ -262,6 +287,7 @@ export class BidSignPacketDocxService {
       ...this.buildSignaturePage(s),
       ...this.buildExpertSheets(s),
       ...this.buildDisputesAndMotions(s),
+      ...this.buildDissentTemplate(s),
     ];
   }
 
