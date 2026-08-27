@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { OpeningSignBlock } from './opening-hall-sign-block';
 import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
@@ -16,6 +15,7 @@ import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
 import { useBidUser } from '@/hooks/use-bid-user';
+// 注：开标记录签字卡在「评标签字」tab（评标结束一次性办理的运营口径），本组件不再渲染
 
 /** cgzxui 裸面板（取代 @water-erp/ui SectionCard 的 p-0 用法）——无边框玻璃静态卡 */
 function Card({ className = '', children }: { className?: string; children: React.ReactNode }) {
@@ -563,9 +563,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             </a>
           )}
         </div>
-      )}
-      {(!!session?.handoverAt || project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
-        <OpeningSignBlock projectId={project.id} />
       )}
       {openingDone && project.stage === 'OPENING' && !session?.handoverAt && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
