@@ -29,7 +29,7 @@ export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projec
     setBusy(true); setMsg('');
     try {
       const r = await generateOpeningSignPage(projectId);
-      setMsg(`签字页已生成（sha256=${r.sha256.slice(0, 12)}…），请下载打印`);
+      setMsg(`签字页已生成（校验码 ${r.sha256.slice(0, 8)}），请下载打印`);
       window.open(r.downloadUrl, '_blank');
     } catch (e: any) { setMsg(e?.response?.data?.error || '生成失败'); }
     finally { setBusy(false); }
@@ -44,7 +44,7 @@ export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projec
       setBusy(true); setMsg('');
       try {
         await uploadOpeningSignScan(projectId, role, file);
-        setMsg(`${role === 'host' ? '主持人' : '监督人'}扫描已上传`);
+        setMsg(`${role === 'host' ? '主持人' : '监督人'}签字已上传`);
         await refresh();
       } catch (e: any) { setMsg(e?.response?.data?.error || '上传失败'); }
       finally { setBusy(false); }
@@ -56,7 +56,7 @@ export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projec
     setBusy(true); setMsg('');
     try {
       const r = await registerOpeningSign(projectId);
-      setMsg(r.alreadyRegistered ? '此前已登记' : `签字登记闭环（包 sha256=${(r.packageSha256 ?? '').slice(0, 12)}…）`);
+      setMsg(r.alreadyRegistered ? '此前已完成登记' : '登记完成，开标文件包已更新');
       await refresh();
     } catch (e: any) { setMsg(e?.response?.data?.error || '登记失败'); }
     finally { setBusy(false); }
@@ -75,23 +75,23 @@ export function OpeningSignBlock({ projectId, variant = 'standalone' }: { projec
       </div>
       <p className="mb-3 text-xs text-[color:var(--muted-foreground)]">
         {variant === 'merged'
-          ? <>纸面签字过渡方案：<b>建议与评标签字包一并打印、一次签完、随本批回传登记</b>（扫描件哈希进开标文件包；也可在「开标大厅」tab 即时办理）。</>
-          : <>纸面签字过渡方案：生成签字页 → 打印 → 主持人{status.supervisor ? '/监督人' : ''}手写签字 → 扫描回传 → 登记闭环（扫描件哈希进开标文件包）。可延后至评标结束，与评标签字包一并办理。</>}
+          ? <>开标记录尚未签字。下载签字页，与评标签字包一起打印、一起签，再上传扫描件完成登记。如需单独办理，请前往「开标大厅」。</>
+          : <>下载签字页打印，由主持人{status.supervisor ? '、监督人' : ''}签字后扫描上传，完成登记。不急的话，可以等评标结束和评标签字包一起办理。</>}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={onGenerate} disabled={busy || registered} className="neu-btn-soft !h-[34px] !text-xs">
-          <Printer size={13} /> 生成/下载签字页
+          <Printer size={13} /> 下载签字页
         </button>
         <button type="button" onClick={() => onUpload('host')} disabled={busy || registered} className="neu-btn-soft !h-[34px] !text-xs">
-          <Upload size={13} /> 主持人扫描{status.hostScanUploaded ? '✓' : ''}
+          <Upload size={13} /> 上传主持人签字{status.hostScanUploaded ? '✓' : ''}
         </button>
         {status.supervisor && (
           <button type="button" onClick={() => onUpload('supervisor')} disabled={busy || registered} className="neu-btn-soft !h-[34px] !text-xs">
-            <Upload size={13} /> 监督人扫描{status.supervisorScanUploaded ? '✓' : ''}
+            <Upload size={13} /> 上传监督人签字{status.supervisorScanUploaded ? '✓' : ''}
           </button>
         )}
         <button type="button" onClick={onRegister} disabled={busy || registered || !status.hostScanUploaded} className="neu-btn-primary !h-[34px] !text-xs">
-          <ClipboardCheck size={13} /> 登记闭环
+          <ClipboardCheck size={13} /> 完成登记
         </button>
       </div>
       {msg && <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">{msg}</p>}
