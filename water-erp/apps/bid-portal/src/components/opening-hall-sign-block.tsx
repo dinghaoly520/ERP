@@ -72,11 +72,8 @@ export function OpeningSignBlock({ projectId }: { projectId: string }) {
         <FileSignature size={16} strokeWidth={1.5} className="text-[var(--primary)]" />
         <h3 className="text-sm font-semibold text-[color:var(--foreground)]">开标记录签字（办法第32条）</h3>
       </div>
-      <p className="mb-1 text-xs text-[color:var(--muted-foreground)]">
-        开标记录尚未签字。下载签字页，与下方评标签字包<b>一起打印、一次签完</b>。
-      </p>
       <p className="mb-3 text-xs text-[color:var(--muted-foreground)]">
-        回传时分开：开标记录的扫描件传这里（到齐后自动登记存档）；专家签字扫描在下方签字包处逐人上传。
+        开标记录待签署。签字页可与评标签字包一并打印；扫描件在此上传，到齐后自动登记存档。
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={onGenerate} disabled={busy} className="neu-btn-soft !h-[34px] !text-xs">
