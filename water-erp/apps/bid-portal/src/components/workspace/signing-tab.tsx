@@ -167,8 +167,9 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         </div>
       )}
 
-      {/* 专家签字清单（Task 8 叠加登记按钮与弹窗） */}
-      <div className="overflow-x-auto rounded-2xl border border-[var(--hairline)]">
+      {/* 专家签字清单（Task 8 叠加登记按钮与弹窗）—— cgzxui 玻璃卡承表（原裸 border 无面底，玻璃卡旁显透明） */}
+      <div className="neu-card-static overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-xs">
           <thead>
             <tr className="border-b border-[var(--hairline)] text-[11px] text-[var(--muted-foreground)]">
@@ -253,6 +254,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* 闭环横幅 + 回流包 */}
@@ -262,7 +264,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
           <span className="text-sm font-semibold text-[var(--success)]">签字已闭环，:3005 可执行完整归档</span>
           <div className="ml-auto flex items-center gap-2">
             {data.packet?.handoverFileAssetId ? (
-              <a href={data.packet.handoverDownloadUrl!} target="_blank" rel="noopener" className="inline-flex items-center gap-1 rounded-xl border border-[var(--hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--accent)]">
+              <a href={data.packet.handoverDownloadUrl!} target="_blank" rel="noopener" className="neu-btn-soft !h-[30px] !text-[11px]">
                 <FileDown size={12} /> 下载回流包
               </a>
             ) : (
