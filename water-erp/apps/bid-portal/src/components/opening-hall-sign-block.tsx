@@ -9,7 +9,7 @@ import {
 
 /** P1-3①A：开标记录签字卡——唯一入口在「评标签字」tab（评标结束一次性打印、一次签完的运营口径）。
  * 未闭环才显示；扫描件到齐（主持人+监督人如有）自动登记并入包存档，无需手动「完成登记」。 */
-export function OpeningSignBlock({ projectId }: { projectId: string }) {
+export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) {
   const [status, setStatus] = useState<OpeningSignStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -21,7 +21,7 @@ export function OpeningSignBlock({ projectId }: { projectId: string }) {
       return s;
     } catch { return null; }
   };
-  useEffect(() => { void refresh(); }, [projectId]);
+  useEffect(() => { void refresh(); }, [projectId, refreshKey]);
 
   if (!status?.hasSession) return null;
   const registered = !!status.registeredAt;
