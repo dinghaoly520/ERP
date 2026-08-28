@@ -108,7 +108,7 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 
 **开标+评标全过程执行终端**（2026-08-13 分工 v3）。总则：**:3005 与 :3007 是不同的人在不同地方的工作**——:3005 是采购中心办公室（评标前准备 + 评标后收尾），:3007 是开评标现场（主持人/admin）。:3005 确认能开标（按时开标）后项目流转给 :3007；**开标与评标过程中的事全归 :3007 管理**，直到评标结束；评标结束后 :3007 线上把开评标数据流转回 :3005（开标文件包 + 评标回流包），线下打印签字（评标签字包）。阶段流转：按时开标 :3005、启动评标 :3007、完整归档 :3005；流标：开标前 :3005、评标中（异议裁决）:3007。（评标管理/异议裁决/澄清答疑已迁至 :3007 工作区「评标管理」tab；:3005 面板已移除对应三区块。）页面：
 
-- **开标任务板** (`/bid`) — 只读，按阶段分区：「开标中」（解密/唱标/确认/异议四计数）/「评标中」（专家签到·投标计数，进入工作区默认评标 tab）/「待确定开标」（截标已过的 DOWNLOAD/SUBMIT，仅提示）/「已结束」（归档·流标只读回看）；行操作进入对应项目工作区
+- **开标任务板** (`/bid`) — 只读，两分区：「开标中」（解密/唱标/确认/异议四计数）/「评标中」（专家签到·投标计数，进入工作区默认评标 tab）；30s 轮询 + 回前台即时刷新、API 故障显错误横幅并保留最近数据（O5/O6，2026-08-28）；行操作进入项目工作区。归档/流标项目在「归档端」(`/bid/archive`)；截标已过未确定开标的 DOWNLOAD/SUBMIT 项目不在本端展示（原「待确定开标」分区已于 2026-07-29 删）
 - **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人+解密窗口必填/监督人选填，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`，JSON + SHA-256 指纹，存 MinIO）并 WS 广播 `opening:completed` 回传 :3005（幂等、不改 stage、非启动评标闸门），:3005「开标进度」区块展示「资料已接收·下载」
 - **项目工作区** (`/bid/project/[id]?tab=`) — 四 tab「开标大厅（嵌入大厅组件）／评标管理（**全操作**，2026-08 从 :3005 迁回：启动评标·专家进度·AI 辅助评标进度卡片·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决（含评标中流标）·澄清答疑）／评分标准（只读：评分项+得分点，编制归 :3005）／评标签字（新增）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；旧链接 `/bid/open?id=` 兼容重定向至此
 - **评标签字**（工作区 tab，2026-08 新增）— 评标结果生成后可用：生成签字包 PDF（《评标报告》十项法定内容 + 签字页含「评标专家声明」与在线操作留痕 + 个人评分确认表×N + 异议工单 + 澄清纪要 + 动议决议）→ 主持人打印 → 专家现场手写签字 → 扫描回传 → 逐专家登记「已签字 / 拒绝(附书面不同意见) / 视为同意(拒绝且未陈述理由)」→ 全员闭环 → 生成评标回流包流转回 :3005。完整归档闸门 = 签字闭环 + 回流已生成。详见 `docs/superpowers/specs/2026-08-13-expert-paper-signing-design.md`
@@ -415,7 +415,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **LLM 收口**：全部 DeepSeek 调用统一走 `local-ai/LlmService`（chat/chatJson/chatMessages）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。`tender-review/services/llm.service.ts` 已删除（死代码）。`apps/mall` 的 AI 路由待整合（残留）。
 - **OCR 多副本**：`services/ocr/start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化。副本间 `OCR_HYBRID_PORT` 段不可重叠。API 侧 `OCR_SERVICE_URL` 支持逗号列表 round-robin（`ocr.service.ts`）。
 - **ai-bid worker 扩容**：`AI_BID_WORKER_CONCURRENCY`（默认 2）；水平扩容=多开 worker 进程，BullMQ 天然安全（job ID 去重）。见 `docs/ops-scaling.md`。
-- **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only）。
+- **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only；2026-08-28 增 :3007 任务板 GET /bid/projects/dashboard 30s 轮询）。
 - **公告直建项目（N16 A 方案，2026-08-17）**：信息发布中心独立发布 BID_NOTICE 且无既有项目时，联动创建 BidProject 的同时自动补建最小 PMI（前置阶段补记 COMPLETED、currentStage=BID_EVALUATION）并回填关联——:3005 开标确认面板对公告直建项目可用。
 - **公告删除规则**：关联项目进入 SUBMIT 及以后（SUBMIT/OPENING/EVALUATING）→ 409 `BID_IN_PROGRESS`，须先流标/归档（P0-4，办法第49条不得损毁）；DOWNLOAD/ABORTED/ARCHIVED 可删且仅解关联（不级联）；SUBMIT+ 409 禁令不变。（2026-08-21 落地，终审裁定）
 

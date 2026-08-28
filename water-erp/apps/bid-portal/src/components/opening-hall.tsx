@@ -1128,7 +1128,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
       {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}
       {recordEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
+        /* O10（2026-08-28）：遮罩点击不再关弹窗——已填报价/工期草稿易误触丢失，关闭走「取消」按钮 */
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm">
           <div className="bid-dialog w-[480px] p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">{recordEntry.reentry ? '重录唱标信息' : '录入唱标信息'} — {recordEntry.supplierName}</h3>
             <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">据解密后的投标内容填写，提交后{recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。</p>

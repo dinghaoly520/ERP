@@ -2,7 +2,8 @@
 
 /**
  * 开评标实时事件 hook（与 apps/web/src/hooks/use-bid-websocket.ts 双份维护，改动需双向同步）。
- * :3007 开标任务板/项目工作区用：开标进度（decrypt:status / opening:confirmed / opening:disputed）、
+ * :3007 项目工作区用（任务板为 30s 轮询不经 WS；工作区页级与会场交流抽屉各持一条连接）：
+ * 开标进度（decrypt:status / opening:confirmed / opening:disputed）、
  * 阶段流转（stage:change）、轮次（round:status-change）、评标在场（expert:presence）等事件驱动刷新。
  */
 
