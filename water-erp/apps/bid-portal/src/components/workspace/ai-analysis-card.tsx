@@ -20,6 +20,10 @@ import {
 } from '@/lib/api/bid';
 
 const POLL_MS = 3000;
+/** F13：异常终态降频间隔（用户点重试/重新分析后状态复位，下一 tick 拉到进行中态即回 POLL_MS） */
+const POLL_SLOW_MS = 15000;
+/** 进行中（非终态）任务状态集合——轮询控制与 :147 inProgress 计算共用，防两处口径漂移 */
+const IN_PROGRESS_TASK_STATUSES: readonly string[] = ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'];
 
 /* 任务状态中文文案 */
 const TASK_STATUS_LABEL: Record<string, string> = {
@@ -75,19 +79,42 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
     stoppedRef.current = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
+    let intervalMs = POLL_MS;
+
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const start = (ms: number) => { intervalMs = ms; stop(); timer = setInterval(tick, ms); };
 
     const tick = async () => {
       const p = await load();
       if (cancelled) return;
-      // 停止条件：task 存在且终态且无异常——异常终态继续轮询（用户重试/重新分析后状态复位即自动继续刷新）
-      if (p?.exists && p.taskStatus && !['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(p.taskStatus) && !p.anomaly.hasAnomaly) {
-        if (timer) { clearInterval(timer); timer = null; }
-      }
+      // F13（2026-08-28）三停一降（旧实现只认「终态且无异常」，异常终态与无任务会 3s 永续轮询）：
+      // ① 无 AI 任务 → 拉一次即停（无进度可看；补救入口在 exists=false 分支一次性给出）
+      if (!p?.exists) { stop(); return; }
+      const inProgress = !!p.taskStatus && IN_PROGRESS_TASK_STATUSES.includes(p.taskStatus);
+      // ② 终态且无异常 → 停止
+      if (!inProgress && !p.anomaly.hasAnomaly) { stop(); return; }
+      // ③ 异常终态 → 降频 15s（用户重试/重新分析后状态复位为进行中，下一 tick 即回 3s）
+      //    进行中态（即使已有失败家）保持 3s——其余 bidder 仍在推进
+      if (!inProgress) { if (intervalMs !== POLL_SLOW_MS) start(POLL_SLOW_MS); }
+      else if (intervalMs !== POLL_MS) { start(POLL_MS); }
     };
 
+    // ④ 页面隐藏暂停轮询、恢复可见立即 tick + 重启（后台 tab 不再空转打接口）
+    const onVisibility = () => {
+      if (cancelled) return;
+      if (document.hidden) { stop(); }
+      else { void tick(); start(intervalMs); }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     void tick();
-    timer = setInterval(tick, POLL_MS);
-    return () => { cancelled = true; stoppedRef.current = true; if (timer) clearInterval(timer); };
+    start(POLL_MS);
+    return () => {
+      cancelled = true;
+      stoppedRef.current = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      stop();
+    };
   }, [load, stage]);
 
   const doRetry = async () => {
@@ -144,7 +171,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
 
   const { total, completed, failed, anomaly, taskStatus } = progress;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const inProgress = taskStatus === 'PENDING' || taskStatus === 'TENDER_PROCESSING' || taskStatus === 'ANALYZING';
+  const inProgress = IN_PROGRESS_TASK_STATUSES.includes(taskStatus ?? '');
   // 补救按钮仅在 EVALUATING 阶段可用（ARCHIVED/ABORTED 回看为只读快照）
   const actionsEnabled = stage === 'EVALUATING';
   const showRetry = actionsEnabled && (anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
