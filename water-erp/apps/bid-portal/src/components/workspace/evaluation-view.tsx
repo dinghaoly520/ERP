@@ -1048,7 +1048,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 当前截止：<span className="tabular-nums text-[var(--foreground)]">{project?.evaluationDeadline ? new Date(project.evaluationDeadline).toLocaleString('zh-CN') : '—'}</span>
                 {project?.evaluationDeadline && new Date(project.evaluationDeadline).getTime() < Date.now() && <span className="ml-1 font-semibold text-[var(--danger)]">（已超时）</span>}
               </p>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数</label>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数<span className="ml-1.5 font-normal normal-case tracking-normal">（单次最长 720 小时，与启动评标时长相通）</span></label>
               <input
                 type="number"
                 min={1}

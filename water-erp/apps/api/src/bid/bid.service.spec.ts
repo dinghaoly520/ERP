@@ -6523,3 +6523,52 @@ describe('autoHandoverIfDone / startEvaluation 移交兜底', () => {
     expect(heal).not.toHaveBeenCalled();
   });
 });
+
+/* ── F16（2026-08-28）：评标延期单次上限——对齐启动评标 evaluationHours 的 720h 封顶 ── */
+describe('BidService — extendEvaluationDeadline 上限校验', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: {
+        findUnique: jest.fn().mockResolvedValue({ evaluationDeadline: new Date(), name: 'P' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('F16：extendHours=721 → 400 EXTEND_HOURS_OUT_OF_RANGE（service 硬校验，防绕过 DTO 直调），不动截止时间', async () => {
+    await expect(service.extendEvaluationDeadline('p1', 721, '理由', 'u1'))
+      .rejects.toMatchObject({ response: { code: 'EXTEND_HOURS_OUT_OF_RANGE' } });
+    expect(prisma.bidProject.update).not.toHaveBeenCalled();
+  });
+
+  it('F16：extendHours=0 / NaN → 400', async () => {
+    await expect(service.extendEvaluationDeadline('p1', 0, '理由', 'u1'))
+      .rejects.toMatchObject({ response: { code: 'EXTEND_HOURS_OUT_OF_RANGE' } });
+    await expect(service.extendEvaluationDeadline('p1', NaN, '理由', 'u1'))
+      .rejects.toMatchObject({ response: { code: 'EXTEND_HOURS_OUT_OF_RANGE' } });
+  });
+
+  it('F16：720 小时合法放行（边界）', async () => {
+    const r = await service.extendEvaluationDeadline('p1', 720, '理由', 'u1');
+    expect(r.evaluationDeadline).toBeTruthy();
+    expect(prisma.bidProject.update).toHaveBeenCalled();
+  });
+});

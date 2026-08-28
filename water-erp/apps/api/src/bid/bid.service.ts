@@ -6831,6 +6831,11 @@ export class BidService {
       select: { evaluationDeadline: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // F16（2026-08-28）：单次延期上限对齐启动评标 evaluationHours 的 720h 封顶——
+    // 旧实现 DTO 仅 @Min(1) 可任意延长；service 硬校验防绕过 DTO 直调
+    if (!Number.isFinite(extendHours) || extendHours < 1 || extendHours > 720) {
+      throw new BadRequestException({ error: `延期时长须为 1~720 小时（收到 ${extendHours}）`, code: 'EXTEND_HOURS_OUT_OF_RANGE' });
+    }
     const base = project.evaluationDeadline && new Date(project.evaluationDeadline) > new Date()
       ? new Date(project.evaluationDeadline)
       : new Date();
