@@ -175,7 +175,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   // 补救按钮仅在 EVALUATING 阶段可用（ARCHIVED/ABORTED 回看为只读快照）
   const actionsEnabled = stage === 'EVALUATING';
   const showRetry = actionsEnabled && (anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
-  const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
+  const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.workerIdle || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
 
   return (
     <div className={`neu-card-static p-4 ${anomaly.hasAnomaly ? 'bg-[oklch(0.97_0.03_83_/_0.35)]' : ''}`}>
@@ -201,6 +201,8 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         <div className="min-w-0 flex-1 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
           {anomaly.taskFailed ? (
             <span className="font-semibold text-[var(--danger)]">招标文件处理失败——需重新分析</span>
+          ) : anomaly.workerIdle ? (
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">队列有 AI 分析任务等待但无 worker 消费——请启动 worker（pnpm --filter api dev:worker:ai-bid-analysis）；worker 恢复后队列将自动消费</span>
           ) : anomaly.allPending ? (
             <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析未启动——请确认 AI 分析 worker 进程已运行；worker 恢复后队列将自动消费</span>
           ) : anomaly.failedNames.length > 0 ? (

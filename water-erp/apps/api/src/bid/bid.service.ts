@@ -59,6 +59,9 @@ import type { DualEnvelope, EnvelopeFileEntry, EnvelopeRole } from '@water-erp/u
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
 
+/** F14：workerIdle 队列探测宽限窗——task 行先建、job 后 add 的入队竞态余量，超窗才探测 */
+const AI_WORKER_IDLE_GRACE_MS = 30 * 1000;
+
 /** 双信封 v2 角色 → 提交记录资产引用列（与 supplier-portal reupload-dual 的 ROLE_ASSET_KEYS 同构，勿漂移） */
 const DUAL_ROLE_ASSET_KEYS = {
   technical: 'technicalFileAssetId',
@@ -2225,11 +2228,12 @@ export class BidService {
 
   /**
    * AI 辅助评标进度聚合（:3007 评标管理进度卡片轮询，3s）。
-   * 异常判定在后端完成：FAILED / 中间态停摆 / task FAILED / allPending（疑似 worker 未运行）。
+   * 异常判定在后端完成：FAILED / 中间态停摆 / task FAILED / workerIdle（队列探测：无人消费，
+   * F14 即时判定）/ allPending（30 分钟停摆兜底，疑似 worker 未运行）。
    * `now` 可注入以便测试。
    */
   async getAiAnalysisProgress(projectId: string, now: Date = new Date()) {
-    const emptyAnomaly = { hasAnomaly: false, failedNames: [] as string[], stuckNames: [] as string[], taskFailed: false, allPending: false };
+    const emptyAnomaly = { hasAnomaly: false, failedNames: [] as string[], stuckNames: [] as string[], taskFailed: false, allPending: false, workerIdle: false };
     const task = await this.prisma.aiBidAnalysisTask.findUnique({
       where: { projectId },
       include: { bidderResults: { include: { bidSupplier: { select: { supplierName: true } } } } },
@@ -2247,12 +2251,25 @@ export class BidService {
       && task.bidderResults.length > 0
       && task.bidderResults.every((b) => b.status === 'PENDING')
       && isStuck(task.updatedAt);
+    // F14（2026-08-28）：workerIdle 即时判定——「task 非终态 && 全 bidder PENDING」且停摆超宽限窗
+    // （30s，覆盖 task 行先建、job 后 add 的入队竞态）即探测队列，不再干等 30 分钟 allPending。
+    // 30 分钟 allPending 口径原样保留作兜底（队列未注入/Redis 异常时的回退）。
+    let workerIdle = false;
+    const allBidderPending = task.bidderResults.length > 0 && task.bidderResults.every((b) => b.status === 'PENDING');
+    if (!taskFailed
+      && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)
+      && allBidderPending
+      && task.updatedAt
+      && now.getTime() - new Date(task.updatedAt).getTime() > AI_WORKER_IDLE_GRACE_MS) {
+      workerIdle = await this.probeWorkerIdle(task.status, task.id, task.bidderResults[0].id);
+    }
     const anomaly = {
-      hasAnomaly: failed.length > 0 || stuck.length > 0 || taskFailed || allPending,
+      hasAnomaly: failed.length > 0 || stuck.length > 0 || taskFailed || allPending || workerIdle,
       failedNames: failed.map((b) => b.bidSupplier.supplierName),
       stuckNames: stuck.map((b) => b.bidSupplier.supplierName),
       taskFailed,
       allPending,
+      workerIdle,
     };
     return {
       exists: true,
@@ -2270,6 +2287,32 @@ export class BidService {
       })),
       anomaly,
     };
+  }
+
+  /**
+   * F14：探测本项目 AI job 是否无人消费（疑似 worker 未运行）——精确、即时、无跨项目误报。
+   * 判定顺序（counts 先行：worker 忙别家时 active>0 属正常排队，不报；直接按本项目 job=waiting
+   * 判会把「排队中」误报成「无 worker」）：
+   * 1. `getJobCounts()`：active>0 → worker 活着（消费本项目或别家）→ 不报；
+   *    active===0 且 waiting+delayed>0 → 全队列确无消费 → 报。
+   * 2. 全队列空 → 查本项目确定性 jobId（F7 约定）：查不到 = 从未入队（无人会消费）→ 报；
+   *    查到（completed/failed 保留期内）= 状态推进滞后 → 不报。
+   * 队列未注入（@Optional，单测环境）或 Redis 异常 → false，由 30 分钟 allPending 口径兜底。
+   */
+  private async probeWorkerIdle(taskStatus: string, taskId: string, firstBidderResultId: string): Promise<boolean> {
+    try {
+      // PENDING/TENDER_PROCESSING：tender job 待消费；ANALYZING：tender 已完、bidder jobs 待消费
+      const queue = taskStatus === 'ANALYZING' ? this.bidderQueue : this.tenderQueue;
+      if (!queue) return false;
+      const counts = await queue.getJobCounts();
+      if ((counts?.active ?? 0) > 0) return false;
+      if ((counts?.waiting ?? 0) + (counts?.delayed ?? 0) > 0) return true;
+      const jobId = taskStatus === 'ANALYZING' ? `bidderResult-${firstBidderResultId}` : `tender-${taskId}`;
+      const job = await queue.getJob(jobId);
+      return !job;
+    } catch {
+      return false;
+    }
   }
 
   /* ═══ Task 12：主持端解外层（dual-v2）—— 管理方私钥解 K_admin → C_inner 归属链落库 ═══ */

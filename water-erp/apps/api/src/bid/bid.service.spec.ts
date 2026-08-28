@@ -4070,6 +4070,8 @@ describe('startOpening 指派前置闸门 (R2) — Task 4', () => {
 describe('BidService — getAiAnalysisProgress', () => {
   let service: BidService;
   let prisma: any;
+  let tenderQ: any;
+  let bidderQ: any;
   const NOW = new Date('2026-08-06T12:00:00Z');
   const fresh = (minAgo: number) => new Date(NOW.getTime() - minAgo * 60_000);
 
@@ -4086,6 +4088,9 @@ describe('BidService — getAiAnalysisProgress', () => {
 
   beforeEach(async () => {
     prisma = { aiBidAnalysisTask: { findUnique: jest.fn() } };
+    // F14：队列 mock 默认「worker 活着」（active=1）——probeWorkerIdle 早退 false，既有用例行为不变
+    tenderQ = { getJobCounts: jest.fn().mockResolvedValue({ active: 1, waiting: 0, delayed: 0 }), getJob: jest.fn() };
+    bidderQ = { getJobCounts: jest.fn().mockResolvedValue({ active: 1, waiting: 0, delayed: 0 }), getJob: jest.fn() };
     const module = await Test.createTestingModule({
       providers: [
         { provide: PrismaService, useValue: prisma },
@@ -4096,6 +4101,8 @@ describe('BidService — getAiAnalysisProgress', () => {
         ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: getQueueToken(QUEUE_NAMES.TENDER_PROCESSING), useValue: tenderQ },
+        { provide: getQueueToken(QUEUE_NAMES.BIDDER_PROCESSING), useValue: bidderQ },
       ],
     }).compile();
     service = module.get(BidService);
@@ -4197,6 +4204,50 @@ describe('BidService — getAiAnalysisProgress', () => {
     const res = await service.getAiAnalysisProgress('p1', NOW);
     expect(res.anomaly.allPending).toBe(false);
     expect(res.anomaly.hasAnomaly).toBe(false);
+  });
+
+  /* ── F14（2026-08-28）：workerIdle 队列探测（即时，不再干等 30 分钟 allPending）── */
+  it('F14：task PENDING 全 bidder PENDING 停摆 60s + 队列零 active 有 waiting → workerIdle 即时为 true（allPending 仍 false）', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'PENDING', updatedAt: fresh(1), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+    ] }));
+    tenderQ.getJobCounts.mockResolvedValueOnce({ active: 0, waiting: 1, delayed: 0 });
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.workerIdle).toBe(true);
+    expect(res.anomaly.hasAnomaly).toBe(true);
+    expect(res.anomaly.allPending).toBe(false); // 停摆仅 1 分钟，30 分钟兜底口径不应命中
+    expect(tenderQ.getJobCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('F14：worker 正在消费（active>0，本项目排队属正常）→ workerIdle=false 不误报', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'PENDING', updatedAt: fresh(1), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+    ] }));
+    tenderQ.getJobCounts.mockResolvedValueOnce({ active: 2, waiting: 1, delayed: 0 });
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.workerIdle).toBe(false);
+    expect(tenderQ.getJob).not.toHaveBeenCalled(); // active>0 早退，无需查本项目 job
+  });
+
+  it('F14：停摆在宽限窗内（5s）→ 不探测队列', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'PENDING', updatedAt: new Date(NOW.getTime() - 5_000), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.workerIdle).toBe(false);
+    expect(tenderQ.getJobCounts).not.toHaveBeenCalled(); // 入队竞态宽限（task 行先建 job 后 add）
+  });
+
+  it('F14：全队列空 + 本项目确定性 jobId 查不到（从未入队）→ workerIdle=true；ANALYZING 态查 bidder 队列', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'ANALYZING', updatedAt: fresh(1), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+    ] }));
+    bidderQ.getJobCounts.mockResolvedValueOnce({ active: 0, waiting: 0, delayed: 0 });
+    bidderQ.getJob.mockResolvedValueOnce(null);
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.workerIdle).toBe(true);
+    expect(bidderQ.getJob).toHaveBeenCalledWith('bidderResult-br1'); // F7 确定性 jobId
+    expect(tenderQ.getJobCounts).not.toHaveBeenCalled(); // ANALYZING 只查 bidder 队列
   });
 });
 

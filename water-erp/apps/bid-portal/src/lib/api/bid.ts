@@ -271,6 +271,8 @@ export interface AiAnalysisProgress {
     stuckNames: string[];
     taskFailed: boolean;
     allPending: boolean;
+    /** F14：队列探测确认无人消费（即时，不等 30 分钟停摆兜底） */
+    workerIdle?: boolean;
   };
 }
 
