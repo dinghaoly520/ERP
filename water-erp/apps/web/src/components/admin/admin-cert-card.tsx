@@ -10,17 +10,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { fetchCurrentUser } from "@/lib/api/auth";
 import { fetchAdminCert, generateAdminCert, type AdminCertInfo } from "@/lib/api/admin-cert";
 
 export function AdminCertCard() {
   const [cert, setCert] = useState<AdminCertInfo | null | undefined>(undefined); // undefined = 加载中
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [denied, setDenied] = useState(false); // 非 admin（URL 直达侧栏不可见时兜底）
 
   const load = useCallback(() => {
     setLoading(true);
-    fetchAdminCert()
-      .then(setCert)
+    fetchCurrentUser()
+      .then((u) => {
+        if (u.role !== "admin") {
+          setDenied(true);
+          setCert(null);
+          return undefined;
+        }
+        return fetchAdminCert();
+      })
+      .then((c) => { if (c !== undefined) setCert(c); })
       .catch(() => setCert(undefined))
       .finally(() => setLoading(false));
   }, []);
@@ -62,6 +72,10 @@ export function AdminCertCard() {
       {loading && cert === undefined ? (
         <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-[color:var(--muted-foreground)]">
           <Loader2 size={14} className="animate-spin" /> 读取证书中…
+        </div>
+      ) : denied ? (
+        <div className="flex items-center gap-1.5 py-4 text-[13px] font-semibold text-[var(--danger)]">
+          <ShieldAlert size={14} strokeWidth={1.7} /> 无权查看——加密证书管理仅限系统管理员
         </div>
       ) : cert ? (
         <div className="space-y-4">

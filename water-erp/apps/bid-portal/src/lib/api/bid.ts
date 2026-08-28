@@ -130,22 +130,9 @@ export function decryptAdjudge(projectId: string, body: {
 
 /* ── 管理方加密证书（§3.2：查看 admin·bid_host；生成仅 admin）── */
 
-export interface AdminCertInfo {
-  id: string;
-  publicKey: string;
-  certDn: string;
-  active: boolean;
-  createdAt: string;
-}
-
-export function getAdminCert() {
-  return api.get<AdminCertInfo | null>('/bid/admin-cert');
-}
-
-/** 轮转：生成新证书置 active、旧证全部 inactive（历史信封仍可凭旧私钥解外层）。 */
-export function generateAdminCert() {
-  return api.post<AdminCertInfo>('/bid/admin-cert/generate', {});
-}
+/* 管理方加密证书端点封装已随 :3007 加密管理迁移删除（2026-08-28）：
+   管理入口在 :3005 系统管理·加密管理页（apps/web/src/lib/api/admin-cert.ts），
+   后端 GET/POST 均已收口 @Roles('admin')。 */
 
 /* ── 管理员一键重新封标（从系统内原始明文恢复，无需上传文件）── */
 
