@@ -36,6 +36,15 @@ describe('A-153 推送信封 + 平台签名', () => {
     expect((e.body as { results: unknown[] }).results).toHaveLength(1);
   });
 
+  it('双附件按 fileAssetId 排序（入参顺序无关）', () => {
+    const a = { name: '评标签字包.pdf', category: 'bid_sign_packet', fileAssetId: 'fa9', sha256: 'h9' };
+    const b = { name: '评标回流包.json', category: 'bid_evaluation_sign_handover', fileAssetId: 'fa1', sha256: 'h1' };
+    const e1 = buildPushEnvelope({ ...input, attachments: [a, b] });
+    const e2 = buildPushEnvelope({ ...input, attachments: [b, a] });
+    expect(e1.attachments).toEqual(e2.attachments);
+    expect(e1.attachments.map((x) => x.fileAssetId)).toEqual(['fa1', 'fa9']);
+  });
+
   describe('PlatformSigningService（临时 keystore 目录）', () => {
     let svc: PlatformSigningService;
     let dir: string;

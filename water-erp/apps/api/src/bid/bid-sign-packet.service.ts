@@ -416,7 +416,7 @@ export class BidSignPacketService {
   }
 
   /** 快照评标全量数据（§42 十项 + 签字页 + 个人表 + 异议/澄清/动议） */
-  private async buildSnapshot(projectId: string): Promise<SignPacketSnapshot> {
+  async buildSnapshot(projectId: string): Promise<SignPacketSnapshot> {
     const [project, committee, openingRecords, suppliers, invalidBids, scoreItems, results, disputes, clarifications, motions] =
       await Promise.all([
         this.prisma.bidProject.findUnique({
