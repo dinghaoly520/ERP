@@ -135,18 +135,19 @@ export function createClarification(
   return api.post<BidClarificationInfo>(`/bid/projects/${bidProjectId}/clarifications`, body);
 }
 
-export function replyClarification(bidProjectId: string, clarificationId: string, body: { reply: string }) {
+/**
+ * 答复澄清（同一 PATCH 端点，F19 合并原 replyClarification/registerOfflineReply 双封装）。
+ * A-143：在线答复（channel 缺省）与主持端离线登记（channel='offline' + offlineReason）共用此函数。
+ */
+export function replyClarification(
+  bidProjectId: string,
+  clarificationId: string,
+  body: { reply: string; channel?: 'offline'; offlineReason?: string },
+) {
   return api.patch<BidClarificationInfo>(
     `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/reply`,
     body,
   );
-}
-
-/** A-143：离线答复登记（type='clarification' 主持端唯一写入通道；channel=offline） */
-export function registerOfflineReply(projectId: string, cid: string, body: { reply: string; offlineReason: string }) {
-  return api.patch(`/bid/projects/${projectId}/clarifications/${cid}/reply`, {
-    reply: body.reply, channel: 'offline', offlineReason: body.offlineReason,
-  });
 }
 
 /** A-143：核验供应商在线答复签名 */

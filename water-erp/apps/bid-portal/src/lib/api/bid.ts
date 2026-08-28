@@ -97,7 +97,7 @@ export function generateOpeningSignPage(projectId: string) {
   );
 }
 
-export function uploadOpeningSignScan(projectId: string, role: 'host' | 'supervisor', file: File, _onProgress?: (pct: number) => void) {
+export function uploadOpeningSignScan(projectId: string, role: 'host' | 'supervisor', file: File) {
   const form = new FormData();
   form.append('file', file);
   return api.post<{ assetId: string; sha256: string }>(

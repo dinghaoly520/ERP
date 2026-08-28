@@ -30,6 +30,7 @@ import {
 import type { BidProjectDetail } from '@/lib/types';
 import { EXPERT_ROLE } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
+import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS, MODAL_OVERLAY_STYLE } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
 
 type Props = {
@@ -50,8 +51,6 @@ const DEFAULT_EXTEND_HOURS = 24;
 const EVAL_HOURS_MIN = 1;
 const EVAL_HOURS_MAX = 720; // 与后端启动封顶 min(·,720)、延期 @Max(720) 同口径
 const MS_PER_HOUR = 3600_000;
-/** F19：feedback 横幅自动消失时长（与 dispute-block/clarifications-block 统一 2800ms） */
-const FEEDBACK_AUTOHIDE_MS = 2800;
 
 function memoDeviceLabel(sourceDevice: string): string {
   const [device, input] = sourceDevice.split('_');
@@ -109,23 +108,19 @@ function supplierPercentScores(project: BidProjectDetail, matrix: ExpertSupplier
   return scores;
 }
 
-/* ── 迷你环形进度 ── */
-function Ring({ pct, size = 34, stroke = 4, color }: { pct: number; size?: number; stroke?: number; color: string }) {
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * Math.min(1, pct / 100);
-  return (
-    <div className="relative inline-flex shrink-0 items-center justify-center">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="oklch(0.92 0.008 258)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" className="transition-all duration-700"
-        />
-      </svg>
-      <span className="absolute text-[9px] font-extrabold tabular-nums" style={{ color }}>{Math.round(pct)}</span>
-    </div>
-  );
+/** F19：单元格偏差判定（清单与矩阵标色共用同一实现，防两处口径漂移）
+ *  ——某专家对某供应商的百分制得分偏离全体均分 > ANOMALY_THRESHOLD */
+function cellDeviationAnomaly(
+  matrix: ExpertSupplierMatrix,
+  avgBySupplier: Map<string, number>,
+  expertId: string,
+  supplierId: string,
+): { pct: number; avg: number } | null {
+  const cell = matrix.get(expertId)?.get(supplierId);
+  if (!cell || cell.maxScore <= 0) return null;
+  const pct = (cell.totalScore / cell.maxScore) * 100;
+  const avg = avgBySupplier.get(supplierId) ?? 0;
+  return avg > 0 && Math.abs(pct - avg) > ANOMALY_THRESHOLD ? { pct, avg } : null;
 }
 
 function StatTile({ label, value, sub, pct, color }: { label: string; value: string; sub: string; pct: number; color: string }) {
@@ -387,13 +382,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const anomalies: { expert: BidProjectDetail['experts'][number]; supplier: BidProjectDetail['suppliers'][number]; pct: number; avg: number }[] = [];
   for (const expert of regularExperts) {
     for (const s of suppliers) {
-      const cell = matrix.get(expert.id)?.get(s.id);
-      if (!cell || cell.maxScore <= 0) continue;
-      const pct = (cell.totalScore / cell.maxScore) * 100;
-      const avg = supplierAvg.get(s.id) ?? 0;
-      if (avg > 0 && Math.abs(pct - avg) > ANOMALY_THRESHOLD) {
-        anomalies.push({ expert, supplier: s, pct, avg });
-      }
+      const hit = cellDeviationAnomaly(matrix, supplierAvg, expert.id, s.id);
+      if (hit) anomalies.push({ expert, supplier: s, pct: hit.pct, avg: hit.avg });
     }
   }
 
@@ -458,12 +448,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     await handleGenerate();
   }
 
-  const isCellAnomaly = (expertId: string, supplierId: string): boolean => {
-    const cell = matrix.get(expertId)?.get(supplierId);
-    if (!cell || cell.maxScore <= 0) return false;
-    const avg = supplierAvg.get(supplierId) ?? 0;
-    return avg > 0 && Math.abs((cell.totalScore / cell.maxScore) * 100 - avg) > ANOMALY_THRESHOLD;
-  };
+  const isCellAnomaly = (expertId: string, supplierId: string): boolean =>
+    cellDeviationAnomaly(matrix, supplierAvg, expertId, supplierId) !== null;
 
   return (
     <section className="neu-table-card px-4 py-4">
@@ -522,18 +508,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         );
       })()}
 
-      {feedback && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
-          style={{
-            background: feedback.tone === 'ok' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--danger) 10%, transparent)',
-            color: feedback.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-          }}
-        >
-          {feedback.tone === 'ok' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-          {feedback.text}
-        </div>
-      )}
+      <FeedbackBanner feedback={feedback} />
 
       {/* AI 辅助评标进度（沿用原只读视图的 AI 卡片：补救操作不改阶段） */}
       <div className="mb-3">
@@ -863,7 +838,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* ── 3 步生成向导 ── */}
       {wizardOpen && stage === 'EVALUATING' && results.length === 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[560px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <div className="flex items-center gap-3">
@@ -1009,7 +984,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         const supplierName = suppliers.find(s => s.id === spId)?.supplierName ?? '';
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-6"
-            style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}
+            style={MODAL_OVERLAY_STYLE}
             onClick={() => setAnnotationCell(null)}>
             <div className="w-full max-w-[480px] rounded-[20px] bg-white p-5"
               style={{ boxShadow: '3px 4px 16px oklch(0.46 0.07 258 / 0.18)' }}
@@ -1055,7 +1030,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* ── 自定义评标时长（启动评标弹窗，E2）── */}
       {startDialogOpen && stage === 'OPENING' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[440px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">启动评标 · 自定义评标时长</h2>
@@ -1091,7 +1066,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* ── 评标延期审批（leader/admin，E2）── */}
       {extendDialogOpen && stage === 'EVALUATING' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[460px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标延期审批</h2>

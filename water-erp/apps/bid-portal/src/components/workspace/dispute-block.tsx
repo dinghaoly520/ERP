@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Ban, CheckCircle2, Flag, ShieldCheck, XCircle } from 'lucide-react';
 import { abortBidProject, listEvaluationResults, resolveExpertDispute } from '@/lib/api/evaluation';
+import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import type { BidProjectDetail } from '@/lib/types';
 
 type Props = {
@@ -75,7 +76,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
-    setTimeout(() => setFeedback(null), 2800);
+    setTimeout(() => setFeedback(null), FEEDBACK_AUTOHIDE_MS);
   };
 
   async function handleResolve(disputeId: string, status: 'resolved' | 'rejected', withInvalidate = false) {
@@ -140,18 +141,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
         </div>
       </div>
 
-      {feedback && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
-          style={{
-            background: feedback.tone === 'ok' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--danger) 10%, transparent)',
-            color: feedback.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-          }}
-        >
-          {feedback.tone === 'ok' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-          {feedback.text}
-        </div>
-      )}
+      <FeedbackBanner feedback={feedback} />
 
       {/* 流标建议 / 异议待裁决提醒（N4）：横幅由 suggestAbort || hasOpenDispute 控制。
           F10：结果已生成不再收起建议流标——confirm 文案会作废警示，后端凭书面理由放行（N4c）。 */}

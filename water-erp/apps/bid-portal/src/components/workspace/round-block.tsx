@@ -29,8 +29,9 @@ type Round = {
 const STATUS_LABEL: Record<string, string> = {
   pending: '待开放', open: '报价中', sealed: '已截止', published: '已公布', closed: '已结束',
 };
+// F19：状态色改主题令牌（原硬编码十六进制与全站 var(--…) 体系不一致）
 const STATUS_COLOR: Record<string, string> = {
-  pending: '#8a96aa', open: '#064ea2', sealed: '#b45309', published: '#11a874', closed: '#5a6d8a',
+  pending: 'var(--muted-foreground)', open: 'var(--accent)', sealed: 'var(--warning)', published: 'var(--success)', closed: 'var(--muted-foreground)',
 };
 
 export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {

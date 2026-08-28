@@ -12,12 +12,12 @@ import {
   createClarification,
   draftClarification,
   listClarifications,
-  registerOfflineReply,
   replyClarification,
   summarizeClarification,
   verifyClarificationReply,
   type BidClarificationInfo,
 } from '@/lib/api/evaluation';
+import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS, MODAL_OVERLAY_STYLE } from './shared';
 import type { BidProjectDetail } from '@/lib/types';
 
 type Props = {
@@ -63,7 +63,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
-    setTimeout(() => setFeedback(null), 2800);
+    setTimeout(() => setFeedback(null), FEEDBACK_AUTOHIDE_MS);
   };
 
   const load = useCallback(() => {
@@ -166,7 +166,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
     if (!offlineReply.trim() || !offlineReason.trim()) { showToast('答复内容与离线缘由均必填', 'err'); return; }
     setBusy(true);
     try {
-      await registerOfflineReply(bidProjectId, cid, { reply: offlineReply.trim(), offlineReason: offlineReason.trim() });
+      await replyClarification(bidProjectId, cid, { reply: offlineReply.trim(), channel: 'offline', offlineReason: offlineReason.trim() });
       showToast('已登记离线答复');
       setOfflineFor(null); setOfflineReply(''); setOfflineReason('');
       load(); onChanged();
@@ -192,7 +192,9 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
     }
   }
 
-  // 书面来函：供应商经书面交流渠道提交的 type=question 记录
+  // type=question 记录（答疑/书面往来）——主持端表单「答疑（回复供应商提问）」创建
+  // （F19-C 查证：供应商端无创建入口，原「供应商经书面交流渠道提交」文案名不副实；
+  // 主表格已排除此类记录防双显）
   const letters = items.filter(c => c.type === 'question');
 
   return (
@@ -214,18 +216,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
         )}
       </div>
 
-      {feedback && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
-          style={{
-            background: feedback.tone === 'ok' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--danger) 10%, transparent)',
-            color: feedback.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-          }}
-        >
-          {feedback.tone === 'ok' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-          {feedback.text}
-        </div>
-      )}
+      <FeedbackBanner feedback={feedback} />
 
       {loading ? (
         <div className="py-8 text-center text-xs text-[var(--muted-foreground)]">加载澄清数据…</div>
@@ -235,7 +226,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
           <div className="rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
             <div className="px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
               <span className="text-[11px] font-bold text-[var(--foreground)]">书面来函</span>
-              <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">供应商经书面交流渠道提交（异步；需回复请致电或发起澄清）</span>
+              <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">答疑与书面往来登记（含主持端登记的供应商提问答复；需补充答复请致电或在下方回复）</span>
             </div>
             {letters.length === 0 ? (
               <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">暂无书面来函</div>
@@ -284,7 +275,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                 {items.length === 0 ? (
                   <tr><td colSpan={8} className="px-3.5 py-6 text-center text-[var(--muted-foreground)]">暂无澄清记录</td></tr>
                 ) : (
-                  items.map(c => {
+                  items.filter(c => c.type !== 'question').map(c => {
                     const isReplied = !!c.reply;
                     const isReplying = replying === c.id;
                     const statusLabel = c.status || (isReplied ? '已回复' : '待回复');
@@ -424,7 +415,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
 
       {/* 发起澄清对话框 */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[520px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">发起澄清</h2>
@@ -496,7 +487,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
 
       {/* A-143：离线答复登记对话框（降级通道） */}
       {offlineFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[480px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">离线答复登记</h2>

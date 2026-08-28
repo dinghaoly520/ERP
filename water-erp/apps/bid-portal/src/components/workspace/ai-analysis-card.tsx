@@ -18,6 +18,7 @@ import {
   getAiAnalysisProgress, retryAiBidders, rerunAiAnalysis,
   type AiAnalysisProgress,
 } from '@/lib/api/bid';
+import { Ring } from './shared';
 
 const POLL_MS = 3000;
 /** F13：异常终态降频间隔（用户点重试/重新分析后状态复位，下一 tick 拉到进行中态即回 POLL_MS） */
@@ -35,23 +36,6 @@ const TASK_STATUS_LABEL: Record<string, string> = {
   FAILED: '招标文件处理失败',
   CANCELLED: '已取消',
 };
-
-function ProgressRing({ pct, size = 40, stroke = 4 }: { pct: number; size?: number; stroke?: number }) {
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * Math.min(1, pct / 100);
-  const color = pct >= 100 ? 'oklch(0.54 0.16 158)' : 'oklch(0.56 0.153 251)';
-  return (
-    <div className="relative inline-flex shrink-0 items-center justify-center">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="oklch(0.94 0.004 264)" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" className="transition-all duration-700" />
-      </svg>
-      <span className="absolute text-[10px] font-extrabold tabular-nums" style={{ color }}>{Math.round(pct)}%</span>
-    </div>
-  );
-}
 
 export default function AiAnalysisCard({ projectId, stage }: { projectId: string; stage: string }) {
   const [progress, setProgress] = useState<AiAnalysisProgress | null>(null);
@@ -184,7 +168,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         <div className="flex items-center gap-3">
           {anomaly.taskFailed
             ? <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[oklch(0.97_0.03_22_/_0.6)]"><AlertTriangle size={16} className="text-[var(--danger)]" /></span>
-            : <ProgressRing pct={pct} />}
+            : <Ring pct={pct} size={40} color={pct >= 100 ? 'oklch(0.54 0.16 158)' : 'oklch(0.56 0.153 251)'} textColorSize={10} trackColor="oklch(0.94 0.004 264)" />}
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">AI辅助评标</span>
