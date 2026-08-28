@@ -24,6 +24,7 @@ import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertMinAcceptedInvitees } from './bid-timing-rules';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
+import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
@@ -614,6 +615,8 @@ export class BidService {
         withdrawn,
       };
     });
+    // A-100：接收列表按接收时间排序——已递交(submittedAt 升序)在前、未递交(名册序)居中、已撤回殿后
+    sortSupplierRowsBySubmission(supplierRows);
 
     return {
       project,
@@ -1091,7 +1094,7 @@ export class BidService {
       // §5.5b（Task 18）：dual-v2 解密明文资产指纹入包（decryptedAssets → FileAsset.sha256）
       this.prisma.supplierBidSubmission.findMany({
         where: { projectId: project.id },
-        select: { supplierId: true, envelopeVersion: true, decryptedAssets: true },
+        select: { supplierId: true, envelopeVersion: true, decryptedAssets: true, status: true, submittedAt: true },
       }),
       this.prisma.bidOpeningRecord.findMany({
         where: { projectId: project.id },
@@ -1139,8 +1142,18 @@ export class BidService {
           byRole[role] = typeof assetId === 'string' ? (shaByAssetId.get(assetId) ?? null) : null;
         }
       }
-      return { ...s, decryptedFileSha256: decryptedAssets ? byRole : null };
+      return {
+        ...s,
+        decryptedFileSha256: decryptedAssets ? byRole : null,
+        // A-100：排序用临时字段（submitted/withdrawn/submission）——排序后剥离，不入文件包输出
+        submitted: submission?.status === 'submitted',
+        withdrawn: submission?.status === 'withdrawn',
+        submission: submission ? { submittedAt: submission.submittedAt } : null,
+      };
     });
+    // A-100：开标文件包供应商行同 getWorkspace 口径按接收时间排序（已递交升序→未投名册序→已撤回殿后）
+    const orderedSuppliers = sortSupplierRowsBySubmission(suppliersWithFingerprints)
+      .map(({ submitted: _submitted, withdrawn: _withdrawn, submission: _submission, ...rest }) => rest);
 
     const summary = {
       supplierTotal: suppliers.length,
@@ -1167,7 +1180,7 @@ export class BidService {
         decryptWindowStart: session.decryptWindowStart.toISOString(),
         decryptWindowEnd: session.decryptWindowEnd.toISOString(),
       },
-      suppliers: suppliersWithFingerprints,
+      suppliers: orderedSuppliers,
       openingRecords: records,
       supervisionLogs: logs,
       bidRounds: bidRounds.length > 0 ? bidRounds.map(r => ({
