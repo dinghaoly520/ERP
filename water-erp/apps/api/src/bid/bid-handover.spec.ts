@@ -12,6 +12,7 @@ import { StorageService } from '../storage/storage.service';
 import { PriceFormulaService } from './price-formula.service';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
+import { SignatureService } from '../common/crypto/signature.service';
 
 jest.mock('../upload/minio.client', () => ({
   minioClient: { getObject: jest.fn().mockResolvedValue({}), putObject: jest.fn().mockResolvedValue({}) },
@@ -62,6 +63,8 @@ async function buildService(prisma: any) {
       // Task 12 新增构造依赖（Nest 测试模块不自动实例化未注册 provider）
       { provide: AdminKeyService, useValue: { readPrivateKey: jest.fn(), getActiveCert: jest.fn(), ensureBootstrap: jest.fn(), generate: jest.fn() } },
       { provide: DualEnvelopeService, useValue: { verifySignature: jest.fn(), assertEnvelopeIntact: jest.fn(), decryptOuterFile: jest.fn(), verifyFieldsCommit: jest.fn() } },
+      // A-143（Task 4）：BidService 构造器新增 SignatureService（verifyClarificationReply 用）
+      { provide: SignatureService, useValue: { verify: jest.fn().mockReturnValue(false) } },
     ],
   }).compile();
   return moduleRef.get(BidService);

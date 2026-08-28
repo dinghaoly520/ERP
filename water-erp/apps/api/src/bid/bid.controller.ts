@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Request, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -734,8 +734,15 @@ export class BidController {
   listClarifications(@Param('id') id: string) { return this.bidService.listClarifications(id); }
 
   @Patch('projects/:id/clarifications/:cid/reply')
-  replyClarification(@Param('id') id: string, @Param('cid') cid: string, @Body() dto: ReplyClarificationDto) {
-    return this.bidService.replyClarification(id, cid, dto);
+  @ApiOperation({ summary: '回复澄清（type=question 答疑原样；type=clarification 仅离线答复登记）' })
+  replyClarification(@Param('id') id: string, @Param('cid') cid: string, @Body() dto: ReplyClarificationDto, @Request() req: any) {
+    return this.bidService.replyClarification(id, cid, req.user?.name ?? req.user?.username ?? '主持人', dto);
+  }
+
+  @Post('projects/:id/clarifications/:cid/verify-reply')
+  @ApiOperation({ summary: 'A-143：核验供应商在线答复签名（重算 canonical + SM2 验签）' })
+  verifyClarificationReply(@Param('id') id: string, @Param('cid') cid: string) {
+    return this.bidService.verifyClarificationReply(id, cid);
   }
 
   @Post('projects/:id/clarifications')

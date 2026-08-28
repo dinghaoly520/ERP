@@ -1728,6 +1728,14 @@ export class ExpertService {
       if (!supplier) throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
       clarSupplierId = supplier.supplierId;
     }
+    // A-143：supplierId 缺省时按 supplierName 在本项目投标人集合内回填（与主持端 createClarification 同语义；
+    // 专家端澄清 type 恒为默认 'clarification'，无需 type 判别；寻址不到保持 null，供应商端不可见）
+    if (!dto.supplierId && dto.supplierName) {
+      const rowByName = await this.prisma.bidSupplier.findFirst({
+        where: { projectId, supplierName: dto.supplierName },
+      });
+      if (rowByName) clarSupplierId = rowByName.supplierId;
+    }
 
     return this.prisma.bidClarification.create({
       data: {

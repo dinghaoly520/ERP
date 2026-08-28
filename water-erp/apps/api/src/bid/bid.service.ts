@@ -51,6 +51,8 @@ import { getEvaluationDefault } from './evaluation-method.config';
 import { StorageService } from '../storage/storage.service';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
+import { SignatureService } from '../common/crypto/signature.service';
+import { buildClarificationReplyCanonical } from '../supplier-portal/clarification-reply.util';
 import { sha256Hex } from '@water-erp/ukey';
 import type { DualEnvelope, EnvelopeFileEntry, EnvelopeRole } from '@water-erp/ukey';
 
@@ -87,6 +89,7 @@ export class BidService {
     private readonly storage: StorageService,
     private readonly adminKey: AdminKeyService,
     private readonly dualEnvelope: DualEnvelopeService,
+    private readonly signature: SignatureService,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
     @Optional()
@@ -4530,33 +4533,61 @@ export class BidService {
   }
 
   listClarifications(projectId: string) {
-    return this.prisma.bidClarification.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } });
+    return this.prisma.bidClarification
+      .findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } })
+      .then((rows) => rows.map((r) => this.stripClarificationSignature(r)));
   }
 
-  async replyClarification(projectId: string, cid: string, dto: ReplyClarificationDto) {
+  /** A-143：列表响应只留签名摘要（algorithm/certSn/verifiedAt），不回传 payload 全串 */
+  private stripClarificationSignature<T extends { replySignature: unknown }>(row: T) {
+    const sig = row.replySignature as { algorithm?: string; certSn?: string; verifiedAt?: string } | null;
+    return { ...row, replySignature: sig ? { algorithm: sig.algorithm, certSn: sig.certSn, verifiedAt: sig.verifiedAt } : null };
+  }
+
+  async replyClarification(projectId: string, cid: string, actorName: string, dto: ReplyClarificationDto) {
     // P1: 阶段门控 — 归档后不可回复澄清
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (project?.stage === 'ARCHIVED') {
       throw new BadRequestException({ error: '项目已归档，无法回复澄清', code: 'PROJECT_ARCHIVED' });
     }
-
-    const reply = dto.reply;
-    const status = dto.status || '已回复';
-    // 归属校验：原实现 where:{id:cid} 忽略 projectId，可用项目 A 路径回复项目 B 澄清（IDOR）
-    const existingClarification = await this.prisma.bidClarification.findFirst({
-      where: { id: cid, projectId },
-    });
-    if (!existingClarification) {
+    // 归属校验：IDOR 防护（项目 A 路径不可回复项目 B 澄清）
+    const existing = await this.prisma.bidClarification.findFirst({ where: { id: cid, projectId } });
+    if (!existing) {
       throw new BadRequestException({ error: '澄清不存在或不属于此项目', code: 'CLARIFICATION_NOT_IN_PROJECT' });
     }
-    const result = await this.prisma.bidClarification.update({
-      where: { id: cid }, data: { reply, status },
-    });
+
+    if (existing.type === 'clarification') {
+      // A-143：在线答复归供应商门户（SM2 签名）；主持端仅「离线答复登记」降级通道
+      if (dto.channel !== 'offline' || !dto.offlineReason?.trim()) {
+        throw new BadRequestException({
+          error: '评标澄清答复已迁移供应商门户在线签名提交；线下书面/电话答复请走「离线答复登记」（channel=offline + offlineReason）',
+          code: 'ONLINE_REPLY_SUPPLIER_ONLY',
+        });
+      }
+      if (existing.replyChannel === 'online') {
+        throw new ConflictException({ error: '供应商已在线签名答复，不可覆盖', code: 'ONLINE_REPLY_LOCKED' });
+      }
+    }
+    // offlineData 展开的联合类型不过 tsc——按分支分别构造 data（brief Step 2 注明回退方案）
+    const data = existing.type === 'clarification'
+      ? {
+          reply: dto.reply,
+          status: dto.status || '已回复',
+          replyChannel: 'offline' as const,
+          replySignature: Prisma.DbNull,
+          replyByName: actorName,
+          replyOfflineReason: dto.offlineReason!.trim(),
+        }
+      : { reply: dto.reply, status: dto.status || '已回复' };
+
+    const result = await this.prisma.bidClarification.update({ where: { id: cid }, data });
     // P2: emit real-time reply to project room
     this.gateway?.notifyClarificationReplied(projectId, {
-      id: cid, replier: 'host', replyPreview: reply.slice(0, 60),
+      id: cid,
+      replier: existing.type === 'clarification' ? 'host-offline' : 'host',
+      replyPreview: dto.reply.slice(0, 60),
     });
-    return result;
+    return this.stripClarificationSignature(result);
   }
 
   /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
@@ -4594,6 +4625,13 @@ export class BidService {
         throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
       }
       clarSupplierId = row.supplierId;
+    }
+    // A-143：supplierId 缺省时按 supplierName 在本项目投标人集合内回填（寻址不到保持 null，供应商端不可见）
+    if (!dto.supplierId && (dto.type || 'clarification') === 'clarification' && dto.supplierName) {
+      const rowByName = await this.prisma.bidSupplier.findFirst({
+        where: { projectId, supplierName: dto.supplierName },
+      });
+      if (rowByName) clarSupplierId = rowByName.supplierId;
     }
 
     return this.prisma.bidClarification.create({
@@ -6748,6 +6786,39 @@ export class BidService {
       },
     }).catch(() => {});
     return { evaluationDeadline: newDeadline };
+  }
+
+  /** A-143：主持端核验供应商在线答复签名（重算 canonical + SM2 验签；验真刷新 verifiedAt） */
+  async verifyClarificationReply(projectId: string, cid: string) {
+    const clar = await this.prisma.bidClarification.findFirst({ where: { id: cid, projectId } });
+    if (!clar) throw new BadRequestException({ error: '澄清不存在或不属于此项目', code: 'CLARIFICATION_NOT_IN_PROJECT' });
+    const sig = clar.replySignature as
+      | { payload?: string; signature?: string; certSn?: string; verifiedAt?: string }
+      | null;
+    if (clar.replyChannel !== 'online' || !sig?.signature || !sig.certSn || !clar.reply) {
+      throw new BadRequestException({ error: '该澄清无在线签名答复', code: 'NO_ONLINE_REPLY' });
+    }
+    const attachments = ((clar.replyAttachmentIds ?? []) as { fileAssetId: string; sha256: string }[])
+      .map((a) => ({ fileAssetId: a.fileAssetId, sha256: a.sha256 }));
+    const canonical = buildClarificationReplyCanonical({
+      clarificationId: clar.id, projectId, supplierId: clar.supplierId ?? '',
+      reply: clar.reply, attachments, certSn: sig.certSn,
+    });
+    const cert = await this.prisma.supplierCert.findFirst({ where: { certSn: sig.certSn } });
+    const valid = !!cert && this.signature.verify(canonical, sig.signature, cert.publicKey);
+    // 完整性双保险：库内 payload 串须与重算 canonical 一致（防行内 payload 被篡改）
+    const consistent = canonical === sig.payload;
+    if (valid && consistent) {
+      const refreshed = { ...sig, verifiedAt: new Date().toISOString() };
+      await this.prisma.bidClarification.update({ where: { id: cid }, data: { replySignature: refreshed } });
+      return { valid: true, certSn: sig.certSn, bindingStatus: cert!.bindingStatus, verifiedAt: refreshed.verifiedAt };
+    }
+    return {
+      valid: valid && consistent,
+      certSn: sig.certSn,
+      bindingStatus: cert?.bindingStatus ?? 'NOT_FOUND',
+      verifiedAt: sig.verifiedAt ?? null,
+    };
   }
 }
 
