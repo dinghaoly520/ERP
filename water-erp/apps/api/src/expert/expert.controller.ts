@@ -259,10 +259,10 @@ export class ExpertController {
 
   /* ── A-136：澄清与修改文件（评委核对招标文件修改的法定输入）── */
 
-  @ApiOperation({ summary: '本项目已发布澄清/修改文件列表' })
+  @ApiOperation({ summary: '本项目已发布澄清/修改文件列表（本项目评委）' })
   @Get('projects/:projectId/clarification-docs')
-  async listClarificationDocs(@Param('projectId') projectId: string) {
-    return this.clarifications.listDocsForExpert(projectId);
+  async listClarificationDocs(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.clarifications.listDocsForExpert(projectId, userId);
   }
 
   @ApiOperation({ summary: '专家下载澄清修改文件（附件流式直出 + 监督日志）' })

@@ -1,5 +1,13 @@
+import { Readable } from 'node:stream';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { TenderClarificationService } from './tender-clarification.service';
+
+jest.mock('../upload/minio.client', () => ({
+  minioClient: { getObject: jest.fn() },
+  MINIO_BUCKET: 'test-bucket',
+}));
+
+const { minioClient } = require('../upload/minio.client');
 
 const DAY = 24 * 3_600_000;
 
@@ -227,13 +235,22 @@ describe('TenderClarificationService 供应商侧（A-85/A-86）', () => {
 describe('A-136 专家端澄清修改文件', () => {
   it('listDocsForExpert：仅已发布、按 version 升序', async () => {
     const prisma = {
+      bidExpert: { findFirst: jest.fn().mockResolvedValue({ expertName: '刘苡池' }) },
       tenderClarificationDoc: { findMany: jest.fn().mockResolvedValue([{ id: 'd1', version: 1 }]) },
     };
-    await makeService(prisma).listDocsForExpert('p1');
+    await makeService(prisma).listDocsForExpert('p1', 'u1');
     expect(prisma.tenderClarificationDoc.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { projectId: 'p1', status: '已发布' },
       orderBy: { version: 'asc' },
     }));
+  });
+
+  it('listDocsForExpert：非本项目评委 → 403 NOT_PROJECT_EXPERT（与 download 对称门控）', async () => {
+    const prisma = {
+      bidExpert: { findFirst: jest.fn().mockResolvedValue(null) },
+      tenderClarificationDoc: { findMany: jest.fn() },
+    };
+    await expect(makeService(prisma).listDocsForExpert('p1', 'u9')).rejects.toThrow(ForbiddenException);
   });
 
   it('downloadDocForExpert：非本项目评委 → 403 NOT_PROJECT_EXPERT', async () => {
@@ -249,5 +266,36 @@ describe('A-136 专家端澄清修改文件', () => {
       tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     await expect(makeService(prisma).downloadDocForExpert('p1', 'dX', 'u1')).rejects.toThrow(BadRequestException);
+  });
+
+  it('downloadDocForExpert：附件命中 → minio 直出 buffer 与元信息', async () => {
+    (minioClient.getObject as jest.Mock).mockResolvedValue(Readable.from([Buffer.from('clarification-pdf')]));
+    const prisma = {
+      tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '已发布', version: 2, title: '澄清二', content: '正文', fileAssetId: 'fa-1' }) },
+      bidExpert: { findFirst: jest.fn().mockResolvedValue({ expertName: '刘苡池' }) },
+      fileAsset: { findUnique: jest.fn().mockResolvedValue({ key: 'clar/d1.pdf', originalName: '澄清二.pdf', mimeType: 'application/pdf' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const r = await makeService(prisma).downloadDocForExpert('p1', 'd1', 'u1');
+    expect(minioClient.getObject).toHaveBeenCalledWith('test-bucket', 'clar/d1.pdf');
+    expect(r.buffer?.equals(Buffer.from('clarification-pdf'))).toBe(true);
+    expect(r).toMatchObject({ fileName: '澄清二.pdf', mimeType: 'application/pdf', title: '澄清二', version: 2, content: '正文' });
+  });
+
+  it('downloadDocForExpert：下载写监督日志（评审专家 / 下载澄清修改文件 / v{version} title）', async () => {
+    (minioClient.getObject as jest.Mock).mockResolvedValue(Readable.from([Buffer.from('x')]));
+    const prisma = {
+      tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '已发布', version: 2, title: '澄清二', content: '正文', fileAssetId: 'fa-1' }) },
+      bidExpert: { findFirst: jest.fn().mockResolvedValue({ expertName: '刘苡池' }) },
+      fileAsset: { findUnique: jest.fn().mockResolvedValue({ key: 'clar/d1.pdf', originalName: '澄清二.pdf', mimeType: 'application/pdf' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    await makeService(prisma).downloadDocForExpert('p1', 'd1', 'u1');
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: 'p1', role: '评审专家', target: '刘苡池',
+        action: '下载澄清修改文件', result: 'v2 澄清二', riskFlag: '无',
+      }),
+    });
   });
 });

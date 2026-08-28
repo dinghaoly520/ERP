@@ -271,8 +271,14 @@ export class TenderClarificationService {
     };
   }
 
-  /** A-136：专家视角已发布澄清/修改文件列表（评委核对招标文件澄清修改的法定输入）。 */
-  async listDocsForExpert(projectId: string) {
+  /** A-136：专家视角已发布澄清/修改文件列表（评委核对招标文件澄清修改的法定输入）。
+   *  门控与 downloadDocForExpert 对称——仅本项目评标专家可见。 */
+  async listDocsForExpert(projectId: string, expertUserId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId: expertUserId },
+      select: { expertName: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '仅本项目评标专家可查看', code: 'NOT_PROJECT_EXPERT' });
     return this.prisma.tenderClarificationDoc.findMany({
       where: { projectId, status: '已发布' },
       orderBy: { version: 'asc' },

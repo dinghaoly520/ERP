@@ -84,7 +84,12 @@ function ClarificationDocsCard({ projectId }: { projectId: string }) {
       </div>
       <hr className="wb-section-rule" />
       <div className="p-4">
-        {!docs || docs.length === 0 ? (
+        {docs === null ? (
+          <div className="flex items-center justify-center gap-2 py-5 text-[var(--muted-foreground)]">
+            <Loader size={14} strokeWidth={1.5} className="animate-spin" />
+            <span className="text-xs">正在加载澄清修改文件...</span>
+          </div>
+        ) : docs.length === 0 ? (
           <div className="py-5 text-center text-[var(--muted-foreground)]">
             <ScrollText size={26} strokeWidth={1} className="mx-auto mb-2 opacity-50" />
             <p className="text-xs">暂无澄清修改文件</p>
