@@ -40,15 +40,16 @@
 - 前端签字素材齐全：`utils/ukey-factory.ts`（detectUkey/openUkey）、`bids/[id]/submit/page.tsx` 的 PIN 弹窗与回执签字序列、`SpDialog/SpButton/SpInput`。
 - 上传：`POST /api/upload?category=X`（supplier 角色允许，50MB），关联模式 = 先上传后传 assetId；类目白名单在 `upload-categories.ts`。
 
-### 3.2 Schema 变更（`BidClarification` 加 4 个可空列）
+### 3.2 Schema 变更（`BidClarification` 加 5 个可空列）
 
 ```prisma
 model BidClarification {
   // ……既有字段不动……
-  replyChannel       String?   // 'online' | 'offline'；null = 历史数据
-  replySignature     Json?     // {v:1, payload, signature, algorithm:'SM2/SM3', certSn, verifiedAt}
-  replyAttachmentIds Json?     // [{fileAssetId, name, sha256}]
-  replyByName        String?   // 答复操作人（供应商登录名 / 主持人姓名）留痕
+  replyChannel        String?   // 'online' | 'offline'；null = 历史数据
+  replySignature      Json?     // {v:1, payload, signature, algorithm:'SM2/SM3', certSn, verifiedAt}
+  replyAttachmentIds  Json?     // [{fileAssetId, name, sha256}]
+  replyByName         String?   // 答复操作人（供应商登录名 / 主持人姓名）留痕
+  replyOfflineReason  String?   // 离线答复缘由（channel=offline 必填，见 §3.5）
 }
 ```
 
