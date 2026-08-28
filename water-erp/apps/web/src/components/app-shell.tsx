@@ -15,6 +15,7 @@ import {
   TrendingUp,
   UserRound,
   UserCog,
+  ShieldCheck,
   Building2,
   Users,
   Boxes,
@@ -116,6 +117,8 @@ const navGroups: NavGroup[] = [
     items: [
       // 注册审核 / 密码审批已并入账号管理（2026-08-21 三合一），旧路由重定向到 /admin/accounts
       { key: "accounts", label: "账号管理", href: "/admin/accounts", icon: UserCog, meta: "账号/注册审核/密码审批", roles: ["admin"] },
+      // 加密管理（2026-08-28 自 :3007 迁入）：管理方加密证书轮转——投递期管理动作归 :3005
+      { key: "crypto", label: "加密管理", href: "/admin/crypto", icon: ShieldCheck, meta: "投标加密证书", roles: ["admin"] },
     ],
     roles: ["admin"],
   },

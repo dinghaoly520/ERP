@@ -7,7 +7,6 @@ import NotificationBell from './notification-bell';
 import {
   Gavel,
   Archive,
-  KeyRound,
   LogOut,
   ChevronDown,
   ChevronLeft,
@@ -24,19 +23,15 @@ interface NavItem {
   caption?: string;
   path: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-  /** 可见角色（缺省=全部登录角色）；与后端 @Roles 对齐 */
-  roles?: string[];
 }
 
 // Phase 3 + 归档恢复：:3007 为纯开标执行终端，仅开标大厅 + 归档端（只读回看）。
 // 项目管理 / 评标 / 澄清 / 归档操作全部归 :3005 采购管理工作台。
+// （加密证书管理曾短暂设于本端侧栏/专页，2026-08-28 迁 :3005 系统管理——证书轮转属
+// 投递期管理动作，按分工 v3 归 :3005；:3007 现场解外层全自动无需管理入口。）
 const navItems: NavItem[] = [
   { label: '开标大厅', caption: '开标任务 · 在线开标', path: '/bid', icon: Gavel },
   { label: '归档端', caption: '已归档项目', path: '/bid/archive', icon: Archive },
-  // 加密管理（2026-08-28）：管理方加密证书轮转 + 双信封/密钥托管说明——
-  // 原 T17 侧栏底部 AdminCertCard 并入 /bid/crypto 页。读=admin/bid_host（对齐 GET 端点），
-  // 轮转仅 admin（页面内控制）。
-  { label: '加密管理', caption: '证书与密钥', path: '/bid/crypto', icon: KeyRound, roles: ['admin', 'bid_host'] },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -66,10 +61,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // 单一入口：任务板(/bid) 与项目工作区(/bid/project/[id]) 均高亮
   const isActive = (path: string) => {
-    if (path === '/bid') {
-      return pathname === '/bid'
-        || (pathname.startsWith('/bid/') && !pathname.startsWith('/bid/archive') && !pathname.startsWith('/bid/crypto'));
-    }
+    if (path === '/bid') return pathname === '/bid' || (pathname.startsWith('/bid/') && !pathname.startsWith('/bid/archive'));
     return pathname === path || pathname.startsWith(path + '/');
   };
 
@@ -117,7 +109,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         >
           {/* 品牌块已上移至顶栏 sp-brand；侧栏顶部仅留呼吸 padding */}
           <nav className="sidebar-scroll sidebar-nav mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pt-3 pb-1">
-            {navItems.filter(item => !item.roles || !user || item.roles.includes(user.role)).map(item => {
+            {navItems.map(item => {
               const active = isActive(item.path);
               const Icon = item.icon;
               return (
