@@ -137,12 +137,17 @@ describe('Supplier (e2e)', () => {
   });
 
   it('A-94：非法报价 bidPrice:"12,600" 递交 → 400（SubmitBidDto 同一格式闸门）', async () => {
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post(`/api/supplier-portal/bid-submissions/${draftProjectId}/submit`)
       .set('Cookie', supplierCookie)
       .set('X-Portal', 'supplier')
       .send({ bidPrice: '12,600' })
       .expect(400);
+    // 区分管道格式 400 与递交期业务 400：业务闸门返回专属 code（HOST_DECRYPT_CONSENT_REQUIRED/
+    // DEADLINE_PASSED 等）；ValidationPipe 400 经 HttpExceptionFilter 输出通用 code 'Bad Request'
+    // （filter 的 VALIDATION_ERROR/文案分支对数组 message 不可达——pre-existing，故无法断「投标报价」文案）
+    expect(res.body.code).toBe('Bad Request');
+    expect(res.body.error).toBe('Bad Request Exception');
   });
 
   it('A-94：合法草稿全字段（含 splitFiles/clientDeks）→ 201 且回读字段在（whitelist 不剥落、空串转未填）', async () => {

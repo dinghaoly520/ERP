@@ -1,4 +1,4 @@
-import { IsObject, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsObject, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 /**
@@ -47,4 +47,8 @@ export class SaveBidDraftDto {
 export class SubmitBidDto extends SaveBidDraftDto {
   @IsOptional() @IsObject() envelope?: any; // DualEnvelope（@water-erp/ukey 类型，仅类型引用避免循环依赖）
   @IsOptional() @IsString() @MaxLength(4096) signature?: string;
+  /** 旧轨 SM2 抗抵赖签名对：服务层 signature+fileHash 联合触发验签——缺装饰器被剥落后验签静默跳过（SHA-256 hex=64） */
+  @IsOptional() @IsString() @MaxLength(128) fileHash?: string;
+  /** P1-1 旧轨代解密授权（办法第30条留痕）：服务层递交闸门要求 ===true——缺装饰器被剥落后闸门协议层不可满足 */
+  @IsOptional() @IsBoolean() hostDecryptAuthorized?: boolean;
 }
