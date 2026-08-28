@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidService } from '../bid/bid.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -100,6 +101,7 @@ describe('SupplierPortalService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
+        delete: jest.fn(),
       },
       bidSupplier: {
         findFirst: jest.fn(),
@@ -744,6 +746,28 @@ describe('SupplierPortalService', () => {
 
       await expect(service.saveBidDraft('supplier-1', 'project-1', { bidPrice: '100' }))
         .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_DRAFTABLE' } });
+    });
+  });
+
+  describe('deleteBidDraft（A-88）', () => {
+    // 截止/阶段闸门与保存草稿同源（assertCanSaveBidDraft）——此处 mock 放行，聚焦删除分支
+    beforeEach(() => {
+      jest.spyOn(service as any, 'assertCanSaveBidDraft').mockResolvedValue({});
+    });
+
+    it('draft 草稿 → 删除成功', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub1', status: 'draft' });
+      prisma.supplierBidSubmission.delete.mockResolvedValue({ id: 'sub1' });
+      await expect(service.deleteBidDraft('sup1', 'proj1')).resolves.toEqual({ deleted: true });
+      expect(prisma.supplierBidSubmission.delete).toHaveBeenCalledWith({ where: { id: 'sub1' } });
+    });
+    it('不存在 → 400 DRAFT_NOT_FOUND', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      await expect(service.deleteBidDraft('sup1', 'proj1')).rejects.toThrow(BadRequestException);
+    });
+    it('已提交 → 400 DRAFT_NOT_DELETABLE（须走撤回）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub1', status: 'submitted' });
+      await expect(service.deleteBidDraft('sup1', 'proj1')).rejects.toThrow(BadRequestException);
     });
   });
 

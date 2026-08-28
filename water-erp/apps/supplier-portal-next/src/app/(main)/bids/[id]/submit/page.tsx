@@ -8,6 +8,7 @@ import {
   Send, TriangleAlert, Check, X, Upload, Plus, Trash2, FolderPlus, CircleCheck,
   ArrowLeft, CircleX, Info, KeyRound,
 } from "lucide-react";
+import { api } from "@/lib/api";
 import { bidApi } from "@/lib/api/bid";
 import { supplierApi } from "@/lib/api/supplier";
 import { uploadFile, type FileAssetResponse } from "@/lib/api/upload";
@@ -130,6 +131,13 @@ const EMPTY_FORM: BidForm = {
   bidBondAssetId: "",
 };
 
+/** 拆分文件三分类的空态（初始/删除草稿后复位共用） */
+const EMPTY_SPLIT_CATS: Record<SplitKey, SplitCategory> = {
+  tech: { label: "技术方案", description: "技术方案、实施方案、质量控制等", files: [], uploading: false, progress: null },
+  biz: { label: "商务文件", description: "报价明细、资质证明、业绩案例等", files: [], uploading: false, progress: null },
+  other: { label: "其他材料", description: "补充说明、认证证书、授权函等", files: [], uploading: false, progress: null },
+};
+
 const DRAFT_PREFIX = "supplier_draft:";
 
 /** 读取本地草稿的存储时间戳（与 useAutoSave 的落盘格式一致；挂载期同步可读） */
@@ -244,15 +252,17 @@ function BidSubmitInner() {
   const [bondUploadProgress, setBondUploadProgress] = useState<number | null>(null);
 
   const [splitCats, setSplitCats] = useState<Record<SplitKey, SplitCategory>>({
-    tech: { label: "技术方案", description: "技术方案、实施方案、质量控制等", files: [], uploading: false, progress: null },
-    biz: { label: "商务文件", description: "报价明细、资质证明、业绩案例等", files: [], uploading: false, progress: null },
-    other: { label: "其他材料", description: "补充说明、认证证书、授权函等", files: [], uploading: false, progress: null },
+    tech: { ...EMPTY_SPLIT_CATS.tech },
+    biz: { ...EMPTY_SPLIT_CATS.biz },
+    other: { ...EMPTY_SPLIT_CATS.other },
   });
 
   const [autoSaveReady, setAutoSaveReady] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryTs, setRecoveryTs] = useState<number | null>(null);
   const [submitDialogVisible, setSubmitDialogVisible] = useState(false);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const draftKey = `bidsubmit:${projectId}`;
   const draft = useAutoSave(draftKey, form, { enabled: autoSaveReady });
@@ -640,6 +650,32 @@ function BidSubmitInner() {
     finally { setSaving(false); }
   }
 
+  // ── A-88：删除未递交的投标草稿（服务端草稿行 + 表单/本地缓存一并清；已提交须走撤回）──
+  async function confirmDeleteDraft() {
+    setDeleteDialogVisible(false);
+    setDeleting(true);
+    try {
+      await api.delete(`/supplier-portal/bid-submissions/${projectId}/draft`);
+      setExistingSubmission(null); // 回读 submission 置空（「草稿」徽标消失）
+      setForm(EMPTY_FORM); // 清空表单各字段
+      setFullBidMeta(null);
+      setCoverLetterMeta(null);
+      setBondFileMeta(null);
+      setSplitCats({
+        tech: { ...EMPTY_SPLIT_CATS.tech },
+        biz: { ...EMPTY_SPLIT_CATS.biz },
+        other: { ...EMPTY_SPLIT_CATS.other },
+      });
+      setClientDeks({});
+      setDualEntries({});
+      draft.clearDraft(); // 本地自动草稿缓存（localStorage）
+      clearDeks(); // E2EE DEK / 双层信封条目缓存（localStorage）
+      draft.markClean(); // 离开守卫复位
+      toast.success("草稿已删除");
+    } catch { /* API 层已全局错误 toast（服务端 error 文案，如 DRAFT_NOT_FOUND/DRAFT_NOT_DELETABLE） */ }
+    finally { setDeleting(false); }
+  }
+
   const preflightItems = (() => {
     const d = project?.deadline ? new Date(project.deadline) : null;
     const deadlineOk = !!(d && d > new Date());
@@ -955,6 +991,9 @@ function BidSubmitInner() {
                       <span className="auto-save-hint">已自动保存 {dayjs(draft.lastSavedAt).format("HH:mm")}</span>
                     )}
                     <SpButton loading={saving} icon={FolderPlus} onClick={saveDraft}>保存草稿</SpButton>
+                    {existingSubmission?.status === "draft" && (
+                      <SpButton danger loading={deleting} icon={Trash2} onClick={() => setDeleteDialogVisible(true)}>删除草稿</SpButton>
+                    )}
                     <SpButton
                       variant="primary"
                       loading={submitting}
@@ -997,6 +1036,21 @@ function BidSubmitInner() {
         {!canConfirm
           ? <BAlert type="error" style={{ marginTop: 16 }} title="存在未通过的必填项，请完善后重新提交" />
           : <BAlert type="success" style={{ marginTop: 16 }} title="检查通过，可以提交" />}
+      </SpDialog>
+
+      {/* ═══ A-88：删除草稿确认 ═══ */}
+      <SpDialog open={deleteDialogVisible} onClose={() => setDeleteDialogVisible(false)} title="删除草稿" width={420}
+        icon={Trash2}
+        footer={
+          <>
+            <SpButton variant="soft" onClick={() => setDeleteDialogVisible(false)}>取消</SpButton>
+            <SpButton variant="primary" danger onClick={confirmDeleteDraft}>确认删除</SpButton>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-[var(--fg-2)]">
+          将删除服务器端保存的投标草稿，并清空当前表单与本地缓存，该操作不可恢复。已正式提交的标书不可删除（如需撤回请在「我的投标」中操作）。
+        </p>
       </SpDialog>
 
       {/* ═══ U盾口令对话框（dual-v2 提交签名）═══ */}

@@ -409,6 +409,13 @@ export class SupplierPortalController {
     return this.portalService.saveBidDraft(supplierId, projectId, dto);
   }
 
+  /** A-88：删除未递交的投标草稿（已提交走撤回） */
+  @Delete('bid-submissions/:projectId/draft')
+  async deleteBidDraft(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.deleteBidDraft(supplierId, projectId);
+  }
+
   // A-94：递交在草稿字段之上增加双信封 v2 信封与证书签名（服务层验签）
   @Post('bid-submissions/:projectId/submit')
   async submitBid(

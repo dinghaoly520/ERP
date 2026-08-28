@@ -1438,6 +1438,20 @@ export class SupplierPortalService {
     });
   }
 
+  /** A-88：删除未递交的投标草稿。与保存草稿同闸门（截止前）；已提交须走撤回（withdrawSubmission）。 */
+  async deleteBidDraft(supplierId: string, projectId: string) {
+    await this.assertCanSaveBidDraft(supplierId, projectId);
+    const existing = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+    });
+    if (!existing) throw new BadRequestException({ error: '草稿不存在', code: 'DRAFT_NOT_FOUND' });
+    if (existing.status !== 'draft') {
+      throw new BadRequestException({ error: '已递交的标书不可删除，请使用撤回', code: 'DRAFT_NOT_DELETABLE' });
+    }
+    await this.prisma.supplierBidSubmission.delete({ where: { id: existing.id } });
+    return { deleted: true };
+  }
+
   /**
    * 新轨补传（双信封 v2 · Task 10）：dual-v2 解密异常恢复走供应商端双层重封。
    * 与旧轨 reuploadBidFile 的本质差异：C_outer 是客户端双层加密产物（C_inner=SM4(DEK_S) → C_outer=SM4(DEK_A)），
