@@ -44,6 +44,14 @@ const CATEGORY_ORDER: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINES
 /** 通过性类别（满分 0，只记通过/不通过） */
 const PASS_FAIL_CATEGORIES: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE'];
 const ANOMALY_THRESHOLD = 20; // 偏差 >20% 标异常
+/** F19：评标时长相关共用常量（启动缺省/延期缺省/上下限与后端 extendEvaluationDeadline 硬校验对齐） */
+const DEFAULT_EVALUATION_HOURS = 72;
+const DEFAULT_EXTEND_HOURS = 24;
+const EVAL_HOURS_MIN = 1;
+const EVAL_HOURS_MAX = 720; // 与后端启动封顶 min(·,720)、延期 @Max(720) 同口径
+const MS_PER_HOUR = 3600_000;
+/** F19：feedback 横幅自动消失时长（与 dispute-block/clarifications-block 统一 2800ms） */
+const FEEDBACK_AUTOHIDE_MS = 2800;
 
 function memoDeviceLabel(sourceDevice: string): string {
   const [device, input] = sourceDevice.split('_');
@@ -151,9 +159,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
   // E2: 「自定义评标时长」（启动评标弹窗）与「评标延期审批」（弹窗）
   const [startDialogOpen, setStartDialogOpen] = useState(false);
-  const [durationHours, setDurationHours] = useState(72);
+  const [durationHours, setDurationHours] = useState(DEFAULT_EVALUATION_HOURS);
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
-  const [extendHours, setExtendHours] = useState(24);
+  const [extendHours, setExtendHours] = useState(DEFAULT_EXTEND_HOURS);
   const [extendReason, setExtendReason] = useState('');
   const [extendBusy, setExtendBusy] = useState(false);
   const me = useBidUser();
@@ -162,7 +170,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
-    setTimeout(() => setFeedback(null), 3000);
+    setTimeout(() => setFeedback(null), FEEDBACK_AUTOHIDE_MS);
   };
 
   const loadAnnotations = async (expertId: string, supplierId: string, scoreItemId: string) => {
@@ -417,7 +425,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       showToast(`评标延期审批通过：延长 ${extendHours} 小时，新截止 ${new Date(r.evaluationDeadline).toLocaleString('zh-CN')}`);
       onChanged();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : '延期审批失败', 'err');
+      showToast(e instanceof Error ? e.message : '评标延期审批失败', 'err');
     } finally {
       setExtendBusy(false);
     }
@@ -494,10 +502,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* E2: 评标截止时间展示 */}
       {stage === 'EVALUATING' && project?.evaluationDeadline && (() => {
-        const remaining = Math.ceil((new Date(project.evaluationDeadline).getTime() - Date.now()) / 3600000);
+        const remaining = Math.ceil((new Date(project.evaluationDeadline).getTime() - Date.now()) / MS_PER_HOUR);
         const expired = remaining <= 0;
         return (
-          <div className={`mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold ${expired ? '' : ''}`}
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold"
             style={{ background: expired ? 'color-mix(in oklch, var(--danger) 8%, transparent)' : 'color-mix(in oklch, var(--warning, var(--accent)) 8%, transparent)' }}>
             <div className="flex min-w-0 items-center gap-2">
               <Clock size={13} className={expired ? 'text-[var(--danger)]' : 'text-[var(--accent)]'} />
@@ -551,7 +559,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           </div>
           <button
             type="button"
-            onClick={() => { setDurationHours(72); setStartDialogOpen(true); }}
+            onClick={() => { setDurationHours(DEFAULT_EVALUATION_HOURS); setStartDialogOpen(true); }}
             disabled={busy || startBlockers.length > 0}
             title={startBlockers.length > 0 ? startBlockers.join('\n') : ''}
             className="neu-btn-primary !h-[32px] !text-xs shrink-0 disabled:opacity-40"
@@ -1060,15 +1068,15 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">评标时长（小时）</label>
               <input
                 type="number"
-                min={1}
-                max={720}
+                min={EVAL_HOURS_MIN}
+                max={EVAL_HOURS_MAX}
                 step={1}
                 value={durationHours}
-                onChange={(e) => setDurationHours(Math.max(1, Math.min(720, Math.floor(Number(e.target.value) || 1))))}
+                onChange={(e) => setDurationHours(Math.max(EVAL_HOURS_MIN, Math.min(EVAL_HOURS_MAX, Math.floor(Number(e.target.value) || EVAL_HOURS_MIN))))}
                 className="workbench-input w-full font-mono"
               />
               <p className="mt-2 text-[11px] tabular-nums text-[var(--muted-foreground)]">
-                预计截止：{new Date(Date.now() + durationHours * 3600_000).toLocaleString('zh-CN')}
+                预计截止：{new Date(Date.now() + durationHours * MS_PER_HOUR).toLocaleString('zh-CN')}
               </p>
             </div>
             <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
@@ -1097,11 +1105,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数<span className="ml-1.5 font-normal normal-case tracking-normal">（单次最长 720 小时，与启动评标时长相通）</span></label>
               <input
                 type="number"
-                min={1}
-                max={720}
+                min={EVAL_HOURS_MIN}
+                max={EVAL_HOURS_MAX}
                 step={1}
                 value={extendHours}
-                onChange={(e) => setExtendHours(Math.max(1, Math.min(720, Math.floor(Number(e.target.value) || 1))))}
+                onChange={(e) => setExtendHours(Math.max(EVAL_HOURS_MIN, Math.min(EVAL_HOURS_MAX, Math.floor(Number(e.target.value) || EVAL_HOURS_MIN))))}
                 className="workbench-input w-full font-mono"
               />
               <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延期理由</label>
@@ -1109,7 +1117,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 value={extendReason}
                 onChange={(e) => setExtendReason(e.target.value)}
                 rows={3}
-                placeholder="请填写延期原因…"
+                placeholder="请填写延期理由…"
                 className="workbench-input w-full resize-none"
               />
               <p className="mt-3 text-[11px] leading-4 text-[var(--muted-foreground)]">

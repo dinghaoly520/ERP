@@ -226,7 +226,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
       )}
       {/* 供应商选择弹窗 */}
       {showSupplierDialog && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}>
           <div className="neu-card-static w-[480px] max-w-[90vw] rounded-2xl p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-bold text-[var(--foreground)]">选择参与报价的供应商</h3>

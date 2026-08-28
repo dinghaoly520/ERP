@@ -43,8 +43,9 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
   const [invalidateById, setInvalidateById] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
 
-  // N4b：官方评标结果是否已生成——已生成则收起「建议流标」（此时流标须异议裁决+书面理由，N4c）。
-  // 注：hooks 必须位于 if (!detail) 早退之前（detail null→loaded 会改变 hook 数量，违反 React hooks 规则）。
+  // 官方评标结果是否已生成——F10 后不再收起建议流标，仅用于流标 warn/书面理由文案分支（N4c：
+  // 结果已生成时后端强制书面理由并作废结果）。注：hooks 必须位于 if (!detail) 早退之前
+  // （detail null→loaded 会改变 hook 数量，违反 React hooks 规则）。
   const [resultsGenerated, setResultsGenerated] = useState(false);
   useEffect(() => {
     if (!bidProjectId || detail?.stage === 'ARCHIVED') return;

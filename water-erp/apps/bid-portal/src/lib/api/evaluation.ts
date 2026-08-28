@@ -1,124 +1,12 @@
 import { api } from '@/lib/api';
 
-/* ── :3007 评标管理 API 封装（双份维护：与 apps/web/src/lib/api/bid.ts 同函数体保持一致，改动需双向同步） ──
-   分工 v3（2026-08-13）：评标管理/异议裁决/澄清答疑为 :3007 现场全操作，
-   此处仅复制评标管理所依赖的类型与函数。 */
+/* ── :3007 评标管理 API 封装 ──
+   分工 v3（2026-08-13）：评标管理/异议裁决/澄清答疑为 :3007 现场全操作。
+   项目/专家/供应商等实体类型的真身在 @/lib/types（派生自 @water-erp/shared），
+   本文件只保留评标管理链路的响应类型与函数（F19 清理：删除了零消费的旧详情副本类型）。 */
 
 export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED' | 'ABORTED';
 export type ScoreCategory = 'QUALIFICATION' | 'RESPONSIVE' | 'BUSINESS' | 'TECHNICAL' | 'PRICE';
-
-export const SCORE_CATEGORY_LABELS: Record<ScoreCategory, string> = {
-  QUALIFICATION: '资格审查',
-  RESPONSIVE: '响应性',
-  BUSINESS: '商务',
-  TECHNICAL: '技术',
-  PRICE: '价格',
-};
-
-/* ── Phase 2：:3005 开评标指挥中心（项目详情 / 评标管理 / 澄清答疑 / 归档）── */
-
-export interface BidOpeningSessionInfo {
-  id: string;
-  host: string;
-  supervisor: string | null; // 选填（法律未强制）
-  decryptWindowStart: string;
-  decryptWindowEnd: string;
-  remainingSeconds: number;
-  status: string;
-  exchangeControl?: string;
-  /** T10：:3007 完成开标后回传的移交资料（T1 为 BidOpeningSession 新增 handoverAt / handoverAssetId 两列） */
-  handoverAt: string | null;
-  handoverAssetId: string | null;
-}
-
-export interface BidProjectExpertInfo {
-  id: string;
-  userId: string;
-  expertName: string;
-  major: string | null;
-  expertRole: string; // EXPERT_ROLE.REGULAR / EXPERT_ROLE.ALTERNATE
-  invitationStatus: string; // pending / confirmed / declined
-  signedIn: boolean;
-  avoidanceConfirmed: boolean;
-  progress: string;
-  reportConfirmed: boolean;
-  totalScore: number | null;
-  scoreRecords: Array<{
-    id: string;
-    scoreItemId: string;
-    supplierId: string;
-    score: number;
-    /** 通过性审查（资格/响应性）：是否通过 */
-    passed?: boolean | null;
-    reason?: string | null;
-  }>;
-}
-
-export interface BidProjectSupplierInfo {
-  id: string;
-  supplierId: string | null;
-  supplierName: string;
-  submitStatus: string;
-  decryptStatus: string;
-  confirmStatus: string;
-  bidValidity?: string | null;
-}
-
-export interface BidArchiveItemInfo {
-  id: string;
-  name: string;
-  ownerRole: string;
-  status: string; // PENDING_CONFIRM / ARCHIVED
-  hashDigest: string | null;
-  archivedAt: string | null;
-}
-
-/** GET /bid/projects/:id 全量子表详情（开评标指挥中心各区块共用数据源） */
-export interface BidProjectDetail {
-  id: string;
-  projectCode: string;
-  name: string;
-  stage: BidStage;
-  procurementMethod: string;
-  minBidders?: number; // N4：法定最少投标家数（直接采购=1，其余=3）——后端 getProject 下发
-  openTime: string;
-  deadline: string;
-  riskNote?: string | null;
-  qualityRequirement?: string | null;
-  scoreStandardPublishedAt?: string | null;
-  evaluationDeadline?: string | null; // E2: 评标截止时间
-  suppliers: BidProjectSupplierInfo[];
-  openingSession: BidOpeningSessionInfo | null;
-  openingRecords: Array<{
-    id: string;
-    bidSupplierId: string;
-    bidPrice?: string | null;
-    deliveryPeriod?: string | null;
-    status: string;
-    objectionReason?: string | null;
-  }>;
-  experts: BidProjectExpertInfo[];
-  scoreItems: Array<{
-    id: string;
-    name: string;
-    category: ScoreCategory;
-    maxScore: number;
-    weight?: number | null;
-  }>;
-  archiveItems: BidArchiveItemInfo[];
-  /** A3 中标通知书：评标结果（后端 getProject 暂未返回——UI 按 ?? [] 容错，功能待后端补齐） */
-  evaluationResults?: BidEvaluationResultInfo[];
-  // ── 开标主持人指派（R1 硬分流）──
-  assignedHostUserId?: string | null;
-  assignedHostUser?: { id: string; username: string; displayName: string } | null;
-  supervisionLogs?: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>; // G2
-  expertDisputes?: Array<{ // D2: 专家异议工单（采购端裁决用）
-    id: string; expertName: string; type: string; // scoring | procedure | other
-    title: string; content: string; status: string; // open | resolved | rejected
-    response?: string | null; createdAt: string;
-    resolvedAt?: string | null; resolvedBy?: string | null;
-  }>;
-}
 
 /* ── 开标决策 ── */
 
