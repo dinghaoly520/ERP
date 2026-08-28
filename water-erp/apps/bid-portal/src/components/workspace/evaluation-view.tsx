@@ -26,6 +26,7 @@ import {
   type ScoreCategory,
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
+import { EXPERT_ROLE } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
 import { useBidUser } from '@/hooks/use-bid-user';
 
@@ -88,7 +89,8 @@ function buildExpertSupplierMatrix(project: BidProjectDetail): ExpertSupplierMat
 /** 各专家对同一供应商的百分制得分（用于偏差检测与实时均分） */
 function supplierPercentScores(project: BidProjectDetail, matrix: ExpertSupplierMatrix, supplierId: string): number[] {
   const scores: number[] = [];
-  for (const expert of project.experts) {
+  // F4：均分只统计正选专家（候补无评分权限；与后端去极值口径一致）
+  for (const expert of project.experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR)) {
     const cell = matrix.get(expert.id)?.get(supplierId);
     if (cell && cell.maxScore > 0) scores.push((cell.totalScore / cell.maxScore) * 100);
   }
@@ -239,10 +241,15 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
 
   const archived = stage === 'ARCHIVED';
-  const signedIn = experts.filter(e => e.signedIn).length;
-  const reportsDone = experts.filter(e => e.reportConfirmed).length;
-  const unconfirmed = experts.filter(e => !e.reportConfirmed);
-  const canGenerate = experts.length > 0 && unconfirmed.length === 0;
+  // F4（2026-08-28）：生成门槛与统计仅计正选专家——候补不参与评分/报告确认/签字
+  // （后端 assertRegularExpert 拦截，生成闸门也只查正选）。此前把候补计入分母，
+  // 有候补的项目「可生成结果」恒为否、生成按钮永久禁用。
+  const regularExperts = experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR);
+  const alternateExperts = experts.filter(e => e.expertRole !== EXPERT_ROLE.REGULAR);
+  const signedIn = regularExperts.filter(e => e.signedIn).length;
+  const reportsDone = regularExperts.filter(e => e.reportConfirmed).length;
+  const unconfirmed = regularExperts.filter(e => !e.reportConfirmed);
+  const canGenerate = regularExperts.length > 0 && unconfirmed.length === 0;
 
   // H4: 开标完成度（与后端 startEvaluation 守卫同口径）——未撤回供应商须全部到终局态
   const activeSuppliers = suppliers.filter(s => s.submitStatus !== '已撤回');
@@ -253,9 +260,10 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   const openingDone = activeSuppliers.length > 0 && notReadySuppliers.length === 0;
 
   const itemCount = scoreItems.length;
-  const totalSlots = experts.length * suppliers.length * itemCount;
+  // F4：评分格位分母同样只计正选（候补无评分权限，计入会压低进度百分比）
+  const totalSlots = regularExperts.length * suppliers.length * itemCount;
   let scoredSlots = 0;
-  for (const expert of experts) {
+  for (const expert of regularExperts) {
     const row = matrix.get(expert.id);
     if (row) for (const s of suppliers) scoredSlots += Math.min(row.get(s.id)?.scoredCount ?? 0, itemCount);
   }
@@ -271,8 +279,9 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   });
 
   /** 偏差异常清单（某专家对某供应商的百分制得分偏离全体均分 >20%） */
+  // F4：仅正选参与偏差检测（候补无评分记录，行内为空会被 maxScore<=0 跳过，此处显式收口）
   const anomalies: { expert: BidProjectDetail['experts'][number]; supplier: BidProjectDetail['suppliers'][number]; pct: number; avg: number }[] = [];
-  for (const expert of experts) {
+  for (const expert of regularExperts) {
     for (const s of suppliers) {
       const cell = matrix.get(expert.id)?.get(s.id);
       if (!cell || cell.maxScore <= 0) continue;
@@ -437,18 +446,18 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
           pct={scorePct} color={scorePct >= 80 ? 'var(--success)' : scorePct >= 50 ? 'var(--accent)' : 'var(--warning)'}
         />
         <StatTile
-          label="专家签到" value={`${signedIn}/${experts.length}`} sub="已签到 / 总计"
-          pct={experts.length > 0 ? (signedIn / experts.length) * 100 : 0}
-          color={signedIn === experts.length && experts.length > 0 ? 'var(--success)' : 'var(--accent)'}
+          label="专家签到" value={`${signedIn}/${regularExperts.length}`} sub="正选已签到 / 正选总数"
+          pct={regularExperts.length > 0 ? (signedIn / regularExperts.length) * 100 : 0}
+          color={signedIn === regularExperts.length && regularExperts.length > 0 ? 'var(--success)' : 'var(--accent)'}
         />
         <StatTile
-          label="报告确认" value={`${reportsDone}/${experts.length}`} sub="报告已确认 / 总计"
-          pct={experts.length > 0 ? (reportsDone / experts.length) * 100 : 0}
-          color={reportsDone === experts.length && experts.length > 0 ? 'var(--success)' : reportsDone > 0 ? 'var(--accent)' : 'var(--muted-foreground)'}
+          label="报告确认" value={`${reportsDone}/${regularExperts.length}`} sub="正选已确认 / 正选总数"
+          pct={regularExperts.length > 0 ? (reportsDone / regularExperts.length) * 100 : 0}
+          color={reportsDone === regularExperts.length && regularExperts.length > 0 ? 'var(--success)' : reportsDone > 0 ? 'var(--accent)' : 'var(--muted-foreground)'}
         />
         <StatTile
           label="可生成结果" value={canGenerate ? '是' : '否'}
-          sub={canGenerate ? '所有报告已确认' : `仍有 ${unconfirmed.length} 位未确认`}
+          sub={canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
           pct={canGenerate ? 100 : 0} color={canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
       </div>
@@ -476,6 +485,15 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                     {expert.expertName}
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                   </span>
+                  {expert.expertRole !== EXPERT_ROLE.REGULAR && (
+                    <span
+                      className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold"
+                      style={{ background: 'color-mix(in oklch, var(--muted-foreground) 14%, transparent)', color: 'var(--muted-foreground)' }}
+                      title="候补专家不参与评分、评审报告确认与签字；正选缺席时递补后方可参与"
+                    >
+                      候补·未递补
+                    </span>
+                  )}
                   <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.signedIn ? 'var(--success)' : 'var(--muted-foreground)' }}>
                     <UserCheck size={11} /> {expert.signedIn ? '已签到' : '未签到'}
                   </span>
@@ -492,11 +510,13 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         </div>
 
         {/* ── 专家×供应商评分矩阵 ── */}
-        {experts.length > 0 && suppliers.length > 0 && (
+        {regularExperts.length > 0 && suppliers.length > 0 && (
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
             <p className="mb-1.5 text-[10px] text-[var(--muted-foreground)]">
               评分矩阵与分数明细在评标期间按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；现场组织者（主持人/管理员）可在专家状态卡片查看实名，用于签到、签字与现场沟通（查看留痕）；全部专家确认评审报告后恢复实名。
+              {/* F4：矩阵仅列正选专家；编号为服务端按全体专家预分配的稳定号，候补在列时可能不连续（不重排，防刷新换号） */}
+              {alternateExperts.length > 0 && `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。`}
             </p>
             <div className="overflow-x-auto rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
             <table className="w-full min-w-[560px] text-left text-xs">
@@ -509,7 +529,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                 </tr>
               </thead>
               <tbody>
-                {experts.map(expert => (
+                {regularExperts.map(expert => (
                   <Fragment key={expert.id}>
                     <tr style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
                       <td className="px-3.5 py-2 font-medium text-[var(--foreground)]">{expert.anonLabel ?? expert.expertName}</td>
@@ -707,15 +727,15 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
             <div className="px-6 py-5">
               {wizardStep === 0 && (
                 <div className="space-y-2 text-xs">
-                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果要求<span className="font-semibold text-[var(--foreground)]">全部专家已确认评审报告</span>。当前：</p>
+                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果要求<span className="font-semibold text-[var(--foreground)]">全部正选专家已确认评审报告</span>（候补不参与）。当前：</p>
                   {unconfirmed.length === 0 ? (
                     <div className="flex items-center gap-2 rounded-[12px] px-3.5 py-3 font-semibold" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)', color: 'var(--success)' }}>
-                      <CheckCircle2 size={14} /> {experts.length} 位专家已全部确认报告，可进入下一步。
+                      <CheckCircle2 size={14} /> {regularExperts.length} 位正选专家已全部确认报告，可进入下一步。
                     </div>
                   ) : (
                     <div className="rounded-[12px] px-3.5 py-3" style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
                       <div className="mb-1.5 flex items-center gap-1.5 font-semibold text-[var(--warning)]">
-                        <Clock size={13} /> 仍有 {unconfirmed.length} 位专家未确认报告
+                        <Clock size={13} /> 仍有 {unconfirmed.length} 位正选专家未确认报告
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {unconfirmed.map(e => (
