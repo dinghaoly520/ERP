@@ -210,6 +210,12 @@ export default function MyBidsPage() {
                           <span className={`sp-status ${statusMap[row.status]?.cls || "draft"}`}>
                             {statusMap[row.status]?.label || row.status}
                           </span>
+                          {/* A-101：已递交行回执签署徽标（列表载荷自带 receiptSignature，详情页可补签） */}
+                          {row.status === "submitted" && (
+                            <span className={`b-tag ${row.receiptSignature ? "b-tag--success" : "b-tag--warning"}`}>
+                              {row.receiptSignature ? "回执已签" : "回执未签"}
+                            </span>
+                          )}
                           <button type="button" className="mb-detail-btn" onClick={() => router.push(`/bids/${row.projectId}`)}>详情</button>
                         </div>
                       </div>
