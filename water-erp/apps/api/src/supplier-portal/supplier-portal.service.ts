@@ -8,6 +8,8 @@ import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
+import { buildClarificationReplyCanonical } from './clarification-reply.util';
+import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
@@ -2919,5 +2921,115 @@ export class SupplierPortalService {
       });
     });
     return { success: true, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays, name: supplier.name };
+  }
+
+  // ── A-143（2026-08-28）：评标澄清在线答复（编辑+附件+SM2 电子签名，spec §3.4）──
+
+  /** 寻址本司的评标澄清（type='clarification'）；EVALUATING/ARCHIVED 可见 */
+  async listBidClarificationsForSupplier(projectId: string, supplierId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'PROJECT_NOT_FOUND' });
+    const membership = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+    if (!membership) throw new ForbiddenException({ error: '贵司非本项目投标人', code: 'NOT_BIDDER' });
+    const items = await this.prisma.bidClarification.findMany({
+      where: { projectId, type: 'clarification', supplierId },
+      orderBy: { createdAt: 'asc' },
+    });
+    // 签名 payload 全串不回传列表（列表只给摘要）
+    return items.map((c) => this.stripReplySignature(c));
+  }
+
+  /** 取 canonical 串（无状态、不落库）——前端直接对此串 U盾签名 */
+  async getClarificationReplyPayload(
+    projectId: string, cid: string, supplierId: string,
+    user: { sub: string }, dto: ClarificationReplyDraftDto,
+  ) {
+    await this.assertReplyable(projectId, cid, supplierId);
+    const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
+    return {
+      payload: buildClarificationReplyCanonical({
+        clarificationId: cid, projectId, supplierId,
+        reply: dto.reply, attachments, certSn: dto.certSn,
+      }),
+    };
+  }
+
+  /** 提交签名答复：重算 canonical + SM2 验签 + 落库 + WS 广播 */
+  async submitClarificationReply(
+    projectId: string, cid: string, supplierId: string,
+    user: { sub: string; name?: string; username?: string }, dto: SubmitClarificationReplyDto,
+  ) {
+    const clar = await this.assertReplyable(projectId, cid, supplierId);
+
+    // 证书严格校验：与 submitBid 同规则，不回退 supplier.sm2PublicKey（revokeCert 不清该列）
+    const cert = await this.prisma.supplierCert.findFirst({
+      where: { supplierId, certSn: dto.certSn, bindingStatus: 'ACTIVE' },
+    });
+    if (!cert) {
+      throw new BadRequestException({ error: '证书未绑定或已撤销，请先在「U盾管理」绑定有效证书', code: 'CERT_NOT_ACTIVE' });
+    }
+
+    const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
+    const canonical = buildClarificationReplyCanonical({
+      clarificationId: cid, projectId, supplierId,
+      reply: dto.reply, attachments, certSn: dto.certSn,
+    });
+    if (!this.signatureService.verify(canonical, dto.signature, cert.publicKey)) {
+      throw new BadRequestException({ error: '电子签名验证失败，请使用绑定证书对最新答复内容重新签名', code: 'CLARIFICATION_REPLY_SIGNATURE_INVALID' });
+    }
+
+    const updated = await this.prisma.bidClarification.update({
+      where: { id: cid },
+      data: {
+        reply: dto.reply,
+        status: '已回复',
+        replyChannel: 'online',
+        replySignature: {
+          v: 1, payload: canonical, signature: dto.signature,
+          algorithm: 'SM2/SM3', certSn: dto.certSn, verifiedAt: new Date().toISOString(),
+        },
+        replyAttachmentIds: attachments.map((a) => ({ fileAssetId: a.fileAssetId, name: a.name, sha256: a.sha256 })),
+        replyByName: user.name ?? user.username ?? null,
+      },
+    });
+    this.gateway?.notifyClarificationReplied(projectId, {
+      id: cid, replier: 'supplier', replyPreview: dto.reply.slice(0, 60),
+    });
+    return this.stripReplySignature(updated);
+  }
+
+  /** 私有：答复闸门——存在+寻址本人+待回复+评标中（spec §3.4 reply 流程 1） */
+  private async assertReplyable(projectId: string, cid: string, supplierId: string) {
+    const clar = await this.prisma.bidClarification.findFirst({
+      where: { id: cid, projectId, type: 'clarification' },
+    });
+    if (!clar) throw new BadRequestException({ error: '澄清不存在或不属于此项目', code: 'CLARIFICATION_NOT_IN_PROJECT' });
+    if (clar.supplierId !== supplierId) throw new ForbiddenException({ error: '该澄清并非寻址到贵司', code: 'NOT_CLARIFICATION_TARGET' });
+    if (clar.status !== '待回复') throw new ConflictException({ error: '澄清已答复或已关闭，不可重复答复', code: 'CLARIFICATION_ALREADY_REPLIED' });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ConflictException({ error: '仅评标中（EVALUATING）可答复澄清', code: 'STAGE_NOT_EVALUATING' });
+    }
+    return clar;
+  }
+
+  /** 私有：附件归属校验——须为本司上传的 clarification_reply 类目（spec §3.4 流程 2） */
+  private async loadOwnedAttachments(attachmentIds: string[], supplierUserId: string) {
+    if (attachmentIds.length === 0) return [];
+    const assets = await this.prisma.fileAsset.findMany({ where: { id: { in: attachmentIds } } });
+    const byId = new Map(assets.map((a) => [a.id, a]));
+    return attachmentIds.map((id) => {
+      const a = byId.get(id);
+      if (!a || a.category !== 'clarification_reply' || a.uploaderId !== supplierUserId) {
+        throw new BadRequestException({ error: `附件不可用或非本司上传：${id}`, code: 'ATTACHMENT_INVALID' });
+      }
+      return { fileAssetId: a.id, sha256: a.sha256, name: a.originalName };
+    });
+  }
+
+  /** 私有：对外响应剥离 payload 全串，只留摘要 */
+  private stripReplySignature<T extends { replySignature: unknown }>(row: T) {
+    const sig = row.replySignature as { algorithm?: string; certSn?: string; verifiedAt?: string } | null;
+    return { ...row, replySignature: sig ? { algorithm: sig.algorithm, certSn: sig.certSn, verifiedAt: sig.verifiedAt } : null };
   }
 }
