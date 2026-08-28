@@ -4541,8 +4541,20 @@ export class BidService {
       throw new BadRequestException({ error: '项目已归档，无法发起澄清', code: 'PROJECT_ARCHIVED' });
     }
 
+    // F3（2026-08-28）：前端契约统一传 BidSupplier.id（行 id）。校验归属本项目，
+    // 并转换为行上的 Supplier.id 落库（BidClarification.supplierId 是 FK→Supplier，
+    // 直接存行 id 会 FK 违约；AI 起草/专家端校验则按行 id）。
+    let clarSupplierId: string | null = null;
+    if (dto.supplierId) {
+      const row = await this.prisma.bidSupplier.findFirst({ where: { id: dto.supplierId, projectId } });
+      if (!row) {
+        throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+      }
+      clarSupplierId = row.supplierId;
+    }
+
     return this.prisma.bidClarification.create({
-      data: { projectId, type: dto.type || 'clarification', question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName, supplierId: dto.supplierId || null },
+      data: { projectId, type: dto.type || 'clarification', question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName, supplierId: clarSupplierId },
     }).then((created) => {
       this.gateway?.notifyClarificationCreated(projectId, {
         id: created.id, issuer: dto.issuer, issuerRole: 'host',

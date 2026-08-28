@@ -1681,10 +1681,14 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
-    // P2：校验供应商属于本项目（防注入任意 supplierId 污染 QA 线程）
+    // P2：校验供应商属于本项目（防注入任意 supplierId 污染 QA 线程）。
+    // F3（2026-08-28）：契约统一为行 id 入参；落库须转换为行上的 Supplier.id
+    // （BidClarification.supplierId 是 FK→Supplier，直存行 id 会 FK 违约）。
+    let clarSupplierId: string | null = null;
     if (dto.supplierId) {
       const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: dto.supplierId, projectId } });
       if (!supplier) throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+      clarSupplierId = supplier.supplierId;
     }
 
     return this.prisma.bidClarification.create({
@@ -1693,7 +1697,7 @@ export class ExpertService {
         question: dto.question,
         issuer: expert.expertName,
         supplierName: dto.supplierName,
-        supplierId: dto.supplierId || null,
+        supplierId: clarSupplierId,
         status: '待回复',
       },
     });

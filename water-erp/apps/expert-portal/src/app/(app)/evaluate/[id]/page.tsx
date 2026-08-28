@@ -970,15 +970,17 @@ export default function ExpertEvaluatePage() {
           {/* Post new question */}
           <div className="space-y-2 pt-3">
             <hr className="wb-section-rule" />
-            <select value={clarSupplier} onChange={e => {
-                const sel = project.suppliers.find(s => s.supplierName === e.target.value);
-                setClarSupplier(e.target.value);
-                setClarSupplierId(sel?.supplierId || '');
+            <select value={clarSupplierId} onChange={e => {
+                // F3：澄清供应商契约 = BidSupplier.id（行 id）——后端归属校验与
+                // AI 起草（bidSupplierId）均按行 id；同名供应商也不会错行
+                const sel = project.suppliers.find(s => s.id === e.target.value);
+                setClarSupplierId(e.target.value);
+                setClarSupplier(sel?.supplierName ?? '');
               }}
               className="neu-select w-full !h-8 !text-xs">
               <option value="">选择供应商（必选）</option>
-              {project.suppliers.map(s => (
-                <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
+              {project.suppliers.filter(s => s.bidValidity !== 'invalid').map(s => (
+                <option key={s.id} value={s.id}>{s.supplierName}</option>
               ))}
             </select>
             <div className="flex items-end gap-2">

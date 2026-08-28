@@ -371,17 +371,19 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">供应商</label>
                 <select
-                  value={supplierName}
+                  value={selectedSupplierId}
                   onChange={e => {
-                    const sel = detail.suppliers.find(s => s.supplierName === e.target.value);
-                    setSupplierName(e.target.value);
-                    setSelectedSupplierId(sel?.supplierId || '');
+                    // F3：澄清供应商契约 = BidSupplier.id（行 id）——专家端校验、AI 起草
+                    // （bidSupplierId）、后端落库转换全按行 id；同名供应商也不会错行
+                    const sel = detail.suppliers.find(s => s.id === e.target.value);
+                    setSelectedSupplierId(e.target.value);
+                    setSupplierName(sel?.supplierName ?? '');
                   }}
                   className="workbench-input w-full"
                 >
                   <option value="">选择供应商</option>
-                  {detail.suppliers.map(s => (
-                    <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
+                  {detail.suppliers.filter(s => s.bidValidity !== 'invalid').map(s => (
+                    <option key={s.id} value={s.id}>{s.supplierName}</option>
                   ))}
                 </select>
               </div>
