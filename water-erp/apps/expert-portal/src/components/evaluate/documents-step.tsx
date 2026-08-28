@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Download, FileText, RotateCcw, Loader, ScrollText, ChevronDown, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
 import type { ExpertProjectDetail, DecryptedDocuments } from '@/lib/types';
 import { DECRYPT_LABEL } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
@@ -48,8 +49,28 @@ function ClarificationDocsCard({ projectId }: { projectId: string }) {
         headers: { 'X-Portal': 'expert' },
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // 204 = 服务端确认文档存在但无附件实体（纯正文/附件悬空）——不落 0 字节文件
+      if (res.status === 204) {
+        toast.error('附件不存在或已失效');
+        return;
+      }
+      if (!res.ok) {
+        // 400/403 带后端规范体 { error, code }——透传文案；其余状态给通用提示
+        let message = '下载失败请重试';
+        if (res.status === 400 || res.status === 403) {
+          try {
+            const data = await res.json();
+            if (data?.error) message = String(data.error);
+          } catch { /* 非 JSON 错误体 */ }
+        }
+        toast.error(message);
+        return;
+      }
       const blob = await res.blob();
+      if (blob.size === 0) {
+        toast.error('附件不存在或已失效');
+        return;
+      }
       const disposition = res.headers.get('content-disposition') || '';
       const m = disposition.match(/filename="?([^"]+)"?/);
       const fileName = m ? decodeURIComponent(m[1]) : `澄清修改文件_v${doc.version}`;
@@ -63,6 +84,7 @@ function ClarificationDocsCard({ projectId }: { projectId: string }) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.warn('[A-136] 澄清修改文件下载失败', err);
+      toast.error('下载失败请重试');
     } finally {
       setDownloadingId(null);
     }
