@@ -750,24 +750,33 @@ describe('SupplierPortalService', () => {
   });
 
   describe('deleteBidDraft（A-88）', () => {
-    // 截止/阶段闸门与保存草稿同源（assertCanSaveBidDraft）——此处 mock 放行，聚焦删除分支
+    // 截止/阶段闸门与保存草稿同源（assertCanSaveBidDraft）——此处 mock 放行，聚焦删除分支；
+    // 闸门复用本身由成功用例的 assertSpy 断言兜底（日后误删 gate 调用会红）
+    let assertSpy: jest.SpyInstance;
     beforeEach(() => {
-      jest.spyOn(service as any, 'assertCanSaveBidDraft').mockResolvedValue({});
+      assertSpy = jest.spyOn(service as any, 'assertCanSaveBidDraft').mockResolvedValue({});
     });
 
-    it('draft 草稿 → 删除成功', async () => {
+    it('draft 草稿 → 删除成功（闸门与保存草稿同源真被调用）', async () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub1', status: 'draft' });
       prisma.supplierBidSubmission.delete.mockResolvedValue({ id: 'sub1' });
       await expect(service.deleteBidDraft('sup1', 'proj1')).resolves.toEqual({ deleted: true });
       expect(prisma.supplierBidSubmission.delete).toHaveBeenCalledWith({ where: { id: 'sub1' } });
+      expect(assertSpy).toHaveBeenCalledWith('sup1', 'proj1');
     });
     it('不存在 → 400 DRAFT_NOT_FOUND', async () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
-      await expect(service.deleteBidDraft('sup1', 'proj1')).rejects.toThrow(BadRequestException);
+      let caught: any;
+      try { await service.deleteBidDraft('sup1', 'proj1'); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught.getResponse() as any).code).toBe('DRAFT_NOT_FOUND');
     });
     it('已提交 → 400 DRAFT_NOT_DELETABLE（须走撤回）', async () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub1', status: 'submitted' });
-      await expect(service.deleteBidDraft('sup1', 'proj1')).rejects.toThrow(BadRequestException);
+      let caught: any;
+      try { await service.deleteBidDraft('sup1', 'proj1'); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught.getResponse() as any).code).toBe('DRAFT_NOT_DELETABLE');
     });
   });
 
