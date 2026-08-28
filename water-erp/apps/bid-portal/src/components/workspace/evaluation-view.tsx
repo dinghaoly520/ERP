@@ -21,6 +21,7 @@ import {
   listExpertMemosForAdmin,
   startEvaluation,
   type BidEvaluationResultInfo,
+  type ExcludedSupplierInfo,
   type ExpertMemoForAdmin,
   type ScoreCategory,
 } from '@/lib/api/evaluation';
@@ -130,6 +131,8 @@ function StatTile({ label, value, sub, pct, color }: { label: string; value: str
 
 export default function EvaluationView({ projectId, project, onChanged }: Props) {
   const [results, setResults] = useState<BidEvaluationResultInfo[]>([]);
+  /** 生成时排除的供应商（开标确认 EXCEPTION，未纳入排名）——仅生成响应携带 */
+  const [excludedSuppliers, setExcludedSuppliers] = useState<ExcludedSupplierInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   const [expandedCell, setExpandedCell] = useState<string | null>(null); // `${expertId}:${supplierId}`
@@ -319,7 +322,8 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
     setBusy(true);
     try {
       const r = await generateEvaluationResults(projectId);
-      setResults(r);
+      setResults(r.results);
+      setExcludedSuppliers(r.excludedSuppliers ?? []);
       setWizardOpen(false);
       setWizardStep(0);
       showToast('评标结果已生成');
@@ -612,6 +616,13 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
           {results.length === 0 && suppliers.length > 0 && (
             <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
               实时预览基于专家原始评分（含手填价格分，未去极值），最终排名以「生成评标结果」后公式计算为准
+            </div>
+          )}
+          {/* 生成时被排除的供应商（开标确认异常，未纳入排名）告警 */}
+          {excludedSuppliers.length > 0 && (
+            <div className="mx-3.5 mt-2 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+              <AlertTriangle size={11} className="mr-1 inline" />
+              以下供应商开标确认状态异常，未纳入排名：{excludedSuppliers.map(s => `${s.supplierName}（${s.reason}）`).join('；')}
             </div>
           )}
           {rankedSuppliers.length === 0 ? (

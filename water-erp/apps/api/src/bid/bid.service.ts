@@ -2019,6 +2019,22 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在评标阶段，无法重新分析', code: 'PROJECT_NOT_EVALUATING' });
     }
 
+    // 评标产出保护（2026-08-28 审查修复）：全量重跑会删表重建 bidderResult（新 cuid），
+    // BidRequirementReview 经 onDelete:Cascade 随之级联清空——专家条款标注属评审报告法定披露内容，
+    // 不得静默损毁。故已有任何评标产出（条款标注/评分记录/得分点勾选）即禁止全量重跑；
+    // 个别供应商分析异常请改用单家重试（retryAiBidders，原行原位重置不删行、不丢标注）。
+    const [reviewCount, scoreCount, decisionCount] = await Promise.all([
+      this.prisma.bidRequirementReview.count({ where: { projectId } }),
+      this.prisma.bidScoreRecord.count({ where: { scoreItem: { projectId } } }),
+      this.prisma.bidScorePointDecision.count({ where: { point: { scoreItem: { projectId } } } }),
+    ]);
+    if (reviewCount > 0 || scoreCount > 0 || decisionCount > 0) {
+      throw new ConflictException({
+        error: '专家已开始评标（存在条款标注/评分记录），禁止全量重跑 AI 分析；如仅个别供应商分析异常，请改用单家重试（未产生评标记录的供应商不受影响）',
+        code: 'EVALUATION_IN_PROGRESS',
+      });
+    }
+
     let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
     if (!task) {
       // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口。
@@ -4410,12 +4426,16 @@ export class BidService {
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名${isNegotiation ? '，谈判采购·最低价中标' : `，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}`}）`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', resourceType: `BidProject:${projectId}`, details: { rankedCount: ranked.length } } });
 
-    // #6: 返回值包含被排除的 EXCEPTION 供应商（供前端告警展示）
-    const result = await this.listEvaluationResults(projectId);
-    if (excludedExceptionSuppliers.length > 0) {
-      return { ...result, excludedSuppliers: excludedExceptionSuppliers.map(s => ({ supplierId: s.id, supplierName: s.supplierName, reason: '开标确认状态为异常(EXCEPTION)，未纳入排名' })) };
-    }
-    return result;
+    // #6: 返回值统一为 { results, excludedSuppliers? }。
+    // 历史形状是裸数组 + 有排除时 {...数组} 摊成对象，前端 setResults(r) 后
+    // r.length/r.find 形状不稳定（有排除供应商时直接崩溃）。2026-08-28 统一包一层。
+    const results = await this.listEvaluationResults(projectId);
+    return {
+      results,
+      ...(excludedExceptionSuppliers.length > 0
+        ? { excludedSuppliers: excludedExceptionSuppliers.map(s => ({ supplierId: s.id, supplierName: s.supplierName, reason: '开标确认状态为异常(EXCEPTION)，未纳入排名' })) }
+        : {}),
+    };
   }
 
   async listScores(projectId: string) {

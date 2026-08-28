@@ -168,9 +168,22 @@ export function listEvaluationResults(bidProjectId: string) {
   return api.get<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results`);
 }
 
+/** 生成时被排除的供应商（开标确认 EXCEPTION，未纳入排名） */
+export interface ExcludedSupplierInfo {
+  supplierId: string;
+  supplierName: string;
+  reason: string;
+}
+
+/** 生成评标结果响应（2026-08-28 起后端统一包一层，不再返回裸数组） */
+export interface GenerateEvaluationResultsResponse {
+  results: BidEvaluationResultInfo[];
+  excludedSuppliers?: ExcludedSupplierInfo[];
+}
+
 /** 生成评标结果（须全部专家 reportConfirmed） */
 export function generateEvaluationResults(bidProjectId: string) {
-  return api.post<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results/generate`, {});
+  return api.post<GenerateEvaluationResultsResponse>(`/bid/projects/${bidProjectId}/evaluation-results/generate`, {});
 }
 
 /* ── 澄清答疑 ── */

@@ -1185,7 +1185,7 @@ describe('BidService — stage transitions', () => {
       ]);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
-      const results = await service.generateEvaluationResults('p1');
+      const { results } = await service.generateEvaluationResults('p1');
 
       expect(prisma.bidEvaluationResult.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
