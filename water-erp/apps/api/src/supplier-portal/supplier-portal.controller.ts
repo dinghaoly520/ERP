@@ -10,7 +10,8 @@ import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
-import type { DualEnvelope, EnvelopeRole } from '@water-erp/ukey';
+import { SaveBidDraftDto, SubmitBidDto } from './dto/bid-submission.dto';
+import type { EnvelopeRole } from '@water-erp/ukey';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { CreateCatalogApplicationDto, UpdateCatalogApplicationDto } from './dto/catalog-application.dto';
@@ -397,47 +398,26 @@ export class SupplierPortalController {
     return this.portalService.getSubmission(supplierId, projectId);
   }
 
+  // A-94：草稿/递交 body 由 DTO 做 class-validator 格式校验（whitelist 防字段注入/剥落见 dto 注释）
   @Post('bid-submissions/:projectId/draft')
   async saveBidDraft(
     @Request() req: any,
     @Param('projectId') projectId: string,
-    @Body() body: {
-      bidPrice?: string; deliveryPeriod?: string; qualityCommitment?: string;
-      technicalFile?: string; businessFile?: string; coverLetter?: string;
-      technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
-      bidBondAssetId?: string;
-      // P0-1：前端完整/拆分模型字段（服务层 normalizeBidFileAssets 归一到三角色契约）
-      fullBidFileAssetId?: string; coverLetterFileAssetId?: string;
-      splitFiles?: { tech?: any; biz?: any; other?: any };
-      // E2EE
-      clientDeks?: Record<string, string>;
-    },
+    @Body() dto: SaveBidDraftDto,
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.saveBidDraft(supplierId, projectId, body);
+    return this.portalService.saveBidDraft(supplierId, projectId, dto);
   }
 
+  // A-94：递交在草稿字段之上增加双信封 v2 信封与证书签名（服务层验签）
   @Post('bid-submissions/:projectId/submit')
   async submitBid(
     @Request() req: any,
     @Param('projectId') projectId: string,
-    @Body() body: {
-      bidPrice?: string; deliveryPeriod?: string; qualityCommitment?: string;
-      technicalFile?: string; businessFile?: string; coverLetter?: string;
-      technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
-      bidBondAssetId?: string;
-      // P0-1：前端完整/拆分模型字段（服务层 normalizeBidFileAssets 归一到三角色契约）
-      fullBidFileAssetId?: string; coverLetterFileAssetId?: string;
-      splitFiles?: { tech?: any; biz?: any; other?: any };
-      // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
-      clientDeks?: Record<string, string>;
-      // 双信封 v2（dual-v2 新轨）：客户端密封信封 + 对 canonicalEnvelopeHash(envelope) 的供应商证书签名
-      envelope?: DualEnvelope;
-      signature?: string;
-    },
+    @Body() dto: SubmitBidDto,
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.submitBid(supplierId, projectId, body);
+    return this.portalService.submitBid(supplierId, projectId, dto);
   }
 
   // ─── 新轨补传（双信封 v2：解密异常恢复由供应商端双层重封，Task 10）───
