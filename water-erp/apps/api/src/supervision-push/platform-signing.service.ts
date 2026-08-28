@@ -25,7 +25,12 @@ export class PlatformSigningService {
   constructor(private readonly signature: SignatureService) {}
 
   private get keyPath(): string {
-    const dir = process.env.SUPERVISION_KEYSTORE_DIR || path.resolve(process.cwd(), '.data/supervision');
+    // 私钥目录：env SUPERVISION_KEYSTORE_DIR 优先；默认 <api 包根>/.data/supervision。
+    // 本文件位于 <api>/{src|dist}/supervision-push（src 与 dist 同深度），../../ 恒回到
+    // apps/api 包根——与 .gitignore 的 water-erp/apps/api/.data/ 规则及备份集对齐。
+    // ⚠️ 勿改回 process.cwd()：生产 WorkingDirectory ≠ apps/api 时私钥会落到 gitignore
+    // 与备份集之外（终审修复 2026-08-28，同 admin-keystore.service.ts 的锚定惯例）。
+    const dir = process.env.SUPERVISION_KEYSTORE_DIR || path.join(__dirname, '../../.data/supervision');
     return path.join(dir, 'platform-signing.json');
   }
 

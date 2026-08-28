@@ -2978,8 +2978,11 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '电子签名验证失败，请使用绑定证书对最新答复内容重新签名', code: 'CLARIFICATION_REPLY_SIGNATURE_INVALID' });
     }
 
-    const updated = await this.prisma.bidClarification.update({
-      where: { id: cid },
+    // TOCTOU 收口（终审修复 2026-08-28）：assertReplyable 断言与写入之间可能插入第二笔
+    // 并发提交——按主键无条件 update 会静默覆盖先到的答复（含 SM2 签名证据）。
+    // 改条件 updateMany：仅 status=待回复 可写，count=0 即已被并发答复 → 409。
+    const written = await this.prisma.bidClarification.updateMany({
+      where: { id: cid, status: '待回复' },
       data: {
         reply: dto.reply,
         status: '已回复',
@@ -2992,10 +2995,15 @@ export class SupplierPortalService {
         replyByName: user.name ?? user.username ?? null,
       },
     });
+    if (written.count === 0) {
+      throw new ConflictException({ error: '澄清已答复或已关闭，不可重复答复', code: 'CLARIFICATION_ALREADY_REPLIED' });
+    }
     this.gateway?.notifyClarificationReplied(projectId, {
       id: cid, replier: 'supplier', replyPreview: dto.reply.slice(0, 60),
     });
-    return this.stripReplySignature(updated);
+    // updateMany 不回行——重取后剥离签名全串返回
+    const refreshed = await this.prisma.bidClarification.findUnique({ where: { id: cid } });
+    return this.stripReplySignature(refreshed!);
   }
 
   /** 私有：答复闸门——存在+寻址本人+待回复+评标中（spec §3.4 reply 流程 1） */

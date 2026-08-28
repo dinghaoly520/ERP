@@ -71,7 +71,9 @@ export class SupervisionPushService {
       timeoutMs: dto.timeoutMs ?? 8000,
       platformCode: dto.platformCode ?? '',
     };
-    await this.systemConfig.set(CONFIG_KEY, JSON.stringify(merged), updatedBy);
+    // setRaw（不消毒）：JSON 配置含 endpoint 查询串/authToken，sanitize 会把 `&`→`&amp;`、
+    // 剥 `<...>` 序列——静默破坏配置且读取侧掩码后不可诊断（终审修复 2026-08-28）。
+    await this.systemConfig.setRaw(CONFIG_KEY, JSON.stringify(merged), updatedBy);
     return { ...merged, authToken: merged.authToken ? '******' : '' };
   }
 

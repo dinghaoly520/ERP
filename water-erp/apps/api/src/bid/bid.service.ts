@@ -4580,14 +4580,30 @@ export class BidService {
         }
       : { reply: dto.reply, status: dto.status || '已回复' };
 
-    const result = await this.prisma.bidClarification.update({ where: { id: cid }, data });
-    // P2: emit real-time reply to project room
+    let result;
+    if (existing.type === 'clarification') {
+      // TOCTOU 收口（终审修复 2026-08-28）：上方 existing 快照与写入之间供应商可能已
+      // 在线签名答复——无条件 update 会用 DbNull 抹掉其 SM2 签名证据。条件 updateMany
+      // 仅在尚无 online 答复（replyChannel null/offline）时可写，count=0 → 409。
+      const written = await this.prisma.bidClarification.updateMany({
+        where: { id: cid, OR: [{ replyChannel: null }, { replyChannel: 'offline' }] },
+        data,
+      });
+      if (written.count === 0) {
+        throw new ConflictException({ error: '供应商已在线签名答复，不可覆盖', code: 'ONLINE_REPLY_LOCKED' });
+      }
+      // updateMany 不回行——重取供返回
+      result = await this.prisma.bidClarification.findUnique({ where: { id: cid } });
+    } else {
+      result = await this.prisma.bidClarification.update({ where: { id: cid }, data });
+    }
+    // P2: emit real-time reply（host/experts 房定向，投标人不可见——见 gateway 注记）
     this.gateway?.notifyClarificationReplied(projectId, {
       id: cid,
       replier: existing.type === 'clarification' ? 'host-offline' : 'host',
       replyPreview: dto.reply.slice(0, 60),
     });
-    return this.stripClarificationSignature(result);
+    return this.stripClarificationSignature(result!);
   }
 
   /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
