@@ -38,3 +38,9 @@ docker exec -e PGPASSWORD=water_erp_dev water-erp-postgres dropdb -U water_erp w
 - 恢复到已有库会先 DROP 全部业务表（`--clean --if-exists`），恢复期间该库不可用。
 - `backups/` 已 gitignore；生产环境建议再同步一份到异地（rsync/对象存储）。
 - MinIO 文件（投标文件/附件）不在本备份内——文件量大，需单独用 `mc mirror` 备份 `water-erp_minio-data`。
+
+## 监督推送签名密钥备份
+
+`apps/api/.data/supervision/platform-signing.json` 是平台 SM2 签名私钥（A-153 监督推送适配层），与 `ADMIN_KEYSTORE_DIR` 同等纳入备份：丢失 = 历史推送信封签名不可复现、省平台侧验签失效。该文件不在 pg_dump/MinIO 备份内，须随宿主机文件备份策略（同 admin-keystore）覆盖；目录可用 `SUPERVISION_KEYSTORE_DIR` 覆盖（缺省由 `platform-signing.service.ts` 以 `__dirname` 锚定到 `apps/api/.data/supervision`）。
+
+另注：本开发库上 `migrate dev` 可能就 20260826122001（开标签字追赶迁移）提示迁移已被编辑（checksum 变化）——该迁移已幂等化修复（`ADD COLUMN IF NOT EXISTS`，e73d3579），按提示接受重放或用 `prisma migrate resolve` 处理即可。

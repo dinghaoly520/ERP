@@ -422,6 +422,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 ## 双信封新轨·生产启用前清单（2026-08 双信封落地）
 
 - **ADMIN_KEYSTORE_DIR 必须纳入备份**：管理方外层私钥文件不在 DB/MinIO 备份内；丢失=对应历史信封外层永久不可解（全量 PLATFORM 归因）。生产对应加密机/HSM。
+- **.data/supervision/ 必须纳入备份**：监督推送平台签名私钥（A-153），与 ADMIN_KEYSTORE_DIR 同级；缺省 `SUPERVISION_KEYSTORE_DIR`。
 - **供应商门户须 https（或 localhost）**：`@water-erp/ukey`/WebCrypto（crypto.subtle）要求 secure context，局域网 http 直连会挂。
 - **clean-legacy-plaintext --execute 前**：先 dry-run 审阅清单；旧轨服务端密封资产的回看下载已支持 sealedPath 流式解密（streamFile，2026-08-21），执行后供应商回看/staff/专家下载不受影响。
 - **BID_DUAL_ENVELOPE=false 应急语义**：flag 关时新轨投递（envelope.version='dual-v2'）被显式 400 `DUAL_DISABLED` 拒收——供应商须按旧流程（clientDeks）重新投递；回退前应公告通知投标人。
