@@ -747,7 +747,7 @@ export class BidController {
 
   @Post('projects/:id/clarifications')
   @ApiOperation({ summary: '发起澄清' })
-  createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto) { return this.bidService.createClarification(id, dto); }
+  createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto, @CurrentUser('sub') userId?: string) { return this.bidService.createClarification(id, dto, userId); }
 
   @Post('projects/:id/clarifications/draft')
   @ApiOperation({ summary: 'P1-F：AI 起草澄清问题候选（不落库）' })

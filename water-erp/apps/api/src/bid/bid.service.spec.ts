@@ -494,6 +494,22 @@ describe('BidService — stage transitions', () => {
         expect.objectContaining({ where: expect.objectContaining({ projectId: 'p1', expertRole: '正选', invitationStatus: 'confirmed' }) }),
       );
     });
+
+    it('F18：流标成功 → 写 BID_PROJECT_ABORT 审计（旧实现零 AuditLog）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.auditLog = { create: jest.fn().mockResolvedValue({}) };
+
+      await expect(service.abortBidProject('p1', 'u1', 'F18测试原因')).resolves.toMatchObject({ stage: 'ABORTED' });
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: 'u1', action: 'BID_PROJECT_ABORT', resourceType: 'BidProject:p1' }),
+        }),
+      );
+    });
   });
 
   describe('reopenFromAborted — N5 重启时间兜底', () => {

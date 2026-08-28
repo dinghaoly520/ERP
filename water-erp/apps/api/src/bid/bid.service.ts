@@ -1344,6 +1344,16 @@ export class BidService {
       }
     } catch { /* 通知失败不阻塞流标 */ }
 
+    // F18（2026-08-28）：补审计——流标是高风险动作，旧实现仅监督日志、零 AuditLog
+    //（对照阶段变更/裁决/延期均有审计；try/catch 兜底，审计失败不阻断流标结果）
+    if (actorId) {
+      try {
+        await this.prisma.auditLog.create({
+          data: { userId: actorId, action: 'BID_PROJECT_ABORT', resourceType: `BidProject:${id}`, details: { reason: riskNote ?? null, hadResults: resultCount > 0, fromStage: project.stage } },
+        });
+      } catch { /* 审计失败不阻断 */ }
+    }
+
     return updated;
   }
 
@@ -4687,7 +4697,7 @@ export class BidService {
     return { ...result, aiSummary };
   }
 
-  async createClarification(projectId: string, dto: CreateClarificationDto) {
+  async createClarification(projectId: string, dto: CreateClarificationDto, actorId?: string) {
     // P1: 阶段门控 — 归档后不可发起澄清
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (project?.stage === 'ARCHIVED') {
@@ -4720,6 +4730,12 @@ export class BidService {
         id: created.id, issuer: dto.issuer, issuerRole: 'host',
         supplierName: dto.supplierName, questionPreview: dto.question.slice(0, 60),
       });
+      // F18（2026-08-28）：补审计——澄清发起是现场关键动作，旧实现零 AuditLog（try/catch 兜底）
+      if (actorId) {
+        this.prisma.auditLog?.create({
+          data: { userId: actorId, action: 'BID_CLARIFICATION_CREATE', resourceType: `BidProject:${projectId}`, details: { clarificationId: created.id, type: dto.type || 'clarification', supplierName: dto.supplierName } },
+        }).catch(() => {});
+      }
       return created;
     });
   }
