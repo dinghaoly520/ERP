@@ -302,6 +302,29 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   );
   const openingDone = activeSuppliers.length > 0 && notReadySuppliers.length === 0;
 
+  // F9（2026-08-28）：启动评标守卫前端镜像（后端 startEvaluation 同口径）——委员会 = 已确认正选
+  // 5 人以上单数（水利项目 7 人以上单数，由后端按 PMI/项目名判定，前端按通用口径提示）；
+  // 可评供应商 = 解密成功且未撤回 ≥ 法定家数（minBidders 随详情下发）。旧实现仅拦「开标完成」，
+  // 委员会不足/家数不足要点了按钮才被 409 教育。
+  const confirmedRegular = regularExperts.filter(e => e.invitationStatus === 'confirmed').length;
+  const committeeOk = confirmedRegular >= 5 && confirmedRegular % 2 === 1;
+  const evaluableCount = suppliers.filter(s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回').length;
+  const minBidders = project.minBidders ?? 3;
+  const biddersOk = evaluableCount >= minBidders;
+  const startBlockers: string[] = [];
+  if (!openingDone) startBlockers.push(`开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 未到终局态`);
+  if (!committeeOk) startBlockers.push(`已确认正选专家 ${confirmedRegular} 人，须 5 人以上单数（水利项目 7 人以上单数）`);
+  if (!biddersOk) startBlockers.push(`有效投标（解密成功且未撤回）仅 ${evaluableCount} 家，不足法定 ${minBidders} 家`);
+
+  // F9：生成向导第 0 步清单补全——镜像 generateEvaluationResults 其余前置闸门（旧清单只有专家报告确认）
+  const openDisputeCount = (project.expertDisputes ?? []).filter(d => d.status === 'open').length;
+  const leaderSigned = !!project.leaderCoSigned;
+  const roundsRequired = !!project.roundMode && project.roundMode !== 'sealed_auction';
+  const allRounds = project.bidRounds ?? [];
+  const roundsUnclosed = allRounds.filter(r => r.status !== 'closed').length;
+  const roundsClosed = allRounds.length > 0 && roundsUnclosed === 0;
+  const step0Ready = canGenerate && leaderSigned && openDisputeCount === 0 && (!roundsRequired || roundsClosed);
+
   const itemCount = scoreItems.length;
   // F4：评分格位分母同样只计正选（候补无评分权限，计入会压低进度百分比）
   const totalSlots = regularExperts.length * suppliers.length * itemCount;
@@ -489,12 +512,18 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             {!openingDone && notReadySuppliers.length > 0 && (
               <span className="text-[var(--warning)]">开标未完成：{notReadySuppliers.map(s => s.supplierName).join('、')} 待解密/确认</span>
             )}
+            {!committeeOk && (
+              <span className="text-[var(--warning)]">已确认正选专家 {confirmedRegular} 人（须 5 人以上单数，水利项目 7 人以上）</span>
+            )}
+            {!biddersOk && (
+              <span className="text-[var(--warning)]">有效投标 {evaluableCount} 家（法定最少 {minBidders} 家）</span>
+            )}
           </div>
           <button
             type="button"
             onClick={() => { setDurationHours(72); setStartDialogOpen(true); }}
-            disabled={busy || !openingDone}
-            title={openingDone ? '' : `开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 未到终局态`}
+            disabled={busy || startBlockers.length > 0}
+            title={startBlockers.length > 0 ? startBlockers.join('\n') : ''}
             className="neu-btn-primary !h-[32px] !text-xs shrink-0 disabled:opacity-40"
           >
             <Play size={13} /> {busy ? '启动中…' : '启动评标'}
@@ -791,23 +820,50 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="px-6 py-5">
               {wizardStep === 0 && (
                 <div className="space-y-2 text-xs">
-                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果要求<span className="font-semibold text-[var(--foreground)]">全部正选专家已确认评审报告</span>（候补不参与）。当前：</p>
-                  {unconfirmed.length === 0 ? (
-                    <div className="flex items-center gap-2 rounded-[12px] px-3.5 py-3 font-semibold" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)', color: 'var(--success)' }}>
-                      <CheckCircle2 size={14} /> {regularExperts.length} 位正选专家已全部确认报告，可进入下一步。
+                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果前置条件（与后端闸门同口径，全部满足方可继续）：</p>
+                  {[
+                    {
+                      ok: unconfirmed.length === 0,
+                      text: unconfirmed.length === 0
+                        ? `${regularExperts.length} 位正选专家已全部确认评审报告（候补不参与）`
+                        : `仍有 ${unconfirmed.length} 位正选专家未确认评审报告`,
+                    },
+                    {
+                      ok: leaderSigned,
+                      text: leaderSigned ? '评审报告已经组长末签' : '评审报告尚未经组长末签（生成前须完成末签）',
+                    },
+                    {
+                      ok: openDisputeCount === 0,
+                      text: openDisputeCount === 0 ? '无待裁决的专家异议' : `有 ${openDisputeCount} 个专家异议待裁决，须先裁决`,
+                    },
+                    ...(roundsRequired ? [{
+                      ok: roundsClosed,
+                      text: roundsClosed
+                        ? `报价轮次已全部结束（共 ${allRounds.length} 轮）`
+                        : allRounds.length === 0
+                          ? '尚未创建报价轮次——谈判项目须至少完成一轮报价（「报价轮次」tab）'
+                          : `还有 ${roundsUnclosed} 个报价轮次未结束，请先在「报价轮次」tab 关闭`,
+                    }] : []),
+                  ].map(p => (
+                    <div
+                      key={p.text}
+                      className="flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 font-semibold"
+                      style={{
+                        background: `color-mix(in oklch, ${p.ok ? 'var(--success)' : 'var(--warning)'} 10%, transparent)`,
+                        color: p.ok ? 'var(--success)' : 'var(--warning)',
+                      }}
+                    >
+                      {p.ok ? <CheckCircle2 size={14} className="shrink-0" /> : <Clock size={13} className="shrink-0" />}
+                      {p.text}
                     </div>
-                  ) : (
-                    <div className="rounded-[12px] px-3.5 py-3" style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
-                      <div className="mb-1.5 flex items-center gap-1.5 font-semibold text-[var(--warning)]">
-                        <Clock size={13} /> 仍有 {unconfirmed.length} 位正选专家未确认报告
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {unconfirmed.map(e => (
-                          <span key={e.id} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'oklch(1 0 0 / 0.7)', color: 'var(--foreground)' }}>
-                            {e.expertName}{!e.signedIn && '（未签到）'}
-                          </span>
-                        ))}
-                      </div>
+                  ))}
+                  {unconfirmed.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {unconfirmed.map(e => (
+                        <span key={e.id} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'oklch(1 0 0 / 0.7)', color: 'var(--foreground)' }}>
+                          {e.expertName}{!e.signedIn && '（未签到）'}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -859,7 +915,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 <button
                   type="button"
                   onClick={() => setWizardStep((wizardStep + 1) as 1 | 2)}
-                  disabled={wizardStep === 0 && !canGenerate}
+                  disabled={wizardStep === 0 && !step0Ready}
                   className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
                 >
                   下一步 <ChevronRight size={13} />
