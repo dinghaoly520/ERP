@@ -2126,7 +2126,14 @@ export class SupplierPortalService {
       // P2：本人报价回显解封（回读草稿时报价可编辑的前提）
       if (sub.bidPrice) (sub as any).bidPrice = openField(sub.bidPrice, process.env.KMS_SECRET!) ?? sub.bidPrice;
     }
-    return sub;
+    if (!sub) return null;
+    // A-101：回执编号 TB-yyyymmdd-NNN 存于 BidSupplier（名册级，投递时生成/继承），SupplierBidSubmission 无此列——
+    // 并入返回供供应商端回执卡展示；仅增字段，既有消费方（submit 页回读草稿别名/解封报价）不受影响。
+    const bid = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId },
+      select: { receiptNo: true },
+    });
+    return { ...sub, receiptNo: bid?.receiptNo ?? null };
   }
 
   async withdrawSubmission(supplierId: string, submissionId: string) {

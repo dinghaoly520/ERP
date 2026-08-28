@@ -906,8 +906,23 @@ describe('SupplierPortalService', () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({
         id: 'sub-1', supplierId: 'supplier-1', projectId: 'p1', status: 'draft', bidPrice: sealField('39.8', TEST_KMS),
       });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
       const sub = await service.getSubmission('supplier-1', 'p1');
       expect((sub as any).bidPrice).toBe('39.8');
+      expect((sub as any).receiptNo).toBeNull();
+    });
+
+    it('getSubmission 并入 BidSupplier.receiptNo（A-101 回执卡编号，本表无此列）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-2', supplierId: 'supplier-1', projectId: 'p1', status: 'submitted', bidPrice: null,
+      });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ receiptNo: 'TB-20260828-017' });
+      const sub = await service.getSubmission('supplier-1', 'p1');
+      expect((sub as any).receiptNo).toBe('TB-20260828-017');
+      expect(prisma.bidSupplier.findFirst).toHaveBeenCalledWith({
+        where: { projectId: 'p1', supplierId: 'supplier-1' },
+        select: { receiptNo: true },
+      });
     });
   });
 
