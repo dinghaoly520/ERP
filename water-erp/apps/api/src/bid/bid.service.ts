@@ -286,7 +286,10 @@ export class BidService {
 
   async getProjectsDashboard(actor?: { id: string; role: string }, portal?: string) {
     // 按 portal 过滤：bid portal 只看派给自己的；web portal 按公司隔离（2026-08-20）
-    const actorFilter = portal === 'bid' && actor ? { assignedHostUserId: actor.id } : {};
+    // N1（2026-08-28，浏览器验证发现）：admin 豁免主持人过滤——:3007 是 admin 的默认落地
+    // 门户（urls.ts role→portal），未被指派为主持人时任务板全空不可用；leader/staff 维持
+    // 只看派给自己的（:3005 才是其工作面，:3007 仅现场协同，可经直链进入工作区）。
+    const actorFilter = portal === 'bid' && actor && actor.role !== 'admin' ? { assignedHostUserId: actor.id } : {};
     const companyFilter = await this.companyFilterFor(actor, portal);
     const projects = await this.prisma.bidProject.findMany({
       where: { ...actorFilter, ...companyFilter, isExtractionOnly: false },
@@ -402,15 +405,11 @@ export class BidService {
       };
     });
 
-    const stageCounts = await this.prisma.bidProject.groupBy({
-      by: ['stage'],
-      where: { isExtractionOnly: false },
-      _count: { stage: true },
-    });
+    // N1：stageDistribution 原为另一笔无过滤 groupBy——与 projects 过滤集脱钩（admin 在
+    // bid portal 曾得到 totalProjects=0 但 OPENING:4 的自相矛盾载荷），对 web portal
+    // 公司隔离也违反「统计在隔离集上算」的既档口径。改为对过滤集直接计数（省一笔查询）。
     const stageDistribution: Record<string, number> = {};
-    stageCounts.forEach(s => {
-      stageDistribution[s.stage] = s._count.stage;
-    });
+    for (const row of projectRows) stageDistribution[row.stage] = (stageDistribution[row.stage] ?? 0) + 1;
 
     const totalProjects = projects.length;
     const activeProjects = projectRows.filter(
@@ -463,8 +462,11 @@ export class BidService {
       };
     }) as typeof project.suppliers;
 
-    // L6 数据级隔离：bid portal 只能看指派给自己的项目（无论角色）
-    if (portal === 'bid' && actor && project.assignedHostUserId !== actor.id) {
+    // L6 数据级隔离：bid portal 只能看指派给自己的项目。
+    // admin 豁免（N1，2026-08-28，浏览器验证发现）：:3007 是 admin 的默认落地门户且
+    // 全模块 @Roles 均含 admin（解密/启动评标/归档皆可办），任务板已对 admin 放开
+    // （getProjectsDashboard 同步豁免），此处不豁免会「看得到进不去」。
+    if (portal === 'bid' && actor && actor.role !== 'admin' && project.assignedHostUserId !== actor.id) {
       throw new ForbiddenException('无权访问该项目（未指派给您）');
     }
 
