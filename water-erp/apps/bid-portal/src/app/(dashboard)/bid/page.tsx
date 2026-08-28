@@ -37,16 +37,32 @@ export default function BidTaskBoard() {
   const router = useRouter();
   const [projects, setProjects] = useState<DashboardProject[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
     getProjectsDashboard()
-      .then(d => { setProjects(d.projects); })
-      .catch(() => setProjects([]))
+      .then(d => { setProjects(d.projects); setError(null); })
+      .catch((e: any) => {
+        // O6（2026-08-28）：不再把故障吞成「暂无项目」空态误导排障（已有数据保留展示）
+        setError(e?.message || '开标任务加载失败');
+      })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // O5（2026-08-28）：原挂载拉一次后数字静止（刷新按钮已删）——补 30s 轮询 + 回到前台即时刷新。
+  // GET /bid/projects/dashboard 已入操作日志排除默认值（operation-log.filter.ts），轮询不膨胀日志。
+  useEffect(() => {
+    const timer = setInterval(load, 30_000);
+    const onVisible = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [load]);
 
   const opening = (projects ?? []).filter(p => p.stage === 'OPENING');
   // 评标中 / 已结束：dashboard 已返回全阶段项目，前端分组渲染为可进入工作区的入口
@@ -58,6 +74,18 @@ export default function BidTaskBoard() {
 
   return (
     <div className="space-y-5">
+      {error && !loading && !projects && (
+        <div className="neu-card-static flex flex-wrap items-center gap-3 px-5 py-4 text-[13px] text-[var(--danger)]">
+          <AlertTriangle size={16} /> 开标任务加载失败：{error}
+          <button type="button" onClick={load} className="neu-btn-soft !h-[30px] !text-xs">重试</button>
+        </div>
+      )}
+      {error && !loading && projects && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[oklch(0.66_0.175_27_/_0.1)] px-4 py-2 text-[12px] text-[var(--danger)]">
+          <AlertTriangle size={13} /> 数据刷新失败（下方为最近一次成功加载）：{error}
+          <button type="button" onClick={load} className="neu-btn-soft !h-[26px] !text-[11px]">重试</button>
+        </div>
+      )}
       {loading && !projects ? (
         <div className="flex min-h-[240px] items-center justify-center text-sm text-[color:var(--muted-foreground)]">
           <RefreshCw size={18} className="mr-2 animate-spin" /> 加载开标任务…

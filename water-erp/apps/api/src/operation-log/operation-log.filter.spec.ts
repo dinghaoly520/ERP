@@ -23,6 +23,10 @@ describe('shouldExclude', () => {
     expect(shouldExclude('GET', '/api/auth/me', DEFAULT_EXCLUDE_PATHS)).toBe(false);
   });
 
+  it(':3007 任务板 30s 轮询 GET 排除（O5，2026-08-28）', () => {
+    expect(shouldExclude('GET', '/api/bid/projects/dashboard', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+  });
+
   it('高频轮询 GET 排除（通知角标/驾驶舱统计/审查任务轮询）', () => {
     expect(shouldExclude('GET', '/api/notifications/unread-count', DEFAULT_EXCLUDE_PATHS)).toBe(true);
     expect(shouldExclude('GET', '/api/supplier/stats', DEFAULT_EXCLUDE_PATHS)).toBe(true);
