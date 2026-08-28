@@ -380,6 +380,7 @@ model BidProject {
   bidRounds                BidRound[]
   motions                  BidMotion[]
   expertDisputes           ExpertDispute[]
+  supervisionPushLogs      SupervisionPushLog[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
   bidSignPacket            BidSignPacket?
@@ -767,6 +768,12 @@ model BidClarification {
   reply        String?
   fileAssetId  String? // 书面交流来函附件（迭代一：书面渠道改造）
   aiSummary    String? // P1-F：LLM 提炼的回复要点（供全体评委速读，不覆盖 reply 原文）
+  // ── A-143（2026-08-28）：供应商在线签名答复 ──
+  replyChannel        String?   // 'online'（供应商 SM2 签名答复）| 'offline'（主持端离线登记）；null = 历史数据
+  replySignature      Json?     // {v:1, payload, signature, algorithm:'SM2/SM3', certSn, verifiedAt}（receiptSignature 同构）
+  replyAttachmentIds  Json?     // [{fileAssetId, name, sha256}]（category=clarification_reply）
+  replyByName         String?   // 答复操作人留痕（供应商登录名 / 主持人）
+  replyOfflineReason  String?   // 离线答复缘由（channel=offline 必填）
   project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier     Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdAt    DateTime   @default(now())
@@ -3502,4 +3509,26 @@ model AdminEncryptionCert {
   certDn    String
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+// A-153（2026-08-28）：监督推送适配层——每次推送/凭证导出一条日志（多尝试全留物证）
+model SupervisionPushLog {
+  id              String    @id @default(cuid())
+  projectId       String
+  payloadType     String    // EVALUATION_REPORT | OPENING_RECORD | EXPERT_CREDIT | EXPERT_PERFORMANCE
+  status          String    // SUCCESS | FAILED | VOUCHER_EXPORTED
+  endpoint        String?
+  requestSha256   String?   // 信封 fingerprint
+  packetAssetId   String?   // 信封 FileAsset（supervision_push_packet）
+  responseCode    Int?
+  responseSnippet String?   // ≤2KB
+  errorMessage    String?
+  attemptNo       Int       @default(1)
+  signedBy        String?   // 平台签名证书 DN
+  voucherAssetId  String?   // 凭证 FileAsset（supervision_push_voucher）
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, payloadType])
 }
