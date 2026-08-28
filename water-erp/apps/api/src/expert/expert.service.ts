@@ -1518,7 +1518,7 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
-    const [records, reviews, pointDecisions] = await Promise.all([
+    const [records, reviews, pointDecisions, task] = await Promise.all([
       this.prisma.bidScoreRecord.findMany({
         where: { expertId: expert.id },
         include: { scoreItem: true },
@@ -1528,7 +1528,21 @@ export class ExpertService {
         where: { expertId: expert.id },
         select: { pointId: true, supplierId: true, checked: true, awardedScore: true, note: true },
       }),
+      this.prisma.aiBidAnalysisTask.findUnique({
+        where: { projectId },
+        select: { requirements: true },
+      }),
     ]);
+
+    // ⑦：★号实质性条款（isStarred，仅 technicalRequirements 有此标记）在评分分组上
+    // 额外属「响应性评审」（RESPONSIVE）——与前端 requirement-compare-panel 的展开规则同构
+    // （starred → 原组 + RESPONSIVE）。若只按 UPPER 映射，★条款异议只落在 TECHNICAL，
+    // 前端按 RESPONSIVE 组查询时软门/徽标/异议插入面板均不可见。
+    const starredIds = new Set(
+      (((task?.requirements as any)?.technicalRequirements as any[] | undefined) ?? [])
+        .filter((r) => r?.isStarred === true && r.id)
+        .map((r) => r.id),
+    );
 
     const UPPER: Record<string, string> = {
       qualification: 'QUALIFICATION',
@@ -1540,14 +1554,19 @@ export class ExpertService {
     const disputesBySupplier: Record<string, Record<string, { requirementId: string; content: string; note: string; verdict: string }[]>> = {};
     for (const r of reviews) {
       const cat = UPPER[r.category];
-      if (!cat) continue;
+      const cats = cat ? (starredIds.has(r.requirementId) ? [cat, 'RESPONSIVE'] : [cat]) : [];
+      if (cats.length === 0) continue;
       if (r.verdict === 'dispute') {
         const catList = disputeCategoriesBySupplier[r.supplierId] ?? (disputeCategoriesBySupplier[r.supplierId] = []);
-        if (!catList.includes(cat)) catList.push(cat);
+        for (const c of cats) {
+          if (!catList.includes(c)) catList.push(c);
+        }
       }
       const detailMap = disputesBySupplier[r.supplierId] ?? (disputesBySupplier[r.supplierId] = {});
-      const detailList = detailMap[cat] ?? (detailMap[cat] = []);
-      detailList.push({ requirementId: r.requirementId, content: r.content, note: r.note, verdict: r.verdict });
+      for (const c of cats) {
+        const detailList = detailMap[c] ?? (detailMap[c] = []);
+        detailList.push({ requirementId: r.requirementId, content: r.content, note: r.note, verdict: r.verdict });
+      }
     }
     return { records, disputeCategoriesBySupplier, disputesBySupplier, pointDecisions };
   }

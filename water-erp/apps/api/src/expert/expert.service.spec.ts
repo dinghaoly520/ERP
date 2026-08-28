@@ -1433,6 +1433,26 @@ describe('ExpertService', () => {
   });
 
   describe('getMyScores', () => {
+    beforeEach(() => {
+      // ⑦：getMyScores 额外查 aiBidAnalysisTask.requirements（★号条款 → RESPONSIVE 映射）
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue(null) };
+    });
+
+    it('⑦★号条款异议追加 RESPONSIVE 组（与前端 CAT_TO_SCORE 展开同构），非★条款只进原组', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ requirements: { technicalRequirements: [{ id: 'req-star', isStarred: true }, { id: 'req-norm', isStarred: false }] } }) };
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([
+        { category: 'technical', verdict: 'dispute', bidderResultId: 'br-1', requirementId: 'req-star', note: 'n1', bidderResult: { bidSupplier: { id: 's1' } } },
+        { category: 'technical', verdict: 'dispute', bidderResultId: 'br-1', requirementId: 'req-norm', note: 'n2', bidderResult: { bidSupplier: { id: 's1' } } },
+      ]) };
+      prisma.aiBidderResult.findMany = jest.fn().mockResolvedValue([]);
+      const out = await service.getMyScores('u1', 'proj-1');
+      expect(out.disputeCategoriesBySupplier).toEqual({ s1: ['TECHNICAL', 'RESPONSIVE'] });
+      expect(out.disputesBySupplier.s1.TECHNICAL).toHaveLength(2);
+      expect(out.disputesBySupplier.s1.RESPONSIVE).toEqual([expect.objectContaining({ requirementId: 'req-star', verdict: 'dispute' })]);
+    });
+
     it('返回 records + disputeCategoriesBySupplier（按 supplier 分组，per-supplier 去重）', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreRecord.findMany.mockResolvedValue([]);
