@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
@@ -421,9 +422,16 @@ function BidDetailInner() {
                     )}
                   </div>
 
-                  {/* 澄清答疑（只读：说明文案 + 澄清/回复列表，供应商不可在系统内提交） */}
+                  {/* 澄清答疑（投标阶段只读；评标中寻址本司的澄清经「评标澄清答复」在线签名答复，A-143） */}
                   <div className="neu-card bottom-card">
-                    <div className="bc-hd">澄清答疑</div>
+                    <div className="bc-hd flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1.5">澄清答疑</span>
+                      {["EVALUATING", "ARCHIVED"].includes(project.stage) && (
+                        <Link href={`/bids/${projectId}/clarifications`} className="b-tag b-tag--warning">
+                          评标澄清答复（A-143）
+                        </Link>
+                      )}
+                    </div>
                     {notice ? (
                       <div className="cq-notice" dangerouslySetInnerHTML={{ __html: notice }} />
                     ) : (
