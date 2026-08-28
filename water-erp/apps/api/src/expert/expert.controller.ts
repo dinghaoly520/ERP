@@ -14,7 +14,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -263,11 +263,25 @@ export class ExpertController {
     @Param('projectId') projectId: string,
     @Param('supplierId') supplierId: string,
     @Param('fileId') fileId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
+    // 2026-08-28 审查修复（优化项7）：条款核对页每点一条条款就重建 iframe，此前每次全量重取
+    // 整份解密 PDF。加 ETag（以不变的 fileId 为凭）+ private 缓存：浏览器重载走本地缓存，
+    // 带匹配 If-None-Match 时直接 304——不取 buffer、不进服务层、不写监督/审计日志。
+    // 304 无响应体不泄露内容；缓存为浏览器私有，仅持有旧副本者（此前已通过鉴权）可再验证。
+    const etag = `"${fileId}"`;
+    if (req.headers['if-none-match'] === etag) {
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'private, max-age=600');
+      res.status(304).end();
+      return;
+    }
     const { buffer, fileName, mimeType } = await this.expertService.downloadBidDocument(userId, projectId, supplierId, fileId);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=600');
     res.send(buffer);
   }
 
