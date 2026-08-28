@@ -103,6 +103,14 @@ function WorkspaceInner() {
     router.replace(`/bid/project/${projectId}?${next.toString()}`, { scroll: false });
   }, [router, projectId, searchParams]);
 
+  // O2（2026-08-28）：评标区两块共用 onEvalChanged——生成/重生成/裁决等会改评标结果的动作
+  // 统一递增 resultsSignal，DisputeBlock 经信号重拉（原依赖 detail 引用，WS 高频
+  // scheduleRefresh 每轮都多打一次 evaluation-results）
+  const onEvalChanged = useCallback(() => {
+    loadProject();
+    setResultsSignal(v => v + 1);
+  }, [loadProject]);
+
   // ═══ 解密倒计时提示音（补回旧开标大厅行为）：大厅 tab 且解密窗口在计时时，剩余 ≤60s 每秒 tick、
   // 剩余 300s 时 warning 一次。tab / decryptWindowEnd 变化即 clearInterval 重建，卸载清除；
   // sfx 每渲染新建但仅读稳定的 audioCtxRef，行为等效，故不入依赖。视觉圆环仍在 hall（serverTimeOffset），
@@ -231,8 +239,8 @@ function WorkspaceInner() {
           {current === 'supervise' && <SupervisionView projectId={projectId as string} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />}
           {current === 'evaluate' && (
             <>
-              <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} refreshSignal={resultsSignal} />
-              <DisputeBlock bidProjectId={projectId as string} detail={project} onChanged={() => { loadProject(); setResultsSignal(v => v + 1); }} />
+              <EvaluationView projectId={projectId as string} project={project} onChanged={onEvalChanged} refreshSignal={resultsSignal} />
+              <DisputeBlock bidProjectId={projectId as string} detail={project} onChanged={onEvalChanged} refreshSignal={resultsSignal} />
               <ClarificationsBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} refreshSignal={clarSignal} />
             </>
           )}

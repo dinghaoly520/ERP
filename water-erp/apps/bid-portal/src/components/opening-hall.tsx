@@ -235,12 +235,18 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [now, setNow] = useState(() => Date.now());
 
   // Sync server time for authoritative countdown
+  // O7（2026-08-28）：授时重拉改键控（窗口止点|暂停态）——原依赖 openingSession 对象引用，
+  // 任何无关刷新（评分事件等）都会重拉；仅窗口经「延长 +15分钟」或暂停/恢复变化时才需重新对时
+  const sessionTimeKey = project?.openingSession
+    ? `${project.openingSession.decryptWindowEnd}|${project.openingSession.pausedAt ?? ''}`
+    : '';
   useEffect(() => {
-    if (!projectId || !project?.openingSession) return;
+    if (!projectId || !sessionTimeKey) return;
     getOpeningSessionTime(projectId)
       .then(data => { setServerTimeOffset(data.serverTime - Date.now()); })
       .catch(() => {});
-  }, [projectId, project?.openingSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, sessionTimeKey]);
 
   const openingStatusMeta = (status?: string | null) => {
     switch (status) {

@@ -17,6 +17,8 @@ type Props = {
   bidProjectId: string;
   detail: BidProjectDetail | null;
   onChanged: () => void;
+  /** 页级结果信号（O2：生成/裁决等改结果动作递增）——变化即重拉；替代原 detail 引用依赖 */
+  refreshSignal?: number;
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -38,7 +40,7 @@ function formatTime(iso: string | null | undefined): string {
   return d.toLocaleString('zh-CN');
 }
 
-export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
+export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [responseById, setResponseById] = useState<Record<string, string>>({});
   const [invalidateById, setInvalidateById] = useState<Record<string, string>>({});
@@ -53,7 +55,10 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
     listEvaluationResults(bidProjectId)
       .then((r) => setResultsGenerated(r.length > 0))
       .catch(() => setResultsGenerated(false));
-  }, [bidProjectId, detail]); // detail 入依赖：onChanged 刷新后重取
+    // O2：detail 引用随 WS 高频刷新（scheduleRefresh 防抖后仍每轮必变）→ 改 stage 标量 + 页级信号；
+    // 生成/重生成/裁决（onEvalChanged）与裁决废标后的刷新都经 refreshSignal 传达
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bidProjectId, detail?.stage, refreshSignal]);
 
   if (!detail) return null;
   const { stage, expertDisputes } = detail;

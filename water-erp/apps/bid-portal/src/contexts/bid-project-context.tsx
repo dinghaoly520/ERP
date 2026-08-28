@@ -1,25 +1,20 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { createContext, useContext, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
-import type { BidProjectDetail } from '@/lib/types';
+
+/**
+ * 项目工作区路由上下文——仅派生 projectId（路由参数 [id] 优先，旧 ?id= 查询兜底）。
+ * O1（2026-08-28）：删除 provider 内的项目详情拉取——工作区页（page.tsx）本就自持唯一
+ * 显示源并全量拉取，provider 的副本仅被 ScoreStandardView 作 propsProject 回退消费
+ * （实际恒有 props），留着只会在挂载时多发一次 GET /bid/projects/:id。
+ */
 
 export interface BidProjectContextValue {
   projectId: string | null;
-  project: BidProjectDetail | null;
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => void;
 }
 
-const BidProjectContext = createContext<BidProjectContextValue>({
-  projectId: null,
-  project: null,
-  isLoading: false,
-  error: null,
-  refetch: () => {},
-});
+const BidProjectContext = createContext<BidProjectContextValue>({ projectId: null });
 
 export function useBidProjectContext() {
   return useContext(BidProjectContext);
@@ -40,57 +35,5 @@ function BidProjectProviderInner({ children }: { children: React.ReactNode }) {
   // 项目工作区经路由参数 [id] 指定项目（useParams 全响应式）
   const id = (params?.id as string | undefined) ?? (searchParams.get('id') ?? undefined);
 
-  const [project, setProject] = useState<BidProjectDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fetchIdRef = useRef<string | undefined>(undefined);
-
-  const fetchProject = useCallback(async (projectId: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-      setProject(data);
-    } catch (e: any) {
-      if (e?.status === 404) {
-        setError('项目不存在或已被删除');
-      } else {
-        setError(e?.message || '加载项目失败');
-      }
-      setProject(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!id) {
-      setProject(null);
-      setError(null);
-      setIsLoading(false);
-      return;
-    }
-    // 避免重复请求同一个 id
-    if (fetchIdRef.current === id && project) return;
-    fetchIdRef.current = id;
-    fetchProject(id);
-  }, [id, fetchProject, project]);
-
-  const refetch = useCallback(() => {
-    if (id) fetchProject(id);
-  }, [id, fetchProject]);
-
-  return (
-    <BidProjectContext.Provider
-      value={{
-        projectId: id ?? null,
-        project,
-        isLoading,
-        error,
-        refetch,
-      }}
-    >
-      {children}
-    </BidProjectContext.Provider>
-  );
+  return <BidProjectContext.Provider value={{ projectId: id ?? null }}>{children}</BidProjectContext.Provider>;
 }
