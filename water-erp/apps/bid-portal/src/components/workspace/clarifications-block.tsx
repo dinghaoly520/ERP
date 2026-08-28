@@ -7,13 +7,15 @@
  */
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, FileText, MessageSquare, Plus, Send, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, CheckCircle2, FileSignature, FileText, MessageSquare, Plus, Send, Sparkles, X } from 'lucide-react';
 import {
   createClarification,
   draftClarification,
   listClarifications,
+  registerOfflineReply,
   replyClarification,
   summarizeClarification,
+  verifyClarificationReply,
   type BidClarificationInfo,
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
@@ -52,6 +54,12 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
   const [replying, setReplying] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [summarizing, setSummarizing] = useState<string | null>(null);
+
+  // A-143：离线答复登记模态 + 核验中标记
+  const [offlineFor, setOfflineFor] = useState<string | null>(null);
+  const [offlineReply, setOfflineReply] = useState('');
+  const [offlineReason, setOfflineReason] = useState('');
+  const [verifying, setVerifying] = useState<string | null>(null);
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
@@ -150,6 +158,37 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
       showToast(e instanceof Error ? e.message : '回复失败', 'err');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /* ── A-143：离线答复登记（降级通道：供应商线下书面/电话答复后的留痕）── */
+  async function handleOfflineRegister(cid: string) {
+    if (!offlineReply.trim() || !offlineReason.trim()) { showToast('答复内容与离线缘由均必填', 'err'); return; }
+    setBusy(true);
+    try {
+      await registerOfflineReply(bidProjectId, cid, { reply: offlineReply.trim(), offlineReason: offlineReason.trim() });
+      showToast('已登记离线答复');
+      setOfflineFor(null); setOfflineReply(''); setOfflineReason('');
+      load(); onChanged();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '登记失败', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* ── A-143：核验供应商在线答复签名 ── */
+  async function handleVerify(cid: string) {
+    setVerifying(cid);
+    try {
+      const res = await verifyClarificationReply(bidProjectId, cid);
+      if (res.valid) showToast(`签名有效 · 证书 ${res.certSn.slice(-8)}（${res.bindingStatus}）`);
+      else showToast(`签名核验未通过（证书状态 ${res.bindingStatus}）`, 'err');
+      load();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '核验失败', 'err');
+    } finally {
+      setVerifying(null);
     }
   }
 
@@ -280,6 +319,26 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                             {c.reply ? (
                               <div className="space-y-1">
                                 <div>{c.reply}</div>
+                                {c.replyAttachmentIds?.length ? (
+                                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                    {c.replyAttachmentIds.map(a => (
+                                      /* 受保护下载禁用 noreferrer（丢 Referer → 401） */
+                                      <a key={a.fileAssetId} href={`/api/upload/files/${a.fileAssetId}`} target="_blank" rel="noopener"
+                                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]"
+                                        style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
+                                        <FileSignature size={10} /> {a.name}
+                                      </a>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {c.replyChannel === 'online' && c.replySignature && (
+                                  <div className="text-[10px] text-[var(--muted-foreground)]">
+                                    电子签名 {c.replySignature.algorithm ?? 'SM2/SM3'} · 证书 {c.replySignature.certSn?.slice(-8)} · 验签 {formatTime(c.replySignature.verifiedAt ?? null)}
+                                  </div>
+                                )}
+                                {c.replyChannel === 'offline' && c.replyOfflineReason && (
+                                  <div className="text-[10px] text-[var(--muted-foreground)]">离线登记缘由：{c.replyOfflineReason}</div>
+                                )}
                                 {c.aiSummary && (
                                   <div className="whitespace-pre-line rounded-[8px] px-2 py-1 text-[10px] text-[var(--accent-strong)]" style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
                                     <span className="font-bold">AI 摘要：</span>{c.aiSummary}
@@ -291,16 +350,33 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                           <td className="whitespace-nowrap px-3.5 py-2.5 tabular-nums text-[10px] text-[var(--muted-foreground)]">{formatTime(c.createdAt)}</td>
                           <td className="px-3.5 py-2.5">
                             {!isReplied ? (
-                              isReplying ? (
-                                <span className="text-[10px] text-[var(--muted-foreground)]">回复中…</span>
-                              ) : archived ? (
+                              archived ? (
                                 <span className="text-[10px] text-[var(--muted-foreground)]">已归档</span>
+                              ) : c.type === 'question' ? (
+                                isReplying ? (
+                                  <span className="text-[10px] text-[var(--muted-foreground)]">回复中…</span>
+                                ) : (
+                                  <button type="button" onClick={() => { setReplying(c.id); setReplyText(''); }} className="neu-btn-soft !h-[26px] !px-2 !text-[11px]">回复</button>
+                                )
                               ) : (
-                                <button type="button" onClick={() => { setReplying(c.id); setReplyText(''); }} className="neu-btn-soft !h-[26px] !px-2 !text-[11px]">回复</button>
+                                /* A-143：澄清答复归供应商门户；主持端仅离线登记降级通道 */
+                                <button type="button" onClick={() => { setOfflineFor(c.id); setOfflineReply(''); setOfflineReason(''); }} className="neu-btn-soft !h-[26px] !px-2 !text-[11px]">离线登记</button>
                               )
                             ) : (
                               <div className="flex flex-col items-start gap-1">
-                                <span className="text-[10px] text-[var(--muted-foreground)]">已回复</span>
+                                <span className="text-[10px] text-[var(--muted-foreground)]">
+                                  {c.replyChannel === 'online' ? '在线签名' : c.replyChannel === 'offline' ? '离线登记' : '已回复'}
+                                </span>
+                                {c.replyChannel === 'online' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleVerify(c.id)}
+                                    disabled={verifying === c.id}
+                                    className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[var(--accent)] hover:underline disabled:opacity-40"
+                                  >
+                                    <BadgeCheck size={10} /> {verifying === c.id ? '核验中…' : '核验签名'}
+                                  </button>
+                                )}
                                 {!c.aiSummary && !archived && (
                                   <button
                                     type="button"
@@ -412,6 +488,39 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
               <button type="button" onClick={() => setShowForm(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleCreate()} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
                 <Send size={13} /> {busy ? '发送中…' : '发起澄清'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* A-143：离线答复登记对话框（降级通道） */}
+      {offlineFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+          <div className="w-full max-w-[480px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">离线答复登记</h2>
+              <button type="button" onClick={() => setOfflineFor(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3.5 px-6 py-5">
+              <p className="text-[11px] leading-5 text-[var(--muted-foreground)]">
+                评标澄清的在线答复已由供应商经门户电子签名提交；此处仅登记供应商经书面/电话等线下途径作出的答复（降级留痕，无电子签名）。
+              </p>
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">线下答复内容</label>
+                <textarea value={offlineReply} onChange={e => setOfflineReply(e.target.value)} rows={3} className="workbench-input w-full resize-none" placeholder="录入供应商线下答复原文…" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">离线缘由（必填）</label>
+                <input value={offlineReason} onChange={e => setOfflineReason(e.target.value)} className="workbench-input w-full" placeholder="例：供应商书面来函，扫描件另存" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+              <button type="button" onClick={() => setOfflineFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleOfflineRegister(offlineFor)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+                {busy ? '登记中…' : '确认登记'}
               </button>
             </div>
           </div>

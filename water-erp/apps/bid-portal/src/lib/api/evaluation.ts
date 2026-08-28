@@ -201,6 +201,11 @@ export interface BidClarificationInfo {
   fileAssetId?: string | null;
   createdAt: string;
   answeredAt: string | null;
+  /** A-143：答复通道（online=供应商门户电子签名 / offline=主持端离线登记） */
+  replyChannel?: string | null;
+  replySignature?: { algorithm?: string; certSn?: string; verifiedAt?: string } | null;
+  replyAttachmentIds?: { fileAssetId: string; name: string; sha256: string }[] | null;
+  replyOfflineReason?: string | null;
 }
 
 export function listClarifications(bidProjectId: string) {
@@ -224,6 +229,20 @@ export function replyClarification(bidProjectId: string, clarificationId: string
   return api.patch<BidClarificationInfo>(
     `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/reply`,
     body,
+  );
+}
+
+/** A-143：离线答复登记（type='clarification' 主持端唯一写入通道；channel=offline） */
+export function registerOfflineReply(projectId: string, cid: string, body: { reply: string; offlineReason: string }) {
+  return api.patch(`/bid/projects/${projectId}/clarifications/${cid}/reply`, {
+    reply: body.reply, channel: 'offline', offlineReason: body.offlineReason,
+  });
+}
+
+/** A-143：核验供应商在线答复签名 */
+export function verifyClarificationReply(projectId: string, cid: string) {
+  return api.post<{ valid: boolean; certSn: string; bindingStatus: string; verifiedAt: string | null }>(
+    `/bid/projects/${projectId}/clarifications/${cid}/verify-reply`, {},
   );
 }
 
