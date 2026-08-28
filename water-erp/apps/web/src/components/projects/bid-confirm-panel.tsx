@@ -44,11 +44,13 @@ import {
 } from '@/lib/api/bid';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
 import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
 import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
 import { EvaluationHandoverBlock } from './bid-confirm/evaluation-handover-block';
+import { SupervisionPushBlock } from './bid-confirm/supervision-push-block';
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
@@ -94,6 +96,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   const [hostPickerOpen, setHostPickerOpen] = useState(false);
+  /** A-153 监督推送：当前用户是否 admin（配置按钮可见性；面板打开时经 /auth/me 获取） */
+  const [isAdminUser, setIsAdminUser] = useState(false);
 
   // 延时开标
   const [delayOpen, setDelayOpen] = useState(false);
@@ -295,6 +299,17 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   useEffect(() => {
     if (isOpen) void load();
   }, [isOpen, load]);
+
+  // A-153：本面板无既有当前用户角色来源，按本 app 惯例（project-management-page 同款）
+  // 打开时自取 /auth/me；拿不到按非 admin 处理（仅配置按钮隐藏，推送/凭证不受影响）
+  useEffect(() => {
+    if (!isOpen) return;
+    let alive = true;
+    fetchCurrentUser()
+      .then((u) => { if (alive) setIsAdminUser(u.role === 'admin'); })
+      .catch(() => { if (alive) setIsAdminUser(false); });
+    return () => { alive = false; };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -877,6 +892,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                     onAbort={() => setAbortDialogOpen(true)}
                   />
                   <EvaluationHandoverBlock bidProjectId={bpId} detail={detail} />
+                  {/* A-153：监督推送（评标报告 → 公共服务平台监督通道；推送不作为归档闸门） */}
+                  <SupervisionPushBlock bidProjectId={bpId} isAdmin={isAdminUser} />
                   {/* 评标管理/异议裁决/澄清答疑已迁至 :3007 开评标管理端（现场）——分工 v3（2026-08-13） */}
                   <p className="text-xs text-[var(--muted-foreground)]">
                     评标管理、专家异议裁决、澄清答疑已在 :3007 开评标管理端现场办理。本面板保留评标前准备与评标后收尾。
