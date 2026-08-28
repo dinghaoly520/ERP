@@ -15,6 +15,8 @@ import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
+import { ServerClock } from "@/components/server-clock";
+import { serverNowMs } from "@water-erp/shared";
 import "@/styles/pages/bids.css";
 
 /** el-alert 的原生等价（EP 四色调 + show-icon） */
@@ -109,9 +111,10 @@ function BidDetailInner() {
   const [overviewLoading, setOverviewLoading] = useState(false);
 
   const isApproved = profile?.status === "APPROVED";
+  // 截止预检走服务器标准时钟（本地时钟可篡改；未同步时 serverNowMs 退化本地时间，后端仍有截止闸门兜底）
   const canSubmit = !!project && isApproved
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
-    && new Date(project.deadline) > new Date();
+    && new Date(project.deadline).getTime() > serverNowMs();
   const stageIdx = Math.max(0, STAGES.indexOf((project?.stage || "DOWNLOAD") as (typeof STAGES)[number]));
   const showSupplierCount = ["OPENING", "EVALUATING", "ARCHIVED"].includes(project?.stage || "");
   const supplierCount = project?._count?.suppliers || 0;
@@ -296,6 +299,8 @@ function BidDetailInner() {
                   <span>开标<strong>{dayjs(project.openTime).format("MM-DD HH:mm")}</strong></span>
                   <span>保证金<strong>{project.bondRequired && project.bondAmount ? "¥" + Number(project.bondAmount).toLocaleString() : "无"}</strong></span>
                   {showSupplierCount && <span>投标方<strong>{supplierCount} 家</strong></span>}
+                  {/* A-98：服务器标准时间常显（截止预检/倒计时同源 /api/time） */}
+                  <span style={{ marginLeft: "auto" }}><ServerClock /></span>
                 </div>
               )}
 

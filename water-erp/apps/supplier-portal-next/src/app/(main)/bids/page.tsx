@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import { Gavel, ClipboardList, Search, X, ArrowRight, TriangleAlert } from "lucide-react";
+import { serverNowMs } from "@water-erp/shared";
 import { bidApi } from "@/lib/api/bid";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { SpButton, SpPagination, EmptyState } from "@/components/ui";
 import { CountdownTimer } from "@/components/countdown-timer";
+import { ServerClock } from "@/components/server-clock";
 import "@/styles/pages/bids.css";
 
 const stageMap: Record<string, { label: string; color: string }> = {
@@ -22,10 +24,10 @@ const stageMap: Record<string, { label: string; color: string }> = {
 function isSubmitStage(stage: string) {
   return stage === "SUBMIT";
 }
-/** DOWNLOAD 阶段截止临近（≤3 天）→ 粉色色轨 */
+/** DOWNLOAD 阶段截止临近（≤3 天）→ 粉色色轨（截止判断走服务器标准时钟，本地时钟可篡改） */
 function isDeadlineClose(deadline: string): boolean {
   if (!deadline) return false;
-  const diff = (new Date(deadline).getTime() - Date.now()) / 86400000;
+  const diff = (new Date(deadline).getTime() - serverNowMs()) / 86400000;
   return diff > 0 && diff <= 3;
 }
 function rowClass(p: any) {
@@ -38,7 +40,7 @@ function rowClass(p: any) {
 function negoWindowState(p: any): "before" | "open" | "after" {
   const n = p.negotiation;
   if (!n) return "before";
-  const now = Date.now();
+  const now = serverNowMs();
   const s = new Date(n.acquireStartTime).getTime();
   const e = new Date(n.acquireEndTime).getTime();
   if (!isNaN(s) && now < s) return "before";
@@ -202,6 +204,10 @@ export default function BidListPage() {
                 </button>
               )}
             </div>
+            {/* A-98：服务器标准时间常显（与截止预检/倒计时同源 /api/time） */}
+            <span style={{ marginLeft: "auto", color: "var(--muted-foreground)" }}>
+              <ServerClock />
+            </span>
           </div>
 
           {projects.length > 0 ? (
