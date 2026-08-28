@@ -238,6 +238,35 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   }, [project]);
   if (!project) return null;
   const { stage, experts, suppliers } = project;
+  // F5（2026-08-28）：ABORTED 不再空白死页——渲染终止态卡片（流标原因 + 去向指引），
+  // 评标已随流标终止，本 tab 无操作可做；其余非评标阶段仍返回 null。
+  if (stage === 'ABORTED') {
+    return (
+      <section className="neu-table-card px-4 py-4">
+        <div className="mb-3 flex items-center gap-2.5">
+          <div
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
+            style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
+          >
+            <AlertTriangle size={15} className="text-[var(--danger)]" />
+          </div>
+          <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标管理</h3>
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}>
+            已流标
+          </span>
+        </div>
+        <div className="rounded-[14px] px-4 py-3.5 text-xs leading-relaxed" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
+          <p className="font-semibold text-[var(--foreground)]">本项目已流标，评标活动终止，无评标过程可执行。</p>
+          <p className="mt-1.5 text-[var(--muted-foreground)]">
+            流标原因：<span className="text-[var(--foreground)]">{project.riskNote || '未记录原因'}</span>
+          </p>
+          <p className="mt-1.5 text-[var(--muted-foreground)]">
+            后续处理（重新招标 / 变更采购方式等）在采购管理工作台（:3005）「开标确认」面板进行；开标现场记录可在「开标大厅」tab 回看。
+          </p>
+        </div>
+      </section>
+    );
+  }
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
 
   const archived = stage === 'ARCHIVED';
