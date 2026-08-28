@@ -66,9 +66,10 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
     (s) => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.bidValidity !== 'invalid',
   );
   // N4a：法定家数按采购方式取（直接采购=1，其余=3；后端下发缺失时兜底 3）。
-  // N4b：已生成官方评标结果 ⇒ 不再显示建议流标与执行按钮。
+  // F10（2026-08-28）：撤掉「已生成结果 ⇒ 收起建议流标」——裁决废标把家数打穿最低线后
+  // 结果已生成、流标入口反而消失成死路（后端本就允许结果已生成时凭书面理由流标，N4c）。
   const minBidders = detail.minBidders ?? 3;
-  const suggestAbort = !archived && validSuppliers.length < minBidders && !resultsGenerated;
+  const suggestAbort = !archived && validSuppliers.length < minBidders;
   const hasOpenDispute = pendingCount > 0;
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
@@ -95,19 +96,18 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
   }
 
   async function handleAbort() {
+    // F10：流标理由按有无未决异议动态化——无异议时「经异议裁决」名不副实（废标/撤回同样打穿家数线）
+    const reasonBase = hasOpenDispute
+      ? `存在 ${pendingCount} 条异议未裁决，有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），经评标委员会认定流标`
+      : `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），不足法定家数，经评标委员会认定流标`;
     const warn = resultsGenerated
-      ? `当前有效供应商仅 ${validSuppliers.length} 家，且项目已生成官方评标结果——流标将作废该结果并高风险留痕。确认执行？此操作不可逆。`
-      : `当前有效供应商仅 ${validSuppliers.length} 家（法定最少 ${minBidders} 家），确认执行流标？此操作不可逆。`;
+      ? `${reasonBase}；已生成的官方评标结果将作废并高风险留痕。确认执行？此操作不可逆。`
+      : `${reasonBase}。确认执行流标？此操作不可逆。`;
     if (!window.confirm(warn)) return;
     setBusyId('__abort__');
     try {
       // N4c：结果已生成时后端强制书面理由（ABORT_REASON_REQUIRED），此处同步带上
-      await abortBidProject(
-        bidProjectId,
-        resultsGenerated
-          ? `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），经异议裁决流标；已知结果作废`
-          : '依专家异议裁决，有效供应商不足',
-      );
+      await abortBidProject(bidProjectId, resultsGenerated ? `${reasonBase}；已生成的评标结果作废` : reasonBase);
       showToast('已流标');
       onChanged();
     } catch (e) {
@@ -152,9 +152,8 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
         </div>
       )}
 
-      {/* 流标建议 / 异议待裁决提醒（N4）：横幅由 suggestAbort || hasOpenDispute 控制；
-          已生成官方评标结果 ⇒ suggestAbort=false，建议流标文案与执行按钮整块收起，
-          仅存在 open 态异议工单时保留待裁决提醒。 */}
+      {/* 流标建议 / 异议待裁决提醒（N4）：横幅由 suggestAbort || hasOpenDispute 控制。
+          F10：结果已生成不再收起建议流标——confirm 文案会作废警示，后端凭书面理由放行（N4c）。 */}
       {(suggestAbort || hasOpenDispute) && (
         <div
           className="mb-3 flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"

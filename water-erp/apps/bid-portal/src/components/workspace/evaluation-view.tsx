@@ -578,6 +578,23 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     {expert.expertName}
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                   </span>
+                  {/* F10（2026-08-28）：邀请状态徽章（与 :3005 专家确认同词表）——declined 标红；
+                      婉拒/未确认的正选不计入启动评标委员会（后端只认 confirmed 正选） */}
+                  {expert.invitationStatus === 'confirmed' && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>
+                      已确认邀请
+                    </span>
+                  )}
+                  {expert.invitationStatus === 'declined' && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }} title="专家已婉拒邀请——正选缺席时由候补递补（:3005 专家确认）">
+                      已婉拒
+                    </span>
+                  )}
+                  {(!expert.invitationStatus || expert.invitationStatus === 'invited') && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }} title="专家尚未确认邀请">
+                      待确认邀请
+                    </span>
+                  )}
                   {expert.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span
                       className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold"
