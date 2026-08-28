@@ -188,6 +188,10 @@ export default function ExpertEvaluatePage() {
   const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
   const [refreshingDocs, setRefreshingDocs] = useState(false);
   const [assistData, setAssistData] = useState<AssistData | null>(null);
+  // ② 数据门控：记录 assistData 归属的 supplierId 与最近一次加载成败——切供应商后旧数据
+  // 不再被 RequirementComparePanel 当作新供应商的数据渲染（防竞态/残留串数据）
+  const [assistDataFor, setAssistDataFor] = useState<string>('');
+  const [assistFailed, setAssistFailed] = useState(false);
   const [assistLoading, setAssistLoading] = useState(false);
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
   // Task 7: `points` 子记录按 pointId 存 checklist 决策（checked + awardedScore）；onChange 时 Σ→score rollup。
@@ -671,11 +675,12 @@ export default function ExpertEvaluatePage() {
   const loadAssist = async (sid: string) => {
     const seq = ++assistSeqRef.current;
     setAssistLoading(true);
+    setAssistFailed(false);
     try {
       const data = await api.get<AssistData>(`/expert/projects/${projectId}/assist/${sid}`);
-      if (seq === assistSeqRef.current) { setAssistData(data); setAssistLoading(false); }
+      if (seq === assistSeqRef.current) { setAssistData(data); setAssistDataFor(sid); setAssistLoading(false); }
     }
-    catch (e: any) { if (seq === assistSeqRef.current) { toast.error(e.message || '加载AI数据失败'); setAssistLoading(false); } }
+    catch (e: any) { if (seq === assistSeqRef.current) { setAssistFailed(true); toast.error(e.message || '加载AI数据失败'); setAssistLoading(false); } }
   };
 
   useEffect(() => {
@@ -1401,7 +1406,29 @@ export default function ExpertEvaluatePage() {
           {/* ====== 条款响应核对 ====== */}
           {step === 'compare' && (
             <div className="p-6">
-              <RequirementComparePanel
+              {/* ② 数据门控：面板只在「当前供应商的完整数据」就绪时挂载——加载中/加载失败/数据
+                  仍属上一供应商时先占位，杜绝 key 重挂载瞬间拿到上一家残留（requirements/responses/
+                  reviews 串行）再闪换的问题。 */}
+              {assistLoading || (!assistFailed && (!assistData || assistDataFor !== activeSupplier)) ? (
+                <div className="py-16 text-center">
+                  <Scale size={48} strokeWidth={1} className="mx-auto animate-pulse text-[var(--accent-strong)]" />
+                  <p className="mt-5 text-lg font-semibold text-[var(--foreground)]">正在加载条款响应数据…</p>
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">AI 逐条比对结果与本人标注载入后自动展开</p>
+                </div>
+              ) : assistFailed ? (
+                <div className="py-16 text-center">
+                  <AlertTriangle size={48} strokeWidth={1} className="mx-auto text-[var(--warning)]" />
+                  <p className="mt-5 text-lg font-semibold text-[var(--foreground)]">条款响应数据加载失败</p>
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">可能是网络中断或该供应商 AI 分析暂不可用</p>
+                  <button
+                    onClick={() => activeSupplier && loadAssist(activeSupplier)}
+                    className="mt-3 text-xs font-semibold text-[var(--accent-strong)] hover:underline"
+                  >
+                    重新加载
+                  </button>
+                </div>
+              ) : (
+                <RequirementComparePanel
                 key={activeSupplier}
                 projectId={projectId}
                 supplierId={activeSupplier}
@@ -1445,7 +1472,8 @@ export default function ExpertEvaluatePage() {
                 pointMemoCounts={pointMemoCounts}
                 selectedPointId={activePointId}
                 onPointClick={handlePointClickDesk}
-              />
+                />
+              )}
             </div>
           )}
 
