@@ -8,7 +8,8 @@ import {
 } from '@/lib/api/bid';
 
 /** P1-3①A：开标记录签字卡——唯一入口在「评标签字」tab（评标结束一次性打印、一次签完的运营口径）。
- * 未闭环才显示；扫描件到齐（主持人+监督人如有）自动登记并入包存档，无需手动「完成登记」。 */
+ * 未闭环才显示；扫描件到齐（主持人+监督人如有）自动登记并入包存档，无需手动「完成登记」。
+ * 错误取值走 ApiError.message/.code（@water-erp/client 非 axios，无 e.response.data——L5 修于 2026-08-28）。 */
 export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) {
   const [status, setStatus] = useState<OpeningSignStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,7 +34,7 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
       const r = await generateOpeningSignPage(projectId);
       setMsg(`签字页已生成（校验码 ${r.sha256.slice(0, 8)}），请下载打印`);
       window.open(r.downloadUrl, '_blank');
-    } catch (e: any) { setMsg(e?.response?.data?.error || '生成失败'); }
+    } catch (e: any) { setMsg(e?.message || '生成失败'); }
     finally { setBusy(false); }
   };
 
@@ -67,13 +68,13 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
             await registerOpeningSign(projectId);
             setMsg(`${uploaded.join('、')}签字已上传，登记完成，开标文件包已更新`);
           } catch (e: any) {
-            setMsg(`${uploaded.join('、')}签字已上传；自动登记失败：${e?.response?.data?.error || e?.message || '请稍后重试'}`);
+            setMsg(`${uploaded.join('、')}签字已上传；自动登记失败：${e?.message || '请稍后重试'}`);
           }
           await refresh();
         } else {
           setMsg(`${uploaded.join('、')}签字已上传，等待监督人签字上传后自动登记`);
         }
-      } catch (e: any) { setMsg(`${uploaded.length ? uploaded.join('、') + '签字已上传；' : ''}${e?.response?.data?.error || '上传失败'}`); }
+      } catch (e: any) { setMsg(`${uploaded.length ? uploaded.join('、') + '签字已上传；' : ''}${e?.message || '上传失败'}`); }
       finally { setBusy(false); }
     };
     input.click();

@@ -10,7 +10,7 @@ import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
   Volume2, Zap, Loader, FileText, RotateCcw, PencilLine, Lock, Gavel,
 } from 'lucide-react';
-import { DECRYPT_LABEL, BOND_STATUS_OPTIONS } from '@water-erp/shared';
+import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
@@ -326,6 +326,18 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
   // 解密窗口是否已过期（含无会话兜底：未组建会话视为不可解密，不构成裁决候选）
   const windowExpired = !!session && remaining <= 0;
+  // L6（2026-08-28）：状态胶囊改 shared 派生（status 列建档后无流转，开标中/暂停/结束恒显「待开标」误导）；
+  // now 用 serverTimeOffset 校正（与上方 remaining 同口径）
+  const sessionStatus = session
+    ? deriveOpeningSessionStatus({
+        stage: project.stage,
+        pausedAt: session.pausedAt,
+        handoverAt: session.handoverAt,
+        decryptWindowStart: session.decryptWindowStart,
+        decryptWindowEnd: session.decryptWindowEnd,
+        now: now + serverTimeOffset,
+      })
+    : null;
 
   // ═══ 待裁决清单（§5.5）：UNKNOWN 家 + 窗口关闭后的未归因候选（惰性归因将标记 UNKNOWN）═══
   const adjudgeRows = useMemo(() => {
@@ -614,7 +626,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             </div>
             <div className="rounded-xl bg-[oklch(0.985_0.005_258)] px-6 py-3 text-center shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">
               <div className="mb-1 text-xs uppercase tracking-widest text-[color:var(--muted-foreground)]">状态</div>
-              <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{session.status}</div>
+              <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{sessionStatus ?? session.status}</div>
             </div>
             {remaining > 0 && <RingCountdown remaining={remaining} />}
             {session && remaining > 0 && (

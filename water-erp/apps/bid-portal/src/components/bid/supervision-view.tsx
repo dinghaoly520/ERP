@@ -7,7 +7,7 @@
  * 实时事件由工作区页级 socket 统一订阅后经 props 下传。
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { openingHallApi } from '@/lib/opening-hall';
 import type { BidProjectDetail } from '@/lib/types';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
@@ -77,21 +77,22 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
     return [...liveLogs.filter(l => !l.id || !seen.has(l.id)), ...persisted];
   }, [project.supervisionLogs, liveLogs]);
 
-  // 持久化批注（关注/上报/notes）
-  useEffect(() => {
-    getSupervisionAnnotations(projectId)
-      .then(annotations => {
-        const flagMap = new Map<string, 'flagged' | 'escalated' | null>();
-        const noteMap = new Map<string, string>();
-        annotations.forEach(a => {
-          flagMap.set(a.supplierId, a.status === 'cleared' ? null : (a.status as 'flagged' | 'escalated'));
-          if (a.notes) noteMap.set(a.supplierId, a.notes);
-        });
-        setAnomalyFlags(flagMap);
-        setAnomalyNotes(noteMap);
-      })
-      .catch(() => {});
+  // 持久化批注（关注/上报/notes）——首载与失败回滚共用 reload
+  const loadAnnotations = useCallback(async () => {
+    try {
+      const annotations = await getSupervisionAnnotations(projectId);
+      const flagMap = new Map<string, 'flagged' | 'escalated' | null>();
+      const noteMap = new Map<string, string>();
+      annotations.forEach(a => {
+        flagMap.set(a.supplierId, a.status === 'cleared' ? null : (a.status as 'flagged' | 'escalated'));
+        if (a.notes) noteMap.set(a.supplierId, a.notes);
+      });
+      setAnomalyFlags(flagMap);
+      setAnomalyNotes(noteMap);
+    } catch { /* 首载静默：无批注态可展示 */ }
   }, [projectId]);
+
+  useEffect(() => { void loadAnnotations(); }, [loadAnnotations]);
 
   const dangerSuppliers = project.suppliers.filter(s => s.decryptStatus === 'DANGER');
 
@@ -104,7 +105,11 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
       } else {
         await deleteSupervisionAnnotation(projectId, supplierId);
       }
-    } catch { /* 静默：批注为辅助功能 */ }
+    } catch (e: any) {
+      // L7（2026-08-28）：落库失败不再静默——乐观态回滚为服务端真值并提示（监督留痕可信度）
+      toast.error(`批注保存失败：${e?.message || '请稍后重试'}`);
+      void loadAnnotations();
+    }
   };
 
   return (
