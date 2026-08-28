@@ -1241,6 +1241,58 @@ describe('BidService — stage transitions', () => {
       );
       expect(prisma.fileAsset.create).not.toHaveBeenCalled();
     });
+
+    /* ── F11（2026-08-28）：基准价偏离法/比例法基准=最高限价——缺失时旧实现全供应商价格分静默置 0
+       仅 warn 后照常生成官方结果；改为 400 拦截。公式缺失→专家手填回退、最低评标价法不受影响 ── */
+    it('F11：基准价偏离法/比例法 + 缺最高限价 → 400 CEILING_PRICE_REQUIRED，calculate 不执行', async () => {
+      for (const formulaType of ['benchmark_deviation', 'ratio'] as const) {
+        prisma.bidProject.findUnique.mockResolvedValue({
+          id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+          priceFormulaConfig: { formulaType }, // 不设 ceilingPrice
+          experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+          suppliers: [
+            { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          ],
+        });
+        prisma.bidScoreItem.findMany.mockImplementation((args: any) =>
+          Promise.resolve(args?.where?.category === 'PRICE' ? [{ id: 'pi1', category: 'PRICE', maxScore: 30 }] : []));
+        await expect(service.generateEvaluationResults('p1'))
+          .rejects.toMatchObject({ response: { code: 'CEILING_PRICE_REQUIRED' } });
+      }
+      expect((service as any).priceFormula.calculate).not.toHaveBeenCalled();
+    });
+
+    it('F11：最低评标价法不依赖限价 → 放行至 calculate', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        priceFormulaConfig: { formulaType: 'lowest_price' }, // 无 ceilingPrice 亦放行
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreItem.findMany.mockImplementation((args: any) =>
+        Promise.resolve(args?.where?.category === 'PRICE' ? [{ id: 'pi1', category: 'PRICE', maxScore: 30 }] : []));
+      prisma.bidOpeningRecord.findMany.mockResolvedValueOnce([
+        { bidSupplierId: 's1', amount: '100' },
+      ]);
+      // 成功路径其余 mock（同排序用例）
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 1 });
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([
+        { supplierName: '甲', rank: 1, recommended: true, averageScore: 85 },
+      ]);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.generateEvaluationResults('p1');
+
+      expect((service as any).priceFormula.calculate).toHaveBeenCalledWith(
+        { formulaType: 'lowest_price' },
+        expect.any(Map),
+        null, // ceilingPrice
+        30,
+      );
+    });
   });
 
   describe('BidService.generateEvaluationResults — 去极值与候选人 (G2)', () => {

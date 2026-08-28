@@ -4220,6 +4220,17 @@ export class BidService {
 
       if (priceItems.length > 0 && project.priceFormulaConfig) {
         const config = project.priceFormulaConfig as any;
+        // F11（2026-08-28）：基准价偏离法/比例法的基准=最高限价——缺失时 calculate 会把全供应商
+        // 价格分静默置 0（旧实现仅 warn 后照常生成官方结果，排名全废）。改为 400 拦截并给指引；
+        // 「公式配置完全缺失 → 回退专家手填价格分」的设计内行为不受影响（不进本分支），
+        // 最低评标价法不依赖限价亦放行。
+        if ((config.formulaType === 'benchmark_deviation' || config.formulaType === 'ratio')
+            && !(ceilingPrice && ceilingPrice > 0)) {
+          throw new BadRequestException({
+            error: '价格分公式为基准价偏离法/比例法，但项目未设置最高限价，价格分将无法计算。请先在采购管理工作台（:3005）项目设置中填写最高限价，或将价格分公式改为最低评标价法',
+            code: 'CEILING_PRICE_REQUIRED',
+          });
+        }
         const priceMaxTotal = priceItems.reduce((s, i) => s + Number(i.maxScore), 0);
         formulaPriceScores = this.priceFormula.calculate(config, bidPrices, ceilingPrice, priceMaxTotal);
       }
