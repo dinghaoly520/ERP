@@ -308,6 +308,10 @@ describe('ExpertService', () => {
       expect(out).not.toHaveProperty('fraudSummary');
       expect(out).not.toHaveProperty('reportDocxUrl');
       expect(prisma.aiBidReport).toBeUndefined(); // 不再查 AiBidReport
+      // ⑥：多条 COMPLETED 时必须取最新——与 resolveReviewContext 读写同源
+      expect(prisma.aiBidderResult.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        orderBy: { createdAt: 'desc' },
+      }));
     });
 
     it('映射 competitiveAnalysis.keyObservations 到顶层', async () => {
@@ -1535,6 +1539,15 @@ describe('ExpertService', () => {
       const out = await service.listRequirementReviews('u1', 'proj-1', 'sup-1');
       expect(prisma.bidRequirementReview.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ expertId: 'exp-1' }) }));
       expect(out).toHaveLength(1);
+    });
+
+    it('⑥多条 COMPLETED 时定位最新一条（orderBy createdAt desc，写标注与读辅助数据同源）', async () => {
+      prisma.bidRequirementReview.upsert.mockResolvedValue({ id: 'rv-1' });
+      await service.upsertRequirementReview('u1', 'proj-1', 'sup-1', { requirementId: 'r1', category: 'technical', verdict: 'ack' });
+      expect(prisma.aiBidderResult.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: { bidSupplierId: 'sup-1', status: 'COMPLETED' },
+        orderBy: { createdAt: 'desc' },
+      }));
     });
 
     it('非本项目专家 → 403', async () => {

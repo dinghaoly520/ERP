@@ -868,6 +868,9 @@ export class ExpertService {
     }
     const bidderResult = await this.prisma.aiBidderResult.findFirst({
       where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+      // 同一供应商可能存在多条 COMPLETED（历史重跑残留）：读标注/写标注/读辅助数据三处必须
+      // 取同一条（最新），否则会出现「标注写入 A 行、读取 B 行」的串行丢失。与 getAssistData 保持一致。
+      orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
     if (!bidderResult) throw new NotFoundException({ error: '该供应商 AI 分析尚未完成', code: 'NOT_FOUND' });
@@ -938,6 +941,8 @@ export class ExpertService {
     // 4.5: 优先读 AiBidderResult（per-item LLM 结果），降级用规则引擎
     const bidderResult = await this.prisma.aiBidderResult.findFirst({
       where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+      // 多条 COMPLETED 时取最新——与 resolveReviewContext 的 findFirst 排序保持一致（读写同源）
+      orderBy: { createdAt: 'desc' },
       include: {
         concordance: true,
         bidSupplier: { select: { supplierName: true } },
