@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * 加密管理 —— 管理方加密证书（双信封 v2 外层 K_admin 公钥载体）+ 双信封体系/密钥托管说明。
- * 读：admin + bid_host（现场可确认当前加密用的是哪把公钥）；轮转/生成：仅 admin。
+ * 加密管理 —— 管理方加密证书 + 投标保密机制说明（面向开标管理员/监督的业务语言）。
+ * 读：admin + bid_host；轮转/生成：仅 admin。
  * 原侧栏底部 AdminCertCard（T17，4092b80a）已于 2026-08-28 并入本页。
+ * 注：公钥本身是公开物（供应商投递前即从本接口拉取用于加密），页面仅展示指纹不展示全量——
+ * 管理场景无完整公钥需求；机密是服务端私钥，从不离开服务器。
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -13,12 +15,31 @@ import {
   Loader,
   RefreshCw,
   ShieldCheck,
-  Copy,
-  Layers,
+  FileLock2,
+  Landmark,
+  Unlock,
   ShieldAlert,
-  HardDrive,
 } from 'lucide-react';
 import { getAdminCert, generateAdminCert, api, type AdminCertInfo } from '@/lib/api';
+
+/* 流程三步（业务语言，无密码学术语） */
+const FLOW = [
+  {
+    icon: FileLock2,
+    title: '① 投标时上锁',
+    text: '投标人递交投标文件时，系统用这份证书给文件上第一道锁，同时投标人自己的 U 相再上第二道锁。',
+  },
+  {
+    icon: Landmark,
+    title: '② 开标前密封',
+    text: '双重上锁的文件全程密封保管，任何人（包括平台管理员）在开标前都无法看到投标内容。',
+  },
+  {
+    icon: Unlock,
+    title: '③ 开标时开锁',
+    text: '开标现场按流程解密：先由主持端解开第一道锁，再由投标人在解密窗口解开自己的锁，文件方可阅读。',
+  },
+];
 
 export default function CryptoManagePage() {
   const [cert, setCert] = useState<AdminCertInfo | null | undefined>(undefined); // undefined = 加载中
@@ -45,28 +66,18 @@ export default function CryptoManagePage() {
 
   const handleGenerate = async () => {
     if (!window.confirm(
-      '生成新的管理方加密证书将立即使当前证书失效（inactive）。\n' +
-      '历史已提交信封不受影响——旧证书私钥仍保留，可正常解外层。\n\n确认生成新证书？',
+      '更换证书后，新的投标文件将立即改用新证书加密。\n' +
+      '此前已递交的投标不受任何影响——系统保留旧钥匙，开标时照常解密。\n\n确认更换新证书？',
     )) return;
     setGenerating(true);
     try {
       await generateAdminCert();
-      toast.success('管理方加密证书已轮转，新证书已生效');
+      toast.success('证书已更换，新证书已生效');
       await load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : '生成失败');
     } finally {
       setGenerating(false);
-    }
-  };
-
-  const copyPk = async () => {
-    if (!cert?.publicKey) return;
-    try {
-      await navigator.clipboard.writeText(cert.publicKey);
-      toast.success('公钥已复制到剪贴板');
-    } catch {
-      toast.error('复制失败，请手动选择复制');
     }
   };
 
@@ -80,7 +91,7 @@ export default function CryptoManagePage() {
             加密管理
           </h1>
           <p className="mt-0.5 text-[13px] text-[color:var(--muted-foreground)]">
-            管理方加密证书与双信封密钥托管——投标保密性的公钥载体与轮转留痕
+            投标文件加密所用的管理方证书——当前状态、更换与保密机制说明
           </p>
         </div>
         <button type="button" onClick={load} disabled={loading} title="刷新" className="neu-btn-xs">
@@ -88,11 +99,11 @@ export default function CryptoManagePage() {
         </button>
       </div>
 
-      {/* ── 管理方加密证书（主功能区）── */}
+      {/* ── 当前证书 ── */}
       <section className="neu-card-static p-5">
         <div className="mb-4 flex items-center gap-2 border-b border-[color:var(--border)] pb-3">
           <ShieldCheck size={15} strokeWidth={1.7} className="text-[color:var(--accent-strong)]" />
-          <h2 className="text-sm font-bold text-[color:var(--foreground)]">管理方加密证书</h2>
+          <h2 className="text-sm font-bold text-[color:var(--foreground)]">当前生效证书</h2>
           {cert?.active && (
             <span className="ml-auto inline-flex items-center gap-0.5 rounded-full bg-[oklch(0.71_0.11_164_/_0.16)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">
               <ShieldCheck size={9} /> 生效中
@@ -101,39 +112,27 @@ export default function CryptoManagePage() {
         </div>
 
         {loading && cert === undefined ? (
-          <div className="flex items-center gap-2 py-8 justify-center text-[13px] text-[color:var(--muted-foreground)]">
+          <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-[color:var(--muted-foreground)]">
             <Loader size={14} className="animate-spin" /> 读取证书中…
           </div>
         ) : cert ? (
           <div className="space-y-4">
-            <dl className="grid gap-x-6 gap-y-2.5 text-[13px] sm:grid-cols-[96px_1fr]">
-              <dt className="text-[color:var(--muted-foreground)]">证书主体</dt>
-              <dd className="min-w-0 break-all font-medium text-[color:var(--foreground)]" title={cert.certDn}>{cert.certDn}</dd>
-              <dt className="text-[color:var(--muted-foreground)]">证书 ID</dt>
+            <dl className="grid gap-x-6 gap-y-2.5 text-[13px] sm:grid-cols-[88px_1fr]">
+              <dt className="text-[color:var(--muted-foreground)]">证书名称</dt>
+              <dd className="min-w-0 break-all font-medium text-[color:var(--foreground)]">{cert.certDn}</dd>
+              <dt className="text-[color:var(--muted-foreground)]">证书编号</dt>
               <dd className="font-mono text-[12px] text-[color:var(--foreground)]">{cert.id}</dd>
-              <dt className="text-[color:var(--muted-foreground)]">颁发日期</dt>
+              <dt className="text-[color:var(--muted-foreground)]">启用日期</dt>
               <dd className="text-[color:var(--foreground)]">
                 {new Date(cert.createdAt).toLocaleString('zh-CN', { hour12: false })}
               </dd>
+              <dt className="text-[color:var(--muted-foreground)]">证书指纹</dt>
+              <dd className="font-mono text-[12px] tracking-tight text-[color:var(--foreground)]" title="用于辨识证书唯一性的短指纹">
+                {cert.publicKey.slice(0, 12)}…{cert.publicKey.slice(-6)}
+              </dd>
             </dl>
-            <div>
-              <div className="mb-1 flex items-center gap-2">
-                <span className="text-[13px] text-[color:var(--muted-foreground)]">SM2 公钥</span>
-                <button
-                  type="button"
-                  onClick={copyPk}
-                  className="neu-btn-xs !h-6 !px-2 text-[10px]"
-                  title="复制完整公钥"
-                >
-                  <Copy size={11} strokeWidth={1.7} /> 复制
-                </button>
-              </div>
-              <div className="break-all rounded-[10px] border border-[color:var(--border)] bg-[color:var(--muted)] px-3 py-2.5 font-mono text-[11px] leading-relaxed tracking-tight text-[color:var(--foreground)]">
-                {cert.publicKey}
-              </div>
-            </div>
             {isAdmin ? (
-              <div className="flex items-start gap-2 border-t border-[color:var(--border)] pt-3">
+              <div className="flex flex-wrap items-start gap-3 border-t border-[color:var(--border)] pt-3">
                 <button
                   type="button"
                   onClick={handleGenerate}
@@ -141,24 +140,23 @@ export default function CryptoManagePage() {
                   className="neu-btn-soft is-warning flex items-center gap-1.5 !h-[34px] px-4 text-[12px] disabled:opacity-50"
                 >
                   {generating ? <Loader size={12} className="animate-spin" /> : <KeyRound size={12} strokeWidth={1.7} />}
-                  {generating ? '生成中…' : '生成新证书（轮转）'}
+                  {generating ? '更换中…' : '更换新证书'}
                 </button>
-                <p className="ml-1 pt-1 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-                  轮转 = 新证置 active、旧证全部 inactive；旧私钥文件保留，历史信封按
-                  <span className="mx-1 font-mono">envelope.adminCertId</span>
-                  定位旧私钥仍可解外层。
+                <p className="min-w-0 flex-1 pt-1 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+                  更换后新的投标改用新证书加密；此前已递交的投标不受影响——系统为每份投标记录所用证书，
+                  开标时凭对应的旧钥匙照常解密。
                 </p>
               </div>
             ) : (
               <p className="border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--muted-foreground)]">
-                仅 admin 可轮转证书；当前为只读视图。
+                证书由系统管理员统一维护，此处为只读查看。
               </p>
             )}
           </div>
         ) : (
           <div className="space-y-3 py-2">
             <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--danger)]">
-              <ShieldAlert size={14} strokeWidth={1.7} /> 无 active 证书（服务端应已自举，请检查 API 日志）
+              <ShieldAlert size={14} strokeWidth={1.7} /> 暂无生效证书（系统应已自动生成，请联系管理员检查服务端）
             </div>
             {isAdmin && (
               <button
@@ -175,48 +173,38 @@ export default function CryptoManagePage() {
         )}
       </section>
 
-      {/* ── 双信封体系说明 ── */}
+      {/* ── 投标保密机制（业务语言三步）── */}
       <section className="neu-card-static p-5">
-        <div className="mb-3 flex items-center gap-2 border-b border-[color:var(--border)] pb-3">
-          <Layers size={15} strokeWidth={1.7} className="text-[color:var(--accent-strong)]" />
-          <h2 className="text-sm font-bold text-[color:var(--foreground)]">双信封体系</h2>
+        <div className="mb-4 flex items-center gap-2 border-b border-[color:var(--border)] pb-3">
+          <ShieldCheck size={15} strokeWidth={1.7} className="text-[color:var(--accent-strong)]" />
+          <h2 className="text-sm font-bold text-[color:var(--foreground)]">投标文件是怎样保密的</h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-[12px] border border-[color:var(--border)] p-3.5">
-            <p className="text-[13px] font-bold text-[color:var(--foreground)]">外层 · 管理方信封（C_outer）</p>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
-              供应商投递时用<b className="text-[color:var(--foreground)]">本页管理方公钥</b>（SM2）包裹外层
-              DEK_A。开标时主持端凭对应私钥剥外层——只能解到 C_inner，平台开标前不可读投标内容。
-            </p>
-          </div>
-          <div className="rounded-[12px] border border-[color:var(--border)] p-3.5">
-            <p className="text-[13px] font-bold text-[color:var(--foreground)]">内层 · 供应商信封（C_inner）</p>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
-              供应商 U 盾（SM2/SM4）加密的投标明文载体，保密屏障在内层——供应商解密窗口内自行解密
-              上传，管理方与平台均无法代解。
-            </p>
-          </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {FLOW.map(({ icon: Icon, title, text }) => (
+            <div key={title} className="rounded-[12px] border border-[color:var(--border)] p-3.5">
+              <p className="flex items-center gap-1.5 text-[13px] font-bold text-[color:var(--foreground)]">
+                <Icon size={14} strokeWidth={1.7} className="text-[color:var(--accent-strong)]" /> {title}
+              </p>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">{text}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* ── 密钥托管与备份 ── */}
+      {/* ── 安全须知（简短业务语言）── */}
       <section className="neu-card-static p-5">
         <div className="mb-3 flex items-center gap-2 border-b border-[color:var(--border)] pb-3">
-          <HardDrive size={15} strokeWidth={1.7} className="text-[color:var(--accent-strong)]" />
-          <h2 className="text-sm font-bold text-[color:var(--foreground)]">密钥托管与备份</h2>
+          <ShieldAlert size={15} strokeWidth={1.7} className="text-[var(--warning)]" />
+          <h2 className="text-sm font-bold text-[color:var(--foreground)]">安全须知</h2>
         </div>
         <ul className="space-y-2 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
           <li className="flex gap-2">
             <ShieldAlert size={13} strokeWidth={1.7} className="mt-0.5 shrink-0 text-[var(--warning)]" />
-            <span>管理方私钥落盘于服务端 <span className="font-mono">ADMIN_KEYSTORE_DIR</span> 目录（每证一文件），<b className="text-[color:var(--foreground)]">不在数据库/MinIO 备份内——必须将该目录独立纳入备份</b>，丢失即历史信封外层永久不可解。</span>
+            <span>解密钥匙（私钥）只保存在服务器专用保管目录，<b className="text-[color:var(--foreground)]">任何页面、任何人都看不到、取不走</b>；该目录已列入运维备份清单，请勿在服务器上自行清理。</span>
           </li>
           <li className="flex gap-2">
             <ShieldCheck size={13} strokeWidth={1.7} className="mt-0.5 shrink-0 text-[var(--success)]" />
-            <span>轮转后旧私钥文件保留至其覆盖的全部提交归档，历史信封按 <span className="font-mono">envelope.adminCertId</span> 定位旧私钥照常解密。</span>
-          </li>
-          <li className="flex gap-2">
-            <KeyRound size={13} strokeWidth={1.7} className="mt-0.5 shrink-0 text-[color:var(--accent-strong)]" />
-            <span>生产环境私钥应对应加密机/HSM 托管；当前为本地 keystore 模拟。</span>
+            <span>更换证书不影响历史投标——每份投标都记录了加密时所用的证书，开标时系统自动用对应的钥匙解密。</span>
           </li>
         </ul>
       </section>

@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
   // 加密管理（2026-08-28）：管理方加密证书轮转 + 双信封/密钥托管说明——
   // 原 T17 侧栏底部 AdminCertCard 并入 /bid/crypto 页。读=admin/bid_host（对齐 GET 端点），
   // 轮转仅 admin（页面内控制）。
-  { label: '加密管理', caption: '证书 · 双信封密钥', path: '/bid/crypto', icon: KeyRound, roles: ['admin', 'bid_host'] },
+  { label: '加密管理', caption: '证书与密钥', path: '/bid/crypto', icon: KeyRound, roles: ['admin', 'bid_host'] },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
