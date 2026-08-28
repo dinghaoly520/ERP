@@ -2052,6 +2052,14 @@ export class BidService {
     }
 
     let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
+    // F15（2026-08-28）：进行中禁重跑——旧实现 task 处于 PENDING/TENDER_PROCESSING/ANALYZING 时照样
+    // 清空重跑，在途分析直接被铲（tender/bidder job 撞到已删/非 PENDING 行被认领守卫跳过），
+    // 连点两次即两次全量重跑。非终态闸门天然兼作频控（rerun 后 task 复位 PENDING，二次即被挡）。
+    // 只判 findUnique 命中分支——N8 补建路径自建的 task 即为 PENDING，不能挡自己；
+    // 极窄的补建竞态窗（对手在途而我方早读 null）由认领守卫兜底。
+    if (task && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)) {
+      throw new ConflictException({ error: 'AI 分析进行中，禁止重跑（会清空在途分析）；如个别供应商异常请用单家重试', code: 'TASK_IN_PROGRESS' });
+    }
     if (!task) {
       // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口。
       // 终审 must-fix：upsert（与 startEvaluation 完全同款）而非裸 create——并发双 rerun 双双
@@ -2132,6 +2140,12 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '系统', target: project.name, action: '重新启动AI辅助分析', result: '旧结果已清除，重新入队', riskFlag: '无' },
     }).catch(() => {});
+    // F15：补审计（对齐 retry 的 BID_AI_RETRY_BIDDERS 模式——rerun 是破坏性操作，旧实现零审计）
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action: 'BID_AI_RERUN_ANALYSIS', resourceType: `BidProject:${projectId}`, details: { taskId } },
+      }).catch(() => {});
+    }
 
     return { taskId };
   }

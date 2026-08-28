@@ -4406,6 +4406,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
       aiBidderResult: { deleteMany: jest.fn(async () => ({ count: 0 })), createMany: jest.fn(async () => ({ count: 1 })) },
       bidSupplier: { findMany: jest.fn(async () => [{ id: 'bs-1' }]) },
       bidSupervisionLog: { create: jest.fn(async () => ({})) },
+      auditLog: { create: jest.fn(async () => ({})) }, // F15：rerun 补审计
       // 评标产出保护闸门（2026-08-28）：默认无产出放行
       bidRequirementReview: { count: jest.fn(async () => 0) },
       bidScoreRecord: { count: jest.fn(async () => 0) },
@@ -4544,6 +4545,26 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
     });
     expect(prisma.aiBidAnalysisTask.update).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: { id: 't1' }, data: { status: 'FAILED' } }),
+    );
+  });
+
+  /* ── F15（2026-08-28）：进行中禁重跑 + 补审计 ── */
+  it('F15：task 进行中（ANALYZING）→ 409 TASK_IN_PROGRESS，不清空在途分析', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'ANALYZING' });
+    await expect(service.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      response: { code: 'TASK_IN_PROGRESS' },
+    });
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.aiBidReport.deleteMany).not.toHaveBeenCalled();
+    expect(tenderQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('F15：重跑成功 → 写 BID_AI_RERUN_ANALYSIS 审计（旧实现零审计）', async () => {
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toBeTruthy();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: 'u1', action: 'BID_AI_RERUN_ANALYSIS', resourceType: 'BidProject:p1' }),
+      }),
     );
   });
 });
