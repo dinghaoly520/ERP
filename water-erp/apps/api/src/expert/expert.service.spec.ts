@@ -1968,6 +1968,53 @@ describe('ExpertService', () => {
       );
     });
   });
+
+  describe('focus-hint（跨设备联动）', () => {
+    let redisMock: { incr: jest.Mock; set: jest.Mock; expire: jest.Mock; get: jest.Mock };
+
+    beforeEach(() => {
+      redisMock = {
+        incr: jest.fn(async () => 7),
+        set: jest.fn(async () => 'OK'),
+        expire: jest.fn(async () => 1),
+        get: jest.fn(async () => null),
+      };
+      (service as any).redis = redisMock;
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
+    });
+
+    afterEach(() => {
+      (service as any).redis = undefined;
+    });
+
+    it('setFocusHint：seq 计数器不设 TTL（防回卷重复聚焦），hint 值 key 120s 过期', async () => {
+      const r = await service.setFocusHint('user-1', 'proj-1', { supplierId: 'sup-1' });
+
+      expect(r).toEqual({ ok: true, seq: 7 });
+      expect(redisMock.incr).toHaveBeenCalledWith('expert:focus:seq:exp-1:proj-1');
+      expect(redisMock.expire).not.toHaveBeenCalled(); // ④：seq 单调不回卷
+      expect(redisMock.set).toHaveBeenCalledWith(
+        'expert:focus:exp-1:proj-1',
+        expect.stringContaining('"seq":7'),
+        'EX',
+        120,
+      );
+    });
+
+    it('非本项目专家 → 403，不触碰 Redis', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.setFocusHint('user-x', 'proj-1', { supplierId: 'sup-1' }))
+        .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
+      expect(redisMock.incr).not.toHaveBeenCalled();
+    });
+
+    it('getFocusHint 读到 hint 后写 ACK 回执', async () => {
+      redisMock.get.mockResolvedValue(JSON.stringify({ supplierId: 'sup-1', seq: 7, at: 1 }));
+      const hint = await service.getFocusHint('user-1', 'proj-1');
+      expect(hint).toMatchObject({ supplierId: 'sup-1', seq: 7 });
+      expect(redisMock.set).toHaveBeenCalledWith('expert:focus:ack:exp-1:proj-1:7', '1', 'EX', 30);
+    });
+  });
 });
 
 describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () => {

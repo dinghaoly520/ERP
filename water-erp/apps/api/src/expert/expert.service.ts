@@ -2075,9 +2075,11 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     const key = `expert:focus:${expert.id}:${projectId}`;
     const seqKey = `expert:focus:seq:${expert.id}:${projectId}`;
+    // seq 计数器刻意不设 TTL：一旦 expire 归零重启计数，平板端「seq > lastSeq」守卫会误判旧
+    // hint 为新（重复聚焦/滚动）。计数器单调递增即可，无清理需求（单专家单项目仅一个键）。
+    // hint 值 key 保留 120s 过期——陈旧提示照常消失。
     const seq = await this.redis!.incr(seqKey);
     await this.redis!.set(key, JSON.stringify({ ...body, seq, at: Date.now() }), 'EX', 120);
-    await this.redis!.expire(seqKey, 120);
     return { ok: true, seq };
   }
 
