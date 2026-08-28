@@ -1589,6 +1589,8 @@ describe('ExpertService', () => {
 
     beforeEach(() => {
       plaintextFetcher = service['plaintextFetcher'];
+      // ⑧ 日志会话去重：默认无近期访问记录（首访照常双写）
+      prisma.auditLog.findFirst = jest.fn().mockResolvedValue(null);
     });
 
     afterEach(() => {
@@ -1614,6 +1616,49 @@ describe('ExpertService', () => {
       expect(out.mimeType).toBe('application/pdf');
       // 调 plaintextFetcher 时 which 应为 'technical'（fileId→which 映射）
       expect(plaintextFetcher.fetchBidderPlaintext).toHaveBeenCalledWith('sup-1', 'technical');
+    });
+
+    it('⑧同一阅卷会话窗口内（10min 有近期访问记录）→ 不重复写监督/审计日志，buffer 照常返回', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', supplierId: 'sys-1', supplierName: '川水建设', projectId: 'proj-1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'file-tech',
+        businessFileAssetId: 'file-biz',
+        coverLetterAssetId: null,
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'file-tech', originalName: '技术方案.pdf' });
+      prisma.auditLog.findFirst.mockResolvedValue({ id: 'log-1' }); // 10min 内已有访问记录
+      plaintextFetcher.fetchBidderPlaintext.mockResolvedValue({ buffer: Buffer.from('%PDF-1.4'), fileId: 'file-tech' });
+
+      const out = await service.downloadBidDocument('user-1', 'proj-1', 'sup-1', 'file-tech');
+
+      expect(out.buffer.toString()).toBe('%PDF-1.4');
+      expect(prisma.auditLog.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ userId: 'user-1', action: 'EXPERT_VIEW_DOCUMENT', resourceId: 'file-tech' }),
+      }));
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+      expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('⑧首次访问（无近期记录）→ 监督/审计日志照常双写', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', supplierId: 'sys-1', supplierName: '川水建设', projectId: 'proj-1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'file-tech',
+        businessFileAssetId: 'file-biz',
+        coverLetterAssetId: null,
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'file-tech', originalName: '技术方案.pdf' });
+      plaintextFetcher.fetchBidderPlaintext.mockResolvedValue({ buffer: Buffer.from('%PDF-1.4'), fileId: 'file-tech' });
+
+      await service.downloadBidDocument('user-1', 'proj-1', 'sup-1', 'file-tech');
+
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledTimes(1);
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ userId: 'user-1', action: 'EXPERT_VIEW_DOCUMENT', resourceId: 'file-tech' }),
+      }));
     });
 
     it('非本人专家 → 403', async () => {

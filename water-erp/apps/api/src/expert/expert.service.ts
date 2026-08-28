@@ -821,27 +821,41 @@ export class ExpertService {
 
     const fileName = asset?.originalName ?? `${which}.pdf`;
 
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId,
-        time: new Date(),
-        role: '评审专家',
-        target: expert.expertName,
-        action: `访问投标文件（${supplier.supplierName}）`,
-        result: fileName,
-        riskFlag: '无',
-      },
-    });
-
-    await this.prisma.auditLog.create({
-      data: {
+    // ⑧ 日志会话去重：条款核对页每点一条条款就重取一次 PDF（控制层已加 ETag/304，
+    // 浏览器强刷或绕过缓存的请求仍会到此）。10 分钟窗口内同 (专家, 文件) 只记首条
+    // 监督/审计日志，与控制层 Cache-Control max-age=600 对齐；首次访问照常双写。
+    const recentView = await this.prisma.auditLog.findFirst({
+      where: {
         userId,
         action: 'EXPERT_VIEW_DOCUMENT',
-        resourceType: `BidSupplier:${supplierId}:${which}`,
         resourceId: fileId,
-        details: { projectId, supplierName: supplier.supplierName, fileName },
+        createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
       },
-    }).catch(() => {});
+      select: { id: true },
+    });
+    if (!recentView) {
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId,
+          time: new Date(),
+          role: '评审专家',
+          target: expert.expertName,
+          action: `访问投标文件（${supplier.supplierName}）`,
+          result: fileName,
+          riskFlag: '无',
+        },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'EXPERT_VIEW_DOCUMENT',
+          resourceType: `BidSupplier:${supplierId}:${which}`,
+          resourceId: fileId,
+          details: { projectId, supplierName: supplier.supplierName, fileName },
+        },
+      }).catch(() => {});
+    }
 
     return { buffer: result.buffer, fileName, mimeType: 'application/pdf' };
   }
