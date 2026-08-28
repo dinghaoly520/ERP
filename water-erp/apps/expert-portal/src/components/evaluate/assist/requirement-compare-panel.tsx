@@ -1,8 +1,8 @@
 // requirement-compare-panel.tsx
 'use client';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, Loader2, Gavel, BarChart3 } from 'lucide-react';
+import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, Gavel, BarChart3 } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview, BidScoreItem } from '@water-erp/shared';
 import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { api } from '@/lib/api';
@@ -94,6 +94,25 @@ export function RequirementComparePanel({
   const [local, setLocal] = useState<Record<string, BidRequirementReview>>(
     () => Object.fromEntries(reviews.map((r) => [r.requirementId, r])),
   );
+  // 2026-08-28 审查修复：local 只在挂载时从 reviews 初始化一次——若 reviews 在挂载后才到达
+  // （或面板因其他原因未随数据重挂载），已保存标注不回显。这里对「本地未改动过」的条目做
+  // 兜底同步；本组件内任何写入（setVerdict/setNote）都先登记 touched，防止同步覆盖进行中编辑。
+  const touchedRef = useRef(new Set<string>());
+  useEffect(() => {
+    setLocal((cur) => {
+      let changed = false;
+      const next = { ...cur };
+      for (const r of reviews) {
+        if (touchedRef.current.has(r.requirementId)) continue;
+        const c = next[r.requirementId];
+        if (!c || c.verdict !== r.verdict || (c.note ?? '') !== (r.note ?? '')) {
+          next[r.requirementId] = r;
+          changed = true;
+        }
+      }
+      return changed ? next : cur;
+    });
+  }, [reviews]);
 
   const [isFs, setIsFs] = useState(false);
   const toggleFs = () => setIsFs((f) => !f);
@@ -111,7 +130,6 @@ export function RequirementComparePanel({
   // C：左栏卡片展开态（clauseId → expanded）；D：右栏 AI判断揭示态 + 批注录入目标
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [aiRevealed, setAiRevealed] = useState<Record<string, boolean>>({});
-  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
 
   // 评分进度仪表盘：按类别展开态
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
@@ -155,6 +173,7 @@ export function RequirementComparePanel({
 
   // ── Fix 2：verdict 提交 + 失败回滚（保留 functional update + prevReview 快照）──
   const setVerdict = async (item: ReqItem, verdict: 'ack' | 'dispute' | 'doubt') => {
+    touchedRef.current.add(item.id); // 本地已改动——阻止 reviews 同步覆盖进行中的编辑
     const prevReview = local[item.id];
     const next = {
       ...prevReview,
@@ -180,6 +199,7 @@ export function RequirementComparePanel({
 
   // ── Fix 3：note 仅改本地态，onBlur 时 try/catch 提交 ──
   const setNote = (item: ReqItem, note: string) => {
+    touchedRef.current.add(item.id); // 同 setVerdict：登记本地改动
     const verdict = local[item.id]?.verdict ?? 'doubt';
     setLocal((cur) => ({
       ...cur,
@@ -316,7 +336,9 @@ export function RequirementComparePanel({
                                 验收/阈值：{item.acceptanceCriteria || item.threshold}
                               </p>
                             )}
-                            {isOpen && item.sourcePage && (
+                            {/* 2026-08-28 审查修复：招标文件缺失时不渲染跳原文按钮——否则点了会把左栏
+                                切成 `undefined#page=N` 的空 iframe（「招标文件」tab 已有同款门控） */}
+                            {isOpen && item.sourcePage && tenderDocUrl && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setTenderPage(item.sourcePage!); setLeftMode('tender'); }}
                                 className="ml-4 mt-1 inline-flex items-center gap-0.5 text-[10px] text-[var(--accent-strong)] hover:underline"
@@ -448,19 +470,11 @@ export function RequirementComparePanel({
                   <span className="rounded bg-[oklch(0.52_0.13_251/0.1)] px-1 py-px text-[8px] font-bold text-[var(--accent)]">仅供参考</span>
                   <span className="wb-section-rule ml-1 flex-1" />
                 </div>
-                {aiLoading[selectedItem.id] ? (
-                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
-                    <Loader2 size={12} className="animate-spin text-[var(--accent-strong)]" /> AI 分析中…
-                  </div>
-                ) : !aiRevealed[selectedItem.id] ? (
+                {!aiRevealed[selectedItem.id] ? (
+                  // 2026-08-28 审查修复：AI 判断数据已随 assistData 一次性返回，原「查看」是
+                  // setTimeout 伪装的假加载（900ms+随机），误导专家以为在实时推理——改为即点即显。
                   <button
-                    onClick={() => {
-                      setAiLoading((p) => ({ ...p, [selectedItem.id]: true }));
-                      setTimeout(() => {
-                        setAiLoading((p) => ({ ...p, [selectedItem.id]: false }));
-                        setAiRevealed((p) => ({ ...p, [selectedItem.id]: true }));
-                      }, 900 + Math.random() * 500);
-                    }}
+                    onClick={() => setAiRevealed((p) => ({ ...p, [selectedItem.id]: true }))}
                     className="neu-btn-xs justify-center !px-2 !py-1.5 !text-[11px]"
                     style={{ width: 'calc(50% - 3px)' }}
                     title="查看 AI 对本条款的判断（仅供参考）"
