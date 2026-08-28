@@ -4151,7 +4151,7 @@ describe('BidService — getAiAnalysisProgress', () => {
 describe('BidService — retryAiBidders', () => {
   let service: BidService;
   let prisma: any;
-  let bidderQueue: { add: jest.Mock };
+  let bidderQueue: { add: jest.Mock; remove: jest.Mock };
   const NOW = Date.now();
   const mkBidder = (over: any = {}) => ({
     id: 'br1', taskId: 't1', bidSupplierId: 'bs1', status: 'FAILED',
@@ -4161,7 +4161,7 @@ describe('BidService — retryAiBidders', () => {
   });
 
   beforeEach(async () => {
-    bidderQueue = { add: jest.fn().mockResolvedValue({ id: 'job' }) };
+    bidderQueue = { add: jest.fn().mockResolvedValue({ id: 'job' }), remove: jest.fn().mockResolvedValue(undefined) };
     prisma = {
       bidProject: { findUnique: jest.fn(async () => ({ stage: 'EVALUATING', name: '测试项目' })) },
       aiBidAnalysisTask: {
@@ -4221,7 +4221,9 @@ describe('BidService — retryAiBidders', () => {
     expect(res.retried).toEqual([{ id: 'br1', name: '甲公司' }]);
     expect(prisma.aiBidderResult.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['br1'] } }, data: expect.objectContaining({ status: 'PENDING', processedAt: null }) }));
     expect(bidderQueue.add).toHaveBeenCalledTimes(1);
-    expect(bidderQueue.add).toHaveBeenCalledWith('process', { bidderResultId: 'br1', taskId: 't1' }, expect.objectContaining({ attempts: 3 }));
+    // F7：确定性 jobId（与 tender.processor 同源）+ add 前强制 remove（BullMQ 保留态同 id 去重陷阱）
+    expect(bidderQueue.add).toHaveBeenCalledWith('process', { bidderResultId: 'br1', taskId: 't1' }, expect.objectContaining({ jobId: 'bidderResult-br1', attempts: 3 }));
+    expect(bidderQueue.remove).toHaveBeenCalledWith('bidderResult-br1');
     expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
     expect(prisma.aiBidAnalysisTask.update).toHaveBeenCalledWith({ where: { id: 't1' }, data: expect.objectContaining({ status: 'ANALYZING', completedAt: null }) });
   });
@@ -4238,10 +4240,42 @@ describe('BidService — retryAiBidders', () => {
     expect(bidderQueue.add).toHaveBeenCalledTimes(2);
   });
 
-  it('入队失败（Redis 异常）→ ENQUEUE_FAILED 归一化错误', async () => {
-    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'COMPLETED_WITH_ERRORS', bidderResults: [mkBidder({ id: 'br1', status: 'FAILED', bidSupplier: { supplierName: '甲公司' } })] });
+  it('入队失败（Redis 异常）→ ENQUEUE_FAILED + 回滚本次 PENDING/ANALYZING 重置（不留假成功停摆）', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'COMPLETED_WITH_ERRORS', completedAt: new Date(NOW - 60_000), bidderResults: [mkBidder({ id: 'br1', status: 'FAILED', bidSupplier: { supplierName: '甲公司' } })] });
     bidderQueue.add.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('入队失败') });
+    // 回滚：行还原 FAILED、task 还原 COMPLETED_WITH_ERRORS（含原 completedAt），且不写成功日志/审计
+    expect(prisma.aiBidderResult.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: { in: ['br1'] } }, data: { status: 'FAILED' } }),
+    );
+    expect(prisma.aiBidAnalysisTask.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: 't1' }, data: expect.objectContaining({ status: 'COMPLETED_WITH_ERRORS' }) }),
+    );
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('F7：bidderQueue 未注入（Redis/worker 异常）→ 503 QUEUE_UNAVAILABLE，DB 零改动', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'COMPLETED_WITH_ERRORS', bidderResults: [mkBidder({ id: 'br1', status: 'FAILED', bidSupplier: { supplierName: '甲公司' } })] });
+    // 无队列 provider 的模块（@Optional 注入为 undefined）——旧实现仅 warn 后假成功
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    const svc = module.get(BidService);
+    await expect(svc.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({
+      status: 503,
+      response: { code: 'QUEUE_UNAVAILABLE' },
+    });
+    expect(prisma.aiBidderResult.updateMany).not.toHaveBeenCalled();
+    expect(prisma.aiBidAnalysisTask.update).not.toHaveBeenCalled();
   });
 });
 
@@ -4250,8 +4284,10 @@ describe('BidService — retryAiBidders', () => {
 describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
   let service: BidService;
   let prisma: any;
+  let tenderQueue: { add: jest.Mock; remove: jest.Mock };
 
   beforeEach(async () => {
+    tenderQueue = { add: jest.fn().mockResolvedValue({}), remove: jest.fn().mockResolvedValue(undefined) };
     prisma = {
       bidProject: { findUnique: jest.fn(async () => ({ stage: 'EVALUATING', name: 'P' })) },
       aiBidAnalysisTask: {
@@ -4271,6 +4307,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
       bidScorePointDecision: { count: jest.fn(async () => 0) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
+    // F7：rerunAiAnalysis 现依赖 tenderQueue（缺失即 503，不再静默假成功）
     const module = await Test.createTestingModule({
       providers: [
         { provide: PrismaService, useValue: prisma },
@@ -4281,6 +4318,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
         ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: getQueueToken(QUEUE_NAMES.TENDER_PROCESSING), useValue: tenderQueue },
       ],
     }).compile();
     service = module.get(BidService);
@@ -4357,6 +4395,51 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
       response: { code: 'EVALUATION_IN_PROGRESS' },
     });
     expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+  });
+
+  /* ── F7（2026-08-28）：确定性 jobId + 队列缺失 503 + 入队失败兜底 ── */
+  it('F7：tender job 用确定性 jobId `tender-${taskId}`，且 add 前强制 remove（防保留态去重假成功）', async () => {
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toBeTruthy();
+    expect(tenderQueue.remove).toHaveBeenCalledWith('tender-t1');
+    expect(tenderQueue.add).toHaveBeenCalledWith(
+      'process',
+      { taskId: 't1' },
+      expect.objectContaining({ jobId: 'tender-t1' }),
+    );
+  });
+
+  it('F7：tenderQueue 未注入 → 503 QUEUE_UNAVAILABLE，且发生在清空旧结果之前（不删任何东西）', async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        // 注意：故意不提供 TENDER_PROCESSING 队列 token
+      ],
+    }).compile();
+    const svc = module.get(BidService);
+    await expect(svc.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      status: 503,
+      response: { code: 'QUEUE_UNAVAILABLE' },
+    });
+    // 旧实现：静默跳过入队却照常清空旧结果并返回 { taskId }——最坏路径已被拦死
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.aiBidReport.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('F7：入队失败（Redis 异常）→ task 置 FAILED + ENQUEUE_FAILED', async () => {
+    tenderQueue.add.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(service.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      response: { code: 'ENQUEUE_FAILED' },
+    });
+    expect(prisma.aiBidAnalysisTask.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: 't1' }, data: { status: 'FAILED' } }),
+    );
   });
 });
 

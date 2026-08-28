@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES } from '@water-erp/shared';
 import { buildArchiveTemplate } from './archive-template';
@@ -36,7 +36,7 @@ import { assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTi
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
-import { Prisma } from '@prisma/client';
+import { Prisma, AiBidderStatus } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
@@ -1962,6 +1962,9 @@ export class BidService {
       });
       if (aiTask) {
         try {
+          // F7：add 前强制 remove——BullMQ 对任意保留状态（含 7 天内 completed）的同 id job 静默去重，
+          // 不 remove 的话同 taskId 二次入队会静默 no-op（假成功）
+          await this.tenderQueue.remove(`tender-${aiTask.id}`).catch(() => {});
           await this.tenderQueue.add(
             'process',
             { taskId: aiTask.id },
@@ -2035,6 +2038,13 @@ export class BidService {
       });
     }
 
+    // F7：队列不可用必须拦在清空旧结果之前——否则结果清完无人消费，任务永久 PENDING（假成功停摆）。
+    // 旧实现 if (this.tenderQueue) 静默跳过入队并照常返回 { taskId }，属最坏路径
+    const tenderQueue = this.tenderQueue;
+    if (!tenderQueue) {
+      throw new ServiceUnavailableException({ error: 'AI 分析队列不可用（Redis/worker 异常），无法重跑', code: 'QUEUE_UNAVAILABLE' });
+    }
+
     let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
     if (!task) {
       // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口。
@@ -2085,29 +2095,31 @@ export class BidService {
       }
     });
 
-    // 入队 tender 处理
-    if (this.tenderQueue) {
-      try {
-        await this.tenderQueue.add(
-          'process',
-          { taskId },
-          {
-            jobId: `tender-rerun-${taskId}-${Date.now()}`,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-            removeOnComplete: { age: 7 * 24 * 3600 },
-            removeOnFail: { age: 30 * 24 * 3600 },
-          },
-        );
-        this.logger.log(`AI analysis rerun enqueued: task=${taskId}, project=${projectId}`);
-      } catch (err) {
-        this.logger.error(`Failed to enqueue rerun for task ${taskId}: ${(err as Error).message}`);
-        await this.prisma.aiBidAnalysisTask.update({
-          where: { id: taskId },
-          data: { status: 'FAILED' },
-        }).catch(() => {});
-        throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
-      }
+    // 入队 tender 处理（F7：jobId 与 startEvaluation 同源 `tender-${taskId}`——确定性 id 使同一
+    // 任务至多一个在途 job；add 前强制 remove，否则 7 天内保留的 completed 同 id job 会让本次
+    // add 静默去重——重跑假成功：旧结果已清空、新分析永不出队）
+    const tenderJobId = `tender-${taskId}`;
+    try {
+      await tenderQueue.remove(tenderJobId).catch(() => {});
+      await tenderQueue.add(
+        'process',
+        { taskId },
+        {
+          jobId: tenderJobId,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { age: 7 * 24 * 3600 },
+          removeOnFail: { age: 30 * 24 * 3600 },
+        },
+      );
+      this.logger.log(`AI analysis rerun enqueued: task=${taskId}, project=${projectId}`);
+    } catch (err) {
+      this.logger.error(`Failed to enqueue rerun for task ${taskId}: ${(err as Error).message}`);
+      await this.prisma.aiBidAnalysisTask.update({
+        where: { id: taskId },
+        data: { status: 'FAILED' },
+      }).catch(() => {});
+      throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
     }
 
     // 监督日志
@@ -2149,6 +2161,15 @@ export class BidService {
       throw new BadRequestException({ error: '无可重试的分析项（仅失败或卡住的可重试）', message: '无可重试的分析项（仅失败或卡住的可重试）', code: 'NO_RETRYABLE_BIDDERS' });
     }
 
+    // F7（2026-08-28）：队列缺失显式 503——旧实现仅 warn 后照常返回成功，DB 已重置 PENDING/ANALYZING
+    // 却无 job 消费，进度卡死在 allPending 停摆（假成功）
+    const bidderQueue = this.bidderQueue;
+    if (!bidderQueue) {
+      throw new ServiceUnavailableException({ error: 'AI 分析队列不可用（Redis/worker 异常），无法重试', code: 'QUEUE_UNAVAILABLE' });
+    }
+
+    // 顺序：先落库后入队——bidder.processor 认领守卫只认 PENDING 行，先入队会被 worker 抢跑看到
+    // FAILED 直接跳过、随后落库的 PENDING 永久无人消费；落库后入队则 worker 拿到 job 时行必为 PENDING。
     await this.prisma.$transaction(async (tx) => {
       await tx.aiBidderResult.updateMany({
         where: { id: { in: targets.map((t) => t.id) } },
@@ -2157,24 +2178,35 @@ export class BidService {
       await tx.aiBidAnalysisTask.update({ where: { id: task.id }, data: { status: 'ANALYZING', completedAt: null } });
     });
 
-    // 入队（jobId 带时间戳防与等待中的旧 job 冲突；worker 未运行时 job 持久 Redis，恢复后自动消费）
-    if (this.bidderQueue) {
-      try {
-        for (const t of targets) {
-          await this.bidderQueue.add('process', { bidderResultId: t.id, taskId: task.id }, {
-            jobId: `bidderResult-retry-${t.id}-${Date.now()}`,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-            removeOnComplete: { age: 7 * 24 * 3600 },
-            removeOnFail: { age: 30 * 24 * 3600 },
-          });
-        }
-      } catch (err) {
-        this.logger.error(`Failed to enqueue retry for task ${task.id}: ${(err as Error).message}`);
-        throw new BadRequestException({ error: '入队失败，请稍后重试', code: 'ENQUEUE_FAILED', message: '入队失败，请稍后重试' });
+    // F7：jobId 确定性化（`bidderResult-${id}`，与 tender.processor 同源）——同一行至多一个 job，
+    // 旧时间戳 jobId 在并发重试下会双 job 双跑同一行；add 前强制 remove：BullMQ 对任意保留状态
+    // （含 7 天内 completed）的同 id job 静默去重，不 remove 即假成功。入队失败回滚本次重置。
+    try {
+      for (const t of targets) {
+        const jobId = `bidderResult-${t.id}`;
+        await bidderQueue.remove(jobId).catch(() => {});
+        await bidderQueue.add('process', { bidderResultId: t.id, taskId: task.id }, {
+          jobId,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { age: 7 * 24 * 3600 },
+          removeOnFail: { age: 30 * 24 * 3600 },
+        });
       }
-    } else {
-      this.logger.warn(`bidderQueue unavailable, retried ${targets.length} bidders not enqueued for project ${projectId}`);
+    } catch (err) {
+      this.logger.error(`Failed to enqueue retry for task ${task.id}: ${(err as Error).message}`);
+      // 回滚：按原状态分组还原 targets + task（worker 未消费时 DB 完全复原；若有 job 在 remove/add
+      // 间隙被抢跑，其后续状态写入会覆盖回滚值，收敛到终态而非停摆）
+      const rollback = new Map<AiBidderStatus, string[]>();
+      for (const t of targets) rollback.set(t.status, [...(rollback.get(t.status) ?? []), t.id]);
+      for (const [status, ids] of rollback) {
+        await this.prisma.aiBidderResult.updateMany({ where: { id: { in: ids } }, data: { status } }).catch(() => {});
+      }
+      await this.prisma.aiBidAnalysisTask.update({
+        where: { id: task.id },
+        data: { status: task.status, completedAt: task.completedAt ?? null },
+      }).catch(() => {});
+      throw new BadRequestException({ error: '入队失败，请稍后重试', code: 'ENQUEUE_FAILED', message: '入队失败，请稍后重试' });
     }
 
     await this.prisma.bidSupervisionLog.create({
