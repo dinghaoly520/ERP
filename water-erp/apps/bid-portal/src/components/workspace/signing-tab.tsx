@@ -329,34 +329,36 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   ) : <span className="text-[var(--muted-foreground)]">—</span>}
                 </td>
                 <td className="px-3 py-2.5 text-right">
+                  {/* 两步走：待签只给「登记」；已登记只给「撤销」（撤销后回待签再登记）——
+                      与服务端「已登记须先撤销再重登」（409 SIGN_ALREADY_REGISTERED）语义对齐，
+                      不再提供提交必被 409 挡回的「重新登记」入口 */}
                   {!closed && e.role === EXPERT_ROLE.REGULAR && (
-                    <>
+                    e.signStatus === 'PENDING' ? (
                       <button
                         type="button"
                         disabled={busy !== null}
                         onClick={() => setRegistering(e)}
                         className="rounded-lg border border-[var(--hairline)] px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-40"
                       >
-                        {e.signStatus === 'PENDING' ? '登记' : '重新登记'}
+                        登记
                       </button>
-                      {e.signStatus !== 'PENDING' && (
-                        <button
-                          type="button"
-                          disabled={busy !== null}
-                          onClick={() => {
-                            if (window.confirm(`撤销 ${e.name} 的签字登记（${STATUS_LABEL[e.signStatus]}）？`)) {
-                              void run(`unreg-${e.expertId}`, async () => {
-                                const res = await unregisterSign(projectId, e.expertId);
-                                return res;
-                              });
-                            }
-                          }}
-                          className="ml-1.5 rounded-lg border border-[var(--hairline)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--danger)] disabled:opacity-40"
-                        >
-                          撤销
-                        </button>
-                      )}
-                    </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => {
+                          if (window.confirm(`撤销 ${e.name} 的签字登记（${STATUS_LABEL[e.signStatus]}）？撤销后状态回到待签，可再点「登记」重新登记。`)) {
+                            void run(`unreg-${e.expertId}`, async () => {
+                              const res = await unregisterSign(projectId, e.expertId);
+                              return res;
+                            });
+                          }
+                        }}
+                        className="rounded-lg border border-[var(--hairline)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--danger)] disabled:opacity-40"
+                      >
+                        撤销
+                      </button>
+                    )
                   )}
                 </td>
               </tr>
