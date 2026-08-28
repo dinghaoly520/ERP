@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
-import AdminCertCard from './admin-cert-card';
 import {
   Gavel,
   Archive,
+  KeyRound,
   LogOut,
   ChevronDown,
   ChevronLeft,
@@ -24,6 +24,8 @@ interface NavItem {
   caption?: string;
   path: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  /** 可见角色（缺省=全部登录角色）；与后端 @Roles 对齐 */
+  roles?: string[];
 }
 
 // Phase 3 + 归档恢复：:3007 为纯开标执行终端，仅开标大厅 + 归档端（只读回看）。
@@ -31,6 +33,10 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: '开标大厅', caption: '开标任务 · 在线开标', path: '/bid', icon: Gavel },
   { label: '归档端', caption: '已归档项目', path: '/bid/archive', icon: Archive },
+  // 加密管理（2026-08-28）：管理方加密证书轮转 + 双信封/密钥托管说明——
+  // 原 T17 侧栏底部 AdminCertCard 并入 /bid/crypto 页。读=admin/bid_host（对齐 GET 端点），
+  // 轮转仅 admin（页面内控制）。
+  { label: '加密管理', caption: '证书 · 双信封密钥', path: '/bid/crypto', icon: KeyRound, roles: ['admin', 'bid_host'] },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -60,7 +66,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // 单一入口：任务板(/bid) 与项目工作区(/bid/project/[id]) 均高亮
   const isActive = (path: string) => {
-    if (path === '/bid') return pathname === '/bid' || (pathname.startsWith('/bid/') && !pathname.startsWith('/bid/archive'));
+    if (path === '/bid') {
+      return pathname === '/bid'
+        || (pathname.startsWith('/bid/') && !pathname.startsWith('/bid/archive') && !pathname.startsWith('/bid/crypto'));
+    }
     return pathname === path || pathname.startsWith(path + '/');
   };
 
@@ -108,7 +117,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         >
           {/* 品牌块已上移至顶栏 sp-brand；侧栏顶部仅留呼吸 padding */}
           <nav className="sidebar-scroll sidebar-nav mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pt-3 pb-1">
-            {navItems.map(item => {
+            {navItems.filter(item => !item.roles || !user || item.roles.includes(user.role)).map(item => {
               const active = isActive(item.path);
               const Icon = item.icon;
               return (
@@ -133,13 +142,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-
-          {/* T17：管理方加密证书（双信封 v2 外层公钥载体；仅 admin 可见，生成=轮转） */}
-          {user?.role === 'admin' && (
-            <div className="mx-2 mb-2 shrink-0">
-              <AdminCertCard />
-            </div>
-          )}
 
           {/* 右边缘折叠手柄 —— 点击向左折叠 */}
           <button
