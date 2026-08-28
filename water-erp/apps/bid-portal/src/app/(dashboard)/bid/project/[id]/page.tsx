@@ -50,6 +50,9 @@ function WorkspaceInner() {
 
   // ═══ 现场协同实时化（P0）：澄清事件信号——驱动 ClarificationsBlock 重拉 ═══
   const [clarSignal, setClarSignal] = useState(0);
+  // F6（2026-08-28）：评标结果刷新信号——异议裁决联动废标等操作会删除评标结果，
+  // 递增即驱动 EvaluationView 重拉（结果仅挂载拉取一次，否则排名区显示已删除的旧结果）
+  const [resultsSignal, setResultsSignal] = useState(0);
 
   // ═══ Audio（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）═══
   const sfx = useOpeningSfx();
@@ -228,8 +231,8 @@ function WorkspaceInner() {
           {current === 'supervise' && <SupervisionView projectId={projectId as string} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />}
           {current === 'evaluate' && (
             <>
-              <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} />
-              <DisputeBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />
+              <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} refreshSignal={resultsSignal} />
+              <DisputeBlock bidProjectId={projectId as string} detail={project} onChanged={() => { loadProject(); setResultsSignal(v => v + 1); }} />
               <ClarificationsBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} refreshSignal={clarSignal} />
             </>
           )}

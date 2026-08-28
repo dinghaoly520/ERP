@@ -8,7 +8,7 @@
  * 唯一副本（:3005 原件已删除，2026-08-14）；函数 API 走 @/lib/api/evaluation（同源封装）。
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck,
   Clock, FileCheck, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
@@ -34,6 +34,8 @@ type Props = {
   projectId: string;
   project: BidProjectDetail | null;
   onChanged: () => void;
+  /** 页级结果刷新信号（异议裁决联动废标等会删除评标结果——递增即重拉），同 ClarificationsBlock.refreshSignal 模式 */
+  refreshSignal?: number;
 };
 
 const CATEGORY_ORDER: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
@@ -131,7 +133,7 @@ function StatTile({ label, value, sub, pct, color }: { label: string; value: str
 
 /* ═══ 组件 ═══ */
 
-export default function EvaluationView({ projectId, project, onChanged }: Props) {
+export default function EvaluationView({ projectId, project, onChanged, refreshSignal }: Props) {
   const [results, setResults] = useState<BidEvaluationResultInfo[]>([]);
   /** 生成时排除的供应商（开标确认 EXCEPTION，未纳入排名）——仅生成响应携带 */
   const [excludedSuppliers, setExcludedSuppliers] = useState<ExcludedSupplierInfo[]>([]);
@@ -196,12 +198,24 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   };
 
   const loadResults = useCallback(() => {
-    listEvaluationResults(projectId).then(setResults).catch(() => setResults([]));
+    listEvaluationResults(projectId)
+      .then(r => { setResults(r); })
+      .catch(() => setResults([]));
   }, [projectId]);
 
-  // F12：仅按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致
-  // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新
+  // F12：按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致
+  // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新。
+  // F6（2026-08-28）：新增页级 refreshSignal 依赖——异议裁决联动废标会删除评标结果，
+  // 此前 results 仅挂载时拉取一次，删除后本区块仍显示旧排名（缓存失活）。信号变化即重拉。
+  // 重拉后生成响应携带的 excludedSuppliers 告警不再可靠，一并清空。
   useEffect(() => { loadResults(); }, [loadResults]);
+  const firstSignalRun = useRef(true);
+  useEffect(() => {
+    if (refreshSignal === undefined) return;
+    if (firstSignalRun.current) { firstSignalRun.current = false; return; } // 挂载首跑跳过（上方挂载 effect 已拉）
+    loadResults();
+    setExcludedSuppliers([]);
+  }, [refreshSignal, loadResults]);
 
   /* ── 派生数据 ── */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
@@ -373,6 +387,16 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
     }
   }
 
+  /** F6（2026-08-28）：重生成入口——结果已存在时此前无入口（按钮仅在 results.length===0 显示），
+   *  裁决废标/评分修正后只能刷新整页。二次确认：未闭环签字包将随重生成作废（后端同事务删除+重置签字）。 */
+  async function handleRegenerate() {
+    const ok = window.confirm(
+      '重新生成评标结果？\n· 未闭环的评标签字包将随之作废（签字登记全部重置，须重新生成与登记）；\n· 已闭环签字包则后端拒绝重生成。\n确认后继续。',
+    );
+    if (!ok) return;
+    await handleGenerate();
+  }
+
   const isCellAnomaly = (expertId: string, supplierId: string): boolean => {
     const cell = matrix.get(expertId)?.get(supplierId);
     if (!cell || cell.maxScore <= 0) return false;
@@ -400,6 +424,17 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         {stage === 'EVALUATING' && results.length === 0 && !archived && (
           <button type="button" onClick={() => { setWizardStep(0); setWizardOpen(true); }} disabled={!canGenerate || busy} className="neu-btn-primary !h-[32px] !text-xs disabled:opacity-40">
             <Sparkles size={13} /> 生成评标结果
+          </button>
+        )}
+        {stage === 'EVALUATING' && results.length > 0 && !archived && (
+          <button
+            type="button"
+            onClick={() => void handleRegenerate()}
+            disabled={!canGenerate || busy}
+            className="neu-btn-soft !h-[32px] !text-xs disabled:opacity-40"
+            title="重新生成将覆盖现有结果；未闭环签字包随之作废"
+          >
+            <Sparkles size={13} /> 重新生成
           </button>
         )}
       </div>
