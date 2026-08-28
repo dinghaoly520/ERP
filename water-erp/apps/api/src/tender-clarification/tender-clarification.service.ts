@@ -2,6 +2,8 @@ import { BadRequestException, ForbiddenException, Injectable, Logger } from '@ne
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AnnouncementService } from '../announcement/announcement.service';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { streamToBuffer } from '../announcement/bid-document.crypto';
 import { assertAskWithinWindow, assertIssueWithinWindow } from './clarification-timing.util';
 import { CreateClarificationDocDto } from './dto/create-clarification-doc.dto';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
@@ -267,5 +269,51 @@ export class TenderClarificationService {
       content: doc.content,
       fileUrl: doc.fileAssetId ? `/api/upload/files/${doc.fileAssetId}` : null,
     };
+  }
+
+  /** A-136：专家视角已发布澄清/修改文件列表（评委核对招标文件澄清修改的法定输入）。 */
+  async listDocsForExpert(projectId: string) {
+    return this.prisma.tenderClarificationDoc.findMany({
+      where: { projectId, status: '已发布' },
+      orderBy: { version: 'asc' },
+      select: { id: true, version: true, title: true, content: true, publishedAt: true, fileAssetId: true },
+    });
+  }
+
+  /** A-136：专家下载澄清修改文件。门控=本项目 BidExpert；附件服务端流式直出（明文件，无信封，
+   *  不经 /upload 下载授权链）；下载写监督日志。无附件（纯正文）同样留痕返回正文。 */
+  async downloadDocForExpert(projectId: string, docId: string, expertUserId: string) {
+    const doc = await this.prisma.tenderClarificationDoc.findUnique({ where: { id: docId } });
+    if (!doc || doc.projectId !== projectId || doc.status !== '已发布') {
+      throw new BadRequestException({ error: '澄清文件不存在或未发布', code: 'NOT_FOUND' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId: expertUserId },
+      select: { expertName: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '仅本项目评标专家可下载', code: 'NOT_PROJECT_EXPERT' });
+
+    const log = () =>
+      this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+          action: '下载澄清修改文件', result: `v${doc.version} ${doc.title}`, riskFlag: '无',
+        },
+      });
+
+    if (doc.fileAssetId) {
+      const asset = await this.prisma.fileAsset.findUnique({ where: { id: doc.fileAssetId } });
+      if (asset) {
+        const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+        const buffer = await streamToBuffer(objStream);
+        await log();
+        return {
+          buffer, fileName: asset.originalName, mimeType: asset.mimeType ?? 'application/octet-stream',
+          title: doc.title, version: doc.version, content: doc.content,
+        };
+      }
+    }
+    await log();
+    return { buffer: null, fileName: null, mimeType: null, title: doc.title, version: doc.version, content: doc.content };
   }
 }

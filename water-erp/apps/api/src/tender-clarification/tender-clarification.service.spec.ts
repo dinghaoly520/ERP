@@ -223,3 +223,31 @@ describe('TenderClarificationService 供应商侧（A-85/A-86）', () => {
     });
   });
 });
+
+describe('A-136 专家端澄清修改文件', () => {
+  it('listDocsForExpert：仅已发布、按 version 升序', async () => {
+    const prisma = {
+      tenderClarificationDoc: { findMany: jest.fn().mockResolvedValue([{ id: 'd1', version: 1 }]) },
+    };
+    await makeService(prisma).listDocsForExpert('p1');
+    expect(prisma.tenderClarificationDoc.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { projectId: 'p1', status: '已发布' },
+      orderBy: { version: 'asc' },
+    }));
+  });
+
+  it('downloadDocForExpert：非本项目评委 → 403 NOT_PROJECT_EXPERT', async () => {
+    const prisma = {
+      tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '已发布', fileAssetId: null }) },
+      bidExpert: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    await expect(makeService(prisma).downloadDocForExpert('p1', 'd1', 'u9')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('downloadDocForExpert：未发布/不存在 → 400 NOT_FOUND', async () => {
+    const prisma = {
+      tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    await expect(makeService(prisma).downloadDocForExpert('p1', 'dX', 'u1')).rejects.toThrow(BadRequestException);
+  });
+});

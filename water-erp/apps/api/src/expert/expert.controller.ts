@@ -21,6 +21,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { ExpertService } from './expert.service';
 import { ExpertAdminService } from './expert-admin.service';
 import { ExpertMemoService } from './expert-memo.service';
+import { TenderClarificationService } from '../tender-clarification/tender-clarification.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
@@ -51,6 +52,7 @@ export class ExpertController {
     private expertService: ExpertService,
     private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
+    private clarifications: TenderClarificationService,
     private prisma: PrismaService,
     private bidGateway: BidGateway,
   ) {}
@@ -252,6 +254,33 @@ export class ExpertController {
     const { buffer, fileName, mimeType } = await this.expertService.downloadTenderDocument(userId, projectId);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.send(buffer);
+  }
+
+  /* ── A-136：澄清与修改文件（评委核对招标文件修改的法定输入）── */
+
+  @ApiOperation({ summary: '本项目已发布澄清/修改文件列表' })
+  @Get('projects/:projectId/clarification-docs')
+  async listClarificationDocs(@Param('projectId') projectId: string) {
+    return this.clarifications.listDocsForExpert(projectId);
+  }
+
+  @ApiOperation({ summary: '专家下载澄清修改文件（附件流式直出 + 监督日志）' })
+  @Post('projects/:projectId/clarification-docs/:docId/download')
+  async downloadClarificationDoc(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('docId') docId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName, mimeType } = await this.clarifications.downloadDocForExpert(projectId, docId, userId);
+    if (!buffer) {
+      // 纯正文澄清（无附件）——列表端点已承载 content，此处无文件可下载
+      res.status(204).end();
+      return;
+    }
+    res.setHeader('Content-Type', mimeType ?? 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName ?? 'clarification')}"`);
     res.send(buffer);
   }
 

@@ -5,6 +5,7 @@ import { ExpertMemoService } from './expert-memo.service';
 import { ExpertAdminService } from './expert-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { TenderClarificationService } from '../tender-clarification/tender-clarification.service';
 
 describe('ExpertController', () => {
   let controller: ExpertController;
@@ -28,7 +29,9 @@ describe('ExpertController', () => {
         { provide: ExpertService, useValue: expertService },
         // ExpertController 构造器第 2 参（N7 用例给 autoPromoteCandidate mock）
         { provide: ExpertAdminService, useValue: expertAdminService },
-        // 构造器第 4/5 参（本 spec 不触达，空 mock 即可；N6 RSVP 用例另给 bidExpert mock）
+        // 构造器第 4 参（A-136 澄清文件端点，本 spec 不触达，空 mock 即可）
+        { provide: TenderClarificationService, useValue: {} },
+        // 构造器第 5/6 参（本 spec 不触达，空 mock 即可；N6 RSVP 用例另给 bidExpert mock）
         { provide: PrismaService, useValue: prisma },
         { provide: BidGateway, useValue: {} },
         {
