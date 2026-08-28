@@ -1,10 +1,11 @@
 // apps/api/src/supervision-push/dto/supervision-push.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, IsUrl, Length, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUrl, Length, Max, Min } from 'class-validator';
 import { SUPERVISION_PAYLOAD_TYPES, SupervisionPayloadType } from '../supervision-push-payload';
 
 export class SaveSupervisionConfigDto {
   @ApiProperty({ description: '是否启用推送' })
+  @IsBoolean()
   enabled!: boolean;
 
   @ApiProperty({ description: '推送端点（公共服务平台监督通道 URL）', required: false })
