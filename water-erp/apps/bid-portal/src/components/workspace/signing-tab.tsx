@@ -11,6 +11,7 @@ import {
 import { uploadOpeningSignScan, registerOpeningSign } from '@/lib/api/bid';
 import SignRegisterDialog from './sign-register-dialog';
 import { OpeningSignBlock } from '../opening-hall-sign-block';
+import { useBidUser } from '@/hooks/use-bid-user';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
@@ -31,6 +32,10 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
   const [signRefreshTick, setSignRefreshTick] = useState(0);
   const batchInputRef = useRef<HTMLInputElement | null>(null);
+  // L2（2026-08-28）：签字包写操作（生成/扫描回传/登记/撤销/回流包）后端收口 @Roles('bid_host','admin')——
+  // leader/staff 只读查看；开标记录签字卡端点为全角色，不受此门控影响
+  const me = useBidUser();
+  const canHost = me?.role === 'admin' || me?.role === 'bid_host';
 
   /** 文件名 → 回传目标路由（含专家名/关键词匹配；先到先得，重复与未识别留待单传）。hasPacket=false 时不含主报告页（该端点依赖签字包存在） */
   const routeFiles = (files: File[], experts: SignPacketExpertRow[], hasPacket: boolean) => {
@@ -206,6 +211,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             <p className="text-sm font-semibold text-[var(--foreground)]">尚未生成签字包</p>
             <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">将快照当前评标数据，生成《评标报告》+ 专家声明签字页 + 个人评分确认表等全套证据包 PDF。</p>
           </div>
+          {canHost && (
           <button
             type="button"
             disabled={batchBusy}
@@ -215,6 +221,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
           >
             {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
           </button>
+          )}
+          {canHost && (
           <button
             type="button"
             disabled={busy !== null || !data.canGenerate}
@@ -224,6 +232,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             {busy === 'generate' ? <Loader2 size={13} className="animate-spin" /> : <Fingerprint size={13} />}
             生成签字包
           </button>
+          )}
           {!data.canGenerate && <span className="text-[11px] text-[var(--muted-foreground)]">当前阶段 {stage} 不可生成</span>}
         </div>
       ) : (
@@ -244,18 +253,16 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {!closed && (
-                <>
-                  <button
-                    type="button"
-                    disabled={batchBusy}
-                    onClick={() => batchInputRef.current?.click()}
-                    className="neu-btn-primary !h-[34px] !text-xs"
-                    title="选 1 份（合并扫描 PDF）→ 自动应用到所有签字项；选多份 → 按文件名自动分配去向（含主持人/监督人/报告/专家名）"
-                  >
-                    {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
-                  </button>
-                </>
+              {!closed && canHost && (
+                <button
+                  type="button"
+                  disabled={batchBusy}
+                  onClick={() => batchInputRef.current?.click()}
+                  className="neu-btn-primary !h-[34px] !text-xs"
+                  title="选 1 份（合并扫描 PDF）→ 自动应用到所有签字项；选多份 → 按文件名自动分配去向（含主持人/监督人/报告/专家名）"
+                >
+                  {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
+                </button>
               )}
               <a
                 href={data.packet.downloadUrl}
@@ -265,6 +272,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               >
                 <FileDown size={13} /> 下载签字包
               </a>
+              {canHost && (
               <button
                 type="button"
                 disabled={busy !== null || closed}
@@ -273,6 +281,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               >
                 <RefreshCw size={13} /> 重新生成
               </button>
+              )}
             </div>
           </div>
 
@@ -332,7 +341,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   {/* 两步走：待签只给「登记」；已登记只给「撤销」（撤销后回待签再登记）——
                       与服务端「已登记须先撤销再重登」（409 SIGN_ALREADY_REGISTERED）语义对齐，
                       不再提供提交必被 409 挡回的「重新登记」入口 */}
-                  {!closed && e.role === EXPERT_ROLE.REGULAR && (
+                  {!closed && canHost && e.role === EXPERT_ROLE.REGULAR && (
                     e.signStatus === 'PENDING' ? (
                       <button
                         type="button"
@@ -402,7 +411,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               <a href={data.packet.handoverDownloadUrl!} target="_blank" rel="noopener" className="neu-btn-soft !h-[30px] !text-[11px]">
                 <FileDown size={12} /> 下载回流包
               </a>
-            ) : (
+            ) : canHost ? (
               <button
                 type="button"
                 disabled={busy !== null}
@@ -412,7 +421,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 {busy === 'handover' ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
                 生成评标回流包
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       )}

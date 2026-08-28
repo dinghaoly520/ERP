@@ -2,7 +2,7 @@
 
 /**
  * 澄清答疑区块——:3007 项目工作区「评标管理」tab（分工 v3 自 :3005 迁回现场）。
- * 澄清/答疑记录表、发起澄清、内联回复、AI 起草候选问题、AI 摘要、书面来函（含受保护附件下载）。
+ * 澄清/答疑记录表、发起澄清、AI 起草候选问题、AI 摘要、书面来函（question 类型在此答复并展示答复全文——L1）。
  * 实时性由父组件的 socket 刷新驱动（project 变化时重拉列表）。
  */
 
@@ -226,32 +226,66 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
           <div className="rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
             <div className="px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
               <span className="text-[11px] font-bold text-[var(--foreground)]">书面来函</span>
-              <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">答疑与书面往来登记（含主持端登记的供应商提问答复；需补充答复请致电或在下方回复）</span>
+              <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">供应商提问由主持端在此登记并答复，答复全文随函展示（含受保护附件）</span>
             </div>
             {letters.length === 0 ? (
               <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">暂无书面来函</div>
             ) : (
               <div className="divide-y" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
-                {letters.map(c => (
+                {letters.map(c => {
+                  const letterReplying = replying === c.id;
+                  return (
                   <div key={c.id} className="px-3.5 py-2.5" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
                     <div className="flex items-center gap-2 text-[11px]">
                       <span className="font-semibold text-[var(--accent-strong)]">{c.supplierName}</span>
                       <span className="tabular-nums text-[var(--muted-foreground)]">{formatTime(c.createdAt)}</span>
-                      {c.fileAssetId && (
-                        /* 受保护下载：不可加 rel="noreferrer"（丢 Referer → portal 识别失败 401） */
-                        <a
-                          href={`/api/upload/files/${c.fileAssetId}`}
-                          target="_blank"
-                          rel="noopener"
-                          className="ml-auto text-[11px] font-semibold text-[var(--accent)] underline"
-                        >
-                          附件下载
-                        </a>
-                      )}
+                      <span className="ml-auto flex items-center gap-2">
+                        {c.fileAssetId && (
+                          /* 受保护下载：不可加 rel="noreferrer"（丢 Referer → portal 识别失败 401） */
+                          <a
+                            href={`/api/upload/files/${c.fileAssetId}`}
+                            target="_blank"
+                            rel="noopener"
+                            className="text-[11px] font-semibold text-[var(--accent)] underline"
+                          >
+                            附件下载
+                          </a>
+                        )}
+                        {/* L1（2026-08-28）：答疑(question)答复入口随函——F19-C 把 question 行移出主表格后
+                            原回复按钮成不可达死分支、答复全文无展示位；后端 question 类型允许主持端
+                            直接在线答复（offline 限制仅针对 clarification），能力迁此 */}
+                        {!c.reply && !archived && !letterReplying && (
+                          <button type="button" onClick={() => { setReplying(c.id); setReplyText(''); }} className="neu-btn-soft !h-[26px] !px-2 !text-[11px]">回复</button>
+                        )}
+                      </span>
                     </div>
                     <p className="mt-1 whitespace-pre-line text-xs leading-5 text-[var(--foreground)]">{c.question}</p>
+                    {c.reply && (
+                      <div className="mt-1.5 rounded-[8px] px-2 py-1.5 text-xs leading-5" style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)' }}>
+                        <span className="text-[10px] font-bold text-[var(--muted-foreground)]">答复 · </span>
+                        <span className="whitespace-pre-line text-[var(--foreground)]">{c.reply}</span>
+                      </div>
+                    )}
+                    {letterReplying && (
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          value={replyText}
+                          onChange={e => setReplyText(e.target.value)}
+                          placeholder="输入答复内容…"
+                          rows={3}
+                          className="workbench-input w-full !text-xs resize-none"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={() => setReplying(null)} className="neu-btn-soft !h-[30px] !text-[11px]">取消</button>
+                          <button type="button" onClick={() => void handleReply(c.id)} disabled={busy} className="neu-btn-primary !h-[30px] !text-[11px]">
+                            <Send size={12} /> {busy ? '发送中…' : '发送答复'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -277,7 +311,6 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                 ) : (
                   items.filter(c => c.type !== 'question').map(c => {
                     const isReplied = !!c.reply;
-                    const isReplying = replying === c.id;
                     const statusLabel = c.status || (isReplied ? '已回复' : '待回复');
                     const statusColor =
                       statusLabel === '已回复' ? 'var(--success)' : statusLabel === '已关闭' ? 'var(--muted-foreground)' : 'var(--warning)';
@@ -343,14 +376,9 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                             {!isReplied ? (
                               archived ? (
                                 <span className="text-[10px] text-[var(--muted-foreground)]">已归档</span>
-                              ) : c.type === 'question' ? (
-                                isReplying ? (
-                                  <span className="text-[10px] text-[var(--muted-foreground)]">回复中…</span>
-                                ) : (
-                                  <button type="button" onClick={() => { setReplying(c.id); setReplyText(''); }} className="neu-btn-soft !h-[26px] !px-2 !text-[11px]">回复</button>
-                                )
                               ) : (
-                                /* A-143：澄清答复归供应商门户；主持端仅离线登记降级通道 */
+                                /* A-143：澄清答复归供应商门户；主持端仅离线登记降级通道
+                                   （question 类型的答复入口在上方「书面来函」区——L1 修复迁移） */
                                 <button type="button" onClick={() => { setOfflineFor(c.id); setOfflineReply(''); setOfflineReason(''); }} className="neu-btn-soft !h-[26px] !px-2 !text-[11px]">离线登记</button>
                               )
                             ) : (
@@ -382,27 +410,6 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                             )}
                           </td>
                         </tr>
-                        {isReplying && (
-                          <tr key={`${c.id}-reply`}>
-                            <td colSpan={8} className="px-3.5 py-3" style={{ background: 'oklch(0.975 0.012 258 / 0.5)', borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
-                              <div className="space-y-2">
-                                <textarea
-                                  value={replyText}
-                                  onChange={e => setReplyText(e.target.value)}
-                                  placeholder="输入回复内容…"
-                                  rows={3}
-                                  className="workbench-input w-full !text-xs resize-none"
-                                />
-                                <div className="flex items-center justify-end gap-2">
-                                  <button type="button" onClick={() => setReplying(null)} className="neu-btn-soft !h-[30px] !text-[11px]">取消</button>
-                                  <button type="button" onClick={() => void handleReply(c.id)} disabled={busy} className="neu-btn-primary !h-[30px] !text-[11px]">
-                                    <Send size={12} /> {busy ? '发送中…' : '发送回复'}
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
                       </Fragment>
                     );
                   })
