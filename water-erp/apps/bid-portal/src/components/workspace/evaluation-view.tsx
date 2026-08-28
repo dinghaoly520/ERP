@@ -17,11 +17,13 @@ import {
   extendEvaluation,
   generateEvaluationResults,
   getExpertMemoInkUrlForAdmin,
+  getLiveOfficialScores,
   listEvaluationResults,
   listExpertMemosForAdmin,
   startEvaluation,
   type BidEvaluationResultInfo,
   type ExcludedSupplierInfo,
+  type LiveOfficialScoresResponse,
   type ExpertMemoForAdmin,
   type ScoreCategory,
 } from '@/lib/api/evaluation';
@@ -203,6 +205,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       .catch(() => setResults([]));
   }, [projectId]);
 
+  // F12（2026-08-28）：官方口径实时排名预览（结果未生成时排名区主数据源）——与生成同源聚合
+  // （去极值/公式价格分/废标置后），替代旧的「正选百分制原始均分」；端点失败回退旧均分。
+  const [liveOfficial, setLiveOfficial] = useState<LiveOfficialScoresResponse | null>(null);
+
   // F12：按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致
   // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新。
   // F6（2026-08-28）：新增页级 refreshSignal 依赖——异议裁决联动废标会删除评标结果，
@@ -219,6 +225,25 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
   /* ── 派生数据 ── */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
+
+  // F12：官方口径预览的拉取签名——project 引用随 socket 高频更换（loadResults 同款坑），不能直接
+  // 进依赖；签名 = 各专家对全部供应商的 totalScore 合计拼接，仅在实际分数变化时改变（防抖拉取）。
+  const liveScoresSignature = useMemo(() => {
+    if (matrix.size === 0) return '';
+    return [...matrix.entries()]
+      .map(([eid, row]) => `${eid}:${[...row.values()].reduce((s, c) => s + (c?.totalScore ?? 0), 0)}`)
+      .sort().join('|');
+  }, [matrix]);
+
+  // F12：结果未生成时拉官方口径预览；生成后不再拉（排名区切官方结果）
+  useEffect(() => {
+    if (!projectId || results.length > 0) return;
+    let cancelled = false;
+    getLiveOfficialScores(projectId)
+      .then(r => { if (!cancelled) setLiveOfficial(r); })
+      .catch(() => { if (!cancelled) setLiveOfficial(null); });
+    return () => { cancelled = true; };
+  }, [projectId, results.length, liveScoresSignature]);
 
   const supplierAvg = useMemo(() => {
     if (!project) return new Map<string, number>();
@@ -339,6 +364,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const rankedSuppliers = [...suppliers].sort((a, b) => {
     if (results.length > 0) {
       const rankOf = new Map(results.map(r => [r.supplierId, r.rank]));
+      return (rankOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankOf.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+    }
+    // F12：官方口径预览可用时按预览序（去极值+公式分），否则回退原始均分序
+    if (liveOfficial && liveOfficial.results.length > 0) {
+      const rankOf = new Map(liveOfficial.results.map(r => [r.supplierId, r.rank]));
       return (rankOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankOf.get(b.id) ?? Number.MAX_SAFE_INTEGER);
     }
     return (supplierAvg.get(b.id) ?? 0) - (supplierAvg.get(a.id) ?? 0);
@@ -739,14 +769,29 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           <div className="flex items-center justify-between px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
             <span className="text-[11px] font-bold text-[var(--foreground)]">供应商排名</span>
             <span className="text-[10px] text-[var(--muted-foreground)]">
-              {results.length > 0 ? '官方评标结果（去极值 · 废标置后）' : '实时均分参考（未生成官方结果）'}
+              {results.length > 0
+                ? '官方评标结果（去极值 · 废标置后）'
+                : liveOfficial
+                  ? '官方口径实时预览（去极值 · 公式价格分 · 废标置后）'
+                  : '实时均分参考（未生成官方结果）'}
             </span>
           </div>
-          {/* P1-6: 实时排名与官方结果计算方式不同的提示 */}
+          {/* P1-6: 预览口径提示——F12 后官方口径预览为主，原始均分仅为端点失败回退 */}
           {results.length === 0 && suppliers.length > 0 && (
-            <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
-              实时预览基于专家原始评分（含手填价格分，未去极值），最终排名以「生成评标结果」后公式计算为准
-            </div>
+            liveOfficial?.priceFormulaError ? (
+              <div className="mx-3.5 mt-2 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+                <AlertTriangle size={11} className="mr-1 inline" />
+                {liveOfficial.priceFormulaError}（生成评标结果时将被硬性拦截）
+              </div>
+            ) : liveOfficial ? (
+              <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
+                官方口径实时预览——与「生成评标结果」同一聚合（≥5 位专家去 1 高 1 低、公式价格分、废标置后）；评分仍在进行，最终以生成为准
+              </div>
+            ) : (
+              <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
+                实时预览基于专家原始评分（含手填价格分，未去极值，非官方口径），最终排名以「生成评标结果」后公式计算为准
+              </div>
+            )
           )}
           {/* 生成时被排除的供应商（开标确认异常，未纳入排名）告警 */}
           {excludedSuppliers.length > 0 && (
@@ -761,9 +806,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div>
               {rankedSuppliers.map(s => {
                 const official = results.find(r => r.supplierId === s.id);
-                const rank = official ? official.rank : (liveRanks.get(s.id) ?? 0);
+                const live = results.length === 0 ? liveOfficial?.results.find(r => r.supplierId === s.id) : undefined;
+                const rank = official ? official.rank : (live?.rank ?? (liveRanks.get(s.id) ?? 0));
                 const avg = supplierAvg.get(s.id) ?? 0;
-                const disqualified = official?.disqualified ?? false;
+                const disqualified = official?.disqualified ?? live?.disqualified ?? false;
                 const recommended = official?.recommended ?? false;
                 return (
                   <div
@@ -796,8 +842,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       </span>
                     )}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
-                      {official ? Number(official.totalScore).toFixed(2) : avg.toFixed(1)}
-                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : '均分参考'}</span>
+                      {official ? Number(official.totalScore).toFixed(2) : live ? live.totalScore.toFixed(2) : avg.toFixed(1)}
+                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分参考'}</span>
                     </span>
                   </div>
                 );

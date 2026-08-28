@@ -168,6 +168,28 @@ export function listEvaluationResults(bidProjectId: string) {
   return api.get<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results`);
 }
 
+/** F12（2026-08-28）：官方口径实时排名预览（与生成同源聚合：去极值/公式价格分/废标置后） */
+export interface LiveOfficialScoreRow {
+  supplierId: string;
+  supplierName: string;
+  totalScore: number;
+  averageScore: number;
+  rank: number;
+  disqualified: boolean;
+  expertCount: number;
+  trimmedCount: number;
+}
+
+export interface LiveOfficialScoresResponse {
+  results: LiveOfficialScoreRow[];
+  /** 公式配置需要最高限价但项目未设置——预览降级提示（非 400，生成时才会硬拦） */
+  priceFormulaError: string | null;
+}
+
+export function getLiveOfficialScores(bidProjectId: string) {
+  return api.get<LiveOfficialScoresResponse>(`/bid/projects/${bidProjectId}/live-official-scores`);
+}
+
 /** 生成时被排除的供应商（开标确认 EXCEPTION，未纳入排名） */
 export interface ExcludedSupplierInfo {
   supplierId: string;

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException, ForbiddenException,
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES } from '@water-erp/shared';
 import { buildArchiveTemplate } from './archive-template';
+import { aggregateSupplierScores } from './aggregate-supplier-scores';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -2345,6 +2346,94 @@ export class BidService {
     }
   }
 
+  /**
+   * F12（2026-08-28）：官方口径实时排名预览——与 generateEvaluationResults 同一聚合纯函数
+   * （aggregateSupplierScores），供前端排名区在结果未生成时按官方口径预览（去极值/公式价格分/
+   * 废标置后），替代旧的「正选百分制原始均分」预览。只读、无副作用：
+   * 不跑 syncMultiRoundPrices（写库）、不写异常低价监督日志；生成路径的 F11
+   * CEILING_PRICE_REQUIRED 400 在此降级为响应字段 priceFormulaError（预览恰在最需指引时不能死）。
+   * 与生成时刻的已知差异：passFail 动态判废（评分项通过性）不预判——只做超限价判废（同源
+   * getOverCeilingSuppliers）与 invalid 过滤，评分仍在进行中本就无法终判。
+   */
+  async getLiveOfficialScores(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      include: { suppliers: { select: { id: true, supplierName: true, decryptStatus: true, submitStatus: true, confirmStatus: true, bidValidity: true } } },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const activeSuppliers = project.suppliers.filter(
+      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED' && s.bidValidity !== 'invalid',
+    );
+
+    // 价格块（与 generate 同源：PRICE 项 → 唱标/最终轮报价 → 公式分）
+    const priceItems = await this.prisma.bidScoreItem.findMany({
+      where: { projectId, category: 'PRICE' },
+      select: { id: true, maxScore: true },
+    });
+    const priceItemIds = new Set(priceItems.map(pi => pi.id));
+    const openingRecs = await this.prisma.bidOpeningRecord.findMany({
+      where: { projectId, bidSupplierId: { in: activeSuppliers.map(s => s.id) } },
+      select: { bidSupplierId: true, amount: true },
+    });
+    const bidPrices = new Map<string, number>();
+    for (const r of openingRecs) {
+      if (r.amount) {
+        const price = parseFloat(String(r.amount).replace(/,/g, ''));
+        if (!isNaN(price) && price >= 0) bidPrices.set(r.bidSupplierId!, price);
+      }
+    }
+    const ceilingPrice = project.ceilingPrice ? Number(project.ceilingPrice) : null;
+    let formulaPriceScores = new Map<string, number>();
+    let priceFormulaError: string | null = null;
+    if (priceItems.length > 0 && project.priceFormulaConfig) {
+      const config = project.priceFormulaConfig as any;
+      if ((config.formulaType === 'benchmark_deviation' || config.formulaType === 'ratio') && !(ceilingPrice && ceilingPrice > 0)) {
+        priceFormulaError = '价格分公式为基准价偏离法/比例法，但项目未设置最高限价——价格分无法计算。请先在采购管理工作台（:3005）设置最高限价，或将价格分公式改为最低评标价法';
+      } else {
+        const priceMaxTotal = priceItems.reduce((s, i) => s + Number(i.maxScore), 0);
+        formulaPriceScores = this.priceFormula.calculate(config, bidPrices, ceilingPrice, priceMaxTotal);
+      }
+    }
+
+    // 评分记录（正选专家，与 generate 同批查口径）
+    const activeSupplierIds = activeSuppliers.map(s => s.id);
+    const allScoreRecords = activeSupplierIds.length > 0
+      ? await this.prisma.bidScoreRecord.findMany({
+          where: { supplierId: { in: activeSupplierIds }, expert: { projectId, expertRole: '正选' } },
+          select: { supplierId: true, expertId: true, scoreItemId: true, score: true },
+        })
+      : [];
+    const recordsBySupplier = new Map<string, { expertId: string; scoreItemId: string; score: any }[]>();
+    for (const r of allScoreRecords) {
+      const list = recordsBySupplier.get(r.supplierId) ?? [];
+      list.push({ expertId: r.expertId, scoreItemId: r.scoreItemId, score: r.score });
+      recordsBySupplier.set(r.supplierId, list);
+    }
+
+    // 超限价判废（与 generate 同源；passFail 动态判废不预判，见 doc 注）
+    const passFailVerdicts = new Map<string, boolean>();
+    if (ceilingPrice != null
+        && ((priceItems.length > 0 && project.priceFormulaConfig) || project.procurementMethod === '谈判采购')) {
+      for (const sid of this.priceFormula.getOverCeilingSuppliers(bidPrices, ceilingPrice)) {
+        passFailVerdicts.set(sid, true);
+      }
+    }
+
+    const ranked = aggregateSupplierScores({
+      activeSuppliers,
+      recordsBySupplier,
+      formulaPriceScores,
+      priceItemIds,
+      passFailVerdicts,
+      bidPrices,
+      isNegotiation: project.procurementMethod === '谈判采购',
+    });
+    return {
+      results: ranked.map((r, index) => ({ ...r, rank: index + 1 })),
+      priceFormulaError,
+    };
+  }
+
   /* ═══ Task 12：主持端解外层（dual-v2）—— 管理方私钥解 K_admin → C_inner 归属链落库 ═══ */
 
   /**
@@ -4346,55 +4435,17 @@ export class BidService {
       }
     }
 
-    const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number; disqualified: boolean }[] = [];
-    for (const supplier of activeSuppliers) {
-      const records = recordsBySupplier.get(supplier.id) ?? [];
-      // 每位专家对该供应商的总评分
-      const perExpert = new Map<string, number>();
-      for (const r of records) {
-        if (formulaPriceScores.size > 0 && priceItemIds.has(r.scoreItemId)) continue; // P1: 仅在公式引擎产出价格分时跳过专家 PRICE 打分
-        perExpert.set(r.expertId, (perExpert.get(r.expertId) ?? 0) + Number(r.score));
-      }
-      // P1: 公式价格分作为常量加到每位专家总分(不影响去极值)
-      const formulaScore = formulaPriceScores.get(supplier.id) ?? 0;
-      if (formulaScore > 0) {
-        if (perExpert.size > 0) {
-          for (const eid of perExpert.keys()) perExpert.set(eid, perExpert.get(eid)! + formulaScore);
-        } else {
-          perExpert.set('__formula__', formulaScore); // 纯价格模式(无专家评分)
-        }
-      }
-      const expertTotals = [...perExpert.values()].sort((a, b) => a - b);
-      const totalScore = expertTotals.reduce((s, v) => s + v, 0);
-
-      // 专家组≥5 时去 1 高 1 低（标准评标实务）
-      let trimmed = expertTotals;
-      if (expertTotals.length >= 5) {
-        trimmed = expertTotals.slice(1, -1);
-      }
-      const averageScore = trimmed.length > 0
-        ? Math.round((trimmed.reduce((s, v) => s + v, 0) / trimmed.length) * 100) / 100
-        : 0;
-
-      ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore, disqualified: !!passFailVerdicts.get(supplier.id) });
-    }
-    // 合格者在前、废标者在后
+    // F12（2026-08-28）：聚合+排序提取为纯函数（bid/aggregate-supplier-scores.ts），与
+    // live-official-scores 端点共用——单一事实源，前端预览不再复刻口径。行为与内联版逐行一致。
     const isNegotiation = project.procurementMethod === '谈判采购';
-    ranked.sort((a, b) => {
-      if (a.disqualified !== b.disqualified) return a.disqualified ? 1 : -1;
-      if (isNegotiation) {
-        // 谈判采购: 合格组按最终报价升序（最低价中标），无报价者排末位
-        const priceA = bidPrices.get(a.supplierId);
-        const priceB = bidPrices.get(b.supplierId);
-        if (priceA == null && priceB == null) return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
-        if (priceA == null) return 1;
-        if (priceB == null) return -1;
-        if (priceA !== priceB) return priceA - priceB;
-        return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
-      }
-      // 其余方式: 同组内按 averageScore 降序；同分按供应商名确定性排序（P2：tiebreaker，结果可复现）
-      if (b.averageScore !== a.averageScore) return b.averageScore - a.averageScore;
-      return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
+    const ranked = aggregateSupplierScores({
+      activeSuppliers,
+      recordsBySupplier,
+      formulaPriceScores,
+      priceItemIds,
+      passFailVerdicts,
+      bidPrices,
+      isNegotiation,
     });
 
     const qualifiedRanked = ranked.filter(r => !r.disqualified);

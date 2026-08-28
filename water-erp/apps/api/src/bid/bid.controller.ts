@@ -548,6 +548,10 @@ export class BidController {
   @ApiOperation({ summary: 'AI 辅助评标进度聚合（:3007 进度卡片轮询；异常判定在后端）' })
   getAiAnalysisProgress(@Param('id') id: string) { return this.bidService.getAiAnalysisProgress(id); }
 
+  @Get('projects/:id/live-official-scores')
+  @ApiOperation({ summary: 'F12：官方口径实时排名预览（未生成结果时排名区用；与生成同源聚合，只读无副作用）' })
+  getLiveOfficialScores(@Param('id') id: string) { return this.bidService.getLiveOfficialScores(id); }
+
   @Post('projects/:id/evaluation-results/generate')
   @ApiOperation({ summary: '生成评标结果与候选人' })
   generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.generateEvaluationResults(id, userId); }
