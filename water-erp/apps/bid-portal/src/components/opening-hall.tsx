@@ -385,14 +385,25 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       setDecrypting(prev => new Set(prev).add(t.id));
       try {
         await decryptBid(projectId, t.id);
-      } catch { /* error handled by WebSocket update */ }
+      } catch (e: any) {
+        // L3（2026-08-28）：硬拒绝（窗口关/暂停/重复解密/新轨 400/403）不产生 WS 状态事件，
+        // 此前静默无反馈（确认后 spinner 一转即逝）。密码学失败后端不抛错——置 DANGER 经
+        // WS 推送（页级 toast+音效），此处仅提示请求被拒，无双响。
+        toast.error(`${t.name}：${e?.message || '解密请求被拒'}`);
+      }
       setDecrypting(prev => { const n = new Set(prev); n.delete(t.id); return n; });
     } else {
       // Bulk decrypt: parallelize with Promise.allSettled for partial-failure resilience
       setBulkDecrypting(true);
-      await Promise.allSettled(
-        targets.map(t => decryptBid(projectId, t.id).catch(() => {})),
+      const settled = await Promise.allSettled(
+        targets.map(t => decryptBid(projectId, t.id)),
       );
+      // L3：批量同样不吞拒绝——计数+首条原因聚合提示（窗口/暂停类拒绝在批量内同源）
+      const rejected = settled.filter(s => s.status === 'rejected') as PromiseRejectedResult[];
+      if (rejected.length > 0) {
+        const first = rejected[0].reason as any;
+        toast.error(`批量解密：${rejected.length}/${targets.length} 家请求被拒——${first?.message || '请检查解密窗口/暂停状态'}`);
+      }
       setBulkDecrypting(false);
       onRefresh();
     }
