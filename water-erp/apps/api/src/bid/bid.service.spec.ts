@@ -4265,6 +4265,10 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
       aiBidderResult: { deleteMany: jest.fn(async () => ({ count: 0 })), createMany: jest.fn(async () => ({ count: 1 })) },
       bidSupplier: { findMany: jest.fn(async () => [{ id: 'bs-1' }]) },
       bidSupervisionLog: { create: jest.fn(async () => ({})) },
+      // 评标产出保护闸门（2026-08-28）：默认无产出放行
+      bidRequirementReview: { count: jest.fn(async () => 0) },
+      bidScoreRecord: { count: jest.fn(async () => 0) },
+      bidScorePointDecision: { count: jest.fn(async () => 0) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -4327,6 +4331,32 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
     expect(prisma.aiBidAnalysisTask.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 't1' }, data: expect.objectContaining({ status: 'PENDING' }) }),
     );
+  });
+
+  /* ── 评标产出保护闸门（2026-08-28 审查修复）：重跑会级联删除专家标注，有产出即 409 ── */
+  it('已有条款标注 → 409 EVALUATION_IN_PROGRESS，不删任何旧结果', async () => {
+    prisma.bidRequirementReview.count.mockResolvedValue(2);
+    await expect(service.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      response: { code: 'EVALUATION_IN_PROGRESS' },
+    });
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.aiBidAnalysisTask.update).not.toHaveBeenCalled();
+  });
+
+  it('已有评分记录 → 409 EVALUATION_IN_PROGRESS', async () => {
+    prisma.bidScoreRecord.count.mockResolvedValue(5);
+    await expect(service.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      response: { code: 'EVALUATION_IN_PROGRESS' },
+    });
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('已有得分点勾选 → 409 EVALUATION_IN_PROGRESS', async () => {
+    prisma.bidScorePointDecision.count.mockResolvedValue(1);
+    await expect(service.rerunAiAnalysis('p1', 'u1')).rejects.toMatchObject({
+      response: { code: 'EVALUATION_IN_PROGRESS' },
+    });
+    expect(prisma.aiBidderResult.deleteMany).not.toHaveBeenCalled();
   });
 });
 
