@@ -1,5 +1,5 @@
 // apps/api/src/supervision-push/supervision-push.service.ts
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -248,7 +248,11 @@ export class SupervisionPushService {
       await this.loadEvaluationReport(projectId);
       gate = { ready: true, reason: null };
     } catch (e) {
-      gate = { ready: false, reason: (e as Error).message };
+      // HttpException 以 { error: '业务中文文本', code } 构造时 e.message 只是类默认文案
+      // （如 'Conflict'）；gate.reason 面向前端展示，须取响应体里的业务错误文本。
+      const resp = e instanceof HttpException ? e.getResponse() : null;
+      const reason = (resp && typeof resp === 'object' && 'error' in resp ? String((resp as { error?: unknown }).error) : '') || (e as Error).message;
+      gate = { ready: false, reason };
     }
     const latest = await this.prisma.supervisionPushLog.findFirst({
       where: { projectId, payloadType: 'EVALUATION_REPORT' }, orderBy: { createdAt: 'desc' },
