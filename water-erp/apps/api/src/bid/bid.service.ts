@@ -1832,6 +1832,12 @@ export class BidService {
       select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // F17（2026-08-28）：同阶段早退——阶段棘轮 EVALUATING→EVALUATING 幂等放行后旧实现会全流程重跑
+    // （重验闸门、事务内重建 AI task/bidderResult、F7 remove-first 后重入队 tender job=真重跑分析、
+    // 重通知全部专家、再写监督/审计日志）；双击/网络重试即触发。幂等早退零副作用。
+    if (project.stage === 'EVALUATING') {
+      return { id, stage: 'EVALUATING', alreadyStarted: true } as any;
+    }
     // 移交兜底（B）：阶段离开 OPENING 前自动补齐开标文件包（幂等；失败仅告警——移交本非启动评标闸门）
     if (project.stage === 'OPENING') await this.autoHandoverIfDone(id, '启动评标兜底', project);
     assertBidStageTransition(project.stage, 'EVALUATING');

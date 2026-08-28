@@ -6522,7 +6522,25 @@ describe('autoHandoverIfDone / startEvaluation 移交兜底', () => {
     await expect(service.startEvaluation('p1', 'u1')).rejects.toThrow();
     expect(heal).not.toHaveBeenCalled();
   });
+  /* ── F17（2026-08-28）：startEvaluation 同阶段幂等早退 —— 旧实现全流程重跑 ── */
+  it('F17：阶段已 EVALUATING → 幂等早退，不入队 AI、不写监督日志、不重验下游闸门', async () => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: 'P' }) },
+      bidExpert: { count: jest.fn() },
+      bidSupplier: { findMany: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+      expertDispute: { count: jest.fn() },
+    };
+    const service = await (await buildModule(prisma)).get(BidService);
+    const res = await service.startEvaluation('p1', 'u1');
+    expect(res).toMatchObject({ stage: 'EVALUATING', alreadyStarted: true });
+    // 幂等早退：委员会/家数闸门查询、AI task 重建、监督日志全部不应发生
+    expect(prisma.bidExpert.count).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
 });
+
+
 
 /* ── F16（2026-08-28）：评标延期单次上限——对齐启动评标 evaluationHours 的 720h 封顶 ── */
 describe('BidService — extendEvaluationDeadline 上限校验', () => {
