@@ -152,7 +152,9 @@ export default function BidClarificationsPage() {
       const { adapter } = await openUkey(ukeyPassword);
       const certs = await adapter.listCertificates();
       // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底服务端 ACTIVE 绑定记录
-      const cert = certs.find((c) => c.certSn === boundCertSn()) || certs.find((c) => c.certSn === activeServerCertSn);
+      // 选中本供应商平台绑定证书：服务端 ACTIVE（当前供应商自己的绑定）优先——本地缓存 certSn 可能来自
+      // 共用浏览器上一次登录的其他供应商（跨供应商错签事故，2026-08-31 验收实证），仅作服务端缺位时兜底
+      const cert = certs.find((c) => c.certSn === activeServerCertSn) || certs.find((c) => c.certSn === boundCertSn());
       if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
       setUkeyAdapter(adapter);
       setUkeyCertSn(cert.certSn);
