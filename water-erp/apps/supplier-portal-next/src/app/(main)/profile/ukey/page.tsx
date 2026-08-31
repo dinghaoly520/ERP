@@ -81,6 +81,17 @@ export default function UkeyManagePage() {
   const companyName = profile?.name || "";
   const activeServerCert = serverCerts.find((c) => c.bindingStatus === "ACTIVE") ?? null;
 
+  // 本企业证书过滤（2026-08-31）：演示中间件是全盾模型——槽内所有已发制盾都随解锁枚举，
+  // 真实场景一台机器只插本企业盾。按后端 bindCert 的 DN↔企业名校验同口径过滤，他企盾
+  // 不显示绑定入口（后端本就会 400 DN_MISMATCH，此处把防线前移到 UI，消除演示困惑）。
+  const ownCerts = ukeyCerts.filter((c) => {
+    if (!companyName) return false;
+    const cn = /(?:^|,)\s*cn\s*=\s*([^,]*)/i.exec(c.certDn || "")?.[1] ?? "";
+    const norm = (s: string) => (s || "").replace(/[\s（）()·]/g, "").replace(/(有限责任公司|股份有限公司|有限公司|集团)/g, "");
+    return norm(cn).includes(norm(companyName));
+  });
+  const otherCertCount = ukeyCerts.length - ownCerts.length;
+
   async function refreshServerCerts() {
     const res: any = await supplierApi.listMyCerts();
     setServerCerts(Array.isArray(res) ? res : []);
@@ -368,15 +379,17 @@ export default function UkeyManagePage() {
                 )}
               </div>
 
-              {ukeyCerts.length === 0 ? (
+              {ownCerts.length === 0 ? (
                 <div className="ukey-empty">
                   {ukeyKind === "vendor"
-                    ? "U盾内未检测到证书（演示：ukeymw issue 发行后重新解锁）"
+                    ? otherCertCount > 0
+                      ? `U盾内未检测到本企业证书（已隐藏 ${otherCertCount} 张其他单位盾；演示：ukeymw issue --cn ${companyName || "企业名"} 发行后重新解锁）`
+                      : "U盾内未检测到证书（演示：ukeymw issue 发行后重新解锁）"
                     : `U盾内暂无证书，点击「生成演示证书」创建（label=${companyName || "企业名称"}）`}
                 </div>
               ) : (
                 <div className="cert-list">
-                  {ukeyCerts.map((cert) => (
+                  {ownCerts.map((cert) => (
                     <div key={cert.certSn} className="cert-row">
                       <div className="cert-main">
                         <span className="cert-sn">{cert.certSn}</span>
@@ -404,6 +417,11 @@ export default function UkeyManagePage() {
                       </div>
                     </div>
                   ))}
+                  {otherCertCount > 0 && (
+                    <div className="file-hint" style={{ padding: "8px 12px" }}>
+                      已隐藏 {otherCertCount} 张其他单位证书（本机中间件槽内的他企盾，不可绑定）
+                    </div>
+                  )}
                 </div>
               )}
             </>
