@@ -933,6 +933,30 @@ export class SupplierPortalService {
         select: { title: true, content: true, summary: true, publishDate: true, metadata: true },
       });
       (project as any).announcement = announcement;
+
+      // 无关联公告时（谈判/邀请采购常以邀请函代替公告）：附上本供应商收到的采购邀请书
+      // （InvitationRsvp.title + summary 结构化字段），供详情页"公告正文"区渲染，不再显示"暂无公告正文"。
+      if (!announcement && supplierId && project.projectManagementItemId) {
+        const rsvp = await this.prisma.invitationRsvp.findFirst({
+          where: { supplierId, projectId: project.projectManagementItemId },
+          orderBy: { createdAt: 'desc' },
+          select: { title: true, summary: true, status: true, expiresAt: true, respondedAt: true },
+        });
+        if (rsvp) {
+          let summaryFields: Record<string, string> | null = null;
+          try {
+            const parsed = typeof rsvp.summary === 'string' ? JSON.parse(rsvp.summary) : rsvp.summary;
+            if (parsed && typeof parsed === 'object') summaryFields = parsed;
+          } catch { /* summary 非 JSON 则不渲染字段表 */ }
+          (project as any).invitationLetter = {
+            title: rsvp.title,
+            summaryFields,
+            status: rsvp.status,
+            expiresAt: rsvp.expiresAt,
+            respondedAt: rsvp.respondedAt,
+          };
+        }
+      }
     }
     // 编号覆盖放最后：公告查找已完成，仅展示层换业务编号
     if (project) return this.resolveDisplayCode(project);
@@ -2072,6 +2096,68 @@ export class SupplierPortalService {
     } catch {
       /* 通知失败不阻塞解密流程 */
     }
+  }
+
+  /**
+   * 已完成项目：该供应商参与（曾进入候选名单）且项目已完结（ARCHIVED 归档 / ABORTED 流标）的
+   * 合作历史。含本人投递状态与中标结果（ProcurementRound.awardedSupplierId 命中即中标）。
+   */
+  async listCompletedProjects(supplierId: string) {
+    const rows = await this.prisma.bidSupplier.findMany({
+      where: {
+        supplierId,
+        project: { stage: { in: ['ARCHIVED', 'ABORTED'] } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        project: {
+          select: {
+            id: true, projectCode: true, name: true, procurementMethod: true,
+            stage: true, deadline: true, openTime: true, updatedAt: true,
+          },
+        },
+      },
+    });
+
+    // 本人中标轮次（awardAmount / 轮次号）
+    const rounds = await this.prisma.procurementRound.findMany({
+      where: { awardedSupplierId: supplierId },
+      select: { projectId: true, awardAmount: true, roundNo: true },
+    });
+    const awardMap = new Map<string, { awardAmount: any; roundNo: number }>();
+    for (const r of rounds) awardMap.set(r.projectId, { awardAmount: r.awardAmount, roundNo: r.roundNo });
+
+    // 本人有效投递（submitted 状态）
+    const subs = await this.prisma.supplierBidSubmission.findMany({
+      where: { supplierId, projectId: { in: rows.map((r) => r.projectId) }, status: 'submitted' },
+      select: { projectId: true, bidPrice: true, submittedAt: true },
+    });
+    const subMap = new Map(subs.map((x) => [x.projectId, x]));
+
+    return rows.map((r) => {
+      const award = awardMap.get(r.projectId);
+      const sub = subMap.get(r.projectId);
+      const myPrice = sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null;
+      return {
+        projectId: r.projectId,
+        projectCode: r.project.projectCode,
+        name: r.project.name,
+        procurementMethod: r.project.procurementMethod,
+        stage: r.project.stage, // ARCHIVED / ABORTED
+        completedAt: r.project.updatedAt,
+        // 我的结果：中标（含金额/轮次）/ 已投递未中标 / 未投递
+        outcome: award
+          ? 'AWARDED'
+          : r.project.stage === 'ABORTED'
+            ? 'ABORTED'
+            : sub ? 'PARTICIPATED' : 'INVITED',
+        awardAmount: award?.awardAmount ?? null,
+        awardRoundNo: award?.roundNo ?? null,
+        myBidPrice: myPrice,
+        submittedAt: sub?.submittedAt ?? null,
+        submitStatus: r.submitStatus,
+      };
+    });
   }
 
   async getMySubmissions(supplierId: string) {

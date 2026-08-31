@@ -41,6 +41,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 // ── 采购中心迁入模块 ──
 import { ContactsModule } from './contacts/contacts.module';
 import { UserSettingsModule } from './user-settings/user-settings.module';
+import { DraftModule } from './draft/draft.module';
 import { TenderSampleModule } from './tender-sample/tender-sample.module';
 import { TenderHistoryModule } from './tender-history/tender-history.module';
 import { ProgressModule } from './progress/progress.module';
@@ -106,6 +107,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     // ── 采购中心迁入模块 ──
     ContactsModule,
     UserSettingsModule,
+    DraftModule,
     TenderSampleModule,
     TenderHistoryModule,
     ProgressModule,

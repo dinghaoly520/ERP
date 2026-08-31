@@ -126,3 +126,26 @@ export const supplierApi = {
     return api.post<any>("/supplier-portal/convert-request", data);
   },
 };
+
+
+/** 已完成项目行（合作历史：ARCHIVED 归档 / ABORTED 流标） */
+export interface CompletedProjectRow {
+  projectId: string;
+  projectCode: string;
+  name: string;
+  procurementMethod: string;
+  stage: string;
+  completedAt: string;
+  outcome: "AWARDED" | "PARTICIPATED" | "INVITED" | "ABORTED";
+  awardAmount: any;
+  awardRoundNo: number | null;
+  myBidPrice: string | null;
+  submittedAt: string | null;
+  submitStatus: string;
+}
+
+export const completedProjectsApi = {
+  list() {
+    return api.get<CompletedProjectRow[]>("/supplier-portal/completed-projects");
+  },
+};

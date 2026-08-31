@@ -53,6 +53,7 @@ export function InvitationLetterModal({
   // 整篇正文（段落以空行分隔展示/编辑）
   const [bodyText, setBodyText] = useState('');
   const lastProjectId = useRef('');
+  const attemptedRef = useRef(false);
 
   const runGenerate = useCallback(async () => {
     if (!projectId) return;
@@ -79,11 +80,17 @@ export function InvitationLetterModal({
       lastProjectId.current = projectId;
       setResult(null);
       setBodyText('');
+      attemptedRef.current = false;
     }
   }, [projectId]);
 
+  // 自动起草只尝试一次（attemptedRef）：失败后由「重新起草」手动重试——
+  // 否则 429/网络失败 → loading 复位 → effect 再触发 → 无限重试风暴打爆限流
   useEffect(() => {
-    if (open && !result && !loading) void runGenerate();
+    if (open && !result && !loading && !attemptedRef.current) {
+      attemptedRef.current = true;
+      void runGenerate();
+    }
   }, [open, result, loading, runGenerate]);
 
   if (!open) return null;

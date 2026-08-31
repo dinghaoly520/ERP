@@ -387,6 +387,12 @@ export class SupplierPortalController {
 
   // ─── Bid Submissions ───
 
+  @Get('completed-projects')
+  async listCompletedProjects(@Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.listCompletedProjects(supplierId);
+  }
+
   @Get('bid-submissions')
   async listBidSubmissions(@Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);

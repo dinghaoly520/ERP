@@ -746,3 +746,15 @@ a.cq-att-item:hover { opacity: 0.8; }
 
 /* PIN 弹窗提示行 */
 .cq-pin-hint { margin: 0 0 10px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+
+/* ── 采购邀请书（无公告时渲染：谈判/邀请采购）── */
+.cc-invitation { padding: 4px 0; }
+.cc-inv-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.cc-inv-badge {
+  padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 800;
+  color: oklch(0.45 0.13 252); background: color-mix(in oklab, oklch(0.55 0.16 252) 12%, white);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 3px oklch(0.55 0.03 258 / 0.1);
+}
+.cc-inv-title { font-size: 15px; font-weight: 800; color: var(--foreground, #18243a); }
+.cc-inv-exp { font-size: 12px; color: var(--muted-foreground, #64748b); }
+.cc-inv-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--muted-foreground, #64748b); }

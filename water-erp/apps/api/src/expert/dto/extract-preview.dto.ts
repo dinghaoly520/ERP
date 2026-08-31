@@ -11,9 +11,13 @@ export class SpecialtyQuotaDto {
   @IsOptional() @IsString()
   reason?: string;
 
-  /** 部门限定：该配额仅从工作单位匹配该部门的专家中抽取（用于需求方代表「选择部门」） */
+  /** 公司限定：该配额仅从工作单位匹配该公司的专家中抽取（需求方代表「公司→部门→专业」） */
   @IsOptional() @IsString()
   employer?: string;
+
+  /** 部门限定（真部门 Department.name）：配额在公司内进一步按专家所属部门过滤 */
+  @IsOptional() @IsString()
+  department?: string;
 }
 
 export class ExtractPreviewDto {
@@ -42,4 +46,8 @@ export class ExtractPreviewDto {
   @IsOptional() @IsArray()
   @IsString({ each: true })
   excludedUserIds?: string[];
+
+  /** 公司限定（抽取配置「公司」下拉）：本次抽取的全部候选（含各专业配额与需求方代表）仅限该公司专家 */
+  @IsOptional() @IsString()
+  employer?: string;
 }

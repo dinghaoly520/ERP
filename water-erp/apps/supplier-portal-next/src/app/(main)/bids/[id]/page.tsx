@@ -509,6 +509,32 @@ function BidDetailInner() {
 
                 {project.announcement?.content ? (
                   <div className="cc-body" dangerouslySetInnerHTML={{ __html: formatContent(project.announcement.content) }} />
+                ) : (project as any).invitationLetter ? (
+                  /* 无公告（谈判/邀请采购以邀请函代替）：渲染采购邀请书（本供应商 RSVP 记录） */
+                  <div className="cc-invitation">
+                    <div className="cc-inv-head">
+                      <span className="cc-inv-badge">采购邀请书</span>
+                      <span className="cc-inv-title">{(project as any).invitationLetter.title}</span>
+                      {(project as any).invitationLetter.expiresAt && (
+                        <span className="cc-inv-exp">
+                          回执有效期至 {dayjs((project as any).invitationLetter.expiresAt).format("YYYY-MM-DD HH:mm")}
+                        </span>
+                      )}
+                    </div>
+                    {(project as any).invitationLetter.summaryFields && (
+                      <div className="cc-meta">
+                        {Object.entries((project as any).invitationLetter.summaryFields as Record<string, string>).map(([k, v]) => (
+                          <div key={k} className="cc-meta-item">
+                            <span className="cc-meta-label">{k}</span>
+                            <span className="cc-meta-value">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="cc-inv-note">
+                      请按邀请函要求参与本项目；报价与文件投递以本页各项时间为准。如需再次确认或修改回执，可从消息通知中的邀请链接进入。
+                    </p>
+                  </div>
                 ) : (
                   <div className="cc-empty">
                     <FileText size={20} strokeWidth={1.75} />

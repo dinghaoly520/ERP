@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProjectManagementService } from '../project-management/project-management.service';
 import { verifyRsvpToken } from './rsvp-token.util';
 
 export type RsvpStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
@@ -19,7 +20,11 @@ export interface RsvpView {
 
 @Injectable()
 export class RsvpService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(RsvpService.name);
+  constructor(
+    private prisma: PrismaService,
+    private projectManagement: ProjectManagementService,
+  ) {}
 
   private parseSummary(raw: string): Record<string, string> {
     try { const o = JSON.parse(raw); return o && typeof o === 'object' ? o : {}; } catch { return {}; }
@@ -84,14 +89,30 @@ export class RsvpService {
       // 接受 + 带项目：确保供应商进入项目候选（已存在则不动其投标进度，仅保证行存在）。
       // 拒绝：仅记录，不自动移出候选名单（由采购方在看板人工处理）——按用户确认的产品决策。
       // P0-1：rsvp.projectId 是邀请页写入的 ProjectManagementItem id（非 BidProject id），
-      // 旧实现直接拿去 upsert BidSupplier → FK(P2003)。须先解析真实 BidProject；
-      // 尚未懒创建（ensureBidProject 未跑）时仅记录回执，候选行由后续流程补挂。
+      // 旧实现直接拿去 upsert BidSupplier → FK(P2003)。须先解析真实 BidProject。
+      // 2026-08-31：BidProject 尚未懒创建时【立即触发 ensureBidProject】而非仅记录回执——
+      // 供应商确认参加后门户「可投标项目/工作台」需立即可见（此前要等采购端后续操作才补挂，
+      // 造成"已确认却看不到项目"）。ensureBidProject 幂等，且创建时会回填全部已接受回执的候选。
       if (body.status === 'ACCEPTED' && row.projectId) {
-        const bp = await tx.bidProject.findFirst({
+        let bp = await tx.bidProject.findFirst({
           where: { projectManagementItemId: row.projectId },
           orderBy: { createdAt: 'desc' },
           select: { id: true },
         });
+        if (!bp) {
+          // 事务外调 ensureBidProject（其内部自管事务/多语句，嵌套事务风险）；
+          // 创建完成后重新解析。失败不阻断回执本身（回执状态已先行落库）。
+          try {
+            await this.projectManagement.ensureBidProject(row.projectId);
+            bp = await tx.bidProject.findFirst({
+              where: { projectManagementItemId: row.projectId },
+              orderBy: { createdAt: 'desc' },
+              select: { id: true },
+            });
+          } catch (err: any) {
+            this.logger.warn(`RSVP 懒创建 BidProject 失败 pmi=${row.projectId}: ${err?.message ?? err}`);
+          }
+        }
         if (bp) {
           await tx.bidSupplier.upsert({
             where: { projectId_supplierName: { projectId: bp.id, supplierName: row.supplierName } },

@@ -85,10 +85,11 @@ export interface NotifyResult {
 
 /* ── 专家库 / 录入 ── */
 
-export function listExperts(params?: { search?: string; specialty?: string; page?: number; pageSize?: number }) {
+export function listExperts(params?: { search?: string; specialty?: string; employer?: string; page?: number; pageSize?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set('search', params.search);
   if (params?.specialty) q.set('specialty', params.specialty);
+  if (params?.employer) q.set('employer', params.employer);
   if (params?.page) q.set('page', String(params.page));
   if (params?.pageSize) q.set('pageSize', String(params.pageSize));
   const qs = q.toString();
@@ -129,8 +130,10 @@ export function previewExtraction(data: {
   extractMode?: 'specialty_match' | 'random' | 'merit_best';
   /** @deprecated 兼容旧UI，优先用 extractMode */
   mode?: 'weighted' | 'fair';
-  manualQuotas?: { specialty: string; count: number; employer?: string }[];
+  manualQuotas?: { specialty: string; count: number; employer?: string; department?: string }[];
   excludedUserIds?: string[];
+  /** 公司限定：本次抽取的全部候选仅限该公司专家 */
+  employer?: string;
 }) {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }

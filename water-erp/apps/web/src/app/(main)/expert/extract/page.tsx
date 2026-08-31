@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prersvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
@@ -49,6 +50,8 @@ export function ExpertExtractPage({
 }) {
   const router = useRouter(); const q = useSearchParams();
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
+  // 当前用户（抽取公司默认值来源）
+  const [user, setUser] = useState<{ company?: string | null } | null>(null);
   const [specs, setSpecs] = useState<string[]>([]);
   const [pid, setPid] = useState(q.get('projectId') || '');
   const [pd, setPd] = useState<BidProjectDetail | null>(null);
@@ -102,8 +105,12 @@ export function ExpertExtractPage({
   const [demandRepSearch, setDemandRepSearch] = useState('');
   const [demandRepResults, setDemandRepResults] = useState<ExpertListItem[]>([]);
   const [demandRepSearching, setDemandRepSearching] = useState(false);
-  const [employers, setEmployers] = useState<string[]>([]); // 部门列表（专家工作单位去重）
-  const [employerSpecs, setEmployerSpecs] = useState<Map<string, string[]>>(new Map()); // 部门 → 该部门专家的可选专业
+  const [employers, setEmployers] = useState<string[]>([]); // 公司列表（专家工作单位去重）
+  const [employerSpecs, setEmployerSpecs] = useState<Map<string, string[]>>(new Map()); // 公司 → 该公司专家的可选专业
+  // 公司→真部门映射（User.department）+ 公司→部门→专业映射（公司→部门→专业三级级联）
+  const [companyDepartments, setCompanyDepartments] = useState<Map<string, string[]>>(new Map());
+  const [companyDeptSpecs, setCompanyDeptSpecs] = useState<Map<string, string[]>>(new Map()); // key `${company}||${dept}`
+  const [demandRepCompany, setDemandRepCompany] = useState(''); // 抽取公司（默认当前用户公司）
   const [step, setStep] = useState(1); // 向导步骤：1=抽取配置 2=审核调整 3=确认通知 4=专家确认
   const [loading, setLoading] = useState(false); const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState(''); const [preview, setPreview] = useState<ExtractionPreview | null>(null); const [done, setDone] = useState(false);
@@ -296,7 +303,7 @@ export function ExpertExtractPage({
       if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
       if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
       if (snap.step) setStep(snap.step);
-      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
       if (snap.totalSeats) setTotalSeats(snap.totalSeats);
       if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
       if (snap.phoneScriptsArr?.length) setPhoneScripts(new Map(snap.phoneScriptsArr));
@@ -353,7 +360,7 @@ export function ExpertExtractPage({
   }, [step, pid, altPreview]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
-  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
+  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
   useEffect(() => {
     const save = () => {
       const s = stateRef.current;
@@ -416,7 +423,7 @@ export function ExpertExtractPage({
       if (snap.altPreview) setAltPreview(snap.altPreview);
       if (snap.altSelected?.length) setAltSelected(snap.altSelected);
       if (snap.altNotified) setAltNotified(snap.altNotified);
-      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
       if (snap.totalSeats) setTotalSeats(snap.totalSeats);
     } catch { localStorage.removeItem(LAST_PID_KEY); }
   }, []);
@@ -538,22 +545,40 @@ export function ExpertExtractPage({
     return () => clearTimeout(t);
   }, [manualSearch, extractMode]);
 
-  // 部门列表：一次性拉取全部专家，按工作单位去重（供需求方代表「选择部门」）
+  useEffect(() => { fetchCurrentUser().then(setUser).catch(() => {}); }, []);
+
+  // 公司/部门/专业三级映射：一次性拉取全部专家构建（供需求方代表「公司→部门→专业」级联）
   useEffect(() => {
     listExperts({ pageSize: 1000 }).then(raw => {
       const list = (unwrapList(raw as any).items) as ExpertListItem[];
       const empSpecs = new Map<string, Set<string>>();
+      const compDepts = new Map<string, Set<string>>();
+      const compDeptSpecs = new Map<string, Set<string>>();
       for (const e of list) {
         const emp = e.expertProfile?.employer?.trim();
         if (!emp) continue;
-        if (!empSpecs.has(emp)) empSpecs.set(emp, new Set());
+        const dept = e.department?.name?.trim();
         const sp = e.expertProfile?.specialty?.trim();
+        if (!empSpecs.has(emp)) empSpecs.set(emp, new Set());
         if (sp) empSpecs.get(emp)!.add(sp);
+        if (dept) {
+          if (!compDepts.has(emp)) compDepts.set(emp, new Set());
+          compDepts.get(emp)!.add(dept);
+          const key = `${emp}||${dept}`;
+          if (!compDeptSpecs.has(key)) compDeptSpecs.set(key, new Set());
+          if (sp) compDeptSpecs.get(key)!.add(sp);
+        }
       }
       setEmployers([...empSpecs.keys()].sort());
       setEmployerSpecs(new Map([...empSpecs.entries()].map(([k, v]) => [k, [...v].sort()])));
+      setCompanyDepartments(new Map([...compDepts.entries()].map(([k, v]) => [k, [...v].sort()])));
+      setCompanyDeptSpecs(new Map([...compDeptSpecs.entries()].map(([k, v]) => [k, [...v].sort()])));
+      // 公司默认值：当前用户公司（列表无该公司时回退第一个）
+      setDemandRepCompany(prev => prev || (user?.company?.trim() || [...empSpecs.keys()][0] || ''));
     }).catch(() => {});
-  }, []);
+  }, [user?.company]);
+
+
 
   // 指定需求方代表：搜索专家（防抖 300ms）
   const demandRepReqIdRef = useRef(0);
@@ -563,7 +588,7 @@ export function ExpertExtractPage({
       setDemandRepSearching(true);
       const rid = ++demandRepReqIdRef.current;
       try {
-        const list = unwrapList(await listExperts({ search: demandRepSearch.trim() })).items;
+        const list = unwrapList(await listExperts({ search: demandRepSearch.trim(), employer: demandRepCompany || undefined })).items;
         if (rid !== demandRepReqIdRef.current) return;
         setDemandRepResults(list);
       } catch {
@@ -958,6 +983,7 @@ export function ExpertExtractPage({
     if (extractMode !== 'manual' && !seatsBalanced) { setError(`专业配额合计须等于可分配席位 ${expertSeats} 席（当前 ${quotaSum} 席）`); return; }
     if (needDemandRep) {
       if (demandRepMode === 'designated' && demandRepPersons.length !== demandRepCount) { setError(`请指定 ${demandRepCount} 名需求方代表（已选 ${demandRepPersons.length} 名）`); return; }
+      if (needDemandRep && !demandRepCompany) { setError('请选择抽取公司（默认为当前用户所属公司）'); return; }
       if (demandRepMode === 'department' && !demandRepDept) { setError('请选择需求方代表部门'); return; }
     }
     setError(''); setLoading(true);
@@ -978,12 +1004,12 @@ export function ExpertExtractPage({
     for (const qq of quotas.filter(q => q.specialty.trim())) manualQuotas.push({ specialty: qq.specialty, count: qq.count });
     const regularQuotaCount = manualQuotas.length; // 候补 = 每个专业 1 位
     const allQuotas = (needDemandRep && demandRepMode === 'department')
-      ? [...manualQuotas, { specialty: demandRepDeptSpecialty || '', count: demandRepCount, employer: demandRepDept }]
+      ? [...manualQuotas, { specialty: demandRepDeptSpecialty || '', count: demandRepCount, employer: demandRepCompany, department: demandRepDept }]
       : manualQuotas;
     const totalNeeded = allQuotas.reduce((s, q) => s + q.count, 0);
 
     try {
-      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: 0, extractMode: extractMode as ApiExtractMode, manualQuotas: allQuotas });
+      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: 0, extractMode: extractMode as ApiExtractMode, manualQuotas: allQuotas, employer: demandRepCompany || undefined });
       if (!result?.selected) throw new Error('服务器返回数据异常');
       setPreview(result);
       // 部门模式：抽取结果末尾 demandRepCount 人为需求方代表，从 selectedExperts 中分离
@@ -1979,20 +2005,29 @@ export function ExpertExtractPage({
                     </div>
                   )}
 
-                  {/* 选择部门：部门 +（可选）专业 */}
+                  {/* 选择部门：公司（默认本公司）→ 部门 →（可选）专业 */}
                   {demandRepMode === 'department' && (
                     <div className="space-y-2">
                       <div className="flex gap-2">
-                        <select value={demandRepDept} onChange={e => { setDemandRepDept(e.target.value); setDemandRepDeptSpecialty(''); }} className="neu-input text-sm flex-1">
-                          <option value="">选择部门</option>
+                        <select value={demandRepCompany} onChange={e => { setDemandRepCompany(e.target.value); setDemandRepDept(''); setDemandRepDeptSpecialty(''); }} className="neu-input text-sm flex-1" title="抽取公司：仅抽取该公司专家">
+                          <option value="">选择公司</option>
                           {employers.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                        </select>
+                        <select value={demandRepDept} onChange={e => { setDemandRepDept(e.target.value); setDemandRepDeptSpecialty(''); }} disabled={!demandRepCompany} className="neu-input text-sm flex-1 disabled:opacity-50">
+                          <option value="">选择部门</option>
+                          {(companyDepartments.get(demandRepCompany) || []).map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                         <select value={demandRepDeptSpecialty} onChange={e => setDemandRepDeptSpecialty(e.target.value)} disabled={!demandRepDept} className="neu-input text-sm flex-1 disabled:opacity-50">
                           <option value="">专业不限（可选）</option>
-                          {(employerSpecs.get(demandRepDept) || []).map(s => <option key={s} value={s}>{s}</option>)}
+                          {(companyDeptSpecs.get(`${demandRepCompany}||${demandRepDept}`) || []).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </div>
-                      {demandRepDept && <p className="text-[10px] text-[var(--muted-foreground)]">将从「{demandRepDept}」{demandRepDeptSpecialty ? `·「${demandRepDeptSpecialty}」` : ''}的专家中抽取 1 名需求方代表。</p>}
+                      {demandRepCompany && (
+                        <p className="text-[10px] text-[var(--muted-foreground)]">
+                          本次抽取仅限「{demandRepCompany}」的专家；需求方代表{demandRepDept ? `将从「${demandRepDept}」` : '将从全公司'}{demandRepDeptSpecialty ? `·「${demandRepDeptSpecialty}」` : ''}中抽取 1 名。
+                        </p>
+                      )}
+                      {!demandRepCompany && <p className="text-[10px] text-[var(--warning)]">请先选择公司（默认为当前用户所属公司）。</p>}
                     </div>
                   )}
                 </>

@@ -60,9 +60,11 @@ export class ExpertAdminService {
   /* ── 专家库 ── */
 
   /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索，服务端分页） */
-  async listExperts(search?: string, specialty?: string, page = 1, pageSize = 20) {
+  async listExperts(search?: string, specialty?: string, employer?: string, page = 1, pageSize = 20) {
     const where = {
       role: 'bid_expert' as const,
+      // 公司限定（抽取配置「公司」下拉）：列表仅返回该公司专家
+      ...(employer && { expertProfile: { ...(specialty && { specialty }), employer } }),
       ...(search ? {
         OR: [
           { displayName: { contains: search, mode: 'insensitive' as const } },
@@ -71,7 +73,6 @@ export class ExpertAdminService {
           { department: { name: { contains: search, mode: 'insensitive' as const } } },
         ],
       } : {}),
-      ...(specialty && { expertProfile: { specialty } }),
     };
 
     const [total, users] = await Promise.all([
@@ -420,9 +421,18 @@ export class ExpertAdminService {
     // 合规候选：bid_expert + 可用 + 未分配本项目 + 工作单位不在参与供应商中
     // 重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录），只排除其他项目的占用
     const experts = await this.prisma.user.findMany({
-      where: { role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' } },
+      where: {
+        role: 'bid_expert',
+        isActive: true,
+        expertProfile: {
+          availability: '可用',
+          entryStatus: 'ACTIVE',
+          ...(dto.employer?.trim() ? { employer: dto.employer.trim() } : {}),
+        },
+      },
       include: {
         expertProfile: true,
+        department: { select: { name: true } },
         bidExperts: { where: { projectId: { not: projectId } }, select: { id: true } },
         _count: { select: { bidExperts: true } },
       },
@@ -506,6 +516,7 @@ export class ExpertAdminService {
         specialty: u.expertProfile?.specialty || '综合',
         title: u.expertProfile?.title ?? undefined,
         employer: u.expertProfile?.employer ?? undefined,
+        department: u.department?.name ?? undefined,
         pastProjects: u._count.bidExperts,
         evaluationLevel: latest?.level,
         attendanceGrade: latest?.attendanceGrade,
@@ -537,7 +548,7 @@ export class ExpertAdminService {
       );
       analysis = llm.analysis;
       requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer }))
+        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department }))
         : llm.requiredSpecialties;
       for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
     } catch (err) {
@@ -547,7 +558,7 @@ export class ExpertAdminService {
       const errMsg = (err as Error)?.message ?? String(err);
       new Logger(ExpertAdminService.name).warn(`抽取 AI 降级规则引擎: ${errMsg}`);
       requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer }))
+        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department }))
         : this.ruleComposition(candidates, totalNeeded);
       const isTimeout = errMsg.includes('超时') || errMsg.includes('timed out');
       const is503 = errMsg.includes('503') || errMsg.includes('Service Unavailable');
@@ -629,10 +640,12 @@ export class ExpertAdminService {
     for (const q of employerQuotas) {
       const emp = q.employer!.trim();
       const specFilter = (q.specialty || '').trim();
+      const deptFilter = (q.department || '').trim(); // 真部门（Department.name）过滤，公司内进一步收窄
       const pool = drawPool.filter(c => {
         if (usedIds.has(c.id)) return false;
         const ce = (c.employer || '').trim();
         if (!ce || !(ce === emp || ce.includes(emp) || emp.includes(ce))) return false;
+        if (deptFilter && (c.department || '').trim() !== deptFilter) return false;
         if (specFilter) {
           const cs = (c.specialty || '').trim();
           if (!(cs === specFilter || cs.includes(specFilter) || specFilter.includes(cs))) return false;

@@ -48,12 +48,14 @@ export class ExpertAdminController {
   listExperts(
     @Query('search') search?: string,
     @Query('specialty') specialty?: string,
+    @Query('employer') employer?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.expertAdminService.listExperts(
       search,
       specialty,
+      employer,
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
     );

@@ -624,6 +624,13 @@ export function ProjectDetailPanel({
   // 步骤分析：仅在供应商邀请/专家抽取阶段加载
   const stepAnalysisSeqRef = useRef(0);
   const loadStepAnalysis = useCallback((refresh = false) => {
+    // 步骤分析仅对「已完成」阶段开放：进行中/待解锁阶段数据未定，分析无意义且易误导
+    if (selectedStage.status !== 'COMPLETED') {
+      setStepAnalysisContent('');
+      setStepAnalysisEmpty(true);
+      setStepAnalysisError(null);
+      return;
+    }
     const seq = ++stepAnalysisSeqRef.current;
     setStepAnalysisLoading(true);
     setStepAnalysisError(null);
@@ -643,7 +650,7 @@ export function ProjectDetailPanel({
         if (seq !== stepAnalysisSeqRef.current) return;
         setStepAnalysisLoading(false);
       });
-  }, [item.id, selectedStage.stageKey, isStepAnalysisStage]);
+  }, [item.id, selectedStage.stageKey, selectedStage.status, isStepAnalysisStage]);
 
   useEffect(() => {
     setStepAnalysisContent('');
@@ -1888,17 +1895,28 @@ export function ProjectDetailPanel({
                 </div>
               )}
 
-              {/* 步骤分析阶段 + (无文件 或 当前Tab=step)：显示步骤分析内容 */}
+              {/* 步骤分析阶段 + (无文件 或 当前Tab=step)：显示步骤分析内容（仅已完成阶段） */}
               {isStepAnalysisStage && (stageFileAnalysis.length === 0 || stepAnalysisTab === 'step') && (
                 <div>
                   <div className="flex items-center justify-between gap-3 mb-2">
                     <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
                       {selectedStage.stageName}步骤分析
                     </span>
-                    <button type="button" disabled={stepAnalysisLoading || stageLocked} onClick={() => loadStepAnalysis(true)} className="neu-btn-xs is-info">
+                    <button type="button" disabled={stepAnalysisLoading || stageLocked || selectedStage.status !== 'COMPLETED'} onClick={() => loadStepAnalysis(true)} className="neu-btn-xs is-info"
+                      title={selectedStage.status !== 'COMPLETED' ? '完成本阶段后才能进行步骤分析' : undefined}>
                       <RefreshCw size={12} className={stepAnalysisLoading ? 'animate-spin' : ''} />重新分析
                     </button>
                   </div>
+                  {selectedStage.status !== 'COMPLETED' && (
+                    <div className="flex flex-col items-center justify-center gap-2 rounded-lg px-4 py-8 text-center"
+                      style={{ border: '1px dashed color-mix(in oklch, var(--muted-foreground) 30%, transparent)' }}>
+                      <ListChecks size={22} strokeWidth={1.6} className="text-[var(--muted-foreground)] opacity-60" />
+                      <div className="text-sm font-semibold text-[color:var(--foreground)]">本阶段尚未完成</div>
+                      <div className="max-w-[420px] text-[11px] leading-5 text-[color:var(--muted-foreground)]">
+                        「{selectedStage.stageName}」阶段完成后才能进行步骤分析——进行中或待解锁的步骤过程数据尚未定型。
+                      </div>
+                    </div>
+                  )}
                   <div className="max-h-[320px] overflow-y-auto pr-1">
                     {stepAnalysisError ? (
                       <div className="rounded-lg px-4 py-4 text-sm leading-6" style={{background:"color-mix(in oklch,var(--danger) 8%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>{stepAnalysisError}</div>
@@ -1906,8 +1924,8 @@ export function ProjectDetailPanel({
                       <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
                         <Loader2 size={14} className="animate-spin inline mr-2 text-[color:var(--accent)]" />正在分析抽取过程与名单...
                       </div>
-                    ) : stepAnalysisEmpty ? (
-                      /* 步骤分析专用空态：居中引导块，与文件分析空态（浅底横条）视觉区分 */
+                    ) : stepAnalysisEmpty && selectedStage.status === 'COMPLETED' ? (
+                      /* 已完成但无数据：步骤分析专用空态（未完成阶段的空态由上方「本阶段尚未完成」引导块独占） */
                       <div className="flex flex-col items-center justify-center gap-2 rounded-lg px-4 py-8 text-center"
                         style={{ border: '1px dashed color-mix(in oklch, var(--muted-foreground) 30%, transparent)' }}>
                         <ListChecks size={22} strokeWidth={1.6} className="text-[var(--muted-foreground)] opacity-60" />

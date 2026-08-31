@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // 局域网访问的开发源（Turbopack HMR 白名单）——环境可覆盖：ALLOWED_DEV_ORIGINS="192.168.1.109,localhost"
-const ALLOWED_DEV_ORIGINS = (process.env.ALLOWED_DEV_ORIGINS ?? "192.168.1.109,192.168.1.111,10.20.145.152,localhost")
+const ALLOWED_DEV_ORIGINS = (process.env.ALLOWED_DEV_ORIGINS ?? "192.168.1.*,10.20.145.*,localhost")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);

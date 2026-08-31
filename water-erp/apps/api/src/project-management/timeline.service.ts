@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
 
@@ -82,21 +83,33 @@ export class TimelineService {
     // 采购文件获取是时段（AI 提取的起止区间；上传同步的单点值 → 无终点）
     const acquireRange = parseDateRange(item.documentAcquireTime);
 
+    // 投标截止 = 开标前 24 小时（口径常量 BID_DEADLINE_BEFORE_OPENING_MS）：
+    // BP.deadline 未登记时按开标时间自动推算展示，不再显示「未登记」
+    const openingIso = toIsoFromBare(bp?.openTime) ?? normalizeMaybeDate(item.bidOpeningTime);
+    const deadlineRaw = toIsoFromBare(bp?.deadline);
+    const deadlineIso = deadlineRaw ?? (openingIso
+      ? new Date(new Date(openingIso).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString()
+      : null);
+    const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? '按开标时间推算（前24小时）' : '招标项目';
+
     const nodes: TimelineNode[] = [
       { key: 'initiation', label: '采购立项', time: toIsoFromBare(item.initiationDate), source: '项目管理' },
       { key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' },
-      { key: 'bidDeadline', label: '投标截止', time: toIsoFromBare(bp?.deadline), source: '招标项目' },
-      {
-        key: 'bidOpening',
-        label: '开标',
-        time: toIsoFromBare(bp?.openTime) ?? normalizeMaybeDate(item.bidOpeningTime),
-        source: '招标项目',
-      },
+      // 展示顺序：投标截止在开标之前（时间升序排序天然保证，此处声明数组顺序便于无值兜底段一致）
+      { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
+      { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
       { key: 'contractSign', label: '合同签订', time: toIsoFromBare(contract?.signedAt), source: '合同' },
       { key: 'archived', label: '归档', time: toIsoFromBare(item.archivedAt), source: '归档' },
     ];
 
-    const withTime = nodes.filter(n => n.time).sort((a, b) => (a.time! < b.time! ? -1 : a.time! > b.time! ? 1 : 0));
+    // 有值节点按时间升序（投标截止=开标-24h 必然早于开标，排在开标之前）；
+    // 同刻并列时按业务序（立项→获取→截止→开标→签约→归档）稳定排序
+    const ORDER: Record<string, number> = { initiation: 0, documentAcquire: 1, bidDeadline: 2, bidOpening: 3, contractSign: 4, archived: 5 };
+    const withTime = nodes.filter(n => n.time).sort((a, b) => {
+      const d = new Date(a.time!).getTime() - new Date(b.time!).getTime();
+      if (d !== 0) return d;
+      return ORDER[a.key] - ORDER[b.key];
+    });
     const without = nodes.filter(n => !n.time);
     return [...withTime, ...without];
   }

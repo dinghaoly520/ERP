@@ -18,6 +18,7 @@ import { Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
 import { InvitationLetterModal } from '@/components/supplier/invitation-letter-modal';
+import { fetchDraft, saveDraft } from '@/lib/api/drafts';
 import { QualificationAnalysisPanel } from '@/components/supplier/qualification-analysis-panel';
 import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
@@ -36,30 +37,30 @@ const METHOD_LABELS: Record<string, string> = {
 const PROMPT_TEMPLATE = `【项目概况】
 （点明采购事项及所属行业领域，作为供应商寻源的方向参照）
 
-【采购范围】
-（说明需要供应商提供什么、其经营范围应覆盖哪些业务）
+【经营范围要求】
+（供应商的经营范围应覆盖哪些业务、应是什么类型的供应商）
 
 【资质要求】
-（供应商应具备的企业类型、行业资质、业绩门槛、技术能力）
+（供应商应具备的企业类型、行业资质与认证）
 
-【特殊要求】
-（对供应商的服务响应、交付周期、质保等能力要求）`;
+【业绩要求】
+（供应商的同类业绩门槛与经验要求）`;
 
 // 向导步骤定义 — 从项目管理进入且为竞争性谈判时，确认通知后插入「附件选择」
+// 2026-08-31 重构：原「选择项目 + 描述需求」合并为「供应商要求描述」——
+// 项目信息在前序步骤（需求/立项/采购文件）已详尽，此步聚焦对供应商的要求（经营范围/资质/业绩），填完即智能推荐
 const STEPS = [
-  { num: 1, label: '选择项目', desc: '关联采购项目与业务标签' },
-  { num: 2, label: '描述需求', desc: '撰写采购需求，AI 润色优化' },
-  { num: 3, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
-  { num: 4, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
-  { num: 5, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
+  { num: 1, label: '供应商要求', desc: '描述对供应商的要求，AI 智能推荐' },
+  { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
+  { num: 3, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 4, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 const NEGOTIATION_STEPS = [
-  { num: 1, label: '选择项目', desc: '关联采购项目与业务标签' },
-  { num: 2, label: '描述需求', desc: '撰写采购需求，AI 润色优化' },
-  { num: 3, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
-  { num: 4, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
-  { num: 5, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
-  { num: 6, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
+  { num: 1, label: '供应商要求', desc: '描述对供应商的要求，AI 智能推荐' },
+  { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
+  { num: 3, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 4, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
+  { num: 5, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 // 直接采购：已确定供应商 → 仅显示通知+确认两步，隐藏前置选取步骤
 const DIRECT_STEPS = [
@@ -243,9 +244,9 @@ export function SupplierSelectionPage({
   const buildRequirement = useCallback(() => {
     const parts: string[] = [];
     if (reqOverview.trim()) parts.push(`【项目概况】\n${reqOverview.trim()}`);
-    if (reqScope.trim()) parts.push(`【采购范围】\n${reqScope.trim()}`);
+    if (reqScope.trim()) parts.push(`【经营范围要求】\n${reqScope.trim()}`);
     if (reqQualification.trim()) parts.push(`【资质要求】\n${reqQualification.trim()}`);
-    if (reqSpecial.trim()) parts.push(`【特殊要求】\n${reqSpecial.trim()}`);
+    if (reqSpecial.trim()) parts.push(`【业绩要求】\n${reqSpecial.trim()}`);
     if (reqOther.trim()) parts.push(`【其他】\n${reqOther.trim()}`);
     return parts.join('\n\n');
   }, [reqOverview, reqScope, reqQualification, reqSpecial, reqOther]);
@@ -271,15 +272,15 @@ export function SupplierSelectionPage({
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
-  const [step, setStepInner] = useState(project?.procurementMethod === '直接采购' ? 4 : 1);
-  const [maxStepReached, setMaxStepReached] = useState(project?.procurementMethod === '直接采购' ? 4 : 1); // 历史最大步骤（允许回看后仍点击前进）
+  const [step, setStepInner] = useState(project?.procurementMethod === '直接采购' ? 3 : 1);
+  const [maxStepReached, setMaxStepReached] = useState(project?.procurementMethod === '直接采购' ? 3 : 1); // 历史最大步骤（允许回看后仍点击前进）
   const setStep = (s: number) => { setStepInner(s); setMaxStepReached(prev => Math.max(prev, s)); };
   // 谈判采购（从项目管理进入）在确认通知后增加附件选择步骤
   const neg = !!(project && project.procurementMethod === '谈判采购');
   const isDirect = !!(project && project.procurementMethod === '直接采购');
   const [isRerun, setIsRerun] = useState(false);
-  const baseConfirmStep = neg ? 6 : 5;
-  const attachStep = neg ? 5 : -1;
+  const baseConfirmStep = neg ? 5 : 4;
+  const attachStep = neg ? 4 : -1;
   // 多轮补选累积数据（须在动态步骤编号前声明）
   const [rerunHistory, setRerunHistory] = useState<Array<{ shortlist: Map<string, { item: SupplierRecommendation; note: string }>; confirmations: Map<string, 'pending' | 'confirmed' | 'declined'>; notifyPerSupplier: Map<string, { title: string; body: string; phoneScript: string }> }>>([]);
   const previousRerunShortlist = useMemo(() => {
@@ -556,13 +557,33 @@ export function SupplierSelectionPage({
   }, [project?.id, projectId, projects]);
 
   // 恢复上次会话状态（从详情页返回时不丢失），按项目 ID 分桶
+  // 跨设备续作（2026-08-31）：服务端草稿（账号维度）与 localStorage（本机缓存）比较 savedAt 取新者——
+  // 换 IP/换设备打开同账号时，服务端草稿保证进行中的内容不丢
   const sessionKey = `supplier-selection-state${project?.id ? `:${project.id}` : ''}`;
+  const draftKey = `supplier-selection${project?.id ? `:${project.id}` : ''}`;
   const restored = useRef(false);
   useEffect(() => {
     if (restored.current) return;
     restored.current = true;
+    void (async () => {
+      let saved = localStorage.getItem(sessionKey);
+      try {
+        const remote = await fetchDraft(draftKey);
+        if (remote?.payload) {
+          const rp = remote.payload as Record<string, unknown>;
+          const remoteAt = rp.savedAt ? Number(rp.savedAt) : 0;
+          const local = saved ? JSON.parse(saved) as Record<string, unknown> : null;
+          const localAt = local?.savedAt ? Number(local.savedAt) : 0;
+          if (remoteAt > localAt) saved = JSON.stringify(rp); // 服务端更新（其他设备保存的）
+          else if (localAt > remoteAt) void saveDraft(draftKey, local); // 本机更新 → 回写服务端
+        }
+      } catch { /* 服务端草稿不可达时退化为纯本地（离线可用） */ }
+      if (!saved) return;
+      applySnapshot(saved);
+    })();
+    function applySnapshot(saved: string | null) {
     try {
-      const saved = localStorage.getItem(sessionKey);
+      const saved2 = saved;
       if (saved) {
         const state = JSON.parse(saved);
         if (state.requirement) setRequirement(state.requirement);
@@ -578,8 +599,11 @@ export function SupplierSelectionPage({
         }
         if (state.projectId) setProjectId(state.projectId);
         if (state.result) setResult(state.result);
-        if (state.step) setStepInner(isDirect ? Math.max(state.step, 4) : state.step);
-        if (state.maxStepReached) setMaxStepReached(isDirect ? Math.max(state.maxStepReached, 4) : state.maxStepReached);
+        // 快照版本迁移：v2=合并「选择项目+描述需求」后的新步骤制；无版本标记的旧快照（6 步制）≥2 的步骤号 -1
+        const isNewSnapshot = state.v === 2;
+        const shiftOld = (n: number) => (isNewSnapshot ? n : n >= 2 ? n - 1 : n);
+        if (state.step) setStepInner(isDirect ? Math.max(shiftOld(state.step), 3) : shiftOld(state.step));
+        if (state.maxStepReached) setMaxStepReached(isDirect ? Math.max(shiftOld(state.maxStepReached), 3) : shiftOld(state.maxStepReached));
         if (state.notified) setNotified(true);
         if (state.completed) setCompleted(true);
         if (typeof state.notifyNotFound === 'number') setNotifyNotFound(state.notifyNotFound);
@@ -644,7 +668,8 @@ export function SupplierSelectionPage({
         if (state.paidAmount) setPaidAmount(state.paidAmount);
       }
     } catch {}
-  }, []);
+    } // applySnapshot
+  }, [sessionKey, draftKey, isDirect]);
 
   // 直接采购：自动注入候选人列表。供应商名来源：awardedSupplier > 采购文件编写草稿 > 后端提取
   // 注入时用名称到供应商库查真实 ID，确保后续发送通知能命中关联账户。
@@ -710,10 +735,25 @@ export function SupplierSelectionPage({
   // 将结构化字段合并为单一依赖，避免 useEffect deps 数组长度在 HMR 时变化
   const requirementSnapshot = JSON.stringify({ requirement, reqOverview, reqScope, reqQualification, reqSpecial, reqOther });
   const addMoreIdsSnapshot = JSON.stringify([...addMoreIds].sort());
+  // 服务端草稿同步（账号维度，跨设备）：本地保存后 2s 防抖写服务端——
+  // 无论在哪个设备/IP 打开，同账号都能恢复到最新进度
+  const draftSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftPayloadRef = useRef<string>('');
+  const scheduleDraftSync = useCallback((key: string) => {
+    if (draftSyncRef.current) clearTimeout(draftSyncRef.current);
+    draftSyncRef.current = setTimeout(() => {
+      const raw = draftPayloadRef.current;
+      if (!raw) return;
+      saveDraft(key, JSON.parse(raw)).catch(() => { /* 草稿同步失败不打断向导（localStorage 仍有本机缓存） */ });
+    }, 2000);
+  }, []);
+  useEffect(() => { return () => { if (draftSyncRef.current) clearTimeout(draftSyncRef.current); }; }, []);
+
   useEffect(() => {
     if (firstPersistSkip.current) { firstPersistSkip.current = false; return; }
     try {
       localStorage.setItem(sessionKey, JSON.stringify({
+        v: 2,
         requirement, reqOverview, reqScope, reqQualification, reqSpecial, reqOther, selectedTags, projectId, step, maxStepReached,
         addMoreIdsArr: [...addMoreIds],
         result: result ? { ...result, recommendations: result.recommendations.slice(0, 20) } : null,
@@ -738,6 +778,13 @@ export function SupplierSelectionPage({
         attachFiles, refFileKeys: [...refFileKeys],
         downloadMode, downloadPassword, paidAmount,
       }));
+      // 双写：payload（含 savedAt 时间戳）缓存到 ref，防抖同步服务端草稿
+      const payloadWithTs = JSON.parse(localStorage.getItem(sessionKey) || '{}');
+      payloadWithTs.savedAt = Date.now();
+      const raw = JSON.stringify(payloadWithTs);
+      localStorage.setItem(sessionKey, raw);
+      draftPayloadRef.current = raw;
+      scheduleDraftSync(draftKey);
     } catch {}
   }, [requirementSnapshot, selectedTags, projectId, step, maxStepReached, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount, addMoreIdsSnapshot]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
@@ -878,7 +925,7 @@ export function SupplierSelectionPage({
       const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount, projectContext: buildProjectContext(text) });
       setResult(res);
       setShortlist(new Map());
-      setStep(3); // 自动跳转到审核候选步骤
+      setStep(2); // 自动跳转到审核候选步骤
       if (res.recommendations.length === 0) setError('未找到匹配的候选供应商，请调整需求描述或筛选条件');
       // Capture history ID for later shortlist save
       const { getSelectionHistory } = await import('@/lib/api/supplier');
@@ -925,11 +972,33 @@ export function SupplierSelectionPage({
       const m = s.match(/^【(.+?)】\n?([\s\S]*)/);
       if (m) map[m[1].trim()] = m[2].trim();
     }
-    setReqOverview(map['项目概况'] || '');
-    setReqScope(map['采购范围'] || '');
-    setReqQualification(map['资质要求'] || '');
-    setReqSpecial(map['特殊要求'] || '');
-    setReqOther(map['其他'] || (Object.keys(map).length === 0 ? text.trim() : ''));
+    // 段名兼容：2026-08-31 起为「经营范围要求/业绩要求」新段名，同时兼容旧输出的「采购范围/特殊要求」
+    let overview = map['项目概况'] || '';
+    let scope = map['经营范围要求'] || map['采购范围'] || '';
+    let qualification = map['资质要求'] || '';
+    let performance = map['业绩要求'] || map['特殊要求'] || '';
+    let other = map['其他'] || '';
+
+    // 条目级语义纠偏（LLM 常把服务/商务条款写进业绩段）：
+    // 业绩段中命中服务类关键词且不含业绩语义的条目 → 迁入「其他」段（确定性规则，不依赖模型听话）
+    const SERVICE_RE = /运输|安装|调试|培训|质保|保修|维修|响应|到场|备件|售后|报价|限价|付款|结算|供货周期|交付/;
+    const PERF_RE = /业绩|案例|合同|项目经验|供货记录|应用案例|同类|近.{0,3}年/;
+    if (performance) {
+      const kept: string[] = [];
+      const moved: string[] = [];
+      for (const line of performance.split('\\n').filter((l) => l.trim())) {
+        if (PERF_RE.test(line) || !SERVICE_RE.test(line)) kept.push(line);
+        else moved.push(line);
+      }
+      performance = kept.join('\\n');
+      if (moved.length > 0) other = other ? other + '\\n' + moved.join('\\n') : moved.join('\\n');
+    }
+
+    setReqOverview(overview);
+    setReqScope(scope);
+    setReqQualification(qualification);
+    setReqSpecial(performance);
+    setReqOther(other || (Object.keys(map).length === 0 ? text.trim() : ''));
   }, []);
 
   const generateRequirement = useCallback(async () => {
@@ -960,9 +1029,31 @@ export function SupplierSelectionPage({
       const additionalContext = contextParts.join('\n');
       const hasContent = !!(reqOverview.trim() || reqScope.trim() || reqQualification.trim() || reqSpecial.trim() || reqOther.trim());
 
+      // 生成要求：面向「对供应商的要求」，条目具体可核验、段落语义严格（服务类内容不得混入业绩段）
+      const FORMAT_SPEC = `【项目概况】
+1.（一句话：采购事项+所属领域+预算规模，≤50字）
+
+【经营范围要求】
+1.（供应商应覆盖的经营范围/业务领域，具体到产品类别）
+2.（供应商类型定位：制造商/代理商/集成商等，≥2条）
+
+【资质要求】
+1.（企业资质与体系认证：如 ISO 9001、生产许可、行业准入）
+2.（产品认证或技术资格，如强制性认证、特种设备许可）
+3.（有则继续，无信息的不编造，2-4条）
+
+【业绩要求】
+1.（同类业绩门槛：近几年的、几项、什么类型的供货/服务案例）
+2.（行业经验或应用场景要求，如水利/地勘行业案例优先）
+（严格限定为"供应商过往业绩与经验"；运输/安装/培训/质保等服务性要求禁止写在本段）
+
+【其他】
+1.（服务要求：运输、安装调试、培训、售后响应时限）
+2.（交付与质保：供货周期、质保年限）
+（有则逐条列，无信息则留空）`;
       const prompt = hasContent
-        ? `根据以下项目信息精简现有的采购需求描述，保持【】标题结构，每部分只保留最关键的1-3条要点（有多有少，不是固定3条），每条≤40字。\n\n现有内容：\n${buildRequirement()}`
-        : `根据以下项目信息（来自采购需求、采购立项、采购文件），提炼一份精简的供应商采购需求。严格按以下格式输出，每部分1-3条（不是每部分都3条，具体看信息量），每条≤40字，只写核心关键信息，无法完整表述时取最重要的：\n\n【项目概况】\n1. 项目名+地点+预算（一句话≤40字）\n\n【采购范围】\n1. 采购了什么（一句话≤40字）\n\n【资质要求】\n1. 需要什么资质（一句话≤40字）\n\n【特殊要求】\n1. 特殊约束条件（一句话≤40字）\n\n【其他】\n（有则≤40字，无则留空）`;
+        ? `根据以下项目信息充实现有的供应商要求描述，保持【】标题结构与编号列表格式。要求：每部分2-4条、每条15-50字且具体可核验（认证、数量、年限、时限）；只列"对供应商的要求"，项目自身信息仅概况一段；严格段落语义——【业绩要求】只写供应商过往同类业绩与经验（几年内、几项、什么类型供货/服务案例），服务类内容（运输/安装/培训/质保/响应时限/报价限价/付款）只能写入【其他】；若现有内容段落归属错位，必须先移到正确段落后再充实。信息不足的维度可依据项目文件合理细化，但不得虚构具体认证名称或金额。\n\n现有内容：\n${buildRequirement()}`
+        : `根据以下项目信息（来自采购需求、采购立项、采购文件），提炼一份面向供应商筛选的要求清单。严格按以下结构输出，编号列表，每条15-50字、具体可核验：\n\n${FORMAT_SPEC}\n\n要求：每部分2-4条（信息量实在不足可少于2条，但不得只写1条空泛的话）；从项目文件的技术参数、资格条款、服务条款中深挖素材；严格段落语义——服务类内容只进【其他】。`;
 
       const res = await polishRequirement({
         text: prompt,
@@ -977,9 +1068,9 @@ export function SupplierSelectionPage({
     setReqGenerating(false);
   }, [project, fileAnalysisContext, selectedProject, defaultProjectTitle, buildRequirement, parsePolishedResult]);
 
-  // 首次进入步骤2时，若无内容则自动 AI 生成
+  // 首次进入供应商要求步骤（现为第 1 步）时，若无内容则自动 AI 生成
   useEffect(() => {
-    if (step !== 2 || reqGeneratedRef.current) return;
+    if (step !== 1 || reqGeneratedRef.current) return;
     if (reqOverview.trim() || reqScope.trim() || reqQualification.trim() || reqSpecial.trim() || reqOther.trim()) {
       reqGeneratedRef.current = true;
       return;
@@ -1045,12 +1136,13 @@ export function SupplierSelectionPage({
     return `您好，请问是${supplierName}吗？我是四川水发集团采购中心。我们正在就${proj}项目邀请贵司参与，稍后将向贵司发送短信通知。请您留意查收短信，或登录供应商门户点击确认链接${dl}确认是否参加。如有疑问欢迎致电咨询，谢谢！`;
   };
 
-  // 进入步骤 4（确认通知）时：
+  // 进入确认通知步骤（2026-08-31 步骤合并后为 step 3）时：
   // 1) 立即预填本地模板（可编辑、可直接发送——AI 不再是发送前置，P1-11）；
-  // 2) 后台仍自动 AI 生成，完成后覆盖模板并补入逐家回执链接（rsvpLink 仍由 AI 端点签发）。
+  // 2) 后台自动 AI 生成（notifyAiLoading 同步驱动按钮变「AI 生成中…」并禁用），
+  //    完成后覆盖模板并补入逐家回执链接（rsvpLink 仍由 AI 端点签发）。
   const notifyAutoGenRef = useRef(false);
   useEffect(() => {
-    if (step !== 4 || notified) return;
+    if (step !== 3 || notified) return;
     if (shortlist.size === 0) return;
     if (notifyPerSupplier.size === 0) {
       const ctx = buildNotifyContext();
@@ -1776,15 +1868,15 @@ export function SupplierSelectionPage({
           </div>
         </div>
       )}
-      {/* 步骤 3 导航按钮 */}
-      {step === 3 && (
+      {/* 审核候选导航按钮 */}
+      {step === 2 && (
           <div className="flex items-center justify-between pt-3 border-t border-[oklch(0.6_0.04_258_/_0.12)]">
             <div className="flex items-center gap-2">
-              <button onClick={() => setStep(selectionMode === 'manual' ? 1 : 2)} className="neu-btn-soft gap-2">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：{selectionMode === 'manual' ? '选择项目' : '描述需求'}
+              <button onClick={() => setStep(1)} className="neu-btn-soft gap-2">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：供应商要求
               </button>
             </div>
-            <button onClick={() => setStep(4)} disabled={shortlist.size === 0} className="neu-btn-soft gap-2" title={shortlist.size === 0 ? '请先加入候选供应商' : undefined}>
+            <button onClick={() => setStep(3)} disabled={shortlist.size === 0} className="neu-btn-soft gap-2" title={shortlist.size === 0 ? '请先加入候选供应商' : undefined}>
               下一步：确认通知<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
               {shortlist.size > 0 && <span className="tabular-nums">（{shortlist.size}）</span>}
             </button>
@@ -1828,8 +1920,8 @@ export function SupplierSelectionPage({
       {/* ══ 步骤轨道 ══ */}
       <StepTrack
         steps={steps}
-        current={isDirect ? step - 3 : step}
-        onStepClick={(s) => setStep(isDirect ? s + 3 : s)}
+        current={isDirect ? step - 2 : step}
+        onStepClick={(s) => setStep(isDirect ? s + 2 : s)}
         reachable={(s) => {
           const si = isDirect ? s + 3 : s;
           if (si <= maxStepReached) return true;
@@ -1906,111 +1998,91 @@ export function SupplierSelectionPage({
             )}
           </div>
 
-          <div className="flex justify-end">
-            <button onClick={() => { setError(''); if (selectionMode === 'manual') { setStep(3); } else { setStep(2); } }} className="neu-btn-soft gap-2">
-              下一步：{selectionMode === 'manual' ? '审核候选' : '描述需求'}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── 步骤 2：描述需求 ── */}
-      {step === 2 && (
-        <div className="space-y-5">
-          {/* 项目信息头 */}
-          {selectedProject && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-bold text-[var(--foreground)]">{selectedProject.name}</span>
-              {selectedProject.projectCode && (
-                <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-strong)]">{selectedProject.projectCode}</span>
-              )}
-              <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-strong)]">{METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}</span>
-            </div>
-          )}
-
-          {/* 结构化需求输入卡 */}
+          {/* 供应商要求卡（合并自原「描述需求」）：聚焦对供应商的要求，项目上下文 AI 已从项目文件注入 */}
           <div className="rounded-[20px] p-6 space-y-5"
             style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
-            {/* 标题行 */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-[9px]" style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.06)' }}>
                   <FileText size={13} className="text-[var(--accent)]" />
                 </span>
-                <span className="text-sm font-bold text-[var(--foreground)]">采购需求描述</span>
+                <span className="text-sm font-bold text-[var(--foreground)]">供应商要求</span>
+                <span className="text-[10px] text-[var(--muted-foreground)]">项目信息已自动关联，此处只需描述对供应商的要求</span>
               </div>
-              <button onClick={generateRequirement} disabled={reqGenerating} className="neu-btn-xs gap-1.5 text-[var(--accent)]">
-                <Sparkles size={11} />{reqGenerating ? 'AI 生成中…' : '重新生成'}
-              </button>
+              {selectionMode === 'ai' && (
+                <button onClick={generateRequirement} disabled={reqGenerating} className="neu-btn-xs gap-1.5 text-[var(--accent)]">
+                  <Sparkles size={11} />{reqGenerating ? 'AI 生成中…' : (reqOverview || reqScope || reqQualification) ? '重新生成' : 'AI 按项目文件生成'}
+                </button>
+              )}
             </div>
 
             <div className="wb-section-rule" />
 
-            {/* 1. 项目概况 */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[var(--foreground)]">项目概况</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">点明采购事项及所属行业领域，作为供应商寻源的方向参照。</p>
-              <AutoTextarea
-                value={reqOverview}
-                onChange={e => setReqOverview(e.target.value)}
-                placeholder="示例：1. 本次寻源面向地质勘查装备制造领域的供应商\n2. 采购800型便携式全液压岩心钻机1台套\n3. 供应商经营范围应覆盖地质勘探设备、岩心钻机类产品\n4. 交付地：四川成都"
-              />
-            </div>
+            {selectionMode === 'ai' ? (<>
+              {/* 项目概况（AI 预填上下文，可改） */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--foreground)]">项目概况 <span className="font-normal text-[var(--muted-foreground)]">（AI 依据项目文件预填，作为推荐方向参照）</span></label>
+                <AutoTextarea
+                  value={reqOverview}
+                  onChange={e => setReqOverview(e.target.value)}
+                  placeholder="AI 将依据关联项目的需求/立项/采购文件自动填写；也可手动修正。"
+                />
+              </div>
 
-            {/* 2. 采购范围 */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[var(--foreground)]">采购范围</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">说明需要供应商提供什么、其经营范围应覆盖哪些业务。</p>
-              <AutoTextarea
-                value={reqScope}
-                onChange={e => setReqScope(e.target.value)}
-                placeholder="示例：1. 供应商应提供800型全液压岩心钻机主机及配套钻具\n2. 经营范围覆盖地质勘探设备、岩心钻机类产品\n3. 含运输、安装调试及操作培训服务"
-              />
-            </div>
+              {/* 经营范围要求 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--foreground)]">经营范围要求</label>
+                <AutoTextarea
+                  value={reqScope}
+                  onChange={e => setReqScope(e.target.value)}
+                  placeholder={'示例：1. 经营范围覆盖地质勘探设备、岩心钻机类产品\n2. 为该类设备制造商或授权代理商'}
+                />
+              </div>
 
-            {/* 3. 资质要求 */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[var(--foreground)]">资质要求</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">供应商应具备的企业类型、行业资质、业绩门槛与技术能力。</p>
-              <AutoTextarea
-                value={reqQualification}
-                onChange={e => setReqQualification(e.target.value)}
-                placeholder="示例：1. 须为钻探设备制造商或授权代理商\n2. 产品通过 ISO 9001 质量管理体系认证\n3. 近三年具有至少 3 个同类型钻机供货业绩"
-              />
-            </div>
+              {/* 资质要求 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--foreground)]">资质要求</label>
+                <AutoTextarea
+                  value={reqQualification}
+                  onChange={e => setReqQualification(e.target.value)}
+                  placeholder={'示例：1. 通过 ISO 9001 质量管理体系认证\n2. 具备相应生产许可或强制性认证'}
+                />
+              </div>
 
-            {/* 4. 特殊要求 */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[var(--foreground)]">特殊要求</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">对供应商的服务响应、交付周期、质保等能力要求。</p>
-              <AutoTextarea
-                value={reqSpecial}
-                onChange={e => setReqSpecial(e.target.value)}
-                placeholder="示例：1. 供货周期不超过 90 日历天\n2. 整机质保期不低于 2 年\n3. 需提供 7×24 小时售后技术支持\n4. 海拔 3500m 以上高原适应性要求"
-              />
-            </div>
+              {/* 业绩要求 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--foreground)]">业绩要求</label>
+                <AutoTextarea
+                  value={reqSpecial}
+                  onChange={e => setReqSpecial(e.target.value)}
+                  placeholder={'示例：1. 近三年具有至少 3 个同类型钻机供货业绩\n2. 有水利/地勘行业供货案例优先'}
+                />
+              </div>
 
-            {/* 5. 其他 */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[var(--foreground)]">其他</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">其他需要补充说明的事项或备注信息。</p>
-              <AutoTextarea
-                value={reqOther}
-                onChange={e => setReqOther(e.target.value)}
-                placeholder="如有其他补充信息，请在此填写…"
-                minRows={1}
-              />
-            </div>
+              {/* 其他 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--foreground)]">其他 <span className="font-normal text-[var(--muted-foreground)]">（服务响应、交付周期、质保等）</span></label>
+                <AutoTextarea
+                  value={reqOther}
+                  onChange={e => setReqOther(e.target.value)}
+                  placeholder="如有其他补充要求，请在此填写…"
+                  minRows={1}
+                />
+              </div>
+            </>) : (
+              <div className="py-6 text-center">
+                <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+                  手动选取模式无需填写供应商要求——直接按名称/标签搜索并逐家加入候选名单。
+                </p>
+              </div>
+            )}
           </div>
 
           {error && <div className="rounded-xl px-4 py-3 text-sm font-semibold text-[var(--danger)]" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.3)' }}>{error}</div>}
 
-          {/* 底部操作栏 */}
-          <div className="flex items-center justify-between gap-3">
-            <button onClick={() => setStep(1)} className="neu-btn-soft gap-2">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：选择项目
-            </button>
-            <div className="flex items-center gap-3">
+          {/* 底部操作：AI 模式直接智能推荐；手动模式进入候选列表 */}
+          <div className="flex items-center justify-end gap-3">
+            {selectionMode === 'ai' && (
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--muted-foreground)]">
                 <span>推荐</span>
                 <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input !w-[60px] text-xs !h-7">
@@ -2018,16 +2090,22 @@ export function SupplierSelectionPage({
                 </select>
                 <span>家供应商</span>
               </div>
-              <button onClick={run} disabled={loading || !buildRequirement()} className="neu-btn-soft gap-2">
+            )}
+            {selectionMode === 'ai' ? (
+              <button onClick={run} disabled={loading || !buildRequirement()} className="neu-btn-primary gap-2">
                 <Wand2 size={14} />{loading ? '智能匹配中…' : '开始智能推荐'}
               </button>
-            </div>
+            ) : (
+              <button onClick={() => { setError(''); setStep(2); }} className="neu-btn-primary gap-2">
+                下一步：审核候选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── 步骤 3：审核候选 ── */}
-      {step === 3 && (
+      {/* ── 步骤 2：审核候选 ── */}
+      {step === 2 && (
         <div className="space-y-5">
           {loading && (
             <div className="rounded-[20px] py-16 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
@@ -2312,8 +2390,8 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 步骤 4：确认通知 ── */}
-      {step === 4 && (
+      {/* ── 步骤 3：确认通知 ── */}
+      {step === 3 && (
         <div className="space-y-5">
           <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
             <div className="flex items-center justify-between">
@@ -2458,7 +2536,7 @@ export function SupplierSelectionPage({
           </div>
 
           <div className="flex items-center justify-between">
-            <button onClick={() => setStep(3)} className="neu-btn-soft gap-2">
+            <button onClick={() => setStep(2)} className="neu-btn-soft gap-2">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：审核候选
             </button>
             <div className="flex items-center gap-2">
@@ -2645,7 +2723,7 @@ export function SupplierSelectionPage({
           )}
 
           <div className="flex items-center justify-between">
-            <button onClick={() => setStep(4)} className="neu-btn-soft gap-2">
+            <button onClick={() => setStep(3)} className="neu-btn-soft gap-2">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：确认通知
             </button>
             <div className="flex items-center gap-2">
@@ -2736,7 +2814,7 @@ export function SupplierSelectionPage({
               </div>
 
               <div className="flex items-center justify-between">
-                <button onClick={() => setStep(neg ? attachStep : 4)} className="neu-btn-soft gap-2">
+                <button onClick={() => setStep(neg ? attachStep : 3)} className="neu-btn-soft gap-2">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：{neg ? '附件选择' : '确认通知'}
                 </button>
                 <div className="flex items-center gap-2">
@@ -2756,7 +2834,7 @@ export function SupplierSelectionPage({
             <div className="rounded-[20px] py-16 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
               <Bell size={28} className="mx-auto mb-4 text-[var(--muted-foreground)]/30" />
               <p className="text-sm text-[var(--muted-foreground)]">请先返回上一步发送通知</p>
-              <button onClick={() => setStep(4)} className="neu-btn-soft mt-4">返回确认通知</button>
+              <button onClick={() => setStep(3)} className="neu-btn-soft mt-4">返回确认通知</button>
             </div>
           )}
         </div>

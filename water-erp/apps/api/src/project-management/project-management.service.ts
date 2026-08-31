@@ -326,6 +326,7 @@ export class ProjectManagementService {
         procurementMethod: true,
         budgetAmount: true,
         bidOpeningTime: true,
+        documentAcquireTime: true,
         initiationDate: true,
         projectOverview: true,
         currentRound: true,
@@ -377,10 +378,20 @@ export class ProjectManagementService {
     const parsedOpen = parseBidOpeningTime(item.bidOpeningTime);
     const openTime = parsedOpen ?? (item.initiationDate ?? new Date(Date.now() + 72 * 60 * 60 * 1000));
     // 投递截止 = 开标前 BID_DEADLINE_BEFORE_OPENING_MS（24h 业务规则，第五写点，口径同 P0-2）；
-    // P0-5 兜底语义保留：算出的截止落在过去（陈旧开标时间/兜底值）时顺延至 24h 后
+    // P0-5 兜底【仅当 openTime 来自纯兜底（now+72h）时顺延至 24h 后】：真实解析出的历史开标
+    // 时间（如老项目时间轴 3/26）若也顺延，会出现"开标 3/26 / 截止 9/1"倒挂——历史项目
+    // 忠实过期（deadline=开标-24h，供应商端显示已截止、不可投），不再人为续命。
     let deadline = new Date(openTime.getTime() - BID_DEADLINE_BEFORE_OPENING_MS);
-    if (deadline.getTime() <= Date.now()) {
+    const openTimeIsPureFallback = parsedOpen == null && item.initiationDate == null;
+    if (openTimeIsPureFallback && deadline.getTime() <= Date.now()) {
       deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
+    // 采购文件下载截止：documentAcquireTime（"起至止"区间）取截止侧（如 2026/3/26 15:00）
+    let downloadDeadline: Date | null = null;
+    if (item.documentAcquireTime) {
+      const seg = String(item.documentAcquireTime).split('至');
+      const endRaw = seg[seg.length - 1]?.trim() || '';
+      downloadDeadline = parseFlexibleDate(endRaw);
     }
 
     const created = await this.prisma.bidProject.create({
@@ -390,6 +401,8 @@ export class ProjectManagementService {
         procurementMethod: item.procurementMethod || '公开招标',
         openTime,
         deadline,
+        // 采购文件下载截止（documentAcquireTime 止点；谈判配置确认后由 sendNegotiationConfig 覆盖）
+        downloadDeadline: downloadDeadline ?? undefined,
         budget: item.budgetAmount != null ? Number(item.budgetAmount) : null,
         scope: item.projectOverview || null,
         // 公告已发布，直接进入投标投递期
@@ -4064,11 +4077,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      include: { stages: { where: { stageKey }, select: { attachments: { select: { fileName: true } } } } },
+      include: { stages: { where: { stageKey }, select: { status: true, attachments: { select: { fileName: true } } } } },
     });
 
     if (!project) {
       throw new NotFoundException('未找到对应项目。');
+    }
+    // 步骤分析仅对已完成阶段开放（与前端闸门一致，防直调 API 绕过）：进行中/待解锁数据未定型
+    if (project.stages[0]?.status !== 'COMPLETED') {
+      return { content: '', empty: true };
     }
     const attachmentNames = (project.stages[0]?.attachments ?? []).map((a) => a.fileName);
 

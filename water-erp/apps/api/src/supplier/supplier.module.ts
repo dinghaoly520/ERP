@@ -8,9 +8,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { AuthModule } from '../auth/auth.module';
 import { VerificationModule } from '../verification/verification.module';
+import { ProjectManagementModule } from '../project-management/project-management.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, NotificationModule, VerificationModule],
+  imports: [AuthModule, PrismaModule, NotificationModule, VerificationModule, ProjectManagementModule],
   controllers: [SupplierController, RsvpController],
   providers: [SupplierService, RsvpService, OwnerGuard],
   exports: [SupplierService, RsvpService],

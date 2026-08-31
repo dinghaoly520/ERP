@@ -50,8 +50,10 @@ export interface LlmSpecialtyQuota {
   specialty: string;
   count: number;
   reason: string;
-  /** 部门限定：仅从工作单位匹配该部门的专家中抽取（需求方代表「选择部门」） */
+  /** 公司限定：仅从工作单位匹配该公司的专家中抽取（需求方代表「公司→部门→专业」） */
   employer?: string;
+  /** 部门限定（真部门 Department.name）：公司内进一步按专家所属部门过滤 */
+  department?: string;
 }
 
 export interface LlmExpertScore {

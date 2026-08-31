@@ -55,27 +55,28 @@ export class InvitationLetterService {
       .catch(() => null)
       // 兼容误传 PMI id：按关联反查（前端 projectId 未解析时只带 ProjectManagementItem id）
       .then((r) => r ?? this.prisma.bidProject.findFirst({ where: { projectManagementItemId: projectId }, select: bpSelect }));
-    if (!bp) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // BP 可不存在（供应商邀请早期尚未懒创建 BidProject）——PMI 单独可用，bp 相关字段回退
     const pmi = await this.prisma.projectManagementItem.findFirst({
-      where: { bidProjects: { some: { id: bp.id } } },
+      where: bp ? { bidProjects: { some: { id: bp.id } } } : { id: projectId },
       select: {
         title: true, projectCode: true, requesterName: true, requesterDepartment: true,
         supplierRequirements: true, procurementMethod: true, procurementCategory: true,
         budgetAmount: true, documentAcquireTime: true, invitedSuppliers: true,
       },
     });
+    if (!bp && !pmi) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     return {
       project: {
-        name: bp.sectionName ? `${bp.name}（${bp.sectionNo ?? ''} ${bp.sectionName}）` : bp.name,
-        code: bp.projectCode,
-        method: bp.procurementMethod || pmi?.procurementMethod || '',
-        qualification: bp.qualification || pmi?.supplierRequirements || '',
-        quality: bp.qualityRequirement || '',
-        budget: bp.budget != null ? Number(bp.budget) : pmi?.budgetAmount != null ? Number(pmi.budgetAmount) : null,
-        contact: bp.contact || '',
-        openTime: times.bidAt || bp.openTime?.toISOString() || '',
+        name: bp ? (bp.sectionName ? `${bp.name}（${bp.sectionNo ?? ''} ${bp.sectionName}）` : bp.name) : (pmi?.title ?? ''),
+        code: bp?.projectCode ?? pmi?.projectCode ?? '',
+        method: bp?.procurementMethod || pmi?.procurementMethod || '',
+        qualification: bp?.qualification || pmi?.supplierRequirements || '',
+        quality: bp?.qualityRequirement || '',
+        budget: bp?.budget != null ? Number(bp.budget) : pmi?.budgetAmount != null ? Number(pmi.budgetAmount) : null,
+        contact: bp?.contact || '',
+        openTime: times.bidAt || bp?.openTime?.toISOString() || '',
         acquireStart: times.acquireStart || '',
-        acquireEnd: times.acquireEnd || (bp.downloadDeadline?.toISOString() ?? ''),
+        acquireEnd: times.acquireEnd || (bp?.downloadDeadline?.toISOString() ?? ''),
         acquireNote: pmi?.documentAcquireTime || '',
         invited: pmi?.invitedSuppliers || '',
       },
