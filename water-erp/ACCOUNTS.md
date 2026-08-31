@@ -59,6 +59,34 @@
 |--------|------|------------|------|
 | `陈源远` | `陈源远@2026` | `bid_host` · 开标主持人 | 陈源远 |
 
+## U盾演示绑定
+
+> 双信封投递（供应商门户投标）与开标确认电子签名都要求供应商已绑 U盾（投递页 `dualReady` = `profile.sm2PublicKey` 非空，未绑定时 A-90 方案a 仅显示绑盾引导卡）。演示供应商须先「发盾 → 绑定」两步：
+
+```bash
+# ① 发盾（模拟 CA 柜台办证；从 water-erp/ 运行，写 ~/.shuidi-ukey/slots/<shieldId>.ukey，PUK 仅打印一次）
+node services/ukey-middleware/src/cli.mjs issue --cn <企业名> --pin 123456
+
+# ② 绑定（盾内 CN 与 Supplier.name 精确匹配，幂等 upsert SupplierCert + 回填 sm2PublicKey）
+cd apps/api && npx tsx scripts/bind-ukey-slots.ts --dry-run   # 先看清单
+cd apps/api && npx tsx scripts/bind-ukey-slots.ts             # 实跑绑定
+
+# 供应商浏览器侧解锁/解密还需 mock U盾中间件在跑（:17999）
+pnpm dev:ukey-mw
+```
+
+发盾时 `--cn` 必须与库内供应商企业名**完全一致**（脚本按 `supplier.name === cn` 精确匹配，匹配不到会列入「有盾无供应商」清单跳过）。绑定脚本输出三张清单（绑定动作表 / 有盾无供应商 / 有供应商无盾·绑定悬挂），任何清单非空退出码均为 0；重复运行幂等（状态已达标零写入）。
+
+**当前盾-供应商对应表**（验收发盾后回填）：
+
+| 盾号（certSn） | 供应商（CN） | 状态 |
+|----------------|--------------|------|
+| `SHD-B14EF038` | 四川水发建设有限公司 | 已绑定（ACTIVE） |
+| 待发盾 | 中科院成都信息技术股份有限公司 | 占位——验收后回填 |
+| 待发盾 | 四川省通信产业服务有限公司 | 占位——验收后回填 |
+| 待发盾 | 重庆蜀通岩土工程有限公司 | 占位——验收后回填 |
+| 待发盾 | 成都华西物资供应有限公司 | 占位——验收后回填 |
+
 ## 说明
 - **`admin` 账号**：种子有 `Swhi-CGZX-admin`（口令 `Swhi-CGZX-admin@2026`）。`tender-review` 规则提取/CRUD 走 `AdminGuard`（仅 admin），无此账号则规则管理对所有人 403——故 `seed.ts` 已把它纳入 `<用户名>@2026` 规整循环。
 - **每门户独立登录**：cookie 按门户命名（`token_public`/`token_web`/`token_expert`/`token_supplier`/`token_mall`），切换门户需重新登录。
