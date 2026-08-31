@@ -827,6 +827,7 @@ function BidSubmitInner() {
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, marginTop: 20 }}>
                     <SpButton variant="primary" icon={KeyRound} onClick={() => router.push("/profile/ukey")}>前往绑定 U盾</SpButton>
                     <span className="file-hint">绑定后本页自动切换为双信封投递。</span>
+                    <span className="file-hint">已保存的草稿字段（报价/工期等）在绑定后可直接回读；已上传的加密文件需重新上传。</span>
                   </div>
                 </div>
               )}
