@@ -25,6 +25,7 @@ import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotat
 import { assertMinAcceptedInvitees } from './bid-timing-rules';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
+import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
@@ -470,6 +471,12 @@ export class BidService {
         };
       }),
     ).map(({ submitted: _s, withdrawn: _w, submission: _sub, ...rest }) => rest) as typeof project.suppliers;
+
+    // A-114：主持端/唱标总表视图剥壳——开标记录确认签名只下发摘要（algorithm/verifiedAt），
+    // 完整签名证据仅本人视图（supplier-portal getMyOpeningRecord）与开标文件包/归档导出保留。
+    project.openingRecords = project.openingRecords.map(
+      (r) => ({ ...r, confirmSignature: stripOpeningConfirmSignature(r) }),
+    ) as typeof project.openingRecords;
 
     // L6 数据级隔离：bid portal 只能看指派给自己的项目。
     // admin 豁免（N1，2026-08-28，浏览器验证发现）：:3007 是 admin 的默认落地门户且
@@ -3733,8 +3740,10 @@ export class BidService {
     return { resumed: true, pausedMs, totalPausedMs: newTotalPausedMs, newDecryptWindowEnd: newEnd.toISOString() };
   }
 
-  listOpeningRecords(projectId: string) {
-    return this.prisma.bidOpeningRecord.findMany({ where: { projectId } });
+  // A-114：唱标总表（主持端）——确认签名剥壳为摘要（完整证据走本人视图与文件包）
+  async listOpeningRecords(projectId: string) {
+    const records = await this.prisma.bidOpeningRecord.findMany({ where: { projectId } });
+    return records.map((r) => ({ ...r, confirmSignature: stripOpeningConfirmSignature(r) }));
   }
 
   /**

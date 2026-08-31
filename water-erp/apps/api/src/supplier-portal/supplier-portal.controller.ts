@@ -11,6 +11,7 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { SaveBidDraftDto, SubmitBidDto } from './dto/bid-submission.dto';
+import { OpeningConfirmDto } from './dto/opening-confirm.dto';
 import type { EnvelopeRole } from '@water-erp/ukey';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
@@ -516,10 +517,22 @@ export class SupplierPortalController {
     return this.portalService.listOpeningRecords(supplierId, projectId);
   }
 
-  @Post('bid-submissions/:projectId/opening-confirm')
-  async confirmOpening(@Request() req: any, @Param('projectId') projectId: string) {
+  /** W-A114：取开标确认待签负载（记录待确认，或已确认未签名供补签） */
+  @Get('bid-submissions/:projectId/opening-confirm-payload')
+  async getOpeningConfirmPayload(@Request() req: any, @Param('projectId') projectId: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.confirmOpening(supplierId, projectId);
+    return this.portalService.getOpeningConfirmPayload(supplierId, projectId);
+  }
+
+  // A-114：确认/补签单端点双语义（purpose 由记录态派生）——body 签名必填（DTO whitelist 防剥落）
+  @Post('bid-submissions/:projectId/opening-confirm')
+  async confirmOpening(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @Body() dto: OpeningConfirmDto,
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.confirmOpening(supplierId, projectId, dto.signature);
   }
 
   @Post('bid-submissions/:projectId/opening-dispute')

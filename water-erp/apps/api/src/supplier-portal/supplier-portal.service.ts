@@ -9,6 +9,7 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { buildClarificationReplyCanonical } from './clarification-reply.util';
+import { buildOpeningConfirmCanonical } from './opening-confirm-signature.util';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
@@ -2287,8 +2288,17 @@ export class SupplierPortalService {
     });
   }
 
-  async confirmOpening(supplierId: string, projectId: string) {
-    // P0: 阶段门控 — 仅在开标阶段可确认唱标
+  /* ── A-114：开标记录确认 SM2 电子签名（canonical/验签/归档，范式同回执签名通道）── */
+
+  /** 待确认态集合（「待确认」为旧值，种子/历史数据与「待供应商确认」同义）。 */
+  private static readonly OPENING_PENDING_CONFIRM = ['待供应商确认', '待确认'];
+
+  /**
+   * 私有：确认/补签共用上下文——阶段门（OPENING）+ 本人投标记录（解密 SUCCESS）+
+   * 本司开标记录 + 供应商 SM2 公钥（未绑盾 400）。记录不存在 → 400 RECORD_NOT_CONFIRMABLE
+   * （与既有确认状态门同码，维持 API 兼容）。
+   */
+  private async loadOpeningConfirmContext(supplierId: string, projectId: string) {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'OPENING') {
       throw new BadRequestException({ error: '项目不在开标阶段，无法确认', code: 'PROJECT_NOT_OPENING' });
@@ -2300,36 +2310,116 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '标书尚未解密成功', code: 'NOT_DECRYPTED' });
     }
 
-    // Wave 5-1：状态门——仅待确认态的记录可确认（与 host 侧 R7 状态机对称；UI 已门控，此为 API 防线）。
-    // 否则直调 API 可把「异议已处理-退回」（bidSupplier=EXCEPTION）翻回 CONFIRMED/供应商已确认，
-    // 让被例外标记的供应商逃脱；DISPUTED 态也可被 confirm 覆盖。
-    // 「待确认」为旧值（种子/历史数据），与「待供应商确认」同为待确认态（供应商端 UI 两者都接受，
-    // host 侧 I1 重录门同样两者放行），一并视为可操作。
-    const PENDING_CONFIRM = ['待供应商确认', '待确认'];
     const record = await this.prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bidSupplier.id } });
-    if (!record || !PENDING_CONFIRM.includes(record.confirmStatus)) {
+    if (!record) {
       throw new BadRequestException({ error: '当前开标记录不可确认（仅待供应商确认状态可操作）', code: 'RECORD_NOT_CONFIRMABLE' });
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.bidOpeningRecord.updateMany({
-        where: { projectId, bidSupplierId: bidSupplier.id },
-        data: { confirmStatus: '供应商已确认', confirmedAt: new Date() },
-      });
-      await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { confirmStatus: 'CONFIRMED' } });
-      await tx.bidSupervisionLog.create({
-        data: {
-          projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
-          action: '确认唱标信息', result: '供应商确认开标记录无误', riskFlag: '无',
-        },
-      });
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
+    if (!supplier?.sm2PublicKey) {
+      throw new BadRequestException({ error: '供应商未绑定 SM2 公钥（U盾证书），无法签署开标确认', code: 'SM2_PUBLIC_KEY_MISSING' });
+    }
+    return { project, bidSupplier, record, sm2PublicKey: supplier.sm2PublicKey };
+  }
+
+  /**
+   * 取开标确认待签负载（A-114）：服务端以 DB 为准重建 canonical，不信任客户端传入。
+   * 可用条件 = 记录待确认（purpose=confirm，首次确认签名）或已确认且未签名（purpose=resign，补签）。
+   */
+  async getOpeningConfirmPayload(supplierId: string, projectId: string) {
+    const { bidSupplier, record } = await this.loadOpeningConfirmContext(supplierId, projectId);
+    let purpose: 'confirm' | 'resign';
+    if (SupplierPortalService.OPENING_PENDING_CONFIRM.includes(record.confirmStatus)) {
+      purpose = 'confirm';
+    } else if (record.confirmStatus === '供应商已确认' && !record.confirmSignature) {
+      purpose = 'resign';
+    } else {
+      throw new BadRequestException({ error: '当前开标记录不可确认（仅待供应商确认状态可操作）', code: 'RECORD_NOT_CONFIRMABLE' });
+    }
+    const canonical = buildOpeningConfirmCanonical({
+      purpose, projectId, supplierId,
+      bidSupplierId: bidSupplier.id, recordId: record.id,
+      supplierName: record.supplierName,
+      amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
+      bondStatus: record.bondStatus, decryptResult: record.decryptResult,
     });
-    this.gateway?.notifyOpeningConfirmed(projectId, supplierId, {
-      projectId, supplierId, supplierName: bidSupplier.supplierName, timestamp: Date.now(),
+    return { payload: JSON.parse(canonical), canonical };
+  }
+
+  /**
+   * 确认/补签开标记录（单端点双语义，A-114）：
+   * - confirm（待确认态）：原确认事务（记录态+confirmedAt+bidSupplier CONFIRMED+监督日志）+ 追加
+   *   签名归档；WS notifyOpeningConfirmed 与 autoHandoverIfDone 保留。
+   * - resign（已确认未签名）：不进状态机——仅回填签名证据+监督日志；无 WS、无 autoHandover；幂等。
+   * 两分支验签前置（服务端重算 canonical → SM2/SM3），失败 400 OPENING_CONFIRM_SIGNATURE_INVALID。
+   * Wave 5-1 状态门不变：仅待确认态可确认（异议已处理-退回/已异议态不得翻回确认）。
+   */
+  async confirmOpening(supplierId: string, projectId: string, signature: string) {
+    const { bidSupplier, record, sm2PublicKey } = await this.loadOpeningConfirmContext(supplierId, projectId);
+    let purpose: 'confirm' | 'resign';
+    if (SupplierPortalService.OPENING_PENDING_CONFIRM.includes(record.confirmStatus)) {
+      purpose = 'confirm';
+    } else if (record.confirmStatus === '供应商已确认') {
+      purpose = 'resign';
+    } else {
+      // 状态门（Wave 5-1，与 host 侧 R7 状态机对称；UI 已门控，此为 API 防线）
+      throw new BadRequestException({ error: '当前开标记录不可确认（仅待供应商确认状态可操作）', code: 'RECORD_NOT_CONFIRMABLE' });
+    }
+
+    // 补签幂等：已签名直接返回（不再验签/写库）
+    if (purpose === 'resign' && record.confirmSignature) {
+      return { success: true, alreadySigned: true };
+    }
+
+    const canonical = buildOpeningConfirmCanonical({
+      purpose, projectId, supplierId,
+      bidSupplierId: bidSupplier.id, recordId: record.id,
+      supplierName: record.supplierName,
+      amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
+      bondStatus: record.bondStatus, decryptResult: record.decryptResult,
     });
-    // 终局即固化（A）：确认唱标是最后一类终局写入——全体终局则自动固化开标文件包（幂等、不阻塞确认响应）
-    void this.bidService.autoHandoverIfDone(projectId, '供应商确认唱标');
-    return { success: true };
+    if (!this.signatureService.verify(canonical, signature, sm2PublicKey)) {
+      throw new BadRequestException({ error: '开标确认电子签名验证失败（SM2）', code: 'OPENING_CONFIRM_SIGNATURE_INVALID' });
+    }
+    const confirmSignature = { payload: JSON.parse(canonical), signature, algorithm: 'SM2/SM3', verifiedAt: new Date().toISOString() };
+
+    if (purpose === 'confirm') {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.bidOpeningRecord.updateMany({
+          where: { projectId, bidSupplierId: bidSupplier.id },
+          data: {
+            confirmStatus: '供应商已确认', confirmedAt: new Date(),
+            confirmSignature, confirmSignedAt: new Date(),
+          },
+        });
+        await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { confirmStatus: 'CONFIRMED' } });
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
+            action: '确认唱标信息（电子签名）', result: '供应商确认开标记录无误', riskFlag: '无',
+          },
+        });
+      });
+      this.gateway?.notifyOpeningConfirmed(projectId, supplierId, {
+        projectId, supplierId, supplierName: bidSupplier.supplierName, timestamp: Date.now(),
+      });
+      // 终局即固化（A）：确认唱标是最后一类终局写入——全体终局则自动固化开标文件包（幂等、不阻塞确认响应）
+      void this.bidService.autoHandoverIfDone(projectId, '供应商确认唱标');
+      return { success: true };
+    }
+
+    // 补签：唯一键（projectId+bidSupplierId）定点回填，不改任何状态字段（confirmStatus/confirmedAt/bidSupplier 均不动）
+    await this.prisma.bidOpeningRecord.update({
+      where: { projectId_bidSupplierId: { projectId, bidSupplierId: bidSupplier.id } },
+      data: { confirmSignature, confirmSignedAt: new Date() },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
+        action: '补签开标确认电子签名', result: '已确认开标记录补签 SM2/SM3 电子签名', riskFlag: '低风险',
+      },
+    });
+    return { success: true, alreadySigned: false };
   }
 
   async disputeOpening(supplierId: string, projectId: string, reason: string) {

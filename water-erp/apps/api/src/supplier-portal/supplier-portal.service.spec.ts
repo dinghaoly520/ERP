@@ -110,7 +110,7 @@ describe('SupplierPortalService', () => {
         updateMany: jest.fn(),
         create: jest.fn(),
       },
-      bidOpeningRecord: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
+      bidOpeningRecord: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
       bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
       fileAsset: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
@@ -557,32 +557,55 @@ describe('SupplierPortalService', () => {
       id: 'bs-1', supplierId: 'supplier-1', projectId: 'project-1',
       supplierName: '测试供应商', decryptStatus: 'SUCCESS',
     };
+    const pendingRecord = {
+      id: 'r-1', bidSupplierId: 'bs-1', supplierName: '测试供应商',
+      amount: '980000', period: '120 日历天', qualityTarget: '合格',
+      bondStatus: '已缴纳', decryptResult: 'SUCCESS',
+      confirmStatus: '待供应商确认', confirmSignature: null, confirmSignedAt: null,
+    };
+    const boundSupplierKey = { sm2PublicKey: '04' + 'ab'.repeat(64) };
 
     it('confirmOpening marks record and BidSupplier as confirmed', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
-      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus: '待供应商确认' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
 
-      const result = await service.confirmOpening('supplier-1', 'project-1');
+      const result = await service.confirmOpening('supplier-1', 'project-1', 'sig-hex');
 
       expect(result.success).toBe(true);
+      // A-114：状态与签名在同一事务里落库（三写之一：记录态+签名）
       expect(prisma.bidOpeningRecord.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ confirmStatus: '供应商已确认' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            confirmStatus: '供应商已确认',
+            confirmSignature: expect.objectContaining({
+              payload: expect.objectContaining({ purpose: 'confirm' }),
+              signature: 'sig-hex', algorithm: 'SM2/SM3',
+            }),
+            confirmSignedAt: expect.any(Date),
+          }),
+        }),
       );
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'CONFIRMED' }) }),
       );
+      // 三写之二：监督日志 action 升级为电子签名口径
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ action: '确认唱标信息（电子签名）' }) }),
+      );
+      expect(signature.verify).toHaveBeenCalledWith(expect.any(String), 'sig-hex', boundSupplierKey.sm2PublicKey);
     });
 
     it('confirmOpening rejects when supplier not decrypted', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ ...decryptedSupplier, decryptStatus: 'PENDING' });
 
-      await expect(service.confirmOpening('supplier-1', 'project-1'))
+      await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
         .rejects.toMatchObject({ response: { code: 'NOT_DECRYPTED' } });
     });
 
@@ -617,30 +640,124 @@ describe('SupplierPortalService', () => {
     it('confirmOpening 兼容旧值「待确认」态记录 → 正常确认', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
-      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus: '待确认' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus: '待确认' });
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
 
-      await expect(service.confirmOpening('supplier-1', 'project-1')).resolves.toMatchObject({ success: true });
+      await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex')).resolves.toMatchObject({ success: true });
+    });
+
+    // ── A-114：签名通道 ──
+
+    it('A-114 签名验证失败 → 400 OPENING_CONFIRM_SIGNATURE_INVALID（不写库）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      signature.verify.mockReturnValueOnce(false);
+
+      await expect(service.confirmOpening('supplier-1', 'project-1', 'bad-sig'))
+        .rejects.toMatchObject({ response: { code: 'OPENING_CONFIRM_SIGNATURE_INVALID' } });
+      expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidOpeningRecord.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it('A-114 供应商未绑定 SM2 公钥 → 400 SM2_PUBLIC_KEY_MISSING', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
+      prisma.supplier.findUnique.mockResolvedValue({ sm2PublicKey: null });
+
+      await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
+        .rejects.toMatchObject({ response: { code: 'SM2_PUBLIC_KEY_MISSING' } });
+    });
+
+    it('A-114 已确认未签名 → 补签成功：唯一键 update 仅回填签名，不改状态/不触发 WS 侧效', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus: '供应商已确认', confirmedAt: new Date() });
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.bidOpeningRecord.update.mockResolvedValue({ id: 'r-1' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.confirmOpening('supplier-1', 'project-1', 'sig-hex');
+
+      expect(result).toMatchObject({ success: true, alreadySigned: false });
+      // 不进状态机：不走 updateMany（记录态）、不动 bidSupplier
+      expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+      // 唯一键定点回填：只写签名两列
+      expect(prisma.bidOpeningRecord.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { projectId_bidSupplierId: { projectId: 'project-1', bidSupplierId: 'bs-1' } },
+          data: {
+            confirmSignature: expect.objectContaining({
+              payload: expect.objectContaining({ purpose: 'resign' }),
+              signature: 'sig-hex', algorithm: 'SM2/SM3',
+            }),
+            confirmSignedAt: expect.any(Date),
+          },
+        }),
+      );
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ action: '补签开标确认电子签名' }) }),
+      );
+    });
+
+    it('A-114 补签幂等：已签名记录再签 → alreadySigned 且不写库不验签', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        ...pendingRecord, confirmStatus: '供应商已确认',
+        confirmSignature: { payload: {}, signature: 'old', algorithm: 'SM2/SM3', verifiedAt: 'x' },
+        confirmSignedAt: new Date(),
+      });
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+
+      const result = await service.confirmOpening('supplier-1', 'project-1', 'any-sig');
+
+      expect(result).toMatchObject({ success: true, alreadySigned: true });
+      expect(signature.verify).not.toHaveBeenCalled();
+      expect(prisma.bidOpeningRecord.update).not.toHaveBeenCalled();
+      expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
     });
 
     // Wave 5-1：API 状态门（与 host 侧 R7/I1 对称；UI 已门控，此为直调防线）
     it.each([
       ['异议已处理-退回'], // EXCEPTION 供应商被主持人退回后的记录态——confirm 不得翻回 CONFIRMED 让其逃脱
-      ['供应商已确认'],
       ['供应商提出异议'],
       ['异议已处理-确认'],
     ])('confirmOpening 状态门：%s 态记录确认 → 400 RECORD_NOT_CONFIRMABLE', async (confirmStatus) => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
-      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus });
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
 
-      await expect(service.confirmOpening('supplier-1', 'project-1'))
+      await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
         .rejects.toMatchObject({ response: { code: 'RECORD_NOT_CONFIRMABLE' } });
       expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
       expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it('confirmOpening 状态门：已确认且已签名 → POST 幂等 alreadySigned（无补签空间不写库）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        ...pendingRecord, confirmStatus: '供应商已确认',
+        confirmSignature: { payload: {}, signature: 'old', algorithm: 'SM2/SM3', verifiedAt: 'x' },
+      });
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+
+      // 已签名 → 补签幂等短路（对应 payload 端点该态 400，POST 侧幂等返回）
+      await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
+        .resolves.toMatchObject({ success: true, alreadySigned: true });
+      expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidOpeningRecord.update).not.toHaveBeenCalled();
     });
 
     it('confirmOpening 状态门：开标记录不存在 → 400 RECORD_NOT_CONFIRMABLE', async () => {
@@ -648,9 +765,51 @@ describe('SupplierPortalService', () => {
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
 
-      await expect(service.confirmOpening('supplier-1', 'project-1'))
+      await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
         .rejects.toMatchObject({ response: { code: 'RECORD_NOT_CONFIRMABLE' } });
       expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    // ── A-114：待签负载端点 ──
+
+    it('getOpeningConfirmPayload：待确认记录 → purpose=confirm 的 canonical + payload 对象', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+
+      const result = await service.getOpeningConfirmPayload('supplier-1', 'project-1');
+
+      expect(result.canonical).toContain('"purpose":"confirm"');
+      expect(result.payload).toMatchObject({
+        v: 1, purpose: 'confirm', projectId: 'project-1', supplierId: 'supplier-1',
+        bidSupplierId: 'bs-1', recordId: 'r-1',
+        openingRecord: { amount: '980000', period: '120 日历天', qualityTarget: '合格', bondStatus: '已缴纳', decryptResult: 'SUCCESS' },
+      });
+    });
+
+    it('getOpeningConfirmPayload：已确认未签名 → purpose=resign（补签入口）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus: '供应商已确认' });
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+
+      const result = await service.getOpeningConfirmPayload('supplier-1', 'project-1');
+
+      expect(result.canonical).toContain('"purpose":"resign"');
+    });
+
+    it('getOpeningConfirmPayload：已确认且已签名 → 400 RECORD_NOT_CONFIRMABLE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        ...pendingRecord, confirmStatus: '供应商已确认',
+        confirmSignature: { payload: {}, signature: 'old', algorithm: 'SM2/SM3', verifiedAt: 'x' },
+      });
+      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+
+      await expect(service.getOpeningConfirmPayload('supplier-1', 'project-1'))
+        .rejects.toMatchObject({ response: { code: 'RECORD_NOT_CONFIRMABLE' } });
     });
 
     it.each([
