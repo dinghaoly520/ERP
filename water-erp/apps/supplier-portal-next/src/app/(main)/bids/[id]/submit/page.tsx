@@ -646,6 +646,10 @@ function BidSubmitInner() {
     try {
       await supplierApi.saveBidDraft(projectId, buildPayload());
       toast.success("草稿已保存");
+      // A-88 验收补：首次保存后即进入草稿态，删除草稿按钮无需刷新即可见
+      if (existingSubmission?.status !== "submitted") {
+        setExistingSubmission({ ...(existingSubmission ?? {}), status: "draft" });
+      }
     } catch { /* API 层已全局错误 toast */ }
     finally { setSaving(false); }
   }
