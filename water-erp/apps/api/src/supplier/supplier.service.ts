@@ -208,6 +208,20 @@ export class SupplierService {
         },
       });
 
+      // 业务标签：库内标签直接用；非库标签自动创建 PENDING 自创标签，采购端审核通过后入池可选
+      const submittedTags = (dto.tags || []).map((t) => t.trim()).filter(Boolean);
+      const customTags: string[] = [];
+      for (const t of submittedTags) {
+        const exists = await tx.businessTag.findUnique({ where: { name: t } });
+        if (!exists) {
+          await tx.businessTag.create({
+            data: { name: t, status: 'PENDING', source: 'supplier_register', createdBySupplierId: supplier.id },
+          });
+          customTags.push(t);
+        }
+      }
+      (supplier as any)._customTags = customTags;
+
       return { user, supplier };
     });
 
@@ -222,6 +236,16 @@ export class SupplierService {
       content: `${supplier.name} 提交了注册申请，信用代码 ${supplier.creditCode}，请前往审批。`,
       link: `/supplier/${supplier.id}`,
     })));
+
+    // 含自创业务标签时，额外提醒管理员到供应商管理中心审核标签入池
+    if ((supplier as any)._customTags?.length) {
+      void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+        type: 'SUPPLIER_PENDING',
+        title: '新自创业务标签待审核',
+        content: `${supplier.name} 注册时自创标签：${(supplier as any)._customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
+        link: '/supplier',
+      })));
+    }
 
     return { user: safeUser, supplier };
   }
@@ -401,6 +425,16 @@ export class SupplierService {
       content: `${supplier.name}（临时供应商，有效期至 ${expireLabel}）提交了注册申请，请前往审批。`,
       link: `/supplier/${supplier.id}`,
     })));
+
+    // 含自创业务标签时，额外提醒管理员到供应商管理中心审核标签入池
+    if ((supplier as any)._customTags?.length) {
+      void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+        type: 'SUPPLIER_PENDING',
+        title: '新自创业务标签待审核',
+        content: `${supplier.name} 注册时自创标签：${(supplier as any)._customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
+        link: '/supplier',
+      })));
+    }
 
     return { user: safeUser, supplier, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays };
   }
@@ -717,6 +751,52 @@ export class SupplierService {
   }
 
   /** 构建审核历史快照：审核时点申请全部信息（不可变留痕的数据源） */
+  // ═══ 业务标签库 ═══
+
+  /** 公开：注册页可选标签（仅 APPROVED，按名称排序） */
+  async listApprovedBusinessTags() {
+    return this.prisma.businessTag.findMany({
+      where: { status: 'APPROVED' },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /** 管理端：标签列表（默认全部，可按状态过滤），含自创来源供应商名 */
+  async listBusinessTags(status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
+    return this.prisma.businessTag.findMany({
+      where: status ? { status } : undefined,
+      select: {
+        id: true, name: true, status: true, source: true, createdAt: true, reviewedAt: true,
+        createdBySupplier: { select: { name: true, supplierNo: true } },
+        reviewedBy: { select: { displayName: true } },
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  /** 审核通过：PENDING → APPROVED（入池，后续注册可选） */
+  async approveBusinessTag(id: string, reviewerUserId?: string) {
+    const tag = await this.prisma.businessTag.findUnique({ where: { id } });
+    if (!tag) throw new BadRequestException({ error: '标签不存在', code: 'NOT_FOUND' });
+    if (tag.status !== 'PENDING') throw new BadRequestException({ error: '该标签不在待审核状态', code: 'INVALID_STATUS' });
+    return this.prisma.businessTag.update({
+      where: { id },
+      data: { status: 'APPROVED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },
+    });
+  }
+
+  /** 审核拒绝：PENDING → REJECTED（不入池；供应商资料中已使用的标签文本不受影响） */
+  async rejectBusinessTag(id: string, reviewerUserId?: string, reason?: string) {
+    const tag = await this.prisma.businessTag.findUnique({ where: { id } });
+    if (!tag) throw new BadRequestException({ error: '标签不存在', code: 'NOT_FOUND' });
+    if (tag.status !== 'PENDING') throw new BadRequestException({ error: '该标签不在待审核状态', code: 'INVALID_STATUS' });
+    return this.prisma.businessTag.update({
+      where: { id },
+      data: { status: 'REJECTED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },
+    });
+  }
+
   private async buildApprovalSnapshot(supplierId: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },

@@ -183,6 +183,7 @@ export function RecycleBinDrawer({
       </section>
 
       <LoginErrorDialog
+        title="操作失败"
         isOpen={Boolean(errorMessage)}
         message={errorMessage ?? ''}
         onClose={onDismissError}

@@ -53,10 +53,12 @@ export class ProjectPlanService {
   }
 
   async updatePlan(projectId: string, planId: string, dto: UpdatePlanItemDto) {
-    await this.assertEditable(projectId, planId);
+    const prevStatus = await this.assertEditable(projectId, planId);
     return this.prisma.projectPlanItem.update({
       where: { id: planId },
       data: {
+        // A-07/A-49：已通过的条目允许调整，调整即降回草稿重新报审（避免通过后永久锁死的死锁）
+        ...(prevStatus === 'APPROVED' && { status: 'DRAFT', reviewedAt: null, reviewedById: null, reviewComment: null }),
         ...(dto.content !== undefined && { content: dto.content }),
         ...(dto.ownerUserId !== undefined && { ownerUserId: dto.ownerUserId }),
         ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
@@ -72,19 +74,17 @@ export class ProjectPlanService {
     return { ok: true };
   }
 
-  /** 仅 DRAFT/REJECTED 可编辑删除（报审中锁定，通过后如需调整须重新报审） */
-  private async assertEditable(projectId: string, planId: string) {
+  /** 报审中（SUBMITTED）锁定不可改删；其余状态放行并返回原状态供调用方决定是否降级 */
+  private async assertEditable(projectId: string, planId: string): Promise<'DRAFT' | 'REJECTED' | 'APPROVED'> {
     const row = await this.prisma.projectPlanItem.findFirst({
       where: { id: planId, projectManagementItemId: projectId },
       select: { status: true },
     });
     if (!row) throw new NotFoundException('未找到对应计划条目。');
-    if (row.status === 'SUBMITTED' || row.status === 'APPROVED') {
-      throw new BadRequestException({
-        error: row.status === 'APPROVED' ? '该条目已审核通过，如需调整请调整后重新报审' : '该条目已报审待审核，不可修改',
-        code: 'PLAN_LOCKED',
-      });
+    if (row.status === 'SUBMITTED') {
+      throw new BadRequestException({ error: '该条目已报审待审核，不可修改', code: 'PLAN_LOCKED' });
     }
+    return row.status as 'DRAFT' | 'REJECTED' | 'APPROVED';
   }
 
   // ── A-49 整包报审/受理 ──

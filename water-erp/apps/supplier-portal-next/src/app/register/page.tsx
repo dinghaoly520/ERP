@@ -12,13 +12,13 @@
  * 暂存/恢复：useAutoSave('register') 草稿存于本机 localStorage——
  * 恢复只读取当前浏览器自己的草稿，天然不会恢复他机/他人填写内容。
  */
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { toast } from "sonner";
-import { Building2, ImagePlus, Paperclip, Plus, Trash2, Upload, X } from "lucide-react";
+import { Building2, Check, ImagePlus, Paperclip, Plus, Trash2, Upload, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { authApi } from "@/lib/api/auth";
 import { uploadFile } from "@/lib/api/upload";
@@ -128,7 +128,15 @@ export default function RegisterPage() {
     detailedAddress: "", registeredAddress: "", registeredCapital: "", enterpriseType: "", industry: "",
     businessScope: "", legalPerson: "", legalPersonIdCard: "", legalPersonPhone: "", companyEmail: "", companyWebsite: "",
   });
-  const [tags, setTags] = useState<string[]>(["", ""]);
+  // 业务标签：以标签库选择为主（自创标签提交后进入待审核，审核通过入池）
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagOptions, setTagOptions] = useState<{ id: string; name: string }[]>([]);
+  const [customTagInput, setCustomTagInput] = useState("");
+  // 注册手机验证码（后端必填）
+  const [registrationPhone, setRegistrationPhone] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
+  const [codeSending, setCodeSending] = useState(false);
+  const [codeCooldown, setCodeCooldown] = useState(0);
 
   /* ── 第 2-5 部分 ── */
   const [contacts, setContacts] = useState<ContactRow[]>([{ name: "", gender: "", phone: "", idCard: "", email: "", position: "", isPrimary: true }]);
@@ -143,9 +151,10 @@ export default function RegisterPage() {
   /* ── 本机草稿暂存（localStorage 仅本浏览器可读，恢复不会拿到他人内容）── */
   const draftData = useMemo(() => ({
     step,
+    registrationPhone,
     basic, tags, contacts, banks, quals, perfs,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [step, JSON.stringify(basic), JSON.stringify(tags), JSON.stringify(contacts), JSON.stringify(banks), JSON.stringify(quals), JSON.stringify(perfs)]);
+  }), [step, registrationPhone, JSON.stringify(basic), JSON.stringify(tags), JSON.stringify(contacts), JSON.stringify(banks), JSON.stringify(quals), JSON.stringify(perfs)]);
   const draft = useAutoSave("register", draftData);
   const draftTimeLabel = draft.storedAt ? dayjs(draft.storedAt).format("MM月DD日 HH:mm") : "";
   const [showRecovery, setShowRecovery] = useState(false);
@@ -160,7 +169,8 @@ export default function RegisterPage() {
     if (!d) return;
     setAccount((a) => ({ ...a, ...d.account, password: "", confirmPassword: "" }));
     setBasic((b) => ({ ...b, ...d.basic }));
-    setTags(d.tags?.length ? [...d.tags] : ["", ""]);
+    setTags(Array.isArray(d.tags) ? d.tags.filter(Boolean) : []);
+    if (d.registrationPhone) setRegistrationPhone(d.registrationPhone);
     setContacts(d.contacts?.length ? d.contacts.map((c: ContactRow) => ({ ...c })) : contacts);
     setBanks(d.banks?.length ? d.banks.map((b: BankRow) => ({ ...b })) : []);
     setQuals(d.quals?.length ? d.quals.map((q: QualRow) => ({ ...q, attachments: q.attachments ?? [] })) : quals);
@@ -171,6 +181,43 @@ export default function RegisterPage() {
     toast.success("已恢复本机草稿（密码需重新输入）");
   }
   function discardRecovery() { draft.clearDraft(); setShowRecovery(false); }
+
+  /* ── 标签库（公开接口，注册页可用）── */
+  useEffect(() => {
+    authApi.listBusinessTags().then(setTagOptions).catch(() => setTagOptions([]));
+  }, []);
+  const inTagPool = useCallback((t: string) => tagOptions.some((o) => o.name === t), [tagOptions]);
+  const customTags = tags.filter((t) => !inTagPool(t));
+  function toggleTag(name: string) {
+    setTags((prev) => (prev.includes(name) ? prev.filter((t) => t !== name) : prev.length >= 8 ? prev : [...prev, name]));
+  }
+  function addCustomTag() {
+    const t = customTagInput.trim();
+    if (!t) { toast.warning("请输入自定义标签名称"); return; }
+    if (t.length > 20) { toast.warning("标签不超过 20 个字符"); return; }
+    if (tags.includes(t)) { toast.warning("该标签已选择"); return; }
+    if (tags.length >= 8) { toast.warning("最多 8 个标签"); return; }
+    setTags((prev) => [...prev, t]);
+    setCustomTagInput("");
+  }
+
+  /* ── 注册短信验证码 ── */
+  async function sendRegCode() {
+    if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) { toast.warning("请先输入有效的注册手机号"); return; }
+    setCodeSending(true);
+    try {
+      await authApi.sendRegistrationCode(registrationPhone.trim());
+      toast.success("验证码已发送");
+      setCodeCooldown(60);
+      const timer = setInterval(() => {
+        setCodeCooldown((c) => { if (c <= 1) { clearInterval(timer); return 0; } return c - 1; });
+      }, 1000);
+    } catch (e: any) {
+      toast.error(e?.message || "验证码发送失败，请稍后重试");
+    } finally {
+      setCodeSending(false);
+    }
+  }
 
   /* ── 查重 ── */
   async function checkCreditCode() {
@@ -212,7 +259,10 @@ export default function RegisterPage() {
       else if (!/^\d{17}[\dXx]$/.test(basic.legalPersonIdCard.trim())) e.legalPersonIdCard = "请输入18位身份证号";
       if (basic.legalPersonPhone && !/^1[3-9]\d{9}$/.test(basic.legalPersonPhone.trim())) e.legalPersonPhone = "法人电话须为11位手机号";
       if (basic.companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(basic.companyEmail.trim())) e.companyEmail = "公司邮箱格式不正确";
-      if (tags.filter((t) => t.trim()).length < 2) e.tags = "请至少填写 2 个业务标签";
+      if (tags.filter((t) => t.trim()).length < 2) e.tags = "请至少选择 2 个业务标签";
+      if (!registrationPhone.trim()) e.registrationPhone = "请输入注册手机号";
+      else if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) e.registrationPhone = "注册手机号格式不正确";
+      if (!registrationCode.trim()) e.registrationCode = "请输入短信验证码";
     }
     if (step === 1) {
       const contactEmptyRow = (c: ContactRow) => !c.name.trim() && !c.gender && !c.phone.trim() && !c.idCard.trim() && !c.email.trim() && !c.position.trim();
@@ -292,6 +342,8 @@ export default function RegisterPage() {
     try {
       const ok = await register({
         username: basic.creditCode.trim(), // 用户名 = 统一社会信用代码（机构代码）
+        registrationPhone: registrationPhone.trim(),
+        registrationCode: registrationCode.trim(),
         // 账号展示名取主要联系人（第二步），邮箱同
         displayName: (contacts.find((c) => c.isPrimary && c.name.trim()) || contacts.find((c) => c.name.trim()))?.name.trim() || basic.legalPerson.trim(),
         password: account.password,
@@ -459,6 +511,16 @@ export default function RegisterPage() {
                     <input className="reg-inp" type="password" value={account.password} placeholder="不少于6位" autoComplete="new-password"
                       onChange={(e) => setAccount((a) => ({ ...a, password: e.target.value }))} />
                   ), true)}
+                  {item("registrationPhone", "注册手机号", inp(registrationPhone, setRegistrationPhone, "用于接收注册验证码", { maxLength: 11 }), true)}
+                  {item("registrationCode", "短信验证码", (
+                    <div className="reg-code-row">
+                      <input className="reg-inp" value={registrationCode} placeholder="6 位验证码" maxLength={6}
+                        onChange={(e) => setRegistrationCode(e.target.value)} />
+                      <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
+                        {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
+                      </button>
+                    </div>
+                  ), true)}
                   {item("confirmPassword", "确认密码", (
                     <input className="reg-inp" type="password" value={account.confirmPassword} placeholder="请再次输入密码" autoComplete="new-password"
                       onChange={(e) => setAccount((a) => ({ ...a, confirmPassword: e.target.value }))} />
@@ -527,25 +589,47 @@ export default function RegisterPage() {
 
                 <div className="reg-subsec">
                   <h3>业务标签</h3>
-                  <span className="reg-hint">使用2-8个词语简述并概括业务方向</span>
-                  <button type="button" className="reg-btn reg-btn--ghost-sm" disabled={tags.length >= 8} onClick={() => setTags((t) => [...t, ""])}>
-                    <Plus size={13} />添加标签
-                  </button>
+                  <span className="reg-hint">从标签库选择（2-8 个）；无合适标签可自定义，审核通过后进入标签库</span>
                 </div>
-                {tags.map((t, i) => (
-                  <div key={i} className="reg-row">
-                    <span className="reg-row-idx">{i + 1}</span>
-                    <div className="reg-row-fields">
-                      <input className="reg-inp reg-row-input" value={t} maxLength={20}
-                        placeholder={i === 0 ? "如：水泵" : i === 1 ? "如：阀门" : "请输入业务标签"}
-                        onChange={(e) => setTags((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))} />
+                <div className="reg-item">
+                  <label className="reg-label">标签库（点选）</label>
+                  <div className="reg-tagpool">
+                    {tagOptions.map((o) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        className={`reg-tagpick${tags.includes(o.name) ? " on" : ""}`}
+                        onClick={() => toggleTag(o.name)}
+                      >
+                        {o.name}
+                        {tags.includes(o.name) && <Check size={11} />}
+                      </button>
+                    ))}
+                  </div>
+                  {customTags.length > 0 && (
+                    <div className="reg-tagpool reg-tagpool--custom">
+                      {customTags.map((t) => (
+                        <span key={t} className="reg-tagpick on reg-tagpick--custom">
+                          {t}
+                          <em className="reg-tagbadge">待审核</em>
+                          <button type="button" className="reg-file-x" aria-label="移除" onClick={() => toggleTag(t)}>
+                            <X size={11} />
+                          </button>
+                        </span>
+                      ))}
                     </div>
-                    <button type="button" className="reg-row-remove" disabled={tags.length <= 2} onClick={() => setTags((arr) => arr.filter((_, j) => j !== i))} aria-label="删除标签">
-                      <Trash2 size={14} />
+                  )}
+                  <div className="reg-code-row" style={{ marginTop: 8 }}>
+                    <input className="reg-inp" value={customTagInput} maxLength={20} placeholder="没有合适的标签？输入自定义标签"
+                      onChange={(e) => setCustomTagInput(e.target.value)}
+                      onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); addCustomTag(); } }} />
+                    <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={tags.length >= 8} onClick={addCustomTag}>
+                      <Plus size={13} />添加
                     </button>
                   </div>
-                ))}
-                {errors.tags && <span className="reg-error-text">{errors.tags}</span>}
+                  <p className="reg-hint" style={{ marginTop: 6 }}>已选 {tags.length}/8 · 自定义标签提交后进入待审核，采购中心审核通过后将加入标签库</p>
+                  {errors.tags && <span className="reg-error-text">{errors.tags}</span>}
+                </div>
               </div>
             </div>
 
@@ -757,7 +841,7 @@ export default function RegisterPage() {
                   <div className="reg-ov-item"><dt>体制类型</dt><dd>{basic.enterpriseType || "—"}</dd></div>
                   <div className="reg-ov-item"><dt>法人</dt><dd>{basic.legalPerson || "—"}{basic.legalPersonPhone ? ` · ${basic.legalPersonPhone}` : ""}</dd></div>
                   <div className="reg-ov-item"><dt>公司邮箱 / 官网</dt><dd>{basic.companyEmail || "—"} / {basic.companyWebsite || "—"}</dd></div>
-                  <div className="reg-ov-item"><dt>业务标签</dt><dd>{filledTags.join("、") || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>业务标签</dt><dd>{filledTags.length ? filledTags.map((t) => (inTagPool(t) ? t : `${t}（待审核）`)).join("、") : "—"}</dd></div>
                 </dl>
               </div>
               <div className="reg-ov-sec">

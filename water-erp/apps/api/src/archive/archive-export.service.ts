@@ -73,7 +73,13 @@ export class ArchiveExportService {
       let seq = 1;
       for (const att of st.attachments) {
         const abs = path.join(uploadDir, path.basename(att.objectKey));
-        const buf = await fs.readFile(abs);
+        const buf = await fs.readFile(abs).catch(() => {
+          // H2/M6：检测通过后文件又变动（TOCTOU）——明确拒绝而非 500 或带病组包
+          throw new BadRequestException({
+            error: `阶段附件「${st.stageName}/${att.fileName}」在服务器上不可读（可能已被移动或删除），请重新运行四性检测`,
+            code: 'ARCHIVE_FILE_MISSING',
+          });
+        });
         const name = `${String(seq).padStart(2, '0')}_${att.fileName}`;
         dir.file(name, buf);
         manifest.push({
@@ -87,8 +93,9 @@ export class ArchiveExportService {
       }
     }
 
-    // ── 09 开评标接收件（回流包，MinIO） ──
+    // ── 09 开评标接收件（回流包，MinIO）── H2：取件失败收集并整体拒绝，绝不导出缺件残包 ──
     const bpIds = item.bidProjects;
+    const fetchFailures: string[] = [];
     if (bpIds.length > 0) {
       const dir = pmDir.folder('09_开评标接收件')!;
       for (const bp of bpIds) {
@@ -115,15 +122,45 @@ export class ArchiveExportService {
             });
             fileCount += 1;
           } catch (err) {
-            this.logger.warn(`回流件取件失败 ${fa.key}: ${err}`);
+            fetchFailures.push(`${fa.originalName ?? fa.key}（${err instanceof Error ? err.message : String(err)}）`);
           }
         }
       }
+    }
+    if (fetchFailures.length > 0) {
+      throw new BadRequestException({
+        error: `开评标回流件取件失败 ${fetchFailures.length} 件，已中止导出（防止缺件残包）：${fetchFailures.slice(0, 3).join('、')}${fetchFailures.length > 3 ? '…' : ''}`,
+        code: 'ARCHIVE_HANDOVER_FETCH_FAILED',
+      });
     }
 
     // ── 其他/ 目录（附录 D） ──
     const other = root.folder('其他')!;
     const attIds = item.stages.flatMap((s) => s.attachments.map((a) => a.id));
+    // §8.4 完整捕获元数据：入包但未命中范围项的附件（阶段杂件）兜底建档，
+    // 保证包内每个文件在「其他/元数据.json」都有记录
+    {
+      const existing = await this.prisma.archiveMetadata.findMany({
+        where: { attachmentId: { in: attIds.length > 0 ? attIds : ['none'] } },
+        select: { attachmentId: true },
+      });
+      const have = new Set(existing.map((m) => m.attachmentId));
+      for (const st of item.stages) {
+        for (const att of st.attachments) {
+          if (have.has(att.id)) continue;
+          await this.prisma.archiveMetadata.create({
+            data: {
+              attachmentId: att.id,
+              title: `${item.title}·${st.stageName}·${att.fileName}`,
+              responsibles: [item.requesterDepartment, item.requesterName].filter(Boolean),
+              formedAt: att.createdAt,
+              sourceModule: 'export-fallback',
+              autoCapturedAt: new Date(),
+            },
+          }).catch(() => undefined); // 兜底失败不阻断导出
+        }
+      }
+    }
     const metas = await this.prisma.archiveMetadata.findMany({
       where: { attachmentId: { in: attIds.length > 0 ? attIds : ['none'] } },
       include: { attachment: { select: { fileName: true, objectKey: true } } },
@@ -196,10 +233,12 @@ export class ArchiveExportService {
       `起止时间：${item.createdAt.toISOString().slice(0, 10)} ~ ${new Date().toISOString().slice(0, 10)}`,
     ].join('\n'));
 
+    // M3：zip 自身哈希无法写入包内（先有包后有哈希）——指纹核对指向包内固化验证清单
     other.file('移交接收登记表.txt', [
-      '移交接收登记表（双套制线下用：打印→双方签章→回传登记）',
+      '移交接收登记表（双套制线下用：打印→双方签章→扫描回传至归档管理页）',
       `项目：${item.title}（${volName}）`,
-      `电子包 sha256：{{ZIP_SHA256}}`, // 组包完成后回填
+      '本包完整性凭据：见同目录「固化验证信息.txt」（逐文件 sha256 清单，共 ' + manifest.length + ' 项）',
+      '包级 sha256 由归档系统在导出回执中记录，可在「归档管理」页面查验',
       '移交人（签字）：＿＿＿＿＿＿    接收人（签字）：＿＿＿＿＿＿',
       '移交日期：＿＿＿＿年＿＿月＿＿日',
     ].join('\n'));
@@ -215,6 +254,8 @@ export class ArchiveExportService {
       `档案数量：${manifest.length} 件电子文件`,
       `形成起止：${item.createdAt.toISOString().slice(0, 10)} ~ ${new Date().toISOString().slice(0, 10)}`,
       '',
+      '载体类型：ZIP 压缩包（在线传输/光盘刻录均可）；',
+      `载体容量：卷内文件合计约 ${Math.round(manifest.reduce((n, m) => n + m.size, 0) / 1024 / 1024)} MB（未压缩；刻录载体建议单层 DVD 4.7GB 起）；`,
       '读取环境：任意支持 ZIP 解压的软件；卷内文件为 PDF/DOCX/XLSX/图片等通用格式；',
       '「其他/固化验证信息.txt」含全部文件 sha256 指纹，可用任意校验工具复核完整性。',
     ].join('\n'));

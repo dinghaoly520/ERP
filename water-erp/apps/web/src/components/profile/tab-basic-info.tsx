@@ -284,7 +284,8 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
         {pwdSuccess && <div className="mt-3 rounded-lg px-3 py-2 text-[12px]" style={{ backgroundColor: 'oklch(0.7 0.15 155 / 0.08)', color: 'var(--success)' }}><Check size={12} className="mr-1.5 inline" />{pwdSuccess}</div>}
 
         <div className="mt-4 flex justify-end">
-          <button type="submit" form="pwd-form" disabled={pwdSubmitting} className="neu-btn-primary !h-[36px] !text-[13px]">
+          {/* 与左栏「提交审批」一致：无内容（任一项未填）时置灰，避免点击后才报「请输入…」 */}
+          <button type="submit" form="pwd-form" disabled={pwdSubmitting || !currentPassword || !newPassword || !confirmPassword} className="neu-btn-primary !h-[36px] !text-[13px]">
             {pwdSubmitting ? <><Loader2 size={14} className="animate-spin" />提交中</> : '提交审批'}
           </button>
         </div>

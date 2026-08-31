@@ -80,8 +80,10 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 
     if (contentType.includes('application/json')) {
       try {
-        const body = (await response.json()) as { message?: string | string[] };
-        const message = Array.isArray(body.message) ? body.message[0] : body.message;
+        // 后端错误两代格式：HttpExceptionFilter 规范 {error}（业务文案在此）与 Nest 默认 {message}
+        const body = (await response.json()) as { message?: string | string[]; error?: string | string[] };
+        const raw = body.error ?? body.message;
+        const message = Array.isArray(raw) ? raw[0] : raw;
         throw new Error(message || fallbackMessage);
       } catch (error) {
         throw new Error(parseErrorMessage(error) || fallbackMessage);
@@ -404,7 +406,7 @@ export async function createProjectManagementItem(fields: InitiationFields) {
 export async function updateProjectStage(
   projectId: string,
   stageKey: ProjectWorkflowStageKey,
-  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; note?: string },
+  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; note?: string; confirmedThreshold?: number },
 ) {
   const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}`, {
     method: 'PATCH',

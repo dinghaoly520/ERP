@@ -4,19 +4,21 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig } from '@/lib/api/supplier';
+import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual } from '@/lib/api/supplier';
 import type { TagVocabularyItem, RsvpListResult, RsvpListItem } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
-import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
+import { analyzeProjectManagementItem, extractTenderFields, updateProjectStage } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, ExternalLink, MapPin, Phone, Mail, User, Upload, Loader2, FileText, Calendar } from 'lucide-react';
+import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, ExternalLink, MapPin, Phone, Mail, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
+import { InvitationLetterModal } from '@/components/supplier/invitation-letter-modal';
+import { QualificationAnalysisPanel } from '@/components/supplier/qualification-analysis-panel';
 import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
 import { StepTrack } from '@/components/step-track';
@@ -203,10 +205,13 @@ export function SupplierSelectionPage({
   hideHeader,
   defaultProjectTitle,
   project,
+  onAttachmentUploaded,
 }: {
   hideHeader?: boolean;
   defaultProjectTitle?: string;
   project?: ProjectManagementItem | null;
+  /** 弹窗内产生项目阶段附件（如采购邀请书挂档）后回调：父级据此即时刷新项目数据，无需刷新页面 */
+  onAttachmentUploaded?: () => void;
 }) {
   const router = useRouter();
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
@@ -394,6 +399,8 @@ export function SupplierSelectionPage({
   // 附件选择步骤状态
   const [attachFiles, setAttachFiles] = useState<{ id: string; name: string; size: number }[]>([]);
   const [attachUploading, setAttachUploading] = useState(false);
+  // 采购邀请书（AI 起草 → 导出 Word → 自动加入附件）
+  const [invitationOpen, setInvitationOpen] = useState(false);
   // 引用采购文件（勾选项目各阶段已上传的附件）
   const [refFileKeys, setRefFileKeys] = useState<Set<string>>(new Set());
   // 采购文件下载方式：免费 / 解密密码 / 付费
@@ -496,6 +503,13 @@ export function SupplierSelectionPage({
   const [confirmations, setConfirmations] = useState<Map<string, 'pending' | 'confirmed' | 'declined'>>(new Map());
   const [notifyNotFound, setNotifyNotFound] = useState(0); // 第 5 步：通知未找到关联账户的供应商数
   const [completed, setCompleted] = useState(false); // 第 5 步：本批次选取是否已确认完成
+  // 核定最少供应商数量：确认参加回执达到该值即可在项目详情标记「供应商邀请」阶段完成
+  //（默认 3；lazy init 从 localStorage 恢复用户设置——SSR 预渲染时 window 不存在须守卫）
+  const [confirmThreshold, setConfirmThreshold] = useState(() => {
+    if (typeof window === 'undefined') return 3;
+    const saved = Number(window.localStorage.getItem('supplier-confirm-threshold'));
+    return saved >= 1 && saved <= 50 ? saved : 3;
+  });
 
   // 选取方式：AI 智能选取 / 手动选取
   const [selectionMode, setSelectionMode] = useState<'ai' | 'manual'>('ai');
@@ -1541,13 +1555,18 @@ export function SupplierSelectionPage({
   };
 
   // 第 5 步：循环切换供应商确认状态（待确认 → 已确认 → 已放弃 → 待确认）
+  // 联动落库（manual-mark）：手动确认写入 InvitationRsvp，与回执同源计数——
+  // 否则确认页显示「N 已确认」而阶段完成的后端回执核验数不到（口径脱节）
   const cycleConfirmation = (sid: string) => {
-    setConfirmations(prev => {
-      const n = new Map(prev);
-      const cur = n.get(sid) || 'pending';
-      n.set(sid, cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending');
-      return n;
-    });
+    const cur = confirmations.get(sid) || 'pending';
+    const next: 'pending' | 'confirmed' | 'declined' =
+      cur === 'pending' ? 'confirmed' : cur === 'confirmed' ? 'declined' : 'pending';
+    setConfirmations(prev => new Map(prev).set(sid, next));
+    const pid = projectId || (project as any)?.id;
+    if (pid) {
+      void markRsvpManual(pid, sid, next === 'confirmed' ? 'ACCEPTED' : next === 'declined' ? 'DECLINED' : 'PENDING')
+        .catch(() => { toast.error('确认状态未能同步到回执记录，请重试'); });
+    }
   };
   // 确认状态派生统计
   const confirmedCount = [...confirmations.values()].filter(s => s === 'confirmed').length;
@@ -1586,7 +1605,22 @@ export function SupplierSelectionPage({
               : <>匹配 <span style={{ color: scoreVar(r.matchScore) }} className="font-bold">{r.matchScore}</span></>
             }
             {contact ? ` · ${contact.name} ${contact.phone}` : ''}
+            {rsvpItem?.respondedAt && ` · 回执于 ${new Date(rsvpItem.respondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
           </div>
+          {/* 供应商回执备注（回执页「备注」填写内容；放弃时常见档期冲突/资质说明等） */}
+          {rsvpItem?.note && (
+            <div className="mt-1 flex items-start gap-1.5 rounded-[6px] px-2 py-1 max-w-full"
+              title={rsvpItem.note}
+              style={{
+                background: rsvpItem.status === 'DECLINED' ? 'color-mix(in oklch, var(--danger) 7%, transparent)' : 'color-mix(in oklch, var(--accent) 6%, transparent)',
+                boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)',
+              }}>
+              <MessageSquare size={10} className={`mt-[3px] shrink-0 ${rsvpItem.status === 'DECLINED' ? 'text-[var(--danger)]' : 'text-[var(--accent)]'}`} />
+              <span className="text-[10px] leading-4 truncate text-[var(--foreground)]">
+                <span className="font-bold text-[var(--muted-foreground)]">回执备注：</span>{rsvpItem.note}
+              </span>
+            </div>
+          )}
         </div>
         {badge && <span className="text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0" style={{ background: isOriginal ? 'color-mix(in oklch, var(--accent) 12%, transparent)' : 'color-mix(in oklch, var(--success) 12%, transparent)', color: isOriginal ? 'var(--accent-strong)' : 'var(--success)' }}>{roundLabel ? `${badge}${roundLabel}` : badge}</span>}
         <button onClick={onToggle} title="点击切换确认状态"
@@ -2524,6 +2558,11 @@ export function SupplierSelectionPage({
               <div className="flex items-center gap-2">
                 <Upload size={15} className="text-[var(--accent)]" />
                 <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">上传附件</h2>
+                <button type="button" onClick={() => setInvitationOpen(true)} disabled={!projectId && !(project as any)?.id}
+                  className="neu-btn-xs gap-1.5 text-[var(--accent)]" title={projectId || project?.id ? 'AI 起草采购邀请书并导出 Word（自动加入附件）' : '请先选择项目'}>
+                  <FileSignature size={13} />
+                  采购邀请书
+                </button>
                 {attachFiles.length > 0 && <span className="text-[11px] tabular-nums font-bold text-[var(--accent)] ml-auto">{attachFiles.length} 个</span>}
               </div>
               <p className="text-xs text-[var(--muted-foreground)]">上传谈判所需文件，与引用文件一并交付供应商。</p>
@@ -2645,7 +2684,7 @@ export function SupplierSelectionPage({
           ) : notified ? (
             <>
               <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-                <div className="flex items-start gap-4">
+                <div className="flex items-center gap-4">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px]" style={{ background: 'color-mix(in oklch, var(--success) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
                     <ShieldCheck size={22} className="text-[var(--success)]" />
                   </div>
@@ -2672,6 +2711,18 @@ export function SupplierSelectionPage({
                         {declinedCount > 0 && <span className="font-bold text-[var(--danger)]">{declinedCount} 已放弃</span>}
                       </div>
                     </div>
+                  </div>
+                  {/* 核定最少供应商数量：回执确认达到该值即可在项目详情标记阶段完成（详情页按钮读取同一设置） */}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-[11px] font-bold text-[var(--foreground)] whitespace-nowrap">核定最少供应商数量</span>
+                    <input type="number" min={1} max={50} value={confirmThreshold}
+                      onChange={(e) => {
+                        const v = Math.min(Math.max(Number(e.target.value) || 3, 1), 50);
+                        setConfirmThreshold(v);
+                        localStorage.setItem('supplier-confirm-threshold', String(v));
+                      }}
+                      className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
+                      title="供应商回执确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />
                   </div>
                 </div>
 
@@ -3285,7 +3336,7 @@ export function SupplierSelectionPage({
       {step === finalConfirmStep && isRerun && rerunNotified && currentRerunRound === rerunRound && (
         <div className="space-y-5">
           <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-            <div className="flex items-start gap-4">
+            <div className="flex items-center gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px]" style={{ background: 'color-mix(in oklch, var(--success) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
                 <ShieldCheck size={22} className="text-[var(--success)]" />
               </div>
@@ -3312,6 +3363,18 @@ export function SupplierSelectionPage({
                     {allConfirmationStats.declined > 0 && <span className="font-bold text-[var(--danger)]">{allConfirmationStats.declined} 已放弃</span>}
                   </div>
                 </div>
+              </div>
+              {/* 核定最少供应商数量：正选+补选合计确认达到该值即可在项目详情标记阶段完成 */}
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-[11px] font-bold text-[var(--foreground)] whitespace-nowrap">核定最少供应商数量</span>
+                <input type="number" min={1} max={50} value={confirmThreshold}
+                  onChange={(e) => {
+                    const v = Math.min(Math.max(Number(e.target.value) || 3, 1), 50);
+                    setConfirmThreshold(v);
+                    localStorage.setItem('supplier-confirm-threshold', String(v));
+                  }}
+                  className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
+                  title="全部供应商（正选+补选）确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />
               </div>
             </div>
 
@@ -3399,78 +3462,234 @@ export function SupplierSelectionPage({
       {detailSupplier && (
         <div className="fixed inset-0 z-[750] flex items-center justify-center" onClick={() => setDetailSupplier(null)}>
           <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.45)', backdropFilter: 'blur(4px)' }} />
-          <div className="relative z-10 mx-4 w-full max-w-[520px] max-h-[85vh] overflow-y-auto rounded-[24px] p-6"
+          <div className="relative z-10 mx-4 w-full max-w-[min(1100px,94vw)] max-h-[90vh] rounded-[24px] p-6 flex flex-col"
             style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.96), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 16px oklch(0.46 0.07 258 / 0.2), -3px -3px 10px oklch(1 0 0 / 0.92)' }}
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-3 shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: 'color-mix(in oklch, var(--accent-soft) 45%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)' }}>
                   <Building2 size={16} className="text-[var(--accent)]" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-[var(--foreground)] truncate">{detailSupplier.name}</div>
-                  <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">供应商详情</div>
+                  <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">供应商详情 · 左侧档案 / 右侧资格符合性分析</div>
                 </div>
               </div>
-              <button onClick={() => setDetailSupplier(null)} className="neu-btn-soft !p-2"><X size={16} /></button>
+              <button onClick={() => setDetailSupplier(null)} className="neu-btn-soft !p-2 shrink-0"><X size={16} /></button>
             </div>
 
             {detailLoading ? (
               <div className="py-12 flex items-center justify-center"><RefreshCw size={22} className="animate-spin text-[var(--accent)]" /></div>
             ) : detailData ? (
-              <div className="space-y-4">
-                {/* 基本信息 */}
-                <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
-                  <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">基本信息</h4>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
-                    {detailData.creditCode && <div><span className="text-[var(--muted-foreground)]">信用代码</span><p className="font-semibold text-[var(--foreground)]">{detailData.creditCode}</p></div>}
-                    {detailData.legalPerson && <div><span className="text-[var(--muted-foreground)]">法定代表人</span><p className="font-semibold text-[var(--foreground)]">{detailData.legalPerson}</p></div>}
-                    {detailData.enterpriseType && <div><span className="text-[var(--muted-foreground)]">企业类型</span><p className="font-semibold text-[var(--foreground)]">{normalizeEnterpriseType(detailData.enterpriseType)}</p></div>}
-                    {detailData.registeredCapital && <div><span className="text-[var(--muted-foreground)]">注册资本</span><p className="font-semibold text-[var(--foreground)]">{detailData.registeredCapital}</p></div>}
-                    {detailData.establishedDate && <div><span className="text-[var(--muted-foreground)]">成立日期</span><p className="font-semibold text-[var(--foreground)]">{detailData.establishedDate.slice(0, 10)}</p></div>}
+              <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,400px)] gap-5 overflow-hidden">
+                {/* ── 左栏：供应商档案 ── */}
+                <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+                  {/* 基本信息（全字段） */}
+                  <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">基本信息</h4>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
+                      {[
+                        ['供应商编号', detailData.supplierNo],
+                        ['统一社会信用代码', detailData.creditCode],
+                        ['主体编码', detailData.subjectCode],
+                        ['企业类型', detailData.enterpriseType ? normalizeEnterpriseType(detailData.enterpriseType) : null],
+                        ['法定代表人', detailData.legalPerson],
+                        ['法人电话', detailData.legalPersonPhone],
+                        ['注册资本', detailData.registeredCapital],
+                        ['所属行业', detailData.industry],
+                        ['所属区域', detailData.region],
+                        ['国别', detailData.country],
+                        ['机构代码', detailData.organizationCode],
+                        ['公司邮箱', detailData.companyEmail],
+                        ['公司官网', detailData.companyWebsite],
+                        ['注册地址', detailData.registeredAddress],
+                        ['详细地址', detailData.detailedAddress],
+                        ['入库时间', detailData.createdAt?.slice(0, 10)],
+                      ].filter(([, v]) => v !== null && v !== undefined && v !== '').map(([label, value]) => (
+                        <div key={label as string}><span className="text-[var(--muted-foreground)]">{label}</span><p className="font-semibold text-[var(--foreground)] break-all">{String(value)}</p></div>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {detailData.status && (
+                        <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-bold"
+                          style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}>
+                          状态：{String(detailData.status) === 'APPROVED' ? '已入库' : String(detailData.status) === 'PENDING' ? '待审核' : String(detailData.status) === 'REJECTED' ? '已拒绝' : String(detailData.status)}
+                        </span>
+                      )}
+                      {detailData.classification?.name && (
+                        <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 8%, transparent)', color: 'var(--muted-foreground)' }}>分类：{detailData.classification.name}</span>
+                      )}
+                      {detailData.isTemporary && (
+                        <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }}>
+                          临时供应商{detailData.temporaryExpiresAt ? ` · ${detailData.temporaryExpiresAt.slice(0, 10)} 到期` : ''}
+                        </span>
+                      )}
+                      {detailData.tags?.map((t: string) => (
+                        <span key={t} className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-semibold" style={{ background: 'color-mix(in oklch, var(--accent) 7%, transparent)', color: 'var(--accent)' }}>{t}</span>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* 经营范围（全文） */}
                   {detailData.businessScope && (
-                    <div>
-                      <span className="text-[var(--muted-foreground)] text-[10px]">经营范围</span>
-                      <p className="text-[11px] leading-relaxed text-[var(--foreground)] mt-0.5">{detailData.businessScope.slice(0, 200)}{detailData.businessScope.length > 200 ? '…' : ''}</p>
+                    <div className="rounded-[16px] p-4 space-y-1.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">经营范围</h4>
+                      <p className="text-[11px] leading-relaxed text-[var(--foreground)] max-h-[110px] overflow-y-auto whitespace-pre-wrap">{detailData.businessScope}</p>
+                    </div>
+                  )}
+
+                  {/* 联系人（全部） */}
+                  {detailData.contacts?.length > 0 && (
+                    <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">联系人（{detailData.contacts.length}）</h4>
+                      <div className="space-y-1.5">
+                        {detailData.contacts.map((c: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-[11px] flex-wrap">
+                            <User size={12} className="text-[var(--muted-foreground)] shrink-0" />
+                            <span className="font-semibold text-[var(--foreground)]">{c.name}</span>
+                            {c.personnelType && <span className="text-[var(--muted-foreground)]">· {c.personnelType}</span>}
+                            {c.position && <span className="text-[var(--muted-foreground)]">· {c.position}</span>}
+                            {c.phone && <span className="text-[var(--muted-foreground)]">· {c.phone}</span>}
+                            {c.email && <span className="text-[var(--muted-foreground)]">· {c.email}</span>}
+                            {c.certTitle && <span className="text-[var(--accent)]">· {c.certTitle}</span>}
+                            {c.isPrimary && <span className="ml-0.5 text-[10px] font-bold text-[var(--accent)]">主联系人</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 资质证书（全部，证书文件可点开） */}
+                  {detailData.qualifications?.length > 0 && (
+                    <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">资质证书（{detailData.qualifications.length}）· 点击文件名查看原件</h4>
+                      <div className="space-y-2">
+                        {detailData.qualifications.map((q: any, i: number) => {
+                          const expired = q.validTo && new Date(q.validTo) < new Date();
+                          const files = [
+                            ...(q.fileUrl ? [{ url: q.fileUrl, name: q.name }] : []),
+                            ...(Array.isArray(q.attachments) ? q.attachments : []),
+                          ];
+                          return (
+                            <div key={i} className="rounded-[10px] px-3 py-2" style={{ background: 'oklch(1 0 0 / 0.4)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.45)' }}>
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="min-w-0 flex-1 truncate text-[var(--foreground)] font-semibold">
+                                  {q.name}{q.type && q.type !== q.name ? `（${q.type}）` : ''}
+                                </span>
+                                <span className={`shrink-0 tabular-nums ${expired ? 'text-[var(--danger)] font-bold' : 'text-[var(--muted-foreground)]'}`}>
+                                  {q.validTo ? `有效期至 ${q.validTo.slice(0, 10)}${expired ? '（已过期）' : ''}` : q.validFrom ? '长期有效' : ''}
+                                </span>
+                              </div>
+                              {files.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                  {files.map((f: any, j: number) => (
+                                    <button key={j} type="button" onClick={() => window.open(f.url, '_blank')}
+                                      className="inline-flex max-w-full items-center gap-1 rounded-[6px] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)] transition hover:brightness-95"
+                                      style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
+                                      title={f.name}>
+                                      <FileText size={10} className="shrink-0" />
+                                      <span className="truncate">{f.name || '证书文件'}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 业绩记录（证明文件可点开） */}
+                  {detailData.performances?.length > 0 && (
+                    <div className="rounded-[16px] p-4 space-y-2" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">业绩与奖惩（{detailData.performances.length}）· 点击文件名查看证明</h4>
+                      {detailData.performances.map((p: any, i: number) => {
+                        const proofs = Array.isArray(p.proofFiles) ? p.proofFiles : [];
+                        return (
+                          <div key={i} className="rounded-[10px] px-3 py-2" style={{ background: 'oklch(1 0 0 / 0.4)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.45)' }}>
+                            <div className="flex items-center gap-2 text-[11px] flex-wrap">
+                              <span className={`inline-flex items-center rounded-[5px] px-1.5 py-px text-[9px] font-bold shrink-0 ${p.recordType === 'punishment' ? 'text-[var(--danger)]' : p.recordType === 'reward' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}
+                                style={{ background: p.recordType === 'punishment' ? 'color-mix(in oklch, var(--danger) 10%, transparent)' : p.recordType === 'reward' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>
+                                {p.recordType === 'reward' ? '奖励' : p.recordType === 'punishment' ? '惩戒' : '业绩'}
+                              </span>
+                              <span className="font-semibold text-[var(--foreground)]">{p.projectName}</span>
+                              {p.clientName && <span className="text-[var(--muted-foreground)]">· 业主 {p.clientName}</span>}
+                              {p.contractAmount && <span className="text-[var(--muted-foreground)]">· {p.contractAmount}</span>}
+                              {p.signDate && <span className="text-[var(--muted-foreground)] tabular-nums">· {p.signDate.slice(0, 10)}</span>}
+                            </div>
+                            {proofs.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {proofs.map((f: any, j: number) => (
+                                  <button key={j} type="button" onClick={() => window.open(f.url, '_blank')}
+                                    className="inline-flex max-w-full items-center gap-1 rounded-[6px] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)] transition hover:brightness-95"
+                                    style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
+                                    title={f.name}>
+                                    <FileText size={10} className="shrink-0" />
+                                    <span className="truncate">{f.name || '证明文件'}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* 银行账户 */}
+                  {detailData.bankAccounts?.length > 0 && (
+                    <div className="rounded-[16px] p-4 space-y-2" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">银行账户（{detailData.bankAccounts.length}）</h4>
+                      {detailData.bankAccounts.map((b: any, i: number) => (
+                        <div key={i} className="text-[11px] text-[var(--foreground)]">
+                          <span className="font-semibold">{b.accountName}</span>
+                          <span className="text-[var(--muted-foreground)]"> · {b.bankName}{b.bankBranch ? b.bankBranch : ''} · {b.accountNo}</span>
+                          {b.isDefault && <span className="ml-1 text-[10px] font-bold text-[var(--accent)]">默认</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 历史评价 */}
+                  {detailData.evaluations?.length > 0 && (
+                    <div className="rounded-[16px] p-4 space-y-2" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">历史评价（近 {detailData.evaluations.length} 条）</h4>
+                      {detailData.evaluations.map((e: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2 text-[11px]">
+                          <span className="inline-flex items-center rounded-[5px] px-1.5 py-px text-[9px] font-bold text-[var(--accent)] shrink-0 mt-0.5" style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>{e.finalGrade ?? '—'}</span>
+                          <div className="min-w-0">
+                            <span className="text-[var(--foreground)]">{e.comment || '（无评语）'}</span>
+                            {e.createdAt && <span className="ml-1.5 text-[var(--muted-foreground)] tabular-nums">{e.createdAt.slice(0, 10)}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 资料变更记录 */}
+                  {detailData.changeRecords?.length > 0 && (
+                    <div className="rounded-[16px] p-4 space-y-1.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">资料变更记录（近 {detailData.changeRecords.length} 条）</h4>
+                      {detailData.changeRecords.map((c: any, i: number) => (
+                        <div key={i} className="text-[11px] text-[var(--muted-foreground)]">
+                          <span className="font-semibold text-[var(--foreground)]">{c.fieldLabel || c.fieldName}</span>：{c.oldValue || '（空）'} → {c.newValue || '（空）'}
+                          <span className="ml-1.5">{c.status === 'APPROVED' ? '已通过' : c.status === 'REJECTED' ? '已拒绝' : '待审核'}</span>
+                          {c.createdAt && <span className="tabular-nums"> · {c.createdAt.slice(0, 10)}</span>}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                {/* 联系人 */}
-                {(detailData.contacts?.length > 0 || detailData.address || detailData.phone || detailData.email) && (
-                  <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
-                    <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">联系信息</h4>
-                    <div className="space-y-1.5 text-[11px]">
-                      {detailData.address && <div className="flex items-start gap-2"><MapPin size={12} className="text-[var(--muted-foreground)] mt-0.5 shrink-0" /><span className="text-[var(--foreground)]">{detailData.address}</span></div>}
-                      {detailData.phone && <div className="flex items-center gap-2"><Phone size={12} className="text-[var(--muted-foreground)] shrink-0" /><span className="text-[var(--foreground)]">{detailData.phone}</span></div>}
-                      {detailData.email && <div className="flex items-center gap-2"><Mail size={12} className="text-[var(--muted-foreground)] shrink-0" /><span className="text-[var(--foreground)]">{detailData.email}</span></div>}
-                      {detailData.contacts?.map((c: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2"><User size={12} className="text-[var(--muted-foreground)] shrink-0" /><span className="text-[var(--foreground)]">{c.name}{c.phone ? ` · ${c.phone}` : ''}{c.isPrimary ? <span className="ml-1 text-[10px] font-bold text-[var(--accent)]">主联系人</span> : ''}</span></div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 评价 / 资料完整度 */}
-                {detailData.completeness !== undefined && (
-                  <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
-                    <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">资质概览</h4>
-                    <div className="flex flex-wrap gap-2 text-[11px]">
-                      {detailData.completeness !== undefined && <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 font-semibold text-[var(--muted-foreground)]" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 8%, transparent)' }}>资料完整度 {detailData.completeness}%</span>}
-                    </div>
-                    {detailData.qualifications?.length > 0 && (
-                      <div className="space-y-1 mt-2">
-                        {detailData.qualifications.slice(0, 5).map((q: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between text-[10px] text-[var(--muted-foreground)]">
-                            <span>{q.name || q.fileName}</span>
-                            <span>{q.expiryDate ? `有效期至 ${q.expiryDate.slice(0, 10)}` : ''}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* ── 右栏：资格符合性分析（打开详情即自动分析） ── */}
+                <div className="min-h-0">
+                  <QualificationAnalysisPanel
+                    supplierId={detailSupplier.supplierId}
+                    supplierName={detailSupplier.name}
+                    projectId={projectId || (project as any)?.id || ''}
+                  />
+                </div>
               </div>
             ) : (
               <div className="py-10 text-center text-sm text-[var(--muted-foreground)]">无法加载供应商详情</div>
@@ -3524,6 +3743,23 @@ export function SupplierSelectionPage({
           </div>
         </Modal>
       )}
+
+      {/* 采购邀请书（附件步骤）：AI 起草 → 导出 Word → 自动加入附件清单 */}
+      <InvitationLetterModal
+        open={invitationOpen}
+        projectId={projectId || (project as any)?.id || ''}
+        pmiId={project?.id}
+        times={{
+          acquireStart: acquireStartDate ? `${acquireStartDate}T${acquireStartTime || '00:00'}:00` : undefined,
+          acquireEnd: acquireEndDate ? `${acquireEndDate}T${acquireEndTime || '23:59'}:00` : undefined,
+          bidAt: bidDate ? `${bidDate}T${bidTime || '00:00'}:00` : undefined,
+        }}
+        onClose={() => setInvitationOpen(false)}
+        onExported={(f) => {
+          setAttachFiles(prev => (prev.some(x => x.id === f.id) ? prev : [...prev, f]));
+          onAttachmentUploaded?.();
+        }}
+      />
 
     </div>
   );

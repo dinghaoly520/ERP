@@ -15,6 +15,7 @@ import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
+import { BusinessTagReview } from '@/components/supplier/business-tag-review';
 import { Building2, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2 } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
@@ -182,6 +183,9 @@ export default function SupplierRepositoryPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* 业务标签审核（供应商注册自创标签入池） */}
+      <BusinessTagReview onChanged={() => { loadData?.(); }} />
+
       {/* ══════ page-hero ══════ */}
       <div className="page-hero">
         <div className="page-hero__row">

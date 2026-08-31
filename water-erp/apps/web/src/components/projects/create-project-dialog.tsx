@@ -74,11 +74,6 @@ export function CreateProjectDialog({
     budgetAmount: 0,
     projectReason: '',
     supplierRequirements: '',
-    implementerName: '',
-    contractPricingType: '',
-    sectionPlan: '',
-    activitySchedule: '',
-    riskMeasures: '',
     initiationDate: '',
     procurementOrganizationForm: '',
     isAnnualBudget: false,
@@ -192,11 +187,6 @@ export function CreateProjectDialog({
       budgetAmount: 0,
       projectReason: '',
       supplierRequirements: '',
-      implementerName: '',
-      contractPricingType: '',
-      sectionPlan: '',
-      activitySchedule: '',
-      riskMeasures: '',
       initiationDate: '',
       procurementOrganizationForm: '',
       isAnnualBudget: false,
@@ -297,12 +287,6 @@ export function CreateProjectDialog({
         budgetAmount: result.fields.budgetAmount || 0,
         projectReason: result.fields.projectReason || '',
         supplierRequirements: result.fields.supplierRequirements || '',
-        // B1：AI 提取不含采购方案新要素——保留已填值（提取不清空）
-        implementerName: initiationFields.implementerName || '',
-        contractPricingType: initiationFields.contractPricingType || '',
-        sectionPlan: initiationFields.sectionPlan || '',
-        activitySchedule: initiationFields.activitySchedule || '',
-        riskMeasures: initiationFields.riskMeasures || '',
         initiationDate: result.fields.initiationDate || '',
         procurementOrganizationForm: result.fields.procurementOrganizationForm || '',
         isAnnualBudget: result.fields.isAnnualBudget || false,
@@ -402,11 +386,6 @@ export function CreateProjectDialog({
         budgetAmount: mergedFields.budgetAmount || 0,
         projectReason: mergedFields.projectReason || '',
         supplierRequirements: mergedFields.supplierRequirements || '',
-        implementerName: initiationFields.implementerName || undefined,
-        contractPricingType: initiationFields.contractPricingType || undefined,
-        sectionPlan: initiationFields.sectionPlan || undefined,
-        activitySchedule: initiationFields.activitySchedule || undefined,
-        riskMeasures: initiationFields.riskMeasures || undefined,
         isAnnualBudget: initiationFields.isAnnualBudget || false,
         hasProcurementDemand: !!demandAttachment,
         demandAttachment: demandAttachment ?? undefined,
@@ -1108,42 +1087,6 @@ export function CreateProjectDialog({
           />
         </div>
       </div>
-
-      {/* B1（GB/T 43711 7.2.1.2）：采购方案其余要素——选填，补齐规范采购方案构成 */}
-      <div className="rounded-[14px] px-4 py-3.5" style={{ background: "oklch(1 0 0 / 0.32)", boxShadow: "inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)" }}>
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">采购方案要素</span>
-          <span className="text-[10px] text-[var(--muted-foreground)]">GB/T 43711 7.2.1.2 · 选填</span>
-        </div>
-        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-[color:var(--foreground)]">采购实施人</label>
-            <input type="text" value={initiationFields.implementerName || ''} onChange={(e) => setInitiationFields((prev) => ({ ...prev, implementerName: e.target.value }))} placeholder="授权/委托实施采购的部门" className="workbench-input w-full" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-[color:var(--foreground)]">合同计价类型</label>
-            <select value={initiationFields.contractPricingType || ''} onChange={(e) => setInitiationFields((prev) => ({ ...prev, contractPricingType: e.target.value }))} className="workbench-input w-full">
-              <option value="">未定</option>
-              <option value="总价合同">总价合同</option>
-              <option value="单价合同">单价合同</option>
-              <option value="成本加酬金">成本加酬金</option>
-              <option value="框架协议计价">框架协议计价</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-[color:var(--foreground)]">标段（标包/份额）划分</label>
-            <input type="text" value={initiationFields.sectionPlan || ''} onChange={(e) => setInitiationFields((prev) => ({ ...prev, sectionPlan: e.target.value }))} placeholder="不划分 / 分包说明" className="workbench-input w-full" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-[color:var(--foreground)]">采购活动时间安排</label>
-            <input type="text" value={initiationFields.activitySchedule || ''} onChange={(e) => setInitiationFields((prev) => ({ ...prev, activitySchedule: e.target.value }))} placeholder="如：公告5日+评审3日" className="workbench-input w-full" />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <label className="text-xs font-semibold text-[color:var(--foreground)]">风险管控措施</label>
-            <input type="text" value={initiationFields.riskMeasures || ''} onChange={(e) => setInitiationFields((prev) => ({ ...prev, riskMeasures: e.target.value }))} placeholder="履约/质量/供应风险及对策" className="workbench-input w-full" />
-          </div>
-        </div>
-      </div>
     </div>
   );
 
@@ -1205,11 +1148,6 @@ export function CreateProjectDialog({
                       budgetAmount: 0,
                       projectReason: '',
                       supplierRequirements: '',
-                      implementerName: '',
-                      contractPricingType: '',
-                      sectionPlan: '',
-                      activitySchedule: '',
-                      riskMeasures: '',
                       initiationDate: '',
                       procurementOrganizationForm: '',
                       isAnnualBudget: false,
@@ -1305,7 +1243,8 @@ export function CreateProjectDialog({
         </div>
       </div>
 
-      <LoginErrorDialog isOpen={Boolean(errorMessage)} message={errorMessage ?? ''} onClose={() => setErrorMessage(null)} />
+      <LoginErrorDialog
+        title="操作失败" isOpen={Boolean(errorMessage)} message={errorMessage ?? ''} onClose={() => setErrorMessage(null)} />
     </>
   );
 }

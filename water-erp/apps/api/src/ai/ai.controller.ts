@@ -5,6 +5,8 @@ import { Public } from '../common/decorators/public.decorator';
 import { AiService } from './ai.service';
 import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysis.service';
 import { SupplierPortraitAnalysisService } from './supplier-portrait-analysis.service';
+import { SupplierQualificationMatchService } from './supplier-qualification-match.service';
+import { InvitationLetterService } from './invitation-letter.service';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import { DashboardAnalysisDto } from './dto/dashboard-analysis.dto';
 import { ProcurementAnalysisDto } from './dto/procurement-analysis.dto';
@@ -22,6 +24,8 @@ export class AiController {
     private aiService: AiService,
     private supplierEvalAnalysis: SupplierEvaluationAnalysisService,
     private supplierPortraitAnalysis: SupplierPortraitAnalysisService,
+    private qualificationMatch: SupplierQualificationMatchService,
+    private invitationLetter: InvitationLetterService,
   ) {}
 
   @Public()
@@ -279,5 +283,46 @@ export class AiController {
   @Roles('admin', 'leader', 'staff')
   async shareShortlist(@Body() body: ShareShortlistDto, @Request() req: any) {
     return this.aiService.shareShortlist(body, { id: req.user?.sub, displayName: req.user?.displayName });
+  }
+
+  // ── 采购邀请书（供应商邀请·附件步骤：AI 起草九项 → 排版导出 Word） ──
+
+  @Post('supplier-qualification-match')
+  @ApiOperation({ summary: '供应商资格符合性分析：对照本项目资格条件逐条判定（LLM 不可用回退结构化粗判）' })
+  @Roles('admin', 'leader', 'staff')
+  async supplierQualificationMatch(@Body() body: { supplierId: string; projectId: string }) {
+    if (!body?.supplierId || !body?.projectId) throw new BadRequestException('supplierId 与 projectId 必填');
+    return this.qualificationMatch.analyze(body.supplierId, body.projectId);
+  }
+
+  @Post('invitation-letter/generate')
+  @ApiOperation({ summary: 'AI 根据项目已知信息起草采购邀请书公文体正文（LLM 不可用时回退结构化成稿）' })
+  @Roles('admin', 'leader', 'staff')
+  async generateInvitationLetter(@Body() body: {
+    projectId: string;
+    acquireStart?: string;
+    acquireEnd?: string;
+    bidAt?: string;
+  }) {
+    if (!body?.projectId) throw new BadRequestException('projectId 必填');
+    return this.invitationLetter.generate(body.projectId, {
+      acquireStart: body.acquireStart,
+      acquireEnd: body.acquireEnd,
+      bidAt: body.bidAt,
+    });
+  }
+
+  @Post('invitation-letter/export')
+  @ApiOperation({ summary: '公文排版导出采购邀请书 Word（落 MinIO 建 FileAsset，可直接加入附件清单）' })
+  @Roles('admin', 'leader', 'staff')
+  async exportInvitationLetter(@Body() body: {
+    paragraphs: string[];
+    project: { name: string; code: string };
+  }, @Request() req: any) {
+    return this.invitationLetter.exportDocx({
+      paragraphs: body?.paragraphs ?? [],
+      project: body?.project,
+      uploaderId: req.user?.sub,
+    });
   }
 }

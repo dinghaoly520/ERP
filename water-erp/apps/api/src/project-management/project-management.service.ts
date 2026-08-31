@@ -1036,6 +1036,24 @@ export class ProjectManagementService {
 
     // For TENDER_DOCUMENT stage, extract project overview and bid opening time
     if (stageKey === 'TENDER_DOCUMENT') {
+      // 上传即同步「采购文件获取时间」（2026-08-27 拍板）：文件可获取的时刻先落账，
+      // 时间轴（A-204）立即可见不再"未登记"；随后 AI 从文件提取到更精确的获取时段会覆盖此值
+      try {
+        const cur = await this.prisma.projectManagementItem.findUnique({
+          where: { id: projectId },
+          select: { documentAcquireTime: true },
+        });
+        if (!cur?.documentAcquireTime?.trim()) {
+          const now = new Date();
+          const zh = `${now.getFullYear()}年${String(now.getMonth() + 1).padStart(2, '0')}月${String(now.getDate()).padStart(2, '0')}日${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          await this.prisma.projectManagementItem.update({
+            where: { id: projectId },
+            data: { documentAcquireTime: zh },
+          });
+        }
+      } catch {
+        /* 同步失败不阻断上传 */
+      }
       // 仅从"采购文件/招标文件"提取，审批表/公告/合同等附件不提取（避免覆盖已有信息）
       const tdFileName = decodedFileName;
       const isTenderDocFile = /采购文件|招标文件/.test(tdFileName) && !/审批表|公告|合同|通知书|需求|立项/.test(tdFileName);
@@ -1068,6 +1086,36 @@ export class ProjectManagementService {
             where: { id: projectId },
             data: { bidOpeningTime },
           });
+          // 开标时间提取成功 → 对齐同轮 BidProject（24h 业务规则，口径同 P0-2）。
+          // 懒创建常早于本次提取（创建时 bidOpeningTime 尚未提取 → openTime 落在
+          // fallback=立项日、deadline 落在兜底 now+24h），时间轴因此出现
+          // "开标=立项日、投标截止=无关兜底值"的错乱；未开标前按下式回填修正：
+          // openTime=提取值，deadline=openTime−24h
+          try {
+            const parsed = parseBidOpeningTime(bidOpeningTime);
+            if (parsed) {
+              const bp = await this.prisma.bidProject.findFirst({
+                where: { projectManagementItemId: projectId },
+                orderBy: { round: 'desc' },
+                select: { id: true, stage: true, openTime: true },
+              });
+              const preOpening = bp && (bp.stage === 'DOWNLOAD' || bp.stage === 'SUBMIT');
+              if (bp && preOpening && bp.openTime.getTime() !== parsed.getTime()) {
+                await this.prisma.bidProject.update({
+                  where: { id: bp.id },
+                  data: {
+                    openTime: parsed,
+                    deadline: new Date(parsed.getTime() - BID_DEADLINE_BEFORE_OPENING_MS),
+                  },
+                });
+                this.logger.log(
+                  `采购文件提取开标时间 ${bidOpeningTime} → 已回填 BidProject ${bp.id}（deadline=openTime−24h）`,
+                );
+              }
+            }
+          } catch (e) {
+            this.logger.warn(`开标时间回填 BidProject 失败（不阻断上传）: ${(e as Error).message}`);
+          }
         }
 
         // 直接采购：从采购文件提取拟定供应商名称（后续供应商邀请步骤自动跳过选取）
@@ -2906,9 +2954,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async submitForReview(projectId: string, user?: AuthenticatedUser) {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { reviewStatus: true },
+      select: { reviewStatus: true, status: true },
     });
     if (!item) throw new NotFoundException('未找到对应项目。');
+    // 生命周期闸：已归档/回收项目不可递交（UI 同口径；API 侧收口防直调）
+    if (item.status !== 'ACTIVE') {
+      throw new BadRequestException({ error: '仅进行中的项目可递交审核，已归档/回收项目不可递交', code: 'INVALID_LIFECYCLE' });
+    }
     if (item.reviewStatus === 'PENDING') {
       throw new BadRequestException({ error: '该项目已递交待审核，请勿重复递交', code: 'ALREADY_SUBMITTED' });
     }
@@ -2983,17 +3035,59 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
     // 一路放行到开标确认才发现缺前置，返工成本高）
     if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
+      // 制度硬闸（2026-08-27 拍板 #6）：立项须先「递交审核」并受理通过（reviewStatus=APPROVED），
+      // 方可完成立项阶段进入采购文件编制——「立项批准后才能采购」从 AI 提示升级为硬控制。
+      // 仅约束存在立项阶段的常规流程；小额采购（无 INITIATION 阶段）与已越过该阶段的存量不受影响。
+      if (stageKey === 'INITIATION') {
+        const pmi = await this.prisma.projectManagementItem.findUnique({
+          where: { id: projectId },
+          select: { reviewStatus: true },
+        });
+        if (pmi?.reviewStatus !== 'APPROVED') {
+          throw new BadRequestException({
+            error: '立项尚未受理审核通过（需先「递交审核」并由领导/管理员受理），不能完成立项阶段进入采购文件编制',
+            code: 'INITIATION_NOT_APPROVED',
+          });
+        }
+      }
       // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
       // （范围表 attachment 源必选项 = TENDER_DOCUMENT/AWARD_DECISION/CONTRACT 三处，与下方专项检查口径互补）
+      // M5：显式豁免路径——确无材料（流标终止等）时 waiveArchiveGate=true + note 必填留痕，阶段可推进
       const gateMissing = await this.archiveScope.checkStageGate(projectId, stageKey);
       if (gateMissing.length > 0) {
-        throw new BadRequestException(
-          `该阶段归档必选材料缺失（DA/T 103-2024 附录B）：${gateMissing.join('、')}，请上传后再标记完成`,
-        );
+        if (dto.waiveArchiveGate === true) {
+          if (!dto.note?.trim()) {
+            throw new BadRequestException('豁免归档材料检查必须填写豁免理由（note 字段留痕）');
+          }
+          this.logger.warn(
+            `[归档闸门豁免] 项目 ${projectId} 阶段 ${stageKey} 缺件放行：${gateMissing.join('、')}；理由：${dto.note.trim()}`,
+          );
+        } else {
+          throw new BadRequestException(
+            `该阶段归档必选材料缺失（DA/T 103-2024 附录B）：${gateMissing.join('、')}，请上传后再标记完成；如确无此类材料（如流标终止），可传 waiveArchiveGate=true 并填写 note 豁免`,
+          );
+        }
       }
       if (stageKey === 'SUPPLIER_INVITATION') {
-        const rsvps = await this.prisma.invitationRsvp.count({ where: { projectId } });
+        // 完成门槛：确认参加的回执数量达到用户设定的满足数量（默认 3）即可标记完成。
+        // 数量以 InvitationRsvp 实数核验（不信任前端计数）；达标蕴含通知已发出，原"须先发送邀请通知"核查被覆盖。
+        // id 空间：回执的 projectId 为 BidProject id（邀请发起方），阶段接口收到的是 PMI id——两个空间都要数。
+        const threshold = Math.min(Math.max(dto.confirmedThreshold ?? 3, 1), 50);
+        const bpIds = await this.prisma.bidProject.findMany({
+          where: { projectManagementItemId: projectId },
+          select: { id: true },
+        });
+        const rsvpWhere = { OR: [{ projectId }, { projectId: { in: bpIds.map((b) => b.id) } }] };
+        const [rsvps, accepted] = await Promise.all([
+          this.prisma.invitationRsvp.count({ where: rsvpWhere }),
+          this.prisma.invitationRsvp.count({ where: { ...rsvpWhere, status: 'ACCEPTED' } }),
+        ]);
         if (rsvps === 0) throw new BadRequestException('请先通过供应商邀请向导发送邀请通知，再标记完成');
+        if (accepted < threshold) {
+          throw new BadRequestException(
+            `供应商确认数量未达标：${accepted}/${threshold} 家已回执确认参加，达到「满足数量」后方可标记完成（可在确认页调整满足数量）`,
+          );
+        }
       }
       if (stageKey === 'EXPERT_SELECTION') {
         const bp = await this.prisma.bidProject.findFirst({ where: { projectManagementItemId: projectId }, select: { id: true } });
@@ -3950,30 +4044,133 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 步骤分析：为 SUPPLIER_INVITATION / EXPERT_SELECTION 生成「抽取过程 + 最终名单」叙述段落。
    * 数据源：item.invitedSuppliers / item.expertInfo（不依赖文件）。
    */
+  /** 步骤分析阶段元数据：每阶段的分析要点（按各阶段实际情况定制） */
+  private static readonly STAGE_ANALYSIS_META: Record<string, { label: string; focus: string }> = {
+    PROCUREMENT_DEMAND: { label: '采购需求', focus: '需求来源与内容（需求申请要点、提出部门与经办人、预算规模与资金性质）' },
+    INITIATION: { label: '采购立项', focus: '立项事由与审批（立项依据、递交审核与受理结果、供方要求、预算审定）' },
+    TENDER_DOCUMENT: { label: '采购文件', focus: '采购文件编制（文件构成、资格与评审要点、采购组织形式与计价方式）' },
+    SUPPLIER_INVITATION: { label: '供应商邀请', focus: '邀请过程与名单（选取方式、逐家确认状态）' },
+    EXPERT_SELECTION: { label: '专家抽取', focus: '抽取过程与名单（配额/随机/回避原则、专家信息）' },
+    BID_EVALUATION: { label: '开标评标', focus: '开评标过程（开标时间、参评供应商与评审结果）' },
+    AWARD_DECISION: { label: '定标', focus: '定标结果（成交供应商、成交金额、定标依据）' },
+    CONTRACT: { label: '合同', focus: '合同签订（合同编号、合同金额、与定标结果一致性）' },
+  };
+
   async analyzeStep(projectId: string, stageKey: string, forceRefresh = false): Promise<{ content: string; empty: boolean }> {
-    if (stageKey !== 'SUPPLIER_INVITATION' && stageKey !== 'EXPERT_SELECTION') {
-      throw new BadRequestException('步骤分析仅支持供应商邀请和专家抽取阶段。');
+    const meta = ProjectManagementService.STAGE_ANALYSIS_META[stageKey];
+    if (!meta) {
+      throw new BadRequestException('未知的项目阶段。');
     }
 
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
+      include: { stages: { where: { stageKey }, select: { attachments: { select: { fileName: true } } } } },
     });
 
     if (!project) {
       throw new NotFoundException('未找到对应项目。');
     }
+    const attachmentNames = (project.stages[0]?.attachments ?? []).map((a) => a.fileName);
 
-    // 取名单数据
+    // ── 按阶段构建分析数据（各取真实链路）──
     const isExpert = stageKey === 'EXPERT_SELECTION';
-    const rosterRaw = isExpert
-      ? (project.expertInfo ?? '').trim()
-      : (project.invitedSuppliers ?? '').trim();
+    let rosterRaw = '';
+    let stageContext = `当前阶段：${meta.label}（${stageKey}）。采购方式：${project.procurementMethod || '未知'}。`;
+
+    if (isExpert) {
+      rosterRaw = (project.expertInfo ?? '').trim();
+    } else if (stageKey === 'SUPPLIER_INVITATION') {
+      // 供应商邀请：invitedSuppliers 快照字段邀请流程从不写入（断链）——改用 InvitationRsvp
+      // 真实链路数据（通知名单 + 逐家确认状态，含正选/补选/采购端手动标记，兼容 PMI/BP 两个 id 空间）
+      const bpIds = await this.prisma.bidProject.findMany({
+        where: { projectManagementItemId: projectId },
+        select: { id: true },
+      });
+      const rsvps = await this.prisma.invitationRsvp.findMany({
+        where: { OR: [{ projectId }, { projectId: { in: bpIds.map((b) => b.id) } }] },
+        orderBy: { createdAt: 'asc' },
+        select: { supplierName: true, status: true, note: true },
+      });
+      const statusLabel: Record<string, string> = { ACCEPTED: '已确认参加', DECLINED: '已放弃', PENDING: '待确认' };
+      rosterRaw = rsvps
+        .map((r) => `${r.supplierName}（${statusLabel[r.status] ?? r.status}${r.note ? `；备注：${r.note}` : ''}）`)
+        .join('、');
+    } else if (stageKey === 'BID_EVALUATION' || stageKey === 'AWARD_DECISION') {
+      // 开评标/定标：BidProject 及其评审/成交数据
+      const bp = await this.prisma.bidProject.findFirst({
+        where: { projectManagementItemId: projectId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, stage: true, openTime: true, deadline: true, evaluationMethod: true,
+        },
+      });
+      const parts: string[] = [];
+      if (bp) {
+        const stageLabel: Record<string, string> = { DOWNLOAD: '标书下载', SUBMIT: '投标递交', OPENING: '开标中', EVALUATING: '评标中', ARCHIVED: '已归档' };
+        parts.push(`招标项目当前状态：${stageLabel[bp.stage] ?? bp.stage}`);
+        if (bp.openTime) parts.push(`开标时间：${bp.openTime.toISOString().slice(0, 16).replace('T', ' ')}`);
+        if (bp.deadline) parts.push(`截标时间：${bp.deadline.toISOString().slice(0, 16).replace('T', ' ')}`);
+        if (bp.evaluationMethod) parts.push(`评标办法：${bp.evaluationMethod}`);
+        // 参评供应商 + 评审得分排名（按分数降序）
+        const [bidSuppliers, evalResults] = await Promise.all([
+          this.prisma.bidSupplier.findMany({ where: { projectId: bp.id }, select: { supplierName: true } }),
+          this.prisma.bidEvaluationResult.findMany({
+            where: { projectId: bp.id },
+            orderBy: { totalScore: 'desc' },
+            select: { supplierName: true, totalScore: true, averageScore: true, bidPrice: true },
+          }),
+        ]);
+        if (bidSuppliers.length > 0) parts.push(`参评供应商：${bidSuppliers.map((s) => s.supplierName).join('、')}`);
+        if (evalResults.length > 0) {
+          parts.push(`评审结果（按总分降序）：${evalResults.map((r) => `${r.supplierName} ${Number(r.totalScore)}分${r.bidPrice != null ? `/报价${Number(r.bidPrice).toLocaleString('zh-CN')}元` : ''}`).join('、')}`);
+        }
+      }
+      if (stageKey === 'AWARD_DECISION') {
+        if (project.awardedSupplier) parts.push(`成交供应商：${project.awardedSupplier}`);
+        if (project.contractAmount) parts.push(`成交金额：${Number(project.contractAmount).toLocaleString('zh-CN')} 元`);
+        if (project.biddingUnits) parts.push(`中标单位：${project.biddingUnits}`);
+      }
+      rosterRaw = parts.join('；');
+    } else {
+      // 需求/立项/采购文件/合同：以 PMI 阶段相关字段 + 阶段附件文件名构成
+      const parts: string[] = [];
+      if (stageKey === 'PROCUREMENT_DEMAND') {
+        if (project.demandProcurementTitle) parts.push(`需求事项：${project.demandProcurementTitle}`);
+        if (project.demandRequesterName || project.demandDepartment) parts.push(`需求提出：${project.demandRequesterName ?? ''}${project.demandDepartment ? `（${project.demandDepartment}）` : ''}`);
+        if (project.demandBudgetAmount) parts.push(`需求预算：${Number(project.demandBudgetAmount).toLocaleString('zh-CN')} 元`);
+        if (project.demandProjectReason) parts.push(`需求说明：${project.demandProjectReason.slice(0, 400)}`);
+      }
+      if (stageKey === 'INITIATION') {
+        const reviewLabel: Record<string, string> = { PENDING: '待受理', APPROVED: '已受理通过', REJECTED: '已驳回' };
+        if (project.projectReason) parts.push(`立项事由：${project.projectReason.slice(0, 400)}`);
+        if (project.supplierRequirements) parts.push(`供方要求：${project.supplierRequirements.slice(0, 300)}`);
+        if (project.initiationDate) parts.push(`立项日期：${project.initiationDate.toISOString().slice(0, 10)}`);
+        if (project.reviewStatus) parts.push(`递交审核：${reviewLabel[project.reviewStatus] ?? project.reviewStatus}`);
+      }
+      if (stageKey === 'TENDER_DOCUMENT') {
+        if (project.procurementOrganizationForm) parts.push(`采购组织形式：${project.procurementOrganizationForm}`);
+        if (project.projectOverview) parts.push(`采购概况：${project.projectOverview.slice(0, 400)}`);
+        if (project.bidOpeningTime) parts.push(`开标时间：${project.bidOpeningTime}`);
+      }
+      if (stageKey === 'CONTRACT') {
+        if (project.contractNumber) parts.push(`合同编号：${project.contractNumber}`);
+        if (project.contractAmount) parts.push(`合同金额：${Number(project.contractAmount).toLocaleString('zh-CN')} 元`);
+        if (project.awardedSupplier) parts.push(`签约供应商：${project.awardedSupplier}`);
+      }
+      if (project.budgetAmount && stageKey !== 'PROCUREMENT_DEMAND') parts.push(`预算金额：${Number(project.budgetAmount).toLocaleString('zh-CN')} 元`);
+      rosterRaw = parts.join('；');
+    }
+
+    // 附件清单并入（各阶段通用事实材料）
+    if (attachmentNames.length > 0) {
+      rosterRaw += `${rosterRaw ? '；' : ''}本阶段归档材料：${attachmentNames.join('、')}`;
+    }
 
     if (!rosterRaw) {
       return { content: '', empty: true };
     }
 
-    // fingerprint = 名单原文 hash（名单变更即失效）
+    // fingerprint = 阶段数据原文 hash（数据变更即失效）
     const fingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
 
     // 读缓存
@@ -3989,33 +4186,29 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // 构建 LLM prompt
+    // 构建 LLM prompt（阶段要点由元数据字典驱动）
     const systemPrompt = [
-      '你是四川水发集团招采ERP的 AI 采购步骤分析助手。请根据提供的项目信息和抽取名单，',
-      '生成一段描述该步骤抽取过程和最终名单的文字。',
+      '你是四川水发集团招采ERP的 AI 采购步骤分析助手。请根据提供的项目信息与本阶段实际数据，',
+      `生成一段描述「${meta.label}」步骤开展情况的分析文字。本阶段分析要点：${meta.focus}。`,
       '',
       '输出要求：',
       '1. 分为两段自然语言段落（用空行分隔），不要使用标题、编号或 Markdown 格式。',
-      '2. 第一段「抽取过程」：描述该阶段的选取方法。供应商邀请阶段涵盖 AI 语义匹配/业务标签/多维评分/手动选取等方式；',
-      '   专家抽取阶段涵盖专业配额/随机抽取或智能抽取/回避原则/需求方代表等。',
-      '3. 第二段「最终名单」：列出人数并逐家说明。供应商列出企业名称；专家列出姓名、所属部门、专业领域和职称。',
-      '4. 只描述提供的名单中的对象，不得编造未列出的供应商或专家。',
+      `2. 第一段「过程综述」：围绕${meta.label}阶段的实际数据描述该步骤如何开展（${isExpert ? '专家抽取涵盖专业配额/随机抽取或智能抽取/回避原则/需求方代表等' : '结合提供的项目字段、时间、状态与材料事实'}）。`,
+      '3. 第二段直接逐项陈述关键对象与结果，首词即事实本身——严禁任何引导句开头（如「关键事实如下：」「本阶段关键事实包括：」「主要情况：」等），也不得输出「、」等残留列表符（名单类逐家说明：供应商含确认状态，专家含姓名/部门/专业/职称；结果类含成交供应商与金额等）。',
+      '4. 只描述提供数据中的事实，不得编造未提供的内容。',
       '5. 总字数控制在 200-400 字。',
     ].join('\n');
 
     // 解析专家名单（pipe 分隔 → 可读文本）
     let rosterText: string;
-    let stageContext: string;
     if (isExpert) {
       const experts = rosterRaw.split('\n').filter(l => l.trim()).map(line => {
         const p = line.split('|');
         return { name: p[0]?.trim() ?? '', dept: p[1]?.trim() ?? '', spec: p[2]?.trim() ?? '', title: p[3]?.trim() ?? '', role: p[4]?.trim() ?? '' };
       });
       rosterText = experts.map(e => `${e.name}（${e.dept}/${e.spec}/${e.title}${e.role ? '/' + e.role : ''}）`).join('、');
-      stageContext = `当前阶段：专家抽取（EXPERT_SELECTION）。采购方式：${project.procurementMethod || '未知'}。`;
     } else {
       rosterText = rosterRaw;
-      stageContext = `当前阶段：供应商邀请（SUPPLIER_INVITATION）。采购方式：${project.procurementMethod || '未知'}。`;
     }
 
     const userPrompt = [
@@ -4029,7 +4222,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
       rosterText,
     ].join('\n');
 
-    const content = await this.aiService.chat(systemPrompt, userPrompt, 0.4);
+    let content = await this.aiService.chat(systemPrompt, userPrompt, 0.4);
+    // 格式收敛：剥离违规引导句（「关键事实如下：」「本阶段关键事实包括：」等）与残留顿号开头（单测锁定 5 类样例）
+    content = content
+      .replace(/^(?:[一二三四五六七八九十]{0,3}\s*段?[：:]\s*)?(?:本阶段|本次|其中|主要)?(?:关键事实|关键情况|主要事实)(?:包括|如下|概述|总结)?[：:]?\s*[、，,]?\s*/g, '')
+      .replace(/\n\s*\n\s*(?:[一二三四五六七八九十]{0,3}\s*段?[：:]\s*)?(?:本阶段|本次|其中|主要)?(?:关键事实|关键情况|主要事实)(?:包括|如下|概述|总结)?[：:]?\s*[、，,]?\s*/g, '\n\n')
+      .replace(/(?:^|\n)\s*[、，,;；]\s*/g, (m) => (m.startsWith('\n') ? '\n' : ''))
+      .trim();
 
     // 写缓存
     await mkdir(getUploadDir(), { recursive: true });
@@ -4548,7 +4747,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     return this.prisma.projectManagementItem.update({
       where: { id: projectId },
-      data: { status: PROJECT_MANAGEMENT_STATUS.RECYCLED },
+      data: { status: PROJECT_MANAGEMENT_STATUS.RECYCLED, recycledAt: new Date() },
     });
   }
 
@@ -4573,14 +4772,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     return this.prisma.projectManagementItem.update({
       where: { id: projectId },
-      data: { status: PROJECT_MANAGEMENT_STATUS.ACTIVE },
+      data: { status: PROJECT_MANAGEMENT_STATUS.ACTIVE, recycledAt: null },
     });
   }
 
   async deletePermanently(projectId: string, user?: AuthenticatedUser) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { id: true, status: true, createdById: true, archiveExportedAt: true, updatedAt: true },
+      select: { id: true, status: true, createdById: true, archiveExportedAt: true, recycledAt: true },
     });
 
     if (!project) {
@@ -4605,12 +4804,20 @@ ${JSON.stringify(algorithmResult, null, 2)}
       );
     }
     // ② 回收站起算不足 3 年：电子文件在原平台至少保留 3 年（即使未归档）
-    const recycledSince = Date.now() - project.updatedAt.getTime();
+    // M1：以 recycledAt（移入回收站时写入）为准；updatedAt 会被任何字段更新刷新，不能作起算点。
+    // 存量项目（字段上线前已回收）无 recycledAt → 从严拒绝并提示先恢复再回收以记录时间。
+    const recycledAt = project.recycledAt ?? null;
     const THREE_YEARS_MS = 3 * 365 * 86400000;
+    if (!recycledAt) {
+      throw new ConflictException(
+        '该项目缺少回收时间记录（历史数据），请先恢复项目后重新移入回收站，以启动 3 年保留期计算（DA/T 103-2024 §8.5）。',
+      );
+    }
+    const recycledSince = Date.now() - recycledAt.getTime();
     if (recycledSince < THREE_YEARS_MS) {
       const daysLeft = Math.ceil((THREE_YEARS_MS - recycledSince) / 86400000);
       throw new ConflictException(
-        `依据 DA/T 103-2024 §8.5，电子文件在平台至少保留 3 年；该项目回收尚不足 3 年（余 ${Math.floor(daysLeft / 30)} 个月），暂不能彻底删除。`,
+        `依据 DA/T 103-2024 §8.5，电子文件在平台至少保留 3 年；该项目自 ${recycledAt.toLocaleDateString('zh-CN')} 回收，尚余 ${Math.floor(daysLeft / 30)} 个月，暂不能彻底删除。`,
       );
     }
 

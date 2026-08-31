@@ -6,7 +6,10 @@ export interface LoginParams {
 }
 
 export interface RegisterParams {
-  username: string;
+  /** 注册手机验证码（新必填：registrationPhone + registrationCode） */
+  registrationPhone: string;
+  registrationCode: string;
+  username?: string;
   displayName: string;
   password: string;
   email?: string;
@@ -44,6 +47,16 @@ export interface RegisterTemporaryParams {
 }
 
 export const authApi = {
+  /** 业务标签库（公开）：已审核入池的可选标签 */
+  listBusinessTags() {
+    return api.get<{ id: string; name: string }[]>("/supplier/tags", { silent: true });
+  },
+
+  /** 发送注册短信验证码（公开，3次/分钟限流） */
+  sendRegistrationCode(phone: string) {
+    return api.post<any>("/verification/send-registration-code", { phone }, { silent: true });
+  },
+
   /** 登录错误由登录页自行处理（ACCOUNT_PENDING/TEMPORARY_EXPIRED 分支），silent 跳过全局 toast */
   login(data: LoginParams) {
     return api.post<any>("/auth/login", data, { silent: true });

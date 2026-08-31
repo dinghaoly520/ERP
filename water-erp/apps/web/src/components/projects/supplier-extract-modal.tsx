@@ -10,9 +10,11 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   project: ProjectManagementItem | null;
+  /** 弹窗内产生阶段附件（采购邀请书挂档等）后回调，父级即时刷新项目数据 */
+  onAttachmentUploaded?: () => void;
 };
 
-export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
+export function SupplierExtractModal({ isOpen, onClose, project, onAttachmentUploaded }: Props) {
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -102,6 +104,7 @@ export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
               hideHeader
               defaultProjectTitle={project?.title}
               project={project}
+              onAttachmentUploaded={onAttachmentUploaded}
             />
           </Suspense>
         </div>

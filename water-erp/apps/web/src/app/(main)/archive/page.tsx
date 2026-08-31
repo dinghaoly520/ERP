@@ -168,9 +168,13 @@ export default function ArchivePage() {
   async function exportAsip(pmiId: string) {
     setBusy(pmiId);
     try {
+      // M2：不硬编码期限——已划定的保留原值，未划定的默认 Y30（后端仅在有传参时更新）
+      const body = inspect && inspect.row.retentionPeriod
+        ? {}
+        : { retentionPeriod: 'Y30' as const };
       const r = await api<{ fileCount: number; zipSha256: string }>(`/items/${pmiId}/export-asip`, {
         method: 'POST',
-        body: JSON.stringify({ retentionPeriod: 'Y30' }),
+        body: JSON.stringify(body),
       });
       setToast(`归档信息包已导出（${r.fileCount} 件，指纹 ${r.zipSha256.slice(0, 12)}…）`);
       void load();

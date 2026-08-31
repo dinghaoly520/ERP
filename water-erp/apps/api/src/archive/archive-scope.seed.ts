@@ -89,16 +89,8 @@ export async function ensureArchiveScopeSeeded(prisma: PrismaService): Promise<v
         keepByAgency: s.keepByAgency ?? false,
         sortOrder: i,
       },
-      update: {
-        stage: s.stage,
-        materialName: s.materialName,
-        sourceType: s.sourceType,
-        attachmentTypes: s.attachmentTypes ?? [],
-        stageKeys: s.stageKeys ?? [],
-        fileCategories: s.fileCategories ?? [],
-        isRequired: s.isRequired ?? false,
-        sortOrder: i,
-      },
+      // 不覆盖存量行：为将来范围表管理界面留路（人工调整不会被启动播种重置）
+      update: {},
     });
   }
 }

@@ -50,10 +50,13 @@ export class ArchiveFlowService {
     }
   }
 
-  /** 归档导出完成 → 消解该项目全部归档待办 */
+  /** 归档导出完成 → 消解该项目全部归档待办（H3：含 D2 临期/逾期督办，否则已归档项目通知永挂） */
   async resolveArchiveTodo(pmiId: string): Promise<void> {
+    const link = `/archive?pmi=${pmiId}`;
     try {
-      await this.notification.resolveActionable(ARCHIVE_TODO_TYPE, `/archive?pmi=${pmiId}`);
+      await this.notification.resolveActionable(ARCHIVE_TODO_TYPE, link);
+      await this.notification.resolveActionable('ARCHIVE_TRANSFER_DUE', link);
+      await this.notification.resolveActionable('ARCHIVE_OVERDUE', link);
     } catch (err) {
       this.logger.warn(`归档待办消解失败: ${err}`);
     }

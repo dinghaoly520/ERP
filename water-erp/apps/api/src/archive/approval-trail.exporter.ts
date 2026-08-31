@@ -26,8 +26,13 @@ export class ApprovalTrailExporter {
     });
     if (!item) throw new Error('项目不存在');
 
+    // 必须按本项目过滤：path 中含 pmiId（阶段推进/附件/回收等端点均带项目 id），
+    // 否则会把全库其他项目的操作记录混入本卷留痕
     const stageLogs = await this.prisma.operationLog.findMany({
-      where: { path: { contains: '/project-management/' }, method: { in: ['POST', 'PATCH'] } },
+      where: {
+        path: { contains: pmiId },
+        method: { in: ['POST', 'PATCH', 'DELETE'] },
+      },
       orderBy: { createdAt: 'asc' },
       take: 500,
       select: { createdAt: true, username: true, method: true, path: true, statusCode: true },

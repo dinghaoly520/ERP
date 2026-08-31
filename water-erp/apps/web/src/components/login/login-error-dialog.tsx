@@ -8,12 +8,15 @@ type LoginErrorDialogProps = {
   isOpen: boolean;
   message: string;
   onClose: () => void;
+  /** 弹窗标题：登录页默认「登录失败」；复用于其他场景（如项目详情操作报错）时应传场景化标题 */
+  title?: string;
 };
 
 export function LoginErrorDialog({
   isOpen,
   message,
   onClose,
+  title = '登录失败',
 }: LoginErrorDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -66,8 +69,8 @@ export function LoginErrorDialog({
                 className="text-[var(--danger)]"
               />
             </div>
-            <h2 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">
-              登录失败
+            <h2 className="text-base font-bold tracking-[-0.02em] text-[color:var(--foreground)]">
+              {title}
             </h2>
           </div>
           <button onClick={onClose} className="neu-btn-xs" aria-label="关闭">

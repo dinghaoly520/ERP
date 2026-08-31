@@ -51,7 +51,10 @@ function skipTag(html: string, tag: string): string {
   let m: RegExpExecArray | null;
   while ((m = tagRegex.exec(html)) !== null) {
     if (m[1] === '/') depth--; else depth++;
-    if (depth === 0) return html.slice(m.index + m[0].length + 1); // +1 for >
+    // m[0] 已含捕获的尾字符（`>` 或空白）：`</p>` 场景 m[2]==='>'，不能再 +1，
+    // 否则多吃闭合标签后的一个字符（连续 `<p>a</p><p>b</p>` 会吃掉下一个 `<`，
+    // 剩余以字面 `p>` 开头漏进正文）；仅 `</p >`（空白分隔）时需 +1 跳过 `>`
+    if (depth === 0) return html.slice(m.index + m[0].length + (m[2] === '>' ? 0 : 1));
   }
   return html.slice(pos); // 未找到闭合标签，跳过剩余
 }

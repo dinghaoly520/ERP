@@ -26,7 +26,7 @@ describe('ProjectManagementService 递交受理（CTS A-36/37）', () => {
   const user = (role: string, sub = 'u-leader') => ({ role, sub }) as never;
 
   it('递交：未递交 → PENDING 并写申报人留痕', async () => {
-    const { service, prisma } = mk({ reviewStatus: null });
+    const { service, prisma } = mk({ reviewStatus: null, status: 'ACTIVE' });
     await service.submitForReview('pmi-1', user('staff', 'u-staff'));
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -37,27 +37,34 @@ describe('ProjectManagementService 递交受理（CTS A-36/37）', () => {
   });
 
   it('递交：驳回后可重新递交（清空意见）', async () => {
-    const { service, prisma } = mk({ reviewStatus: 'REJECTED' });
+    const { service, prisma } = mk({ reviewStatus: 'REJECTED', status: 'ACTIVE' });
     await service.submitForReview('pmi-1', user('staff', 'u-staff'));
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ reviewComment: null }) }),
     );
   });
 
+  it('递交：已归档/回收项目不可递交（生命周期闸）', async () => {
+    const { service } = mk({ reviewStatus: null, status: 'ARCHIVED' });
+    await expect(service.submitForReview('pmi-1', user('staff'))).rejects.toMatchObject({
+      response: { code: 'INVALID_LIFECYCLE' },
+    });
+  });
+
   it('递交：待审中不可重复递交', async () => {
-    const { service } = mk({ reviewStatus: 'PENDING' });
+    const { service } = mk({ reviewStatus: 'PENDING', status: 'ACTIVE' });
     await expect(service.submitForReview('pmi-1', user('staff'))).rejects.toMatchObject({
       response: { code: 'ALREADY_SUBMITTED' },
     });
   });
 
   it('递交：已通过不可再递交', async () => {
-    const { service } = mk({ reviewStatus: 'APPROVED' });
+    const { service } = mk({ reviewStatus: 'APPROVED', status: 'ACTIVE' });
     await expect(service.submitForReview('pmi-1', user('staff'))).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('审核：staff 无权受理', async () => {
-    const { service } = mk({ reviewStatus: 'PENDING' });
+    const { service } = mk({ reviewStatus: 'PENDING', status: 'ACTIVE' });
     await expect(service.reviewSubmission('pmi-1', { approve: true }, user('staff'))).rejects.toBeInstanceOf(
       ForbiddenException,
     );
@@ -78,7 +85,7 @@ describe('ProjectManagementService 递交受理（CTS A-36/37）', () => {
   });
 
   it('审核：非待审状态不可受理', async () => {
-    const { service } = mk({ reviewStatus: null });
+    const { service } = mk({ reviewStatus: null, status: 'ACTIVE' });
     await expect(service.reviewSubmission('pmi-1', { approve: true }, user('leader'))).rejects.toMatchObject({
       response: { code: 'NOT_PENDING_REVIEW' },
     });

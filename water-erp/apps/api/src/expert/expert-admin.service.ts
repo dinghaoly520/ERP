@@ -229,6 +229,7 @@ export class ExpertAdminService {
               education: dto.education,
               licenseNo: dto.licenseNo,
               availability: '可用',
+              entryStatus: 'PENDING', // CTS A-218 录入后待审核，admin「审核入库」留痕 verifiedBy/At
               notes: dto.notes,
             },
           },
@@ -302,6 +303,7 @@ export class ExpertAdminService {
                 phone: profile?.phone ?? '',
                 idNumber: profile?.idNumber ?? null,
                 availability: '可用',
+                entryStatus: 'PENDING', // CTS A-218 批量导入同样待审核入库
                 notes: profile?.notes ?? '',
               },
             },
@@ -1796,7 +1798,8 @@ export class ExpertAdminService {
     await this.prisma.$transaction([
       this.prisma.expertProfile.updateMany({
         where: { userId },
-        data: { availability: '停用', retiredAt: new Date(), retireReason: reason },
+        // entryStatus 同步 RETIRED：与状态机端点（updateProfileStatus）收敛为单一语义，避免两路径状态分叉
+        data: { availability: '停用', retiredAt: new Date(), retireReason: reason, entryStatus: 'RETIRED' },
       }),
       this.prisma.user.update({
         where: { id: userId },
@@ -1813,7 +1816,10 @@ export class ExpertAdminService {
     }
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    const profile = await this.prisma.expertProfile.findUnique({ where: { userId }, select: { entryStatus: true } });
+    const profile = await this.prisma.expertProfile.findUnique({
+      where: { userId },
+      select: { entryStatus: true, retiredAt: true }, // retiredAt 为准判退库恢复：兼容历史路径（曾漏写 entryStatus）
+    });
     if (!profile) throw new NotFoundException('专家档案不存在');
     if (dto.status === 'RETIRED' && !dto.reason?.trim()) {
       throw new BadRequestException({ error: '退库必须填写事由', code: 'REASON_REQUIRED' });
@@ -1825,7 +1831,14 @@ export class ExpertAdminService {
           entryStatus: dto.status,
           statusNote: dto.reason?.trim() ?? null,
           ...(dto.status === 'ACTIVE'
-            ? { verifiedById: actor.sub ?? null, verifiedAt: new Date(), retiredAt: null, retireReason: null }
+            ? {
+                verifiedById: actor.sub ?? null,
+                verifiedAt: new Date(),
+                retiredAt: null,
+                retireReason: null,
+                // 退库路径曾置 availability='停用'——恢复在库须一并还原，否则抽取（要求可用）仍排除该专家
+                ...(profile.retiredAt !== null ? { availability: '可用' } : {}),
+              }
             : {}),
           ...(dto.status === 'RETIRED' ? { retiredAt: new Date(), retireReason: dto.reason!.trim() } : {}),
         },
@@ -1834,8 +1847,8 @@ export class ExpertAdminService {
     if (dto.status === 'RETIRED') {
       ops.push(this.prisma.user.update({ where: { id: userId }, data: { isActive: false } }));
     }
-    if (dto.status === 'ACTIVE' && profile.entryStatus === 'RETIRED') {
-      // 退库恢复：账号随档案一并重新激活
+    if (dto.status === 'ACTIVE' && (profile.entryStatus === 'RETIRED' || profile.retiredAt !== null)) {
+      // 退库恢复：账号随档案一并重新激活（retiredAt 兜底：兼容历史路径漏写 entryStatus 的存量）
       ops.push(this.prisma.user.update({ where: { id: userId }, data: { isActive: true } }));
     }
     await this.prisma.$transaction(ops);

@@ -39,6 +39,36 @@ export class SupplierController {
     return this.supplierService.register(dto);
   }
 
+  // ─── 业务标签库：注册页选择制（库内选择 + 自创待审） ───
+
+  @Get('tags')
+  @Public()
+  @ApiOperation({ summary: '公开：注册可选的业务标签（仅已审核入池）' })
+  async listApprovedTags() {
+    return this.supplierService.listApprovedBusinessTags();
+  }
+
+  @Get('admin/tags')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '管理端：业务标签列表（可按状态过滤）' })
+  async listTags(@Query('status') status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
+    return this.supplierService.listBusinessTags(status);
+  }
+
+  @Post('admin/tags/:id/approve')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '审核通过自创标签（入池，后续注册可选）' })
+  async approveTag(@Param('id') id: string, @Request() req: any) {
+    return this.supplierService.approveBusinessTag(id, req.user?.sub);
+  }
+
+  @Post('admin/tags/:id/reject')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '审核拒绝自创标签（不入池）' })
+  async rejectTag(@Param('id') id: string, @Request() req: any, @Body('reason') _reason?: string) {
+    return this.supplierService.rejectBusinessTag(id, req.user?.sub);
+  }
+
   @Post('register/temporary')
   @Public()
   @ApiOperation({ summary: '临时供应商注册（凭邀请码）' })

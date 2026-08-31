@@ -13685,6 +13685,32 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 /* ── 回执公开页（rv-* 移植自 Rsvp.vue；--brand 等局部变量由 .rv 作用域定义）── */
 
+/* 根容器：居中布局 + 作用域变量（缺失时整页样式崩坏：颜色失效、偏左、背景逃逸） */
+.rv {
+  --hue: 258;
+  --tint: oklch(0.975 0.02 var(--hue));
+  --ink: oklch(0.26 0.03 var(--hue));
+  --muted: #64748b;
+  --line: oklch(0.9 0.02 var(--hue));
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  isolation: isolate;
+  box-sizing: border-box;
+  padding: 96px 16px 48px; /* 顶部固定品牌栏留白 */
+  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  color: var(--ink);
+  background: var(--tint);
+}
+/* 溢出安全的居中：内容超出视口时仍可滚动到顶部（justify-center 会裁顶）；
+   滚动收在卡片内（页面/背景/品牌栏不动） */
+.rv-panel { margin: auto; max-height: calc(100vh - 144px); }
+.rv-card { max-height: 100%; overflow-y: auto; scrollbar-width: thin; }
+main.rv { overflow: hidden; }
+
 .rv-bg {
   position: absolute; inset: 0; z-index: -3;
   background-image: url('/bg-hydro-hero-7.png'); background-position: center; background-size: cover;
@@ -13699,7 +13725,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .rv-brand { position: fixed; top: 26px; left: 6vw; z-index: 3; display: inline-flex; align-items: center; gap: 12px; }
 .rv-brand-mark { width: 50px; height: 50px; border-radius: 14px; object-fit: cover; background: #fff; padding: 5px; box-sizing: border-box; box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4); }
 .rv-brand-name { font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: 0.05em; color: #fff; text-shadow: 0 6px 22px rgba(0,0,0,0.32); }
-.rv-panel { width: 100%; max-width: 520px; }
+.rv-panel { width: 100%; max-width: 680px; }
 .rv-card {
   position: relative; width: 100%; padding: 44px 34px 38px; border-radius: 24px;
   background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));

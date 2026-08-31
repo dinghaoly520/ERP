@@ -3,6 +3,7 @@ import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { ArchiveScopeService, ScopeMatchRow } from './archive-scope.service';
 
 export interface CheckDetail {
@@ -48,6 +49,7 @@ export class ArchiveCheckService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     private readonly scope: ArchiveScopeService,
   ) {}
 
@@ -77,6 +79,46 @@ export class ArchiveCheckService {
     });
     if (!item) throw new Error('项目不存在');
 
+    // ── M4：回流件（FileAsset，MinIO）参与检测——§8.3 检测对象不应只有 PMI 附件 ──
+    // 逐 BidProject 查询（评标包精确 key + 其余 category 按 key 含 bpId 匹配），key 去重防重复检测
+    const seenKeys = new Set<string>();
+    for (const bp of item.bidProjects) {
+      const assets = await this.prisma.fileAsset.findMany({
+        where: {
+          OR: [
+            { key: `bid-evaluation-handover/${bp.id}.json` },
+            { key: { contains: bp.id }, category: { in: ['bid_opening_handover', 'bid_sign_packet', 'bid_decrypted'] } },
+          ],
+        },
+        select: { key: true, originalName: true, category: true, sha256: true },
+        take: 50,
+      });
+      for (const fa of assets) {
+        if (seenKeys.has(fa.key)) continue;
+        seenKeys.add(fa.key);
+        const label = `回流件/${fa.originalName ?? fa.key}`;
+        try {
+          const buf = await this.storage.download(fa.key);
+          if (buf.length === 0) throw new Error('对象为空');
+          const digest = crypto.createHash('sha256').update(buf).digest('hex');
+          const hashOk = fa.sha256 ? fa.sha256 === digest : true;
+          details.push({ code: '-', materialName: label, check: '可用性-可读', status: 'PASS', message: '' });
+          if (fa.sha256) {
+            details.push({
+              code: '-', materialName: label, check: '完整性-哈希',
+              status: hashOk ? 'PASS' : 'FAIL',
+              message: hashOk ? '' : 'MinIO 内容与上传时登记的 sha256 不符（对象可能被篡改或损坏）',
+            });
+          }
+        } catch (err: any) {
+          details.push({
+            code: '-', materialName: label, check: '可用性-可读',
+            status: 'FAIL', message: `回流对象不可读：${err?.message ?? err}`,
+          });
+        }
+      }
+    }
+
     const uploadDir = path.resolve(process.cwd(), 'uploads', 'project-management');
     for (const st of item.stages) {
       for (const att of st.attachments) {
@@ -96,7 +138,7 @@ export class ArchiveCheckService {
           const buf = await fs.readFile(abs);
           if (buf.length === 0) throw new Error('文件为空');
           const digest = crypto.createHash('sha256').update(buf).digest('hex');
-          const versionHash = att.versions[0]?.originalHash ?? null;
+          const versionHash = [...att.versions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]?.originalHash ?? null;
           const hashOk = versionHash ? versionHash === digest : true; // 无版本哈希的存量件不判 FAIL（记 PASS，导出时固化新指纹）
           details.push({ code: '-', materialName: label, check: '可用性-可读', status: 'PASS', message: '' });
           if (versionHash) {

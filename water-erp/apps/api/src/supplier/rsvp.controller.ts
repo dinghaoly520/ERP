@@ -61,4 +61,15 @@ export class RsvpController {
   async list(@Query('projectId') projectId?: string, @Query('invitationId') invitationId?: string) {
     return this.rsvp.list({ projectId, invitationId });
   }
+
+  @Post('manual-mark')
+  @Roles('admin', 'leader', 'staff')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: '采购端手动标记确认状态（确认页点击切换联动落库，供阶段完成核验计数）' })
+  async manualMark(@Body() body: { projectId?: string; supplierId?: string; status?: 'PENDING' | 'ACCEPTED' | 'DECLINED' }) {
+    if (!body?.projectId || !body?.supplierId) {
+      throw new BadRequestException({ error: 'projectId 与 supplierId 必填', code: 'BAD_INPUT' });
+    }
+    return this.rsvp.manualMark(body.projectId, body.supplierId, body.status as never);
+  }
 }

@@ -74,6 +74,7 @@ model User {
   favorites              UserFavorite[]
   auditLogs              AuditLog[]
   supplierApprovals      SupplierApprovalRecord[] @relation("SupplierApprovalReviewer")
+  reviewedBusinessTags   BusinessTag[]            @relation("BusinessTagReviewer")
   expertProfile          ExpertProfile?
   expertEvaluations      ExpertEvaluation[]       @relation("ExpertEvaluationsReceived")
   expertEvalsGiven       ExpertEvaluation[]       @relation("ExpertEvaluationsGiven")
@@ -1261,6 +1262,30 @@ model ExpertEvaluation {
 
 // ── 供应商管理 ──
 
+// ── 业务标签库：注册时选择为主，供应商可自创（PENDING）→ 采购端审核通过后入池可选 ──
+enum TagStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BusinessTag {
+  id                  String    @id @default(cuid())
+  name                String    @unique
+  status              TagStatus @default(PENDING)
+  source              String    @default("seed") // seed=预置 | supplier_register=供应商注册自创
+  createdBySupplierId String? // 自创该标签的供应商
+  reviewedById        String?
+  reviewedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  createdBySupplier Supplier? @relation("BusinessTagCreator", fields: [createdBySupplierId], references: [id], onDelete: SetNull)
+  reviewedBy         User?     @relation("BusinessTagReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+}
+
 enum SupplierStatus {
   PENDING // 待审核
   RETURNED // 退回补正
@@ -1348,6 +1373,7 @@ model Supplier {
   participations RoundParticipant[]
 
   approvalRecords SupplierApprovalRecord[]
+  createdBusinessTags BusinessTag[] @relation("BusinessTagCreator")
 
   @@index([status])
   @@index([creditCode])
@@ -2811,6 +2837,7 @@ model ProjectManagementItem {
   archiveExportedAt           DateTime? // 最近一次 ASIP 归档信息包导出时间（§8.2）
   archivePackageKey           String? // ASIP 包在 MinIO 的对象键（一卷一包，重导覆盖）
   archiveRegistrationKey      String? // 移交接收登记表扫描件（双套制线下签章回传，A.1h 纸电关联）
+  recycledAt                  DateTime? // M1：进入回收站的确切时间（3 年保留期起算，勿用 updatedAt 近似——任何更新都会重置它）
 
   @@index([status, currentStage])
   @@index([title])

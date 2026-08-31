@@ -92,13 +92,28 @@ describe('ProjectPlanService 报审受理（CTS A-47~49）', () => {
     );
   });
 
-  it('编辑：报审中/已通过 → PLAN_LOCKED', async () => {
+  it('编辑：报审中 → PLAN_LOCKED', async () => {
     const { service } = mk({
       projectPlanItem: { findFirst: jest.fn().mockResolvedValue({ status: 'SUBMITTED' }) },
     });
     await expect(service.updatePlan('pmi-1', 'p-1', { content: 'x' })).rejects.toMatchObject({
       response: { code: 'PLAN_LOCKED' },
     });
+  });
+
+  it('编辑：已通过条目可调整并自动降回 DRAFT（A-07 重新申报语义）', async () => {
+    const { service, prisma } = mk({
+      projectPlanItem: {
+        findFirst: jest.fn().mockResolvedValue({ status: 'APPROVED' }),
+        update: jest.fn().mockResolvedValue({ id: 'p-1' }),
+      },
+    });
+    await service.updatePlan('pmi-1', 'p-1', { content: '调整后内容' });
+    expect(prisma.projectPlanItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'DRAFT', content: '调整后内容', reviewedAt: null, reviewComment: null }),
+      }),
+    );
   });
 
   it('团队：重复成员 → DUPLICATE_MEMBER', async () => {

@@ -75,3 +75,25 @@
 - S2：审计端点返回 11 条归档操作日志（检测/导出/下载/登记全覆盖）✓
 - D2：280 天/400 天测试卷分级收到 TRANSFER_DUE/OVERDUE；重跑零新增（幂等）✓
 - D3：登记表扫描件上传→MinIO→回读一致→下载回读一致 ✓
+
+
+## 自我审查与逻辑漏洞修复（2026-08-27）
+
+### 已修复（逐项实测）
+- **H1** 审批留痕 operationTrail 未按项目过滤 → path contains pmiId（实测 6 条零混入）
+- **H2** 导出回流件取件失败静默跳过 → 收集失败整体拒绝（ARCHIVE_HANDOVER_FETCH_FAILED），绝不导出残包
+- **H3** 导出完成不消 D2 督办 → resolveArchiveTodo 同时消解 TRANSFER_DUE/OVERDUE（实测 resolved）
+- **M1** 3 年闸用 updatedAt 近似 → 新列 recycledAt（回收写入/恢复清零；存量缺记录从严拒绝并指引）
+- **M2** 前端导出硬编码 Y30 → 已有期限保留原值，未划定才默认
+- **M3** 登记表 {{ZIP_SHA256}} 占位符 → 改指引包内固化验证清单（zip 自身哈希结构性无法入包）
+- **M4** 回流件不参与四性检测 → 逐 BidProject 检测（可读 + sha256 比对上传指纹），key 去重
+- **M5** 阶段闸门无豁免 → waiveArchiveGate=true + note 必填（拒无理由豁免；豁免 logger.warn 留痕）
+- **M6** 导出读件失败裸 500 → ARCHIVE_FILE_MISSING 明确拒绝（TOCTOU 窗口收口）
+- 低危：AttachmentVersion 取最新（按 createdAt 排序）；ensureSeeded 不覆盖存量行（为范围表管理留路）；入包杂件元数据兜底（export-fallback）；说明文件补载体类型/容量（附录 D）
+
+### 审查后确认无需修
+- bid_decrypted 回流件 key 含 projectId，contains 匹配正确
+- A.2d 防重复：导出为覆盖语义（同 pmi 新时间戳包 + PMI 包键更新），重复导出无害且合规
+
+### 遗留差距（维持此前排除决策）
+格式转换（T7）、CA 电子签章（M57）、档案系统在线对接（T10）、公告正文自动纳入、范围表管理界面

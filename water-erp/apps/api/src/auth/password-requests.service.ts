@@ -106,6 +106,18 @@ export class PasswordRequestsService {
       where: { id: req.userId },
       data: { passwordHash: req.requestedPasswordHash, webSessionId: null },
     });
+    // 通知申请人审批结果（与资料变更审批对齐；通知失败不阻塞审批）
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: req.userId,
+          type: 'PASSWORD_CHANGE_REVIEWED',
+          title: '密码修改已通过',
+          content: '您的密码修改申请已由管理员审核通过，新密码已生效；当前登录已失效，请使用新密码重新登录。',
+          link: '/profile',
+        },
+      });
+    } catch { /* 通知失败不阻塞审批 */ }
     return this.prisma.passwordChangeRequest.update({
       where: { id },
       data: { status: 'APPROVED', reviewedAt: new Date(), approvedById: reviewerId },
@@ -117,6 +129,18 @@ export class PasswordRequestsService {
     const req = await this.prisma.passwordChangeRequest.findUnique({ where: { id } });
     if (!req) throw new NotFoundException({ error: '申请不存在', code: 'NOT_FOUND' });
     if (req.status !== 'PENDING') throw new BadRequestException({ error: '该申请已处理', code: 'ALREADY_REVIEWED' });
+    // 拒绝必须让申请人知晓，否则个人中心永远停在「等待审批」
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: req.userId,
+          type: 'PASSWORD_CHANGE_REVIEWED',
+          title: '密码修改未通过',
+          content: `您的密码修改申请被拒绝${note ? `：${note}` : ''}，原密码继续有效。`,
+          link: '/profile',
+        },
+      });
+    } catch { /* 通知失败不阻塞审批 */ }
     return this.prisma.passwordChangeRequest.update({
       where: { id },
       data: { status: 'REJECTED', decisionNote: note ?? null, reviewedAt: new Date(), approvedById: reviewerId },

@@ -8,7 +8,7 @@ import { CalendarClock } from 'lucide-react';
  * 有值节点按时间升序排前，缺值灰显垫底。挂在项目详情 page-hero 顶部。
  */
 
-type TimelineNode = { key: string; label: string; time: string | null; source: string };
+type TimelineNode = { key: string; label: string; time: string | null; timeEnd?: string | null; source: string };
 
 export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
   const [nodes, setNodes] = useState<TimelineNode[] | null>(null);
@@ -27,10 +27,25 @@ export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
 
   if (nodes === null) return null;
 
-  const fmt = (iso: string | null) => {
+  // 日期展示：纯 00:00 无时刻语义（如立项日）只显日期，其余带时分
+  const fmt = (iso: string | null, omitYear = false) => {
     if (!iso) return '未登记';
     const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '未登记' : d.toLocaleDateString('zh-CN');
+    if (Number.isNaN(d.getTime())) return '未登记';
+    const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+    const hm = hasTime ? ` ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
+    return `${omitYear ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}${hm}`;
+  };
+  // 节点展示：区间节点（采购文件获取）显起止时段——同日省略终点日期、同年省略终点年份
+  const fmtNode = (n: TimelineNode) => {
+    if (!n.time) return '未登记';
+    if (!n.timeEnd) return fmt(n.time);
+    const s = new Date(n.time);
+    const e = new Date(n.timeEnd);
+    if (s.toDateString() === e.toDateString()) {
+      return `${fmt(n.time)}–${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`;
+    }
+    return `${fmt(n.time)}–${fmt(n.timeEnd, s.getFullYear() === e.getFullYear())}`;
   };
 
   return (
@@ -51,7 +66,7 @@ export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
           >
             <span className={`h-1 w-1 rounded-full ${n.time ? 'bg-[var(--accent)]' : 'bg-[color:var(--muted-foreground)]/40'}`} />
             {n.label}
-            <span className="font-mono tabular-nums">{fmt(n.time)}</span>
+            <span className="font-mono tabular-nums">{fmtNode(n)}</span>
           </span>
         </span>
       ))}

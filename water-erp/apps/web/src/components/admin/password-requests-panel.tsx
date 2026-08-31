@@ -231,7 +231,7 @@ export function PasswordRequestsPanel() {
       try {
         await approvePasswordChangeRequest(requestId);
         setChangeRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setActionMessage("已批准修改密码申请，新密码已生效。");
+        setActionMessage("已批准修改密码申请，新密码已生效，该用户已登录会话已下线。");
       } catch (error) {
         setActionMessage(error instanceof Error ? error.message : "审批失败，请稍后重试。");
       }

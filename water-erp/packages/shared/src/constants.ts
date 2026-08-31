@@ -187,6 +187,8 @@ export const NOTIFICATION_META: Record<string, NotificationMeta> = {
   ARCHIVE_TRANSFER_DUE:     { icon: 'CalendarClock',     tone: 'orange', actionable: true  },
   ARCHIVE_OVERDUE:          { icon: 'AlertTriangle',     tone: 'red',    actionable: true  },
   ACCOUNT_SECURITY_FEEDBACK: { icon: 'ShieldAlert',     tone: 'red',    actionable: true  },
+  PROFILE_CHANGE_REVIEWED: { icon: 'IdCard',            tone: 'blue',   actionable: false },
+  PASSWORD_CHANGE_REVIEWED: { icon: 'KeyRound',         tone: 'blue',   actionable: false },
   SYSTEM:                  { icon: 'Bell',              tone: 'gray',   actionable: false },
 };
 
@@ -210,6 +212,8 @@ export const NOTIFICATION_LABEL: Record<string, string> = {
   ARCHIVE_TRANSFER_DUE: '归档移交临期',
   ARCHIVE_OVERDUE: '归档严重逾期',
   ACCOUNT_SECURITY_FEEDBACK: '账号安全反馈',
+  PROFILE_CHANGE_REVIEWED: '资料变更审批',
+  PASSWORD_CHANGE_REVIEWED: '密码变更审批',
   SYSTEM: '系统通知',
 };
 

@@ -1,10 +1,9 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Send, Shield, Sparkles, UploadCloud, UserPlus, X , Layers } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Send, Shield, Sparkles, UploadCloud, UserPlus, X , Layers } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
-import { ProjectPlanSection } from '@/components/projects/project-plan-section';
 import {
   analyzeProjectManagementItem,
   analyzeProjectStep,
@@ -19,9 +18,8 @@ import {
   updateProjectStage,
   updateProjectExtractedInfo,
   uploadProjectStageAttachment,
-  auditStageCompliance,
   optimizeInitiationFields,
-  type ComplianceAuditResponse,
+  fetchProjectManagementList,
   type ExtractedInfo,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
@@ -36,7 +34,6 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
 import { ProjectTimelineStrip } from './project-timeline-strip';
-import { TenderClarificationPanel } from './tender-clarification-panel';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
@@ -450,7 +447,6 @@ export function ProjectDetailPanel({
   };
 
   const stageLocked = selectedStage.status === 'NOT_STARTED' || isLockedByBid(selectedStage.stageKey);
-  const hasStageFiles = (selectedStage.attachments?.length ?? 0) > 0;
   const stageProcessing = uploading || analysisLoading;
   const canCompleteStage =
     isCurrentStage && selectedStage.status !== 'COMPLETED' && !stageLocked && !stageProcessing;
@@ -481,20 +477,16 @@ export function ProjectDetailPanel({
   );
 
   const currentFileAnalysis = stageFileAnalysis[currentFileIndex];
-  // 步骤检查是否进行的依据：AI 是否分析出文件内容（与"文件分析"区口径一致），而非仅看是否上传了附件。
-  // 仅上传附件但尚未分析出内容时，不进行步骤检查，避免 AI 在空内容上臆造结论。
-  const hasAnalyzedFiles = stageFileAnalysis.length > 0;
 
-  // 当前阶段是否为「步骤分析」类型阶段（供应商邀请 / 专家抽取）
-  const isStepAnalysisStage =
-    selectedStage.stageKey === 'SUPPLIER_INVITATION' || selectedStage.stageKey === 'EXPERT_SELECTION';
+  // 步骤分析已覆盖全部阶段（analyze-step 按阶段取真实数据源）
+  const isStepAnalysisStage = true;
 
   // ── 步骤分析 state（供应商邀请 / 专家抽取）──
   const [stepAnalysisContent, setStepAnalysisContent] = useState('');
   const [stepAnalysisLoading, setStepAnalysisLoading] = useState(false);
   const [stepAnalysisError, setStepAnalysisError] = useState<string | null>(null);
   const [stepAnalysisEmpty, setStepAnalysisEmpty] = useState(false);
-  const [stepAnalysisTab, setStepAnalysisTab] = useState<'step' | 'file'>('step');
+  const [stepAnalysisTab, setStepAnalysisTab] = useState<'step' | 'file'>('file');
 
   // 用于触发文件分析刷新的计数器（仅在文件上传后增加）
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
@@ -520,82 +512,13 @@ export function ProjectDetailPanel({
   const [frameworkOpen, setFrameworkOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
 
-  // 步骤检查状态 —— 按 stageKey 缓存结果
-  const complianceCache = useRef<Map<string, ComplianceAuditResponse>>(new Map());
+  // 选中步骤的实时镜像：异步回调（如弹窗上传后的回填）需以"响应到达时"的选中态判定，
+  // 闭包里的 selectedStageKey 快照在等待期间会过期
+  const selectedStageKeyRef = useRef(selectedStageKey);
+  const selectedRoundRef = useRef(selectedRound);
+  useEffect(() => { selectedStageKeyRef.current = selectedStageKey; }, [selectedStageKey]);
+  useEffect(() => { selectedRoundRef.current = selectedRound; }, [selectedRound]);
   const tenderFileJustDeletedRef = useRef(false); // 删除采购文件时标记，阻止 useEffect[item] 恢复提取字段
-  const [complianceAudit, setComplianceAudit] = useState<ComplianceAuditResponse | null>(null);
-  const [complianceLoading, setComplianceLoading] = useState(false);
-  const [complianceError, setComplianceError] = useState<string | null>(null);
-
-  // 自动触发步骤检查：阶段切换时优先使用缓存，缓存未命中时请求 API
-  // 未开始的阶段（NOT_STARTED）不触发步骤检查
-  // 无附件的阶段不触发步骤检查——没有文件就没有审查依据
-  const runComplianceAudit = useCallback((force = false) => {
-    // 缓存 key 含 round，避免多轮采购时不同轮次同一 stageKey 冲突
-    const cacheKey = `${item.id}:${selectedStage.stageKey}:${selectedRound}`;
-    // 当前阶段没有任何附件：没有审查依据，不进行步骤检查，并清掉旧缓存
-    // 步骤分析阶段（供应商邀请/专家抽取）无附件也可基于步骤分析结果审查
-    const hasFiles = selectedStage.attachments && selectedStage.attachments.length > 0;
-    const hasStepContent = stepAnalysisContent.trim().length > 0;
-    if (!hasFiles && !isStepAnalysisStage) {
-      complianceCache.current.delete(cacheKey);
-      setComplianceAudit(null);
-      setComplianceError(null);
-      setComplianceLoading(false);
-      return;
-    }
-    // 先判定是否有可分析的文件内容：没有则不进行步骤检查，并清掉该阶段旧缓存，
-    // 避免在"无文件 / 分析被清空 / 分析失败"时误展示历史结论（含旧缓存里的善意推断结论）。
-    // 该判定必须早于缓存读取，否则同 cacheKey 的旧缓存会先命中并覆盖清空意图。
-    if (!hasAnalyzedFiles && !hasStepContent) {
-      complianceCache.current.delete(cacheKey);
-      setComplianceAudit(null);
-      setComplianceError(null);
-      setComplianceLoading(false);
-      return;
-    }
-    // 优先使用缓存（非强制模式下命中即直接展示）——切换步骤时立即显示已有结果
-    if (!force) {
-      const cached = complianceCache.current.get(cacheKey);
-      if (cached) {
-        setComplianceAudit(cached);
-        setComplianceError(null);
-        setComplianceLoading(false);
-        return;
-      }
-    }
-    if (stageLocked) {
-      setComplianceAudit(null);
-      setComplianceError(null);
-      setComplianceLoading(false);
-      return;
-    }
-    // AI loading：清空旧值避免展示上一步骤结果
-    setComplianceAudit(null);
-    setComplianceLoading(true);
-    setComplianceError(null);
-    auditStageCompliance(item.id, selectedStage.stageKey, force)
-      .then((result) => {
-        // Only cache successful results (not AI fallback)
-        const isFallback = result.results.every(r => r.evidence.includes('AI 审查服务暂不可用'));
-        if (!isFallback) {
-          complianceCache.current.set(cacheKey, result);
-        }
-        setComplianceAudit(result);
-      })
-      .catch((err) => { setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
-      .finally(() => setComplianceLoading(false));
-  }, [item.id, selectedStage.stageKey, stageLocked, hasAnalyzedFiles, isStepAnalysisStage, stepAnalysisContent]);
-  // 项目切换时清空步骤检查缓存
-  useEffect(() => {
-    complianceCache.current.clear();
-    setComplianceAudit(null);
-    setComplianceError(null);
-  }, [item.id]);
-
-  useEffect(() => {
-    runComplianceAudit();
-  }, [runComplianceAudit]);
 
   // Load project attributions for autocomplete
   useEffect(() => {
@@ -661,42 +584,73 @@ export function ProjectDetailPanel({
 
   // 文件分析：组件挂载或切换阶段时加载（使用缓存）
   // 上传后的分析由 uploadStageFiles 直接调用，避免 useEffect 竞态
+  const analysisSeqRef = useRef(0);
   const loadAnalysis = useCallback((refresh = false) => {
+    const seq = ++analysisSeqRef.current;
     setAnalysisLoading(true);
+    setAnalysis(null); // 清旧步骤的分析，避免切换步骤后仍展示上一阶段文件分析
     setAnalysisError(null);
     analyzeProjectManagementItem(item.id, selectedStage.stageKey, refresh)
-      .then((nextAnalysis) => { setAnalysis(nextAnalysis); })
-      .catch((error) => { setAnalysisError(error instanceof Error ? error.message : 'AI 分析暂不可用。'); })
-      .finally(() => { setAnalysisLoading(false); });
+      .then((nextAnalysis) => {
+        if (seq !== analysisSeqRef.current) return; // 已切换步骤：旧响应丢弃
+        setAnalysis(nextAnalysis);
+      })
+      .catch((error) => {
+        if (seq !== analysisSeqRef.current) return;
+        setAnalysisError(error instanceof Error ? error.message : 'AI 分析暂不可用。');
+      })
+      .finally(() => {
+        if (seq !== analysisSeqRef.current) return;
+        setAnalysisLoading(false);
+      });
   }, [item.id, selectedStage.stageKey]);
 
   useEffect(() => {
     loadAnalysis();
   }, [loadAnalysis]);
 
+  // 弹窗内产生阶段附件（采购邀请书挂档等）→ 拉最新项目数据注入本地镜像 + 重拉文件分析
+  //（附件变化使后端阶段分析指纹失效并重算；不刷新 analysis 会停留在旧的空结果，文件分析 Tab 不出现）
+  const reloadItemAttachments = useCallback(() => {
+    fetchProjectManagementList()
+      .then((list) => {
+        const fresh = (list as Array<typeof item>).find((p) => p.id === item.id);
+        if (fresh) setLocalItem((prev) => ({ ...prev, ...fresh }));
+      })
+      .catch(() => undefined);
+    loadAnalysis();
+  }, [item.id, loadAnalysis]);
+
   // 步骤分析：仅在供应商邀请/专家抽取阶段加载
+  const stepAnalysisSeqRef = useRef(0);
   const loadStepAnalysis = useCallback((refresh = false) => {
-    if (!isStepAnalysisStage) return;
+    const seq = ++stepAnalysisSeqRef.current;
     setStepAnalysisLoading(true);
     setStepAnalysisError(null);
     analyzeProjectStep(item.id, selectedStage.stageKey, refresh)
       .then((res) => {
+        if (seq !== stepAnalysisSeqRef.current) return; // 已切换步骤：旧响应丢弃
         setStepAnalysisContent(res.content);
         setStepAnalysisEmpty(res.empty);
       })
       .catch((error) => {
+        if (seq !== stepAnalysisSeqRef.current) return;
         setStepAnalysisError(error instanceof Error ? error.message : '步骤分析暂不可用。');
         setStepAnalysisContent('');
         setStepAnalysisEmpty(false);
       })
-      .finally(() => setStepAnalysisLoading(false));
+      .finally(() => {
+        if (seq !== stepAnalysisSeqRef.current) return;
+        setStepAnalysisLoading(false);
+      });
   }, [item.id, selectedStage.stageKey, isStepAnalysisStage]);
 
   useEffect(() => {
     setStepAnalysisContent('');
     setStepAnalysisEmpty(false);
     setStepAnalysisError(null);
-    setStepAnalysisTab('step');
+    // 切换阶段回到默认 Tab：文件分析在前（用户更关注阶段文件内容）
+    setStepAnalysisTab('file');
     loadStepAnalysis();
   }, [loadStepAnalysis]);
 
@@ -719,7 +673,12 @@ export function ProjectDetailPanel({
       );
       const nextStageKey = localItem.stages[currentIndex + 1]?.stageKey;
 
-      await updateProjectStage(item.id, stage.stageKey, { status: 'COMPLETED' });
+      // 供应商邀请阶段：带上确认页设置的满足数量（后端按回执实数核验，未达标返回 x/N 明确提示）
+      const confirmThreshold = Number(localStorage.getItem('supplier-confirm-threshold')) || 3;
+      await updateProjectStage(item.id, stage.stageKey, {
+        status: 'COMPLETED',
+        ...(stage.stageKey === 'SUPPLIER_INVITATION' ? { confirmedThreshold: confirmThreshold } : {}),
+      });
       await onUpdated();
 
       // Auto-advance to the next stage; useEffect on selectedStageKey triggers analysis
@@ -797,22 +756,25 @@ export function ProjectDetailPanel({
 
       // 2. Load analysis directly (not via useEffect) to avoid race conditions
       setAnalysisError(null);
+      const uploadSeq = ++analysisSeqRef.current; // 与 loadAnalysis 共用守卫：等待期间切换步骤则丢弃
       try {
         const nextAnalysis = await analyzeProjectManagementItem(item.id, selectedStage.stageKey);
-        setAnalysis(nextAnalysis);
-        // Jump to the newest uploaded file
-        if (nextAnalysis.fileAnalyses && nextAnalysis.fileAnalyses.length > 0) {
-          setCurrentFileIndex(nextAnalysis.fileAnalyses.length - 1);
+        if (uploadSeq === analysisSeqRef.current) {
+          setAnalysis(nextAnalysis);
+          // Jump to the newest uploaded file
+          if (nextAnalysis.fileAnalyses && nextAnalysis.fileAnalyses.length > 0) {
+            setCurrentFileIndex(nextAnalysis.fileAnalyses.length - 1);
+          }
         }
       } catch (analysisErr) {
-        setAnalysisError(analysisErr instanceof Error ? analysisErr.message : 'AI 分析暂不可用。');
+        if (uploadSeq === analysisSeqRef.current) {
+          setAnalysisError(analysisErr instanceof Error ? analysisErr.message : 'AI 分析暂不可用。');
+        }
       } finally {
-        setAnalysisLoading(false);
+        if (uploadSeq === analysisSeqRef.current) {
+          setAnalysisLoading(false);
+        }
       }
-
-      // 3. 上传文件后刷新当前阶段的步骤检查
-      complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}:${selectedRound}`);
-      runComplianceAudit(true);
 
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '上传阶段文件失败。');
@@ -1027,9 +989,9 @@ export function ProjectDetailPanel({
   // 阶段附件发生变化（新增 / 替换）后的统一处理，避免需手动刷新页面才可见：
   //  - 拿到上传结果（客户端上传）时即时注入 localItem，文件立即可见；
   //  - 服务端创建/替换（无 result）时由弹窗的 onPublished/onFileReplaced 回流更新列表；
-  //  - 始终刷新后端文件分析 + 步骤检查缓存（即使当前没选中该阶段），
-  //    这样从弹窗（如采购文件编写）回到该阶段时缓存已就绪、不会报"没有文件内容"。
-  //  - UI 态（analysis / complianceAudit / loading）仅当选中的正是该阶段时才更新。
+  //  - 始终刷新后端文件分析（即使当前没选中该阶段），这样从弹窗（如采购文件编写）
+  //    回到该阶段时缓存已就绪、不会报"没有文件内容"。
+  //  - UI 态（analysis / loading）仅当选中的正是该阶段时才更新。
   const handleStageAttachmentChanged = useCallback(
     (stageKey: ProjectWorkflowStageKey, result?: UploadStageAttachmentResult) => {
       if (result) {
@@ -1042,37 +1004,19 @@ export function ProjectDetailPanel({
           ),
         }));
       }
-      const isCurrentStage = selectedStageKey === stageKey;
-      if (isCurrentStage) {
+      // 实时判定（非闭包快照）：等待期间用户切换步骤，则不再往新步骤下写旧步骤的 UI 态
+      const stageStillSelected = () =>
+        selectedStageKeyRef.current === stageKey && selectedRoundRef.current === selectedRound;
+      if (stageStillSelected()) {
         setAnalysisLoading(true);
         setAnalysisError(null);
       }
-      // 清缓存后等分析完成再触发合规检查——否则后端 auditStageCompliance
-      // 读到的分析缓存还是旧版本/空，全部显示"未检测到采购文件"
-      complianceCache.current.delete(`${item.id}:${stageKey}:${selectedRound}`);
       analyzeProjectManagementItem(item.id, stageKey)
-        .then((next) => { if (isCurrentStage) setAnalysis(next); })
-        .catch((e) => { if (isCurrentStage) setAnalysisError(e instanceof Error ? e.message : 'AI 分析暂不可用。'); })
-        .finally(() => {
-          if (isCurrentStage) setAnalysisLoading(false);
-          // 文件分析已完成（后端缓存已更新）→ 直接发起合规检查
-          if (isCurrentStage) {
-            setComplianceLoading(true);
-            setComplianceError(null);
-          }
-          auditStageCompliance(item.id, stageKey, true)
-            .then((auditResult) => {
-              const isFallback = auditResult.results.every(r => r.evidence.includes('AI 审查服务暂不可用'));
-              if (!isFallback) {
-                complianceCache.current.set(`${item.id}:${stageKey}:${selectedRound}`, auditResult);
-              }
-              if (isCurrentStage) setComplianceAudit(auditResult);
-            })
-            .catch((err) => { if (isCurrentStage) setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
-            .finally(() => { if (isCurrentStage) setComplianceLoading(false); });
-        });
+        .then((next) => { if (stageStillSelected()) setAnalysis(next); })
+        .catch((e) => { if (stageStillSelected()) setAnalysisError(e instanceof Error ? e.message : 'AI 分析暂不可用。'); })
+        .finally(() => { if (stageStillSelected()) setAnalysisLoading(false); });
     },
-    [item.id, selectedStageKey, selectedRound],
+    [item.id, selectedRound],
   );
 
   // 采购方式 / 采购类别下拉选项 —— 确保当前值始终在选项中（历史数据可能不在标准枚举内）
@@ -1297,12 +1241,6 @@ export function ProjectDetailPanel({
             ) : null}
           </div>
         </div>
-
-        {/* CTS A-47~49 任务计划与团队（hero 与双栏正文之间） */}
-        <ProjectPlanSection itemId={item.id} canModify={canModify} currentUserRole={currentUserRole} />
-
-        {/* W1（A-80~86）：澄清与修改工作台 */}
-        <TenderClarificationPanel pmiId={item.id} />
 
         {/* ══════ 双栏正文 —— 列 bg 无外层 px 包裹，文本左缘 = page-hero 左缘(均为 px-5) ══════ */}
         <div className="pb-5">
@@ -1845,7 +1783,7 @@ export function ProjectDetailPanel({
                   const isTenderDoc = /采购文件|招标文件/.test(deletedName) && !/审批表|公告|合同|通知书|需求|立项/.test(deletedName);
 
                   if (isTenderDoc && selectedStage.stageKey === 'TENDER_DOCUMENT') {
-                    // 删除采购文件：清空提取信息（DB 持久化）+ 文件分析 + 步骤检查
+                    // 删除采购文件：清空提取信息（DB 持久化）+ 文件分析
                     tenderFileJustDeletedRef.current = true; // 阻止 onUpdated 后 useEffect[item] 恢复提取字段
                     try {
                       await updateProjectExtractedInfo(item.id, { projectOverview: '', bidOpeningTime: '', documentAcquireTime: '', evaluationMethod: '' });
@@ -1867,8 +1805,6 @@ export function ProjectDetailPanel({
                       documentAcquireTime: null,
                     } : null);
                     setAnalysis(null);
-                    setComplianceAudit(null);
-                    setComplianceError(null);
                   }
 
                   await onUpdated();
@@ -1876,9 +1812,6 @@ export function ProjectDetailPanel({
                   if (!isTenderDoc && analysis) {
                     setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) });
                   }
-                  // 删除文件后刷新步骤检查（采购文件已清空，不重跑）
-                  complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}:${selectedRound}`);
-                  if (!isTenderDoc) runComplianceAudit(true);
                 }}
                 onEdit={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
               />
@@ -1925,14 +1858,14 @@ export function ProjectDetailPanel({
                 <div className="flex items-center gap-1 mb-3">
                   <button
                     type="button"
-                    onClick={() => setStepAnalysisTab('step')}
-                    className={stepAnalysisTab === 'step' ? 'neu-btn-xs is-info' : 'neu-btn-xs'}
-                  >步骤分析</button>
-                  <button
-                    type="button"
                     onClick={() => setStepAnalysisTab('file')}
                     className={stepAnalysisTab === 'file' ? 'neu-btn-xs is-info' : 'neu-btn-xs'}
                   >文件分析</button>
+                  <button
+                    type="button"
+                    onClick={() => setStepAnalysisTab('step')}
+                    className={stepAnalysisTab === 'step' ? 'neu-btn-xs is-info' : 'neu-btn-xs'}
+                  >步骤分析</button>
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-3">
@@ -1960,7 +1893,7 @@ export function ProjectDetailPanel({
                 <div>
                   <div className="flex items-center justify-between gap-3 mb-2">
                     <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
-                      {selectedStage.stageKey === 'EXPERT_SELECTION' ? '专家抽取过程与名单' : '供应商邀请过程与名单'}
+                      {selectedStage.stageName}步骤分析
                     </span>
                     <button type="button" disabled={stepAnalysisLoading || stageLocked} onClick={() => loadStepAnalysis(true)} className="neu-btn-xs is-info">
                       <RefreshCw size={12} className={stepAnalysisLoading ? 'animate-spin' : ''} />重新分析
@@ -1974,8 +1907,14 @@ export function ProjectDetailPanel({
                         <Loader2 size={14} className="animate-spin inline mr-2 text-[color:var(--accent)]" />正在分析抽取过程与名单...
                       </div>
                     ) : stepAnalysisEmpty ? (
-                      <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
-                        尚未完成{selectedStage.stageKey === 'EXPERT_SELECTION' ? '专家抽取' : '供应商邀请'}，请先通过阶段操作生成名单。
+                      /* 步骤分析专用空态：居中引导块，与文件分析空态（浅底横条）视觉区分 */
+                      <div className="flex flex-col items-center justify-center gap-2 rounded-lg px-4 py-8 text-center"
+                        style={{ border: '1px dashed color-mix(in oklch, var(--muted-foreground) 30%, transparent)' }}>
+                        <ListChecks size={22} strokeWidth={1.6} className="text-[var(--muted-foreground)] opacity-60" />
+                        <div className="text-sm font-semibold text-[color:var(--foreground)]">「{selectedStage.stageName}」尚无步骤分析</div>
+                        <div className="max-w-[420px] text-[11px] leading-5 text-[color:var(--muted-foreground)]">
+                          该阶段还没有可采集的过程数据。完成本阶段的实际操作（如发送邀请、抽取专家、推进开评标、上传定标/合同材料）后，点击「重新分析」即可生成本阶段的过程分析。
+                        </div>
                       </div>
                     ) : stepAnalysisContent ? (
                       <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--foreground)] whitespace-pre-wrap" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
@@ -2017,121 +1956,6 @@ export function ProjectDetailPanel({
                 </>
               )}
 
-            {/* ══════ 步骤检查 —— 放在右栏文件分析下方 ══════ */}
-            <hr className="wb-section-rule" />
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Shield size={15} className="text-[color:var(--accent)]" />
-                <span className="text-[0.95rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">步骤检查</span>
-                {complianceAudit && (
-                  <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">
-                    {complianceAudit.results.filter(r => r.verdict === '通过').length}通过 / {complianceAudit.results.filter(r => r.verdict === '警告').length}警告 / {complianceAudit.results.filter(r => r.verdict === '违规').length}违规
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                disabled={complianceLoading || stageProcessing || stageLocked || analysisLoading || !hasAnalyzedFiles}
-                onClick={() => {
-                  complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}:${selectedRound}`);
-                  runComplianceAudit(true);
-                }}
-                className="neu-btn-xs is-info"
-              >
-                {complianceLoading || stageProcessing ? (
-                  <><Loader2 size={12} className="animate-spin" />{complianceLoading ? '审查中...' : '处理中...'}</>
-                ) : (
-                  <><Shield size={12} />重新检查</>
-                )}
-              </button>
-            </div>
-
-            {complianceError && (
-              <div className="rounded-lg px-3 py-2 text-xs text-[color:var(--danger)]" style={{background:"color-mix(in oklch,var(--danger) 6%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>
-                {complianceError}
-              </div>
-            )}
-
-            {stageLocked && (
-              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
-                当前阶段尚未开始，无需进行步骤检查。
-              </div>
-            )}
-
-            {!stageLocked && !hasStageFiles && !isStepAnalysisStage && !complianceLoading && (
-              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
-                请先上传采购文件，再进行步骤检查。
-              </div>
-            )}
-
-            {!stageLocked && !hasStageFiles && isStepAnalysisStage && !stepAnalysisContent.trim() && !complianceLoading && (
-              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
-                请先完成步骤分析，再进行步骤检查。
-              </div>
-            )}
-
-            {!stageLocked && hasStageFiles && analysisLoading && !complianceLoading && (
-              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
-                正在分析上传文件，分析完成后将自动进行步骤检查。
-              </div>
-            )}
-
-            {!stageLocked && hasStageFiles && !analysisLoading && !hasAnalyzedFiles && !isStepAnalysisStage && !complianceLoading && (
-              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
-                未分析出文件内容，暂不进行步骤检查。请点击"重新分析"后再检查。
-              </div>
-            )}
-
-            {complianceLoading && !complianceAudit && !stageLocked && (
-              <div className="rounded-lg px-4 py-4 text-sm text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12)"}}>
-                正在调用 AI 进行步骤检查，请稍候...
-              </div>
-            )}
-
-            {complianceAudit && !stageLocked && (
-              <div className="space-y-2">
-                {/* 审查总结 */}
-                <div className="rounded-lg px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]" style={{background:"color-mix(in oklch,var(--accent-soft) 20%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5)"}}>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">审查总结</span>
-                  <div className="mt-1">
-                    {complianceAudit.summary.split(/(不通过)/g).map((part, i) =>
-                      part === '不通过' ? (
-                        <span key={i} className="font-semibold text-[color:var(--danger)]">{part}</span>
-                      ) : (
-                        part
-                      ),
-                    )}
-                  </div>
-                </div>
-
-                {/* 逐项审查结果 — 直接展示，无需点击 */}
-                {complianceAudit.results.map((item, i) => {
-                  const iconColor = item.verdict === '通过' ? 'var(--success)' : item.verdict === '警告' ? 'var(--warning)' : 'var(--danger)';
-                  const bgColor = item.verdict === '通过' ? 'color-mix(in oklch,var(--success) 6%,transparent)' : item.verdict === '警告' ? 'color-mix(in oklch,var(--warning) 8%,transparent)' : 'color-mix(in oklch,var(--danger) 6%,transparent)';
-                  return (
-                    <div key={i} className="rounded-lg px-4 py-3 text-sm" style={{background:bgColor}}>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)] shrink-0">{item.dimension}</span>
-                          <span className="text-sm font-semibold text-[color:var(--foreground)] truncate">{item.checkpoint}</span>
-                        </div>
-                        <span className="shrink-0 rounded-[4px] px-2 py-0.5 text-[10px] font-bold" style={{color:iconColor,background:`color-mix(in oklch,${iconColor} 12%,transparent)`}}>
-                          {item.verdict}
-                        </span>
-                      </div>
-                      <div className="text-xs leading-5 text-[color:var(--foreground)] mt-1">{item.evidence}</div>
-                      {item.suggestion && (
-                        <div className="mt-2 flex items-start gap-1.5 text-xs leading-5">
-                          <span className="shrink-0 text-[color:var(--accent)] font-semibold">建议：</span>
-                          <span className="text-[color:var(--foreground)]">{item.suggestion}</span>
-                        </div>
-                      )}
-                      <div className="mt-1.5 text-[10px] text-[color:var(--muted-foreground)]/60 leading-relaxed">{item.regulationRef}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -2139,6 +1963,7 @@ export function ProjectDetailPanel({
 
       <LoginErrorDialog
         isOpen={Boolean(errorMessage)}
+        title="操作失败"
         message={errorMessage ?? ''}
         onClose={() => setErrorMessage(null)}
       />
@@ -2208,6 +2033,7 @@ export function ProjectDetailPanel({
           if (isStepAnalysisStage) setTimeout(() => loadStepAnalysis(true), 200);
         }}
         project={item}
+        onAttachmentUploaded={reloadItemAttachments}
       />
 
       {/* 专家抽取弹窗 */}

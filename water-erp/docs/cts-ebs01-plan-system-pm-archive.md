@@ -163,3 +163,49 @@ W1+W2（~2 周）→ W4（~1 周）→ W3（界面多，~2 周可穿插）→ W5
 - 恢复演练实测入档（4.9 附录：131 表 0 错误，RTO 参考 ≤30min）
 - 三册手册落档 docs/manuals/（部署/运维/用户）
 - 剩余唯一非代码事项：省公共服务平台商务发函 + 选 3 个真实项目启试运行计时
+
+### ✅ 逻辑审查修复（2026-08-27，审查报告 4 项 P0/P1 全闭环）
+1. **专家退库恢复链修复**：confirmRetire 同步 entryStatus=RETIRED（两退库路径收敛）；恢复以 retiredAt 兜底判断，联动还原 availability='可用' + 账号激活——实测两路径退库→恢复后「可被抽取=true」
+2. **专家录入默认待审核**：手工录入/批量导入 entryStatus=PENDING，「审核入库」后 verifiedBy/At 首次入库留痕（A-218 闭环）
+3. **计划通过条目解死锁**：APPROVED 条目可调整（UI 加调整按钮），调整即降回 DRAFT 清审核留痕重新报审（A-07/A-49 语义）；SUBMITTED 仍锁定
+4. **PMI 递交生命周期闸**：API 收口——非 ACTIVE（已归档/回收）项目递交报 INVALID_LIFECYCLE
+- 测试 21/21 过（含新增生命周期闸/降级用例）；修复过程顺带发现并消除"旧进程持旧 dist"的验证陷阱（重启后须核对进程启动时间）
+- 待拍板项（未动）：#5 PMI 待审锁定字段范围、#6 立项通过→采购文件硬联动、#7 中标结果从交易链自动回写
+
+### ✅ 拍板项落地（2026-08-27，#5/#6/#7）
+- **#5（拍板：不锁定）**：PMI 待审期间字段保持可修改——自建平台审核定位为留痕制，不对标 A-06 严格锁止（差异口径已记入 D-2 声明素材）
+- **#6（立项硬闸）**：updateStage 完成 INITIATION 须 reviewStatus=APPROVED（INITIATION_NOT_APPROVED）——「立项批准后才能采购」从 AI 提示升级为硬控制；小采购（无立项阶段）与已越过该阶段的存量不受影响。spec 4 用例 + 实机造数验证（未审核 400 → 通过后 200 过闸，现场已还原）
+- **#7（定标自动回写）**：deliverAwardLetter 发出中标通知书后，经 PMI.bidProjects 反查宿主台账并回写 awardedSupplier（幂等：值一致跳过；失败不阻断通知书；手工值仍可兜底）——A-203 联查视图数据源由双头手工维护转为交易链自动同步。spec 1 用例（不一致回写/一致跳过）
+- 回归：bid.service 350 + 专项 76 = **426/426 全过**；tsc 0 错误；服务已重启（进程时间核对）
+
+**—— 逻辑审查 4+3 项全部闭环，专项无遗留代码待办 ——**
+
+### ✅ 走查缺陷修复（2026-08-27 下午，步骤检查错位 + 时间轴 A-204 数据错乱）
+
+**① 步骤检查跨步骤错位覆盖（:3005 项目详情）**
+- 现象：「采购需求」步骤下出现「审批合规/文件审批流程 警告」——该检查项属于「采购文件」步骤（后端各阶段规则与缓存本就正确，DB 核对无误）。
+- 根因（前端 `project-detail-panel.tsx`）：LLM 步骤检查耗时可达数分钟；用户在等待期间切换步骤后，**在途旧响应无条件 `setComplianceAudit` 覆盖新步骤的展示**（实测该项目「采购文件」审查跑 3 分钟，期间切回「采购需求」即被覆盖）。
+- 修复：`runComplianceAudit`/`loadAnalysis`/`loadStepAnalysis`/上传后分析回填统一加**迟到响应守卫**（seq ref：响应到达时序号过期则只入缓存不动展示；`handleStageAttachmentChanged` 的闭包快照 `isCurrentStage` 换实时 ref 判定）。
+- 验证：实机复现原场景（采购文件「重新检查」长请求中立即切回采购需求，240s 轮询）→ 全程无跨步骤覆盖；tsc 0 错误。
+
+**② 时间轴（A-204）开标/截止/获取时间错乱**
+- 现象：立项 3/18 · 开标 3/18 · 投标截止 8/28 · 采购文件获取「未登记」。
+- 根因（时序错位，两个）：(a) BidProject 懒创建（14:03）早于采购文件 AI 提取（14:32）——创建时 `bidOpeningTime` 尚未提取 → openTime 落 fallback=立项日、deadline 落兜底 now+24h，此后**永不回填**；(b) `documentAcquireTime` 存 AI 提取的中文区间文本（「2026年03月23日09:00至…」），timeline 用 `new Date()` 解析失败 → 显示「未登记」。
+- 修复：
+  - 上传采购文件（TENDER_DOCUMENT 附件）即同步 `documentAcquireTime`（为空才写，上传时刻、中文格式；AI 提取到精确时段后覆盖）——2026-08-27 用户拍板；
+  - AI 提取 `bidOpeningTime` 成功后**回填对齐同轮 BidProject**（仅 DOWNLOAD/SUBMIT 未开标前）：openTime=提取值、deadline=openTime−24h（复用 P0-2 口径 `BID_DEADLINE_BEFORE_OPENING_MS`）；
+  - `timeline.service` 的字符串时间解析换 `parseFlexibleDate`（中文格式 + 区间文本取起点）。
+- 存量数据修正：该项目 BidProject openTime 3/18→3/23 14:00、deadline→3/22 14:00（对齐提取值−24h）。
+- 验证：timeline 端点与 :3005 实机截图均显示 立项 3/18 · 截止 3/22 · 获取 3/23 · 开标 3/23；上传同步经实机验证（NULL→「2026年08月27日14:58」）后测试附件已删、原值已还原。timeline spec 5/5。
+- ⚠️ 提交说明：`project-management.service.ts`/`project-detail-panel.ts` 混有并行会话（回收站限时 M1 等）未提交改动，本批改动未单独提交，待对方提交后一并处理。
+
+**③ 时间轴展示精度（2026-08-27 追加，用户反馈）**
+- 采购文件获取是**时段**：`TimelineNode` 增加 `timeEnd`，`parseDateRange` 解析区间文本（"2026年03月23日09:00至2026年03月26日15:00"）取起止；前端显示"2026/3/23 09:00–3/26 15:00"（同日只补时分、同年省终点年）。上传同步写入的单点值 → 无终点、显示单点。
+- 有时刻语义的节点一律带时分（投标截止/开标 14:00）；纯 00:00（立项日）只显日期。
+- **时区口径修复**：Prisma `timestamp without time zone` 裸值被驱动按 UTC epoch 读出，`toISOString()` 直转会让前端（本地解析）+8h——立项 00:00 显成 08:00、开标 14:00 显成 22:00（旧版只显日期恰好未跨天而掩盖）。新增 `toIsoFromBare`（裸值按本地折算），五处 Prisma Date 节点统一；与 parseFlexibleDate/parseDateRange 的本地构造口径一致。spec 断言改为时区无关写法。
+- 实机验证（:3005）：立项 2026/3/18 · 截止 2026/3/22 14:00 · 获取 2026/3/23 09:00–3/26 15:00 · 开标 2026/3/23 14:00；timeline spec 6/6、tsc 0。
+
+**④ 步骤检查区块从 :3005 项目详情移除（2026-08-27，用户拍板）**
+- 删除 `project-detail-panel.tsx` 中每个步骤下的"步骤检查"UI（标题/重新检查按钮/审查总结/逐项结果）及其全部支撑代码（compliance state/缓存/runComplianceAudit/上传·删文件后的合规刷新/`auditStageCompliance` 引用）；同时移除今晨为它加的迟到响应守卫（已无消费者）。
+- 保留：后端 `POST /project-management/:id/audit-compliance` 端点、阶段合规规则（含 /admin/compliance-rules 配置页）、"文件分析/步骤分析"区块、时间轴（A-204）。
+- 验证：实机两个类型步骤（采购需求/供应商邀请）均无"步骤检查"且页面无破损、无 pageerror；tsc 0（仅并行会话 business-tag-review 的 dayjs 缺依赖报错，与本批无关）。

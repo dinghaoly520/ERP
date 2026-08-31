@@ -183,6 +183,11 @@ export function sendNegotiationConfig(data: NegotiationConfigPayload) {
   return api.post<{ delivered: number }>('/supplier/negotiation-config', data);
 }
 
+// ── 采购端手动标记回执状态（确认页点击切换联动落库，供阶段完成核验计数）──
+export function markRsvpManual(projectId: string, supplierId: string, status: 'PENDING' | 'ACCEPTED' | 'DECLINED') {
+  return api.post<{ id: string; status: string }>('/supplier/rsvp/manual-mark', { projectId, supplierId, status });
+}
+
 // ── 邀请回执看板（采购端）──
 export interface RsvpListItem { rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED'; tags?: string[]; note: string | null; respondedAt: string | null; expired: boolean; }
 export interface RsvpListResult { total: number; counts: { ACCEPTED: number; DECLINED: number; PENDING: number }; items: RsvpListItem[]; }
@@ -532,3 +537,29 @@ export function globalSearch(q: string) {
   return api.get<{ results: SearchResult[]; total: number }>(`/search?q=${encodeURIComponent(q)}`);
 }
 
+
+
+// ═══ 业务标签库（供应商注册选择制：自创标签审核入池）═══
+
+export interface BusinessTagRow {
+  id: string;
+  name: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  source: string;
+  createdAt: string;
+  reviewedAt: string | null;
+  createdBySupplier?: { name: string; supplierNo: string } | null;
+  reviewedBy?: { displayName: string } | null;
+}
+
+export function listBusinessTags(status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
+  return api.get<BusinessTagRow[]>(`/supplier/admin/tags${status ? `?status=${status}` : ''}`);
+}
+
+export function approveBusinessTag(id: string) {
+  return api.post(`/supplier/admin/tags/${id}/approve`, {});
+}
+
+export function rejectBusinessTag(id: string) {
+  return api.post(`/supplier/admin/tags/${id}/reject`, {});
+}

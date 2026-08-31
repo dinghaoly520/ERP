@@ -192,4 +192,50 @@ export class RsvpService {
     });
     return { total: cleanRows.length, counts, items };
   }
+
+  /**
+   * 采购端手动标记供应商确认状态（电话核实等场景，供应商未点回执链接时）：
+   * 有回执行 → 更新状态；无 → 补一条 manual 行（同项目同空间，供阶段完成核验计数联动）。
+   * 已有正式回执（非 manual）不覆盖供应商原始选择——采购端核实优先，仅状态不同才更新。
+   */
+  async manualMark(projectId: string, supplierId: string, status: 'PENDING' | 'ACCEPTED' | 'DECLINED') {
+    if (!projectId || !supplierId || !['PENDING', 'ACCEPTED', 'DECLINED'].includes(status)) {
+      throw new BadRequestException({ error: '参数不完整或状态非法', code: 'BAD_INPUT' });
+    }
+    // 兼容 PMI / BidProject 两个 id 空间（与邀请通知写入空间保持一致）
+    const bp = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: projectId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    const spaceIds = Array.from(new Set([projectId, bp?.id].filter(Boolean) as string[]));
+    const row = await this.prisma.invitationRsvp.findFirst({
+      where: { supplierId, projectId: { in: spaceIds } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (row) {
+      return this.prisma.invitationRsvp.update({
+        where: { id: row.id },
+        data: { status, respondedAt: status === 'PENDING' ? null : new Date() },
+        select: { id: true, status: true },
+      });
+    }
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } });
+    if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'SUPPLIER_NOT_FOUND' });
+    return this.prisma.invitationRsvp.create({
+      data: {
+        token: `manual-${projectId}-${supplierId}`,
+        invitationId: `manual-${projectId}`,
+        projectId: bp?.id ?? projectId,
+        supplierId,
+        supplierName: supplier.name,
+        title: '采购端手动标记（电话/线下核实）',
+        summary: '{}',
+        status,
+        respondedAt: status === 'PENDING' ? null : new Date(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+      },
+      select: { id: true, status: true },
+    });
+  }
 }
