@@ -20,8 +20,18 @@ async function loginAs(app: INestApplication, username: string, password: string
   return first ? String(first).split(';')[0] : '';
 }
 
+// sm-crypto（与 SignatureService 同源依赖）：A-114 用例内生成测试密钥对并对 canonical 签名
+const sm2 = require('sm-crypto').sm2;
+
 function connectBid(base: string, cookie: string): Socket {
-  return io(`${base}/bid`, { withCredentials: true, extraHeaders: { Cookie: cookie }, reconnection: false, timeout: 8000 });
+  // 2026-08-14 WS 命名空间加固后网关严格按门户读对应 cookie（tokenFromHandshake 依 X-Portal/
+  // Origin 分支）——Node socket.io-client 握手无 Origin，必须显式带 X-Portal，否则
+  // token_supplier/token_bid 一律落默认分支读 token_web → UNAUTHORIZED。门户从 cookie 前缀
+  // 推导：token_web/legacy token/匿名走默认分支不注头；mall 无开标业务（注头也落默认分支→拒）。
+  const ns = cookie.slice(0, cookie.indexOf('=')).replace('token_', '');
+  const extraHeaders: Record<string, string> = { Cookie: cookie };
+  if (ns === 'bid' || ns === 'supplier' || ns === 'expert') extraHeaders['X-Portal'] = ns;
+  return io(`${base}/bid`, { withCredentials: true, extraHeaders, reconnection: false, timeout: 8000 });
 }
 
 function joinAck(socket: Socket, projectId: string): Promise<any> {
@@ -53,6 +63,8 @@ describe('Opening Hall (e2e)', () => {
   let nonMemberSupplierId: string, nonMemberUserId: string; // 临时「非参投供应商」，afterAll 清理
   let strayExpertCookie: string; // 未指派到 hero 项目的专家（S1 负用例）
   let strayExpertUserId: string | undefined; // 仅在兜底创建时有值，afterAll 清理
+  let sup1Sm2Pk: string | null = null, sup2Sm2Pk: string | null = null; // A-114 绑盾前快照，afterAll 还原
+  let sm2PkSnapshotted = false; // 快照完成才允许还原（防 beforeAll 中途崩把真实公钥清成 null）
 
   beforeAll(async () => {
     const mod: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -65,11 +77,13 @@ describe('Opening Hall (e2e)', () => {
     base = await app.getUrl();
     prisma = app.get(PrismaService);
 
-    hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
+    // bid_host 自 2026-08-14 port-roles L3 起不可在 web 门户登录（403 PORT_ROLE_MISMATCH），
+    // 主持人（陈源远）按现行分流从 bid 门户登录 → token_bid；host REST 调用同步带 X-Portal: bid
+    hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'bid');
     sup1Cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
     sup2Cookie = await loginAs(app, '成都华西物资供应有限公司', 'supplier@2026', 'supplier');
     expertCookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
-    expect(hostCookie).toContain('token_web=');
+    expect(hostCookie).toContain('token_bid=');
     expect(sup1Cookie).toContain('token_supplier=');
     expect(sup2Cookie).toContain('token_supplier=');
     expect(expertCookie).toContain('token_expert=');
@@ -127,8 +141,15 @@ describe('Opening Hall (e2e)', () => {
     const s1 = await prisma.supplier.findFirst({ where: { userId: u1!.id } });
     const s2 = await prisma.supplier.findFirst({ where: { userId: u2!.id } });
     sup1Id = s1!.id; sup2Id = s2!.id;
+    // A-114 前置快照：签名用例会把测试 SM2 公钥写入种子供应商（U盾公钥位），afterAll 还原原值
+    sup1Sm2Pk = (await prisma.supplier.findUnique({ where: { id: sup1Id }, select: { sm2PublicKey: true } }))?.sm2PublicKey ?? null;
+    sup2Sm2Pk = (await prisma.supplier.findUnique({ where: { id: sup2Id }, select: { sm2PublicKey: true } }))?.sm2PublicKey ?? null;
+    sm2PkSnapshotted = true;
 
     const ts = Date.now();
+    // 主持人（bid_host）按 2026-08-20 BidCompanyScopeGuard 的 :3007 指派执行权路径放行：
+    // e2e 项目无 companyId，须挂 assignedHostUserId（被指派主持人）才可访问 projects/:id/* 端点
+    const hostUser = await prisma.user.findFirst({ where: { username: '陈源远', role: 'bid_host' } });
     const proj = await prisma.bidProject.create({
       data: {
         projectCode: `E2E-OH-${ts}`, // @unique 必填，无默认值
@@ -137,6 +158,7 @@ describe('Opening Hall (e2e)', () => {
         stage: 'OPENING',
         openTime: new Date(),
         deadline: new Date(ts + 7200_000),
+        assignedHostUserId: hostUser!.id,
       },
     });
     projectId = proj.id;
@@ -173,6 +195,12 @@ describe('Opening Hall (e2e)', () => {
     if (nonMemberSupplierId) await prisma.supplier.deleteMany({ where: { id: nonMemberSupplierId } }).catch(() => {});
     if (nonMemberUserId) await prisma.user.deleteMany({ where: { id: nonMemberUserId } }).catch(() => {});
     if (strayExpertUserId) await prisma.user.deleteMany({ where: { id: strayExpertUserId } }).catch(() => {});
+    // A-114 还原绑盾副作用：种子供应商 sm2PublicKey 回写原值（本套目标行原为 null；
+    // 仅快照完成后还原——T7 起种子将绑真实 U盾公钥，中途崩不得清键）
+    if (sm2PkSnapshotted) {
+      await prisma.supplier.update({ where: { id: sup1Id }, data: { sm2PublicKey: sup1Sm2Pk } }).catch(() => {});
+      await prisma.supplier.update({ where: { id: sup2Id }, data: { sm2PublicKey: sup2Sm2Pk } }).catch(() => {});
+    }
     await app.close();
   });
 
@@ -235,7 +263,7 @@ describe('Opening Hall (e2e)', () => {
     const p1 = onceEvent(s1, 'hall:message:new');
     const p2 = onceEvent(s2, 'hall:message:new');
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '请各家准备解密' }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: '请各家准备解密' }).expect(201);
     const [d1, d2] = await Promise.all([p1, p2]);
     expect(d1.content).toBe('请各家准备解密');
     expect(d1.senderRole).toBe('HOST');
@@ -249,7 +277,7 @@ describe('Opening Hall (e2e)', () => {
     let leaked = false;
     s2.on('hall:message:new', (d: any) => { if (d.roomType === 'PRIVATE' && d.supplierId === sup1Id) leaked = true; });
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PRIVATE', supplierId: sup1Id, content: '仅供你方查看' }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PRIVATE', supplierId: sup1Id, content: '仅供你方查看' }).expect(201);
     const d = await got1;
     expect(d.roomType).toBe('PRIVATE');
     expect(d.content).toBe('仅供你方查看');
@@ -264,17 +292,17 @@ describe('Opening Hall (e2e)', () => {
 
   it('MUTED：供应商禁言、主持仍可发；CLOSED：全员禁言', async () => {
     await request(app.getHttpServer()).patch(`/api/opening-hall/${projectId}/exchange-control`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ control: 'MUTED' }).expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ control: 'MUTED' }).expect(200);
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
       .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomType: 'PUBLIC', content: 'x' }).expect(403);
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '主持发言' }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: '主持发言' }).expect(201);
     await request(app.getHttpServer()).patch(`/api/opening-hall/${projectId}/exchange-control`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ control: 'CLOSED' }).expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ control: 'CLOSED' }).expect(200);
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'x' }).expect(403);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: 'x' }).expect(403);
     await request(app.getHttpServer()).patch(`/api/opening-hall/${projectId}/exchange-control`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ control: 'OPEN' }).expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ control: 'OPEN' }).expect(200);
   });
 
   it('未读 + 读游标', async () => {
@@ -294,7 +322,7 @@ describe('Opening Hall (e2e)', () => {
     // host 发 3 条公聊（间隔 15ms 避同毫秒落库——未读计数是 createdAt 严格 gt 比较）
     const send = async (c: string) => (
       await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-        .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: c }).expect(201)
+        .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: c }).expect(201)
     ).body;
     const m1 = await send('游标探针-1');
     await new Promise(r => setTimeout(r, 15));
@@ -332,7 +360,7 @@ describe('Opening Hall (e2e)', () => {
     // 连发 5 条公聊（可能同毫秒落库）确保可翻页
     for (const c of ['P1', 'P2', 'P3', 'P4', 'P5']) {
       await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-        .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: `分页探针-${c}` }).expect(201);
+        .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: `分页探针-${c}` }).expect(201);
     }
     const seen = new Set<string>();
     let prevPageMinT = Infinity; // 页间连续性：后一页消息不晚于前一页最旧消息
@@ -340,7 +368,7 @@ describe('Opening Hall (e2e)', () => {
     let guard = 0;
     do {
       const url = `/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
-      const r = await request(app.getHttpServer()).get(url).set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      const r = await request(app.getHttpServer()).get(url).set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
       expect(r.body.items.length).toBeLessThanOrEqual(2);
       // 页内升序
       const times = r.body.items.map((m: any) => new Date(m.createdAt).getTime());
@@ -363,22 +391,22 @@ describe('Opening Hall (e2e)', () => {
   it('S6：非法 cursor → 400 INVALID_CURSOR（不再 500）；limit 非法 → 回落默认 200', async () => {
     await request(app.getHttpServer())
       .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&cursor=abc`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .set('Cookie', hostCookie).set('X-Portal', 'bid')
       .expect(400)
       .expect((res) => expect(res.body).toMatchObject({ code: 'INVALID_CURSOR' }));
     await request(app.getHttpServer())
       .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=abc`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
   });
 
   it('S4/S5：纯空白消息 400 MESSAGE_EMPTY；含 & < > 的消息原文落库（不再被富文本消毒）', async () => {
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '   ' })
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: '   ' })
       .expect(400)
       .expect((res) => expect(res.body).toMatchObject({ code: 'MESSAGE_EMPTY' }));
     const raw = '报价 <100> 万元 & 工期';
     const r = await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: raw }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: raw }).expect(201);
     expect(r.body.content).toBe(raw);
     const stored = await prisma.openingHallMessage.findUnique({ where: { id: r.body.id } });
     expect(stored!.content).toBe(raw); // DB 不再是 报价 &lt;100&gt; 万元 &amp; 工期
@@ -386,13 +414,13 @@ describe('Opening Hall (e2e)', () => {
 
   it('归档存证（S2/S3）：大厅消息进 sections（公聊+私聊）、哈希链摘要可复算、CSV 含大厅消息段', async () => {
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '存证探针-公聊' }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: '存证探针-公聊' }).expect(201);
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PRIVATE', supplierId: sup1Id, content: '存证探针-私聊' }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PRIVATE', supplierId: sup1Id, content: '存证探针-私聊' }).expect(201);
 
     const res = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/archive-package/export?format=json`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     const { sections, hashChain } = res.body;
     expect(sections.hallMessages.find((m: any) => m.content === '存证探针-公聊'))
       .toMatchObject({ roomType: 'PUBLIC', senderRole: 'HOST' });
@@ -414,7 +442,7 @@ describe('Opening Hall (e2e)', () => {
     // S3：CSV 归档含"开标大厅消息"段（与 JSON 对齐）
     const csv = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/archive-package/export?format=csv`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     expect(csv.text).toContain('=== 开标大厅消息 ===');
     expect(csv.text).toContain('存证探针-公聊');
     expect(csv.text).toContain('存证探针-私聊');
@@ -425,7 +453,7 @@ describe('Opening Hall (e2e)', () => {
       .send({ roomType: 'PUBLIC', content: '=1+1 公式注入探针' }).expect(201);
     const csv2 = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/archive-package/export?format=csv`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     expect(csv2.text).toContain(`"'=1+1 公式注入探针"`);
     expect(csv2.text).not.toContain(`"=1+1 公式注入探针"`);
   });
@@ -433,10 +461,49 @@ describe('Opening Hall (e2e)', () => {
   it('供应商确认开标记录 → 主持端收到 opening:confirmed', async () => {
     const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
     const p = onceEvent(host, 'opening:confirmed');
+    // A-114 签名化：测试内生成 SM2 密钥对，公钥绑 sup1（U盾公钥位），对 payload 端点返回的
+    // canonical 签名。签名参数镜像 SignatureService.verify → doVerifySignature(msg, sig, pub,
+    // { hash: true })（der 未设=裸 r||s hex，userId 默认 1234567812345678）——签名侧任一参数
+    // 不一致（如 der:true 或 hash:false）验签必败。
+    const { publicKey, privateKey } = sm2.generateKeyPairHex();
+    await prisma.supplier.update({ where: { id: sup1Id }, data: { sm2PublicKey: publicKey } });
+    const payloadRes = await request(app.getHttpServer())
+      .get(`/api/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').expect(200);
+    expect(payloadRes.body.payload.purpose).toBe('confirm');
+    const signature = sm2.doSignature(payloadRes.body.canonical, privateKey, { hash: true, der: false });
     await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${projectId}/opening-confirm`)
-      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').expect(201);
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ signature }).expect(201);
     const d = await p;
     expect(d.supplierId).toBe(sup1Id);
+    // 签名证据随确认落库归档（A-114：confirmSignature/confirmSignedAt）
+    const bs1 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup1Id } });
+    const rec = await prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bs1!.id } });
+    expect(rec!.confirmSignature).toMatchObject({ algorithm: 'SM2/SM3', signature });
+    expect(rec!.confirmSignedAt).toBeTruthy();
+  });
+
+  it('A-114 负例：错误私钥签名 → 400 OPENING_CONFIRM_SIGNATURE_INVALID（不写库）', async () => {
+    // sup2 记录仍「待确认」（purpose=confirm 分支，验签前置）；绑 sup2 公钥但用第三方密钥对
+    // 私钥对同一 canonical 签名——公私钥不配对 → 验签失败，须 400 且不产生任何写入。
+    const { publicKey } = sm2.generateKeyPairHex();
+    await prisma.supplier.update({ where: { id: sup2Id }, data: { sm2PublicKey: publicKey } });
+    const { privateKey: wrongKey } = sm2.generateKeyPairHex();
+    const payloadRes = await request(app.getHttpServer())
+      .get(`/api/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`)
+      .set('Cookie', sup2Cookie).set('X-Portal', 'supplier').expect(200);
+    const signature = sm2.doSignature(payloadRes.body.canonical, wrongKey, { hash: true, der: false });
+    await request(app.getHttpServer())
+      .post(`/api/supplier-portal/bid-submissions/${projectId}/opening-confirm`)
+      .set('Cookie', sup2Cookie).set('X-Portal', 'supplier').send({ signature })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'OPENING_CONFIRM_SIGNATURE_INVALID' }));
+    // 不写库：sup2 记录保持待确认、无签名证据/确认时间（后续 R7 用例依赖此态）
+    const bs2 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup2Id } });
+    const rec = await prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bs2!.id } });
+    expect(rec!.confirmStatus).toBe('待确认');
+    expect(rec!.confirmSignature).toBeNull();
+    expect(rec!.confirmedAt).toBeNull();
   });
 
   it('供应商提异议 → 主持端收到 opening:disputed；主持处理 → 供应商收到 dispute:resolved', async () => {
@@ -459,7 +526,7 @@ describe('Opening Hall (e2e)', () => {
     const pResolved = onceEvent(sup, 'opening:dispute:resolved');
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/opening-records/${record!.id}/resolve-dispute`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: '复核无误', confirm: true }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ result: '复核无误', confirm: true }).expect(201);
     const rd = await pResolved;
     expect(rd.confirm).toBe(true);
   });
@@ -471,7 +538,7 @@ describe('Opening Hall (e2e)', () => {
     expect(pending!.confirmStatus).toBe('待确认');
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/opening-records/${pending!.id}/resolve-dispute`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: 'x', confirm: true })
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ result: 'x', confirm: true })
       .expect(400)
       .expect((res) => expect(res.body).toMatchObject({ code: 'DISPUTE_NOT_PENDING' }));
     // 记录态未被翻转、供应商态未被动
@@ -483,18 +550,20 @@ describe('Opening Hall (e2e)', () => {
     expect(resolved).toBeTruthy();
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/opening-records/${resolved!.id}/resolve-dispute`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: 'y', confirm: false })
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ result: 'y', confirm: false })
       .expect(400)
       .expect((res) => expect(res.body).toMatchObject({ code: 'DISPUTE_NOT_PENDING' }));
     expect((await prisma.bidOpeningRecord.findUnique({ where: { id: resolved!.id } }))!.confirmStatus).toBe('异议已处理-确认');
   });
 
-  it('授权收口：专家读私聊转录 → 403 HOST_ONLY（非主持非供应商角色）', async () => {
+  it('授权收口：专家读私聊转录 → 403（非主持非供应商角色，RolesGuard 层先拒）', async () => {
+    // bid_expert 不在 opening-hall 端点 @Roles 集 → RolesGuard 403 FORBIDDEN（早于历史
+    // service 层 assertHost 的 HOST_ONLY；拒载语义不变，仅拦截层前移）
     await request(app.getHttpServer())
       .get(`/api/opening-hall/${projectId}/messages?roomType=PRIVATE&supplierId=${sup1Id}`)
       .set('Cookie', expertCookie).set('X-Portal', 'expert')
       .expect(403)
-      .expect((res) => expect(res.body).toMatchObject({ code: 'HOST_ONLY' }));
+      .expect((res) => expect(res.body).toMatchObject({ code: 'FORBIDDEN' }));
     // 未读分布与在场名单同样拒绝
     await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/unread`)
       .set('Cookie', expertCookie).set('X-Portal', 'expert').expect(403);
@@ -515,28 +584,32 @@ describe('Opening Hall (e2e)', () => {
   it('阶段门：EVALUATING 阶段发消息 403', async () => {
     await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'EVALUATING' } });
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'x' }).expect(403);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: 'x' }).expect(403);
     await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'OPENING' } });
   });
 
-  it('C1 负用例：无 cookie 匿名 socket join → UNAUTHORIZED，收不到公聊广播', async () => {
+  it('C1 负用例：无 cookie 匿名 socket 在握手层即被拒——收不到公聊广播', async () => {
+    // 2026-08 严格握手鉴权：无 token 连接在 handleConnection 即被服务端断开（历史「软鉴权」
+    // 等 join:project 兜底 ack UNAUTHORIZED 的路径已不存在）——断言连接被服务端终止
+    const serverKilled = (s: Socket) => new Promise<void>((res, rej) => {
+      const t = setTimeout(() => rej(new Error('timeout waiting server disconnect')), 5000);
+      s.on('disconnect', () => { clearTimeout(t); res(); });
+      s.on('connect_error', () => { clearTimeout(t); res(); });
+    });
     // 变体一：显式空 Cookie 头
-    const anon1 = track(connectBid(base, '')); await connected(anon1);
-    const ack1 = await joinAck(anon1, projectId);
-    expect(ack1).toEqual({ error: 'UNAUTHORIZED' });
+    const anon1 = track(connectBid(base, ''));
+    await serverKilled(anon1);
     // 变体二：完全不带 Cookie 头
     const anon2 = track(io(`${base}/bid`, { withCredentials: true, reconnection: false, timeout: 8000 }));
-    await connected(anon2);
-    const ack2 = await joinAck(anon2, projectId);
-    expect(ack2).toEqual({ error: 'UNAUTHORIZED' });
+    await serverKilled(anon2);
 
-    // 沉降窗口：主持端发公聊，两个匿名 socket 均不得收到 hall:message:new
+    // 沉降窗口：主持端发公聊，两个被拒 socket 均不得收到 hall:message:new
     let leaked = 0;
     anon1.on('hall:message:new', () => leaked++);
     anon2.on('hall:message:new', () => leaked++);
     const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'C1 匿名探针消息' }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: 'C1 匿名探针消息' }).expect(201);
     await new Promise(r => setTimeout(r, 600)); // 沉降窗口：确认匿名 socket 确实未收到
     expect(leaked).toBe(0);
   });
@@ -561,8 +634,9 @@ describe('Opening Hall (e2e)', () => {
       .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: `supplier:${sup1Id}` }).expect(201);
   });
 
-  it('角色分级：procurement_staff 放行公开流（project 房）但 REST 敏感操作拒绝；mall 完全拒绝', async () => {
-    // 临时 procurement_staff 用户（单一角色 → 任意门户登录都解析为 procurement_staff）
+  it('角色分级（2026-08-20 退役后）：procurement_staff 幽灵角色不可登录；mall 门户 socket 拒连', async () => {
+    // procurement_staff 幽灵账号 2026-08-20 已从体系退役（种子删除、port-roles 白名单不含）——
+    // 历史「放行公开流但 REST 敏感操作拒绝」的中间态不复存在，登录在 L3 即 403
     const ts = Date.now();
     let staffUserId = '';
     try {
@@ -573,32 +647,22 @@ describe('Opening Hall (e2e)', () => {
         },
       });
       staffUserId = staffUser.id;
-      const staffCookie = await loginAs(app, staffUser.username, 'e2e@2026', 'web');
-
-      // 1) join 放行（进 project 房；host 房不在该分支加入——结构性隔离，见 bid.gateway.ts 分支代码）
-      const s = track(connectBid(base, staffCookie)); await connected(s);
-      const ack = await joinAck(s, projectId);
-      expect(ack).toEqual(expect.objectContaining({ ok: true }));
-
-      // 2) 收到公开流（主持公聊广播）
-      const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
-      const got = onceEvent(s, 'hall:message:new');
-      await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-        .set('Cookie', hostCookie).set('X-Portal', 'web')
-        .send({ roomType: 'PUBLIC', content: 'procurement_staff 公开流测试' }).expect(201);
-      expect((await got).content).toBe('procurement_staff 公开流测试');
-
-      // 3) REST 敏感操作仍被 assertHost 拒绝（S8：公开流放行、私聊转录收紧）
-      await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/messages?roomType=PRIVATE&supplierId=${sup1Id}`)
-        .set('Cookie', staffCookie).set('X-Portal', 'web')
+      await request(app.getHttpServer())
+        .post('/api/auth/login').set('X-Portal', 'web')
+        .send({ username: staffUser.username, password: 'e2e@2026' })
         .expect(403)
-        .expect((res) => expect(res.body).toMatchObject({ code: 'HOST_ONLY' }));
+        .expect((res) => expect(res.body).toMatchObject({ code: 'PORT_ROLE_MISMATCH' }));
 
-      // 4) mall 门户完全拒绝：token_mall 不在网关解析集（mall 无开标业务）→ 未认证 UNAUTHORIZED；
-      //    FORBIDDEN 分支兜底"已认证但非白名单角色"（防御纵深，cookie 路径下 mall 实际落 UNAUTHORIZED）。
+      // mall 门户完全拒绝：token_mall 不在 WS 网关命名空间解析集（mall 无开标业务），
+      // 严格握手鉴权下无可用 token → 连接在握手层被服务端断开
       const mallCookie = await loginAs(app, '陈源远', '陈源远@2026', 'mall');
-      const m = track(connectBid(base, mallCookie)); await connected(m);
-      expect(await joinAck(m, HERO_PROJECT_ID)).toEqual({ error: 'UNAUTHORIZED' });
+      expect(mallCookie).toContain('token_mall=');
+      const m = track(connectBid(base, mallCookie));
+      await new Promise<void>((res, rej) => {
+        const t = setTimeout(() => rej(new Error('timeout waiting mall socket rejection')), 5000);
+        m.on('disconnect', () => { clearTimeout(t); res(); });
+        m.on('connect_error', () => { clearTimeout(t); res(); });
+      });
     } finally {
       if (staffUserId) await prisma.user.delete({ where: { id: staffUserId } }).catch(() => {});
     }
@@ -616,7 +680,7 @@ describe('Opening Hall (e2e)', () => {
 
     // 在线基线：sup2 计在线
     const pr0 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/presence`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     expect(pr0.body.suppliers.find((s: any) => s.supplierId === sup2Id)?.online).toBe(true);
 
     // leave:project → 退房 + 清连接表
@@ -626,13 +690,13 @@ describe('Opening Hall (e2e)', () => {
     let leaked = 0;
     sup.on('hall:message:new', () => leaked++);
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'R8 leave 后探针' }).expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').send({ roomType: 'PUBLIC', content: 'R8 leave 后探针' }).expect(201);
     await new Promise(r => setTimeout(r, 600)); // 沉降窗口：离场 socket 零接收
     expect(leaked).toBe(0);
 
     // presence 不再计在线（旧实现 leave 不清表 → 仍计在线）
     const pr1 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/presence`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     expect(pr1.body.suppliers.find((s: any) => s.supplierId === sup2Id)?.online).toBe(false);
   });
 });
