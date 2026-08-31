@@ -537,6 +537,8 @@ model BidOpeningRecord {
   bidSupplierId   String?
   objectionReason String?
   confirmedAt     DateTime?
+  confirmSignature Json?      // A-114：供应商确认开标记录的 SM2/SM3 电子签名归档 {payload, signature, algorithm, verifiedAt}
+  confirmSignedAt DateTime?   // A-114：签名（或补签）时间
   handledAt       DateTime?
   handledBy       String?
   handleResult    String?
