@@ -449,19 +449,27 @@ export class BidService {
     // suppliers 全量下发（BidSupplier 标量列）。仅 status='submitted' 生效（草稿信封不参与开标判定）。
     const dualSubs = await this.prisma.supplierBidSubmission.findMany({
       where: { projectId: id },
-      select: { supplierId: true, status: true, envelopeVersion: true, outerDecryptedAt: true, packageFetchedAt: true },
+      select: { supplierId: true, status: true, envelopeVersion: true, outerDecryptedAt: true, packageFetchedAt: true, submittedAt: true },
     });
     const dualSubMap = new Map(dualSubs.map(s => [s.supplierId, s]));
-    project.suppliers = project.suppliers.map(s => {
-      const sub = s.supplierId ? dualSubMap.get(s.supplierId) : undefined;
-      const submitted = sub?.status === 'submitted';
-      return {
-        ...s,
-        envelopeVersion: submitted ? (sub.envelopeVersion ?? null) : null,
-        outerDecryptedAt: submitted ? (sub.outerDecryptedAt ?? null) : null,
-        packageFetchedAt: submitted ? (sub.packageFetchedAt ?? null) : null,
-      };
-    }) as typeof project.suppliers;
+    // A-100（验收补，2026-08-31）：详情端点是 :3007 开标大厅供应商表的数据源——与 getWorkspace/
+    // 开标文件包同口径按递交时间排序。submitted/withdrawn/submission 为排序临时键（util 要求
+    // 顶层形状、与 BidSupplier 真实列无冲突），排序后剥离，响应形状不变仅行序变。
+    project.suppliers = sortSupplierRowsBySubmission(
+      (project.suppliers as any[]).map(s => {
+        const sub = s.supplierId ? dualSubMap.get(s.supplierId) : undefined;
+        const submitted = sub?.status === 'submitted';
+        return {
+          ...s,
+          envelopeVersion: submitted ? (sub.envelopeVersion ?? null) : null,
+          outerDecryptedAt: submitted ? (sub.outerDecryptedAt ?? null) : null,
+          packageFetchedAt: submitted ? (sub.packageFetchedAt ?? null) : null,
+          submitted,
+          withdrawn: sub?.status === 'withdrawn',
+          submission: sub ? { submittedAt: sub.submittedAt } : null,
+        };
+      }),
+    ).map(({ submitted: _s, withdrawn: _w, submission: _sub, ...rest }) => rest) as typeof project.suppliers;
 
     // L6 数据级隔离：bid portal 只能看指派给自己的项目。
     // admin 豁免（N1，2026-08-28，浏览器验证发现）：:3007 是 admin 的默认落地门户且
