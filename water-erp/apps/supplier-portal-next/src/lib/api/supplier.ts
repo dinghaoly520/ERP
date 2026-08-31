@@ -100,8 +100,13 @@ export const supplierApi = {
   getOpeningRecords(projectId: string) {
     return api.get<any[]>(`/supplier-portal/bid-submissions/${projectId}/opening-records`);
   },
-  confirmOpening(projectId: string) {
-    return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`);
+  /** A-114：开标确认待签负载（待确认=首次确认签名；已确认未签名=补签，purpose 由服务端按记录态派生） */
+  getOpeningConfirmPayload(projectId: string) {
+    return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`);
+  },
+  // A-114：确认/补签单端点双语义（服务端按记录态自动分辨），body 签名必填
+  confirmOpening(projectId: string, signature: string) {
+    return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`, { signature });
   },
   disputeOpening(projectId: string, reason: string) {
     return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/opening-dispute`, { reason });
