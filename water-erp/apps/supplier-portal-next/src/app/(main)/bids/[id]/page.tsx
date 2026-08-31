@@ -127,6 +127,7 @@ function BidDetailInner() {
   const [submission, setSubmission] = useState<any>(null);
   const [receiptPayload, setReceiptPayload] = useState<Record<string, unknown> | null>(null);
   const [payloadLoading, setPayloadLoading] = useState(false);
+  const [payloadFailed, setPayloadFailed] = useState(false); // A-101 验收补：区分「未尝试」与「真失败」，闭合态不再误显失败文案
   const [signing, setSigning] = useState(false);
 
   // ── U盾会话（克隆 clarifications 页：口令仅内存持有，解锁一次覆盖本页回执补签）──
@@ -350,10 +351,11 @@ function BidDetailInner() {
   async function loadReceiptPayload() {
     if (!submission || receiptPayload || payloadLoading) return;
     setPayloadLoading(true);
+    setPayloadFailed(false);
     try {
       const r = await supplierApi.getReceiptPayload(submission.id);
       setReceiptPayload(r.payload);
-    } catch { /* API 层已全局错误 toast（含 SM2_PUBLIC_KEY_MISSING 绑定引导） */ }
+    } catch { setPayloadFailed(true); /* API 层已全局错误 toast（含 SM2_PUBLIC_KEY_MISSING 绑定引导） */ }
     finally { setPayloadLoading(false); }
   }
 
@@ -647,7 +649,9 @@ function BidDetailInner() {
                             ? JSON.stringify(submission.receiptSignature.payload, null, 2)
                             : receiptPayload
                               ? JSON.stringify(receiptPayload, null, 2)
-                              : payloadLoading ? "正在获取回执负载…" : "回执负载获取失败"}
+                              : payloadLoading ? "正在获取回执负载…"
+                            : payloadFailed ? "回执负载获取失败，请重新展开重试"
+                            : "展开后向服务端获取回执负载（以数据库为准重建）"}
                         </div>
                       </details>
                     </div>
