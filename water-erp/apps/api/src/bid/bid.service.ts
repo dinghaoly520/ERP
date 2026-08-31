@@ -1113,7 +1113,9 @@ export class BidService {
       }),
       this.prisma.bidOpeningRecord.findMany({
         where: { projectId: project.id },
-        select: { supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, objectionReason: true, handleResult: true },
+        // A-114（SHOULD-FIX-1）：开标文件包为带 SHA-256 指纹的证据件——确认电子签名两列完整入包（spec §一.4），
+        // 不做 getProject/listOpeningRecords 式剥壳（主持端视图才剥摘要）。
+        select: { supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, confirmSignature: true, confirmSignedAt: true, objectionReason: true, handleResult: true },
       }),
       this.prisma.bidSupervisionLog.findMany({
         where: { projectId: project.id },
