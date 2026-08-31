@@ -138,7 +138,7 @@ export default function UkeyManagePage() {
       setUkeyCerts(certs);
       if (certs.length > 0) toast.success("U盾已解锁");
       else if (kind === "mock") toast.success("已创建空 U盾（尚未生成证书）");
-      else toast.warning("U盾内未检测到证书（演示发行：ukeymw issue --cn 企业名）");
+      else toast.warning("U盾内未检测到证书，请联系 CA 服务机构办理");
     } catch (e: any) {
       toast.error(e?.message || "解锁失败：证书口令不符或 U盾损坏");
     } finally { setOpening(false); }
@@ -154,7 +154,7 @@ export default function UkeyManagePage() {
   async function handleCreateCert() {
     if (!ukey) { toast.warning("请先解锁 U盾"); return; }
     if (!(ukey instanceof MockUKeyAdapter)) {
-      toast.warning("U盾由厂商中间件管理，请在 CA 服务机构办理证书（演示：ukeymw issue）");
+      toast.warning("请在 CA 服务机构办理证书");
       return;
     }
     if (!companyName) { toast.warning("未能获取企业名称，请稍后重试"); return; }
@@ -232,7 +232,7 @@ export default function UkeyManagePage() {
   async function handleExport() {
     if (!ukey) { toast.warning("请先解锁 U盾"); return; }
     if (!(ukey instanceof MockUKeyAdapter)) {
-      toast.warning("U盾由厂商中间件管理，请在 CA 服务机构办理证书（演示：ukeymw issue）");
+      toast.warning("请在 CA 服务机构办理证书");
       return;
     }
     if (exportPassword.length < 6) { toast.warning("导出口令至少 6 位"); return; }
@@ -263,7 +263,7 @@ export default function UkeyManagePage() {
     if (!file) return;
     // vendor 模式下导入区块已隐藏；此处按介质种类再拦一道（导入时介质必未开锁，不能走 instanceof）
     if (ukeyKind !== "mock") {
-      toast.warning("U盾由厂商中间件管理，请在 CA 服务机构办理证书（演示：ukeymw issue）");
+      toast.warning("请在 CA 服务机构办理证书");
       input.value = "";
       return;
     }
@@ -329,9 +329,9 @@ export default function UkeyManagePage() {
             <span className="card-title">U盾</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
-                {ukeyKind === "vendor" ? "U盾·厂商中间件" : "模拟 U盾"}
+                {ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
               </span>
-              <span className={`ukey-state${ukey ? " open" : ""}`}>{ukey ? `已解锁 · ${ukeyCerts.length} 张证书` : "未解锁"}</span>
+              <span className={`ukey-state${ukey ? " open" : ""}`}>{ukey ? `已解锁 · ${ownCerts.length} 张本企业证书` : "未解锁"}</span>
             </span>
           </div>
 
@@ -375,7 +375,7 @@ export default function UkeyManagePage() {
                     <span className="file-hint">证书主体 CN 自动取注册企业名称，绑定校验 CN↔企业名一致性</span>
                   </>
                 ) : (
-                  <span className="file-hint">证书由 CA 服务机构发制（演示：ukeymw issue --cn 企业名），此处仅枚举与绑定</span>
+                  <span className="file-hint">证书由 CA 服务机构制发，此处枚举本企业 U盾内证书并绑定</span>
                 )}
               </div>
 
@@ -383,8 +383,8 @@ export default function UkeyManagePage() {
                 <div className="ukey-empty">
                   {ukeyKind === "vendor"
                     ? otherCertCount > 0
-                      ? `U盾内未检测到本企业证书（已隐藏 ${otherCertCount} 张其他单位盾；演示：ukeymw issue --cn ${companyName || "企业名"} 发行后重新解锁）`
-                      : "U盾内未检测到证书（演示：ukeymw issue 发行后重新解锁）"
+                      ? `U盾内未检测到本企业证书（已隐藏 ${otherCertCount} 张其他单位盾），请联系 CA 服务机构办理`
+                      : "U盾内未检测到证书，请联系 CA 服务机构办理"
                     : `U盾内暂无证书，点击「生成演示证书」创建（label=${companyName || "企业名称"}）`}
                 </div>
               ) : (
@@ -419,7 +419,7 @@ export default function UkeyManagePage() {
                   ))}
                   {otherCertCount > 0 && (
                     <div className="file-hint" style={{ padding: "8px 12px" }}>
-                      已隐藏 {otherCertCount} 张其他单位证书（本机中间件槽内的他企盾，不可绑定）
+                      已隐藏 {otherCertCount} 张其他单位证书
                     </div>
                   )}
                 </div>
@@ -430,7 +430,7 @@ export default function UkeyManagePage() {
           <div className="ukey-security-note">
             <ShieldCheck size={14} strokeWidth={1.75} />
             {ukeyKind === "vendor"
-              ? "私钥由 U盾（厂商中间件）持有，浏览器不接触私钥材料；请妥善保管 U盾与管理码（PUK）。"
+              ? "私钥由 U盾持有，浏览器不接触私钥材料；请妥善保管 U盾与管理码（PUK）。"
               : "私钥仅以口令加密形态存储于浏览器，永不明文落盘；请导出备份并妥善保管，否则将无法解密已投递标书。"}
           </div>
         </div>
