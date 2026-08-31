@@ -36,11 +36,17 @@ type SharedBidScoreItem = SharedBidProjectDetail['scoreItems'][number];
    scoreRecords 与 expertRole（正选/候补），scoreItems.category 为 ScoreCategory 枚举。shared 的内联
    类型缺这些字段，:3007 侧本地补齐（与 :3005 apps/web BidProjectExpertInfo 同形状；后端对两端返回同数据），
    供只读评标管理视图（T16）消费。 */
-export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | 'experts' | 'scoreItems'> & {
+export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | 'experts' | 'scoreItems' | 'openingRecords'> & {
   openingSession?: NonNullable<SharedBidProjectDetail['openingSession']> & {
     handoverAt?: string | null;
     handoverAssetId?: string | null;
   };
+  /** A-114（2026-08-31）：开标记录确认签名摘要——getProject/listOpeningRecords 剥壳后
+   *  confirmSignature 为 {algorithm, verifiedAt} | null（完整签名仅供应商本人视图与开标文件包保留）。
+   *  shared 的内联 openingRecords 类型暂未含该字段，:3007 侧本地补齐（同 openingSession handoverAt 模式）。 */
+  openingRecords: (SharedBidProjectDetail['openingRecords'][number] & {
+    confirmSignature?: { algorithm?: string; verifiedAt?: string | null } | null;
+  })[];
   /** E2: 评标截止时间（供移植的评标管理块倒计时用；后端 GET /bid/projects/:id 对两端返回同数据） */
   evaluationDeadline?: string | null;
   /** N4: 法定最少投标家数（直接采购=1，其余=3）——后端 getProject 下发，dispute-block 流标建议按采购方式取数 */

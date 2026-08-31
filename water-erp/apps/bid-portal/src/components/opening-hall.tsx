@@ -860,7 +860,15 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     </td>
                     <td className="px-5 py-3">
                       {s.confirmStatus === 'CONFIRMED' ? (
-                        <span className="flex items-center gap-1 text-[12px] text-[var(--success)]"><CheckCircle size={12} strokeWidth={1.5} /> 已确认</span>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="flex items-center gap-1 text-[12px] text-[var(--success)]"><CheckCircle size={12} strokeWidth={1.5} /> 已确认</span>
+                          {/* A-114：确认签名徽标（数据源=剥壳摘要；完整签名仅在本人视图与开标文件包） */}
+                          {record?.confirmSignature ? (
+                            <span className="inline-flex items-center rounded-full bg-[oklch(0.71_0.11_164_/_0.16)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]">已电子签名</span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-[oklch(0.6_0.04_258_/_0.12)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">未签名</span>
+                          )}
+                        </span>
                       ) : s.confirmStatus === 'EXCEPTION' ? (
                         <span className="flex items-center gap-1 text-[12px] text-[var(--danger)]"><AlertTriangle size={12} strokeWidth={1.5} /> 异常</span>
                       ) : (
