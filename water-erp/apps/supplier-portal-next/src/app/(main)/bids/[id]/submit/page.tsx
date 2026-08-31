@@ -526,6 +526,8 @@ function BidSubmitInner() {
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
     && new Date(project.deadline) > new Date();
   const formDisabled = !canSubmit || existingSubmission?.status === "submitted";
+  /** A-90 方案a（2026-08-31）：旧轨投递 UI 退役——未绑盾且可投递时仅显示绑盾引导卡（双信封为唯一交互投递通道）；已递交状态展示区保留原样 */
+  const legacyRetired = canSubmit && !dualReady && existingSubmission?.status !== "submitted";
 
   // 构建 clientDeks 映射（根据当前表单中的 assetId 查找 DEK）
   // ═══ 双信封 v2：按服务端声明口径收集本次提交的已声明资产 ═══
@@ -695,7 +697,7 @@ function BidSubmitInner() {
     }
     const items = [
       { label: "供应商资质", detail: isApproved ? "已入库，可投标" : "未通过审核，无法投标", ok: isApproved, required: true },
-      { label: "U盾证书", detail: dualReady ? (ukeyAdapter ? `已解锁（${ukeyCertSn}）` : "已绑定，提交时校验证书口令") : "未绑定（传统加密投递）", ok: true, required: false },
+      { label: "U盾证书", detail: dualReady ? (ukeyAdapter ? `已解锁（${ukeyCertSn}）` : "已绑定，提交时校验证书口令") : "未绑定（请先绑定 U盾）", ok: true, required: false },
       { label: "投标报价", detail: dualReady ? "密封进双层信封（开标时揭示）" : formatBidPrice(form.bidPrice), ok: !!form.bidPrice, required: true },
       { label: "交货工期", detail: form.deliveryPeriod || "未填写", ok: !!form.deliveryPeriod, required: true },
       { label: "质量承诺", detail: form.qualityCommitment || "未填写", ok: !!form.qualityCommitment, required: false },
@@ -798,13 +800,6 @@ function BidSubmitInner() {
               {canSubmit && dualReady && (
                 <BAlert type="success" style={{ marginBottom: 20 }} title="双层加密信封投递：文件将双层加密上传，报价等唱标字段密封至开标时揭示。提交时需插入 U盾并输入证书口令完成签名。" />
               )}
-              {canSubmit && !dualReady && (
-                <BAlert type="info" style={{ marginBottom: 20 }} title="未绑定 U盾证书，当前按传统加密方式投递。建议先到「U盾管理」页绑定证书，启用双层信封密封。">
-                  <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                    <SpButton onClick={() => router.push("/profile/ukey")}>前往 U盾管理</SpButton>
-                  </div>
-                </BAlert>
-              )}
               {showRecovery && (
                 <BAlert
                   type="success"
@@ -820,6 +815,22 @@ function BidSubmitInner() {
 
               <SpPageHero icon={Send} title={project.name} sub={heroSub} />
 
+              {/* ═══ A-90 方案a：未绑盾——旧轨上传/投递 UI 退役，仅显示绑盾引导卡（API/应急 flag 原样保留）═══ */}
+              {legacyRetired && (
+                <div className="neu-card detail-card">
+                  <div className="card-header">
+                    <span className="card-title">投标须使用 U盾数字证书</span>
+                  </div>
+                  <BAlert type="warning" title="双信封加密投递为唯一投递通道，传统加密通道已停止受理。">
+                    投标文件须以双层 SM4 加密上传，报价等唱标字段经 SM2 证书签名密封，开标时解密揭示。
+                  </BAlert>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, marginTop: 20 }}>
+                    <SpButton variant="primary" icon={KeyRound} onClick={() => router.push("/profile/ukey")}>前往绑定 U盾</SpButton>
+                    <span className="file-hint">绑定后本页自动切换为双信封投递。</span>
+                  </div>
+                </div>
+              )}
+              {!legacyRetired && (
               <div className="neu-card detail-card">
                 <div className="card-header">
                   <span className="card-title">标书信息</span>
@@ -1010,6 +1021,7 @@ function BidSubmitInner() {
                   </div>
                 )}
               </div>
+              )}
             </>
           ) : null}
         </>
