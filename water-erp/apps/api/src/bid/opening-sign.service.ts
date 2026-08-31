@@ -151,6 +151,11 @@ export class OpeningSignService {
     if (session.openingSignRegisteredAt) {
       return { registered: true, alreadyRegistered: true, registeredAt: session.openingSignRegisteredAt.toISOString() };
     }
+    // 到齐才登记：有监督人时监督件必到（否则提前闭环后补传不再重建包——alreadyRegistered 早退，签字链缺监督段）；
+    // 置于幂等早退之后，不影响已登记项目的现状返回
+    if (session.supervisor && !session.supervisorSignScanFileId) {
+      throw new BadRequestException({ error: '本项目有监督人，需主持人+监督人签字扫描均上传后再登记', code: 'SUPERVISOR_SCAN_MISSING' });
+    }
 
     const [hostAsset, supervisorAsset] = await Promise.all([
       this.prisma.fileAsset.findUnique({ where: { id: session.hostSignScanFileId }, select: { id: true, sha256: true } }),

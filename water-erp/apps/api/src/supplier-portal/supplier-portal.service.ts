@@ -3,10 +3,13 @@ import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
+import { BidService } from '../bid/bid.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
+import { buildClarificationReplyCanonical } from './clarification-reply.util';
+import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
@@ -144,6 +147,7 @@ export class SupplierPortalService {
     @Inject('REDIS_CLIENT') private redis: Redis,
     private llm: LlmService,
     private notificationService: NotificationService,
+    private readonly bidService: BidService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
 
@@ -1434,6 +1438,20 @@ export class SupplierPortalService {
     });
   }
 
+  /** A-88：删除未递交的投标草稿。与保存草稿同闸门（截止前）；已提交须走撤回（withdrawSubmission）。 */
+  async deleteBidDraft(supplierId: string, projectId: string) {
+    await this.assertCanSaveBidDraft(supplierId, projectId);
+    const existing = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+    });
+    if (!existing) throw new BadRequestException({ error: '草稿不存在', code: 'DRAFT_NOT_FOUND' });
+    if (existing.status !== 'draft') {
+      throw new BadRequestException({ error: '已递交的标书不可删除，请使用撤回', code: 'DRAFT_NOT_DELETABLE' });
+    }
+    await this.prisma.supplierBidSubmission.delete({ where: { id: existing.id } });
+    return { deleted: true };
+  }
+
   /**
    * 新轨补传（双信封 v2 · Task 10）：dual-v2 解密异常恢复走供应商端双层重封。
    * 与旧轨 reuploadBidFile 的本质差异：C_outer 是客户端双层加密产物（C_inner=SM4(DEK_S) → C_outer=SM4(DEK_A)），
@@ -1940,8 +1958,12 @@ export class SupplierPortalService {
       } else {
         const decryptedAssets: Record<string, string> = {};
         for (const { role, buf } of uploaded) {
-          const asset = await tx.fileAsset.create({
-            data: {
+          // objectKey 确定性（project+bidSupplier+role）——DANGER 后「重置解密机会」重试会复用同 key：
+          // upsert 而非裸 create，否则撞 key @unique（P2002）令终局事务整体回滚、供应商卡 RUNNING
+          //（completeOpening 终审 Important #2 同款模式）
+          const asset = await tx.fileAsset.upsert({
+            where: { key: objectKeyOf(role) },
+            create: {
               key: objectKeyOf(role),
               originalName: `${role}.plain`,
               mimeType: 'application/octet-stream',
@@ -1950,6 +1972,11 @@ export class SupplierPortalService {
               category: 'bid_decrypted',
               clientEncrypted: false,
               encrypted: false,
+              uploaderId: supplier.userId,
+            },
+            update: {
+              size: buf.length,
+              sha256: await sha256Hex(buf),
               uploaderId: supplier.userId,
             },
           });
@@ -2012,6 +2039,8 @@ export class SupplierPortalService {
         result: '供应商解密成功，等待供应商确认唱标信息', riskFlag: '无',
       });
     }
+    // 终局即固化（A）：解密异常(DANGER)即终局态——全体终局则自动固化开标文件包（幂等、不阻塞解密响应）
+    void this.bidService.autoHandoverIfDone(projectId, '供应商解密终局');
     return finalState;
   }
 
@@ -2097,7 +2126,14 @@ export class SupplierPortalService {
       // P2：本人报价回显解封（回读草稿时报价可编辑的前提）
       if (sub.bidPrice) (sub as any).bidPrice = openField(sub.bidPrice, process.env.KMS_SECRET!) ?? sub.bidPrice;
     }
-    return sub;
+    if (!sub) return null;
+    // A-101：回执编号 TB-yyyymmdd-NNN 存于 BidSupplier（名册级，投递时生成/继承），SupplierBidSubmission 无此列——
+    // 并入返回供供应商端回执卡展示；仅增字段，既有消费方（submit 页回读草稿别名/解封报价）不受影响。
+    const bid = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId },
+      select: { receiptNo: true },
+    });
+    return { ...sub, receiptNo: bid?.receiptNo ?? null };
   }
 
   async withdrawSubmission(supplierId: string, submissionId: string) {
@@ -2291,6 +2327,8 @@ export class SupplierPortalService {
     this.gateway?.notifyOpeningConfirmed(projectId, supplierId, {
       projectId, supplierId, supplierName: bidSupplier.supplierName, timestamp: Date.now(),
     });
+    // 终局即固化（A）：确认唱标是最后一类终局写入——全体终局则自动固化开标文件包（幂等、不阻塞确认响应）
+    void this.bidService.autoHandoverIfDone(projectId, '供应商确认唱标');
     return { success: true };
   }
 
@@ -2904,5 +2942,123 @@ export class SupplierPortalService {
       });
     });
     return { success: true, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays, name: supplier.name };
+  }
+
+  // ── A-143（2026-08-28）：评标澄清在线答复（编辑+附件+SM2 电子签名，spec §3.4）──
+
+  /** 寻址本司的评标澄清（type='clarification'）；EVALUATING/ARCHIVED 可见 */
+  async listBidClarificationsForSupplier(projectId: string, supplierId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'PROJECT_NOT_FOUND' });
+    const membership = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+    if (!membership) throw new ForbiddenException({ error: '贵司非本项目投标人', code: 'NOT_BIDDER' });
+    const items = await this.prisma.bidClarification.findMany({
+      where: { projectId, type: 'clarification', supplierId },
+      orderBy: { createdAt: 'asc' },
+    });
+    // 签名 payload 全串不回传列表（列表只给摘要）
+    return items.map((c) => this.stripReplySignature(c));
+  }
+
+  /** 取 canonical 串（无状态、不落库）——前端直接对此串 U盾签名 */
+  async getClarificationReplyPayload(
+    projectId: string, cid: string, supplierId: string,
+    user: { sub: string }, dto: ClarificationReplyDraftDto,
+  ) {
+    await this.assertReplyable(projectId, cid, supplierId);
+    const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
+    return {
+      payload: buildClarificationReplyCanonical({
+        clarificationId: cid, projectId, supplierId,
+        reply: dto.reply, attachments, certSn: dto.certSn,
+      }),
+    };
+  }
+
+  /** 提交签名答复：重算 canonical + SM2 验签 + 落库 + WS 广播 */
+  async submitClarificationReply(
+    projectId: string, cid: string, supplierId: string,
+    user: { sub: string; name?: string; username?: string }, dto: SubmitClarificationReplyDto,
+  ) {
+    const clar = await this.assertReplyable(projectId, cid, supplierId);
+
+    // 证书严格校验：与 submitBid 同规则，不回退 supplier.sm2PublicKey（revokeCert 不清该列）
+    const cert = await this.prisma.supplierCert.findFirst({
+      where: { supplierId, certSn: dto.certSn, bindingStatus: 'ACTIVE' },
+    });
+    if (!cert) {
+      throw new BadRequestException({ error: '证书未绑定或已撤销，请先在「U盾管理」绑定有效证书', code: 'CERT_NOT_ACTIVE' });
+    }
+
+    const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
+    const canonical = buildClarificationReplyCanonical({
+      clarificationId: cid, projectId, supplierId,
+      reply: dto.reply, attachments, certSn: dto.certSn,
+    });
+    if (!this.signatureService.verify(canonical, dto.signature, cert.publicKey)) {
+      throw new BadRequestException({ error: '电子签名验证失败，请使用绑定证书对最新答复内容重新签名', code: 'CLARIFICATION_REPLY_SIGNATURE_INVALID' });
+    }
+
+    // TOCTOU 收口（终审修复 2026-08-28）：assertReplyable 断言与写入之间可能插入第二笔
+    // 并发提交——按主键无条件 update 会静默覆盖先到的答复（含 SM2 签名证据）。
+    // 改条件 updateMany：仅 status=待回复 可写，count=0 即已被并发答复 → 409。
+    const written = await this.prisma.bidClarification.updateMany({
+      where: { id: cid, status: '待回复' },
+      data: {
+        reply: dto.reply,
+        status: '已回复',
+        replyChannel: 'online',
+        replySignature: {
+          v: 1, payload: canonical, signature: dto.signature,
+          algorithm: 'SM2/SM3', certSn: dto.certSn, verifiedAt: new Date().toISOString(),
+        },
+        replyAttachmentIds: attachments.map((a) => ({ fileAssetId: a.fileAssetId, name: a.name, sha256: a.sha256 })),
+        replyByName: user.name ?? user.username ?? null,
+      },
+    });
+    if (written.count === 0) {
+      throw new ConflictException({ error: '澄清已答复或已关闭，不可重复答复', code: 'CLARIFICATION_ALREADY_REPLIED' });
+    }
+    this.gateway?.notifyClarificationReplied(projectId, {
+      id: cid, replier: 'supplier', replyPreview: dto.reply.slice(0, 60),
+    });
+    // updateMany 不回行——重取后剥离签名全串返回
+    const refreshed = await this.prisma.bidClarification.findUnique({ where: { id: cid } });
+    return this.stripReplySignature(refreshed!);
+  }
+
+  /** 私有：答复闸门——存在+寻址本人+待回复+评标中（spec §3.4 reply 流程 1） */
+  private async assertReplyable(projectId: string, cid: string, supplierId: string) {
+    const clar = await this.prisma.bidClarification.findFirst({
+      where: { id: cid, projectId, type: 'clarification' },
+    });
+    if (!clar) throw new BadRequestException({ error: '澄清不存在或不属于此项目', code: 'CLARIFICATION_NOT_IN_PROJECT' });
+    if (clar.supplierId !== supplierId) throw new ForbiddenException({ error: '该澄清并非寻址到贵司', code: 'NOT_CLARIFICATION_TARGET' });
+    if (clar.status !== '待回复') throw new ConflictException({ error: '澄清已答复或已关闭，不可重复答复', code: 'CLARIFICATION_ALREADY_REPLIED' });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ConflictException({ error: '仅评标中（EVALUATING）可答复澄清', code: 'STAGE_NOT_EVALUATING' });
+    }
+    return clar;
+  }
+
+  /** 私有：附件归属校验——须为本司上传的 clarification_reply 类目（spec §3.4 流程 2） */
+  private async loadOwnedAttachments(attachmentIds: string[], supplierUserId: string) {
+    if (attachmentIds.length === 0) return [];
+    const assets = await this.prisma.fileAsset.findMany({ where: { id: { in: attachmentIds } } });
+    const byId = new Map(assets.map((a) => [a.id, a]));
+    return attachmentIds.map((id) => {
+      const a = byId.get(id);
+      if (!a || a.category !== 'clarification_reply' || a.uploaderId !== supplierUserId) {
+        throw new BadRequestException({ error: `附件不可用或非本司上传：${id}`, code: 'ATTACHMENT_INVALID' });
+      }
+      return { fileAssetId: a.id, sha256: a.sha256, name: a.originalName };
+    });
+  }
+
+  /** 私有：对外响应剥离 payload 全串，只留摘要 */
+  private stripReplySignature<T extends { replySignature: unknown }>(row: T) {
+    const sig = row.replySignature as { algorithm?: string; certSn?: string; verifiedAt?: string } | null;
+    return { ...row, replySignature: sig ? { algorithm: sig.algorithm, certSn: sig.certSn, verifiedAt: sig.verifiedAt } : null };
   }
 }

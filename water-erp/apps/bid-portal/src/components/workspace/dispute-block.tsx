@@ -10,12 +10,15 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Ban, CheckCircle2, Flag, ShieldCheck, XCircle } from 'lucide-react';
 import { abortBidProject, listEvaluationResults, resolveExpertDispute } from '@/lib/api/evaluation';
+import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import type { BidProjectDetail } from '@/lib/types';
 
 type Props = {
   bidProjectId: string;
   detail: BidProjectDetail | null;
   onChanged: () => void;
+  /** 页级结果信号（O2：生成/裁决等改结果动作递增）——变化即重拉；替代原 detail 引用依赖 */
+  refreshSignal?: number;
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -37,21 +40,25 @@ function formatTime(iso: string | null | undefined): string {
   return d.toLocaleString('zh-CN');
 }
 
-export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
+export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [responseById, setResponseById] = useState<Record<string, string>>({});
   const [invalidateById, setInvalidateById] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
 
-  // N4b：官方评标结果是否已生成——已生成则收起「建议流标」（此时流标须异议裁决+书面理由，N4c）。
-  // 注：hooks 必须位于 if (!detail) 早退之前（detail null→loaded 会改变 hook 数量，违反 React hooks 规则）。
+  // 官方评标结果是否已生成——F10 后不再收起建议流标，仅用于流标 warn/书面理由文案分支（N4c：
+  // 结果已生成时后端强制书面理由并作废结果）。注：hooks 必须位于 if (!detail) 早退之前
+  // （detail null→loaded 会改变 hook 数量，违反 React hooks 规则）。
   const [resultsGenerated, setResultsGenerated] = useState(false);
   useEffect(() => {
     if (!bidProjectId || detail?.stage === 'ARCHIVED') return;
     listEvaluationResults(bidProjectId)
       .then((r) => setResultsGenerated(r.length > 0))
       .catch(() => setResultsGenerated(false));
-  }, [bidProjectId, detail]); // detail 入依赖：onChanged 刷新后重取
+    // O2：detail 引用随 WS 高频刷新（scheduleRefresh 防抖后仍每轮必变）→ 改 stage 标量 + 页级信号；
+    // 生成/重生成/裁决（onEvalChanged）与裁决废标后的刷新都经 refreshSignal 传达
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bidProjectId, detail?.stage, refreshSignal]);
 
   if (!detail) return null;
   const { stage, expertDisputes } = detail;
@@ -66,14 +73,15 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
     (s) => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.bidValidity !== 'invalid',
   );
   // N4a：法定家数按采购方式取（直接采购=1，其余=3；后端下发缺失时兜底 3）。
-  // N4b：已生成官方评标结果 ⇒ 不再显示建议流标与执行按钮。
+  // F10（2026-08-28）：撤掉「已生成结果 ⇒ 收起建议流标」——裁决废标把家数打穿最低线后
+  // 结果已生成、流标入口反而消失成死路（后端本就允许结果已生成时凭书面理由流标，N4c）。
   const minBidders = detail.minBidders ?? 3;
-  const suggestAbort = !archived && validSuppliers.length < minBidders && !resultsGenerated;
+  const suggestAbort = !archived && validSuppliers.length < minBidders;
   const hasOpenDispute = pendingCount > 0;
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
-    setTimeout(() => setFeedback(null), 2800);
+    setTimeout(() => setFeedback(null), FEEDBACK_AUTOHIDE_MS);
   };
 
   async function handleResolve(disputeId: string, status: 'resolved' | 'rejected', withInvalidate = false) {
@@ -95,19 +103,18 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
   }
 
   async function handleAbort() {
+    // F10：流标理由按有无未决异议动态化——无异议时「经异议裁决」名不副实（废标/撤回同样打穿家数线）
+    const reasonBase = hasOpenDispute
+      ? `存在 ${pendingCount} 条异议未裁决，有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），经评标委员会认定流标`
+      : `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），不足法定家数，经评标委员会认定流标`;
     const warn = resultsGenerated
-      ? `当前有效供应商仅 ${validSuppliers.length} 家，且项目已生成官方评标结果——流标将作废该结果并高风险留痕。确认执行？此操作不可逆。`
-      : `当前有效供应商仅 ${validSuppliers.length} 家（法定最少 ${minBidders} 家），确认执行流标？此操作不可逆。`;
+      ? `${reasonBase}；已生成的官方评标结果将作废并高风险留痕。确认执行？此操作不可逆。`
+      : `${reasonBase}。确认执行流标？此操作不可逆。`;
     if (!window.confirm(warn)) return;
     setBusyId('__abort__');
     try {
       // N4c：结果已生成时后端强制书面理由（ABORT_REASON_REQUIRED），此处同步带上
-      await abortBidProject(
-        bidProjectId,
-        resultsGenerated
-          ? `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），经异议裁决流标；已知结果作废`
-          : '依专家异议裁决，有效供应商不足',
-      );
+      await abortBidProject(bidProjectId, resultsGenerated ? `${reasonBase}；已生成的评标结果作废` : reasonBase);
       showToast('已流标');
       onChanged();
     } catch (e) {
@@ -139,22 +146,10 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
         </div>
       </div>
 
-      {feedback && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
-          style={{
-            background: feedback.tone === 'ok' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--danger) 10%, transparent)',
-            color: feedback.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-          }}
-        >
-          {feedback.tone === 'ok' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-          {feedback.text}
-        </div>
-      )}
+      <FeedbackBanner feedback={feedback} />
 
-      {/* 流标建议 / 异议待裁决提醒（N4）：横幅由 suggestAbort || hasOpenDispute 控制；
-          已生成官方评标结果 ⇒ suggestAbort=false，建议流标文案与执行按钮整块收起，
-          仅存在 open 态异议工单时保留待裁决提醒。 */}
+      {/* 流标建议 / 异议待裁决提醒（N4）：横幅由 suggestAbort || hasOpenDispute 控制。
+          F10：结果已生成不再收起建议流标——confirm 文案会作废警示，后端凭书面理由放行（N4c）。 */}
       {(suggestAbort || hasOpenDispute) && (
         <div
           className="mb-3 flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"

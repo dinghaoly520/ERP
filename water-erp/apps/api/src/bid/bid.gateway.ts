@@ -333,9 +333,18 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
   }
 
+  /**
+   * 答复事件：仅主持房 + 专家房（终审安全修复 2026-08-28）。
+   * project 房含全体投标人（join:project 供应商成员门），而供应商门户 socket 恰在
+   * EVALUATING 期间在线（round-quote/opening-hall/chat-panel 三页挂 useBidWebSocket），
+   * 原先的 project 房广播会把被寻址供应商的答复文本（≤60 字预览）泄给竞争对手。
+   * 供应商端本就不订阅该事件（supplier-portal-next 的 BidWsHandlers 无 onClarificationReplied），
+   * 故改投 host/experts 房（与 EXPERT_PRESENCE_AGGREGATE 同拓扑）无功能回归。
+   */
   notifyClarificationReplied(projectId: string, data: { id: string; replier: string; replyPreview: string }) {
     const payload: ClarificationRepliedPayload = { ...data, timestamp: Date.now() };
-    this.server.to(`project:${projectId}`).emit(BID_EVENT.CLARIFICATION_REPLIED, payload);
+    this.server.to(`host:${projectId}`).emit(BID_EVENT.CLARIFICATION_REPLIED, payload);
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.CLARIFICATION_REPLIED, payload);
   }
 
   // ── Expert presence: aggregate snapshot to everyone; individual milestone to host only ──

@@ -30,4 +30,7 @@ export const UPLOAD_CATEGORIES = new Set<string>([
   'sign_packet_signature_page',     // 签字页
   'expert_memo_ink',                // 专家手写备忘扫描
   'expert_sign_scan',               // 专家签字扫描件
+  'clarification_reply',            // A-143：供应商澄清答复附件（证据件）
+  'supervision_push_packet',        // A-153：监督推送信封（系统生成）
+  'supervision_push_voucher',       // A-153：监督推送离线凭证（系统生成）
 ]);

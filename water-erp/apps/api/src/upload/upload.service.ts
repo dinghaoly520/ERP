@@ -35,6 +35,9 @@ const EVIDENCE_PROTECTED_CATEGORIES = [
   'expert_signin_photo',        // 专家签到拍照留痕
   'opening_sign_page',          // P1-3①A：开标记录签字页 PDF
   'opening_sign_scan',          // P1-3①A：开标签字扫描件（主持人/监督人）
+  'clarification_reply',        // A-143：澄清答复附件（证据件，不得损毁）
+  'supervision_push_packet',    // A-153：推送信封物证
+  'supervision_push_voucher',   // A-153：离线凭证物证
 ];
 
 const ALLOWED_CATEGORIES = [
@@ -44,6 +47,7 @@ const ALLOWED_CATEGORIES = [
   'profile',        // 供应商资料
   'expert_signin_photo', // 专家签到拍照留痕（evaluate 身份核验步骤，非人脸识别）
   'general',        // 通用
+  'clarification_reply', // A-143：供应商澄清答复附件（供应商上传）
 ];
 
 @Injectable()
@@ -310,6 +314,16 @@ export class UploadService implements OnModuleInit {
     user: { sub: string; role: string },
   ): Promise<boolean> {
     if (asset.uploaderId && asset.uploaderId === user.sub) return true;
+
+    // A-143：澄清答复附件——上传人（供应商）之外，开评标现场/管理角色可见（答复本就在主持端展示）
+    // A-153：监督推送信封/凭证——管理角色可见
+    if (
+      asset.category === 'clarification_reply' ||
+      asset.category === 'supervision_push_packet' ||
+      asset.category === 'supervision_push_voucher'
+    ) {
+      return ['admin', 'bid_host', 'leader', 'staff'].includes(user.role);
+    }
 
     if (asset.category === 'bid_inner_ciphertext') {
       // §5.2 成员规则：innerAssets 归属链反查（asset.id 是某角色 C_inner）→ 成员本人放行

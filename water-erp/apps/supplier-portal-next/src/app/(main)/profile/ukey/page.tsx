@@ -13,7 +13,8 @@ import dayjs from "dayjs";
 import {
   Download, KeyRound, Lock, Plus, ShieldCheck, TriangleAlert, Unlock, Upload,
 } from "lucide-react";
-import { MockUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
+import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
+import { detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -57,7 +58,9 @@ export default function UkeyManagePage() {
   // ── U盾介质状态 ──
   const [password, setPassword] = useState("");
   const [opening, setOpening] = useState(false);
-  const [ukey, setUkey] = useState<MockUKeyAdapter | null>(null);
+  const [ukey, setUkey] = useState<MockUKeyAdapter | VendorUKeyAdapter | null>(null);
+  const [ukeyKind, setUkeyKind] = useState<UkeyKind>("mock");
+  const [mwOffline, setMwOffline] = useState(false); // vendor 探测不到 → 顶部提示条
   const [ukeyCerts, setUkeyCerts] = useState<CertInfo[]>([]);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -93,6 +96,9 @@ export default function UkeyManagePage() {
       try {
         await Promise.all([fetchProfile(), refreshServerCerts()]);
         setBoundInfo(readBound());
+        const kind = await detectUkey();
+        setUkeyKind(kind);
+        setMwOffline(kind === "mock");
       } catch { setError(true); }
       finally { setLoading(false); }
     })();
@@ -110,17 +116,20 @@ export default function UkeyManagePage() {
 
   // ── 开锁 ──
   async function handleOpen() {
-    if (!password) { toast.warning("请输入 U盾口令"); return; }
+    if (!password) { toast.warning("请输入证书口令"); return; }
     setOpening(true);
     try {
-      const uk = await MockUKeyAdapter.open({ storage: ukeyStorage, password });
-      setUkey(uk);
-      setUkeyCerts(await uk.listCertificates());
-      toast.success(ukeyCerts.length > 0 || (await uk.listCertificates()).length > 0
-        ? "U盾已开锁"
-        : "已创建空介质（尚未生成证书）");
+      const { kind, adapter } = await openUkey(password);
+      setUkeyKind(kind);
+      setMwOffline(kind === "mock");
+      setUkey(adapter);
+      const certs = await adapter.listCertificates();
+      setUkeyCerts(certs);
+      if (certs.length > 0) toast.success("U盾已解锁");
+      else if (kind === "mock") toast.success("已创建空 U盾（尚未生成证书）");
+      else toast.warning("U盾内未检测到证书（演示发行：ukeymw issue --cn 企业名）");
     } catch (e: any) {
-      toast.error(e?.message || "开锁失败：口令不符或介质损坏");
+      toast.error(e?.message || "解锁失败：证书口令不符或 U盾损坏");
     } finally { setOpening(false); }
   }
 
@@ -132,7 +141,11 @@ export default function UkeyManagePage() {
 
   // ── 新建证书 ──
   async function handleCreateCert() {
-    if (!ukey) { toast.warning("请先开锁 U盾"); return; }
+    if (!ukey) { toast.warning("请先解锁 U盾"); return; }
+    if (!(ukey instanceof MockUKeyAdapter)) {
+      toast.warning("U盾由厂商中间件管理，请在 CA 服务机构办理证书（演示：ukeymw issue）");
+      return;
+    }
     if (!companyName) { toast.warning("未能获取企业名称，请稍后重试"); return; }
     setCreating(true);
     try {
@@ -162,7 +175,7 @@ export default function UkeyManagePage() {
           await refreshServerCerts();
           if (Number(revoked?.pendingSubmissions) > 0) {
             window.alert(
-              `旧证书 ${prevActive.certSn} 仍有 ${revoked.pendingSubmissions} 个未开标提交依赖其解密，请保留旧 U盾介质或导出文件，直至开标结束。`,
+              `旧证书 ${prevActive.certSn} 仍有 ${revoked.pendingSubmissions} 个未开标提交依赖其解密，请保留旧 U盾或导出备份，直至开标结束。`,
             );
           }
         } catch { /* 幂等查询失败不阻断换证流程 */ }
@@ -183,7 +196,7 @@ export default function UkeyManagePage() {
       if (boundInfoRef.current?.certSn === row.certSn) { clearBound(); setBoundInfo(null); }
       if (Number(res?.pendingSubmissions) > 0) {
         // ElMessageBox.alert → window.alert（解绑警示）
-        window.alert(`仍有 ${res.pendingSubmissions} 个未开标提交依赖此证书，请保留 U盾介质以便开标解密。`);
+        window.alert(`仍有 ${res.pendingSubmissions} 个未开标提交依赖此证书，请保留 U盾以便开标解密。`);
       } else {
         toast.success("证书已解绑");
       }
@@ -206,7 +219,11 @@ export default function UkeyManagePage() {
   }
 
   async function handleExport() {
-    if (!ukey) { toast.warning("请先开锁 U盾"); return; }
+    if (!ukey) { toast.warning("请先解锁 U盾"); return; }
+    if (!(ukey instanceof MockUKeyAdapter)) {
+      toast.warning("U盾由厂商中间件管理，请在 CA 服务机构办理证书（演示：ukeymw issue）");
+      return;
+    }
     if (exportPassword.length < 6) { toast.warning("导出口令至少 6 位"); return; }
     if (exportPassword !== exportPassword2) { toast.warning("两次输入的口令不一致"); return; }
     setExporting(true);
@@ -217,13 +234,13 @@ export default function UkeyManagePage() {
       const a = document.createElement("a");
       a.href = url;
       const safe = (companyName || "supplier").replace(/[\\/:*?"<>|]/g, "_");
-      a.download = `U盾介质-${safe}-${dayjs().format("YYYYMMDD")}.ukey`;
+      a.download = `U盾备份-${safe}-${dayjs().format("YYYYMMDD")}.ukey`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
       setExportVisible(false);
-      toast.success("介质文件已导出，请妥善保管（私钥仅以口令加密形态包含其中）");
+      toast.success("备份文件已导出，请妥善保管（私钥仅以口令加密形态包含其中）");
     } catch (e: any) { toast.error(e?.message || "导出失败"); }
     finally { setExporting(false); }
   }
@@ -233,7 +250,13 @@ export default function UkeyManagePage() {
     const input = ev.target;
     const file = input.files?.[0];
     if (!file) return;
-    if (!importPassword) { toast.warning("请输入该介质文件的导出口令"); input.value = ""; return; }
+    // vendor 模式下导入区块已隐藏；此处按介质种类再拦一道（导入时介质必未开锁，不能走 instanceof）
+    if (ukeyKind !== "mock") {
+      toast.warning("U盾由厂商中间件管理，请在 CA 服务机构办理证书（演示：ukeymw issue）");
+      input.value = "";
+      return;
+    }
+    if (!importPassword) { toast.warning("请输入该备份文件的导出口令"); input.value = ""; return; }
     setImporting(true);
     try {
       const text = await file.text();
@@ -241,7 +264,7 @@ export default function UkeyManagePage() {
       setUkey(uk);
       setPassword(importPassword);
       setUkeyCerts(await uk.listCertificates());
-      toast.success(`介质导入成功（${ukeyCerts.length || (await uk.listCertificates()).length} 张证书）`);
+      toast.success(`备份导入成功（${ukeyCerts.length || (await uk.listCertificates()).length} 张证书）`);
     } catch (e: any) { toast.error(e?.message || "导入失败：口令不符或文件损坏"); }
     finally {
       setImporting(false);
@@ -274,19 +297,31 @@ export default function UkeyManagePage() {
       <SpPageHero
         icon={KeyRound}
         title="U盾管理"
-        sub="管理投标加密证书与口令介质。证书绑定后，标书将以双层加密信封投递，报价密封至开标时揭示。"
+        sub="管理投标加密证书与 U盾。证书绑定后，标书将以双层加密信封投递，报价密封至开标时揭示。"
         actions={ukey ? (
-          <SpButton icon={Lock} onClick={lockUkey}>锁定介质</SpButton>
+          <SpButton icon={Lock} onClick={lockUkey}>锁定</SpButton>
         ) : undefined}
       >
       </SpPageHero>
+
+      {mwOffline && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: "#e6a23c", background: "#fdf6ec", border: "1px solid #faecd8" }}>
+          <TriangleAlert size={14} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+          <span>未检测到 U盾中间件——当前使用浏览器模拟 U盾。启动：<b>pnpm dev:ukey-mw</b>（发行：<b>ukeymw issue --cn 企业名</b>）</span>
+        </div>
+      )}
 
       <div className="ukey-grid">
         {/* ═══ 口令介质 ═══ */}
         <div className="neu-card detail-card">
           <div className="card-header">
-            <span className="card-title">口令介质</span>
-            <span className={`ukey-state${ukey ? " open" : ""}`}>{ukey ? `已开锁 · ${ukeyCerts.length} 张证书` : "未开锁"}</span>
+            <span className="card-title">U盾</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
+                {ukeyKind === "vendor" ? "U盾·厂商中间件" : "模拟 U盾"}
+              </span>
+              <span className={`ukey-state${ukey ? " open" : ""}`}>{ukey ? `已解锁 · ${ukeyCerts.length} 张证书` : "未解锁"}</span>
+            </span>
           </div>
 
           {!ukey ? (
@@ -294,37 +329,51 @@ export default function UkeyManagePage() {
               <div className="open-row">
                 <SpInput
                   type="password"
-                  placeholder="输入 U盾口令（首次使用将创建新介质）"
+                  placeholder={ukeyKind === "vendor" ? "输入证书口令（PIN）" : "输入 U盾口令（首次使用将自动创建）"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") void handleOpen(); }}
                   style={{ flex: 1 }}
                 />
-                <SpButton variant="primary" icon={Unlock} loading={opening} onClick={() => void handleOpen()}>开锁</SpButton>
+                <SpButton variant="primary" icon={Unlock} loading={opening} onClick={() => void handleOpen()}>解锁</SpButton>
               </div>
-              <div className="file-hint">已有导出文件？</div>
-              <div className="import-row">
-                <SpInput
-                  type="password"
-                  placeholder="介质文件口令"
-                  value={importPassword}
-                  onChange={(e) => setImportPassword(e.target.value)}
-                  style={{ flex: 1 }}
-                />
-                <SpButton icon={Upload} loading={importing} onClick={() => importFileRef.current?.click()}>导入介质文件</SpButton>
-                <input ref={importFileRef} type="file" accept=".ukey" style={{ display: "none" }} onChange={(e) => void handleImportFile(e)} />
-              </div>
+              {ukeyKind === "mock" && (
+                <>
+                  <div className="file-hint">已有导出文件？</div>
+                  <div className="import-row">
+                    <SpInput
+                      type="password"
+                      placeholder="备份文件口令"
+                      value={importPassword}
+                      onChange={(e) => setImportPassword(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <SpButton icon={Upload} loading={importing} onClick={() => importFileRef.current?.click()}>导入备份</SpButton>
+                    <input ref={importFileRef} type="file" accept=".ukey" style={{ display: "none" }} onChange={(e) => void handleImportFile(e)} />
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <>
               <div className="cert-toolbar">
-                <SpButton icon={Plus} loading={creating} onClick={() => void handleCreateCert()}>新建证书</SpButton>
-                <SpButton icon={Download} onClick={() => setExportVisible(true)}>导出介质</SpButton>
-                <span className="file-hint">证书主体 CN 自动取注册企业名称，绑定校验 CN↔企业名一致性</span>
+                {ukeyKind === "mock" ? (
+                  <>
+                    <SpButton icon={Plus} loading={creating} onClick={() => void handleCreateCert()}>生成演示证书</SpButton>
+                    <SpButton icon={Download} onClick={() => setExportVisible(true)}>导出备份</SpButton>
+                    <span className="file-hint">证书主体 CN 自动取注册企业名称，绑定校验 CN↔企业名一致性</span>
+                  </>
+                ) : (
+                  <span className="file-hint">证书由 CA 服务机构发制（演示：ukeymw issue --cn 企业名），此处仅枚举与绑定</span>
+                )}
               </div>
 
               {ukeyCerts.length === 0 ? (
-                <div className="ukey-empty">介质内暂无证书，点击「新建证书」生成（label={companyName || "企业名称"}）</div>
+                <div className="ukey-empty">
+                  {ukeyKind === "vendor"
+                    ? "U盾内未检测到证书（演示：ukeymw issue 发行后重新解锁）"
+                    : `U盾内暂无证书，点击「生成演示证书」创建（label=${companyName || "企业名称"}）`}
+                </div>
               ) : (
                 <div className="cert-list">
                   {ukeyCerts.map((cert) => (
@@ -362,7 +411,9 @@ export default function UkeyManagePage() {
 
           <div className="ukey-security-note">
             <ShieldCheck size={14} strokeWidth={1.75} />
-            私钥仅以口令加密形态存储于本浏览器介质，永不明文落盘；请导出备份并妥善保管，丢失介质将无法解密已投递标书。
+            {ukeyKind === "vendor"
+              ? "私钥由 U盾（厂商中间件）持有，浏览器不接触私钥材料；请妥善保管 U盾与管理码（PUK）。"
+              : "私钥仅以口令加密形态存储于浏览器，永不明文落盘；请导出备份并妥善保管，否则将无法解密已投递标书。"}
           </div>
         </div>
 
@@ -375,7 +426,7 @@ export default function UkeyManagePage() {
 
           {serverCerts.length === 0 ? (
             <div className="ukey-empty">
-              暂无绑定记录。开锁介质并生成证书后，点击「绑定」完成企业身份与证书的关联。
+              暂无绑定记录。解锁 U盾并生成证书后，点击「绑定」完成企业身份与证书的关联。
             </div>
           ) : (
             <div className="cert-list">
@@ -409,7 +460,7 @@ export default function UkeyManagePage() {
       <SpDialog
         open={exportVisible}
         onClose={closeExport}
-        title="导出介质文件"
+        title="导出备份"
         width={420}
         footer={
           <>
@@ -418,7 +469,7 @@ export default function UkeyManagePage() {
           </>
         }
       >
-        <p className="export-desc">导出文件包含全部证书（私钥经口令加密）。可跨浏览器/跨设备导入，请妥善保管。</p>
+        <p className="export-desc">导出备份包含全部证书（私钥经口令加密）。可跨浏览器/跨设备导入，请妥善保管。</p>
         <div className="export-form">
           <div className="export-form-row">
             <label>新口令</label>

@@ -183,11 +183,15 @@ export class TenderProcessor extends WorkerHost {
         select: { id: true },
       });
       for (const br of bidderResults) {
+        const jobId = `bidderResult-${br.id}`;
+        // F7：add 前强制 remove——BullMQ 对任意保留状态（含 7 天内 completed）的同 id job 静默去重，
+        // 不 remove 的话同 id 二次入队会静默 no-op（假成功）
+        await this.bidderQueue.remove(jobId).catch(() => {});
         await this.bidderQueue.add(
           'process',
           { bidderResultId: br.id, taskId },
           {
-            jobId: `bidderResult-${br.id}`,
+            jobId,
             attempts: 3,
             backoff: { type: 'exponential', delay: 5000 },
             removeOnComplete: { age: 7 * 24 * 3600 },

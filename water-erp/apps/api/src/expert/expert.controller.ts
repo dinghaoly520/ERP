@@ -14,13 +14,14 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ExpertService } from './expert.service';
 import { ExpertAdminService } from './expert-admin.service';
 import { ExpertMemoService } from './expert-memo.service';
+import { TenderClarificationService } from '../tender-clarification/tender-clarification.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
@@ -51,6 +52,7 @@ export class ExpertController {
     private expertService: ExpertService,
     private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
+    private clarifications: TenderClarificationService,
     private prisma: PrismaService,
     private bidGateway: BidGateway,
   ) {}
@@ -255,6 +257,33 @@ export class ExpertController {
     res.send(buffer);
   }
 
+  /* ── A-136：澄清与修改文件（评委核对招标文件修改的法定输入）── */
+
+  @ApiOperation({ summary: '本项目已发布澄清/修改文件列表（本项目评委）' })
+  @Get('projects/:projectId/clarification-docs')
+  async listClarificationDocs(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.clarifications.listDocsForExpert(projectId, userId);
+  }
+
+  @ApiOperation({ summary: '专家下载澄清修改文件（附件流式直出 + 监督日志）' })
+  @Post('projects/:projectId/clarification-docs/:docId/download')
+  async downloadClarificationDoc(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Param('docId') docId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName, mimeType } = await this.clarifications.downloadDocForExpert(projectId, docId, userId);
+    if (!buffer) {
+      // 纯正文澄清（无附件）——列表端点已承载 content，此处无文件可下载
+      res.status(204).end();
+      return;
+    }
+    res.setHeader('Content-Type', mimeType ?? 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName ?? 'clarification')}"`);
+    res.send(buffer);
+  }
+
   /* ── 投标文件解密下载（专家预览投标人 PDF）── */
   @ApiOperation({ summary: '解密下载投标文件 PDF（inline 预览）' })
   @Get('projects/:projectId/suppliers/:supplierId/documents/:fileId/download')
@@ -263,11 +292,25 @@ export class ExpertController {
     @Param('projectId') projectId: string,
     @Param('supplierId') supplierId: string,
     @Param('fileId') fileId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
+    // 2026-08-28 审查修复（优化项7）：条款核对页每点一条条款就重建 iframe，此前每次全量重取
+    // 整份解密 PDF。加 ETag（以不变的 fileId 为凭）+ private 缓存：浏览器重载走本地缓存，
+    // 带匹配 If-None-Match 时直接 304——不取 buffer、不进服务层、不写监督/审计日志。
+    // 304 无响应体不泄露内容；缓存为浏览器私有，仅持有旧副本者（此前已通过鉴权）可再验证。
+    const etag = `"${fileId}"`;
+    if (req.headers['if-none-match'] === etag) {
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'private, max-age=600');
+      res.status(304).end();
+      return;
+    }
     const { buffer, fileName, mimeType } = await this.expertService.downloadBidDocument(userId, projectId, supplierId, fileId);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=600');
     res.send(buffer);
   }
 

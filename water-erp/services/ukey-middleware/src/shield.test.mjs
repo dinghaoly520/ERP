@@ -4,11 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { issueShield, listShields, findShieldByCertSn, unlockShieldFile, unblockShield } from './shield.mjs';
-
-const require = createRequire(import.meta.url);
-const { sm2 } = require('sm-crypto');
 
 const tmpSlot = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ukey-shield-'));
 
@@ -76,4 +72,14 @@ test('listShields:扫描槽目录全部 .ukey 文件', async () => {
   const all = listShields(slotDir);
   assert.equal(all.length, 2);
   assert.ok(all.every((s) => s.certSn.startsWith('SHD-')));
+});
+
+test('listShields:坏盾文件(非 JSON/JSON 数组体)跳过不砖——其余盾继续可用', async () => {
+  const slotDir = tmpSlot();
+  const { shield } = await issueShield({ cn: '己公司', pin: '123456', slotDir });
+  fs.writeFileSync(path.join(slotDir, 'broken.ukey'), 'not json');
+  fs.writeFileSync(path.join(slotDir, 'array.ukey'), '[1,2,3]');
+  const all = listShields(slotDir);
+  assert.equal(all.length, 1, '坏文件(含数组体)被跳过,好盾仍枚举');
+  assert.equal(all[0].shieldId, shield.shieldId);
 });

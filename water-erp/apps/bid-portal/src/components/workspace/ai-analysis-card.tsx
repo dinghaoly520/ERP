@@ -4,7 +4,7 @@
  * AI 辅助评标进度卡片——评标管理 tab 顶部独立一行。
  * 3s 轮询 GET /bid/projects/:id/ai-analysis-progress（worker 独立进程无 WS，只能轮询）；
  * task 终态且无异常后停止轮询。异常时显示补救按钮：
- *   - 重试失败项：POST retry-ai-bidders（不传 ids = 全部 FAILED+卡住家）
+ *   - 重试失败项：POST retry-ai-bidders（不传 ids = 全部失败与卡住的供应商）
  *   - 重新分析：POST rerun-ai-analysis（清空全部结果重跑，二次确认；N8 存量无任务时自动补建——
  *     卡片在 task 不存在分支直接给一键补建入口，无需二次确认，因无旧结果可清）
  * 分工 v3 下评标管理 tab 为 :3007 现场全操作端（启动评标·专家进度·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决·澄清答疑），本卡片是其中 AI 通道：
@@ -18,8 +18,13 @@ import {
   getAiAnalysisProgress, retryAiBidders, rerunAiAnalysis,
   type AiAnalysisProgress,
 } from '@/lib/api/bid';
+import { Ring } from './shared';
 
 const POLL_MS = 3000;
+/** F13：异常终态降频间隔（用户点重试/重新分析后状态复位，下一 tick 拉到进行中态即回 POLL_MS） */
+const POLL_SLOW_MS = 15000;
+/** 进行中（非终态）任务状态集合——轮询控制与 :147 inProgress 计算共用，防两处口径漂移 */
+const IN_PROGRESS_TASK_STATUSES: readonly string[] = ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'];
 
 /* 任务状态中文文案 */
 const TASK_STATUS_LABEL: Record<string, string> = {
@@ -31,23 +36,6 @@ const TASK_STATUS_LABEL: Record<string, string> = {
   FAILED: '招标文件处理失败',
   CANCELLED: '已取消',
 };
-
-function ProgressRing({ pct, size = 40, stroke = 4 }: { pct: number; size?: number; stroke?: number }) {
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * Math.min(1, pct / 100);
-  const color = pct >= 100 ? 'oklch(0.54 0.16 158)' : 'oklch(0.56 0.153 251)';
-  return (
-    <div className="relative inline-flex shrink-0 items-center justify-center">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="oklch(0.94 0.004 264)" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" className="transition-all duration-700" />
-      </svg>
-      <span className="absolute text-[10px] font-extrabold tabular-nums" style={{ color }}>{Math.round(pct)}%</span>
-    </div>
-  );
-}
 
 export default function AiAnalysisCard({ projectId, stage }: { projectId: string; stage: string }) {
   const [progress, setProgress] = useState<AiAnalysisProgress | null>(null);
@@ -75,19 +63,42 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
     stoppedRef.current = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
+    let intervalMs = POLL_MS;
+
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const start = (ms: number) => { intervalMs = ms; stop(); timer = setInterval(tick, ms); };
 
     const tick = async () => {
       const p = await load();
       if (cancelled) return;
-      // 停止条件：task 存在且终态且无异常——异常终态继续轮询（用户重试/重新分析后状态复位即自动继续刷新）
-      if (p?.exists && p.taskStatus && !['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(p.taskStatus) && !p.anomaly.hasAnomaly) {
-        if (timer) { clearInterval(timer); timer = null; }
-      }
+      // F13（2026-08-28）三停一降（旧实现只认「终态且无异常」，异常终态与无任务会 3s 永续轮询）：
+      // ① 无 AI 任务 → 拉一次即停（无进度可看；补救入口在 exists=false 分支一次性给出）
+      if (!p?.exists) { stop(); return; }
+      const inProgress = !!p.taskStatus && IN_PROGRESS_TASK_STATUSES.includes(p.taskStatus);
+      // ② 终态且无异常 → 停止
+      if (!inProgress && !p.anomaly.hasAnomaly) { stop(); return; }
+      // ③ 异常终态 → 降频 15s（用户重试/重新分析后状态复位为进行中，下一 tick 即回 3s）
+      //    进行中态（即使已有失败家）保持 3s——其余 bidder 仍在推进
+      if (!inProgress) { if (intervalMs !== POLL_SLOW_MS) start(POLL_SLOW_MS); }
+      else if (intervalMs !== POLL_MS) { start(POLL_MS); }
     };
 
+    // ④ 页面隐藏暂停轮询、恢复可见立即 tick + 重启（后台 tab 不再空转打接口）
+    const onVisibility = () => {
+      if (cancelled) return;
+      if (document.hidden) { stop(); }
+      else { void tick(); start(intervalMs); }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     void tick();
-    timer = setInterval(tick, POLL_MS);
-    return () => { cancelled = true; stoppedRef.current = true; if (timer) clearInterval(timer); };
+    start(POLL_MS);
+    return () => {
+      cancelled = true;
+      stoppedRef.current = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      stop();
+    };
   }, [load, stage]);
 
   const doRetry = async () => {
@@ -144,11 +155,11 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
 
   const { total, completed, failed, anomaly, taskStatus } = progress;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const inProgress = taskStatus === 'PENDING' || taskStatus === 'TENDER_PROCESSING' || taskStatus === 'ANALYZING';
+  const inProgress = IN_PROGRESS_TASK_STATUSES.includes(taskStatus ?? '');
   // 补救按钮仅在 EVALUATING 阶段可用（ARCHIVED/ABORTED 回看为只读快照）
   const actionsEnabled = stage === 'EVALUATING';
   const showRetry = actionsEnabled && (anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
-  const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
+  const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.workerIdle || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
 
   return (
     <div className={`neu-card-static p-4 ${anomaly.hasAnomaly ? 'bg-[oklch(0.97_0.03_83_/_0.35)]' : ''}`}>
@@ -157,7 +168,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         <div className="flex items-center gap-3">
           {anomaly.taskFailed
             ? <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[oklch(0.97_0.03_22_/_0.6)]"><AlertTriangle size={16} className="text-[var(--danger)]" /></span>
-            : <ProgressRing pct={pct} />}
+            : <Ring pct={pct} size={40} color={pct >= 100 ? 'oklch(0.54 0.16 158)' : 'oklch(0.56 0.153 251)'} textColorSize={10} trackColor="oklch(0.94 0.004 264)" />}
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">AI辅助评标</span>
@@ -174,12 +185,14 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         <div className="min-w-0 flex-1 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
           {anomaly.taskFailed ? (
             <span className="font-semibold text-[var(--danger)]">招标文件处理失败——需重新分析</span>
+          ) : anomaly.workerIdle ? (
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">队列有 AI 分析任务等待但无 worker 消费——请启动 worker（pnpm --filter api dev:worker:ai-bid-analysis）；worker 恢复后队列将自动消费</span>
           ) : anomaly.allPending ? (
             <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析未启动——请确认 AI 分析 worker 进程已运行；worker 恢复后队列将自动消费</span>
           ) : anomaly.failedNames.length > 0 ? (
             <span><span className="font-semibold text-[var(--danger)]">{failed} 家分析失败：</span>{anomaly.failedNames.join('、')}</span>
           ) : anomaly.stuckNames.length > 0 ? (
-            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">疑似卡住：</span>{anomaly.stuckNames.join('、')}（超 30 分钟无进展）</span>
+            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">疑似卡住：</span>{anomaly.stuckNames.join('、')}（超 30 分钟无进展；阈值与后端 AI_STUCK_THRESHOLD_MS 同口径，改动须双向同步）</span>
           ) : (
             <span>{TASK_STATUS_LABEL[taskStatus ?? ''] ?? taskStatus}</span>
           )}

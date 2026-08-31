@@ -4,7 +4,8 @@ import { api } from '@/lib/api';
  * 开标大厅 REST 客户端（澄清答疑/在线交流）。
  *
  * 复用 `lib/api.ts` 的 fetch 封装：自带 `credentials: 'include'` 与
- * `X-Portal: 'web'` 头，`/api` 前缀由 next.config rewrites 转发至
+ * `X-Portal: 'bid'` 头（O9：原注释写 'web'，auth port-roles 迁移后的残留），
+ * `/api` 前缀由 next.config rewrites 转发至
  * `http://localhost:4001/api`。失败时抛 `ApiError`（含 status/code）。
  *
  * 对应后端 `apps/api/src/opening-hall/opening-hall.controller.ts`。

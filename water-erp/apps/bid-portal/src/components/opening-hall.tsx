@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { OpeningSignBlock } from './opening-hall-sign-block';
 import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
@@ -11,10 +10,12 @@ import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
   Volume2, Zap, Loader, FileText, RotateCcw, PencilLine, Lock, Gavel,
 } from 'lucide-react';
-import { DECRYPT_LABEL, BOND_STATUS_OPTIONS } from '@water-erp/shared';
+import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
+import { useBidUser } from '@/hooks/use-bid-user';
+// 注：开标记录签字卡在「评标签字」tab（评标结束一次性办理的运营口径），本组件不再渲染
 
 /** cgzxui 裸面板（取代 @water-erp/ui SectionCard 的 p-0 用法）——无边框玻璃静态卡 */
 function Card({ className = '', children }: { className?: string; children: React.ReactNode }) {
@@ -94,6 +95,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   // 受控展示组件：project 数据与实时事件由工作区页（page.tsx）持有并经 props 下传；
   // 本组件只保留开标执行交互态，写操作成功后调 onRefresh() 触发页级 refetch。
   const projectId = project.id;
+  // 「前往采购管理工作台」跳转仅对能实际操作 :3005 的角色有意义——bid_host 登 :3005
+  // 按 PORTAL_ROLE_PRIORITY.web 解析为 bid_host、采购功能 403，按钮对现场主持人是死链（分工告知文本保留）
+  // L2（2026-08-28）：解密/解外层/归因裁决/重新封标/暂停恢复等后端收口 @Roles('admin','bid_host')——
+  // leader/staff 虽可登录本端但无现场执行权，对应按钮不再渲染（此前可见即点、点了 403 且单家解密静默无反馈）
+  const me = useBidUser();
+  const canGoWeb = me?.role !== 'bid_host';
+  const canHost = me?.role === 'admin' || me?.role === 'bid_host';
   const [startOpen, setStartOpen] = useState(false);
   // ═══ New UX state ═══
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
@@ -227,12 +235,18 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [now, setNow] = useState(() => Date.now());
 
   // Sync server time for authoritative countdown
+  // O7（2026-08-28）：授时重拉改键控（窗口止点|暂停态）——原依赖 openingSession 对象引用，
+  // 任何无关刷新（评分事件等）都会重拉；仅窗口经「延长 +15分钟」或暂停/恢复变化时才需重新对时
+  const sessionTimeKey = project?.openingSession
+    ? `${project.openingSession.decryptWindowEnd}|${project.openingSession.pausedAt ?? ''}`
+    : '';
   useEffect(() => {
-    if (!projectId || !project?.openingSession) return;
+    if (!projectId || !sessionTimeKey) return;
     getOpeningSessionTime(projectId)
       .then(data => { setServerTimeOffset(data.serverTime - Date.now()); })
       .catch(() => {});
-  }, [projectId, project?.openingSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, sessionTimeKey]);
 
   const openingStatusMeta = (status?: string | null) => {
     switch (status) {
@@ -318,6 +332,18 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
   // 解密窗口是否已过期（含无会话兜底：未组建会话视为不可解密，不构成裁决候选）
   const windowExpired = !!session && remaining <= 0;
+  // L6（2026-08-28）：状态胶囊改 shared 派生（status 列建档后无流转，开标中/暂停/结束恒显「待开标」误导）；
+  // now 用 serverTimeOffset 校正（与上方 remaining 同口径）
+  const sessionStatus = session
+    ? deriveOpeningSessionStatus({
+        stage: project.stage,
+        pausedAt: session.pausedAt,
+        handoverAt: session.handoverAt,
+        decryptWindowStart: session.decryptWindowStart,
+        decryptWindowEnd: session.decryptWindowEnd,
+        now: now + serverTimeOffset,
+      })
+    : null;
 
   // ═══ 待裁决清单（§5.5）：UNKNOWN 家 + 窗口关闭后的未归因候选（惰性归因将标记 UNKNOWN）═══
   const adjudgeRows = useMemo(() => {
@@ -377,14 +403,25 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       setDecrypting(prev => new Set(prev).add(t.id));
       try {
         await decryptBid(projectId, t.id);
-      } catch { /* error handled by WebSocket update */ }
+      } catch (e: any) {
+        // L3（2026-08-28）：硬拒绝（窗口关/暂停/重复解密/新轨 400/403）不产生 WS 状态事件，
+        // 此前静默无反馈（确认后 spinner 一转即逝）。密码学失败后端不抛错——置 DANGER 经
+        // WS 推送（页级 toast+音效），此处仅提示请求被拒，无双响。
+        toast.error(`${t.name}：${e?.message || '解密请求被拒'}`);
+      }
       setDecrypting(prev => { const n = new Set(prev); n.delete(t.id); return n; });
     } else {
       // Bulk decrypt: parallelize with Promise.allSettled for partial-failure resilience
       setBulkDecrypting(true);
-      await Promise.allSettled(
-        targets.map(t => decryptBid(projectId, t.id).catch(() => {})),
+      const settled = await Promise.allSettled(
+        targets.map(t => decryptBid(projectId, t.id)),
       );
+      // L3：批量同样不吞拒绝——计数+首条原因聚合提示（窗口/暂停类拒绝在批量内同源）
+      const rejected = settled.filter(s => s.status === 'rejected') as PromiseRejectedResult[];
+      if (rejected.length > 0) {
+        const first = rejected[0].reason as any;
+        toast.error(`批量解密：${rejected.length}/${targets.length} 家请求被拒——${first?.message || '请检查解密窗口/暂停状态'}`);
+      }
       setBulkDecrypting(false);
       onRefresh();
     }
@@ -501,10 +538,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.13_251)]">该项目尚未确定开标</h2>
             <p className="text-xs text-[color:var(--muted-foreground)]">确定开标（阶段流转）由采购管理工作台（:3005）统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
           </div>
-          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
-            前往采购管理工作台 <ExternalLink size={13} />
-          </a>
+          {canGoWeb && (
+            <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+              className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
+              前往采购管理工作台 <ExternalLink size={13} />
+            </a>
+          )}
         </div>
       )}
       {(project.stage === 'EVALUATING' || project.stage === 'ARCHIVED' || project.stage === 'ABORTED') && (
@@ -518,10 +557,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，评标管理与评标签字请在本工作区对应 tab 操作；完整归档与公示请在采购管理工作台（:3005）操作。`}
             </p>
           </div>
-          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
-            前往采购管理工作台 <ExternalLink size={13} />
-          </a>
+          {canGoWeb && (
+            <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+              className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
+              前往采购管理工作台 <ExternalLink size={13} />
+            </a>
+          )}
         </div>
       )}
 
@@ -548,14 +589,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标资料已移交</h2>
             <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台，后续启动评标 / 归档请前往 :3005 开标确认面板。</p>
           </div>
-          <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
-            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
-            前往采购管理工作台 <ExternalLink size={13} />
-          </a>
+          {canGoWeb && (
+            <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
+              className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
+              前往采购管理工作台 <ExternalLink size={13} />
+            </a>
+          )}
         </div>
-      )}
-      {(!!session?.handoverAt || project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
-        <OpeningSignBlock projectId={project.id} />
       )}
       {openingDone && project.stage === 'OPENING' && !session?.handoverAt && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
@@ -592,7 +632,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             </div>
             <div className="rounded-xl bg-[oklch(0.985_0.005_258)] px-6 py-3 text-center shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">
               <div className="mb-1 text-xs uppercase tracking-widest text-[color:var(--muted-foreground)]">状态</div>
-              <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{session.status}</div>
+              <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{sessionStatus ?? session.status}</div>
             </div>
             {remaining > 0 && <RingCountdown remaining={remaining} />}
             {session && remaining > 0 && (
@@ -615,7 +655,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     } catch (e: any) { toast.error(e?.message || '延长失败'); }
                   }}
                 ><Clock size={13} className="mr-1 inline" />延长 +15分钟</button>
-                {!session.pausedAt ? (
+                {canHost && (!session.pausedAt ? (
                   <button
                     type="button" disabled={pausing}
                     className="neu-btn-soft text-xs text-[var(--warning)]"
@@ -637,7 +677,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                       finally { setResuming(false); }
                     }}
                   ><CheckCircle size={13} className="mr-1 inline" />恢复开标</button>
-                )}
+                ))}
               </div>
             )}
             {session?.pausedAt && (
@@ -660,14 +700,14 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <div className="flex items-center gap-2">
             {/* 阶段流转（开放投递/确定开标）已归 :3005 采购管理工作台，本页仅执行开标 */}
             {/* T17：双信封 v2——管理方解外层（§5.2；批量逐家串行，返回明细聚合） */}
-            {!!session && project.stage === 'OPENING' && dualOuterPending.length > 0 && (
+            {!!session && canHost && project.stage === 'OPENING' && dualOuterPending.length > 0 && (
               <button type="button" onClick={handleBulkDecryptOuter} disabled={bulkOuterDecrypting || !!session.pausedAt}
                 className="neu-btn-soft is-warning disabled:opacity-50">
                 <Unlock size={13} /> {bulkOuterDecrypting ? '批量解外层中...' : session.pausedAt ? '开标已暂停' : `全部解外层 (${dualOuterPending.length})`}
               </button>
             )}
             {/* 旧轨批量解密（dual-v2 行由「解外层」承载） */}
-            {!!session && project.stage === 'OPENING' && legacyPending.length > 0 && (
+            {!!session && canHost && project.stage === 'OPENING' && legacyPending.length > 0 && (
               <button type="button" onClick={handleBulkDecrypt} disabled={bulkDecrypting || !!session.pausedAt}
                 className="neu-btn-soft is-warning disabled:opacity-50">
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : session.pausedAt ? '开标已暂停' : `全部解密 (${legacyPending.length})`}
@@ -703,6 +743,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   <span className="rounded-full bg-[oklch(0.78_0.12_83_/_0.16)] px-2 py-0.5 text-[11px] font-semibold text-[oklch(0.46_0.11_65)]">
                     {DECRYPT_LABEL[s.decryptStatus] || DECRYPT_LABEL.PENDING}
                   </span>
+                  {canHost && (
                   <button
                     type="button"
                     disabled={adjudgeSubmitting}
@@ -711,6 +752,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   >
                     <Gavel size={11} /> 裁决
                   </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -828,7 +870,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         {/* 旧轨：主持端代解密（dual-v2 行改用「解外层」） */}
-                        {!!session && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
+                        {!!session && canHost && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
                           <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting || !!session.pausedAt}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                             {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
@@ -836,7 +878,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </button>
                         )}
                         {/* T17：双信封 v2——管理方解外层（§5.2；幂等，重复调用返回 skipped） */}
-                        {isDual && !outerDone && canAct && (
+                        {isDual && !outerDone && canAct && canHost && (
                           <button type="button" onClick={() => handleDecryptOuter(s.id)} disabled={isOuterDecrypting || bulkOuterDecrypting}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                             {isOuterDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
@@ -883,7 +925,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </button>
                         )}
                         {/* T17：归因裁决入口（UNKNOWN 家 / 窗口关闭后的未归因候选；裁决即落终局） */}
-                        {isDual && !isSuccess && (attribution === 'UNKNOWN' || (!attribution && windowExpired)) && (
+                        {canHost && isDual && !isSuccess && (attribution === 'UNKNOWN' || (!attribution && windowExpired)) && (
                           <button type="button" disabled={adjudgeSubmitting}
                             onClick={() => openAdjudge(s, 'unknown')}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[oklch(0.46_0.11_65)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
@@ -891,7 +933,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </button>
                         )}
                         {/* T15 纠错通道：BIDDER→PLATFORM 改判（撤销判定更正为撤回） */}
-                        {isDual && isDanger && attribution === 'BIDDER' && (
+                        {canHost && isDual && isDanger && attribution === 'BIDDER' && (
                           <button type="button" disabled={adjudgeSubmitting}
                             onClick={() => openAdjudge(s, 'rejudge')}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--warning)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
@@ -899,7 +941,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </button>
                         )}
                         {/* T13 硬前置：平台责任家重置解密机会（窗口须开，关闭时隐藏——需先延长窗口） */}
-                        {isDual && isDanger && attribution === 'PLATFORM' && canAct && !windowExpired && (
+                        {canHost && isDual && isDanger && attribution === 'PLATFORM' && canAct && !windowExpired && (
                           <button type="button" disabled={adjudgeSubmitting}
                             onClick={() => openAdjudge(s, 'reset')}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--success)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
@@ -908,6 +950,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         )}
                         {isDanger && project.stage === 'OPENING' && !resealFailed && !isDual && (
                           <>
+                            {/* reseal 端点收口 admin/bid_host——重试仅主持人可见；「接受」(accept-danger) 全角色可办 */}
+                            {canHost && (
                             <button type="button"
                               disabled={resealing.has(s.id)}
                               onClick={() => handleReseal(s.id)}
@@ -915,6 +959,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                               {resealing.has(s.id) ? <Loader size={12} className="animate-spin" /> : <RotateCcw size={12} strokeWidth={1.5} />}
                               重试
                             </button>
+                            )}
                             <button type="button"
                               onClick={async () => {
                                 const reason = prompt('请填写确认接受解密失败的原因：');
@@ -1083,7 +1128,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
       {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}
       {recordEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
+        /* O10（2026-08-28）：遮罩点击不再关弹窗——已填报价/工期草稿易误触丢失，关闭走「取消」按钮 */
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm">
           <div className="bid-dialog w-[480px] p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">{recordEntry.reentry ? '重录唱标信息' : '录入唱标信息'} — {recordEntry.supplierName}</h3>
             <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">据解密后的投标内容填写，提交后{recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。</p>

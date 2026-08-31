@@ -821,27 +821,41 @@ export class ExpertService {
 
     const fileName = asset?.originalName ?? `${which}.pdf`;
 
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId,
-        time: new Date(),
-        role: '评审专家',
-        target: expert.expertName,
-        action: `访问投标文件（${supplier.supplierName}）`,
-        result: fileName,
-        riskFlag: '无',
-      },
-    });
-
-    await this.prisma.auditLog.create({
-      data: {
+    // ⑧ 日志会话去重：条款核对页每点一条条款就重取一次 PDF（控制层已加 ETag/304，
+    // 浏览器强刷或绕过缓存的请求仍会到此）。10 分钟窗口内同 (专家, 文件) 只记首条
+    // 监督/审计日志，与控制层 Cache-Control max-age=600 对齐；首次访问照常双写。
+    const recentView = await this.prisma.auditLog.findFirst({
+      where: {
         userId,
         action: 'EXPERT_VIEW_DOCUMENT',
-        resourceType: `BidSupplier:${supplierId}:${which}`,
         resourceId: fileId,
-        details: { projectId, supplierName: supplier.supplierName, fileName },
+        createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
       },
-    }).catch(() => {});
+      select: { id: true },
+    });
+    if (!recentView) {
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId,
+          time: new Date(),
+          role: '评审专家',
+          target: expert.expertName,
+          action: `访问投标文件（${supplier.supplierName}）`,
+          result: fileName,
+          riskFlag: '无',
+        },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'EXPERT_VIEW_DOCUMENT',
+          resourceType: `BidSupplier:${supplierId}:${which}`,
+          resourceId: fileId,
+          details: { projectId, supplierName: supplier.supplierName, fileName },
+        },
+      }).catch(() => {});
+    }
 
     return { buffer: result.buffer, fileName, mimeType: 'application/pdf' };
   }
@@ -868,6 +882,9 @@ export class ExpertService {
     }
     const bidderResult = await this.prisma.aiBidderResult.findFirst({
       where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+      // 同一供应商可能存在多条 COMPLETED（历史重跑残留）：读标注/写标注/读辅助数据三处必须
+      // 取同一条（最新），否则会出现「标注写入 A 行、读取 B 行」的串行丢失。与 getAssistData 保持一致。
+      orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
     if (!bidderResult) throw new NotFoundException({ error: '该供应商 AI 分析尚未完成', code: 'NOT_FOUND' });
@@ -938,6 +955,8 @@ export class ExpertService {
     // 4.5: 优先读 AiBidderResult（per-item LLM 结果），降级用规则引擎
     const bidderResult = await this.prisma.aiBidderResult.findFirst({
       where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+      // 多条 COMPLETED 时取最新——与 resolveReviewContext 的 findFirst 排序保持一致（读写同源）
+      orderBy: { createdAt: 'desc' },
       include: {
         concordance: true,
         bidSupplier: { select: { supplierName: true } },
@@ -1513,7 +1532,7 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
-    const [records, reviews, pointDecisions] = await Promise.all([
+    const [records, reviews, pointDecisions, task] = await Promise.all([
       this.prisma.bidScoreRecord.findMany({
         where: { expertId: expert.id },
         include: { scoreItem: true },
@@ -1523,7 +1542,21 @@ export class ExpertService {
         where: { expertId: expert.id },
         select: { pointId: true, supplierId: true, checked: true, awardedScore: true, note: true },
       }),
+      this.prisma.aiBidAnalysisTask.findUnique({
+        where: { projectId },
+        select: { requirements: true },
+      }),
     ]);
+
+    // ⑦：★号实质性条款（isStarred，仅 technicalRequirements 有此标记）在评分分组上
+    // 额外属「响应性评审」（RESPONSIVE）——与前端 requirement-compare-panel 的展开规则同构
+    // （starred → 原组 + RESPONSIVE）。若只按 UPPER 映射，★条款异议只落在 TECHNICAL，
+    // 前端按 RESPONSIVE 组查询时软门/徽标/异议插入面板均不可见。
+    const starredIds = new Set(
+      (((task?.requirements as any)?.technicalRequirements as any[] | undefined) ?? [])
+        .filter((r) => r?.isStarred === true && r.id)
+        .map((r) => r.id),
+    );
 
     const UPPER: Record<string, string> = {
       qualification: 'QUALIFICATION',
@@ -1535,14 +1568,19 @@ export class ExpertService {
     const disputesBySupplier: Record<string, Record<string, { requirementId: string; content: string; note: string; verdict: string }[]>> = {};
     for (const r of reviews) {
       const cat = UPPER[r.category];
-      if (!cat) continue;
+      const cats = cat ? (starredIds.has(r.requirementId) ? [cat, 'RESPONSIVE'] : [cat]) : [];
+      if (cats.length === 0) continue;
       if (r.verdict === 'dispute') {
         const catList = disputeCategoriesBySupplier[r.supplierId] ?? (disputeCategoriesBySupplier[r.supplierId] = []);
-        if (!catList.includes(cat)) catList.push(cat);
+        for (const c of cats) {
+          if (!catList.includes(c)) catList.push(c);
+        }
       }
       const detailMap = disputesBySupplier[r.supplierId] ?? (disputesBySupplier[r.supplierId] = {});
-      const detailList = detailMap[cat] ?? (detailMap[cat] = []);
-      detailList.push({ requirementId: r.requirementId, content: r.content, note: r.note, verdict: r.verdict });
+      for (const c of cats) {
+        const detailList = detailMap[c] ?? (detailMap[c] = []);
+        detailList.push({ requirementId: r.requirementId, content: r.content, note: r.note, verdict: r.verdict });
+      }
     }
     return { records, disputeCategoriesBySupplier, disputesBySupplier, pointDecisions };
   }
@@ -1681,10 +1719,22 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
-    // P2：校验供应商属于本项目（防注入任意 supplierId 污染 QA 线程）
+    // P2：校验供应商属于本项目（防注入任意 supplierId 污染 QA 线程）。
+    // F3（2026-08-28）：契约统一为行 id 入参；落库须转换为行上的 Supplier.id
+    // （BidClarification.supplierId 是 FK→Supplier，直存行 id 会 FK 违约）。
+    let clarSupplierId: string | null = null;
     if (dto.supplierId) {
       const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: dto.supplierId, projectId } });
       if (!supplier) throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+      clarSupplierId = supplier.supplierId;
+    }
+    // A-143：supplierId 缺省时按 supplierName 在本项目投标人集合内回填（与主持端 createClarification 同语义；
+    // 专家端澄清 type 恒为默认 'clarification'，无需 type 判别；寻址不到保持 null，供应商端不可见）
+    if (!dto.supplierId && dto.supplierName) {
+      const rowByName = await this.prisma.bidSupplier.findFirst({
+        where: { projectId, supplierName: dto.supplierName },
+      });
+      if (rowByName) clarSupplierId = rowByName.supplierId;
     }
 
     return this.prisma.bidClarification.create({
@@ -1693,7 +1743,7 @@ export class ExpertService {
         question: dto.question,
         issuer: expert.expertName,
         supplierName: dto.supplierName,
-        supplierId: dto.supplierId || null,
+        supplierId: clarSupplierId,
         status: '待回复',
       },
     });
@@ -2071,9 +2121,11 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     const key = `expert:focus:${expert.id}:${projectId}`;
     const seqKey = `expert:focus:seq:${expert.id}:${projectId}`;
+    // seq 计数器刻意不设 TTL：一旦 expire 归零重启计数，平板端「seq > lastSeq」守卫会误判旧
+    // hint 为新（重复聚焦/滚动）。计数器单调递增即可，无清理需求（单专家单项目仅一个键）。
+    // hint 值 key 保留 120s 过期——陈旧提示照常消失。
     const seq = await this.redis!.incr(seqKey);
     await this.redis!.set(key, JSON.stringify({ ...body, seq, at: Date.now() }), 'EX', 120);
-    await this.redis!.expire(seqKey, 120);
     return { ok: true, seq };
   }
 

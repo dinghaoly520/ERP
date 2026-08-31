@@ -29,8 +29,9 @@ type Round = {
 const STATUS_LABEL: Record<string, string> = {
   pending: '待开放', open: '报价中', sealed: '已截止', published: '已公布', closed: '已结束',
 };
+// F19：状态色改主题令牌（原硬编码十六进制与全站 var(--…) 体系不一致）
 const STATUS_COLOR: Record<string, string> = {
-  pending: '#8a96aa', open: '#064ea2', sealed: '#b45309', published: '#11a874', closed: '#5a6d8a',
+  pending: 'var(--muted-foreground)', open: 'var(--accent)', sealed: 'var(--warning)', published: 'var(--success)', closed: 'var(--muted-foreground)',
 };
 
 export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
@@ -41,7 +42,19 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
 
   const roundMode = detail?.roundMode as string | undefined;
+  const stage = detail?.stage as string | undefined;
   const suppliers = detail?.suppliers ?? [];
+
+  // F8：创建入口阶段门槛（镜像后端 createRound 守卫）——谈判采购为「先评标→再报价」形态，
+  // 报价轮仅在 EVALUATING 可开（OPENING 会被后端 assertEvaluationComplete 409）；
+  // 竞价（sealed_auction，形态B 先报价后评标）OPENING/EVALUATING 均可。
+  // 其余阶段（含 ARCHIVED/ABORTED 只读态）隐藏入口并提示，不再渲染点了必 409 的死按钮。
+  const canCreateRound = roundMode === 'negotiation'
+    ? stage === 'EVALUATING'
+    : stage === 'OPENING' || stage === 'EVALUATING';
+  const stageHint = stage === 'ARCHIVED' || stage === 'ABORTED'
+    ? '项目已归档/流标，报价轮次只读'
+    : roundMode === 'negotiation' ? '评标完成后方可开启报价轮次' : '当前阶段不可创建报价轮次';
 
   const load = useCallback(async () => {
     if (!bidProjectId) return;
@@ -64,6 +77,13 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   // 合格供应商（bidValidity !== 'invalid'）
   const qualifiedSuppliers = suppliers.filter(s => s.bidValidity !== 'invalid');
   const invalidSuppliers = suppliers.filter(s => s.bidValidity === 'invalid');
+
+  // F8：轮次推进死按钮修复——旧实现「创建首轮报价」仅在 rounds.length===0 时渲染，
+  // 末轮 closed（结束报价/下一轮创建失败）后创建入口永久消失成死路。
+  // 现改为「无进行中轮次（无轮 或 末轮 closed）」即可再开，文案按有无轮次区分。
+  const lastRound = rounds[rounds.length - 1];
+  const noActiveRound = rounds.length === 0 || lastRound?.status === 'closed';
+  const showCreateEntry = canCreateRound && noActiveRound;
 
   const openCreateDialog = () => {
     // 默认勾选所有合格供应商
@@ -91,10 +111,12 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
             </span>
           </h3>
         </div>
-        {rounds.length === 0 && (
+        {showCreateEntry ? (
           <button onClick={openCreateDialog} disabled={busy} className="neu-btn-primary !h-[32px] !text-xs">
-            <Plus size={13} /> 创建首轮报价
+            <Plus size={13} /> {rounds.length === 0 ? '创建首轮报价' : '创建下一轮'}
           </button>
+        ) : noActiveRound && (
+          <span className="text-xs text-[var(--muted-foreground)]">{stageHint}</span>
         )}
       </div>
 
@@ -102,7 +124,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
         <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">加载中…</div>
       ) : rounds.length === 0 ? (
         <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">
-          尚无报价轮次。点击「创建首轮报价」开始多轮报价流程。
+          {canCreateRound ? '尚无报价轮次。点击「创建首轮报价」开始多轮报价流程。' : `${stageHint}。`}
         </div>
       ) : (
         <div className="space-y-3">
@@ -146,7 +168,8 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                         try {
                           await createRound(bidProjectId, { roundType: r.roundType, supplierIds: r.eligibleSupplierIds });
                         } catch {
-                          toast.error('轮次已关闭，但创建下一轮失败。请点击「创建首轮报价」重试。');
+                          // F8：失败文案指向真实存在的按钮——末轮已 closed，顶部「创建下一轮」入口即恢复路径
+                          toast.error('轮次已关闭，但创建下一轮失败。请点击右上角「创建下一轮」重试。');
                         }
                       })}
                         disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
@@ -204,7 +227,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
       )}
       {/* 供应商选择弹窗 */}
       {showSupplierDialog && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}>
           <div className="neu-card-static w-[480px] max-w-[90vw] rounded-2xl p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-bold text-[var(--foreground)]">选择参与报价的供应商</h3>

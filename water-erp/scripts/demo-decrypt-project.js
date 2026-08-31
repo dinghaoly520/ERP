@@ -7,7 +7,7 @@
  *
  * 用法（在 water-erp/apps/api 目录下）：
  *   node ../../scripts/demo-decrypt-project.js create   # 新建（若已存在则先整体重建）
- *   node ../../scripts/demo-decrypt-project.js reset    # 一键回到「待组建会话」（清会话/解密/唱标/确认/交流）
+ *   node ../../scripts/demo-decrypt-project.js reset    # 一键回到「待组建会话」（清会话/解密/唱标/确认/交流；时间口径默认刷新为 now）
  *
  * 说明：
  *   - 复制自 BID-1786934256839（JJ-2026081702），复用 MinIO 上的加密标书与加密招标文件对象
@@ -99,6 +99,7 @@ async function reset() {
     console.log('未找到演示项目（BID-DEMO-*），请先执行 create');
     return;
   }
+  const t = now();
   await prisma.$transaction(async (tx) => {
     // 只清开标过程数据（会话/唱标记录/交流），供应商回执与加密标书保留
     await tx.$executeRawUnsafe('DELETE FROM "OpeningHallReadCursor" WHERE "projectId"=$1', demo.id);
@@ -110,15 +111,32 @@ async function reset() {
       `UPDATE "BidSupplier" SET "decryptStatus"='PENDING', "confirmStatus"='PENDING', "checkInAt"=NULL, "lastSeenAt"=NULL WHERE "projectId"=$1`,
       demo.id,
     );
-    await tx.bidProject.update({ where: { id: demo.id }, data: { stage: 'OPENING' } });
+    // 时间口径刷新为当前时刻（fresh-time 默认行为，与 create 一致；开标=now、截标=now-1h、下载截止=now+30min）
+    await tx.bidProject.update({
+      where: { id: demo.id },
+      data: {
+        stage: 'OPENING',
+        openTime: t,
+        deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：BID_DEADLINE_BEFORE_OPENING_MS 口径（packages/shared/src/constants.ts）；CJS 脚本不 import shared，写字面量 24h
+        downloadDeadline: new Date(t.getTime() + 30 * 60_000),
+        evaluationDeadline: new Date(t.getTime() + 72 * 3600_000),
+      },
+    });
+    // PMI 开标时间同步（:3005 开标确认面板展示口径）
+    if (demo.projectManagementItemId) {
+      await tx.projectManagementItem.update({
+        where: { id: demo.projectManagementItemId },
+        data: { bidOpeningTime: t.toISOString() },
+      });
+    }
     await tx.bidSupervisionLog.create({
       data: {
-        projectId: demo.id, time: now(), role: '系统', target: '解密演示',
-        action: '演示重置', result: '回到「待组建开标会话」：解密/唱标/确认/交流已清空', riskFlag: '—',
+        projectId: demo.id, time: t, role: '系统', target: '解密演示',
+        action: '演示重置', result: '回到「待组建开标会话」：解密/唱标/确认/交流已清空，开标时间已刷新为当前时刻', riskFlag: '—',
       },
     });
   });
-  console.log(`✅ 已重置演示项目 ${demo.projectCode} → OPENING（待组建开标会话）`);
+  console.log(`✅ 已重置演示项目 ${demo.projectCode} → OPENING（待组建开标会话，开标时间=now）`);
   console.log(`   :3007 http://localhost:3007/bid/project/${demo.id}`);
 }
 

@@ -308,6 +308,10 @@ describe('ExpertService', () => {
       expect(out).not.toHaveProperty('fraudSummary');
       expect(out).not.toHaveProperty('reportDocxUrl');
       expect(prisma.aiBidReport).toBeUndefined(); // 不再查 AiBidReport
+      // ⑥：多条 COMPLETED 时必须取最新——与 resolveReviewContext 读写同源
+      expect(prisma.aiBidderResult.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        orderBy: { createdAt: 'desc' },
+      }));
     });
 
     it('映射 competitiveAnalysis.keyObservations 到顶层', async () => {
@@ -1429,6 +1433,26 @@ describe('ExpertService', () => {
   });
 
   describe('getMyScores', () => {
+    beforeEach(() => {
+      // ⑦：getMyScores 额外查 aiBidAnalysisTask.requirements（★号条款 → RESPONSIVE 映射）
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue(null) };
+    });
+
+    it('⑦★号条款异议追加 RESPONSIVE 组（与前端 CAT_TO_SCORE 展开同构），非★条款只进原组', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ requirements: { technicalRequirements: [{ id: 'req-star', isStarred: true }, { id: 'req-norm', isStarred: false }] } }) };
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([
+        { category: 'technical', verdict: 'dispute', bidderResultId: 'br-1', requirementId: 'req-star', note: 'n1', bidderResult: { bidSupplier: { id: 's1' } } },
+        { category: 'technical', verdict: 'dispute', bidderResultId: 'br-1', requirementId: 'req-norm', note: 'n2', bidderResult: { bidSupplier: { id: 's1' } } },
+      ]) };
+      prisma.aiBidderResult.findMany = jest.fn().mockResolvedValue([]);
+      const out = await service.getMyScores('u1', 'proj-1');
+      expect(out.disputeCategoriesBySupplier).toEqual({ s1: ['TECHNICAL', 'RESPONSIVE'] });
+      expect(out.disputesBySupplier.s1.TECHNICAL).toHaveLength(2);
+      expect(out.disputesBySupplier.s1.RESPONSIVE).toEqual([expect.objectContaining({ requirementId: 'req-star', verdict: 'dispute' })]);
+    });
+
     it('返回 records + disputeCategoriesBySupplier（按 supplier 分组，per-supplier 去重）', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreRecord.findMany.mockResolvedValue([]);
@@ -1537,6 +1561,15 @@ describe('ExpertService', () => {
       expect(out).toHaveLength(1);
     });
 
+    it('⑥多条 COMPLETED 时定位最新一条（orderBy createdAt desc，写标注与读辅助数据同源）', async () => {
+      prisma.bidRequirementReview.upsert.mockResolvedValue({ id: 'rv-1' });
+      await service.upsertRequirementReview('u1', 'proj-1', 'sup-1', { requirementId: 'r1', category: 'technical', verdict: 'ack' });
+      expect(prisma.aiBidderResult.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: { bidSupplierId: 'sup-1', status: 'COMPLETED' },
+        orderBy: { createdAt: 'desc' },
+      }));
+    });
+
     it('非本项目专家 → 403', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue(null);
       await expect(service.upsertRequirementReview('u1', 'proj-1', 'sup-1', { requirementId: 'r1', category: 'technical', verdict: 'ack' }))
@@ -1556,6 +1589,8 @@ describe('ExpertService', () => {
 
     beforeEach(() => {
       plaintextFetcher = service['plaintextFetcher'];
+      // ⑧ 日志会话去重：默认无近期访问记录（首访照常双写）
+      prisma.auditLog.findFirst = jest.fn().mockResolvedValue(null);
     });
 
     afterEach(() => {
@@ -1581,6 +1616,49 @@ describe('ExpertService', () => {
       expect(out.mimeType).toBe('application/pdf');
       // 调 plaintextFetcher 时 which 应为 'technical'（fileId→which 映射）
       expect(plaintextFetcher.fetchBidderPlaintext).toHaveBeenCalledWith('sup-1', 'technical');
+    });
+
+    it('⑧同一阅卷会话窗口内（10min 有近期访问记录）→ 不重复写监督/审计日志，buffer 照常返回', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', supplierId: 'sys-1', supplierName: '川水建设', projectId: 'proj-1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'file-tech',
+        businessFileAssetId: 'file-biz',
+        coverLetterAssetId: null,
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'file-tech', originalName: '技术方案.pdf' });
+      prisma.auditLog.findFirst.mockResolvedValue({ id: 'log-1' }); // 10min 内已有访问记录
+      plaintextFetcher.fetchBidderPlaintext.mockResolvedValue({ buffer: Buffer.from('%PDF-1.4'), fileId: 'file-tech' });
+
+      const out = await service.downloadBidDocument('user-1', 'proj-1', 'sup-1', 'file-tech');
+
+      expect(out.buffer.toString()).toBe('%PDF-1.4');
+      expect(prisma.auditLog.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ userId: 'user-1', action: 'EXPERT_VIEW_DOCUMENT', resourceId: 'file-tech' }),
+      }));
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+      expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('⑧首次访问（无近期记录）→ 监督/审计日志照常双写', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', supplierId: 'sys-1', supplierName: '川水建设', projectId: 'proj-1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'file-tech',
+        businessFileAssetId: 'file-biz',
+        coverLetterAssetId: null,
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'file-tech', originalName: '技术方案.pdf' });
+      plaintextFetcher.fetchBidderPlaintext.mockResolvedValue({ buffer: Buffer.from('%PDF-1.4'), fileId: 'file-tech' });
+
+      await service.downloadBidDocument('user-1', 'proj-1', 'sup-1', 'file-tech');
+
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledTimes(1);
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ userId: 'user-1', action: 'EXPERT_VIEW_DOCUMENT', resourceId: 'file-tech' }),
+      }));
     });
 
     it('非本人专家 → 403', async () => {
@@ -1966,6 +2044,53 @@ describe('ExpertService', () => {
       expect(prisma.expertDispute.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ projectId: 'proj-1', expertId: 'exp-1' }) }),
       );
+    });
+  });
+
+  describe('focus-hint（跨设备联动）', () => {
+    let redisMock: { incr: jest.Mock; set: jest.Mock; expire: jest.Mock; get: jest.Mock };
+
+    beforeEach(() => {
+      redisMock = {
+        incr: jest.fn(async () => 7),
+        set: jest.fn(async () => 'OK'),
+        expire: jest.fn(async () => 1),
+        get: jest.fn(async () => null),
+      };
+      (service as any).redis = redisMock;
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
+    });
+
+    afterEach(() => {
+      (service as any).redis = undefined;
+    });
+
+    it('setFocusHint：seq 计数器不设 TTL（防回卷重复聚焦），hint 值 key 120s 过期', async () => {
+      const r = await service.setFocusHint('user-1', 'proj-1', { supplierId: 'sup-1' });
+
+      expect(r).toEqual({ ok: true, seq: 7 });
+      expect(redisMock.incr).toHaveBeenCalledWith('expert:focus:seq:exp-1:proj-1');
+      expect(redisMock.expire).not.toHaveBeenCalled(); // ④：seq 单调不回卷
+      expect(redisMock.set).toHaveBeenCalledWith(
+        'expert:focus:exp-1:proj-1',
+        expect.stringContaining('"seq":7'),
+        'EX',
+        120,
+      );
+    });
+
+    it('非本项目专家 → 403，不触碰 Redis', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.setFocusHint('user-x', 'proj-1', { supplierId: 'sup-1' }))
+        .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
+      expect(redisMock.incr).not.toHaveBeenCalled();
+    });
+
+    it('getFocusHint 读到 hint 后写 ACK 回执', async () => {
+      redisMock.get.mockResolvedValue(JSON.stringify({ supplierId: 'sup-1', seq: 7, at: 1 }));
+      const hint = await service.getFocusHint('user-1', 'proj-1');
+      expect(hint).toMatchObject({ supplierId: 'sup-1', seq: 7 });
+      expect(redisMock.set).toHaveBeenCalledWith('expert:focus:ack:exp-1:proj-1:7', '1', 'EX', 30);
     });
   });
 });

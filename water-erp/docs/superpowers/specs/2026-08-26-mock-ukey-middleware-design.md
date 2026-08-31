@@ -136,6 +136,8 @@ export class VendorUKeyAdapter implements UKeyAdapter {
 
 ## 7. 门户接入(探测优先自动切换)
 
+> **2026-08-26 勘误**:门户落点已随 303b5bca Vue→Next.js 迁移变更为 `apps/supplier-portal-next`,本文 Vue 路径(`apps/supplier-portal/…`、`UkeyManage.vue` 等)为写作时口径。
+
 新增 `apps/supplier-portal/src/utils/ukey-factory.ts`:
 
 ```ts

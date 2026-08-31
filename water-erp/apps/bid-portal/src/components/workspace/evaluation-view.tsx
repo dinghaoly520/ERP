@@ -8,7 +8,7 @@
  * 唯一副本（:3005 原件已删除，2026-08-14）；函数 API 走 @/lib/api/evaluation（同源封装）。
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck,
   Clock, FileCheck, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
@@ -17,27 +17,40 @@ import {
   extendEvaluation,
   generateEvaluationResults,
   getExpertMemoInkUrlForAdmin,
+  getLiveOfficialScores,
   listEvaluationResults,
   listExpertMemosForAdmin,
   startEvaluation,
   type BidEvaluationResultInfo,
+  type ExcludedSupplierInfo,
+  type LiveOfficialScoresResponse,
   type ExpertMemoForAdmin,
   type ScoreCategory,
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
+import { EXPERT_ROLE } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
+import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS, MODAL_OVERLAY_STYLE } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
 
 type Props = {
   projectId: string;
   project: BidProjectDetail | null;
   onChanged: () => void;
+  /** 页级结果刷新信号（异议裁决联动废标等会删除评标结果——递增即重拉），同 ClarificationsBlock.refreshSignal 模式 */
+  refreshSignal?: number;
 };
 
 const CATEGORY_ORDER: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
 /** 通过性类别（满分 0，只记通过/不通过） */
 const PASS_FAIL_CATEGORIES: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE'];
 const ANOMALY_THRESHOLD = 20; // 偏差 >20% 标异常
+/** F19：评标时长相关共用常量（启动缺省/延期缺省/上下限与后端 extendEvaluationDeadline 硬校验对齐） */
+const DEFAULT_EVALUATION_HOURS = 72;
+const DEFAULT_EXTEND_HOURS = 24;
+const EVAL_HOURS_MIN = 1;
+const EVAL_HOURS_MAX = 720; // 与后端启动封顶 min(·,720)、延期 @Max(720) 同口径
+const MS_PER_HOUR = 3600_000;
 
 function memoDeviceLabel(sourceDevice: string): string {
   const [device, input] = sourceDevice.split('_');
@@ -87,30 +100,27 @@ function buildExpertSupplierMatrix(project: BidProjectDetail): ExpertSupplierMat
 /** 各专家对同一供应商的百分制得分（用于偏差检测与实时均分） */
 function supplierPercentScores(project: BidProjectDetail, matrix: ExpertSupplierMatrix, supplierId: string): number[] {
   const scores: number[] = [];
-  for (const expert of project.experts) {
+  // F4：均分只统计正选专家（候补无评分权限；与后端去极值口径一致）
+  for (const expert of project.experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR)) {
     const cell = matrix.get(expert.id)?.get(supplierId);
     if (cell && cell.maxScore > 0) scores.push((cell.totalScore / cell.maxScore) * 100);
   }
   return scores;
 }
 
-/* ── 迷你环形进度 ── */
-function Ring({ pct, size = 34, stroke = 4, color }: { pct: number; size?: number; stroke?: number; color: string }) {
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * Math.min(1, pct / 100);
-  return (
-    <div className="relative inline-flex shrink-0 items-center justify-center">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="oklch(0.92 0.008 258)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" className="transition-all duration-700"
-        />
-      </svg>
-      <span className="absolute text-[9px] font-extrabold tabular-nums" style={{ color }}>{Math.round(pct)}</span>
-    </div>
-  );
+/** F19：单元格偏差判定（清单与矩阵标色共用同一实现，防两处口径漂移）
+ *  ——某专家对某供应商的百分制得分偏离全体均分 > ANOMALY_THRESHOLD */
+function cellDeviationAnomaly(
+  matrix: ExpertSupplierMatrix,
+  avgBySupplier: Map<string, number>,
+  expertId: string,
+  supplierId: string,
+): { pct: number; avg: number } | null {
+  const cell = matrix.get(expertId)?.get(supplierId);
+  if (!cell || cell.maxScore <= 0) return null;
+  const pct = (cell.totalScore / cell.maxScore) * 100;
+  const avg = avgBySupplier.get(supplierId) ?? 0;
+  return avg > 0 && Math.abs(pct - avg) > ANOMALY_THRESHOLD ? { pct, avg } : null;
 }
 
 function StatTile({ label, value, sub, pct, color }: { label: string; value: string; sub: string; pct: number; color: string }) {
@@ -128,8 +138,10 @@ function StatTile({ label, value, sub, pct, color }: { label: string; value: str
 
 /* ═══ 组件 ═══ */
 
-export default function EvaluationView({ projectId, project, onChanged }: Props) {
+export default function EvaluationView({ projectId, project, onChanged, refreshSignal }: Props) {
   const [results, setResults] = useState<BidEvaluationResultInfo[]>([]);
+  /** 生成时排除的供应商（开标确认 EXCEPTION，未纳入排名）——仅生成响应携带 */
+  const [excludedSuppliers, setExcludedSuppliers] = useState<ExcludedSupplierInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   const [expandedCell, setExpandedCell] = useState<string | null>(null); // `${expertId}:${supplierId}`
@@ -142,9 +154,9 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
   // E2: 「自定义评标时长」（启动评标弹窗）与「评标延期审批」（弹窗）
   const [startDialogOpen, setStartDialogOpen] = useState(false);
-  const [durationHours, setDurationHours] = useState(72);
+  const [durationHours, setDurationHours] = useState(DEFAULT_EVALUATION_HOURS);
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
-  const [extendHours, setExtendHours] = useState(24);
+  const [extendHours, setExtendHours] = useState(DEFAULT_EXTEND_HOURS);
   const [extendReason, setExtendReason] = useState('');
   const [extendBusy, setExtendBusy] = useState(false);
   const me = useBidUser();
@@ -153,7 +165,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
-    setTimeout(() => setFeedback(null), 3000);
+    setTimeout(() => setFeedback(null), FEEDBACK_AUTOHIDE_MS);
   };
 
   const loadAnnotations = async (expertId: string, supplierId: string, scoreItemId: string) => {
@@ -191,15 +203,50 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   };
 
   const loadResults = useCallback(() => {
-    listEvaluationResults(projectId).then(setResults).catch(() => setResults([]));
+    listEvaluationResults(projectId)
+      .then(r => { setResults(r); })
+      .catch(() => setResults([]));
   }, [projectId]);
 
-  // F12：仅按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致
-  // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新
+  // F12（2026-08-28）：官方口径实时排名预览（结果未生成时排名区主数据源）——与生成同源聚合
+  // （去极值/公式价格分/废标置后），替代旧的「正选百分制原始均分」；端点失败回退旧均分。
+  const [liveOfficial, setLiveOfficial] = useState<LiveOfficialScoresResponse | null>(null);
+
+  // F12：按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致
+  // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新。
+  // F6（2026-08-28）：新增页级 refreshSignal 依赖——异议裁决联动废标会删除评标结果，
+  // 此前 results 仅挂载时拉取一次，删除后本区块仍显示旧排名（缓存失活）。信号变化即重拉。
+  // 重拉后生成响应携带的 excludedSuppliers 告警不再可靠，一并清空。
   useEffect(() => { loadResults(); }, [loadResults]);
+  const firstSignalRun = useRef(true);
+  useEffect(() => {
+    if (refreshSignal === undefined) return;
+    if (firstSignalRun.current) { firstSignalRun.current = false; return; } // 挂载首跑跳过（上方挂载 effect 已拉）
+    loadResults();
+    setExcludedSuppliers([]);
+  }, [refreshSignal, loadResults]);
 
   /* ── 派生数据 ── */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
+
+  // F12：官方口径预览的拉取签名——project 引用随 socket 高频更换（loadResults 同款坑），不能直接
+  // 进依赖；签名 = 各专家对全部供应商的 totalScore 合计拼接，仅在实际分数变化时改变（防抖拉取）。
+  const liveScoresSignature = useMemo(() => {
+    if (matrix.size === 0) return '';
+    return [...matrix.entries()]
+      .map(([eid, row]) => `${eid}:${[...row.values()].reduce((s, c) => s + (c?.totalScore ?? 0), 0)}`)
+      .sort().join('|');
+  }, [matrix]);
+
+  // F12：结果未生成时拉官方口径预览；生成后不再拉（排名区切官方结果）
+  useEffect(() => {
+    if (!projectId || results.length > 0) return;
+    let cancelled = false;
+    getLiveOfficialScores(projectId)
+      .then(r => { if (!cancelled) setLiveOfficial(r); })
+      .catch(() => { if (!cancelled) setLiveOfficial(null); });
+    return () => { cancelled = true; };
+  }, [projectId, results.length, liveScoresSignature]);
 
   const supplierAvg = useMemo(() => {
     if (!project) return new Map<string, number>();
@@ -233,13 +280,47 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   }, [project]);
   if (!project) return null;
   const { stage, experts, suppliers } = project;
+  // F5（2026-08-28）：ABORTED 不再空白死页——渲染终止态卡片（流标原因 + 去向指引），
+  // 评标已随流标终止，本 tab 无操作可做；其余非评标阶段仍返回 null。
+  if (stage === 'ABORTED') {
+    return (
+      <section className="neu-table-card px-4 py-4">
+        <div className="mb-3 flex items-center gap-2.5">
+          <div
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
+            style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
+          >
+            <AlertTriangle size={15} className="text-[var(--danger)]" />
+          </div>
+          <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标管理</h3>
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}>
+            已流标
+          </span>
+        </div>
+        <div className="rounded-[14px] px-4 py-3.5 text-xs leading-relaxed" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
+          <p className="font-semibold text-[var(--foreground)]">本项目已流标，评标活动终止，无评标过程可执行。</p>
+          <p className="mt-1.5 text-[var(--muted-foreground)]">
+            流标原因：<span className="text-[var(--foreground)]">{project.riskNote || '未记录原因'}</span>
+          </p>
+          <p className="mt-1.5 text-[var(--muted-foreground)]">
+            后续处理（重新招标 / 变更采购方式等）在采购管理工作台（:3005）「开标确认」面板进行；开标现场记录可在「开标大厅」tab 回看。
+          </p>
+        </div>
+      </section>
+    );
+  }
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
 
   const archived = stage === 'ARCHIVED';
-  const signedIn = experts.filter(e => e.signedIn).length;
-  const reportsDone = experts.filter(e => e.reportConfirmed).length;
-  const unconfirmed = experts.filter(e => !e.reportConfirmed);
-  const canGenerate = experts.length > 0 && unconfirmed.length === 0;
+  // F4（2026-08-28）：生成门槛与统计仅计正选专家——候补不参与评分/报告确认/签字
+  // （后端 assertRegularExpert 拦截，生成闸门也只查正选）。此前把候补计入分母，
+  // 有候补的项目「可生成结果」恒为否、生成按钮永久禁用。
+  const regularExperts = experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR);
+  const alternateExperts = experts.filter(e => e.expertRole !== EXPERT_ROLE.REGULAR);
+  const signedIn = regularExperts.filter(e => e.signedIn).length;
+  const reportsDone = regularExperts.filter(e => e.reportConfirmed).length;
+  const unconfirmed = regularExperts.filter(e => !e.reportConfirmed);
+  const canGenerate = regularExperts.length > 0 && unconfirmed.length === 0;
 
   // H4: 开标完成度（与后端 startEvaluation 守卫同口径）——未撤回供应商须全部到终局态
   const activeSuppliers = suppliers.filter(s => s.submitStatus !== '已撤回');
@@ -249,10 +330,34 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   );
   const openingDone = activeSuppliers.length > 0 && notReadySuppliers.length === 0;
 
+  // F9（2026-08-28）：启动评标守卫前端镜像（后端 startEvaluation 同口径）——委员会 = 已确认正选
+  // 5 人以上单数（水利项目 7 人以上单数，由后端按 PMI/项目名判定，前端按通用口径提示）；
+  // 可评供应商 = 解密成功且未撤回 ≥ 法定家数（minBidders 随详情下发）。旧实现仅拦「开标完成」，
+  // 委员会不足/家数不足要点了按钮才被 409 教育。
+  const confirmedRegular = regularExperts.filter(e => e.invitationStatus === 'confirmed').length;
+  const committeeOk = confirmedRegular >= 5 && confirmedRegular % 2 === 1;
+  const evaluableCount = suppliers.filter(s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回').length;
+  const minBidders = project.minBidders ?? 3;
+  const biddersOk = evaluableCount >= minBidders;
+  const startBlockers: string[] = [];
+  if (!openingDone) startBlockers.push(`开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 未到终局态`);
+  if (!committeeOk) startBlockers.push(`已确认正选专家 ${confirmedRegular} 人，须 5 人以上单数（水利项目 7 人以上单数）`);
+  if (!biddersOk) startBlockers.push(`有效投标（解密成功且未撤回）仅 ${evaluableCount} 家，不足法定 ${minBidders} 家`);
+
+  // F9：生成向导第 0 步清单补全——镜像 generateEvaluationResults 其余前置闸门（旧清单只有专家报告确认）
+  const openDisputeCount = (project.expertDisputes ?? []).filter(d => d.status === 'open').length;
+  const leaderSigned = !!project.leaderCoSigned;
+  const roundsRequired = !!project.roundMode && project.roundMode !== 'sealed_auction';
+  const allRounds = project.bidRounds ?? [];
+  const roundsUnclosed = allRounds.filter(r => r.status !== 'closed').length;
+  const roundsClosed = allRounds.length > 0 && roundsUnclosed === 0;
+  const step0Ready = canGenerate && leaderSigned && openDisputeCount === 0 && (!roundsRequired || roundsClosed);
+
   const itemCount = scoreItems.length;
-  const totalSlots = experts.length * suppliers.length * itemCount;
+  // F4：评分格位分母同样只计正选（候补无评分权限，计入会压低进度百分比）
+  const totalSlots = regularExperts.length * suppliers.length * itemCount;
   let scoredSlots = 0;
-  for (const expert of experts) {
+  for (const expert of regularExperts) {
     const row = matrix.get(expert.id);
     if (row) for (const s of suppliers) scoredSlots += Math.min(row.get(s.id)?.scoredCount ?? 0, itemCount);
   }
@@ -264,20 +369,21 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
       const rankOf = new Map(results.map(r => [r.supplierId, r.rank]));
       return (rankOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankOf.get(b.id) ?? Number.MAX_SAFE_INTEGER);
     }
+    // F12：官方口径预览可用时按预览序（去极值+公式分），否则回退原始均分序
+    if (liveOfficial && liveOfficial.results.length > 0) {
+      const rankOf = new Map(liveOfficial.results.map(r => [r.supplierId, r.rank]));
+      return (rankOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankOf.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+    }
     return (supplierAvg.get(b.id) ?? 0) - (supplierAvg.get(a.id) ?? 0);
   });
 
   /** 偏差异常清单（某专家对某供应商的百分制得分偏离全体均分 >20%） */
+  // F4：仅正选参与偏差检测（候补无评分记录，行内为空会被 maxScore<=0 跳过，此处显式收口）
   const anomalies: { expert: BidProjectDetail['experts'][number]; supplier: BidProjectDetail['suppliers'][number]; pct: number; avg: number }[] = [];
-  for (const expert of experts) {
+  for (const expert of regularExperts) {
     for (const s of suppliers) {
-      const cell = matrix.get(expert.id)?.get(s.id);
-      if (!cell || cell.maxScore <= 0) continue;
-      const pct = (cell.totalScore / cell.maxScore) * 100;
-      const avg = supplierAvg.get(s.id) ?? 0;
-      if (avg > 0 && Math.abs(pct - avg) > ANOMALY_THRESHOLD) {
-        anomalies.push({ expert, supplier: s, pct, avg });
-      }
+      const hit = cellDeviationAnomaly(matrix, supplierAvg, expert.id, s.id);
+      if (hit) anomalies.push({ expert, supplier: s, pct: hit.pct, avg: hit.avg });
     }
   }
 
@@ -309,7 +415,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
       showToast(`评标延期审批通过：延长 ${extendHours} 小时，新截止 ${new Date(r.evaluationDeadline).toLocaleString('zh-CN')}`);
       onChanged();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : '延期审批失败', 'err');
+      showToast(e instanceof Error ? e.message : '评标延期审批失败', 'err');
     } finally {
       setExtendBusy(false);
     }
@@ -319,7 +425,8 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
     setBusy(true);
     try {
       const r = await generateEvaluationResults(projectId);
-      setResults(r);
+      setResults(r.results);
+      setExcludedSuppliers(r.excludedSuppliers ?? []);
       setWizardOpen(false);
       setWizardStep(0);
       showToast('评标结果已生成');
@@ -331,12 +438,18 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
     }
   }
 
-  const isCellAnomaly = (expertId: string, supplierId: string): boolean => {
-    const cell = matrix.get(expertId)?.get(supplierId);
-    if (!cell || cell.maxScore <= 0) return false;
-    const avg = supplierAvg.get(supplierId) ?? 0;
-    return avg > 0 && Math.abs((cell.totalScore / cell.maxScore) * 100 - avg) > ANOMALY_THRESHOLD;
-  };
+  /** F6（2026-08-28）：重生成入口——结果已存在时此前无入口（按钮仅在 results.length===0 显示），
+   *  裁决废标/评分修正后只能刷新整页。二次确认：未闭环签字包将随重生成作废（后端同事务删除+重置签字）。 */
+  async function handleRegenerate() {
+    const ok = window.confirm(
+      '重新生成评标结果？\n· 未闭环的评标签字包将随之作废（签字登记全部重置，须重新生成与登记）；\n· 已闭环签字包则后端拒绝重生成。\n确认后继续。',
+    );
+    if (!ok) return;
+    await handleGenerate();
+  }
+
+  const isCellAnomaly = (expertId: string, supplierId: string): boolean =>
+    cellDeviationAnomaly(matrix, supplierAvg, expertId, supplierId) !== null;
 
   return (
     <section className="neu-table-card px-4 py-4">
@@ -360,14 +473,25 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
             <Sparkles size={13} /> 生成评标结果
           </button>
         )}
+        {stage === 'EVALUATING' && results.length > 0 && !archived && (
+          <button
+            type="button"
+            onClick={() => void handleRegenerate()}
+            disabled={!canGenerate || busy}
+            className="neu-btn-soft !h-[32px] !text-xs disabled:opacity-40"
+            title="重新生成将覆盖现有结果；未闭环签字包随之作废"
+          >
+            <Sparkles size={13} /> 重新生成
+          </button>
+        )}
       </div>
 
       {/* E2: 评标截止时间展示 */}
       {stage === 'EVALUATING' && project?.evaluationDeadline && (() => {
-        const remaining = Math.ceil((new Date(project.evaluationDeadline).getTime() - Date.now()) / 3600000);
+        const remaining = Math.ceil((new Date(project.evaluationDeadline).getTime() - Date.now()) / MS_PER_HOUR);
         const expired = remaining <= 0;
         return (
-          <div className={`mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold ${expired ? '' : ''}`}
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold"
             style={{ background: expired ? 'color-mix(in oklch, var(--danger) 8%, transparent)' : 'color-mix(in oklch, var(--warning, var(--accent)) 8%, transparent)' }}>
             <div className="flex min-w-0 items-center gap-2">
               <Clock size={13} className={expired ? 'text-[var(--danger)]' : 'text-[var(--accent)]'} />
@@ -384,18 +508,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         );
       })()}
 
-      {feedback && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
-          style={{
-            background: feedback.tone === 'ok' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--danger) 10%, transparent)',
-            color: feedback.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-          }}
-        >
-          {feedback.tone === 'ok' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-          {feedback.text}
-        </div>
-      )}
+      <FeedbackBanner feedback={feedback} />
 
       {/* AI 辅助评标进度（沿用原只读视图的 AI 卡片：补救操作不改阶段） */}
       <div className="mb-3">
@@ -412,12 +525,18 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
             {!openingDone && notReadySuppliers.length > 0 && (
               <span className="text-[var(--warning)]">开标未完成：{notReadySuppliers.map(s => s.supplierName).join('、')} 待解密/确认</span>
             )}
+            {!committeeOk && (
+              <span className="text-[var(--warning)]">已确认正选专家 {confirmedRegular} 人（须 5 人以上单数，水利项目 7 人以上）</span>
+            )}
+            {!biddersOk && (
+              <span className="text-[var(--warning)]">有效投标 {evaluableCount} 家（法定最少 {minBidders} 家）</span>
+            )}
           </div>
           <button
             type="button"
-            onClick={() => { setDurationHours(72); setStartDialogOpen(true); }}
-            disabled={busy || !openingDone}
-            title={openingDone ? '' : `开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 未到终局态`}
+            onClick={() => { setDurationHours(DEFAULT_EVALUATION_HOURS); setStartDialogOpen(true); }}
+            disabled={busy || startBlockers.length > 0}
+            title={startBlockers.length > 0 ? startBlockers.join('\n') : ''}
             className="neu-btn-primary !h-[32px] !text-xs shrink-0 disabled:opacity-40"
           >
             <Play size={13} /> {busy ? '启动中…' : '启动评标'}
@@ -433,18 +552,18 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
           pct={scorePct} color={scorePct >= 80 ? 'var(--success)' : scorePct >= 50 ? 'var(--accent)' : 'var(--warning)'}
         />
         <StatTile
-          label="专家签到" value={`${signedIn}/${experts.length}`} sub="已签到 / 总计"
-          pct={experts.length > 0 ? (signedIn / experts.length) * 100 : 0}
-          color={signedIn === experts.length && experts.length > 0 ? 'var(--success)' : 'var(--accent)'}
+          label="专家签到" value={`${signedIn}/${regularExperts.length}`} sub="正选已签到 / 正选总数"
+          pct={regularExperts.length > 0 ? (signedIn / regularExperts.length) * 100 : 0}
+          color={signedIn === regularExperts.length && regularExperts.length > 0 ? 'var(--success)' : 'var(--accent)'}
         />
         <StatTile
-          label="报告确认" value={`${reportsDone}/${experts.length}`} sub="报告已确认 / 总计"
-          pct={experts.length > 0 ? (reportsDone / experts.length) * 100 : 0}
-          color={reportsDone === experts.length && experts.length > 0 ? 'var(--success)' : reportsDone > 0 ? 'var(--accent)' : 'var(--muted-foreground)'}
+          label="报告确认" value={`${reportsDone}/${regularExperts.length}`} sub="正选已确认 / 正选总数"
+          pct={regularExperts.length > 0 ? (reportsDone / regularExperts.length) * 100 : 0}
+          color={reportsDone === regularExperts.length && regularExperts.length > 0 ? 'var(--success)' : reportsDone > 0 ? 'var(--accent)' : 'var(--muted-foreground)'}
         />
         <StatTile
           label="可生成结果" value={canGenerate ? '是' : '否'}
-          sub={canGenerate ? '所有报告已确认' : `仍有 ${unconfirmed.length} 位未确认`}
+          sub={canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
           pct={canGenerate ? 100 : 0} color={canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
       </div>
@@ -472,6 +591,32 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                     {expert.expertName}
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                   </span>
+                  {/* F10（2026-08-28）：邀请状态徽章（与 :3005 专家确认同词表）——declined 标红；
+                      婉拒/未确认的正选不计入启动评标委员会（后端只认 confirmed 正选） */}
+                  {expert.invitationStatus === 'confirmed' && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>
+                      已确认邀请
+                    </span>
+                  )}
+                  {expert.invitationStatus === 'declined' && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }} title="专家已婉拒邀请——正选缺席时由候补递补（:3005 专家确认）">
+                      已婉拒
+                    </span>
+                  )}
+                  {(!expert.invitationStatus || expert.invitationStatus === 'invited') && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }} title="专家尚未确认邀请">
+                      待确认邀请
+                    </span>
+                  )}
+                  {expert.expertRole !== EXPERT_ROLE.REGULAR && (
+                    <span
+                      className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold"
+                      style={{ background: 'color-mix(in oklch, var(--muted-foreground) 14%, transparent)', color: 'var(--muted-foreground)' }}
+                      title="候补专家不参与评分、评审报告确认与签字；正选缺席时递补后方可参与"
+                    >
+                      候补·未递补
+                    </span>
+                  )}
                   <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.signedIn ? 'var(--success)' : 'var(--muted-foreground)' }}>
                     <UserCheck size={11} /> {expert.signedIn ? '已签到' : '未签到'}
                   </span>
@@ -488,11 +633,13 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         </div>
 
         {/* ── 专家×供应商评分矩阵 ── */}
-        {experts.length > 0 && suppliers.length > 0 && (
+        {regularExperts.length > 0 && suppliers.length > 0 && (
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
             <p className="mb-1.5 text-[10px] text-[var(--muted-foreground)]">
               评分矩阵与分数明细在评标期间按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；现场组织者（主持人/管理员）可在专家状态卡片查看实名，用于签到、签字与现场沟通（查看留痕）；全部专家确认评审报告后恢复实名。
+              {/* F4：矩阵仅列正选专家；编号为服务端按全体专家预分配的稳定号，候补在列时可能不连续（不重排，防刷新换号） */}
+              {alternateExperts.length > 0 && `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。`}
             </p>
             <div className="overflow-x-auto rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
             <table className="w-full min-w-[560px] text-left text-xs">
@@ -505,7 +652,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                 </tr>
               </thead>
               <tbody>
-                {experts.map(expert => (
+                {regularExperts.map(expert => (
                   <Fragment key={expert.id}>
                     <tr style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
                       <td className="px-3.5 py-2 font-medium text-[var(--foreground)]">{expert.anonLabel ?? expert.expertName}</td>
@@ -605,13 +752,35 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
           <div className="flex items-center justify-between px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
             <span className="text-[11px] font-bold text-[var(--foreground)]">供应商排名</span>
             <span className="text-[10px] text-[var(--muted-foreground)]">
-              {results.length > 0 ? '官方评标结果（去极值 · 废标置后）' : '实时均分参考（未生成官方结果）'}
+              {results.length > 0
+                ? '官方评标结果（去极值 · 废标置后）'
+                : liveOfficial
+                  ? '官方口径实时预览（去极值 · 公式价格分 · 废标置后）'
+                  : '实时均分参考（未生成官方结果）'}
             </span>
           </div>
-          {/* P1-6: 实时排名与官方结果计算方式不同的提示 */}
+          {/* P1-6: 预览口径提示——F12 后官方口径预览为主，原始均分仅为端点失败回退 */}
           {results.length === 0 && suppliers.length > 0 && (
-            <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
-              实时预览基于专家原始评分（含手填价格分，未去极值），最终排名以「生成评标结果」后公式计算为准
+            liveOfficial?.priceFormulaError ? (
+              <div className="mx-3.5 mt-2 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+                <AlertTriangle size={11} className="mr-1 inline" />
+                {liveOfficial.priceFormulaError}（生成评标结果时将被硬性拦截）
+              </div>
+            ) : liveOfficial ? (
+              <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
+                官方口径实时预览——与「生成评标结果」同一聚合（≥5 位专家去 1 高 1 低、公式价格分、废标置后）；评分仍在进行，最终以生成为准
+              </div>
+            ) : (
+              <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
+                实时预览基于专家原始评分（含手填价格分，未去极值，非官方口径），最终排名以「生成评标结果」后公式计算为准
+              </div>
+            )
+          )}
+          {/* 生成时被排除的供应商（开标确认异常，未纳入排名）告警 */}
+          {excludedSuppliers.length > 0 && (
+            <div className="mx-3.5 mt-2 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+              <AlertTriangle size={11} className="mr-1 inline" />
+              以下供应商开标确认状态异常，未纳入排名：{excludedSuppliers.map(s => `${s.supplierName}（${s.reason}）`).join('；')}
             </div>
           )}
           {rankedSuppliers.length === 0 ? (
@@ -620,9 +789,10 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
             <div>
               {rankedSuppliers.map(s => {
                 const official = results.find(r => r.supplierId === s.id);
-                const rank = official ? official.rank : (liveRanks.get(s.id) ?? 0);
+                const live = results.length === 0 ? liveOfficial?.results.find(r => r.supplierId === s.id) : undefined;
+                const rank = official ? official.rank : (live?.rank ?? (liveRanks.get(s.id) ?? 0));
                 const avg = supplierAvg.get(s.id) ?? 0;
-                const disqualified = official?.disqualified ?? false;
+                const disqualified = official?.disqualified ?? live?.disqualified ?? false;
                 const recommended = official?.recommended ?? false;
                 return (
                   <div
@@ -655,8 +825,8 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                       </span>
                     )}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
-                      {official ? Number(official.totalScore).toFixed(2) : avg.toFixed(1)}
-                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : '均分参考'}</span>
+                      {official ? Number(official.totalScore).toFixed(2) : live ? live.totalScore.toFixed(2) : avg.toFixed(1)}
+                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分参考'}</span>
                     </span>
                   </div>
                 );
@@ -668,7 +838,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
 
       {/* ── 3 步生成向导 ── */}
       {wizardOpen && stage === 'EVALUATING' && results.length === 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[560px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <div className="flex items-center gap-3">
@@ -696,23 +866,50 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
             <div className="px-6 py-5">
               {wizardStep === 0 && (
                 <div className="space-y-2 text-xs">
-                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果要求<span className="font-semibold text-[var(--foreground)]">全部专家已确认评审报告</span>。当前：</p>
-                  {unconfirmed.length === 0 ? (
-                    <div className="flex items-center gap-2 rounded-[12px] px-3.5 py-3 font-semibold" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)', color: 'var(--success)' }}>
-                      <CheckCircle2 size={14} /> {experts.length} 位专家已全部确认报告，可进入下一步。
+                  <p className="leading-5 text-[var(--muted-foreground)]">生成评标结果前置条件（与后端闸门同口径，全部满足方可继续）：</p>
+                  {[
+                    {
+                      ok: unconfirmed.length === 0,
+                      text: unconfirmed.length === 0
+                        ? `${regularExperts.length} 位正选专家已全部确认评审报告（候补不参与）`
+                        : `仍有 ${unconfirmed.length} 位正选专家未确认评审报告`,
+                    },
+                    {
+                      ok: leaderSigned,
+                      text: leaderSigned ? '评审报告已经组长末签' : '评审报告尚未经组长末签（生成前须完成末签）',
+                    },
+                    {
+                      ok: openDisputeCount === 0,
+                      text: openDisputeCount === 0 ? '无待裁决的专家异议' : `有 ${openDisputeCount} 个专家异议待裁决，须先裁决`,
+                    },
+                    ...(roundsRequired ? [{
+                      ok: roundsClosed,
+                      text: roundsClosed
+                        ? `报价轮次已全部结束（共 ${allRounds.length} 轮）`
+                        : allRounds.length === 0
+                          ? '尚未创建报价轮次——谈判项目须至少完成一轮报价（「报价轮次」tab）'
+                          : `还有 ${roundsUnclosed} 个报价轮次未结束，请先在「报价轮次」tab 关闭`,
+                    }] : []),
+                  ].map(p => (
+                    <div
+                      key={p.text}
+                      className="flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 font-semibold"
+                      style={{
+                        background: `color-mix(in oklch, ${p.ok ? 'var(--success)' : 'var(--warning)'} 10%, transparent)`,
+                        color: p.ok ? 'var(--success)' : 'var(--warning)',
+                      }}
+                    >
+                      {p.ok ? <CheckCircle2 size={14} className="shrink-0" /> : <Clock size={13} className="shrink-0" />}
+                      {p.text}
                     </div>
-                  ) : (
-                    <div className="rounded-[12px] px-3.5 py-3" style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
-                      <div className="mb-1.5 flex items-center gap-1.5 font-semibold text-[var(--warning)]">
-                        <Clock size={13} /> 仍有 {unconfirmed.length} 位专家未确认报告
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {unconfirmed.map(e => (
-                          <span key={e.id} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'oklch(1 0 0 / 0.7)', color: 'var(--foreground)' }}>
-                            {e.expertName}{!e.signedIn && '（未签到）'}
-                          </span>
-                        ))}
-                      </div>
+                  ))}
+                  {unconfirmed.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {unconfirmed.map(e => (
+                        <span key={e.id} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'oklch(1 0 0 / 0.7)', color: 'var(--foreground)' }}>
+                          {e.expertName}{!e.signedIn && '（未签到）'}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -764,7 +961,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                 <button
                   type="button"
                   onClick={() => setWizardStep((wizardStep + 1) as 1 | 2)}
-                  disabled={wizardStep === 0 && !canGenerate}
+                  disabled={wizardStep === 0 && !step0Ready}
                   className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
                 >
                   下一步 <ChevronRight size={13} />
@@ -787,7 +984,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         const supplierName = suppliers.find(s => s.id === spId)?.supplierName ?? '';
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-6"
-            style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}
+            style={MODAL_OVERLAY_STYLE}
             onClick={() => setAnnotationCell(null)}>
             <div className="w-full max-w-[480px] rounded-[20px] bg-white p-5"
               style={{ boxShadow: '3px 4px 16px oklch(0.46 0.07 258 / 0.18)' }}
@@ -833,7 +1030,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
 
       {/* ── 自定义评标时长（启动评标弹窗，E2）── */}
       {startDialogOpen && stage === 'OPENING' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[440px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">启动评标 · 自定义评标时长</h2>
@@ -846,15 +1043,15 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">评标时长（小时）</label>
               <input
                 type="number"
-                min={1}
-                max={720}
+                min={EVAL_HOURS_MIN}
+                max={EVAL_HOURS_MAX}
                 step={1}
                 value={durationHours}
-                onChange={(e) => setDurationHours(Math.max(1, Math.min(720, Math.floor(Number(e.target.value) || 1))))}
+                onChange={(e) => setDurationHours(Math.max(EVAL_HOURS_MIN, Math.min(EVAL_HOURS_MAX, Math.floor(Number(e.target.value) || EVAL_HOURS_MIN))))}
                 className="workbench-input w-full font-mono"
               />
               <p className="mt-2 text-[11px] tabular-nums text-[var(--muted-foreground)]">
-                预计截止：{new Date(Date.now() + durationHours * 3600_000).toLocaleString('zh-CN')}
+                预计截止：{new Date(Date.now() + durationHours * MS_PER_HOUR).toLocaleString('zh-CN')}
               </p>
             </div>
             <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
@@ -869,7 +1066,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
 
       {/* ── 评标延期审批（leader/admin，E2）── */}
       {extendDialogOpen && stage === 'EVALUATING' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
           <div className="w-full max-w-[460px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标延期审批</h2>
@@ -880,14 +1077,14 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                 当前截止：<span className="tabular-nums text-[var(--foreground)]">{project?.evaluationDeadline ? new Date(project.evaluationDeadline).toLocaleString('zh-CN') : '—'}</span>
                 {project?.evaluationDeadline && new Date(project.evaluationDeadline).getTime() < Date.now() && <span className="ml-1 font-semibold text-[var(--danger)]">（已超时）</span>}
               </p>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数</label>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数<span className="ml-1.5 font-normal normal-case tracking-normal">（单次最长 720 小时，与启动评标时长相通）</span></label>
               <input
                 type="number"
-                min={1}
-                max={720}
+                min={EVAL_HOURS_MIN}
+                max={EVAL_HOURS_MAX}
                 step={1}
                 value={extendHours}
-                onChange={(e) => setExtendHours(Math.max(1, Math.min(720, Math.floor(Number(e.target.value) || 1))))}
+                onChange={(e) => setExtendHours(Math.max(EVAL_HOURS_MIN, Math.min(EVAL_HOURS_MAX, Math.floor(Number(e.target.value) || EVAL_HOURS_MIN))))}
                 className="workbench-input w-full font-mono"
               />
               <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延期理由</label>
@@ -895,7 +1092,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                 value={extendReason}
                 onChange={(e) => setExtendReason(e.target.value)}
                 rows={3}
-                placeholder="请填写延期原因…"
+                placeholder="请填写延期理由…"
                 className="workbench-input w-full resize-none"
               />
               <p className="mt-3 text-[11px] leading-4 text-[var(--muted-foreground)]">

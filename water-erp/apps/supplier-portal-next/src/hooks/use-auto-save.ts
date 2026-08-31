@@ -60,6 +60,8 @@ export function useAutoSave<T extends object>(
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastJson = useRef<string | null>(null);
+  // clearDraft 后抑制首次变更落盘（删除草稿 → 表单清空的防抖回写会制造幻影草稿）
+  const suppressNext = useRef(false);
 
   useEffect(() => {
     if (options.enabled === false) return;
@@ -67,6 +69,11 @@ export function useAutoSave<T extends object>(
     if (lastJson.current === null) {
       lastJson.current = json;
       return; // 首次渲染（恢复草稿回填本身触发的那次）不算 dirty
+    }
+    if (suppressNext.current) {
+      suppressNext.current = false;
+      lastJson.current = json;
+      return; // 显式清除后的首次变更不落盘（删除草稿后空表单回写会制造幻影草稿）
     }
     if (json === lastJson.current) return;
     lastJson.current = json;
@@ -93,6 +100,8 @@ export function useAutoSave<T extends object>(
   }, [key]);
 
   const clearDraft = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    suppressNext.current = true;
     try {
       localStorage.removeItem(PREFIX + key);
     } catch { /* ignore */ }

@@ -104,6 +104,8 @@ describe('BidderProcessor — matcher 集成 requirementResponses', () => {
         findUnique: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]), // checkTaskCompletion 无 pending
         update: jest.fn().mockResolvedValue({}),
+        // F7 认领守卫：默认认领成功（PENDING → OCR_PROCESSING）
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       aiConcordanceResult: { upsert: jest.fn().mockResolvedValue({}) },
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
@@ -209,5 +211,26 @@ describe('BidderProcessor — matcher 集成 requirementResponses', () => {
         }),
       }),
     );
+  });
+
+  /* ── F7（2026-08-28）认领守卫：非 PENDING 行直接跳过，不进入 OCR/评分流程 ── */
+  it('认领 0 行（行已被其它 job 认领或已终态）→ skipped 早退，不触发 OCR 且不误判任务终态', async () => {
+    prisma.aiBidderResult.findUnique.mockResolvedValueOnce({
+      id: 'br-1',
+      bidSupplierId: 'bs-1',
+      bidSupplier: { supplierName: '测试供应商' },
+      task: { id: 't-1', projectId: 'p-1', requirements: null },
+    });
+    prisma.aiBidderResult.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    const res = await processor.process({ data: { bidderResultId: 'br-1', taskId: 't-1' } } as any);
+
+    expect(res).toEqual({ skipped: true, bidderResultId: 'br-1' });
+    expect(prisma.aiBidderResult.updateMany).toHaveBeenCalledWith({
+      where: { id: 'br-1', status: 'PENDING' },
+      data: { status: 'OCR_PROCESSING' },
+    });
+    expect(plaintextFetcher.fetchBidderPlaintext).not.toHaveBeenCalled();
+    expect(prisma.aiBidAnalysisTask.update).not.toHaveBeenCalled(); // 不跑 checkTaskCompletion
   });
 });

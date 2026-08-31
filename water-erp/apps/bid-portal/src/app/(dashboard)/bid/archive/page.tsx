@@ -8,7 +8,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Search, ChevronRight, ExternalLink, Ban } from 'lucide-react';
+import { RefreshCw, Search, ChevronRight, ExternalLink, Ban, AlertTriangle } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 import DateRangeFilter from '@/components/date-range-filter';
@@ -26,6 +26,7 @@ export default function BidArchivePage() {
   const router = useRouter();
   const [projects, setProjects] = useState<DashboardProject[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [page, setPage] = useState(1);
@@ -33,8 +34,11 @@ export default function BidArchivePage() {
   const load = useCallback(() => {
     setLoading(true);
     getProjectsDashboard()
-      .then(d => setProjects(d.projects))
-      .catch(() => setProjects([]))
+      .then(d => { setProjects(d.projects); setError(null); })
+      .catch((e: any) => {
+        // O6（2026-08-28）：不再把故障吞成「暂无已归档项目」空态误导排障（已有数据保留展示）
+        setError(e?.message || '归档项目加载失败');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -128,15 +132,21 @@ export default function BidArchivePage() {
         </span>
       </div>
 
+      {error && !loading && (
+        <div className="neu-card-static flex flex-wrap items-center gap-3 px-5 py-3 text-[13px] text-[var(--danger)]">
+          <AlertTriangle size={15} /> 归档项目加载失败{projects ? '（下方为最近一次成功加载）' : ''}：{error}
+          <button type="button" onClick={load} disabled={loading} className="neu-btn-soft !h-[30px] !text-xs">重试</button>
+        </div>
+      )}
       {loading && !projects ? (
         <div className="flex min-h-[240px] items-center justify-center text-sm text-[color:var(--muted-foreground)]">
           <RefreshCw size={18} className="mr-2 animate-spin" /> 加载归档项目…
         </div>
-      ) : filtered.length === 0 ? (
+      ) : !error && filtered.length === 0 ? (
         <div className="neu-card-static flex min-h-[200px] items-center justify-center text-[13px] text-[color:var(--muted-foreground)]">
           {search || dateRange.start || dateRange.end ? '没有匹配的项目，请调整筛选条件' : '暂无已归档或已流标的项目'}
         </div>
-      ) : (
+      ) : filtered.length === 0 ? null : (
         <>
           {/* ── 项目列表 ── */}
           <div className="neu-card-static overflow-hidden p-0">

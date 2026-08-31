@@ -5,8 +5,10 @@
    - 超过 TTL 惰性淘汰(下次访问时判),/health 计数用 peek(不续时)
    - 中间件重启(内存丢失)= 全部上锁,须重新开锁
    ================================================================= */
+import { parseEnvInt } from './env.mjs';
+
 export class ShieldSessions {
-  constructor(ttlSeconds = Number(process.env.UKEY_MW_SESSION_TTL ?? 300)) {
+  constructor(ttlSeconds = parseEnvInt('UKEY_MW_SESSION_TTL', 300)) {
     this.ttlMs = ttlSeconds * 1000;
     /** @type {Map<string, { privKeyHex: string, lastActive: number }>} */
     this.entries = new Map();

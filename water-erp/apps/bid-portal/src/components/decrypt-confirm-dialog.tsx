@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, Unlock, Loader, ShieldAlert, X } from 'lucide-react';
 
 interface Props {
@@ -13,6 +13,9 @@ interface Props {
 
 export default function DecryptConfirmDialog({ open, suppliers, loading, onConfirm, onClose }: Props) {
   const [acknowledged, setAcknowledged] = useState(false);
+
+  // O10（2026-08-28）：每次打开重置「不可逆」确认勾选（原不随 open 重置，二次解密免勾直达）
+  useEffect(() => { if (open) setAcknowledged(false); }, [open]);
 
   if (!open || suppliers.length === 0) return null;
 

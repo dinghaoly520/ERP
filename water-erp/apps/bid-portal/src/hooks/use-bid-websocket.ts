@@ -2,7 +2,8 @@
 
 /**
  * 开评标实时事件 hook（与 apps/web/src/hooks/use-bid-websocket.ts 双份维护，改动需双向同步）。
- * :3007 开标任务板/项目工作区用：开标进度（decrypt:status / opening:confirmed / opening:disputed）、
+ * :3007 项目工作区用（任务板为 30s 轮询不经 WS；工作区页级与会场交流抽屉各持一条连接）：
+ * 开标进度（decrypt:status / opening:confirmed / opening:disputed）、
  * 阶段流转（stage:change）、轮次（round:status-change）、评标在场（expert:presence）等事件驱动刷新。
  */
 
@@ -94,7 +95,17 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
   }, []);
 
   const connect = useCallback(() => {
-    if (!projectId || socketRef.current?.connected) return;
+    if (!projectId) return;
+    // O4（2026-08-28）：「连接中」半开旧连接先拆干净再建新——原仅拦 connected，快速
+    // visibility 切换/重连竞态下会叠出第二条 socket（双份事件回调），且旧连接的
+    // disconnect 回调会把 socketRef.current 置 null 覆盖新引用。removeAllListeners
+    // 先摘回调再 disconnect，避免拆旧触发 scheduleReconnect。
+    if (socketRef.current) {
+      if (socketRef.current.connected) return;
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
     manualClose.current = false;
     setConnection(prev => (prev === 'connected' ? prev : 'reconnecting'));
 
@@ -140,7 +151,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     socket.on('disconnect', (reason: string) => {
       clearTimers();
       setConnection('disconnected');
-      socketRef.current = null;
+      if (socketRef.current === socket) socketRef.current = null; // O4：仅当仍是当前连接时清引用，防覆盖后来者
       if (manualClose.current) return;
       scheduleReconnect();
     });

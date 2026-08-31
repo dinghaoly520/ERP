@@ -428,6 +428,8 @@ export interface BidOpeningSessionInfo {
   /** T10：:3007 完成开标后回传的移交资料（T1 为 BidOpeningSession 新增 handoverAt / handoverAssetId 两列） */
   handoverAt: string | null;
   handoverAssetId: string | null;
+  /** 暂停时刻（开标暂停/恢复端点写入；L6 状态派生消费，后端 getProject 全标量下发） */
+  pausedAt: string | null;
 }
 
 export interface BidProjectExpertInfo {

@@ -93,7 +93,17 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
   }, []);
 
   const connect = useCallback(() => {
-    if (!projectId || socketRef.current?.connected) return;
+    if (!projectId) return;
+    // O4（2026-08-28）：「连接中」半开旧连接先拆干净再建新——原仅拦 connected，快速
+    // visibility 切换/重连竞态下会叠出第二条 socket（双份事件回调），且旧连接的
+    // disconnect 回调会把 socketRef.current 置 null 覆盖新引用。removeAllListeners
+    // 先摘回调再 disconnect，避免拆旧触发 scheduleReconnect。
+    if (socketRef.current) {
+      if (socketRef.current.connected) return;
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
     manualClose.current = false;
     setConnection(prev => (prev === 'connected' ? prev : 'reconnecting'));
 
@@ -139,7 +149,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     socket.on('disconnect', (reason: string) => {
       clearTimers();
       setConnection('disconnected');
-      socketRef.current = null;
+      if (socketRef.current === socket) socketRef.current = null; // O4：仅当仍是当前连接时清引用，防覆盖后来者
       if (manualClose.current) return;
       scheduleReconnect();
     });

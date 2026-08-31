@@ -53,7 +53,10 @@ export default function TabletEvaluatePage() {
   const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
   // E：跨设备联动——桌面端「去打分平板」focus hint 触发的闪烁项
   const [flashItemId, setFlashItemId] = useState<string | null>(null);
-  const lastFocusSeq = useRef(0);
+  // 2026-08-28 审查修复：去重改按服务端时间戳 at（而非 Redis seq）——seq 计数器 key 过去带
+  // 120s TTL，过期后 INCR 从 1 重新计数，而这里的高水位停在旧值，导致新 hint 永远被忽略。
+  // at 单调来自服务端时钟，天然免疫序号回卷（服务端已同步改为不过期计数器，双保险）。
+  const lastFocusAt = useRef(0);
 
   // ── 评分草稿（localStorage 暂存 + 自动恢复）──
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
@@ -288,8 +291,8 @@ try {
         const hint = await api.get<{ supplierId: string; scoreItemId?: string; pointId?: string; seq: number; at: number } | null>(
           `/expert/projects/${projectId}/focus-hint`,
         );
-        if (hint && hint.seq > lastFocusSeq.current) {
-          lastFocusSeq.current = hint.seq;
+        if (hint && hint.at > lastFocusAt.current) {
+          lastFocusAt.current = hint.at;
           if (project.suppliers.some((s) => s.id === hint.supplierId)) setActiveSupplier(hint.supplierId);
           // 等 supplier 切换渲染后再滚动 + 闪烁
           setTimeout(() => {

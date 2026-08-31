@@ -41,8 +41,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const menuItems = useMemo(() => buildMenuItems(!!status?.isTemporary), [status?.isTemporary]);
 
-  // 菜单高亮：详情/子页按顶级路径前缀匹配（否则进详情页指示会消失）
-  const isMenuActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
+  // 菜单高亮：详情/子页按顶级路径前缀匹配（否则进详情页指示会消失）；
+  // 取最长前缀——同级子菜单（/profile/ukey）不再误亮父级（/profile）
+  const activePath = useMemo(() => {
+    return (
+      menuItems
+        .filter((i): i is Extract<MenuItem, { path: string }> => "path" in i)
+        .map((i) => i.path)
+        .filter((p) => pathname === p || pathname.startsWith(p + "/"))
+        .sort((a, b) => b.length - a.length)[0] ?? null
+    );
+  }, [menuItems, pathname]);
+
+  const isMenuActive = (path: string) => path === activePath;
 
   const companyDisplayName = status?.name || displayName || "";
   const userInitial = status?.name?.charAt(0) || displayName?.charAt(0) || "S";

@@ -9,6 +9,7 @@ import http from 'node:http';
 import { createRequire } from 'node:module';
 import { listShields, findShieldByCertSn, unlockShieldFile } from './shield.mjs';
 import { ShieldSessions } from './session.mjs';
+import { parseEnvInt } from './env.mjs';
 
 const require = createRequire(import.meta.url);
 const { sm2 } = require('sm-crypto');
@@ -45,14 +46,14 @@ function readBody(req) {
     req.on('data', (c) => { size += c.length; if (size > BODY_LIMIT) { reject(Object.assign(new Error('body too large'), { code: 'BAD_REQUEST' })); req.destroy(); } else chunks.push(c); });
     req.on('end', () => {
       if (chunks.length === 0) return resolve({});
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      try { const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); resolve(parsed === null ? {} : parsed); }
       catch { reject(Object.assign(new Error('bad json'), { code: 'BAD_REQUEST' })); }
     });
     req.on('error', reject);
   });
 }
 
-export function startServer({ port = Number(process.env.UKEY_MW_PORT ?? 17999), host = process.env.UKEY_MW_BIND ?? '127.0.0.1', slotDir, sessions = new ShieldSessions() } = {}) {
+export function startServer({ port = parseEnvInt('UKEY_MW_PORT', 17999), host = process.env.UKEY_MW_BIND ?? '127.0.0.1', slotDir, sessions = new ShieldSessions() } = {}) {
   const server = http.createServer(async (req, res) => {
     const cors = corsHeaders(req);
     const send = (status, obj) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...cors }); res.end(JSON.stringify(obj)); };

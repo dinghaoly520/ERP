@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { SupplierPortalService } from './supplier-portal.service';
+import { BidService } from '../bid/bid.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -99,6 +101,7 @@ describe('SupplierPortalService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
+        delete: jest.fn(),
       },
       bidSupplier: {
         findFirst: jest.fn(),
@@ -142,6 +145,8 @@ describe('SupplierPortalService', () => {
         { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
         // 构造器第 6 参（BidGateway 为 @Optional，无需提供；本 spec 不触达 LLM）
         { provide: LlmService, useValue: {} },
+        // 终局即固化（A）：BidService 仅用 autoHandoverIfDone 钩子（no-op 桩，不触达真实移交）
+        { provide: BidService, useValue: { autoHandoverIfDone: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 
@@ -744,6 +749,37 @@ describe('SupplierPortalService', () => {
     });
   });
 
+  describe('deleteBidDraft（A-88）', () => {
+    // 截止/阶段闸门与保存草稿同源（assertCanSaveBidDraft）——此处 mock 放行，聚焦删除分支；
+    // 闸门复用本身由成功用例的 assertSpy 断言兜底（日后误删 gate 调用会红）
+    let assertSpy: jest.SpyInstance;
+    beforeEach(() => {
+      assertSpy = jest.spyOn(service as any, 'assertCanSaveBidDraft').mockResolvedValue({});
+    });
+
+    it('draft 草稿 → 删除成功（闸门与保存草稿同源真被调用）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub1', status: 'draft' });
+      prisma.supplierBidSubmission.delete.mockResolvedValue({ id: 'sub1' });
+      await expect(service.deleteBidDraft('sup1', 'proj1')).resolves.toEqual({ deleted: true });
+      expect(prisma.supplierBidSubmission.delete).toHaveBeenCalledWith({ where: { id: 'sub1' } });
+      expect(assertSpy).toHaveBeenCalledWith('sup1', 'proj1');
+    });
+    it('不存在 → 400 DRAFT_NOT_FOUND', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      let caught: any;
+      try { await service.deleteBidDraft('sup1', 'proj1'); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught.getResponse() as any).code).toBe('DRAFT_NOT_FOUND');
+    });
+    it('已提交 → 400 DRAFT_NOT_DELETABLE（须走撤回）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub1', status: 'submitted' });
+      let caught: any;
+      try { await service.deleteBidDraft('sup1', 'proj1'); } catch (e) { caught = e; }
+      expect(caught).toBeInstanceOf(BadRequestException);
+      expect((caught.getResponse() as any).code).toBe('DRAFT_NOT_DELETABLE');
+    });
+  });
+
   describe('withdrawSubmission', () => {
     it('syncs linked BidSupplier status when a submitted bid is withdrawn in SUBMIT stage', async () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({
@@ -870,8 +906,23 @@ describe('SupplierPortalService', () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({
         id: 'sub-1', supplierId: 'supplier-1', projectId: 'p1', status: 'draft', bidPrice: sealField('39.8', TEST_KMS),
       });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
       const sub = await service.getSubmission('supplier-1', 'p1');
       expect((sub as any).bidPrice).toBe('39.8');
+      expect((sub as any).receiptNo).toBeNull();
+    });
+
+    it('getSubmission 并入 BidSupplier.receiptNo（A-101 回执卡编号，本表无此列）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-2', supplierId: 'supplier-1', projectId: 'p1', status: 'submitted', bidPrice: null,
+      });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ receiptNo: 'TB-20260828-017' });
+      const sub = await service.getSubmission('supplier-1', 'p1');
+      expect((sub as any).receiptNo).toBe('TB-20260828-017');
+      expect(prisma.bidSupplier.findFirst).toHaveBeenCalledWith({
+        where: { projectId: 'p1', supplierId: 'supplier-1' },
+        select: { receiptNo: true },
+      });
     });
   });
 
@@ -1937,6 +1988,7 @@ describe('SupplierPortalService', () => {
           { provide: NotificationService, useValue: notification },
           { provide: 'REDIS_CLIENT', useValue: {} },
           { provide: LlmService, useValue: {} },
+          { provide: BidService, useValue: { autoHandoverIfDone: jest.fn().mockResolvedValue(undefined) } },
           { provide: BidGateway, useValue: gateway },
         ],
       }).compile();
@@ -1945,7 +1997,9 @@ describe('SupplierPortalService', () => {
       // 补齐本 describe 需要的模型桩（外层 shared prisma mock 无这些方法）
       prisma.bidSupplier.findUnique = jest.fn();
       prisma.supplierBidSubmission.updateMany = jest.fn().mockResolvedValue({ count: 1 });
-      prisma.fileAsset.create = jest.fn();
+      prisma.fileAsset.create = jest.fn(); // 存量桩保留(其他路径防御)
+      // decrypt-upload 明文资产走 upsert(确定性 key 重试安全)——排队 id 断言亦挂此处
+      prisma.fileAsset.upsert = jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: `fa-${String(create.key).split('/').pop()}`, key: create.key }));
       prisma.bidOpeningRecord.upsert = jest.fn().mockResolvedValue({});
       prisma.bidOpeningRecord.create = jest.fn();
 
@@ -1977,7 +2031,7 @@ describe('SupplierPortalService', () => {
         };
         return rows[where.id] ?? null;
       });
-      prisma.fileAsset.create.mockResolvedValueOnce({ id: 'dec-t' }).mockResolvedValueOnce({ id: 'dec-b' });
+      prisma.fileAsset.upsert.mockResolvedValueOnce({ id: 'dec-t' }).mockResolvedValueOnce({ id: 'dec-b' });
     });
 
     it('opening-package：成员+OPENING+窗口开+外层已解 → 文件包（ciphertextSha256/kselfByRole/sealedFields）+ 幂等写 packageFetchedAt', async () => {
@@ -2032,16 +2086,18 @@ describe('SupplierPortalService', () => {
       expect(minioClient.putObject).toHaveBeenNthCalledWith(1, MINIO_BUCKET, 'bid-decrypted/project-1/bs-1/technical.plain', plainT, plainT.length, { 'Content-Type': 'application/octet-stream' });
       expect(minioClient.putObject).toHaveBeenNthCalledWith(2, MINIO_BUCKET, 'bid-decrypted/project-1/bs-1/business.plain', plainB, plainB.length, { 'Content-Type': 'application/octet-stream' });
 
-      expect(prisma.fileAsset.create).toHaveBeenNthCalledWith(1, {
-        data: expect.objectContaining({
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        where: { key: 'bid-decrypted/project-1/bs-1/technical.plain' },
+        create: expect.objectContaining({
           key: 'bid-decrypted/project-1/bs-1/technical.plain',
           category: 'bid_decrypted', clientEncrypted: false, encrypted: false,
           uploaderId: 'user-1', sha256: await sha256Hex(plainT), size: plainT.length,
         }),
-      });
-      expect(prisma.fileAsset.create).toHaveBeenNthCalledWith(2, {
-        data: expect.objectContaining({ key: 'bid-decrypted/project-1/bs-1/business.plain', sha256: await sha256Hex(plainB) }),
-      });
+      }));
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        where: { key: 'bid-decrypted/project-1/bs-1/business.plain' },
+        create: expect.objectContaining({ key: 'bid-decrypted/project-1/bs-1/business.plain', sha256: await sha256Hex(plainB) }),
+      }));
 
       expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
         where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
@@ -2279,12 +2335,12 @@ describe('投标回执签名（A-101）', () => {
   });
 
   it('未绑定 SM2 公钥 → 400 SM2_PUBLIC_KEY_MISSING', async () => {
-    const svcA = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svcA = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svcA.getReceiptPayloadFor('sb-1', 'sup-1')).rejects.toMatchObject({ response: { code: 'SM2_PUBLIC_KEY_MISSING' } });
   });
 
   it('非本人提交 → 403', async () => {
-    const svcB = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svcB = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svcB.getReceiptPayloadFor('sb-1', 'sup-other')).rejects.toMatchObject({ status: 403 });
   });
 
@@ -2295,7 +2351,7 @@ describe('投标回执签名（A-101）', () => {
     const pubKey = '04' + kp.publicKey.replace(/^04/, '');
     const prisma = mkReceipt({ supplier: { sm2PublicKey: pubKey } });
     // 用独立实例（绕过共享 service 的注入 mock）
-    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     const { payload, canonical } = await svc2.getReceiptPayloadFor('sb-1', 'sup-1');
     expect(payload).toMatchObject({ submissionId: 'sb-1', projectId: 'p1', filesCommit: 'hash-x' });
     const signature = sm2.doSignature(canonical, privKey, { hash: true, pubKey: pubKey });
@@ -2305,14 +2361,14 @@ describe('投标回执签名（A-101）', () => {
     );
     // 幂等：已签名再签 → 直接返回现存
     const prisma2 = mkReceipt({ supplier: { sm2PublicKey: pubKey }, sub: { receiptSignature: { already: true }, receiptSignedAt: new Date() } });
-    const svc3 = new SupplierPortalService(prisma2 as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svc3 = new SupplierPortalService(prisma2 as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svc3.signSubmissionReceipt('sb-1', 'sup-1', 'anysig')).resolves.toMatchObject({ receiptSignature: { already: true } });
   });
 
   it('签名不匹配 → 400 RECEIPT_SIGNATURE_INVALID', async () => {
     const kp = sm2.generateKeyPairHex();
     const prisma = mkReceipt({ supplier: { sm2PublicKey: '04' + kp.publicKey.replace(/^04/, '') } });
-    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const svc2 = new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svc2.signSubmissionReceipt('sb-1', 'sup-1', 'deadbeef')).rejects.toMatchObject({
       response: { code: 'RECEIPT_SIGNATURE_INVALID' },
     });

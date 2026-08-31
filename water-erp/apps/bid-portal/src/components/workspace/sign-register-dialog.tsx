@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Upload, X } from 'lucide-react';
-import { registerSign, uploadExpertScan, type SignPacketExpertRow, type SignPacketResponse } from '@/lib/api/sign-packet';
+import { Loader2, X } from 'lucide-react';
+import { registerSign, type SignPacketExpertRow, type SignPacketResponse } from '@/lib/api/sign-packet';
 
 type StatusChoice = 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
 
@@ -19,8 +19,6 @@ export default function SignRegisterDialog({
 }) {
   const [status, setStatus] = useState<StatusChoice>(expert.signStatus === 'PENDING' ? 'SIGNED' : (expert.signStatus as StatusChoice));
   const [opinion, setOpinion] = useState(expert.dissentingOpinion ?? '');
-  const [reason, setReason] = useState(expert.dissentingReason ?? '');
-  const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,13 +31,9 @@ export default function SignRegisterDialog({
     }
     setBusy('submit');
     try {
-      if (file) {
-        await uploadExpertScan(projectId, expert.expertId, file);
-      }
       const res = await registerSign(projectId, expert.expertId, {
         status,
         dissentingOpinion: opinion.trim() || undefined,
-        dissentingReason: reason.trim() || undefined,
       });
       onDone(res);
     } catch (e: any) {
@@ -83,6 +77,7 @@ export default function SignRegisterDialog({
         </div>
         <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
           {status === 'REFUSED_DISSENT' && '法条：拒绝签字且不陈述理由的，视为同意评标结论。请填写书面不同意见与理由。'}
+          {status === 'REFUSED_DISSENT' && <span className="block text-[var(--accent-strong)]">请让专家在签字包《不同意见书》页（附件末页模板）本人手写并签名；扫描件经「回传签字扫描件」上传（文件名含专家名）。</span>}
           {status === 'DEEMED_AGREED' && '记录该专家拒绝签字且未陈述理由，依法视为同意评标结论。'}
           {status === 'SIGNED' && '已签字；如附书面不同意见可一并填写（签字与不同意见可并存）。'}
         </p>
@@ -94,30 +89,11 @@ export default function SignRegisterDialog({
               value={opinion}
               onChange={(e) => setOpinion(e.target.value)}
               placeholder={status === 'REFUSED_DISSENT' ? '书面不同意见（必填）' : '书面不同意见（可选）'}
-              rows={3}
-              className="w-full resize-none rounded-xl border border-[var(--hairline)] bg-transparent px-3 py-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
-            />
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="不同意见理由（必填于拒绝场景）"
-              rows={2}
+              rows={5}
               className="w-full resize-none rounded-xl border border-[var(--hairline)] bg-transparent px-3 py-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
             />
           </div>
         )}
-
-        {/* 扫描件上传 */}
-        <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-[var(--hairline)] px-3 py-2.5 text-xs text-[var(--muted-foreground)] hover:border-[var(--accent)]">
-          <Upload size={13} />
-          {file ? file.name : '上传该专家签字页/不同意见书扫描件（jpg/png/pdf ≤10MB，可选）'}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,application/pdf"
-            className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
 
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-xl border border-[var(--hairline)] px-4 py-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">取消</button>

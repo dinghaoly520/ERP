@@ -29,6 +29,7 @@ export const DEFAULT_EXCLUDE_PATHS: ExcludePattern[] = [
   { method: 'GET', path: '/api/expert-admin/invitations/' }, // 5s 轮询专家邀请状态
   { method: 'GET', path: '/api/ai-bid-analysis/tasks' }, // 3s/1.5s 轮询分析进度（controller 待补，面向未来）
   { method: 'GET', path: /^\/api\/bid\/projects\/[^/]+\/ai-analysis-progress$/ }, // 3s 轮询 AI 评标进度（:3007 卡片）；同前缀写端点（retry/rerun）保留审计
+  { method: 'GET', path: '/api/bid/projects/dashboard' }, // 30s 轮询开标任务板（:3007 O5，2026-08-28）；该路径无写端点，方法限定保持风格一致
 ];
 
 /**

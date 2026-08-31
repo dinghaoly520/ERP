@@ -8,6 +8,7 @@
 
 import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, Ban } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
+import { deriveOpeningSessionStatus } from '@water-erp/shared';
 import type { BidProjectDetail } from '@/lib/api/bid';
 
 type Props = {
@@ -128,7 +129,14 @@ export function OpeningProgressBlock({ detail, onAbort }: Props) {
               className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
               style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}
             >
-              {openingSession.status}
+              {/* L6（2026-08-28）：status 列建档后无流转（恒「待开标」），改 shared 派生（暂停/窗口关/已移交/阶段终止） */}
+              {deriveOpeningSessionStatus({
+                stage,
+                pausedAt: openingSession.pausedAt,
+                handoverAt: openingSession.handoverAt,
+                decryptWindowStart: openingSession.decryptWindowStart,
+                decryptWindowEnd: openingSession.decryptWindowEnd,
+              })}
             </span>
           </div>
 

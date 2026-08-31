@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Request, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -11,7 +11,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { portalFromRequest } from '../auth/portal-cookie';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
-import { CreateClarificationDto } from './dto/create-clarification.dto';
+import { CreateClarificationDto, DraftClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { StartEvaluationDto } from './dto/start-evaluation.dto';
@@ -548,6 +548,10 @@ export class BidController {
   @ApiOperation({ summary: 'AI 辅助评标进度聚合（:3007 进度卡片轮询；异常判定在后端）' })
   getAiAnalysisProgress(@Param('id') id: string) { return this.bidService.getAiAnalysisProgress(id); }
 
+  @Get('projects/:id/live-official-scores')
+  @ApiOperation({ summary: 'F12：官方口径实时排名预览（未生成结果时排名区用；与生成同源聚合，只读无副作用）' })
+  getLiveOfficialScores(@Param('id') id: string) { return this.bidService.getLiveOfficialScores(id); }
+
   @Post('projects/:id/evaluation-results/generate')
   @ApiOperation({ summary: '生成评标结果与候选人' })
   generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.generateEvaluationResults(id, userId); }
@@ -734,18 +738,25 @@ export class BidController {
   listClarifications(@Param('id') id: string) { return this.bidService.listClarifications(id); }
 
   @Patch('projects/:id/clarifications/:cid/reply')
-  replyClarification(@Param('id') id: string, @Param('cid') cid: string, @Body() dto: ReplyClarificationDto) {
-    return this.bidService.replyClarification(id, cid, dto);
+  @ApiOperation({ summary: '回复澄清（type=question 答疑原样；type=clarification 仅离线答复登记）' })
+  replyClarification(@Param('id') id: string, @Param('cid') cid: string, @Body() dto: ReplyClarificationDto, @Request() req: any) {
+    return this.bidService.replyClarification(id, cid, req.user?.name ?? req.user?.username ?? '主持人', dto);
+  }
+
+  @Post('projects/:id/clarifications/:cid/verify-reply')
+  @ApiOperation({ summary: 'A-143：核验供应商在线答复签名（重算 canonical + SM2 验签）' })
+  verifyClarificationReply(@Param('id') id: string, @Param('cid') cid: string) {
+    return this.bidService.verifyClarificationReply(id, cid);
   }
 
   @Post('projects/:id/clarifications')
   @ApiOperation({ summary: '发起澄清' })
-  createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto) { return this.bidService.createClarification(id, dto); }
+  createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto, @CurrentUser('sub') userId?: string) { return this.bidService.createClarification(id, dto, userId); }
 
   @Post('projects/:id/clarifications/draft')
   @ApiOperation({ summary: 'P1-F：AI 起草澄清问题候选（不落库）' })
-  draftClarification(@Param('id') id: string, @Body() body: { supplierId: string }) {
-    return this.bidService.draftClarification(id, body.supplierId);
+  draftClarification(@Param('id') id: string, @Body() dto: DraftClarificationDto) {
+    return this.bidService.draftClarification(id, dto.supplierId);
   }
 
   @Post('projects/:id/clarifications/:cid/summarize')

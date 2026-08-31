@@ -698,3 +698,51 @@
 
 /* dual-v2 密封报价展示 */
 .mb-card-meta-item.sealed { color: oklch(0.5 0.14 252); font-weight: 600; }
+
+/* ════════ §4 BidClarifications（评标澄清答复 /bids/[id]/clarifications，A-143）════════ */
+
+/* 答复编辑器（凸起小卡容器；输入内凹由 SpTextarea 的 neu-input 提供） */
+.cq-editor {
+  display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding: 12px;
+  border-radius: 12px; background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / .5), 1px 1px 3px oklch(.55 .03 258 / .06), -1px -1px 2px oklch(1 0 0 / .6);
+}
+.cq-editor textarea { min-height: 110px; resize: vertical; }
+
+/* 附件列表 / 条目（凸起小卡；已提交附件为下载链接） */
+.cq-att-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cq-att-item {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  padding: 4px 9px; border-radius: 8px; font-size: 12px; color: var(--foreground);
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / .5), 1px 1px 3px oklch(.55 .03 258 / .06), -1px -1px 2px oklch(1 0 0 / .6);
+}
+a.cq-att-item { color: var(--brand); font-weight: 600; }
+a.cq-att-item:hover { opacity: 0.8; }
+.cq-att-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cq-att-del {
+  display: inline-flex; align-items: center; padding: 2px; cursor: pointer;
+  border: none; background: none; color: var(--muted-foreground);
+}
+.cq-att-del:hover { color: var(--danger); }
+
+/* 上传触发区（虚线轻凸） */
+.cq-upzone {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border-radius: 8px; font-size: 12px; color: var(--brand); cursor: pointer;
+  border: 1px dashed color-mix(in oklab, var(--brand) 35%, transparent);
+}
+.cq-upzone:hover { background: color-mix(in oklab, var(--brand) 8%, transparent); }
+
+/* 操作行（编辑/只读卡片底部；hint 靠左吸收余量） */
+.cq-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.cq-actions-hint { margin-right: auto; font-size: 11px; color: var(--muted-foreground); }
+
+/* 签名/离线登记留痕行 */
+.cq-sig {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 6px;
+  font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums;
+}
+
+/* PIN 弹窗提示行 */
+.cq-pin-hint { margin: 0 0 10px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }

@@ -77,13 +77,25 @@ export class BidderProcessor extends WorkerHost {
       const bidSupplierId = bidderResult.bidSupplierId;
       const task = bidderResult.task;
 
+      // F7（2026-08-28）认领守卫：确定性 jobId（bidderResult-${id}）下同一行可能被重复投递
+      // （残留 job / 并发重试 / add-remove 间隙抢跑）。原子认领 PENDING→OCR_PROCESSING（同时完成
+      // 首个状态推进）；认领 0 行 = 已被其它 job 认领或非待处理态（BullMQ 自动重试撞到 FAILED 行也
+      // 在此跳过——失败显式化，交人工「单家重试」按钮，不再盲目双跑双写）。
+      const claimed = await this.prisma.aiBidderResult.updateMany({
+        where: { id: bidderResultId, status: AiBidderStatus.PENDING },
+        data: { status: AiBidderStatus.OCR_PROCESSING },
+      });
+      if (claimed.count === 0) {
+        this.logger.warn(`bidderResult ${bidderResultId} 非 PENDING（已被认领或已终态），跳过本次投递`);
+        return { skipped: true, bidderResultId };
+      }
+
       // Task 4: 外层声明 fileId / bizOcr，Task 7 matcher 将消费它们做跳转定位
       let bizOcr: any = null;
       let techFileId: string | null = null;
       let bizFileId: string | null = null;
 
-      // 1. fetchBidderPlaintext（technical + business）→ OCR
-      await this.updateBidderStatus(bidderResultId, AiBidderStatus.OCR_PROCESSING);
+      // 1. fetchBidderPlaintext（technical + business）→ OCR（状态已由认领守卫置 OCR_PROCESSING）
 
       const tech = await this.plaintextFetcher.fetchBidderPlaintext(
         bidSupplierId,

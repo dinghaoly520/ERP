@@ -3,13 +3,31 @@
 import { useEffect, useState, useRef } from 'react';
 import { getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead } from '@/lib/api/supplier';
 import type { Notification } from '@/lib/types';
-import { Bell, CheckCheck, CheckCircle, XCircle, RefreshCw, Info } from 'lucide-react';
+import { Bell, CheckCheck, CheckCircle, XCircle, RefreshCw, Info, Gavel, AlertTriangle } from 'lucide-react';
 
-const typeCfg: Record<string, { Icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>; cls: string }> = {
+type TypeCfg = { Icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>; cls: string };
+
+/** O8（2026-08-28）：原 typeCfg 仅供应商审批三类（:3005 时代遗留），本端开评标通知
+ *  （BID_*，后端 20+ 类型）全落 Info 兜底。改两级解析：语义明确者精确映射，其余
+ *  BID_* 前缀按开评标执行类兜底；未识别类型维持 Info。 */
+const EXACT_TYPE_CFG: Record<string, TypeCfg> = {
   SUPPLIER_APPROVED: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
   SUPPLIER_REJECTED: { Icon: XCircle, cls: 'text-red-600 bg-red-50' },
   SUPPLIER_RETURNED: { Icon: RefreshCw, cls: 'text-amber-600 bg-amber-50' },
+  BID_ABORTED: { Icon: XCircle, cls: 'text-red-600 bg-red-50' },
+  BID_DECRYPT_FAILED: { Icon: AlertTriangle, cls: 'text-amber-600 bg-amber-50' },
+  BID_DISPUTE_TIMEOUT: { Icon: AlertTriangle, cls: 'text-amber-600 bg-amber-50' },
+  AWARD_LETTER: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
+  PRE_WIN_NOTICE: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
+  BID_OPENING_HANDED_OVER: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
 };
+
+function resolveTypeCfg(type?: string | null): TypeCfg | undefined {
+  if (!type) return undefined;
+  if (EXACT_TYPE_CFG[type]) return EXACT_TYPE_CFG[type];
+  if (type.startsWith('BID_')) return { Icon: Gavel, cls: 'text-sky-600 bg-sky-50' };
+  return undefined;
+}
 
 export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
@@ -80,7 +98,7 @@ export default function NotificationBell() {
               <div className="p-8 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无通知</div>
             ) : (
               items.map(n => {
-                const cfg = typeCfg[n.type];
+                const cfg = resolveTypeCfg(n.type);
                 const IconComp = cfg?.Icon || Info;
                 return (
                   <div key={n.id}

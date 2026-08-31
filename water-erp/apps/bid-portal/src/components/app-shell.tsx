@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
-import AdminCertCard from './admin-cert-card';
 import {
   Gavel,
   Archive,
@@ -28,6 +27,8 @@ interface NavItem {
 
 // Phase 3 + 归档恢复：:3007 为纯开标执行终端，仅开标大厅 + 归档端（只读回看）。
 // 项目管理 / 评标 / 澄清 / 归档操作全部归 :3005 采购管理工作台。
+// （加密证书管理曾短暂设于本端侧栏/专页，2026-08-28 迁 :3005 系统管理——证书轮转属
+// 投递期管理动作，按分工 v3 归 :3005；:3007 现场解外层全自动无需管理入口。）
 const navItems: NavItem[] = [
   { label: '开标大厅', caption: '开标任务 · 在线开标', path: '/bid', icon: Gavel },
   { label: '归档端', caption: '已归档项目', path: '/bid/archive', icon: Archive },
@@ -133,13 +134,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-
-          {/* T17：管理方加密证书（双信封 v2 外层公钥载体；仅 admin 可见，生成=轮转） */}
-          {user?.role === 'admin' && (
-            <div className="mx-2 mb-2 shrink-0">
-              <AdminCertCard />
-            </div>
-          )}
 
           {/* 右边缘折叠手柄 —— 点击向左折叠 */}
           <button

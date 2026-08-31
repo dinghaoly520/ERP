@@ -45,6 +45,10 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   evaluationDeadline?: string | null;
   /** N4: 法定最少投标家数（直接采购=1，其余=3）——后端 getProject 下发，dispute-block 流标建议按采购方式取数 */
   minBidders?: number;
+  /** F9（2026-08-28）：BidProject 列随详情下发（getProject 全标量）——生成闸门镜像需组长末签状态 */
+  leaderCoSigned?: boolean;
+  /** F9（2026-08-28）：getProject include 的报价轮次（谈判项目生成闸门：≥1 轮且全部 closed；sealed_auction 豁免） */
+  bidRounds?: Array<{ id: string; roundNo: number; status: string }>;
   /** D2: 专家异议工单（getProject include，:3007 裁决用；与 :3005 同形状） */
   expertDisputes?: Array<{
     id: string; expertName: string; type: string; // scoring | procedure | other
@@ -54,6 +58,8 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   }>;
   experts: (SharedBidExpert & {
     expertRole?: string; // EXPERT_ROLE.REGULAR | EXPERT_ROLE.ALTERNATE（Prisma BidExpert.expertRole）
+    /** F9（2026-08-28）：邀请状态（BidExpert 标量列随详情全量下发）——启动评标委员会闸门按已确认正选计数 */
+    invitationStatus?: string; // invited | confirmed | declined
     /** 方案 A（角色分层实名）：评标期间后端下发的稳定编号（专家 1/2/…），评分矩阵/偏差/批注用；
      *  组织卡片用 expertName（特权角色为实名）。全部确认后不再下发。 */
     anonLabel?: string;
