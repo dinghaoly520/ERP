@@ -108,11 +108,19 @@ async function main() {
   })
   record('唱标记录已生成（3 家 amount 非空）', recOk, recRows.map((r) => `${r.supplierName}:amount=${r.amount}`).join(' / '))
 
-  // 供应商逐一确认（旧轨供应商门户确认链路）
+  // 供应商逐一确认（A-114 2026-08-31 契约：确认需电子签名——旧轨脚本供应商无盾，
+  // 现场生成 sm-crypto 密钥对并走正式 bindCert 端点绑定，再对服务端重建 canonical 签名确认）
+  const sm2 = require('../apps/api/node_modules/sm-crypto').sm2
   for (const name of SUPPLIERS) {
     const sess = await login(name, 'supplier@2026', 'supplier')
-    const conf = await call('POST', `/api/supplier-portal/bid-submissions/${projectId}/opening-confirm`, { portal: 'supplier', session: sess })
-    record(`供应商确认（${name}）`, conf.status < 300 && conf.data?.success === true, `HTTP ${conf.status} ${JSON.stringify(conf.data || {})}`)
+    const { publicKey, privateKey } = sm2.generateKeyPairHex()
+    const certSn = `LEGACY-SMOKE-${Date.now().toString(36).toUpperCase()}-${encodeURIComponent(name).slice(0, 6)}`
+    const bind = await call('POST', '/api/supplier-portal/profile/cert', { portal: 'supplier', session: sess, json: { certSn, certDn: `CN=${name}`, publicKey, alg: 'SM2' } })
+    record(`绑证书（${name}）`, bind.status < 300, `HTTP ${bind.status}`)
+    const pay = await call('GET', `/api/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`, { portal: 'supplier', session: sess })
+    const signature = sm2.doSignature(pay.data.canonical, privateKey, { hash: true })
+    const conf = await call('POST', `/api/supplier-portal/bid-submissions/${projectId}/opening-confirm`, { portal: 'supplier', session: sess, json: { signature } })
+    record(`供应商确认（${name}，电子签名）`, conf.status < 300 && conf.data?.success === true, `HTTP ${conf.status} ${JSON.stringify(conf.data || {})}`)
   }
 
   // 完成开标·资料移交

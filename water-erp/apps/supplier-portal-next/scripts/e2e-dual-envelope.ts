@@ -403,8 +403,12 @@ async function main() {
     const rec = (recs.data ?? []).find((r: any) => r.supplierName === who.name)
     record(`唱标比对（${who.name} amount=密封报价）`, rec?.amount === fields.price, `amount=${rec?.amount} vs 密封 price=${fields.price}`)
 
-    const conf = await call('POST', `/api/supplier-portal/bid-submissions/${projectId}/opening-confirm`, { portal: 'supplier', session: sess })
-    record(`开标确认（${who.name}）`, conf.status < 300 && conf.data?.success === true, `HTTP ${conf.status}`)
+    // A-114（2026-08-31 契约）：开标确认需对服务端重建 canonical 做 U盾电子签名（无 body 直调已 400）
+    const pay = await call('GET', `/api/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`, { portal: 'supplier', session: sess })
+    assert.ok(pay.status < 300, `opening-confirm-payload → HTTP ${pay.status} ${JSON.stringify(pay.data ?? {}).slice(0, 120)}`)
+    const confSig = await ukey.sign(certs[who.username].certSn, pay.data.canonical as string)
+    const conf = await call('POST', `/api/supplier-portal/bid-submissions/${projectId}/opening-confirm`, { portal: 'supplier', session: sess, json: { signature: confSig } })
+    record(`开标确认（${who.name}，电子签名）`, conf.status < 300 && conf.data?.success === true, `HTTP ${conf.status}`)
   }
 
   await supplierDecryptFlow(A, bsBy[A.username], ['technical', 'business', 'coverLetter'])
