@@ -9,7 +9,8 @@ import { NotificationService } from '../notification/notification.service';
  * 全程留痕：状态流转均写 AuditLog 由控制器负责，本服务负责业务与通知。
  */
 
-const PHASES = ['document', 'prequalification', 'result'] as const;
+// GB/T 43711 + 平台实践：覆盖全流程异议与投诉场景（result 走公示期窗口校验，其余即收）
+const PHASES = ['document', 'prequalification', 'result', 'procedure', 'evaluation', 'contract', 'service', 'other'] as const;
 type Phase = (typeof PHASES)[number];
 
 @Injectable()
@@ -23,7 +24,7 @@ export class ObjectionService {
 
   private assertPhase(phase: string): asserts phase is Phase {
     if (!PHASES.includes(phase as Phase)) {
-      throw new BadRequestException({ error: '异议类型不合法（document|prequalification|result）', code: 'BAD_PHASE' });
+      throw new BadRequestException({ error: `异议类型不合法（${PHASES.join('|')}）`, code: 'BAD_PHASE' });
     }
   }
 

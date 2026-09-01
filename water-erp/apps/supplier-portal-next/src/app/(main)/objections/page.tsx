@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { Bell, Inbox, MessageSquareWarning, Plus, TriangleAlert } from "lucide-react";
 import { objectionApi, type SupplierObjection } from "@/lib/api/objection";
+import { bidApi } from "@/lib/api/bid";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpSelect, SpTextarea } from "@/components/ui";
 import { toast } from "sonner";
@@ -14,6 +15,11 @@ const PHASE_LABEL: Record<string, string> = {
   document: "采购文件",
   prequalification: "资格预审",
   result: "采购结果",
+  procedure: "开标程序",
+  evaluation: "评标过程",
+  contract: "合同履约",
+  service: "服务投诉",
+  other: "其他",
 };
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   open: { label: "待答复", cls: "st-open" },
@@ -28,7 +34,9 @@ export default function ObjectionsPage() {
   const [items, setItems] = useState<SupplierObjection[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ phase: "result", projectCode: "", title: "", content: "" });
+  const [form, setForm] = useState({ phase: "document", projectCode: "", title: "", content: "" });
+  // 项目编号下拉选项：与本供应商相关的项目（可投标 + 受邀），业务编号
+  const [projectCodeOptions, setProjectCodeOptions] = useState<string[]>([]);
 
   const fetchList = async () => {
     setItems(await objectionApi.listMine());
@@ -41,6 +49,16 @@ export default function ObjectionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    bidApi.listProjects({ page: 1, pageSize: 100 })
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.items || [];
+        const codes = Array.from(new Set(items.map((x: any) => x.projectCode).filter(Boolean))) as string[];
+        setProjectCodeOptions(codes);
+      })
+      .catch(() => setProjectCodeOptions([]));
+  }, []);
+
   const retry = async () => {
     setError(false); setLoading(true);
     try { await fetchList(); } catch { setError(true); } finally { setLoading(false); }
@@ -48,7 +66,10 @@ export default function ObjectionsPage() {
 
   const submit = async () => {
     if (!form.title.trim() || !form.content.trim()) { toast.error("请填写异议标题与具体内容"); return; }
-    if (!form.projectCode.trim()) { toast.error("请填写异议对象的项目编号（见公告）"); return; }
+    if (!form.projectCode.trim() && ["document", "prequalification", "result", "procedure", "evaluation"].includes(form.phase)) {
+      toast.error("该类异议须选择关联项目，请在下拉中选择（或选「不关联项目」改选其他类型）");
+      return;
+    }
     setBusy(true);
     try {
       await objectionApi.create(form);
@@ -64,7 +85,7 @@ export default function ObjectionsPage() {
   if (error && !loading) {
     return (
       <>
-        <SpPageHero icon={MessageSquareWarning} title="异议与投诉" sub="对采购文件、资格预审结果、采购结果提出异议" />
+        <SpPageHero icon={MessageSquareWarning} title="异议与投诉" sub="对采购文件、资格预审、采购结果、开标评标程序、合同履约等提出异议与投诉" />
         <div className="sp-error-block">
           <div className="sp-error-icon"><TriangleAlert size={22} strokeWidth={1.75} /></div>
           <div className="sp-error-text">数据加载失败</div>
@@ -123,13 +144,21 @@ export default function ObjectionsPage() {
             <span>异议类型</span>
             <SpSelect value={form.phase} onChange={e => setForm({ ...form, phase: e.target.value })}>
               <option value="document">采购文件</option>
-              <option value="prequalification">资格预审结果</option>
+              <option value="prequalification">资格预审</option>
               <option value="result">采购结果</option>
+              <option value="procedure">开标程序</option>
+              <option value="evaluation">评标过程</option>
+              <option value="contract">合同履约</option>
+              <option value="service">服务投诉</option>
+              <option value="other">其他</option>
             </SpSelect>
           </label>
           <label className="obj-field">
-            <span>项目编号（见公告）</span>
-            <SpInput value={form.projectCode} onChange={e => setForm({ ...form, projectCode: e.target.value })} placeholder="例如 CG-2026-001" />
+            <span>关联项目</span>
+            <SpSelect value={form.projectCode} onChange={e => setForm({ ...form, projectCode: e.target.value })}>
+              <option value="">不关联项目（通用投诉）</option>
+              {projectCodeOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+            </SpSelect>
           </label>
           <label className="obj-field">
             <span>异议标题</span>

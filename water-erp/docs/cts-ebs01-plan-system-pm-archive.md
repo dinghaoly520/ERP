@@ -270,3 +270,10 @@ W1+W2（~2 周）→ W4（~1 周）→ W3（界面多，~2 周可穿插）→ W5
 - 后端（opening-deadline.util 新增 `nudgeWindowOpen`/`assertNudgeWindowOpen`，复用 BID_DEADLINE_BEFORE_OPENING_MS；openTime 未登记不拦）：`nudgeSuppliers`(v1)、`sendNudgeNow`、`scheduleNudge` 三入口全加 400 `NUDGE_WINDOW_CLOSED`；scheduler cron 到点补发前先验窗口——开标被提前改期致定时点落入 24h 内时**撤销定时不补发**（保持不变式）。
 - 前端（nudge-unsubmitted-modal）：窗口关闭时「立即发送」「AI 生成通知」禁用（定时本就禁），提示条改警示色"距开标已不足 24 小时，催促通道已关闭，无法发送催促通知。"；handleSend/handleSchedule 双保险早退+NUDGE_WINDOW_CLOSED 错误码映射。
 - 验证：三个端点 curl 均 400 NUDGE_WINDOW_CLOSED；:3005 实机打开催促弹窗显示关闭警示、两按钮 disabled（截图）、无 pageerror；util spec 11/11（新增 3 例）；api/web tsc 0。
+
+**⑫ 项目基本信息「邀请的供应商」恒空（2026-09-01，用户反馈）**
+- 现象：供应商邀请步骤已发通知，但项目基本信息「邀请的供应商」显示"待补充"。
+- 根因：`PMI.invitedSuppliers` 快照字段**邀请流程从不写入**（代码内注释自认断链，步骤分析已改读 InvitationRsvp 兜底，但基本信息字段仍空）。开标确认面板的 onSyncProjectInfo 只在打开面板时用"确认参加+已投递"口径覆盖，邀请阶段结束后到开标前这段窗口字段一直空白。
+- 修复（ai.service `generateNotificationContent`，即供应商邀请通知的发送链路）：RSVP 行建好后把受邀供应商名**累计合并**（去重、每行一家）写入 PMI.invitedSuppliers；context.projectId 兼容 PMI/BP 两个 id 空间（PMI 直用 / BP 反查 projectManagementItemId）；同步失败不阻断通知发送。口径说明：此写入登记"邀请事实"，开标确认面板后续覆盖为"确认参加+已投递"（更权威）。
+- 存量回填：3 个 PMI 中 2 个有 RSVP 记录（宜宾岷江，BP/PMI 两空间）→ 已回填；1 个无邀请记录保持空。
+- 验证：API 列表返回快照；:3005 实机项目基本信息「邀请的供应商 编辑（1家）1 宜宾岷江水电设备工程有限公司」（截图确认）、无 pageerror；剩余 1 处"待补充"是合同的支付及履约内容（未签约，正常空态）。src/ai 128/128、tsc 0。

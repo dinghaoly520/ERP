@@ -102,3 +102,7 @@
   gap: 10px;
   margin-top: 4px;
 }
+
+/* 提交窗按钮：主次同高同规格（gdlg-ft 规范，参照 cgzxui） */
+.obj-form-actions .neu-btn-primary { height: 38px; font-size: 13px; padding: 0 20px; }
+.obj-form-actions .neu-btn-soft { height: 38px; }

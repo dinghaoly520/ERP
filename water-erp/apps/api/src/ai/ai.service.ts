@@ -382,6 +382,38 @@ export class AiService {
       if (reuseUpdates.length > 0) {
         await Promise.allSettled(reuseUpdates);
       }
+
+      // 项目基本信息「邀请的供应商」快照同步（该字段曾从不写入 → 恒空显示"待补充"）：
+      // 发出邀请即累计合并（去重、每行一家）；context.projectId 可能是 PM-item id 或 BP id，反查回 PMI 再写。
+      // 后续开标确认面板会用"确认参加+已投递"口径覆盖（更权威），此处只负责邀请事实的登记。
+      try {
+        const pmiId =
+          context.projectId && (await this.prisma.projectManagementItem.findUnique({
+            where: { id: context.projectId }, select: { id: true },
+          }))
+            ? context.projectId
+            : (await this.prisma.bidProject.findUnique({
+                where: { id: canonicalProjectId ?? '_' },
+                select: { projectManagementItemId: true },
+              }))?.projectManagementItemId ?? null;
+        if (pmiId) {
+          const cur = await this.prisma.projectManagementItem.findUnique({
+            where: { id: pmiId }, select: { invitedSuppliers: true },
+          });
+          const lines = (cur?.invitedSuppliers ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
+          const known = new Set(lines);
+          for (const sid of ids) {
+            const n = nameById.get(sid);
+            if (n && !known.has(n)) { lines.push(n); known.add(n); }
+          }
+          const merged = lines.join('\n');
+          if (merged !== (cur?.invitedSuppliers ?? null)) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: pmiId }, data: { invitedSuppliers: merged },
+            });
+          }
+        }
+      } catch { /* 快照同步失败不阻断通知发送 */ }
     }
     const hasRsvp = Object.keys(rsvpTokens).length > 0;
 

@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/workbench';
 import { listObjections, answerObjection, escalateObjection, closeObjection, type SupplierObjectionItem } from '@/lib/api/objection';
 import { toast } from 'sonner';
 
-const PHASE_LABEL: Record<string, string> = { document: '采购文件', prequalification: '资格预审', result: '采购结果' };
+const PHASE_LABEL: Record<string, string> = { document: '采购文件', prequalification: '资格预审', result: '采购结果', procedure: '开标程序', evaluation: '评标过程', contract: '合同履约', service: '服务投诉', other: '其他' };
 const STATUS_LABEL: Record<string, { label: string; tone: 'orange' | 'green' | 'red' | 'gray' }> = {
   open: { label: '待答复', tone: 'orange' },
   answered: { label: '已答复', tone: 'green' },

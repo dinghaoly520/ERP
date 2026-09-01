@@ -4103,8 +4103,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (isExpert) {
       rosterRaw = (project.expertInfo ?? '').trim();
     } else if (stageKey === 'SUPPLIER_INVITATION') {
-      // 供应商邀请：invitedSuppliers 快照字段邀请流程从不写入（断链）——改用 InvitationRsvp
-      // 真实链路数据（通知名单 + 逐家确认状态，含正选/补选/采购端手动标记，兼容 PMI/BP 两个 id 空间）
+      // 供应商邀请：invitedSuppliers 快照字段由邀请通知发送时累计写入（ai.service 2026-09-01 补链）；
+      // 存量/直改数据可能仍空 → 兜底改用 InvitationRsvp 真实链路数据（通知名单 + 逐家确认状态，
+      // 含正选/补选/采购端手动标记，兼容 PMI/BP 两个 id 空间）
       const bpIds = await this.prisma.bidProject.findMany({
         where: { projectManagementItemId: projectId },
         select: { id: true },
