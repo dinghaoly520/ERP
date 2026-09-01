@@ -330,6 +330,9 @@ export class ProjectManagementService {
         initiationDate: true,
         projectOverview: true,
         currentRound: true,
+        // 公司归属写时快照（BidCompanyScopeGuard 据此放行 :3005 开标确认面板）
+        companyId: true,
+        companyName: true,
       },
     });
     if (!item) {
@@ -409,6 +412,9 @@ export class ProjectManagementService {
         stage: 'SUBMIT',
         projectManagementItemId: itemId,
         round: targetRound,
+        // 公司归属快照自 PMI（漏盖曾致存量项目 companyId 空 → 非_admin 开标确认 403 COMPANY_SCOPE_FORBIDDEN）
+        companyId: item.companyId ?? null,
+        companyName: item.companyName ?? null,
         // P2: 按采购方式自动设置评标办法 + 价格公式默认值
         ...this.buildEvaluationDefaults(item.procurementMethod || '公开招标'),
       },
@@ -4205,7 +4211,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // 构建 LLM prompt（阶段要点由元数据字典驱动）
     const systemPrompt = [
-      '你是四川水发集团招采ERP的 AI 采购步骤分析助手。请根据提供的项目信息与本阶段实际数据，',
+      '你是四川省水利发展集团有限公司招采ERP的 AI 采购步骤分析助手。请根据提供的项目信息与本阶段实际数据，',
       `生成一段描述「${meta.label}」步骤开展情况的分析文字。本阶段分析要点：${meta.focus}。`,
       '',
       '输出要求：',

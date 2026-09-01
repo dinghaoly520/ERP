@@ -249,12 +249,12 @@ export function UnifiedHeader({
         {/* ── 左侧：品牌 ── */}
         <div className="flex flex-1 items-center">
           <a href={portalURL('assistant')} suppressHydrationWarning className="flex items-center gap-3">
-            <img src="/assets/logo.png" alt="四川水发集团" className="h-[45px] w-auto object-contain" />
+            <img src="/assets/logo.png" alt="四川省水利发展集团有限公司" className="h-[45px] w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong
                 className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-[#0a2540]"
               >
-                四川水发集团
+                四川省水利发展集团有限公司
               </strong>
               <small className="whitespace-nowrap text-[7px] font-medium tracking-wide text-[#8a96aa]">
                 SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.

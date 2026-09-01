@@ -305,7 +305,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           <p>
             开标时间：{PV(formatDateToChinese(draft.bidOpeningTime), "{{开标时间}}", "bidOpeningTime")}。
           </p>
-          <p>开标地点：四川省成都市双流区红莲街三段383号四川水发集团B座采购中心</p>
+          <p>开标地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座采购中心</p>
         </div>
       </div>
 
@@ -329,7 +329,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>监督部门：四川水发勘测设计研究有限公司纪检监察部</p>
-          <p>地址：四川省成都市双流区红莲街三段383号四川水发集团B座9楼</p>
+          <p>地址：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼</p>
           <p>联系人：王先生、徐先生</p>
           <p>监督电话：028-81753276</p>
         </div>
@@ -434,7 +434,7 @@ function SingleSourceAnnouncementPreview({
           <p>
             采购时间：{PV(formatDateToChinese(draft.procurementTime), "{{采购时间}}", "procurementTime")}
           </p>
-          <p>采购地点：四川省成都市双流区红莲街三段383号四川水发集团B座3楼采购中心</p>
+          <p>采购地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心</p>
         </div>
       </div>
 
@@ -445,7 +445,7 @@ function SingleSourceAnnouncementPreview({
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>四川水发勘测设计研究有限公司纪检监察部</p>
-          <p>地址：四川省成都市双流区红莲街三段383号四川水发集团B座9楼</p>
+          <p>地址：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼</p>
           <p>联系人：王先生</p>
           <p>监督电话：028-81753276</p>
         </div>
@@ -500,7 +500,7 @@ function FailedBidAnnouncementPreview({
             三、开标时间：{PV(formatDateToChinese(draft.bidOpeningTime), "{{开标时间}}", "bidOpeningTime")}
           </p>
           <p>
-            {"    "}开标地点：四川省成都市双流区红莲街三段383号四川水发集团B座3楼采购中心
+            {"    "}开标地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心
           </p>
         </div>
 
@@ -517,7 +517,7 @@ function FailedBidAnnouncementPreview({
         <div>
           <p>六、监督举报</p>
           <p>四川水发勘测设计研究有限公司纪检监察部</p>
-          <p>地址：四川省成都市双流区红莲街三段383号四川水发集团B座9楼</p>
+          <p>地址：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼</p>
           <p>联系人：王先生、徐先生</p>
           <p>监督电话：028-81753276</p>
         </div>
@@ -597,7 +597,7 @@ function WinningBidAnnouncementPreview({
           <p>
             四、开标时间：{PV(formatDateToChinese(draft.bidOpeningTime), "{{开标时间}}", "bidOpeningTime")}
           </p>
-          <p>开标地点：四川省成都市双流区红莲街三段383号四川水发集团B座3楼采购中心</p>
+          <p>开标地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心</p>
         </div>
 
         {/* 五、中标候选人 */}

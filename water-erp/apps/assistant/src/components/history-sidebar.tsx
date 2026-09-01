@@ -145,8 +145,8 @@ export function HistorySidebar({
     <aside className={styles.sidebar}>
       {/* 品牌区 */}
       <div className={styles.brand}>
-        <img src="/logo.jpg" alt="四川水发集团" className={styles.brandLogo} />
-        <span className={styles.brandName}>四川水发集团</span>
+        <img src="/logo.jpg" alt="四川省水利发展集团有限公司" className={styles.brandLogo} />
+        <span className={styles.brandName}>四川省水利发展集团有限公司</span>
       </div>
 
       {/* Header */}

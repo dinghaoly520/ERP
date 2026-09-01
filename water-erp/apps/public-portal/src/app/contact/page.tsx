@@ -4,7 +4,7 @@ import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
 /* ═══════════════════════════════════════
-   联系我们 — 四川水发集团
+   联系我们 — 四川省水利发展集团有限公司
    布局策略：统一顶栏 → 标题 → 三卡片横排(full-bleed) → Footer
    ═══════════════════════════════════════ */
 
@@ -85,7 +85,7 @@ export default function ContactPage() {
       {/* ═══ Footer ═══ */}
       <footer className="border-t border-[#eef1f6] bg-[#fafbfc]">
         <div className="px-[clamp(28px,4vw,72px)] py-5 flex items-center justify-between text-[12px] text-[#8a96aa] max-sm:flex-col max-sm:gap-1.5">
-          <span>© 2026 四川水发集团</span>
+          <span>© 2026 四川省水利发展集团有限公司</span>
           <div className="flex items-center gap-4">
             <a href="/about" className="hover:text-[#064ea2] transition-colors">集团简介</a>
             <a href="/" className="hover:text-[#064ea2] transition-colors">返回首页</a>

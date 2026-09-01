@@ -802,7 +802,7 @@ function SingleSourcePreview({
                       采购文件领取地点
                     </td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
-                      四川省成都市双流区正兴街道红莲街三段383号四川水发集团B座3楼
+                      四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼
                     </td>
                   </tr>
                   <tr>
@@ -826,7 +826,7 @@ function SingleSourcePreview({
                 1．递交和谈判时间：<PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{递交和谈判时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />。
               </p>
               <p>
-                2．递交和谈判地点：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B座3楼。响应文件必须在递交响应文件截止时间前送达谈判地点。逾期送达的响应文件不予接收。
+                2．递交和谈判地点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼。响应文件必须在递交响应文件截止时间前送达谈判地点。逾期送达的响应文件不予接收。
               </p>
               <p>3．届时请参加报价的法定代表人或授权代表出席。</p>
             </div>
@@ -837,7 +837,7 @@ function SingleSourcePreview({
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>采 购 人：四川水发勘测设计研究有限公司</p>
-              <p>地　　址：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B座</p>
+              <p>地　　址：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座</p>
               <p>
                 联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
               </p>
@@ -904,7 +904,7 @@ function SingleSourcePreview({
                       <br />
                       联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
                       <br />
-                      地址：四川省成都市双流区正兴街道红莲街三段 383 号四川水发集团 B 座。
+                      地址：四川省成都市双流区正兴街道红莲街三段 383 号四川省水利发展集团有限公司 B 座。
                     </td>
                   </tr>
                   <tr>
@@ -918,7 +918,7 @@ function SingleSourcePreview({
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">7</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">谈判地点</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                      四川省成都市双流区正兴街道红莲街三段 383 号四川水发集团 B 座3楼采购中心开标会议室。
+                      四川省成都市双流区正兴街道红莲街三段 383 号四川省水利发展集团有限公司 B 座3楼采购中心开标会议室。
                     </td>
                   </tr>
                   <tr>
@@ -1172,7 +1172,7 @@ function InquiryPurchasePreview({
             </div>
             <div className="mt-3 space-y-2 pl-4 text-sm leading-7 text-[color:var(--foreground)]">
               <p>
-                地　　址：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B座3楼
+                地　　址：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼
               </p>
               <p>
                 联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
@@ -1357,7 +1357,7 @@ function InternalBiddingPreview({
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={draft.documentAcquireTime} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
-              <p>2.地　　点：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B栋</p>
+              <p>2.地　　点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋</p>
               <p>3.方　　式：邮箱发送/现场获取。</p>
               <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
@@ -1368,7 +1368,7 @@ function InternalBiddingPreview({
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>{T.file}提交截止时间、开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{响应文件提交时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
-              <p className="mt-2">地　　点：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B栋。</p>
+              <p className="mt-2">地　　点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋。</p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -1541,7 +1541,7 @@ function InternalBiddingPreview({
                       接受询问和异议的联系方式：
                       <br />联系部门：四川水发勘测设计有限公司采购中心
                       <br />联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
-                      <br />通讯地址：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B栋
+                      <br />通讯地址：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋
                       <br />电子邮箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} />
                     </td>
                   </tr>

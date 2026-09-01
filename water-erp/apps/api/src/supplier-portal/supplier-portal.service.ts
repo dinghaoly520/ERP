@@ -934,9 +934,28 @@ export class SupplierPortalService {
       });
       (project as any).announcement = announcement;
 
-      // 无关联公告时（谈判/邀请采购常以邀请函代替公告）：附上本供应商收到的采购邀请书
-      // （InvitationRsvp.title + summary 结构化字段），供详情页"公告正文"区渲染，不再显示"暂无公告正文"。
-      if (!announcement && supplierId && project.projectManagementItemId) {
+      // 无关联公告时（谈判/邀请采购以邀请书代替公告）：优先挂采购邀请书 DOCX（:3005 邀请流程
+      // 导出落 MinIO 的公文，key=general/invitation/{业务编号}/{ts}.docx），详情页在线预览原文；
+      // 无邀请书文件时退回 RSVP 回执摘要（title + summary 结构化字段）。
+      if (!announcement) {
+        const codes = await this.resolveAnnouncementCodes(project);
+        const letterAsset = codes.length > 0
+          ? await this.prisma.fileAsset.findFirst({
+              where: { OR: codes.map((c) => ({ key: { startsWith: `general/invitation/${c}/` } })) },
+              orderBy: { createdAt: 'desc' },
+              select: { id: true, originalName: true },
+            })
+          : null;
+        if (letterAsset) {
+          (project as any).invitationLetter = {
+            kind: 'file',
+            fileAssetId: letterAsset.id,
+            url: `/api/upload/files/${letterAsset.id}`,
+            fileName: letterAsset.originalName,
+          };
+        }
+      }
+      if (!announcement && !(project as any).invitationLetter && supplierId && project.projectManagementItemId) {
         const rsvp = await this.prisma.invitationRsvp.findFirst({
           where: { supplierId, projectId: project.projectManagementItemId },
           orderBy: { createdAt: 'desc' },
@@ -949,6 +968,7 @@ export class SupplierPortalService {
             if (parsed && typeof parsed === 'object') summaryFields = parsed;
           } catch { /* summary 非 JSON 则不渲染字段表 */ }
           (project as any).invitationLetter = {
+            kind: 'rsvp',
             title: rsvp.title,
             summaryFields,
             status: rsvp.status,

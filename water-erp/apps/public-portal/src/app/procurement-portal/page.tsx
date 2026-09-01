@@ -33,8 +33,8 @@ export default function ProcurementPortalPage() {
 
       <section className="flow-hero-brand">
         <div className="flow-hero-brand-left flow-rise-1" style={{ gridColumn: '1 / -1' }}>
-          <img src="/assets/logo.png" alt="四川水发集团" className="flow-hero-brand-logo" />
-          <strong className="flow-hero-brand-name">四川水发集团</strong>
+          <img src="/assets/logo.png" alt="四川省水利发展集团有限公司" className="flow-hero-brand-logo" />
+          <strong className="flow-hero-brand-name">四川省水利发展集团有限公司</strong>
           <small className="flow-hero-brand-sub">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
         </div>
       </section>

@@ -1,5 +1,5 @@
 import {
-  assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor,
+  assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor, nudgeWindowOpen,
 } from './opening-deadline.util';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
@@ -51,5 +51,28 @@ describe('opening-deadline.util', () => {
     expect(modeFor(past)).toBe('frozen');
     expect(modeFor(future)).toBe('align');
     expect(modeFor(undefined)).toBe('align');
+  });
+});
+
+describe('催促窗口（距开标不足 24h 通道整体关闭，2026-09-01）', () => {
+  const now = new Date('2026-09-01T10:00:00Z');
+  it('开标在 24h 外 → 窗口开放，不抛', () => {
+    const openTime = new Date(now.getTime() + BID_DEADLINE_BEFORE_OPENING_MS + 60_000);
+    expect(nudgeWindowOpen(openTime, now)).toBe(true);
+    expect(() => assertNudgeWindowOpen(openTime, now)).not.toThrow();
+  });
+  it('开标不足 24h（含已过期）→ NUDGE_WINDOW_CLOSED', () => {
+    const soon = new Date(now.getTime() + BID_DEADLINE_BEFORE_OPENING_MS - 60_000);
+    expect(nudgeWindowOpen(soon, now)).toBe(false);
+    expect(() => assertNudgeWindowOpen(soon, now)).toThrow(
+      expect.objectContaining({ response: expect.objectContaining({ code: 'NUDGE_WINDOW_CLOSED' }) }),
+    );
+    const past = new Date(now.getTime() - 86_400_000);
+    expect(nudgeWindowOpen(past, now)).toBe(false);
+  });
+  it('openTime 未登记 → 无从判定，不拦（沿用旧语义）', () => {
+    expect(nudgeWindowOpen(null, now)).toBe(true);
+    expect(nudgeWindowOpen(undefined, now)).toBe(true);
+    expect(() => assertNudgeWindowOpen(null, now)).not.toThrow();
   });
 });

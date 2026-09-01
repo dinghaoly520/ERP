@@ -310,7 +310,7 @@ export class UploadService implements OnModuleInit {
    * - 其他：拒绝
    */
   private async canAccessFile(
-    asset: { id: string; uploaderId: string | null; category: string },
+    asset: { id: string; uploaderId: string | null; category: string; key?: string | null },
     user: { sub: string; role: string },
   ): Promise<boolean> {
     if (asset.uploaderId && asset.uploaderId === user.sub) return true;
@@ -410,6 +410,21 @@ export class UploadService implements OnModuleInit {
         select: { id: true, logoUrl: true },
       });
       if (!supplier) return false;
+
+      // 采购邀请书（general/invitation/{业务编号}/{ts}.docx）：该编号项目的受邀供应商可预览
+      if (asset.key?.startsWith('general/invitation/')) {
+        const bizCode = asset.key.split('/')[2];
+        if (bizCode) {
+          const invited = await this.prisma.bidSupplier.findFirst({
+            where: {
+              supplierId: supplier.id,
+              project: { projectManagementItem: { projectCode: bizCode } },
+            },
+            select: { id: true },
+          });
+          if (invited) return true;
+        }
+      }
       const [quals, perfs] = await Promise.all([
         this.prisma.supplierQualification.findMany({
           where: { supplierId: supplier.id },

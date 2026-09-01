@@ -32,8 +32,8 @@ export default function BiddingHallPage() {
 
       <section className="flow-hero-brand">
         <div className="flow-hero-brand-left flow-rise-1" style={{ gridColumn: '1 / -1' }}>
-          <img src="/assets/logo.png" alt="四川水发集团" className="flow-hero-brand-logo" />
-          <strong className="flow-hero-brand-name">四川水发集团</strong>
+          <img src="/assets/logo.png" alt="四川省水利发展集团有限公司" className="flow-hero-brand-logo" />
+          <strong className="flow-hero-brand-name">四川省水利发展集团有限公司</strong>
           <small className="flow-hero-brand-sub">SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.</small>
         </div>
       </section>
@@ -49,7 +49,7 @@ export default function BiddingHallPage() {
         <div className="flex flex-wrap items-end justify-between gap-8">
           <div>
             <h3>成为水发供应商</h3>
-            <p>注册入驻供应商库，参与水发集团全量采购项目投标。</p>
+            <p>注册入驻供应商库，参与四川省水利发展集团有限公司全量采购项目投标。</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button onClick={() => router.push('/register')} className="flow-cta-btn">

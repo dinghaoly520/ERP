@@ -150,8 +150,9 @@ export class ExpertExtractionAiService {
       // 改用 options.timeoutMs 控制单次 HTTP 请求超时
       const start = Date.now();
       this.metrics.llmCalls += 1;
-      // 30s/次 × 2 次尝试：前端直连 :4001 绕过代理超时，给 AI 充分时间
-      const raw = await this.llm.chat(system, userPrompt, temperature, undefined, undefined, { timeoutMs: 30_000, retries: 1 });
+      // 90s/次：长 prompt（全候选列表+多维评分）生成耗时长于普通调用（实测 DeepSeek 可达但 30s 不够）；
+      // 低频操作可等待，超时仍有规则引擎兜底。前端直连 :4001 绕过代理超时。
+      const raw = await this.llm.chat(system, userPrompt, temperature, undefined, undefined, { timeoutMs: 90_000, retries: 1 });
       this.metrics.lastLatencyMs = Date.now() - start;
       this.metrics.lastModel = this.llm.getModel();
       // 防御性 JSON 提取：优先匹配完整 JSON 块，失败则尝试去掉代码围栏重试
@@ -248,7 +249,7 @@ export class ExpertExtractionAiService {
 - 角色与要求：${roleLine}
 - 确认方式：正文末尾紧跟" 确认链接（${rsvpTtlHours()}小时内有效）：{RSVP_LINK}"（不换行，直接接在正文后面；{RSVP_LINK} 是占位符，原样输出）
 - 落款格式（另起两行，居左，不加前导空格）：
-  换行后空一行，写：四川水发集团
+  换行后空一行，写：四川省水利发展集团有限公司
   再换行写：${today}
 - [[专家姓名]]专家您好！后面必须换行（不要跟正文连在同一行）
 
@@ -274,7 +275,7 @@ export class ExpertExtractionAiService {
       let content = typeof raw === 'string' ? raw.trim() : '';
       if (!content) return null;
       // 替换地点占位符（避免 LLM 翻译「设计」为 design 等英文）
-      content = content.replace(/\{LOCATION\}/g, '四川水发集团设计公司3楼采购中心开评标室');
+      content = content.replace(/\{LOCATION\}/g, '四川省水利发展集团有限公司设计公司3楼采购中心开评标室');
       // 占位符校验：模型若漏掉 [[专家姓名]]，自动补默认抬头，保证后续按人替换不失效
       if (!content.includes('[[专家姓名]]')) {
         this.logger.warn('AI 通知缺失 [[专家姓名]] 占位符，已自动补默认抬头');

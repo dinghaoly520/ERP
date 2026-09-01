@@ -758,3 +758,11 @@ a.cq-att-item:hover { opacity: 0.8; }
 .cc-inv-title { font-size: 15px; font-weight: 800; color: var(--foreground, #18243a); }
 .cc-inv-exp { font-size: 12px; color: var(--muted-foreground, #64748b); }
 .cc-inv-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--muted-foreground, #64748b); }
+
+/* ── 采购邀请书 DOCX 预览 ── */
+.cc-inv-docx-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.cc-inv-docx-name { font-size: 13px; font-weight: 700; color: var(--foreground, #18243a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 480px; }
+.cc-inv-docx-stage { position: relative; border-radius: 12px; overflow: auto; max-height: 720px; background: oklch(0.97 0.006 258); box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 5px oklch(1 0 0 / 0.8); }
+.cc-inv-docx-stage .docx-render { padding: 16px 8px; }
+.cc-inv-docx-stage .docx-wrapper { background: #fff; box-shadow: 0 2px 10px rgba(15, 47, 87, 0.1); margin: 0 auto 16px; }
+.cc-inv-docx-mask { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; background: oklch(0.97 0.006 258 / 0.8); font-size: 13px; color: var(--muted-foreground, #64748b); }

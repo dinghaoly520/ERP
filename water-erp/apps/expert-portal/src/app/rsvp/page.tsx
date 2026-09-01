@@ -64,7 +64,7 @@ function ExpertRsvpPage() {
 
           {phase === 'loading' && <div className="rv-state"><div className="rv-spin" /><p>正在核验邀请链接…</p></div>}
 
-          {phase === 'invalid' && <div className="rv-state"><div className="rv-state-ico">!</div><p className="rv-state-msg">{errMsg}</p><p className="rv-hint">如有疑问，请联系四川水发集团。</p></div>}
+          {phase === 'invalid' && <div className="rv-state"><div className="rv-state-ico">!</div><p className="rv-state-msg">{errMsg}</p><p className="rv-hint">如有疑问，请联系四川省水利发展集团有限公司。</p></div>}
 
           {phase === 'ready' && view && (
             <>
@@ -82,7 +82,7 @@ function ExpertRsvpPage() {
 
               {view.expired && !isDone && (
                 <p className="rv-warn">
-                  {view.expiresAt ? `该邀请链接已于 ${fmt(view.expiresAt)} 过期` : '该邀请链接已过期'}，已自动视为无法参加。如有疑问请联系四川水发集团。
+                  {view.expiresAt ? `该邀请链接已于 ${fmt(view.expiresAt)} 过期` : '该邀请链接已过期'}，已自动视为无法参加。如有疑问请联系四川省水利发展集团有限公司。
                 </p>
               )}
 

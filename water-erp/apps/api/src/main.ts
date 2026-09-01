@@ -97,7 +97,7 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('智慧水发·招采ERP系统')
-      .setDescription('四川水发集团电子化招标采购平台 API 文档')
+      .setDescription('四川省水利发展集团有限公司电子招标采购平台 API 文档')
       .setVersion('1.0')
       .addCookieAuth('token')
       .build();

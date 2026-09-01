@@ -6,6 +6,7 @@ import { ExpertAdminService } from '../expert/expert-admin.service';
 import { SupplierService } from '../supplier/supplier.service';
 import { AnnouncementService } from '../announcement/announcement.service';
 import { BidService } from '../bid/bid.service';
+import { nudgeWindowOpen } from '../bid/opening-deadline.util';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
@@ -306,6 +307,20 @@ export class SchedulerService {
       try {
         const messages = (nudge.messages as Record<string, { title: string; body: string }> | null) ?? {};
         const channels = (nudge.channels as string[] | null) ?? ['in_app', 'sms', 'phone'];
+        // 窗口闸门（2026-09-01）：开标时间被提前改期后，原定时点可能落入开标前 24h 内 →
+        // 不再补发，撤销定时（保持"距开标不足 24h 一律不催"的不变式）
+        const proj = await this.prisma.bidProject.findUnique({
+          where: { id: nudge.bidProjectId },
+          select: { openTime: true },
+        });
+        if (!nudgeWindowOpen(proj?.openTime, now)) {
+          await this.prisma.bidSupplierNudge.updateMany({
+            where: { id: nudge.id, status: 'SCHEDULED' },
+            data: { status: null, sendAt: null },
+          });
+          this.logger.warn(`定时催促被撤销（已进入开标前 24h 窗口）: bidProject=${nudge.bidProjectId}`);
+          continue;
+        }
         const targets = await this.computeNudgeTargetsLocal(nudge.bidProjectId);
         // 原子抢占：仅当仍为 SCHEDULED 时置 SENT，避免与人工发送竞态导致重复催促
         const claimed = await this.prisma.bidSupplierNudge.updateMany({

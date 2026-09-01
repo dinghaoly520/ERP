@@ -107,7 +107,10 @@ export class BidController {
 
   @Post('projects')
   @ApiOperation({ summary: '创建项目' })
-  createProject(@Body() dto: CreateBidProjectDto) { return this.bidService.createProject(dto); }
+  createProject(@Body() dto: CreateBidProjectDto, @CurrentUser('sub') sub?: string, @Req() req?: any) {
+    const operator = sub && req?.user?.role ? { sub, role: req.user.role } : undefined;
+    return this.bidService.createProject(dto, operator);
+  }
 
   @Get('projects/:id')
   @ApiOperation({ summary: '项目详情（bid portal 仅可访问指派给自己的项目）' })

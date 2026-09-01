@@ -209,3 +209,64 @@ W1+W2（~2 周）→ W4（~1 周）→ W3（界面多，~2 周可穿插）→ W5
 - 删除 `project-detail-panel.tsx` 中每个步骤下的"步骤检查"UI（标题/重新检查按钮/审查总结/逐项结果）及其全部支撑代码（compliance state/缓存/runComplianceAudit/上传·删文件后的合规刷新/`auditStageCompliance` 引用）；同时移除今晨为它加的迟到响应守卫（已无消费者）。
 - 保留：后端 `POST /project-management/:id/audit-compliance` 端点、阶段合规规则（含 /admin/compliance-rules 配置页）、"文件分析/步骤分析"区块、时间轴（A-204）。
 - 验证：实机两个类型步骤（采购需求/供应商邀请）均无"步骤检查"且页面无破损、无 pageerror；tsc 0（仅并行会话 business-tag-review 的 dayjs 缺依赖报错，与本批无关）。
+
+**⑤ 专家抽取各专业人数恒同（2026-09-01，用户反馈）**
+- 现象：/expert/extract 专业配额行每个专业都显示「29人·库内」（= 全库 bid_expert 总数）。
+- 根因：`expert-admin.service.ts` `listExperts` 的 `specialty` 筛选嵌在 `...(employer && { expertProfile: … })` 内——只传专业不传公司时筛选被静默丢弃。受影响两处：抽取页 per-specialty pool 计数、专家库（/expert/repository）专业下拉筛选。
+- 修复：`expertProfile` 条件改为 specialty/employer 各自独立展开（任一存在才挂该键）。新增 spec 2 例（只传专业不丢筛选 / 专业+公司同时生效）。
+- 实机验证：API 返回 地质 4 · 设备 1 · 造价 3 …（与 DB GROUP BY 完全一致）；:3005 抽取页实机 DOM+截图显示「地质（4人·库内）」等真实分布、无 pageerror；service spec 45/45、API tsc 0。
+
+**⑥ 专家抽取步骤3开标时间不回填（2026-09-01，用户反馈）**
+- 现象：步骤3「发送通知」的开标时间为空（日期空、--:--）。
+- 根因两层：
+  1. **DB 迁移漂移（主因）**：dev 库缺 `20260825010000_operation_log_archive`、`20260828121108_compliance_p0`（BidClarification 5 列 + SupervisionPushLog 表）两个已提交迁移 → `GET /bid/projects/:id` 因 clarifications include 查不存在列 P2022 500 → 前端 `getBidProjectDetail().catch(setPd(null))` 静默吞掉 → confirm() 预填 `pd.openTime` 永不执行。
+  2. **预填只挂在 confirm()**：详情拉取失败的会话一旦确认，localStorage 恢复后永远停在空值。
+- 修复：按 db execute + resolve --applied 补齐两迁移（对象经 information_schema 核对确实缺失）；`20260831111301_opening_confirm_signature` 与并行会话已应用的 `20260901000000_confirm_signature` 为同构重复（列已存在）→ 仅 resolve 标记不执行。前端加自愈 effect：进入步骤3后字段仍空且详情有 openTime → 自动回填（本地分量取日期）。
+- 验证：详情端点 200 返回 openTime；浏览器预置"破损快照"复现卡死现场后刷新 → 自愈回填 2026-03-23/14:00（与库一致）、无 pageerror；web tsc 0（顺带重建了 stale 的 @water-erp/shared dist，并行会话已提交代码的 `deriveOpeningSessionStatus` 报错消除）。
+
+**⑦ 候补通知缺开标时间·项目名落占位「采购项目」（2026-09-01，用户反馈）**
+- 现象：候补专家通知文案无开标时间，项目名是字面「采购项目」。
+- 根因：候补文案在抽取时一次性定格（`extractAlternates` 本地模板），当时 `sel`（项目列表项）与 `pd`（详情）都为空——用户会话正处于迁移漂移 500 窗口（列表/详情双双失败，与 ⑥ 同源）→ `sel?.name || pd?.name || '采购项目'` 落占位；模板本身也从未包含开标时间。
+- 修复（extract/page.tsx）：
+  1. 候补模板加入开标时间行（`开标时间：YYYY年MM月DD日 HH:mm`，有值才插入）；
+  2. 自愈 effect：候补文案仍是模板样式（含特征句）且缺「开标时间：」时，待项目名/开标时间到位后原位补齐——占位「采购项目」替换为真实名、评标句后插入开标时间行；已含时间或非模板文案（正选 AI 文案/人工改写）不动。恢复的旧会话（含用户当前标签页）无需重抽候补即可修复。
+- 验证：浏览器预置"破损快照"（孙建军·占位名·无时间）刷新 → 文案自愈为真实项目名+「开标时间：2026年03月23日 14:00」独立成行，截图确认、无 pageerror、无 DB 写入；web tsc 0。
+
+**⑧ 集团名称统一为「四川省水利发展集团有限公司」（2026-09-01，用户拍板含「省」）**
+- 范围：全系统把 `四川水发集团`（及变体 `四川省水利发展集团`、裸简称 `水发集团`）统一替换为 `四川省水利发展集团有限公司`——31 个源文件 94 处：通知模板（供应商邀请 selection 页/专家抽取页/催促未投递弹窗）、AI prompt 自称与兜底正文（ai.service 18 处、expert-extraction-ai、invitation-letter、supplier-selection-ai、announcement-ai、PM 步骤分析）、门户品牌展示（public-portal 头部/关于/联系、assistant、expert-portal rsvp、bid-portal 元数据、注册协议）、招标文件/公告预印本中的地址与署名、supervision-push 证书 DN、seed 数据（Announcement/Notification.json）、reset-announcements/create-bidable-project 脚本、Swagger 描述、CLAUDE.md。
+- 不动：平台品牌「智慧水发·蜀水云采」、子公司实名（四川水发勘测设计研究有限公司/四川水发招标有限公司）、KnowledgeFile.json 真实制度文档原文、web-erp-old 死代码、历史 plan 文档。
+- 存量数据：dev 库 Notification 8 条正文 REPLACE 更名（Announcement 无命中）。
+- 抽取页加更名自愈 effect：发送前定格于旧名的通知正文/电话话术（含正选 AI 文案与候补模板）原位替换——恢复的旧会话刷新即生效。
+- 验证：源码 grep 零残留（除上述豁免项）；API 全量重建重启，Swagger 描述已新名；supplier-portal+ai 单测 256/256；浏览器预置旧名快照刷新 → 两条候补文案签名均自愈为「四川省水利发展集团有限公司」（截图确认、无 pageerror）；api/web/public-portal tsc 0。
+
+**⑧补：名称/文字统一核查（2026-09-01 追加）**
+- 全库复查残留：源码零残留（仅抽取页自愈 effect 故意保留的旧名常量）；DB 各文本表（ExpertMemo/SystemConfig/WorkTemplate/WorkArrangementTemplate/KnowledgeBase/TenderDocumentHistory/SupplierSelectionHistory/announcement_histories/Announcement）均无旧名；companies 表 3 家水发子公司为真实主体名不动。
+- 过渡窗口产物：两份 supplier_invitation AI 分析缓存写于无「省」名窗口（9/1 上午）→ 已改为全名；**对应 MinIO 里的邀请书文档本体仍是过渡期名称，需要时重新导出**。
+- 平台名统一为「蜀水云采电子招标采购平台」：announcements.ts 2 处「电子化招标采购平台」、main.ts Swagger、invitation-letter 发布媒介默认口径 2 处「电子采购平台」→ 均已对齐；域名 ssyc.scswdc.com 全库仅 1 处一致。home-client「…的电子化招标采购平台」为描述性语句保留。
+- 种子 User.json SWDG-01 displayName「水发集团」→ 全名（live 库无此账号，仅影响未来 reseed）。
+- API 重建重启（Swagger 已显统一名）；src/ai 单测全绿。
+
+**⑨ 开标确认 403「该项目不属于本公司」（2026-09-01，用户反馈）**
+- 现象：cgzx11（staff）打开项目详情「开标确认」→ `GET /bid/projects/:id/workspace` 403 COMPANY_SCOPE_FORBIDDEN。
+- 根因：`BidCompanyScopeGuard`（projects/:id/* 类级）要求非 admin 内部角色「项目 companyId = 本人 companyId」；**全部 4 个存量 BidProject 的 companyId 为空**——`ensureBidProject`（PM 懒创建，用户项目的实际出生路径）等创建点漏盖公司章，空值 ≠ 任何公司 → 一律 403。操作日志定位到 cgzx11 11:22 的 workspace 403。
+- 修复（创建点全部补章，口径=操作人/宿主所在公司）：
+  1. `ensureBidProject`：快照自 PMI（select+create 各加 companyId/companyName）；
+  2. `createProject`（POST /projects）：service 加可选 operator，controller 透传 @CurrentUser，`operatorCompanyStamp` 查 User（公司名字段是 `company` 非 companyName——首版 tsc 抓出）；
+  3. 流标重启：随 original 承继；
+  4. 影子项目 `createCustomExtractionProject`：快照自操作人；
+  5. legacy `procurement.service.createBid`：随源 ProcurementProject 承继；
+  6. 公告直建 `createFromAnnouncement`：原有 companyStamp 管道，确认已覆盖。
+- 存量回填：3 个有 PMI 的项目按 PMI.companyId 回填；W11 e2e 项目（无 PMI）指派 co-swhi-sjy。
+- 验证：cgzx11（密码 123456）详情/workspace 全 200；:3005 实机截图「开标确认」面板正常、无「不属于本公司」、无 pageerror。spec 归因：PM 6 失败 + bid P1-4 1 失败在 HEAD 基线（stash 验证）同样失败=存量（并行会话 stages 闸门 mock 未配齐/已知 recycle 用例），非本批引入。
+- 注：qyt1234（staff）companyId 为空——按隔离语义仍看不到任何项目，如需使用请先给它分配公司。
+
+**⑩ 开标确认「专家确认情况」的催促确认按钮移除（2026-09-01，用户拍板）**
+- 删除 bid-confirm-panel.tsx 专家确认卡片右上角「催促确认」按钮及其 handler/import/`nudgeExperts` api 客户端函数（死代码不留）；「已开标·锁定」徽标保留；供应商侧「催促未投递」与催促弹窗不动。
+- 保留：后端 `POST /bid/projects/:id/nudge-experts` 端点（前端无消费者，API 层维持）。
+- 验证：实机开标确认面板「催促确认」0 次、「专家确认情况」区块正常渲染（截图）、无 pageerror；web tsc 0。
+
+**⑪ 催促投递 24h 窗口闸门（2026-09-01，用户拍板）**
+- 规则：距开标不足 24 小时后催促通道**整体关闭**（原实现只禁定时、立即发送仍可）。
+- 后端（opening-deadline.util 新增 `nudgeWindowOpen`/`assertNudgeWindowOpen`，复用 BID_DEADLINE_BEFORE_OPENING_MS；openTime 未登记不拦）：`nudgeSuppliers`(v1)、`sendNudgeNow`、`scheduleNudge` 三入口全加 400 `NUDGE_WINDOW_CLOSED`；scheduler cron 到点补发前先验窗口——开标被提前改期致定时点落入 24h 内时**撤销定时不补发**（保持不变式）。
+- 前端（nudge-unsubmitted-modal）：窗口关闭时「立即发送」「AI 生成通知」禁用（定时本就禁），提示条改警示色"距开标已不足 24 小时，催促通道已关闭，无法发送催促通知。"；handleSend/handleSchedule 双保险早退+NUDGE_WINDOW_CLOSED 错误码映射。
+- 验证：三个端点 curl 均 400 NUDGE_WINDOW_CLOSED；:3005 实机打开催促弹窗显示关闭警示、两按钮 disabled（截图）、无 pageerror；util spec 11/11（新增 3 例）；api/web tsc 0。

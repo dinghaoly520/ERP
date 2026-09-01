@@ -4,7 +4,7 @@ import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
 /* ═══════════════════════════════════════
-   集团简介 — 四川水发集团
+   集团简介 — 四川省水利发展集团有限公司
    布局策略：统一顶栏 → 标题 → 数据条(full-bleed) → 正文双栏(reading col + project sidebar)
    ═══════════════════════════════════════ */
 
@@ -68,7 +68,7 @@ export default function AboutPage() {
                 <h2 className="text-[16px] font-bold text-[#0f1e36] tracking-wide">集团概况</h2>
               </div>
               <p className="text-[15px] leading-[1.9] text-[#3d5068]">
-                四川水发集团是四川省人民政府授权水利厅代履行出资人职责的省属重点国有企业，于
+                四川省水利发展集团有限公司是四川省人民政府授权水利厅代履行出资人职责的省属重点国有企业，于
                 <strong className="text-[#0f1e36] font-semibold">2020年7月29日</strong>
                 挂牌成立，注册资本
                 <strong className="text-[#0f1e36] font-semibold">60亿元</strong>
@@ -91,7 +91,7 @@ export default function AboutPage() {
                 <h2 className="text-[16px] font-bold text-[#0f1e36] tracking-wide">战略使命</h2>
               </div>
               <p className="text-[15px] leading-[1.9] text-[#3d5068]">
-                四川水发集团着力围绕成渝地区双城经济圈建设和&ldquo;四化同步、城乡融合、五区共兴&rdquo;发展战略，加快推进新时期四川水利高质量发展落地落实，牵头实施跨市（州）重大水利工程，是四川省跨市（州）重大水利工程项目的规划、设计、投资、建设、运维、管理以及发展水利特色产业的平台和重要抓手。
+                四川省水利发展集团有限公司着力围绕成渝地区双城经济圈建设和&ldquo;四化同步、城乡融合、五区共兴&rdquo;发展战略，加快推进新时期四川水利高质量发展落地落实，牵头实施跨市（州）重大水利工程，是四川省跨市（州）重大水利工程项目的规划、设计、投资、建设、运维、管理以及发展水利特色产业的平台和重要抓手。
               </p>
             </article>
 
@@ -102,7 +102,7 @@ export default function AboutPage() {
                 <h2 className="text-[16px] font-bold text-[#0f1e36] tracking-wide">企业文化与发展思路</h2>
               </div>
               <p className="text-[15px] leading-[1.9] text-[#3d5068] mb-5">
-                四川水发集团以&ldquo;夯实一个平台、做好两大任务、承担三项使命、突出四个聚焦、实现五大目标&rdquo;为总体发展工作思路，着力为全省经济社会发展大局、全省水利事业高质量发展、市县发展做好服务。
+                四川省水利发展集团有限公司以&ldquo;夯实一个平台、做好两大任务、承担三项使命、突出四个聚焦、实现五大目标&rdquo;为总体发展工作思路，着力为全省经济社会发展大局、全省水利事业高质量发展、市县发展做好服务。
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -147,7 +147,7 @@ export default function AboutPage() {
       {/* ═══ Footer ═══ */}
       <footer className="border-t border-[#eef1f6] bg-[#fafbfc]">
         <div className="px-[clamp(28px,4vw,72px)] py-5 flex items-center justify-between text-[12px] text-[#8a96aa] max-sm:flex-col max-sm:gap-1.5">
-          <span>© 2026 四川水发集团</span>
+          <span>© 2026 四川省水利发展集团有限公司</span>
           <div className="flex items-center gap-4">
             <a href="/" className="hover:text-[#064ea2] transition-colors">返回首页</a>
             <a href="/contact" className="hover:text-[#064ea2] transition-colors">联系我们</a>

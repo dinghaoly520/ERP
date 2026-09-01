@@ -1133,7 +1133,7 @@ export function SupplierSelectionPage({
   const buildPhoneScript = (supplierName: string, ctx: ReturnType<typeof buildNotifyContext>) => {
     const proj = ctx.projectName ? `【${ctx.projectName}】` : '本次采购';
     const dl = ctx.deadline ? `，请于${ctx.deadline}前` : '';
-    return `您好，请问是${supplierName}吗？我是四川水发集团采购中心。我们正在就${proj}项目邀请贵司参与，稍后将向贵司发送短信通知。请您留意查收短信，或登录供应商门户点击确认链接${dl}确认是否参加。如有疑问欢迎致电咨询，谢谢！`;
+    return `您好，请问是${supplierName}吗？我是四川省水利发展集团有限公司采购中心。我们正在就${proj}项目邀请贵司参与，稍后将向贵司发送短信通知。请您留意查收短信，或登录供应商门户点击确认链接${dl}确认是否参加。如有疑问欢迎致电咨询，谢谢！`;
   };
 
   // 进入确认通知步骤（2026-08-31 步骤合并后为 step 3）时：
@@ -1151,7 +1151,7 @@ export function SupplierSelectionPage({
       for (const [sid, { item: r }] of shortlist) {
         prefilled.set(sid, {
           title: `关于${ctx.projectName || '采购项目'}采购项目候选供应商邀请的通知`,
-          body: `${r.name} 您好！\n\n您已被纳入${ctx.projectName ? `「${ctx.projectName}」` : '本次采购'}（${ctx.procurementMethod || '采购'}${ctx.deadline ? `，响应截止 ${ctx.deadline}` : ''}）的候选供应商名单。\n\n四川水发集团\n${dateStr}\n\n（AI 正在生成更完整的正文与回执链接，完成后自动替换；您也可直接编辑本模板发送）`,
+          body: `${r.name} 您好！\n\n您已被纳入${ctx.projectName ? `「${ctx.projectName}」` : '本次采购'}（${ctx.procurementMethod || '采购'}${ctx.deadline ? `，响应截止 ${ctx.deadline}` : ''}）的候选供应商名单。\n\n四川省水利发展集团有限公司\n${dateStr}\n\n（AI 正在生成更完整的正文与回执链接，完成后自动替换；您也可直接编辑本模板发送）`,
           phoneScript: buildPhoneScript(r.name, ctx),
         });
       }
@@ -1186,7 +1186,7 @@ export function SupplierSelectionPage({
         const bodyWithLink = res.body.replace(/\{rsvpLink\}/g, link);
         perSupplier.set(sid, {
           title: res.title,
-          body: `${r.name} 您好！\n\n${bodyWithLink}\n\n四川水发集团\n${dateStr}`,
+          body: `${r.name} 您好！\n\n${bodyWithLink}\n\n四川省水利发展集团有限公司\n${dateStr}`,
           phoneScript: buildPhoneScript(r.name, ctx),
         });
       }

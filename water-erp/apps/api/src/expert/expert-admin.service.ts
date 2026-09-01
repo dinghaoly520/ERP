@@ -63,8 +63,9 @@ export class ExpertAdminService {
   async listExperts(search?: string, specialty?: string, employer?: string, page = 1, pageSize = 20) {
     const where = {
       role: 'bid_expert' as const,
-      // 公司限定（抽取配置「公司」下拉）：列表仅返回该公司专家
-      ...(employer && { expertProfile: { ...(specialty && { specialty }), employer } }),
+      // 专业/公司筛选（ExpertProfile）：specialty 须独立于 employer——曾嵌在 employer 条件内，
+      // 只传专业不传公司时筛选被静默丢弃，专业配额行人数恒为全库总数
+      ...((specialty || employer) && { expertProfile: { ...(specialty && { specialty }), ...(employer && { employer }) } }),
       ...(search ? {
         OR: [
           { displayName: { contains: search, mode: 'insensitive' as const } },
@@ -2424,6 +2425,15 @@ ${combined}`,
     }
   }
 
+  /** 操作人所在公司（归属写时快照用，口径同 CompanyScopeService.stampFor；User 表公司名字段为 company） */
+  private async operatorCompanyOf(operatorId: string): Promise<{ companyId: string | null; companyName: string | null }> {
+    const me = await this.prisma.user.findUnique({
+      where: { id: operatorId },
+      select: { companyId: true, company: true },
+    });
+    return { companyId: me?.companyId ?? null, companyName: me?.company ?? null };
+  }
+
   /** 自定义抽取：创建影子项目（isExtractionOnly=true，仅承载抽取/通知/确认，不进项目管理列表） */
   async createCustomExtractionProject(dto: { name: string; procurementMethod?: string; background?: string; openTime?: string; deadline?: string }, operatorId?: string) {
     if (!dto.name?.trim()) throw new BadRequestException({ error: '请填写项目名称', code: 'NO_NAME' });
@@ -2444,6 +2454,8 @@ ${combined}`,
         deadline,
         scope: dto.background?.trim() || null,
         isExtractionOnly: true,
+        // 公司归属快照自操作人（BidCompanyScopeGuard：非_admin 内部角色仅本公司项目可见）
+        ...(operatorId ? await this.operatorCompanyOf(operatorId) : {}),
       },
       select: { id: true, projectCode: true, name: true, openTime: true },
     });

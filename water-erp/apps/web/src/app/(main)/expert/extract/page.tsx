@@ -133,7 +133,7 @@ export function ExpertExtractPage({
   const buildExpertPhoneScript = (expertName: string) => {
     const proj = sel?.name ? `【${sel.name}】` : '本次采购';
     const ot = openTimeFormatted ? `，开标时间${openTimeFormatted}` : '';
-    return `您好，${expertName}老师，我是四川水发集团采购中心。我们已邀请您参加${proj}项目的评标工作${ot}。稍后将向您发送短信通知，请您留意查收短信，或登录OA确认是否能够出席。如有疑问欢迎致电咨询，谢谢！`;
+    return `您好，${expertName}老师，我是四川省水利发展集团有限公司采购中心。我们已邀请您参加${proj}项目的评标工作${ot}。稍后将向您发送短信通知，请您留意查收短信，或登录OA确认是否能够出席。如有疑问欢迎致电咨询，谢谢！`;
   };
   // 统一切换通知渠道（适用于全部专家）
   const toggleExpertChannel = (chKey: string) => {
@@ -490,6 +490,16 @@ export function ExpertExtractPage({
   }, [pid]);
   useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s, pageSize: 1000 }).then(l => ({ s, c: unwrapList(l as any).total })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
 
+  // 开标时间自愈回填：预填本只在 confirm() 里做——若确认当时详情接口失败（曾因 DB 迁移漂移 500）
+  // 或 openTime 尚未落库，localStorage 恢复的步骤3 会永远停在空值。进入步骤3 后字段仍空而详情
+  // 已有 openTime 时自动补上（日期取本地分量，与时分同口径；用户手改不受影响）
+  useEffect(() => {
+    if (!step3Confirmed || openTimeDate || !pd?.openTime) return;
+    const d = new Date(pd.openTime);
+    setOpenTimeDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    setOpenTimeTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+  }, [step3Confirmed, openTimeDate, pd]);
+
   // 已有项目 AI 自动推断专业配额（pd 加载后、且用户尚未手动配置配额时触发）
   useEffect(() => {
     if (!pid || !pd || specs.length === 0) return;
@@ -653,6 +663,38 @@ export function ExpertExtractPage({
     }
     return undefined;
   }, [projects, pid, pd]);
+
+  // 候补通知文案自愈：文案在候补抽取时定格——若当时项目名/开标时间缺失（如详情接口故障期，
+  // 名称落占位「采购项目」、无开标时间），待名称/时间到位后对仍是模板样式的候补文案原位补齐；
+  // 已含开标时间或非候补模板（正选 AI 文案/人工改写不含特征句）的不动
+  useEffect(() => {
+    if (altSelected.length === 0 || notifyMessages.size === 0) return;
+    const pn = sel?.name || pd?.name;
+    let changed = false;
+    const next = new Map(notifyMessages);
+    for (const e of altSelected) {
+      const cur = next.get(e.userId);
+      if (!cur || !cur.includes('的候补评审专家，若参与评审专家因故无法参加') || cur.includes('开标时间：')) continue;
+      let msg = cur;
+      if (pn && msg.includes('「采购项目」')) msg = msg.replace('「采购项目」', `「${pn}」`);
+      if (openTimeFormatted) msg = msg.replace('将按序递补您参加评标。', `将按序递补您参加评标。\n开标时间：${openTimeFormatted}\n`);
+      if (msg !== cur) { next.set(e.userId, msg); changed = true; }
+    }
+    if (changed) updateMessages(next);
+  }, [altSelected, notifyMessages, sel, pd, openTimeFormatted]);
+
+  // 集团更名自愈：通知正文/电话话术在发送前定格于旧名（四川水发集团）的，统一替换为现名
+  // （四川省水利发展集团有限公司）——覆盖正选 AI 文案与候补模板；新名不含旧名子串，幂等安全
+  useEffect(() => {
+    const OLD = '四川水发集团';
+    const NEW = '四川省水利发展集团有限公司';
+    let changed = false;
+    const nm = new Map(notifyMessages);
+    for (const [k, v] of nm) if (v.includes(OLD)) { nm.set(k, v.split(OLD).join(NEW)); changed = true; }
+    const ps = new Map(phoneScripts);
+    for (const [k, v] of ps) if (v.includes(OLD)) { ps.set(k, v.split(OLD).join(NEW)); changed = true; }
+    if (changed) { setNotifyMessages(nm); setPhoneScripts(ps); setNotifyVersion(v => v + 1); }
+  }, [notifyMessages, phoneScripts]);
   // ── 委员会席位数（用户主动选择 3/5/7）──
   const [totalSeats, setTotalSeats] = useState<3 | 5 | 7>(5);
   const demandRepSeats = needDemandRep ? demandRepCount : 0;
@@ -1157,7 +1199,7 @@ export function ExpertExtractPage({
   const [rsvpLinks, setRsvpLinks] = useState<Record<string, string>>({});
 
   // 保持 stateRef 同步最新渲染值（必须在所有 useState 之后，供 beforeunload 保存使用）
-  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepDept, demandRepDeptSpecialty, totalSeats };
+  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats };
 
   /** 打开补选弹窗：AI 分析项目 → 推荐补选专业与人数 → 用户调整 → 开始抽取。
    *  如果上次用户已手动调整过配额且池仍有可用专家，则跳过 configuring，直接用旧配额抽取。 */
@@ -1458,11 +1500,11 @@ export function ExpertExtractPage({
       setAltPreview(result);
       setAltSelected([...result.selected]);
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
-      // 候补通知：专属文案（不含 RSVP 链接，不要求确认，仅告知准备参加）
+      // 候补通知：专属文案（不含 RSVP 链接，不要求确认，仅告知准备参加；含开标时间）
       const projectName = sel?.name || pd?.name || '采购项目';
       const altMsg = new Map(notifyMessages);
       for (const e of result.selected) {
-        altMsg.set(e.userId, `${e.name}专家您好！\n您被选为「${projectName}」的候补评审专家，若参与评审专家因故无法参加，将按序递补您参加评标。请您提前做好准备并保持通讯畅通。感谢您的支持与配合。\n\n四川水发集团\n${new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' })}`);
+        altMsg.set(e.userId, `${e.name}专家您好！\n您被选为「${projectName}」的候补评审专家，若参与评审专家因故无法参加，将按序递补您参加评标。${openTimeFormatted ? `\n开标时间：${openTimeFormatted}` : ''}\n请您提前做好准备并保持通讯畅通。感谢您的支持与配合。\n\n四川省水利发展集团有限公司\n${new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' })}`);
       }
       updateMessages(altMsg);
       toast.success(`候补专家抽取完成，共 ${result.selected.length} 人`);
@@ -2199,7 +2241,7 @@ export function ExpertExtractPage({
                   </span>
                 ) : (
                   <button onClick={confirm} disabled={confirming || selectedExperts.length === 0} className="neu-btn-soft is-success">
-                    <Check size={16} />{confirming ? '组建中...' : `组建专家组（${selectedExperts.length} 人）`}
+                    <Check size={16} />{confirming ? '组建中...' : `组建专家组（${selectedExperts.length + demandRepItems.length} 人）`}
                   </button>
                 )}
                 <button onClick={goToNotify} disabled={!step3Confirmed && confirmedExpertIds.length === 0} className="neu-btn-soft is-info">
