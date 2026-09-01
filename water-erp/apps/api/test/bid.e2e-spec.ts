@@ -625,6 +625,84 @@ describe('Bid Lifecycle (e2e)', () => {
     });
   });
 
+  // ── A-102 保证金到账台账 (bond-ledger) ──
+  describe('A-102 保证金到账台账 (bond-ledger, e2e)', () => {
+    let projectId: string;
+    let bidCookie: string[];
+    const supplierName = `台账供应商-${Date.now()}`;
+
+    beforeAll(async () => {
+      // :3007 真实登录流：经 :3006（portal=expert）分流，bid_host 角色写 token_bid 命名空间
+      bidCookie = await loginAs(app, '陈源远', '陈源远@2026', 'expert');
+      // 自建 OPENING 阶段 bondRequired=true 项目（文件既有 prisma 直建惯用法）；
+      // 指派登录人为主持人——BidCompanyScopeGuard 对 portal=bid 的被指派人放行
+      const host = await prisma.user.findFirst({ where: { username: '陈源远', role: 'bid_host', isActive: true } });
+      const proj = await prisma.bidProject.create({
+        data: {
+          projectCode: `BID-BOND-${Date.now()}`, name: '保证金台账测试项目', stage: 'OPENING', procurementMethod: '公开招标',
+          openTime: new Date(Date.now() - 7200_000), deadline: new Date(Date.now() - 3600_000),
+          bondRequired: true, assignedHostUserId: host?.id ?? null,
+        },
+      });
+      projectId = proj.id;
+      // 名册内一家供应商（A-102 登记以投标名册为界）
+      await prisma.bidSupplier.create({
+        data: { projectId, supplierName, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.bidBondLedger.deleteMany({ where: { projectId } }).catch(() => {});
+      await prisma.bidSupplier.deleteMany({ where: { projectId } }).catch(() => {});
+      await prisma.bidSupervisionLog.deleteMany({ where: { projectId } }).catch(() => {});
+      await prisma.bidProject.delete({ where: { id: projectId } }).catch(() => {});
+    });
+
+    it('PUT 幂等登记（一家一条）+ GET 列表 + 名册外 400 + 错登删除留痕', async () => {
+      const body = { supplierName, amount: 500000, arrivedAt: new Date().toISOString(), account: '蜀水采专户(6228)', payMethod: '转账' };
+      const put = (payload: typeof body) => request(app.getHttpServer())
+        .put(`/api/bid/projects/${projectId}/bond-ledger`)
+        .set('Cookie', bidCookie).set('X-Portal', 'bid').send(payload);
+
+      await put(body).expect(200); // 首登
+      await put(body).expect(200); // 幂等重登（projectId+supplierName 同行 update）
+
+      const list = await request(app.getHttpServer())
+        .get(`/api/bid/projects/${projectId}/bond-ledger`)
+        .set('Cookie', bidCookie).set('X-Portal', 'bid').expect(200);
+      const rows = (list.body as any[]).filter((r) => r.supplierName === supplierName);
+      expect(rows).toHaveLength(1); // 一家一条，重登未增行
+      const ledgerId = rows[0].id;
+      expect(Number(rows[0].amount)).toBe(500000);
+
+      // 名册外供应商 → 400 SUPPLIER_NOT_IN_ROSTER
+      await put({ ...body, supplierName: '名册外测试公司' })
+        .expect(400)
+        .expect((res) => expect(res.body).toMatchObject({ code: 'SUPPLIER_NOT_IN_ROSTER' }));
+
+      // 错登纠正：删除成功 → 列表不再含该行；重复删同 id → 400 NOT_FOUND
+      await request(app.getHttpServer())
+        .delete(`/api/bid/projects/${projectId}/bond-ledger/${ledgerId}`)
+        .set('Cookie', bidCookie).set('X-Portal', 'bid')
+        .expect(200)
+        .expect((res) => expect(res.body).toMatchObject({ success: true }));
+      const after = await request(app.getHttpServer())
+        .get(`/api/bid/projects/${projectId}/bond-ledger`)
+        .set('Cookie', bidCookie).set('X-Portal', 'bid').expect(200);
+      expect((after.body as any[]).some((r) => r.supplierName === supplierName)).toBe(false);
+      await request(app.getHttpServer())
+        .delete(`/api/bid/projects/${projectId}/bond-ledger/${ledgerId}`)
+        .set('Cookie', bidCookie).set('X-Portal', 'bid')
+        .expect(400)
+        .expect((res) => expect(res.body).toMatchObject({ code: 'NOT_FOUND' }));
+
+      // 到账登记与错登删除均记监督日志（后者高风险）
+      const logs = await prisma.bidSupervisionLog.findMany({ where: { projectId, action: { in: ['保证金到账登记', '保证金到账台账删除'] } } });
+      expect(logs.some((l) => l.riskFlag === '无')).toBe(true);
+      expect(logs.some((l) => l.riskFlag === '高风险')).toBe(true);
+    });
+  });
+
   // ── 开标主持人指派与硬分流 (Task 3) ──
   describe('Bid host assignment (e2e)', () => {
   it('GET /bid/hosts 返回 bid_host 用户列表（leader 可访问）', async () => {

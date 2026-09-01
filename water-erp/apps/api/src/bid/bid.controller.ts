@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Request, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Req, Request, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BidService } from './bid.service';
+import { BondLedgerService } from './bond-ledger.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -34,6 +35,7 @@ import { BidCompanyScopeGuard } from './bid-company-scope.guard';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
+import { UpsertBondLedgerDto } from './dto/bond-ledger.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -45,6 +47,7 @@ export class BidController {
     private readonly bidService: BidService,
     private readonly scorePointExtractor: ScorePointExtractorService,
     private readonly bidBackup: BidBackupService,
+    private readonly bondLedger: BondLedgerService,
   ) {}
 
   @Get('dashboard-stats')
@@ -131,6 +134,23 @@ export class BidController {
   markBondReturned(@Param('id') id: string, @Body() dto: { returned: boolean; reason?: string }) {
     return this.bidService.markBondReturned(id, dto);
   }
+
+  @Get('projects/:id/bond-ledger')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'A-102: 保证金到账台账列表' })
+  listBondLedger(@Param('id') id: string) { return this.bondLedger.list(id); }
+
+  @Put('projects/:id/bond-ledger')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'A-102: 登记保证金到账（缴纳人/金额/到账时间/账户/支付形式；一家一条幂等，记监督日志）' })
+  upsertBondLedger(@Param('id') id: string, @Body() dto: UpsertBondLedgerDto, @CurrentUser('sub') actorId: string) {
+    return this.bondLedger.upsert(id, dto, actorId);
+  }
+
+  @Delete('projects/:id/bond-ledger/:ledgerId')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'A-102: 删除错登的到账记录（高风险留痕）' })
+  removeBondLedger(@Param('id') id: string, @Param('ledgerId') ledgerId: string) { return this.bondLedger.remove(id, ledgerId); }
 
   @Post('projects/:id/qualification-review')
   @Roles('admin', 'bid_host', 'leader', 'staff')
