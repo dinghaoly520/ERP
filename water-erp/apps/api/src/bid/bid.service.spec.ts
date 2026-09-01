@@ -3525,6 +3525,7 @@ describe('BidService — getOpeningRecordDraft', () => {
       bidSupplier: { findFirst: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn() },
       bidOpeningRecord: { findFirst: jest.fn() },
+      bidBondLedger: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -3543,7 +3544,7 @@ describe('BidService — getOpeningRecordDraft', () => {
   });
 
   it('OPENING 阶段且解密成功 → 返回预填数据', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true, bondAmount: null, deadline: new Date('2026-08-01T17:00:00+08:00') });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
     prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: '980000', deliveryPeriod: '180天', bidBondAssetId: 'fa-1' });
     prisma.bidOpeningRecord.findFirst.mockResolvedValue({ bondStatus: '已缴纳' });
@@ -3557,11 +3558,13 @@ describe('BidService — getOpeningRecordDraft', () => {
       bondStatus: '已缴纳',
       bidBondAssetId: 'fa-1',
       bondNotApplicable: false,
+      // A-104：bondRequired + 无台账 → LEDGER_MISSING（凭证 fa-1 在场，凭证维不计）
+      bondCompliance: { issues: [{ field: 'LEDGER_MISSING', message: '未登记到账台账' }] },
     });
   });
 
   it('供应商投递了质量承诺 → qualityTarget 优先取供应商承诺（回退项目 qualityRequirement）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true, bondAmount: null, deadline: new Date('2026-08-01T17:00:00+08:00') });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
     prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: '980000', deliveryPeriod: '180天', bidBondAssetId: null, qualityCommitment: '供应商承诺：一次验收合格' });
     prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
@@ -3624,7 +3627,7 @@ describe('BidService — getOpeningRecordDraft', () => {
   });
 
   it('dual-v2：保证金凭证链接改指 decryptedAssets.bond 明文资产（C_outer 密文拒下载）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true, bondAmount: null, deadline: new Date('2026-08-01T17:00:00+08:00') });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
     prisma.supplierBidSubmission.findUnique.mockResolvedValue({
       bidPrice: null, deliveryPeriod: '180天', bidBondAssetId: 'fa-outer-bond',
@@ -3638,7 +3641,7 @@ describe('BidService — getOpeningRecordDraft', () => {
   });
 
   it('dual-v2：amount 改指 decryptedPrice（新轨 bidPrice 列恒 null——读旧列草稿价≠最终价，主持人按面板录入必撞 409 PRICE_MISMATCH）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true, bondAmount: null, deadline: new Date('2026-08-01T17:00:00+08:00') });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
     prisma.supplierBidSubmission.findUnique.mockResolvedValue({
       bidPrice: null, decryptedPrice: '1234567.89', deliveryPeriod: '180天', bidBondAssetId: 'fa-1',
@@ -3663,6 +3666,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidBondLedger: { findMany: jest.fn().mockResolvedValue([]) }, // A-104：软标记台账比对（默认无台账行）
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
@@ -3699,6 +3703,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
   it('bondRequired 且某供应商保证金未达标 → 写高风险监督日志，但仍纳入排名', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({
       id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: true, leaderCoSigned: true,
+      bondAmount: 200000, deadline: new Date('2026-08-01T17:00:00+08:00'),
       experts: [{ reportConfirmed: true }],
       suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
     });
@@ -3720,6 +3725,36 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       (c: any[]) => c[0].data.riskFlag === '高风险' && String(c[0].data.action).includes('保证金'),
     );
     expect(flagged).toBeTruthy();
+  });
+
+  it('A-104：唱标状态合格但台账比对有出入（金额不足）→ 同样软标记，日志附台账比对结论', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: true, leaderCoSigned: true,
+      bondAmount: 200000, deadline: new Date('2026-08-01T17:00:00+08:00'),
+      experts: [{ reportConfirmed: true }],
+      suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
+    });
+    prisma.bidOpeningRecord.findMany.mockResolvedValue([{ bidSupplierId: 's1', bondStatus: '已缴纳' }]);
+    prisma.bidBondLedger.findMany.mockResolvedValue([{ supplierName: '甲', amount: 100000, arrivedAt: new Date('2026-08-01T08:00:00+08:00'), payMethod: '转账' }]);
+    const txLogCreate = jest.fn();
+    prisma.$transaction.mockImplementation(async (cb: any) => cb({
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: 'X' }) },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
+      bidSupervisionLog: { create: txLogCreate },
+      bidSupplier: { update: jest.fn() },
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      $queryRaw: jest.fn().mockResolvedValue(undefined),
+    }));
+
+    await service.generateEvaluationResults('p1', 'actor1');
+
+    const flagged = txLogCreate.mock.calls.find(
+      (c: any[]) => c[0].data.riskFlag === '高风险' && String(c[0].data.action).includes('保证金'),
+    );
+    expect(flagged).toBeTruthy();
+    expect(String(flagged![0].data.result)).toContain('台账比对');
+    expect(String(flagged![0].data.result)).toContain('不足要求 200000');
   });
 
   it('bondRequired=false → 不写保证金监督日志', async () => {
@@ -4701,6 +4736,7 @@ describe('generateEvaluationResults expertRole filter', () => {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidBondLedger: { findMany: jest.fn().mockResolvedValue([]) }, // A-104：软标记台账比对（默认无台账行）
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
@@ -4767,6 +4803,7 @@ describe('generateEvaluationResults expertRole filter', () => {
       ]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidBondLedger: { findMany: jest.fn().mockResolvedValue([]) }, // A-104：软标记台账比对（默认无台账行）
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },

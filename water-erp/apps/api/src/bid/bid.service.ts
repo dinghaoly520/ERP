@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { GB_ARCHIVE_CATEGORIES } from '@water-erp/shared';
+import { GB_ARCHIVE_CATEGORIES, evaluateBondCompliance } from '@water-erp/shared';
 import { buildArchiveTemplate } from './archive-template';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
 import { PrismaService } from '../prisma/prisma.service';
@@ -3773,14 +3773,14 @@ export class BidService {
   async getOpeningRecordDraft(projectId: string, bidSupplierId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, qualityRequirement: true, bondRequired: true },
+      select: { stage: true, qualityRequirement: true, bondRequired: true, bondAmount: true, deadline: true },
     });
-    const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null, bondNotApplicable: false };
+    const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null, bondNotApplicable: false, bondCompliance: null };
     if (!project || project.stage !== 'OPENING') return { ...empty, qualityTarget: project?.qualityRequirement ?? null };
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
       where: { id: bidSupplierId, projectId },
-      select: { id: true, decryptStatus: true, supplierId: true },
+      select: { id: true, decryptStatus: true, supplierId: true, supplierName: true },
     });
     if (!bidSupplier || bidSupplier.decryptStatus !== 'SUCCESS') return empty;
 
@@ -3801,6 +3801,13 @@ export class BidService {
       ? ((submission.decryptedAssets as Record<string, unknown>)['bond'] as string | undefined) ?? null
       : (submission?.bidBondAssetId ?? null);
 
+    // A-104：到账台账按（projectId, supplierName 名册自然键）取唯一行，无台账=「未登记到账台账」
+    const ledger = project.bondRequired
+      ? await this.prisma.bidBondLedger.findUnique({
+          where: { projectId_supplierName: { projectId, supplierName: bidSupplier.supplierName } },
+        })
+      : null;
+
     return {
       canView: true,
       // bidPrice 入库已密封；此处 canView=true 已保证 decryptStatus==='SUCCESS'，安全拆封。
@@ -3817,6 +3824,20 @@ export class BidService {
       bondStatus: existingRecord?.bondStatus ?? null,
       bidBondAssetId: bondAssetId,
       bondNotApplicable: !project.bondRequired,
+      // A-104：保证金符合性自动比对（台账 × bondAmount/截标 × 唱标录入状态）——只提示不裁决
+      bondCompliance: (() => {
+        if (!project.bondRequired) return null;
+        return { issues: evaluateBondCompliance({
+          hasLedger: !!ledger,
+          hasVoucher: !!bondAssetId, // A-104 凭证维：唱标预填上下文内核（bondAssetId 已在上方解析）
+          amount: ledger ? Number(ledger.amount) : null,
+          arrivedAt: ledger?.arrivedAt?.toISOString() ?? null,
+          payMethod: ledger?.payMethod ?? null,
+          requiredAmount: project.bondAmount != null ? Number(project.bondAmount) : null,
+          deadline: project.deadline.toISOString(),
+          bondStatus: existingRecord?.bondStatus ?? null,
+        }) };
+      })(),
     };
   }
 
@@ -4300,17 +4321,31 @@ export class BidService {
     );
 
     // 保证金软标记：bondRequired 时查各供应商 bondStatus，异常者写监督日志（不排除，由评标委员会定）
-    const bondFlagged: { supplierName: string; bondStatus: string }[] = [];
+    // A-104：叠加到账台账自动比对（金额/到账/支付形式/台账缺），flagged 项附 reasons 供日志展开
+    const bondFlagged: { supplierName: string; bondStatus: string; reasons: string[] }[] = [];
     if (project.bondRequired) {
       const openingRecords = await this.prisma.bidOpeningRecord.findMany({
         where: { projectId },
         select: { bidSupplierId: true, bondStatus: true, supplierName: true },
       });
       const bondBySupplier = new Map(openingRecords.map(r => [r.bidSupplierId, r.bondStatus]));
+      const ledgers = await this.prisma.bidBondLedger.findMany({ where: { projectId } });
+      const ledgerBySupplier = new Map(ledgers.map(l => [l.supplierName, l]));
       for (const s of activeSuppliers) {
         const status = bondBySupplier.get(s.id);
+        const ledger = ledgerBySupplier.get(s.supplierName) ?? null;
+        // hasVoucher 不传（undefined → 凭证维跳过）：凭证核验在唱标预填上下文，评标此处无凭证数据
+        const reasons = evaluateBondCompliance({
+          hasLedger: !!ledger, amount: ledger ? Number(ledger.amount) : null,
+          arrivedAt: ledger?.arrivedAt?.toISOString() ?? null, payMethod: ledger?.payMethod ?? null,
+          requiredAmount: project.bondAmount != null ? Number(project.bondAmount) : null,
+          deadline: project.deadline.toISOString(), bondStatus: status ?? null,
+        }).map(i => i.message);
         if (!isBondQualified(status)) {
-          bondFlagged.push({ supplierName: s.supplierName, bondStatus: status || '未核对' });
+          bondFlagged.push({ supplierName: s.supplierName, bondStatus: status || '未核对', reasons });
+        } else if (reasons.length > 0) {
+          // A-104：唱标状态合格但台账比对有出入（金额不足/到账晚/形式不一致/未登记）——同样软标记供审查
+          bondFlagged.push({ supplierName: s.supplierName, bondStatus: status!, reasons });
         }
       }
     }
@@ -4574,7 +4609,7 @@ export class BidService {
         await tx.bidSupervisionLog.create({
           data: {
             projectId, time: new Date(), role: '系统', target: f.supplierName,
-            action: '保证金异常标记', result: `保证金状态：${f.bondStatus}（未达标，供评标委员会审查）`, riskFlag: '高风险',
+            action: '保证金异常标记', result: `保证金状态：${f.bondStatus}（未达标，供评标委员会审查${f.reasons?.length ? `；台账比对：${f.reasons.join('；')}` : ''}）`, riskFlag: '高风险',
           },
         });
       }

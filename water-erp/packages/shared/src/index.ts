@@ -5,6 +5,7 @@ export * from './workbench';
 
 export * from './bid-events';
 export * from './bid-bond-status';
+export * from './bond-compliance';
 export * from './opening-session-status';
 export * from './announcement-constants';
 export * from './procurement-archive';
