@@ -20,7 +20,7 @@ export class StartOpeningDto {
   @IsOptional() @IsISO8601()
   decryptWindowEnd?: string;
 
-  /** E4: 强制开标——跳过 checklist 阻断检查（写入高风险监督日志） */
+  /** E4: 强制开标——仅可跳过管理性阻断（如专家未分配，高风险留痕）；有效投标家数不足为法定硬闸不可强制（记「强制开标被拒」日志并拒绝） */
   @IsOptional() @IsBoolean()
   force?: boolean;
 }

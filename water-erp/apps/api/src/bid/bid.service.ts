@@ -1526,22 +1526,31 @@ export class BidService {
       const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
       // N4d：家数口径 = 已提交——候选池行数（受邀未投递）不再计入，与 startEvaluation 有效投标口径对齐
       const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id, submitStatus: '已提交' } });
-      const blocking: string[] = [];
-      if (expertCount === 0) blocking.push('尚有专家未分配');
-      if (supplierCount < this.getMinBidders(project.procurementMethod)) blocking.push(`有效投标（已提交）仅 ${supplierCount} 家(法定最少 ${this.getMinBidders(project.procurementMethod)} 家，${project.procurementMethod ?? '未知方式'})`);
-      if (blocking.length > 0) {
-        if (dto?.force) {
-          await this.prisma.bidSupervisionLog.create({
-            data: { projectId: id, time: new Date(), role: '系统', target: project.name,
-              action: '强制开标(忽略checklist)', result: blocking.join('; '), riskFlag: '高风险' },
-          }).catch(() => {});
-        } else {
-          throw new BadRequestException({
-            error: `开标准备未完成：${blocking.join('；')}`,
-            code: 'OPENING_CHECKLIST_FAILED',
-            items: blocking,
-          });
-        }
+      // A-109b：法定硬闸（家数不足 force 不可绕过）与管理性软闸（force 可绕过+高风险留痕）分区
+      const hardBlocking: string[] = [];
+      const softBlocking: string[] = [];
+      if (supplierCount < this.getMinBidders(project.procurementMethod)) {
+        hardBlocking.push(`有效投标（已提交）仅 ${supplierCount} 家(法定最少 ${this.getMinBidders(project.procurementMethod)} 家，${project.procurementMethod ?? '未知方式'})`);
+      }
+      if (expertCount === 0) softBlocking.push('尚有专家未分配');
+      if (dto?.force && hardBlocking.length > 0) {
+        await this.prisma.bidSupervisionLog.create({
+          data: { projectId: id, time: new Date(), role: '系统', target: project.name,
+            action: '强制开标被拒（法定家数不足）', result: hardBlocking.join('; '), riskFlag: '高风险' },
+        }).catch(() => {});
+      }
+      if (hardBlocking.length > 0 || (softBlocking.length > 0 && !dto?.force)) {
+        throw new BadRequestException({
+          error: `开标准备未完成：${[...hardBlocking, ...softBlocking].join('；')}${hardBlocking.length > 0 ? '（有效投标家数不足为法定硬性条件，不可强制开标——请流标或调整采购方式后重新组织）' : ''}`,
+          code: 'OPENING_CHECKLIST_FAILED',
+          items: [...hardBlocking, ...softBlocking],
+        });
+      }
+      if (softBlocking.length > 0 && dto?.force) {
+        await this.prisma.bidSupervisionLog.create({
+          data: { projectId: id, time: new Date(), role: '系统', target: project.name,
+            action: '强制开标(忽略checklist)', result: softBlocking.join('; '), riskFlag: '高风险' },
+        }).catch(() => {});
       }
     }
 

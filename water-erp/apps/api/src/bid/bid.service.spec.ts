@@ -440,6 +440,42 @@ describe('BidService — stage transitions', () => {
       const result = await service.startOpening('p1', {}, 'u1');
       expect(result.stage).toBe('OPENING');
     });
+
+    it('A-109b：force 也不可绕过法定家数不足——仍 OPENING_CHECKLIST_FAILED + 记「强制开标被拒」', async () => {
+      const past = new Date(Date.now() - 3600_000);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', deadline: past, projectManagementItemId: null, round: 1, assignedHostUserId: 'u1', procurementMethod: '公开招标' });
+      prisma.bidExpert.count.mockResolvedValue(3);
+      // 口径区分：候选池 3 行（受邀未投递也算），其中已提交仅 1 家（公开招标法定最少 3 家）
+      prisma.bidSupplier.count.mockImplementation(async (args: any) =>
+        args?.where?.submitStatus === '已提交' ? 1 : 3);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await expect((service as any).startOpeningInternal('p1', { force: true } as any, 'u1'))
+        .rejects.toMatchObject({ response: { code: 'OPENING_CHECKLIST_FAILED' } });
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: '强制开标被拒（法定家数不足）', riskFlag: '高风险' }),
+      }));
+    });
+
+    it('A-109b：force 跳过软闸（专家 0 + 已提交 3 家）——放行且保留原「强制开标(忽略checklist)」日志', async () => {
+      const past = new Date(Date.now() - 3600_000);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', deadline: past, projectManagementItemId: null, round: 1, assignedHostUserId: 'u1', procurementMethod: '公开招标' });
+      prisma.bidExpert.count.mockResolvedValue(0);
+      prisma.bidSupplier.count.mockImplementation(async (args: any) =>
+        args?.where?.submitStatus === '已提交' ? 3 : 3);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await (service as any).startOpeningInternal('p1', {
+        force: true, host: '甲',
+        decryptWindowStart: '2026-06-16T10:00:00.000Z', decryptWindowEnd: '2026-06-16T10:30:00.000Z',
+      } as any, 'u1');
+
+      expect(result).toBeDefined();
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: '强制开标(忽略checklist)' }),
+      }));
+    });
   });
 
   describe('abortBidProject — N4c 有官方结果须书面理由', () => {
