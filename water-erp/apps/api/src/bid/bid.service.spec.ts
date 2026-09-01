@@ -6400,12 +6400,14 @@ describe('P1-2/P1-4 — 旧轨解密归因与时间修改留痕', () => {
   });
 
   it('P1-4：actorId 缺省 → 有监督日志、无审计日志', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({
-      openTime: new Date('2026-09-01T10:00:00Z'), deadline: new Date('2026-08-31T10:00:00Z'), stage: 'DOWNLOAD',
-    });
+    // 墙钟无关：prev.deadline 须在未来，否则 modeFor 判 frozen、改 deadline 触发 DEADLINE_FROZEN
+    const openTime = new Date(Date.now() + 7 * 24 * 3600 * 1000); // 开标：now+7d
+    const prevDeadline = new Date(Date.now() + 6 * 24 * 3600 * 1000); // 原截标：now+6d（开标前 24h）
+    const newDeadline = new Date(Date.now() + 5 * 24 * 3600 * 1000); // 新截标：now+5d（仍 ≥ 开标前 24h）
+    prisma.bidProject.findUnique.mockResolvedValue({ openTime, deadline: prevDeadline, stage: 'DOWNLOAD' });
     prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
 
-    await svc.updateProject('p1', { deadline: '2026-08-30T10:00:00Z' } as any);
+    await svc.updateProject('p1', { deadline: newDeadline.toISOString() } as any);
 
     expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
