@@ -109,6 +109,8 @@ describe('SupplierPortalService', () => {
         update: jest.fn(),
         updateMany: jest.fn(),
         create: jest.fn(),
+        // A-109a 签到 quorum 闸门（getOpeningPackage/decryptUpload）默认放行：已签到且已递交 3 家
+        count: jest.fn().mockResolvedValue(3),
       },
       bidOpeningRecord: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
       bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
@@ -2232,6 +2234,16 @@ describe('SupplierPortalService', () => {
       await expect(service.getOpeningPackage('supplier-1', 'project-1')).rejects.toMatchObject({
         response: { code: 'NOT_PROJECT_MEMBER' },
       });
+    });
+
+    it('opening-package：A-109a 签到 quorum 不足（公开招标已签到 2/3）→ 400 INSUFFICIENT_CHECKIN，不发解密包', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'OPENING', name: '英雄项目', procurementMethod: '公开招标' });
+      prisma.bidSupplier.count.mockResolvedValue(2);
+      await expect(service.getOpeningPackage('supplier-1', 'project-1')).rejects.toMatchObject({
+        response: { code: 'INSUFFICIENT_CHECKIN' },
+      });
+      // 取包归因锚点不写（未进入包组装）
+      expect(prisma.supplierBidSubmission.updateMany).not.toHaveBeenCalled();
     });
 
     it('decrypt-upload：双闸通过 → 明文资产（bid_decrypted）+ decryptedAssets/decryptedPrice + 开标记录预填 + WS SUCCESS', async () => {

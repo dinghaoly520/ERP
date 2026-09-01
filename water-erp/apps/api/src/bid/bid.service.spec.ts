@@ -726,6 +726,8 @@ describe('BidService — stage transitions', () => {
       });
       // Default: project is in OPENING stage (decryptSupplier 阶段门控)
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      // A-109a 签到 quorum 闸门默认放行（已签到且已递交 3 家 ≥ 法定 3）
+      prisma.bidSupplier.count.mockResolvedValue(3);
     });
 
     it('succeeds deterministically by default', async () => {
@@ -973,6 +975,17 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ result: expect.stringContaining('180天') }),
       }));
+    });
+
+    it('A-109a：签到 quorum 不足（公开招标已签到 2/3）→ 400 INSUFFICIENT_CHECKIN，不抢占', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '英雄项目', procurementMethod: '公开招标' });
+      prisma.bidSupplier.count.mockResolvedValue(2);
+      await expect(service.decryptSupplier('p1', 'bs-1', {} as any)).rejects.toMatchObject({
+        response: { code: 'INSUFFICIENT_CHECKIN' },
+      });
+      // 门控置于 phase-① 抢占之前：不写 RUNNING 楔
+      expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
     });
   });
 
@@ -2170,6 +2183,7 @@ describe('BidService — stage transitions', () => {
           update: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
           findUnique: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
+          count: jest.fn(async () => 3), // A-109a 签到 quorum 闸门默认放行
         },
         bidOpeningRecord: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), update: jest.fn() },
         bidSupervisionLog: { create: logCreate },
@@ -2334,6 +2348,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
           confirmStatus: 'PENDING',
         })),
         findUnique: jest.fn(async () => ({ id: 'bs1', supplierName: 'S1', decryptStatus: 'SUCCESS' })),
+        count: jest.fn(async () => 3), // A-109a 签到 quorum 闸门默认放行
       },
       bidOpeningRecord: { create: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
@@ -5793,6 +5808,7 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
       },
       bidSupplier: {
         findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierId: 's1', supplierName: '四川水发建设有限公司' }),
+        count: jest.fn().mockResolvedValue(3), // A-109a 签到 quorum 闸门默认放行
       },
       supplierBidSubmission: {
         findMany: jest.fn(),
@@ -6346,7 +6362,7 @@ describe('P1-2/P1-4 — 旧轨解密归因与时间修改留痕', () => {
     tx = makeCatchAll();
     prisma = {
       bidProject: { findUnique: jest.fn(), update: jest.fn() },
-      bidSupplier: { findFirst: jest.fn(), updateMany: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), updateMany: jest.fn(), count: jest.fn().mockResolvedValue(3) }, // A-109a quorum 闸门默认放行
       bidOpeningSession: { findUnique: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn() },
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-sup', name: '甲' }) },

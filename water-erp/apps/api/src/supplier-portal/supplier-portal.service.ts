@@ -24,6 +24,7 @@ import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bi
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan, resolveDisplayInYuan } from '../bid/opening-compare.util';
+import { assertDecryptCheckInQuorum } from '../bid/decrypt-quorum.util';
 import { LlmService } from '../local-ai/llm.service';
 import * as crypto from 'crypto';
 
@@ -1734,6 +1735,9 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
     }
 
+    // ── A-109a 签到 quorum 闸门（窗口校验后）：已签到且已递交不足法定家数 → 禁止进入解密 ──
+    await assertDecryptCheckInQuorum(this.prisma, projectId);
+
     const submission = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },
     });
@@ -1830,6 +1834,9 @@ export class SupplierPortalService {
     if (now > session.decryptWindowEnd) {
       throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
     }
+
+    // ── A-109a 签到 quorum 闸门（窗口校验后）：已签到且已递交不足法定家数 → 禁止进入解密 ──
+    await assertDecryptCheckInQuorum(this.prisma, projectId);
 
     const submission = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },

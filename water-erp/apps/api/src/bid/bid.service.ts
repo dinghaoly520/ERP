@@ -23,6 +23,7 @@ import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertMinAcceptedInvitees } from './bid-timing-rules';
+import { assertDecryptCheckInQuorum, getMinBiddersForMethod } from './decrypt-quorum.util';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
@@ -1460,10 +1461,9 @@ export class BidService {
 
   /** 按采购方式返回法定最少投标家数。消费方：开标 checklist + 启动评标 */
   private getMinBidders(procurementMethod: string | null): number {
-    if (procurementMethod === '直接采购') return 1;
     // 谈判采购与其余方式（邀请招标/询比采购等）同为 3 家
     // （《采购管理办法》：谈判/询比应邀请不少于3家，与 stage-compliance-rules 供应商邀请检查同口径）
-    return 3;
+    return getMinBiddersForMethod(procurementMethod);
   }
 
   /**
@@ -2561,6 +2561,9 @@ export class BidService {
       // null 不在此跳过——那是并发进行中或崩溃残留的楔，交给下方 ① 抢占 + 60s 陈旧接管判定
       return { supplierId: bidSupplierId, supplierName, skipped: true };
     }
+    // ── A-109a 签到 quorum 闸门：置于快路径 skip 之后（幂等重解不被 quorum 拦）；
+    //    批量路径单家抛错由 decryptOuter 逐家 catch 转明细，不阻塞其余家 ──
+    await assertDecryptCheckInQuorum(this.prisma, projectId);
     const envelope = (submission.envelope ?? null) as DualEnvelope | null;
     const roles = (Object.entries(envelope?.files ?? {}) as Array<[EnvelopeRole, EnvelopeFileEntry]>)
       .filter(([, entry]) => !!entry);
@@ -2790,6 +2793,9 @@ export class BidService {
     if (now > session.decryptWindowEnd) {
       throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
     }
+
+    // ── A-109a 签到 quorum 闸门（窗口校验后）：已签到且已递交不足法定家数 → 禁止进入解密 ──
+    await assertDecryptCheckInQuorum(this.prisma, projectId);
 
     // ── Task 16 旧轨收窄：dual-v2 家走供应商解密（supplier-portal 新轨），旧轨端点 400 ──
     // 只读门控必须置于 phase-① 原子抢占之前：抢占成功后再 400 会留 RUNNING 楔（60s 接管才可重试）。
