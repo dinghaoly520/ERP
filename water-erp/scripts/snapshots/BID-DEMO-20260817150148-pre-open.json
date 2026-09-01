@@ -295,7 +295,7 @@
         "supplierId": "cmqc8r6jy01jhkoekd0lrcnh6",
         "decryptError": null,
         "bidValidity": null,
-        "checkInAt": null,
+        "checkInAt": "2026-08-18T03:00:35.096Z",
         "checkInMeta": null,
         "lastSeenAt": null,
         "lastDownloadAt": null
@@ -315,7 +315,7 @@
         "supplierId": "cmqc8r6kc01k5koeknr6zdv0r",
         "decryptError": null,
         "bidValidity": null,
-        "checkInAt": null,
+        "checkInAt": "2026-08-18T03:01:05.096Z",
         "checkInMeta": null,
         "lastSeenAt": null,
         "lastDownloadAt": null
@@ -335,7 +335,7 @@
         "supplierId": "cmqc8r6ka01k2koekckl6mvxb",
         "decryptError": null,
         "bidValidity": null,
-        "checkInAt": null,
+        "checkInAt": "2026-08-18T03:01:35.096Z",
         "checkInMeta": "{\"ip\":\"::ffff:127.0.0.1\",\"ua\":\"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"}",
         "lastSeenAt": null,
         "lastDownloadAt": null

@@ -529,9 +529,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const handleUpsertBondLedger = async () => {
     if (!projectId || bondLedgerSubmitting) return;
     const { supplierName, amount, arrivedAt, account, payMethod, note } = bondLedgerForm;
-    // 前端守卫：金额必填且 ≥ 0（后端 DTO 缺 @IsPositive 属已知遗留缺口，以此兜底）
-    if (!supplierName || !arrivedAt || !account.trim() || !payMethod || amount === '' || Number.isNaN(Number(amount)) || Number(amount) < 0) {
-      toast.error('请完整填写到账信息（金额须为不小于 0 的数字）');
+    // 前端守卫：金额必填且 > 0、≤999999999999.99（与后端 DTO @IsPositive/@Max(1e12) 对齐）
+    if (!supplierName || !arrivedAt || !account.trim() || !payMethod || amount === '' || Number.isNaN(Number(amount)) || Number(amount) <= 0 || Number(amount) > 999999999999.99) {
+      toast.error('请完整填写到账信息（金额须为大于 0 的数字，上限 999999999999.99）');
       return;
     }
     setBondLedgerSubmitting(true);
@@ -1105,7 +1105,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             </label>
             <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
               金额（元）
-              <input type="number" min={0} step="0.01" value={bondLedgerForm.amount}
+              <input type="number" min="0.01" max="999999999999.99" step="0.01" value={bondLedgerForm.amount}
                 onChange={e => setBondLedgerForm(f => ({ ...f, amount: e.target.value }))}
                 className="neu-input mt-1 w-full font-mono" placeholder="如 500000" />
             </label>

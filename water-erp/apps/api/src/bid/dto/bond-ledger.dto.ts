@@ -1,11 +1,14 @@
-import { IsIn, IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Max, MaxLength } from 'class-validator';
 
 /** A-102：保证金到账台账登记（一家一条，projectId+supplierName 幂等 upsert） */
 export class UpsertBondLedgerDto {
   @IsString() @IsNotEmpty() @MaxLength(200)
   supplierName!: string;
 
+  /** 金额必须为正（法定收据台账 0/负数无意义）；≤1e12 护住 Decimal(14,2) 容量（溢出会变 Prisma 500） */
   @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Max(1e12)
   amount!: number;
 
   @IsISO8601()

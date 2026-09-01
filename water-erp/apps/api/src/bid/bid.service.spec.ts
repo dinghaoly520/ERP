@@ -3725,6 +3725,8 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       (c: any[]) => c[0].data.riskFlag === '高风险' && String(c[0].data.action).includes('保证金'),
     );
     expect(flagged).toBeTruthy();
+    // 不合格分支措辞保持「未达标」
+    expect(String(flagged![0].data.result)).toContain('未达标');
   });
 
   it('A-104：唱标状态合格但台账比对有出入（金额不足）→ 同样软标记，日志附台账比对结论', async () => {
@@ -3755,6 +3757,9 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     expect(flagged).toBeTruthy();
     expect(String(flagged![0].data.result)).toContain('台账比对');
     expect(String(flagged![0].data.result)).toContain('不足要求 200000');
+    // 终审收口：合格分支措辞=「台账比对有出入」，不得误标「未达标」
+    expect(String(flagged![0].data.result)).toContain('台账比对有出入');
+    expect(String(flagged![0].data.result)).not.toContain('未达标');
   });
 
   it('bondRequired=false → 不写保证金监督日志', async () => {

@@ -4606,10 +4606,12 @@ export class BidService {
         },
       });
       for (const f of bondFlagged) {
+        // 措辞按分支：状态不合格=「未达标」；A-104 第三分支（状态合格但台账比对有出入）不得误标未达标
+        const verdict = isBondQualified(f.bondStatus) ? '台账比对有出入，供评标委员会审查' : '未达标，供评标委员会审查';
         await tx.bidSupervisionLog.create({
           data: {
             projectId, time: new Date(), role: '系统', target: f.supplierName,
-            action: '保证金异常标记', result: `保证金状态：${f.bondStatus}（未达标，供评标委员会审查${f.reasons?.length ? `；台账比对：${f.reasons.join('；')}` : ''}）`, riskFlag: '高风险',
+            action: '保证金异常标记', result: `保证金状态：${f.bondStatus}（${verdict}${f.reasons?.length ? `；台账比对：${f.reasons.join('；')}` : ''}）`, riskFlag: '高风险',
           },
         });
       }
