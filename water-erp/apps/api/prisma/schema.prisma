@@ -383,6 +383,7 @@ model BidProject {
   motions                  BidMotion[]
   expertDisputes           ExpertDispute[]
   supervisionPushLogs      SupervisionPushLog[]
+  bondLedgers              BidBondLedger[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
   bidSignPacket            BidSignPacket?
@@ -437,6 +438,7 @@ model BidSupplier {
   checkInMeta           String? // 签到环境 JSON 快照：IP / User-Agent（存证）
   lastSeenAt            DateTime? // 大厅在场心跳（节流写入）
   dangerAttribution     String? // BIDDER | PLATFORM | UNKNOWN
+  decryptedAt           DateTime? // A-111：解密成功时间（终局事务写入；重置解密时清空）
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -3576,4 +3578,22 @@ model SupervisionPushLog {
   project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, payloadType])
+}
+
+/// A-102：保证金到账台账（资金级登记——缴纳人/金额/到账时间/收款账户/支付形式；一家一条幂等）
+model BidBondLedger {
+  id           String    @id @default(cuid())
+  projectId    String
+  project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplierName String    // 与 BidSupplier.supplierName 同口径（名册自然键）
+  amount       Decimal   @db.Decimal(14, 2)
+  arrivedAt    DateTime  // 银行到账时间
+  account      String    // 收款账户（户名/尾号）
+  payMethod    String    // 支付形式：转账/保函/支票/其他
+  note         String?
+  createdBy    String?
+  createdAt    DateTime  @default(now())
+
+  @@unique([projectId, supplierName])
+  @@index([projectId, arrivedAt])
 }
