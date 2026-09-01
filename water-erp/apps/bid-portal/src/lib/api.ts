@@ -14,6 +14,7 @@ const client = createApiClient({ portal: 'bid' });
 export const api = {
   get: <T>(path: string, init?: RequestInit) => client.get<T>(path, init),
   post: <T>(path: string, body: unknown, options?: RequestInit) => client.post<T>(path, body, options),
+  put: <T>(path: string, body: unknown) => client.put<T>(path, body),
   patch: <T>(path: string, body: unknown) => client.patch<T>(path, body),
   delete: <T>(path: string) => client.delete<T>(path),
   upload: <T>(path: string, formData: FormData) => client.postForm<T>(path, formData),

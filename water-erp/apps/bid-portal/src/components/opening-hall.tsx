@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail } from '@/lib/api';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
@@ -10,7 +10,7 @@ import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
   Volume2, Zap, Loader, FileText, RotateCcw, PencilLine, Lock, Gavel,
 } from 'lucide-react';
-import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus } from '@water-erp/shared';
+import { DECRYPT_LABEL, BOND_STATUS_OPTIONS, deriveOpeningSessionStatus, evaluateBondCompliance } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
@@ -113,7 +113,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [disputeSubmitting, setDisputeSubmitting] = useState(false); // M9：防双击 + 失败态按钮锁
   const [handingOver, setHandingOver] = useState(false); // T9：完成开标·移交按钮防双击
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string; reentry?: boolean } | null>(null);
-  const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
+  const [recordDraft, setRecordDraft] = useState<{
+    amount: string; period: string; qualityTarget: string; bondStatus: string;
+    /** A-104：到账台账比对结论（null=项目不要求保证金/早期守卫，不渲染提示） */
+    bondCompliance: { issues: { field: string; message: string }[] } | null;
+  }>({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null });
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
@@ -126,6 +130,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [bulkOuterDecrypting, setBulkOuterDecrypting] = useState(false);
   const [adjudgeTarget, setAdjudgeTarget] = useState<{ id: string; name: string; mode: AdjudgeMode } | null>(null);
   const [adjudgeSubmitting, setAdjudgeSubmitting] = useState(false);
+  // ═══ A-102/104：保证金到账台账（主持人面板；bondRequired 项目 OPENING 阶段）═══
+  const [bondLedger, setBondLedger] = useState<BondLedgerRow[]>([]);
+  const [bondLedgerLoading, setBondLedgerLoading] = useState(false);
+  const [bondLedgerError, setBondLedgerError] = useState<string | null>(null);
+  const [bondLedgerForm, setBondLedgerForm] = useState({ supplierName: '', amount: '', arrivedAt: '', account: '', payMethod: '', note: '' });
+  const [bondLedgerSubmitting, setBondLedgerSubmitting] = useState(false);
+  const [bondLedgerDeleting, setBondLedgerDeleting] = useState<Set<string>>(new Set());
 
   const handleReseal = async (supplierId: string) => {
     setResealing(prev => new Set(prev).add(supplierId));
@@ -442,7 +453,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const openRecordEntry = async (s: { id: string; supplierName: string }, reentry = false) => {
     if (!projectId) return;
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry });
-    setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
+    setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null });
     setBidBondAssetId(null);
     setRecordEntryLoading(true);
     try {
@@ -453,6 +464,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           period: draft.period ?? '',
           qualityTarget: draft.qualityTarget ?? '',
           bondStatus: draft.bondStatus ?? (draft.bondNotApplicable ? '不适用' : ''),
+          bondCompliance: draft.bondCompliance ?? null,
         });
         setBidBondAssetId(draft.bidBondAssetId ?? null);
       }
@@ -489,6 +501,70 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         return;
       }
       toast.error(e?.message || '录入失败');
+    }
+  };
+
+  // ═══ A-102/104：保证金到账台账 ═══
+  const bondLedgerVisible = canHost && !!project.bondRequired && project.stage === 'OPENING';
+
+  const loadBondLedger = async () => {
+    if (!projectId) return;
+    setBondLedgerLoading(true);
+    setBondLedgerError(null);
+    try {
+      setBondLedger(await listBondLedger(projectId));
+    } catch (e: any) {
+      setBondLedgerError(e?.message || '加载失败');
+    } finally {
+      setBondLedgerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!bondLedgerVisible) return;
+    void loadBondLedger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, bondLedgerVisible]);
+
+  const handleUpsertBondLedger = async () => {
+    if (!projectId || bondLedgerSubmitting) return;
+    const { supplierName, amount, arrivedAt, account, payMethod, note } = bondLedgerForm;
+    // 前端守卫：金额必填且 ≥ 0（后端 DTO 缺 @IsPositive 属已知遗留缺口，以此兜底）
+    if (!supplierName || !arrivedAt || !account.trim() || !payMethod || amount === '' || Number.isNaN(Number(amount)) || Number(amount) < 0) {
+      toast.error('请完整填写到账信息（金额须为不小于 0 的数字）');
+      return;
+    }
+    setBondLedgerSubmitting(true);
+    try {
+      await upsertBondLedger(projectId, {
+        supplierName, amount: Number(amount), arrivedAt: new Date(arrivedAt).toISOString(),
+        account: account.trim(), payMethod, note: note.trim() || undefined,
+      });
+      toast.success(`已登记 ${supplierName} 保证金到账`);
+      // 同账户/支付形式连续登记多家时少敲一遍；缴纳人/金额/到账时间逐家清空
+      setBondLedgerForm(f => ({ ...f, supplierName: '', amount: '', arrivedAt: '', note: '' }));
+      await loadBondLedger();
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e?.message || '登记失败');
+    } finally {
+      setBondLedgerSubmitting(false);
+    }
+  };
+
+  const handleRemoveBondLedger = async (row: BondLedgerRow) => {
+    if (!projectId || bondLedgerDeleting.has(row.id)) return;
+    if (!window.confirm(`确认删除「${row.supplierName}」的到账记录？\n（仅限错登纠正，删除将记入监督日志高风险留痕）`)) return;
+    setBondLedgerDeleting(prev => new Set(prev).add(row.id));
+    try {
+      await removeBondLedger(projectId, row.id);
+      toast.success('已删除到账记录');
+      await loadBondLedger();
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e?.message || '删除失败');
+    } finally {
+      setBondLedgerDeleting(prev => { const n = new Set(prev); n.delete(row.id); return n; });
     }
   };
 
@@ -1004,6 +1080,139 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       </Card>
 
+      {/* ═══ A-102/104：保证金到账台账（主持人；bondRequired 项目 OPENING 阶段）═══ */}
+      {bondLedgerVisible && (
+      <Card>
+        <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-6 py-4">
+          <h2 className="text-sm font-bold text-[color:var(--foreground)]">保证金到账台账</h2>
+          <span className="text-[11px] text-[color:var(--muted-foreground)]">
+            {project.bondAmount != null ? `要求缴纳 ${Number(project.bondAmount).toLocaleString('zh-CN')} 元 · ` : '未设金额要求 · '}
+            截标 {project.deadline ? new Date(project.deadline).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—'} 前到账
+          </span>
+        </div>
+        {/* 登记表单（一家一条，重复登记按缴纳人覆盖更正） */}
+        <div className="border-b border-[oklch(0.6_0.04_258_/_0.12)] bg-[oklch(0.985_0.006_258_/_0.6)] px-6 py-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+            <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+              缴纳人
+              <select value={bondLedgerForm.supplierName}
+                onChange={e => setBondLedgerForm(f => ({ ...f, supplierName: e.target.value }))}
+                className="neu-select mt-1 w-full">
+                <option value="">— 选择已提交供应商 —</option>
+                {project.suppliers.filter(s => s.submitStatus === '已提交').map(s =>
+                  <option key={s.id} value={s.supplierName}>{s.supplierName}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+              金额（元）
+              <input type="number" min={0} step="0.01" value={bondLedgerForm.amount}
+                onChange={e => setBondLedgerForm(f => ({ ...f, amount: e.target.value }))}
+                className="neu-input mt-1 w-full font-mono" placeholder="如 500000" />
+            </label>
+            <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+              到账时间
+              <input type="datetime-local" value={bondLedgerForm.arrivedAt}
+                onChange={e => setBondLedgerForm(f => ({ ...f, arrivedAt: e.target.value }))}
+                className="neu-input mt-1 w-full" />
+            </label>
+            <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+              收款账户
+              <input value={bondLedgerForm.account}
+                onChange={e => setBondLedgerForm(f => ({ ...f, account: e.target.value }))}
+                className="neu-input mt-1 w-full" placeholder="户名/尾号" />
+            </label>
+            <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+              支付形式
+              <select value={bondLedgerForm.payMethod}
+                onChange={e => setBondLedgerForm(f => ({ ...f, payMethod: e.target.value }))}
+                className="neu-select mt-1 w-full">
+                <option value="">— 选择 —</option>
+                {['转账', '保函', '支票', '其他'].map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+              备注
+              <input value={bondLedgerForm.note}
+                onChange={e => setBondLedgerForm(f => ({ ...f, note: e.target.value }))}
+                className="neu-input mt-1 w-full" placeholder="选填" />
+            </label>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button type="button" onClick={() => void handleUpsertBondLedger()} disabled={bondLedgerSubmitting}
+              className="neu-btn-primary !h-[34px] text-xs disabled:opacity-50">
+              {bondLedgerSubmitting ? '登记中…' : '登记到账'}
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="neu-table is-dense w-full">
+            <thead>
+              <tr className="text-[color:var(--muted-foreground)]">
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">缴纳人</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">金额（元）</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">到账时间</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">收款账户</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">支付形式</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">备注</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">台账比对</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bondLedgerLoading ? (
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-[13px] text-[color:var(--muted-foreground)]">台账加载中…</td></tr>
+              ) : bondLedgerError ? (
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-[13px] text-[var(--danger)]">台账加载失败：{bondLedgerError}</td></tr>
+              ) : bondLedger.length === 0 ? (
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无到账登记——请在上方按银行到账回单登记</td></tr>
+              ) : bondLedger.map(row => {
+                // A-104 比对徽标（客户端同口径计算；hasVoucher 维不在台账上下文，跳过）
+                const bondIssues = evaluateBondCompliance({
+                  hasLedger: true,
+                  amount: Number(row.amount),
+                  arrivedAt: row.arrivedAt,
+                  payMethod: row.payMethod,
+                  requiredAmount: project.bondAmount != null ? Number(project.bondAmount) : null,
+                  deadline: project.deadline,
+                  bondStatus: project.openingRecords.find(r => r.supplierName === row.supplierName)?.bondStatus ?? null,
+                });
+                return (
+                  <tr key={row.id}>
+                    <td className="px-5 py-3 font-medium text-[color:var(--foreground)]">{row.supplierName}</td>
+                    <td className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{Number(row.amount).toLocaleString('zh-CN')}</td>
+                    <td className="px-5 py-3 font-mono text-[11px] tracking-tight text-[color:var(--muted-foreground)]">
+                      {new Date(row.arrivedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </td>
+                    <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{row.account}</td>
+                    <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{row.payMethod}</td>
+                    <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{row.note || '—'}</td>
+                    <td className="px-5 py-3">
+                      {bondIssues.length === 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.71_0.11_164_/_0.16)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]">
+                          <Shield size={10} strokeWidth={1.7} /> 台账相符
+                        </span>
+                      ) : (
+                        <span title={bondIssues.map(i => i.message).join('；')}
+                          className="inline-flex cursor-help items-center gap-1 rounded-full bg-[oklch(0.66_0.175_27_/_0.16)] px-2 py-0.5 text-[10px] font-semibold text-[var(--danger)]">
+                          <AlertTriangle size={10} strokeWidth={1.7} /> 不符
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <button type="button" onClick={() => void handleRemoveBondLedger(row)} disabled={bondLedgerDeleting.has(row.id)}
+                        className="neu-btn-soft is-danger !h-[26px] !px-2.5 !text-[11px] disabled:opacity-50">
+                        {bondLedgerDeleting.has(row.id) ? '删除中…' : '删除'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      )}
+
       {/* ═══ Opening records ═══ */}
       <Card>
         <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-6 py-4">
@@ -1171,6 +1380,16 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   <option value="">— 请核对凭证后选择 —</option>
                   {BOND_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
+                {/* A-104：到账台账自动比对提示（null=项目不要求保证金/早期守卫，不渲染）——span 块级化，label 内容模型不含块级元素 */}
+                {recordDraft.bondCompliance && (
+                  recordDraft.bondCompliance.issues.length > 0 ? (
+                    <span className="mt-1 block rounded-[8px] bg-[oklch(0.66_0.175_27_/_0.08)] px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+                      保证金台账比对不符：{recordDraft.bondCompliance.issues.map(i => i.message).join('；')}
+                    </span>
+                  ) : (
+                    <span className="mt-1 block rounded-[8px] bg-[oklch(0.71_0.11_164_/_0.08)] px-3 py-2 text-[11px] text-[var(--success)]">保证金台账比对相符</span>
+                  )
+                )}
                 {bidBondAssetId && (
                   <a href={`/api/upload/files/${bidBondAssetId}`} target="_blank" rel="noopener"
                      className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--accent-strong)] hover:underline">

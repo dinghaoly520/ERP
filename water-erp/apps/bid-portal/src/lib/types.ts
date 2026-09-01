@@ -51,6 +51,11 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   evaluationDeadline?: string | null;
   /** N4: 法定最少投标家数（直接采购=1，其余=3）——后端 getProject 下发，dispute-block 流标建议按采购方式取数 */
   minBidders?: number;
+  /** A-102/104（2026-09-01）：BidProject 标量列随详情全量下发（getProject include 全标量，不在 bid_host
+   *  去敏清单）——保证金到账台账面板按 bondRequired 渲染、比对徽标按 bondAmount 取数。
+   *  bondAmount 为 Prisma Decimal，JSON 序列化为字符串，消费侧统一 Number()。 */
+  bondRequired?: boolean;
+  bondAmount?: number | string | null;
   /** F9（2026-08-28）：BidProject 列随详情下发（getProject 全标量）——生成闸门镜像需组长末签状态 */
   leaderCoSigned?: boolean;
   /** F9（2026-08-28）：getProject include 的报价轮次（谈判项目生成闸门：≥1 轮且全部 closed；sealed_auction 豁免） */

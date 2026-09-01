@@ -176,7 +176,40 @@ export type OpeningDraftResult = {
   bidBondAssetId: string | null;
   /** 项目不要求保证金（bondRequired=false）→ 前端保证金默认选「不适用」 */
   bondNotApplicable: boolean;
+  /** A-104：到账台账自动比对结论（bondRequired=false 或早期守卫返回时 null；空 issues=相符） */
+  bondCompliance?: { issues: { field: string; message: string }[] } | null;
 };
+
+/* ── 保证金到账台账（A-102 登记幂等/错登删除；A-104 比对徽标消费）── */
+
+/** A-102：到账台账行（Prisma BidBondLedger；amount 为 Decimal → JSON 字符串，消费侧统一 Number()） */
+export interface BondLedgerRow {
+  id: string;
+  projectId: string;
+  supplierName: string;
+  amount: string;
+  arrivedAt: string;
+  account: string;
+  payMethod: string;
+  note?: string | null;
+  createdAt: string;
+}
+
+export function listBondLedger(projectId: string) {
+  return api.get<BondLedgerRow[]>(`/bid/projects/${projectId}/bond-ledger`);
+}
+
+/** 登记保证金到账（一家一条，projectId+supplierName 幂等 upsert，重复登记覆盖更正；记监督日志） */
+export function upsertBondLedger(projectId: string, body: {
+  supplierName: string; amount: number; arrivedAt: string; account: string; payMethod: string; note?: string;
+}) {
+  return api.put<BondLedgerRow>(`/bid/projects/${projectId}/bond-ledger`, body);
+}
+
+/** 错登纠正（高风险留痕）；正常核对无误的记录不得删 */
+export function removeBondLedger(projectId: string, ledgerId: string) {
+  return api.delete<{ success: boolean }>(`/bid/projects/${projectId}/bond-ledger/${ledgerId}`);
+}
 
 export const getOpeningDraft = (projectId: string, supplierId: string) =>
   api.get<OpeningDraftResult>(`/bid/projects/${projectId}/suppliers/${supplierId}/opening-draft`);
