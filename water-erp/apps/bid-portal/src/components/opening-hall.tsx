@@ -788,6 +788,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">回执编号</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">密文状态</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">解密状态</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">解密时间</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">确认</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">操作</th>
               </tr>
@@ -857,6 +858,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           {attributionMeta.label}
                         </span>
                       )}
+                    </td>
+                    <td className="px-5 py-3 font-mono text-[11px] tracking-tight text-[color:var(--muted-foreground)]">
+                      {s.decryptedAt
+                        ? new Date(s.decryptedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+                        : '—'}
                     </td>
                     <td className="px-5 py-3">
                       {s.confirmStatus === 'CONFIRMED' ? (
