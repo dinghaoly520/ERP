@@ -1968,10 +1968,10 @@ describe('SupplierPortalService', () => {
           signedAt: expect.any(Date),
         }),
       });
-      // bidSupplier：解密态重置 PENDING、decryptError 清空（等待 Task 12/13 管线重解）
+      // bidSupplier：解密态重置 PENDING、decryptError/decryptedAt 清空（等待 Task 12/13 管线重解）
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
         where: { id: 'bs-reup-1' },
-        data: { decryptStatus: 'PENDING', decryptError: null },
+        data: { decryptStatus: 'PENDING', decryptError: null, decryptedAt: null },
       });
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ projectId: 'project-1', action: '新轨补传（供应商端双层重封）', riskFlag: '高风险' }),
@@ -2262,7 +2262,7 @@ describe('SupplierPortalService', () => {
         where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
         data: { decryptedAssets: { technical: 'dec-t', business: 'dec-b' }, decryptedPrice: '980000.00' },
       });
-      expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs-1' }, data: { decryptStatus: 'SUCCESS' } });
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs-1' }, data: { decryptStatus: 'SUCCESS', decryptedAt: expect.any(Date) } });
 
       // 唱标预填（旧轨 decryptSupplier 同款 recordData 形状；bondStatus 留空由主持人判定）
       const recordData = {

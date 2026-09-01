@@ -100,6 +100,7 @@ export interface BidSupplier {
   envelopeVersion?: string | null;
   /** 双信封 v2（T17）：管理方已解外层时间（SupplierBidSubmission.outerDecryptedAt 派生下发） */
   outerDecryptedAt?: string | null;
+  decryptedAt?: string | null; // A-111：解密成功时间（BidSupplier 列，SUCCESS 终局事务写入）
   /** 双信封 v2（T17）：供应商首次领取解密包时间（§5.5 归因矩阵行 2/3 判定依据，SupplierBidSubmission.packageFetchedAt 派生下发） */
   packageFetchedAt?: string | null;
 }

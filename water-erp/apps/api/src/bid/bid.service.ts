@@ -1102,8 +1102,8 @@ export class BidService {
     const [suppliers, submissions, records, logs, bidRounds] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: project.id },
-        // §5.5：dangerAttribution 归因写入开标文件包（法定留痕）
-        select: { supplierId: true, supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true, dangerAttribution: true },
+        // §5.5：dangerAttribution 归因写入开标文件包（法定留痕）；A-111：decryptedAt 解密成功时间入包
+        select: { supplierId: true, supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true, dangerAttribution: true, decryptedAt: true },
         orderBy: { createdAt: 'asc' },
       }),
       // §5.5b（Task 18）：dual-v2 解密明文资产指纹入包（decryptedAssets → FileAsset.sha256）
@@ -2931,7 +2931,7 @@ export class BidService {
         });
         if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason: dangerReason, phase: noFiles ? 'no_files' : 'decrypt_verify' } } });
       } else {
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS' } });
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS', decryptedAt: new Date() } });
         // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED。
         // P1-3/N1b：upsert（projectId+bidSupplierId 复合唯一兜底），消除并发双击重复建记录。
         if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
@@ -3093,7 +3093,7 @@ export class BidService {
       await this.prisma.$transaction(async (tx) => {
         await tx.bidSupplier.update({
           where: { id: supplierId },
-          data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null },
+          data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null, decryptedAt: null },
         });
         await tx.bidSupervisionLog.create({
           data: {
@@ -3340,7 +3340,7 @@ export class BidService {
       });
       await tx.bidSupplier.update({
         where: { id: supplierId },
-        data: { decryptStatus: 'PENDING', decryptError: null },
+        data: { decryptStatus: 'PENDING', decryptError: null, decryptedAt: null },
       });
       await tx.bidSupervisionLog.create({
         data: {
@@ -3447,7 +3447,7 @@ export class BidService {
             where: { supplierId_projectId: { supplierId: bidSupplier.supplierId!, projectId } },
             data: sealedKeyUpdate as any,
           });
-          await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'PENDING', decryptError: null } });
+          await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'PENDING', decryptError: null, decryptedAt: null } });
           await tx.bidSupervisionLog.create({
             data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
               action: '重新封标', result: `${fields.label}（E2EE）已重新包裹密钥`, riskFlag: '低风险' },

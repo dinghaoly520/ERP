@@ -1686,7 +1686,7 @@ export class SupplierPortalService {
         // T12 契约钉死：若 decrypt-outer（Task 12）新增 outerDecryptedAt/packageFetchedAt 等标记列，
         // 本端点必须同步重置——否则其幂等跳过逻辑会因旧标记残留而跳过补传后的新 C_outer，旧 C_inner 永不刷新。
         where: { id: bidSupplier.id },
-        data: { decryptStatus: 'PENDING', decryptError: null },
+        data: { decryptStatus: 'PENDING', decryptError: null, decryptedAt: null },
       });
       await tx.bidSupervisionLog.create({
         data: { projectId, time: now, role: '供应商', target: bidSupplier.supplierName,
@@ -2030,7 +2030,7 @@ export class SupplierPortalService {
           create: { projectId, ...recordData, bidSupplierId: bidSupplier.id },
           update: recordData,
         });
-        await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { decryptStatus: 'SUCCESS' } });
+        await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { decryptStatus: 'SUCCESS', decryptedAt: new Date() } });
         await tx.bidSupervisionLog.create({
           data: {
             projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName,

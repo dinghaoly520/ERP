@@ -658,6 +658,11 @@ describe('BidService — stage transitions', () => {
       expect(minioClient.getObject).not.toHaveBeenCalled();
       expect(minioClient.putObject).not.toHaveBeenCalled();
       expect(prisma.fileAsset.update).not.toHaveBeenCalled();
+      // A-111：重置 PENDING 时清空解密成功时间（reuploadBidFile 管理员补传同款重置 data 形状，最近覆盖用例）
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
+        where: { id: 'bs-1' },
+        data: { decryptStatus: 'PENDING', decryptError: null, decryptedAt: null },
+      });
       expect(autoDecrypt).toHaveBeenCalled();
     });
 
@@ -729,7 +734,7 @@ describe('BidService — stage transitions', () => {
       expect(result).toBeDefined();
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
         where: { id: 'bs-1' },
-        data: { decryptStatus: 'SUCCESS' },
+        data: { decryptStatus: 'SUCCESS', decryptedAt: expect.any(Date) }, // A-111：终局事务写解密成功时间
       });
       expect(prisma.bidSupplier.update).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'DANGER' }) }),
@@ -896,7 +901,7 @@ describe('BidService — stage transitions', () => {
       expect(result).toBeDefined();
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
         where: { id: 'bs-1' },
-        data: { decryptStatus: 'SUCCESS' },
+        data: { decryptStatus: 'SUCCESS', decryptedAt: expect.any(Date) }, // A-111：终局事务写解密成功时间
       });
     });
 
@@ -5615,7 +5620,7 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       const r = await service.adjudicateDecryptFault('p1', 'bs1', 'RESET_PENDING', '供应商要求重试', 'op1');
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
         where: { id: 'bs1' },
-        data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null },
+        data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null, decryptedAt: null },
       }));
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ action: '重置解密机会', result: expect.stringContaining('供应商要求重试') }),
@@ -5698,7 +5703,7 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       const r = await service.adjudicateDecryptFault('p1', 'bs1', 'RESET_PENDING', '延长窗口后允许重试', 'op1');
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
         where: { id: 'bs1' },
-        data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null },
+        data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null, decryptedAt: null },
       }));
       expect(sendToUser).toHaveBeenCalledWith('user-s1', ['in_app'], expect.objectContaining({
         content: expect.stringContaining('开标主持人已重置您的解密机会，请重新解密'),
