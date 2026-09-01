@@ -58,6 +58,21 @@ export class VendorUKeyAdapter implements UKeyAdapter {
 
   private constructor(private readonly baseUrl: string) {}
 
+  /** 会话到期时刻（ms）——服务端在每次成功签名/解密时续活，本类随响应里的 ttlSeconds 同步刷新 */
+  private sessionExpiresAt: number | null = null;
+
+  /** 按响应携带的 ttlSeconds 续算到期时刻；旧中间件不带该字段则维持未知（不制造假倒计时） */
+  private touchSession(body: any) {
+    const ttl = Number(body?.ttlSeconds);
+    if (Number.isFinite(ttl) && ttl > 0) this.sessionExpiresAt = Date.now() + ttl * 1000;
+  }
+
+  /** 距空闲自动锁定剩余秒数（向上取整）；会话 TTL 未知 → null */
+  secondsUntilLock(): number | null {
+    if (this.sessionExpiresAt === null) return null;
+    return Math.max(0, Math.ceil((this.sessionExpiresAt - Date.now()) / 1000));
+  }
+
   /** 探测中间件(默认 300ms 超时):不在/异常 → null;在 → 在场盾与已解锁计数 */
   static async probe(
     timeoutMs = 300,
@@ -94,7 +109,9 @@ export class VendorUKeyAdapter implements UKeyAdapter {
           : `U盾口令不符(剩余尝试次数 ${f.retryLeft ?? '?'})`,
       );
     }
-    return new VendorUKeyAdapter(baseUrl);
+    const adapter = new VendorUKeyAdapter(baseUrl);
+    adapter.touchSession(body);
+    return adapter;
   }
 
   async listCertificates(): Promise<CertInfo[]> {
@@ -109,6 +126,7 @@ export class VendorUKeyAdapter implements UKeyAdapter {
     const { status, body } = await requestJson(`${this.baseUrl}/sign`, jsonInit({ certSn, data: msg }), OP_TIMEOUT_MS);
     if (status !== 200) raise(status, body);
     if (typeof body?.sig !== 'string') throw new Error('U盾签名失败:中间件返回缺失');
+    this.touchSession(body); // 服务端每次成功操作续活会话，同步刷新本地到期时刻
     return body.sig;
   }
 
@@ -116,6 +134,7 @@ export class VendorUKeyAdapter implements UKeyAdapter {
     const { status, body } = await requestJson(`${this.baseUrl}/sm2/decrypt`, jsonInit({ certSn, cipher: cipherHex }), OP_TIMEOUT_MS);
     if (status !== 200) raise(status, body);
     if (typeof body?.plain !== 'string' || !body.plain) throw new Error('U盾解密失败:密文损坏或口令不符');
+    this.touchSession(body);
     return body.plain;
   }
 }

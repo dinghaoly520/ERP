@@ -219,6 +219,9 @@ export class MockUKeyAdapter implements UKeyAdapter {
     return plain;
   }
 
+  /** mock 介质无会话概念——不参与空闲自动锁定倒计时 */
+  secondsUntilLock(): number | null { return null; }
+
   /** 导出介质文件（可换口令）：`UK1 || base64("saltB64:nonceB64:ctB64")`。 */
   async exportFile(password: string): Promise<string> {
     const salt = randomBytes(SALT_BYTES);

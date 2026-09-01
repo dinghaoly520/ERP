@@ -17,4 +17,9 @@ export interface UKeyAdapter {
   sign(certSn: string, msg: string): Promise<string>;
   /** SM2 解密（私钥在介质内），输入输出均 hex */
   decrypt(certSn: string, cipherHex: string): Promise<string>;
+  /**
+   * （可选）距空闲自动锁定的剩余秒数——厂商中间件会话有 TTL（每次签名/解密续活），
+   * 供 UI 同步倒计时；mock 介质无会话概念，不实现或返回 null。
+   */
+  secondsUntilLock?(): number | null;
 }

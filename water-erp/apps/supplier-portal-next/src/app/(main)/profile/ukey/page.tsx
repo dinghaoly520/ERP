@@ -64,6 +64,8 @@ export default function UkeyManagePage() {
   const [ukeyCerts, setUkeyCerts] = useState<CertInfo[]>([]);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  // 厂商中间件会话倒计时（秒）：服务端空闲 TTL 的镜像，到期自动翻回锁定态
+  const [lockCountdown, setLockCountdown] = useState<number | null>(null);
   const [importPassword, setImportPassword] = useState("");
   const importFileRef = useRef<HTMLInputElement | null>(null);
 
@@ -115,6 +117,25 @@ export default function UkeyManagePage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ═══ 会话倒计时（厂商中间件空闲 TTL 镜像）：秒级刷新，到期自动翻回锁定态 ═══ */
+  useEffect(() => {
+    if (!ukey || typeof ukey.secondsUntilLock !== "function") { setLockCountdown(null); return; }
+    const tick = () => setLockCountdown(ukey.secondsUntilLock!());
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [ukey]);
+
+  useEffect(() => {
+    if (lockCountdown === null || lockCountdown > 0 || !ukey) return;
+    // 到期：与手动锁定同款清理（不发网络请求——服务端会话已按 TTL 惰性淘汰）
+    setUkey(null);
+    setUkeyCerts([]);
+    setPassword("");
+    setLockCountdown(null);
+    toast.info("U盾空闲超时，已自动锁定");
+  }, [lockCountdown, ukey]);
 
   async function retryLoad() {
     setError(false); setLoading(true);
@@ -331,7 +352,11 @@ export default function UkeyManagePage() {
               <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
                 {ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
               </span>
-              <span className={`ukey-state${ukey ? " open" : ""}`}>{ukey ? `已解锁 · ${ownCerts.length} 张本企业证书` : "未解锁"}</span>
+              <span className={`ukey-state${ukey ? " open" : ""}`}>
+                {ukey
+                  ? `已解锁 · ${ownCerts.length} 张本企业证书${lockCountdown !== null ? ` · 剩余 ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")} 自动锁定` : ""}`
+                  : "未解锁"}
+              </span>
             </span>
           </div>
 

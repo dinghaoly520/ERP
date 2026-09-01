@@ -65,7 +65,8 @@ export function startServer({ port = parseEnvInt('UKEY_MW_PORT', 17999), host = 
     try {
       if (req.method === 'GET' && url.pathname === '/health') {
         const shields = listShields(slotDir);
-        return send(200, { ok: true, version: VERSION, shields: shields.length, unlocked: shields.filter((s) => sessions.peek(s.certSn) !== null).length });
+        const unlockedCount = shields.filter((s) => sessions.peek(s.certSn) !== null).length;
+        return send(200, { ok: true, version: VERSION, shields: shields.length, unlocked: unlockedCount, ttlSeconds: Math.round(sessions.ttlMs / 1000) });
       }
       if (req.method === 'GET' && url.pathname === '/certs') {
         const certs = listShields(slotDir).map((s) => ({ certSn: s.certSn, certDn: s.certDn, publicKey: s.publicKey, alg: s.alg, shieldId: s.shieldId }));
@@ -81,7 +82,7 @@ export function startServer({ port = parseEnvInt('UKEY_MW_PORT', 17999), host = 
           if (r.ok) { sessions.set(s.certSn, r.privKeyHex); unlocked.push(s.shieldId); }
           else failed.push({ shieldId: s.shieldId, retryLeft: r.retryLeft, ...(r.locked ? { locked: true } : {}) });
         }
-        return send(200, { ok: true, unlocked, failed });
+        return send(200, { ok: true, unlocked, failed, ttlSeconds: Math.round(sessions.ttlMs / 1000) });
       }
       if (req.method === 'POST' && url.pathname === '/session/lock') {
         sessions.dropAll();
@@ -97,12 +98,12 @@ export function startServer({ port = parseEnvInt('UKEY_MW_PORT', 17999), host = 
         if (!privKeyHex) return fail('PIN_REQUIRED');
         if (url.pathname === '/sign') {
           if (typeof body.data !== 'string' || !body.data) return fail('BAD_REQUEST');
-          return send(200, { sig: sm2.doSignature(body.data, privKeyHex, { hash: true }) }); // 与 SignatureService 同参 {hash:true}
+          return send(200, { sig: sm2.doSignature(body.data, privKeyHex, { hash: true }), ttlSeconds: Math.round(sessions.ttlMs / 1000) }); // 与 SignatureService 同参 {hash:true}；ttlSeconds 供前端同步倒计时
         }
         if (typeof body.cipher !== 'string' || !body.cipher) return fail('BAD_REQUEST');
         const plain = bytesToHex(sm2.doDecrypt(body.cipher, privKeyHex, 1, { output: 'array' })); // C1C3C2;失败返 '' 从不抛错
         if (!plain) return fail('DECRYPT_FAILED');
-        return send(200, { plain });
+        return send(200, { plain, ttlSeconds: Math.round(sessions.ttlMs / 1000) });
       }
       return send(404, { error: 'not found', code: 'NOT_FOUND' });
     } catch (e) {
