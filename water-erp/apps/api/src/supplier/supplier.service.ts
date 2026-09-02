@@ -392,16 +392,18 @@ export class SupplierService {
           subjectCode: buildSubjectCode(dto.creditCode.trim()), // A1（B.4.2）
           organizationCode: dto.creditCode.trim(), // 机构代码 = 统一社会信用代码
           supplierNo: await this.generateSupplierNo(tx),
-          // 临时供应商必填字段留空（DB NOT NULL 用空串满足），不写入占位/虚假内容；
-          // 审批通过后由供应商在企业信息中自行补全。
+          // 临时注册 2.0：法人三件套与地址随注册写入（此前留空串占位）；
+          // enterpriseType/businessScope 仍留空，审批通过后由供应商在企业信息中自行补全。
+          legalPerson: dto.legalPerson.trim(),
+          legalPersonIdCard: dto.legalPersonIdCard.trim(),
+          registeredAddress: dto.registeredAddress?.trim() || '',
+          region: dto.region?.trim() || null,
           enterpriseType: '',
-          legalPerson: '',
-          registeredAddress: '',
           businessScope: '',
           isTemporary: true,
           temporaryExpiresAt: inv.expiresAt,
           invitation: { connect: { id: inv.id } },
-          contacts: { create: [{ name: dto.displayName, phone: dto.phone, isPrimary: true, position: '联系人' }] },
+          contacts: { create: [{ name: dto.displayName, phone: dto.phone, email: dto.email || null, isPrimary: true, position: '联系人' }] },
         },
         include: { contacts: true },
       });

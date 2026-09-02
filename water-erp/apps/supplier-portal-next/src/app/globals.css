@@ -14021,3 +14021,9 @@ main.rv { overflow: hidden; }
 main.lp, main.reg, main.rv { height: 100vh; overflow-y: auto; }
 main.reg { align-items: flex-start; }
 @media (prefers-reduced-motion: reduce) { main.lp, main.reg, main.rv { scroll-behavior: auto; } }
+
+/* ── 临时注册：分组小节标题 ── */
+.lp-subsec { display: flex; align-items: center; gap: 8px; margin: 20px 0 4px; padding-top: 14px; border-top: 1px solid oklch(0.9 0.02 252); }
+.lp-form .lp-subsec:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.lp-subsec h3 { margin: 0; font-size: 13.5px; font-weight: 800; color: oklch(0.32 0.05 252); }
+.lp-subsec-hint { font-size: 11.5px; color: oklch(0.62 0.02 252); }

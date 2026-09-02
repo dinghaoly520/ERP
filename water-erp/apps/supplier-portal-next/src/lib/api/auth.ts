@@ -41,9 +41,14 @@ export interface RegisterTemporaryParams {
   invitationCode: string;
   name: string;
   creditCode: string;
+  legalPerson: string;
+  legalPersonIdCard: string;
+  registeredAddress?: string;
+  region?: string;
   displayName: string;
   password: string;
   phone: string;
+  email?: string;
 }
 
 export const authApi = {

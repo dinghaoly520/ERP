@@ -112,6 +112,63 @@ function parseBidOpeningTime(raw: string | null | undefined): Date | null {
   return parseFlexibleDate(raw);
 }
 
+/**
+ * 各采购方式的完整阶段模板（与前端 PROCUREMENT_METHOD_STAGES 一字不差）。
+ * 初次建项必须按方式取模板——旧逻辑从全集裁剪（只删需求/公告），导致询比/竞价/招标
+ * 多出「供应商邀请」、直接采购多出「采购文件」等与定义矩阵不符的错乱（2026-09-01 修正）。
+ */
+const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string }>> = {
+  谈判采购: [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
+  竞价采购: [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家抽取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
+  直接采购: [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
+  邀请招标: [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '招标文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家抽取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
+  询比采购: [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
+};
+
 /** 再次采购时按采购方式插入的阶段段（与前端 PROCUREMENT_METHOD_STAGES 的 TENDER_DOCUMENT→AWARD_DECISION 一致）*/
 const REPROC_STAGE_SEGMENTS: Record<string, Array<{ key: string; label: string }>> = {
   谈判采购: [
@@ -730,17 +787,12 @@ export class ProjectManagementService {
       if (firstStages.length === 0) firstStages.push(SMALL_PURCHASE_DEMAND_STAGE);
       stagesToCreate = [...firstStages, CONTRACT_STAGE];
     } else {
-      stagesToCreate = [...PROJECT_WORKFLOW_STAGES];
+      // 按采购方式取完整阶段模板（与前端定义矩阵一致）
+      const template = METHOD_STAGE_TEMPLATES[dto.procurementMethod] ?? METHOD_STAGE_TEMPLATES['询比采购'];
+      stagesToCreate = template as Array<{ readonly key: StageKey; readonly label: string }>;
       // Only initiation form → remove PROCUREMENT_DEMAND from stages
       if (!hasDemand && hasInitiation) {
         stagesToCreate = stagesToCreate.filter((s) => s.key !== 'PROCUREMENT_DEMAND');
-      }
-      // Only keep PUBLIC_ANNOUNCEMENT for methods that require it
-      const needsPublicAnnouncement = ['竞价采购', '直接采购', '邀请招标'].includes(
-        dto.procurementMethod,
-      );
-      if (!needsPublicAnnouncement) {
-        stagesToCreate = stagesToCreate.filter((s) => s.key !== 'PUBLIC_ANNOUNCEMENT');
       }
     }
 
