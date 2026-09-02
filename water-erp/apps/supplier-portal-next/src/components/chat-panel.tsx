@@ -29,6 +29,7 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   const [exchangeControl, setExchangeControl] = useState<"OPEN" | "MUTED" | "CLOSED">("OPEN");
   const [stageClosed, setStageClosed] = useState(false); // R4：stage:change 离开 OPENING 后关闭互动
   const hydratedRef = useRef(false); // R3：首次加载完成后才在重连时做 REST 补齐
+  const wasConnectedRef = useRef(false); // R3：区分首连与断线重连——首连的补齐由挂载 hydrate 覆盖，不重复拉取
   const listEl = useRef<HTMLDivElement | null>(null);
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -116,9 +117,12 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
 
   useEffect(() => { hydrate(); }, [hydrate]);
 
-  // R3：重连成功且已首次加载过 → 重跑 hydrate 补齐断线窗口
+  // R3：断线后重连成功且已首次加载过 → 重跑 hydrate 补齐断线窗口。
+  // 首次连接不算重连（此前无 wasConnected 判断，每次进页面 messages/unread/read 都拉两遍）
   useEffect(() => {
-    if (connection === "connected" && hydratedRef.current) hydrate();
+    if (connection !== "connected") return;
+    if (wasConnectedRef.current && hydratedRef.current) hydrate();
+    wasConnectedRef.current = true;
   }, [connection, hydrate]);
 
   async function switchTab(t: "PUBLIC" | "PRIVATE") {
