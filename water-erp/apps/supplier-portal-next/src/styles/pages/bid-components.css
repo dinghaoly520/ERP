@@ -51,6 +51,12 @@
 .sys-tip { margin: 10px auto; padding: 3px 12px; width: fit-content; max-width: 85%; border-radius: 999px; background: #f0f2f5; color: #909399; font-size: 12px; text-align: center; }
 .chat-row { display: flex; gap: 8px; margin: 12px 0; align-items: flex-start; }
 .chat-row.is-mine { flex-direction: row-reverse; }
+/* globals.css 的 .chat-row（水叮当会话列表行：凸起浅底 + hover 抬升 + active 内凹 + cursor:pointer）
+   与本组件类名撞车——开标大厅聊天行不卡化：去卡片壳与全部行级交互，
+   消息外观由气泡 .bubble 承担（标准聊天气泡，非卡片）。作用域 .chat-panel 提权覆盖 */
+.chat-panel .chat-row { background: none; box-shadow: none; cursor: default; padding: 0; transform: none; transition: none; border-radius: 0; }
+.chat-panel .chat-row:hover { background: none; transform: none; box-shadow: none; }
+.chat-panel .chat-row:active { transform: none; box-shadow: none; }
 .avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #fff; background: #8fa6c4; }
 .avatar-host { background: #064ea2; }
 .bubble-col { display: flex; flex-direction: column; max-width: 74%; }
