@@ -12,7 +12,7 @@ import type { ComponentType } from "react";
 import { useNotifications } from "@/lib/notification-context";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { LoadingBlock, SpDialog, SpPagination } from "@/components/ui";
-import "@/styles/pages/announcements.css";
+import "@/styles/pages/notifications.css"; // nd-*/notif-* 通知样式（原寄居 announcements.css，2026-09-02 归位）
 
 const typeIconMap: Record<string, ComponentType<{ size?: number | string; strokeWidth?: number }>> = {
   SUPPLIER_APPROVED: CircleCheck, SUPPLIER_REJECTED: CircleX, SUPPLIER_RETURNED: TriangleAlert,

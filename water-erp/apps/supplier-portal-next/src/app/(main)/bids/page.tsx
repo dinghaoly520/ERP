@@ -12,6 +12,7 @@ import { SpButton, SpPagination, EmptyState } from "@/components/ui";
 import { CountdownTimer } from "@/components/countdown-timer";
 import { ServerClock } from "@/components/server-clock";
 import "@/styles/pages/bids.css";
+import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 const stageMap: Record<string, { label: string; color: string }> = {
   DOWNLOAD: { label: "文件下载", color: "#0891b2" },

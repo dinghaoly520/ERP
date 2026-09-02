@@ -19,6 +19,7 @@ import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import { SpPageHero } from "@/components/sp-page-hero";
 import "@/styles/pages/ukey.css";
+import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 /** 绑定成功后在浏览器缓存证书公开信息（无任何私钥），供投标提交页恢复 certSn 参考 */
 const BOUND_KEY = "supplier_ukey_bound";

@@ -1,0 +1,18 @@
+/* ════════════════════════════════════════════════════════════════════
+   跨页面共用片段 — 2026-09-02 去重归一
+   此前以下裸类在多个页面 CSS 逐字重复（Next 客户端导航 CSS 不卸载，同名裸类
+   后载覆盖先载——重复即隐患），抽此共用；各页独有规则仍留各页文件。
+   消费方：
+   - card 三件套（卡片头/标题/文件提示）：bids/[id]/submit + profile/ukey
+   - skel 基座（骨架屏容器/主卡）：bids、my-bids、catalog
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── 卡片三件套（原 bids.css / ukey.css 各一份，逐字相同）── */
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; box-shadow: inset 0 -1px 0 var(--hairline); }
+.card-title { font-size: 15px; font-weight: 800; color: var(--foreground); }
+.file-hint { font-size: 12px; color: var(--muted-foreground); }
+
+/* ── 骨架屏基座（原 bids.css / catalog.css 各一份，逐字相同；
+      skel-filter/skel-row 留 bids.css，skel-cat/sidebar/main 留 catalog.css）── */
+.skel-wrap { display: flex; flex-direction: column; gap: 14px; }
+.skel-hero { background: var(--surface); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }

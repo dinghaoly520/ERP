@@ -157,40 +157,6 @@
   .cv-ci-name, .cv-ci-phone, .cv-ci-email, .cv-ci-position, .cv-qs-type, .cv-qs-name, .cv-qs-date { width: 100%; flex: auto; }
 }
 
-/* 通知详情弹窗 */
-.nd-body { padding: 4px 0; }
-.nd-time { font-size: 12px; color: var(--muted-foreground); display: block; margin-bottom: 14px; }
-.nd-content { margin: 0; font-size: 14px; color: var(--foreground); line-height: 1.8; word-break: break-word; }
-.nd-footer { display: flex; gap: 10px; justify-content: flex-end; }
-
-/* 内容链接 + 落款（dangerouslySetInnerHTML 注入的 DOM 无 scoped 属性，平铺选择器） */
-.nd-content .notif-link { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
-.nd-content .notif-link:hover { color: var(--brand-deep); }
-.nd-content .nd-signature { text-align: right; margin-top: 14px; color: var(--muted-foreground); font-size: 13px; }
-
-/* neumorphic 按钮 */
-.nd-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 10px 22px; border-radius: 9px; border: none;
-  font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
-  transition: all 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.nd-btn--soft {
-  background: var(--surface); color: var(--foreground);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
-}
-.nd-btn--soft:hover { color: var(--brand); transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9); }
-.nd-btn--soft:active { transform: translateY(0);
-  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
-.nd-btn--danger {
-  background: var(--danger); color: #fff;
-  box-shadow: 3px 3px 6px oklch(0.5 0.16 27 / 0.22), -2px -2px 5px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.2);
-}
-.nd-btn--danger:hover { transform: translateY(-1px);
-  box-shadow: 4px 4px 10px oklch(0.45 0.16 27 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.25); }
-.nd-btn--danger:active { transform: translateY(0);
-  box-shadow: inset 2px 2px 5px oklch(0.45 0.16 27 / 0.25), inset -2px -2px 5px oklch(1 0 0 / 0.4); }
-.nd-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-
-@media (prefers-reduced-motion: reduce) { .nd-btn { transition: none; } .nd-btn:hover { transform: none; } }
+/* 通知详情弹窗（nd-*）——2026-09-02 去重：本文件原有 17 条子集与 announcements.css 的
+   超集同名裸类互覆（Next 客户端导航 CSS 不卸载），统一移至 notifications.css，
+   由 dashboard/page.tsx 一并 import */

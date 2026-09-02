@@ -24,6 +24,7 @@ import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@wa
 import { openUkey } from "@/utils/ukey-factory";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
 import "@/styles/pages/bids.css";
+import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 /** el-alert 的原生等价（EP 四色调 + show-icon） */
 function BAlert({ type, title, children, style }: {
