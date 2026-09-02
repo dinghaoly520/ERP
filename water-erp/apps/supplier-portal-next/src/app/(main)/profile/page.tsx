@@ -453,7 +453,7 @@ export default function ProfilePage() {
           {/* ══════════ 企业信息 Tab ══════════ */}
           {activeTab === "info" && (
             <>
-            <div className="detail-card">
+            <div className="prof-card">
               <div className="company-identity">
                 {profile.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -516,7 +516,7 @@ export default function ProfilePage() {
           {activeTab === "bank" && (
             <>
             {/* ═══ 银行账户（注册 2.0）═══ */}
-            <div className="detail-card prof-block">
+            <div className="prof-card prof-block">
               <div className="prof-block-head">
                 <span className="prof-block-icon"><Landmark size={16} strokeWidth={1.75} /></span>
                 <h3 className="prof-block-title">银行账户</h3>
@@ -563,7 +563,7 @@ export default function ProfilePage() {
           {activeTab === "perf" && (
             <>
             {/* ═══ 主体业绩（注册 2.0）═══ */}
-            <div className="detail-card prof-block">
+            <div className="prof-card prof-block">
               <div className="prof-block-head">
                 <span className="prof-block-icon"><Briefcase size={16} strokeWidth={1.75} /></span>
                 <h3 className="prof-block-title">主体业绩</h3>

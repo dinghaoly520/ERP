@@ -63,7 +63,7 @@ export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
           </table>
         </div>
       ) : (
-        <div className="detail-card ct-empty">
+        <div className="prof-card ct-empty">
           <div className="sp-empty-icon"><Phone size={22} strokeWidth={1.75} /></div>
           <p className="ct-empty-title">暂无联系人</p>
           <p className="ct-empty-desc">请添加企业联系人信息</p>

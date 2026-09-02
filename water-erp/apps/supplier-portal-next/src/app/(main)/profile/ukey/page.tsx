@@ -345,7 +345,7 @@ export default function UkeyManagePage() {
 
       <div className="ukey-grid">
         {/* ═══ 口令介质 ═══ */}
-        <div className="neu-card detail-card">
+        <div className="neu-card ukey-card">
           <div className="card-header">
             <span className="card-title">U盾</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -461,7 +461,7 @@ export default function UkeyManagePage() {
         </div>
 
         {/* ═══ 服务端绑定记录 ═══ */}
-        <div className="neu-card detail-card">
+        <div className="neu-card ukey-card">
           <div className="card-header">
             <span className="card-title">平台绑定记录</span>
             <SpButton variant="link" onClick={() => void refreshServerCerts()}>刷新</SpButton>
