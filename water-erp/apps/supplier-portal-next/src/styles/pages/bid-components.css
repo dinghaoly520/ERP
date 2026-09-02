@@ -14,9 +14,18 @@
 @keyframes btPulse { 0%,100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 22%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--sp-primary) 10%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .bt-dot.current { animation: none; } }
 
-/* ── ChatPanel（chat-panel / chat-row 等，移植自 Vue ChatPanel.vue；el-card 头/体结构改为 .chat-panel__header）── */
-.chat-panel { display: flex; flex-direction: column; height: 100%; }
-.chat-panel__header { flex-shrink: 0; }
+/* ── ChatPanel（chat-panel / chat-row 等，移植自 Vue ChatPanel.vue；el-card 头/体结构改为 .chat-panel__header）──
+   Vue 版根节点是 el-card（cgzxui 无描边新拟态卡）：tabs 头 + 消息体 + 输入行同包一张卡。
+   Next 迁移换成裸 div 时卡片壳丢失——tabs/输入行浮在页面底上、每个消息气泡反倒像独立小卡
+   （2026-09-02 用户回归报告）。按 opening.css 的 .hall-card 同款补齐，与左列卡片视觉一致 */
+.chat-panel {
+  display: flex; flex-direction: column; height: 100%;
+  border-radius: var(--sp-radius-md);
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.94), oklch(0.99 0.004 258 / 0.72));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.10), -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+/* el-card__header 等价（对齐 .hall-card__header） */
+.chat-panel__header { flex-shrink: 0; padding: 13px 20px; border-bottom: 1px solid var(--sp-border-light); }
 .tabs { display: flex; gap: 12px; align-items: center; }
 .cp-tab-badge { position: relative; display: inline-flex; }
 .cp-tab {
@@ -36,7 +45,8 @@
 .conn-reconnecting { color: #e6a23c; }
 .conn-disconnected { color: #f56c6c; }
 .cp-reconnect { border: none; background: none; color: var(--sp-primary); font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; }
-.msg-list { flex: 1; overflow-y: auto; min-height: 320px; padding: 10px 4px; }
+/* 消息列表/输入行的水平内衬：Vue 版由 el-card__body（20px）提供，Next 无 body 层，拆到直接子元素 */
+.msg-list { flex: 1; overflow-y: auto; min-height: 320px; padding: 10px 20px; }
 .empty { color: #999; text-align: center; padding: 40px 0; }
 .sys-tip { margin: 10px auto; padding: 3px 12px; width: fit-content; max-width: 85%; border-radius: 999px; background: #f0f2f5; color: #909399; font-size: 12px; text-align: center; }
 .chat-row { display: flex; gap: 8px; margin: 12px 0; align-items: flex-start; }
@@ -49,8 +59,8 @@
 .is-mine .meta { text-align: right; }
 .bubble { padding: 8px 12px; border-radius: 12px; border-top-left-radius: 3px; background: #f5f7fa; border: 1px solid #e8ebf0; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
 .is-mine .bubble { background: #064ea2; border-color: #064ea2; color: #fff; border-radius: 12px; border-top-right-radius: 3px; }
-.muted-hint { color: #e6a23c; font-size: 12px; padding: 4px 0; flex-shrink: 0; }
-.input-row { display: flex; gap: 8px; margin-top: 8px; flex-shrink: 0; }
+.muted-hint { color: #e6a23c; font-size: 12px; padding: 4px 20px; flex-shrink: 0; }
+.input-row { display: flex; gap: 8px; margin-top: 8px; padding: 0 20px 14px; flex-shrink: 0; }
 .cp-input {
   flex: 1; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid #dce6f3;
   background: rgba(255,255,255,0.7); color: var(--sp-gray-900); font: inherit; font-size: 13.5px; outline: none;
