@@ -19,7 +19,7 @@ describe('RsvpService.respond（P0-1）', () => {
       bidSupplier: { upsert: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn().mockImplementation(async (fn: any) => fn(prisma)),
     };
-    service = new RsvpService(prisma);
+    service = new RsvpService(prisma, { ensureBidProject: jest.fn().mockResolvedValue({}) } as any);
   });
 
   it('ACCEPTED：以 rsvp.projectId（PMI id）解析 BidProject 后用真实项目 id upsert 候选', async () => {

@@ -157,6 +157,9 @@ export class ProcurementService {
                   : null,
         openTime,
         deadline,
+        // 公司归属随源采购项目承继（BidCompanyScopeGuard 据此放行）
+        companyId: project.companyId ?? null,
+        companyName: project.companyName ?? null,
       },
     });
 

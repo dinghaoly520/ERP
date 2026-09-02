@@ -291,7 +291,7 @@ export class AiService {
         项目名称: context.projectName || '', 项目编号: context.projectCode || '',
         采购方式: context.procurementMethod || '', 采购类别: context.procurementCategory || '',
         预算金额: context.budgetAmount || '',
-        邀请方: context.requesterName || context.requesterDepartment || '四川水发集团',
+        邀请方: context.requesterName || context.requesterDepartment || '四川省水利发展集团有限公司',
         项目概况及采购内容: overviewSummary || '',
       });
       const title0 = `关于${context.projectName || '采购项目'}采购项目候选供应商邀请的通知`;
@@ -382,20 +382,52 @@ export class AiService {
       if (reuseUpdates.length > 0) {
         await Promise.allSettled(reuseUpdates);
       }
+
+      // 项目基本信息「邀请的供应商」快照同步（该字段曾从不写入 → 恒空显示"待补充"）：
+      // 发出邀请即累计合并（去重、每行一家）；context.projectId 可能是 PM-item id 或 BP id，反查回 PMI 再写。
+      // 后续开标确认面板会用"确认参加+已投递"口径覆盖（更权威），此处只负责邀请事实的登记。
+      try {
+        const pmiId =
+          context.projectId && (await this.prisma.projectManagementItem.findUnique({
+            where: { id: context.projectId }, select: { id: true },
+          }))
+            ? context.projectId
+            : (await this.prisma.bidProject.findUnique({
+                where: { id: canonicalProjectId ?? '_' },
+                select: { projectManagementItemId: true },
+              }))?.projectManagementItemId ?? null;
+        if (pmiId) {
+          const cur = await this.prisma.projectManagementItem.findUnique({
+            where: { id: pmiId }, select: { invitedSuppliers: true },
+          });
+          const lines = (cur?.invitedSuppliers ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
+          const known = new Set(lines);
+          for (const sid of ids) {
+            const n = nameById.get(sid);
+            if (n && !known.has(n)) { lines.push(n); known.add(n); }
+          }
+          const merged = lines.join('\n');
+          if (merged !== (cur?.invitedSuppliers ?? null)) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: pmiId }, data: { invitedSuppliers: merged },
+            });
+          }
+        }
+      } catch { /* 快照同步失败不阻断通知发送 */ }
     }
     const hasRsvp = Object.keys(rsvpTokens).length > 0;
 
-    const system = `你是四川水发集团的正式通知撰写人。请为候选供应商撰写通知正文段落。
+    const system = `你是四川省水利发展集团有限公司的正式通知撰写人。请为候选供应商撰写通知正文段落。
 
 要求：
 - 正文是通知的主体段落，不含抬头称呼和落款（抬头和落款由系统自动附加）
 - 正式友好、信息完整，180 字以内
 - 内容必须全部来源于输入数据，不得编造任何未提供的信息
-- 自称使用"四川水发集团"，禁止使用"我中心""政府采购中心""本中心""我院"等任何其他自称
+- 自称使用"四川省水利发展集团有限公司"，禁止使用"我中心""政府采购中心""本中心""我院"等任何其他自称
 - ★ 项目编号必须使用输入数据中的真实值；若输入数据中未提供则不得出现项目编号（禁止编造如"GZ2024-001"等示例编号）
 - ★ 所有数字（金额、数量、日期等）必须来自输入数据，不得凭空创造
 - 禁用 Markdown，纯文本
-${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}（原样保留花括号与英文，不要替换、不要加引号、不要拆字）。请用它写一句回执引导，例如："请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知。链接有效期为24小时，逾期未点击视为自动放弃。如有疑问请致电四川水发集团采购中心。"` : ''}`.trim();
+${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}（原样保留花括号与英文，不要替换、不要加引号、不要拆字）。请用它写一句回执引导，例如："请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知。链接有效期为24小时，逾期未点击视为自动放弃。如有疑问请致电四川省水利发展集团有限公司采购中心。"` : ''}`.trim();
 
     const userPrompt = [
       `请基于以下信息撰写通知正文（系统会自动在正文前拼接供应商名称和问候语，在正文后附加落款，请仅输出正文段落）：`,
@@ -408,8 +440,8 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
       `正文要求：`,
       `- 通知对象：${context.supplierNames.slice(0, 3).join('、')}${context.supplierNames.length > 3 ? `等 ${context.supplierNames.length} 家供应商` : ''}`,
       `- 告知已被纳入候选名单、项目背景简述`,
-      hasRsvp ? `- 必须含一句回执引导，且原样包含占位符 {rsvpLink}（系统会逐家替换为各供应商专属回执链接，供其点击确认是否参加）。须注明"请在24小时内点击，链接有效期为24小时，逾期未点击视为自动放弃，如有疑问请致电四川水发集团采购中心"。` : `- 提醒关注后续正式采购邀请`,
-      `- 自称使用"四川水发集团"`,
+      hasRsvp ? `- 必须含一句回执引导，且原样包含占位符 {rsvpLink}（系统会逐家替换为各供应商专属回执链接，供其点击确认是否参加）。须注明"请在24小时内点击，链接有效期为24小时，逾期未点击视为自动放弃，如有疑问请致电四川省水利发展集团有限公司采购中心"。` : `- 提醒关注后续正式采购邀请`,
+      `- 自称使用"四川省水利发展集团有限公司"`,
       `- 严格禁止编造未提供的信息`,
       `- 不要输出抬头和落款`,
       '',
@@ -420,8 +452,8 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
       if (!hasRsvp) return body;
       if (body.includes('{rsvpLink}')) return body;
       const cta = context.deadline
-        ? `\n\n请于 ${context.deadline} 前（24小时内）点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`
-        : `\n\n请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`;
+        ? `\n\n请于 ${context.deadline} 前（24小时内）点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川省水利发展集团有限公司采购中心。`
+        : `\n\n请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川省水利发展集团有限公司采购中心。`;
       return body.trimEnd() + cta;
     };
 
@@ -435,12 +467,12 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
       const base2 = `${names} 您好！\n\n您已被初步筛选为「${context.projectName || '相关项目'}」（${context.procurementMethod || '采购'}）的候选供应商。`;
       const cta2 = hasRsvp
         ? (context.deadline
-          ? `\n\n请于 ${context.deadline} 前（24小时内）点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`
-          : `\n\n请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`)
+          ? `\n\n请于 ${context.deadline} 前（24小时内）点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川省水利发展集团有限公司采购中心。`
+          : `\n\n请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川省水利发展集团有限公司采购中心。`)
         : `\n\n请留意后续正式采购邀请及招标文件。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。`;
       return {
         title: `关于${context.projectName || '采购项目'}采购项目候选供应商邀请的通知`,
-        body: `${base2}${cta2}\n\n四川水发集团\n${new Date().toLocaleDateString('zh-CN')}`,
+        body: `${base2}${cta2}\n\n四川省水利发展集团有限公司\n${new Date().toLocaleDateString('zh-CN')}`,
         rsvpTokens,
         invitationId: null,
       };
@@ -461,7 +493,7 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
     if (sources.length === 0) return '';
     try {
       const summary = await this.llm.chat(
-        '你是四川水发集团采购项目的概况撰写人。请将以下三部分信息（若存在）整合为一段 100-200 字的项目概况及采购内容综合性文字：\n'
+        '你是四川省水利发展集团有限公司采购项目的概况撰写人。请将以下三部分信息（若存在）整合为一段 100-200 字的项目概况及采购内容综合性文字：\n'
         + '1) 立项事由：项目发起的背景和原因\n'
         + '2) 对供方的主要要求：资质、业绩、工期等硬性要求\n'
         + '3) 项目概况：规模、地点、建设内容等\n\n'
@@ -1414,7 +1446,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       ? Math.round(((e.active || 0) / ((e.active || 0) + (e.unfinished || 0))) * 100) : 0;
 
     const systemPrompt = [
-      '你是"水叮当"——四川水发集团招采ERP的AI采购运营分析师。你服务于采购管理部门的日常运营决策。',
+      '你是"水叮当"——四川省水利发展集团有限公司招采ERP的AI采购运营分析师。你服务于采购管理部门的日常运营决策。',
       '',
       '# 角色设定',
       '你是一位在水利行业有10年经验的采购运营总监，现在转型为AI助手。你的分析风格：',
@@ -1425,7 +1457,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       '- 语言干练专业，不堆砌术语，每句话都有信息量。',
       '',
       '# 业务理解',
-      '四川水发集团是省属水利投资建设集团，采购业务覆盖工程建设、设备采购、信息化和服务四大类。',
+      '四川省水利发展集团有限公司是省属水利投资建设集团，采购业务覆盖工程建设、设备采购、信息化和服务四大类。',
       '招采ERP管理以下业务中心：',
       '',
       '1. 信息发布中心（/notice）：管理招标公告、中标公示、政策法规、平台通知。',
@@ -1781,7 +1813,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     ].join('\n');
 
     const sys = [
-      '你是"水叮当"——四川水发集团招采ERP的AI运营分析师，直接向集团采购管理部汇报。',
+      '你是"水叮当"——四川省水利发展集团有限公司招采ERP的AI运营分析师，直接向集团采购管理部汇报。',
       '',
       '# 你的核心能力',
       '你不是数据的搬运工，你是数据的解读者。不要简单复述数字，要给出判断、归因和建议。',
@@ -2406,7 +2438,7 @@ stageMatch 字段需要输出两部分判断结果：
   /** 仪表盘 AI 分析（从 procurement 迁入） */
   async analyzeDashboard(payload: any) {
     const systemPrompt = [
-      '你是"水叮当"——四川水发集团招采ERP的 AI 采购运营分析师，服务于采购中心管理驾驶舱。',
+      '你是"水叮当"——四川省水利发展集团有限公司招采ERP的 AI 采购运营分析师，服务于采购中心管理驾驶舱。',
       '',
       '# 角色设定',
       '你是一位在水利行业有10年经验的采购运营总监，现转型为 AI 助手。你的分析风格：',
@@ -2416,7 +2448,7 @@ stageMatch 字段需要输出两部分判断结果：
       '- 只使用输入数据中明确存在的数值，禁止编造、推算或假设不存在的数据。',
       '',
       '# 领域知识',
-      '四川水发集团是省属水利投资建设集团，采购业务覆盖工程建设、设备采购、信息化和服务。',
+      '四川省水利发展集团有限公司是省属水利投资建设集团，采购业务覆盖工程建设、设备采购、信息化和服务。',
       '采购方式包括：公开招标、邀请招标、谈判采购、竞争性磋商、询价、单一来源、直接委托、续约、竞价采购。',
       '竞价采购和续约占比过高可能存在竞争不充分的风险；直接委托需要关注合规性。',
       '未成交的原因通常包括：资格审查未通过、报价超预算、投标单位不足、材料不齐全、中止采购等。',
@@ -2789,7 +2821,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       : null;
 
     const systemPrompt = [
-      '你是"水叮当"——四川水发集团招采ERP的 AI 采购合规审查专家，负责对采购项目的每个阶段进行合规性审查。',
+      '你是"水叮当"——四川省水利发展集团有限公司招采ERP的 AI 采购合规审查专家，负责对采购项目的每个阶段进行合规性审查。',
       '',
       '# 角色设定',
       '你是一位在国有企业采购管理领域有15年经验的合规审计专家，现转型为 AI 审查助手。你的审查风格：',

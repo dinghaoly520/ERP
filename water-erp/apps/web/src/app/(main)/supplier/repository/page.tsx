@@ -16,7 +16,8 @@ import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
 import { BusinessTagReview } from '@/components/supplier/business-tag-review';
-import { Building2, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2 } from 'lucide-react';
+import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
+import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2 } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
@@ -100,6 +101,7 @@ export default function SupplierRepositoryPage() {
   const [invCreating, setInvCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [invModalOpen, setInvModalOpen] = useState(false);
+  const [showObjections, setShowObjections] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -186,6 +188,9 @@ export default function SupplierRepositoryPage() {
       {/* 业务标签审核（供应商注册自创标签入池） */}
       <BusinessTagReview onChanged={() => { loadData?.(); }} />
 
+      {/* 异议与投诉受理（与供应商门户 :3004 异议提交端联结：在线答复/转投诉/办结） */}
+      {showObjections && <ObjectionBoardModal onClose={() => setShowObjections(false)} />}
+
       {/* ══════ page-hero ══════ */}
       <div className="page-hero">
         <div className="page-hero__row">
@@ -199,6 +204,7 @@ export default function SupplierRepositoryPage() {
           <div className="page-hero__right">
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
+            <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
             <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>
             <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>

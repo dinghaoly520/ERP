@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: '在线开评标系统-智慧水发·蜀水云采',
-  description: '四川水发集团在线开评标管理系统',
+  description: '四川省水利发展集团有限公司在线开评标管理系统',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

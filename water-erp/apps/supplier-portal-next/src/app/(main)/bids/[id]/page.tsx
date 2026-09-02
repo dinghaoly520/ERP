@@ -16,6 +16,7 @@ import { TenderClarificationCard } from "@/components/tender-clarification-card"
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
+import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
 import { ServerClock } from "@/components/server-clock";
 import { serverNowMs } from "@water-erp/shared";
@@ -509,8 +510,14 @@ function BidDetailInner() {
 
                 {project.announcement?.content ? (
                   <div className="cc-body" dangerouslySetInnerHTML={{ __html: formatContent(project.announcement.content) }} />
+                ) : (project as any).invitationLetter?.kind === "file" ? (
+                  /* 无公告（谈判/邀请采购以邀请书代替）：在线预览采购邀请书 DOCX 原文 */
+                  <InvitationDocxPreview
+                    url={(project as any).invitationLetter.url}
+                    fileName={(project as any).invitationLetter.fileName}
+                  />
                 ) : (project as any).invitationLetter ? (
-                  /* 无公告（谈判/邀请采购以邀请函代替）：渲染采购邀请书（本供应商 RSVP 记录） */
+                  /* 无邀请书文件时次级回退：RSVP 回执摘要卡 */
                   <div className="cc-invitation">
                     <div className="cc-inv-head">
                       <span className="cc-inv-badge">采购邀请书</span>

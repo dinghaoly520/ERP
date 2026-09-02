@@ -91,6 +91,7 @@ describe('SupplierPortalService', () => {
   beforeEach(async () => {
     prisma = {
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
+
       supplier: { findUnique: jest.fn(), update: jest.fn() },
       supplierCert: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       adminEncryptionCert: { findFirst: jest.fn() },
@@ -114,7 +115,7 @@ describe('SupplierPortalService', () => {
       },
       bidOpeningRecord: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
       bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
-      fileAsset: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+      fileAsset: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
       bidSupervisionLog: { create: jest.fn() },
       supplierChangeRecord: { count: jest.fn() },
       supplierQualification: { count: jest.fn() },
@@ -1398,7 +1399,7 @@ describe('SupplierPortalService', () => {
       prisma.adminEncryptionCert.findFirst.mockResolvedValue({
         id: 'admin-cert-1',
         publicKey: `04${'cd'.repeat(64)}`,
-        certDn: 'CN=蜀水云采平台管理方,O=四川水发集团',
+        certDn: 'CN=蜀水云采平台管理方,O=四川省水利发展集团有限公司',
         active: true,
         createdAt: new Date('2026-08-20T00:00:00Z'),
       });
@@ -1409,7 +1410,7 @@ describe('SupplierPortalService', () => {
       expect(result).toEqual({
         adminCertId: 'admin-cert-1',
         publicKey: `04${'cd'.repeat(64)}`,
-        certDn: 'CN=蜀水云采平台管理方,O=四川水发集团',
+        certDn: 'CN=蜀水云采平台管理方,O=四川省水利发展集团有限公司',
       });
     });
 
@@ -2444,6 +2445,8 @@ describe('SupplierPortalService P1-7 — 澄清答疑仅本项目成员可见', 
       bidProject: { findUnique: jest.fn() },
       bidSupplier: { findFirst: jest.fn() },
       announcement: { findFirst: jest.fn().mockResolvedValue(null) },
+      fileAsset: { findFirst: jest.fn().mockResolvedValue(null) },
+      invitationRsvp: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const { SupplierPortalService } = await import('./supplier-portal.service');
     const instance: any = Object.create(SupplierPortalService.prototype);

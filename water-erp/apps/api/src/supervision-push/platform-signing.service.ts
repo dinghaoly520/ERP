@@ -42,7 +42,7 @@ export class PlatformSigningService {
       } else {
         const kp = this.signature.generateKeyPair();
         this.keyFile = {
-          certDn: 'CN=蜀水云采监督推送签名, O=四川水发集团, C=CN',
+          certDn: 'CN=蜀水云采监督推送签名, O=四川省水利发展集团有限公司, C=CN',
           publicKey: kp.publicKey,
           privateKey: kp.privateKey,
           alg: 'SM2',

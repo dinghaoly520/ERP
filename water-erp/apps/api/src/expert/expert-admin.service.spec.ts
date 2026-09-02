@@ -111,6 +111,23 @@ describe('ExpertAdminService', () => {
         }),
       );
     });
+
+    it('只传专业不传公司时专业筛选不丢失（专业配额行人数按专业计数）', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      prisma.user.count.mockResolvedValue(3);
+      await service.listExperts(undefined, '地质');
+      expect(prisma.user.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ expertProfile: { specialty: '地质' } }) }),
+      );
+    });
+
+    it('专业与公司同时传入时两者都生效', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.listExperts(undefined, '地质', '设计院');
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ expertProfile: { specialty: '地质', employer: '设计院' } }) }),
+      );
+    });
   });
 
   describe('getExpert', () => {

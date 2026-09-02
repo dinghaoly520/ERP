@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**智慧水发·蜀水云采 ERP 系统** — a Chinese-language procurement and bidding ERP system for Sichuan Water Development Group（四川水发集团）. It covers bid/project lifecycle, supplier lifecycle, expert evaluation/scoring, AI-assisted review, announcements/notifications, file uploads, and a public procurement mall.
+**智慧水发·蜀水云采 ERP 系统** — a Chinese-language procurement and bidding ERP system for Sichuan Water Development Group（四川省水利发展集团有限公司）. It covers bid/project lifecycle, supplier lifecycle, expert evaluation/scoring, AI-assisted review, announcements/notifications, file uploads, and a public procurement mall.
 
 The active codebase is the pnpm workspace in `water-erp/`. Legacy/non-target directories: the top-level `water_erp_web/` (static prototype) and `water-erp/apps/web-erp-old/` (superseded Next.js app) — do not develop against either.
 

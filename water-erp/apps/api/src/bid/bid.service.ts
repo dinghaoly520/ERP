@@ -36,7 +36,7 @@ import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from './open
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { generateProjectCode } from '../common/project-code.util';
 import { GbCodeService } from '../common/gb-code.service';
-import { assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
+import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
@@ -285,6 +285,17 @@ export class BidService {
     if (!['leader', 'staff', 'bid_host'].includes(actor.role)) return {};
     const me = await this.prisma.user.findUnique({ where: { id: actor.id }, select: { companyId: true } });
     return { companyId: me?.companyId ?? '__no_company__' };
+  }
+
+  /** 创建项目时的公司归属快照（写时口径与 CompanyScopeService.stampFor 一致：操作人所在公司） */
+  private async operatorCompanyStamp(operator?: { sub: string; role: string }): Promise<{ companyId: string | null; companyName: string | null }> {
+    if (!operator) return { companyId: null, companyName: null };
+    // User 表公司名字段为 company（非 companyName）
+    const me = await this.prisma.user.findUnique({
+      where: { id: operator.sub },
+      select: { companyId: true, company: true },
+    });
+    return { companyId: me?.companyId ?? null, companyName: me?.company ?? null };
   }
 
   async getProjectsDashboard(actor?: { id: string; role: string }, portal?: string) {
@@ -653,7 +664,7 @@ export class BidService {
     };
   }
 
-  async createProject(dto: CreateBidProjectDto) {
+  async createProject(dto: CreateBidProjectDto, operator?: { sub: string; role: string }) {
     const projectCode = await generateProjectCode(this.prisma, dto.procurementMethod);
     // A1（B.4.3.3/4）：分配国标编码——有 PMI 宿主复用其 18 位基码，否则自立
     const host = dto.projectManagementItemId
@@ -686,6 +697,8 @@ export class BidService {
         qualityRequirement: dto.qualityRequirement,
         bondRequired: dto.bondRequired ?? false,
         bondAmount: dto.bondAmount,
+        // 公司归属快照自创建人（BidCompanyScopeGuard：非_admin 内部角色仅本公司项目可见）
+        ...(await this.operatorCompanyStamp(operator)),
       },
     });
 
@@ -1404,6 +1417,7 @@ export class BidService {
         scope: true, qualification: true, contact: true, qualityRequirement: true,
         bondRequired: true, bondAmount: true, riskNote: true, round: true,
         projectManagementItemId: true, openTime: true, deadline: true, downloadDeadline: true,
+        companyId: true, companyName: true,
       },
     });
     if (!original) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -1433,6 +1447,9 @@ export class BidService {
         bondAmount: original.bondAmount,
         round: (original.round ?? 1) + 1,
         projectManagementItemId: original.projectManagementItemId,
+        // 公司归属随原项目承继（重启不改变归属主体）
+        companyId: original.companyId ?? null,
+        companyName: original.companyName ?? null,
         stage: 'DOWNLOAD',
         riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${now.toISOString()}${actorId ? `，操作人 ${actorId}` : ''}；重启默认时间 截标 ${fallbackDeadline.toISOString()} / 开标 ${fallbackOpenTime.toISOString()}（请在项目编辑中重新设定））`,
       },
@@ -6575,11 +6592,12 @@ export class BidService {
   async nudgeSuppliers(id: string, onlyUnsubmitted: boolean, actorId: string): Promise<{ reached: number }> {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, projectCode: true, name: true },
+      select: { id: true, projectCode: true, name: true, openTime: true },
     });
     if (!project) {
       throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     }
+    assertNudgeWindowOpen(project.openTime);
 
     const [roster, submissions] = await Promise.all([
       this.prisma.bidSupplier.findMany({
@@ -6705,9 +6723,10 @@ export class BidService {
   ): Promise<{ sent: number; notFound: number }> {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: bidProjectId },
-      select: { id: true, projectCode: true },
+      select: { id: true, projectCode: true, openTime: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    assertNudgeWindowOpen(project.openTime);
 
     const claimed = await this.prisma.bidSupplierNudge.updateMany({
       where: { bidProjectId, status: { not: 'SENT' } },
@@ -6753,8 +6772,9 @@ export class BidService {
     input: { sendAt: string; channels: string[]; messages: Record<string, { title: string; body: string }> },
     actorId: string,
   ): Promise<{ sendAt: string }> {
-    const project = await this.prisma.bidProject.findUnique({ where: { id: bidProjectId }, select: { id: true, projectCode: true } });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: bidProjectId }, select: { id: true, projectCode: true, openTime: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    assertNudgeWindowOpen(project.openTime);
     const sendAt = new Date(input.sendAt);
     if (Number.isNaN(sendAt.getTime()) || sendAt.getTime() <= Date.now()) {
       throw new BadRequestException({ error: '定时时间无效或已过期', code: 'INVALID_SCHEDULE' });

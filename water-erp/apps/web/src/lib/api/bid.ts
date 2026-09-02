@@ -296,10 +296,6 @@ export function nudgeSuppliers(bidProjectId: string, onlyUnsubmitted = true) {
   });
 }
 
-export function nudgeExperts(bidProjectId: string, reason: 'signin' | 'score' = 'signin') {
-  return api.post<{ notified: number }>(`/bid/projects/${bidProjectId}/nudge-experts`, { reason });
-}
-
 /* ── 催促未投递供应商 v2：逐家 AI 文案 + 自选渠道 + 一次性额度（人工/自动共用）── */
 
 export interface SupplierNudgeStatus {

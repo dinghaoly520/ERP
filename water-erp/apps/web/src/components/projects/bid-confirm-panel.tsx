@@ -6,7 +6,6 @@ import { HostPickerModal } from './bid-confirm/host-picker-modal';
 import {
   AlertTriangle,
   Ban,
-  Bell,
   BellRing,
   CalendarClock,
   CheckCircle2,
@@ -32,7 +31,6 @@ import {
   getBidProjectDetail,
   getBidWorkspace,
   getPublicityStatus,
-  nudgeExperts,
   nudgeSuppliers,
   notifyBidScheduleChange,
   startOpening,
@@ -372,14 +370,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     }, '催促失败');
   }
 
-  async function handleNudgeExperts() {
-    if (!bpId) return;
-    await withBusy(async () => {
-      const r = await nudgeExperts(bpId, 'signin');
-      showToast(`已催促 ${r.notified ?? 0} 位专家确认`);
-    }, '催促失败');
-  }
-
   async function handleStartOpening() {
     if (!bpId) return;
     await withBusy(async () => {
@@ -652,18 +642,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 accent="var(--stage-expert)"
                 accentSoft="var(--stage-expert-soft)"
                 action={
-                  !isOpened ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleNudgeExperts()}
-                      disabled={busy || stats.expertCount === 0}
-                      className="neu-btn-soft !h-[32px] !text-xs"
-                    >
-                      <Bell size={13} /> 催促确认
-                    </button>
-                  ) : (
+                  isOpened ? (
                     <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">已开标·锁定</span>
-                  )
+                  ) : undefined
                 }
               >
                 {workspace.experts.length === 0 ? (
