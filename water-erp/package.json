@@ -17,6 +17,7 @@
     "dev:supplier": "pnpm --filter supplier-portal-next dev",
     "dev:ocr": "cd services/ocr && bash start.sh",
     "dev:ukey-mw": "cd services/ukey-middleware && bash start.sh",
+    "dev:ukey-mw-usb": "cd services/ukey-middleware && bash start-usb.sh",
     "build": "pnpm -r build",
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build",
