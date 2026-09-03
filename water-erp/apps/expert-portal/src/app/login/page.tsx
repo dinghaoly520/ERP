@@ -5,7 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
 import { detectTabletClient } from '@/lib/device';
+import SplashCursor from '@/components/SplashCursor';
 import './login.css';
+
+/** 鼠标流体炫彩调色板（与 web :3005 登录页 loginSplashPalette 同款） */
+const loginSplashPalette = ['#7aa8ff', '#f0c676', '#72c7b3'] as const;
 
 const IconUser = (
   <svg className="login-field-shell__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" /></svg>
@@ -118,9 +122,22 @@ function ExpertLoginPage() {
         <div className="login-stage__ray login-stage__ray--right" />
         <div className="login-stage__ray login-stage__ray--far-right" />
       </div>
+      {/* 鼠标跟随流体炫彩（与 :3005 同款；无 WebGL 环境自动跳过） */}
+      <SplashCursor
+        SIM_RESOLUTION={128}
+        DYE_RESOLUTION={1408}
+        DENSITY_DISSIPATION={3.5}
+        VELOCITY_DISSIPATION={2}
+        PRESSURE={0.1}
+        CURL={3}
+        SPLAT_RADIUS={0.15}
+        SPLAT_FORCE={3000}
+        COLOR_UPDATE_SPEED={10}
+        COLOR_PALETTE={loginSplashPalette}
+      />
       <div aria-hidden className="login-stage__veil" />
 
-      <div className="login-rise login-rise--1 relative z-10 -mt-6 w-full max-w-[500px] sm:-mt-9">
+      <div className="login-rise login-rise--1 relative z-[60] -mt-6 w-full max-w-[500px] sm:-mt-9">
         <div className="flex flex-col items-center text-center">
           {/* 品牌光晕标（漂浮循环对齐 :3005） */}
           <div className="login-mark login-mark--float">
