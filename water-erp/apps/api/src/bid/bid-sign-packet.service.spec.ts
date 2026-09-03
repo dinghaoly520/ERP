@@ -407,7 +407,7 @@ describe('BidSignPacketService.unregister', () => {
   });
 });
 
-describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单）', () => {
+describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单 / A-151 报告附注）', () => {
   const projectId = 'p1';
 
   beforeEach(() => jest.clearAllMocks());
@@ -433,5 +433,18 @@ describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单）
     expect(snapshot.committee).toHaveLength(2);
     expect(snapshot.committee[0]).toMatchObject({ name: '张三', reviewGroup: '技术组', dutyRole: '主审' });
     expect(snapshot.committee[1]).toMatchObject({ name: '李四', reviewGroup: null, dutyRole: null });
+  });
+
+  it('A-151：快照携带 reportNotes（select 带列 + 原样透传，未设置不产生字段）', async () => {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({
+      name: '测试项目', projectCode: 'BID-1', procurementMethod: '公开招标',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+      reportNotes: [{ section: '十', content: '评标过程合规。' }],
+    });
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    const projectSelect = (prisma.bidProject.findUnique as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(projectSelect?.reportNotes).toBe(true);
+    expect(snapshot.reportNotes).toEqual([{ section: '十', content: '评标过程合规。' }]);
   });
 });

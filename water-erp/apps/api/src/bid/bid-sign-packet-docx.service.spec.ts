@@ -63,4 +63,32 @@ describe('BidSignPacketDocxService', () => {
     expect(buf.length).toBeGreaterThan(1000);
     expect(buf.subarray(0, 2).toString('ascii')).toBe('PK');
   });
+
+  /* ── A-151（P1 波4）：报告章节附注渲染 ── */
+  it('A-151：一~九节附注以「附注：」段插入节末；十节正文续写（首句保留+用户句+生效句接续）', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      reportNotes: [
+        { section: '一', content: '基本情况补充说明。' },
+        { section: '九', content: '澄清纪要另有书面记录。' },
+        { section: '十', content: '评标过程合规。' },
+      ],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    // 一~九节：附注段紧随节内容（此处仅验证存在与内容，位置由段落顺序保证）
+    expect(text).toContain('附注：基本情况补充说明。');
+    expect(text).toContain('附注：澄清纪要另有书面记录。');
+    // 十节：默认首句保留，用户句接续，签字生效句+组长末签不动
+    expect(text).toContain('本报告由系统根据评标过程数据自动生成；评标过程合规。全体评标委员会成员在本报告签字页签字后生效。组长末签：2026-08-12T04:00:00.000Z');
+    // 十节不走「附注：」段（正文续写语义）
+    expect(text).not.toContain('附注：评标过程合规。');
+    // 附注插在对应节末而非报告末尾：一节附注须出现在二节标题之前
+    expect(text.indexOf('附注：基本情况补充说明。')).toBeLessThan(text.indexOf('评标委员会成员名单'));
+  });
+
+  it('A-151：无附注时主报告文本与原版一致（十节保留现硬编码全句）', () => {
+    const text = textOf(svc.buildChildren(baseSnapshot));
+    expect(text).toContain('本报告由系统根据评标过程数据自动生成；全体评标委员会成员在本报告签字页签字后生效。');
+    expect(text).not.toContain('附注：');
+  });
 });

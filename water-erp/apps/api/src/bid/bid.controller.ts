@@ -36,6 +36,7 @@ import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotat
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
 import { UpsertBondLedgerDto } from './dto/bond-ledger.dto';
+import { ReportNotesDto } from './dto/report-notes.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -136,6 +137,18 @@ export class BidController {
   @ApiOperation({ summary: 'C4: 登记响应担保退还/不予退还（不予退还必填理由，记监督日志）' })
   markBondReturned(@Param('id') id: string, @Body() dto: { returned: boolean; reason?: string }) {
     return this.bidService.markBondReturned(id, dto);
+  }
+
+  @Get('projects/:id/report-notes')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: 'A-151: 评标报告章节附注读取（未设置回空数组）' })
+  getReportNotes(@Param('id') id: string) { return this.bidService.getReportNotes(id); }
+
+  @Put('projects/:id/report-notes')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: 'A-151: 评标报告章节附注编辑（一~十白名单、空数组=清空，记监督日志；签字包重新生成取最新值）' })
+  setReportNotes(@Param('id') id: string, @Body() dto: ReportNotesDto, @CurrentUser('sub') actorId?: string) {
+    return this.bidService.setReportNotes(id, dto, actorId);
   }
 
   @Get('projects/:id/bond-ledger')

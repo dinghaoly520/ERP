@@ -427,7 +427,7 @@ export class BidSignPacketService {
       await Promise.all([
         this.prisma.bidProject.findUnique({
           where: { id: projectId },
-          select: { name: true, projectCode: true, procurementMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true },
+          select: { name: true, projectCode: true, procurementMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true, reportNotes: true },
         }),
         this.prisma.bidExpert.findMany({
           where: { projectId, expertRole: '正选' },
@@ -521,6 +521,7 @@ export class BidSignPacketService {
         reportConfirmedAt: e.reportConfirmedAt ? e.reportConfirmedAt.toISOString() : null,
       })),
       leaderCoSignedAt: project.leaderCoSignedAt ? project.leaderCoSignedAt.toISOString() : null,
+      reportNotes: (project.reportNotes as Array<{ section: string; content: string }>) ?? undefined,
       openingRecords: openingRecords.map(r => ({ supplierName: r.supplierName, amount: r.amount, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus })),
       bids: suppliers.map(s => ({ supplierName: s.supplierName, amount: '（见开标记录）', period: '（见开标记录）', submittedAt: s.createdAt.toISOString() })),
       invalidBids: invalidBids.map(b => ({ supplierName: suppliers.find(s => s.id === b.supplierId)?.supplierName ?? '（未知供应商）', reason: b.reason })),

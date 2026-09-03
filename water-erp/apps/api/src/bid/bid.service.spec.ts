@@ -6732,3 +6732,63 @@ describe('BidService — extendEvaluationDeadline 上限校验', () => {
     expect(prisma.bidProject.update).toHaveBeenCalled();
   });
 });
+
+/* ── A-151（P1 波4）：评标报告章节附注存取（签字包生成前编辑，docx 渲染；重新生成取最新值） ── */
+describe('BidService — report notes (A-151 评标报告章节附注)', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ name: '测试项目' }), update: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('PUT 空数组 → 清空（reportNotes 落 []）并记「清空附注」监督日志', async () => {
+    await expect(service.setReportNotes('p1', { notes: [] }, 'u1')).resolves.toEqual({ success: true });
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1' }, data: { reportNotes: [] } }),
+    );
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: '评标报告附注编辑', result: '清空附注', riskFlag: '无' }) }),
+    );
+  });
+
+  it('非法章节 → 400 INVALID_SECTION（service 硬校验，防绕过 DTO 直调）', async () => {
+    await expect(service.setReportNotes('p1', { notes: [{ section: '十一', content: '越界章节' }] }, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_SECTION' } });
+    expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('十节内容落库 + 监督日志摘要含字数', async () => {
+    await service.setReportNotes('p1', { notes: [{ section: '十', content: '评标过程合规。' }] }, 'u1');
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { reportNotes: [{ section: '十', content: '评标过程合规。' }] } }),
+    );
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ result: '第十节 7 字', operatorId: 'u1' }) }),
+    );
+  });
+
+  it('getReportNotes：未设置返回空数组，已设置原样返回', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ reportNotes: null });
+    await expect(service.getReportNotes('p1')).resolves.toEqual({ notes: [] });
+    prisma.bidProject.findUnique.mockResolvedValue({ reportNotes: [{ section: '一', content: 'x' }] });
+    await expect(service.getReportNotes('p1')).resolves.toEqual({ notes: [{ section: '一', content: 'x' }] });
+  });
+});

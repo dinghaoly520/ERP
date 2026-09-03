@@ -22,6 +22,7 @@ import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
+import { ReportNotesDto, ReportNoteItemDto, REPORT_NOTE_SECTIONS } from './dto/report-notes.dto';
 import { assertMinAcceptedInvitees } from './bid-timing-rules';
 import { assertDecryptCheckInQuorum, getMinBiddersForMethod } from './decrypt-quorum.util';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
@@ -5710,6 +5711,26 @@ export class BidService {
       }).catch(e => this.logger.warn(`保证金不退留痕失败: ${(e as Error).message}`));
     }
     return updated;
+  }
+
+  /** A-151：评标报告章节附注（签字包生成前编辑，docx 渲染；重新生成取最新值） */
+  async getReportNotes(projectId: string) {
+    const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { reportNotes: true } });
+    return { notes: (p?.reportNotes as ReportNoteItemDto[] | null) ?? [] };
+  }
+  async setReportNotes(projectId: string, dto: ReportNotesDto, actorId?: string) {
+    const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
+    if (!p) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // service 硬校验与 DTO @IsIn 双保险（直调或白名单管道剥落时兜底）
+    for (const n of dto.notes ?? []) {
+      if (!(REPORT_NOTE_SECTIONS as readonly string[]).includes(n.section)) {
+        throw new BadRequestException({ error: `非法章节 ${n.section}（仅允许 一~十）`, code: 'INVALID_SECTION' });
+      }
+    }
+    await this.prisma.bidProject.update({ where: { id: projectId }, data: { reportNotes: dto.notes as any } });
+    await this.prisma.bidSupervisionLog.create({ data: { projectId, time: new Date(), role: '系统', target: p.name,
+      action: '评标报告附注编辑', result: dto.notes.map(n => `第${n.section}节 ${n.content.length} 字`).join('；') || '清空附注', riskFlag: '无', operatorId: actorId ?? null } }).catch(() => {});
+    return { success: true };
   }
 
   /** A3: 推送中标通知书给中标供应商 */
