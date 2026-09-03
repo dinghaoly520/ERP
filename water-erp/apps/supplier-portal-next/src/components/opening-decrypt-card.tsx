@@ -343,7 +343,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
           placeholder="证书口令"
           onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleUkeyOpen(); }}
         />
-        <p className="ukey-hint mt-2">证书未绑定或 U盾遗失？前往 <Link href="/profile/ukey" className="text-[var(--brand)] font-semibold underline underline-offset-2">U盾管理</Link> 绑定或导入备份。</p>
+        <p className="ukey-hint mt-2">证书未绑定或 U盾遗失？前往 <Link href="/profile/ukey" className="text-[var(--brand)] font-semibold underline underline-offset-2">U盾管理</Link> 绑定或更换。</p>
         </>
         )}
       </SpDialog>
