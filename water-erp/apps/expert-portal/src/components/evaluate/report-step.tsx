@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, AlertTriangle, BarChart3, Gavel, ClipboardList, ChevronRight, ChevronDown } from 'lucide-react';
+import { Check, AlertTriangle, BarChart3, Gavel, ClipboardList, ChevronRight, ChevronDown, ShieldCheck } from 'lucide-react';
 import type { EvaluationReport } from '@/lib/types';
 import { CATEGORY_LABEL, CATEGORY_COLOR, isPassFailCategory } from '@water-erp/shared';
 import { QuoteHistoryPanel } from './quote-history-panel';
@@ -34,11 +34,28 @@ interface ReportStepProps {
   disputes?: DisputeItem[];
   myExpertId?: string;
   projectId?: string;
+  /** A-152 评标报告电子签署区块四态（undefined/hidden 不渲染） */
+  esign?: { state: EsignBlockState; busy: boolean };
+  /** 无证书态：创建软证书→绑定→签署 一气流入口 */
+  onCreateAndSign?: () => void;
+  /** 有证书态：PIN 解锁→签名→提交入口 */
+  onSign?: () => void;
 }
+
+/**
+ * A-152 电子签署区块四态（T12 控制器裁定：门户端不做精确已签徽标——
+ * 已电签/已纸质登记合并为中性「已完成签署」文案，精确徽标归 :3007 T13）：
+ * - need-cert：未绑定证书 → 「创建签名证书并签署」（首次口令=创建软证书口令）
+ * - ready：可签 → 「电子签署评标报告」
+ * - wait-packet：签字包未生成 → 等待主持人提示
+ * - done-or-registered：非 PENDING（已签/已纸质登记）→ 中性完成文案
+ * - hidden：非签署对象（候补/异常）或数据不可用 → 不渲染
+ */
+export type EsignBlockState = 'need-cert' | 'ready' | 'wait-packet' | 'done-or-registered' | 'hidden';
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
-export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], projectId }: ReportStepProps) {
+export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], projectId, esign, onCreateAndSign, onSign }: ReportStepProps) {
   // 逐项明细折叠态（默认折叠，点击 item 行展开）
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const toggleItem = (key: string) => setExpandedItems(prev => {
@@ -100,6 +117,44 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
               <AlertTriangle size={14} strokeWidth={2} /><span className="text-sm">所有成员已确认，等待组长末签</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── ①-bis 评标报告电子签署（A-152：四态区块，hidden/未传不渲染）── */}
+      {esign && esign.state !== 'hidden' && (
+        <div className="neu-card-static mb-4 flex items-center justify-between gap-3 !p-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] text-[var(--accent-strong)] bg-[color-mix(in_oklch,var(--accent-strong)_10%,transparent)]">
+              <ShieldCheck size={17} strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-[var(--foreground)]">评标报告电子签署</div>
+              <div className="mt-0.5 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                {esign.state === 'need-cert' && '尚未绑定数字证书——首次签署将创建平台自签 SM2 软证书（请设置并牢记证书口令）'}
+                {esign.state === 'ready' && '使用本人数字证书（SM2/SM3）对评标报告签名，签署后不可撤销'}
+                {esign.state === 'wait-packet' && '签字包尚未生成——请等待主持人生成评标签字包后再签署'}
+                {esign.state === 'done-or-registered' && '已完成签署（或已登记纸质签署），以现场签字登记为准'}
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center">
+            {esign.state === 'need-cert' && (
+              <button type="button" onClick={onCreateAndSign} disabled={esign.busy} className="neu-btn-primary !h-[38px]">
+                {esign.busy ? '签署中…' : '创建签名证书并签署'}
+              </button>
+            )}
+            {esign.state === 'ready' && (
+              <button type="button" onClick={onSign} disabled={esign.busy} className="neu-btn-primary is-success !h-[38px]">
+                <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />{esign.busy ? '签署中…' : '电子签署评标报告'}</span>
+              </button>
+            )}
+            {esign.state === 'wait-packet' && (
+              <span className="exp-pill" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>等待签字包</span>
+            )}
+            {esign.state === 'done-or-registered' && (
+              <span className="exp-pill" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>已完成签署</span>
+            )}
+          </div>
         </div>
       )}
 

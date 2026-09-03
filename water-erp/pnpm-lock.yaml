@@ -356,6 +356,9 @@ importers:
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@water-erp/ukey':
+        specifier: workspace:*
+        version: link:../../packages/ukey
       atrament:
         specifier: ^5.1.0
         version: 5.1.0
