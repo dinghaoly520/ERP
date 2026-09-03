@@ -22,6 +22,7 @@ import {
 } from "@/utils/bid-crypto";
 import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@water-erp/ukey";
 import { openUkey } from "@/utils/ukey-factory";
+import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
@@ -219,6 +220,7 @@ function BidSubmitInner() {
   const [ukeyPassword, setUkeyPassword] = useState("");
   const [ukeyOpening, setUkeyOpening] = useState(false);
   const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
+  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
   const pendingSubmitRef = useRef(false);
   /** U盾会话快照 ref——解锁后同一事件闭包内立即 doSubmit，useState 异步更新会读到空值（Vue ref 语义的 React 等价物） */
   const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string; certPublicKey: string } | null>(null);
@@ -1092,10 +1094,14 @@ function BidSubmitInner() {
         footer={
           <>
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>解锁并提交</SpButton>
+            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并提交</SpButton>
           </>
         }
       >
+        {ukeyPresent === false ? (
+          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+        ) : (
+        <>
         <label className="reg-label">证书口令</label>
         <SpInput
           type="password"
@@ -1105,6 +1111,8 @@ function BidSubmitInner() {
           onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleUkeyOpen(); }}
         />
         <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
+        </>
+        )}
       </SpDialog>
     </div>
   );

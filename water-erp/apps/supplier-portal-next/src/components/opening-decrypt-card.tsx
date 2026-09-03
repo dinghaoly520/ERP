@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { KeyRound, ShieldCheck, ShieldX, CircleX, Info, TriangleAlert, CircleCheck } from "lucide-react";
 import { sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson, type UKeyAdapter } from "@water-erp/ukey";
 import { openUkey } from "@/utils/ukey-factory";
+import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { getOpeningPackage, decryptUpload, type OpeningPackage } from "@/lib/api/opening-package";
 import { hexToUtf8, bytesToHex, hexToBytes } from "@/utils/dual-envelope-core";
 import { SpButton, SpDialog, SpInput } from "@/components/ui";
@@ -59,6 +60,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
   const [ukeyPassword, setUkeyPassword] = useState("");
   const [ukeyOpening, setUkeyOpening] = useState(false);
   const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
+  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
   const [decrypting, setDecrypting] = useState(false);
   const [decryptStage, setDecryptStage] = useState("");
   const [decryptError, setDecryptError] = useState("");
@@ -325,10 +327,14 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
         footer={
           <>
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>解锁</SpButton>
+            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁</SpButton>
           </>
         }
       >
+        {ukeyPresent === false ? (
+          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+        ) : (
+        <>
         <p className="ukey-desc">请输入证书口令完成 U盾解锁。</p>
         <SpInput
           type="password"
@@ -338,6 +344,8 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
           onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleUkeyOpen(); }}
         />
         <p className="ukey-hint mt-2">证书未绑定或 U盾遗失？前往 <Link href="/profile/ukey" className="text-[var(--brand)] font-semibold underline underline-offset-2">U盾管理</Link> 绑定或导入备份。</p>
+        </>
+        )}
       </SpDialog>
     </div>
   );

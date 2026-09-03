@@ -21,6 +21,7 @@ import { uploadFile } from "@/lib/api/upload";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { LoadingBlock, SpButton, SpDialog, SpInput, SpTextarea } from "@/components/ui";
 import { openUkey } from "@/utils/ukey-factory";
+import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import type { UKeyAdapter } from "@water-erp/ukey";
 import "@/styles/pages/bids.css";
 
@@ -60,6 +61,7 @@ export default function BidClarificationsPage() {
   const [ukeyPassword, setUkeyPassword] = useState("");
   const [ukeyOpening, setUkeyOpening] = useState(false);
   const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
+  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
   const pendingReplyRef = useRef(false);
   /** U盾会话快照 ref——解锁后同一事件闭包内立即 doReply，useState 异步更新会读到空值 */
   const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string } | null>(null);
@@ -337,13 +339,17 @@ export default function BidClarificationsPage() {
         footer={
           <>
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>解锁并签名</SpButton>
+            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并签名</SpButton>
           </>
         }
       >
         <p className="cq-pin-hint">
           即将对答复内容（服务端返回的规范化文本{attachments.length > 0 ? "及附件清单" : ""}）进行 U盾电子签名，提交后不可修改。
         </p>
+        {ukeyPresent === false ? (
+          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+        ) : (
+        <>
         <label className="reg-label">证书口令</label>
         <SpInput
           type="password"
@@ -353,6 +359,8 @@ export default function BidClarificationsPage() {
           onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") void handleUkeyOpen(); }}
         />
         <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
+        </>
+        )}
       </SpDialog>
     </div>
   );
