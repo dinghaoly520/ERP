@@ -17,6 +17,9 @@ export interface SignPacketExpertRow {
   signScanUrl: string | null;
   dissentingOpinion: string | null;
   dissentingReason: string | null;
+  /** A-152：电子签名剥壳摘要（同回流包口径 {algorithm, certSn, verifiedAt}；完整证据在 BidExpert.esignature）；未电子签署为 null */
+  esignature: { algorithm: string; certSn: string | null; verifiedAt: string | null } | null;
+  esignatureAt: string | null;
 }
 
 export interface SignPacketResponse {

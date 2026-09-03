@@ -184,6 +184,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   }
 
   const closed = data.packet?.closed ?? false;
+  // A-152：电子签名专家计数（闭环横幅展示；esignature 非空即电子已签）
+  const esignedCount = data.experts.filter((e) => e.esignature).length;
 
   return (
     <div className="space-y-4">
@@ -361,6 +363,16 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   <span className="font-semibold" style={{ color: STATUS_TONE[e.signStatus] ?? 'var(--muted-foreground)' }}>
                     {STATUS_LABEL[e.signStatus] ?? e.signStatus}
                   </span>
+                  {/* A-152：电子签名小徽标（SIGNED 且带 esignature = 专家端电子签署；仅纸质登记维持原展示） */}
+                  {e.signStatus === 'SIGNED' && e.esignature && (
+                    <span
+                      className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[var(--success)]"
+                      style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
+                      title={`${e.esignature.algorithm} · ${e.esignature.certSn ?? '—'} · ${e.esignature.verifiedAt ?? '—'}`}
+                    >
+                      电子签名
+                    </span>
+                  )}
                   {e.signStatusAt && <span className="ml-1 text-[10px] text-[var(--muted-foreground)] tabular-nums">{new Date(e.signStatusAt).toLocaleString('zh-CN')}</span>}
                 </td>
                 <td className="max-w-[220px] truncate px-3 py-2.5 text-[var(--muted-foreground)]" title={e.dissentingOpinion ?? undefined}>
@@ -374,7 +386,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 <td className="px-3 py-2.5 text-right">
                   {/* 两步走：待签只给「登记」；已登记只给「撤销」（撤销后回待签再登记）——
                       与服务端「已登记须先撤销再重登」（409 SIGN_ALREADY_REGISTERED）语义对齐，
-                      不再提供提交必被 409 挡回的「重新登记」入口 */}
+                      不再提供提交必被 409 挡回的「重新登记」入口。
+                      A-152：撤销仅主持纸质登记路径——电子已签（esignature 非空）不显示撤销，撤销电子签名须「重新生成」整包 */}
                   {!closed && canHost && e.role === EXPERT_ROLE.REGULAR && (
                     e.signStatus === 'PENDING' ? (
                       <button
@@ -385,8 +398,9 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                       >
                         登记
                       </button>
-                    ) : (
+                    ) : !e.esignature ? (
                       <button
+                        title="撤销仅适用于主持登记的纸质签字；电子签名撤销须「重新生成」整包"
                         type="button"
                         disabled={busy !== null}
                         onClick={() => {
@@ -401,7 +415,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                       >
                         撤销
                       </button>
-                    )
+                    ) : null
                   )}
                 </td>
               </tr>
@@ -440,6 +454,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3" style={{ background: 'color-mix(in oklch, var(--success) 8%, transparent)' }}>
           <ClipboardCheck size={15} className="text-[var(--success)]" />
           <span className="text-sm font-semibold text-[var(--success)]">签字已闭环，:3005 可执行完整归档</span>
+          {esignedCount > 0 && <span className="text-xs text-[var(--success)]">含 {esignedCount} 位专家电子签名</span>}
           <div className="ml-auto flex items-center gap-2">
             {data.packet?.handoverFileAssetId ? (
               <a href={data.packet.handoverDownloadUrl!} target="_blank" rel="noopener" className="neu-btn-soft !h-[30px] !text-[11px]">
