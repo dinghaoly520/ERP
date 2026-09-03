@@ -99,7 +99,26 @@ export function terminateContract(id: string, reason: string) {
   return api.post<Contract>(`/contracts/${id}/terminate`, { reason });
 }
 
-/** C4：登记响应担保退还/不予退还（合同关联的 BidProject） */
+/** C4：登记响应担保退还/不予退还（合同关联的 BidProject，项目级·兼容保留——UI 已切逐家端点） */
 export function markBondReturned(projectId: string, data: { returned: boolean; reason?: string }) {
   return api.post<{ id: string; bondReturnedAt: string | null }>(`/bid/projects/${projectId}/bond-return`, data);
+}
+
+/** A-105（实施条例第57条）：保证金逐家退还行——花名册 × 唱标 bondStatus × 退还态 × 中标标识 */
+export interface BondReturnRow {
+  supplierName: string;
+  bondStatus: string | null;
+  bondReturnedAt: string | null;
+  bondReturnReason: string | null;
+  isWinner: boolean;
+}
+
+/** A-105：保证金逐家退还清单（bondRequired=false 时登记端点拒 NO_BOND） */
+export function listBondReturns(projectId: string) {
+  return api.get<{ bondRequired: boolean; rows: BondReturnRow[] }>(`/bid/projects/${projectId}/bond-returns`);
+}
+
+/** A-105：逐家登记保证金退还/不予退还（同步开标记录 bondStatus、记监督日志；不予退还必填理由） */
+export function markSupplierBondReturned(projectId: string, data: { supplierName: string; returned: boolean; reason?: string }) {
+  return api.post<{ supplierName: string; bondReturnedAt: string | null; bondReturnReason: string | null }>(`/bid/projects/${projectId}/bond-return-supplier`, data);
 }

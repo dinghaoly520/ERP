@@ -13,8 +13,8 @@ import { StatusBadge } from '@/components/workbench';
 import {
   listContractsByProject, createContract, runContractConsistency, submitContractReview, reviewContract,
   signContract, publishContractNotice, generateContractDraftDocx, addContractFulfillment,
-  updateContractFulfillment, acceptContract, terminateContract, markBondReturned,
-  CONTRACT_STATUS_LABEL, FULFILLMENT_LABEL, type Contract,
+  updateContractFulfillment, acceptContract, terminateContract, listBondReturns, markSupplierBondReturned,
+  CONTRACT_STATUS_LABEL, FULFILLMENT_LABEL, type Contract, type BondReturnRow,
 } from '@/lib/api/contract';
 
 interface Props {
@@ -155,12 +155,9 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
                 {!['terminated', 'accepted'].includes(c.status) && (
                   <button onClick={() => { const reason = prompt('终止理由（必填）：'); if (!reason) return; act(() => terminateContract(c.id, reason), '合同已终止'); }} disabled={busy} className="neu-btn-soft is-danger !h-[26px] !px-2.5 !text-[11px]"><Ban size={11} /> 终止</button>
                 )}
-                {/* C4：保证金退还（合同关联线上项目且要求担保时） */}
+                {/* C4（A-105）：保证金逐家退还——中标人/未中标人分别登记（实施条例第57条） */}
                 {c.projectId && ['signed', 'performing', 'accepted'].includes(c.status) && (
-                  <>
-                    <button onClick={() => act(() => markBondReturned(c.projectId!, { returned: true }), '已登记退还响应担保')} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"><Coins size={11} /> 担保已退还</button>
-                    <button onClick={() => { const reason = prompt('不予退还理由（7.5.3.3 情形，必填）：'); if (!reason) return; act(() => markBondReturned(c.projectId!, { returned: false, reason }), '已登记不予退还（记监督日志）'); }} disabled={busy} className="neu-btn-soft is-danger !h-[26px] !px-2.5 !text-[11px]">担保不退</button>
-                  </>
+                  <BondReturnBlock projectId={c.projectId} busy={busy} act={act} />
                 )}
               </div>
 
@@ -206,5 +203,72 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
         </div>
       )}
     </Modal>
+  );
+}
+
+/** C4（A-105）：保证金逐家退还区——花名册行 × 唱标状态 × 退还态，逐家登记（替代原项目级双按钮；实施条例第57条） */
+function BondReturnBlock({ projectId, busy, act }: {
+  projectId: string;
+  busy: boolean;
+  act: (fn: () => Promise<unknown>, ok: string) => Promise<void>;
+}) {
+  const [data, setData] = useState<{ bondRequired: boolean; rows: BondReturnRow[] } | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(() => {
+    listBondReturns(projectId)
+      .then(d => { setData(d); setFailed(false); })
+      .catch(() => setFailed(true));
+  }, [projectId]);
+
+  useEffect(() => { setData(null); setFailed(false); load(); }, [load]);
+
+  const run = (fn: () => Promise<unknown>, ok: string) => { act(fn, ok).then(load); };
+
+  return (
+    <div className="w-full mt-2 border-t pt-2" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.14)' }}>
+      <div className="flex items-center gap-1 mb-1.5 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+        <Coins size={12} /> 保证金退还（逐家·实施条例第57条）
+      </div>
+      {data === null ? (
+        failed ? (
+          <div className="flex items-center gap-2 text-[0.7rem] text-red-600">
+            保证金清单加载失败
+            <button onClick={load} className="neu-btn-xs !text-[10px]">重试</button>
+          </div>
+        ) : (
+          <p className="text-[0.68rem] text-[var(--muted-foreground)]">加载中…</p>
+        )
+      ) : !data.bondRequired ? (
+        <p className="text-[0.68rem] text-[var(--muted-foreground)]">该项目未要求响应担保</p>
+      ) : data.rows.length === 0 ? (
+        <p className="text-[0.68rem] text-[var(--muted-foreground)]">无投标人花名册</p>
+      ) : (
+        <div className="space-y-1.5">
+          {data.rows.map(r => (
+            <div key={r.supplierName} className="flex items-center gap-2 flex-wrap text-[0.7rem]">
+              <span className="font-semibold truncate max-w-[200px]">{r.supplierName}</span>
+              {r.isWinner && <span className="rounded-full bg-amber-100 px-1.5 py-px text-[0.6rem] font-bold text-amber-700">中标</span>}
+              <span className="text-[var(--muted-foreground)]">唱标：{r.bondStatus ?? '—'}</span>
+              {r.bondReturnReason ? (
+                <span className="text-red-600">不予退还：{r.bondReturnReason}</span>
+              ) : r.bondReturnedAt ? (
+                <span className="text-[var(--success)]">已退还 {new Date(r.bondReturnedAt).toLocaleDateString('zh-CN')}</span>
+              ) : (
+                <span className="text-[var(--muted-foreground)]">未登记</span>
+              )}
+              <span className="ml-auto flex items-center gap-1.5">
+                {!r.bondReturnedAt && (
+                  <button onClick={() => run(() => markSupplierBondReturned(projectId, { supplierName: r.supplierName, returned: true }), `已登记退还：${r.supplierName}`)} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"><Coins size={11} /> 退还</button>
+                )}
+                {!r.bondReturnReason && (
+                  <button onClick={() => { const reason = prompt('不予退还理由（7.5.3.3 情形，必填）：'); if (!reason?.trim()) return; run(() => markSupplierBondReturned(projectId, { supplierName: r.supplierName, returned: false, reason: reason.trim() }), `已登记不予退还：${r.supplierName}`); }} disabled={busy} className="neu-btn-soft is-danger !h-[26px] !px-2.5 !text-[11px]">不退</button>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
