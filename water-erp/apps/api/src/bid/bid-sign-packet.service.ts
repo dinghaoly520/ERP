@@ -1,10 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { BidSignPacketDocxService } from './bid-sign-packet-docx.service';
 import type { SignPacketSnapshot, OperationTrace } from './bid-sign-packet-docx.service';
 import { lockAndReassertStage } from './bid-state';
+import { closeSignLoopIfDone } from './sign-loop.util';
+import { stripExpertEsignature } from '../expert/expert-esign.util';
 import type { RegisterSignDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
@@ -179,18 +182,8 @@ export class BidSignPacketService {
         },
       });
 
-      // 闭环判定：全体正选进入终态 → 置位 closedAt
-      const pendingCount = await tx.bidExpert.count({ where: { projectId, expertRole: '正选', signStatus: 'PENDING' } });
-      if (pendingCount === 0) {
-        await tx.bidSignPacket.update({ where: { projectId }, data: { closedAt: new Date(), closedById: actorId } });
-        await tx.bidSupervisionLog.create({
-          data: {
-            projectId, time: new Date(), role: '系统', target: project.name,
-            action: '评标签字闭环', result: '全体正选专家签字登记完成，可生成评标回流包', riskFlag: '无',
-            operatorId: actorId, operatorRole: 'bid_host',
-          },
-        });
-      }
+      // 闭环判定：全体正选进入终态 → 置位 closedAt（共享 util：评委电子签名路径同闸，A-152）
+      await closeSignLoopIfDone(tx, projectId, actorId, { projectName: project.name });
     });
 
     return this.getStatus(projectId);
@@ -295,7 +288,7 @@ export class BidSignPacketService {
       this.prisma.bidClarification.findMany({ where: { projectId } }),
       this.prisma.bidExpert.findMany({
         where: { projectId },
-        select: { expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true, dissentingOpinion: true, dissentingReason: true },
+        select: { expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true, dissentingOpinion: true, dissentingReason: true, esignature: true, esignatureAt: true },
       }),
     ]);
     const body = {
@@ -312,6 +305,9 @@ export class BidSignPacketService {
         expertName: e.expertName, expertRole: e.expertRole, signStatus: e.signStatus,
         signStatusAt: e.signStatusAt?.toISOString() ?? null, signScanFileId: e.signScanFileId,
         dissentingOpinion: e.dissentingOpinion, dissentingReason: e.dissentingReason,
+        // A-152：电子签名剥壳摘要（完整证据在 BidExpert.esignature，payload/签名值不入回流包）
+        esignature: stripExpertEsignature(e.esignature),
+        esignatureAt: e.esignatureAt?.toISOString() ?? null,
       })),
       disputes: disputes.map(d => ({ id: d.id, expertName: d.expertName, type: d.type, title: d.title, content: d.content, status: d.status, response: d.response, createdAt: d.createdAt.toISOString() })),
       motions: motions.map(m => ({ id: m.id, title: m.title, description: m.description, status: m.status, result: m.result, votes: m.votes.map(v => ({ expertId: v.expertId, vote: v.vote })) })),
@@ -407,7 +403,7 @@ export class BidSignPacketService {
       });
       await tx.bidExpert.updateMany({
         where: { projectId, expertRole: '正选' },
-        data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null, dissentingOpinion: null, dissentingReason: null },
+        data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null, dissentingOpinion: null, dissentingReason: null, esignature: Prisma.DbNull, esignatureAt: null },
       });
       await tx.bidSupervisionLog.create({
         data: {

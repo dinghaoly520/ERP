@@ -10,12 +10,14 @@ import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { minioClient } from '../upload/minio.client';
 import { PlaintextFetcherService } from '../ai-bid-analysis/services/plaintext-fetcher.service';
+import { SignatureService } from '../common/crypto/signature.service';
 
 describe('ExpertService', () => {
   let service: ExpertService;
   let prisma: any;
   let ai: any;
   let gateway: any;
+  let signature: any;
 
   const mockExpert = {
     id: 'exp-1',
@@ -42,6 +44,7 @@ describe('ExpertService', () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
         count: jest.fn(),
       },
       bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
@@ -68,6 +71,8 @@ describe('ExpertService', () => {
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       expertDispute: { findFirst: jest.fn(), create: jest.fn(), findMany: jest.fn() },
       bidMotion: { findMany: jest.fn() },
+      bidSignPacket: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      expertCert: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({}), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn(async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
@@ -81,6 +86,7 @@ describe('ExpertService', () => {
       notifyBidValidity: jest.fn(),
       notifyAnomaly: jest.fn(),
     };
+    signature = { verify: jest.fn(), isValidPublicKey: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -91,6 +97,7 @@ describe('ExpertService', () => {
         { provide: PlaintextFetcherService, useValue: { fetchBidderPlaintext: jest.fn() } },
         { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
         { provide: BidGateway, useValue: gateway },
+        { provide: SignatureService, useValue: signature },
       ],
     }).compile();
 
@@ -2091,6 +2098,164 @@ describe('ExpertService', () => {
       const hint = await service.getFocusHint('user-1', 'proj-1');
       expect(hint).toMatchObject({ supplierId: 'sup-1', seq: 7 });
       expect(redisMock.set).toHaveBeenCalledWith('expert:focus:ack:exp-1:proj-1:7', '1', 'EX', 30);
+    });
+  });
+
+  describe('ExpertCert 证书绑定（A-152）', () => {
+    const bindInput = { certSn: 'SN-001', certDn: 'CN=王建国', publicKey: '04' + 'ab'.repeat(64) };
+
+    it('公钥格式无效 → 400 SM2_PUBLIC_KEY_INVALID', async () => {
+      signature.isValidPublicKey.mockReturnValue(false);
+      await expect(service.bindCert('user-1', { ...bindInput, publicKey: 'bad' }))
+        .rejects.toMatchObject({ response: { code: 'SM2_PUBLIC_KEY_INVALID' } });
+      expect(prisma.expertCert.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('DN 的 CN 与专家姓名不一致 → 400 CERT_DN_MISMATCH', async () => {
+      signature.isValidPublicKey.mockReturnValue(true);
+      prisma.user.findUnique.mockResolvedValue({ displayName: '王建国', username: 'wangjg' });
+      await expect(service.bindCert('user-1', { ...bindInput, certDn: 'CN=张三' }))
+        .rejects.toMatchObject({ response: { code: 'CERT_DN_MISMATCH' } });
+    });
+
+    it('CN 归一化后与姓名一致（空白/全角括号）→ 绑定成功：旧 ACTIVE 置 REVOKED + 新行 ACTIVE', async () => {
+      signature.isValidPublicKey.mockReturnValue(true);
+      prisma.user.findUnique.mockResolvedValue({ displayName: '王建国', username: 'wangjg' });
+      prisma.expertCert.findUnique.mockResolvedValue(null); // certSn 未占用
+      prisma.expertCert.updateMany.mockResolvedValue({ count: 1 });
+
+      const r = await service.bindCert('user-1', { ...bindInput, certDn: 'CN= 王 建 国 ' });
+
+      expect(prisma.expertCert.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1', bindingStatus: 'ACTIVE' },
+          data: expect.objectContaining({ bindingStatus: 'REVOKED' }),
+        }),
+      );
+      expect(prisma.expertCert.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId: 'user-1', certSn: 'SN-001', alg: 'SM2' }) }),
+      );
+      expect(r).toBeDefined();
+    });
+
+    it('certSn 已被他人 ACTIVE 占用 → 409 CERT_SN_EXISTS', async () => {
+      signature.isValidPublicKey.mockReturnValue(true);
+      prisma.user.findUnique.mockResolvedValue({ displayName: '王建国', username: 'wangjg' });
+      prisma.expertCert.findUnique.mockResolvedValue({ userId: 'user-other', bindingStatus: 'ACTIVE' });
+      await expect(service.bindCert('user-1', bindInput))
+        .rejects.toMatchObject({ response: { code: 'CERT_SN_EXISTS' } });
+    });
+
+    it('getMyCert 返回本人 ACTIVE 证书（无则 cert=null）', async () => {
+      prisma.expertCert.findFirst.mockResolvedValue(null);
+      await expect(service.getMyCert('user-1')).resolves.toEqual({ cert: null });
+      prisma.expertCert.findFirst.mockResolvedValue({ certSn: 'SN-001', bindingStatus: 'ACTIVE' });
+      await expect(service.getMyCert('user-1')).resolves.toEqual({ cert: { certSn: 'SN-001', bindingStatus: 'ACTIVE' } });
+    });
+  });
+
+  describe('评标报告电子签名（A-152）', () => {
+    const esignExpert = {
+      id: 'exp-esign', userId: 'user-1', projectId: 'proj-1', expertName: '王建国',
+      expertRole: '正选', signStatus: 'PENDING', signStatusAt: null,
+    };
+    const esignPacket = {
+      id: 'pk1', projectId: 'proj-1', sha256: 'sha-esign',
+      generatedAt: new Date('2026-09-02T08:00:00Z'), closedAt: null,
+    };
+    const esignCert = {
+      id: 'cert-1', userId: 'user-1', certSn: 'SN-001',
+      publicKey: '04' + 'ab'.repeat(64), bindingStatus: 'ACTIVE',
+    };
+
+    /** 成功路径共用底座：门控全过 + 验签过 + 事务铺路（lockAndReassertStage 走 $queryRaw/bidProject.findUnique） */
+    const arrangeSignable = () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(esignExpert);
+      prisma.bidSignPacket.findUnique.mockResolvedValue(esignPacket);
+      prisma.expertCert.findFirst.mockResolvedValue(esignCert);
+      signature.verify.mockReturnValue(true);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 1 });
+      prisma.bidExpert.count.mockResolvedValue(0); // 无 PENDING → 闭环
+    };
+
+    it('payload：签字包未生成 → SIGN_PACKET_NOT_GENERATED', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(esignExpert);
+      prisma.bidSignPacket.findUnique.mockResolvedValue(null);
+      await expect(service.getEsignPayload('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'SIGN_PACKET_NOT_GENERATED' } });
+    });
+
+    it('payload：非 PENDING（已登记）→ 400 NOT_SIGNABLE', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...esignExpert, signStatus: 'SIGNED' });
+      prisma.bidSignPacket.findUnique.mockResolvedValue(esignPacket);
+      await expect(service.getEsignPayload('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_SIGNABLE' } });
+    });
+
+    it('payload：返回 canonical（purpose 定值 + 绑入签字包指纹）', async () => {
+      arrangeSignable();
+      const r = await service.getEsignPayload('user-1', 'proj-1');
+      expect(r.payload).toContain('"purpose":"report_esign"');
+      expect(r.payload).toContain('"packetSha256":"sha-esign"');
+      expect(r.payload).toContain('"expertName":"王建国"');
+    });
+
+    it('esign：验签失败 → 400 EXPERT_ESIGN_INVALID（零写入）', async () => {
+      arrangeSignable();
+      signature.verify.mockReturnValue(false);
+      await expect(service.esignReport('user-1', 'proj-1', { signature: 'sig-bad' }))
+        .rejects.toMatchObject({ response: { code: 'EXPERT_ESIGN_INVALID' } });
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('esign：未绑定 ACTIVE 证书 → 400 EXPERT_CERT_NOT_ACTIVE', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(esignExpert);
+      prisma.bidSignPacket.findUnique.mockResolvedValue(esignPacket);
+      prisma.expertCert.findFirst.mockResolvedValue(null);
+      await expect(service.esignReport('user-1', 'proj-1', { signature: 'sig' }))
+        .rejects.toMatchObject({ response: { code: 'EXPERT_CERT_NOT_ACTIVE' } });
+    });
+
+    it('esign：成功 → 四列写入（SIGNED/esignature/esignatureAt/signRegisteredBy）+ 监督日志 + 闭环判定', async () => {
+      arrangeSignable();
+
+      const r = await service.esignReport('user-1', 'proj-1', { signature: 'sig-hex' });
+
+      // 验签对象 = 服务端重算 canonical（杜绝客户端自报载荷）
+      expect(signature.verify).toHaveBeenCalledWith(expect.stringContaining('"purpose":"report_esign"'), 'sig-hex', esignCert.publicKey);
+      // 原子抢占：仅 PENDING 可写
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'exp-esign', projectId: 'proj-1', signStatus: 'PENDING' },
+          data: expect.objectContaining({
+            signStatus: 'SIGNED',
+            signStatusAt: expect.any(Date),
+            signRegisteredBy: 'user-1',
+            esignature: expect.objectContaining({ v: 1, algorithm: 'SM2/SM3', certSn: 'SN-001', payload: expect.any(String) }),
+            esignatureAt: expect.any(Date),
+          }),
+        }),
+      );
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: '评标报告电子签名（专家本人）', riskFlag: '无', operatorRole: 'bid_expert' }),
+        }),
+      );
+      // 闭环判定走共享 util（与主持端登记同闸）
+      expect(prisma.bidSignPacket.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { projectId: 'proj-1' }, data: expect.objectContaining({ closedById: 'user-1' }) }),
+      );
+      expect(r).toMatchObject({ signed: true, signStatus: 'SIGNED', esignature: { certSn: 'SN-001' } });
+    });
+
+    it('esign：幂等重签（updateMany count=0）→ 400 NOT_SIGNABLE，不写监督日志', async () => {
+      arrangeSignable();
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.esignReport('user-1', 'proj-1', { signature: 'sig-hex' }))
+        .rejects.toMatchObject({ response: { code: 'NOT_SIGNABLE' } });
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+      expect(prisma.bidSignPacket.update).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 import * as crypto from 'crypto';
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -192,7 +194,7 @@ describe('BidSignPacketService.generate', () => {
     expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { projectId, expertRole: '正选' },
-        data: expect.objectContaining({ signStatus: 'PENDING', signScanFileId: null }),
+        data: expect.objectContaining({ signStatus: 'PENDING', signScanFileId: null, esignature: Prisma.DbNull, esignatureAt: null }),
       }),
     );
   });
@@ -360,6 +362,39 @@ describe('BidSignPacketService.generateHandover', () => {
       }),
     );
     expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+  });
+
+  it('A-152：回流包 expertSignStatuses 携带电子签名剥壳摘要（无签则 null）', async () => {
+    baseArrange();
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { expertName: '王建国', expertRole: '正选', signStatus: 'SIGNED', signStatusAt: new Date(), signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null,
+        esignature: { v: 1, payload: 'p'.repeat(64), signature: 's'.repeat(128), algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+        esignatureAt: new Date('2026-09-02T08:05:00Z') },
+      { expertName: '李四', expertRole: '正选', signStatus: 'SIGNED', signStatusAt: new Date(), signScanFileId: 'fa-scan',
+        dissentingOpinion: null, dissentingReason: null, esignature: null, esignatureAt: null },
+    ]);
+    const svc = makeService();
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa97' });
+    (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({});
+
+    await svc.generateHandover(projectId, 'u1');
+
+    const uploaded = (svc as any).storage.upload.mock.calls[0][1] as Buffer;
+    const body = JSON.parse(uploaded.toString('utf8'));
+    expect(body.expertSignStatuses[0]).toMatchObject({
+      expertName: '王建国',
+      esignature: { algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+      esignatureAt: '2026-09-02T08:05:00.000Z',
+    });
+    expect((body.expertSignStatuses[0].esignature as any).payload).toBeUndefined(); // 剥壳：payload/签名值不入回流包
+    expect((body.expertSignStatuses[0].esignature as any).signature).toBeUndefined();
+    expect(body.expertSignStatuses[1]).toMatchObject({ expertName: '李四', esignature: null, esignatureAt: null });
   });
 });
 

@@ -24,6 +24,24 @@ import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
+import { SignatureService } from '../common/crypto/signature.service';
+import { lockAndReassertStage } from '../bid/bid-state';
+import { closeSignLoopIfDone } from '../bid/sign-loop.util';
+import { buildExpertEsignCanonical } from './expert-esign.util';
+import type { ExpertEsignatureRecord } from './expert-esign.util';
+import { BindExpertCertDto } from './dto/expert-cert.dto';
+import { ExpertEsignDto } from './dto/expert-esign.dto';
+
+/** 专家姓名/CN 归一化：去空白、全/半角括号与间隔符（人名精确一致，无企业形态后缀可剥） */
+function normalizeExpertCn(s: string): string {
+  return (s || '').replace(/[\s（）()·]/g, '');
+}
+
+/** 提取证书 DN 的 CN 段（到下一个逗号前，属性名大小写不敏感）；无 CN 段返回 null。 */
+function extractDnCn(dn: string): string | null {
+  const m = /(?:^|,)\s*cn\s*=\s*([^,]*)/i.exec(dn || '');
+  return m ? m[1].trim() : null;
+}
 
 @Injectable()
 export class ExpertService {
@@ -31,6 +49,7 @@ export class ExpertService {
 
   constructor(
     private prisma: PrismaService,
+    private readonly signatureService: SignatureService,
     private aiService: AiService,
     private conflictService: ExpertConflictService,
     private plaintextFetcher: PlaintextFetcherService,
@@ -2402,5 +2421,188 @@ export class ExpertService {
         projectStage: projectMap.get(d.projectId)?.stage ?? '',
       })),
     };
+  }
+
+  /* ── 数字证书与评标报告电子签名（A-152：专家=企业内部人员，平台自签 SM2 软证书）── */
+
+  /** 本人 ACTIVE 证书（U盾/软证书管理；无则 cert=null） */
+  async getMyCert(userId: string) {
+    const cert = await this.prisma.expertCert.findFirst({
+      where: { userId, bindingStatus: 'ACTIVE' },
+      orderBy: { boundAt: 'desc' },
+    });
+    return { cert: cert ?? null };
+  }
+
+  /**
+   * 绑定专家数字证书（供应商 bindCert 范式复制）。
+   * 校验链：公钥格式（04+128hex，与验签同一口径）→ DN 的 CN 归一化后须与专家姓名一致（人名精确相等，
+   * 非企业名包含式）→ certSn 全局占用。成功事务：旧 ACTIVE 证书置 REVOKED（一证一 ACTIVE）→ 建/复用证书行。
+   */
+  async bindCert(userId: string, input: BindExpertCertDto) {
+    const { certSn, certDn, publicKey, alg } = input;
+    if (!certSn || !certDn || !publicKey) {
+      throw new BadRequestException({ error: '请填写完整证书信息', code: 'MISSING_FIELDS' });
+    }
+    if (!this.signatureService.isValidPublicKey(publicKey)) {
+      throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: 'SM2_PUBLIC_KEY_INVALID' });
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, username: true },
+    });
+    const expertName = user?.displayName || user?.username || '';
+    const cn = extractDnCn(certDn);
+    if (!cn || normalizeExpertCn(cn) !== normalizeExpertCn(expertName)) {
+      throw new BadRequestException({ error: '证书主体(CN)与专家姓名不一致', code: 'CERT_DN_MISMATCH' });
+    }
+
+    const existing = await this.prisma.expertCert.findUnique({ where: { certSn } });
+    if (existing && (existing.bindingStatus === 'ACTIVE' || existing.userId !== userId)) {
+      throw new ConflictException({ error: '该证书序列号已被绑定', code: 'CERT_SN_EXISTS' });
+    }
+
+    const now = new Date();
+    try {
+      const cert = await this.prisma.$transaction(async (tx) => {
+        // 一证一 ACTIVE：旧 ACTIVE 证书先 REVOKED（同一专家）
+        await tx.expertCert.updateMany({
+          where: { userId, bindingStatus: 'ACTIVE' },
+          data: { bindingStatus: 'REVOKED', revokedAt: now },
+        });
+        // certSn 列全局唯一：本人已撤销的同号证书复用原行置回 ACTIVE，否则新建
+        return existing
+          ? await tx.expertCert.update({
+              where: { id: existing.id },
+              data: { certDn, publicKey, alg: alg ?? 'SM2', bindingStatus: 'ACTIVE', boundAt: now, revokedAt: null },
+            })
+          : await tx.expertCert.create({
+              data: { userId, certSn, certDn, publicKey, alg: alg ?? 'SM2' },
+            });
+      });
+      return { cert };
+    } catch (err: any) {
+      // 并发竞态（镜像供应商 bindCert）：两请求双双越过 findUnique 前置检查后
+      // 在 certSn @unique 上撞 P2002 → 转 409 锁定语义，杜绝裸 500
+      if (err?.code === 'P2002') {
+        throw new ConflictException({ error: '该证书序列号已被绑定', code: 'CERT_SN_EXISTS' });
+      }
+      throw err;
+    }
+  }
+
+  /** 电子签名载荷：下发 canonical 串（专家对此串做 SM2 签名，验证期服务端重算比对） */
+  async getEsignPayload(userId: string, projectId: string) {
+    const { expert, packet } = await this.assertEsignable(userId, projectId);
+    const payload = buildExpertEsignCanonical({
+      purpose: 'report_esign',
+      projectId,
+      bidExpertId: expert.id,
+      userId,
+      expertName: expert.expertName,
+      packetSha256: packet.sha256,
+      packetGeneratedAt: packet.generatedAt.toISOString(),
+    });
+    return { payload, packetSha256: packet.sha256 };
+  }
+
+  /**
+   * 提交评标报告电子签名：门控（本人正选 + 签字包已生成 + PENDING）→ ACTIVE 证书 SM2 验签
+   * → 事务内原子抢占（PENDING→SIGNED，防并发双签）写 esignature/esignatureAt → 闭环判定（与主持端登记同闸）。
+   */
+  async esignReport(userId: string, projectId: string, dto: ExpertEsignDto) {
+    const { expert, packet } = await this.assertEsignable(userId, projectId);
+
+    const cert = await this.prisma.expertCert.findFirst({
+      where: { userId, bindingStatus: 'ACTIVE' },
+      orderBy: { boundAt: 'desc' },
+    });
+    if (!cert) {
+      throw new BadRequestException({ error: '尚未绑定有效数字证书，请先绑定证书后重试', code: 'EXPERT_CERT_NOT_ACTIVE' });
+    }
+
+    // 验签对象 = 服务端重算 canonical（绑入签字包指纹，重生成即失效；不信任客户端自报载荷）
+    const canonical = buildExpertEsignCanonical({
+      purpose: 'report_esign',
+      projectId,
+      bidExpertId: expert.id,
+      userId,
+      expertName: expert.expertName,
+      packetSha256: packet.sha256,
+      packetGeneratedAt: packet.generatedAt.toISOString(),
+    });
+    if (!this.signatureService.verify(canonical, dto.signature, cert.publicKey)) {
+      throw new BadRequestException({ error: '电子签名验证失败，请对最新载荷重新签名', code: 'EXPERT_ESIGN_INVALID' });
+    }
+
+    const now = new Date();
+    const esignature: ExpertEsignatureRecord = {
+      v: 1,
+      payload: canonical,
+      signature: dto.signature,
+      algorithm: 'SM2/SM3',
+      certSn: cert.certSn,
+      verifiedAt: now.toISOString(),
+    };
+    await this.prisma.$transaction(async (tx) => {
+      const project = await lockAndReassertStage(tx, projectId, 'EVALUATING');
+      // 原子抢占：仅 PENDING 可签署（与 register 登记同款），count=0 即已签/已登记 → 幂等 400
+      const updated = await tx.bidExpert.updateMany({
+        where: { id: expert.id, projectId, signStatus: 'PENDING' },
+        data: {
+          signStatus: 'SIGNED',
+          signStatusAt: now,
+          signRegisteredBy: userId,
+          esignature: esignature as unknown as Prisma.InputJsonValue,
+          esignatureAt: now,
+        },
+      });
+      if (updated.count === 0) {
+        throw new BadRequestException({ error: '当前签字状态不可电子签名（已登记或已闭环）', code: 'NOT_SIGNABLE' });
+      }
+
+      const stamp = createIntegrityStamp(userId, 'expert-report-esign', expert.id);
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: now, role: '评审专家', target: expert.expertName,
+          action: '评标报告电子签名（专家本人）',
+          result: `证书 SN：${cert.certSn}（签字包指纹 ${packet.sha256.slice(0, 16)}…，审计戳 ${stamp.sig.slice(0, 16)}…）`,
+          riskFlag: '无',
+          operatorId: userId, operatorRole: 'bid_expert',
+        },
+      });
+
+      // 闭环判定与主持端登记同闸（共享 util；本路 operatorRole=bid_expert）
+      await closeSignLoopIfDone(tx, projectId, userId, { projectName: project.name, operatorRole: 'bid_expert' });
+    });
+
+    const closedPacket = await this.prisma.bidSignPacket.findUnique({
+      where: { projectId },
+      select: { closedAt: true },
+    });
+    return {
+      signed: true,
+      signStatus: 'SIGNED' as const,
+      signStatusAt: now.toISOString(),
+      esignature: { algorithm: esignature.algorithm, certSn: esignature.certSn, verifiedAt: esignature.verifiedAt },
+      closed: closedPacket?.closedAt != null,
+    };
+  }
+
+  /** 私有：电子签名门控——本人正选 BidExpert + 签字包已生成 + signStatus=PENDING（载荷/提交同前置） */
+  private async assertEsignable(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (expert.expertRole !== '正选') {
+      throw new BadRequestException({ error: '候补专家不参与签字', code: 'SIGN_EXPERT_NOT_FORMAL' });
+    }
+    const packet = await this.prisma.bidSignPacket.findUnique({ where: { projectId } });
+    if (!packet) {
+      throw new ConflictException({ error: '签字包尚未生成，无法电子签名', code: 'SIGN_PACKET_NOT_GENERATED' });
+    }
+    if (expert.signStatus !== 'PENDING') {
+      throw new BadRequestException({ error: '当前签字状态不可电子签名（已登记或已闭环）', code: 'NOT_SIGNABLE' });
+    }
+    return { expert, packet };
   }
 }

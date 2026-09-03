@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, BadRequestException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { BidService } from './bid.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
 import { GbCodeService } from '../common/gb-code.service';
@@ -1814,6 +1815,55 @@ describe('BidService — stage transitions', () => {
 
       expect(result).toBeDefined();
       expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('A-152：电子签名并入归档哈希链——签字状态 JSON 含 esignature/esignatureAt（无扫描件也入链）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-T', stage: 'EVALUATING', name: '测试项目' });
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([]) // ensureArchiveItems 首查
+        .mockResolvedValueOnce([{ id: 'a-sign', name: '评标签字包', status: 'PENDING_CONFIRM' }]); // 待归档项
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({});
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidSupplier.findMany.mockResolvedValue([]); // G5：无可评供应商
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidSignPacket.findUnique.mockResolvedValue({
+        fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null,
+        closedAt: new Date(), handoverFileAssetId: 'fa-handover',
+      });
+      // 电子签名专家（无扫描件）——OR 扩展后仍须入状态 JSON
+      prisma.bidExpert.findMany.mockResolvedValue([
+        {
+          expertName: '王建国', signStatus: 'SIGNED', signScanFileId: null,
+          esignature: { v: 1, payload: 'p', signature: 's', algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+          esignatureAt: new Date('2026-09-02T08:05:00Z'),
+        },
+      ]);
+      prisma.fileAsset.findMany.mockResolvedValue([{ sha256: 'sha-scan' }]);
+
+      await service.archiveAll('p1', 'u1');
+
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            projectId: 'p1',
+            OR: [{ signScanFileId: { not: null } }, { esignature: { not: Prisma.DbNull } }],
+          }),
+        }),
+      );
+      const expectedJson = JSON.stringify([{
+        expertName: '王建国', signStatus: 'SIGNED',
+        esignature: { v: 1, payload: 'p', signature: 's', algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+        esignatureAt: '2026-09-02T08:05:00.000Z',
+      }]);
+      const expectedHash = crypto.createHash('sha256').update(expectedJson, 'utf8').digest('hex');
+      expect(prisma.bidArchiveItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'a-sign' },
+          data: expect.objectContaining({ fileHashes: ['sha-sign', 'sha-scan', expectedHash] }),
+        }),
+      );
     });
 
     it('ensureArchiveItems：项目含 dual-v2 提交 → 标准清单追加「解密后投标文件」，重复 ensure 幂等不重复建', async () => {

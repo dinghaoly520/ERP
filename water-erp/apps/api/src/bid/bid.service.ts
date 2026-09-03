@@ -5437,14 +5437,19 @@ export class BidService {
       if (scope === 'full') {
         const signPacket = await tx.bidSignPacket.findUnique({ where: { projectId: id } });
         if (signPacket) {
+          // A-152：电子签名专家无扫描件——有扫描件或电子签名者均入状态 JSON；
+          // 旧数据无 esignature 时集合与原「仅扫描件」口径一致（verify/export 用持久化 fileHashes，不受此处影响）
           const expertScans = await tx.bidExpert.findMany({
-            where: { projectId: id, signScanFileId: { not: null } },
-            select: { expertName: true, signStatus: true, signScanFileId: true },
+            where: { projectId: id, OR: [{ signScanFileId: { not: null } }, { esignature: { not: Prisma.DbNull } }] },
+            select: { expertName: true, signStatus: true, signScanFileId: true, esignature: true, esignatureAt: true },
           });
           const scanAssetIds = [signPacket.fileAssetId, signPacket.signPageScanFileId, ...expertScans.map(e => e.signScanFileId)]
             .filter((v): v is string => v != null);
           const scanAssets = await tx.fileAsset.findMany({ where: { id: { in: scanAssetIds } }, select: { sha256: true } });
-          const statusJson = JSON.stringify(expertScans.map(e => ({ expertName: e.expertName, signStatus: e.signStatus })));
+          const statusJson = JSON.stringify(expertScans.map(e => ({
+            expertName: e.expertName, signStatus: e.signStatus,
+            esignature: e.esignature ?? null, esignatureAt: e.esignatureAt?.toISOString() ?? null,
+          })));
           signFileHashes = [
             signPacket.sha256,
             ...scanAssets.map(a => a.sha256),
