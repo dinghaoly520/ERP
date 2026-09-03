@@ -147,7 +147,7 @@ function ExpertLoginPage() {
           </div>
         </div>
 
-        <form className="login-rise login-rise--3 mx-auto mt-8 flex w-full max-w-[430px] flex-col items-center gap-[1.05rem]" onSubmit={handleLogin} noValidate>
+        <form className="login-rise login-rise--3 mx-auto mt-8 flex w-full max-w-[440px] flex-col gap-[1.05rem]" onSubmit={handleLogin} noValidate>
           <div className="login-field-shell">
             <label htmlFor="exp-user" className="sr-only">{tab === 'expert' ? '专家账号' : '管理员账号'}</label>
             <span aria-hidden className="login-field-shell__icon-rail">{IconUser}</span>
