@@ -13,6 +13,11 @@ export interface OpenedUkey {
   adapter: MockUKeyAdapter | VendorUKeyAdapter;
 }
 
+/* 严格模式(supplier-portal .env.local: NEXT_PUBLIC_UKEY_STRICT=1):禁用 mock 保底回落——
+   中间件不在线时 openUkey 直接报错,只认U盘(vendor)轨。
+   默认关:CI/无外设环境的保底轨道(spec §7)不受影响。 */
+export const UKEY_STRICT = process.env.NEXT_PUBLIC_UKEY_STRICT === "1";
+
 /** 与各页面原有同键(mock 介质 keystore 落 localStorage) */
 const ukeyStorage: StorageLike = {
   getItem: (k) => localStorage.getItem(k),
@@ -27,6 +32,11 @@ export async function detectUkey(): Promise<UkeyKind> {
 export async function openUkey(password: string): Promise<OpenedUkey> {
   if (await VendorUKeyAdapter.probe()) {
     return { kind: "vendor", adapter: await VendorUKeyAdapter.open({ password }) };
+  }
+  if (UKEY_STRICT) {
+    throw new Error(
+      "未检测到 U盾中间件——严格模式已禁用浏览器模拟介质,请插入 CA U盘(本机常驻: systemctl --user start ukey-mw-usb)",
+    );
   }
   return { kind: "mock", adapter: await MockUKeyAdapter.open({ storage: ukeyStorage, password }) };
 }
