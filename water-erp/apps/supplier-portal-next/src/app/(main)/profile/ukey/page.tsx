@@ -222,6 +222,7 @@ export default function UkeyManagePage() {
 
   // ── 解绑 ──
   async function handleRevoke(row: ServerCertRow) {
+    if (UKEY_STRICT && !ukey) { toast.warning("请先解锁 U盾，再进行证书解绑"); return; }
     // ElMessageBox.confirm → window.confirm（取消直接返回，不再走 catch 的 error 分支）
     if (!window.confirm(`确定解绑证书 ${row.certSn} 吗？解绑后该证书将无法再用于投标签名。`)) return;
     setRevoking(true);
@@ -494,7 +495,7 @@ export default function UkeyManagePage() {
                       {row.bindingStatus === "ACTIVE" ? "生效中" : "已撤销"}
                     </span>
                     {row.bindingStatus === "ACTIVE" && (
-                      <SpButton danger loading={revoking} onClick={() => void handleRevoke(row)}>解绑</SpButton>
+                      <SpButton danger loading={revoking} disabled={UKEY_STRICT && !ukey} onClick={() => void handleRevoke(row)}>解绑</SpButton>
                     )}
                   </div>
                 </div>
