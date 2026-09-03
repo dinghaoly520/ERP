@@ -34,9 +34,7 @@ export async function openUkey(password: string): Promise<OpenedUkey> {
     return { kind: "vendor", adapter: await VendorUKeyAdapter.open({ password }) };
   }
   if (UKEY_STRICT) {
-    throw new Error(
-      "未检测到 U盾中间件——严格模式已禁用浏览器模拟介质,请插入 CA U盘(本机常驻: systemctl --user start ukey-mw-usb)",
-    );
+    throw new Error("未检测到 U盾，请插入 U盾后重试");
   }
   return { kind: "mock", adapter: await MockUKeyAdapter.open({ storage: ukeyStorage, password }) };
 }

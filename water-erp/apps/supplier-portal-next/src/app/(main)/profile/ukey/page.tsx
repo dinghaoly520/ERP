@@ -340,7 +340,7 @@ export default function UkeyManagePage() {
       {mwOffline && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: "#e6a23c", background: "#fdf6ec", border: "1px solid #faecd8" }}>
           <TriangleAlert size={14} strokeWidth={1.75} style={{ flexShrink: 0 }} />
-          <span>{UKEY_STRICT ? <>未检测到 U盾中间件——严格模式：浏览器模拟介质已禁用，请插入 CA U盘（本机常驻 <b>systemctl --user start ukey-mw-usb</b>）</> : <>未检测到 U盾中间件——当前使用浏览器模拟 U盾。启动：<b>pnpm dev:ukey-mw</b>（发行：<b>ukeymw issue --cn 企业名</b>）</>}</span>
+          <span>{UKEY_STRICT ? <>未检测到 U盾——请插入 U盾后刷新本页</> : <>未检测到 U盾中间件——当前使用浏览器模拟 U盾。启动：<b>pnpm dev:ukey-mw</b>（发行：<b>ukeymw issue --cn 企业名</b>）</>}</span>
         </div>
       )}
 
@@ -351,7 +351,7 @@ export default function UkeyManagePage() {
             <span className="card-title">U盾</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
-                {ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
+                {UKEY_STRICT || ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
               </span>
               <span className={`ukey-state${ukey ? " open" : ""}`}>
                 {ukey
@@ -361,7 +361,9 @@ export default function UkeyManagePage() {
             </span>
           </div>
 
-          {!ukey ? (
+          {UKEY_STRICT && ukeyKind === "mock" ? (
+            <div className="ukey-empty">未检测到 U盾——请插入 U盾后刷新本页</div>
+          ) : !ukey ? (
             <>
               <div className="open-row">
                 <SpInput
