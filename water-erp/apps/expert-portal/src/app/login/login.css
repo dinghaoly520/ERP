@@ -315,3 +315,84 @@
   .login-mark__halo--soft, .login-mark__halo--rich, .login-mark__ring, .login-slogan { animation: none !important; }
   .login-submit-button { transition: none !important; }
 }
+
+/* =============================================================================
+   对齐 web :3005 登录设计（2026-09-03）—— 渐变流光标题 / 徽标漂浮 / 入场升起 / 箭头徽章
+   全部纯 CSS（本页零 framer-motion 依赖的决策不变），规则移植自
+   apps/web/src/app/globals.css 的 login-title--gradient / login-arrow-badge。
+   ============================================================================= */
+
+/* ── 渐变流光标题（:3005 同款五段水色渐变 + 缓慢流动）── */
+.login-title--gradient {
+  background: linear-gradient(
+    90deg,
+    #0b3d7a 0%,
+    #064ea2 22%,
+    #0891a0 48%,
+    #18a56c 70%,
+    #064ea2 88%,
+    #0b3d7a 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: loginTitleFlow 8s ease-in-out infinite alternate;
+}
+@keyframes loginTitleFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+/* ── 品牌光晕标漂浮循环（对齐 :3005 framer-motion 徽标 y/rotate/scale 循环）── */
+.login-mark--float { animation: loginMarkFloat 8.2s ease-in-out infinite; }
+@keyframes loginMarkFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  25% { transform: translateY(-10px) rotate(-2deg) scale(1.06); }
+  50% { transform: translateY(0) rotate(0deg) scale(1); }
+  75% { transform: translateY(4px) rotate(2deg) scale(1.03); }
+}
+
+/* ── 入场升起（对齐 :3005 framer-motion 交错入场，0.08s 步进延迟）── */
+.login-rise {
+  opacity: 0;
+  animation: loginRise 0.8s var(--ease-out-quint) forwards;
+}
+.login-rise--1 { animation-delay: 0s; }
+.login-rise--2 { animation-delay: 0.08s; }
+.login-rise--3 { animation-delay: 0.16s; }
+.login-rise--4 { animation-delay: 0.24s; }
+@keyframes loginRise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 提交键箭头徽章（:3005 同款：悬停右移 + 品牌色晕）── */
+.login-arrow-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: transparent;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.3s ease;
+}
+.login-submit-button:hover .login-arrow-badge,
+.login-submit-button:focus-visible .login-arrow-badge {
+  transform: translateX(4px);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-title--gradient {
+    animation: none !important;
+    background-position: 22% 50%;
+  }
+  .login-mark--float { animation: none !important; }
+  .login-rise { animation: none !important; opacity: 1; }
+  .login-arrow-badge { transition: none !important; }
+}

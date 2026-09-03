@@ -14,7 +14,7 @@ const IconLock = (
   <svg className="login-field-shell__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="4.5" y="10" width="15" height="10" rx="2.5" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" /></svg>
 );
 const IconArrow = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
 );
 const IconEye = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -32,7 +32,7 @@ const WEB_ROLES = ['admin', 'bid_host', 'leader', 'staff'];
 const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
   process.env.NODE_ENV === 'production'
     ? { expert: { username: '', password: '' }, admin: { username: '', password: '' } }
-    : { expert: { username: '周祥志', password: 'expert@2026' }, admin: { username: 'Swhi-CGZX-admin', password: 'Swhi-CGZX-admin@2026' } };
+    : { expert: { username: '赵国栋', password: 'expert@2026' }, admin: { username: 'Swhi-CGZX-admin', password: 'Swhi-CGZX-admin@2026' } };
 
 function ExpertLoginPage() {
   const router = useRouter();
@@ -120,30 +120,34 @@ function ExpertLoginPage() {
       </div>
       <div aria-hidden className="login-stage__veil" />
 
-      <div className="relative z-10 flex w-full max-w-[440px] flex-col items-center text-center">
-        {/* 品牌光晕标 */}
-        <div className="login-mark flex h-[72px] w-[72px] items-center justify-center">
-          <span aria-hidden className="login-mark__halo login-mark__halo--soft" />
-          <span aria-hidden className="login-mark__halo login-mark__halo--rich" />
-          <span aria-hidden className="login-mark__ring" />
-          <img src="/assets/logo.png" alt="" className="relative z-10 h-[58px] w-[58px] object-contain" />
+      <div className="login-rise login-rise--1 relative z-10 -mt-6 w-full max-w-[500px] sm:-mt-9">
+        <div className="flex flex-col items-center text-center">
+          {/* 品牌光晕标（漂浮循环对齐 :3005） */}
+          <div className="login-mark login-mark--float">
+            <span aria-hidden className="login-mark__halo login-mark__halo--soft" />
+            <span aria-hidden className="login-mark__halo login-mark__halo--rich" />
+            <span aria-hidden className="login-mark__ring" />
+            <img src="/assets/logo.png" alt="" className="relative z-10 h-[60px] w-[60px] object-contain" />
+          </div>
+
+          <h1 className="login-title login-title--gradient mt-4 max-w-[16.5rem] text-[clamp(1.78rem,4.8vw,2.42rem)] font-black leading-[1.15] tracking-[0.08em] sm:max-w-none">
+            智慧水发 · <span className="whitespace-nowrap">专家门户</span>
+          </h1>
+          <p className="login-slogan mt-5 text-[0.82rem] tracking-[0.28em]">独立评审 · 客观公正 · 全程留痕</p>
         </div>
 
-        <h1 className="login-title mt-4 font-[family-name:var(--font-display)] text-[clamp(1.7rem,4.6vw,2.3rem)] font-semibold tracking-[-0.06em] text-[color:var(--foreground)]">
-          智慧水发 · <span className="whitespace-nowrap">专家门户</span>
-        </h1>
-        <p className="login-slogan mt-4 text-[0.82rem] font-semibold tracking-[0.22em]">独立评审 · 客观公正 · 全程留痕</p>
-
-        {/* 角色切换 —— 复用 cgzxui 内凹 tab */}
-        <div className="neu-tab-bar mt-7">
+        {/* 角色切换 —— 复用 cgzxui 内凹 tab（块级流内居中） */}
+        <div className="login-rise login-rise--2 mt-7 flex justify-center">
+          <div className="neu-tab-bar">
           {(['expert', 'admin'] as Tab[]).map(t => (
             <button key={t} type="button" className={`neu-tab${tab === t ? ' is-active' : ''}`} onClick={() => switchTab(t)}>
               {t === 'expert' ? '专家登录' : '管理员登录'}
             </button>
           ))}
+          </div>
         </div>
 
-        <form className="mt-5 flex w-full flex-col gap-[1.05rem]" onSubmit={handleLogin} noValidate>
+        <form className="login-rise login-rise--3 mx-auto mt-8 flex w-full max-w-[430px] flex-col items-center gap-[1.05rem]" onSubmit={handleLogin} noValidate>
           <div className="login-field-shell">
             <label htmlFor="exp-user" className="sr-only">{tab === 'expert' ? '专家账号' : '管理员账号'}</label>
             <span aria-hidden className="login-field-shell__icon-rail">{IconUser}</span>
@@ -175,7 +179,7 @@ function ExpertLoginPage() {
 
           <button className="login-submit-button mt-1 inline-flex w-full items-center justify-center gap-2 rounded-[20px] px-6 py-4 text-sm font-semibold text-[color:var(--foreground)]" type="submit" disabled={loading}>
             <span className="login-submit-label">{loading ? '登录中…' : '登 录'}</span>
-            {IconArrow}
+            <span aria-hidden className="login-arrow-badge">{IconArrow}</span>
           </button>
 
           {isDev && (
@@ -185,7 +189,7 @@ function ExpertLoginPage() {
           )}
         </form>
 
-        <div className="login-credit mt-7 text-[0.72rem] tracking-[0.12em] text-[color:var(--muted-foreground)]">
+        <div className="login-rise login-rise--4 login-credit mt-7 text-center text-[0.72rem] tracking-[0.12em] text-[color:var(--muted-foreground)]">
           智慧水发 · 蜀水云采 · 在线开评标
         </div>
       </div>
