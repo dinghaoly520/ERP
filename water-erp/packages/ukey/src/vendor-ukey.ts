@@ -90,8 +90,12 @@ export class VendorUKeyAdapter implements UKeyAdapter {
   /** 开锁:probe → unlock(PIN)。错 PIN/锁死抛中文 Error(message 含 retryLeft)。 */
   static async open(opts: { password: string; baseUrl?: string }): Promise<VendorUKeyAdapter> {
     const baseUrl = opts.baseUrl ?? VendorUKeyAdapter.VENDOR_BASE_URL;
-    if (!(await VendorUKeyAdapter.probe(300, baseUrl))) {
+    const probeInfo = await VendorUKeyAdapter.probe(300, baseUrl);
+    if (!probeInfo) {
       throw new Error('未检测到 U盾中间件——请插入 U盾并启动驱动服务(pnpm dev:ukey-mw)');
+    }
+    if (probeInfo.shields === 0) {
+      throw new Error('未检测到 U盾——请插入 CA U盾(U盘)后重试');
     }
     const { status, body } = await requestJson(
       `${baseUrl}/session/unlock`,
@@ -101,12 +105,14 @@ export class VendorUKeyAdapter implements UKeyAdapter {
     if (status !== 200) raise(status, body);
     const unlocked: unknown[] = Array.isArray(body?.unlocked) ? body.unlocked : [];
     const failed: Array<{ shieldId: string; retryLeft?: number; locked?: boolean }> = Array.isArray(body?.failed) ? body.failed : [];
-    if (unlocked.length === 0 && failed.length > 0) {
+    if (unlocked.length === 0) {
       const f = failed[0];
       throw new Error(
-        f.locked
-          ? 'U盾已锁定(PIN 错误次数超限),请使用管理码(PUK)解锁'
-          : `U盾口令不符(剩余尝试次数 ${f.retryLeft ?? '?'})`,
+        f
+          ? f.locked
+            ? 'U盾已锁定(PIN 错误次数超限),请使用管理码(PUK)解锁'
+            : `U盾口令不符(剩余尝试次数 ${f.retryLeft ?? '?'})`
+          : '未检测到 U盾——请插入 CA U盾(U盘)后重试', // 0/0 空成功兜底(旧版中间件/异常返回)
       );
     }
     const adapter = new VendorUKeyAdapter(baseUrl);

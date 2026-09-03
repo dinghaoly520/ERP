@@ -85,3 +85,16 @@ test('坏 JSON 体 → 400 BAD_REQUEST', async () => {
   const r = await fetch(base + '/sign', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{oops' });
   assert.equal(r.status, 400);
 });
+
+test('拔盘后 unlock:空盾槽 → 404 SHIELD_NOT_FOUND(不得返回空成功/PIN 假校验)', async () => {
+  const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ukey-srv-empty-'));
+  const srv2 = await startServer({ port: 0, slotDir: emptyDir });
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv2.port}/session/unlock`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pin: '123456' }),
+    });
+    assert.equal(r.status, 404);
+    const j = await r.json().catch(() => null);
+    assert.equal(j?.code, 'SHIELD_NOT_FOUND');
+  } finally { srv2.close(); fs.rmSync(emptyDir, { recursive: true, force: true }); }
+});
