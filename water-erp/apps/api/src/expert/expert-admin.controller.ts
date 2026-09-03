@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Body, Param, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -11,6 +11,7 @@ import { ExtractionNotifyDto } from './dto/extraction-notify.dto';
 import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 import { SetAvailabilityDto, ConfirmRetireDto } from './dto/expert-status.dto';
 import { UpdateExpertStatusDto } from './dto/update-expert-status.dto';
+import { CommitteeAssignmentDto } from '../bid/dto/committee-assignment.dto';
 import {
   UpdateExpertProfileDto,
   GenerateNotificationDto,
@@ -113,6 +114,12 @@ export class ExpertAdminController {
   @ApiOperation({ summary: 'AI 选定评审组长（综合职称/经验/偏离度等推荐）' })
   aiSelectLeader(@Body() dto: { projectId: string }) {
     return this.expertAdminService.aiSelectLeader(dto.projectId);
+  }
+
+  @Put('projects/:id/committee/assignment')
+  @ApiOperation({ summary: 'A-132: 评委职责分工（分组/主审复核，partial）' })
+  setCommitteeAssignment(@Param('id') projectId: string, @Body() dto: CommitteeAssignmentDto, @Request() req: any) {
+    return this.expertAdminService.setCommitteeAssignment(projectId, dto, req.user?.sub);
   }
 
   @Post('extract/notify')

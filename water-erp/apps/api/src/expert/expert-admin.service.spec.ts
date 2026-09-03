@@ -482,6 +482,45 @@ describe('ExpertAdminService', () => {
     });
   });
 
+  describe('setCommitteeAssignment（A-132 评委分工）', () => {
+    it('A-132：分工设置——合法两行 update + 监督日志；名册外 userId 400', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', expertRole: '正选' }, { userId: 'u2', expertRole: '正选' }]);
+      await service.setCommitteeAssignment('p1', { assignments: [
+        { userId: 'u1', reviewGroup: '技术组', dutyRole: '主审' },
+        { userId: 'u2', reviewGroup: '商务组', dutyRole: '复核' },
+      ] } as any);
+      expect(prisma.bidExpert.update).toHaveBeenCalledTimes(2);
+      expect(prisma.bidExpert.update).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        where: { projectId_userId: { projectId: 'p1', userId: 'u1' } },
+        data: { reviewGroup: '技术组', dutyRole: '主审' },
+      }));
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ projectId: 'p1', action: '评委分工设置', riskFlag: '无' }),
+      }));
+      await expect(service.setCommitteeAssignment('p1', { assignments: [{ userId: 'uX', reviewGroup: '技术组' }] } as any))
+        .rejects.toMatchObject({ response: { code: 'EXPERT_NOT_IN_COMMITTEE' } });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1); // 名册外拒绝发生在事务前
+    });
+
+    it('A-132：非法枚举 400（reviewGroup 白名单；DTO IsIn 在管道层，service 层双保险）', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', expertRole: '正选' }]);
+      await expect(service.setCommitteeAssignment('p1', { assignments: [{ userId: 'u1', reviewGroup: 'A组' }] } as any))
+        .rejects.toMatchObject({ response: { code: 'INVALID_COMMITTEE_VALUE' } });
+      await expect(service.setCommitteeAssignment('p1', { assignments: [{ userId: 'u1', dutyRole: '组长' }] } as any))
+        .rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('A-132：partial 更新——未提交的 dutyRole 不清空既有值', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', expertRole: '正选' }]);
+      await service.setCommitteeAssignment('p1', { assignments: [{ userId: 'u1', reviewGroup: '综合组' }] } as any);
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { projectId_userId: { projectId: 'p1', userId: 'u1' } },
+        data: { reviewGroup: '综合组', dutyRole: undefined },
+      }));
+    });
+  });
+
   describe('createEvaluation（项目归属校验 + 去重防刷 + 综合等级计算）', () => {
     const evalDto = (over: any = {}) =>
       ({ expertUserId: 'u1', attendanceGrade: 'A', qualityGrade: 'A', disciplineGrade: 'A', ...over }) as any;

@@ -21,6 +21,7 @@ import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import type { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 import type { UpdateExpertProfileDto } from './dto/expert-admin-misc.dto';
+import type { CommitteeAssignmentDto } from '../bid/dto/committee-assignment.dto';
 import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from '../common/scoring/expert-deviation';
 import { buildExpertPortrait } from './expert-portrait.util';
 import { NotificationService } from '../notification/notification.service';
@@ -984,6 +985,33 @@ export class ExpertAdminService {
     return { success: true, leaderId: userId };
   }
 
+  /** A-132：评委职责分工（技术/商务分组 + 主审/复核），partial 更新，写入报告委员会名单（见 docx 任务） */
+  async setCommitteeAssignment(projectId: string, dto: CommitteeAssignmentDto, actorId?: string) {
+    // service 层白名单双保险（DTO IsIn 在管道层，绕过管道的内部调用仍被拦）
+    const REVIEW_GROUPS = ['技术组', '商务组', '综合组'];
+    const DUTY_ROLES = ['主审', '复核', '成员'];
+    for (const a of dto.assignments) {
+      if (a.reviewGroup !== undefined && !REVIEW_GROUPS.includes(a.reviewGroup)
+        || a.dutyRole !== undefined && !DUTY_ROLES.includes(a.dutyRole)) {
+        throw new BadRequestException({ error: `专家 ${a.userId} 分工值非法（reviewGroup/dutyRole 不在白名单）`, code: 'INVALID_COMMITTEE_VALUE' });
+      }
+    }
+    const roster = await this.prisma.bidExpert.findMany({ where: { projectId, expertRole: '正选' }, select: { userId: true } });
+    const ids = new Set(roster.map(r => r.userId));
+    for (const a of dto.assignments) {
+      if (!ids.has(a.userId)) throw new BadRequestException({ error: `专家 ${a.userId} 不在本项目正选名单`, code: 'EXPERT_NOT_IN_COMMITTEE' });
+    }
+    await this.prisma.$transaction(async (tx) => {
+      for (const a of dto.assignments) {
+        await tx.bidExpert.update({ where: { projectId_userId: { projectId, userId: a.userId } },
+          data: { reviewGroup: a.reviewGroup ?? undefined, dutyRole: a.dutyRole ?? undefined } });
+      }
+      await tx.bidSupervisionLog.create({ data: { projectId, time: new Date(), role: '系统', target: '评标委员会',
+        action: '评委分工设置', result: dto.assignments.map(a => `${a.userId}:${a.reviewGroup ?? '—'}/${a.dutyRole ?? '—'}`).join('；'), riskFlag: '无', operatorId: actorId ?? undefined } });
+    });
+    return { success: true };
+  }
+
   /** 查询项目专家邀请状态（正选+候补） */
   async getProjectInvitations(projectId: string) {
     // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（TTL 过期自动弃权并递补）
@@ -1008,6 +1036,7 @@ export class ExpertAdminService {
       select: {
         id: true, userId: true, expertName: true, major: true,
         isLead: true, expertRole: true, invitationStatus: true,
+        reviewGroup: true, dutyRole: true,
         rsvpToken: true, rsvpRespondedAt: true, rsvpExpiresAt: true,
         user: { select: { expertProfile: { select: { title: true, employer: true } } } },
       },
