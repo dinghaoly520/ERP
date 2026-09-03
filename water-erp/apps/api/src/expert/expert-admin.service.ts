@@ -385,8 +385,10 @@ export class ExpertAdminService {
           ...(dto.licenseNo !== undefined && { licenseNo: dto.licenseNo }),
           ...(dto.availability !== undefined && { availability: dto.availability }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
+          ...(dto.regionCode !== undefined && { regionCode: dto.regionCode }),
+          ...(dto.expertLevel !== undefined && { expertLevel: dto.expertLevel }),
         },
-        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, ethnicity: dto.ethnicity, education: dto.education, licenseNo: dto.licenseNo, availability: dto.availability ?? '可用', notes: dto.notes },
+        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, ethnicity: dto.ethnicity, education: dto.education, licenseNo: dto.licenseNo, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
       }),
     ]);
     return { success: true };
@@ -419,6 +421,15 @@ export class ExpertAdminService {
         .filter(Boolean) as string[],
     );
 
+    // A-129：配额区域/等级可选过滤——未填不过滤；候选池为全配额共享，多配额不同值取并集
+    // （交集会把只满足某一配额的专家整体饿死），并集语义在返回 quotaFiltersApplied 中说明
+    const quotaRows = dto.manualQuotas ?? [];
+    const regionCodes = [...new Set(quotaRows.map(q => q.regionCode?.trim()).filter((v): v is string => !!v))];
+    const expertLevels = [...new Set(
+      quotaRows.flatMap(q => (q.expertLevel ?? '').split(',').map(s => s.trim()).filter(v => /^[A-E]$/.test(v))),
+    )];
+    const levelUnionWidened = new Set(quotaRows.map(q => q.expertLevel?.trim()).filter((v): v is string => !!v)).size > 1;
+
     // 合规候选：bid_expert + 可用 + 未分配本项目 + 工作单位不在参与供应商中
     // 重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录），只排除其他项目的占用
     const experts = await this.prisma.user.findMany({
@@ -429,6 +440,10 @@ export class ExpertAdminService {
           availability: '可用',
           entryStatus: 'ACTIVE',
           ...(dto.employer?.trim() ? { employer: dto.employer.trim() } : {}),
+          ...(regionCodes.length === 1
+            ? { regionCode: regionCodes[0] }
+            : regionCodes.length > 1 ? { regionCode: { in: regionCodes } } : {}),
+          ...(expertLevels.length ? { expertLevel: { in: expertLevels } } : {}),
         },
       },
       include: {
@@ -517,6 +532,8 @@ export class ExpertAdminService {
         specialty: u.expertProfile?.specialty || '综合',
         title: u.expertProfile?.title ?? undefined,
         employer: u.expertProfile?.employer ?? undefined,
+        regionCode: u.expertProfile?.regionCode ?? undefined,
+        expertLevel: u.expertProfile?.expertLevel ?? undefined,
         department: u.department?.name ?? undefined,
         pastProjects: u._count.bidExperts,
         evaluationLevel: latest?.level,
@@ -549,7 +566,7 @@ export class ExpertAdminService {
       );
       analysis = llm.analysis;
       requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department }))
+        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department, regionCode: q.regionCode, expertLevel: q.expertLevel }))
         : llm.requiredSpecialties;
       for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
     } catch (err) {
@@ -559,7 +576,7 @@ export class ExpertAdminService {
       const errMsg = (err as Error)?.message ?? String(err);
       new Logger(ExpertAdminService.name).warn(`抽取 AI 降级规则引擎: ${errMsg}`);
       requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department }))
+        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department, regionCode: q.regionCode, expertLevel: q.expertLevel }))
         : this.ruleComposition(candidates, totalNeeded);
       const isTimeout = errMsg.includes('超时') || errMsg.includes('timed out');
       const is503 = errMsg.includes('503') || errMsg.includes('Service Unavailable');
@@ -698,12 +715,22 @@ export class ExpertAdminService {
         }),
       ],
       eligiblePool: eligible.length,
+      // A-129：候选行携带档案区域/等级，供前端展示与配额过滤核对
+      ...(regionCodes.length || expertLevels.length ? {
+        quotaFiltersApplied: {
+          regionCode: regionCodes,
+          expertLevel: expertLevels,
+          ...(regionCodes.length > 1 || levelUnionWidened ? { note: '多配额区域/等级值不一致，候选池已按并集过滤' } : {}),
+        },
+      } : {}),
       candidatePool: candidates.map(c => ({
         userId: c.id,
         name: c.displayName,
         specialty: c.specialty,
         title: c.title,
         employer: c.employer,
+        regionCode: c.regionCode,
+        expertLevel: c.expertLevel,
         matchScore: scoreMap.get(c.id)?.matchScore ?? 0,
         evaluationLevel: c.evaluationLevel,
         currentLoadStatus: c.currentLoadStatus,

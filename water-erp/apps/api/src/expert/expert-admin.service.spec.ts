@@ -49,6 +49,7 @@ describe('ExpertAdminService', () => {
       },
       expertProfile: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        upsert: jest.fn().mockResolvedValue({}),
       },
       bidSupervisionLog: {
         create: jest.fn().mockResolvedValue({}),
@@ -224,6 +225,17 @@ describe('ExpertAdminService', () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u9', role: 'staff' });
       await expect(service.updateProfile('u9', { displayName: 'x' })).rejects.toThrow(NotFoundException);
     });
+    it('A-129：regionCode/expertLevel 随管理端编辑落 expertProfile（update 与 create 两分支都带）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      await service.updateProfile('u1', { regionCode: '510000', expertLevel: 'B' });
+      expect(prisma.expertProfile.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'u1' },
+          update: expect.objectContaining({ regionCode: '510000', expertLevel: 'B' }),
+          create: expect.objectContaining({ regionCode: '510000', expertLevel: 'B' }),
+        }),
+      );
+    });
   });
 
   describe('previewExtraction（AI 规则降级回归）', () => {
@@ -250,6 +262,68 @@ describe('ExpertAdminService', () => {
       expect(extractionAi.recordFallback).toHaveBeenCalled();
       expect(res.selected.length).toBeGreaterThan(0);
       expect(res.model).toContain('Rules Engine');
+    });
+
+    // A-129：配额区域/等级可选过滤——共享候选池 where 注入
+    const setupA129 = () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '测试项目', procurementMethod: '公开招标',
+        scope: '水利枢纽施工', qualification: '', qualityRequirement: '', riskNote: '', budget: null,
+        suppliers: [],
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', displayName: '甲', isActive: true, expertProfile: { specialty: '造价咨询', availability: '可用', entryStatus: 'ACTIVE', title: '高级工程师', employer: '川西分公司', regionCode: '510000', expertLevel: 'A' }, bidExperts: [], _count: { bidExperts: 3 } },
+        { id: 'u2', displayName: '乙', isActive: true, expertProfile: { specialty: '地质', availability: '可用', entryStatus: 'ACTIVE', title: '工程师', employer: '设计院', regionCode: '510000', expertLevel: 'C' }, bidExperts: [], _count: { bidExperts: 1 } },
+      ]);
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      extractionAi.analyzeAndScore.mockResolvedValue({ analysis: 'ok', requiredSpecialties: [], scoredExperts: [] });
+    };
+
+    it('A-129：配额带 regionCode/expertLevel → 候选过滤 where 注入 expertProfile 两字段', async () => {
+      setupA129();
+      await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialty: '造价咨询', count: 3, regionCode: '510000', expertLevel: 'A,B' },
+      ] } as any);
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertProfile: expect.objectContaining({
+          regionCode: '510000', expertLevel: { in: ['A', 'B'] },
+        }) }),
+      }));
+    });
+
+    it('A-129：配额未带区域/等级 → where 不含两键（undefined 透传 prisma 即忽略，未填不过滤铁律）', async () => {
+      setupA129();
+      await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialty: '造价咨询', count: 3 },
+      ] } as any);
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          expertProfile: expect.not.objectContaining({ regionCode: expect.anything() }),
+        }),
+      }));
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          expertProfile: expect.not.objectContaining({ expertLevel: expect.anything() }),
+        }),
+      }));
+    });
+
+    it('A-129：多配额区域/等级不一致 → 并集过滤（regionCode in 合并 + expertLevel in 并集），返回 quotaFiltersApplied 说明', async () => {
+      setupA129();
+      const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialty: '造价咨询', count: 2, regionCode: '510000', expertLevel: 'A' },
+        { specialty: '地质', count: 2, regionCode: '530000', expertLevel: 'C' },
+      ] } as any);
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertProfile: expect.objectContaining({
+          regionCode: { in: ['510000', '530000'] }, expertLevel: { in: ['A', 'C'] },
+        }) }),
+      }));
+      expect(res.quotaFiltersApplied).toEqual({
+        regionCode: ['510000', '530000'],
+        expertLevel: ['A', 'C'],
+        note: '多配额区域/等级值不一致，候选池已按并集过滤',
+      });
     });
   });
 

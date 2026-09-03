@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, IsArray, Min, Max, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, IsArray, Min, Max, ValidateNested, IsIn, MaxLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SpecialtyQuotaDto {
@@ -18,6 +18,14 @@ export class SpecialtyQuotaDto {
   /** 部门限定（真部门 Department.name）：配额在公司内进一步按专家所属部门过滤 */
   @IsOptional() @IsString()
   department?: string;
+
+  /** 行政区域代码（GB/T 2260 六位）：配额候选限定区域（A-129 可选过滤，未填不过滤；多配额不同值取并集） */
+  @IsOptional() @IsString() @MaxLength(20)
+  regionCode?: string;
+
+  /** 库内等级 A-E：单值或逗号集（'A' / 'A,B'），候选拆成 in 查询（A-129 可选过滤，未填不过滤） */
+  @IsOptional() @IsString() @Matches(/^[A-E](,[A-E])*$/)
+  expertLevel?: string;
 }
 
 export class ExtractPreviewDto {

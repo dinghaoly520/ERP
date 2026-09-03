@@ -29,6 +29,10 @@ export interface ExtractionCandidate {
   specialty: string;
   title?: string;
   employer?: string;
+  /** 行政区域代码（GB/T 2260，A-129 档案维度） */
+  regionCode?: string;
+  /** 专家库档案等级 A-E（A-129，区别于履职评价等级） */
+  expertLevel?: string;
   pastProjects: number;
   /** 最新履职评价等级 A/B/C/D/E */
   evaluationLevel?: string;
@@ -54,6 +58,10 @@ export interface LlmSpecialtyQuota {
   employer?: string;
   /** 部门限定（真部门 Department.name）：公司内进一步按专家所属部门过滤 */
   department?: string;
+  /** 行政区域代码（GB/T 2260）：配额候选限定区域（A-129 可选过滤，未填不过滤） */
+  regionCode?: string;
+  /** 库内等级 A-E：单值或逗号集（'A' / 'A,B'），候选拆成 in 查询（A-129 可选过滤，未填不过滤） */
+  expertLevel?: string;
 }
 
 export interface LlmExpertScore {
