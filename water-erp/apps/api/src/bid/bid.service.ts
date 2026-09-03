@@ -23,6 +23,7 @@ import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { ReportNotesDto, ReportNoteItemDto, REPORT_NOTE_SECTIONS } from './dto/report-notes.dto';
+import { SupplierBondReturnDto } from './dto/supplier-bond-return.dto';
 import { assertMinAcceptedInvitees } from './bid-timing-rules';
 import { assertDecryptCheckInQuorum, getMinBiddersForMethod } from './decrypt-quorum.util';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
@@ -5743,6 +5744,89 @@ export class BidService {
     return updated;
   }
 
+  /** A-105：保证金逐家退还清单——花名册行 × 唱标 bondStatus × 逐家退还态 × 中标标识（实施条例第57条：向中标人和未中标人退还） */
+  async listBondReturns(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, bondRequired: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const [suppliers, openings, winner] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId },
+        select: { supplierName: true, bondReturnedAt: true, bondReturnReason: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.bidOpeningRecord.findMany({
+        where: { projectId },
+        select: { supplierName: true, bondStatus: true },
+      }),
+      this.prisma.bidEvaluationResult.findFirst({
+        where: { projectId, recommended: true, rank: 1 },
+        select: { supplierName: true },
+      }),
+    ]);
+    const bondStatusByName = new Map(openings.map(o => [o.supplierName, o.bondStatus]));
+    return {
+      bondRequired: project.bondRequired,
+      rows: suppliers.map(s => ({
+        supplierName: s.supplierName,
+        bondStatus: bondStatusByName.get(s.supplierName) ?? null,
+        bondReturnedAt: s.bondReturnedAt,
+        bondReturnReason: s.bondReturnReason,
+        isWinner: !!winner && winner.supplierName === s.supplierName,
+      })),
+    };
+  }
+
+  /**
+   * A-105（GB/T 43711 7.5.4.4 / 实施条例第57条）：保证金逐家退还登记（替代项目级 markBondReturned）。
+   * 三写：BidSupplier 逐家退还态 + 开标记录 bondStatus 同步（已退还/不予退还）+ 监督日志
+   * （不予退还必填理由，对应 7.5.3.3 情形：弄虚作假/串通/失去履约能力/不交履约担保/拒签 → 高风险留痕）。
+   */
+  async markSupplierBondReturned(projectId: string, dto: SupplierBondReturnDto) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, bondRequired: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (!project.bondRequired) throw new BadRequestException({ error: '该项目未要求响应担保', code: 'NO_BOND' });
+    const supplier = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierName: dto.supplierName },
+      select: { id: true, supplierName: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商不在本项目花名册', code: 'SUPPLIER_NOT_IN_ROSTER' });
+    if (!dto.returned && !dto.reason?.trim()) {
+      throw new BadRequestException({ error: '不予退还必须填写理由（对应 7.5.3.3 情形）', code: 'REASON_REQUIRED' });
+    }
+
+    const updated = await this.prisma.bidSupplier.update({
+      where: { id: supplier.id },
+      data: {
+        bondReturnedAt: dto.returned ? new Date() : null,
+        bondReturnReason: dto.returned ? null : dto.reason!.trim(),
+      },
+      select: { supplierName: true, bondReturnedAt: true, bondReturnReason: true },
+    });
+
+    // 同步开标记录（唱标口径）bondStatus——两处口径合一；无开标记录（未唱标/补录缺）不阻断
+    await this.prisma.bidOpeningRecord.updateMany({
+      where: { projectId, supplierName: dto.supplierName },
+      data: { bondStatus: dto.returned ? '已退还' : '不予退还' },
+    }).catch(e => this.logger.warn(`开标记录保证金状态同步失败: ${(e as Error).message}`));
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '采购人',
+        action: dto.returned ? '响应担保退还（逐家）' : '响应担保不予退还（逐家）',
+        target: project.name,
+        result: dto.returned ? `${dto.supplierName}：已退还` : `${dto.supplierName}：${dto.reason!.trim()}`,
+        riskFlag: dto.returned ? '无' : '高',
+      },
+    }).catch(e => this.logger.warn(`保证金逐家退还留痕失败: ${(e as Error).message}`));
+    return updated;
+  }
+
   /** A-151：评标报告章节附注（签字包生成前编辑，docx 渲染；重新生成取最新值） */
   async getReportNotes(projectId: string) {
     const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { reportNotes: true } });
@@ -5859,6 +5943,33 @@ export class BidService {
         this.logger.warn(`中标通知书已生成，但供应商 ${supplierName} 无关联用户，跳过站内信`);
       }
     } catch { /* 通知失败不阻塞 */ }
+
+    // A-105：定标联动——发出中标通知书即提醒经办逐家退还未中标供应商的响应担保
+    //（实施条例第57条：合同签订后5日内向中标人和未中标人退还；GB/T 43711 7.5.4.4）。
+    // 幂等：systemConfig marker bond_return_reminder_award:<projectId>（每项目只提醒一次）；失败不阻塞通知书。
+    try {
+      const markerKey = `bond_return_reminder_award:${projectId}`;
+      const reminded = await this.prisma.systemConfig.findUnique({ where: { key: markerKey } });
+      if (!reminded) {
+        const pending = await this.prisma.bidSupplier.findMany({
+          where: { projectId, supplierName: { not: supplierName }, bondReturnedAt: null },
+          select: { supplierName: true },
+        });
+        if (pending.length > 0) {
+          await this.prisma.systemConfig.upsert({
+            where: { key: markerKey },
+            update: { value: new Date().toISOString() },
+            create: { key: markerKey, value: new Date().toISOString() },
+          });
+          const names = pending.slice(0, 5).map(s => s.supplierName).join('、');
+          void this.notificationService.sendToRole('staff', {
+            type: 'SYSTEM',
+            title: '响应担保待逐家退还提醒',
+            content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
+          }).catch(() => {});
+        }
+      }
+    } catch { /* 逐家退还提醒失败不阻塞中标通知书 */ }
 
     return delivery;
   }

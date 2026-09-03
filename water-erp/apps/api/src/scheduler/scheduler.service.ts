@@ -215,7 +215,8 @@ export class SchedulerService {
     }
   }
 
-  /** C4（GB/T 43711 7.5.4.4）：每日 08:30 已签署/已验收合同与已归档项目、响应担保未登记退还 → 提醒经办。
+  /** C4（GB/T 43711 7.5.4.4）/ A-105 逐家口径：每日 08:30 已签署/已验收合同与已归档项目、
+   *  已提交供应商中仍有响应担保未登记逐家退还 → 提醒经办（附未退供应商名单）。
    *  幂等：systemConfig 记 marker（bond_return_reminded_at），同一项目只提醒一次。 */
   @Cron('30 8 * * *')
   async remindBondReturns() {
@@ -228,7 +229,6 @@ export class SchedulerService {
       where: {
         OR: [{ id: { in: signedProjectIds } }, { stage: 'ARCHIVED' }],
         bondRequired: true,
-        bondReturnedAt: null,
       },
       select: { id: true, projectCode: true, name: true },
       take: 50,
@@ -236,10 +236,22 @@ export class SchedulerService {
     if (projects.length === 0) return;
 
     const toRemind: { id: string; projectCode: string; name: string }[] = [];
+    const pendingNames: string[] = [];
     for (const p of projects) {
       const marker = await this.prisma.systemConfig.findUnique({ where: { key: `bond_return_reminded:${p.id}` } });
       if (marker) continue;
+      // A-105：逐家口径——项目级 bondReturnedAt 不再参与判定，已提交且未登记退还的家数为 0 则视为收口
+      const pendingCount = await this.prisma.bidSupplier.count({
+        where: { projectId: p.id, submitStatus: '已提交', bondReturnedAt: null },
+      });
+      if (pendingCount === 0) continue;
       toRemind.push(p);
+      const pending = await this.prisma.bidSupplier.findMany({
+        where: { projectId: p.id, submitStatus: '已提交', bondReturnedAt: null },
+        select: { supplierName: true },
+        take: 5,
+      });
+      pendingNames.push(...pending.map(s => s.supplierName));
       await this.prisma.systemConfig.upsert({
         where: { key: `bond_return_reminded:${p.id}` },
         update: { value: new Date().toISOString() },
@@ -249,12 +261,14 @@ export class SchedulerService {
     if (toRemind.length === 0) return;
 
     const sample = toRemind.slice(0, 5).map(p => p.projectCode).join('、');
+    const uniqueNames = Array.from(new Set(pendingNames));
+    const nameSample = uniqueNames.slice(0, 5).join('、');
     void this.notification.sendToRole('staff', {
       type: 'SYSTEM',
       title: '响应担保待退还提醒',
-      content: `${toRemind.length} 个已签署/归档项目的响应担保尚未登记退还（GB/T 43711 7.5.4.4 按约定及时退还）：${sample}${toRemind.length > 5 ? '…' : ''}。请在项目管理-合同或归档面板登记退还。`,
+      content: `${toRemind.length} 个已签署/归档项目尚有供应商响应担保未登记逐家退还（GB/T 43711 7.5.4.4 按约定及时退还）：${sample}${toRemind.length > 5 ? '…' : ''}；未退供应商：${nameSample}${uniqueNames.length > 5 ? '…' : ''}。请在项目管理-合同或归档面板逐家登记退还。`,
     }).catch(() => {});
-    this.logger.log(`[C4] 响应担保退还提醒已发 ${toRemind.length} 项`);
+    this.logger.log(`[C4] 响应担保逐家退还提醒已发 ${toRemind.length} 项`);
   }
 
   /** 每周一 01:00 扫描专家退库 / 供应商淘汰候选（仅预警通知，不自动改状态——决策 #3）。 */

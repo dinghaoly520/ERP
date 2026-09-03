@@ -37,6 +37,7 @@ import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
 import { UpsertBondLedgerDto } from './dto/bond-ledger.dto';
 import { ReportNotesDto } from './dto/report-notes.dto';
+import { SupplierBondReturnDto } from './dto/supplier-bond-return.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -134,9 +135,21 @@ export class BidController {
 
   @Post('projects/:id/bond-return')
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  @ApiOperation({ summary: 'C4: 登记响应担保退还/不予退还（不予退还必填理由，记监督日志）' })
+  @ApiOperation({ summary: 'C4: 登记响应担保退还/不予退还（项目级·兼容保留——新代码请用逐家端点 bond-return-supplier；不予退还必填理由，记监督日志）' })
   markBondReturned(@Param('id') id: string, @Body() dto: { returned: boolean; reason?: string }) {
     return this.bidService.markBondReturned(id, dto);
+  }
+
+  @Get('projects/:id/bond-returns')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'A-105: 保证金逐家退还清单（花名册行 × 唱标 bondStatus × 退还态 × 中标标识）' })
+  listBondReturns(@Param('id') id: string) { return this.bidService.listBondReturns(id); }
+
+  @Post('projects/:id/bond-return-supplier')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'A-105: 逐家登记保证金退还/不予退还（同步开标记录 bondStatus，记监督日志；不予退还必填理由）' })
+  markSupplierBondReturned(@Param('id') id: string, @Body() dto: SupplierBondReturnDto) {
+    return this.bidService.markSupplierBondReturned(id, dto);
   }
 
   @Get('projects/:id/report-notes')
