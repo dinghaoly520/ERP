@@ -340,10 +340,10 @@ export default function UkeyManagePage() {
       >
       </SpPageHero>
 
-      {(UKEY_STRICT ? ukeyPresent === false : mwOffline) && (
+      {!UKEY_STRICT && mwOffline && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: "#e6a23c", background: "#fdf6ec", border: "1px solid #faecd8" }}>
           <TriangleAlert size={14} strokeWidth={1.75} style={{ flexShrink: 0 }} />
-          <span>{UKEY_STRICT ? <>未检测到 U盾——请插入 U盾（插回后自动恢复）</> : <>未检测到 U盾中间件——当前使用浏览器模拟 U盾。启动：<b>pnpm dev:ukey-mw</b>（发行：<b>ukeymw issue --cn 企业名</b>）</>}</span>
+          <span>未检测到 U盾中间件——当前使用浏览器模拟 U盾。启动：<b>pnpm dev:ukey-mw</b>（发行：<b>ukeymw issue --cn 企业名</b>）</span>
         </div>
       )}
 
