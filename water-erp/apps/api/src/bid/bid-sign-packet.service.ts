@@ -201,6 +201,16 @@ export class BidSignPacketService {
     if (!packet) throw new ConflictException({ error: '签字包尚未生成', code: 'SIGN_PACKET_NOT_GENERATED' });
     if (packet.closedAt) throw new ConflictException({ error: '签字已闭环，登记通道已锁定', code: 'SIGN_PACKET_CLOSED' });
 
+    // 终审 Critical#1：电子签名证据不可静默销毁——已电子签名的行禁止撤销回 PENDING
+    //（否则陈旧 esignature 随 PENDING 行残留，徽标/计数失真、矛盾证据入归档链）；更正须重新生成整包（generate 清空链路）
+    const signed = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId }, select: { esignature: true } });
+    if (signed?.esignature != null) {
+      throw new BadRequestException({
+        error: '该专家已电子签名，撤销须重新生成整包（电子签名证据不可静默销毁）',
+        code: 'ESIGN_NOT_REVOCABLE',
+      });
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, projectId, 'EVALUATING');
       const updated = await tx.bidExpert.updateMany({

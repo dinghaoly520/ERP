@@ -447,6 +447,8 @@ describe('assertSignGateClosed（归档闸门）', () => {
 });
 
 describe('BidSignPacketService.unregister', () => {
+  beforeEach(() => jest.clearAllMocks());
+
   it('未登记 → 400 SIGN_NOT_REGISTERED', async () => {
     baseArrange(); // SIGN_NOT_REGISTERED 在事务内抛出 → 铺好 $queryRaw + findUnique
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
@@ -473,6 +475,20 @@ describe('BidSignPacketService.unregister', () => {
         data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, dissentingOpinion: null, dissentingReason: null },
       }),
     );
+  });
+
+  it('终审 Critical#1：已电子签名 → 400 ESIGN_NOT_REVOCABLE 且零写入（电子签名证据不可静默销毁）', async () => {
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    // mockResolvedValueOnce：仅本用例一次生效，避免污染后续用例的 findFirst 缺省行为
+    (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValueOnce({
+      id: expertId, signStatus: 'SIGNED',
+      esignature: { v: 1, payload: 'p'.repeat(64), signature: 's'.repeat(128), algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+    });
+    const svc = makeService();
+    await expect(svc.unregister(projectId, expertId, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'ESIGN_NOT_REVOCABLE' } });
+    expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled(); // 未回退 PENDING
+    expect(prisma.$transaction).not.toHaveBeenCalled(); // 事务整体未进
   });
 });
 

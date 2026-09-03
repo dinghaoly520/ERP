@@ -7,6 +7,7 @@ import { SupplierService } from '../supplier/supplier.service';
 import { AnnouncementService } from '../announcement/announcement.service';
 import { BidService } from '../bid/bid.service';
 import { nudgeWindowOpen } from '../bid/opening-deadline.util';
+import { pendingBondReturnWhere } from '../bid/bond-pending.util';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
@@ -240,14 +241,15 @@ export class SchedulerService {
     for (const p of projects) {
       const marker = await this.prisma.systemConfig.findUnique({ where: { key: `bond_return_reminded:${p.id}` } });
       if (marker) continue;
-      // A-105：逐家口径——项目级 bondReturnedAt 不再参与判定，已提交且未登记退还的家数为 0 则视为收口
+      // A-105：逐家口径——项目级 bondReturnedAt 不再参与判定，已提交、未退还且无不予退还终局理由的家数为 0 则视为收口
+      //（终审 Critical#2：pending 谓词与定标 hook 收口共享 bond-pending.util，防口径漂移）
       const pendingCount = await this.prisma.bidSupplier.count({
-        where: { projectId: p.id, submitStatus: '已提交', bondReturnedAt: null },
+        where: pendingBondReturnWhere({ projectId: p.id }),
       });
       if (pendingCount === 0) continue;
       toRemind.push(p);
       const pending = await this.prisma.bidSupplier.findMany({
-        where: { projectId: p.id, submitStatus: '已提交', bondReturnedAt: null },
+        where: pendingBondReturnWhere({ projectId: p.id }),
         select: { supplierName: true },
         take: 5,
       });

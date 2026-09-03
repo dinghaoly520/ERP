@@ -44,6 +44,7 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { Prisma, AiBidderStatus } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
+import { pendingBondReturnWhere } from './bond-pending.util';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -5952,7 +5953,9 @@ export class BidService {
       const reminded = await this.prisma.systemConfig.findUnique({ where: { key: markerKey } });
       if (!reminded) {
         const pending = await this.prisma.bidSupplier.findMany({
-          where: { projectId, supplierName: { not: supplierName }, bondReturnedAt: null },
+          // 终审 Critical#2：pending 谓词收口共享 util——补 submitStatus=已提交（hook 原漏）与
+          // bondReturnReason=null（不予退还=终局，三处原都漏）；winner 排除保留（保守方向）
+          where: pendingBondReturnWhere({ projectId, supplierName: { not: supplierName } }),
           select: { supplierName: true },
         });
         if (pending.length > 0) {

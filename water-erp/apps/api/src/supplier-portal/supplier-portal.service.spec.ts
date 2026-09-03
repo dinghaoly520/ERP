@@ -2462,6 +2462,10 @@ describe('SupplierPortalService', () => {
   describe('getTenderRequirements（A-87 招标要点只读端点）', () => {
     beforeEach(() => {
       prisma.aiBidAnalysisTask = { findUnique: jest.fn() };
+      // 门控链（终审 Important#3）：bidProject → 公告码 → BidDocument.accessScope → 名册；默认公开项目放行
+      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'BID-1', projectManagementItemId: null });
+      prisma.bidDocument.findFirst = jest.fn().mockResolvedValue({ accessScope: 'OPEN' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
     });
 
     const fullRequirements = {
@@ -2486,7 +2490,7 @@ describe('SupplierPortalService', () => {
 
     it('无任务 → PENDING + requirements null（不报错，前端空态）', async () => {
       (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue(null);
-      const res = await service.getTenderRequirements('p1');
+      const res = await service.getTenderRequirements('p1', 'supplier-1');
       expect(res).toEqual({ status: 'PENDING', requirements: null });
       expect(prisma.aiBidAnalysisTask.findUnique).toHaveBeenCalledWith({
         where: { projectId: 'p1' },
@@ -2496,7 +2500,7 @@ describe('SupplierPortalService', () => {
 
     it('已提取 → READY：三数组分组扁平化（不带 id），isStarred/isRequired 保留', async () => {
       (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue({ requirements: fullRequirements });
-      const res = await service.getTenderRequirements('p1');
+      const res = await service.getTenderRequirements('p1', 'supplier-1');
       expect(res.status).toBe('READY');
       expect(res.requirements).toEqual({
         projectName: '引大济岷工程',
@@ -2521,12 +2525,43 @@ describe('SupplierPortalService', () => {
 
     it('任务存在但 requirements 空（未提取完/空对象）→ PENDING', async () => {
       (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValueOnce({ requirements: null });
-      let res = await service.getTenderRequirements('p1');
+      let res = await service.getTenderRequirements('p1', 'supplier-1');
       expect(res).toEqual({ status: 'PENDING', requirements: null });
 
       (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValueOnce({ requirements: {} });
-      res = await service.getTenderRequirements('p1');
+      res = await service.getTenderRequirements('p1', 'supplier-1');
       expect(res).toEqual({ status: 'PENDING', requirements: null });
+    });
+
+    it('终审 Important#3：邀请制（accessScope=INVITED）+ 名册外 → 403 NOT_INVITED，零读要点', async () => {
+      (prisma.bidDocument.findFirst as jest.Mock).mockResolvedValue({ accessScope: 'INVITED' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect(service.getTenderRequirements('p1', 'sup-out'))
+        .rejects.toMatchObject({ response: { code: 'NOT_INVITED' } });
+      expect(prisma.bidSupplier.findFirst).toHaveBeenCalledWith({
+        where: { projectId: 'p1', supplierId: 'sup-out' },
+        select: { id: true },
+      });
+      expect(prisma.aiBidAnalysisTask.findUnique).not.toHaveBeenCalled(); // 结构化要求/限价不外泄
+    });
+
+    it('终审 Important#3：邀请制 + 名册内 → 放行（PENDING/READY 照常）', async () => {
+      (prisma.bidDocument.findFirst as jest.Mock).mockResolvedValue({ accessScope: 'INVITED' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue({ requirements: fullRequirements });
+
+      const res = await service.getTenderRequirements('p1', 'sup-in');
+      expect(res.status).toBe('READY');
+      expect(res.requirements?.maxPrice).toBe(120000000);
+    });
+
+    it('无关联招标文档 → 同样视为非公开走名册闸（保守方向）：名册外 403', async () => {
+      (prisma.bidDocument.findFirst as jest.Mock).mockResolvedValue(null);
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect(service.getTenderRequirements('p1', 'sup-out'))
+        .rejects.toMatchObject({ response: { code: 'NOT_INVITED' } });
     });
   });
 

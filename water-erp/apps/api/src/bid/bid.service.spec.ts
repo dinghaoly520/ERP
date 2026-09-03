@@ -7025,6 +7025,15 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     expect(prisma.systemConfig.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { key: 'bond_return_reminder_award:p1' } }),
     );
+    // 终审 Critical#2：pending 查询走共享谓词——三键（已提交+未退还+无不予退还终局）+ winner 排除
+    const pendingCall = prisma.bidSupplier.findMany.mock.calls.find((c: any) => c[0]?.where && 'bondReturnedAt' in c[0].where);
+    expect(pendingCall?.[0]).toEqual({
+      where: {
+        projectId: 'p1', supplierName: { not: '中标公司' },
+        submitStatus: '已提交', bondReturnedAt: null, bondReturnReason: null,
+      },
+      select: { supplierName: true },
+    });
 
     // 幂等：marker 已存在 → 二次发放不再提醒
     notification.sendToRole.mockClear();

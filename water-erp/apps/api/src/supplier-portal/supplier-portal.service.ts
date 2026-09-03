@@ -1001,10 +1001,26 @@ export class SupplierPortalService {
   /**
    * A-87（P1 波4）：供应商侧招标文件要点——发布钩子前移提取后，BID 阶段即可读结构化清单。
    * 直接读 AiBidAnalysisTask.requirements（projectId @unique，1:1）；无任务/未提取完 → PENDING
-   * （不报错，前端空态提示）。不做名册门控：要点清单源自公开招标公告口径，对潜在投标人公开，
-   * 不含密文文件本体（下载仍走既有 BidDocument 授权链）。
+   * （不报错，前端空态提示）。不含密文文件本体（下载仍走既有 BidDocument 授权链）。
+   * 终审 Important#3：邀请/指定项目门控——关联招标文件 accessScope 非 OPEN（含无文档，保守方向）
+   * 时，要点含结构化要求与最高限价，仅本项目 bidSupplier 名册内供应商可读，名册外 403 NOT_INVITED。
    */
-  async getTenderRequirements(projectId: string): Promise<{ status: 'READY' | 'PENDING'; requirements: TenderRequirementSummary | null }> {
+  async getTenderRequirements(projectId: string, supplierId: string): Promise<{ status: 'READY' | 'PENDING'; requirements: TenderRequirementSummary | null }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true, projectManagementItemId: true },
+    });
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    const doc = await this.prisma.bidDocument.findFirst({
+      where: { announcement: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'BID_NOTICE' } },
+      select: { accessScope: true },
+    });
+    if (doc?.accessScope !== 'OPEN') {
+      const inRoster = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+      if (!inRoster) {
+        throw new ForbiddenException({ error: '该项目为邀请制，要点清单仅受邀供应商可见', code: 'NOT_INVITED' });
+      }
+    }
     const task = await this.prisma.aiBidAnalysisTask.findUnique({
       where: { projectId },
       select: { requirements: true },
