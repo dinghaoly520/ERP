@@ -5,10 +5,10 @@ export class UpsertBondLedgerDto {
   @IsString() @IsNotEmpty() @MaxLength(200)
   supplierName!: string;
 
-  /** 金额必须为正（法定收据台账 0/负数无意义）；≤1e12 护住 Decimal(14,2) 容量（溢出会变 Prisma 500） */
+  /** 金额必须为正（法定收据台账 0/负数无意义）；≤999999999999.99——Decimal(14,2) 容量精确界（溢出会变 Prisma 500） */
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
-  @Max(1e12)
+  @Max(999999999999.99)
   amount!: number;
 
   @IsISO8601()

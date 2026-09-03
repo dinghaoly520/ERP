@@ -36,6 +36,7 @@ afterAll(() => { if (BID_SPEC_ORIG_KMS !== undefined) process.env.KMS_SECRET = B
 
 // Mock decrypt utilities and MinIO client for decryptSupplier tests
 jest.mock('./bid-submission.crypto', () => ({
+  encryptBuffer: jest.requireActual('./bid-submission.crypto').encryptBuffer, // reuploadBidFile 重加密管线用真实现（纯 Node crypto）
   decryptBuffer: jest.fn().mockReturnValue(Buffer.from('decrypted')),
   streamToBuffer: jest.fn().mockResolvedValue(Buffer.from('test')),
   verifyIntegrity: jest.fn().mockReturnValue(true),
@@ -649,6 +650,39 @@ describe('BidService — stage transitions', () => {
       expect(prisma.fileAsset.findUnique).not.toHaveBeenCalled();
       expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
       expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reuploadBidFile — 旧轨密文直传（重置专属用例）', () => {
+    it('SHA-256 一致过闸 → 重加密落 MinIO，事务内 bidSupplier 重置 PENDING 并清空解密成功时间（A-111）', async () => {
+      const ciphertext = Buffer.from('legacy-couter-original-bytes');
+      const sha = crypto.createHash('sha256').update(ciphertext).digest('hex');
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierId: 's1', supplierName: 'S' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'fa1', businessFileAssetId: null, coverLetterAssetId: null,
+      });
+      prisma.supplierBidSubmission.update = jest.fn().mockResolvedValue({});
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa1', key: 'uploads/old.enc', sha256: sha, clientEncrypted: true });
+      prisma.fileAsset.update = jest.fn();
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+      const autoDecrypt = jest.spyOn(service, 'decryptSupplier').mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS' } as any);
+
+      const res = await service.reuploadBidFile('p1', 'bs-1', 'technical', { buffer: ciphertext } as any, 'u1');
+
+      expect(res).toMatchObject({ recovered: true, decrypted: true, decryptStatus: 'SUCCESS' });
+      expect(minioClient.putObject).toHaveBeenCalled(); // 重加密密文落 MinIO
+      // 补传后文件变为 server-encrypted：清除 E2EE 标记
+      expect(prisma.fileAsset.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'fa1' }, data: expect.objectContaining({ encrypted: true, clientEncrypted: false }) }),
+      );
+      // 重置 data 形状（A-111：清空解密成功时间，供重新解密走全流程）
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'bs-1' }, data: { decryptStatus: 'PENDING', decryptError: null, decryptedAt: null } }),
+      );
+      expect(autoDecrypt).toHaveBeenCalledWith('p1', 'bs-1', undefined, 'u1');
     });
   });
 

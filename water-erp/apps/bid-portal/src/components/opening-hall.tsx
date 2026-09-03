@@ -529,7 +529,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const handleUpsertBondLedger = async () => {
     if (!projectId || bondLedgerSubmitting) return;
     const { supplierName, amount, arrivedAt, account, payMethod, note } = bondLedgerForm;
-    // 前端守卫：金额必填且 > 0、≤999999999999.99（与后端 DTO @IsPositive/@Max(1e12) 对齐）
+    // 前端守卫：金额必填且 > 0、≤999999999999.99（与后端 DTO @IsPositive/@Max(999999999999.99) 对齐）
     if (!supplierName || !arrivedAt || !account.trim() || !payMethod || amount === '' || Number.isNaN(Number(amount)) || Number(amount) <= 0 || Number(amount) > 999999999999.99) {
       toast.error('请完整填写到账信息（金额须为大于 0 的数字，上限 999999999999.99）');
       return;
@@ -538,7 +538,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     try {
       await upsertBondLedger(projectId, {
         supplierName, amount: Number(amount), arrivedAt: new Date(arrivedAt).toISOString(),
-        account: account.trim(), payMethod, note: note.trim() || undefined,
+        account: account.trim(), payMethod, note: note.trim(), // 空串显式清除旧备注（后端 dto.note ?? null 落库空串，展示 || '—' 不变）
       });
       toast.success(`已登记 ${supplierName} 保证金到账`);
       // 同账户/支付形式连续登记多家时少敲一遍；缴纳人/金额/到账时间逐家清空
