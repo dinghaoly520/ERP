@@ -320,6 +320,16 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 <td className="px-4 py-2.5">
                   <span className="font-semibold text-[var(--foreground)]">{e.name}</span>
                   {e.isLead && <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] text-[var(--accent)]" style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>组长</span>}
+                  {/* A-132：评委分工徽标（分组 · 职责，仅显示已设维度；两维皆空则不加） */}
+                  {(e.reviewGroup || e.dutyRole) && (
+                    <span
+                      className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
+                      style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}
+                      title="评标委员会分工（:3005 步骤5 配置，写入评标报告名单）"
+                    >
+                      {[e.reviewGroup, e.dutyRole].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
                   <span className="ml-1 text-[11px] text-[var(--muted-foreground)]">{e.major}</span>
                 </td>
                 <td className="px-3 py-2.5 text-[var(--muted-foreground)]">{e.role}{e.isPurchaserRepresentative ? '·采购人代表' : ''}</td>

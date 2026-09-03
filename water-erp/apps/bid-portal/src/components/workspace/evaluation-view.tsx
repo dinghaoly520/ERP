@@ -590,6 +590,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                     {expert.expertName}
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
+                    {/* A-132：评委分工（分组·职责）——两维皆空则不渲染 */}
+                    {(expert.reviewGroup || expert.dutyRole) && (
+                      <span className="ml-2 text-[10px] font-normal text-[var(--accent)]" title="评标委员会分工（:3005 步骤5 配置）">
+                        {[expert.reviewGroup, expert.dutyRole].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
                   </span>
                   {/* F10（2026-08-28）：邀请状态徽章（与 :3005 专家确认同词表）——declined 标红；
                       婉拒/未确认的正选不计入启动评标委员会（后端只认 confirmed 正选） */}

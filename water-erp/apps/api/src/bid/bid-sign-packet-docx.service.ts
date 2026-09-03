@@ -18,7 +18,7 @@ export interface SignPacketSnapshot {
   packageVersion: number;
   generatedAt: string;
   project: { name: string; projectCode: string; procurementMethod: string; openTime: string | null; deadline: string | null; scope: string | null; qualification: string | null; budget: number | null };
-  committee: Array<{ expertId: string; name: string; major: string; role: string; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null }>;
+  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null }>;
   leaderCoSignedAt: string | null;
   openingRecords: Array<{ supplierName: string; amount: string; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string }>;
   bids: Array<{ supplierName: string; amount: string; period: string; submittedAt: string | null }>;
@@ -110,12 +110,14 @@ export class BidSignPacketDocxService {
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
-          this.headerRow(['姓名', '专业', '角色', '组长', '采购人代表']),
+          this.headerRow(['姓名', '专业', '角色', '分组', '职责', '组长', '采购人代表']),
           ...s.committee.map(e => new TableRow({
             children: [
               new TableCell({ children: [this.para(e.name)] }),
               new TableCell({ children: [this.para(e.major)] }),
               new TableCell({ children: [this.para(e.role)] }),
+              new TableCell({ children: [this.para(e.reviewGroup ?? '—')] }),
+              new TableCell({ children: [this.para(e.dutyRole ?? '—')] }),
               new TableCell({ children: [this.para(e.isLead ? '是' : '—')] }),
               new TableCell({ children: [this.para(e.isPurchaserRepresentative ? '是' : '—')] }),
             ],

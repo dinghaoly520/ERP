@@ -406,3 +406,32 @@ describe('BidSignPacketService.unregister', () => {
     );
   });
 });
+
+describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单）', () => {
+  const projectId = 'p1';
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('committee 行携带 reviewGroup/dutyRole（未设置透传 null）', async () => {
+    // buildSnapshot 首个 Promise.all：bidProject.findUnique 需项目 select 全字段；其余 findMany 系 fake 默认回 []
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({
+      name: '测试项目', projectCode: 'BID-1', procurementMethod: '公开招标',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { id: 'e1', expertName: '张三', major: '水利水电', expertRole: '正选', isLead: true, reviewGroup: '技术组', dutyRole: '主审',
+        isPurchaserRepresentative: false, signInIp: null, signInMeta: null, confidentialityAgreedAt: null, disciplineAgreedAt: null, reportConfirmedAt: null },
+      { id: 'e2', expertName: '李四', major: '工程造价', expertRole: '正选', isLead: false, reviewGroup: null, dutyRole: null,
+        isPurchaserRepresentative: true, signInIp: null, signInMeta: null, confidentialityAgreedAt: null, disciplineAgreedAt: null, reportConfirmedAt: null },
+    ]);
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    // select 必须带出两列（缺列则映射 undefined，报告名单显示 '—' 失真）
+    const committeeSelect = (prisma.bidExpert.findMany as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(committeeSelect?.reviewGroup).toBe(true);
+    expect(committeeSelect?.dutyRole).toBe(true);
+    expect(snapshot.committee).toHaveLength(2);
+    expect(snapshot.committee[0]).toMatchObject({ name: '张三', reviewGroup: '技术组', dutyRole: '主审' });
+    expect(snapshot.committee[1]).toMatchObject({ name: '李四', reviewGroup: null, dutyRole: null });
+  });
+});

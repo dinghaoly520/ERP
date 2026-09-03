@@ -7,6 +7,9 @@ export interface SignPacketExpertRow {
   name: string;
   major: string;
   role: string;
+  /** A-132：评审分组（技术组|商务组|综合组）与组内职责（主审|复核|成员）；未设置为 null */
+  reviewGroup: string | null;
+  dutyRole: string | null;
   isLead: boolean;
   isPurchaserRepresentative: boolean;
   signStatus: SignStatusValue;

@@ -357,9 +357,14 @@ export function declineInvitation(projectId: string, userId: string) {
 
 export function getProjectInvitations(projectId: string) {
   return api.get<{
-    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; title?: string | null; employer?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
     summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
   }>(`/expert-admin/invitations/${projectId}`);
+}
+
+/** A-132：评委职责分工（partial 语义——空维度不提交、不清除已有值；后端无清除通道） */
+export function setCommitteeAssignment(projectId: string, data: { assignments: { userId: string; reviewGroup?: string; dutyRole?: string }[] }) {
+  return api.put<{ success: boolean }>(`/expert-admin/projects/${projectId}/committee/assignment`, data);
 }
 
 /* ── AI 采纳率 ── */

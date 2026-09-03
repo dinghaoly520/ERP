@@ -17,6 +17,9 @@ export interface SignPacketExpertRow {
   name: string;
   major: string;
   role: string;
+  /** A-132：评审分组（技术组|商务组|综合组）与组内职责（主审|复核|成员）；未设置为 null */
+  reviewGroup: string | null;
+  dutyRole: string | null;
   isLead: boolean;
   isPurchaserRepresentative: boolean;
   signStatus: SignStatusValue;
@@ -79,6 +82,7 @@ export class BidSignPacketService {
         orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
         select: {
           id: true, expertName: true, major: true, expertRole: true, isLead: true,
+          reviewGroup: true, dutyRole: true,
           isPurchaserRepresentative: true, signStatus: true, signStatusAt: true,
           signScanFileId: true, dissentingOpinion: true, dissentingReason: true,
         },
@@ -109,6 +113,8 @@ export class BidSignPacketService {
         name: e.expertName,
         major: e.major,
         role: e.expertRole,
+        reviewGroup: e.reviewGroup,
+        dutyRole: e.dutyRole,
         isLead: e.isLead,
         isPurchaserRepresentative: e.isPurchaserRepresentative,
         signStatus: e.signStatus as SignStatusValue,
@@ -426,7 +432,7 @@ export class BidSignPacketService {
         this.prisma.bidExpert.findMany({
           where: { projectId, expertRole: '正选' },
           orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
-          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true },
+          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true },
         }),
         this.prisma.bidOpeningRecord.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.bidSupplier.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' }, select: { id: true, supplierName: true, createdAt: true } }),
@@ -508,6 +514,7 @@ export class BidSignPacketService {
       },
       committee: committee.map(e => ({
         expertId: e.id, name: e.expertName, major: e.major, role: e.expertRole, isLead: e.isLead,
+        reviewGroup: e.reviewGroup, dutyRole: e.dutyRole,
         isPurchaserRepresentative: e.isPurchaserRepresentative, signInIp: e.signInIp, signInMeta: e.signInMeta,
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,

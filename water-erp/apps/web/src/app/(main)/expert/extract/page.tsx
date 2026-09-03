@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prersvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prersvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { StepTrack } from '@/components/step-track';
@@ -174,6 +174,9 @@ export function ExpertExtractPage({
   const [step5LeaderId, setStep5LeaderId] = useState<string | null>(null);
   const [selectingLeader, setSelectingLeader] = useState(false);
   const [aiSelectingLeader, setAiSelectingLeader] = useState(false);
+  // A-132 评委分工草稿（分组/职责）——「不设置」= 本次不提交该项（非清空；后端无清除通道）
+  const [committeeDraft, setCommitteeDraft] = useState<Record<string, { reviewGroup: string; dutyRole: string }>>({});
+  const [savingCommittee, setSavingCommittee] = useState(false);
   // 预排除专家（随机抽取 / 综合择优模式下可用）
   const [excludedExpertIds, setExcludedExpertIds] = useState<string[]>([]);
   const [excludedExpertMap, setExcludedExpertMap] = useState<Map<string, { name: string; specialty: string }>>(new Map());
@@ -200,6 +203,19 @@ export function ExpertExtractPage({
     if (leadExpert) {
       setStep5LeaderId(prev => prev ?? leadExpert.userId);
     }
+  }, [invitationData]);
+  // A-132：从 DB reviewGroup/dutyRole 恢复分工草稿（同组长恢复模式）。合并式——
+  // 步骤5 有 2s 轮询刷 invitationData，已编辑/已保存的行不被冲掉，只补缺失行
+  useEffect(() => {
+    if (!invitationData) return;
+    setCommitteeDraft(prev => {
+      const next = { ...prev };
+      for (const e of invitationData.experts) {
+        if (e.expertRole !== '正选' || next[e.userId]) continue;
+        next[e.userId] = { reviewGroup: e.reviewGroup ?? '', dutyRole: e.dutyRole ?? '' };
+      }
+      return next;
+    });
   }, [invitationData]);
   // 自定义项目（文件上传 + AI 分析 + 影子项目）
   const [projectSource, setProjectSource] = useState<'existing' | 'custom'>('existing');
@@ -1044,6 +1060,7 @@ export function ExpertExtractPage({
     setPreview(null); setSelectedExperts([]); setAlternativeExperts([]);
     setDone(false); setLeadExpertId(null); setStep3Confirmed(false);
     setConfirmedExpertIds([]); setNotifyExpertList([]); setNotifyResults(null);
+    setCommitteeDraft({}); // A-132：旧专家组分工草稿随邀请一并作废
     notifySentRef.current = false; originalConfirmedIdsRef.current = new Set();
     lastReQuotasRef.current = []; setReHistory([]);
     setAltPreview(null); setAltSelected([]); setAltNotified(false);
@@ -1179,6 +1196,33 @@ export function ExpertExtractPage({
       toast.success(`已切换 ${expert?.expertName || '专家'} 为评审组长`);
     } catch (e: any) {
       toast.error(e?.message || '切换组长失败');
+    }
+  };
+
+  /** A-132 保存评委分工（分组/职责）——partial 语义：只提交至少一维非空的行；
+   *  空维度不提交（后端无清除通道，「不设置」≠ 清空），保存后回读刷新 */
+  const saveCommittee = async () => {
+    if (!pid) return;
+    const assignments = Object.entries(committeeDraft)
+      .filter(([, d]) => d.reviewGroup || d.dutyRole)
+      .map(([userId, d]) => ({
+        userId,
+        ...(d.reviewGroup ? { reviewGroup: d.reviewGroup } : {}),
+        ...(d.dutyRole ? { dutyRole: d.dutyRole } : {}),
+      }));
+    if (assignments.length === 0) {
+      toast.error('请先为至少一位专家设置分组或职责');
+      return;
+    }
+    setSavingCommittee(true);
+    try {
+      await setCommitteeAssignment(pid, { assignments });
+      setInvitationData(await getProjectInvitations(pid));
+      toast.success(`评委分工已保存（${assignments.length} 人），将写入评标报告委员会名单`);
+    } catch (e: any) {
+      toast.error(e?.message || '保存分工失败');
+    } finally {
+      setSavingCommittee(false);
     }
   };
 
@@ -2670,7 +2714,7 @@ export function ExpertExtractPage({
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[11px] font-extrabold text-[var(--success)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
                     {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length}</div>
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">最终专家组成员</span>
-                  {/* 组长选定 / 切换 */}
+                  {/* 组长选定 / 切换 + A-132 分工保存 */}
                   <div className="ml-auto flex items-center gap-2 mr-2">
                     {step5LeaderId ? (
                       <button onClick={() => setSelectingLeader(s => !s)} className="neu-btn-xs is-info">
@@ -2681,11 +2725,24 @@ export function ExpertExtractPage({
                         {aiSelectingLeader ? <><RefreshCw size={12} className="animate-spin inline mr-0.5" />AI 分析中…</> : <><Sparkles size={12} className="inline mr-0.5" />AI 选定组长</>}
                       </button>
                     )}
+                    {/* A-132：批量保存分组/职责（写入 BidExpert，报告委员会名单消费） */}
+                    <button
+                      onClick={saveCommittee}
+                      disabled={savingCommittee || !Object.values(committeeDraft).some(d => d.reviewGroup || d.dutyRole)}
+                      className="neu-btn-xs is-info"
+                      title="保存评委分组/职责分工；「不设置」＝本次不提交该项、不清除已保存分工（后端无清除通道）"
+                    >
+                      {savingCommittee ? <><RefreshCw size={12} className="animate-spin inline mr-0.5" />保存中…</> : <><Check size={12} className="inline mr-0.5" />保存分工</>}
+                    </button>
                   </div>
                 </div>
+                {/* A-132 分工语义提示：空选项是「不提交」而非「清空」 */}
+                <p className="mb-2 text-[10px] text-[var(--muted-foreground)]">
+                  分组/职责「不设置」＝ 本次不提交该项，不会清除已保存分工（设置后暂不支持清除）；保存后写入评标报告委员会名单。
+                </p>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th>{selectingLeader && <th className="text-center">操作</th>}</tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">分组</th><th className="text-center">职责</th>{selectingLeader && <th className="text-center">操作</th>}</tr></thead>
                     <tbody>
                       {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus !== 'declined').sort((a, b) => {
                         // 组长排第一，其次已确认在前
@@ -2709,6 +2766,34 @@ export function ExpertExtractPage({
                           <td className="text-center">{isOriginal ? <StatusBadge tone="green">正选</StatusBadge> : <StatusBadge tone="blue">第{roundNo || '?'}次补选</StatusBadge>}</td>
                           <td className="text-center">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
                           <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
+                          {/* A-132：评审分组（「不设置」= 本次不提交该项，非清空） */}
+                          <td className="text-center">
+                            <select
+                              value={committeeDraft[e.userId]?.reviewGroup ?? ''}
+                              onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: ev.target.value, dutyRole: prev[e.userId]?.dutyRole ?? '' } }))}
+                              className="neu-input !h-[30px] !w-[96px] !px-2 text-xs"
+                              title="评审分组（技术组/商务组/综合组）；「不设置」＝ 本次不提交该项、不清除已保存分组"
+                            >
+                              <option value="">不设置</option>
+                              <option value="技术组">技术组</option>
+                              <option value="商务组">商务组</option>
+                              <option value="综合组">综合组</option>
+                            </select>
+                          </td>
+                          {/* A-132：组内职责（组长另由 isLead 表达，不在此列） */}
+                          <td className="text-center">
+                            <select
+                              value={committeeDraft[e.userId]?.dutyRole ?? ''}
+                              onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: prev[e.userId]?.reviewGroup ?? '', dutyRole: ev.target.value } }))}
+                              className="neu-input !h-[30px] !w-[80px] !px-2 text-xs"
+                              title="组内职责（主审/复核/成员）；「不设置」＝ 本次不提交该项、不清除已保存职责"
+                            >
+                              <option value="">不设置</option>
+                              <option value="主审">主审</option>
+                              <option value="复核">复核</option>
+                              <option value="成员">成员</option>
+                            </select>
+                          </td>
                           {selectingLeader && (
                             <td className="text-center">
                               <button onClick={() => manualSetLeader(e.userId)} disabled={isLeader || e.invitationStatus !== 'confirmed'} className="neu-btn-xs is-info">
