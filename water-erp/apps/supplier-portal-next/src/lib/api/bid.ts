@@ -20,6 +20,19 @@ export interface SupplierBidClarification {
   updatedAt: string;
 }
 
+/** A-87（P1 波4）：招标文件要点——AiBidAnalysisTask.requirements 的供应商侧扁平视图（发布即前移提取，BID 阶段对潜在投标人公开） */
+export interface TenderRequirementsSummary {
+  projectName: string;
+  projectType: string;
+  bidDeadline?: string;
+  maxPrice?: number;
+  estimatedCost?: number;
+  priceEvaluationMethod: string;
+  qualification: Array<{ category: string; content: string; isRequired: boolean }>;
+  technical: Array<{ category: string; content: string; isStarred: boolean }>;
+  commercial: Array<{ category: string; content: string; isRequired: boolean }>;
+}
+
 export const bidApi = {
   // 投标机会列表（供应商端，仅公开字段）
   listProjects(params?: { page?: number; pageSize?: number; search?: string; scope?: string }) {
@@ -39,6 +52,12 @@ export const bidApi = {
   // 谈判采购文件（受邀项目，获取窗口内可下载）
   getNegotiationFiles(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-projects/${projectId}/negotiation-files`);
+  },
+  // A-87（P1 波4）：招标文件要点（READY/PENDING；真零条款项目也显 PENDING）
+  getTenderRequirements(projectId: string) {
+    return api.get<{ status: "READY" | "PENDING"; requirements: TenderRequirementsSummary | null }>(
+      `/supplier-portal/bid-projects/${projectId}/tender-requirements`,
+    );
   },
   // 澄清说明文案（只读，由采购管理端编辑发布）
   getClarificationNotice() {

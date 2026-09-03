@@ -7,11 +7,11 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, ShieldCheck,
+  CircleX, CircleCheck, Info, KeyRound, ShieldCheck, ListChecks,
 } from "lucide-react";
 import { openUkey } from "@/utils/ukey-factory";
 import type { UKeyAdapter } from "@water-erp/ukey";
-import { bidApi } from "@/lib/api/bid";
+import { bidApi, type TenderRequirementsSummary } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
@@ -124,6 +124,10 @@ function BidDetailInner() {
   const [overview, setOverview] = useState<any>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
 
+  // ── 招标文件要点（A-87，P1 波4）：发布即前移提取的结构化清单（挂载拉一次，不轮询）──
+  const [tenderReq, setTenderReq] = useState<{ status: string; requirements: TenderRequirementsSummary | null } | null>(null);
+  const [tenderReqLoading, setTenderReqLoading] = useState(false);
+
   // ── 投标回执（A-101）：已递交后查看 + U盾补签 ──
   const [submission, setSubmission] = useState<any>(null);
   const [receiptPayload, setReceiptPayload] = useState<Record<string, unknown> | null>(null);
@@ -210,6 +214,18 @@ function BidDetailInner() {
     }
   }
 
+  /** A-87：招标文件要点（READY/PENDING）——失败落空态，空态内「重新获取」可重拉 */
+  const loadTenderReq = useCallback(async () => {
+    setTenderReqLoading(true);
+    try {
+      setTenderReq(await bidApi.getTenderRequirements(projectId));
+    } catch {
+      setTenderReq(null); // 拦截器已全局 toast
+    } finally {
+      setTenderReqLoading(false);
+    }
+  }, [projectId]);
+
   const loadAll = useCallback(async () => {
     setError(false);
     setLoading(true);
@@ -223,6 +239,7 @@ function BidDetailInner() {
       setProfile(prof);
       loadBidDoc();
       loadOverview();
+      loadTenderReq();
       // A-101 回执卡：仅已入库供应商拉本人递交记录（临时供应商无 Supplier 行，跳过避免噪音）
       if (prof?.status === "APPROVED") void reloadSubmission();
     } catch {
@@ -230,7 +247,7 @@ function BidDetailInner() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, loadBidDoc, reloadSubmission]);
+  }, [projectId, loadBidDoc, reloadSubmission, loadTenderReq]);
 
   useEffect(() => {
     loadAll();
@@ -366,6 +383,49 @@ function BidDetailInner() {
     return t ? dayjs(t).format("YYYY-MM-DD HH:mm") : "—";
   }
 
+  // ══ A-87 招标文件要点：摘要行四段（各值空则略去该段）+ 三分组折叠列表 ══
+  const trReady = tenderReq?.status === "READY" && !!tenderReq.requirements;
+  const trSummary = (() => {
+    const r = tenderReq?.requirements;
+    if (!r) return [] as { label: string; value: string }[];
+    const segs: { label: string; value: string }[] = [];
+    if (r.projectType) segs.push({ label: "项目类型", value: r.projectType });
+    if (r.priceEvaluationMethod) segs.push({ label: "评标办法", value: r.priceEvaluationMethod });
+    if (r.maxPrice != null) segs.push({ label: "最高限价", value: fmtBudget(r.maxPrice) });
+    if (r.bidDeadline) segs.push({ label: "截止", value: fmtMetaDate(r.bidDeadline) });
+    return segs;
+  })();
+
+  /** 折叠分组：标题+条数；条目=★徽标（isStarred，仅技术组）+ category 小标签 + content */
+  function renderTrGroup(
+    title: string,
+    items: Array<{ category: string; content: string; isStarred?: boolean }>,
+    starred: boolean,
+  ) {
+    return (
+      <details className="ov-notif">
+        <summary>{title}（{items.length} 条）</summary>
+        {items.length > 0 ? (
+          <div className="cq-list" style={{ marginTop: 8 }}>
+            {items.map((it, i) => (
+              <div key={`${i}-${it.category}`} className="cq-item">
+                {(it.category || (starred && it.isStarred)) && (
+                  <div className="cq-head">
+                    {starred && it.isStarred && <span className="b-tag b-tag--warning">★</span>}
+                    {it.category && <span className="b-tag b-tag--info">{it.category}</span>}
+                  </div>
+                )}
+                <div className="cq-text">{it.content}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bc-empty">本组暂无条目</div>
+        )}
+      </details>
+    );
+  }
+
   return (
     <div className="page-container">
       {loading ? (
@@ -468,6 +528,43 @@ function BidDetailInner() {
                     )}
                   </>
                 ) : null}
+              </div>
+
+              {/* ═══ 招标文件要点（A-87，P1 波4）：系统解析的结构化清单；挂载拉一次不轮询 ═══ */}
+              <div className="content-card neu-card">
+                <div className="ov-head">
+                  <span className="ov-head-icon"><ListChecks size={16} strokeWidth={1.75} /></span>
+                  <h3>招标文件要点（系统解析）</h3>
+                </div>
+                {tenderReqLoading ? (
+                  <div className="ov-loading"><Loader2 size={18} className="is-loading" /><span>正在获取招标文件要点…</span></div>
+                ) : trReady && tenderReq?.requirements ? (
+                  <>
+                    {/* 摘要行：项目类型 · 评标办法 · 最高限价 · 截止（空值段略去） */}
+                    {trSummary.length > 0 && (
+                      <p style={{ margin: "0 0 6px", fontSize: 12.5, color: "var(--muted-foreground)" }}>
+                        {trSummary.map((s, i) => (
+                          <span key={s.label}>
+                            {i > 0 && <span style={{ color: "var(--hairline)", margin: "0 8px" }}>·</span>}
+                            {s.label}{" "}<strong style={{ color: "var(--foreground)", fontWeight: 700 }}>{s.value}</strong>
+                          </span>
+                        ))}
+                      </p>
+                    )}
+                    <div style={{ marginTop: 6 }}>
+                      {renderTrGroup("资格要求", tenderReq.requirements.qualification, false)}
+                      {renderTrGroup("技术要求", tenderReq.requirements.technical, true)}
+                      {renderTrGroup("商务要求", tenderReq.requirements.commercial, false)}
+                    </div>
+                    <p className="cq-desc" style={{ margin: "12px 0 0" }}>解析由系统自动生成，以招标文件原文为准</p>
+                  </>
+                ) : (
+                  /* PENDING/无数据/拉取失败同显空态（真零条款项目后端也返 PENDING） */
+                  <div className="bc-empty" style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12, padding: "18px 0" }}>
+                    <p style={{ margin: 0 }}>招标文件要点解析中或尚未生成——可先下载招标文件查阅原文</p>
+                    <SpButton variant="soft" onClick={loadTenderReq}>重新获取</SpButton>
+                  </div>
+                )}
               </div>
 
               {/* ═══ 公告正文 ═══ */}
