@@ -1270,6 +1270,18 @@ export class SupplierPortalService {
             code: 'BID_FILE_NOT_ENCRYPTED',
           });
         }
+        // A-89：标书角色明文版式强制 PDF（版式转换口径，锚点=PDF 明文哈希）。
+        // 密文文件名=原名+.enc（前端 sealFileForRole 的 cOuterFile），剥离后缀再断明文扩展；
+        // zip/rar 整包提交维持允许（计划 Global Constraints），bond 凭证为扫描件不在此列。
+        if (role !== 'bond') {
+          const plainName = (asset.originalName ?? '').replace(/\.enc$/i, '');
+          if (!/\.(pdf|zip|rar)$/i.test(plainName)) {
+            throw new BadRequestException({
+              error: `投标文件（${role}）必须为 PDF 版式文件（版式转换口径）——请转换后重新加密上传`,
+              code: 'BID_FILE_MUST_BE_PDF',
+            });
+          }
+        }
         declared.push({ role, sha256: asset.sha256 });
       }
       this.dualEnvelope.assertEnvelopeIntact(env, declared);

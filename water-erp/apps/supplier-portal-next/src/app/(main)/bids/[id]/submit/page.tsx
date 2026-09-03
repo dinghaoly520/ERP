@@ -139,6 +139,11 @@ const EMPTY_SPLIT_CATS: Record<SplitKey, SplitCategory> = {
   other: { label: "其他材料", description: "补充说明、认证证书、授权函等", files: [], uploading: false, progress: null },
 };
 
+/** A-89 版式强制：标书角色明文必须 PDF（版式文件口径，加密锚点即 PDF 哈希）——Office 原生格式拒收；
+ *  zip/rar 整包与 bond 凭证（扫描件）不在此列；仅约束双信封新轨，旧轨不动。 */
+const OFFICE_EXT = /\.(docx?|xlsx?)$/i;
+const PDF_ONLY_ROLES = new Set<EnvelopeRole>(["technical", "business", "coverLetter"]);
+
 const DRAFT_PREFIX = "supplier_draft:";
 
 /** 读取本地草稿的存储时间戳（与 useAutoSave 的落盘格式一致；挂载期同步可读） */
@@ -325,6 +330,11 @@ function BidSubmitInner() {
         // ═══ 新轨：M → C_inner(SM4/DEK_S) → C_outer(SM4/DEK_A) → 上传，entry 入信封缓存 ═══
         const role = ROLE_BY_CAT[catKey];
         if (!role) throw new Error("未知文件类别，无法双层密封");
+        // A-89：标书角色明文必须 PDF（锚点=PDF 明文哈希）——Office 原生格式在加密前拦截并给转换指引
+        if (PDF_ONLY_ROLES.has(role) && OFFICE_EXT.test(file.name)) {
+          toast.error(`「${file.name}」为 Office 格式——投标文件须为 PDF 版式文件，请先用 Office/WPS「另存为 PDF」后上传（加密锚点以 PDF 为准）`);
+          throw new Error("BID_FILE_MUST_BE_PDF");
+        }
         const admin = await getAdminCertCached();
         const res = await encryptAndUploadFile(
           file, role,
@@ -890,8 +900,8 @@ function BidSubmitInner() {
                       <label className="b-required">标书文件</label>
                       <div className="b-form-content">
                         <div className="file-area">
-                          <UploadZone accept=".pdf,.doc,.docx,.zip,.rar" disabled={!canSubmit} onFile={handleFullBidUpload} label="上传完整标书" />
-                          <span className="file-hint">PDF/DOC/ZIP，≤{maxUploadSizeMB}MB</span>
+                          <UploadZone accept=".pdf,.zip,.rar" disabled={!canSubmit} onFile={handleFullBidUpload} label="上传完整标书" />
+                          <span className="file-hint">PDF/ZIP（Office 请先转 PDF），≤{maxUploadSizeMB}MB</span>
                           {fullBidMeta ? (
                             <span className="file-chip">
                               {fullBidMeta.originalName}（{formatSize(fullBidMeta.size)}）
@@ -917,12 +927,12 @@ function BidSubmitInner() {
                         <div className="split-cat">
                           <div className="split-cat-head">
                             <AddFileButton
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.jpg,.png"
+                              accept=".pdf,.zip,.rar"
                               disabled={!canSubmit || splitCats[cat].uploading}
                               uploading={splitCats[cat].uploading}
                               onFile={(f) => handleSplitUpload(cat, f)}
                             />
-                            <span className="file-hint">{splitCats[cat].description} · ≤{maxUploadSizeMB}MB</span>
+                            <span className="file-hint">{splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB</span>
                             {splitCats[cat].progress !== null && <div style={{ width: 120 }}><SpProgress value={splitCats[cat].progress} /></div>}
                           </div>
                           {splitCats[cat].files.length > 0 && (
@@ -981,8 +991,8 @@ function BidSubmitInner() {
                           <SpTextarea rows={4} value={form.coverLetter} disabled={formDisabled} onChange={(e) => updateForm({ coverLetter: e.target.value })} placeholder="请输入投标函内容（选填）" />
                         ) : (
                           <div className="file-area">
-                            <UploadZone accept=".pdf,.doc,.docx" disabled={!canSubmit} onFile={handleCoverLetterUpload} label="上传投标函文件" />
-                            <span className="file-hint">PDF/DOC，≤{maxUploadSizeMB}MB</span>
+                            <UploadZone accept=".pdf" disabled={!canSubmit} onFile={handleCoverLetterUpload} label="上传投标函文件" />
+                            <span className="file-hint">PDF（Office 请先转 PDF），≤{maxUploadSizeMB}MB</span>
                             {coverLetterMeta ? (
                               <span className="file-chip">
                                 {coverLetterMeta.originalName}（{formatSize(coverLetterMeta.size)}）

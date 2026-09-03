@@ -1621,6 +1621,31 @@ describe('SupplierPortalService', () => {
       } as any)).rejects.toMatchObject({ response: { code: 'ENVELOPE_INCOMPLETE' } });
     });
 
+    it('③e A-89：标书角色 docx 扩展（密文名 技术标.docx.enc）→ 400 BID_FILE_MUST_BE_PDF（版式强制）', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([{ ...dualAsset(), originalName: '技术标.docx.enc' }]);
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...dualAsset(), originalName: '技术标.docx.enc' });
+      const { envelope, signature } = await buildDualSubmission();
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({
+        response: { code: 'BID_FILE_MUST_BE_PDF', error: expect.stringContaining('PDF 版式文件') },
+      });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+    });
+
+    it('③f A-89：pdf 扩展（密文名 技术标.pdf.enc，剥离 .enc 后断明文扩展）→ 提交通过', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([{ ...dualAsset(), originalName: '技术标.pdf.enc' }]);
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...dualAsset(), originalName: '技术标.pdf.enc' });
+      const { envelope, signature } = await buildDualSubmission();
+
+      const result = await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any);
+      expect(result.status).toBe('submitted');
+      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledTimes(1);
+    });
+
     it('④ 验签失败（SupplierCert 公钥与签名密钥不匹配）→ 400 SM2_SIGNATURE_INVALID', async () => {
       prisma.supplierCert.findFirst.mockResolvedValue({
         id: 'sc-1', supplierId: 'supplier-1', certSn: DUAL_CERT_SN,
