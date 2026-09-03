@@ -39,6 +39,21 @@ export interface SignPacketResponse {
   allClosed: boolean;
 }
 
+export interface ReportNoteItem {
+  /** A-151：章节序号白名单 一~十（《暂行规定》第四十二条十项 = 主报告十节） */
+  section: string;
+  /** ≤2000 字 */
+  content: string;
+}
+
+export function getReportNotes(projectId: string) {
+  return api.get<{ notes: ReportNoteItem[] }>(`/bid/projects/${projectId}/report-notes`);
+}
+
+export function setReportNotes(projectId: string, notes: ReportNoteItem[]) {
+  return api.put<{ success: boolean }>(`/bid/projects/${projectId}/report-notes`, { notes });
+}
+
 export function getSignPacket(projectId: string) {
   return api.get<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet`);
 }

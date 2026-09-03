@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, HelpCircle, Loader2, PenLine, RefreshCw, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, HelpCircle, Loader2, PenLine, RefreshCw, Upload, X, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { EXPERT_ROLE } from '@water-erp/shared';
 import {
-  generateHandover, generateSignPacket, getSignPacket, unregisterSign,
+  generateHandover, generateSignPacket, getReportNotes, getSignPacket, setReportNotes, unregisterSign,
   uploadExpertScan, uploadSignaturePageScan,
   type SignPacketResponse, type SignPacketExpertRow,
 } from '@/lib/api/sign-packet';
@@ -27,6 +28,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [registering, setRegistering] = useState<SignPacketExpertRow | null>(null);
+  // A-151：报告附注编辑弹窗（可选编辑，生成/重新生成签字包时取库内最新）
+  const [notesOpen, setNotesOpen] = useState(false);
   // ═══ 批量回传签字扫描件：一次多选 → 文件名智能路由直传 → 结果清单肉眼核对 ═══
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
@@ -233,6 +236,16 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             生成签字包
           </button>
           )}
+          {canHost && (
+          <button
+            type="button"
+            onClick={() => setNotesOpen(true)}
+            className="neu-btn-soft !h-[34px] !text-xs"
+            title="编辑《评标报告》十项法定内容的章节附注；生成签字包时取库内最新值"
+          >
+            <PenLine size={13} /> 报告附注
+          </button>
+          )}
           {!data.canGenerate && <span className="text-[11px] text-[var(--muted-foreground)]">当前阶段 {stage} 不可生成</span>}
         </div>
       ) : (
@@ -280,6 +293,17 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 className="neu-btn-soft !h-[34px] !text-xs hover:!text-[var(--danger)]"
               >
                 <RefreshCw size={13} /> 重新生成
+              </button>
+              )}
+              {canHost && (
+              <button
+                type="button"
+                disabled={closed}
+                onClick={() => setNotesOpen(true)}
+                className="neu-btn-soft !h-[34px] !text-xs"
+                title="编辑《评标报告》十项法定内容的章节附注；重新生成签字包时取库内最新值"
+              >
+                <PenLine size={13} /> 报告附注
               </button>
               )}
             </div>
@@ -444,6 +468,133 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
           onDone={async (res) => { setData(res); setRegistering(null); }}
         />
       )}
+
+      {notesOpen && <ReportNotesDialog projectId={projectId} onClose={() => setNotesOpen(false)} />}
+    </div>
+  );
+}
+
+// ═══ A-151：报告附注编辑弹窗（《评标报告》十项法定内容——一~九节末以「附注：」段插入、十节拼入正文；生成签字包取库内最新） ═══
+// 章节序号与后端白名单 REPORT_NOTE_SECTIONS（一~十）对应；label 与签字包 docx 渲染的 h2 逐字一致
+const REPORT_NOTE_ROWS: ReadonlyArray<{ section: string; label: string }> = [
+  { section: '一', label: '一、基本情况和数据表' },
+  { section: '二', label: '二、评标委员会成员名单' },
+  { section: '三', label: '三、开标记录' },
+  { section: '四', label: '四、投标一览表' },
+  { section: '五', label: '五、废标情况说明' },
+  { section: '六', label: '六、评标标准、评标方法一览表' },
+  { section: '七', label: '七、经评审的价格或评分比较一览表' },
+  { section: '八', label: '八、排序结果与推荐中标候选人名单' },
+  { section: '九', label: '九、澄清、说明、补正事项纪要' },
+  { section: '十', label: '十、评标过程其他说明' },
+];
+
+function ReportNotesDialog({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+  const [contents, setContents] = useState<Record<string, string>>(() => Object.fromEntries(REPORT_NOTE_ROWS.map((r) => [r.section, ''] as const)));
+  const [loading, setLoading] = useState(true);
+  // GET 成功才放行保存——加载失败时存量未知，贸然保存会把库内附注覆盖成空白
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getReportNotes(projectId);
+        if (!alive) return;
+        setContents((prev) => {
+          const next = { ...prev };
+          for (const n of res.notes) if (n.section in next) next[n.section] = n.content;
+          return next;
+        });
+        setLoaded(true);
+        setError(null);
+      } catch (e: any) {
+        if (alive) setError(e?.message ?? '附注加载失败');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [projectId]);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      // 空行不提交；十行全空 → 提交 [] = 显式清空（后端语义，footer 已向用户点明）
+      await setReportNotes(projectId, REPORT_NOTE_ROWS.map((r) => ({ section: r.section, content: contents[r.section] ?? '' })).filter((n) => n.content.trim()));
+      toast.success('报告附注已保存');
+      onClose();
+    } catch (e: any) {
+      setError(e?.message ?? '保存失败');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { if (!busy) onClose(); }}>
+      <div className="flex max-h-[82vh] w-[640px] max-w-[92vw] flex-col rounded-2xl border border-[var(--hairline)] bg-[var(--background)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-sm font-semibold text-[var(--foreground)]">报告附注 — 《评标报告》十项法定内容</p>
+          <button type="button" onClick={onClose} disabled={busy} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={15} /></button>
+        </div>
+        <p className="mb-3 text-[11px] text-[var(--muted-foreground)]">一~九节内容以「附注：」段插入对应章节末；十节内容直接拼入报告正文。</p>
+
+        {error && <div className="mb-3 rounded-xl border border-[color-mix(in_oklch,var(--danger)_30%,transparent)] px-3 py-2 text-xs text-[var(--danger)]">{error}</div>}
+        {loading && <div className="mb-3 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><Loader2 size={12} className="animate-spin" /> 正在加载附注…</div>}
+
+        <div className="-mr-2 flex-1 space-y-3 overflow-y-auto pr-2">
+          {REPORT_NOTE_ROWS.map((r) => {
+            const v = contents[r.section] ?? '';
+            return (
+              <div key={r.section}>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--foreground)]">
+                    {r.label}
+                    {r.section === '十' && (
+                      <span
+                        className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]"
+                        style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}
+                        title="一~九节为章末附注段，十节内容续写进本节正文"
+                      >
+                        拼入报告正文
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">{v.length}/2000</span>
+                </div>
+                <textarea
+                  value={v}
+                  onChange={(e) => setContents((prev) => ({ ...prev, [r.section]: e.target.value }))}
+                  maxLength={2000}
+                  rows={2}
+                  disabled={!loaded}
+                  placeholder="（可不填）"
+                  className="w-full resize-none rounded-xl border border-[var(--hairline)] bg-transparent px-3 py-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)] disabled:opacity-50"
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-2 border-t border-[var(--hairline)] pt-3">
+          <p className="max-w-[380px] text-[10px] leading-relaxed text-[var(--muted-foreground)]">保存后生成/重新生成签字包时生效（生成时取库内最新）；十行全空保存即清空全部附注。</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} disabled={busy} className="rounded-xl border border-[var(--hairline)] px-4 py-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-40">取消</button>
+            <button
+              type="button"
+              disabled={!loaded || busy}
+              onClick={() => void save()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--accent)] px-4 py-2 text-xs font-semibold text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] disabled:opacity-40"
+            >
+              {busy ? <Loader2 size={13} className="animate-spin" /> : null}
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
