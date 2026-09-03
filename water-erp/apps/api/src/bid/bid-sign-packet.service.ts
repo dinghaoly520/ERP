@@ -30,6 +30,9 @@ export interface SignPacketExpertRow {
   signScanUrl: string | null;
   dissentingOpinion: string | null;
   dissentingReason: string | null;
+  /** A-152：电子签名剥壳摘要（同回流包口径 {algorithm, certSn, verifiedAt}；完整证据在 BidExpert.esignature） */
+  esignature: { algorithm: string; certSn: string | null; verifiedAt: string | null } | null;
+  esignatureAt: string | null;
 }
 
 export interface SignPacketResponse {
@@ -88,6 +91,7 @@ export class BidSignPacketService {
           reviewGroup: true, dutyRole: true,
           isPurchaserRepresentative: true, signStatus: true, signStatusAt: true,
           signScanFileId: true, dissentingOpinion: true, dissentingReason: true,
+          esignature: true, esignatureAt: true,
         },
       }),
     ]);
@@ -125,6 +129,8 @@ export class BidSignPacketService {
         signScanUrl: e.signScanFileId ? `/api/upload/files/${e.signScanFileId}` : null,
         dissentingOpinion: e.dissentingOpinion,
         dissentingReason: e.dissentingReason,
+        esignature: stripExpertEsignature(e.esignature),
+        esignatureAt: e.esignatureAt ? e.esignatureAt.toISOString() : null,
       })),
       allClosed: packet?.closedAt != null,
     };

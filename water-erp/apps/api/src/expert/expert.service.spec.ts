@@ -2249,6 +2249,18 @@ describe('ExpertService', () => {
       expect(r).toMatchObject({ signed: true, signStatus: 'SIGNED', esignature: { certSn: 'SN-001' } });
     });
 
+    it('esign：签字包在读取后被重生成（事务内锁后重读指纹不符）→ 400 ESIGN_PACKET_MISMATCH，零写入', async () => {
+      arrangeSignable();
+      prisma.bidSignPacket.findUnique
+        .mockResolvedValueOnce(esignPacket) // 门控读（canonical 构建/验签依据）
+        .mockResolvedValueOnce({ sha256: 'sha-NEW' }); // 事务内锁后重读 → 已换包
+      await expect(service.esignReport('user-1', 'proj-1', { signature: 'sig-hex' }))
+        .rejects.toMatchObject({ response: { code: 'ESIGN_PACKET_MISMATCH' } });
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+      expect(prisma.bidSignPacket.update).not.toHaveBeenCalled();
+    });
+
     it('esign：幂等重签（updateMany count=0）→ 400 NOT_SIGNABLE，不写监督日志', async () => {
       arrangeSignable();
       prisma.bidExpert.updateMany.mockResolvedValue({ count: 0 });

@@ -398,6 +398,40 @@ describe('BidSignPacketService.generateHandover', () => {
   });
 });
 
+describe('BidSignPacketService.getStatus（A-152 电子签名摘要列）', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('专家行携带 esignature 剥壳摘要（payload/签名值不出端点）+ esignatureAt；无签为 null', async () => {
+    baseArrange(); // getStatus 直查：全字段 packet + findMany 回数组
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { id: 'e1', expertName: '王建国', major: '水利水电', expertRole: '正选', isLead: true, reviewGroup: '技术组', dutyRole: '主审',
+        isPurchaserRepresentative: false, signStatus: 'SIGNED', signStatusAt: new Date('2026-09-02T08:05:00Z'), signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null,
+        esignature: { v: 1, payload: 'p'.repeat(64), signature: 's'.repeat(128), algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+        esignatureAt: new Date('2026-09-02T08:05:00Z') },
+      { id: 'e2', expertName: '李四', major: '工程造价', expertRole: '正选', isLead: false, reviewGroup: null, dutyRole: null,
+        isPurchaserRepresentative: true, signStatus: 'PENDING', signStatusAt: null, signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null, esignature: null, esignatureAt: null },
+    ]);
+    const svc = makeService();
+
+    const status = await svc.getStatus(projectId);
+
+    // select 必须带出两列（缺列则映射 undefined，前端拿不到摘要）
+    const expertsSelect = (prisma.bidExpert.findMany as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(expertsSelect?.esignature).toBe(true);
+    expect(expertsSelect?.esignatureAt).toBe(true);
+    expect(status.experts[0]).toMatchObject({
+      expertId: 'e1',
+      esignature: { algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+      esignatureAt: '2026-09-02T08:05:00.000Z',
+    });
+    expect((status.experts[0].esignature as any).payload).toBeUndefined(); // 剥壳：完整证据（payload/签名值）不出 getStatus
+    expect((status.experts[0].esignature as any).signature).toBeUndefined();
+    expect(status.experts[1]).toMatchObject({ expertId: 'e2', esignature: null, esignatureAt: null });
+  });
+});
+
 describe('assertSignGateClosed（归档闸门）', () => {
   it('scope=full 三缺一 → 对应 409 明细', () => {
     expect(() => assertSignGateClosed('full', null, [])).toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'SIGN_PACKET_NOT_GENERATED' }) }));

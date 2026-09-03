@@ -2546,6 +2546,12 @@ export class ExpertService {
     };
     await this.prisma.$transaction(async (tx) => {
       const project = await lockAndReassertStage(tx, projectId, 'EVALUATING');
+      // TOCTOU 加固（评审 Important）：锁内重读签字包指纹——载荷/验签所用 sha256 若已被重生成替换，
+      // 旧周期签名不得落进新包周期（新 PENDING 被旧签名满足）→ 作废重取
+      const lockedPacket = await tx.bidSignPacket.findUnique({ where: { projectId }, select: { sha256: true } });
+      if (!lockedPacket || lockedPacket.sha256 !== packet.sha256) {
+        throw new BadRequestException({ error: '签字包已重新生成，请重新获取签署内容', code: 'ESIGN_PACKET_MISMATCH' });
+      }
       // 原子抢占：仅 PENDING 可签署（与 register 登记同款），count=0 即已签/已登记 → 幂等 400
       const updated = await tx.bidExpert.updateMany({
         where: { id: expert.id, projectId, signStatus: 'PENDING' },
