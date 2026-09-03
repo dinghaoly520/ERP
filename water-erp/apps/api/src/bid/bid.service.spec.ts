@@ -6785,6 +6785,27 @@ describe('BidService — report notes (A-151 评标报告章节附注)', () => {
     );
   });
 
+  /* ── 修复轮1：notes 缺省/null（@IsOptional 放行 body {}/{"notes":null}）原路径 .map 同步抛 TypeError → 500 且清空无日志 ── */
+  it('notes 缺省（body {}）→ 归一空数组清空，仍写「清空附注」监督日志', async () => {
+    await expect(service.setReportNotes('p1', {} as any, 'u1')).resolves.toEqual({ success: true });
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1' }, data: { reportNotes: [] } }),
+    );
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: '评标报告附注编辑', result: '清空附注', riskFlag: '无' }) }),
+    );
+  });
+
+  it('notes=null（body {"notes":null}）→ 同款归一清空 + 监督日志（原路径显式置 NULL 后 500、日志未写）', async () => {
+    await expect(service.setReportNotes('p1', { notes: null } as any, 'u1')).resolves.toEqual({ success: true });
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1' }, data: { reportNotes: [] } }),
+    );
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ result: '清空附注', riskFlag: '无' }) }),
+    );
+  });
+
   it('getReportNotes：未设置返回空数组，已设置原样返回', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ reportNotes: null });
     await expect(service.getReportNotes('p1')).resolves.toEqual({ notes: [] });

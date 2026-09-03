@@ -5721,15 +5721,17 @@ export class BidService {
   async setReportNotes(projectId: string, dto: ReportNotesDto, actorId?: string) {
     const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
     if (!p) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // notes 缺省/null 归一空数组（@IsOptional 放行 body {}/{"notes":null}）——否则日志行 .map 在 create 参数求值阶段同步抛 TypeError（.catch 挂在返回的 Promise 上救不了）→ 500 且清空绕过留痕
+    const notes = dto.notes ?? [];
     // service 硬校验与 DTO @IsIn 双保险（直调或白名单管道剥落时兜底）
-    for (const n of dto.notes ?? []) {
+    for (const n of notes) {
       if (!(REPORT_NOTE_SECTIONS as readonly string[]).includes(n.section)) {
         throw new BadRequestException({ error: `非法章节 ${n.section}（仅允许 一~十）`, code: 'INVALID_SECTION' });
       }
     }
-    await this.prisma.bidProject.update({ where: { id: projectId }, data: { reportNotes: dto.notes as any } });
+    await this.prisma.bidProject.update({ where: { id: projectId }, data: { reportNotes: notes as any } });
     await this.prisma.bidSupervisionLog.create({ data: { projectId, time: new Date(), role: '系统', target: p.name,
-      action: '评标报告附注编辑', result: dto.notes.map(n => `第${n.section}节 ${n.content.length} 字`).join('；') || '清空附注', riskFlag: '无', operatorId: actorId ?? null } }).catch(() => {});
+      action: '评标报告附注编辑', result: notes.map(n => `第${n.section}节 ${n.content.length} 字`).join('；') || '清空附注', riskFlag: '无', operatorId: actorId ?? null } }).catch(() => {});
     return { success: true };
   }
 
