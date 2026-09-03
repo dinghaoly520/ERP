@@ -17,7 +17,18 @@ function unwrapList<T>(res: T[] | { total: number; items: T[] }): { items: T[]; 
   return { items: (res as any).items || [], total: (res as any).total || 0 };
 }
 
-interface SpecialtyQuota { specialty: string; count: number; employer?: string }
+/** A-129：配额区域/等级档案过滤生效提示（preview 返回即展示；note 为多值并集说明，可选） */
+function QuotaFiltersAppliedHint({ filters }: { filters?: ExtractionPreview['quotaFiltersApplied'] }) {
+  if (!filters) return null;
+  const parts = [
+    ...(filters.regionCode?.length ? [`区域 ${filters.regionCode.join('、')}`] : []),
+    ...(filters.expertLevel?.length ? [`等级 ${filters.expertLevel.join(',')}`] : []),
+  ];
+  if (parts.length === 0) return null;
+  return <p className="text-[11px] text-[var(--muted-foreground)] mt-2">已启用档案过滤：{parts.join(' · ')}{filters.note ? `（${filters.note}）` : ''}</p>;
+}
+
+interface SpecialtyQuota { specialty: string; count: number; employer?: string; regionCode?: string; expertLevel?: string }
 
 type ExtractMode = 'specialty_match' | 'random' | 'merit_best' | 'manual';
 type ApiExtractMode = Exclude<ExtractMode, 'manual'>;
@@ -1041,9 +1052,13 @@ export function ExpertExtractPage({
     updateMessages(new Map());
     toast.loading('AI 正在分析项目需求并抽取专家组...', { id: 'extract-loading' });
 
-    // 组装抽取配额：各专业配额；部门需求方代表走 employer 限定配额
-    const manualQuotas: { specialty: string; count: number; employer?: string }[] = [];
-    for (const qq of quotas.filter(q => q.specialty.trim())) manualQuotas.push({ specialty: qq.specialty, count: qq.count });
+    // 组装抽取配额：各专业配额；部门需求方代表走 employer 限定配额；区域/等级为 A-129 可选档案过滤（空值不传）
+    const manualQuotas: { specialty: string; count: number; employer?: string; regionCode?: string; expertLevel?: string }[] = [];
+    for (const qq of quotas.filter(q => q.specialty.trim())) manualQuotas.push({
+      specialty: qq.specialty, count: qq.count,
+      ...(qq.regionCode?.trim() ? { regionCode: qq.regionCode.trim() } : {}),
+      ...(qq.expertLevel ? { expertLevel: qq.expertLevel } : {}),
+    });
     const regularQuotaCount = manualQuotas.length; // 候补 = 每个专业 1 位
     const allQuotas = (needDemandRep && demandRepMode === 'department')
       ? [...manualQuotas, { specialty: demandRepDeptSpecialty || '', count: demandRepCount, employer: demandRepCompany, department: demandRepDept }]
@@ -2092,6 +2107,7 @@ export function ExpertExtractPage({
                   <button onClick={addQ} className="neu-btn-xs"><Plus size={12} />添加专业</button>
                 </div>
               </div>
+              <p className="mb-2 text-[10px] text-[var(--muted-foreground)]">区域代码 / 等级为可选档案过滤（留空不过滤，不参与席位配平）。</p>
               {quotas
                 .map((q, idx) => ({ q, idx }))
                 .sort((a, b) => {
@@ -2101,7 +2117,12 @@ export function ExpertExtractPage({
                 })
                 .map(({ q, idx }) => (
                 <div key={idx} className="flex items-center gap-2 mb-2">
-                  <select value={q.specialty} onChange={e => upQ(idx, 'specialty', e.target.value)} className="neu-input text-sm flex-1"><option value="">选择专业</option>{[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
+                  <select value={q.specialty} onChange={e => upQ(idx, 'specialty', e.target.value)} className="neu-input text-sm flex-1 min-w-0"><option value="">选择专业</option>{[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
+                  <input value={q.regionCode ?? ''} onChange={e => upQ(idx, 'regionCode', e.target.value)} placeholder="510000" maxLength={20} inputMode="numeric" title="行政区域代码（GB/T 2260 六位，可选过滤，留空不过滤）" className="neu-input text-sm !w-[76px]" />
+                  <select value={q.expertLevel ?? ''} onChange={e => upQ(idx, 'expertLevel', e.target.value)} title="库内等级 A-E（可选过滤，留空不过滤）" className="neu-input text-sm !w-[76px]">
+                    <option value="">等级</option>
+                    {['A', 'B', 'C', 'D', 'E'].map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
                   <div className="flex items-center gap-1"><button onClick={() => adjustQuota(idx, -1)} className="neu-btn-xs">−</button><span className="w-6 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span><button onClick={() => adjustQuota(idx, 1)} className="neu-btn-xs">+</button></div>
                   <button onClick={() => rmQ(idx)} disabled={quotas.length <= 1} className="neu-btn-xs is-danger">×</button>
                 </div>
@@ -2178,6 +2199,7 @@ export function ExpertExtractPage({
                   </div>
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{preview.analysis}</p>
                   {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-3">{[...preview.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map(q => <span key={q.specialty} className="neu-tab-count">{q.specialty} × {q.count}</span>)}</div>}
+                  <QuotaFiltersAppliedHint filters={preview.quotaFiltersApplied} />
                 </div>
 
                 {preview.shortages.length > 0 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3 text-sm text-[var(--warning)]"><AlertTriangle size={16} className="inline mr-2" />专业候选人不足{preview.shortages.map(s => `：${s.specialty} 需${s.needed}人/仅${s.available}人`).join('')}</div>}

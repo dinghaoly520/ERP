@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem } from '@/lib/api/expert';
 import { AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -21,7 +21,7 @@ interface Assignment {
 interface ExpertDetail {
   id: string; username: string; displayName: string; email: string | null;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
-  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string };
+  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
 }
@@ -81,7 +81,7 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'notify', label: '通知偏好', icon: Bell },
 ];
 
-type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string };
+type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string; regionCode: string; expertLevel: string };
 const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes' | 'availability' | 'departmentName'>; label: string; placeholder: string }[] = [
   { key: 'displayName', label: '姓名', placeholder: '专家姓名' },
   { key: 'email', label: '邮箱', placeholder: '用于登录与通知触达' },
@@ -133,7 +133,7 @@ export default function ExpertDetailPage() {
   const [vioSaving, setVioSaving] = useState(false);
   // 编辑资料弹窗
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '' });
+  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '', regionCode: '', expertLevel: '' });
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
@@ -232,6 +232,8 @@ export default function ExpertDetailPage() {
       licenseNo: p?.licenseNo || '',
       availability: (p?.availability as '可用' | '占用' | '停用') || '可用',
       notes: p?.notes || '',
+      regionCode: p?.regionCode || '',
+      expertLevel: p?.expertLevel || '',
     });
     setShowEditModal(true);
   };
@@ -243,9 +245,11 @@ export default function ExpertDetailPage() {
     if (editForm.phone.trim() && !/^1[3-9]\d{9}$/.test(editForm.phone.trim())) { toast.error('手机号格式不正确（11位数字）'); return; }
     if (editForm.idNumber.trim() && !/^\d{17}[\dXx]$/.test(editForm.idNumber.trim())) { toast.error('身份证号格式不正确（18位）'); return; }
     if (editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) { toast.error('邮箱格式不正确'); return; }
+    if (editForm.regionCode.trim() && !/^\d{6}$/.test(editForm.regionCode.trim())) { toast.error('区域代码格式不正确（六位数字，如 510000）'); return; }
     setEditSaving(true);
     try {
-      await updateExpertProfile(expertId, { ...editForm });
+      // A-129 档案维度：空值不传（undefined 不落入更新集；expertLevel 空串会被后端 IsIn 拒收）
+      await updateExpertProfile(expertId, { ...editForm, regionCode: editForm.regionCode.trim() || undefined, expertLevel: editForm.expertLevel || undefined });
       toast.success('专家资料已保存');
       setShowEditModal(false);
       reload();
@@ -361,6 +365,8 @@ export default function ExpertDetailPage() {
                 <InfoField icon={Award} label="职称" value={p.title} />
                 <InfoField icon={GraduationCap} label="学历" value={p.education} />
                 <InfoField icon={Award} label="执业资格编号" value={p.licenseNo} mono />
+                <InfoField icon={MapPin} label="行政区域代码" value={p.regionCode} mono />
+                <InfoField icon={Award} label="库内等级" value={p.expertLevel ? `${p.expertLevel} 级` : undefined} />
               </div>
               {/* 工作单位 + 所属部门 成对相邻 */}
               <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-[var(--border)] pt-4 md:grid-cols-2">
@@ -840,6 +846,17 @@ export default function ExpertDetailPage() {
                   <option value="可用">可用</option>
                   <option value="占用">占用</option>
                   <option value="停用">停用</option>
+                </select>
+              </label>
+              <label className="space-y-1 block">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码</span>
+                <input value={editForm.regionCode} onChange={e => setEditForm(prev => ({ ...prev, regionCode: e.target.value }))} maxLength={6} placeholder="六位行政区划代码如 510000" className="workbench-input" />
+              </label>
+              <label className="space-y-1 block">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级</span>
+                <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（A-129，区别于履职评价等级），抽取配额可按此过滤">
+                  <option value="">未设置</option>
+                  {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
                 </select>
               </label>
               <label className="space-y-1 block sm:col-span-2">
