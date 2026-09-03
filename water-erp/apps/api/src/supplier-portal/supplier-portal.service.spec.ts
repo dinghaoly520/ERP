@@ -2434,6 +2434,77 @@ describe('SupplierPortalService', () => {
     });
   });
 
+  describe('getTenderRequirements（A-87 招标要点只读端点）', () => {
+    beforeEach(() => {
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn() };
+    });
+
+    const fullRequirements = {
+      projectName: '引大济岷工程',
+      projectType: '施工',
+      bidDeadline: '2026-09-15 17:00',
+      maxPrice: 120000000,
+      estimatedCost: 98000000,
+      qualificationRequirements: [
+        { id: 'q1', category: '资质', content: '水利水电工程施工总承包一级及以上资质', isRequired: true },
+        { id: 'q2', category: '业绩', content: '近五年类似工程业绩不少于 2 项', isRequired: false },
+      ],
+      technicalRequirements: [
+        { id: 't1', category: '施工组织', content: '导流洞施工专项方案', isStarred: true },
+        { id: 't2', category: '质量', content: '质量保证体系 ISO9001', isStarred: false },
+      ],
+      commercialRequirements: [
+        { id: 'c1', category: '报价', content: '报价不得高于最高限价', isRequired: true },
+      ],
+      priceEvaluationMethod: '最低评标价法',
+    };
+
+    it('无任务 → PENDING + requirements null（不报错，前端空态）', async () => {
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue(null);
+      const res = await service.getTenderRequirements('p1');
+      expect(res).toEqual({ status: 'PENDING', requirements: null });
+      expect(prisma.aiBidAnalysisTask.findUnique).toHaveBeenCalledWith({
+        where: { projectId: 'p1' },
+        select: { requirements: true },
+      });
+    });
+
+    it('已提取 → READY：三数组分组扁平化（不带 id），isStarred/isRequired 保留', async () => {
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue({ requirements: fullRequirements });
+      const res = await service.getTenderRequirements('p1');
+      expect(res.status).toBe('READY');
+      expect(res.requirements).toEqual({
+        projectName: '引大济岷工程',
+        projectType: '施工',
+        bidDeadline: '2026-09-15 17:00',
+        maxPrice: 120000000,
+        estimatedCost: 98000000,
+        priceEvaluationMethod: '最低评标价法',
+        qualification: [
+          { category: '资质', content: '水利水电工程施工总承包一级及以上资质', isRequired: true },
+          { category: '业绩', content: '近五年类似工程业绩不少于 2 项', isRequired: false },
+        ],
+        technical: [
+          { category: '施工组织', content: '导流洞施工专项方案', isStarred: true },
+          { category: '质量', content: '质量保证体系 ISO9001', isStarred: false },
+        ],
+        commercial: [
+          { category: '报价', content: '报价不得高于最高限价', isRequired: true },
+        ],
+      });
+    });
+
+    it('任务存在但 requirements 空（未提取完/空对象）→ PENDING', async () => {
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValueOnce({ requirements: null });
+      let res = await service.getTenderRequirements('p1');
+      expect(res).toEqual({ status: 'PENDING', requirements: null });
+
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValueOnce({ requirements: {} });
+      res = await service.getTenderRequirements('p1');
+      expect(res).toEqual({ status: 'PENDING', requirements: null });
+    });
+  });
+
 });
 
 describe('SupplierPortalService P1-7 — 澄清答疑仅本项目成员可见', () => {

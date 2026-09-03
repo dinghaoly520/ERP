@@ -2038,37 +2038,9 @@ export class BidService {
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动AI辅助分析', target: project.name, result: `${evaluableSupplierCount}家供应商入队`, riskFlag: '无' });
 
     // 4.3: 入队 AI 分析（tender 处理 → 触发 worker 端到端）
-    if (this.tenderQueue) {
-      const aiTask = await this.prisma.aiBidAnalysisTask.findUnique({
-        where: { projectId: id },
-      });
-      if (aiTask) {
-        try {
-          // F7：add 前强制 remove——BullMQ 对任意保留状态（含 7 天内 completed）的同 id job 静默去重，
-          // 不 remove 的话同 taskId 二次入队会静默 no-op（假成功）
-          await this.tenderQueue.remove(`tender-${aiTask.id}`).catch(() => {});
-          await this.tenderQueue.add(
-            'process',
-            { taskId: aiTask.id },
-            {
-              jobId: `tender-${aiTask.id}`,
-              attempts: 3,
-              backoff: { type: 'exponential', delay: 5000 },
-              removeOnComplete: { age: 7 * 24 * 3600 },
-              removeOnFail: { age: 30 * 24 * 3600 },
-            },
-          );
-          this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${id}`);
-        } catch (err) {
-          this.logger.error(`Failed to enqueue AI analysis task ${aiTask.id}: ${(err as Error).message}`);
-          // 入队失败则将任务标记为 FAILED，避免永久 PENDING
-          await this.prisma.aiBidAnalysisTask.update({
-            where: { id: aiTask.id },
-            data: { status: 'FAILED' },
-          }).catch(() => {});
-        }
-      }
-    }
+    // A-87（P1 波4）：抽为 ensureTenderAnalysis，与公告发布钩子共用。此处 bidderResults 刚在事务内
+    // 建为 PENDING，幂等闸（requirements 已提取且无待派发 bidder）天然放行，行为与旧内联实现一致
+    await this.ensureTenderAnalysis(id);
 
     // 通知所有分配专家评标已启动（fire-and-forget，不阻塞）
     // N9：仅通知已确认正选——候补/已婉拒/未确认专家不在评审之列，不应收到启动通知
@@ -2089,6 +2061,80 @@ export class BidService {
     } catch { /* 通知失败不阻塞评标启动 */ }
 
     return updated;
+  }
+
+  /**
+   * A-87（P1 波4）：确保项目存在 AI 招标要点提取任务并入队 tender 处理，三个调用点共用：
+   * - 公告发布钩子（announcement.syncBidProject）——发布即提取，潜在投标人在 BID 阶段可见要点清单；
+   * - startEvaluation——评标启动；
+   * - rerunAiAnalysis——force=true。
+   * 幂等闸：requirements 已提取且无 PENDING bidderResult → 跳过入队（同一项目重复发布不重复入队）。
+   * 闸门不能只看 requirements：tender processor 收尾会把全部 PENDING bidderResult 批量入队 bidder
+   * 分析，若发布时已提取、启动评标时被闸拦，则 bidder 分析永不入队——启动评标现场刚建 PENDING
+   * bidderResult，闸门天然放行，行为与旧内联实现一致。
+   * force=true（rerun 语义）：跳过幂等闸；入队失败抛 400 ENQUEUE_FAILED（非 force 仅标 FAILED 不抛，
+   * 不阻塞发布/启动评标主流程）。返回 true=已入队，false=幂等跳过或队列不可用（非 force）。
+   */
+  async ensureTenderAnalysis(projectId: string, opts?: { force?: boolean }): Promise<boolean> {
+    const tenderQueue = this.tenderQueue;
+    if (!tenderQueue) {
+      if (opts?.force) {
+        // 与 rerunAiAnalysis 的 F7 前置闸同口径：force 路径已清空旧结果，必须有人消费，不可假成功
+        throw new ServiceUnavailableException({ error: 'AI 分析队列不可用（Redis/worker 异常），无法入队', code: 'QUEUE_UNAVAILABLE' });
+      }
+      this.logger.warn(`tenderQueue 不可用，跳过 AI 分析入队 (project=${projectId})`);
+      return false;
+    }
+    let aiTask = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
+    if (!aiTask) {
+      // N8 同款补建：upsert（update 空分支）——并发双钩子双双 findUnique 落空时，后到方撞
+      // projectId @unique 走 update 分支复用对手已建 task，不 P2002 裸 500
+      aiTask = await this.prisma.aiBidAnalysisTask.upsert({
+        where: { projectId },
+        create: { projectId, status: 'PENDING' },
+        update: {},
+      });
+    }
+    if (!opts?.force && aiTask.requirements) {
+      const pendingBidders = await this.prisma.aiBidderResult.count({
+        where: { taskId: aiTask.id, status: 'PENDING' },
+      });
+      if (pendingBidders === 0) {
+        this.logger.log(`AI 招标要点已提取且无待派发投标分析，幂等跳过入队 (project=${projectId}, task=${aiTask.id})`);
+        return false;
+      }
+    }
+    // F7：add 前强制 remove——BullMQ 对任意保留状态（含 7 天内 completed）的同 id job 静默去重，
+    // 不 remove 的话同 taskId 二次入队会静默 no-op（假成功）。jobId 确定性（tender-<taskId>）
+    // 使同一任务至多一个在途 job
+    const tenderJobId = `tender-${aiTask.id}`;
+    try {
+      await tenderQueue.remove(tenderJobId).catch(() => {});
+      await tenderQueue.add(
+        'process',
+        { taskId: aiTask.id },
+        {
+          jobId: tenderJobId,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { age: 7 * 24 * 3600 },
+          removeOnFail: { age: 30 * 24 * 3600 },
+        },
+      );
+      this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${projectId}`);
+      return true;
+    } catch (err) {
+      this.logger.error(`Failed to enqueue AI analysis task ${aiTask.id}: ${(err as Error).message}`);
+      // 入队失败则将任务标记为 FAILED，避免永久 PENDING
+      await this.prisma.aiBidAnalysisTask.update({
+        where: { id: aiTask.id },
+        data: { status: 'FAILED' },
+      }).catch(() => {});
+      if (opts?.force) {
+        throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
+      }
+      return false;
+    }
   }
 
   /**
@@ -2188,29 +2234,8 @@ export class BidService {
     // 入队 tender 处理（F7：jobId 与 startEvaluation 同源 `tender-${taskId}`——确定性 id 使同一
     // 任务至多一个在途 job；add 前强制 remove，否则 7 天内保留的 completed 同 id job 会让本次
     // add 静默去重——重跑假成功：旧结果已清空、新分析永不出队）
-    const tenderJobId = `tender-${taskId}`;
-    try {
-      await tenderQueue.remove(tenderJobId).catch(() => {});
-      await tenderQueue.add(
-        'process',
-        { taskId },
-        {
-          jobId: tenderJobId,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: { age: 7 * 24 * 3600 },
-          removeOnFail: { age: 30 * 24 * 3600 },
-        },
-      );
-      this.logger.log(`AI analysis rerun enqueued: task=${taskId}, project=${projectId}`);
-    } catch (err) {
-      this.logger.error(`Failed to enqueue rerun for task ${taskId}: ${(err as Error).message}`);
-      await this.prisma.aiBidAnalysisTask.update({
-        where: { id: taskId },
-        data: { status: 'FAILED' },
-      }).catch(() => {});
-      throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
-    }
+    // A-87（P1 波4）：复用 ensureTenderAnalysis——force=true 跳过幂等闸并保留入队失败 400 语义
+    await this.ensureTenderAnalysis(projectId, { force: true });
 
     // 监督日志
     await this.prisma.bidSupervisionLog.create({

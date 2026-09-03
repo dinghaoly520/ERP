@@ -26,7 +26,21 @@ import { NotificationService } from '../notification/notification.service';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan, resolveDisplayInYuan } from '../bid/opening-compare.util';
 import { assertDecryptCheckInQuorum } from '../bid/decrypt-quorum.util';
 import { LlmService } from '../local-ai/llm.service';
+import type { TenderRequirements } from '../ai-bid-analysis/types';
 import * as crypto from 'crypto';
+
+/** A-87（P1 波4）：招标文件要点——AiBidAnalysisTask.requirements 的供应商侧扁平视图（分组，不带 id/权重） */
+export interface TenderRequirementSummary {
+  projectName: string;
+  projectType: string;
+  bidDeadline?: string;
+  maxPrice?: number;
+  estimatedCost?: number;
+  priceEvaluationMethod: string;
+  qualification: Array<{ category: string; content: string; isRequired: boolean }>;
+  technical: Array<{ category: string; content: string; isStarred: boolean }>;
+  commercial: Array<{ category: string; content: string; isRequired: boolean }>;
+}
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
 type BidSubmissionData = {
@@ -982,6 +996,46 @@ export class SupplierPortalService {
     // 编号覆盖放最后：公告查找已完成，仅展示层换业务编号
     if (project) return this.resolveDisplayCode(project);
     return project;
+  }
+
+  /**
+   * A-87（P1 波4）：供应商侧招标文件要点——发布钩子前移提取后，BID 阶段即可读结构化清单。
+   * 直接读 AiBidAnalysisTask.requirements（projectId @unique，1:1）；无任务/未提取完 → PENDING
+   * （不报错，前端空态提示）。不做名册门控：要点清单源自公开招标公告口径，对潜在投标人公开，
+   * 不含密文文件本体（下载仍走既有 BidDocument 授权链）。
+   */
+  async getTenderRequirements(projectId: string): Promise<{ status: 'READY' | 'PENDING'; requirements: TenderRequirementSummary | null }> {
+    const task = await this.prisma.aiBidAnalysisTask.findUnique({
+      where: { projectId },
+      select: { requirements: true },
+    });
+    const req = (task?.requirements ?? null) as TenderRequirements | null;
+    const hasAny =
+      !!req
+      && ((Array.isArray(req.qualificationRequirements) && req.qualificationRequirements.length > 0)
+        || (Array.isArray(req.technicalRequirements) && req.technicalRequirements.length > 0)
+        || (Array.isArray(req.commercialRequirements) && req.commercialRequirements.length > 0));
+    if (!hasAny) return { status: 'PENDING', requirements: null };
+    return {
+      status: 'READY',
+      requirements: {
+        projectName: req.projectName ?? '',
+        projectType: req.projectType ?? '',
+        bidDeadline: req.bidDeadline,
+        maxPrice: req.maxPrice,
+        estimatedCost: req.estimatedCost,
+        priceEvaluationMethod: req.priceEvaluationMethod ?? '',
+        qualification: (req.qualificationRequirements ?? []).map((r) => ({
+          category: r.category ?? '', content: r.content ?? '', isRequired: !!r.isRequired,
+        })),
+        technical: (req.technicalRequirements ?? []).map((r) => ({
+          category: r.category ?? '', content: r.content ?? '', isStarred: !!r.isStarred,
+        })),
+        commercial: (req.commercialRequirements ?? []).map((r) => ({
+          category: r.category ?? '', content: r.content ?? '', isRequired: !!r.isRequired,
+        })),
+      },
+    };
   }
 
   /**

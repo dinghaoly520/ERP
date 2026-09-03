@@ -385,6 +385,13 @@ export class SupplierPortalController {
     return this.portalService.getNegotiationFiles(id, supplierId);
   }
 
+  /** A-87（P1 波4）：招标文件要点（READY/PENDING）——发布即前移提取，BID 阶段对潜在投标人公开的结构化清单；
+   *  不做名册门控（要点源自公开公告口径，不含密文文件本体），无需 supplierId */
+  @Get('bid-projects/:id/tender-requirements')
+  async getTenderRequirements(@Param('id') id: string) {
+    return this.portalService.getTenderRequirements(id);
+  }
+
   // ─── Bid Submissions ───
 
   @Get('completed-projects')
