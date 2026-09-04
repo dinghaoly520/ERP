@@ -309,16 +309,11 @@ describe('ExpertAdminService', () => {
       await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
         { specialty: '造价咨询', count: 3 },
       ] } as any);
-      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({
-          expertProfile: expect.not.objectContaining({ regionCode: expect.anything() }),
-        }),
-      }));
-      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({
-          expertProfile: expect.not.objectContaining({ expertLevel: expect.anything() }),
-        }),
-      }));
+      // D3a 精度：not.objectContaining({regionCode: expect.anything()}) 对 null/undefined 值漏放
+      //（anything() 不匹配 null）——改断键整体不存在
+      const where = prisma.user.findMany.mock.calls[0][0].where;
+      expect(where.expertProfile).not.toHaveProperty('regionCode');
+      expect(where.expertProfile).not.toHaveProperty('expertLevel');
     });
 
     it('A-129：多配额区域/等级不一致 → 并集过滤（regionCode in 合并 + expertLevel in 并集），返回 quotaFiltersApplied 说明', async () => {

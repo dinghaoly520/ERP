@@ -115,4 +115,34 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
     expect(notification.sendToRole).not.toHaveBeenCalled();
   });
+
+  it('D2：两项目共 6 家未退（含跨项目重复）→ 名单去重后 slice(0,5) + 「…」，项目样例 2≤5 无省略号', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.contract.findMany.mockResolvedValue([{ projectId: 'p1' }, { projectId: 'p2' }]);
+    prisma.bidProject.findMany.mockResolvedValue([
+      { id: 'p1', projectCode: 'GK-1', name: '项目一' },
+      { id: 'p2', projectCode: 'GK-2', name: '项目二' },
+    ]);
+    prisma.systemConfig.findUnique.mockResolvedValue(null);
+    prisma.bidSupplier.count.mockResolvedValue(3); // 逐项目 count>0 即入名单（家数精确值不参与拼装）
+    // p1 三家；p2 四家且「甲公司」跨项目重复投递 → pendingNames 7 条、去重后 6 家 > 5 触发省略号
+    prisma.bidSupplier.findMany.mockImplementation(async ({ where }: any) =>
+      (where as any).projectId === 'p1'
+        ? [{ supplierName: '甲公司' }, { supplierName: '乙公司' }, { supplierName: '丙公司' }]
+        : [{ supplierName: '甲公司' }, { supplierName: '丁公司' }, { supplierName: '戊公司' }, { supplierName: '己公司' }],
+    );
+
+    await scheduler.remindBondReturns();
+
+    expect(notification.sendToRole).toHaveBeenCalledTimes(1);
+    const payload = notification.sendToRole.mock.calls[0][1];
+    expect(payload.type).toBe('SYSTEM');
+    // 项目样例 2≤5：全列且无省略号（负边界——「…」只挂供应商名单侧）
+    expect(payload.content).toContain('GK-1、GK-2；未退供应商：');
+    // 供应商名单：去重后 slice(0,5) + 「…」截断，第 6 家（己公司）不出现
+    expect(payload.content).toContain('未退供应商：甲公司、乙公司、丙公司、丁公司、戊公司…。');
+    expect(payload.content).not.toContain('己公司');
+    // 去重铁证：甲公司全文恰好出现一次（若不去重会以「…甲公司、丁公司…」再次入样例）
+    expect(payload.content.match(/甲公司/g)).toHaveLength(1);
+  });
 });

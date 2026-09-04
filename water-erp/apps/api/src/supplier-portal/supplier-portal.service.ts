@@ -29,6 +29,10 @@ import { LlmService } from '../local-ai/llm.service';
 import type { TenderRequirements } from '../ai-bid-analysis/types';
 import * as crypto from 'crypto';
 
+/** A-89：标书角色明文版式强制 PDF 的对外文案——service 抛错与 spec 全字断言共用同一来源，防字面量漂移 */
+export const BID_FILE_MUST_BE_PDF_MSG = (role: string) =>
+  `投标文件（${role}）必须为 PDF 版式文件（版式转换口径）——请转换后重新加密上传`;
+
 /** A-87（P1 波4）：招标文件要点——AiBidAnalysisTask.requirements 的供应商侧扁平视图（分组，不带 id/权重） */
 export interface TenderRequirementSummary {
   projectName: string;
@@ -1293,7 +1297,7 @@ export class SupplierPortalService {
           const plainName = (asset.originalName ?? '').replace(/\.enc$/i, '');
           if (!/\.(pdf|zip|rar)$/i.test(plainName)) {
             throw new BadRequestException({
-              error: `投标文件（${role}）必须为 PDF 版式文件（版式转换口径）——请转换后重新加密上传`,
+              error: BID_FILE_MUST_BE_PDF_MSG(role),
               code: 'BID_FILE_MUST_BE_PDF',
             });
           }

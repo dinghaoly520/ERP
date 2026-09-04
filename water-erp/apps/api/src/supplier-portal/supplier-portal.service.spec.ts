@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { SupplierPortalService } from './supplier-portal.service';
+import { SupplierPortalService, BID_FILE_MUST_BE_PDF_MSG } from './supplier-portal.service';
 import { BidService } from '../bid/bid.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -1629,7 +1629,8 @@ describe('SupplierPortalService', () => {
       await expect(service.submitBid('supplier-1', 'project-1', {
         technicalFileAssetId: 'fa-dual-1', envelope, signature,
       } as any)).rejects.toMatchObject({
-        response: { code: 'BID_FILE_MUST_BE_PDF', error: expect.stringContaining('PDF 版式文件') },
+        // A-89 全字断言：文案与 service 抛错共用 BID_FILE_MUST_BE_PDF_MSG，防两处字面量漂移
+        response: { code: 'BID_FILE_MUST_BE_PDF', error: BID_FILE_MUST_BE_PDF_MSG('technical') },
       });
       expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
     });
