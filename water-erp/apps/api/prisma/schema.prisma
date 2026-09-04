@@ -69,6 +69,7 @@ model User {
   supplierEvaluations    SupplierEvaluation[]
   qualificationAlertAcks QualificationAlertAck[]  @relation("UserAlertAcks")
   bidExperts             BidExpert[]
+  expertCerts            ExpertCert[]
   uploadedFiles          FileAsset[]
   createdProcurements    ProcurementProject[]
   budgetLists            BudgetList[]
@@ -351,6 +352,7 @@ model BidProject {
   leaderCoSignedAt         DateTime? // C2: 末签时间
   evaluationDeadline       DateTime? // E2: 评标截止时间(超时告警)
   bondReturnedAt           DateTime? // C4（7.5.4.4）：响应担保退还时间（null=未退还；不退的记录见 BidSupervisionLog）
+  reportNotes              Json? // A-151：评标报告章节附注 [{section:'一'..'十', content}]（签字包生成前编辑、docx 渲染）
   isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
   // ── 开标主持人指派（R1 硬分流）── null = 未指派（:3007 不可见，:3005 公开池）
   assignedHostUserId       String?
@@ -439,6 +441,8 @@ model BidSupplier {
   lastSeenAt            DateTime? // 大厅在场心跳（节流写入）
   dangerAttribution     String? // BIDDER | PLATFORM | UNKNOWN
   decryptedAt           DateTime? // A-111：解密成功时间（终局事务写入；重置解密时清空）
+  bondReturnedAt        DateTime? // A-105：逐家保证金退还时间（null=未退还）
+  bondReturnReason      String? // A-105：不予退还理由（与 bondReturnedAt 互斥使用）
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -597,6 +601,10 @@ model BidExpert {
   signStatusAt              DateTime? // 登记/撤销时间
   signScanFileId            String? // 该专家签字页/不同意见书扫描件 → FileAsset
   signRegisteredBy          String? // 登记人 userId
+  reviewGroup               String? // A-132：评审分组（技术组|商务组|综合组）
+  dutyRole                  String? // A-132：组内职责（主审|复核|成员；组长另由 isLead 表达）
+  esignature                Json? // A-152：评标报告电子签名归档 {v,payload,signature,algorithm,certSn,verifiedAt}
+  esignatureAt              DateTime? // A-152：电子签名时间
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
 
@@ -1228,6 +1236,8 @@ model ExpertProfile {
   retireReason       String? // Track D: 退库原因
   retireIgnoredAt    DateTime? // 管理员标记忽略退库预警（next scan 自动重置超过 90 天的标记）
   contactConfirmedAt DateTime? // 首次登录联系方式确认时间（null = 未确认，需弹窗提醒）
+  regionCode         String? // A-129：行政区域代码（GB/T 2260 六位；管理端录入/抽取配额过滤维度）
+  expertLevel        String? // A-129：专家库档案等级 A|B|C|D|E（区别于 ExpertEvaluation.overallGrade 履职评价等级）
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -3596,4 +3606,20 @@ model BidBondLedger {
 
   @@unique([projectId, supplierName])
   @@index([projectId, arrivedAt])
+}
+
+/// A-152：评委签名证书（企业内部人员平台自签 SM2 软证书；一专家一 ACTIVE，换证旧证 REVOKED）
+model ExpertCert {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certSn        String    @unique
+  certDn        String
+  publicKey     String    // SM2 hex（04 开头 128 位）
+  alg           String    @default("SM2")
+  bindingStatus String    @default("ACTIVE") // ACTIVE | REVOKED
+  boundAt       DateTime  @default(now())
+  revokedAt     DateTime?
+
+  @@index([userId, bindingStatus])
 }

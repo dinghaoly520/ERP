@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { SupplierPortalService } from './supplier-portal.service';
+import { SupplierPortalService, BID_FILE_MUST_BE_PDF_MSG } from './supplier-portal.service';
 import { BidService } from '../bid/bid.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -1621,6 +1621,32 @@ describe('SupplierPortalService', () => {
       } as any)).rejects.toMatchObject({ response: { code: 'ENVELOPE_INCOMPLETE' } });
     });
 
+    it('③e A-89：标书角色 docx 扩展（密文名 技术标.docx.enc）→ 400 BID_FILE_MUST_BE_PDF（版式强制）', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([{ ...dualAsset(), originalName: '技术标.docx.enc' }]);
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...dualAsset(), originalName: '技术标.docx.enc' });
+      const { envelope, signature } = await buildDualSubmission();
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({
+        // A-89 全字断言：文案与 service 抛错共用 BID_FILE_MUST_BE_PDF_MSG，防两处字面量漂移
+        response: { code: 'BID_FILE_MUST_BE_PDF', error: BID_FILE_MUST_BE_PDF_MSG('technical') },
+      });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+    });
+
+    it('③f A-89：pdf 扩展（密文名 技术标.pdf.enc，剥离 .enc 后断明文扩展）→ 提交通过', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([{ ...dualAsset(), originalName: '技术标.pdf.enc' }]);
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...dualAsset(), originalName: '技术标.pdf.enc' });
+      const { envelope, signature } = await buildDualSubmission();
+
+      const result = await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any);
+      expect(result.status).toBe('submitted');
+      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledTimes(1);
+    });
+
     it('④ 验签失败（SupplierCert 公钥与签名密钥不匹配）→ 400 SM2_SIGNATURE_INVALID', async () => {
       prisma.supplierCert.findFirst.mockResolvedValue({
         id: 'sc-1', supplierId: 'supplier-1', certSn: DUAL_CERT_SN,
@@ -2431,6 +2457,112 @@ describe('SupplierPortalService', () => {
         decryptError: expect.stringContaining('存储失败'),
       });
       expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getTenderRequirements（A-87 招标要点只读端点）', () => {
+    beforeEach(() => {
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn() };
+      // 门控链（终审 Important#3）：bidProject → 公告码 → BidDocument.accessScope → 名册；默认公开项目放行
+      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'BID-1', projectManagementItemId: null });
+      prisma.bidDocument.findFirst = jest.fn().mockResolvedValue({ accessScope: 'OPEN' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+    });
+
+    const fullRequirements = {
+      projectName: '引大济岷工程',
+      projectType: '施工',
+      bidDeadline: '2026-09-15 17:00',
+      maxPrice: 120000000,
+      estimatedCost: 98000000,
+      qualificationRequirements: [
+        { id: 'q1', category: '资质', content: '水利水电工程施工总承包一级及以上资质', isRequired: true },
+        { id: 'q2', category: '业绩', content: '近五年类似工程业绩不少于 2 项', isRequired: false },
+      ],
+      technicalRequirements: [
+        { id: 't1', category: '施工组织', content: '导流洞施工专项方案', isStarred: true },
+        { id: 't2', category: '质量', content: '质量保证体系 ISO9001', isStarred: false },
+      ],
+      commercialRequirements: [
+        { id: 'c1', category: '报价', content: '报价不得高于最高限价', isRequired: true },
+      ],
+      priceEvaluationMethod: '最低评标价法',
+    };
+
+    it('无任务 → PENDING + requirements null（不报错，前端空态）', async () => {
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue(null);
+      const res = await service.getTenderRequirements('p1', 'supplier-1');
+      expect(res).toEqual({ status: 'PENDING', requirements: null });
+      expect(prisma.aiBidAnalysisTask.findUnique).toHaveBeenCalledWith({
+        where: { projectId: 'p1' },
+        select: { requirements: true },
+      });
+    });
+
+    it('已提取 → READY：三数组分组扁平化（不带 id），isStarred/isRequired 保留', async () => {
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue({ requirements: fullRequirements });
+      const res = await service.getTenderRequirements('p1', 'supplier-1');
+      expect(res.status).toBe('READY');
+      expect(res.requirements).toEqual({
+        projectName: '引大济岷工程',
+        projectType: '施工',
+        bidDeadline: '2026-09-15 17:00',
+        maxPrice: 120000000,
+        estimatedCost: 98000000,
+        priceEvaluationMethod: '最低评标价法',
+        qualification: [
+          { category: '资质', content: '水利水电工程施工总承包一级及以上资质', isRequired: true },
+          { category: '业绩', content: '近五年类似工程业绩不少于 2 项', isRequired: false },
+        ],
+        technical: [
+          { category: '施工组织', content: '导流洞施工专项方案', isStarred: true },
+          { category: '质量', content: '质量保证体系 ISO9001', isStarred: false },
+        ],
+        commercial: [
+          { category: '报价', content: '报价不得高于最高限价', isRequired: true },
+        ],
+      });
+    });
+
+    it('任务存在但 requirements 空（未提取完/空对象）→ PENDING', async () => {
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValueOnce({ requirements: null });
+      let res = await service.getTenderRequirements('p1', 'supplier-1');
+      expect(res).toEqual({ status: 'PENDING', requirements: null });
+
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValueOnce({ requirements: {} });
+      res = await service.getTenderRequirements('p1', 'supplier-1');
+      expect(res).toEqual({ status: 'PENDING', requirements: null });
+    });
+
+    it('终审 Important#3：邀请制（accessScope=INVITED）+ 名册外 → 403 NOT_INVITED，零读要点', async () => {
+      (prisma.bidDocument.findFirst as jest.Mock).mockResolvedValue({ accessScope: 'INVITED' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect(service.getTenderRequirements('p1', 'sup-out'))
+        .rejects.toMatchObject({ response: { code: 'NOT_INVITED' } });
+      expect(prisma.bidSupplier.findFirst).toHaveBeenCalledWith({
+        where: { projectId: 'p1', supplierId: 'sup-out' },
+        select: { id: true },
+      });
+      expect(prisma.aiBidAnalysisTask.findUnique).not.toHaveBeenCalled(); // 结构化要求/限价不外泄
+    });
+
+    it('终审 Important#3：邀请制 + 名册内 → 放行（PENDING/READY 照常）', async () => {
+      (prisma.bidDocument.findFirst as jest.Mock).mockResolvedValue({ accessScope: 'INVITED' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+      (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue({ requirements: fullRequirements });
+
+      const res = await service.getTenderRequirements('p1', 'sup-in');
+      expect(res.status).toBe('READY');
+      expect(res.requirements?.maxPrice).toBe(120000000);
+    });
+
+    it('无关联招标文档 → 同样视为非公开走名册闸（保守方向）：名册外 403', async () => {
+      (prisma.bidDocument.findFirst as jest.Mock).mockResolvedValue(null);
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect(service.getTenderRequirements('p1', 'sup-out'))
+        .rejects.toMatchObject({ response: { code: 'NOT_INVITED' } });
     });
   });
 

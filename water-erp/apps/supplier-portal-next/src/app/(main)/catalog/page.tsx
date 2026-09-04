@@ -23,6 +23,7 @@ import {
   type DialogMode,
 } from "@/components/catalog/application-dialog";
 import "@/styles/pages/catalog.css";
+import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 const IN_PROGRESS = ["PENDING", "COUNTERED", "RETURNED"];
 

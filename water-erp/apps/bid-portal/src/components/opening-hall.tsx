@@ -529,7 +529,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const handleUpsertBondLedger = async () => {
     if (!projectId || bondLedgerSubmitting) return;
     const { supplierName, amount, arrivedAt, account, payMethod, note } = bondLedgerForm;
-    // 前端守卫：金额必填且 > 0、≤999999999999.99（与后端 DTO @IsPositive/@Max(1e12) 对齐）
+    // 前端守卫：金额必填且 > 0、≤999999999999.99（与后端 DTO @IsPositive/@Max(999999999999.99) 对齐）
     if (!supplierName || !arrivedAt || !account.trim() || !payMethod || amount === '' || Number.isNaN(Number(amount)) || Number(amount) <= 0 || Number(amount) > 999999999999.99) {
       toast.error('请完整填写到账信息（金额须为大于 0 的数字，上限 999999999999.99）');
       return;
@@ -538,7 +538,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     try {
       await upsertBondLedger(projectId, {
         supplierName, amount: Number(amount), arrivedAt: new Date(arrivedAt).toISOString(),
-        account: account.trim(), payMethod, note: note.trim() || undefined,
+        account: account.trim(), payMethod, note: note.trim(), // 空串显式清除旧备注（后端 dto.note ?? null 落库空串，展示 || '—' 不变）
       });
       toast.success(`已登记 ${supplierName} 保证金到账`);
       // 同账户/支付形式连续登记多家时少敲一遍；缴纳人/金额/到账时间逐家清空
@@ -612,7 +612,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <Clock size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--accent-strong)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.13_251)]">该项目尚未确定开标</h2>
-            <p className="text-xs text-[color:var(--muted-foreground)]">确定开标（阶段流转）由采购管理工作台（:3005）统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
+            <p className="text-xs text-[color:var(--muted-foreground)]">确定开标（阶段流转）由采购管理工作台统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
           </div>
           {canGoWeb && (
             <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
@@ -629,8 +629,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标已结束</h2>
             <p className="text-xs text-[color:var(--muted-foreground)]">
               {project.stage === 'ABORTED'
-                ? '本项目已流标，后续处理（流标公告）请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。'
-                : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，评标管理与评标签字请在本工作区对应 tab 操作；完整归档与公示请在采购管理工作台（:3005）操作。`}
+                ? '本项目已流标，后续处理（流标公告）请在采购管理工作台操作；本页仅供查看开标过程记录。'
+                : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，评标管理与评标签字请在本工作区对应 tab 操作；完整归档与公示请在采购管理工作台操作。`}
             </p>
           </div>
           {canGoWeb && (
@@ -648,7 +648,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <AlertTriangle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--warning)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">已确定开标，等待组建开标会话</h2>
-            <p className="text-xs text-[oklch(0.5_0.1_70)]">请主持人与监督人填写主持人、监督人与解密窗口，随后即可开始解密 / 唱标 / 异议处理。阶段推进由 :3005 采购管理工作台管理，开标会话仅在此组建。</p>
+            <p className="text-xs text-[oklch(0.5_0.1_70)]">请主持人与监督人填写主持人、监督人与解密窗口，随后即可开始解密 / 唱标 / 异议处理。阶段推进由采购管理工作台统一管理，开标会话仅在此组建。</p>
           </div>
           <button type="button" onClick={() => setStartOpen(true)}
             className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
@@ -663,7 +663,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标资料已移交</h2>
-            <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台，后续启动评标 / 归档请前往 :3005 开标确认面板。</p>
+            <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台，后续启动评标 / 归档请前往采购管理工作台开标确认面板。</p>
           </div>
           {canGoWeb && (
             <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"

@@ -126,7 +126,7 @@ export default function ContractsPage() {
                               const comment = prompt("意见建议（选填）:") ?? "";
                               try {
                                 await submitSatisfaction({ projectCode: c.projectCode, score, comment: comment || undefined });
-                                toast.success("感谢反馈（GB/T 43711 9.2 交易和服务对象评价）");
+                                toast.success("感谢您的评价反馈");
                               } catch { /* 全局 toast 已提示 */ }
                             }}>满意度评价</SpButton>
                           )}

@@ -255,6 +255,72 @@ describe('AnnouncementService — syncBidProject 公告直建补 PMI (N16-A)', (
   });
 });
 
+describe('AnnouncementService — A-87 发布钩子（招标要点提取前移）', () => {
+  const ann = {
+    id: 'ann1', title: 'T', publishDate: new Date(), authorId: 'u1', relatedProjectCode: null,
+    metadata: { method: '公开招标', openTime: '2026-09-10T10:00:00', deadline: '2026-09-15T17:00:00' },
+  };
+
+  const makeSvc = async (bidService: any, prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
+      announcement: { update: jest.fn().mockResolvedValue({}) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+      ...prismaOverrides,
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    // projectManagementService 传 undefined——PMI 补建分支跳过，聚焦发布钩子本身
+    const service: any = new (Svc as any)(prisma, {}, bidService, undefined);
+    return { service, prisma };
+  };
+
+  it('直建新项目成功 → 触发 ensureTenderAnalysis(新项目 id)', async () => {
+    const ensureTenderAnalysis = jest.fn().mockResolvedValue(true);
+    const { service } = await makeSvc({
+      createFromAnnouncement: jest.fn().mockResolvedValue({ id: 'p-new', projectCode: 'BID-1' }),
+      ensureTenderAnalysis,
+    });
+    await service.syncBidProject('ann1', { ...ann });
+    expect(ensureTenderAnalysis).toHaveBeenCalledTimes(1);
+    expect(ensureTenderAnalysis).toHaveBeenCalledWith('p-new');
+  });
+
+  it('关联既有项目 → 触发 ensureTenderAnalysis(既有项目 id)', async () => {
+    const ensureTenderAnalysis = jest.fn().mockResolvedValue(true);
+    const { service } = await makeSvc(
+      { syncFromAnnouncement: jest.fn().mockResolvedValue({}), ensureTenderAnalysis },
+      { bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-existing', projectCode: 'BID-1' }), update: jest.fn() } },
+    );
+    await service.syncBidProject('ann1', { ...ann, relatedProjectCode: 'BID-1' });
+    expect(ensureTenderAnalysis).toHaveBeenCalledWith('p-existing');
+  });
+
+  it('提取入队失败 → 仅告警不阻塞发布（syncBidProject 正常返回，无未处理拒绝）', async () => {
+    const ensureTenderAnalysis = jest.fn().mockRejectedValue(new Error('Redis down'));
+    const { service } = await makeSvc({
+      createFromAnnouncement: jest.fn().mockResolvedValue({ id: 'p2', projectCode: 'BID-2' }),
+      ensureTenderAnalysis,
+    });
+    await expect(service.syncBidProject('ann1', { ...ann })).resolves.toBeUndefined();
+    await new Promise(r => setImmediate(r)); // flush 微任务：rejection 须已被 .catch 吞掉
+  });
+
+  it('流标公告（metadata.category=failed_bid，读原始 metadata）→ 不触发提取', async () => {
+    const ensureTenderAnalysis = jest.fn();
+    const { service } = await makeSvc(
+      { syncFromAnnouncement: jest.fn().mockResolvedValue({}), abortBidProject: jest.fn().mockResolvedValue({}), ensureTenderAnalysis },
+      { bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-abort', projectCode: 'BID-3' }), update: jest.fn() } },
+    );
+    await service.syncBidProject('ann1', {
+      ...ann, relatedProjectCode: 'BID-3',
+      metadata: { ...ann.metadata, category: 'failed_bid' },
+    });
+    await new Promise(r => setImmediate(r));
+    expect(ensureTenderAnalysis).not.toHaveBeenCalled();
+  });
+});
+
 
 describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞）', () => {
   let svc: any;

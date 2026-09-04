@@ -16,6 +16,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.213Z"
   },
@@ -36,6 +38,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.219Z"
   },
@@ -56,6 +60,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.226Z"
   },
@@ -76,6 +82,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.241Z"
   },
@@ -96,6 +104,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.269Z"
   },
@@ -116,6 +126,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.270Z"
   },
@@ -136,6 +148,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.277Z"
   },
@@ -156,6 +170,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.289Z"
   },
@@ -176,6 +192,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.295Z"
   },
@@ -196,6 +214,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.299Z"
   },
@@ -216,6 +236,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.300Z"
   },
@@ -236,6 +258,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.304Z"
   },
@@ -256,6 +280,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.310Z"
   },
@@ -276,6 +302,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.330Z"
   },
@@ -296,6 +324,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.350Z"
   },
@@ -316,6 +346,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.351Z"
   },
@@ -336,6 +368,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.354Z"
   },
@@ -356,6 +390,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.365Z"
   },
@@ -376,6 +412,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.369Z"
   },
@@ -396,6 +434,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.373Z"
   },
@@ -416,6 +456,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.386Z"
   },
@@ -436,6 +478,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.387Z"
   },
@@ -456,6 +500,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.390Z"
   },
@@ -476,6 +522,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.392Z"
   },
@@ -496,6 +544,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.398Z"
   },
@@ -516,6 +566,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.421Z"
   },
@@ -536,6 +588,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.423Z"
   },
@@ -556,6 +610,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.424Z"
   },
@@ -576,6 +632,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.235Z"
   },
@@ -596,6 +654,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.242Z"
   },
@@ -616,6 +676,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.244Z"
   },
@@ -636,6 +698,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.245Z"
   },
@@ -656,6 +720,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.254Z"
   },
@@ -676,6 +742,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.257Z"
   },
@@ -696,6 +764,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.261Z"
   },
@@ -716,6 +786,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.278Z"
   },
@@ -736,6 +808,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.285Z"
   },
@@ -756,6 +830,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": "2026-07-28T05:57:25.720Z",
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.286Z"
   },
@@ -776,6 +852,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.308Z"
   },
@@ -796,6 +874,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.320Z"
   },
@@ -816,6 +896,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.327Z"
   },
@@ -836,6 +918,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.340Z"
   },
@@ -856,6 +940,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.341Z"
   },
@@ -876,6 +962,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.343Z"
   },
@@ -896,6 +984,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.348Z"
   },
@@ -916,6 +1006,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.353Z"
   },
@@ -936,6 +1028,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.370Z"
   },
@@ -956,6 +1050,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.380Z"
   },
@@ -976,6 +1072,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.384Z"
   },
@@ -996,6 +1094,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.396Z"
   },
@@ -1016,6 +1116,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.404Z"
   },
@@ -1036,6 +1138,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.409Z"
   },
@@ -1056,6 +1160,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.416Z"
   },
@@ -1076,6 +1182,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.427Z"
   },
@@ -1096,6 +1204,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.428Z"
   },
@@ -1116,6 +1226,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.231Z"
   },
@@ -1136,6 +1248,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.253Z"
   },
@@ -1156,6 +1270,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.263Z"
   },
@@ -1176,6 +1292,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.314Z"
   },
@@ -1196,6 +1314,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.316Z"
   },
@@ -1216,6 +1336,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.345Z"
   },
@@ -1236,6 +1358,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.393Z"
   },
@@ -1256,6 +1380,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.394Z"
   },
@@ -1276,6 +1402,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.206Z"
   },
@@ -1296,6 +1424,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.227Z"
   },
@@ -1316,6 +1446,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.232Z"
   },
@@ -1336,6 +1468,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.250Z"
   },
@@ -1356,6 +1490,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.271Z"
   },
@@ -1376,6 +1512,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.281Z"
   },
@@ -1396,6 +1534,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.282Z"
   },
@@ -1416,6 +1556,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.284Z"
   },
@@ -1436,6 +1578,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.294Z"
   },
@@ -1456,6 +1600,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.317Z"
   },
@@ -1476,6 +1622,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.319Z"
   },
@@ -1496,6 +1644,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.323Z"
   },
@@ -1516,6 +1666,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.324Z"
   },
@@ -1536,6 +1688,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.334Z"
   },
@@ -1556,6 +1710,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.336Z"
   },
@@ -1576,6 +1732,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.368Z"
   },
@@ -1596,6 +1754,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.379Z"
   },
@@ -1616,6 +1776,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.389Z"
   },
@@ -1636,6 +1798,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.402Z"
   },
@@ -1656,6 +1820,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.410Z"
   },
@@ -1676,6 +1842,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.418Z"
   },
@@ -1696,6 +1864,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.419Z"
   },
@@ -1716,6 +1886,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.236Z"
   },
@@ -1736,6 +1908,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.247Z"
   },
@@ -1756,6 +1930,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.248Z"
   },
@@ -1776,6 +1952,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.255Z"
   },
@@ -1796,6 +1974,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.259Z"
   },
@@ -1816,6 +1996,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.264Z"
   },
@@ -1836,6 +2018,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.266Z"
   },
@@ -1856,6 +2040,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.267Z"
   },
@@ -1876,6 +2062,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.275Z"
   },
@@ -1896,6 +2084,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.302Z"
   },
@@ -1916,6 +2106,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.303Z"
   },
@@ -1936,6 +2128,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.307Z"
   },
@@ -1956,6 +2150,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.311Z"
   },
@@ -1976,6 +2172,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.338Z"
   },
@@ -1996,6 +2194,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.344Z"
   },
@@ -2016,6 +2216,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.347Z"
   },
@@ -2036,6 +2238,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.359Z"
   },
@@ -2056,6 +2260,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.360Z"
   },
@@ -2076,6 +2282,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.362Z"
   },
@@ -2096,6 +2304,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.375Z"
   },
@@ -2116,6 +2326,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.382Z"
   },
@@ -2136,6 +2348,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.400Z"
   },
@@ -2156,6 +2370,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.401Z"
   },
@@ -2176,6 +2392,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.406Z"
   },
@@ -2196,6 +2414,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.430Z"
   },
@@ -2216,6 +2436,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.431Z"
   },
@@ -2236,6 +2458,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.432Z"
   },
@@ -2256,6 +2480,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2276,6 +2502,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2296,6 +2524,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2316,6 +2546,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2336,6 +2568,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.217Z"
   },
@@ -2356,6 +2590,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.223Z"
   },
@@ -2376,6 +2612,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.224Z"
   },
@@ -2396,6 +2634,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.229Z"
   },
@@ -2416,6 +2656,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.288Z"
   },
@@ -2436,6 +2678,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.291Z"
   },
@@ -2456,6 +2700,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.292Z"
   },
@@ -2476,6 +2722,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.296Z"
   },
@@ -2496,6 +2744,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.298Z"
   },
@@ -2516,6 +2766,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.306Z"
   },
@@ -2536,6 +2788,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.313Z"
   },
@@ -2556,6 +2810,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.321Z"
   },
@@ -2576,6 +2832,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.337Z"
   },
@@ -2596,6 +2854,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.358Z"
   },
@@ -2616,6 +2876,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.363Z"
   },
@@ -2636,6 +2898,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.366Z"
   },
@@ -2656,6 +2920,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.372Z"
   },
@@ -2676,6 +2942,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.378Z"
   },
@@ -2696,6 +2964,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.397Z"
   },
@@ -2716,6 +2986,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.405Z"
   },
@@ -2736,6 +3008,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.412Z"
   },
@@ -2756,6 +3030,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.413Z"
   },
@@ -2776,6 +3052,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.415Z"
   },
@@ -2796,6 +3074,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2816,6 +3096,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2836,6 +3118,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2856,6 +3140,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2876,6 +3162,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2896,6 +3184,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2916,6 +3206,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2936,6 +3228,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2956,6 +3250,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2976,6 +3272,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -2996,6 +3294,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3016,6 +3316,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3036,6 +3338,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3056,6 +3360,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3076,6 +3382,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3096,6 +3404,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3116,6 +3426,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3136,6 +3448,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3156,6 +3470,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3176,6 +3492,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3196,6 +3514,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3216,6 +3536,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3236,6 +3558,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3256,6 +3580,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3276,6 +3602,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3296,6 +3624,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3316,6 +3646,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3336,6 +3668,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3356,6 +3690,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3376,6 +3712,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:12:56.829Z"
   },
@@ -3396,6 +3734,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.209Z"
   },
@@ -3416,6 +3756,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.211Z"
   },
@@ -3436,6 +3778,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.215Z"
   },
@@ -3456,6 +3800,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.221Z"
   },
@@ -3476,6 +3822,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.234Z"
   },
@@ -3496,6 +3844,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": "2026-07-26T06:36:23.352Z",
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.238Z"
   },
@@ -3516,6 +3866,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.251Z"
   },
@@ -3536,6 +3888,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.273Z"
   },
@@ -3556,6 +3910,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.280Z"
   },
@@ -3576,6 +3932,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.325Z"
   },
@@ -3596,6 +3954,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.328Z"
   },
@@ -3616,6 +3976,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "C",
     "createdAt": "2026-08-12T08:16:20.478Z",
     "updatedAt": "2026-08-12T08:21:57.332Z"
   },
@@ -3636,6 +3998,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.333Z"
   },
@@ -3656,6 +4020,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.356Z"
   },
@@ -3676,6 +4042,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.376Z"
   },
@@ -3696,6 +4064,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.383Z"
   },
@@ -3716,6 +4086,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.408Z"
   },
@@ -3736,6 +4108,8 @@
     "retireReason": null,
     "retireIgnoredAt": null,
     "contactConfirmedAt": null,
+    "regionCode": "510000",
+    "expertLevel": "B",
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-08-12T08:21:57.426Z"
   }

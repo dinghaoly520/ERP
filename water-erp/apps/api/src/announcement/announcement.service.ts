@@ -639,7 +639,11 @@ export class AnnouncementService {
           })
         : null;
 
+      // A-87（P1 波4）：发布联动命中的项目 id——两分支（关联既有/直建新项）收敛后触发要点提取前移
+      let linkedProjectId: string | null = null;
+
       if (existingProject) {
+        linkedProjectId = existingProject.id;
         await this.bidService.syncFromAnnouncement(existingProject.id, { title: announcement.title }, meta);
         this.logger.log(`公告已关联项目 ${existingProject.projectCode}，同步更新字段`);
         // 流标公告：发布后自动将 BidProject 置为 ABORTED
@@ -661,6 +665,7 @@ export class AnnouncementService {
           { id: announcement.id, title: announcement.title, publishDate: announcement.publishDate }, meta,
           annCompany,
         );
+        linkedProjectId = project.id;
         await this.prisma.announcement.update({ where: { id: annId }, data: { relatedProjectCode: project.projectCode } });
         const bidDoc = await this.prisma.bidDocument.findUnique({ where: { announcementId: annId } });
         if (bidDoc) {
@@ -690,6 +695,18 @@ export class AnnouncementService {
           this.logger.log(`公告直建补 PMI ${pmi.projectCode} → BidProject ${project.projectCode}`);
         }
         this.logger.log(`公告首次发布，自动创建项目 ${project.projectCode}`);
+      }
+
+      // A-87（P1 波4）：BID_NOTICE 发布即前移招标要点提取——此前提取只在启动评标时发生，供应商在
+      // 整个 BID 阶段看不到结构化要点。fire-and-forget：失败仅告警不阻塞发布；ensureTenderAnalysis
+      // 自带幂等闸（requirements 已提取且无待派发 bidder 跳过入队），重复发布/下架再发布不重复入队。
+      // 流标公告（failed_bid）随即置 ABORTED，无提取意义，跳过。注意读原始 metadata：validateMetadata
+      // 白名单（METADATA_SCHEMA）不含 category，meta.category 恒为 undefined。
+      const rawCategory = (announcement.metadata as Record<string, any> | null | undefined)?.category;
+      if (linkedProjectId && rawCategory !== 'failed_bid' && typeof this.bidService?.ensureTenderAnalysis === 'function') {
+        void Promise.resolve(this.bidService.ensureTenderAnalysis(linkedProjectId)).catch(e =>
+          this.logger.warn(`招标要点提取入队失败 (project=${linkedProjectId}): ${(e as Error).message}`),
+        );
       }
     } catch (e) {
       this.logger.error(`公告发布联动创建项目失败 (announcementId=${annId}): ${(e as Error).message}`, (e as Error).stack);

@@ -48,7 +48,7 @@ export async function proxy(request: NextRequest) {
       });
     } catch {
       return new NextResponse(
-        JSON.stringify({ statusCode: 502, code: 'PROXY_ERROR', error: '后端服务未启动' }),
+        JSON.stringify({ statusCode: 502, code: 'PROXY_ERROR', error: '服务暂时不可用，请稍后重试' }),
         { status: 502, headers: { 'Content-Type': 'application/json' } },
       );
     }

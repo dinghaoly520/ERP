@@ -107,7 +107,7 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
         <hr className="wb-section-rule mx-6" />
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-          <span className="text-[11px] text-[color:var(--muted-foreground)]">组建后即可解密 / 唱标（阶段已由 :3005 确定开标）</span>
+          <span className="text-[11px] text-[color:var(--muted-foreground)]">组建后即可解密 / 唱标（开标时间已由采购管理工作台确认）</span>
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="neu-btn-soft h-[38px]">取消</button>
             <button type="button" onClick={handleSubmit} disabled={submitting} className="neu-btn-primary !h-[38px] disabled:opacity-50">

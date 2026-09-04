@@ -15,7 +15,9 @@
 .profile-tabs { margin-top: 16px; }
 
 /* ═══ Detail surface ═══ */
-.detail-card { position: relative; padding: 28px; margin-top: 16px; border-radius: 16px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7); }
+/* 原 .detail-card（Vue CompanyInfo 逐字迁移）——2026-09-02 改独有名：与 bids.css/ukey.css 的 .detail-card 裸类撞车，
+   Next 客户端导航 CSS 不卸载，后访问页的 28px/16px 值会污染投标提交页与 U盾页的卡片 */
+.prof-card { position: relative; padding: 28px; margin-top: 16px; border-radius: 16px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7); }
 .company-identity { display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--hairline); }
 .company-avatar { width: 72px; height: 72px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--brand); color: #fff; font-size: 32px; font-weight: 900; box-shadow: 4px 4px 10px oklch(0.4 0.1 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.25); }
 .company-title h2 { margin: 0; color: var(--foreground); font-size: 24px; font-weight: 900; letter-spacing: -0.02em; }

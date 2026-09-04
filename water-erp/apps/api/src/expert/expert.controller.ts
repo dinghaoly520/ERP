@@ -31,6 +31,8 @@ import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto'
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
 import { SignInDto } from './dto/sign-in.dto';
+import { BindExpertCertDto } from './dto/expert-cert.dto';
+import { ExpertEsignDto } from './dto/expert-esign.dto';
 import { UpdateAgreementsDto } from './dto/update-agreements.dto';
 import { CreateMemoDto } from './dto/create-memo.dto';
 import { UpdateMemoDto } from './dto/update-memo.dto';
@@ -559,6 +561,36 @@ export class ExpertController {
     @Body() dto?: ConfirmReportDto,
   ) {
     return this.expertService.confirmReport(userId, projectId, dto?.comment);
+  }
+
+  /* ── 数字证书 + 评标报告电子签名（A-152）── */
+
+  @ApiOperation({ summary: '本人 ACTIVE 数字证书（无则 cert=null）' })
+  @Get('cert')
+  getMyCert(@CurrentUser('sub') userId: string) {
+    return this.expertService.getMyCert(userId);
+  }
+
+  @ApiOperation({ summary: '绑定数字证书（公钥格式 + DN CN=专家姓名 + certSn 唯一；换证旧 ACTIVE 置 REVOKED）' })
+  @Post('cert')
+  bindCert(@CurrentUser('sub') userId: string, @Body() dto: BindExpertCertDto) {
+    return this.expertService.bindCert(userId, dto);
+  }
+
+  @ApiOperation({ summary: '评标报告电子签名载荷（canonical 串，本人对此串 SM2 签名）' })
+  @Get('projects/:projectId/esign-payload')
+  getEsignPayload(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.getEsignPayload(userId, projectId);
+  }
+
+  @ApiOperation({ summary: '提交评标报告电子签名（验签 + 原子抢占 PENDING→SIGNED + 闭环判定同闸）' })
+  @Post('projects/:projectId/esign')
+  esignReport(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() dto: ExpertEsignDto,
+  ) {
+    return this.expertService.esignReport(userId, projectId, dto);
   }
 
   /* ── 评审备忘（手写备忘 CRUD + 墨迹原图上传 / 预签名下载）── */

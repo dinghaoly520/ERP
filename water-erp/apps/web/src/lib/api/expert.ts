@@ -12,6 +12,9 @@ export interface ExpertProfile {
   idNumber?: string | null;
   availability: string;
   notes?: string | null;
+  // A-129 档案维度：行政区域代码（GB/T 2260 六位）与库内等级（区别于履职评价等级）
+  regionCode?: string | null;
+  expertLevel?: string | null;
   // CTS A-218/222 入库状态机
   entryStatus?: string | null; // PENDING | ACTIVE | SUSPENDED | RETIRED
   statusNote?: string | null;
@@ -68,6 +71,8 @@ export interface ExtractionPreview {
   selected: ExtractionSelected[];
   alternatives: ExtractionSelected[];
   shortages: { specialty: string; needed: number; available: number }[];
+  /** A-129：任一配额填了区域/等级过滤时返回（共享池按并集收窄；多值不一致时带 note 说明） */
+  quotaFiltersApplied?: { regionCode: string[]; expertLevel: string[]; note?: string };
   suggestedLeaderId?: string | null;
   generatedAt: string;
 }
@@ -130,7 +135,7 @@ export function previewExtraction(data: {
   extractMode?: 'specialty_match' | 'random' | 'merit_best';
   /** @deprecated 兼容旧UI，优先用 extractMode */
   mode?: 'weighted' | 'fair';
-  manualQuotas?: { specialty: string; count: number; employer?: string; department?: string }[];
+  manualQuotas?: { specialty: string; count: number; employer?: string; department?: string; regionCode?: string; expertLevel?: string }[];
   excludedUserIds?: string[];
   /** 公司限定：本次抽取的全部候选仅限该公司专家 */
   employer?: string;
@@ -352,9 +357,14 @@ export function declineInvitation(projectId: string, userId: string) {
 
 export function getProjectInvitations(projectId: string) {
   return api.get<{
-    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; title?: string | null; employer?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
     summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
   }>(`/expert-admin/invitations/${projectId}`);
+}
+
+/** A-132：评委职责分工（partial 语义——缺键=不动，null=显式清除，空串由调用方转为缺键） */
+export function setCommitteeAssignment(projectId: string, data: { assignments: { userId: string; reviewGroup?: string | null; dutyRole?: string | null }[] }) {
+  return api.put<{ success: boolean }>(`/expert-admin/projects/${projectId}/committee/assignment`, data);
 }
 
 /* ── AI 采纳率 ── */

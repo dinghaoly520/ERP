@@ -14,11 +14,13 @@ import {
   Download, KeyRound, Lock, Plus, ShieldCheck, TriangleAlert, Unlock, Upload,
 } from "lucide-react";
 import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
-import { detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
+import { UKEY_STRICT, detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
+import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import { SpPageHero } from "@/components/sp-page-hero";
 import "@/styles/pages/ukey.css";
+import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 /** 绑定成功后在浏览器缓存证书公开信息（无任何私钥），供投标提交页恢复 certSn 参考 */
 const BOUND_KEY = "supplier_ukey_bound";
@@ -61,6 +63,7 @@ export default function UkeyManagePage() {
   const [ukey, setUkey] = useState<MockUKeyAdapter | VendorUKeyAdapter | null>(null);
   const [ukeyKind, setUkeyKind] = useState<UkeyKind>("mock");
   const [mwOffline, setMwOffline] = useState(false); // vendor 探测不到 → 顶部提示条
+  const ukeyPresent = useUkeyPresence(true); // 严格模式:轮询中间件在线且有盾(插回 ≤2s 自动恢复)
   const [ukeyCerts, setUkeyCerts] = useState<CertInfo[]>([]);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -117,6 +120,13 @@ export default function UkeyManagePage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* dev 提示：模拟 U盾轨道的启动命令只进控制台，不上 UI（正式环境 UKEY_STRICT 下本轨道不可达） */
+  useEffect(() => {
+    if (mwOffline && !UKEY_STRICT) {
+      console.warn("[dev] 未检测到 U盾中间件——启动：pnpm dev:ukey-mw（发行：ukeymw issue --cn 企业名）");
+    }
+  }, [mwOffline]);
 
   /* ═══ 会话倒计时（厂商中间件空闲 TTL 镜像）：秒级刷新，到期自动翻回锁定态 ═══ */
   useEffect(() => {
@@ -219,6 +229,7 @@ export default function UkeyManagePage() {
 
   // ── 解绑 ──
   async function handleRevoke(row: ServerCertRow) {
+    if (UKEY_STRICT && !ukey) { toast.warning("请先解锁 U盾，再进行证书解绑"); return; }
     // ElMessageBox.confirm → window.confirm（取消直接返回，不再走 catch 的 error 分支）
     if (!window.confirm(`确定解绑证书 ${row.certSn} 吗？解绑后该证书将无法再用于投标签名。`)) return;
     setRevoking(true);
@@ -336,21 +347,21 @@ export default function UkeyManagePage() {
       >
       </SpPageHero>
 
-      {mwOffline && (
+      {!UKEY_STRICT && mwOffline && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: "#e6a23c", background: "#fdf6ec", border: "1px solid #faecd8" }}>
           <TriangleAlert size={14} strokeWidth={1.75} style={{ flexShrink: 0 }} />
-          <span>未检测到 U盾中间件——当前使用浏览器模拟 U盾。启动：<b>pnpm dev:ukey-mw</b>（发行：<b>ukeymw issue --cn 企业名</b>）</span>
+          <span>未检测到 U盾驱动服务——当前使用浏览器内置模拟 U盾（仅供系统联调演示，正式投标请安装 U盾驱动）</span>
         </div>
       )}
 
       <div className="ukey-grid">
         {/* ═══ 口令介质 ═══ */}
-        <div className="neu-card detail-card">
+        <div className="neu-card ukey-card">
           <div className="card-header">
             <span className="card-title">U盾</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
-                {ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
+                {UKEY_STRICT || ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
               </span>
               <span className={`ukey-state${ukey ? " open" : ""}`}>
                 {ukey
@@ -360,7 +371,9 @@ export default function UkeyManagePage() {
             </span>
           </div>
 
-          {!ukey ? (
+          {UKEY_STRICT && ukeyPresent === false ? (
+            <div className="ukey-empty">未检测到 U盾——请插入 U盾（插回后自动恢复）</div>
+          ) : !ukey ? (
             <>
               <div className="open-row">
                 <SpInput
@@ -397,7 +410,7 @@ export default function UkeyManagePage() {
                   <>
                     <SpButton icon={Plus} loading={creating} onClick={() => void handleCreateCert()}>生成演示证书</SpButton>
                     <SpButton icon={Download} onClick={() => setExportVisible(true)}>导出备份</SpButton>
-                    <span className="file-hint">证书主体 CN 自动取注册企业名称，绑定校验 CN↔企业名一致性</span>
+                    <span className="file-hint">证书主体名称自动使用注册企业名称，并校验与企业名一致</span>
                   </>
                 ) : (
                   <span className="file-hint">证书由 CA 服务机构制发，此处枚举本企业 U盾内证书并绑定</span>
@@ -410,7 +423,7 @@ export default function UkeyManagePage() {
                     ? otherCertCount > 0
                       ? `U盾内未检测到本企业证书（已隐藏 ${otherCertCount} 张其他单位盾），请联系 CA 服务机构办理`
                       : "U盾内未检测到证书，请联系 CA 服务机构办理"
-                    : `U盾内暂无证书，点击「生成演示证书」创建（label=${companyName || "企业名称"}）`}
+                    : `U盾内暂无证书，点击「生成演示证书」创建`}
                 </div>
               ) : (
                 <div className="cert-list">
@@ -461,7 +474,7 @@ export default function UkeyManagePage() {
         </div>
 
         {/* ═══ 服务端绑定记录 ═══ */}
-        <div className="neu-card detail-card">
+        <div className="neu-card ukey-card">
           <div className="card-header">
             <span className="card-title">平台绑定记录</span>
             <SpButton variant="link" onClick={() => void refreshServerCerts()}>刷新</SpButton>
@@ -489,7 +502,7 @@ export default function UkeyManagePage() {
                       {row.bindingStatus === "ACTIVE" ? "生效中" : "已撤销"}
                     </span>
                     {row.bindingStatus === "ACTIVE" && (
-                      <SpButton danger loading={revoking} onClick={() => void handleRevoke(row)}>解绑</SpButton>
+                      <SpButton danger loading={revoking} disabled={UKEY_STRICT && !ukey} onClick={() => void handleRevoke(row)}>解绑</SpButton>
                     )}
                   </div>
                 </div>

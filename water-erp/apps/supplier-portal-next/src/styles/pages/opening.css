@@ -22,7 +22,9 @@
 .presence { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #f0f9eb; border: 1px solid #e1f3d8; color: #529b2e; font-size: 12px; font-weight: 600; }
 .presence .num { color: #529b2e; font-weight: 800; font-variant-numeric: tabular-nums; }
 .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
-.records-card { margin-top: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* min-height 保底：矮视口下左列剩余空间不足时，卡不被 flex:1 压扁到只剩表头（2026-09-02）；
+   溢出由下方 body 的 overflow-y 承接，左列整体在 .left 滚动 */
+.records-card { margin-top: 16px; flex: 1; min-height: 240px; display: flex; flex-direction: column; }
 .records-head { display: flex; align-items: center; justify-content: space-between; }
 .records-title { font-weight: 600; }
 .records-count { color: #909399; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -73,7 +75,7 @@
 .hall-table-empty { padding: 32px 0; text-align: center; color: #909399; font-size: 12px; }
 
 /* 唱标总表卡在左列 flex 中撑满（原 :deep(.el-card__body)/:deep(.el-table) 的 flex 链，桌面端与右列聊天面板底边对齐） */
-.records-card .hall-card__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.records-card .hall-card__body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
 .records-card .hall-table { flex: 1; }
 
 /* —— el-tag 原生等价（hall-tag）—— */
@@ -87,6 +89,13 @@
 /* 桌面端：网格撑满内容区高度，左右两列同高——右列聊天面板与左列唱标总表卡均延伸至页面底部（底边对齐） */
 @media (min-width: 961px) {
   .hall { height: 100%; }
+  /* Next 外壳（app-shell.tsx）在 main.sp-content 与页面根之间垫了 .page-container（height:auto），
+     .hall 的 height:100% 百分比链在此断裂 → 退化为内容高度：矮视口下聊天输入行/唱标表沉出可视区、
+     「底边对齐」失效（2026-09-02 实证）。:has 只命中直接包裹 .hall 的本页容器，不影响其他页面 */
+  .page-container:has(> .hall) { height: 100%; }
+  /* 左列三卡（项目信息/解密/唱标）在矮视口下超出可用高度：左列自身滚动，
+     右列聊天面板钉满高度、输入行始终可见，不受左列影响 */
+  .hall > .left { overflow-y: auto; }
 }
 
 /* ──────────────────────────────────────────────────────────────────

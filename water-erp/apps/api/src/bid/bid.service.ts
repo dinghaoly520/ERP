@@ -22,6 +22,8 @@ import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
+import { ReportNotesDto, ReportNoteItemDto, REPORT_NOTE_SECTIONS } from './dto/report-notes.dto';
+import { SupplierBondReturnDto } from './dto/supplier-bond-return.dto';
 import { assertMinAcceptedInvitees } from './bid-timing-rules';
 import { assertDecryptCheckInQuorum, getMinBiddersForMethod } from './decrypt-quorum.util';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
@@ -42,6 +44,7 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { Prisma, AiBidderStatus } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
+import { pendingBondReturnWhere } from './bond-pending.util';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -452,6 +455,11 @@ export class BidService {
         expertDisputes: { orderBy: { createdAt: 'desc' } },
         archiveItems: true,
         bidRounds: { orderBy: { roundNo: 'asc' } },
+        // A4 补齐（2026-09-04）：评标结果汇总随详情下发——:3005 开标确认面板候选人与金额展示、
+        // A1/A3 公示倒计时与中标通知书推送均消费 detail.evaluationResults。
+        // 结果生成前为空数组，评标进行中不泄露；生成后招标人（:3005 staff/leader）可见，
+        // 服务第 54 条「3 日内公示中标候选人」的时限管理（回流包 generateHandover 同源携带）。
+        evaluationResults: { orderBy: { rank: 'asc' } },
         assignedHostUser: { select: { id: true, username: true, displayName: true } },
       },
     });
@@ -2037,37 +2045,9 @@ export class BidService {
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动AI辅助分析', target: project.name, result: `${evaluableSupplierCount}家供应商入队`, riskFlag: '无' });
 
     // 4.3: 入队 AI 分析（tender 处理 → 触发 worker 端到端）
-    if (this.tenderQueue) {
-      const aiTask = await this.prisma.aiBidAnalysisTask.findUnique({
-        where: { projectId: id },
-      });
-      if (aiTask) {
-        try {
-          // F7：add 前强制 remove——BullMQ 对任意保留状态（含 7 天内 completed）的同 id job 静默去重，
-          // 不 remove 的话同 taskId 二次入队会静默 no-op（假成功）
-          await this.tenderQueue.remove(`tender-${aiTask.id}`).catch(() => {});
-          await this.tenderQueue.add(
-            'process',
-            { taskId: aiTask.id },
-            {
-              jobId: `tender-${aiTask.id}`,
-              attempts: 3,
-              backoff: { type: 'exponential', delay: 5000 },
-              removeOnComplete: { age: 7 * 24 * 3600 },
-              removeOnFail: { age: 30 * 24 * 3600 },
-            },
-          );
-          this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${id}`);
-        } catch (err) {
-          this.logger.error(`Failed to enqueue AI analysis task ${aiTask.id}: ${(err as Error).message}`);
-          // 入队失败则将任务标记为 FAILED，避免永久 PENDING
-          await this.prisma.aiBidAnalysisTask.update({
-            where: { id: aiTask.id },
-            data: { status: 'FAILED' },
-          }).catch(() => {});
-        }
-      }
-    }
+    // A-87（P1 波4）：抽为 ensureTenderAnalysis，与公告发布钩子共用。此处 bidderResults 刚在事务内
+    // 建为 PENDING，幂等闸（requirements 已提取且无待派发 bidder）天然放行，行为与旧内联实现一致
+    await this.ensureTenderAnalysis(id);
 
     // 通知所有分配专家评标已启动（fire-and-forget，不阻塞）
     // N9：仅通知已确认正选——候补/已婉拒/未确认专家不在评审之列，不应收到启动通知
@@ -2088,6 +2068,80 @@ export class BidService {
     } catch { /* 通知失败不阻塞评标启动 */ }
 
     return updated;
+  }
+
+  /**
+   * A-87（P1 波4）：确保项目存在 AI 招标要点提取任务并入队 tender 处理，三个调用点共用：
+   * - 公告发布钩子（announcement.syncBidProject）——发布即提取，潜在投标人在 BID 阶段可见要点清单；
+   * - startEvaluation——评标启动；
+   * - rerunAiAnalysis——force=true。
+   * 幂等闸：requirements 已提取且无 PENDING bidderResult → 跳过入队（同一项目重复发布不重复入队）。
+   * 闸门不能只看 requirements：tender processor 收尾会把全部 PENDING bidderResult 批量入队 bidder
+   * 分析，若发布时已提取、启动评标时被闸拦，则 bidder 分析永不入队——启动评标现场刚建 PENDING
+   * bidderResult，闸门天然放行，行为与旧内联实现一致。
+   * force=true（rerun 语义）：跳过幂等闸；入队失败抛 400 ENQUEUE_FAILED（非 force 仅标 FAILED 不抛，
+   * 不阻塞发布/启动评标主流程）。返回 true=已入队，false=幂等跳过或队列不可用（非 force）。
+   */
+  async ensureTenderAnalysis(projectId: string, opts?: { force?: boolean }): Promise<boolean> {
+    const tenderQueue = this.tenderQueue;
+    if (!tenderQueue) {
+      if (opts?.force) {
+        // 与 rerunAiAnalysis 的 F7 前置闸同口径：force 路径已清空旧结果，必须有人消费，不可假成功
+        throw new ServiceUnavailableException({ error: 'AI 分析队列不可用（Redis/worker 异常），无法入队', code: 'QUEUE_UNAVAILABLE' });
+      }
+      this.logger.warn(`tenderQueue 不可用，跳过 AI 分析入队 (project=${projectId})`);
+      return false;
+    }
+    let aiTask = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
+    if (!aiTask) {
+      // N8 同款补建：upsert（update 空分支）——并发双钩子双双 findUnique 落空时，后到方撞
+      // projectId @unique 走 update 分支复用对手已建 task，不 P2002 裸 500
+      aiTask = await this.prisma.aiBidAnalysisTask.upsert({
+        where: { projectId },
+        create: { projectId, status: 'PENDING' },
+        update: {},
+      });
+    }
+    if (!opts?.force && aiTask.requirements) {
+      const pendingBidders = await this.prisma.aiBidderResult.count({
+        where: { taskId: aiTask.id, status: 'PENDING' },
+      });
+      if (pendingBidders === 0) {
+        this.logger.log(`AI 招标要点已提取且无待派发投标分析，幂等跳过入队 (project=${projectId}, task=${aiTask.id})`);
+        return false;
+      }
+    }
+    // F7：add 前强制 remove——BullMQ 对任意保留状态（含 7 天内 completed）的同 id job 静默去重，
+    // 不 remove 的话同 taskId 二次入队会静默 no-op（假成功）。jobId 确定性（tender-<taskId>）
+    // 使同一任务至多一个在途 job
+    const tenderJobId = `tender-${aiTask.id}`;
+    try {
+      await tenderQueue.remove(tenderJobId).catch(() => {});
+      await tenderQueue.add(
+        'process',
+        { taskId: aiTask.id },
+        {
+          jobId: tenderJobId,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { age: 7 * 24 * 3600 },
+          removeOnFail: { age: 30 * 24 * 3600 },
+        },
+      );
+      this.logger.log(`AI analysis task ${aiTask.id} enqueued for project ${projectId}`);
+      return true;
+    } catch (err) {
+      this.logger.error(`Failed to enqueue AI analysis task ${aiTask.id}: ${(err as Error).message}`);
+      // 入队失败则将任务标记为 FAILED，避免永久 PENDING
+      await this.prisma.aiBidAnalysisTask.update({
+        where: { id: aiTask.id },
+        data: { status: 'FAILED' },
+      }).catch(() => {});
+      if (opts?.force) {
+        throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
+      }
+      return false;
+    }
   }
 
   /**
@@ -2187,29 +2241,8 @@ export class BidService {
     // 入队 tender 处理（F7：jobId 与 startEvaluation 同源 `tender-${taskId}`——确定性 id 使同一
     // 任务至多一个在途 job；add 前强制 remove，否则 7 天内保留的 completed 同 id job 会让本次
     // add 静默去重——重跑假成功：旧结果已清空、新分析永不出队）
-    const tenderJobId = `tender-${taskId}`;
-    try {
-      await tenderQueue.remove(tenderJobId).catch(() => {});
-      await tenderQueue.add(
-        'process',
-        { taskId },
-        {
-          jobId: tenderJobId,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: { age: 7 * 24 * 3600 },
-          removeOnFail: { age: 30 * 24 * 3600 },
-        },
-      );
-      this.logger.log(`AI analysis rerun enqueued: task=${taskId}, project=${projectId}`);
-    } catch (err) {
-      this.logger.error(`Failed to enqueue rerun for task ${taskId}: ${(err as Error).message}`);
-      await this.prisma.aiBidAnalysisTask.update({
-        where: { id: taskId },
-        data: { status: 'FAILED' },
-      }).catch(() => {});
-      throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
-    }
+    // A-87（P1 波4）：复用 ensureTenderAnalysis——force=true 跳过幂等闸并保留入队失败 400 语义
+    await this.ensureTenderAnalysis(projectId, { force: true });
 
     // 监督日志
     await this.prisma.bidSupervisionLog.create({
@@ -5411,14 +5444,19 @@ export class BidService {
       if (scope === 'full') {
         const signPacket = await tx.bidSignPacket.findUnique({ where: { projectId: id } });
         if (signPacket) {
+          // A-152：电子签名专家无扫描件——有扫描件或电子签名者均入状态 JSON；
+          // 旧数据无 esignature 时集合与原「仅扫描件」口径一致（verify/export 用持久化 fileHashes，不受此处影响）
           const expertScans = await tx.bidExpert.findMany({
-            where: { projectId: id, signScanFileId: { not: null } },
-            select: { expertName: true, signStatus: true, signScanFileId: true },
+            where: { projectId: id, OR: [{ signScanFileId: { not: null } }, { esignature: { not: Prisma.DbNull } }] },
+            select: { expertName: true, signStatus: true, signScanFileId: true, esignature: true, esignatureAt: true },
           });
           const scanAssetIds = [signPacket.fileAssetId, signPacket.signPageScanFileId, ...expertScans.map(e => e.signScanFileId)]
             .filter((v): v is string => v != null);
           const scanAssets = await tx.fileAsset.findMany({ where: { id: { in: scanAssetIds } }, select: { sha256: true } });
-          const statusJson = JSON.stringify(expertScans.map(e => ({ expertName: e.expertName, signStatus: e.signStatus })));
+          const statusJson = JSON.stringify(expertScans.map(e => ({
+            expertName: e.expertName, signStatus: e.signStatus,
+            esignature: e.esignature ?? null, esignatureAt: e.esignatureAt?.toISOString() ?? null,
+          })));
           signFileHashes = [
             signPacket.sha256,
             ...scanAssets.map(a => a.sha256),
@@ -5712,6 +5750,113 @@ export class BidService {
     return updated;
   }
 
+  /** A-105：保证金逐家退还清单——花名册行 × 唱标 bondStatus × 逐家退还态 × 中标标识（实施条例第57条：向中标人和未中标人退还） */
+  async listBondReturns(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, bondRequired: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const [suppliers, openings, winner] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId },
+        select: { supplierName: true, bondReturnedAt: true, bondReturnReason: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.bidOpeningRecord.findMany({
+        where: { projectId },
+        select: { supplierName: true, bondStatus: true },
+      }),
+      this.prisma.bidEvaluationResult.findFirst({
+        where: { projectId, recommended: true, rank: 1 },
+        select: { supplierName: true },
+      }),
+    ]);
+    const bondStatusByName = new Map(openings.map(o => [o.supplierName, o.bondStatus]));
+    return {
+      bondRequired: project.bondRequired,
+      rows: suppliers.map(s => ({
+        supplierName: s.supplierName,
+        bondStatus: bondStatusByName.get(s.supplierName) ?? null,
+        bondReturnedAt: s.bondReturnedAt,
+        bondReturnReason: s.bondReturnReason,
+        isWinner: !!winner && winner.supplierName === s.supplierName,
+      })),
+    };
+  }
+
+  /**
+   * A-105（GB/T 43711 7.5.4.4 / 实施条例第57条）：保证金逐家退还登记（替代项目级 markBondReturned）。
+   * 三写单事务（C2 原子）：BidSupplier 逐家退还态 + 开标记录 bondStatus 同步（已退还/不予退还）+ 监督日志
+   * （不予退还必填理由，对应 7.5.3.3 情形：弄虚作假/串通/失去履约能力/不交履约担保/拒签 → 高风险留痕）。
+   */
+  async markSupplierBondReturned(projectId: string, dto: SupplierBondReturnDto) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, bondRequired: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (!project.bondRequired) throw new BadRequestException({ error: '该项目未要求响应担保', code: 'NO_BOND' });
+    const supplier = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierName: dto.supplierName },
+      select: { id: true, supplierName: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商不在本项目花名册', code: 'SUPPLIER_NOT_IN_ROSTER' });
+    if (!dto.returned && !dto.reason?.trim()) {
+      throw new BadRequestException({ error: '不予退还必须填写理由（对应 7.5.3.3 情形）', code: 'REASON_REQUIRED' });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidSupplier.update({
+        where: { id: supplier.id },
+        data: {
+          bondReturnedAt: dto.returned ? new Date() : null,
+          bondReturnReason: dto.returned ? null : dto.reason!.trim(),
+        },
+      });
+
+      // 同步开标记录（唱标口径）bondStatus——两处口径合一；无开标记录（未唱标/补录缺）不阻断（0 行匹配不抛错，
+      // 真正的 DB 错误向外抛 → 整个事务回滚，避免退还态与唱标口径脱节）
+      await tx.bidOpeningRecord.updateMany({
+        where: { projectId, supplierName: dto.supplierName },
+        data: { bondStatus: dto.returned ? '已退还' : '不予退还' },
+      });
+
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '采购人',
+          action: dto.returned ? '响应担保退还（逐家）' : '响应担保不予退还（逐家）',
+          target: project.name,
+          result: dto.returned ? `${dto.supplierName}：已退还` : `${dto.supplierName}：${dto.reason!.trim()}`,
+          riskFlag: dto.returned ? '无' : '高',
+        },
+      }).catch(e => this.logger.warn(`保证金逐家退还留痕失败: ${(e as Error).message}`));
+    });
+    return { success: true };
+  }
+
+  /** A-151：评标报告章节附注（签字包生成前编辑，docx 渲染；重新生成取最新值） */
+  async getReportNotes(projectId: string) {
+    const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { reportNotes: true } });
+    return { notes: (p?.reportNotes as ReportNoteItemDto[] | null) ?? [] };
+  }
+  async setReportNotes(projectId: string, dto: ReportNotesDto, actorId?: string) {
+    const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
+    if (!p) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // notes 缺省/null 归一空数组（@IsOptional 放行 body {}/{"notes":null}）——否则日志行 .map 在 create 参数求值阶段同步抛 TypeError（.catch 挂在返回的 Promise 上救不了）→ 500 且清空绕过留痕
+    const notes = dto.notes ?? [];
+    // service 硬校验与 DTO @IsIn 双保险（直调或白名单管道剥落时兜底）
+    for (const n of notes) {
+      if (!(REPORT_NOTE_SECTIONS as readonly string[]).includes(n.section)) {
+        throw new BadRequestException({ error: `非法章节 ${n.section}（仅允许 一~十）`, code: 'INVALID_SECTION' });
+      }
+    }
+    await this.prisma.bidProject.update({ where: { id: projectId }, data: { reportNotes: notes as any } });
+    await this.prisma.bidSupervisionLog.create({ data: { projectId, time: new Date(), role: '系统', target: p.name,
+      action: '评标报告附注编辑', result: notes.map(n => `第${n.section}节 ${n.content.length} 字`).join('；') || '清空附注', riskFlag: '无', operatorId: actorId ?? null } }).catch(() => {});
+    return { success: true };
+  }
+
   /** A3: 推送中标通知书给中标供应商 */
   async deliverAwardLetter(
     projectId: string,
@@ -5806,6 +5951,40 @@ export class BidService {
         this.logger.warn(`中标通知书已生成，但供应商 ${supplierName} 无关联用户，跳过站内信`);
       }
     } catch { /* 通知失败不阻塞 */ }
+
+    // A-105：定标联动——发出中标通知书即提醒经办逐家退还未中标供应商的响应担保
+    //（实施条例第57条：合同签订后5日内向中标人和未中标人退还；GB/T 43711 7.5.4.4）。
+    // 幂等：systemConfig marker bond_return_reminder_award:<projectId>（每项目只提醒一次，仅在发送成功后写入——
+    // 失败不占坑，日调度 bond_return_reminded:* 第二通道兜底）；失败不阻塞通知书。
+    try {
+      const markerKey = `bond_return_reminder_award:${projectId}`;
+      const reminded = await this.prisma.systemConfig.findUnique({ where: { key: markerKey } });
+      if (!reminded) {
+        const pending = await this.prisma.bidSupplier.findMany({
+          // 终审 Critical#2：pending 谓词收口共享 util——补 submitStatus=已提交（hook 原漏）与
+          // bondReturnReason=null（不予退还=终局，三处原都漏）；winner 排除保留（保守方向）
+          where: pendingBondReturnWhere({ projectId, supplierName: { not: supplierName } }),
+          select: { supplierName: true },
+        });
+        if (pending.length > 0) {
+          const names = pending.slice(0, 5).map(s => s.supplierName).join('、');
+          try {
+            await this.notificationService.sendToRole('staff', {
+              type: 'SYSTEM',
+              title: '响应担保待逐家退还提醒',
+              content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
+            });
+            await this.prisma.systemConfig.upsert({
+              where: { key: markerKey },
+              update: { value: new Date().toISOString() },
+              create: { key: markerKey, value: new Date().toISOString() },
+            });
+          } catch (e) {
+            this.logger.warn(`A-105 定标提醒发送失败 project=${projectId}: ${String(e)}`);
+          }
+        }
+      }
+    } catch { /* 逐家退还提醒失败不阻塞中标通知书 */ }
 
     return delivery;
   }

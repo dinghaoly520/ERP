@@ -22,8 +22,10 @@ import {
 } from "@/utils/bid-crypto";
 import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@water-erp/ukey";
 import { openUkey } from "@/utils/ukey-factory";
+import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
 import "@/styles/pages/bids.css";
+import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 /** el-alert 的原生等价（EP 四色调 + show-icon） */
 function BAlert({ type, title, children, style }: {
@@ -138,6 +140,11 @@ const EMPTY_SPLIT_CATS: Record<SplitKey, SplitCategory> = {
   other: { label: "其他材料", description: "补充说明、认证证书、授权函等", files: [], uploading: false, progress: null },
 };
 
+/** A-89 版式强制：标书角色明文必须 PDF（版式文件口径，加密锚点即 PDF 哈希）——Office 原生格式拒收；
+ *  zip/rar 整包与 bond 凭证（扫描件）不在此列；仅约束双信封新轨，旧轨不动。 */
+const OFFICE_EXT = /\.(docx?|xlsx?)$/i;
+const PDF_ONLY_ROLES = new Set<EnvelopeRole>(["technical", "business", "coverLetter"]);
+
 const DRAFT_PREFIX = "supplier_draft:";
 
 /** 读取本地草稿的存储时间戳（与 useAutoSave 的落盘格式一致；挂载期同步可读） */
@@ -213,6 +220,7 @@ function BidSubmitInner() {
   const [ukeyPassword, setUkeyPassword] = useState("");
   const [ukeyOpening, setUkeyOpening] = useState(false);
   const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
+  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
   const pendingSubmitRef = useRef(false);
   /** U盾会话快照 ref——解锁后同一事件闭包内立即 doSubmit，useState 异步更新会读到空值（Vue ref 语义的 React 等价物） */
   const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string; certPublicKey: string } | null>(null);
@@ -324,6 +332,11 @@ function BidSubmitInner() {
         // ═══ 新轨：M → C_inner(SM4/DEK_S) → C_outer(SM4/DEK_A) → 上传，entry 入信封缓存 ═══
         const role = ROLE_BY_CAT[catKey];
         if (!role) throw new Error("未知文件类别，无法双层密封");
+        // A-89：标书角色明文必须 PDF（锚点=PDF 明文哈希）——Office 原生格式在加密前拦截并给转换指引
+        if (PDF_ONLY_ROLES.has(role) && OFFICE_EXT.test(file.name)) {
+          toast.error(`「${file.name}」为 Office 格式——投标文件须为 PDF 版式文件，请先用 Office/WPS「另存为 PDF」后上传（加密锚点以 PDF 为准）`);
+          throw new Error("BID_FILE_MUST_BE_PDF");
+        }
         const admin = await getAdminCertCached();
         const res = await encryptAndUploadFile(
           file, role,
@@ -889,8 +902,8 @@ function BidSubmitInner() {
                       <label className="b-required">标书文件</label>
                       <div className="b-form-content">
                         <div className="file-area">
-                          <UploadZone accept=".pdf,.doc,.docx,.zip,.rar" disabled={!canSubmit} onFile={handleFullBidUpload} label="上传完整标书" />
-                          <span className="file-hint">PDF/DOC/ZIP，≤{maxUploadSizeMB}MB</span>
+                          <UploadZone accept=".pdf,.zip,.rar" disabled={!canSubmit} onFile={handleFullBidUpload} label="上传完整标书" />
+                          <span className="file-hint">PDF/ZIP（Office 请先转 PDF），≤{maxUploadSizeMB}MB</span>
                           {fullBidMeta ? (
                             <span className="file-chip">
                               {fullBidMeta.originalName}（{formatSize(fullBidMeta.size)}）
@@ -916,12 +929,12 @@ function BidSubmitInner() {
                         <div className="split-cat">
                           <div className="split-cat-head">
                             <AddFileButton
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.jpg,.png"
+                              accept=".pdf,.zip,.rar"
                               disabled={!canSubmit || splitCats[cat].uploading}
                               uploading={splitCats[cat].uploading}
                               onFile={(f) => handleSplitUpload(cat, f)}
                             />
-                            <span className="file-hint">{splitCats[cat].description} · ≤{maxUploadSizeMB}MB</span>
+                            <span className="file-hint">{splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB</span>
                             {splitCats[cat].progress !== null && <div style={{ width: 120 }}><SpProgress value={splitCats[cat].progress} /></div>}
                           </div>
                           {splitCats[cat].files.length > 0 && (
@@ -980,8 +993,8 @@ function BidSubmitInner() {
                           <SpTextarea rows={4} value={form.coverLetter} disabled={formDisabled} onChange={(e) => updateForm({ coverLetter: e.target.value })} placeholder="请输入投标函内容（选填）" />
                         ) : (
                           <div className="file-area">
-                            <UploadZone accept=".pdf,.doc,.docx" disabled={!canSubmit} onFile={handleCoverLetterUpload} label="上传投标函文件" />
-                            <span className="file-hint">PDF/DOC，≤{maxUploadSizeMB}MB</span>
+                            <UploadZone accept=".pdf" disabled={!canSubmit} onFile={handleCoverLetterUpload} label="上传投标函文件" />
+                            <span className="file-hint">PDF（Office 请先转 PDF），≤{maxUploadSizeMB}MB</span>
                             {coverLetterMeta ? (
                               <span className="file-chip">
                                 {coverLetterMeta.originalName}（{formatSize(coverLetterMeta.size)}）
@@ -1081,10 +1094,14 @@ function BidSubmitInner() {
         footer={
           <>
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>解锁并提交</SpButton>
+            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并提交</SpButton>
           </>
         }
       >
+        {ukeyPresent === false ? (
+          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+        ) : (
+        <>
         <label className="reg-label">证书口令</label>
         <SpInput
           type="password"
@@ -1094,6 +1111,8 @@ function BidSubmitInner() {
           onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleUkeyOpen(); }}
         />
         <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
+        </>
+        )}
       </SpDialog>
     </div>
   );

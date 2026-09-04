@@ -7,6 +7,9 @@ export interface SignPacketExpertRow {
   name: string;
   major: string;
   role: string;
+  /** A-132：评审分组（技术组|商务组|综合组）与组内职责（主审|复核|成员）；未设置为 null */
+  reviewGroup: string | null;
+  dutyRole: string | null;
   isLead: boolean;
   isPurchaserRepresentative: boolean;
   signStatus: SignStatusValue;
@@ -14,6 +17,9 @@ export interface SignPacketExpertRow {
   signScanUrl: string | null;
   dissentingOpinion: string | null;
   dissentingReason: string | null;
+  /** A-152：电子签名剥壳摘要（同回流包口径 {algorithm, certSn, verifiedAt}；完整证据在 BidExpert.esignature）；未电子签署为 null */
+  esignature: { algorithm: string; certSn: string | null; verifiedAt: string | null } | null;
+  esignatureAt: string | null;
 }
 
 export interface SignPacketResponse {
@@ -34,6 +40,21 @@ export interface SignPacketResponse {
   } | null;
   experts: SignPacketExpertRow[];
   allClosed: boolean;
+}
+
+export interface ReportNoteItem {
+  /** A-151：章节序号白名单 一~十（《暂行规定》第四十二条十项 = 主报告十节） */
+  section: string;
+  /** ≤2000 字 */
+  content: string;
+}
+
+export function getReportNotes(projectId: string) {
+  return api.get<{ notes: ReportNoteItem[] }>(`/bid/projects/${projectId}/report-notes`);
+}
+
+export function setReportNotes(projectId: string, notes: ReportNoteItem[]) {
+  return api.put<{ success: boolean }>(`/bid/projects/${projectId}/report-notes`, { notes });
 }
 
 export function getSignPacket(projectId: string) {

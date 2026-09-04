@@ -13,6 +13,13 @@ export interface OpenedUkey {
   adapter: MockUKeyAdapter | VendorUKeyAdapter;
 }
 
+/* 严格模式(supplier-portal .env.local: NEXT_PUBLIC_UKEY_STRICT=1):禁用 mock 保底回落——
+   中间件不在线时 openUkey 直接报错,只认U盘(vendor)轨。
+   默认关:CI/无外设环境的保底轨道(spec §7)不受影响。 */
+export const UKEY_STRICT =
+  process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_UKEY_STRICT === "1";
+// 生产构建恒严格(防漏配导致 mock 回落静默生效);开发/演示由 .env.local 显式开启
+
 /** 与各页面原有同键(mock 介质 keystore 落 localStorage) */
 const ukeyStorage: StorageLike = {
   getItem: (k) => localStorage.getItem(k),
@@ -27,6 +34,9 @@ export async function detectUkey(): Promise<UkeyKind> {
 export async function openUkey(password: string): Promise<OpenedUkey> {
   if (await VendorUKeyAdapter.probe()) {
     return { kind: "vendor", adapter: await VendorUKeyAdapter.open({ password }) };
+  }
+  if (UKEY_STRICT) {
+    throw new Error("未检测到 U盾，请插入 U盾后重试");
   }
   return { kind: "mock", adapter: await MockUKeyAdapter.open({ storage: ukeyStorage, password }) };
 }

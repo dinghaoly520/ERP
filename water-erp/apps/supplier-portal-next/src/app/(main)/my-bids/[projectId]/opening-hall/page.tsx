@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import { CloudOff, KeyRound, Lock, MessageSquareOff, ShieldCheck, User } from "lucide-react";
 import { openUkey } from "@/utils/ukey-factory";
+import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import type { UKeyAdapter } from "@water-erp/ukey";
 import { bidApi } from "@/lib/api/bid";
 import { supplierApi } from "@/lib/api/supplier";
@@ -62,6 +63,7 @@ export default function OpeningHallPage() {
   const [ukeyPassword, setUkeyPassword] = useState("");
   const [ukeyOpening, setUkeyOpening] = useState(false);
   const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
+  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
   const pendingSignRef = useRef(false);
   /** U盾会话快照 ref——解锁后同一事件闭包内立即签名，useState 异步更新会读到空值 */
   const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string } | null>(null);
@@ -537,13 +539,17 @@ export default function OpeningHallPage() {
         footer={
           <>
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>解锁并签名</SpButton>
+            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并签名</SpButton>
           </>
         }
       >
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)] mb-2.5">
           即将对本开标记录（唱标信息快照：报价/工期/质量目标等）进行 U盾电子签名，签名后随确认结果归档留痕。
         </p>
+        {ukeyPresent === false ? (
+          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+        ) : (
+        <>
         <label className="reg-label">证书口令</label>
         <SpInput
           type="password"
@@ -553,6 +559,8 @@ export default function OpeningHallPage() {
           onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === "Enter") void handleUkeyOpen(); }}
         />
         <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
+        </>
+        )}
       </SpDialog>
     </div>
   );

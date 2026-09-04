@@ -46,7 +46,7 @@ export default function ScoreStandardView({ projectId, project }: { projectId: s
 
   if (!project) return null;
   if (items.length === 0) {
-    return <div className="neu-card-static px-6 py-16 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无评分标准。编制入口在采购管理工作台（:3005）开标确认面板。</div>;
+    return <div className="neu-card-static px-6 py-16 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无评分标准。编制入口在采购管理工作台开标确认面板。</div>;
   }
 
   const total = items.reduce((s, i) => s + Number(i.maxScore || 0), 0);
@@ -56,7 +56,7 @@ export default function ScoreStandardView({ projectId, project }: { projectId: s
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-bold">
           <ListChecks size={15} /> 评分标准（只读）
-          <span className="text-[11px] font-normal text-[color:var(--muted-foreground)]">编制在采购管理工作台（:3005）</span>
+          <span className="text-[11px] font-normal text-[color:var(--muted-foreground)]">编制在采购管理工作台</span>
         </h2>
         <span className="text-[12px] font-mono font-bold tabular-nums text-[color:var(--accent-strong)]">总分 {total}</span>
       </div>

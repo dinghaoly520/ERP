@@ -40,6 +40,7 @@ import {
 import { ENTERPRISE_TYPES, QUAL_TYPE_OPTIONS } from "@/constants/supplier";
 
 import "@/styles/pages/dashboard.css";
+import "@/styles/pages/notifications.css"; // 通知详情弹窗 nd-*（原 dashboard.css 子集，去重归一后共用）
 
 /* ─── 常量（与 Vue 版一致） ─── */
 const STATUS_LABEL: Record<string, string> = {

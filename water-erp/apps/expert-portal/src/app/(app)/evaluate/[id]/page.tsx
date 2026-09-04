@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { api, ApiError, listMemos } from '@/lib/api';
+import { api, ApiError, listMemos, getExpertCert, bindExpertCert, getExpertEsignPayload, submitExpertEsign } from '@/lib/api';
 import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
@@ -15,7 +15,10 @@ import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 import { DocumentsStep } from '@/components/evaluate/documents-step';
-import { ReportStep } from '@/components/evaluate/report-step';
+import { ReportStep, type EsignBlockState } from '@/components/evaluate/report-step';
+import { ExpPinDialog } from '@/components/exp-pin-dialog';
+import { openExpertUkey } from '@/utils/expert-ukey';
+import { MockUKeyAdapter } from '@water-erp/ukey';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
@@ -795,6 +798,111 @@ export default function ExpertEvaluatePage() {
   useEffect(() => {
     if (project) { api.get(`/expert/projects/${projectId}/disputes`).then((res: any) => setDisputes(res)).catch(() => {}); }
   }, [project?.id]);
+
+  /* ══ A-152 评标报告电子签署（软证书 + PIN）══
+     判态（零新增端点）：esign-payload 200=可签（再查 cert 分「创建」/「直接签」两态），
+     SIGN_PACKET_NOT_GENERATED=等待签字包、NOT_SIGNABLE=已完成/已纸质登记（中性文案，
+     精确已签徽标归 :3007）；其余（候补/非本项目专家/网络异常）不渲染区块。
+     口令范式照抄供应商门户：仅内存持有，用后即清，绝不落盘。 */
+  const [esignState, setEsignState] = useState<EsignBlockState>('hidden');
+  const [esignBusy, setEsignBusy] = useState(false);
+  const [esignPinOpen, setEsignPinOpen] = useState(false);
+  const [esignPinMode, setEsignPinMode] = useState<'create' | 'sign'>('sign');
+
+  const refreshEsignState = useCallback(async () => {
+    let signable = false;
+    let blocked: EsignBlockState = 'hidden';
+    try {
+      await getExpertEsignPayload(projectId);
+      signable = true;
+    } catch (e: any) {
+      const code = (e?.data as Record<string, unknown> | undefined)?.code as string | undefined;
+      if (code === 'SIGN_PACKET_NOT_GENERATED') blocked = 'wait-packet';
+      else if (code === 'NOT_SIGNABLE') blocked = 'done-or-registered';
+    }
+    if (!signable) { setEsignState(blocked); return; }
+    // 载荷可得 → 按是否已绑定证书分两态；cert 查询失败按未绑定处理（走创建流重绑，安全）
+    let hasCert = false;
+    try { hasCert = !!(await getExpertCert()).cert; } catch { /* 保持 need-cert */ }
+    setEsignState(hasCert ? 'ready' : 'need-cert');
+  }, [projectId]);
+
+  useEffect(() => { if (step === 'report') void refreshEsignState(); }, [step, refreshEsignState]);
+
+  /** 签署错误码 → toast/态映射（本地 U盾 异常无 code，透传 message） */
+  const esignError = (e: any) => {
+    const code = (e?.data as Record<string, unknown> | undefined)?.code as string | undefined;
+    if (code === 'EXPERT_ESIGN_INVALID') toast.error('签名验证失败，请重试');
+    else if (code === 'ESIGN_PACKET_MISMATCH') { toast.error('签字包已重新生成，请重新获取'); void refreshEsignState(); }
+    else if (code === 'SIGN_PACKET_NOT_GENERATED') { toast.error('等待主持人生成签字包'); setEsignState('wait-packet'); }
+    else if (code === 'NOT_SIGNABLE') { toast.warning('当前状态不可签署（可能已登记纸质）'); setEsignState('done-or-registered'); }
+    else if (code === 'EXPERT_CERT_NOT_ACTIVE') { toast.error('尚未绑定有效数字证书，请先创建绑定'); setEsignState('need-cert'); }
+    else if (code === 'SM2_PUBLIC_KEY_INVALID') toast.error('证书公钥格式无效，请重新创建证书');
+    else if (code === 'CERT_SN_EXISTS') toast.error('该证书序列号已被绑定，请勿重复绑定（或先在 U盾管理解绑）');
+    else toast.error(e?.message || '签署失败');
+  };
+
+  /** 取载荷（服务端以 DB 为准重建 canonical）→ U盾签名 → 提交（供应商 doConfirmSign 同序列） */
+  const doEsignWith = async (adapter: { sign: (certSn: string, msg: string) => Promise<string> }, certSn: string) => {
+    const { payload } = await getExpertEsignPayload(projectId);
+    const signature = await adapter.sign(certSn, payload);
+    await submitExpertEsign(projectId, signature);
+    toast.success('已电子签署评标报告');
+    setEsignState('done-or-registered');
+    loadProject();
+  };
+
+  /** 无证书流：开锁软证书介质 → 创建自签证书（CN=专家姓名，天然过后端 DN 校验）→ 绑定 → 续签 */
+  const doCreateAndSign = async (pin: string) => {
+    const opened = await openExpertUkey(pin);
+    // 软证书轨（mock）才支持创建；真 CA U盾（vendor）证书由 CA 签发，无创建语义
+    if (!(opened.adapter instanceof MockUKeyAdapter)) {
+      throw new Error('真 CA U盾不支持创建平台自签软证书——专家证书请使用软证书轨道（拔出 U盾或关闭 U盾驱动服务后重试）');
+    }
+    // B1：证书 CN 沿用名册名（BidExpert.expertName）——本页拿不到 user.displayName
+    // （后端 getProject 已剥离 myExpertRecord.user），后端 bindCert 已放宽为
+    // 「displayName/username + 历史 BidExpert.expertName」名源集合匹配，名册名天然在集合内。
+    const expertName = expert?.expertName?.trim();
+    if (!expertName) throw new Error('无法确定专家姓名，请刷新页面后重试');
+    const cert = await opened.adapter.createCertificate(expertName);
+    await bindExpertCert({ certSn: cert.certSn, certDn: cert.certDn, publicKey: cert.publicKey, alg: 'SM2' });
+    // B2 态固化：证书创建+绑定成功即 ready——此后签名/提交失败不得回落 need-cert，
+    // 重试走 ready 态「电子签署」直路复用已绑证书（否则重试再 createCertificate+rebind，
+    // 已绑 ACTIVE 证书被 REVOKED 的换证 churn）
+    setEsignState('ready');
+    toast.success('签名证书已创建并绑定');
+    await doEsignWith(opened.adapter, cert.certSn);
+  };
+
+  /** 有证书流：开锁 → 选证书（服务端 ACTIVE certSn 优先，兜底介质内最新）→ 签署 */
+  const doSign = async (pin: string) => {
+    const opened = await openExpertUkey(pin);
+    const serverCert = (await getExpertCert()).cert;
+    const certs = await opened.adapter.listCertificates();
+    const cert = serverCert
+      ? certs.find(c => c.certSn === serverCert.certSn)
+      : certs[certs.length - 1];
+    if (!cert) {
+      throw new Error(serverCert
+        ? '本地证书介质中未找到平台绑定的证书——请重新创建签名证书并签署'
+        : '证书介质为空，请先创建签名证书');
+    }
+    await doEsignWith(opened.adapter, cert.certSn);
+  };
+
+  const handleEsignPinSubmit = async (pin: string) => {
+    setEsignBusy(true);
+    try {
+      if (esignPinMode === 'create') await doCreateAndSign(pin);
+      else await doSign(pin);
+      setEsignPinOpen(false);
+    } catch (e: any) {
+      setEsignPinOpen(false);
+      esignError(e);
+    } finally {
+      setEsignBusy(false);
+    }
+  };
 
   if (loadError) return (
     <div className="flex h-64 flex-col items-center justify-center gap-3 text-[var(--muted-foreground)]">
@@ -1848,7 +1956,10 @@ export default function ExpertEvaluatePage() {
           {step === 'report' && (
             <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport}
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
-              onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId} />
+              onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId}
+              esign={{ state: esignState, busy: esignBusy }}
+              onCreateAndSign={() => { setEsignPinMode('create'); setEsignPinOpen(true); }}
+              onSign={() => { setEsignPinMode('sign'); setEsignPinOpen(true); }} />
           )}
             </div>
           </div>
@@ -1939,6 +2050,18 @@ export default function ExpertEvaluatePage() {
           supplierId={activeSupplier}
           suppliers={project?.suppliers.map(s => ({ id: s.id, supplierName: s.supplierName })) ?? []}
           onClose={() => setHistoryOpen(false)}
+        />
+        {/* A-152 电子签署口令弹窗（口令仅内存持有，用后即清） */}
+        <ExpPinDialog
+          open={esignPinOpen}
+          busy={esignBusy}
+          title={esignPinMode === 'create' ? '创建签名证书并签署' : '电子签署评标报告'}
+          subtitle={esignPinMode === 'create'
+            ? '首次签署将创建平台自签 SM2 软证书，请设置证书口令（口令仅本次使用，不落盘，请牢记）'
+            : '请输入证书口令解锁数字证书，完成评标报告 SM2 签名'}
+          confirmText={esignPinMode === 'create' ? '创建并签署' : '解锁并签署'}
+          onClose={() => setEsignPinOpen(false)}
+          onSubmit={handleEsignPinSubmit}
         />
       </div>
   );

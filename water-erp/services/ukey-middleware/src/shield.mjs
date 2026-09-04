@@ -69,8 +69,15 @@ function readShieldFile(file) {
 
 export function listShields(slotDir = defaultSlotDir()) {
   if (!fs.existsSync(slotDir)) return [];
-  return fs
-    .readdirSync(slotDir)
+  let names;
+  try {
+    names = fs.readdirSync(slotDir);
+  } catch (e) {
+    // 物理拔盘:挂载点短暂残留/失读 → 按「未插盾」处理,不得让端点 500(与坏盾文件跳过同一哲学)
+    console.warn(`[ukey-mw] 盾目录不可读,按未插盾处理 ${slotDir}: ${e?.code ?? e?.message ?? e}`);
+    return [];
+  }
+  return names
     .filter((f) => f.endsWith('.ukey'))
     .map((f) => readShieldFile(path.join(slotDir, f)))
     .filter((s) => s !== null);

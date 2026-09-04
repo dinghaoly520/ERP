@@ -211,3 +211,47 @@ export async function getScoreHistory(
     `/expert/projects/${projectId}/score-history?supplierId=${encodeURIComponent(supplierId)}`,
   );
 }
+
+// ── A-152 专家数字证书 + 评标报告电子签名 ──
+
+/** ExpertCert 行（后端 Prisma 模型 ExpertCert 的公开投影） */
+export interface ExpertCertRecord {
+  id: string;
+  userId: string;
+  certSn: string;
+  certDn: string;
+  publicKey: string;
+  alg: string;
+  bindingStatus: string;
+  boundAt: string;
+  revokedAt: string | null;
+}
+
+/** 本人 ACTIVE 证书（无则 cert=null；判「首次签署需创建软证书」用） */
+export function getExpertCert() {
+  return api.get<{ cert: ExpertCertRecord | null }>('/expert/cert');
+}
+
+/** 绑定证书（公钥 04+128hex；DN 的 CN 须=专家姓名；换证旧 ACTIVE 置 REVOKED） */
+export function bindExpertCert(data: { certSn: string; certDn: string; publicKey: string; alg?: string }) {
+  return api.post<{ cert: ExpertCertRecord }>('/expert/cert', data);
+}
+
+/** 电子签名载荷：对 res.payload（canonical 串）做 SM2 签名——不是 canonical 字段 */
+export function getExpertEsignPayload(projectId: string) {
+  return api.get<{ payload: string; packetSha256: string }>(
+    `/expert/projects/${projectId}/esign-payload`,
+  );
+}
+
+/** 提交电子签名（错误码见后端 esignReport：EXPERT_CERT_NOT_ACTIVE / EXPERT_ESIGN_INVALID /
+ *  ESIGN_PACKET_MISMATCH / SIGN_PACKET_NOT_GENERATED / NOT_SIGNABLE） */
+export function submitExpertEsign(projectId: string, signature: string) {
+  return api.post<{
+    signed: boolean;
+    signStatus: string;
+    signStatusAt: string;
+    esignature: { algorithm: string; certSn: string; verifiedAt: string };
+    closed: boolean;
+  }>(`/expert/projects/${projectId}/esign`, { signature });
+}

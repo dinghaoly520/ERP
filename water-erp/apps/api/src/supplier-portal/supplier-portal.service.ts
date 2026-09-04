@@ -26,7 +26,25 @@ import { NotificationService } from '../notification/notification.service';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan, resolveDisplayInYuan } from '../bid/opening-compare.util';
 import { assertDecryptCheckInQuorum } from '../bid/decrypt-quorum.util';
 import { LlmService } from '../local-ai/llm.service';
+import type { TenderRequirements } from '../ai-bid-analysis/types';
 import * as crypto from 'crypto';
+
+/** A-89：标书角色明文版式强制 PDF 的对外文案——service 抛错与 spec 全字断言共用同一来源，防字面量漂移 */
+export const BID_FILE_MUST_BE_PDF_MSG = (role: string) =>
+  `投标文件（${role}）必须为 PDF 版式文件（版式转换口径）——请转换后重新加密上传`;
+
+/** A-87（P1 波4）：招标文件要点——AiBidAnalysisTask.requirements 的供应商侧扁平视图（分组，不带 id/权重） */
+export interface TenderRequirementSummary {
+  projectName: string;
+  projectType: string;
+  bidDeadline?: string;
+  maxPrice?: number;
+  estimatedCost?: number;
+  priceEvaluationMethod: string;
+  qualification: Array<{ category: string; content: string; isRequired: boolean }>;
+  technical: Array<{ category: string; content: string; isStarred: boolean }>;
+  commercial: Array<{ category: string; content: string; isRequired: boolean }>;
+}
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
 type BidSubmissionData = {
@@ -985,6 +1003,62 @@ export class SupplierPortalService {
   }
 
   /**
+   * A-87（P1 波4）：供应商侧招标文件要点——发布钩子前移提取后，BID 阶段即可读结构化清单。
+   * 直接读 AiBidAnalysisTask.requirements（projectId @unique，1:1）；无任务/未提取完 → PENDING
+   * （不报错，前端空态提示）。不含密文文件本体（下载仍走既有 BidDocument 授权链）。
+   * 终审 Important#3：邀请/指定项目门控——关联招标文件 accessScope 非 OPEN（含无文档，保守方向）
+   * 时，要点含结构化要求与最高限价，仅本项目 bidSupplier 名册内供应商可读，名册外 403 NOT_INVITED。
+   */
+  async getTenderRequirements(projectId: string, supplierId: string): Promise<{ status: 'READY' | 'PENDING'; requirements: TenderRequirementSummary | null }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true, projectManagementItemId: true },
+    });
+    if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    const doc = await this.prisma.bidDocument.findFirst({
+      where: { announcement: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'BID_NOTICE' } },
+      select: { accessScope: true },
+    });
+    if (doc?.accessScope !== 'OPEN') {
+      const inRoster = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+      if (!inRoster) {
+        throw new ForbiddenException({ error: '该项目为邀请制，要点清单仅受邀供应商可见', code: 'NOT_INVITED' });
+      }
+    }
+    const task = await this.prisma.aiBidAnalysisTask.findUnique({
+      where: { projectId },
+      select: { requirements: true },
+    });
+    const req = (task?.requirements ?? null) as TenderRequirements | null;
+    const hasAny =
+      !!req
+      && ((Array.isArray(req.qualificationRequirements) && req.qualificationRequirements.length > 0)
+        || (Array.isArray(req.technicalRequirements) && req.technicalRequirements.length > 0)
+        || (Array.isArray(req.commercialRequirements) && req.commercialRequirements.length > 0));
+    if (!hasAny) return { status: 'PENDING', requirements: null };
+    return {
+      status: 'READY',
+      requirements: {
+        projectName: req.projectName ?? '',
+        projectType: req.projectType ?? '',
+        bidDeadline: req.bidDeadline,
+        maxPrice: req.maxPrice,
+        estimatedCost: req.estimatedCost,
+        priceEvaluationMethod: req.priceEvaluationMethod ?? '',
+        qualification: (req.qualificationRequirements ?? []).map((r) => ({
+          category: r.category ?? '', content: r.content ?? '', isRequired: !!r.isRequired,
+        })),
+        technical: (req.technicalRequirements ?? []).map((r) => ({
+          category: r.category ?? '', content: r.content ?? '', isStarred: !!r.isStarred,
+        })),
+        commercial: (req.commercialRequirements ?? []).map((r) => ({
+          category: r.category ?? '', content: r.content ?? '', isRequired: !!r.isRequired,
+        })),
+      },
+    };
+  }
+
+  /**
    * 根据招标项目 ID 查找关联的招标文件（通过公告的 relatedProjectCode 关联），
    * 返回当前供应商的访问权限状态。无关联文件时返回 null。
    */
@@ -1215,6 +1289,18 @@ export class SupplierPortalService {
             error: `投标文件未按双层信封加密（${role}），请重新加密上传`,
             code: 'BID_FILE_NOT_ENCRYPTED',
           });
+        }
+        // A-89：标书角色明文版式强制 PDF（版式转换口径，锚点=PDF 明文哈希）。
+        // 密文文件名=原名+.enc（前端 sealFileForRole 的 cOuterFile），剥离后缀再断明文扩展；
+        // zip/rar 整包提交维持允许（计划 Global Constraints），bond 凭证为扫描件不在此列。
+        if (role !== 'bond') {
+          const plainName = (asset.originalName ?? '').replace(/\.enc$/i, '');
+          if (!/\.(pdf|zip|rar)$/i.test(plainName)) {
+            throw new BadRequestException({
+              error: BID_FILE_MUST_BE_PDF_MSG(role),
+              code: 'BID_FILE_MUST_BE_PDF',
+            });
+          }
         }
         declared.push({ role, sha256: asset.sha256 });
       }

@@ -18,8 +18,10 @@ export interface SignPacketSnapshot {
   packageVersion: number;
   generatedAt: string;
   project: { name: string; projectCode: string; procurementMethod: string; openTime: string | null; deadline: string | null; scope: string | null; qualification: string | null; budget: number | null };
-  committee: Array<{ expertId: string; name: string; major: string; role: string; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null }>;
+  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null }>;
   leaderCoSignedAt: string | null;
+  /** A-151：评标报告章节附注（一~九节末「附注：」段；十节正文续写）——未设置时字段缺省 */
+  reportNotes?: Array<{ section: string; content: string }>;
   openingRecords: Array<{ supplierName: string; amount: string; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string }>;
   bids: Array<{ supplierName: string; amount: string; period: string; submittedAt: string | null }>;
   invalidBids: Array<{ supplierName: string; reason: string | null }>;
@@ -64,8 +66,13 @@ export class BidSignPacketDocxService {
   private h2(text: string): Paragraph {
     return new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true, size: 26 })] });
   }
-  private para(text: string): Paragraph {
-    return new Paragraph({ children: [new TextRun({ text, size: 21 })] });
+  private para(text: string, opts?: { italics?: boolean }): Paragraph {
+    return new Paragraph({ children: [new TextRun({ text, size: 21, italics: opts?.italics })] });
+  }
+  /** A-151：章节附注段——一~九节内容后以「附注：」斜体段插入（十节为正文续写，不走此方法） */
+  private noteParas(s: SignPacketSnapshot, section: string): Paragraph[] {
+    const note = (s.reportNotes ?? []).find(n => n.section === section);
+    return note?.content ? [this.para('附注：' + note.content, { italics: true })] : [];
   }
   private kvTable(rows: Array<[string, string]>): Table {
     return new Table({
@@ -106,22 +113,26 @@ export class BidSignPacketDocxService {
         ['开标时间', p.openTime ?? '—'], ['投标截止时间', p.deadline ?? '—'],
         ['项目范围', p.scope ?? '—'], ['资质要求', p.qualification ?? '—'], ['预算金额', p.budget != null ? `¥${p.budget}` : '—'],
       ]),
+      ...this.noteParas(s, '一'),
       this.h2('二、评标委员会成员名单'),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
-          this.headerRow(['姓名', '专业', '角色', '组长', '采购人代表']),
+          this.headerRow(['姓名', '专业', '角色', '分组', '职责', '组长', '采购人代表']),
           ...s.committee.map(e => new TableRow({
             children: [
               new TableCell({ children: [this.para(e.name)] }),
               new TableCell({ children: [this.para(e.major)] }),
               new TableCell({ children: [this.para(e.role)] }),
+              new TableCell({ children: [this.para(e.reviewGroup ?? '—')] }),
+              new TableCell({ children: [this.para(e.dutyRole ?? '—')] }),
               new TableCell({ children: [this.para(e.isLead ? '是' : '—')] }),
               new TableCell({ children: [this.para(e.isPurchaserRepresentative ? '是' : '—')] }),
             ],
           })),
         ],
       }),
+      ...this.noteParas(s, '二'),
       this.h2('三、开标记录'),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -132,6 +143,7 @@ export class BidSignPacketDocxService {
           })),
         ],
       }),
+      ...this.noteParas(s, '三'),
       this.h2('四、投标一览表'),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -142,6 +154,7 @@ export class BidSignPacketDocxService {
           })),
         ],
       }),
+      ...this.noteParas(s, '四'),
       this.h2('五、废标情况说明'),
       ...(s.invalidBids.length
         ? [new Table({
@@ -149,6 +162,7 @@ export class BidSignPacketDocxService {
             rows: [this.headerRow(['供应商', '原因']), ...s.invalidBids.map(b => new TableRow({ children: [b.supplierName, b.reason ?? '—'].map(v => new TableCell({ children: [this.para(v)] })) }))],
           })]
         : [this.para('无。')]),
+      ...this.noteParas(s, '五'),
       this.h2('六、评标标准、评标方法一览表'),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -159,6 +173,7 @@ export class BidSignPacketDocxService {
           })),
         ],
       }),
+      ...this.noteParas(s, '六'),
       this.h2('七、经评审的价格或评分比较一览表'),
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -169,15 +184,22 @@ export class BidSignPacketDocxService {
           })),
         ],
       }),
+      ...this.noteParas(s, '七'),
       this.h2('八、排序结果与推荐中标候选人名单'),
       ...s.results.filter(r => r.recommended && !r.disqualified).map(r => this.para(`第 ${r.rank} 名：${r.supplierName}（总分 ${r.totalScore}）`)),
       ...(s.results.filter(r => r.recommended).length === 0 ? [this.para('无。')] : []),
+      ...this.noteParas(s, '八'),
       this.h2('九、澄清、说明、补正事项纪要'),
       ...(s.clarifications.length
         ? s.clarifications.map(c => this.para(`${c.supplierName} 问：${c.question}\n答：${c.reply ?? '（待回复）'}`))
         : [this.para('无。')]),
+      ...this.noteParas(s, '九'),
       this.h2('十、评标过程其他说明'),
-      this.para('本报告由系统根据评标过程数据自动生成；全体评标委员会成员在本报告签字页签字后生效。组长末签：' + (s.leaderCoSignedAt ?? '—')),
+      // A-151：十节附注正文续写——默认首句保留，用户句接续，签字生效句+组长末签不动；无附注时即原硬编码全句
+      this.para(
+        '本报告由系统根据评标过程数据自动生成；'
+        + ((s.reportNotes ?? []).find(n => n.section === '十')?.content ?? '')
+        + '全体评标委员会成员在本报告签字页签字后生效。组长末签：' + (s.leaderCoSignedAt ?? '—')),
     ];
     return out;
   }

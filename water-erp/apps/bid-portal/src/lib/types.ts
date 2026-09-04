@@ -71,6 +71,10 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
     expertRole?: string; // EXPERT_ROLE.REGULAR | EXPERT_ROLE.ALTERNATE（Prisma BidExpert.expertRole）
     /** F9（2026-08-28）：邀请状态（BidExpert 标量列随详情全量下发）——启动评标委员会闸门按已确认正选计数 */
     invitationStatus?: string; // invited | confirmed | declined
+    /** A-132（2026-09-03）：评委分工（BidExpert 标量列随详情全量下发）——专家状态卡展示 分组·职责；
+     *  配置入口在 :3005 步骤5（PUT /expert-admin/projects/:id/committee/assignment） */
+    reviewGroup?: string | null; // 技术组 | 商务组 | 综合组
+    dutyRole?: string | null; // 主审 | 复核 | 成员
     /** 方案 A（角色分层实名）：评标期间后端下发的稳定编号（专家 1/2/…），评分矩阵/偏差/批注用；
      *  组织卡片用 expertName（特权角色为实名）。全部确认后不再下发。 */
     anonLabel?: string;

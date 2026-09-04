@@ -83,3 +83,16 @@ test('listShields:坏盾文件(非 JSON/JSON 数组体)跳过不砖——其余�
   assert.equal(all.length, 1, '坏文件(含数组体)被跳过,好盾仍枚举');
   assert.equal(all[0].shieldId, shield.shieldId);
 });
+
+test('listShields:目录不可读(物理拔盘残留挂载点/失读)→按未插盾处理,不抛', () => {
+  const stale = path.join(os.tmpdir(), `ukey-shield-stale-${process.pid}`);
+  fs.writeFileSync(stale, 'mountpoint became non-dir (ENOTDIR)');
+  try {
+    assert.deepEqual(listShields(stale), [], '非目录(拔盘残留)→空列表');
+  } finally { fs.rmSync(stale, { force: true }); }
+  const denied = tmpSlot();
+  fs.chmodSync(denied, 0o000);
+  try {
+    assert.deepEqual(listShields(denied), [], '无读权限(EACCES)→空列表');
+  } finally { fs.chmodSync(denied, 0o700); fs.rmdirSync(denied); }
+});

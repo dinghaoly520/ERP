@@ -10,6 +10,7 @@ import { supplierApi } from "@/lib/api/supplier";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { SpButton } from "@/components/ui";
 import "@/styles/pages/bids.css";
+import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 const STAGES = [
   { key: "DOWNLOAD", label: "文件下载", color: "#0891b2" },

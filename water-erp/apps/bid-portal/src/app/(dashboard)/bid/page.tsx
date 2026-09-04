@@ -101,7 +101,7 @@ export default function BidTaskBoard() {
             </h2>
             {opening.length === 0 ? (
               <div className="neu-card-static px-6 py-10 text-center text-[13px] text-[color:var(--muted-foreground)]">
-                暂无开标中的项目。项目在 :3005「按时开标」确定后出现在此处。
+                暂无开标中的项目。项目经采购管理工作台「按时开标」确认后出现在此处。
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -148,7 +148,7 @@ export default function BidTaskBoard() {
             </h2>
             {evaluating.length === 0 ? (
               <div className="neu-card-static px-6 py-8 text-center text-[12px] text-[color:var(--muted-foreground)]">
-                暂无评标中的项目。:3005 启动评标后项目出现在此处，可在此只读查看评标进展。
+                暂无评标中的项目。采购管理工作台启动评标后项目出现在此处，可在此只读查看评标进展。
               </div>
             ) : (
               <div className="space-y-2.5">

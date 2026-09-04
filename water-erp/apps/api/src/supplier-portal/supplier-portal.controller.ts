@@ -385,6 +385,14 @@ export class SupplierPortalController {
     return this.portalService.getNegotiationFiles(id, supplierId);
   }
 
+  /** A-87（P1 波4）：招标文件要点（READY/PENDING）——发布即前移提取的结构化清单（不含密文文件本体）；
+   *  终审 Important#3：邀请/指定项目（accessScope 非 OPEN）仅本项目名册内供应商可读 */
+  @Get('bid-projects/:id/tender-requirements')
+  async getTenderRequirements(@Param('id') id: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getTenderRequirements(id, supplierId);
+  }
+
   // ─── Bid Submissions ───
 
   @Get('completed-projects')

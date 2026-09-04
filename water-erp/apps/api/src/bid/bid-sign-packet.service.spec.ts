@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 import * as crypto from 'crypto';
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -192,7 +194,7 @@ describe('BidSignPacketService.generate', () => {
     expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { projectId, expertRole: '正选' },
-        data: expect.objectContaining({ signStatus: 'PENDING', signScanFileId: null }),
+        data: expect.objectContaining({ signStatus: 'PENDING', signScanFileId: null, esignature: Prisma.DbNull, esignatureAt: null }),
       }),
     );
   });
@@ -361,6 +363,98 @@ describe('BidSignPacketService.generateHandover', () => {
     );
     expect(prisma.fileAsset.create).not.toHaveBeenCalled();
   });
+
+  it('A-152：回流包 expertSignStatuses 携带电子签名剥壳摘要（无签则 null）', async () => {
+    baseArrange();
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { expertName: '王建国', expertRole: '正选', signStatus: 'SIGNED', signStatusAt: new Date(), signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null,
+        esignature: { v: 1, payload: 'p'.repeat(64), signature: 's'.repeat(128), algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+        esignatureAt: new Date('2026-09-02T08:05:00Z') },
+      { expertName: '李四', expertRole: '正选', signStatus: 'SIGNED', signStatusAt: new Date(), signScanFileId: 'fa-scan',
+        dissentingOpinion: null, dissentingReason: null, esignature: null, esignatureAt: null },
+    ]);
+    const svc = makeService();
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa97' });
+    (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({});
+
+    await svc.generateHandover(projectId, 'u1');
+
+    const uploaded = (svc as any).storage.upload.mock.calls[0][1] as Buffer;
+    const body = JSON.parse(uploaded.toString('utf8'));
+    expect(body.expertSignStatuses[0]).toMatchObject({
+      expertName: '王建国',
+      esignature: { algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+      esignatureAt: '2026-09-02T08:05:00.000Z',
+    });
+    expect((body.expertSignStatuses[0].esignature as any).payload).toBeUndefined(); // 剥壳：payload/签名值不入回流包
+    expect((body.expertSignStatuses[0].esignature as any).signature).toBeUndefined();
+    expect(body.expertSignStatuses[1]).toMatchObject({ expertName: '李四', esignature: null, esignatureAt: null });
+  });
+
+  it('A4：回流包携带 evaluationResults 排名+报价汇总（Number 归一，Decimal 字符串不入包）', async () => {
+    baseArrange();
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    });
+    (prisma.bidEvaluationResult.findMany as jest.Mock).mockResolvedValue([
+      { supplierId: 's1', supplierName: '甲公司', totalScore: new Prisma.Decimal('288'), averageScore: new Prisma.Decimal('96'),
+        rank: 1, recommended: true, disqualified: false, bidPrice: new Prisma.Decimal('1485000'), generatedAt: new Date('2026-09-04T02:00:00Z') },
+      { supplierId: 's2', supplierName: '乙公司', totalScore: new Prisma.Decimal('238'), averageScore: new Prisma.Decimal('79.33'),
+        rank: 2, recommended: false, disqualified: false, bidPrice: null, generatedAt: new Date('2026-09-04T02:00:00Z') },
+    ]);
+    const svc = makeService();
+    await svc.generateHandover(projectId, 'u1');
+
+    const uploaded = (svc as any).storage.upload.mock.calls[0][1] as Buffer;
+    const body = JSON.parse(uploaded.toString('utf8'));
+    expect(body.evaluationResults).toHaveLength(2);
+    expect(body.evaluationResults[0]).toMatchObject({
+      supplierName: '甲公司', rank: 1, recommended: true, disqualified: false,
+      totalScore: 288, averageScore: 96, bidPrice: 1485000, // Number 归一（非字符串）
+    });
+    expect(body.evaluationResults[1]).toMatchObject({ supplierName: '乙公司', rank: 2, bidPrice: null });
+  });
+});
+
+describe('BidSignPacketService.getStatus（A-152 电子签名摘要列）', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('专家行携带 esignature 剥壳摘要（payload/签名值不出端点）+ esignatureAt；无签为 null', async () => {
+    baseArrange(); // getStatus 直查：全字段 packet + findMany 回数组
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { id: 'e1', expertName: '王建国', major: '水利水电', expertRole: '正选', isLead: true, reviewGroup: '技术组', dutyRole: '主审',
+        isPurchaserRepresentative: false, signStatus: 'SIGNED', signStatusAt: new Date('2026-09-02T08:05:00Z'), signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null,
+        esignature: { v: 1, payload: 'p'.repeat(64), signature: 's'.repeat(128), algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+        esignatureAt: new Date('2026-09-02T08:05:00Z') },
+      { id: 'e2', expertName: '李四', major: '工程造价', expertRole: '正选', isLead: false, reviewGroup: null, dutyRole: null,
+        isPurchaserRepresentative: true, signStatus: 'PENDING', signStatusAt: null, signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null, esignature: null, esignatureAt: null },
+    ]);
+    const svc = makeService();
+
+    const status = await svc.getStatus(projectId);
+
+    // select 必须带出两列（缺列则映射 undefined，前端拿不到摘要）
+    const expertsSelect = (prisma.bidExpert.findMany as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(expertsSelect?.esignature).toBe(true);
+    expect(expertsSelect?.esignatureAt).toBe(true);
+    expect(status.experts[0]).toMatchObject({
+      expertId: 'e1',
+      esignature: { algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+      esignatureAt: '2026-09-02T08:05:00.000Z',
+    });
+    expect((status.experts[0].esignature as any).payload).toBeUndefined(); // 剥壳：完整证据（payload/签名值）不出 getStatus
+    expect((status.experts[0].esignature as any).signature).toBeUndefined();
+    expect(status.experts[1]).toMatchObject({ expertId: 'e2', esignature: null, esignatureAt: null });
+  });
 });
 
 describe('assertSignGateClosed（归档闸门）', () => {
@@ -378,6 +472,8 @@ describe('assertSignGateClosed（归档闸门）', () => {
 });
 
 describe('BidSignPacketService.unregister', () => {
+  beforeEach(() => jest.clearAllMocks());
+
   it('未登记 → 400 SIGN_NOT_REGISTERED', async () => {
     baseArrange(); // SIGN_NOT_REGISTERED 在事务内抛出 → 铺好 $queryRaw + findUnique
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
@@ -404,5 +500,61 @@ describe('BidSignPacketService.unregister', () => {
         data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, dissentingOpinion: null, dissentingReason: null },
       }),
     );
+  });
+
+  it('终审 Critical#1：已电子签名 → 400 ESIGN_NOT_REVOCABLE 且零写入（电子签名证据不可静默销毁）', async () => {
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    // mockResolvedValueOnce：仅本用例一次生效，避免污染后续用例的 findFirst 缺省行为
+    (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValueOnce({
+      id: expertId, signStatus: 'SIGNED',
+      esignature: { v: 1, payload: 'p'.repeat(64), signature: 's'.repeat(128), algorithm: 'SM2/SM3', certSn: 'SN-001', verifiedAt: '2026-09-02T08:05:00Z' },
+    });
+    const svc = makeService();
+    await expect(svc.unregister(projectId, expertId, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'ESIGN_NOT_REVOCABLE' } });
+    expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled(); // 未回退 PENDING
+    expect(prisma.$transaction).not.toHaveBeenCalled(); // 事务整体未进
+  });
+});
+
+describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单 / A-151 报告附注）', () => {
+  const projectId = 'p1';
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('committee 行携带 reviewGroup/dutyRole（未设置透传 null）', async () => {
+    // buildSnapshot 首个 Promise.all：bidProject.findUnique 需项目 select 全字段；其余 findMany 系 fake 默认回 []
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({
+      name: '测试项目', projectCode: 'BID-1', procurementMethod: '公开招标',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { id: 'e1', expertName: '张三', major: '水利水电', expertRole: '正选', isLead: true, reviewGroup: '技术组', dutyRole: '主审',
+        isPurchaserRepresentative: false, signInIp: null, signInMeta: null, confidentialityAgreedAt: null, disciplineAgreedAt: null, reportConfirmedAt: null },
+      { id: 'e2', expertName: '李四', major: '工程造价', expertRole: '正选', isLead: false, reviewGroup: null, dutyRole: null,
+        isPurchaserRepresentative: true, signInIp: null, signInMeta: null, confidentialityAgreedAt: null, disciplineAgreedAt: null, reportConfirmedAt: null },
+    ]);
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    // select 必须带出两列（缺列则映射 undefined，报告名单显示 '—' 失真）
+    const committeeSelect = (prisma.bidExpert.findMany as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(committeeSelect?.reviewGroup).toBe(true);
+    expect(committeeSelect?.dutyRole).toBe(true);
+    expect(snapshot.committee).toHaveLength(2);
+    expect(snapshot.committee[0]).toMatchObject({ name: '张三', reviewGroup: '技术组', dutyRole: '主审' });
+    expect(snapshot.committee[1]).toMatchObject({ name: '李四', reviewGroup: null, dutyRole: null });
+  });
+
+  it('A-151：快照携带 reportNotes（select 带列 + 原样透传，未设置不产生字段）', async () => {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({
+      name: '测试项目', projectCode: 'BID-1', procurementMethod: '公开招标',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+      reportNotes: [{ section: '十', content: '评标过程合规。' }],
+    });
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    const projectSelect = (prisma.bidProject.findUnique as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(projectSelect?.reportNotes).toBe(true);
+    expect(snapshot.reportNotes).toEqual([{ section: '十', content: '评标过程合规。' }]);
   });
 });

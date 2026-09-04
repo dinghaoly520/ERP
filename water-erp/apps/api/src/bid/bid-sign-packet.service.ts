@@ -1,10 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { BidSignPacketDocxService } from './bid-sign-packet-docx.service';
 import type { SignPacketSnapshot, OperationTrace } from './bid-sign-packet-docx.service';
 import { lockAndReassertStage } from './bid-state';
+import { closeSignLoopIfDone } from './sign-loop.util';
+import { stripExpertEsignature } from '../expert/expert-esign.util';
 import type { RegisterSignDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
@@ -17,6 +20,9 @@ export interface SignPacketExpertRow {
   name: string;
   major: string;
   role: string;
+  /** A-132：评审分组（技术组|商务组|综合组）与组内职责（主审|复核|成员）；未设置为 null */
+  reviewGroup: string | null;
+  dutyRole: string | null;
   isLead: boolean;
   isPurchaserRepresentative: boolean;
   signStatus: SignStatusValue;
@@ -24,6 +30,9 @@ export interface SignPacketExpertRow {
   signScanUrl: string | null;
   dissentingOpinion: string | null;
   dissentingReason: string | null;
+  /** A-152：电子签名剥壳摘要（同回流包口径 {algorithm, certSn, verifiedAt}；完整证据在 BidExpert.esignature） */
+  esignature: { algorithm: string; certSn: string | null; verifiedAt: string | null } | null;
+  esignatureAt: string | null;
 }
 
 export interface SignPacketResponse {
@@ -79,8 +88,10 @@ export class BidSignPacketService {
         orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
         select: {
           id: true, expertName: true, major: true, expertRole: true, isLead: true,
+          reviewGroup: true, dutyRole: true,
           isPurchaserRepresentative: true, signStatus: true, signStatusAt: true,
           signScanFileId: true, dissentingOpinion: true, dissentingReason: true,
+          esignature: true, esignatureAt: true,
         },
       }),
     ]);
@@ -109,6 +120,8 @@ export class BidSignPacketService {
         name: e.expertName,
         major: e.major,
         role: e.expertRole,
+        reviewGroup: e.reviewGroup,
+        dutyRole: e.dutyRole,
         isLead: e.isLead,
         isPurchaserRepresentative: e.isPurchaserRepresentative,
         signStatus: e.signStatus as SignStatusValue,
@@ -116,6 +129,8 @@ export class BidSignPacketService {
         signScanUrl: e.signScanFileId ? `/api/upload/files/${e.signScanFileId}` : null,
         dissentingOpinion: e.dissentingOpinion,
         dissentingReason: e.dissentingReason,
+        esignature: stripExpertEsignature(e.esignature),
+        esignatureAt: e.esignatureAt ? e.esignatureAt.toISOString() : null,
       })),
       allClosed: packet?.closedAt != null,
     };
@@ -173,18 +188,8 @@ export class BidSignPacketService {
         },
       });
 
-      // 闭环判定：全体正选进入终态 → 置位 closedAt
-      const pendingCount = await tx.bidExpert.count({ where: { projectId, expertRole: '正选', signStatus: 'PENDING' } });
-      if (pendingCount === 0) {
-        await tx.bidSignPacket.update({ where: { projectId }, data: { closedAt: new Date(), closedById: actorId } });
-        await tx.bidSupervisionLog.create({
-          data: {
-            projectId, time: new Date(), role: '系统', target: project.name,
-            action: '评标签字闭环', result: '全体正选专家签字登记完成，可生成评标回流包', riskFlag: '无',
-            operatorId: actorId, operatorRole: 'bid_host',
-          },
-        });
-      }
+      // 闭环判定：全体正选进入终态 → 置位 closedAt（共享 util：评委电子签名路径同闸，A-152）
+      await closeSignLoopIfDone(tx, projectId, actorId, { projectName: project.name });
     });
 
     return this.getStatus(projectId);
@@ -195,6 +200,16 @@ export class BidSignPacketService {
     const packet = await this.prisma.bidSignPacket.findUnique({ where: { projectId } });
     if (!packet) throw new ConflictException({ error: '签字包尚未生成', code: 'SIGN_PACKET_NOT_GENERATED' });
     if (packet.closedAt) throw new ConflictException({ error: '签字已闭环，登记通道已锁定', code: 'SIGN_PACKET_CLOSED' });
+
+    // 终审 Critical#1：电子签名证据不可静默销毁——已电子签名的行禁止撤销回 PENDING
+    //（否则陈旧 esignature 随 PENDING 行残留，徽标/计数失真、矛盾证据入归档链）；更正须重新生成整包（generate 清空链路）
+    const signed = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId }, select: { esignature: true } });
+    if (signed?.esignature != null) {
+      throw new BadRequestException({
+        error: '该专家已电子签名，撤销须重新生成整包（电子签名证据不可静默销毁）',
+        code: 'ESIGN_NOT_REVOCABLE',
+      });
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, projectId, 'EVALUATING');
@@ -283,14 +298,15 @@ export class BidSignPacketService {
 
     // 基础快照复用评标完整性包（结果生成时的同一数据来源），扩展签字/异议/动议信息
     const base = await this.bidService.buildEvaluationPackage(projectId);
-    const [disputes, motions, clarifications, experts] = await Promise.all([
+    const [disputes, motions, clarifications, experts, evalResults] = await Promise.all([
       this.prisma.expertDispute.findMany({ where: { projectId } }),
       this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true } }),
       this.prisma.bidClarification.findMany({ where: { projectId } }),
       this.prisma.bidExpert.findMany({
         where: { projectId },
-        select: { expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true, dissentingOpinion: true, dissentingReason: true },
+        select: { expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true, dissentingOpinion: true, dissentingReason: true, esignature: true, esignatureAt: true },
       }),
+      this.prisma.bidEvaluationResult.findMany({ where: { projectId }, orderBy: { rank: 'asc' } }),
     ]);
     const body = {
       packageType: 'BID_EVALUATION_SIGN_HANDOVER',
@@ -298,6 +314,15 @@ export class BidSignPacketService {
       generatedAt: new Date().toISOString(),
       projectId,
       evaluationSnapshot: base, // 评标完整性快照（含 fingerprint）
+      // A4 补齐（2026-09-04）：评标结果汇总（中标候选人排序+总得分+报价）——回传 :3005 开标确认
+      // 面板展示与定标/预成交公示使用；Number 归一（Decimal 字符串不入包，与包内其他数值字段同风格）
+      evaluationResults: evalResults.map(r => ({
+        supplierId: r.supplierId, supplierName: r.supplierName,
+        totalScore: Number(r.totalScore), averageScore: Number(r.averageScore),
+        rank: r.rank, recommended: r.recommended, disqualified: r.disqualified,
+        bidPrice: r.bidPrice != null ? Number(r.bidPrice) : null,
+        generatedAt: r.generatedAt.toISOString(),
+      })),
       signPacket: {
         fileAssetId: packet.fileAssetId, sha256: packet.sha256, generatedAt: packet.generatedAt.toISOString(),
         signPageScanFileId: packet.signPageScanFileId, closedAt: packet.closedAt!.toISOString(), // 上方已 if (!packet.closedAt) throw；! 显式收窄
@@ -306,6 +331,9 @@ export class BidSignPacketService {
         expertName: e.expertName, expertRole: e.expertRole, signStatus: e.signStatus,
         signStatusAt: e.signStatusAt?.toISOString() ?? null, signScanFileId: e.signScanFileId,
         dissentingOpinion: e.dissentingOpinion, dissentingReason: e.dissentingReason,
+        // A-152：电子签名剥壳摘要（完整证据在 BidExpert.esignature，payload/签名值不入回流包）
+        esignature: stripExpertEsignature(e.esignature),
+        esignatureAt: e.esignatureAt?.toISOString() ?? null,
       })),
       disputes: disputes.map(d => ({ id: d.id, expertName: d.expertName, type: d.type, title: d.title, content: d.content, status: d.status, response: d.response, createdAt: d.createdAt.toISOString() })),
       motions: motions.map(m => ({ id: m.id, title: m.title, description: m.description, status: m.status, result: m.result, votes: m.votes.map(v => ({ expertId: v.expertId, vote: v.vote })) })),
@@ -401,7 +429,7 @@ export class BidSignPacketService {
       });
       await tx.bidExpert.updateMany({
         where: { projectId, expertRole: '正选' },
-        data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null, dissentingOpinion: null, dissentingReason: null },
+        data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null, dissentingOpinion: null, dissentingReason: null, esignature: Prisma.DbNull, esignatureAt: null },
       });
       await tx.bidSupervisionLog.create({
         data: {
@@ -421,12 +449,12 @@ export class BidSignPacketService {
       await Promise.all([
         this.prisma.bidProject.findUnique({
           where: { id: projectId },
-          select: { name: true, projectCode: true, procurementMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true },
+          select: { name: true, projectCode: true, procurementMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true, reportNotes: true },
         }),
         this.prisma.bidExpert.findMany({
           where: { projectId, expertRole: '正选' },
           orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
-          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true },
+          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true },
         }),
         this.prisma.bidOpeningRecord.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.bidSupplier.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' }, select: { id: true, supplierName: true, createdAt: true } }),
@@ -508,12 +536,14 @@ export class BidSignPacketService {
       },
       committee: committee.map(e => ({
         expertId: e.id, name: e.expertName, major: e.major, role: e.expertRole, isLead: e.isLead,
+        reviewGroup: e.reviewGroup, dutyRole: e.dutyRole,
         isPurchaserRepresentative: e.isPurchaserRepresentative, signInIp: e.signInIp, signInMeta: e.signInMeta,
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,
         reportConfirmedAt: e.reportConfirmedAt ? e.reportConfirmedAt.toISOString() : null,
       })),
       leaderCoSignedAt: project.leaderCoSignedAt ? project.leaderCoSignedAt.toISOString() : null,
+      reportNotes: (project.reportNotes as Array<{ section: string; content: string }>) ?? undefined,
       openingRecords: openingRecords.map(r => ({ supplierName: r.supplierName, amount: r.amount, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus })),
       bids: suppliers.map(s => ({ supplierName: s.supplierName, amount: '（见开标记录）', period: '（见开标记录）', submittedAt: s.createdAt.toISOString() })),
       invalidBids: invalidBids.map(b => ({ supplierName: suppliers.find(s => s.id === b.supplierId)?.supplierName ?? '（未知供应商）', reason: b.reason })),

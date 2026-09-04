@@ -75,8 +75,10 @@ export function startServer({ port = parseEnvInt('UKEY_MW_PORT', 17999), host = 
       if (req.method === 'POST' && url.pathname === '/session/unlock') {
         const body = await readBody(req);
         if (typeof body.pin !== 'string' || !body.pin) return fail('BAD_REQUEST');
+        const shieldsNow = listShields(slotDir);
+        if (shieldsNow.length === 0) return fail('SHIELD_NOT_FOUND'); // 拔盘后空盾槽:不得空成功(PIN 对着无物校验=假解锁)
         const unlocked = []; const failed = [];
-        for (const s of listShields(slotDir)) {
+        for (const s of shieldsNow) {
           if (s.pinPolicy.locked) { failed.push({ shieldId: s.shieldId, retryLeft: 0, locked: true }); continue; }
           const r = await unlockShieldFile(s, body.pin, slotDir);
           if (r.ok) { sessions.set(s.certSn, r.privKeyHex); unlocked.push(s.shieldId); }

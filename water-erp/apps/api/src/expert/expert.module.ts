@@ -13,11 +13,12 @@ import { NotificationModule } from '../notification/notification.module';
 import { BidModule } from '../bid/bid.module';
 import { AiBidAnalysisModule } from '../ai-bid-analysis/ai-bid-analysis.module';
 import { TenderClarificationModule } from '../tender-clarification/tender-clarification.module';
+import { SignatureService } from '../common/crypto/signature.service';
 
 @Module({
   imports: [AuthModule, AiModule, NotificationModule, BidModule, AiBidAnalysisModule, TenderClarificationModule],
   controllers: [ExpertController, ExpertAdminController],
-  providers: [ExpertService, ExpertAdminService, ExpertExtractionAiService, ExpertConflictService, ExpertCrossConflictService, ExpertMemoService],
+  providers: [ExpertService, ExpertAdminService, ExpertExtractionAiService, ExpertConflictService, ExpertCrossConflictService, ExpertMemoService, SignatureService],
   exports: [ExpertAdminService, ExpertMemoService],
 })
 export class ExpertModule {}

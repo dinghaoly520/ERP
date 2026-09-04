@@ -181,20 +181,20 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
           </div>
         </div>
 
-        {/* 中：状态文案 */}
+        {/* 中：状态文案（卡住判定阈值与后端 AI_STUCK_THRESHOLD_MS 同口径，改动须双向同步） */}
         <div className="min-w-0 flex-1 text-[12px] leading-relaxed text-[color:var(--muted-foreground)]">
           {anomaly.taskFailed ? (
             <span className="font-semibold text-[var(--danger)]">招标文件处理失败——需重新分析</span>
           ) : anomaly.workerIdle ? (
-            <span className="font-semibold text-[oklch(0.64_0.16_82)]">队列有 AI 分析任务等待但无 worker 消费——请启动 worker（pnpm --filter api dev:worker:ai-bid-analysis）；worker 恢复后队列将自动消费</span>
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">AI 分析服务暂未响应，分析任务已在等待——请联系系统管理员检查分析服务；服务恢复后任务将自动继续</span>
           ) : anomaly.allPending ? (
-            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析未启动——请确认 AI 分析 worker 进程已运行；worker 恢复后队列将自动消费</span>
+            <span className="font-semibold text-[oklch(0.64_0.16_82)]">分析尚未启动——请联系系统管理员确认 AI 分析服务已就绪；就绪后任务将自动开始</span>
           ) : anomaly.failedNames.length > 0 ? (
             <span><span className="font-semibold text-[var(--danger)]">{failed} 家分析失败：</span>{anomaly.failedNames.join('、')}</span>
           ) : anomaly.stuckNames.length > 0 ? (
-            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">疑似卡住：</span>{anomaly.stuckNames.join('、')}（超 30 分钟无进展；阈值与后端 AI_STUCK_THRESHOLD_MS 同口径，改动须双向同步）</span>
+            <span><span className="font-semibold text-[oklch(0.64_0.16_82)]">疑似卡住：</span>{anomaly.stuckNames.join('、')}（超过 30 分钟无进展，可重新分析或联系系统管理员）</span>
           ) : (
-            <span>{TASK_STATUS_LABEL[taskStatus ?? ''] ?? taskStatus}</span>
+            <span>{TASK_STATUS_LABEL[taskStatus ?? ''] ?? '分析中'}</span>
           )}
         </div>
 
