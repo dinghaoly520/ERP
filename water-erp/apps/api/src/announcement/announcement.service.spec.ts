@@ -321,6 +321,60 @@ describe('AnnouncementService — A-87 发布钩子（招标要点提取前移�
   });
 });
 
+describe('AnnouncementService — E2 category 白名单（failed_bid 死分支复活）', () => {
+  const ann = {
+    id: 'ann1', title: 'T', publishDate: new Date(), authorId: 'u1', relatedProjectCode: 'BID-E2',
+    metadata: { method: '公开招标', openTime: '2026-09-10T10:00:00', deadline: '2026-09-15T17:00:00' },
+  };
+
+  const makeSvc = async (bidService: any, prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-e2', projectCode: 'BID-E2' }), update: jest.fn() },
+      announcement: { update: jest.fn().mockResolvedValue({}) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+      ...prismaOverrides,
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, {}, bidService, undefined);
+    return { service, prisma };
+  };
+
+  it('流标公告（category=failed_bid）→ :650 分支经 meta.category 可达：关联项目置 ABORTED', async () => {
+    const abortBidProject = jest.fn().mockResolvedValue({});
+    const { service } = await makeSvc({
+      syncFromAnnouncement: jest.fn().mockResolvedValue({}),
+      abortBidProject,
+      ensureTenderAnalysis: jest.fn(),
+    });
+    await service.syncBidProject('ann1', {
+      ...ann, metadata: { ...ann.metadata, category: 'failed_bid' },
+    });
+    // 白名单化前 validateMetadata 剥落 category，meta.category 恒 undefined（死分支）——此断言红即复现
+    expect(abortBidProject).toHaveBeenCalledWith('p-e2');
+  });
+
+  it('非法枚举值（category=hacker）→ validateMetadata 剥落，不走流标分支', async () => {
+    // validateMetadata 为 private static，经构造器直接断言剥落语义
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const meta = (Svc as any).validateMetadata({ ...ann.metadata, category: 'hacker' });
+    expect(meta.category).toBeUndefined();
+    expect(meta.method).toBe('公开招标'); // 其余白名单键不受影响
+
+    const abortBidProject = jest.fn().mockResolvedValue({});
+    const { service } = await makeSvc({
+      syncFromAnnouncement: jest.fn().mockResolvedValue({}),
+      abortBidProject,
+      ensureTenderAnalysis: jest.fn(),
+    });
+    await service.syncBidProject('ann1', {
+      ...ann, metadata: { ...ann.metadata, category: 'hacker' },
+    });
+    await new Promise(r => setImmediate(r));
+    expect(abortBidProject).not.toHaveBeenCalled();
+  });
+});
+
 
 describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞）', () => {
   let svc: any;

@@ -700,8 +700,8 @@ export class AnnouncementService {
       // A-87（P1 波4）：BID_NOTICE 发布即前移招标要点提取——此前提取只在启动评标时发生，供应商在
       // 整个 BID 阶段看不到结构化要点。fire-and-forget：失败仅告警不阻塞发布；ensureTenderAnalysis
       // 自带幂等闸（requirements 已提取且无待派发 bidder 跳过入队），重复发布/下架再发布不重复入队。
-      // 流标公告（failed_bid）随即置 ABORTED，无提取意义，跳过。注意读原始 metadata：validateMetadata
-      // 白名单（METADATA_SCHEMA）不含 category，meta.category 恒为 undefined。
+      // 流标公告（failed_bid）随即置 ABORTED，无提取意义，跳过。E2 白名单化后 meta.category 已可达，
+      // 此处仍读原始 metadata——过渡双读：白名单化前的存量数据兜底，下清理批移除。
       const rawCategory = (announcement.metadata as Record<string, any> | null | undefined)?.category;
       if (linkedProjectId && rawCategory !== 'failed_bid' && typeof this.bidService?.ensureTenderAnalysis === 'function') {
         void Promise.resolve(this.bidService.ensureTenderAnalysis(linkedProjectId)).catch(e =>
@@ -796,7 +796,7 @@ export class AnnouncementService {
   }
 
   /** 运行时校验公告 metadata 字段类型，防止 typo 导致静默数据丢失 */
-  private static METADATA_SCHEMA: Record<string, { type: string }> = {
+  private static METADATA_SCHEMA: Record<string, { type: string; values?: readonly string[] }> = {
     method: { type: 'string' },
     budget: { type: 'number' },
     scope: { type: 'string' },
@@ -808,6 +808,9 @@ export class AnnouncementService {
     directSourcingReason: { type: 'string' },
     // C1（7.5.2.2）：预成交公示/成交公告的异议渠道
     objection: { type: 'string' },
+    // E2：公告分类枚举——前端 AnnouncementCategory 三值（web/lib/types/announcement.ts）+ publicity（中标公示预留）。
+    // 白名单化后 :650 流标分支经 meta.category 可达（此前恒 undefined 死分支）；非枚举值由 validateMetadata 剥落
+    category: { type: 'string', values: ['procurement_document', 'failed_bid', 'winning_bid', 'publicity'] },
   };
 
   private static validateMetadata(raw: any): Record<string, any> {
@@ -815,6 +818,8 @@ export class AnnouncementService {
     const validated: Record<string, any> = {};
     for (const [key, spec] of Object.entries(AnnouncementService.METADATA_SCHEMA)) {
       if (raw[key] !== undefined) {
+        // E2：枚举键（values 白名单）非枚举值剥落——防 typo/伪造分类触发流标等联动
+        if (spec.values && !spec.values.includes(raw[key])) continue;
         validated[key] = spec.type === 'number' && typeof raw[key] === 'string'
           ? Number(raw[key])
           : raw[key];
