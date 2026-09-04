@@ -103,7 +103,8 @@ function ExpertLoginPage() {
         toast.error('请使用管理员账号登录');
       }
     } catch (e: any) {
-      toast.error(e.message || '登录失败');
+      // 断网时 fetch 抛 TypeError（"Failed to fetch"）——翻译为中文；其余沿用后端中文 error
+      toast.error(e instanceof TypeError ? '网络异常，请检查网络后重试' : e.message || '登录失败');
     }
     setLoading(false);
   };

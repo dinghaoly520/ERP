@@ -86,11 +86,19 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
   /** 底层请求：注入 X-Portal + credentials；401 触发 on401（浏览器端） */
   async function doFetch(path: string, init?: RequestInit): Promise<Response> {
-    const res = await fetch(`${base}${path}`, {
-      credentials: 'include',
-      ...init,
-      headers: mergeHeaders(init, { 'X-Portal': options.portal, ...(options.extraHeaders?.() ?? {}) }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${base}${path}`, {
+        credentials: 'include',
+        ...init,
+        headers: mergeHeaders(init, { 'X-Portal': options.portal, ...(options.extraHeaders?.() ?? {}) }),
+      });
+    } catch (err) {
+      // 调用方主动取消（如组件卸载清理的 AbortController.abort）原样放行，保持 AbortError 语义
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+      // 断网/超时（fetch 直接 reject，无状态码）：翻译为统一中文，避免 "Failed to fetch" 直出用户 toast
+      throw new ApiError(0, 'NETWORK_ERROR', '网络异常或请求超时，请检查网络');
+    }
     if (res.status === 401 && isBrowser && options.on401) {
       // clone 保证 fetchApi 侧仍能正常读取响应体；toApiError 解析失败时兜底返回通用错误
       options.on401(await toApiError(res.clone()));

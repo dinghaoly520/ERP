@@ -30,7 +30,7 @@ function ExpertRsvpPage() {
       const res = await fetch(`/api/expert/rsvp/verify?t=${encodeURIComponent(token)}`);
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error || '链接无效'); }
       setView(await res.json()); setPhase('ready');
-    } catch (e: any) { setPhase('invalid'); setErrMsg(e?.message || '加载失败'); }
+    } catch (e: any) { setPhase('invalid'); setErrMsg(e instanceof TypeError ? '网络异常，请稍后重试' : e?.message || '加载失败'); }
   }, [token]);
   useEffect(() => { load(); }, [load]);
 
@@ -40,7 +40,7 @@ function ExpertRsvpPage() {
       const res = await fetch(`/api/expert/rsvp/respond?t=${encodeURIComponent(token)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error || '操作失败'); }
       await load();
-    } catch (e: any) { setErrMsg(e?.message); }
+    } catch (e: any) { setErrMsg(e instanceof TypeError ? '网络异常，请稍后重试' : e?.message || '操作失败'); }
     setBusy(false);
   };
 
