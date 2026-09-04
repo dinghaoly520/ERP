@@ -241,6 +241,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
           {canHost && (
           <button
             type="button"
+            disabled={busy !== null}
             onClick={() => setNotesOpen(true)}
             className="neu-btn-soft !h-[34px] !text-xs"
             title="编辑《评标报告》十项法定内容的章节附注；生成签字包时取库内最新值"
@@ -300,7 +301,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               {canHost && (
               <button
                 type="button"
-                disabled={closed}
+                disabled={busy !== null || closed}
                 onClick={() => setNotesOpen(true)}
                 className="neu-btn-soft !h-[34px] !text-xs"
                 title="编辑《评标报告》十项法定内容的章节附注；重新生成签字包时取库内最新值"

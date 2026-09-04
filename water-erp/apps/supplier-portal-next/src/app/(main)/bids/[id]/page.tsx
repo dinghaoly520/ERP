@@ -128,6 +128,7 @@ function BidDetailInner() {
   // ── 招标文件要点（A-87，P1 波4）：发布即前移提取的结构化清单（挂载拉一次，不轮询）──
   const [tenderReq, setTenderReq] = useState<{ status: string; requirements: TenderRequirementsSummary | null } | null>(null);
   const [tenderReqLoading, setTenderReqLoading] = useState(false);
+  const [trError, setTrError] = useState(false);
 
   // ── 投标回执（A-101）：已递交后查看 + U盾补签 ──
   const [submission, setSubmission] = useState<any>(null);
@@ -221,8 +222,10 @@ function BidDetailInner() {
     setTenderReqLoading(true);
     try {
       setTenderReq(await bidApi.getTenderRequirements(projectId));
+      setTrError(false);
     } catch {
       setTenderReq(null); // 拦截器已全局 toast
+      setTrError(true);
     } finally {
       setTenderReqLoading(false);
     }
@@ -561,9 +564,9 @@ function BidDetailInner() {
                     <p className="cq-desc" style={{ margin: "12px 0 0" }}>解析由系统自动生成，以招标文件原文为准</p>
                   </>
                 ) : (
-                  /* PENDING/无数据/拉取失败同显空态（真零条款项目后端也返 PENDING） */
+                  /* PENDING/无数据显解析空态；拉取失败显错误文案（真零条款项目后端也返 PENDING） */
                   <div className="bc-empty" style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12, padding: "18px 0" }}>
-                    <p style={{ margin: 0 }}>招标文件要点解析中或尚未生成——可先下载招标文件查阅原文</p>
+                    <p style={{ margin: 0 }}>{trError ? "获取失败，请点击重新获取重试" : "解析中或尚未生成——可先下载招标文件查阅原文"}</p>
                     <SpButton variant="soft" onClick={loadTenderReq}>重新获取</SpButton>
                   </div>
                 )}

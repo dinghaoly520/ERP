@@ -486,7 +486,7 @@ function BondReturnBlock({ projectId, busy, act }: {
         failed ? (
           <div className="flex items-center gap-2 text-[0.7rem] text-red-600">
             保证金清单加载失败
-            <button onClick={load} className="neu-btn-xs !text-[10px]">重试</button>
+            <button onClick={load} disabled={busy} className="neu-btn-xs !text-[10px]">重试</button>
           </div>
         ) : (
           <p className="text-[0.68rem] text-[var(--muted-foreground)]">加载中…</p>
