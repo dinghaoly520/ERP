@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
+import { Prisma } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -24,6 +25,8 @@ describe('Bid Lifecycle (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let adminCookie: string[];
+  let bidHostCookie: string[];
+  let chenHostId: string;
   let supplierCookie: string[];
   let leaderCookie: string[];
 
@@ -40,16 +43,24 @@ describe('Bid Lifecycle (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
+    // 双会话（2026-08-14 auth port-roles 后）：
+    //  - adminCookie：Swhi-CGZX-admin @ web（admin ∈ PORT_ALLOWED_ROLES.web，豁免公司隔离，可打 WEB_EXCLUSIVE 公告）
+    //  - bidHostCookie：陈源远 @ bid（bid_host 被 L3 拒于 web 门户，改开评标端登录，请求须带 X-Portal:bid）
+    adminCookie = await loginAs(app, 'Swhi-CGZX-admin', 'Swhi-CGZX-admin@2026', 'web');
+    bidHostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'bid');
+    expect(adminCookie.join()).toContain('token_web=');
+    expect(bidHostCookie.join()).toContain('token_bid=');
     supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
     leaderCookie = await loginAs(app, 'Swhi-CGZX-01', 'Swhi-CGZX-01@2026', 'web');
+    chenHostId = (await prisma.user.findFirst({ where: { username: '陈源远', role: 'bid_host', isActive: true } }))!.id;
   });
 
   /** 开标前置包：指派主持人 + N 家终局态供应商 + M 名普通专家（未确认、非正选）。
    *  满足 /open 阶段推进闸门（HOST_NOT_ASSIGNED / 开标准备 checklist / DEADLINE_NOT_PASSED 由用例自管）。
    *  专家默认不设 invitationStatus/expertRole——用例若要过 startEvaluation 委员会闸门需自行建 confirmed 正选。 */
   async function makeOpeningReady(projectId: string, opts?: { suppliers?: number; experts?: number }) {
-    const host = await prisma.user.findFirst({ where: { role: 'bid_host', isActive: true } });
+    // 种子有第二个 bid_host「开标主持人」——必须按用户名锁定陈源远，与 bidHostCookie 会话同一人
+    const host = await prisma.user.findFirst({ where: { username: '陈源远', role: 'bid_host', isActive: true } });
     if (host) await prisma.bidProject.update({ where: { id: projectId }, data: { assignedHostUserId: host.id } });
     const supplierN = opts?.suppliers ?? 3;
     for (let i = 0; i < supplierN; i++) {
@@ -61,6 +72,16 @@ describe('Bid Lifecycle (e2e)', () => {
     for (const u of expertUsers) {
       await prisma.bidExpert.create({ data: { projectId, userId: u.id, expertName: u.username, major: '综合' } });
     }
+  }
+
+  /** 公司隔离（2026-08-20）：web 端 leader 仅可操作本公司项目（BidCompanyScopeGuard：
+   *  proj.companyId 须 === leader.companyId，companyId=null 的残留项目也 403）。
+   *  选项目必须按登录 leader 的公司收窄，否则无序 findFirst 可能命中残留/跨公司行。 */
+  async function findLeaderScopedProject(extra?: Prisma.BidProjectWhereInput) {
+    const leader = await prisma.user.findFirst({ where: { username: 'Swhi-CGZX-01', role: 'leader', isActive: true } });
+    return prisma.bidProject.findFirst({
+      where: { stage: { in: ['DOWNLOAD', 'SUBMIT'] }, companyId: leader?.companyId ?? undefined, ...extra },
+    });
   }
 
   afterAll(async () => {
@@ -89,7 +110,8 @@ describe('Bid Lifecycle (e2e)', () => {
         name: `E2E测试项目-${Date.now()}`,
         procurementMethod: '公开招标',
         openTime: '2099-12-31T09:00:00Z',
-        deadline: '2099-12-30T17:00:00Z',
+        // 截标↔开标 24h 关系校验（P0-2，align 模式）：deadline 必须 = openTime − 24h（±60s）
+        deadline: '2099-12-30T09:00:00Z',
       })
       .expect(201);
     expect(res.body).toHaveProperty('id');
@@ -145,11 +167,12 @@ describe('Bid Lifecycle (e2e)', () => {
 
   it('棘轮：向前跳步放行（DOWNLOAD → OPENING 裸推，:3005 确定开标路径）', async () => {
     const past = new Date(Date.now() - 3600_000).toISOString();
+    const pastDeadline = new Date(Date.now() - 3600_000 - 24 * 3600_000).toISOString(); // 24h 关系（P0-2 align）
     const res = await request(app.getHttpServer())
       .post('/api/bid/projects')
       .set('Cookie', adminCookie)
       .set('X-Portal', 'web')
-      .send({ name: `棘轮跳步测试-${Date.now()}`, procurementMethod: '公开招标', openTime: past, deadline: past })
+      .send({ name: `棘轮跳步测试-${Date.now()}`, procurementMethod: '公开招标', openTime: past, deadline: pastDeadline })
       .expect(201);
     const tmpId = res.body.id;
     expect(res.body.stage).toBe('DOWNLOAD');
@@ -173,11 +196,12 @@ describe('Bid Lifecycle (e2e)', () => {
 
   it('供应商通过供应商门户提交投标（SUBMIT 阶段，真实路径）', async () => {
     // 真实投标统一走供应商门户（管理员代投路径已移除）
+    // P1-1：旧轨投递闸门要求显式代解密授权（hostDecryptAuthorized === true，办法第30条留痕）
     await request(app.getHttpServer())
       .post(`/api/supplier-portal/bid-submissions/${createdProjectId}/submit`)
       .set('Cookie', supplierCookie)
       .set('X-Portal', 'supplier')
-      .send({ bidPrice: '100' })
+      .send({ bidPrice: '100', hostDecryptAuthorized: true })
       .expect(201);
 
     // 投标后管理端可见该供应商，取 BidSupplier.id 供后续解密
@@ -211,13 +235,20 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(201);
   });
 
-  it('空 body 解密供应商不应触发校验错误（开标记录字段可选，201）', () => {
+  it('空 body 解密供应商不应触发校验错误（开标记录字段可选，201）', async () => {
+    // A-109a 解密 quorum 闸门：须 ≥3 家「已签到且已递交」（公开招标）方可进入解密；
+    // 真实路由为 :3007 开标大厅签到，e2e 用 prisma 直接回填签到态
+    await prisma.bidSupplier.updateMany({
+      where: { projectId: createdProjectId, submitStatus: '已提交', checkInAt: null },
+      data: { checkInAt: new Date() },
+    });
     // 开标记录字段（amount/period/qualityTarget/bondStatus）为可选：
     // 不提供时仅推进解密状态，不创建开标记录，且不得返回 400 校验错误
+    // /decrypt 属 BID_EXCLUSIVE（:3007 现场动作）→ 主持会话；项目已经 makeOpeningReady 指派陈源远
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/decrypt/${createdSupplierId}`)
-      .set('Cookie', adminCookie)
-      .set('X-Portal', 'web')
+      .set('Cookie', bidHostCookie)
+      .set('X-Portal', 'bid')
       .send({})
       .expect(201);
   });
@@ -257,10 +288,11 @@ describe('Bid Lifecycle (e2e)', () => {
       data: scoringItems.map((it) => ({ scoreItemId: it.id, name: `${it.name}-要点1`, fullScore: Number(it.maxScore), seq: 1 })),
     });
 
+    // /start-evaluation 属 BID_EXCLUSIVE → 主持会话（项目已经 makeOpeningReady 指派）
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/start-evaluation`)
-      .set('Cookie', adminCookie)
-      .set('X-Portal', 'web')
+      .set('Cookie', bidHostCookie)
+      .set('X-Portal', 'bid')
       .expect(201);
   });
 
@@ -276,11 +308,12 @@ describe('Bid Lifecycle (e2e)', () => {
   it('已开标项目空 body 重复开标幂等成功（201）', async () => {
     // 棘轮语义：OPENING 后空 body 重复调用 /open 为同阶段幂等（不建会话），仍 201。
     const past = new Date(Date.now() - 3600_000).toISOString();
+    const pastDeadline = new Date(Date.now() - 3600_000 - 24 * 3600_000).toISOString(); // 24h 关系（P0-2 align）
     const res = await request(app.getHttpServer())
       .post('/api/bid/projects')
       .set('Cookie', adminCookie)
       .set('X-Portal', 'web')
-      .send({ name: `幂等开标测试-${Date.now()}`, procurementMethod: '公开招标', openTime: past, deadline: past })
+      .send({ name: `幂等开标测试-${Date.now()}`, procurementMethod: '公开招标', openTime: past, deadline: pastDeadline })
       .expect(201);
     const tmpId = res.body.id;
     const tmpCode = res.body.projectCode;
@@ -352,7 +385,8 @@ describe('Bid Lifecycle (e2e)', () => {
 
   it('startEvaluation 残缺标准(无得分点)→ 409 SCORE_ITEM_HAS_NO_POINTS', async () => {
     const proj = await prisma.bidProject.create({
-      data: { projectCode: `BID-T3B-${Date.now()}`, name: 'B1残缺项目', stage: 'OPENING', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+      // 不经 makeOpeningReady → 直建时即回填 assignedHostUserId（bid 会话的公司隔离放行依据）
+      data: { projectCode: `BID-T3B-${Date.now()}`, name: 'B1残缺项目', stage: 'OPENING', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z'), assignedHostUserId: chenHostId },
     });
     // 满足委员会合规(#15: 3 名 confirmed 正选) + G4/H4(≥3 家解密成功已确认供应商),
     // 使闸门推进到 G9(评分标准完整性)——本用例断言 G9 的 409
@@ -377,10 +411,11 @@ describe('Bid Lifecycle (e2e)', () => {
         { projectId: proj.id, category: 'PRICE', name: '价格', maxScore: 30 },
       ],
     });
+    // /start-evaluation 属 BID_EXCLUSIVE → 主持会话（项目直建时已指派陈源远）
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${proj.id}/start-evaluation`)
-      .set('Cookie', adminCookie)
-      .set('X-Portal', 'web')
+      .set('Cookie', bidHostCookie)
+      .set('X-Portal', 'bid')
       .expect(409)
       .expect((res) => expect(res.body).toMatchObject({ code: 'SCORE_ITEM_HAS_NO_POINTS' }));
     await prisma.bidExpert.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
@@ -389,7 +424,7 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
   });
 
-  it('评分标准 publish 闭环:残缺→409;完整→成功;此后写→409;重复→409', async () => {
+  it('评分标准 publish 闭环:残缺→409;完整→成功;发布后改写→201 且作废发布;重发→成功;再重复→409', async () => {
     const proj = await prisma.bidProject.create({
       data: { projectCode: `BID-T5-${Date.now()}`, name: 'B2发布项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
     });
@@ -416,15 +451,23 @@ describe('Bid Lifecycle (e2e)', () => {
       .set('Cookie', adminCookie).set('X-Portal', 'web')
       .expect(201);
 
-    // 此后写 → 409 SCORE_ITEMS_LOCKED
+    // 新语义：发布不再锁定——开标前（DOWNLOAD/SUBMIT）仍可写 → 201，
+    // 任何修改作废已发布状态（scoreStandardPublishedAt 置空），需重新发布
     await request(app.getHttpServer())
-      .post(`/api/bid/projects/${proj.id}/score-items`)
+      .patch(`/api/bid/projects/${proj.id}/score-items/${items[0].id}`)
       .set('Cookie', adminCookie).set('X-Portal', 'web')
-      .send({ category: 'TECHNICAL', name: '新项', maxScore: 5 })
-      .expect(409)
-      .expect((res) => expect(res.body).toMatchObject({ code: 'SCORE_ITEMS_LOCKED' }));
+      .send({ name: `${items[0].name}（修订）` })
+      .expect(200);
+    const afterEdit = await prisma.bidProject.findUnique({ where: { id: proj.id }, select: { scoreStandardPublishedAt: true } });
+    expect(afterEdit?.scoreStandardPublishedAt).toBeNull();
 
-    // 重复 publish → 409
+    // 作废后重新发布 → 成功
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/score-items/publish`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(201);
+
+    // 未作废时重复 publish → 409
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${proj.id}/score-items/publish`)
       .set('Cookie', adminCookie).set('X-Portal', 'web')
@@ -531,7 +574,8 @@ describe('Bid Lifecycle (e2e)', () => {
           name: `移交测试项目-${Date.now()}`,
           procurementMethod: '公开招标',
           budget: 1000000,
-          deadline: new Date(Date.now() - 86400_000).toISOString(),
+          // 24h 关系（P0-2 align）：deadline = openTime − 24h，两者均在过去（/open 要求截标已过）
+          deadline: new Date(Date.now() - 43200_000 - 86400_000).toISOString(),
           openTime: new Date(Date.now() - 43200_000).toISOString(),
         });
       projectId = createRes.body.id;
@@ -554,20 +598,22 @@ describe('Bid Lifecycle (e2e)', () => {
     });
 
     it('未组建会话 → 409 SESSION_NOT_FOUND', async () => {
+      // /complete-opening 属 BID_EXCLUSIVE → 主持会话（项目已经 makeOpeningReady 指派）
       const res = await request(app.getHttpServer())
         .post(`/api/bid/projects/${projectId}/complete-opening`)
-        .set('Cookie', adminCookie)
-        .set('X-Portal', 'web')
+        .set('Cookie', bidHostCookie)
+        .set('X-Portal', 'bid')
         .send({});
       expect(res.status).toBe(409);
       expect(res.body.code).toBe('SESSION_NOT_FOUND');
     });
 
     it('组建会话后移交成功 → 文件包可下载、stage 保持 OPENING、幂等返回同一 asset', async () => {
+      // 组建开标会话 + 移交均为 :3007 现场动作 → 主持会话
       await request(app.getHttpServer())
         .post(`/api/bid/projects/${projectId}/open`)
-        .set('Cookie', adminCookie)
-        .set('X-Portal', 'web')
+        .set('Cookie', bidHostCookie)
+        .set('X-Portal', 'bid')
         .send({
           host: '测试主持', supervisor: '测试监督',
           decryptWindowStart: new Date(Date.now() - 3600_000).toISOString(),
@@ -576,8 +622,8 @@ describe('Bid Lifecycle (e2e)', () => {
 
       const r1 = await request(app.getHttpServer())
         .post(`/api/bid/projects/${projectId}/complete-opening`)
-        .set('Cookie', adminCookie)
-        .set('X-Portal', 'web')
+        .set('Cookie', bidHostCookie)
+        .set('X-Portal', 'bid')
         .send({});
       expect(r1.status).toBe(201);
       expect(r1.body.status).toBe('开标完成');
@@ -591,8 +637,8 @@ describe('Bid Lifecycle (e2e)', () => {
       // 文件包可下载且内容齐全
       const dl = await request(app.getHttpServer())
         .get(`/api/upload/files/${assetId}`)
-        .set('Cookie', adminCookie)
-        .set('X-Portal', 'web')
+        .set('Cookie', bidHostCookie)
+        .set('X-Portal', 'bid')
         .buffer(true).parse((res, cb) => {
           const chunks: Buffer[] = [];
           res.on('data', (c: Buffer) => chunks.push(c));
@@ -607,18 +653,19 @@ describe('Bid Lifecycle (e2e)', () => {
       // 幂等
       const r2 = await request(app.getHttpServer())
         .post(`/api/bid/projects/${projectId}/complete-opening`)
-        .set('Cookie', adminCookie)
-        .set('X-Portal', 'web')
+        .set('Cookie', bidHostCookie)
+        .set('X-Portal', 'bid')
         .send({});
       expect(r2.status).toBe(201);
       expect(r2.body.handoverAssetId).toBe(assetId);
     });
 
     it('不移交也能启动评标的前提守卫仍生效（无专家 → NO_EXPERTS_ASSIGNED，证明非门控）', async () => {
+      // /start-evaluation 属 BID_EXCLUSIVE → 主持会话
       const res = await request(app.getHttpServer())
         .post(`/api/bid/projects/${projectId}/start-evaluation`)
-        .set('Cookie', adminCookie)
-        .set('X-Portal', 'web')
+        .set('Cookie', bidHostCookie)
+        .set('X-Portal', 'bid')
         .send({});
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('NO_EXPERTS_ASSIGNED'); // 报的是专家缺失而非"未移交"——交回非闸门
@@ -717,18 +764,17 @@ describe('Bid Lifecycle (e2e)', () => {
   });
 
   it('GET /bid/hosts — bid_host 角色被 403 拒绝（非管理端角色）', async () => {
-    // adminCookie = 陈源远 web 会话 = bid_host role
+    // bidHostCookie = 陈源远 bid 会话 = bid_host 角色；门户匹配（bid_host ∈ bid 允许集），
+    // 403 出自方法级 @Roles('leader','staff','admin') 排除 bid_host（语义比门户拒绝更精确）
     await request(app.getHttpServer())
       .get('/api/bid/hosts')
-      .set('Cookie', adminCookie)
-      .set('X-Portal', 'web')
+      .set('Cookie', bidHostCookie)
+      .set('X-Portal', 'bid')
       .expect(403);
   });
 
   it('PATCH /bid/projects/:id/assigned-host — leader 可指派并返回 assignedHostUser', async () => {
-    const project = await prisma.bidProject.findFirst({
-      where: { stage: { in: ['DOWNLOAD', 'SUBMIT'] } },
-    });
+    const project = await findLeaderScopedProject();
     if (!project) return; // 种子无合适项目则跳过
     const originalAssign = project.assignedHostUserId;
 
@@ -754,8 +800,9 @@ describe('Bid Lifecycle (e2e)', () => {
   });
 
   it('PATCH 非法 userId（supplier）→ 400 INVALID_HOST', async () => {
-    // 避开已组建开标会话的项目（如 EVALUATING 种子项目）——改派被 OPENING_SESSION_LOCKED 锁（409）
-    const project = await prisma.bidProject.findFirst({ where: { stage: { in: ['DOWNLOAD', 'SUBMIT'] } } });
+    // 避开已组建开标会话的项目（如 EVALUATING 种子项目）——改派被 OPENING_SESSION_LOCKED 锁（409）；
+    // 按登录 leader 的公司收窄选取——残留的 companyId=null 项目会被公司隔离守卫 403
+    const project = await findLeaderScopedProject();
     if (!project) return;
     const supplier = await prisma.user.findFirst({ where: { role: 'supplier' } });
     if (!supplier) return;
@@ -769,9 +816,7 @@ describe('Bid Lifecycle (e2e)', () => {
   });
 
   it('PATCH userId=null → 清除指派（200）', async () => {
-    const project = await prisma.bidProject.findFirst({
-      where: { assignedHostUserId: { not: null }, stage: { in: ['DOWNLOAD', 'SUBMIT'] } },
-    });
+    const project = await findLeaderScopedProject({ assignedHostUserId: { not: null } });
     if (!project) return;
     const originalAssign = project.assignedHostUserId;
 
