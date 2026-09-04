@@ -16,6 +16,7 @@ import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
+import { ERR_PUBLIC_KEY_INVALID_SUPPLIER } from '../common/error-codes';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { canonicalEnvelopeHash, sha256Hex } from '@water-erp/ukey';
 import type { DualEnvelope, EnvelopeRole, SealedFields } from '@water-erp/ukey';
@@ -640,7 +641,7 @@ export class SupplierPortalService {
     }
     // 公钥格式校验：复用注入的 SignatureService.isValidPublicKey（与验签同一口径，杜绝正则复制漂移）
     if (!this.signatureService.isValidPublicKey(publicKey)) {
-      throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: 'INVALID_PUBLIC_KEY' });
+      throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: ERR_PUBLIC_KEY_INVALID_SUPPLIER });
     }
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },

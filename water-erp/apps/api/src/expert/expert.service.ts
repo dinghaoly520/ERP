@@ -25,6 +25,7 @@ import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { SignatureService } from '../common/crypto/signature.service';
+import { ERR_PUBLIC_KEY_INVALID } from '../common/error-codes';
 import { lockAndReassertStage } from '../bid/bid-state';
 import { closeSignLoopIfDone } from '../bid/sign-loop.util';
 import { buildExpertEsignCanonical } from './expert-esign.util';
@@ -2445,7 +2446,7 @@ export class ExpertService {
       throw new BadRequestException({ error: '请填写完整证书信息', code: 'MISSING_FIELDS' });
     }
     if (!this.signatureService.isValidPublicKey(publicKey)) {
-      throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: 'SM2_PUBLIC_KEY_INVALID' });
+      throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: ERR_PUBLIC_KEY_INVALID });
     }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

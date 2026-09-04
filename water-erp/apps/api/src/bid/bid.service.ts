@@ -5877,7 +5877,7 @@ export class BidService {
     }
     await this.prisma.bidProject.update({ where: { id: projectId }, data: { reportNotes: notes as any } });
     await this.prisma.bidSupervisionLog.create({ data: { projectId, time: new Date(), role: '系统', target: p.name,
-      action: '评标报告附注编辑', result: notes.map(n => `第${n.section}节 ${n.content.length} 字`).join('；') || '清空附注', riskFlag: '无', operatorId: actorId ?? null } }).catch(() => {});
+      action: '评标报告附注编辑', result: notes.map(n => `第${n.section}节 ${n.content.length} 字`).join('；') || '清空附注', riskFlag: '无', operatorId: actorId ?? null } }).catch(e => this.logger.warn('监督日志写入失败(action=评标报告附注编辑): ' + String(e)));
     return { success: true };
   }
 
