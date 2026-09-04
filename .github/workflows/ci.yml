@@ -70,7 +70,7 @@ jobs:
   #   e2e 双轨全链路              → 契约漂移（改注册/公告/时间不同步脚本即红）
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40   # E1：jest e2e 13 套件接入后 +5~10min，留缓冲
     defaults:
       run:
         working-directory: water-erp
@@ -196,6 +196,11 @@ jobs:
             sleep 2
           done
           echo "api failed to start"; tail -30 /tmp/api-e2e.log; exit 1
+
+      # E1（2026-09-04）：jest e2e 13 套件接入回归闸——须跑在刚 seed 完的种子基线上
+      #（其后的 dual/legacy 脚本会写库/整库恢复）；maxWorkers=1 串行，testTimeout 见 jest-e2e.json
+      - name: Jest e2e suites (13 files serial, maxWorkers=1)
+        run: pnpm --filter api test:e2e
 
       - name: Dual-envelope crypto symmetry selfcheck
         working-directory: water-erp/apps/supplier-portal-next
