@@ -86,15 +86,19 @@ describe('Auth (e2e)', () => {
       .expect(401);
   });
 
-  it('/api/auth/login (POST) — 正确凭证应返回 200 + access_token', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .set('X-Portal', 'web')
-      .send({ username: '陈源远', password: '陈源远@2026' })
-      .expect(200);
-
-    expect(res.headers['set-cookie']).toBeDefined();
+  it('/api/auth/login (POST) — 正确凭证应返回 200 + access_token（bid_host 走 bid 门户）', async () => {
+    const res = await request(app.getHttpServer()).post('/api/auth/login')
+      .set('X-Portal', 'bid').send({ username: '陈源远', password: '陈源远@2026' }).expect(200);
+    const setCookie = Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'].join(';') : String(res.headers['set-cookie']);
+    expect(setCookie).toContain('token_bid=');
     expect(res.body).toHaveProperty('access_token');
+  });
+
+  it('/api/auth/login (POST) — bid_host 登录 web 门户应 403 PORT_ROLE_MISMATCH（port-roles 根因回归负例）', async () => {
+    // 2026-08-14 auth port-roles 重构根因：bid_host ∉ PORT_ALLOWED_ROLES.web → L3 拒收、无 Set-Cookie
+    const res = await request(app.getHttpServer()).post('/api/auth/login')
+      .set('X-Portal', 'web').send({ username: '陈源远', password: '陈源远@2026' }).expect(403);
+    expect(res.body).toMatchObject({ code: 'PORT_ROLE_MISMATCH' });
   });
 
   it('/api/auth/login (POST) — 禁用用户应返回 401', () => {
