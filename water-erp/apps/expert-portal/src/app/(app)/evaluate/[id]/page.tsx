@@ -837,6 +837,8 @@ export default function ExpertEvaluatePage() {
     else if (code === 'SIGN_PACKET_NOT_GENERATED') { toast.error('等待主持人生成签字包'); setEsignState('wait-packet'); }
     else if (code === 'NOT_SIGNABLE') { toast.warning('当前状态不可签署（可能已登记纸质）'); setEsignState('done-or-registered'); }
     else if (code === 'EXPERT_CERT_NOT_ACTIVE') { toast.error('尚未绑定有效数字证书，请先创建绑定'); setEsignState('need-cert'); }
+    else if (code === 'SM2_PUBLIC_KEY_INVALID') toast.error('证书公钥格式无效，请重新创建证书');
+    else if (code === 'CERT_SN_EXISTS') toast.error('该证书序列号已被绑定，请勿重复绑定（或先在 U盾管理解绑）');
     else toast.error(e?.message || '签署失败');
   };
 
@@ -864,6 +866,10 @@ export default function ExpertEvaluatePage() {
     if (!expertName) throw new Error('无法确定专家姓名，请刷新页面后重试');
     const cert = await opened.adapter.createCertificate(expertName);
     await bindExpertCert({ certSn: cert.certSn, certDn: cert.certDn, publicKey: cert.publicKey, alg: 'SM2' });
+    // B2 态固化：证书创建+绑定成功即 ready——此后签名/提交失败不得回落 need-cert，
+    // 重试走 ready 态「电子签署」直路复用已绑证书（否则重试再 createCertificate+rebind，
+    // 已绑 ACTIVE 证书被 REVOKED 的换证 churn）
+    setEsignState('ready');
     toast.success('签名证书已创建并绑定');
     await doEsignWith(opened.adapter, cert.certSn);
   };
