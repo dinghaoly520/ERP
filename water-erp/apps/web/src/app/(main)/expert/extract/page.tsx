@@ -174,7 +174,7 @@ export function ExpertExtractPage({
   const [step5LeaderId, setStep5LeaderId] = useState<string | null>(null);
   const [selectingLeader, setSelectingLeader] = useState(false);
   const [aiSelectingLeader, setAiSelectingLeader] = useState(false);
-  // A-132 评委分工草稿（分组/职责）——「不设置」= 本次不提交该项（非清空；后端无清除通道）
+  // A-132 评委分工草稿（分组/职责）——「不设置」= 本次不提交该项（保留现值）；「清除」(__CLEAR__) = 提交 null 置空
   const [committeeDraft, setCommitteeDraft] = useState<Record<string, { reviewGroup: string; dutyRole: string }>>({});
   const [savingCommittee, setSavingCommittee] = useState(false);
   // 预排除专家（随机抽取 / 综合择优模式下可用）
@@ -1200,15 +1200,15 @@ export function ExpertExtractPage({
   };
 
   /** A-132 保存评委分工（分组/职责）——partial 语义：只提交至少一维非空的行；
-   *  空维度不提交（后端无清除通道，「不设置」≠ 清空），保存后回读刷新 */
+   *  空维度不含键（=不动），「清除」(__CLEAR__) 映射 null 显式置空，保存后回读刷新 */
   const saveCommittee = async () => {
     if (!pid) return;
     const assignments = Object.entries(committeeDraft)
       .filter(([, d]) => d.reviewGroup || d.dutyRole)
       .map(([userId, d]) => ({
         userId,
-        ...(d.reviewGroup ? { reviewGroup: d.reviewGroup } : {}),
-        ...(d.dutyRole ? { dutyRole: d.dutyRole } : {}),
+        ...(d.reviewGroup ? { reviewGroup: d.reviewGroup === '__CLEAR__' ? null : d.reviewGroup } : {}),
+        ...(d.dutyRole ? { dutyRole: d.dutyRole === '__CLEAR__' ? null : d.dutyRole } : {}),
       }));
     if (assignments.length === 0) {
       toast.error('请先为至少一位专家设置分组或职责');
@@ -2730,15 +2730,15 @@ export function ExpertExtractPage({
                       onClick={saveCommittee}
                       disabled={savingCommittee || !Object.values(committeeDraft).some(d => d.reviewGroup || d.dutyRole)}
                       className="neu-btn-xs is-info"
-                      title="保存评委分组/职责分工；「不设置」＝本次不提交该项、不清除已保存分工（后端无清除通道）"
+                      title="保存评委分组/职责分工；「不设置」＝本次不提交该项（保留现值）；「清除」＝置空已保存分工"
                     >
                       {savingCommittee ? <><RefreshCw size={12} className="animate-spin inline mr-0.5" />保存中…</> : <><Check size={12} className="inline mr-0.5" />保存分工</>}
                     </button>
                   </div>
                 </div>
-                {/* A-132 分工语义提示：空选项是「不提交」而非「清空」 */}
+                {/* A-132 分工语义提示：「不设置」= 不提交（保留现值），「清除」= 显式置空 */}
                 <p className="mb-2 text-[10px] text-[var(--muted-foreground)]">
-                  分组/职责「不设置」＝ 本次不提交该项，不会清除已保存分工（设置后暂不支持清除）；保存后写入评标报告委员会名单。
+                  分组/职责「不设置」＝ 本次不提交该项（保留现值）；「清除」＝ 置空已保存分工；保存后写入评标报告委员会名单。
                 </p>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
@@ -2766,29 +2766,31 @@ export function ExpertExtractPage({
                           <td className="text-center">{isOriginal ? <StatusBadge tone="green">正选</StatusBadge> : <StatusBadge tone="blue">第{roundNo || '?'}次补选</StatusBadge>}</td>
                           <td className="text-center">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
                           <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
-                          {/* A-132：评审分组（「不设置」= 本次不提交该项，非清空） */}
+                          {/* A-132：评审分组（「不设置」= 本次不提交该项；「清除」= 置空已保存分组） */}
                           <td className="text-center">
                             <select
                               value={committeeDraft[e.userId]?.reviewGroup ?? ''}
                               onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: ev.target.value, dutyRole: prev[e.userId]?.dutyRole ?? '' } }))}
                               className="neu-input !h-[30px] !w-[96px] !px-2 text-xs"
-                              title="评审分组（技术组/商务组/综合组）；「不设置」＝ 本次不提交该项、不清除已保存分组"
+                              title="评审分组（技术组/商务组/综合组）；「不设置」＝ 本次不提交该项（保留现值）；「清除」＝ 置空已保存分组"
                             >
                               <option value="">不设置</option>
+                              <option value="__CLEAR__">清除</option>
                               <option value="技术组">技术组</option>
                               <option value="商务组">商务组</option>
                               <option value="综合组">综合组</option>
                             </select>
                           </td>
-                          {/* A-132：组内职责（组长另由 isLead 表达，不在此列） */}
+                          {/* A-132：组内职责（组长另由 isLead 表达，不在此列；「清除」= 置空已保存职责） */}
                           <td className="text-center">
                             <select
                               value={committeeDraft[e.userId]?.dutyRole ?? ''}
                               onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: prev[e.userId]?.reviewGroup ?? '', dutyRole: ev.target.value } }))}
                               className="neu-input !h-[30px] !w-[80px] !px-2 text-xs"
-                              title="组内职责（主审/复核/成员）；「不设置」＝ 本次不提交该项、不清除已保存职责"
+                              title="组内职责（主审/复核/成员）；「不设置」＝ 本次不提交该项（保留现值）；「清除」＝ 置空已保存职责"
                             >
                               <option value="">不设置</option>
+                              <option value="__CLEAR__">清除</option>
                               <option value="主审">主审</option>
                               <option value="复核">复核</option>
                               <option value="成员">成员</option>

@@ -362,8 +362,8 @@ export function getProjectInvitations(projectId: string) {
   }>(`/expert-admin/invitations/${projectId}`);
 }
 
-/** A-132：评委职责分工（partial 语义——空维度不提交、不清除已有值；后端无清除通道） */
-export function setCommitteeAssignment(projectId: string, data: { assignments: { userId: string; reviewGroup?: string; dutyRole?: string }[] }) {
+/** A-132：评委职责分工（partial 语义——缺键=不动，null=显式清除，空串由调用方转为缺键） */
+export function setCommitteeAssignment(projectId: string, data: { assignments: { userId: string; reviewGroup?: string | null; dutyRole?: string | null }[] }) {
   return api.put<{ success: boolean }>(`/expert-admin/projects/${projectId}/committee/assignment`, data);
 }
 

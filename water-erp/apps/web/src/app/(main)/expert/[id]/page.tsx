@@ -248,8 +248,8 @@ export default function ExpertDetailPage() {
     if (editForm.regionCode.trim() && !/^\d{6}$/.test(editForm.regionCode.trim())) { toast.error('区域代码格式不正确（六位数字，如 510000）'); return; }
     setEditSaving(true);
     try {
-      // A-129 档案维度：空值不传（undefined 不落入更新集；expertLevel 空串会被后端 IsIn 拒收）
-      await updateExpertProfile(expertId, { ...editForm, regionCode: editForm.regionCode.trim() || undefined, expertLevel: editForm.expertLevel || undefined });
+      // A-129 档案维度：空值提交 null=显式清除（P2-quick 后端 null 语义），清空保存即清除
+      await updateExpertProfile(expertId, { ...editForm, regionCode: editForm.regionCode.trim() || null, expertLevel: editForm.expertLevel || null });
       toast.success('专家资料已保存');
       setShowEditModal(false);
       reload();
@@ -849,11 +849,11 @@ export default function ExpertDetailPage() {
                 </select>
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码</span>
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
                 <input value={editForm.regionCode} onChange={e => setEditForm(prev => ({ ...prev, regionCode: e.target.value }))} maxLength={6} placeholder="六位行政区划代码如 510000" className="workbench-input" />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级</span>
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
                 <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（A-129，区别于履职评价等级），抽取配额可按此过滤">
                   <option value="">未设置</option>
                   {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
