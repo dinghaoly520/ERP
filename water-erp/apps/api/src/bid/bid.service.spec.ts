@@ -7251,7 +7251,11 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       bidEvaluationResult: { findFirst: jest.fn() },
-      awardLetterDelivery: { upsert: jest.fn() },
+      // 并行会话新增中标通知书文件闸（letterAssetId 必填+上传人校验+三绑定防复用）所需 mock
+      awardLetterDelivery: { upsert: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'd1' }) },
+      fileAsset: { findFirst: jest.fn().mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 }) },
+      contract: { findFirst: jest.fn().mockResolvedValue(null) },
+      contractFulfillment: { findFirst: jest.fn().mockResolvedValue(null) },
       supplier: { findUnique: jest.fn() },
       projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
       announcement: { findFirst: jest.fn() },
@@ -7375,7 +7379,7 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
     prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }, { supplierName: '丙公司' }]);
 
-    await service.deliverAwardLetter('p1', { winnerName: '中标公司' });
+    await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
 
     // sendToRole 两参签名（同 scheduler 口径）：('staff', { type:'SYSTEM', title, content })
     expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'SYSTEM' }));
@@ -7401,7 +7405,7 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     notification.sendToRole.mockClear();
     prisma.systemConfig.upsert.mockClear();
     prisma.systemConfig.findUnique.mockResolvedValue({ key: 'bond_return_reminder_award:p1' });
-    await service.deliverAwardLetter('p1', { winnerName: '中标公司' });
+    await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
     expect(notification.sendToRole).not.toHaveBeenCalled();
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
   });
@@ -7414,7 +7418,7 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
     prisma.bidSupplier.findMany.mockResolvedValue([]); // pending=0
 
-    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司' })).resolves.toEqual({ id: 'd1' });
+    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1')).resolves.toEqual({ id: 'd1' });
 
     expect(notification.sendToRole).not.toHaveBeenCalled();
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
@@ -7430,7 +7434,7 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     notification.sendToRole.mockRejectedValue(new Error('通知服务不可用'));
     const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
 
-    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司' })).resolves.toEqual({ id: 'd1' });
+    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1')).resolves.toEqual({ id: 'd1' });
 
     // 失败不占坑——marker 未写，本次发送失败后日调度 bond_return_reminded:* 通道仍可补发
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
