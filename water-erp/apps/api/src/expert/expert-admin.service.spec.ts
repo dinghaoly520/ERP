@@ -236,6 +236,19 @@ describe('ExpertAdminService', () => {
         }),
       );
     });
+    it('A1：regionCode 传 null → update data 含 regionCode: null（清除）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      await service.updateProfile('u1', { regionCode: null } as any);
+      expect(prisma.expertProfile.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        update: expect.objectContaining({ regionCode: null }),
+      }));
+    });
+    it('A1：regionCode 缺省（undefined）→ data 不含键（不动）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      await service.updateProfile('u1', { title: '高工' } as any);
+      const update = prisma.expertProfile.upsert.mock.calls[0][0].update;
+      expect(update).not.toHaveProperty('regionCode');
+    });
   });
 
   describe('previewExtraction（AI 规则降级回归）', () => {
@@ -518,6 +531,18 @@ describe('ExpertAdminService', () => {
         where: { projectId_userId: { projectId: 'p1', userId: 'u1' } },
         data: { reviewGroup: '综合组', dutyRole: undefined },
       }));
+    });
+    it('A2：分工传 null → update data 含 reviewGroup: null；白名单守卫放行 null', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', expertRole: '正选' }]);
+      await service.setCommitteeAssignment('p1', { assignments: [{ userId: 'u1', reviewGroup: null }] } as any);
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ reviewGroup: null }),
+      }));
+    });
+    it('A2：分工非法值仍 400（null 不在拒绝面）', async () => {
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', expertRole: '正选' }]);
+      await expect(service.setCommitteeAssignment('p1', { assignments: [{ userId: 'u1', reviewGroup: 'A组' }] } as any))
+        .rejects.toMatchObject({ response: { code: 'INVALID_COMMITTEE_VALUE' } });
     });
   });
 

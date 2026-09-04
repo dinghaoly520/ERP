@@ -11,6 +11,8 @@ import {
   IsDateString,
   ArrayMaxSize,
   MaxLength,
+  Matches,
+  ValidateIf,
 } from 'class-validator';
 
 /**
@@ -33,12 +35,17 @@ export class UpdateExpertProfileDto {
   @IsOptional() @IsIn(['可用', '占用', '停用']) availability?: '可用' | '占用' | '停用';
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() notes?: string;
-  /** 行政区域代码（GB/T 2260 六位，A-129 抽取配额过滤维度） */
-  @IsOptional() @IsString() @MaxLength(6)
-  regionCode?: string;
-  /** 专家库档案等级 A-E（A-129，区别于履职评价等级） */
-  @IsOptional() @IsIn(['A', 'B', 'C', 'D', 'E'])
-  expertLevel?: 'A' | 'B' | 'C' | 'D' | 'E';
+  /** A-129 行政区域代码（GB/T 2260 六位，抽取配额过滤维度）；null=清除（显式置空），undefined=不动 */
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null)
+  @IsString() @MaxLength(6) @Matches(/^\d{6}$/, { message: 'regionCode 须为 6 位行政区划代码' })
+  regionCode?: string | null;
+
+  /** A-129 库内等级 A-E（区别于履职评价等级）；null=清除，undefined=不动 */
+  @IsOptional()
+  @ValidateIf((o, v) => v !== null)
+  @IsIn(['A', 'B', 'C', 'D', 'E'])
+  expertLevel?: 'A' | 'B' | 'C' | 'D' | 'E' | null;
 }
 
 /** AI 生成单专家个性化通知内容 */

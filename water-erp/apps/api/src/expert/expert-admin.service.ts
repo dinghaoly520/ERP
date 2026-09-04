@@ -991,8 +991,9 @@ export class ExpertAdminService {
     const REVIEW_GROUPS = ['技术组', '商务组', '综合组'];
     const DUTY_ROLES = ['主审', '复核', '成员'];
     for (const a of dto.assignments) {
-      if (a.reviewGroup !== undefined && !REVIEW_GROUPS.includes(a.reviewGroup)
-        || a.dutyRole !== undefined && !DUTY_ROLES.includes(a.dutyRole)) {
+      // null=显式清除（写 NULL）、undefined=不动——两者都不在白名单拒绝面内
+      if (a.reviewGroup !== null && a.reviewGroup !== undefined && !REVIEW_GROUPS.includes(a.reviewGroup)
+        || a.dutyRole !== null && a.dutyRole !== undefined && !DUTY_ROLES.includes(a.dutyRole)) {
         throw new BadRequestException({ error: `专家 ${a.userId} 分工值非法（reviewGroup/dutyRole 不在白名单）`, code: 'INVALID_COMMITTEE_VALUE' });
       }
     }
@@ -1004,7 +1005,10 @@ export class ExpertAdminService {
     await this.prisma.$transaction(async (tx) => {
       for (const a of dto.assignments) {
         await tx.bidExpert.update({ where: { projectId_userId: { projectId, userId: a.userId } },
-          data: { reviewGroup: a.reviewGroup ?? undefined, dutyRole: a.dutyRole ?? undefined } });
+          data: {
+            reviewGroup: a.reviewGroup === undefined ? undefined : a.reviewGroup,
+            dutyRole: a.dutyRole === undefined ? undefined : a.dutyRole,
+          } });
       }
       await tx.bidSupervisionLog.create({ data: { projectId, time: new Date(), role: '系统', target: '评标委员会',
         action: '评委分工设置', result: dto.assignments.map(a => `${a.userId}:${a.reviewGroup ?? '—'}/${a.dutyRole ?? '—'}`).join('；'), riskFlag: '无', operatorId: actorId ?? undefined } });
