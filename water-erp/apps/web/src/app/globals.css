@@ -11035,3 +11035,21 @@ select.workbench-input {
 .docx-preview-host .docx span {
   white-space: normal;
 }
+
+/* ── wb-alert 告警条（cgzxui · 2026-09-04）─────────────────────────────
+   替换 bid-confirm 区域原 exp-alert 幽灵类（web 端从未定义，此前渲染为无样式裸 div）。
+   配方移植自 expert-portal .exp-alert（color-mix 底 + --tone 变量），
+   补齐 expert 原版缺失的 --warning / --danger 显式变体。 */
+.wb-alert {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--tone, var(--accent-strong));
+  background: color-mix(in oklch, var(--tone, var(--accent)) 8%, transparent);
+}
+.wb-alert--info    { --tone: var(--accent);  color: var(--accent-strong); }
+.wb-alert--success { --tone: var(--success); color: oklch(0.5 0.12 164); }
+.wb-alert--warning { --tone: var(--warning); color: oklch(0.52 0.13 70); }
+.wb-alert--danger  { --tone: var(--danger);  color: var(--danger); }

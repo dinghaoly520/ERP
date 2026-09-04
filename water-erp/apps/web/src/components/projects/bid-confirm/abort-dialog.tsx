@@ -126,7 +126,7 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
 
         {step === 'done' ? (
           <div className="space-y-4">
-            <div className="exp-alert exp-alert--success flex items-center gap-2">
+            <div className="wb-alert wb-alert--success flex items-center gap-2">
               <CheckCircle2 size={16} strokeWidth={2} />
               <span className="text-sm font-semibold">流标完成——已发公告并归档</span>
             </div>
@@ -178,7 +178,7 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
           </div>
         ) : step === 'error' ? (
           <div className="space-y-4">
-            <div className="exp-alert exp-alert--danger flex items-center gap-2">
+            <div className="wb-alert wb-alert--danger flex items-center gap-2">
               <AlertTriangle size={16} strokeWidth={2} />
               <span className="text-sm">{error}</span>
             </div>
@@ -197,7 +197,7 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
               />
             </div>
 
-            <div className="exp-alert exp-alert--info !p-3 text-xs text-[var(--muted-foreground)]">
+            <div className="wb-alert wb-alert--info !p-3 text-xs text-[var(--muted-foreground)]">
               确认后将依次执行：① 项目置为流标 → ② 发布流标公告 → ③ 开标归档（终局封存，不可逆）
             </div>
 

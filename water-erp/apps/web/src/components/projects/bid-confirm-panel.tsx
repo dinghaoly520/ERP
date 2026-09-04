@@ -1265,7 +1265,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
   return (
     <div className="space-y-2">
       {!status.hasPublicity ? (
-        <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
+        <div className="wb-alert wb-alert--info flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
           <span className="text-xs">尚未发布预成交公示</span>
           {winner?.bidPrice && (
@@ -1275,7 +1275,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
           )}
         </div>
       ) : status.canIssueAward ? (
-        <div className="exp-alert exp-alert--success !p-3">
+        <div className="wb-alert wb-alert--success !p-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" />
             <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
@@ -1318,7 +1318,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
           )}
         </div>
       ) : (
-        <div className="exp-alert exp-alert--warning flex items-center gap-2 !p-3">
+        <div className="wb-alert wb-alert--warning flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
           <span className="text-xs font-semibold">公示期未满，剩余约 {status.publicityEnd ? Math.ceil((new Date(status.publicityEnd).getTime() - Date.now()) / 86400000) : 0} 天，暂不可发出中标通知书</span>
         </div>
