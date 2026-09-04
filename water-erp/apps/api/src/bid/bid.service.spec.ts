@@ -7009,7 +7009,7 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     expect(res.rows[2]).toMatchObject({ supplierName: '丙公司', bondReturnReason: '弄虚作假', isWinner: false });
   });
 
-  it('定标联动：未中标未退还 → sendToRole(staff 两参) + marker 幂等（marker 已在则不再提醒）', async () => {
+  it('定标联动：sendToRole(staff 两参) resolve 后才写 marker + marker 幂等（marker 已在则不再提醒）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -7024,6 +7024,10 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     expect(notification.sendToRole.mock.calls[0]).toHaveLength(2);
     expect(prisma.systemConfig.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { key: 'bond_return_reminder_award:p1' } }),
+    );
+    // 调序（P2 C1）：marker 只在 sendToRole resolve 之后写——失败不占坑，日调度 bond_return_reminded:* 兜底可重发
+    expect(notification.sendToRole.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.systemConfig.upsert.mock.invocationCallOrder[0],
     );
     // 终审 Critical#2：pending 查询走共享谓词——三键（已提交+未退还+无不予退还终局）+ winner 排除
     const pendingCall = prisma.bidSupplier.findMany.mock.calls.find((c: any) => c[0]?.where && 'bondReturnedAt' in c[0].where);
@@ -7042,5 +7046,36 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     await service.deliverAwardLetter('p1', { winnerName: '中标公司' });
     expect(notification.sendToRole).not.toHaveBeenCalled();
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it('定标联动：无待退还（pending=0）→ 不 sendToRole 不写 marker（零副作用）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+    prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
+    prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+    prisma.bidSupplier.findMany.mockResolvedValue([]); // pending=0
+
+    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司' })).resolves.toEqual({ id: 'd1' });
+
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it('定标联动：sendToRole 失败 → marker 不写（不占坑）+ warn 留痕，不阻塞通知书', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+    prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
+    prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+    prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }]);
+    notification.sendToRole.mockRejectedValue(new Error('通知服务不可用'));
+    const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
+
+    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司' })).resolves.toEqual({ id: 'd1' });
+
+    // 失败不占坑——marker 未写，本次发送失败后日调度 bond_return_reminded:* 通道仍可补发
+    expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/A-105 定标提醒发送失败 project=p1:/));
   });
 });

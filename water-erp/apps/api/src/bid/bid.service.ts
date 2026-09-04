@@ -5947,7 +5947,8 @@ export class BidService {
 
     // A-105：定标联动——发出中标通知书即提醒经办逐家退还未中标供应商的响应担保
     //（实施条例第57条：合同签订后5日内向中标人和未中标人退还；GB/T 43711 7.5.4.4）。
-    // 幂等：systemConfig marker bond_return_reminder_award:<projectId>（每项目只提醒一次）；失败不阻塞通知书。
+    // 幂等：systemConfig marker bond_return_reminder_award:<projectId>（每项目只提醒一次，仅在发送成功后写入——
+    // 失败不占坑，日调度 bond_return_reminded:* 第二通道兜底）；失败不阻塞通知书。
     try {
       const markerKey = `bond_return_reminder_award:${projectId}`;
       const reminded = await this.prisma.systemConfig.findUnique({ where: { key: markerKey } });
@@ -5959,17 +5960,21 @@ export class BidService {
           select: { supplierName: true },
         });
         if (pending.length > 0) {
-          await this.prisma.systemConfig.upsert({
-            where: { key: markerKey },
-            update: { value: new Date().toISOString() },
-            create: { key: markerKey, value: new Date().toISOString() },
-          });
           const names = pending.slice(0, 5).map(s => s.supplierName).join('、');
-          void this.notificationService.sendToRole('staff', {
-            type: 'SYSTEM',
-            title: '响应担保待逐家退还提醒',
-            content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
-          }).catch(() => {});
+          try {
+            await this.notificationService.sendToRole('staff', {
+              type: 'SYSTEM',
+              title: '响应担保待逐家退还提醒',
+              content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
+            });
+            await this.prisma.systemConfig.upsert({
+              where: { key: markerKey },
+              update: { value: new Date().toISOString() },
+              create: { key: markerKey, value: new Date().toISOString() },
+            });
+          } catch (e) {
+            this.logger.warn(`A-105 定标提醒发送失败 project=${projectId}: ${String(e)}`);
+          }
         }
       }
     } catch { /* 逐家退还提醒失败不阻塞中标通知书 */ }
