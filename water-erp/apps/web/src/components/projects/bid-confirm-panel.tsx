@@ -471,32 +471,14 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
 
   return (
     <div className="fixed inset-0 z-[500] flex flex-col">
-      <div
-        className="absolute inset-0"
-        style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}
-        onClick={onClose}
-      />
-      <div
-        className="relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden rounded-[28px]"
-        style={{
-          background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))',
-          boxShadow:
-            'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)',
-        }}
-      >
+      <div className="absolute inset-0 wb-overlay-backdrop" onClick={onClose} />
+      <div className="relative z-10 mx-5 my-5 wb-overlay-panel">
         {/* ── 标题栏 ── */}
-        <div
-          className="flex shrink-0 items-center justify-between gap-3 px-6 py-4"
-          style={{
-            background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.975 0.006 258 / 0.58) 60%)',
-            borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)',
-          }}
-        >
+        <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4 wb-overlay-panel-header">
           {/* 开标前 24h 提醒横幅 */}
           {!isOpened && isWithin24hOfOpening && (
-            <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 mb-3"
-              style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', border: '1px solid color-mix(in oklch, var(--warning) 25%, transparent)' }}>
-              <AlertTriangle size={16} className="shrink-0 text-[var(--warning)]" />
+            <div className="wb-tone-banner wb-tone-banner--warning mb-3">
+              <AlertTriangle size={16} className="shrink-0" />
               <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
                 <strong>距开标不足 24 小时</strong>——请确认所有步骤（采购文件、公告、供应商邀请、专家抽取）已完成且内容正确。开标确认后，所有前置信息将锁定不可修改。
               </div>
@@ -504,9 +486,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           )}
           {/* 开标后锁定提示 */}
           {isOpened && (
-            <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 mb-3"
-              style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklch, var(--accent) 20%, transparent)' }}>
-              <Shield size={16} className="shrink-0 text-[var(--accent)]" />
+            <div className="wb-tone-banner wb-tone-banner--info mb-3">
+              <Shield size={16} className="shrink-0" />
               <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
                 <strong>已开标</strong>——供应商名单、专家组、采购文件、评分标准等前置信息均已锁定。开标确认页面仅供查看。
               </div>
@@ -514,10 +495,10 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           )}
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px]"
-              style={{ background: 'var(--stage-evaluation-soft)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)' }}
+              className="wb-icon-well"
+              style={{ '--well-bg': 'var(--stage-evaluation-soft)', '--well-fg': 'var(--stage-evaluation)' } as React.CSSProperties}
             >
-              <Gavel size={17} style={{ color: 'var(--stage-evaluation)' }} />
+              <Gavel size={17} />
             </div>
             <div className="min-w-0">
               <div className="text-[0.92rem] font-semibold tracking-[-0.02em] text-[var(--foreground)] truncate">
@@ -540,10 +521,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         </div>
 
         {/* ── 主体 ── */}
-        <div
-          className="flex-1 min-h-0 overflow-y-auto px-6 py-5"
-          style={{ background: 'oklch(0.975 0.012 258 / 0.32)' }}
-        >
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 bg-[oklch(0.975_0.012_258/0.32)]">
           {loading ? (
             <div className="flex min-h-[320px] items-center justify-center">
               <div className="flex flex-col items-center gap-3">
@@ -571,8 +549,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   <div className="flex items-center gap-2">
                     {!isNegotiation && !isOpened && (
                       <span
-                        className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
-                        style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
+                        className="hidden items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
                         title={`标书投递时间范围：公告发布 → 开标前 ${BID_DEADLINE_BEFORE_OPENING_MS / 3_600_000} 小时`}
                       >
                         <Clock size={11} />
@@ -694,8 +671,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                     {e.expertName}
                                     {e.isLead && (
                                       <span
-                                        className="ml-2 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-                                        style={{ background: 'color-mix(in oklch, var(--warning) 16%, transparent)', color: 'color-mix(in oklch, var(--warning) 70%, black)' }}
+                                        className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-[color-mix(in_oklch,var(--warning)_16%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[color-mix(in_oklch,var(--warning)_70%,black)]"
                                         title="评审组长（专家抽取步骤第 5 步选定）"
                                       >
                                         <Crown size={11} /> 组长
@@ -836,25 +812,25 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                           <span>{logs.length} 条记录</span>
                           {highRiskCount > 0 && <span className="font-semibold text-[var(--danger)]">{highRiskCount} 条高风险</span>}
                         </div>
-                        <div className="max-h-48 overflow-y-auto rounded-lg border border-[oklch(0.6_0.04_258/0.1)]">
-                          <table className="w-full text-[10px]">
-                            <thead className="sticky top-0 bg-[oklch(0.975_0.012_258)] text-left text-[var(--muted-foreground)]">
+                        <div className="max-h-48 overflow-y-auto rounded-lg">
+                          <table className="neu-table !text-xs [&_td]:!text-left [&_td]:!py-1 [&_th]:!text-left [&_th]:!py-1">
+                            <thead>
                               <tr>
-                                <th className="px-2 py-1 w-14 font-semibold">时间</th>
-                                <th className="px-1 py-1 w-14 font-semibold">角色</th>
-                                <th className="px-1 py-1 font-semibold">动作</th>
-                                <th className="px-1 py-1 w-10 font-semibold">风险</th>
+                                <th className="w-14">时间</th>
+                                <th className="w-14">角色</th>
+                                <th>动作</th>
+                                <th className="w-10">风险</th>
                               </tr>
                             </thead>
                             <tbody>
                               {logs.map((log: any, i: number) => (
                                 <tr key={i} className={log.riskFlag === '高风险' ? 'bg-[color-mix(in_oklch,var(--danger)_6%,transparent)]' : ''}>
-                                  <td className="px-2 py-0.5 tabular-nums text-[var(--muted-foreground)]">
+                                  <td className="tabular-nums text-[var(--muted-foreground)]">
                                     {new Date(log.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                                   </td>
-                                  <td className="px-1 py-0.5 font-semibold">{log.role}</td>
-                                  <td className="px-1 py-0.5 text-[var(--muted-foreground)]">{log.action}<br/><span className="text-[var(--foreground)]">{log.result}</span></td>
-                                  <td className="px-1 py-0.5 text-center">
+                                  <td className="font-semibold">{log.role}</td>
+                                  <td className="text-[var(--muted-foreground)]">{log.action}<br/><span className="text-[var(--foreground)]">{log.result}</span></td>
+                                  <td>
                                     {log.riskFlag === '高风险' ? <span className="font-bold text-[var(--danger)]">⚠高</span> : log.riskFlag === '中风险' ? <span className="text-[var(--warning)]">中</span> : <span className="text-[var(--muted-foreground)]">—</span>}
                                   </td>
                                 </tr>
@@ -903,13 +879,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
 
         {/* ▸ 区块9：开标决策（底部栏）── 仅在数据就绪且未归档时显示 */}
         {workspace && bidProject && !loading && stage && stage !== 'ARCHIVED' && (
-          <div
-            className="shrink-0 px-6 py-3.5"
-            style={{
-              background: 'linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.975 0.006 258 / 0.7) 100%)',
-              borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)',
-            }}
-          >
+          <div className="shrink-0 px-6 py-3.5 wb-overlay-panel-footer">
             {delayOpen ? (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 text-sm text-[var(--foreground)]">
@@ -924,8 +894,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   onChange={(e) => setDelayTime(e.target.value)}
                 />
                 <span
-                  className="rounded-full px-2.5 py-1 text-[11px] text-[var(--warning)]"
-                  style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)' }}
+                  className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2.5 py-1 text-[11px] text-[var(--warning)]"
                 >
                   截标已固化，仅推迟开标
                 </span>
@@ -1023,12 +992,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         {toast && (
           <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
             <div
-              className="pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold"
-              style={{
-                background: toast.tone === 'ok' ? 'color-mix(in oklch, var(--success) 14%, var(--background))' : 'color-mix(in oklch, var(--danger) 14%, var(--background))',
-                color: toast.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-                boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 6px oklch(0.55 0.03 258 / 0.12)',
-              }}
+              className={`pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold tender-toast ${toast.tone === 'ok' ? 'tender-toast--ok' : 'tender-toast--err'}`}
             >
               {toast.tone === 'ok' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
               {toast.text}
@@ -1177,10 +1141,10 @@ function SectionCard({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-            style={{ background: accentSoft, boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
+            className="wb-icon-well wb-icon-well--xs"
+            style={{ '--well-bg': accentSoft, '--well-fg': accent } as React.CSSProperties}
           >
-            <span style={{ color: accent }}>{icon}</span>
+            {icon}
           </div>
           <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">{title}</h3>
         </div>
@@ -1197,11 +1161,8 @@ function StatusPill({ tone, children }: { tone: 'success' | 'warning' | 'danger'
     tone === 'warning' ? 'var(--warning)' :
     tone === 'danger' ? 'var(--danger)' : 'var(--muted-foreground)';
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-      style={{ background: `color-mix(in oklch, ${color} 12%, transparent)`, color }}
-    >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+    <span className="wb-status-pill" style={{ '--tone': color } as React.CSSProperties}>
+      <span className="wb-status-pill-dot" />
       {children}
     </span>
   );
@@ -1209,7 +1170,7 @@ function StatusPill({ tone, children }: { tone: 'success' | 'warning' | 'danger'
 
 function EmptyHint({ text }: { text: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 rounded-[14px] px-4 py-6 text-xs text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.4)' }}>
+    <div className="flex items-center justify-center gap-2 rounded-[14px] bg-[oklch(0.975_0.012_258/0.4)] px-4 py-6 text-xs text-[var(--muted-foreground)]">
       <AlertTriangle size={13} className="shrink-0 opacity-60" />
       <span>{text}</span>
     </div>
@@ -1281,7 +1242,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
             <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
           </div>
           {detail?.evaluationResults?.some(r => r.rank === 1 && r.recommended) && deliveryUiState !== 'locked' && (
-            <div className="mt-3 rounded-lg border border-[color-mix(in_oklch,var(--success)_22%,transparent)] bg-white/65 p-3">
+            <div className="mt-3 rounded-lg bg-[var(--surface)] p-3">
               <label htmlFor={`award-letter-${bidProjectId}`} className="mb-1.5 block text-xs font-semibold text-[var(--foreground)]">
                 {deliveryUiState === 'reissue' ? '更换中标通知书文件' : '中标通知书文件'} <span className="font-normal text-[var(--danger)]">*</span>
               </label>
