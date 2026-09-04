@@ -5782,7 +5782,7 @@ export class BidService {
 
   /**
    * A-105（GB/T 43711 7.5.4.4 / 实施条例第57条）：保证金逐家退还登记（替代项目级 markBondReturned）。
-   * 三写：BidSupplier 逐家退还态 + 开标记录 bondStatus 同步（已退还/不予退还）+ 监督日志
+   * 三写单事务（C2 原子）：BidSupplier 逐家退还态 + 开标记录 bondStatus 同步（已退还/不予退还）+ 监督日志
    * （不予退还必填理由，对应 7.5.3.3 情形：弄虚作假/串通/失去履约能力/不交履约担保/拒签 → 高风险留痕）。
    */
   async markSupplierBondReturned(projectId: string, dto: SupplierBondReturnDto) {
@@ -5801,31 +5801,33 @@ export class BidService {
       throw new BadRequestException({ error: '不予退还必须填写理由（对应 7.5.3.3 情形）', code: 'REASON_REQUIRED' });
     }
 
-    const updated = await this.prisma.bidSupplier.update({
-      where: { id: supplier.id },
-      data: {
-        bondReturnedAt: dto.returned ? new Date() : null,
-        bondReturnReason: dto.returned ? null : dto.reason!.trim(),
-      },
-      select: { supplierName: true, bondReturnedAt: true, bondReturnReason: true },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidSupplier.update({
+        where: { id: supplier.id },
+        data: {
+          bondReturnedAt: dto.returned ? new Date() : null,
+          bondReturnReason: dto.returned ? null : dto.reason!.trim(),
+        },
+      });
+
+      // 同步开标记录（唱标口径）bondStatus——两处口径合一；无开标记录（未唱标/补录缺）不阻断（0 行匹配不抛错，
+      // 真正的 DB 错误向外抛 → 整个事务回滚，避免退还态与唱标口径脱节）
+      await tx.bidOpeningRecord.updateMany({
+        where: { projectId, supplierName: dto.supplierName },
+        data: { bondStatus: dto.returned ? '已退还' : '不予退还' },
+      });
+
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '采购人',
+          action: dto.returned ? '响应担保退还（逐家）' : '响应担保不予退还（逐家）',
+          target: project.name,
+          result: dto.returned ? `${dto.supplierName}：已退还` : `${dto.supplierName}：${dto.reason!.trim()}`,
+          riskFlag: dto.returned ? '无' : '高',
+        },
+      }).catch(e => this.logger.warn(`保证金逐家退还留痕失败: ${(e as Error).message}`));
     });
-
-    // 同步开标记录（唱标口径）bondStatus——两处口径合一；无开标记录（未唱标/补录缺）不阻断
-    await this.prisma.bidOpeningRecord.updateMany({
-      where: { projectId, supplierName: dto.supplierName },
-      data: { bondStatus: dto.returned ? '已退还' : '不予退还' },
-    }).catch(e => this.logger.warn(`开标记录保证金状态同步失败: ${(e as Error).message}`));
-
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: new Date(), role: '采购人',
-        action: dto.returned ? '响应担保退还（逐家）' : '响应担保不予退还（逐家）',
-        target: project.name,
-        result: dto.returned ? `${dto.supplierName}：已退还` : `${dto.supplierName}：${dto.reason!.trim()}`,
-        riskFlag: dto.returned ? '无' : '高',
-      },
-    }).catch(e => this.logger.warn(`保证金逐家退还留痕失败: ${(e as Error).message}`));
-    return updated;
+    return { success: true };
   }
 
   /** A-151：评标报告章节附注（签字包生成前编辑，docx 渲染；重新生成取最新值） */

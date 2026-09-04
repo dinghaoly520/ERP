@@ -6915,6 +6915,8 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
       projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
       announcement: { findFirst: jest.fn() },
       systemConfig: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
+      // C2 三写事务化：事务直通（tx 即 prisma mock）
+      $transaction: jest.fn(async (callback: any) => callback(prisma)),
     };
     notification = { sendToRole: jest.fn().mockResolvedValue(undefined), sendToUser: jest.fn().mockResolvedValue(undefined) };
     const module = await Test.createTestingModule({
@@ -6939,7 +6941,9 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司' });
     prisma.bidSupplier.update.mockResolvedValue({ supplierName: '甲公司', bondReturnedAt: new Date(), bondReturnReason: null });
 
-    await service.markSupplierBondReturned('p1', { supplierName: '甲公司', returned: true });
+    await expect(service.markSupplierBondReturned('p1', { supplierName: '甲公司', returned: true }))
+      .resolves.toEqual({ success: true }); // C2：返回契约 { success: true }（:3005 仅按 resolve 判成功）
+    expect(prisma.$transaction).toHaveBeenCalled(); // 三写同事务
 
     expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'bs1' }, data: { bondReturnedAt: expect.any(Date), bondReturnReason: null } }),
@@ -6950,6 +6954,19 @@ describe('BidService — 保证金逐家退还 (A-105)', () => {
     expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ projectId: 'p1', action: '响应担保退还（逐家）', riskFlag: '无' }) }),
     );
+  });
+
+  it('C2 三写原子：第二写（开标记录同步）抛错 → 整体抛出（事务回滚语义），监督日志未达', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', bondRequired: true });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司' });
+    prisma.bidSupplier.update.mockResolvedValue({ supplierName: '甲公司', bondReturnedAt: new Date(), bondReturnReason: null });
+    prisma.bidOpeningRecord.updateMany.mockRejectedValue(new Error('db down'));
+
+    await expect(service.markSupplierBondReturned('p1', { supplierName: '甲公司', returned: true }))
+      .rejects.toThrow('db down');
+
+    // mock 直通下 reject 传播 = $transaction 整体拒绝（真实库中第一写随之回滚）；第三写未被触达
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
   });
 
   it('不予退还无理由 → 400 REASON_REQUIRED 且零写入', async () => {
