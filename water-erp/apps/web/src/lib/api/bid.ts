@@ -502,7 +502,8 @@ export interface BidProjectDetail {
     weight?: number | null;
   }>;
   archiveItems: BidArchiveItemInfo[];
-  /** A3 中标通知书：评标结果（后端 getProject 暂未返回——UI 按 ?? [] 容错，功能待后端补齐） */
+  /** 评标结果汇总（A4 已补齐：getProject include 下发，生成前为空数组）——A1/A3 公示与中标通知书、
+   *  开标确认面板「评标资料接收」区块候选人与金额表均消费；查询/生成入口在 :3007 评标管理 tab */
   evaluationResults?: BidEvaluationResultInfo[];
   // ── 开标主持人指派（R1 硬分流）──
   assignedHostUserId?: string | null;

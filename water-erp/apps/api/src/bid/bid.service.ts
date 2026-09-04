@@ -455,6 +455,11 @@ export class BidService {
         expertDisputes: { orderBy: { createdAt: 'desc' } },
         archiveItems: true,
         bidRounds: { orderBy: { roundNo: 'asc' } },
+        // A4 补齐（2026-09-04）：评标结果汇总随详情下发——:3005 开标确认面板候选人与金额展示、
+        // A1/A3 公示倒计时与中标通知书推送均消费 detail.evaluationResults。
+        // 结果生成前为空数组，评标进行中不泄露；生成后招标人（:3005 staff/leader）可见，
+        // 服务第 54 条「3 日内公示中标候选人」的时限管理（回流包 generateHandover 同源携带）。
+        evaluationResults: { orderBy: { rank: 'asc' } },
         assignedHostUser: { select: { id: true, username: true, displayName: true } },
       },
     });

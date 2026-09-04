@@ -298,7 +298,7 @@ export class BidSignPacketService {
 
     // 基础快照复用评标完整性包（结果生成时的同一数据来源），扩展签字/异议/动议信息
     const base = await this.bidService.buildEvaluationPackage(projectId);
-    const [disputes, motions, clarifications, experts] = await Promise.all([
+    const [disputes, motions, clarifications, experts, evalResults] = await Promise.all([
       this.prisma.expertDispute.findMany({ where: { projectId } }),
       this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true } }),
       this.prisma.bidClarification.findMany({ where: { projectId } }),
@@ -306,6 +306,7 @@ export class BidSignPacketService {
         where: { projectId },
         select: { expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true, dissentingOpinion: true, dissentingReason: true, esignature: true, esignatureAt: true },
       }),
+      this.prisma.bidEvaluationResult.findMany({ where: { projectId }, orderBy: { rank: 'asc' } }),
     ]);
     const body = {
       packageType: 'BID_EVALUATION_SIGN_HANDOVER',
@@ -313,6 +314,15 @@ export class BidSignPacketService {
       generatedAt: new Date().toISOString(),
       projectId,
       evaluationSnapshot: base, // 评标完整性快照（含 fingerprint）
+      // A4 补齐（2026-09-04）：评标结果汇总（中标候选人排序+总得分+报价）——回传 :3005 开标确认
+      // 面板展示与定标/预成交公示使用；Number 归一（Decimal 字符串不入包，与包内其他数值字段同风格）
+      evaluationResults: evalResults.map(r => ({
+        supplierId: r.supplierId, supplierName: r.supplierName,
+        totalScore: Number(r.totalScore), averageScore: Number(r.averageScore),
+        rank: r.rank, recommended: r.recommended, disqualified: r.disqualified,
+        bidPrice: r.bidPrice != null ? Number(r.bidPrice) : null,
+        generatedAt: r.generatedAt.toISOString(),
+      })),
       signPacket: {
         fileAssetId: packet.fileAssetId, sha256: packet.sha256, generatedAt: packet.generatedAt.toISOString(),
         signPageScanFileId: packet.signPageScanFileId, closedAt: packet.closedAt!.toISOString(), // 上方已 if (!packet.closedAt) throw；! 显式收窄

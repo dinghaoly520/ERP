@@ -396,6 +396,31 @@ describe('BidSignPacketService.generateHandover', () => {
     expect((body.expertSignStatuses[0].esignature as any).signature).toBeUndefined();
     expect(body.expertSignStatuses[1]).toMatchObject({ expertName: '李四', esignature: null, esignatureAt: null });
   });
+
+  it('A4：回流包携带 evaluationResults 排名+报价汇总（Number 归一，Decimal 字符串不入包）', async () => {
+    baseArrange();
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    });
+    (prisma.bidEvaluationResult.findMany as jest.Mock).mockResolvedValue([
+      { supplierId: 's1', supplierName: '甲公司', totalScore: new Prisma.Decimal('288'), averageScore: new Prisma.Decimal('96'),
+        rank: 1, recommended: true, disqualified: false, bidPrice: new Prisma.Decimal('1485000'), generatedAt: new Date('2026-09-04T02:00:00Z') },
+      { supplierId: 's2', supplierName: '乙公司', totalScore: new Prisma.Decimal('238'), averageScore: new Prisma.Decimal('79.33'),
+        rank: 2, recommended: false, disqualified: false, bidPrice: null, generatedAt: new Date('2026-09-04T02:00:00Z') },
+    ]);
+    const svc = makeService();
+    await svc.generateHandover(projectId, 'u1');
+
+    const uploaded = (svc as any).storage.upload.mock.calls[0][1] as Buffer;
+    const body = JSON.parse(uploaded.toString('utf8'));
+    expect(body.evaluationResults).toHaveLength(2);
+    expect(body.evaluationResults[0]).toMatchObject({
+      supplierName: '甲公司', rank: 1, recommended: true, disqualified: false,
+      totalScore: 288, averageScore: 96, bidPrice: 1485000, // Number 归一（非字符串）
+    });
+    expect(body.evaluationResults[1]).toMatchObject({ supplierName: '乙公司', rank: 2, bidPrice: null });
+  });
 });
 
 describe('BidSignPacketService.getStatus（A-152 电子签名摘要列）', () => {
