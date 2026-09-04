@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, BellRing, CalendarClock, Loader2, MessageSquare, Phone, Sparkles, X } from 'lucide-react';
+import { Bell, BellRing, CalendarClock, Loader2, MessageSquare, Phone, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { Modal } from '@/components/workbench';
 import {
   cancelSupplierNudge,
   getSupplierNudgeStatus,
@@ -211,162 +212,133 @@ export function NudgeUnsubmittedModal({ isOpen, onClose, project, bidProjectId, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[600] flex items-center justify-center">
-      <div
-        className="absolute inset-0"
-        style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }}
-        onClick={onClose}
-      />
-      <div
-        className="relative z-10 flex max-h-[88vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[24px]"
-        style={{
-          background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))',
-          boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
-        }}
-      >
-        {/* 标题栏 */}
-        <div
-          className="flex shrink-0 items-center justify-between gap-3 px-6 py-4"
-          style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.975 0.006 258 / 0.58) 60%)', borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: 'var(--stage-supplier-soft)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
-              <BellRing size={16} style={{ color: 'var(--stage-supplier)' }} />
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      size="lg"
+      title="催促未投递供应商"
+      description="仅催“已回执参加但尚未投递”的供应商 · 人工/自动共用一次"
+      footer={
+        mode === 'sent' ? (
+          <button type="button" onClick={onClose} className="neu-btn-soft !h-[38px]">关闭</button>
+        ) : mode === 'scheduled' ? (
+          <div className="neu-btn-group">
+            <button type="button" onClick={() => void handleCancel()} disabled={busy} className="neu-btn-soft">取消定时</button>
+            <button type="button" onClick={onClose} className="neu-btn-soft">关闭</button>
+          </div>
+        ) : (
+          <div className="neu-btn-group">
+            <button type="button" onClick={onClose} className="neu-btn-soft">取消</button>
+            <button
+              type="button"
+              onClick={() => void handleSchedule()}
+              disabled={scheduling || sending || !allHaveContent || !scheduleInFuture}
+              className="neu-btn-soft gap-1.5"
+              title={scheduleInFuture ? '开标前 24 小时自动发送' : '距开标不足 24 小时，催促通道已关闭'}
+            >
+              {scheduling ? <Loader2 size={13} className="animate-spin" /> : <CalendarClock size={13} />}
+              定时（开标前24h）
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSend()}
+              disabled={sending || scheduling || !allHaveContent || channels.length === 0 || windowClosed}
+              className="neu-btn-primary gap-1.5"
+              title={windowClosed ? '距开标不足 24 小时，催促通道已关闭' : undefined}
+            >
+              {sending ? <Loader2 size={13} className="animate-spin" /> : <BellRing size={13} />}
+              立即发送
+            </button>
+          </div>
+        )
+      }
+    >
+      {loading ? (
+        <div className="flex min-h-[160px] items-center justify-center gap-2 text-sm text-[var(--muted-foreground)]">
+          <Loader2 size={18} className="animate-spin text-[var(--accent)]" /> 加载催促状态…
+        </div>
+      ) : mode === 'sent' ? (
+        <div className="rounded-[16px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-4 py-5 text-center">
+          <div className="text-sm font-semibold text-[var(--success)]">本项目已催促过，仅可催促一次</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">发送时间：{fmt(status?.sentAt ?? null)}</div>
+        </div>
+      ) : targets.length === 0 ? (
+        <div className="rounded-[16px] bg-[oklch(0.975_0.012_258/0.4)] px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
+          当前没有“已回执参加但尚未投递”的供应商，无需催促。
+        </div>
+      ) : (
+        <>
+          {/* 目标名单 + 逐家文案 */}
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                催促对象（已回执·未投递）{targets.length} 家
+              </span>
+              <button type="button" onClick={() => void handleAi()} disabled={aiLoading || windowClosed} className="neu-btn-xs gap-1" title={windowClosed ? '距开标不足 24 小时，催促通道已关闭' : undefined}>
+                {aiLoading ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                {aiLoading ? '生成中…' : Object.keys(messages).length ? '重新生成' : 'AI 生成通知'}
+              </button>
             </div>
-            <div className="min-w-0">
-              <div className="text-[0.92rem] font-semibold tracking-[-0.02em] text-[var(--foreground)] truncate">催促未投递供应商</div>
-              <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate">仅催"已回执参加但尚未投递"的供应商 · 人工/自动共用一次</div>
+            <div className="space-y-2">
+              {targets.map((t, i) => {
+                const m = messages[t.supplierId];
+                return (
+                  <div key={t.supplierId} className="wb-note px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] bg-[linear-gradient(135deg,oklch(0.52_0.16_258),oklch(0.45_0.14_258))] text-[9px] font-extrabold text-white tabular-nums">{i + 1}</span>
+                      <span className="text-[12px] font-bold text-[var(--foreground)] truncate">{t.name}</span>
+                      <span className={`ml-auto text-[10px] font-semibold ${m?.body?.trim() ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>{m?.body?.trim() ? '已生成' : '待生成'}</span>
+                    </div>
+                    {m?.body && (
+                      <textarea
+                        value={m.body}
+                        onChange={(e) => setMessages((prev) => ({ ...prev, [t.supplierId]: { ...m, body: e.target.value } }))}
+                        rows={3}
+                        className="workbench-input mt-2 w-full !text-[11px] leading-5"
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="neu-btn-xs"><X size={16} /></button>
-        </div>
 
-        {/* 主体 */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {loading ? (
-            <div className="flex min-h-[160px] items-center justify-center gap-2 text-sm text-[var(--muted-foreground)]">
-              <Loader2 size={18} className="animate-spin text-[var(--accent)]" /> 加载催促状态…
-            </div>
-          ) : mode === 'sent' ? (
-            <div className="rounded-[16px] px-4 py-5 text-center" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}>
-              <div className="text-sm font-semibold text-[var(--success)]">本项目已催促过，仅可催促一次</div>
-              <div className="mt-1 text-xs text-[var(--muted-foreground)]">发送时间：{fmt(status?.sentAt ?? null)}</div>
-            </div>
-          ) : targets.length === 0 ? (
-            <div className="rounded-[16px] px-4 py-6 text-center text-xs text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.4)' }}>
-              当前没有"已回执参加但尚未投递"的供应商，无需催促。
-            </div>
-          ) : (
-            <>
-              {/* 目标名单 + 逐家文案 */}
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                    催促对象（已回执·未投递）{targets.length} 家
-                  </span>
-                  <button type="button" onClick={() => void handleAi()} disabled={aiLoading || windowClosed} className="neu-btn-xs gap-1" title={windowClosed ? '距开标不足 24 小时，催促通道已关闭' : undefined}>
-                    {aiLoading ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
-                    {aiLoading ? '生成中…' : Object.keys(messages).length ? '重新生成' : 'AI 生成通知'}
+          {/* 渠道 */}
+          <div>
+            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">通知渠道</span>
+            <div className="neu-tab-bar inline-flex">
+              {CHANNELS.map(({ key, label, Icon }) => {
+                const active = channels.includes(key);
+                return (
+                  <button key={key} type="button" onClick={() => toggleChannel(key)} className={`neu-tab text-[11px] gap-1 ${active ? 'is-active' : ''}`}>
+                    <Icon size={12} />{label}
                   </button>
-                </div>
-                <div className="space-y-2">
-                  {targets.map((t, i) => {
-                    const m = messages[t.supplierId];
-                    return (
-                      <div key={t.supplierId} className="rounded-[14px] px-3 py-2.5" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 3px oklch(0.55 0.03 258 / 0.07)' }}>
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white tabular-nums" style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{i + 1}</span>
-                          <span className="text-[12px] font-bold text-[var(--foreground)] truncate">{t.name}</span>
-                          <span className={`ml-auto text-[10px] font-semibold ${m?.body?.trim() ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>{m?.body?.trim() ? '已生成' : '待生成'}</span>
-                        </div>
-                        {m?.body && (
-                          <textarea
-                            value={m.body}
-                            onChange={(e) => setMessages((prev) => ({ ...prev, [t.supplierId]: { ...m, body: e.target.value } }))}
-                            rows={3}
-                            className="workbench-input mt-2 w-full !text-[11px] leading-5"
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                );
+              })}
+            </div>
+          </div>
 
-              {/* 渠道 */}
-              <div>
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">通知渠道</span>
-                <div className="neu-tab-bar inline-flex">
-                  {CHANNELS.map(({ key, label, Icon }) => {
-                    const active = channels.includes(key);
-                    return (
-                      <button key={key} type="button" onClick={() => toggleChannel(key)} className={`neu-tab text-[11px] gap-1 ${active ? 'is-active' : ''}`}>
-                        <Icon size={12} />{label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 定时信息 */}
-              {mode === 'scheduled' ? (
-                <div className="flex items-center gap-2 rounded-[14px] px-3 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
-                  <CalendarClock size={14} className="text-[var(--accent)]" />
-                  <span className="text-[var(--foreground)]">已设定 <strong className="tabular-nums">{fmt(status?.sendAt ?? null)}</strong>（开标前 24 小时）自动催促</span>
-                </div>
-              ) : windowClosed ? (
-                <div className="flex items-center gap-2 rounded-[14px] px-3 py-2 text-[11px] font-semibold text-[var(--warning)]" style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
-                  <CalendarClock size={13} />
-                  <span>距开标已不足 24 小时，催促通道已关闭，无法发送催促通知。</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 rounded-[14px] px-3 py-2 text-[11px] text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.4)' }}>
-                  <CalendarClock size={13} />
-                  {scheduleInFuture
-                    ? <span>定时发送将于 <strong className="tabular-nums text-[var(--foreground)]">{fmt(scheduleAtIso)}</strong>（开标前 24 小时）自动触发；若提前手动发送则取消定时。</span>
-                    : <span>距开标已不足 24 小时，催促通道已关闭，无法发送催促通知。</span>}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* 底栏 */}
-        <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-3.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-          {mode === 'sent' ? (
-            <button type="button" onClick={onClose} className="neu-btn-soft !h-[38px]">关闭</button>
-          ) : mode === 'scheduled' ? (
-            <div className="neu-btn-group">
-              <button type="button" onClick={() => void handleCancel()} disabled={busy} className="neu-btn-soft">取消定时</button>
-              <button type="button" onClick={onClose} className="neu-btn-soft">关闭</button>
+          {/* 定时信息 */}
+          {mode === 'scheduled' ? (
+            <div className="wb-tone-banner wb-tone-banner--info text-xs">
+              <CalendarClock size={14} />
+              <span className="text-[var(--foreground)]">已设定 <strong className="tabular-nums">{fmt(status?.sendAt ?? null)}</strong>（开标前 24 小时）自动催促</span>
+            </div>
+          ) : windowClosed ? (
+            <div className="wb-tone-banner wb-tone-banner--warning text-[11px] font-semibold">
+              <CalendarClock size={13} />
+              <span>距开标已不足 24 小时，催促通道已关闭，无法发送催促通知。</span>
             </div>
           ) : (
-            <div className="neu-btn-group">
-              <button type="button" onClick={onClose} className="neu-btn-soft">取消</button>
-              <button
-                type="button"
-                onClick={() => void handleSchedule()}
-                disabled={scheduling || sending || !allHaveContent || !scheduleInFuture}
-                className="neu-btn-soft gap-1.5"
-                title={scheduleInFuture ? '开标前 24 小时自动发送' : '距开标不足 24 小时，催促通道已关闭'}
-              >
-                {scheduling ? <Loader2 size={13} className="animate-spin" /> : <CalendarClock size={13} />}
-                定时（开标前24h）
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSend()}
-                disabled={sending || scheduling || !allHaveContent || channels.length === 0 || windowClosed}
-                className="neu-btn-primary gap-1.5"
-                title={windowClosed ? '距开标不足 24 小时，催促通道已关闭' : undefined}
-              >
-                {sending ? <Loader2 size={13} className="animate-spin" /> : <BellRing size={13} />}
-                立即发送
-              </button>
+            <div className="flex items-center gap-2 rounded-[14px] bg-[oklch(0.975_0.012_258/0.4)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
+              <CalendarClock size={13} />
+              {scheduleInFuture
+                ? <span>定时发送将于 <strong className="tabular-nums text-[var(--foreground)]">{fmt(scheduleAtIso)}</strong>（开标前 24 小时）自动触发；若提前手动发送则取消定时。</span>
+                : <span>距开标已不足 24 小时，催促通道已关闭，无法发送催促通知。</span>}
             </div>
           )}
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </Modal>
   );
 }
