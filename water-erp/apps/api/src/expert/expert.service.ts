@@ -2452,10 +2452,15 @@ export class ExpertService {
       select: { displayName: true, username: true },
     });
     const expertName = user?.displayName || user?.username || '';
+    // B1：名源集合——displayName/username + 该专家历史评委名（BidExpert.expertName 任一）
+    const aliasNames = await this.prisma.bidExpert.findMany({
+      where: { userId }, select: { expertName: true }, distinct: ['expertName'], take: 20,
+    }).then(rows => rows.map(r => r.expertName)).catch(() => [] as string[]);
     const cn = extractDnCn(certDn);
-    if (!cn || normalizeExpertCn(cn) !== normalizeExpertCn(expertName)) {
-      throw new BadRequestException({ error: '证书主体(CN)与专家姓名不一致', code: 'CERT_DN_MISMATCH' });
-    }
+    const norm = normalizeExpertCn;
+    const matched = !cn ? false
+      : [expertName, ...aliasNames].some(n => n && norm(cn) === norm(n));
+    if (!matched) throw new BadRequestException({ error: '证书主体(CN)与专家姓名不一致', code: 'CERT_DN_MISMATCH' });
 
     const existing = await this.prisma.expertCert.findUnique({ where: { certSn } });
     if (existing && (existing.bindingStatus === 'ACTIVE' || existing.userId !== userId)) {

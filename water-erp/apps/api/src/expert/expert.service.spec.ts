@@ -2114,13 +2114,55 @@ describe('ExpertService', () => {
     it('DN 的 CN 与专家姓名不一致 → 400 CERT_DN_MISMATCH', async () => {
       signature.isValidPublicKey.mockReturnValue(true);
       prisma.user.findUnique.mockResolvedValue({ displayName: '王建国', username: 'wangjg' });
+      prisma.bidExpert.findMany.mockResolvedValue([]); // B1：无历史别名
       await expect(service.bindCert('user-1', { ...bindInput, certDn: 'CN=张三' }))
         .rejects.toMatchObject({ response: { code: 'CERT_DN_MISMATCH' } });
+    });
+
+    it('B1：displayName 不匹配但历史评委名（BidExpert 别名）匹配 → 绑定成功且事务执行', async () => {
+      signature.isValidPublicKey.mockReturnValue(true);
+      // 改名后场景：displayName 已变更，名册名/历史证书仍为旧名
+      prisma.user.findUnique.mockResolvedValue({ displayName: '王建国甲', username: 'wangjg' });
+      prisma.bidExpert.findMany.mockResolvedValue([{ expertName: '李四' }, { expertName: '王建国' }]);
+      prisma.expertCert.findUnique.mockResolvedValue(null);
+      prisma.expertCert.updateMany.mockResolvedValue({ count: 1 });
+
+      const r = await service.bindCert('user-1', bindInput); // CN=王建国（历史名）
+
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 'user-1' }, distinct: ['expertName'], take: 20 }),
+      );
+      expect(prisma.expertCert.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 'user-1', bindingStatus: 'ACTIVE' } }),
+      );
+      expect(prisma.expertCert.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId: 'user-1', certSn: 'SN-001' }) }),
+      );
+      expect(r).toBeDefined();
+    });
+
+    it('B1：displayName 与全部历史别名皆不匹配 → 400 CERT_DN_MISMATCH（不进占用检查）', async () => {
+      signature.isValidPublicKey.mockReturnValue(true);
+      prisma.user.findUnique.mockResolvedValue({ displayName: '王建国甲', username: 'wangjg' });
+      prisma.bidExpert.findMany.mockResolvedValue([{ expertName: '李四' }]);
+      await expect(service.bindCert('user-1', { ...bindInput, certDn: 'CN=王五' }))
+        .rejects.toMatchObject({ response: { code: 'CERT_DN_MISMATCH' } });
+      expect(prisma.expertCert.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('B1：别名查询失败 → 回退主名源校验（displayName 匹配仍可绑定）', async () => {
+      signature.isValidPublicKey.mockReturnValue(true);
+      prisma.user.findUnique.mockResolvedValue({ displayName: '王建国', username: 'wangjg' });
+      prisma.bidExpert.findMany.mockRejectedValue(new Error('db down'));
+      prisma.expertCert.findUnique.mockResolvedValue(null);
+      await expect(service.bindCert('user-1', bindInput)).resolves.toBeDefined();
+      expect(prisma.expertCert.create).toHaveBeenCalled();
     });
 
     it('CN 归一化后与姓名一致（空白/全角括号）→ 绑定成功：旧 ACTIVE 置 REVOKED + 新行 ACTIVE', async () => {
       signature.isValidPublicKey.mockReturnValue(true);
       prisma.user.findUnique.mockResolvedValue({ displayName: '王建国', username: 'wangjg' });
+      prisma.bidExpert.findMany.mockResolvedValue([]); // B1：无历史别名
       prisma.expertCert.findUnique.mockResolvedValue(null); // certSn 未占用
       prisma.expertCert.updateMany.mockResolvedValue({ count: 1 });
 
@@ -2141,6 +2183,7 @@ describe('ExpertService', () => {
     it('certSn 已被他人 ACTIVE 占用 → 409 CERT_SN_EXISTS', async () => {
       signature.isValidPublicKey.mockReturnValue(true);
       prisma.user.findUnique.mockResolvedValue({ displayName: '王建国', username: 'wangjg' });
+      prisma.bidExpert.findMany.mockResolvedValue([]); // B1：无历史别名
       prisma.expertCert.findUnique.mockResolvedValue({ userId: 'user-other', bindingStatus: 'ACTIVE' });
       await expect(service.bindCert('user-1', bindInput))
         .rejects.toMatchObject({ response: { code: 'CERT_SN_EXISTS' } });

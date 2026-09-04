@@ -857,6 +857,9 @@ export default function ExpertEvaluatePage() {
     if (!(opened.adapter instanceof MockUKeyAdapter)) {
       throw new Error('真 CA U盾不支持创建平台自签软证书——专家证书请使用软证书轨道（拔出 U盾或关闭 U盾驱动服务后重试）');
     }
+    // B1：证书 CN 沿用名册名（BidExpert.expertName）——本页拿不到 user.displayName
+    // （后端 getProject 已剥离 myExpertRecord.user），后端 bindCert 已放宽为
+    // 「displayName/username + 历史 BidExpert.expertName」名源集合匹配，名册名天然在集合内。
     const expertName = expert?.expertName?.trim();
     if (!expertName) throw new Error('无法确定专家姓名，请刷新页面后重试');
     const cert = await opened.adapter.createCertificate(expertName);
