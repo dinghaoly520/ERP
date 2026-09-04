@@ -303,7 +303,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             流标原因：<span className="text-[var(--foreground)]">{project.riskNote || '未记录原因'}</span>
           </p>
           <p className="mt-1.5 text-[var(--muted-foreground)]">
-            后续处理（重新招标 / 变更采购方式等）在采购管理工作台（:3005）「开标确认」面板进行；开标现场记录可在「开标大厅」tab 回看。
+            后续处理（重新招标 / 变更采购方式等）在采购管理工作台「开标确认」面板进行；开标现场记录可在「开标大厅」tab 回看。
           </p>
         </div>
       </section>
@@ -577,7 +577,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           </div>
           {experts.length === 0 ? (
             <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">
-              尚未抽取专家{stage !== 'ARCHIVED' && '——请在采购管理工作台（:3005）完成抽取'}
+              尚未抽取专家{stage !== 'ARCHIVED' && '——请在采购管理工作台完成抽取'}
             </div>
           ) : (
             <div>
@@ -592,7 +592,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                     {/* A-132：评委分工（分组·职责）——两维皆空则不渲染 */}
                     {(expert.reviewGroup || expert.dutyRole) && (
-                      <span className="ml-2 text-[10px] font-normal text-[var(--accent)]" title="评标委员会分工（:3005 步骤5 配置）">
+                      <span className="ml-2 text-[10px] font-normal text-[var(--accent)]" title="评标委员会分工（在采购管理工作台开标确认流程中配置）">
                         {[expert.reviewGroup, expert.dutyRole].filter(Boolean).join(' · ')}
                       </span>
                     )}
@@ -605,7 +605,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                   )}
                   {expert.invitationStatus === 'declined' && (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }} title="专家已婉拒邀请——正选缺席时由候补递补（:3005 专家确认）">
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }} title="专家已婉拒邀请——正选缺席时由候补递补（由采购管理工作台专家确认环节处理）">
                       已婉拒
                     </span>
                   )}
@@ -952,7 +952,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     <li>仅纳入解密成功、已确认且未撤回的供应商</li>
                     <li>通过性审查（资格/响应性）不通过票<span className="font-semibold text-[var(--foreground)]">严格过半即废标</span>，废标置后</li>
                     <li>专家组 ≥5 人时去掉 1 个最高分与 1 个最低分后求均分</li>
-                    <li>第 1 名推荐为中标候选人；完整归档后自动生成中标公示草稿（在 :3005 信息发布中心发布）</li>
+                    <li>第 1 名推荐为中标候选人；完整归档后自动生成中标公示草稿（在采购管理工作台信息发布中心发布）</li>
                   </ul>
                   <p className="font-semibold text-[var(--foreground)]">结果生成后可再次生成覆盖（专家报告确认状态不变）。</p>
                 </div>

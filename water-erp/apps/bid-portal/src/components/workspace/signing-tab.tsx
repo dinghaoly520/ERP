@@ -260,7 +260,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   {new Date(data.packet.generatedAt).toLocaleString('zh-CN')}
                 </span>
               </p>
-              <p className="mt-1 flex items-center gap-1 text-[11px] text-[var(--muted-foreground)] tabular-nums">
+              <p className="mt-1 flex items-center gap-1 text-[11px] text-[var(--muted-foreground)] tabular-nums" title={`完整性校验值（SHA-256）：${data.packet.sha256}`}>
                 <Fingerprint size={11} /> SHA-256：{data.packet.sha256.slice(0, 24)}…
                 <button type="button" onClick={() => void copySha()} className="ml-1 inline-flex items-center gap-0.5 text-[var(--accent)] hover:underline">
                   <Copy size={10} /> {copied ? '已复制' : '复制'}
@@ -351,7 +351,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                     <span
                       className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
                       style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}
-                      title="评标委员会分工（:3005 步骤5 配置，写入评标报告名单）"
+                      title="评标委员会分工（在采购管理工作台开标确认流程中配置，写入评标报告名单）"
                     >
                       {[e.reviewGroup, e.dutyRole].filter(Boolean).join(' · ')}
                     </span>
@@ -453,7 +453,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
       {closed && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3" style={{ background: 'color-mix(in oklch, var(--success) 8%, transparent)' }}>
           <ClipboardCheck size={15} className="text-[var(--success)]" />
-          <span className="text-sm font-semibold text-[var(--success)]">签字已闭环，:3005 可执行完整归档</span>
+          <span className="text-sm font-semibold text-[var(--success)]">签字已闭环，采购管理工作台可执行完整归档</span>
           {esignedCount > 0 && <span className="text-xs text-[var(--success)]">含 {esignedCount} 位专家电子签名</span>}
           <div className="ml-auto flex items-center gap-2">
             {data.packet?.handoverFileAssetId ? (

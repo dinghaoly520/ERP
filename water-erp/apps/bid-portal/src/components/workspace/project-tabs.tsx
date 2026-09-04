@@ -18,7 +18,7 @@ export const TABS: TabDef[] = [
     label: '开标大厅',
     icon: Unlock,
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
-    stageHint: '开标尚未开始。请等待项目在 :3005 确定开标。',
+    stageHint: '开标尚未开始。请等待采购管理工作台确定开标。',
   },
   {
     key: 'evaluate',
@@ -28,7 +28,7 @@ export const TABS: TabDef[] = [
     // （分工 v3 后评标管理为 :3007 现场全操作），故 tab 不再于这些阶段灰显（避免"灰色打不开"）。
     // DOWNLOAD/SUBMIT 不可作为工作区入口，仍禁用。
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
-    stageHint: '评标尚未开始。当前阶段：{stage}。请等待 :3005 启动评标后进入评标管理。',
+    stageHint: '评标尚未开始。当前阶段：{stage}。请等待采购管理工作台启动评标后进入评标管理。',
   },
   {
     key: 'standard',
@@ -60,7 +60,7 @@ export const TABS: TabDef[] = [
     // 置于最右：监督为旁路只读视图，主流程 tab 在前。
     // 与开标大厅同口径启用：监督视图随开标执行阶段提供只读留痕，DOWNLOAD/SUBMIT 不可作为入口仍禁用。
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
-    stageHint: '开标尚未开始，监督视图不可用。请等待项目在 :3005 确定开标。',
+    stageHint: '开标尚未开始，监督视图不可用。请等待采购管理工作台确定开标。',
   },
 ];
 
