@@ -733,8 +733,12 @@ export function buildInquiryPurchaseReplacementPlan(
       ...buildReplacement('最高限价', answers.priceLimit),
     },
     {
-      targetText: '递交报价函截止时间',
-      ...buildReplacement('递交报价函截止时间', answers.submissionDeadline),
+      targetText: '采购文件获取时间',
+      ...buildReplacement('采购文件获取时间', answers.documentAcquireTime),
+    },
+    {
+      targetText: '开标时间',
+      ...buildReplacement('开标时间', answers.bidOpeningTime),
     },
     {
       targetText: '联系人',
@@ -1962,12 +1966,15 @@ export function buildInvitedBiddingAnnouncementPlan(
   return [
     { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
     { targetText: '项目概况和采购内容', ...buildReplacement('项目概况和采购内容', answers.projectOverview), isHierarchicalText: true },
-    { targetText: '最高限价（大写）', ...buildReplacement('最高限价（大写）', answers.maxPriceChinese) },
-    { targetText: '最高限价（小写）', ...buildReplacement('最高限价（小写）', answers.maxPriceNumeric) },
-    { targetText: '工期及进度要求', ...buildReplacement('工期及进度要求', answers.scheduleRequirements), isHierarchicalText: true },
+    // 模板（询比采购公示/竞价采购公告/邀请招标公告）占位符为编号式：{{最高限价1}}（大写）/ {{最高限价2}}（小写）。
+    // 旧版括号式目标（最高限价（大写）等）在模板中不存在 → 占位符原样残留（用户实测反馈）。
+    { targetText: '最高限价1', ...buildReplacement('最高限价（大写）', answers.maxPriceChinese) },
+    { targetText: '最高限价2', ...buildReplacement('最高限价（小写）', answers.maxPriceNumeric) },
+    { targetText: '工期及进度要求', ...buildReplacement('工期及进度要求', answers.scheduleRequirementsType === 'none' ? '无' : answers.scheduleRequirements), isHierarchicalText: true },
     { targetText: '报名方式及条件', ...buildReplacement('报名方式及条件', answers.registrationMethod), isHierarchicalText: true },
-    { targetText: '公示期限（起）', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },
-    { targetText: '公示期限（止）', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },
+    // 模板占位符为编号式：{{公示期限1}}（起）/ {{公示期限2}}（止）
+    { targetText: '公示期限1', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },
+    { targetText: '公示期限2', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },
     { targetText: '开标时间', ...buildReplacement('开标时间', formatBidOpeningTime(answers.bidOpeningTime, answers.bidOpeningTimeType)) },
     { targetText: '联系人', ...buildReplacement('联系人', answers.contactName) },
     { targetText: '联系电话', ...buildReplacement('联系电话', answers.contactPhone) },

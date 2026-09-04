@@ -49,6 +49,29 @@ export interface RegisterTemporaryParams {
   password: string;
   phone: string;
   email?: string;
+  tags: string[];
+}
+
+export interface PasswordResetRequestParams {
+  username: string;
+  applicantName: string;
+  applicantContact: string;
+  verificationCode: string;
+  newPassword: string;
+}
+
+export interface RegisterStatusResponse {
+  found: boolean;
+  name?: string | null;
+  status?: string | null;
+  reason?: string | null;
+}
+
+export interface InvitationVerificationResponse {
+  valid: boolean;
+  validityDays?: number;
+  expiresAt?: string;
+  reason?: string;
 }
 
 export const authApi = {
@@ -59,17 +82,17 @@ export const authApi = {
 
   /** 发送注册短信验证码（公开，3次/分钟限流） */
   sendRegistrationCode(phone: string) {
-    return api.post<any>("/verification/send-registration-code", { phone }, { silent: true });
+    return api.post<unknown>("/verification/send-registration-code", { phone }, { silent: true });
   },
 
   /** 登录错误由登录页自行处理（ACCOUNT_PENDING/TEMPORARY_EXPIRED 分支），silent 跳过全局 toast */
   login(data: LoginParams) {
-    return api.post<any>("/auth/login", data, { silent: true });
+    return api.post<{ access_token?: string }>("/auth/login", data, { silent: true });
   },
 
   /** 注册错误由注册页展示行内提示，silent */
   register(data: RegisterParams) {
-    return api.post<any>("/supplier/register", data, { silent: true });
+    return api.post<unknown>("/supplier/register", data, { silent: true });
   },
 
   logout() {
@@ -77,12 +100,12 @@ export const authApi = {
   },
 
   getMe() {
-    return api.get<any>("/auth/me", { silent: true });
+    return api.get<Record<string, unknown>>("/auth/me", { silent: true });
   },
 
   /** 公开：凭统一社会信用代码查询注册审核进度（无需登录）。 */
   getRegisterStatusPublic(creditCode: string) {
-    return api.get<any>(`/supplier/register/status/public${qs({ creditCode })}`, { silent: true });
+    return api.get<RegisterStatusResponse>(`/supplier/register/status/public${qs({ creditCode })}`, { silent: true });
   },
 
   /** 注册前查重（公开）：统一社会信用代码硬拦截 / 法人身份证·联系人身份证软提示。 */
@@ -95,16 +118,25 @@ export const authApi = {
 
   /** 公开：校验邀请码（临时注册前）。返回 { valid, validityDays?, expiresAt?, reason? } */
   verifyInvitation(code: string) {
-    return api.get<any>(`/supplier/invitations/verify${qs({ code })}`, { silent: true });
+    return api.get<InvitationVerificationResponse>(`/supplier/invitations/verify${qs({ code })}`, { silent: true });
   },
 
   /** 公开：临时供应商注册（凭邀请码）。 */
   registerTemporary(data: RegisterTemporaryParams) {
-    return api.post<any>("/supplier/register/temporary", data, { silent: true });
+    return api.post<unknown>("/supplier/register/temporary", data, { silent: true });
   },
 
   /** 公开：临时供应商过期续期（凭新邀请码，需用户名+密码验证身份）。 */
   reactivateTemporary(data: { username: string; password: string; invitationCode: string }) {
-    return api.post<any>("/supplier-portal/reactivate", data, { silent: true });
+    return api.post<unknown>("/supplier-portal/reactivate", data, { silent: true });
+  },
+
+  /** 忘记密码提交：匿名提交重置申请，管理员审核后生效。 */
+  requestPasswordReset(data: PasswordResetRequestParams) {
+    return api.post<{ id: string; status: "PENDING"; requestedAt: string }>(
+      "/auth/password-reset-requests",
+      data,
+      { silent: true },
+    );
   },
 };

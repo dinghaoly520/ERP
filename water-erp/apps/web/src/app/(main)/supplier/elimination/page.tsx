@@ -106,7 +106,7 @@ export default function EliminationPage() {
           </div>
         </div>
       ) : loading ? (
-        <div className="neu-table-card"><TableSkeleton cols={3} rows={5} /></div>
+        <div className="neu-table-card"><table className="workbench-table"><tbody><TableSkeleton cols={3} rows={5} /></tbody></table></div>
       ) : candidates.length === 0 ? (
         <div className="neu-table-card py-12 text-center">
           <AlertTriangle size={32} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />

@@ -25,6 +25,7 @@ import { QUEUE_NAMES } from './queue.module';
 import { processFile } from '../utils/file-processor';
 import { neutralizeRecommendationText } from '../utils/neutralize';
 import { resolveQualification } from '../utils/qualification';
+import { buildStandardFileName } from '@water-erp/shared';
 
 interface BidderJobData {
   bidderResultId: string;
@@ -421,7 +422,7 @@ export class BidderProcessor extends WorkerHost {
         // 取 task（含 project.name）和已完成的 bidder（含 supplierName）
         const task = await this.prisma.aiBidAnalysisTask.findUnique({
           where: { id: taskId },
-          include: { project: { select: { name: true } } },
+          include: { project: { select: { name: true, projectCode: true } } },
         });
         const bidders = await this.prisma.aiBidderResult.findMany({
           where: { taskId, status: 'COMPLETED' },
@@ -454,7 +455,12 @@ export class BidderProcessor extends WorkerHost {
         const fileAsset = await this.prisma.fileAsset.create({
           data: {
             key: docxKey,
-            originalName: `投标文件分析报告-${task?.project.name ?? taskId}.docx`,
+            originalName: buildStandardFileName({
+          code: task?.project.projectCode,
+          name: task?.project.name,
+          tag: task?.project.name ? undefined : taskId,
+          docType: '投标文件分析报告',
+        }),
             mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             size: docxBuffer.length,
             sha256,

@@ -2,7 +2,7 @@ import { api } from '../api';
 
 /* ── 信息发布中心视图模型 ── */
 
-export type AnnouncementType = 'BID_NOTICE' | 'ADDENDUM' | 'PREQUAL_NOTICE' | 'PRE_WIN_NOTICE' | 'WIN_NOTICE' | 'CONTRACT_NOTICE' | 'PERFORMANCE_NOTICE' | 'POLICY' | 'PLATFORM';
+export type AnnouncementType = 'BID_NOTICE' | 'ADDENDUM' | 'PREQUAL_NOTICE' | 'PRE_WIN_NOTICE' | 'WIN_NOTICE' | 'CONTRACT_NOTICE' | 'PERFORMANCE_NOTICE' | 'POLICY' | 'PLATFORM' | 'FAILED_BID_NOTICE' | 'WIN_BID_NOTICE';
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
 export interface AnnouncementAttachment {
@@ -178,6 +178,26 @@ export function getParticipants(id: string) {
   return api.get<ParticipantsResult>(`/announcements/${id}/participants`);
 }
 
+/** 按项目编号查询公告参与供应商（项目基本信息「供应商参与」数据源） */
+export function getProjectParticipants(projectCode: string) {
+  return api.get<{ announcementId: string | null } & Pick<ParticipantsResult, 'suppliers' | 'stats'>>(
+    `/announcements/project/${encodeURIComponent(projectCode)}/participants`,
+  );
+}
+
+/** 发布前查重：同标题或同项目同类型的已发布公告（命中由前端提示确认，不阻断） */
+export interface AnnouncementDuplicateMatch {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  publishDate: string | null;
+  relatedProjectCode?: string | null;
+}
+export function checkAnnouncementDuplicate(payload: { title: string; relatedProjectCode?: string; type?: string }) {
+  return api.post<{ matches: AnnouncementDuplicateMatch[] }>('/announcements/check-duplicate', payload);
+}
+
 /* ── 普通附件 ── */
 
 export function listAttachments(announcementId: string) {
@@ -273,6 +293,7 @@ export async function exportAnnouncementDocument(payload: {
   tenderType: ReadyTenderDocumentType;
   category: AnnouncementCategory;
   draft: AnnouncementDraft;
+  projectCode?: string;
 }) {
   const response = await fetch(`${API_BASE}/tender-write/export-announcement`, {
     method: "POST",
@@ -298,6 +319,7 @@ export async function buildAnnouncement(payload: {
   tenderType: ReadyTenderDocumentType;
   category: AnnouncementCategory;
   draft: AnnouncementDraft;
+  projectCode?: string;
 }): Promise<{ blob: Blob; fileName: string; textContent: string }> {
   const response = await fetch(`${API_BASE}/tender-write/build-announcement`, {
     method: "POST",
@@ -367,6 +389,8 @@ export type NotificationExtractedData = {
 
 export type NotificationLetterDraft = {
   projectName: string;
+  /** 项目编号（统一命名用，可选） */
+  projectCode?: string;
   winnerName: string;
   winnerPrice: string;
   winnerPriceChinese: string;

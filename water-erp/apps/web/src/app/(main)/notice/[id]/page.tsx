@@ -7,23 +7,23 @@ import {
   getAnnouncement, updateAnnouncement, deleteAnnouncement,
   listAttachments, addAttachment, removeAttachment, uploadFile,
   getBidDocument, uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument,
-  generateSummary, confirmWinnerNotice,
+  generateSummary, confirmWinnerNotice, getParticipants,
 } from '@/lib/api/announcement';
-import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage } from '@/lib/api/announcement';
+import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage, ParticipantsResult } from '@/lib/api/announcement';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { ArrowLeft, Pencil, X, Trash2, Megaphone, Upload, Sparkles } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
-import { DATA_CLASS_LABELS } from '@water-erp/shared';
+import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 
 /* ── 类型/状态标签 ── */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
-  BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green', WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray',
+  BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green', WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray', FAILED_BID_NOTICE: 'orange', WIN_BID_NOTICE: 'green',
 };
 const typeLabel: Record<AnnouncementType, string> = {
-  BID_NOTICE: '采购公告', ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '预成交公示', WIN_NOTICE: '成交公告', CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知',
+  BID_NOTICE: '采购公告', ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '预成交公示', WIN_NOTICE: '成交公告', CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知', FAILED_BID_NOTICE: '流标公告', WIN_BID_NOTICE: '中标公告',
 };
 const statusTone: Record<AnnouncementStatus, 'green' | 'gray'> = {
   DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray',
@@ -70,6 +70,16 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   PLATFORM: [
     { key: 'impactScope', label: '影响范围' }, { key: 'changes', label: '功能变化', area: true }, { key: 'schedule', label: '时间安排' },
     { key: 'guide', label: '操作指引', area: true }, { key: 'support', label: '支持渠道' },
+  ],
+  // 系统生成类：字段与发布向导写入的 canonical meta / 公告草稿键对齐
+  FAILED_BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
+    { key: 'openTime', label: '开标时间' }, { key: 'resultInfo', label: '开标结果公示信息', area: true },
+  ],
+  WIN_BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
+    { key: 'openTime', label: '开标时间' }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
+    { key: 'remark', label: '备注' },
   ],
 };
 
@@ -126,7 +136,7 @@ export default function NoticeDetailPage() {
             <div className="min-w-0">
               <div className="page-hero__title truncate">{ann.title}</div>
               <div className="page-hero__sub">
-                {typeLabel[ann.type]}
+                {ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}
                 {ann.publishDate && <span> · {new Date(ann.publishDate).toLocaleDateString('zh-CN')} 发布</span>}
                 <span> · 浏览 {ann.viewCount}</span>
               </div>
@@ -134,7 +144,7 @@ export default function NoticeDetailPage() {
           </div>
           <div className="page-hero__right">
             <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
-            <StatusBadge tone={typeTone[ann.type]}>{typeLabel[ann.type]}</StatusBadge>
+            <StatusBadge tone={typeTone[ann.type]}>{ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}</StatusBadge>
             {ann.isTop && <StatusBadge tone="red">置顶</StatusBadge>}
             {ann.dataClass && (
               <StatusBadge tone={ann.dataClass === 'confidential' ? 'red' : ann.dataClass === 'public_mandatory' ? 'green' : 'gray'}>
@@ -260,10 +270,13 @@ function ConfirmWinnerButton({ ann }: { ann: AnnouncementListItem }) {
 function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
   const [bidDoc, setBidDoc] = useState<BidDocumentManage | null>(null);
+  const [participants, setParticipants] = useState<ParticipantsResult | null>(null);
   const [localAiSummary, setLocalAiSummary] = useState<string | undefined>(ann.aiSummary);
   useEffect(() => {
     listAttachments(ann.id).then(setAttachments).catch(() => {});
     if (ann.type === 'BID_NOTICE') getBidDocument(ann.id).then(setBidDoc).catch(() => setBidDoc(null));
+    // 投标情况：与公告列表「投标情况」同源同步（下载采购文件 ∪ 登记投标的供应商）
+    if (ann.type === 'BID_NOTICE') getParticipants(ann.id).then(setParticipants).catch(() => setParticipants(null));
   }, [ann.id, ann.type]);
 
   const aiSummary = localAiSummary ?? ann.aiSummary;
@@ -335,6 +348,48 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
           </div>
           <p className="text-[0.8rem] leading-relaxed text-[var(--foreground)] whitespace-pre-wrap break-words">{aiSummary || '点击「AI 摘要」按钮生成'}</p>
         </div>
+
+        {/* 投标情况：与公告列表「投标情况」同源（下载采购文件 ∪ 登记投标的供应商），实时同步 */}
+        {ann.type === 'BID_NOTICE' && (
+          <div className="neu-table-card p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">投标情况</span>
+              {participants && (
+                <span className="neu-tab-count ml-auto">{participants.stats.total} 家参与 · {participants.stats.submitted} 家已递交</span>
+              )}
+            </div>
+            {participants === null ? (
+              <p className="text-[0.8rem] text-[var(--muted-foreground)]">加载中…</p>
+            ) : participants.suppliers.length === 0 ? (
+              <p className="text-[0.8rem] leading-relaxed text-[var(--muted-foreground)]">暂无供应商参与——供应商下载采购文件或递交投标后自动同步至此。</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {participants.suppliers.map((s) => (
+                  <div
+                    key={s.supplierName}
+                    className="flex items-center justify-between gap-2 rounded-[8px] bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.5),1px_1px_2px_oklch(0.55_0.03_258/0.05),-1px_-1px_1px_oklch(1_0_0/0.6)]"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--foreground)]" title={s.supplierName}>{s.supplierName}</p>
+                      <p className="text-[11px] leading-snug text-[var(--muted-foreground)]">
+                        {s.lastDownloadAt ? `最近下载 ${new Date(s.lastDownloadAt).toLocaleString('zh-CN')}` : '未下载过采购文件'}
+                        {s.downloadCount > 0 && ` · ${s.downloadCount} 次`}
+                        {s.submittedAt && ` · 递交于 ${new Date(s.submittedAt).toLocaleString('zh-CN')}`}
+                      </p>
+                    </div>
+                    {s.withdrawn ? (
+                      <span className="shrink-0 rounded-[6px] bg-[var(--muted)]/60 px-2 py-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">已撤回</span>
+                    ) : s.submitted ? (
+                      <span className="shrink-0 rounded-[6px] bg-[rgba(92,181,150,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[rgba(78,150,124,1)]">已递交</span>
+                    ) : (
+                      <span className="shrink-0 rounded-[6px] bg-[var(--muted)]/60 px-2 py-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">未递交</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -422,7 +477,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">类型</label>
             <select value={type} onChange={e => onTypeChange(e.target.value as AnnouncementType)} className="neu-input" disabled>
-              {(Object.keys(typeLabel) as AnnouncementType[]).map(t => <option key={t} value={t}>{typeLabel[t]}</option>)}
+              {(Object.keys(typeLabel) as AnnouncementType[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b)).map(t => <option key={t} value={t}>{typeLabel[t]}</option>)}
             </select>
           </div>
           <div>

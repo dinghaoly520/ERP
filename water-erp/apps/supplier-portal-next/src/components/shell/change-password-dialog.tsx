@@ -30,21 +30,21 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
 
   const ready =
     form.old.trim().length > 0 &&
-    form.newPwd.length >= 6 &&
+    form.newPwd.length >= 8 && /(?=.*[A-Za-z])(?=.*\d)/.test(form.newPwd) &&
     form.confirm === form.newPwd;
 
   const hint = (() => {
     const { old, newPwd, confirm } = form;
     if (!old.trim()) return { text: "请先输入原密码", ok: false };
     if (newPwd.length === 0) return { text: "请设置新密码", ok: false };
-    if (newPwd.length < 6) return { text: `新密码还差 ${6 - newPwd.length} 位`, ok: false };
+    if (newPwd.length < 8 || !/(?=.*[A-Za-z])(?=.*\d)/.test(form.newPwd)) return { text: `新密码不满足要求`, ok: false };
     if (confirm !== newPwd) return { text: "两次输入的密码不一致", ok: false };
     return { text: "已准备好提交", ok: true };
   })();
 
   async function submit() {
     if (form.newPwd !== form.confirm) { toast.warning("两次密码不一致"); return; }
-    if (form.newPwd.length < 6) { toast.warning("密码不少于6位"); return; }
+    if (form.newPwd.length < 8 || !/(?=.*[A-Za-z])(?=.*\d)/.test(form.newPwd)) { toast.warning("密码须≥8位且含字母和数字"); return; }
     setLoading(true);
     try {
       await supplierApi.changePassword(form.old, form.newPwd);
@@ -101,7 +101,7 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
                 value={form.newPwd}
                 onChange={(e) => setForm((f) => ({ ...f, newPwd: e.target.value }))}
                 type={show.newPwd ? "text" : "password"}
-                placeholder="不少于6位，建议字母+数字组合"
+                placeholder="≥8位，须同时含字母和数字"
                 autoComplete="new-password"
               />
               <button

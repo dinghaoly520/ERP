@@ -28,6 +28,8 @@ function parseFileName(disposition: string | null) {
 export async function exportTenderDocument(payload: {
   documentType: ReadyTenderDocumentType;
   answers: ReadyTenderDraft;
+  /** 项目编号（统一命名用，项目绑定场景传入） */
+  projectCode?: string;
 }) {
   const response = await fetch(`${API_BASE}/tender-write/export`, {
     method: "POST",

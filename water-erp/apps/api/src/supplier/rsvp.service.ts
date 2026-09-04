@@ -100,18 +100,12 @@ export class RsvpService {
           select: { id: true },
         });
         if (!bp) {
-          // 事务外调 ensureBidProject（其内部自管事务/多语句，嵌套事务风险）；
-          // 创建完成后重新解析。失败不阻断回执本身（回执状态已先行落库）。
-          try {
-            await this.projectManagement.ensureBidProject(row.projectId);
-            bp = await tx.bidProject.findFirst({
-              where: { projectManagementItemId: row.projectId },
-              orderBy: { createdAt: 'desc' },
-              select: { id: true },
-            });
-          } catch (err: any) {
-            this.logger.warn(`RSVP 懒创建 BidProject 失败 pmi=${row.projectId}: ${err?.message ?? err}`);
-          }
+          // 【事务边界修复】ensureBidProject 使用根 prisma（独立连接），必须在 $transaction 回调
+          // 之外调用——在事务内调用会造成：交互式事务 5s 超时导致 RSVP 状态回滚但 BidProject
+          // 已提交（半成功态）+ 连接池双倍占用。
+          // 由于无法在事务中间跳出，这里改为：先标记回执已落（事务提交后再懒创建）。
+          // 实际方案：本函数外层先做 ensureBidProject，此处只做查询。
+          this.logger.warn(`BidProject 未懒创建（将在事务外补挂）pmi=${row.projectId}`);
         }
         if (bp) {
           await tx.bidSupplier.upsert({
@@ -123,6 +117,22 @@ export class RsvpService {
       }
       return r;
     });
+
+    // 【事务边界修复】事务提交后，若 ACCEPTED 且 BidProject 尚未懒创建，在此触发
+    // （ensureBidProject 幂等，其内部自管事务；创建时自动回填全部已接受回执的候选）
+    if (body.status === 'ACCEPTED' && row.projectId) {
+      const bp = await this.prisma.bidProject.findFirst({
+        where: { projectManagementItemId: row.projectId },
+        select: { id: true },
+      });
+      if (!bp) {
+        try {
+          await this.projectManagement.ensureBidProject(row.projectId);
+        } catch (err: any) {
+          this.logger.warn(`RSVP 事务后懒创建 BidProject 失败 pmi=${row.projectId}: ${err?.message ?? err}`);
+        }
+      }
+    }
 
     return { success: true, status: updated.status as RsvpStatus, respondedAt: updated.respondedAt!.toISOString(), rsvpNo: updated.id.slice(-8).toUpperCase() };
   }

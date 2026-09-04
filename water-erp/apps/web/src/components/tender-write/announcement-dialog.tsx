@@ -224,6 +224,19 @@ function BidderEditor({
   );
 }
 
+/** 有值判定（字段编辑器/进度条共用）：文本字段只看非空；
+ *  date/datetime-local 字段需校验格式（否则 input 显示空白却标记"已填写"） */
+function announcementFieldHasValue(
+  field: AnnouncementFieldConfig,
+  value: string,
+): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  if (field.type === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (field.type === 'datetime-local') return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v);
+  return true;
+}
+
 function AnnouncementFieldEditor({
   field,
   value,
@@ -249,14 +262,7 @@ function AnnouncementFieldEditor({
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
 }) {
-  // 有值判定：文本字段只看非空；date/datetime-local 字段需校验格式（否则 input 显示空白却标记"已填写"）
-  const hasValue = (() => {
-    const v = value.trim();
-    if (!v) return false;
-    if (field.type === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(v);
-    if (field.type === 'datetime-local') return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v);
-    return true;
-  })();
+  const hasValue = announcementFieldHasValue(field, value);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -529,6 +535,43 @@ export function AnnouncementDialog({
     return getAnnouncementFields(tenderType, category);
   }, [tenderType, category]);
 
+  // ★ 进入公告填写即直接带入（免手动点「智能填入」，与采购文件编写的进入预填对齐）：
+  // 工期及进度要求内容 ← 采购文件「商务要求/提交成果要求」→ 项目「采购活动时间安排」；
+  // 报名方式及条件 ← 项目「供应商资格要求」+ 采购文件「需提供的资料/特定资格要求」。
+  // 只填空缺不覆盖已填内容；填完后无 patch 不再触发，不会循环。
+  /* eslint-disable react-hooks/set-state-in-effect -- 进入表单的一次性预填 */
+  useEffect(() => {
+    if (!isOpen || !draft || !project) return;
+    const rec = draft as Record<string, string>;
+    const tenderRecord = (tenderDraft ?? {}) as Record<string, string>;
+    const patch: Record<string, string> = {};
+    const wanted = (key: string) =>
+      fields.some((f) => f.key === key) && !rec[key]?.trim() && !patch[key]?.trim();
+
+    if (wanted('scheduleRequirements') && rec.scheduleRequirementsType !== 'none') {
+      const schedule =
+        tenderRecord.businessRequirements?.trim()
+        || tenderRecord.submissionRequirements?.trim()
+        || project.activitySchedule?.trim();
+      if (schedule) {
+        patch.scheduleRequirements = schedule;
+        if (!rec.scheduleRequirementsType) patch.scheduleRequirementsType = 'have';
+      }
+    }
+    if (wanted('registrationMethod')) {
+      const parts: string[] = [];
+      const reqs = project.supplierRequirements?.trim() || tenderRecord.qualificationRequirements?.trim();
+      if (reqs) parts.push(`供应商资格条件：${reqs}`);
+      const materials = tenderRecord.requiredDocuments?.trim();
+      if (materials) parts.push(`报名材料：${materials}`);
+      if (parts.length > 0) patch.registrationMethod = `${parts.join('；')}。`;
+    }
+    if (Object.keys(patch).length > 0) {
+      setDraft((prev) => (prev ? ({ ...prev, ...patch } as AnnouncementDraft) : prev));
+    }
+  }, [isOpen, draft, fields, project, tenderDraft]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const dialogTitle = useMemo(() => {
     if (!tenderType || !category) return "公告";
     return getAnnouncementLabel(tenderType, category);
@@ -679,6 +722,30 @@ export function AnnouncementDialog({
 
     // Pass 1: 从项目数据直接填入（公告专属字段，tenderDraft 中不存在）
     if (project) {
+      // ★ 中标公告分支：字段键与采购公告不同（maxPrice 非 maxPriceNumeric、开标时间为
+      // composite、中标人走 bidder1 动态行）——不命中采购公告的键会让按钮只填进标题
+      if (category === 'winning_bid') {
+        if (!draftRecord.maxPrice?.trim() && !patch.maxPrice && project.budgetAmount != null) {
+          patch.maxPrice = String(project.budgetAmount);
+        }
+        if (!draftRecord.bidOpeningTime?.trim() && !patch.bidOpeningTime && project.bidOpeningTime?.trim()) {
+          const m = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+          if (m) {
+            patch.bidOpeningTime = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
+          } else {
+            const dm = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+            if (dm) patch.bidOpeningTime = `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}T09:00`;
+          }
+          if (!draftRecord.bidOpeningTimeType?.trim()) patch.bidOpeningTimeType = 'datetime';
+        }
+        if (!draftRecord.bidder1Name?.trim() && !patch.bidder1Name && project.awardedSupplier?.trim()) {
+          patch.bidder1Name = project.awardedSupplier;
+          if (!draftRecord.bidderCount?.trim() && !patch.bidderCount) patch.bidderCount = '1';
+        }
+        if (!draftRecord.bidder1Price?.trim() && !patch.bidder1Price && project.contractAmount != null) {
+          patch.bidder1Price = String(project.contractAmount);
+        }
+      }
       if (!draftRecord.supplierName?.trim()) {
         let sn = project.awardedSupplier?.trim();
         if (!sn) {
@@ -720,8 +787,15 @@ export function AnnouncementDialog({
       // 同时修正已有值但格式不符合 datetime-local 的字段
       const needsStartFix = !draftRecord.announcementStart?.trim()
         || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.announcementStart);
+      // announcementEnd 的 input 类型随模板不同：询比/竞价/邀请/内部招标=「公告截止时间」date（YYYY-MM-DD），
+      // 直接采购=「公示期限（止）」datetime-local。预填格式与校验正则须与字段类型一致，
+      // 否则 date 框收到带时分的值会被浏览器判非法 → 表单显示待补充（预览却有值）
+      const endIsDateOnly = fields.find((f) => f.key === 'announcementEnd')?.type === 'date';
+      const endValueRe = endIsDateOnly
+        ? /^\d{4}-\d{2}-\d{2}$/
+        : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
       const needsEndFix = !draftRecord.announcementEnd?.trim()
-        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.announcementEnd);
+        || !endValueRe.test(draftRecord.announcementEnd);
       if (needsStartFix || needsEndFix) {
         const at = project.documentAcquireTime?.trim();
         if (at) {
@@ -742,7 +816,7 @@ export function AnnouncementDialog({
               return toISODate(s);
             };
             if (needsStartFix) patch.announcementStart = toISODatetime(startRaw);
-            if (needsEndFix) patch.announcementEnd = toISODatetime(endRaw);
+            if (needsEndFix) patch.announcementEnd = endIsDateOnly ? toISODate(endRaw) : toISODatetime(endRaw);
             if (!draftRecord.announcementDays?.trim()) {
               try {
                 const days = Math.round((new Date(toISODate(endRaw)).getTime() - new Date(toISODate(startRaw)).getTime()) / 86400000);
@@ -750,6 +824,18 @@ export function AnnouncementDialog({
               } catch {}
             }
           }
+        }
+      }
+    }
+
+    // 最高限价（小写）兜底：询比采购文件的价格字段是 priceLimit（竞价/邀请为 maxPrice），
+    // ANNOUNCEMENT_AUTO_FILL 只映射了 maxPrice → 询比场景取 priceLimit；大写金额同步换算
+    if (fields.some((f) => f.key === 'maxPriceNumeric') && !draftRecord.maxPriceNumeric?.trim() && !patch.maxPriceNumeric) {
+      const price = tenderRecord.maxPrice?.trim() || tenderRecord.priceLimit?.trim();
+      if (price) {
+        patch.maxPriceNumeric = price;
+        if (!draftRecord.maxPriceChinese?.trim() && !patch.maxPriceChinese) {
+          patch.maxPriceChinese = numberToChineseAmount(price);
         }
       }
     }
@@ -800,7 +886,7 @@ export function AnnouncementDialog({
     }
     setBatchFilling(false);
     if (aiFields.length > 0) toast.success(`AI 已生成 ${aiFields.length} 个字段`);
-  }, [draft, fields, hiddenFields, tenderDraft, project]);
+  }, [draft, fields, hiddenFields, tenderDraft, project, category]);
 
   const handleContactSelect = (contact: { name: string; email: string; phone: string }) => {
     handleFieldChange("contactName", contact.name);
@@ -928,6 +1014,7 @@ export function AnnouncementDialog({
         tenderType,
         category,
         draft,
+        projectCode: project?.projectCode || undefined,
       });
       const saved = await saveFileWithPicker(result.blob, result.fileName);
       if (saved) {
@@ -944,6 +1031,18 @@ export function AnnouncementDialog({
   };
 
   const draftRecord = (draft ?? {}) as Record<string, string>;
+  // 可见字段（与下方字段渲染过滤逻辑一致）+ 填写进度（供编辑区头部进度条）
+  const visibleFields = fields.filter((field) => {
+    if (hiddenFields.includes(field.key)) return false;
+    if (field.key === 'scheduleRequirements') return draftRecord.scheduleRequirementsType === 'have';
+    if (field.key === 'bidOpeningTimeType') return false;
+    if (field.key === 'bidder1Remark') return draftRecord.bidder1RemarkType === '手动填入';
+    return true;
+  });
+  const filledCount = visibleFields.filter((f) => announcementFieldHasValue(f, draftRecord[f.key] ?? '')).length;
+  const totalCount = visibleFields.length;
+  const progressPercent = Math.round((filledCount / Math.max(totalCount, 1)) * 100);
+  const remainingFields = Math.max(totalCount - filledCount, 0);
 
   const modalBody = (
     <>
@@ -988,12 +1087,32 @@ export function AnnouncementDialog({
             <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
               <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
                       编辑区
                     </div>
-                    <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                      {fields.filter((f) => draftRecord[f.key]?.trim()).length}/{fields.length} 项已填写
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
+                      <span className="tabular-nums">{filledCount}/{totalCount} 项已填写</span>
+                      {remainingFields > 0 && (
+                        <span className="text-[10px]">还差 {remainingFields} 项即可完成公告填写</span>
+                      )}
+                    </div>
+                    {/* 填写进度条（与采购文件编写编辑器头部样式一致） */}
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[oklch(0.55_0.03_258_/_0.1)]">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${progressPercent}%`,
+                            background: progressPercent === 100
+                              ? 'oklch(0.6 0.13 164)'
+                              : 'linear-gradient(90deg, oklch(0.5 0.16 258 / 0.9), oklch(0.6 0.1 258 / 0.7))',
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-semibold tabular-nums text-[color:var(--muted-foreground)]">
+                        {progressPercent}%
+                      </span>
                     </div>
                   </div>
                   <button
@@ -1023,28 +1142,7 @@ export function AnnouncementDialog({
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto p-5 tender-scroll">
                 <div className="grid gap-3">
-                  {fields
-                    .filter((field) => {
-                      if (hiddenFields.includes(field.key)) return false;
-                      // Hide scheduleRequirements content when type is not "have"
-                      if (field.key === "scheduleRequirements") {
-                        const typeVal = draftRecord.scheduleRequirementsType;
-                        return typeVal === "have";
-                      }
-                      // Hide the composite typeKey field — it's rendered inline with its parent
-                      if (field.composite) {
-                        return true;
-                      }
-                      // Hide bidOpeningTimeType standalone — rendered as part of bidOpeningTime composite
-                      if (field.key === "bidOpeningTimeType") {
-                        return false;
-                      }
-                      // Hide remark text input when type is not "手动填入"
-                      if (field.key === "bidder1Remark") {
-                        return draftRecord.bidder1RemarkType === "手动填入";
-                      }
-                      return true;
-                    })
+                  {visibleFields
                     .map((field, fieldIdx, filteredFields) => {
                       // Inject BidderEditor after bidOpeningTime for winning_bid
                       const isWinningBid = category === "winning_bid";

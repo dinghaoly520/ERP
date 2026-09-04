@@ -6,7 +6,9 @@
     "dev": "next dev -p 3004 -H 0.0.0.0",
     "build": "next build",
     "start": "next start -p 3004",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "tsx --test src/lib/__tests__/*.test.ts src/components/__tests__/*.test.tsx",
+    "test:watch": "tsx --test --watch src/lib/__tests__/*.test.ts src/components/__tests__/*.test.tsx"
   },
   "dependencies": {
     "@water-erp/client": "workspace:*",
@@ -25,11 +27,18 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@next/eslint-plugin-next": "16.2.3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.3",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

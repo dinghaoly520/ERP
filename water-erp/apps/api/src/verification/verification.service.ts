@@ -19,6 +19,12 @@ const IP_RATE_LIMIT = 10;        // per minute
 
 // Dev bypass: set SMS_DEBUG_BYPASS=true to accept "123456" for any verification
 const DEBUG_BYPASS_CODE = '123456';
+const COMPARE_AND_DELETE_SCRIPT = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+`;
 
 @Injectable()
 export class VerificationService {
@@ -290,12 +296,12 @@ export class VerificationService {
     return { maskedPhone: this.maskPhone(phone) };
   }
 
-  async verifyRegistrationCode(phone: string, code: string) {
+  private async validateRegistrationCode(phone: string, code: string, consume: boolean) {
     if (process.env.SMS_DEBUG_BYPASS === 'true' && code === DEBUG_BYPASS_CODE) {
       if (process.env.NODE_ENV === 'production') {
         throw new BadRequestException({ code: 'BYPASS_FORBIDDEN_IN_PRODUCTION', error: 'SMS_DEBUG_BYPASS 不可在生产环境使用' });
       }
-      await this.redis.del(this.regCodeKey(phone));
+      if (consume) await this.redis.del(this.regCodeKey(phone));
       return { ok: true };
     }
 
@@ -318,7 +324,29 @@ export class VerificationService {
       throw new BadRequestException({ code: 'CODE_INVALID', error: `验证码错误，剩余 ${remaining} 次尝试` });
     }
 
-    await this.redis.del(this.regCodeKey(phone));
+    if (consume) {
+      const consumed = await this.redis.eval(
+        COMPARE_AND_DELETE_SCRIPT,
+        1,
+        this.regCodeKey(phone),
+        raw,
+      );
+      if (Number(consumed) !== 1) {
+        throw new BadRequestException({
+          code: 'CODE_EXPIRED',
+          error: '验证码已使用或已过期，请重新获取',
+        });
+      }
+    }
     return { ok: true };
+  }
+
+  /** 注册附件上传只校验、不消费验证码；最终注册仍须再次校验并一次性消费。 */
+  assertRegistrationCodeForUpload(phone: string, code: string) {
+    return this.validateRegistrationCode(phone, code, false);
+  }
+
+  verifyRegistrationCode(phone: string, code: string) {
+    return this.validateRegistrationCode(phone, code, true);
   }
 }

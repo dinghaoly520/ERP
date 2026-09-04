@@ -29,6 +29,36 @@
 /* ═══════════════ KPI strip spacing — consistent 20px rhythm with hero + body ═══════════════ */
 .db-kpi-grid { margin: 20px 0; }
 
+/* ═══════════════ Unified supplier tasks ═══════════════ */
+.db-task-panel { margin-bottom: 20px; }
+.db-task-subtitle { margin: 3px 0 0; color: var(--muted-foreground); font-size: 11px; }
+.db-task-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 30px; padding: 0 8px; border-radius: 999px;
+  background: color-mix(in oklab, var(--brand) 10%, transparent);
+  color: var(--brand); font-size: 12px; font-weight: 800;
+}
+.db-task-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.db-task-item {
+  width: 100%; min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  border: 1px solid var(--hairline); border-left: 3px solid var(--brand); border-radius: 10px;
+  background: color-mix(in oklab, var(--surface) 92%, var(--brand) 8%); color: inherit;
+  padding: 11px 12px; text-align: left; cursor: pointer; font: inherit;
+}
+.db-task-item.overdue { border-left-color: var(--danger); }
+.db-task-item.critical { border-left-color: var(--warning); }
+.db-task-item.warning { border-left-color: var(--brand-soft); }
+.db-task-item:hover { border-color: color-mix(in oklab, var(--brand) 35%, var(--hairline)); transform: translateY(-1px); }
+.db-task-item:focus-visible, .db-list-row:focus-visible, .db-msg-row:focus-visible, .db-comp-missing-tag:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--brand) 35%, transparent); outline-offset: 2px;
+}
+.db-task-main { min-width: 0; display: grid; gap: 2px; }
+.db-task-source { color: var(--brand); font-size: 10px; font-weight: 800; letter-spacing: .05em; }
+.db-task-title { color: var(--foreground); font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+.db-task-description { color: var(--muted-foreground); font-size: 11px; line-height: 1.45; }
+.db-task-action { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; color: var(--brand); font-size: 11px; font-weight: 700; }
+.db-task-empty { min-height: 70px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--success); font-size: 13px; }
+
 /* ═══════════════ Two-column body ═══════════════ */
 .db-body {
   display: grid;
@@ -53,6 +83,8 @@
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 11px 0; border-bottom: 1px solid var(--hairline);
   cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease);
+  width: 100%; border-left: 0; border-right: 0; border-top: 0; background-color: transparent;
+  color: inherit; text-align: left; font: inherit;
 }
 .db-list-row.is-last { border-bottom: none; }
 .db-list-row:hover { background: oklch(0.985 0.01 258 / 0.5); border-radius: 8px; }
@@ -92,6 +124,7 @@
   background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
   box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.10), -2px -2px 4px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
   transition: transform .15s;
+  border: 0; font-family: inherit;
 }
 .db-comp-missing-tag:hover { transform: translateY(-1px); }
 .db-comp-missing-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
@@ -99,7 +132,7 @@
 
 /* ── RIGHT BOTTOM: Notifications ── */
 .db-msg-list { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
-.db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 8px; border-radius: 8px; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease), box-shadow 0.2s ease; }
+.db-msg-row { width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 9px 8px; border-radius: 8px; border: 0; border-bottom: 1px solid var(--hairline); background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease), box-shadow 0.2s ease; }
 .db-msg-row.is-last { border-bottom: none; }
 .db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.6); }
 /* 未读 — 品牌色高亮：色块底 + 左侧品牌色标 + 深蓝标题 + 强调圆点，与已读的灰调形成鲜明区分 */
@@ -119,6 +152,12 @@
   .db-body { grid-template-columns: 1fr; }
   .db-hero .page-hero__row { flex-direction: column; align-items: stretch; gap: 14px; }
   .db-hero-right { justify-content: flex-start; }
+}
+@media (max-width: 720px) {
+  .db-task-list { grid-template-columns: 1fr; }
+  .db-task-item { min-height: 88px; align-items: flex-start; }
+  .db-task-action { min-height: 44px; align-items: center; }
+  .db-list-row, .db-msg-row { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .db-comp-bar-fill { transition: none; }

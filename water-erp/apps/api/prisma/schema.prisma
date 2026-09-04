@@ -1157,7 +1157,7 @@ model FaEntry {
 }
 
 // ── C2（GB/T 43711 7.5.4）：采购合同订立 ──
-// 状态机：drafting 草拟 → internal_review 内审（审计法务）→ signed 已签署 → performing 履行中
+// 状态机：drafting 草拟 → internal_review 内审（审计法务）→ approved_for_signing 待签署 → signed 已签署 → performing 履行中
 //        → accepted 已验收（C3）| terminated 终止。
 // 7.5.4.3 一致性：合同实质性内容应与采购文件、成交供应商响应文件和成交通知书一致——
 // 签署前必跑 checkContractConsistency（contract-consistency.ts），结果快照存 consistencyResult。
@@ -1170,7 +1170,7 @@ model Contract {
   supplierId              String
   supplierName            String
   contractType            String    @default("standard") // standard 标准合同 | order 订单（框架协议二阶段）
-  status                  String    @default("drafting") // drafting | internal_review | signed | performing | accepted | terminated
+  status                  String    @default("drafting") // drafting | internal_review | approved_for_signing | signed | performing | accepted | terminated
   amount                  Decimal?  @db.Decimal(15, 2)
   signDeadline            DateTime? // 成交通知书约定的签约时限（7.5.4.1）
   signedAt                DateTime?
@@ -1389,6 +1389,7 @@ model Supplier {
 
   approvalRecords SupplierApprovalRecord[]
   createdBusinessTags BusinessTag[] @relation("BusinessTagCreator")
+  ownArchives         SupplierOwnArchive[]
 
   @@index([status])
   @@index([creditCode])
@@ -1452,6 +1453,31 @@ model SupplierContact {
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@index([supplierId])
+}
+
+// ── 供应商自有档案（:3004 我的合同/框架协议页自建留存：线下历史合同、自有履约证明等）──
+// 与平台流程生成的 Contract/FrameworkAgreement 互补：供应商自己上传维护，仅本企业可见。
+model SupplierOwnArchive {
+  id           String   @id @default(cuid())
+  supplierId   String
+  category     String // contract=合同类 | framework=框架协议类
+  title        String // 合同/协议名称
+  refCode      String? // 合同/协议编号
+  counterparty String? // 采购人/对方单位
+  amount       String? // 金额（自由格式，如 "86 万元"）
+  signDate     DateTime?
+  startDate    DateTime?
+  endDate      DateTime? // 履约截止 / 协议有效期止（到期提醒依据）
+  scope        String? // 标的/入围范围简述
+  note         String?
+  files        Json     @default("[]") // 附件 [{name,url}]（upload 落 MinIO）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, category])
+  @@index([endDate])
 }
 
 // ── 供应商银行账户（注册第 3 部分，可多项）──
@@ -1682,6 +1708,8 @@ enum AnnouncementType {
   PERFORMANCE_NOTICE // 合同履行结果公告（7.6.2.2）
   POLICY // 政策法规
   PLATFORM // 平台通知
+  FAILED_BID_NOTICE // 流标公告（发布向导 failed_bid 类目生成）
+  WIN_BID_NOTICE // 中标公告（发布向导 winning_bid 类目生成）
   CLARIFY_NOTICE // 澄清与修改公告（B-014 醒目公告，isTop）
 }
 
@@ -3220,6 +3248,7 @@ model PasswordResetRequest {
   applicantName     String
   applicantContact  String
   matchedUserId     String?
+  requestedPasswordHash String?
   status            PasswordChangeRequestStatus @default(PENDING)
   decisionNote      String?
   requestedAt       DateTime                    @default(now())

@@ -1161,8 +1161,13 @@ function InquiryPurchasePreview({
           </div>
           <div className="mt-4 pt-3">
             <div className="text-sm leading-7 text-[color:var(--foreground)]">
-              <span className="font-semibold">一、递交报价函截止时间：</span>
-              <PreviewValue value={draft.submissionDeadline} placeholder="{{递交报价函截止时间}}" fieldKey="submissionDeadline" onValueChange={onValueChange} />
+              <span className="font-semibold">一、采购文件获取时间：</span>
+              <PreviewValue value={draft.documentAcquireTime} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
+              ；
+            </div>
+            <div className="pl-8 text-sm leading-7 text-[color:var(--foreground)]">
+              <span className="font-semibold">开标时间：</span>
+              <PreviewValue value={draft.bidOpeningTime} placeholder="{{开标时间}}" fieldKey="bidOpeningTime" onValueChange={onValueChange} />
               。
             </div>
           </div>

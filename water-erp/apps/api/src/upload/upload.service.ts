@@ -7,6 +7,9 @@ import { BID_FILE_ROLES } from '@water-erp/shared';
 import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { createDecryptStream } from '../announcement/bid-document.crypto';
+import { UPLOAD_CATEGORIES } from './upload-categories';
+import { matchesFileContentPolicy, PDF_WORD_IMAGE_MIME_TYPES } from './file-content-policy';
+import { CompanyScopeService } from '../company/company-scope';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -40,21 +43,14 @@ const EVIDENCE_PROTECTED_CATEGORIES = [
   'supervision_push_voucher',   // A-153：离线凭证物证
 ];
 
-const ALLOWED_CATEGORIES = [
-  'qualification',  // 资质材料
-  'bid_document',   // 投标文件
-  'announcement',   // 公告附件
-  'profile',        // 供应商资料
-  'expert_signin_photo', // 专家签到拍照留痕（evaluate 身份核验步骤，非人脸识别）
-  'general',        // 通用
-  'clarification_reply', // A-143：供应商澄清答复附件（供应商上传）
-];
-
 @Injectable()
 export class UploadService implements OnModuleInit {
   private readonly logger = new Logger(UploadService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private companyScope: CompanyScopeService,
+  ) {}
 
   async onModuleInit() {
     // 启动时确保 bucket 存在；MinIO 不可用时不阻断应用启动，仅记录告警
@@ -68,11 +64,11 @@ export class UploadService implements OnModuleInit {
   /**
    * 生成文件存储 key: uploads/{yyyy-mm-dd}/{random}.{ext}
    */
-  generateKey(originalName: string): string {
+  generateKey(originalName: string, namespace = 'uploads'): string {
     const date = new Date().toISOString().slice(0, 10);
     const ext = originalName.includes('.') ? originalName.split('.').pop() : 'bin';
     const hash = crypto.randomBytes(8).toString('hex');
-    return `uploads/${date}/${hash}.${ext}`;
+    return `${namespace}/${date}/${hash}.${ext}`;
   }
 
   /**
@@ -93,11 +89,20 @@ export class UploadService implements OnModuleInit {
       });
     }
 
-    if (!ALLOWED_CATEGORIES.includes(category)) {
+    if (!UPLOAD_CATEGORIES.has(category)) {
       throw new BadRequestException({
         error: `不支持的文件分类：${category}`,
         code: 'INVALID_CATEGORY',
       });
+    }
+
+    if (category === 'contract_document') {
+      if (!matchesFileContentPolicy(file, PDF_WORD_IMAGE_MIME_TYPES)) {
+        throw new BadRequestException({
+          error: '合同或履约证明文件的扩展名、MIME 类型或文件内容不一致',
+          code: 'CONTRACT_DOCUMENT_TYPE_MISMATCH',
+        });
+      }
     }
   }
 
@@ -108,9 +113,21 @@ export class UploadService implements OnModuleInit {
     file: Express.Multer.File, category: string = 'general', userId?: string,
     clientEncrypted = false,
     clientPlaintextSha256?: string,
+    keyNamespace?: string,
   ) {
-    // clientEncrypted 时跳过 MIME 校验——密文的 MIME type 是 application/octet-stream
-    if (!clientEncrypted) {
+    // clientEncrypted 时跳过 MIME 校验（密文恒为 octet-stream），但 category 白名单仍须校验
+    // ——防伪造任意类目（如 clarification_reply）对全体开评标管理角色可见
+    if (clientEncrypted) {
+      if (!UPLOAD_CATEGORIES.has(category)) {
+        throw new BadRequestException({
+          error: `不支持的文件分类：${category}`,
+          code: 'INVALID_CATEGORY',
+        });
+      }
+      if (clientPlaintextSha256 && !/^[a-f0-9]{64}$/i.test(clientPlaintextSha256)) {
+        throw new BadRequestException({ error: 'plaintextSha256 须为 64 位 hex', code: 'BAD_SHA256' });
+      }
+    } else {
       this.validateFile(file, category);
     }
 
@@ -134,7 +151,7 @@ export class UploadService implements OnModuleInit {
       mimeType = 'application/octet-stream';
     }
 
-    const key = this.generateKey(displayName);
+    const key = this.generateKey(displayName, keyNamespace);
     // sha256: 客户端提供原文哈希则用它；否则计算密文哈希
     const sha256 = clientPlaintextSha256 || this.computeSha256(buffer);
 
@@ -313,6 +330,14 @@ export class UploadService implements OnModuleInit {
     asset: { id: string; uploaderId: string | null; category: string; key?: string | null },
     user: { sub: string; role: string },
   ): Promise<boolean> {
+    // 合同/履约/成交通知书资产没有 companyId，必须先沿真实引用链判定公司归属。
+    // 此检查刻意位于 uploader 快速放行之前：存量数据中即使他企经办人曾上传该文件，
+    // 一旦它已成为另一公司的合同证据，也不能靠 uploaderId 绕过公司隔离。
+    if (['admin', 'bid_host', 'leader', 'staff'].includes(user.role)) {
+      const contractAccess = await this.contractReferenceAccess(asset.id, user);
+      if (contractAccess !== null) return contractAccess;
+    }
+
     if (asset.uploaderId && asset.uploaderId === user.sub) return true;
 
     // A-143：澄清答复附件——上传人（供应商）之外，开评标现场/管理角色可见（答复本就在主持端展示）
@@ -407,10 +432,99 @@ export class UploadService implements OnModuleInit {
     if (user.role === 'supplier') {
       const supplier = await this.prisma.supplier.findUnique({
         where: { userId: user.sub },
-        select: { id: true, logoUrl: true },
+        select: { id: true, userId: true, logoUrl: true },
       });
       if (!supplier) return false;
 
+      // 交易结果与合同文件可能由采购端生成/上传。这里按真实业务引用链授权，
+      // 不依赖 uploaderId，且只允许当前供应商主体命中的记录。
+      const [contractFile, fulfillmentFile] = await Promise.all([
+        this.prisma.contract.findFirst({
+          where: {
+            supplierId: supplier.id,
+            signedAssetId: asset.id,
+            status: { in: ['signed', 'performing', 'accepted', 'terminated'] },
+          },
+          select: { id: true },
+        }),
+        this.prisma.contractFulfillment.findFirst({
+          where: {
+            proofAssetId: asset.id,
+            contract: {
+              supplierId: supplier.id,
+              status: { in: ['signed', 'performing', 'accepted', 'terminated'] },
+            },
+          },
+          select: { id: true },
+        }),
+      ]);
+      if (contractFile || fulfillmentFile) return true;
+
+      const ownedBidSuppliers = await this.prisma.bidSupplier.findMany({
+        where: { supplierId: supplier.id },
+        select: { id: true },
+      });
+      if (ownedBidSuppliers.length > 0) {
+        const awardLetter = await this.prisma.awardLetterDelivery.findFirst({
+          where: {
+            letterAssetId: asset.id,
+            supplierId: { in: ownedBidSuppliers.map((item) => item.id) },
+          },
+          select: { id: true },
+        });
+        if (awardLetter) return true;
+      }
+
+      // 【防伪造】本分支内所有"URL 引用"类判定改为双闸门：
+      //  ① 引用行的 URL 必须精确等于 `/api/upload/files/${asset.id}`（拒绝 endsWith 后缀匹配，
+      //    防止构造 `xxx/files/<他企id>` 绕过）；
+      //  ② 被引用 asset 须为本供应商上传，或采购管理端（admin/leader/staff）代传——
+      //    供应商无法引用【另一供应商】上传的文件（防跨界读取他企资质/证件）。
+      const refOk = (url: unknown) =>
+        typeof url === 'string' && url === `/api/upload/files/${asset.id}`;
+      const assetTrusted = async (): Promise<boolean> => {
+        if (!asset.uploaderId || asset.uploaderId === supplier.userId) return true;
+        const uploader = await this.prisma.user.findUnique({
+          where: { id: asset.uploaderId },
+          select: { role: true },
+        });
+        return ['admin', 'leader', 'staff'].includes(uploader?.role ?? '');
+      };
+
+      // 第一步：本企业记录中是否存在精确引用（无则直接 false，不查 uploader）
+      let referenced = false;
+      if (refOk(supplier.logoUrl)) {
+        referenced = true;
+      } else {
+        const [quals, perfs, archives] = await Promise.all([
+          this.prisma.supplierQualification.findMany({
+            where: { supplierId: supplier.id },
+            select: { fileUrl: true, attachments: true },
+          }),
+          this.prisma.supplierPerformance.findMany({
+            where: { supplierId: supplier.id },
+            select: { proofFiles: true },
+          }),
+          this.prisma.supplierOwnArchive.findMany({
+            where: { supplierId: supplier.id },
+            select: { files: true },
+          }),
+        ]);
+        for (const q of quals) {
+          if (refOk(q.fileUrl)) { referenced = true; break; }
+          if ((q.attachments as Array<{ url?: string }> | null)?.some((a) => refOk(a?.url))) { referenced = true; break; }
+        }
+        if (!referenced) {
+          for (const pf of perfs) {
+            if ((pf.proofFiles as Array<{ url?: string }> | null)?.some((f) => refOk(f?.url))) { referenced = true; break; }
+          }
+        }
+        if (!referenced) {
+          for (const ar of archives) {
+            if ((ar.files as Array<{ url?: string }> | null)?.some((f) => refOk(f?.url))) { referenced = true; break; }
+          }
+        }
+      }
       // 采购邀请书（general/invitation/{业务编号}/{ts}.docx）：该编号项目的受邀供应商可预览
       if (asset.key?.startsWith('general/invitation/')) {
         const bizCode = asset.key.split('/')[2];
@@ -425,29 +539,9 @@ export class UploadService implements OnModuleInit {
           if (invited) return true;
         }
       }
-      const [quals, perfs] = await Promise.all([
-        this.prisma.supplierQualification.findMany({
-          where: { supplierId: supplier.id },
-          select: { fileUrl: true, attachments: true },
-        }),
-        this.prisma.supplierPerformance.findMany({
-          where: { supplierId: supplier.id },
-          select: { proofFiles: true },
-        }),
-      ]);
-      const urls = new Set<string>();
-      if (supplier.logoUrl) urls.add(supplier.logoUrl);
-      for (const q of quals) {
-        urls.add(q.fileUrl);
-        for (const a of (q.attachments as Array<{ url?: string }> | null) ?? []) if (a?.url) urls.add(a.url);
-      }
-      for (const p of perfs) {
-        for (const a of (p.proofFiles as Array<{ url?: string }>) ?? []) if (a?.url) urls.add(a.url);
-      }
-      for (const u of urls) {
-        if (u && (u.endsWith(`/files/${asset.id}`) || u.endsWith(`/${asset.id}`))) return true;
-      }
-      return false;
+
+      if (!referenced) return false;
+      return assetTrusted();
     }
 
     if (user.role === 'bid_expert') {
@@ -489,6 +583,52 @@ export class UploadService implements OnModuleInit {
     }
 
     return false;
+  }
+
+  /**
+   * 返回 null 表示资产未被合同证据链或成交通知书引用，调用方继续既有投标/上传人规则；
+   * 返回 boolean 表示已有上述业务引用，必须按公司范围作最终判定。
+   */
+  private async contractReferenceAccess(
+    assetId: string,
+    user: { sub: string; role: string },
+  ): Promise<boolean | null> {
+    const [contractRefs, fulfillmentRefs, awardLetterRefs] = await Promise.all([
+      this.prisma.contract.findMany({
+        where: { OR: [{ draftAssetId: assetId }, { signedAssetId: assetId }] },
+        select: { companyId: true },
+      }),
+      this.prisma.contractFulfillment.findMany({
+        where: { proofAssetId: assetId },
+        select: { contract: { select: { companyId: true } } },
+      }),
+      this.prisma.awardLetterDelivery.findMany({
+        where: { letterAssetId: assetId },
+        select: { project: { select: { companyId: true, assignedHostUserId: true } } },
+      }),
+    ]);
+    if (contractRefs.length === 0 && fulfillmentRefs.length === 0 && awardLetterRefs.length === 0) return null;
+
+    const scope = await this.companyScope.resolveScope(user as any);
+    if (scope.all) return true;
+
+    const contractCompanyIds: Array<string | null> = [
+      ...contractRefs.map((reference) => reference.companyId),
+      ...fulfillmentRefs.map((reference) => reference.contract.companyId),
+    ];
+    const awardCompanyIds = awardLetterRefs.map((reference) => reference.project.companyId);
+
+    // 同时存在合同引用时，始终以合同公司域为准，不得用主持人指派例外绕过。
+    if (contractCompanyIds.length > 0) {
+      return [...contractCompanyIds, ...awardCompanyIds]
+        .every((companyId) => companyId === scope.companyId);
+    }
+
+    if (awardCompanyIds.every((companyId) => companyId === scope.companyId)) return true;
+    // 镜像 BidCompanyScopeGuard：被明确指派的主持人可跨公司回看自己负责项目；
+    // 资产若被多个通知书引用，必须每条均是该主持人的指派项目。
+    return user.role === 'bid_host'
+      && awardLetterRefs.every((reference) => reference.project.assignedHostUserId === user.sub);
   }
 
   /**
@@ -565,6 +705,11 @@ export class UploadService implements OnModuleInit {
       this.prisma.awardLetterDelivery.findFirst({ where: { letterAssetId: asset.id }, select: { id: true } }),
       this.prisma.expertMemo.findFirst({ where: { inkFileId: asset.id }, select: { id: true } }),
       this.prisma.openingHallMessage.findFirst({ where: { fileAssetId: asset.id }, select: { id: true } }),
+      this.prisma.contract.findFirst({
+        where: { OR: [{ draftAssetId: asset.id }, { signedAssetId: asset.id }] },
+        select: { id: true },
+      }),
+      this.prisma.contractFulfillment.findFirst({ where: { proofAssetId: asset.id }, select: { id: true } }),
     ]);
     if (evidenceRefs.some(Boolean)) {
       throw new ConflictException({ error: '该文件被开评标留痕引用，禁止删除', code: 'FILE_PROTECTED' });

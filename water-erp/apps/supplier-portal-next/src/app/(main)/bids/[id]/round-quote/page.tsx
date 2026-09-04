@@ -11,6 +11,7 @@ import { bidApi } from "@/lib/api/bid";
 import { ApiError } from "@/lib/api";
 import { useBidWebSocket } from "@/hooks/use-bid-websocket";
 import { useLeaveGuard } from "@/hooks/use-leave-guard";
+import { serverNowMs, syncServerClock } from "@water-erp/shared";
 import "@/styles/pages/opening.css";
 
 interface Round {
@@ -89,7 +90,7 @@ export default function RoundQuotePage() {
       setDeadlinePassed(false);
       return;
     }
-    setDeadlinePassed(new Date() > new Date(r.deadline));
+    setDeadlinePassed(serverNowMs() > new Date(r.deadline).getTime());
   }
 
   // 轮次状态实时：开轮/封轮/发布结果（round:status:change）→ 重载轮次与报价
@@ -150,6 +151,7 @@ export default function RoundQuotePage() {
 
   useEffect(() => {
     fetchData();
+    void syncServerClock().then(checkDeadline);
     // M4: 每 10 秒检查截止时间
     const t = setInterval(checkDeadline, 10000);
     checkDeadline();

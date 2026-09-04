@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { SessionWatchdog } from "@/components/session-watchdog";
+import { ConfirmHost } from "@/components/catalog/confirm-dialog";
 import { UserSettingsProvider } from "@/lib/user-settings-context";
 import { AssistantProvider, useAssistant } from "@/components/assistant/assistant-provider";
 
@@ -141,6 +142,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     <UserSettingsProvider>
       <AssistantProvider>
         <SessionWatchdog />
+        <ConfirmHost />
         <AssistantLayoutInner>{children}</AssistantLayoutInner>
       </AssistantProvider>
     </UserSettingsProvider>

@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { User, Lock, View } from "lucide-react";
+import { ArrowRight, Clock3, Eye, EyeOff, KeyRound, Lock, SearchCheck, ShieldCheck, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, type LoginResult } from "@/lib/auth-context";
 import { authApi } from "@/lib/api/auth";
+import { getErrorMessage, validateLoginCredentials } from "@/lib/registration-validation";
+import { PasswordResetRequestDialog } from "@/components/auth/password-reset-request-dialog";
 
 /**
  * 品牌蓝 · 新拟态登录卡（lp-* 样式移植自 Vue Login.vue）。
@@ -23,13 +25,6 @@ const STATUS_TEXT: Record<string, string> = {
   BLACKLIST: "账号已列入不良供应商名单，如有异议请联系采购中心申诉。",
 };
 
-const EyeOff = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-    <line x1="1" y1="1" x2="23" y2="23" />
-  </svg>
-);
-
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -40,9 +35,12 @@ function LoginForm() {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingInfo, setPendingInfo] = useState<{ code: string } | null>(null);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const passwordResetTriggerRef = useRef<HTMLButtonElement>(null);
+  const shouldRestorePasswordResetFocusRef = useRef(false);
 
   // 注册成功跳转来的（?registered=1）：自动展开审核进度查询
-  const [showQuery, setShowQuery] = useState(false);
+  const [showQuery, setShowQuery] = useState(() => params.get("registered") === "1");
   const [queryCode, setQueryCode] = useState("");
   const [querying, setQuerying] = useState(false);
   const [queryResult, setQueryResult] = useState<{ found: boolean; name?: string | null; status?: string | null; reason?: string | null } | null>(null);
@@ -52,6 +50,23 @@ function LoginForm() {
   const [reactivateCode, setReactivateCode] = useState("");
   const [reactivating, setReactivating] = useState(false);
 
+  const openPasswordResetDialog = () => {
+    shouldRestorePasswordResetFocusRef.current = true;
+    setShowPasswordReset(true);
+    setShowReactivate(false);
+    setShowQuery(false);
+    setQueryResult(null);
+  };
+
+  useEffect(() => {
+    if (showPasswordReset || !shouldRestorePasswordResetFocusRef.current) return;
+    shouldRestorePasswordResetFocusRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      passwordResetTriggerRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [showPasswordReset]);
+
   useEffect(() => {
     if (params.get("forceLogin") === "1") {
       logout();
@@ -59,15 +74,13 @@ function LoginForm() {
     }
     // 已登录访问 /login → 回工作台（对齐 Vue 路由守卫 guest 分支）
     if (isLoggedIn) router.replace("/dashboard");
-    if (params.get("registered") === "1") setShowQuery(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleLogin(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!username.trim()) { toast.error("请输入用户名"); return; }
-    if (!password) { toast.error("请输入密码"); return; }
-    if (password.length < 6) { toast.error("密码不少于6位"); return; }
+    const validationError = validateLoginCredentials(username, password);
+    if (validationError) { toast.error(validationError); return; }
     setLoading(true);
     try {
       const result: LoginResult = await login(username, password);
@@ -111,8 +124,8 @@ function LoginForm() {
       toast.success("续期成功，请重新登录");
       setShowReactivate(false);
       setReactivateCode("");
-    } catch (e: any) {
-      toast.error(e?.message || "续期失败，请核对邀请码");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "续期失败，请核对邀请码"));
     } finally {
       setReactivating(false);
     }
@@ -127,19 +140,21 @@ function LoginForm() {
         <span className="lp-brand-name">智慧水发 · 蜀水云采</span>
       </div>
 
-      <section className="lp-panel" aria-label="登录表单">
+      {!showPasswordReset ? (
+        <section className="lp-panel" aria-label="登录表单">
         <div className="lp-card">
           <div className="lp-head">
             <div className="lp-brand-word">智慧水发<span className="lp-dot">·</span>蜀水云采</div>
             <div className="lp-divider" aria-hidden="true">◆</div>
             <h1 className="lp-title">供应商门户</h1>
+            <p className="lp-subtitle">使用统一社会信用代码登录</p>
           </div>
 
           <form className="lp-form" onSubmit={handleLogin}>
             <div className="lp-field">
               <label className="lp-label" htmlFor="lp-username">用户名</label>
               <div className="lp-input-wrap">
-                <span className="lp-prefix"><User size={17} /></span>
+                <span className="lp-prefix" aria-hidden="true"><User size={17} /></span>
                 <input
                   id="lp-username"
                   value={username}
@@ -153,7 +168,7 @@ function LoginForm() {
             <div className="lp-field">
               <label className="lp-label" htmlFor="lp-password">密码</label>
               <div className="lp-input-wrap">
-                <span className="lp-prefix"><Lock size={17} /></span>
+                <span className="lp-prefix" aria-hidden="true"><Lock size={17} /></span>
                 <input
                   id="lp-password"
                   type={showPwd ? "text" : "password"}
@@ -165,11 +180,11 @@ function LoginForm() {
                 <button
                   type="button"
                   className="lp-eye"
-                  tabIndex={-1}
                   onClick={() => setShowPwd((v) => !v)}
                   aria-label={showPwd ? "隐藏密码" : "显示密码"}
+                  aria-pressed={showPwd}
                 >
-                  {showPwd ? <EyeOff size={16} /> : <View size={16} />}
+                  {showPwd ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
                 </button>
               </div>
             </div>
@@ -205,7 +220,7 @@ function LoginForm() {
                   {queryResult.found ? (
                     <>
                       <strong>{queryResult.name}</strong>
-                      <span>— {STATUS_TEXT[queryResult.status as string] || queryResult.status}</span>
+                      <span>，{STATUS_TEXT[queryResult.status as string] || queryResult.status}</span>
                       {queryResult.reason && <span className="lp-query__reason">原因：{queryResult.reason}</span>}
                     </>
                   ) : (
@@ -237,23 +252,53 @@ function LoginForm() {
           )}
 
           <div className="lp-foot">
-            <a
-              href="#"
-              className="lp-foot-link"
-              onClick={(e) => { e.preventDefault(); setShowQuery(true); setQueryResult(null); }}
+            <button
+              type="button"
+              className="lp-foot-pill"
+              onClick={() => { setShowQuery(true); setQueryResult(null); }}
             >
-              查询审核进度 / 忘记密码？
-            </a>
+              <SearchCheck size={14} strokeWidth={1.9} aria-hidden="true" />
+              查询审核进度
+            </button>
+            <button ref={passwordResetTriggerRef} type="button" className="lp-foot-pill" onClick={openPasswordResetDialog}>
+              <KeyRound size={14} strokeWidth={1.9} aria-hidden="true" />
+              忘记密码？
+            </button>
           </div>
 
-          {/* 注册入口：正式 / 临时（凭邀请码） */}
-          <div className="lp-register-entry">
-            <Link href="/register" className="lp-reg-btn lp-reg-btn--primary">正式注册供应商</Link>
-            <div className="lp-reg-divider"><span>或</span></div>
-            <Link href="/register-temporary" className="lp-reg-btn lp-reg-btn--temp">凭邀请码 · 临时注册</Link>
-          </div>
+          <section className="lp-onboarding" aria-labelledby="lp-onboarding-title">
+            <div className="lp-onboarding-head">
+              <h2 id="lp-onboarding-title">首次使用平台？</h2>
+              <span>选择适合的注册方式</span>
+            </div>
+            <div className="lp-register-options">
+              <Link href="/register" className="lp-register-option">
+                <span className="lp-register-option__icon" aria-hidden="true"><ShieldCheck size={17} strokeWidth={1.8} /></span>
+                <span className="lp-register-option__copy">
+                  <strong>正式注册</strong>
+                  <small>长期合作，完成完整资料入库</small>
+                </span>
+                <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+              <Link href="/register-temporary" className="lp-register-option">
+                <span className="lp-register-option__icon" aria-hidden="true"><Clock3 size={17} strokeWidth={1.8} /></span>
+                <span className="lp-register-option__copy">
+                  <strong>临时注册</strong>
+                  <small>已获邀请，凭 8 位邀请码办理</small>
+                </span>
+                <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+            </div>
+          </section>
         </div>
-      </section>
+        </section>
+      ) : null}
+      <PasswordResetRequestDialog
+        open={showPasswordReset}
+        onClose={() => setShowPasswordReset(false)}
+        initialUsername={username}
+        returnFocusRef={passwordResetTriggerRef}
+      />
     </main>
   );
 }

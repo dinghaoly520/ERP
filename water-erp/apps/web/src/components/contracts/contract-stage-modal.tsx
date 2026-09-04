@@ -7,14 +7,16 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ScrollText, Plus, Send, CheckCircle2, FileSignature, Megaphone, FileText, PackageCheck, Ban, Coins, Loader2 } from 'lucide-react';
+import { Plus, Send, CheckCircle2, FileSignature, Megaphone, FileText, PackageCheck, Ban, Coins, Loader2, Eye, Download, Upload, ShieldCheck } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { StatusBadge } from '@/components/workbench';
 import {
   listContractsByProject, createContract, runContractConsistency, submitContractReview, reviewContract,
   signContract, publishContractNotice, generateContractDraftDocx, addContractFulfillment,
   updateContractFulfillment, acceptContract, terminateContract, listBondReturns, markSupplierBondReturned,
-  CONTRACT_STATUS_LABEL, FULFILLMENT_LABEL, type Contract, type BondReturnRow,
+  canAcceptContract, canCompleteContractFulfillment, contractProofAssetUrl,
+  canRegisterContractSigning, formatContractProofMetadata, uploadContractProof,
+  CONTRACT_STATUS_LABEL, FULFILLMENT_LABEL, type Contract, type ContractFulfillment, type ContractProofAsset, type BondReturnRow,
 } from '@/lib/api/contract';
 
 interface Props {
@@ -25,14 +27,94 @@ interface Props {
 }
 
 const STATUS_TONE: Record<string, 'gray' | 'orange' | 'green' | 'blue' | 'red'> = {
-  drafting: 'gray', internal_review: 'orange', signed: 'green', performing: 'blue', accepted: 'green', terminated: 'red',
+  drafting: 'gray', internal_review: 'orange', approved_for_signing: 'orange', signed: 'green', performing: 'blue', accepted: 'green', terminated: 'red',
 };
 
+const CONTRACT_PROOF_ACCEPT = '.pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png';
+
+function FulfillmentProofDetails({ fulfillment }: { fulfillment: ContractFulfillment }) {
+  const assetId = fulfillment.proofAsset?.id ?? fulfillment.proofAssetId;
+  const assetUrl = contractProofAssetUrl(assetId);
+  if (!assetUrl) return null;
+
+  const metadata = fulfillment.proofAsset
+    ? formatContractProofMetadata(fulfillment.proofAsset)
+    : null;
+
+  return (
+    <div className="mt-1.5 flex min-w-0 flex-col gap-1 rounded-[8px] border border-[var(--accent)]/15 bg-[var(--accent-soft)]/10 px-2.5 py-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <p className="flex min-w-0 items-center gap-1.5 text-[0.68rem] font-bold text-[var(--foreground)]">
+          <ShieldCheck size={12} className="shrink-0 text-[var(--success)]" aria-hidden="true" />
+          <span className="truncate" title={metadata?.name}>{metadata?.name ?? '履约证明已关联'}</span>
+        </p>
+        {metadata ? (
+          <div className="mt-1 space-y-0.5 text-[0.61rem] leading-relaxed text-[var(--muted-foreground)]">
+            <p className="break-words">{metadata.size} · {metadata.mimeType} · 上传于 {metadata.createdAt}</p>
+            <p className="break-all font-mono" title={metadata.sha256}>SHA-256 {metadata.sha256}</p>
+          </div>
+        ) : (
+          <p className="mt-1 text-[0.61rem] text-[var(--muted-foreground)]">存量记录的元数据暂不可用</p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-1 pt-0.5">
+        <a href={assetUrl} target="_blank" rel="noopener noreferrer" className="neu-btn-xs !h-[22px] !px-1.5 !text-[10px]">
+          <Eye size={10} aria-hidden="true" /> 预览
+        </a>
+        <a href={assetUrl} download={metadata?.name} className="neu-btn-xs !h-[22px] !px-1.5 !text-[10px]">
+          <Download size={10} aria-hidden="true" /> 下载
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function SignedContractAssetDetails({ asset, assetId }: {
+  asset?: ContractProofAsset | null;
+  assetId?: string | null;
+}) {
+  const resolvedAssetId = asset?.id ?? assetId;
+  const assetUrl = contractProofAssetUrl(resolvedAssetId);
+  if (!assetUrl) return null;
+  const metadata = asset ? formatContractProofMetadata(asset) : null;
+
+  return (
+    <div className="mt-2 rounded-[8px] border border-[var(--success)]/20 bg-[var(--success)]/5 px-3 py-2 text-[0.68rem]">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 font-bold text-[var(--foreground)]">
+            <FileSignature size={12} className="shrink-0 text-[var(--success)]" aria-hidden="true" />
+            <span className="truncate" title={metadata?.name}>{metadata?.name ?? '签署件已关联'}</span>
+          </p>
+          {metadata && (
+            <div className="mt-1 space-y-0.5 text-[0.61rem] leading-relaxed text-[var(--muted-foreground)]">
+              <p className="break-words">{metadata.size} · {metadata.mimeType} · 上传于 {metadata.createdAt}</p>
+              <p className="break-all font-mono">SHA-256 {metadata.sha256}</p>
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <a href={assetUrl} target="_blank" rel="noopener noreferrer" className="neu-btn-xs !h-[22px] !px-1.5 !text-[10px]">
+            <Eye size={10} aria-hidden="true" /> 预览签署件
+          </a>
+          <a href={assetUrl} download={metadata?.name} className="neu-btn-xs !h-[22px] !px-1.5 !text-[10px]">
+            <Download size={10} aria-hidden="true" /> 下载签署件
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
+  const awardedSupplierName = item.awardedSupplier?.trim() ?? '';
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ supplierName: '', amount: '', signDeadline: '' });
+  const [fulfillmentProofFiles, setFulfillmentProofFiles] = useState<Record<string, File | undefined>>({});
+  const [acceptanceProofFiles, setAcceptanceProofFiles] = useState<Record<string, File | undefined>>({});
+  const [signingFiles, setSigningFiles] = useState<Record<string, File | undefined>>({});
 
   const load = useCallback(() => {
     listContractsByProject({ projectManagementItemId: item.id })
@@ -42,6 +124,24 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
 
   useEffect(() => { if (open) load(); }, [open, load]);
 
+  const beginCreating = () => {
+    setForm({
+      supplierName: '',
+      amount: item.contractAmount != null ? String(item.contractAmount) : '',
+      signDeadline: '',
+    });
+    setCreating(true);
+  };
+
+  const closeModal = () => {
+    setFulfillmentProofFiles({});
+    setAcceptanceProofFiles({});
+    setSigningFiles({});
+    setCreating(false);
+    setForm({ supplierName: '', amount: '', signDeadline: '' });
+    onClose();
+  };
+
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
     try { await fn(); toast.success(ok); load(); onUpdated?.(); }
@@ -50,27 +150,89 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
   };
 
   const handleCreate = () => {
-    if (!form.supplierName.trim()) { toast.error('请填写成交供应商'); return; }
+    const supplierName = awardedSupplierName || form.supplierName.trim();
+    if (!supplierName) { toast.error('请填写成交供应商'); return; }
     setBusy(true);
     createContract({
       projectCode: item.projectCode,
       projectManagementItemId: item.id,
-      supplierName: form.supplierName.trim(),
+      supplierName,
       amount: form.amount ? Number(form.amount) : undefined,
       signDeadline: form.signDeadline || undefined,
     })
-      .then(() => { toast.success('合同已创建（草拟）'); setCreating(false); setForm({ supplierName: '', amount: '', signDeadline: '' }); load(); })
+      .then(() => {
+        toast.success('合同已创建（草拟）');
+        setCreating(false);
+        setForm({ supplierName: '', amount: '', signDeadline: '' });
+        load();
+      })
       .catch((e: any) => toast.error(e?.message || '创建失败'))
       .finally(() => setBusy(false));
   };
 
+  const completeFulfillment = (contract: Contract, fulfillment: ContractFulfillment) => {
+    const selectedFile = fulfillmentProofFiles[fulfillment.id];
+    if (!canCompleteContractFulfillment(fulfillment, Boolean(selectedFile))) {
+      toast.error('完成履行节点前请选择或关联履约证明');
+      return;
+    }
+
+    void act(async () => {
+      const uploaded = selectedFile ? await uploadContractProof(selectedFile) : null;
+      const proofAssetId = uploaded?.id ?? fulfillment.proofAsset?.id ?? fulfillment.proofAssetId ?? undefined;
+      await updateContractFulfillment(contract.id, fulfillment.id, { status: 'done', proofAssetId });
+      setFulfillmentProofFiles(current => {
+        const next = { ...current };
+        delete next[fulfillment.id];
+        return next;
+      });
+    }, '节点已完成，履约证明已留档');
+  };
+
+  const completeAcceptance = (contract: Contract) => {
+    const selectedFile = acceptanceProofFiles[contract.id];
+    if (!canAcceptContract(contract.fulfillments, Boolean(selectedFile))) {
+      toast.error('验收办结前须有验收证明，或已完成且带证明的验收节点');
+      return;
+    }
+
+    const note = prompt('验收情况说明：') ?? '';
+    if (note === '') return;
+    void act(async () => {
+      const uploaded = selectedFile ? await uploadContractProof(selectedFile) : null;
+      await acceptContract(contract.id, { note, proofAssetId: uploaded?.id });
+      setAcceptanceProofFiles(current => {
+        const next = { ...current };
+        delete next[contract.id];
+        return next;
+      });
+    }, '验收办结，履行结果公告已发布');
+  };
+
+  const registerSigning = (contract: Contract) => {
+    const selectedFile = signingFiles[contract.id];
+    if (!canRegisterContractSigning(contract.status, Boolean(selectedFile))) {
+      toast.error('请先选择签署件');
+      return;
+    }
+    void act(async () => {
+      const uploaded = await uploadContractProof(selectedFile!);
+      await signContract(contract.id, { signedAssetId: uploaded.id });
+      setSigningFiles(current => {
+        const next = { ...current };
+        delete next[contract.id];
+        return next;
+      });
+    }, contract.status === 'signed' ? '签署件已更换并留痕' : '已登记签署');
+  };
+
   return (
-    <Modal open={open} onClose={onClose} title="合同订立与履行" description="GB/T 43711 7.5.4/7.6 —— 订立（一致性校验→内审→签署→合同公告）· 履行台账 · 验收办结" size="xl">
+    <Modal open={open} onClose={closeModal} title="合同订立与履行" description="GB/T 43711 7.5.4/7.6 —— 订立（一致性校验→内审→签署→合同公告）· 履行台账 · 验收办结" size="xl">
       {/* ── 新建入口 ── */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-[var(--muted-foreground)]">项目编号 {item.projectCode}</span>
         {!creating ? (
-          <button onClick={() => setCreating(true)} disabled={busy} className="neu-btn-primary !h-[30px] !px-3 !text-xs"><Plus size={13} /> 新建合同</button>
+          <button onClick={beginCreating} disabled={busy} className="neu-btn-primary !h-[30px] !px-3 !text-xs"><Plus size={13} /> 新建合同</button>
         ) : (
           <button onClick={() => setCreating(false)} className="neu-btn-soft !h-[30px] !px-3 !text-xs">取消</button>
         )}
@@ -81,8 +243,8 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="space-y-1">
               <span className="text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">成交供应商</span>
-              <input value={form.supplierName} onChange={e => setForm({ ...form, supplierName: e.target.value })}
-                defaultValue={item.awardedSupplier ?? undefined} key={item.awardedSupplier}
+              <input value={awardedSupplierName || form.supplierName} onChange={e => setForm({ ...form, supplierName: e.target.value })}
+                readOnly={Boolean(awardedSupplierName)}
                 placeholder="默认取定标结果" className="neu-input !h-[32px] !text-xs" />
             </label>
             <label className="space-y-1">
@@ -127,6 +289,7 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
                 </div>
               )}
               {c.reviewNote && <div className="mt-2 rounded-[8px] bg-[var(--warning)]/10 px-3 py-2 text-[0.7rem]">内审意见：{c.reviewNote}</div>}
+              <SignedContractAssetDetails asset={c.signedAsset} assetId={c.signedAssetId} />
 
               {/* 状态动作条 */}
               <div className="mt-3 flex items-center gap-1.5 flex-wrap">
@@ -143,22 +306,78 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
                     <button onClick={() => { const note = prompt('驳回意见（必填）：'); if (!note) return; act(() => reviewContract(c.id, { approved: false, note }), '已驳回回草拟'); }} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]">驳回</button>
                   </>
                 )}
-                {(c.status === 'internal_review' || c.status === 'signed') && (
-                  <button onClick={() => act(() => signContract(c.id, {}), '已登记签署')} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"><FileSignature size={11} /> 登记签署</button>
+                {(c.status === 'approved_for_signing' || c.status === 'signed') && (
+                  <>
+                    <label className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px] cursor-pointer">
+                      <Upload size={11} aria-hidden="true" />
+                      {signingFiles[c.id] ? '更换已选签署件' : '选择签署件'}
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept={CONTRACT_PROOF_ACCEPT}
+                        disabled={busy}
+                        onChange={event => setSigningFiles(current => ({
+                          ...current,
+                          [c.id]: event.target.files?.[0],
+                        }))}
+                      />
+                    </label>
+                    <button
+                      onClick={() => registerSigning(c)}
+                      disabled={busy || !canRegisterContractSigning(c.status, Boolean(signingFiles[c.id]))}
+                      title={signingFiles[c.id] ? undefined : '请先选择签署件'}
+                      className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"
+                    >
+                      <FileSignature size={11} /> {c.status === 'signed' ? '更换签署件' : '登记签署'}
+                    </button>
+                    {signingFiles[c.id] && (
+                      <span className="max-w-[180px] truncate text-[10px] text-[var(--muted-foreground)]" title={signingFiles[c.id]?.name}>
+                        待上传：{signingFiles[c.id]?.name}
+                      </span>
+                    )}
+                  </>
                 )}
                 {['signed', 'performing', 'accepted'].includes(c.status) && (
                   <button onClick={() => act(() => publishContractNotice(c.id), '合同公告已发布（幂等）')} disabled={busy} className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px]"><Megaphone size={11} /> 合同公告</button>
                 )}
                 {['signed', 'performing'].includes(c.status) && (
-                  <button onClick={() => { const note = prompt('验收情况说明：') ?? ''; if (note === '') return; act(() => acceptContract(c.id, { note }), '验收办结，履行结果公告已发布'); }} disabled={busy} className="neu-btn-primary !h-[26px] !px-2.5 !text-[11px]"><PackageCheck size={11} /> 验收办结</button>
+                  <>
+                    {!canAcceptContract(c.fulfillments, false) && (
+                      <label className="neu-btn-soft !h-[26px] !px-2.5 !text-[11px] cursor-pointer">
+                        <Upload size={11} aria-hidden="true" />
+                        {acceptanceProofFiles[c.id] ? '更换验收证明' : '选择验收证明'}
+                        <input
+                          type="file"
+                          className="sr-only"
+                          accept={CONTRACT_PROOF_ACCEPT}
+                          disabled={busy}
+                          onChange={event => setAcceptanceProofFiles(current => ({
+                            ...current,
+                            [c.id]: event.target.files?.[0],
+                          }))}
+                        />
+                      </label>
+                    )}
+                    <button
+                      onClick={() => completeAcceptance(c)}
+                      disabled={busy || !canAcceptContract(c.fulfillments, Boolean(acceptanceProofFiles[c.id]))}
+                      title={canAcceptContract(c.fulfillments, Boolean(acceptanceProofFiles[c.id])) ? undefined : '请先选择验收证明'}
+                      className="neu-btn-primary !h-[26px] !px-2.5 !text-[11px]"
+                    >
+                      <PackageCheck size={11} /> 验收办结
+                    </button>
+                    {acceptanceProofFiles[c.id] && (
+                      <span className="max-w-[180px] truncate text-[10px] text-[var(--muted-foreground)]" title={acceptanceProofFiles[c.id]?.name}>
+                        待上传：{acceptanceProofFiles[c.id]?.name}
+                      </span>
+                    )}
+                  </>
                 )}
                 {!['terminated', 'accepted'].includes(c.status) && (
                   <button onClick={() => { const reason = prompt('终止理由（必填）：'); if (!reason) return; act(() => terminateContract(c.id, reason), '合同已终止'); }} disabled={busy} className="neu-btn-soft is-danger !h-[26px] !px-2.5 !text-[11px]"><Ban size={11} /> 终止</button>
                 )}
-                {/* C4（A-105）：保证金逐家退还——中标人/未中标人分别登记（实施条例第57条） */}
-                {c.projectId && ['signed', 'performing', 'accepted'].includes(c.status) && (
-                  <BondReturnBlock projectId={c.projectId} busy={busy} act={act} />
-                )}
+                {/* C4（A-105）：保证金退还——中标人/未中标人分别登记（实施条例第57条） */}
+<BondReturnBlock projectId={c.projectId!} busy={busy} act={act} />
               </div>
 
               {/* C3 履行台账 */}
@@ -181,17 +400,50 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
                   ) : (
                     <div className="space-y-1.5">
                       {c.fulfillments.map(f => (
-                        <div key={f.id} className="flex items-center gap-2 text-[0.7rem]">
-                          <StatusBadge tone={f.status === 'done' ? 'green' : f.status === 'exception' ? 'red' : 'gray'}>
-                            {f.status === 'done' ? '完成' : f.status === 'exception' ? '异常' : '待办'}
-                          </StatusBadge>
-                          <span className="font-semibold text-[var(--accent)]">{FULFILLMENT_LABEL[f.type] ?? f.type}</span>
-                          <span className="truncate max-w-[180px]">{f.title}</span>
-                          {f.amount != null && <span className="tabular-nums text-[var(--success)]">¥{Number(f.amount).toLocaleString('zh-CN')}</span>}
-                          {f.doneDate && <span className="text-[var(--muted-foreground)]">{new Date(f.doneDate).toLocaleDateString('zh-CN')}</span>}
-                          {f.status === 'pending' && ['signed', 'performing'].includes(c.status) && (
-                            <button onClick={() => act(() => updateContractFulfillment(c.id, f.id, { status: 'done' }), '节点已完成')} disabled={busy} className="neu-btn-xs !h-[20px] !px-1.5 !text-[10px] ml-auto">完成</button>
+                        <div key={f.id} className="rounded-[8px] px-1 py-1 text-[0.7rem]">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <StatusBadge tone={f.status === 'done' ? 'green' : f.status === 'exception' ? 'red' : 'gray'}>
+                              {f.status === 'done' ? '完成' : f.status === 'exception' ? '异常' : '待办'}
+                            </StatusBadge>
+                            <span className="shrink-0 font-semibold text-[var(--accent)]">{FULFILLMENT_LABEL[f.type] ?? f.type}</span>
+                            <span className="min-w-0 max-w-[180px] truncate" title={f.title}>{f.title}</span>
+                            {f.amount != null && <span className="shrink-0 tabular-nums text-[var(--success)]">¥{Number(f.amount).toLocaleString('zh-CN')}</span>}
+                            {f.doneDate && <span className="shrink-0 text-[var(--muted-foreground)]">{new Date(f.doneDate).toLocaleDateString('zh-CN')}</span>}
+                            {f.status === 'pending' && ['signed', 'performing'].includes(c.status) && (
+                              <div className="ml-auto flex shrink-0 items-center gap-1">
+                                {!f.proofAssetId && !f.proofAsset?.id && (
+                                  <label className="neu-btn-xs !h-[22px] !px-1.5 !text-[10px] cursor-pointer">
+                                    <Upload size={10} aria-hidden="true" />
+                                    {fulfillmentProofFiles[f.id] ? '更换证明' : '选择证明'}
+                                    <input
+                                      type="file"
+                                      className="sr-only"
+                                      accept={CONTRACT_PROOF_ACCEPT}
+                                      disabled={busy}
+                                      onChange={event => setFulfillmentProofFiles(current => ({
+                                        ...current,
+                                        [f.id]: event.target.files?.[0],
+                                      }))}
+                                    />
+                                  </label>
+                                )}
+                                <button
+                                  onClick={() => completeFulfillment(c, f)}
+                                  disabled={busy || !canCompleteContractFulfillment(f, Boolean(fulfillmentProofFiles[f.id]))}
+                                  title={canCompleteContractFulfillment(f, Boolean(fulfillmentProofFiles[f.id])) ? undefined : '完成前须关联履约证明'}
+                                  className="neu-btn-xs !h-[22px] !px-1.5 !text-[10px]"
+                                >
+                                  {fulfillmentProofFiles[f.id] ? '上传并完成' : '完成'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {fulfillmentProofFiles[f.id] && (
+                            <p className="mt-1 truncate pl-1 text-[10px] text-[var(--muted-foreground)]" title={fulfillmentProofFiles[f.id]?.name}>
+                              待上传：{fulfillmentProofFiles[f.id]?.name}
+                            </p>
                           )}
+                          <FulfillmentProofDetails fulfillment={f} />
                         </div>
                       ))}
                     </div>

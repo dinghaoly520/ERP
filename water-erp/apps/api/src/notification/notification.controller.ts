@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, Request } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Param, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { AUTHENTICATED_ROLES } from '../auth/auth-scope';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -13,8 +13,20 @@ export class NotificationController {
 
   @Get()
   @ApiOperation({ summary: '通知列表' })
-  async list(@Request() req: any, @Query('page') page?: number, @Query('pageSize') pageSize?: number, @Query('tab') tab?: 'all' | 'todo') {
-    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20, tab ?? 'all');
+  async list(
+    @Request() req: any,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('tab') tab?: 'all' | 'todo',
+    @Query('types') rawTypes?: string,
+  ) {
+    const types = rawTypes
+      ? Array.from(new Set(rawTypes.split(',').map((value) => value.trim()).filter(Boolean)))
+      : [];
+    if (types.length > 40 || types.some((value) => !/^[A-Z][A-Z0-9_]{0,63}$/.test(value))) {
+      throw new BadRequestException({ error: '消息类型筛选参数无效', code: 'BAD_NOTIFICATION_TYPES' });
+    }
+    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20, tab ?? 'all', types);
   }
 
   @Get('unread-count')

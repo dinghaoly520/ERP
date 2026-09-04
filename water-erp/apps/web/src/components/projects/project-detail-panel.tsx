@@ -23,6 +23,7 @@ import {
   type ExtractedInfo,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
+import { getProjectParticipants } from '@/lib/api/announcement';
 import {
   PROCUREMENT_METHODS,
   PROCUREMENT_CATEGORY_OPTIONS,
@@ -510,6 +511,8 @@ export function ProjectDetailPanel({
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
   const [contractStageOpen, setContractStageOpen] = useState(false);
   const [frameworkOpen, setFrameworkOpen] = useState(false);
+  // 供应商参与（非谈判）：公告自动收集的参与供应商名单，优先于手动维护的 invitedSuppliers
+  const [participantNames, setParticipantNames] = useState<string | null>(null);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
 
   // 选中步骤的实时镜像：异步回调（如弹窗上传后的回填）需以"响应到达时"的选中态判定，
@@ -526,6 +529,20 @@ export function ProjectDetailPanel({
       .then(setProjectAttributions)
       .catch(() => setProjectAttributions([]));
   }, []);
+
+  // 供应商参与：拉取公告自动收集的参与供应商（下载采购文件 ∪ 登记的项目供应商）。
+  // 仅非谈判方式（参与的供应商）；谈判采购走「邀请的供应商」手动维护，不覆盖。
+  useEffect(() => {
+    setParticipantNames(null);
+    if (!item?.projectCode || item.procurementMethod === '谈判采购') return;
+    let alive = true;
+    getProjectParticipants(item.projectCode)
+      .then((r) => {
+        if (alive) setParticipantNames(r.suppliers.length > 0 ? r.suppliers.map((s) => s.supplierName).join('、') : null);
+      })
+      .catch(() => undefined); // 拉取失败静默回落手动值，不阻塞详情
+    return () => { alive = false; };
+  }, [item?.projectCode, item?.procurementMethod]);
 
   const filteredAttributions = projectAttributions.filter((attr) =>
     attr.name.toLowerCase().includes(attributionSearch.toLowerCase()),
@@ -1550,7 +1567,7 @@ export function ProjectDetailPanel({
                 </div>
                 <BiddingUnitsField
                   label={item.procurementMethod === '谈判采购' ? '邀请的供应商' : '参与的供应商'}
-                  value={extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null}
+                  value={participantNames ?? (extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   isEditing={editingField === 'invitedSuppliers'}
                   editValue={editValues.invitedSuppliers}
                   onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, invitedSuppliers: v }))}

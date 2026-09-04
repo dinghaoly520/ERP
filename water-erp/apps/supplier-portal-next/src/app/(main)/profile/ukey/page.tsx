@@ -130,8 +130,8 @@ export default function UkeyManagePage() {
 
   /* ═══ 会话倒计时（厂商中间件空闲 TTL 镜像）：秒级刷新，到期自动翻回锁定态 ═══ */
   useEffect(() => {
-    if (!ukey || typeof ukey.secondsUntilLock !== "function") { setLockCountdown(null); return; }
-    const tick = () => setLockCountdown(ukey.secondsUntilLock!());
+    if (!ukey) { setLockCountdown(null); return; }
+    const tick = () => setLockCountdown((ukey as unknown as { secondsUntilLock?: () => number | null }).secondsUntilLock?.() ?? null);
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);

@@ -5072,6 +5072,7 @@ describe('evaluation integrity package', () => {
 describe('createRound — 供应商准入', () => {
   let service: BidService;
   let prisma: any;
+  let notification: { sendToRole: jest.Mock; sendToUser: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -5084,6 +5085,7 @@ describe('createRound — 供应商准入', () => {
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };
+    notification = { sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}) };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
@@ -5093,7 +5095,7 @@ describe('createRound — 供应商准入', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn(), getOverCeilingSuppliers: jest.fn() } },
         { provide: StorageService, useValue: {} },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: notification },
       ],
     }).compile();
     service = module.get(BidService);
@@ -5128,6 +5130,30 @@ describe('createRound — 供应商准入', () => {
     await service.createRound('p1', 'negotiation', undefined, 'u1');
     const call = prisma.bidRound.create.mock.calls[0][0];
     expect(call.data.eligibleSupplierIds).toEqual(['s1', 's2']);
+  });
+
+  it('仅定向通知本轮 eligibleSupplierIds 对应账号，并给出轮次直达链接', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation' });
+    prisma.bidSupplier.findMany
+      .mockResolvedValueOnce([
+        { id: 's1', bidValidity: 'valid', supplierName: '甲' },
+        { id: 's2', bidValidity: 'valid', supplierName: '乙' },
+      ])
+      .mockResolvedValueOnce([
+        { id: 's1', supplier: { userId: 'user-1' } },
+        { id: 's2', supplier: { userId: 'user-2' } },
+      ]);
+
+    await service.createRound('p1', 'negotiation', undefined, 'u1', ['s1', 's2']);
+
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).toHaveBeenCalledTimes(2);
+    expect(notification.sendToUser).toHaveBeenCalledWith(
+      'user-1', ['in_app'], expect.objectContaining({ link: '/bids/p1/round-quote' }),
+    );
+    expect(notification.sendToUser).toHaveBeenCalledWith(
+      'user-2', ['in_app'], expect.objectContaining({ link: '/bids/p1/round-quote' }),
+    );
   });
 });
 
@@ -6267,10 +6293,26 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
       bidProject: { findUnique: jest.fn() },
       announcement: { findFirst: jest.fn() },
       bidEvaluationResult: { findFirst: jest.fn() },
-      awardLetterDelivery: { upsert: jest.fn() },
+      awardLetterDelivery: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'd1' }),
+        updateMany: jest.fn(),
+      },
+      contract: { findFirst: jest.fn().mockResolvedValue(null) },
+      contractFulfillment: { findFirst: jest.fn().mockResolvedValue(null) },
+      fileAsset: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'letter-1',
+          mimeType: 'application/pdf',
+          size: 1_024,
+        }),
+      },
       supplier: { findUnique: jest.fn() },
+      bidSupplier: { findUnique: jest.fn() },
       projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() }, // CTS A-203 定标回写
     };
+    prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
     notification = { sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}) };
     const { Test } = require('@nestjs/testing');
     const module = await Test.createTestingModule({
@@ -6295,12 +6337,13 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
   const RANK1 = { supplierId: 'sup-win', supplierName: '中标公司' };
 
-  it('公示未发布 → 409 PUBLICITY_NOT_ENDED 且零 upsert/零通知', async () => {
+  it('公示未发布 → 409 PUBLICITY_NOT_ENDED 且零交付/零通知', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(null);
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司' }))
       .rejects.toMatchObject({ response: { code: 'PUBLICITY_NOT_ENDED' } });
-    expect(prisma.awardLetterDelivery.upsert).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
     expect(notification.sendToUser).not.toHaveBeenCalled();
     expect(notification.sendToRole).not.toHaveBeenCalled();
   });
@@ -6311,7 +6354,8 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(future));
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司' }))
       .rejects.toMatchObject({ response: { code: 'PUBLICITY_NOT_ENDED' } });
-    expect(prisma.awardLetterDelivery.upsert).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
   });
 
   it('publicityEnd 为 null → getPublicityStatus canIssueAward=false', async () => {
@@ -6326,15 +6370,25 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
-    prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
-    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
 
-    const res = await svc.deliverAwardLetter('p1', { winnerName: '中标公司' });
+    const res = await svc.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
     expect(res).toEqual({ id: 'd1' });
-    expect(prisma.awardLetterDelivery.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { projectId_supplierId: { projectId: 'p1', supplierId: 'sup-win' } },
+    expect(prisma.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { isolationLevel: 'Serializable' },
+    );
+    expect(prisma.awardLetterDelivery.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ projectId: 'p1', supplierId: 'sup-win', letterAssetId: 'letter-1' }),
+    });
+    expect(notification.sendToUser).toHaveBeenCalledWith('u-win', ['in_app'], expect.objectContaining({
+      type: 'AWARD_LETTER',
+      link: '/award-letters?deliveryId=d1',
     }));
-    expect(notification.sendToUser).toHaveBeenCalledWith('u-win', ['in_app'], expect.objectContaining({ type: 'AWARD_LETTER' }));
+    expect(prisma.bidSupplier.findUnique).toHaveBeenCalledWith({
+      where: { id: 'sup-win' },
+      select: { supplier: { select: { userId: true } } },
+    });
     expect(notification.sendToRole).not.toHaveBeenCalled();
     expect(prisma.projectManagementItem.update).not.toHaveBeenCalled(); // 无宿主 PMI → 不回写
   });
@@ -6343,12 +6397,11 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
-    prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
-    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
 
     // 不一致 → 回写
     prisma.projectManagementItem.findFirst.mockResolvedValueOnce({ id: 'pmi-1', awardedSupplier: '旧手工值' });
-    await svc.deliverAwardLetter('p1', { winnerName: '中标公司' });
+    await svc.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
       where: { id: 'pmi-1' },
       data: { awardedSupplier: '中标公司' },
@@ -6357,17 +6410,305 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     // 一致 → 跳过
     prisma.projectManagementItem.update.mockClear();
     prisma.projectManagementItem.findFirst.mockResolvedValueOnce({ id: 'pmi-1', awardedSupplier: '中标公司' });
-    await svc.deliverAwardLetter('p1', { winnerName: '中标公司' });
+    await svc.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
     expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
   });
 
-  it('winnerSupplierId 与 rank1 不符 → 400 WINNER_MISMATCH 零 upsert', async () => {
+  it('winnerSupplierId 与 rank1 不符 → 400 WINNER_MISMATCH 零交付', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司', winnerSupplierId: 'sup-other' }))
       .rejects.toMatchObject({ response: { code: 'WINNER_MISMATCH' } });
-    expect(prisma.awardLetterDelivery.upsert).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('通知书必须引用当前操作者上传的合同文档资产', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.fileAsset.findFirst.mockResolvedValue(null);
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'asset-from-other-user' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_INVALID' } });
+    expect(prisma.fileAsset.findFirst).toHaveBeenCalledWith({
+      where: { id: 'asset-from-other-user', category: 'contract_document', uploaderId: 'actor-1' },
+      select: { id: true, mimeType: true, size: true },
+    });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('仅伪装成 PDF MIME 但不属于 contract_document 分类的资产仍拒绝交付', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    // Prisma 的复合过滤不会返回 category=general 的资产，即使其 mimeType 自称 PDF。
+    prisma.fileAsset.findFirst.mockResolvedValue(null);
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'pdf-from-general-category' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_INVALID' } });
+    expect(prisma.fileAsset.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'pdf-from-general-category',
+        category: 'contract_document',
+        uploaderId: 'actor-1',
+      },
+      select: { id: true, mimeType: true, size: true },
+    });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('通知书附件超过 20 MiB 时拒绝交付', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.fileAsset.findFirst.mockResolvedValue({
+      id: 'letter-too-large',
+      mimeType: 'application/pdf',
+      size: 20 * 1024 * 1024 + 1,
+    });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-too-large' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_TOO_LARGE' } });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'application/octet-stream',
+    'image/png',
+    'text/html',
+  ])('通知书附件存储 MIME 为 %s 时拒绝交付', async (mimeType) => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-wrong-type', mimeType, size: 1_024 });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-wrong-type' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_TYPE_INVALID' } });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ])('通知书附件允许可信 PDF/Word 存储 MIME：%s', async (mimeType) => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.fileAsset.findFirst.mockResolvedValue({
+      id: 'letter-valid-type',
+      mimeType,
+      size: 20 * 1024 * 1024,
+    });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-valid-type' }, 'actor-1',
+    )).resolves.toMatchObject({ id: 'd1' });
+  });
+
+  it('通知书缺少实际文件时拒绝发出', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+
+    await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司' }, 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_REQUIRED' } });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('通知书资产已绑定其他 delivery 时拒绝跨交付复用', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.awardLetterDelivery.findFirst.mockResolvedValue({ id: 'delivery-other' });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_ALREADY_BOUND' } });
+
+    expect(prisma.awardLetterDelivery.findFirst).toHaveBeenCalledWith({
+      where: {
+        letterAssetId: 'letter-1',
+        NOT: { projectId: 'p1', supplierId: 'sup-win' },
+      },
+      select: { id: true },
+    });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it.each(['draftAssetId', 'signedAssetId'] as const)(
+    '通知书资产已作为合同 %s 时拒绝反向复用',
+    async (contractAssetField) => {
+      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+      prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+      prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+      prisma.contract.findFirst.mockResolvedValue({ id: 'contract-1' });
+
+      await expect(svc.deliverAwardLetter(
+        'p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1',
+      )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_ALREADY_BOUND' } });
+
+      expect(prisma.contract.findFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { draftAssetId: 'letter-1' },
+            { signedAssetId: 'letter-1' },
+          ],
+        },
+        select: { id: true },
+      });
+      expect(prisma.contract.findFirst.mock.calls[0][0].where.OR)
+        .toContainEqual({ [contractAssetField]: 'letter-1' });
+      expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+      expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it('通知书资产已作为合同履约证明时拒绝反向复用', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.contractFulfillment.findFirst.mockResolvedValue({ id: 'fulfillment-1' });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_ALREADY_BOUND' } });
+
+    expect(prisma.contractFulfillment.findFirst).toHaveBeenCalledWith({
+      where: { proofAssetId: 'letter-1' },
+      select: { id: true },
+    });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('已签收通知书不可被覆盖或重新交付', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue({
+      id: 'delivery-1', signedAt: new Date('2026-09-03T08:00:00.000Z'),
+    });
+
+    await expect(svc.deliverAwardLetter(
+      'p1',
+      { winnerName: '中标公司', letterAssetId: 'letter-2', content: { version: 2 } },
+      'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ALREADY_SIGNED' } });
+
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('未签收通知书重发时原子替换文件并清空旧查看回执', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
+    prisma.awardLetterDelivery.findUnique
+      .mockResolvedValueOnce({ id: 'delivery-1', signedAt: null, deliveredAt: new Date('2026-09-03T08:00:00Z') })
+      .mockResolvedValueOnce({ id: 'delivery-1', letterAssetId: 'letter-2', receivedAt: null, signedAt: null });
+    prisma.awardLetterDelivery.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(svc.deliverAwardLetter(
+      'p1',
+      { winnerName: '中标公司', letterAssetId: 'letter-2', content: { version: 2 } },
+      'actor-1',
+    )).resolves.toMatchObject({ id: 'delivery-1', letterAssetId: 'letter-2', receivedAt: null });
+
+    expect(prisma.awardLetterDelivery.findFirst).toHaveBeenCalledWith({
+      where: {
+        letterAssetId: 'letter-2',
+        NOT: { projectId: 'p1', supplierId: 'sup-win' },
+      },
+      select: { id: true },
+    });
+    expect(prisma.awardLetterDelivery.updateMany).toHaveBeenCalledWith({
+      where: { id: 'delivery-1', signedAt: null, deliveredAt: new Date('2026-09-03T08:00:00Z') },
+      data: expect.objectContaining({
+        letterAssetId: 'letter-2',
+        content: { version: 2 },
+        deliveredAt: expect.any(Date),
+        receivedAt: null,
+        signedBy: null,
+      }),
+    });
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+  });
+
+  it('未签收通知书可用同一资产幂等重发，且占用查询排除当前 delivery', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
+    prisma.awardLetterDelivery.findUnique
+      .mockResolvedValueOnce({ id: 'delivery-1', signedAt: null, deliveredAt: new Date('2026-09-03T08:00:00Z') })
+      .mockResolvedValueOnce({ id: 'delivery-1', letterAssetId: 'letter-1', receivedAt: null, signedAt: null });
+    prisma.awardLetterDelivery.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1',
+    )).resolves.toMatchObject({ id: 'delivery-1', letterAssetId: 'letter-1' });
+
+    expect(prisma.awardLetterDelivery.findFirst).toHaveBeenCalledWith({
+      where: {
+        letterAssetId: 'letter-1',
+        NOT: { projectId: 'p1', supplierId: 'sup-win' },
+      },
+      select: { id: true },
+    });
+    expect(prisma.awardLetterDelivery.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.awardLetterDelivery.create).not.toHaveBeenCalled();
+  });
+
+  it('重发条件更新未命中时按并发签收冲突拒绝', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.awardLetterDelivery.findUnique
+      .mockResolvedValueOnce({ id: 'delivery-1', signedAt: null, deliveredAt: new Date('2026-09-03T08:00:00Z') })
+      .mockResolvedValueOnce({ id: 'delivery-1', signedAt: new Date('2026-09-03T08:01:00Z'), deliveredAt: new Date('2026-09-03T08:00:00Z') });
+    prisma.awardLetterDelivery.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-2' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ALREADY_SIGNED' } });
+
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+  });
+
+  it('并发重发已换版时拒绝用旧版本继续覆盖', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
+    prisma.awardLetterDelivery.findUnique
+      .mockResolvedValueOnce({ id: 'delivery-1', signedAt: null, deliveredAt: new Date('2026-09-03T08:00:00Z') })
+      .mockResolvedValueOnce({ id: 'delivery-1', signedAt: null, deliveredAt: new Date('2026-09-03T08:01:00Z') });
+    prisma.awardLetterDelivery.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(svc.deliverAwardLetter(
+      'p1', { winnerName: '中标公司', letterAssetId: 'letter-2' }, 'actor-1',
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_VERSION_CHANGED' } });
+
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
   });
 });
 

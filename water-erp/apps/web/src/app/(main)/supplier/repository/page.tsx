@@ -15,9 +15,9 @@ import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
-import { BusinessTagReview } from '@/components/supplier/business-tag-review';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
-import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2 } from 'lucide-react';
+import { ReviewHubModal } from '@/components/supplier/review-hub-modal';
+import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2, ClipboardCheck } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
@@ -101,6 +101,8 @@ export default function SupplierRepositoryPage() {
   const [invCreating, setInvCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [invModalOpen, setInvModalOpen] = useState(false);
+  // 业务标签 + 密码重置审批弹窗（顶部「审批」按钮）
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [showObjections, setShowObjections] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -185,9 +187,6 @@ export default function SupplierRepositoryPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* 业务标签审核（供应商注册自创标签入池） */}
-      <BusinessTagReview onChanged={() => { loadData?.(); }} />
-
       {/* 异议与投诉受理（与供应商门户 :3004 异议提交端联结：在线答复/转投诉/办结） */}
       {showObjections && <ObjectionBoardModal onClose={() => setShowObjections(false)} />}
 
@@ -203,6 +202,7 @@ export default function SupplierRepositoryPage() {
           </div>
           <div className="page-hero__right">
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
+            <button onClick={() => setReviewModalOpen(true)} className="neu-btn-soft"><ClipboardCheck size={15} />审批</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
@@ -307,6 +307,9 @@ export default function SupplierRepositoryPage() {
         </div>
         </Modal>
       )}
+
+      {/* ══════ 审批中心弹窗（顶部「审批」按钮：业务标签 / 密码重置 / 资料变更）══════ */}
+      {reviewModalOpen && <ReviewHubModal open onClose={() => setReviewModalOpen(false)} />}
 
       {/* B13 错误态：接口失败时明确提示+重试，避免与「真空」混淆 */}
       {error && !loading && (

@@ -55,11 +55,44 @@ describe('NotificationService', () => {
     });
   });
 
+  it('list 将消息类型过滤同时用于 count 与 findMany', async () => {
+    prisma.notification.count.mockResolvedValue(2);
+    prisma.notification.findMany.mockResolvedValue([]);
+
+    await service.list('u1', 2, 15, 'todo', ['AWARD_LETTER', 'CONTRACT_NOTICE']);
+
+    const where = {
+      userId: 'u1',
+      resolvedAt: null,
+      type: { in: ['AWARD_LETTER', 'CONTRACT_NOTICE'] },
+    };
+    expect(prisma.notification.count).toHaveBeenCalledWith({ where });
+    expect(prisma.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({ where, skip: 15, take: 15 }));
+  });
+
   it('resolveActionable 按 type+link 写 resolvedAt', async () => {
     prisma.notification.updateMany.mockResolvedValue({ count: 1 });
     await service.resolveActionable('SUPPLIER_PENDING', '/supplier/s1');
     expect(prisma.notification.updateMany).toHaveBeenCalledWith({
       where: { type: 'SUPPLIER_PENDING', link: '/supplier/s1', resolvedAt: null },
+      data: { resolvedAt: expect.any(Date) },
+    });
+  });
+
+  it('resolveActionableForUser 仅处理指定用户和业务关联链接的通知', async () => {
+    prisma.notification.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.resolveActionableForUser(
+      'user-1', 'AWARD_LETTER', '/award-letters?deliveryId=delivery-1',
+    );
+
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        type: 'AWARD_LETTER',
+        link: '/award-letters?deliveryId=delivery-1',
+        resolvedAt: null,
+      },
       data: { resolvedAt: expect.any(Date) },
     });
   });

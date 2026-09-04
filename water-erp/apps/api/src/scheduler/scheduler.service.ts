@@ -16,7 +16,7 @@ export function buildExpiryNotification(input: { qualificationName: string; vali
     type: 'QUALIFICATION_EXPIRING',
     title: '资质即将到期提醒',
     content: `您的资质材料「${input.qualificationName}」将于 ${date} 到期（剩 ${input.daysLeft} 天），请及时更新以免影响投标资格。`,
-    link: '/supplier/qualifications',
+    link: '/profile',
   };
 }
 

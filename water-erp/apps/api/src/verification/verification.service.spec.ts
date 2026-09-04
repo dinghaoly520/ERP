@@ -20,6 +20,7 @@ describe('VerificationService', () => {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
+      eval: jest.fn(),
       incr: jest.fn(),
       expire: jest.fn(),
       ttl: jest.fn(),
@@ -86,6 +87,35 @@ describe('VerificationService', () => {
       await expect(
         service.verifyCode('expert_sign_in', 'user1', 'proj1', '123456'),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('registration upload code', () => {
+    it('validates the registration code without consuming it before the final registration', async () => {
+      redisMock.get.mockResolvedValue(JSON.stringify({ code: '123456', phone: '13800138000', attempts: 0 }));
+
+      await expect(service.assertRegistrationCodeForUpload('13800138000', '123456'))
+        .resolves.toEqual({ ok: true });
+      expect(redisMock.del).not.toHaveBeenCalled();
+    });
+
+    it('最终注册以原子 compare-and-delete 消费验证码，并发请求只能成功一次', async () => {
+      const record = JSON.stringify({ code: '123456', phone: '13800138000', attempts: 0 });
+      redisMock.get.mockResolvedValue(record);
+      redisMock.eval.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+      const results = await Promise.allSettled([
+        service.verifyRegistrationCode('13800138000', '123456'),
+        service.verifyRegistrationCode('13800138000', '123456'),
+      ]);
+
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+      expect(redisMock.eval).toHaveBeenCalledTimes(2);
+      expect(redisMock.del).not.toHaveBeenCalled();
+      expect(results.find((result) => result.status === 'rejected')).toMatchObject({
+        reason: { response: { code: 'CODE_EXPIRED' } },
+      });
     });
   });
 

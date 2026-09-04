@@ -12,3 +12,4 @@ export * from './procurement-archive';
 export * from './framework-agreement';
 export * from './gb-code';
 export * from './data-class';
+export * from './file-name';

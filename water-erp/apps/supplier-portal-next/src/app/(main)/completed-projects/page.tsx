@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import dayjs from "dayjs";
 import { Archive, ChevronRight, TriangleAlert } from "lucide-react";
 import { completedProjectsApi, type CompletedProjectRow } from "@/lib/api/supplier";
@@ -18,7 +18,6 @@ const OUTCOME_META: Record<string, { label: string; cls: string }> = {
 
 /** 已完成项目 — 合作历史（归档/流标项目全量信息入口，点击查看详情） */
 export default function CompletedProjectsPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [rows, setRows] = useState<CompletedProjectRow[]>([]);
@@ -35,7 +34,7 @@ export default function CompletedProjectsPage() {
     })();
   }, []);
 
-  function fmtAmount(v: any): string {
+  function fmtAmount(v: unknown): string {
     if (v == null || v === "") return "—";
     const n = Number(v);
     if (!Number.isFinite(n)) return String(v);
@@ -65,8 +64,9 @@ export default function CompletedProjectsPage() {
         </div>
       ) : (
         <div className="neu-table-card">
-          <div className="overflow-x-auto">
-            <table className="sp-table w-full min-w-[860px]">
+          <div className="completed-projects-table-wrap">
+            <table className="sp-table completed-projects-table">
+              <caption className="sr-only">已完成项目列表</caption>
               <thead>
                 <tr>
                   <th>项目名称</th>
@@ -83,18 +83,22 @@ export default function CompletedProjectsPage() {
                 {rows.map((r) => {
                   const meta = OUTCOME_META[r.outcome] || { label: r.outcome, cls: "draft" };
                   return (
-                    <tr key={r.projectId} className="row-clickable" onClick={() => router.push(`/bids/${r.projectId}`)}>
-                      <td className="font-semibold">{r.name}</td>
-                      <td className="font-mono text-xs">{r.projectCode}</td>
-                      <td>{r.procurementMethod}</td>
-                      <td><span className={`sp-status ${meta.cls}`}>{meta.label}</span></td>
-                      <td>{r.outcome === "AWARDED" ? fmtAmount(r.awardAmount) : "—"}</td>
-                      <td>{r.myBidPrice ? fmtAmount(r.myBidPrice) : "—"}</td>
-                      <td className="text-xs">{r.completedAt ? dayjs(r.completedAt).format("YYYY-MM-DD") : "—"}</td>
-                      <td>
-                        <span className="inline-flex items-center gap-1 text-[var(--sp-primary)] font-semibold text-xs">
+                    <tr key={r.projectId}>
+                      <td data-label="项目名称" className="font-semibold">{r.name}</td>
+                      <td data-label="项目编号" className="font-mono text-xs">{r.projectCode}</td>
+                      <td data-label="采购方式">{r.procurementMethod}</td>
+                      <td data-label="我的结果"><span className={`sp-status ${meta.cls}`}>{meta.label}</span></td>
+                      <td data-label="中标金额">{r.outcome === "AWARDED" ? fmtAmount(r.awardAmount) : "—"}</td>
+                      <td data-label="我的报价">{r.myBidPrice ? fmtAmount(r.myBidPrice) : "—"}</td>
+                      <td data-label="完结时间" className="text-xs">{r.completedAt ? dayjs(r.completedAt).format("YYYY-MM-DD") : "—"}</td>
+                      <td data-label="操作" className="completed-project-action-cell">
+                        <Link
+                          href={`/bids/${encodeURIComponent(r.projectId)}`}
+                          className="completed-project-link"
+                          aria-label={`查看项目 ${r.name}详情`}
+                        >
                           查看详情<ChevronRight size={12} />
-                        </span>
+                        </Link>
                       </td>
                     </tr>
                   );

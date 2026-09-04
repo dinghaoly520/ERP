@@ -1,8 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { compareSync, hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { PASSWORD_PATTERN } from '../common/validators/password-strength';
+import { VerificationService } from '../verification/verification.service';
 
 /**
  * 密码变更/重置申请（2026-08-21 补齐后端实现）：
@@ -12,7 +12,10 @@ import { PASSWORD_PATTERN } from '../common/validators/password-strength';
  */
 @Injectable()
 export class PasswordRequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly verificationService: VerificationService,
+  ) {}
 
   // ── 用户端：提交申请 ──
 
@@ -43,10 +46,12 @@ export class PasswordRequestsService {
   }
 
   /** 忘记密码重置申请（登录页，匿名）：不泄露账号是否存在，统一返回成功 */
-  async submitReset(username: string, applicantName: string, applicantContact: string) {
+  async submitReset(username: string, applicantName: string, applicantContact: string, verificationCode: string, newPassword: string) {
+    await this.verificationService.verifyRegistrationCode(applicantContact, verificationCode);
+    const normalized = hashSync(newPassword, 10);
     const matched = await this.prisma.user.findFirst({
       where: { username, isActive: true },
-      select: { id: true },
+      select: { id: true, passwordHash: true },
     });
     const created = await this.prisma.passwordResetRequest.create({
       data: {
@@ -54,8 +59,10 @@ export class PasswordRequestsService {
         applicantName,
         applicantContact,
         matchedUserId: matched?.id ?? null,
+        requestedPasswordHash: normalized,
       },
-      select: { id: true, status: true, requestedAt: true, matchedUserId: true },
+      // 匿名响应不返回 matchedUserId，避免用接口枚举真实账号。
+      select: { id: true, status: true, requestedAt: true },
     });
     return created;
   }
@@ -78,9 +85,18 @@ export class PasswordRequestsService {
     });
   }
 
-  listPendingResets() {
+  /** 列表口径：supplier = 仅匹配到供应商账号的重置申请（:3005 供应商管理中心审批）；
+   *  internal = 其余（含未匹配到账号的，留 :3005 账号管理·安全审批处理）。 */
+  listPendingResets(scope: 'supplier' | 'internal' = 'internal') {
+    const where =
+      scope === 'supplier'
+        ? { status: 'PENDING' as const, matchedUser: { is: { role: 'supplier' as const } } }
+        : {
+            status: 'PENDING' as const,
+            OR: [{ matchedUser: { is: { role: { not: 'supplier' as const } } } }, { matchedUserId: null }],
+          };
     return this.prisma.passwordResetRequest.findMany({
-      where: { status: 'PENDING' },
+      where,
       orderBy: { requestedAt: 'asc' },
       select: {
         id: true,
@@ -148,27 +164,58 @@ export class PasswordRequestsService {
     });
   }
 
-  /** 批准重置：生成一次性临时密码（仅本次响应返回），写入账号并吊销 web 会话 */
-  async approveReset(id: string, reviewerId: string) {
+  /** 供应商口径守卫：经供应商管理端审批的申请必须匹配到供应商账号，
+   *  防止 staff 经 supplier 端点越权处理内部账号的重置申请。 */
+  private async assertSupplierScope(id: string, scope?: 'supplier') {
+    if (!scope) return null;
+    const req = await this.prisma.passwordResetRequest.findUnique({
+      where: { id },
+      select: { matchedUser: { select: { role: true } } },
+    });
+    if (!req || req.matchedUser?.role !== 'supplier') {
+      throw new ForbiddenException({ error: '该申请不属于供应商密码重置范围', code: 'NOT_SUPPLIER_REQUEST' });
+    }
+    return req;
+  }
+
+  /** 批准重置：按申请人填写的新密码更新账号，并吊销 web 会话 */
+  async approveReset(id: string, reviewerId: string, scope?: 'supplier') {
+    await this.assertSupplierScope(id, scope);
     const req = await this.prisma.passwordResetRequest.findUnique({ where: { id } });
     if (!req) throw new NotFoundException({ error: '申请不存在', code: 'NOT_FOUND' });
     if (req.status !== 'PENDING') throw new BadRequestException({ error: '该申请已处理', code: 'ALREADY_REVIEWED' });
     if (!req.matchedUserId) {
-      throw new BadRequestException({ error: '未匹配到有效账号，无法生成临时密码', code: 'NO_MATCHED_USER' });
+      throw new BadRequestException({ error: '未匹配到有效账号，无法完成重置', code: 'NO_MATCHED_USER' });
     }
-    const temporaryPassword = `Tmp-${randomBytes(4).toString('hex')}`;
+    if (!req.requestedPasswordHash) {
+      throw new BadRequestException({ error: '未检测到有效的新密码，请提交完整申请', code: 'NO_REQUESTED_PASSWORD' });
+    }
     await this.prisma.user.update({
       where: { id: req.matchedUserId },
-      data: { passwordHash: hashSync(temporaryPassword, 10), webSessionId: null },
+      data: { passwordHash: req.requestedPasswordHash, webSessionId: null },
     });
+    try {
+      await this.prisma.notification.create({
+        data: {
+          userId: req.matchedUserId,
+          type: 'PASSWORD_RESET_APPROVED',
+          title: '忘记密码申请已通过',
+          content: '您的忘记密码申请已通过审核，管理员已将密码按你提交内容重置；请尽快登录并再次修改。',
+          link: '/profile',
+        },
+      });
+    } catch {
+      // 通知失败不阻塞审批
+    }
     return this.prisma.passwordResetRequest.update({
       where: { id },
       data: { status: 'APPROVED', reviewedAt: new Date(), reviewedById: reviewerId },
       select: { id: true, status: true, reviewedById: true, reviewedAt: true },
-    }).then((updated) => ({ ...updated, temporaryPassword }));
+    });
   }
 
-  async rejectReset(id: string, reviewerId: string, note?: string) {
+  async rejectReset(id: string, reviewerId: string, note?: string, scope?: 'supplier') {
+    await this.assertSupplierScope(id, scope);
     const req = await this.prisma.passwordResetRequest.findUnique({ where: { id } });
     if (!req) throw new NotFoundException({ error: '申请不存在', code: 'NOT_FOUND' });
     if (req.status !== 'PENDING') throw new BadRequestException({ error: '该申请已处理', code: 'ALREADY_REVIEWED' });

@@ -13,14 +13,17 @@ import {
   uploadFile,
   parseAnnouncementFields,
   buildAnnouncement,
+  checkAnnouncementDuplicate,
+  type AnnouncementStatus,
+  type AnnouncementType,
 } from '@/lib/api/announcement';
-import type { AnnouncementStatus } from '@/lib/api/announcement';
 import { uploadProjectStageAttachment, reprocProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { getSupplierList } from '@/lib/api/supplier';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
+import { confirmDialog } from '@/components/catalog/confirm-dialog';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
 import { buildPrefillFromProject } from '@/lib/tender-write/prefill-from-project';
 import {
@@ -214,14 +217,15 @@ function toDatetimeLocalValue(text: string): string {
 }
 
 /** sessionStorage key per project */
-function wizardStorageKey(projectId: string): string { return `ann-wizard-${projectId}`; }
-function loadWizardState(projectId: string): Record<string, any> | null {
-  try { const r = localStorage.getItem(wizardStorageKey(projectId)); return r ? JSON.parse(r) : null; } catch { return null; }
+/** 缓存键按「项目 + 公告分类」隔离——同一项目先发采购公告再做中标公告时，
+ *  两类草稿互不串扰（此前仅按 projectId 存取，定标阶段打开中标公告会错误恢复出采购公告模板）。 */
+function wizardStorageKey(projectId: string, category: string): string { return `ann-wizard-${projectId}:${category}`; }
+function loadWizardState(projectId: string, category: string): Record<string, any> | null {
+  try { const r = localStorage.getItem(wizardStorageKey(projectId, category)); return r ? JSON.parse(r) : null; } catch { return null; }
 }
-function saveWizardState(projectId: string, state: Record<string, any>) {
-  try { const prev = loadWizardState(projectId) || {}; localStorage.setItem(wizardStorageKey(projectId), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
+function saveWizardState(projectId: string, category: string, state: Record<string, any>) {
+  try { const prev = loadWizardState(projectId, category) || {}; localStorage.setItem(wizardStorageKey(projectId, category), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
 }
-function clearWizardState(projectId: string) { try { localStorage.removeItem(wizardStorageKey(projectId)); } catch {} }
 
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
@@ -245,6 +249,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // 公告截止时间（从公告制作提取到发布配置）+ 标书投递截止时间
   const [announcementEndDate, setAnnouncementEndDate] = useState('');
   const [bidSubmissionDeadline, setBidSubmissionDeadline] = useState('');
+  // 自愈：发布配置状态为空（如 localStorage 缓存存了空值）而公告制作草稿已填公示期限（止）时回填，
+  // 避免发布时把正确日期覆盖成空。date-only（YYYY-MM-DD）补 23:59 以符合 datetime-local 输入。
+  useEffect(() => {
+    if (announcementEndDate || !draft) return;
+    const fromDraft = (draft as Record<string, string>).announcementEnd?.trim();
+    if (!fromDraft) return;
+    setAnnouncementEndDate(fromDraft.length <= 10 ? `${fromDraft}T23:59` : fromDraft);
+  }, [announcementEndDate, draft]);
   // 采购文件下载方式：免费 / 解密密码 / 付费（占位）
   const [downloadMode, setDownloadMode] = useState<'free' | 'encrypted' | 'paid'>('free');
   const [downloadPassword, setDownloadPassword] = useState('');
@@ -257,6 +269,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [annId, setAnnId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
   const [busy, setBusy] = useState(false);
+  // 中标公告 AI 自动填入进度（步骤文案 + 完成计数），loading 面板实时展示
+  const [aiFill, setAiFill] = useState<{ steps: string[]; done: number } | null>(null);
 
   // Supplier picker
   const [allSuppliers, setAllSuppliers] = useState<Supplier[]>([]);
@@ -286,8 +300,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   useEffect(() => {
     if (!isOpen || !project) return;
 
-    // ★ 检查 sessionStorage 缓存 —— 有则恢复，无则全新预填
-    const cachedWiz = loadWizardState(project.id);
+    // ★ 检查 sessionStorage 缓存（按 initialCategory 隔离）—— 同类公告有缓存则恢复，否则全新预填
+    const cachedWiz = loadWizardState(project.id, initialCategory);
 
     setLoading(true);
     setStep(1);
@@ -400,6 +414,21 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         }
         if (sn) fd.supplierName = sn;
       }
+
+      // ★ 中标公告：直接从项目数据预填（字段键与采购公告不同——maxPrice 非 maxPriceNumeric、
+      // 开标时间为 composite、中标人走 bidder1 动态行）
+      if (initialCategory === 'winning_bid') {
+        if (!fd.maxPrice?.trim() && project.budgetAmount != null) fd.maxPrice = String(project.budgetAmount);
+        if (!fd.bidOpeningTime?.trim() && project.bidOpeningTime?.trim()) {
+          fd.bidOpeningTime = toDatetimeLocalValue(project.bidOpeningTime);
+          if (!fd.bidOpeningTimeType?.trim()) fd.bidOpeningTimeType = 'datetime';
+        }
+        if (!fd.bidder1Name?.trim() && project.awardedSupplier?.trim()) {
+          fd.bidder1Name = project.awardedSupplier;
+          if (!fd.bidderCount?.trim()) fd.bidderCount = '1';
+        }
+        if (!fd.bidder1Price?.trim() && project.contractAmount != null) fd.bidder1Price = String(project.contractAmount);
+      }
     }
 
     // 从采购文件获取时间(documentAcquireTime)区间自动填入公示期限起/止（带 HH:MM）
@@ -430,7 +459,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
     setDraft(filledDraft);
     // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）
-    saveWizardState(project.id, { step: 1, category: procCat, draft: filledDraft as Record<string, string> });
+    saveWizardState(project.id, procCat, { step: 1, draft: filledDraft as Record<string, string> });
 
     // ★ 默认引用采购文件（多份时默认选第一份）
     setTenderOn(tenderFiles.length > 0);
@@ -541,7 +570,47 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
     }
 
-    // ★ Async: .docx 解析仅作额外字段叠加
+    // ★ 中标公告：AI 自动填入（项目简要说明）+ 进度展示；不走采购文件 .docx 解析（那是采购公告的字段来源）
+    if (initialCategory === 'winning_bid') {
+      const steps = ['基础信息预填', 'AI 生成项目简要说明'];
+      setAiFill({ steps, done: 1 }); // 基础预填为同步，已完成
+      const briefContext: Record<string, string> = {};
+      if (project?.title) briefContext['项目名称'] = project.title;
+      if (project?.projectOverview) briefContext['项目概况'] = project.projectOverview;
+      if (project?.procurementMethod) briefContext['采购方式'] = project.procurementMethod;
+      if (project?.awardedSupplier) briefContext['中标供应商'] = project.awardedSupplier;
+      if (project?.contractAmount != null) briefContext['中标金额'] = String(project.contractAmount);
+      if (project?.bidOpeningTime) briefContext['开标时间'] = project.bidOpeningTime;
+
+      const finishAiFill = () => setAiFill(null);
+      const briefPromise = (filledDraft as Record<string, string>).projectBriefDescription?.trim()
+        ? Promise.resolve(null) // 已有值（预填/恢复）→ 跳过 AI
+        : generateFieldContent({
+            fieldKey: 'projectBriefDescription' as any,
+            fieldLabel: '项目简要说明',
+            currentValue: '',
+            aiPrompt: '根据项目名称、项目概况和采购内容，生成中标公告中的项目简要说明。要求用1-3句话概括项目基本信息和采购范围。不要使用#、*等符号，不要出现空行。',
+            context: briefContext,
+          }).catch(() => null);
+
+      briefPromise
+        .then((res) => {
+          if (res?.content) {
+            setDraft((prev) => {
+              if (!prev) return prev;
+              const next = { ...(prev as Record<string, string>) };
+              if (!next.projectBriefDescription?.trim()) next.projectBriefDescription = res.content;
+              return next as AnnouncementDraft;
+            });
+          }
+          setAiFill((p) => (p ? { ...p, done: p.done + 1 } : p));
+          return new Promise((r) => setTimeout(r, 250)); // 让 2/2 状态短暂可见，避免进度条闪没
+        })
+        .finally(() => { finishAiFill(); setLoading(false); });
+      return;
+    }
+
+    // ★ Async: .docx 解析仅作额外字段叠加（采购公告路径）
     parseAnnouncementFields(project.id)
       .then((parsed) => {
         if (!parsed?.fields) return;
@@ -600,14 +669,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       return;
     }
     setStep(2);
-    if (project && draft) saveWizardState(project.id, { step: 2, category, draft: draft as Record<string, string> });
+    if (project && draft) saveWizardState(project.id, category, { step: 2, draft: draft as Record<string, string> });
   };
 
   // Notification callback from embedded AnnouncementDialog
   const handleDraftChange = useCallback((d: AnnouncementDraft, cat: AnnouncementCategory) => {
     setDraft(d);
     setCategory(cat);
-    if (project) saveWizardState(project.id, { draft: d as Record<string, string>, category: cat });
+    if (project) saveWizardState(project.id, cat, { draft: d as Record<string, string> });
   }, [project]);
 
   // 发布时上传本地暂存的附件（附件 API 需要 announcementId，故在 create 之后批量上传）
@@ -643,16 +712,24 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       return;
     }
     const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
+    // 公告类型：流标/中标类目落独立类型（列表可区分筛选），其余为采购公告
+    const announcementType: AnnouncementType =
+      category === 'failed_bid' ? 'FAILED_BID_NOTICE'
+      : category === 'winning_bid' ? 'WIN_BID_NOTICE'
+      : 'BID_NOTICE';
     const draftRecord = draft as Record<string, string>;
     setBusy(true);
     try {
       // 1. 用公告模板渲染生成 docx + 提取公告全文（mammoth）
-      // 公告截止时间由发布配置接管（step1 已隐藏 announcementEnd），合并进 draft
-      const finalDraft = { ...(draft as Record<string, string>), announcementEnd: announcementEndDate } as AnnouncementDraft;
+      // 公告截止时间合并进 draft：发布配置状态优先，为空（如缓存恢复存了空值）时回落草稿值——
+      // 此前裸用状态会把公告制作里已填的正确日期覆盖成空 → docx 渲染成「请填写公示期限（止）」
+      const effectiveAnnouncementEnd = announcementEndDate || ((draft as Record<string, string>).announcementEnd ?? '');
+      const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
       const { blob, fileName, textContent } = await buildAnnouncement({
         tenderType,
         category,
         draft: finalDraft,
+        projectCode: project?.projectCode || undefined,
       });
 
       // 2. 正文 = 公告全文 → HTML 段落（escape 防注入，空行分段，段内换行转 <br/>）
@@ -680,17 +757,51 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           meta.selectedTenderMimeType = tenderFile.mimeType;
         }
       }
-      // 投递截止（bid deadline）—— 优先标书投递截止，兜底公告截止
+      // 投递截止（bid deadline）—— 由当前开标时间直接推导（开标前 DEADLINE_HOURS_BEFORE_OPENING 小时），
+      // 与关键时间卡展示口径一致；无开标时间时兜底 init 时算的值，再兜底公告截止。
       // 直接采购：deadline/downloadDeadline 已在 buildCanonicalMeta 中按「采购时间前24h / 公示区间」算好，勿覆盖
       if (tenderType !== 'SINGLE_SOURCE') {
-        meta.deadline = bidSubmissionDeadline.trim() || announcementEndDate;
-        if (announcementEndDate) meta.downloadDeadline = announcementEndDate;
+        const drPub = draft as Record<string, string>;
+        const openTimeRaw = drPub.procurementTime?.trim()
+          || drPub.bidOpeningTime?.trim()
+          || project?.bidOpeningTime?.trim()
+          || '';
+        const openTimeIsoPub = openTimeRaw ? toDatetimeLocalValue(openTimeRaw) : '';
+        const derivedSubmissionDeadline = openTimeIsoPub
+          ? hoursBeforeOpenTime(openTimeIsoPub, DEADLINE_HOURS_BEFORE_OPENING)
+          : bidSubmissionDeadline.trim();
+        meta.deadline = derivedSubmissionDeadline || effectiveAnnouncementEnd;
+        if (effectiveAnnouncementEnd) meta.downloadDeadline = effectiveAnnouncementEnd;
       }
       // 下载方式 —— 引用采购文件时生效
       if (tenderOn) {
         meta.downloadMode = downloadMode;
         if (downloadMode === 'encrypted') meta.downloadPassword = downloadPassword;
         if (downloadMode === 'paid') meta.paidAmount = paidAmount;
+      }
+      // 发布前查重：同标题或同项目同类型已发布公告 → 提示确认（流标重发等场景可确认后继续）
+      try {
+        const dup = await checkAnnouncementDuplicate({
+          title,
+          relatedProjectCode: project?.projectCode || undefined,
+          type: announcementType,
+        });
+        if (dup.matches.length > 0) {
+          const dupLines = dup.matches.map((m) => {
+            const when = m.publishDate ? `${new Date(m.publishDate).toLocaleDateString('zh-CN')} 发布` : '未发布';
+            return `· ${m.title}（${when} · ${m.status === 'PUBLISHED' ? '已发布' : '已归档'}）`;
+          }).join('\n');
+          const okDup = await confirmDialog({
+            title: '疑似重复发布',
+            message: `检出 ${dup.matches.length} 条内容相同/相关的公告：\n${dupLines}\n\n确认仍要发布？`,
+            confirmText: '仍要发布',
+            cancelText: '返回检查',
+            danger: true,
+          });
+          if (!okDup) return;
+        }
+      } catch {
+        /* 查重失败不阻断发布 */
       }
       // A3（GB/T 43711 7.2.2.5）：即时发布前做公告要素预检——警告不阻断，由经办确认放行
       const status: AnnouncementStatus = publishTiming !== 'now' ? 'DRAFT' : 'PUBLISHED';
@@ -704,7 +815,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           });
           if (warnings.length > 0) {
             const lines = warnings.map(w => `· ${w.item}（${w.clause}）：${w.message}`).join('\n');
-            if (!confirm(`按 GB/T 43711 7.2.2.5 检出 ${warnings.length} 项公告要素缺失：\n${lines}\n\n确认仍要发布？`)) return;
+            const okToPublish = await confirmDialog({
+              title: '公告要素缺失提醒',
+              message: `按 GB/T 43711 7.2.2.5 检出 ${warnings.length} 项公告要素缺失：\n${lines}\n\n确认仍要发布？`,
+              confirmText: '仍要发布',
+              cancelText: '返回修改',
+              danger: true,
+            });
+            if (!okToPublish) return;
           }
         } catch {
           /* 预检失败不阻断发布（dry-run 尽力而为） */
@@ -713,7 +831,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       const saved = await createAnnouncement({
         title,
         content,
-        type: 'BID_NOTICE',
+        type: announcementType,
         summary: draftRecord.projectOverview?.slice(0, 100) || '',
         status,
         publishDate: publishTiming === 'now' ? new Date().toISOString() : undefined,
@@ -835,11 +953,32 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           }}
         >
           {loading ? (
-            <div className="flex min-h-[300px] items-center justify-center">
+            <div className="flex min-h-[300px] flex-col items-center justify-center gap-4">
               <Loader2 size={24} className="animate-spin text-[var(--muted-foreground)]" />
-              <span className="ml-3 text-sm text-[var(--muted-foreground)]">
-                正在加载项目采购数据...
-              </span>
+              {aiFill ? (
+                <div className="w-full max-w-[320px] space-y-2.5">
+                  <div className="text-center text-sm font-semibold text-[var(--foreground)]">
+                    正在智能生成中标公告内容 {aiFill.done}/{aiFill.steps.length}
+                  </div>
+                  {aiFill.steps.map((s, i) => (
+                    <div key={s} className="flex items-center gap-2.5">
+                      {i < aiFill.done ? (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--success)_16%,transparent)] text-[var(--success)]">✓</span>
+                      ) : (
+                        <Loader2 size={16} className="shrink-0 animate-spin text-[var(--accent)]" />
+                      )}
+                      <span className={`text-xs ${i < aiFill.done ? 'text-[var(--muted-foreground)]' : 'font-semibold text-[var(--foreground)]'}`}>{s}</span>
+                    </div>
+                  ))}
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
+                    <div className="h-full rounded-full bg-[var(--accent)] transition-all duration-500" style={{ width: `${(aiFill.done / aiFill.steps.length) * 100}%` }} />
+                  </div>
+                </div>
+              ) : (
+                <span className="ml-3 text-sm text-[var(--muted-foreground)]">
+                  正在加载项目采购数据...
+                </span>
+              )}
             </div>
           ) : !tenderType ? (
             <div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">
@@ -989,48 +1128,34 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 const pubEnd = announcementEndDate || dr.announcementEnd || '';
                 const openTime = dr.procurementTime || dr.bidOpeningTime || '';
                 const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
+                // 标书投递截止 = 开标时间前 DEADLINE_HOURS_BEFORE_OPENING 小时，由开标时间直接推导（不再单独编辑）
+                const submissionDeadline = openTimeIso
+                  ? hoursBeforeOpenTime(openTimeIso, DEADLINE_HOURS_BEFORE_OPENING)
+                  : bidSubmissionDeadline;
                 return (
-              <div className="rounded-[20px] p-5 space-y-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">关键事件</div>
+              /* 关键时间（红色标注：边框/标题/标签均为红色系） */
+              <div className="rounded-[20px] p-5 space-y-4" style={{ background: 'oklch(0.98 0.012 25 / 0.45)', border: '1px solid oklch(0.6 0.17 25 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.14 25 / 0.12), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[oklch(0.52 0.19 25)]">关键时间</div>
 
-                {/* 关键事件时间线（只读展示） */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                    <div className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1">公示期限（起）</div>
+                {/* 关键时间线（只读展示；投递截止与开标强相关，置于开标时间之前） */}
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="text-[10px] font-semibold text-[oklch(0.55 0.15 25)] mb-1">公示期限（起）</div>
                     <div className="text-xs font-semibold text-[var(--foreground)]">{formatDateTimeDisplay(pubStart)}</div>
                   </div>
-                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                    <div className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1">公示期限（止）</div>
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="text-[10px] font-semibold text-[oklch(0.55 0.15 25)] mb-1">公示期限（止）</div>
                     <div className="text-xs font-semibold text-[var(--foreground)]">{formatDateTimeDisplay(pubEnd)}</div>
                   </div>
-                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'color-mix(in oklch, var(--accent) 6%, oklch(1 0 0 / 0.5))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-                    <div className="text-[10px] font-semibold text-[var(--accent)] mb-1">开标时间</div>
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(0.96 0.025 25 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="text-[10px] font-semibold text-[oklch(0.52 0.19 25)] mb-1">{`标书投递截止（开标前${DEADLINE_HOURS_BEFORE_OPENING}h）`}</div>
+                    <div className="text-xs font-bold text-[oklch(0.5 0.2 25)]">{formatDateTimeDisplay(submissionDeadline)}</div>
+                  </div>
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(0.96 0.025 25 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="text-[10px] font-semibold text-[oklch(0.52 0.19 25)] mb-1">开标时间</div>
                     <div className="text-xs font-semibold text-[var(--foreground)]">{formatDateTimeDisplay(openTimeIso)}</div>
                   </div>
                 </div>
-
-                {/* 可编辑：公告截止 + 标书投递截止 */}
-                {tenderType !== 'SINGLE_SOURCE' && (
-                <div className="grid grid-cols-2 gap-3 pt-1" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
-                  <div>
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs text-[var(--muted-foreground)]">公告截止时间</span>
-                      <div className="flex gap-1">
-                        {[3, 5].map((n) => (
-                          <button key={n} type="button" onClick={() => setAnnouncementEndDate(deadlineAfterDays(n))} className={`neu-btn-xs !h-[24px] !px-2 !text-[11px] ${announcementEndDate === deadlineAfterDays(n) ? 'is-info' : ''}`}>{n}天</button>
-                        ))}
-                      </div>
-                    </div>
-                    <input type="datetime-local" value={announcementEndDate} onChange={(e) => setAnnouncementEndDate(e.target.value)} className="workbench-input w-full text-sm" />
-                  </div>
-                  <div>
-                    <div className="mb-1">
-                      <span className="text-xs text-[var(--muted-foreground)]">{`标书投递截止（开标前${DEADLINE_HOURS_BEFORE_OPENING}h）`}</span>
-                    </div>
-                    <input type="datetime-local" value={bidSubmissionDeadline} onChange={(e) => setBidSubmissionDeadline(e.target.value)} className="workbench-input w-full text-sm" />
-                  </div>
-                </div>
-                )}
               </div>
                 );
               })()}
@@ -1197,7 +1322,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               </button>
             ) : (
               <>
-                <button onClick={() => { setStep(1); if (project && draft) saveWizardState(project.id, { step: 1 }); }} type="button" className="neu-btn-soft !h-[34px]">
+                <button onClick={() => { setStep(1); if (project && draft && category) saveWizardState(project.id, category, { step: 1 }); }} type="button" className="neu-btn-soft !h-[34px]">
                   <ChevronLeft size={14} /> 上一步
                 </button>
                 <button

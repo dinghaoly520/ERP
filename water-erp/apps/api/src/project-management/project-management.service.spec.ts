@@ -506,14 +506,14 @@ describe('ProjectManagementService', () => {
       status: 'ACTIVE',
     });
 
-    // 公开招标 + only initiationAttachment (hasDemand=false, hasInitiation=true):
-    // source filters out PROCUREMENT_DEMAND and PUBLIC_ANNOUNCEMENT (9 − 2 = 7),
+    // 公开招标不在方式模板表（METHOD_STAGE_TEMPLATES）中 → 回落「询比采购」模板（与前端矩阵一致）；
+    // 仅立项表（hasDemand=false）→ 去掉 PROCUREMENT_DEMAND（8 − 1 = 7），
     // INITIATION is COMPLETED, TENDER_DOCUMENT is the first IN_PROGRESS stage.
     const expectedStages = [
       { key: 'INITIATION', label: '采购立项', status: 'COMPLETED' },
       { key: 'TENDER_DOCUMENT', label: '采购文件', status: 'IN_PROGRESS' },
-      { key: 'SUPPLIER_INVITATION', label: '供应商邀请', status: 'NOT_STARTED' },
-      { key: 'EXPERT_SELECTION', label: '专家抽取', status: 'NOT_STARTED' },
+      { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示', status: 'NOT_STARTED' },
+      { key: 'EXPERT_SELECTION', label: '专家选取', status: 'NOT_STARTED' },
       { key: 'BID_EVALUATION', label: '开标评标', status: 'NOT_STARTED' },
       { key: 'AWARD_DECISION', label: '定标', status: 'NOT_STARTED' },
       { key: 'CONTRACT', label: '合同', status: 'NOT_STARTED' },
@@ -842,7 +842,8 @@ describe('ProjectManagementService', () => {
   describe('analyzeStep', () => {
     it('throws BadRequest for unsupported stageKey', async () => {
       const { service } = makeService();
-      await expect(service.analyzeStep('pm-01', 'TENDER_DOCUMENT')).rejects.toThrow(BadRequestException);
+      // STAGE_ANALYSIS_META 已覆盖全部八个阶段（含 TENDER_DOCUMENT），未知键才走 400 分支
+      await expect(service.analyzeStep('pm-01', 'NOT_A_STAGE')).rejects.toThrow(BadRequestException);
     });
 
     it('returns empty when roster is null', async () => {
@@ -858,6 +859,8 @@ describe('ProjectManagementService', () => {
         invitedSuppliers: null,
         expertInfo: null,
         projectOverview: null,
+        // analyzeStep 前置闸门：include stages（按 stageKey 过滤），仅已完成阶段开放分析
+        stages: [{ status: 'COMPLETED', attachments: [] }],
       });
       const result = await service.analyzeStep('pm-01', 'EXPERT_SELECTION');
       expect(result).toEqual({ content: '', empty: true });
@@ -877,6 +880,7 @@ describe('ProjectManagementService', () => {
         invitedSuppliers: null,
         expertInfo: '张三|地质部|岩土工程|高级工程师|组长\n李四|设计部|结构|工程师|成员',
         projectOverview: '岩土工程勘察',
+        stages: [{ status: 'COMPLETED', attachments: [] }],
       });
       readFileMock.mockRejectedValueOnce(new Error('no cache'));
 
@@ -1195,7 +1199,8 @@ describe('ProjectManagementService', () => {
 
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
       where: { id: 'pm-01' },
-      data: { status: 'ACTIVE' },
+      // 恢复时同时清空回收时间（3 年保留期起算字段，不能沿用旧值）
+      data: { status: 'ACTIVE', recycledAt: null },
     });
   });
 
@@ -1214,6 +1219,8 @@ describe('ProjectManagementService', () => {
       const { service, prisma } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'SUPPLIER_INVITATION' });
       prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'SUPPLIER_INVITATION' });
+      // 回执核验走 PMI/BP 两个 id 空间：先查项目关联的 BidProject id 集
+      prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]) };
       prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(0) };
       await expect(service.updateStage('pm-01', 'SUPPLIER_INVITATION', completing)).rejects.toThrow('发送邀请通知');
     });
@@ -1265,18 +1272,22 @@ describe('ProjectManagementService', () => {
       expect(new Date(r.openTime).getTime()).toBeGreaterThan(Date.now() - 1000);
     });
 
-    it('开标时间早于 12h 前（陈旧值）时：deadline 同样顺延到未来', async () => {
+    it('开标时间为陈旧值（48h 前）时：deadline 忠实过期（= 开标 − 24h，不人为续命）', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
       prisma.bidProject = { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
-      mockItem(prisma, { bidOpeningTime: new Date(Date.now() - 48 * 3600 * 1000).toISOString(), initiationDate: null });
+      const stale = new Date(Date.now() - 48 * 3600 * 1000);
+      mockItem(prisma, { bidOpeningTime: stale.toISOString(), initiationDate: null });
       prisma.announcement.findFirst.mockResolvedValue(null);
       prisma.bidProject.findFirst.mockResolvedValue(null);
       prisma.bidProject.create.mockImplementation(({ data }: any) => ({ ...data }));
 
       const r = await service.ensureBidProject('pm-01');
 
-      expect(new Date(r.deadline).getTime()).toBeGreaterThan(Date.now() - 1000);
+      // P0-5 口径（2026-09 收紧）：仅「纯兜底」的 openTime 才顺延；真实解析出的历史开标时间
+      // 忠实过期——顺延会造成「开标 3/26 / 截止 9/1」倒挂
+      expect(Math.abs(new Date(r.deadline).getTime() - (stale.getTime() - BID_DEADLINE_BEFORE_OPENING_MS))).toBeLessThan(5000);
+      expect(new Date(r.deadline).getTime()).toBeLessThan(Date.now());
     });
 
     it('P0-2 收尾：创建后回填 ACCEPTED 回执供应商进候选池（rsvp 早于懒创建的时序洞）', async () => {

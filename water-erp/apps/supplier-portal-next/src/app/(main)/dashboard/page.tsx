@@ -25,6 +25,8 @@ import {
 import { ApiError } from "@/lib/api";
 import { supplierApi } from "@/lib/api/supplier";
 import { bidApi } from "@/lib/api/bid";
+import { awardLetterApi, type AwardLetterDelivery } from "@/lib/api/award-letter";
+import { contractApi, type SpContract } from "@/lib/api/contract";
 import { uploadFile } from "@/lib/api/upload";
 import { useNotifications } from "@/lib/notification-context";
 import { useSupplierStatus } from "@/lib/supplier-status-context";
@@ -38,6 +40,9 @@ import {
   SpTextarea,
 } from "@/components/ui";
 import { ENTERPRISE_TYPES, QUAL_TYPE_OPTIONS } from "@/constants/supplier";
+import { ServerClock } from "@/components/server-clock";
+import { buildSupplierTasks } from "@/lib/supplier-tasks";
+import { serverNowMs, syncServerClock } from "@water-erp/shared";
 
 import "@/styles/pages/dashboard.css";
 import "@/styles/pages/notifications.css"; // 通知详情弹窗 nd-*（原 dashboard.css 子集，去重归一后共用）
@@ -83,9 +88,9 @@ interface ConvertContact { name: string; phone: string; email: string; position:
 interface ConvertQual { type: string; name: string; fileUrl: string; validFrom: string; validTo: string }
 
 /** 骨架卡 — Vue SkeletonCard.vue（avatar 未用于本页，略） */
-function SkeletonCard({ lines = 3, style }: { lines?: number; style?: React.CSSProperties }) {
+function SkeletonCard({ lines = 3, className = "" }: { lines?: number; className?: string }) {
   return (
-    <div className="skeleton-card" style={style}>
+    <div className={`skeleton-card${className ? ` ${className}` : ""}`}>
       <div className="skeleton-lines">
         {Array.from({ length: lines }).map((_, i) => (
           <div key={i} className="skeleton-line" style={{ width: i === lines - 1 ? "60%" : "100%" }} />
@@ -104,21 +109,28 @@ export default function DashboardPage() {
   const [error, setError] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
+  const [awards, setAwards] = useState<AwardLetterDelivery[]>([]);
+  const [contracts, setContracts] = useState<SpContract[]>([]);
+  const [nowMs, setNowMs] = useState(() => serverNowMs());
 
   /* ─── 数据加载（Vue onMounted Promise.all + retryLoad） ─── */
   const load = useCallback(async () => {
     setError(false);
     setLoading(true);
     try {
-      const [statsRes, , projectsRes] = await Promise.all([
+      const [statsRes, , projectsRes, awardsRes, contractsRes] = await Promise.all([
         supplierApi.getDashboardStats(),
         fetchStatus(),
         bidApi.listProjects({ page: 1, pageSize: 20 }),
+        awardLetterApi.list().catch(() => []),
+        contractApi.listMine().catch(() => []),
         fetchNotifications(1, 10),
       ]);
       setStats(statsRes);
       const res: any = projectsRes;
       setProjects(Array.isArray(res) ? res : res?.items || []);
+      setAwards(awardsRes);
+      setContracts(contractsRes);
     } catch {
       setError(true);
     } finally {
@@ -129,6 +141,12 @@ export default function DashboardPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void syncServerClock().then(() => setNowMs(serverNowMs()));
+    const timer = window.setInterval(() => setNowMs(serverNowMs()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // 每 30s 轮询新通知，有新消息自动刷新列表
   useEffect(() => {
@@ -163,18 +181,26 @@ export default function DashboardPage() {
 
   /* ─── Projects：前 8 条按紧急度排序（critical < warning < normal < past） ─── */
   const projectRows = useMemo(() => {
-    const now = Date.now();
     const rank: Record<string, number> = { critical: 0, warning: 1, normal: 2, past: 3 };
     return projects.slice(0, 8).map((p: any) => {
       const dl = new Date(p.deadline).getTime();
-      const daysLeft = Math.ceil((dl - now) / 86400000);
+      const daysLeft = Math.ceil((dl - nowMs) / 86400000);
       let urgency: "critical" | "warning" | "normal" | "past" = "normal";
-      if (dl < now) urgency = "past";
+      if (dl < nowMs) urgency = "past";
       else if (daysLeft <= 3) urgency = "critical";
       else if (daysLeft <= 14) urgency = "warning";
       return { project: p, daysLeft, urgency };
     }).sort((a, b) => rank[a.urgency] - rank[b.urgency]);
-  }, [projects]);
+  }, [nowMs, projects]);
+
+  const currentTasks = useMemo(() => buildSupplierTasks({
+    nowMs,
+    stats,
+    projects,
+    notifications,
+    awards,
+    contracts,
+  }).slice(0, 8), [awards, contracts, notifications, nowMs, projects, stats]);
 
   /* ─── Notifications：未读置顶，同组按时间倒序，取 4 条 ─── */
   const notifFeed = useMemo(() =>
@@ -193,39 +219,18 @@ export default function DashboardPage() {
   function openNotifDetail(n: any) {
     setNotifDetail({ ...n });
   }
-  /** 识别纯文本中的换行与 URL，转为 HTML；其余文本转义防 XSS。末尾 2 行作为落款右对齐。 */
-  function linkify(text: string): string {
-    if (!text) return "";
-    const escaped = text
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const lines = escaped.split("\n");
-    // 末尾 2 行为落款（发件机构 + 日期），右对齐；其余为正文
-    const sigLen = Math.min(2, lines.length);
-    const bodyLines = lines.slice(0, -sigLen);
-    const sigLines = lines.slice(-sigLen);
-    let html = bodyLines.join("<br>");
-    html = html.replace(
-      /(https?:\/\/[^\s<>"'{}|]+)/g,
-      '<a href="$1" target="_blank" rel="noopener" class="notif-link">$1</a>',
-    );
-    if (sigLines.length > 0) {
-      html += '<div class="nd-signature">' + sigLines.join("<br>") + "</div>";
-    }
-    return html;
-  }
-
   /* ─── Days since registration / 临时供应商倒计时 ─── */
   const daysSinceReg = useMemo(() => {
     const created = statusInfo?.createdAt;
     if (!created) return null;
-    return Math.ceil((Date.now() - new Date(created).getTime()) / 86400000);
-  }, [statusInfo]);
+    return Math.ceil((nowMs - new Date(created).getTime()) / 86400000);
+  }, [nowMs, statusInfo]);
   const daysRemaining = useMemo(() => {
     const exp = statusInfo?.temporaryExpiresAt;
     if (!exp) return "--";
-    const days = Math.ceil((new Date(exp).getTime() - Date.now()) / 86400000);
+    const days = Math.ceil((new Date(exp).getTime() - nowMs) / 86400000);
     return Math.max(0, days);
-  }, [statusInfo]);
+  }, [nowMs, statusInfo]);
   const isExpiringSoon = useMemo(() => {
     const d = daysRemaining;
     return typeof d === "number" && d <= 3 && d > 0;
@@ -339,13 +344,13 @@ export default function DashboardPage() {
       ) : loading ? (
         /* Skeleton */
         <>
-          <SkeletonCard lines={2} style={{ marginBottom: 20 }} />
-          <div className="kpi-grid" style={{ marginBottom: 20 }}>
+          <SkeletonCard lines={2} className="db-mb-20" />
+          <div className="kpi-grid db-mb-20">
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} lines={1} />)}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 20 }}>
+          <div className="db-main-grid">
             <SkeletonCard lines={8} />
-            <div style={{ display: "grid", gap: 20 }}>
+            <div className="db-col-stack">
               <SkeletonCard lines={5} />
               <SkeletonCard lines={4} />
             </div>
@@ -360,7 +365,7 @@ export default function DashboardPage() {
                 <div className="page-hero__icon"><Building2 size={20} /></div>
                 <div>
                   {statusInfo.isTemporary ? <div className="page-hero__eyebrow">临时供应商</div> : null}
-                  <div className="page-hero__title">{statusInfo.name}</div>
+                  <h1 className="page-hero__title">{statusInfo.name}</h1>
                   <div className="page-hero__sub db-hero-sub">
                     <span className={`sp-status ${STATUS_TYPE[statusInfo.status] || "pending"}`}>{STATUS_LABEL[statusInfo.status] || statusInfo.status}</span>
                     {daysSinceReg ? <span className="db-hero-meta">入驻 {daysSinceReg} 天</span> : null}
@@ -369,6 +374,7 @@ export default function DashboardPage() {
                     ) : statusInfo.status === "RETURNED" ? (
                       <span className="db-hero-hint warn">{statusInfo.returnReason || "资料被退回，请补正"}</span>
                     ) : null}
+                    <ServerClock />
                   </div>
                 </div>
               </div>
@@ -376,7 +382,7 @@ export default function DashboardPage() {
                 <div className="page-hero__right db-hero-right">
                   <div className="db-temp-banner">
                     <span className={`db-temp-countdown${isExpiringSoon ? " expiring" : ""}`}>
-                      <Clock size={14} style={{ marginRight: 4 }} />
+                      <Clock size={14} className="db-clock-ic" />
                       {expireDate} 到期 · 剩 <strong>{daysRemaining}</strong> 天
                     </span>
                     <button className="neu-btn-soft" onClick={() => { void openConvertDialog(); }}>转为正式供应商</button>
@@ -385,6 +391,41 @@ export default function DashboardPage() {
               ) : null}
             </div>
           </div>
+
+          {/* 供应商侧统一待办：由资料、项目、通知书与合同履约状态聚合 */}
+          <section className="sp-module db-task-panel" aria-labelledby="supplier-task-title">
+            <div className="sp-module-header">
+              <div>
+                <h2 id="supplier-task-title" className="sp-module-title">当前待办</h2>
+                <p className="db-task-subtitle">按服务器标准时间和紧急程度排序</p>
+              </div>
+              <span className="db-task-count" aria-label={`共 ${currentTasks.length} 项待办`}>{currentTasks.length}</span>
+            </div>
+            {currentTasks.length === 0 ? (
+              <div className="db-task-empty"><CheckCircle2 size={18} /> 暂无紧急事项</div>
+            ) : (
+              <div className="db-task-list">
+                {currentTasks.map((task) => (
+                  <button
+                    key={task.id}
+                    type="button"
+                    className={`db-task-item ${task.urgency}`}
+                    onClick={() => router.push(task.href)}
+                  >
+                    <span className="db-task-main">
+                      <span className="db-task-source">{task.source}</span>
+                      <span className="db-task-title">{task.title}</span>
+                      <span className="db-task-description">{task.description}</span>
+                    </span>
+                    <span className="db-task-action">
+                      {task.dueAt ? dayjs(task.dueAt).format("MM-DD HH:mm") : "查看处理"}
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
 
           {/* ═══════ Two-column body ═══════ */}
           <div className="db-body">
@@ -395,15 +436,16 @@ export default function DashboardPage() {
                 <button className="neu-btn-xs" onClick={() => router.push("/bids")}>全部<ArrowRight size={12} /></button>
               </div>
               {projectRows.length === 0 ? (
-                <div className="sp-empty" style={{ padding: "32px 0" }}>
+                <div className="sp-empty db-empty-pad">
                   <div className="sp-empty-icon"><Folder size={22} strokeWidth={1.75} /></div>
                   <div className="sp-empty-text">暂无采购项目</div>
                 </div>
               ) : (
                 <div className="db-list">
                   {projectRows.map((row, idx) => (
-                    <div
+                    <button
                       key={row.project.id}
+                      type="button"
                       className={`db-list-row ${row.urgency}${idx === projectRows.length - 1 ? " is-last" : ""}${row.project.stage === "SUBMIT" ? " submit-stage" : ""}`}
                       onClick={() => router.push(`/bids/${row.project.id}?from=list`)}
                     >
@@ -422,7 +464,7 @@ export default function DashboardPage() {
                           {row.urgency === "past" ? "已截止" : row.urgency === "critical" ? `剩${row.daysLeft}天` : `${row.daysLeft}天`}
                         </span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -477,10 +519,10 @@ export default function DashboardPage() {
                     {completenessCats.map((cat) => (
                       <span key={`m-${cat.key}`} style={{ "--c": cat.color } as React.CSSProperties}>
                         {cat.missing.map((m) => (
-                          <span key={m} className="db-comp-missing-tag" onClick={() => router.push("/profile")}>
+                          <button type="button" key={m} className="db-comp-missing-tag" onClick={() => router.push("/profile")}>
                             <span className="db-comp-missing-dot" />
                             {m}
-                          </span>
+                          </button>
                         ))}
                       </span>
                     ))}
@@ -499,15 +541,16 @@ export default function DashboardPage() {
                   <button className="neu-btn-xs" onClick={() => router.push("/notifications")}>全部<ArrowRight size={12} /></button>
                 </div>
                 {notifFeed.length === 0 ? (
-                  <div className="sp-empty" style={{ padding: "24px 0" }}>
+                  <div className="sp-empty db-empty-pad db-empty-pad--sm">
                     <div className="sp-empty-icon"><Bell size={22} strokeWidth={1.75} /></div>
                     <div className="sp-empty-text">暂无消息</div>
                   </div>
                 ) : (
                   <div className="db-msg-list">
                     {notifFeed.map((n, idx) => (
-                      <div
+                      <button
                         key={n.id}
+                        type="button"
                         className={`db-msg-row${!n.isRead ? " unread" : ""}${idx === notifFeed.length - 1 ? " is-last" : ""}`}
                         onClick={() => openNotifDetail(n)}
                       >
@@ -517,7 +560,7 @@ export default function DashboardPage() {
                           {n.content ? <span className="db-msg-ct">{n.content}</span> : null}
                         </div>
                         <span className="db-msg-time">{dayjs(n.createdAt).format("MM-DD HH:mm")}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -771,7 +814,7 @@ export default function DashboardPage() {
             ))}
           </section>
 
-          <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 12 }}>提交后需管理员审批，审批通过后自动转为正式供应商。</p>
+          <p className="db-convert-hint">提交后需管理员审批，审批通过后自动转为正式供应商。</p>
         </div>
       </SpDialog>
 
@@ -802,7 +845,7 @@ export default function DashboardPage() {
         {notifDetail ? (
           <div className="nd-body">
             <span className="nd-time">{dayjs(notifDetail.createdAt).format("YYYY-MM-DD HH:mm")}</span>
-            <div className="nd-content" dangerouslySetInnerHTML={{ __html: linkify(notifDetail.content) }} />
+            <div className="nd-content">{notifDetail.content}</div>
           </div>
         ) : null}
       </SpDialog>

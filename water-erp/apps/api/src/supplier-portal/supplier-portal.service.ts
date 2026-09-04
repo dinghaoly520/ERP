@@ -156,6 +156,16 @@ function extractDnCn(dn: string): string | null {
   return m ? m[1].trim() : null;
 }
 
+/** 采购方式三分类（2026-09-04 可见性/投递准入统一口径）：
+ *  - 公告公开型（询比采购 / 竞价采购 / 邀请招标 / 公开招标等，默认）：
+ *    无供应商候选，公告发布 → 全体供应商可见、可投递；公告发布前不可见。
+ *  - 邀请型（谈判采购）：仅受邀供应商（BidSupplier / InvitationRsvp）可见、可投递，
+ *    时间窗口由 sendNegotiationConfig 下发，不经公告。
+ *  - 邀请+公告型（直接采购）：会邀请供应商、也发布公告，但公告只作信息披露——
+ *    仅受邀供应商在公告发布后可见/可投递，其他供应商不展示、不放行。
+ *  以下集合 = 后两类（邀请域）方式。 */
+const INVITATION_SCOPED_METHODS = new Set(['直接采购', '谈判采购']);
+
 @Injectable()
 export class SupplierPortalService {
   constructor(
@@ -170,6 +180,340 @@ export class SupplierPortalService {
     private readonly bidService: BidService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
+
+  /**
+   * 将供应商上传的履约证明挂接到本企业合同节点。
+   * 归属校验必须在服务层完成，避免 controller 或其他调用方只校验合同却跨节点更新。
+   */
+  async attachContractFulfillmentProof(
+    userId: string,
+    contractId: string,
+    fulfillmentId: string,
+    proofAssetId: string,
+  ) {
+    if (!proofAssetId?.trim()) {
+      throw new BadRequestException({ error: '缺少证明文件', code: 'BAD_PARAMS' });
+    }
+    const normalizedAssetId = proofAssetId.trim();
+
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!supplier) {
+      throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const contract = await tx.contract.findFirst({
+        where: { id: contractId, supplierId: supplier.id },
+        select: { id: true, status: true, signedAssetId: true },
+      });
+      if (!contract) {
+        throw new NotFoundException({ error: '合同不存在', code: 'CONTRACT_NOT_FOUND' });
+      }
+      if (!['signed', 'performing'].includes(contract.status)) {
+        throw new ConflictException({ error: '当前合同状态不允许挂接或替换履约证明', code: 'PROOF_ATTACHMENT_LOCKED' });
+      }
+      if (!contract.signedAssetId) {
+        throw new ConflictException({
+          error: '合同缺少签署版文件，暂不能提交履约证明',
+          code: 'CONTRACT_SIGNED_ASSET_REQUIRED',
+        });
+      }
+
+      const fulfillment = await tx.contractFulfillment.findFirst({
+        where: { id: fulfillmentId, contractId },
+        select: { id: true, contractId: true, status: true, proofAssetId: true },
+      });
+      if (!fulfillment) {
+        throw new NotFoundException({ error: '履约节点不存在', code: 'FULFILLMENT_NOT_FOUND' });
+      }
+      if (fulfillment.status === 'done') {
+        throw new ConflictException({ error: '已完成节点的履约证明不可替换', code: 'PROOF_ATTACHMENT_LOCKED' });
+      }
+
+      const asset = await tx.fileAsset.findUnique({
+        where: { id: normalizedAssetId },
+        select: { id: true, uploaderId: true, category: true },
+      });
+      if (!asset) {
+        throw new NotFoundException({ error: '证明文件不存在', code: 'PROOF_ASSET_NOT_FOUND' });
+      }
+      if (asset.uploaderId !== userId) {
+        throw new ForbiddenException({ error: '证明文件不属于当前账号', code: 'PROOF_ASSET_FORBIDDEN' });
+      }
+      if (asset.category !== 'contract_document') {
+        throw new BadRequestException({ error: '文件分类不是合同履约证明', code: 'PROOF_ASSET_CATEGORY_INVALID' });
+      }
+
+      // 合同证据允许在同一合同内复用，但不得串挂到另一合同；否则一份证明可被
+      // 伪装成多个合同的独立履约证据，采购端的完成/验收门禁也会随之失真。
+      const [otherContractRefs, otherFulfillmentRefs] = await Promise.all([
+        tx.contract.findMany({
+          where: {
+            id: { not: contractId },
+            OR: [{ draftAssetId: asset.id }, { signedAssetId: asset.id }],
+          },
+          select: { id: true },
+          take: 1,
+        }),
+        tx.contractFulfillment.findMany({
+          where: { proofAssetId: asset.id, contractId: { not: contractId } },
+          select: { id: true, contractId: true },
+          take: 1,
+        }),
+      ]);
+      if (otherContractRefs.length > 0 || otherFulfillmentRefs.length > 0) {
+        throw new ConflictException({
+          error: '该证明文件已用于其他合同，不可重复挂接',
+          code: 'PROOF_ASSET_ALREADY_BOUND',
+        });
+      }
+
+      const write = await tx.contractFulfillment.updateMany({
+        where: {
+          id: fulfillment.id,
+          contractId,
+          status: { not: 'done' },
+          proofAssetId: fulfillment.proofAssetId,
+          contract: {
+            supplierId: supplier.id,
+            status: { in: ['signed', 'performing'] },
+            signedAssetId: { not: null },
+          },
+        },
+        data: { proofAssetId: asset.id },
+      });
+      if (write.count !== 1) {
+        throw new ConflictException({ error: '履约节点状态或证明版本已变化，请刷新后重试', code: 'PROOF_VERSION_CHANGED' });
+      }
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'CONTRACT_FULFILLMENT_PROOF_ATTACHED',
+          resourceType: 'ContractFulfillment',
+          resourceId: fulfillment.id,
+          details: { contractId: contract.id, fulfillmentId: fulfillment.id, proofAssetId: asset.id },
+        },
+      });
+      const updated = await tx.contractFulfillment.findUnique({ where: { id: fulfillment.id } });
+      if (!updated) {
+        throw new NotFoundException({ error: '履约节点不存在', code: 'FULFILLMENT_NOT_FOUND' });
+      }
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  private awardReceiptNo(deliveryId: string): string {
+    const suffix = deliveryId.replace(/[^a-zA-Z0-9]/g, '').slice(-12).toUpperCase();
+    return `AL-${suffix || 'RECEIPT'}`;
+  }
+
+  private awardNotificationLink(deliveryId: string): string {
+    return `/award-letters?deliveryId=${encodeURIComponent(deliveryId)}`;
+  }
+
+  private parseAwardDeliveryVersion(expectedDeliveredAt: string): Date {
+    const version = new Date(expectedDeliveredAt);
+    if (!expectedDeliveredAt || !Number.isFinite(version.getTime())) {
+      throw new BadRequestException({
+        error: '缺少有效的通知书版本',
+        code: 'AWARD_LETTER_VERSION_REQUIRED',
+      });
+    }
+    return version;
+  }
+
+  private assertAwardLetterVersion(
+    record: { letterAssetId: string | null; deliveredAt: Date | null },
+    expectedLetterAssetId: string,
+    expectedDeliveredAt: Date,
+  ) {
+    if (!record.letterAssetId) {
+      throw new ConflictException({
+        error: '通知书未附加实际文件，不可签收',
+        code: 'AWARD_LETTER_ASSET_REQUIRED',
+      });
+    }
+    if (
+      !expectedLetterAssetId?.trim()
+      || record.letterAssetId !== expectedLetterAssetId.trim()
+      || !record.deliveredAt
+      || record.deliveredAt.getTime() !== expectedDeliveredAt.getTime()
+    ) {
+      throw new ConflictException({
+        error: '中标通知书版本已变更，请刷新并重新查看',
+        code: 'AWARD_LETTER_VERSION_CHANGED',
+      });
+    }
+  }
+
+  private async resolveAwardLetterNotification(userId: string, deliveryId: string) {
+    await this.notificationService.resolveActionableForUser(
+      userId,
+      'AWARD_LETTER',
+      this.awardNotificationLink(deliveryId),
+    ).catch(() => {});
+  }
+
+  async listMyAwardLetters(userId: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!supplier) {
+      throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
+    }
+    const bidSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { supplierId: supplier.id },
+      select: { id: true },
+    });
+    if (bidSuppliers.length === 0) return [];
+
+    const deliveries = await this.prisma.awardLetterDelivery.findMany({
+      where: { supplierId: { in: bidSuppliers.map((item) => item.id) } },
+      orderBy: { createdAt: 'desc' },
+      include: { project: { select: { id: true, name: true, projectCode: true } } },
+    });
+    const assetIds = deliveries
+      .map((item) => item.letterAssetId)
+      .filter((id): id is string => Boolean(id));
+    const assets = assetIds.length
+      ? await this.prisma.fileAsset.findMany({
+          where: { id: { in: assetIds } },
+          select: { id: true, originalName: true, mimeType: true, size: true, sha256: true },
+        })
+      : [];
+    const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+
+    return deliveries.map((delivery) => ({
+      ...delivery,
+      receiptNo: this.awardReceiptNo(delivery.id),
+      letterAsset: delivery.letterAssetId ? assetById.get(delivery.letterAssetId) ?? null : null,
+    }));
+  }
+
+  private async assertOwnedAwardLetter(userId: string, deliveryId: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!supplier) {
+      throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
+    }
+    const record = await this.prisma.awardLetterDelivery.findUnique({ where: { id: deliveryId } });
+    if (!record) {
+      throw new NotFoundException({ error: '通知书不存在', code: 'AWARD_LETTER_NOT_FOUND' });
+    }
+    const owner = await this.prisma.bidSupplier.findFirst({
+      where: { id: record.supplierId, supplierId: supplier.id },
+      select: { id: true },
+    });
+    if (!owner) {
+      throw new ForbiddenException({ error: '无权访问此通知书', code: 'AWARD_LETTER_FORBIDDEN' });
+    }
+    return record;
+  }
+
+  async markAwardLetterReceived(
+    userId: string,
+    deliveryId: string,
+    expectedLetterAssetId: string,
+    expectedDeliveredAt: string,
+  ) {
+    const record = await this.assertOwnedAwardLetter(userId, deliveryId);
+    const deliveryVersion = this.parseAwardDeliveryVersion(expectedDeliveredAt);
+    this.assertAwardLetterVersion(record, expectedLetterAssetId, deliveryVersion);
+    if (record.receivedAt) {
+      return { received: true, receivedAt: record.receivedAt, receiptNo: this.awardReceiptNo(record.id) };
+    }
+    const receivedAt = new Date();
+    const claim = await this.prisma.awardLetterDelivery.updateMany({
+      where: {
+        id: record.id,
+        letterAssetId: expectedLetterAssetId.trim(),
+        deliveredAt: deliveryVersion,
+        receivedAt: null,
+      },
+      data: { receivedAt },
+    });
+    if (claim.count === 0) {
+      const persisted = await this.prisma.awardLetterDelivery.findUnique({ where: { id: record.id } });
+      if (!persisted) {
+        throw new NotFoundException({ error: '通知书不存在', code: 'AWARD_LETTER_NOT_FOUND' });
+      }
+      this.assertAwardLetterVersion(persisted, expectedLetterAssetId, deliveryVersion);
+      if (persisted.receivedAt) {
+        return { received: true, receivedAt: persisted.receivedAt, receiptNo: this.awardReceiptNo(record.id) };
+      }
+      throw new ConflictException({
+        error: '中标通知书版本已变更，请刷新并重新查看',
+        code: 'AWARD_LETTER_VERSION_CHANGED',
+      });
+    }
+    return { received: true, receivedAt, receiptNo: this.awardReceiptNo(record.id) };
+  }
+
+  async signAwardLetter(
+    userId: string,
+    deliveryId: string,
+    expectedLetterAssetId: string,
+    expectedDeliveredAt: string,
+  ) {
+    const record = await this.assertOwnedAwardLetter(userId, deliveryId);
+    const deliveryVersion = this.parseAwardDeliveryVersion(expectedDeliveredAt);
+    this.assertAwardLetterVersion(record, expectedLetterAssetId, deliveryVersion);
+    if (record.signedAt) {
+      await this.resolveAwardLetterNotification(userId, record.id);
+      return { ...record, receiptNo: this.awardReceiptNo(record.id) };
+    }
+    if (!record.receivedAt) {
+      throw new ConflictException({
+        error: '请先查看通知书文件再签收',
+        code: 'AWARD_LETTER_NOT_RECEIVED',
+      });
+    }
+    const signedAt = new Date();
+    const claim = await this.prisma.awardLetterDelivery.updateMany({
+      where: {
+        id: record.id,
+        letterAssetId: expectedLetterAssetId.trim(),
+        deliveredAt: deliveryVersion,
+        signedAt: null,
+        receivedAt: { not: null },
+      },
+      data: { signedAt, signedBy: userId },
+    });
+    if (claim.count === 0) {
+      const persisted = await this.prisma.awardLetterDelivery.findUnique({ where: { id: record.id } });
+      if (!persisted) {
+        throw new NotFoundException({ error: '通知书不存在', code: 'AWARD_LETTER_NOT_FOUND' });
+      }
+      this.assertAwardLetterVersion(persisted, expectedLetterAssetId, deliveryVersion);
+      if (persisted.signedAt) {
+        await this.resolveAwardLetterNotification(userId, record.id);
+        return { ...persisted, receiptNo: this.awardReceiptNo(record.id) };
+      }
+      if (!persisted.receivedAt) {
+        throw new ConflictException({
+          error: '请先查看通知书文件再签收',
+          code: 'AWARD_LETTER_NOT_RECEIVED',
+        });
+      }
+      throw new ConflictException({
+        error: '中标通知书版本已变更，请刷新并重新查看',
+        code: 'AWARD_LETTER_VERSION_CHANGED',
+      });
+    }
+    await this.resolveAwardLetterNotification(userId, record.id);
+    return {
+      ...record,
+      signedAt,
+      signedBy: userId,
+      receiptNo: this.awardReceiptNo(record.id),
+    };
+  }
 
   private readonly logger = new Logger(SupplierPortalService.name);
 
@@ -599,10 +943,8 @@ export class SupplierPortalService {
       stage: { not: 'ARCHIVED' }, // 不展示已归档项目
     };
 
-    // 可见性 + 时效：
-    //  - 受邀项目（BidSupplier 命中）：谈判采购等确认参加即显示（sendNegotiationConfig 已下发时间窗口）；
-    //    直接采购须等公告发布后才显示（直接采购的时间在公告里发布，确认参加仅记录意向）。
-    //  - 公开公告项目（accessScope=OPEN）：仅展示 deadline 未到的活跃项目
+    // 可见性模型见文件顶部 INVITATION_SCOPED_METHODS 注释（三分类统一口径）。
+    const NOTICE_GATED_INVITED_METHODS = new Set(['直接采购']); // 受邀后仍须等公告发布的方式
     let invitedIds: string[] = [];
     let openIds: string[] = [];
     if (supplierId) {
@@ -637,7 +979,8 @@ export class SupplierPortalService {
         const publishedCodeSet = new Set(noticeCodes);
         invitedIds = invitedProjects
           .filter(p => {
-            if (p.procurementMethod !== '直接采购') return true;
+            if (!INVITATION_SCOPED_METHODS.has(p.procurementMethod)) return false; // 公告公开型：不经邀请可见
+            if (!NOTICE_GATED_INVITED_METHODS.has(p.procurementMethod)) return true; // 谈判采购：确认参加即显示
             // 直接采购：业务编号（PMI.projectCode）或内部编号命中已发布公告 → 视为公告已发布
             const bizCode = p.projectManagementItemId ? pmCodeMap.get(p.projectManagementItemId) : undefined;
             return (!!bizCode && publishedCodeSet.has(bizCode)) || publishedCodeSet.has(p.projectCode);
@@ -662,6 +1005,18 @@ export class SupplierPortalService {
           select: { id: true },
         });
         openIds = [...new Set([...openIds, ...byCode.map(p => p.id)])];
+      }
+
+      // 公开分支只承载公告公开型方式：直接采购（公告仅信息披露，只对受邀可见）与
+      // 谈判采购（纯邀请）不得经 OPEN 文档或公告桥接对全体供应商开放。
+      if (openIds.length > 0) {
+        const scoped = await this.prisma.bidProject.findMany({
+          where: { id: { in: openIds } },
+          select: { id: true, procurementMethod: true },
+        });
+        openIds = scoped
+          .filter(p => !INVITATION_SCOPED_METHODS.has(p.procurementMethod))
+          .map(p => p.id);
       }
     }
 
@@ -745,19 +1100,31 @@ export class SupplierPortalService {
 
     // 富化 accessScope（来自 BidDocument）供前端分类
     const projectIds = items.map(i => i.id);
-    const bidDocs = projectIds.length > 0
-      ? await this.prisma.bidDocument.findMany({
-          where: { bidProjectId: { in: projectIds } },
-          select: { bidProjectId: true, accessScope: true },
-        })
-      : [];
+    const [bidDocs, mySubmissions] = projectIds.length > 0
+      ? await Promise.all([
+          this.prisma.bidDocument.findMany({
+            where: { bidProjectId: { in: projectIds } },
+            select: { bidProjectId: true, accessScope: true },
+          }),
+          supplierId
+            ? this.prisma.supplierBidSubmission.findMany({
+                where: { supplierId, projectId: { in: projectIds } },
+                select: { projectId: true, status: true },
+              })
+            : Promise.resolve([]),
+        ])
+      : [[], []];
     const scopeMap: Record<string, string> = {};
     for (const d of bidDocs) {
       if (d.bidProjectId) scopeMap[d.bidProjectId] = d.accessScope;
     }
+    const submissionStatusMap = new Map<string, string>(
+      mySubmissions.map((submission) => [submission.projectId, submission.status] as const),
+    );
     const enrichedItems = items.map(i => ({
       ...i,
       accessScope: scopeMap[i.id] || 'OPEN',
+      mySubmissionStatus: submissionStatusMap.get(i.id) ?? null,
     }));
 
     // 富化谈判配置（来自 Redis）：采购文件获取窗口、开标时间、下载模式、文件数
@@ -1111,7 +1478,7 @@ export class SupplierPortalService {
       this.prisma.supplier.findUnique({ where: { id: supplierId } }),
       this.prisma.bidProject.findUnique({
         where: { id: projectId },
-        select: { id: true, projectCode: true, stage: true, deadline: true, projectManagementItemId: true, bondRequired: true },
+        select: { id: true, projectCode: true, stage: true, deadline: true, projectManagementItemId: true, procurementMethod: true, bondRequired: true },
       }),
     ]);
 
@@ -1130,14 +1497,19 @@ export class SupplierPortalService {
     if (project.deadline.getTime() < Date.now()) {
       throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
     }
-    // G3 权威兜底（P0-2 放宽口径）：公告项目须已发布招标公示；邀请类采购（谈判采购等无公告阶段，
-    // 供应商邀请向导替代公告）以「已接受邀请回执（InvitationRsvp ACCEPTED，projectId=PMI id）
-    // 或已在候选名单（BidSupplier 行）」为投递准入，二者其一即可。
-    const notice = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE', status: 'PUBLISHED' },
-      select: { id: true },
-    });
-    if (!notice) {
+    // G3 权威兜底（P0-2 放宽口径，2026-09-04 与门户可见性同口径）：公告公开型（询比/竞价/邀请招标/
+    // 公开招标等，默认）已发布招标公示 → 全体供应商可投递；邀请域方式（直接采购/谈判采购，见
+    // INVITATION_SCOPED_METHODS）公告仅信息披露——投递仍须「已接受邀请回执（InvitationRsvp ACCEPTED，
+    // projectId=PMI id）或已在候选名单（BidSupplier 行）」二者其一。
+    const invitationRequired = INVITATION_SCOPED_METHODS.has(project.procurementMethod);
+    const noticeCodes = await this.resolveAnnouncementCodes(project);
+    const notice = noticeCodes.length > 0
+      ? await this.prisma.announcement.findFirst({
+          where: { relatedProjectCode: { in: noticeCodes }, type: 'BID_NOTICE', status: 'PUBLISHED' },
+          select: { id: true },
+        })
+      : null;
+    if (!notice || invitationRequired) {
       const [inPool, acceptedRsvp] = await Promise.all([
         this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } }),
         project.projectManagementItemId
@@ -1148,7 +1520,12 @@ export class SupplierPortalService {
           : Promise.resolve(null),
       ]);
       if (!inPool && !acceptedRsvp) {
-        throw new BadRequestException({ error: '该项目尚未发布招标公告，也未见您的受邀确认记录，暂无法投递', code: 'BID_NOTICE_REQUIRED' });
+        throw new BadRequestException({
+          error: invitationRequired
+            ? '该项目仅面向受邀供应商，暂未见您的受邀确认记录'
+            : '该项目尚未发布招标公告，也未见您的受邀确认记录，暂无法投递',
+          code: invitationRequired ? 'INVITATION_REQUIRED' : 'BID_NOTICE_REQUIRED',
+        });
       }
     }
 
@@ -1559,6 +1936,10 @@ export class SupplierPortalService {
     });
 
     if (existing) {
+      // 【安全】已递交/已撤回的记录不可经草稿端点改写——否则绕过 submitBid 的验签/信封/截止闸门
+      if (existing.status !== 'draft') {
+        throw new BadRequestException({ error: '标书已递交，不可再保存草稿（如需修改请先撤回）', code: 'NOT_DRAFT' });
+      }
       return this.prisma.supplierBidSubmission.update({
         where: { id: existing.id },
         data: pickBidSubmissionFields(data),
@@ -2203,7 +2584,7 @@ export class SupplierPortalService {
           type: 'BID_DECRYPT_FAILED',
           title: `投标文件解密异常：${supplierName}`,
           content: `您在项目中的投标文件解密失败：${reason}。请联系开标主持人处理或等待重新解密。`,
-          link: `/supplier/bid/${projectId}`,
+          link: `/my-bids/${projectId}/opening-hall`,
         });
       }
     } catch {
@@ -3158,6 +3539,68 @@ export class SupplierPortalService {
     };
   }
 
+  // ─── 供应商自有档案（合同/框架协议自建留存）───
+
+  async listOwnArchives(supplierId: string, category?: 'contract' | 'framework') {
+    return this.prisma.supplierOwnArchive.findMany({
+      where: { supplierId, ...(category ? { category } : {}) },
+      orderBy: [{ endDate: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async createOwnArchive(supplierId: string, dto: {
+    category: string; title: string; refCode?: string; counterparty?: string; amount?: string;
+    signDate?: string; startDate?: string; endDate?: string; scope?: string; note?: string;
+    files?: { name: string; url: string }[];
+  }) {
+    if (!['contract', 'framework'].includes(dto.category)) {
+      throw new BadRequestException({ error: '档案类别不合法（contract|framework）', code: 'BAD_CATEGORY' });
+    }
+    if (!dto.title?.trim()) throw new BadRequestException({ error: '名称为必填', code: 'TITLE_REQUIRED' });
+    return this.prisma.supplierOwnArchive.create({
+      data: {
+        supplierId,
+        category: dto.category,
+        title: dto.title.trim(),
+        refCode: dto.refCode?.trim() || null,
+        counterparty: dto.counterparty?.trim() || null,
+        amount: dto.amount?.trim() || null,
+        signDate: dto.signDate ? new Date(dto.signDate) : null,
+        startDate: dto.startDate ? new Date(dto.startDate) : null,
+        endDate: dto.endDate ? new Date(dto.endDate) : null,
+        scope: dto.scope?.trim() || null,
+        note: dto.note?.trim() || null,
+        files: dto.files ?? [],
+      },
+    });
+  }
+
+  async updateOwnArchive(supplierId: string, id: string, dto: Record<string, any>) {
+    const row = await this.prisma.supplierOwnArchive.findUnique({ where: { id } });
+    if (!row || row.supplierId !== supplierId) {
+      throw new BadRequestException({ error: '档案不存在', code: 'NOT_FOUND' });
+    }
+    const data: Record<string, any> = {};
+    const strFields = ['title', 'refCode', 'counterparty', 'amount', 'scope', 'note'];
+    for (const f of strFields) {
+      if (dto[f] !== undefined) data[f] = String(dto[f]).trim() || null;
+    }
+    for (const f of ['signDate', 'startDate', 'endDate']) {
+      if (dto[f] !== undefined) data[f] = dto[f] ? new Date(dto[f]) : null;
+    }
+    if (dto.files !== undefined) data.files = Array.isArray(dto.files) ? dto.files : [];
+    return this.prisma.supplierOwnArchive.update({ where: { id }, data });
+  }
+
+  async deleteOwnArchive(supplierId: string, id: string) {
+    const row = await this.prisma.supplierOwnArchive.findUnique({ where: { id } });
+    if (!row || row.supplierId !== supplierId) {
+      throw new BadRequestException({ error: '档案不存在', code: 'NOT_FOUND' });
+    }
+    await this.prisma.supplierOwnArchive.delete({ where: { id } });
+    return { ok: true };
+  }
+
   // ─── Password ───
 
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
@@ -3308,6 +3751,13 @@ export class SupplierPortalService {
     if (written.count === 0) {
       throw new ConflictException({ error: '澄清已答复或已关闭，不可重复答复', code: 'CLARIFICATION_ALREADY_REPLIED' });
     }
+    await this.notificationService.resolveActionableForUser(
+      user.sub,
+      'BID_CLARIFICATION_CREATED',
+      `/bids/${projectId}/clarifications`,
+    ).catch(() => {
+      // 业务答复已落库；通知清理失败由轮询/运维补偿，不回滚有效签名答复。
+    });
     this.gateway?.notifyClarificationReplied(projectId, {
       id: cid, replier: 'supplier', replyPreview: dto.reply.slice(0, 60),
     });

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2, ChevronDown, ChevronRight } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import {
   fetchAnnouncementHistory,
@@ -24,7 +24,7 @@ const FIELD_LABELS: Record<string, string> = {
   publishDate: "发布日期", isTop: "置顶", relatedProjectCode: "关联项目编号", metadata: "扩展信息",
 };
 
-function HistoryRow({ item }: { item: AnnouncementHistoryItem }) {
+function HistoryRow({ item, hideTitle = false }: { item: AnnouncementHistoryItem; hideTitle?: boolean }) {
   const meta = ACTION_META[item.action] ?? ACTION_META.UPDATE;
   const Icon = meta.icon;
   return (
@@ -48,7 +48,7 @@ function HistoryRow({ item }: { item: AnnouncementHistoryItem }) {
             操作人：<span className="font-medium text-[var(--foreground)]">{item.operatorName ?? "—"}</span>
             {item.ipAddress && <span className="ml-2 opacity-70">{item.ipAddress}</span>}
           </div>
-          <div className="truncate" title={item.title}>标题：{item.title}</div>
+          {!hideTitle && <div className="truncate" title={item.title}>标题：{item.title}</div>}
           {item.action === "UPDATE" && item.changedFields.length > 0 && (
             <div>
               变更字段：
@@ -86,7 +86,7 @@ export function AnnouncementHistoryModal({ announcementId, onClose }: { announce
       open
       onClose={onClose}
       title="操作历史"
-      description="该公告的全部操作记录（只读，不可修改删减）"
+      description="该公告的全部操作记录"
       size="lg"
       footer={
         <button type="button" onClick={onClose} className="neu-btn-soft">关闭</button>
@@ -112,23 +112,50 @@ export function AnnouncementHistoryModal({ announcementId, onClose }: { announce
   );
 }
 
-/** 全部公告操作历史弹窗（公告管理总览） */
+type HistoryGroup = {
+  id: string;
+  title: string;
+  latestAt: string;
+  entries: AnnouncementHistoryItem[];
+};
+
+/** 全部公告操作历史弹窗（公告管理总览）——按公告分组展示，组内为该公告的操作时间线 */
 export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<{ items: AnnouncementHistoryItem[]; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    fetchAllAnnouncementHistories({ pageSize: 100 })
+    fetchAllAnnouncementHistories({ pageSize: 200 })
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : "加载历史失败"));
   }, []);
+
+  // 按公告分组：行按时间倒序返回，先出现的组 = 最近有操作的公告在前；组标题取最新一行的标题
+  const groups = useMemo<HistoryGroup[]>(() => {
+    if (!data) return [];
+    const map = new Map<string, HistoryGroup>();
+    for (const item of data.items) {
+      let g = map.get(item.announcementId);
+      if (!g) {
+        g = { id: item.announcementId, title: item.title, latestAt: item.createdAt, entries: [] };
+        map.set(item.announcementId, g);
+      }
+      g.entries.push(item);
+    }
+    return [...map.values()];
+  }, [data]);
+
+  // 默认仅展开最近一个公告，其余折叠；点组头切换
+  const isOpen = (id: string, idx: number) => expanded[id] ?? idx === 0;
+  const toggle = (id: string, open: boolean) => setExpanded((prev) => ({ ...prev, [id]: !open }));
 
   return (
     <Modal
       open
       onClose={onClose}
       title="公告操作历史"
-      description={`全部公告的操作流水（只读，不可修改删减）${data ? ` · 共 ${data.total} 条` : ""}`}
+      description={`按公告分组的操作流水${data ? ` · 共 ${data.total} 条 / ${groups.length} 个公告${data.total > data.items.length ? `，仅显示最近 ${data.items.length} 条` : ""}` : ""}`}
       size="2xl"
       footer={
         <button type="button" onClick={onClose} className="neu-btn-soft">关闭</button>
@@ -140,14 +167,41 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
         <div className="flex items-center justify-center gap-2 py-10 text-sm text-[var(--muted-foreground)]">
           <Loader2 size={16} className="animate-spin" /> 正在加载...
         </div>
-      ) : data.items.length === 0 ? (
+      ) : groups.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-sm text-[var(--muted-foreground)]">
           <History size={20} strokeWidth={1.6} />
           暂无操作记录
         </div>
       ) : (
-        <div className="max-h-[56vh] overflow-y-auto pr-1">
-          {data.items.map((item) => <HistoryRow key={item.id} item={item} />)}
+        <div className="max-h-[56vh] space-y-3 overflow-y-auto pr-1">
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setExpanded(Object.fromEntries(groups.map((g) => [g.id, true])))} className="neu-btn-xs">全部展开</button>
+            <button type="button" onClick={() => setExpanded(Object.fromEntries(groups.map((g) => [g.id, false])))} className="neu-btn-xs">全部收起</button>
+          </div>
+          {groups.map((g, idx) => {
+            const open = isOpen(g.id, idx);
+            return (
+              <div key={g.id} className="rounded-[14px] border border-[var(--border)] bg-[color-mix(in_oklch,var(--muted)_30%,transparent)]">
+                <button
+                  type="button"
+                  onClick={() => toggle(g.id, open)}
+                  className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
+                  aria-expanded={open}
+                >
+                  {open ? <ChevronDown size={15} className="shrink-0 text-[var(--muted-foreground)]" /> : <ChevronRight size={15} className="shrink-0 text-[var(--muted-foreground)]" />}
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--foreground)]" title={g.title}>{g.title}</span>
+                  <span className="shrink-0 text-[10px] font-semibold tabular-nums text-[var(--muted-foreground)]">
+                    {g.entries.length} 条 · 最近 {new Date(g.latestAt).toLocaleString("zh-CN")}
+                  </span>
+                </button>
+                {open && (
+                  <div className="border-t border-[var(--border)] px-4 pb-1 pt-3">
+                    {g.entries.map((item) => <HistoryRow key={item.id} item={item} hideTitle />)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </Modal>

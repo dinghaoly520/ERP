@@ -5,7 +5,7 @@
  * 样式全部来自 globals.css（web 设计系统 neu-* + sp-* 移植层 + Part4 通用层），
  * 组件本身不含内联 style（cgzxui 规范）。
  */
-import { useEffect, useRef, useState, type ReactNode, type ComponentType } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type ComponentType, type RefObject } from "react";
 import { X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -71,12 +71,25 @@ export function SpDateInput({ type = "date", className, ...rest }: React.InputHT
 }
 
 /* ─── 开关 ─── */
-export function SpSwitch({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+export function SpSwitch({
+  checked,
+  onChange,
+  disabled,
+  ariaLabel,
+  "aria-label": ariaLabelAttribute,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+  "aria-label"?: string;
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel ?? ariaLabelAttribute ?? "切换选项"}
       className={cn("sp-switch", checked && "on")}
       disabled={disabled}
       onClick={() => onChange(!checked)}
@@ -135,6 +148,7 @@ export function SpDialog({
   footer,
   children,
   closeOnOverlay = true,
+  returnFocusRef,
 }: {
   open: boolean;
   onClose: () => void;
@@ -145,18 +159,104 @@ export function SpDialog({
   footer?: ReactNode;
   children: ReactNode;
   closeOnOverlay?: boolean;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+
+    const previousOverflow = document.body.style.overflow;
+    previouslyFocusedRef.current = returnFocusRef?.current
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    document.body.style.overflow = "hidden";
+
+    const focusableElements = () => {
+      const dialog = dialogRef.current;
+      if (!dialog) return [];
+      return Array.from(dialog.querySelectorAll<HTMLElement>([
+        "a[href]",
+        "button:not([disabled])",
+        "input:not([disabled])",
+        "select:not([disabled])",
+        "textarea:not([disabled])",
+        "[tabindex]:not([tabindex='-1'])",
+      ].join(","))).filter((element) => element.getAttribute("aria-hidden") !== "true");
+    };
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      const initialFocus = dialog?.querySelector<HTMLElement>("[data-dialog-initial-focus]")
+        ?? focusableElements()[0]
+        ?? dialog;
+      initialFocus?.focus({ preventScroll: true });
+    });
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const elements = focusableElements();
+      if (elements.length === 0) {
+        event.preventDefault();
+        dialog.focus({ preventScroll: true });
+        return;
+      }
+
+      const currentIndex = elements.indexOf(document.activeElement as HTMLElement);
+      if (event.shiftKey && currentIndex <= 0) {
+        event.preventDefault();
+        elements[elements.length - 1].focus();
+      } else if (!event.shiftKey && (currentIndex === -1 || currentIndex === elements.length - 1)) {
+        event.preventDefault();
+        elements[0].focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      const previouslyFocused = previouslyFocusedRef.current;
+      previouslyFocusedRef.current = null;
+      // React 移除当前聚焦的弹窗节点时，浏览器会把焦点退回 body；延迟到下一帧再恢复触发器。
+      window.requestAnimationFrame(() => {
+        if (previouslyFocused?.isConnected) {
+          previouslyFocused.focus({ preventScroll: true });
+        }
+      });
+    };
+  }, [open, returnFocusRef]);
 
   if (!open) return null;
   return (
     <div className="gdlg-ov" onMouseDown={(e) => { if (closeOnOverlay && e.target === e.currentTarget) onClose(); }}>
-      <div className="gdlg-pn" style={{ width, maxWidth: "100%" }} role="dialog" aria-modal>
+      <div
+        ref={dialogRef}
+        className="gdlg-pn"
+        style={{ width, maxWidth: "100%" }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={subtitle ? descriptionId : undefined}
+        tabIndex={-1}
+      >
         <div className="gdlg-h">
           <div className="gdlg-hl">
             {Icon && (
@@ -165,8 +265,8 @@ export function SpDialog({
               </div>
             )}
             <div>
-              <h2 className="gdlg-t">{title}</h2>
-              {subtitle && <p className="gdlg-sub">{subtitle}</p>}
+              <h2 id={titleId} className="gdlg-t">{title}</h2>
+              {subtitle && <p id={descriptionId} className="gdlg-sub">{subtitle}</p>}
             </div>
           </div>
           <button type="button" className="gdlg-x" onClick={onClose} aria-label="关闭">
@@ -186,20 +286,120 @@ export function confirmBox(message: string, confirmText = "确定"): Promise<boo
 }
 
 /* ─── Tabs（neu-tab-bar / neu-tab 来自 web 设计系统）─── */
-export function SpTabs<T extends string>({ value, onChange, tabs }: {
+export function SpTabs<T extends string>({
+  value,
+  onChange,
+  tabs,
+  ariaLabel = "内容分组",
+  variant = "soft",
+  semantics = "tabs",
+}: {
   value: T;
   onChange: (v: T) => void;
-  tabs: { value: T; label: ReactNode; count?: number }[];
+  tabs: {
+    value: T;
+    label: ReactNode;
+    count?: number;
+    tabId?: string;
+    panelId?: string;
+  }[];
+  ariaLabel?: string;
+  variant?: "soft" | "line";
+  semantics?: "tabs" | "filter";
 }) {
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const usesTabSemantics = semantics === "tabs";
+
+  const moveFocus = (index: number) => {
+    const target = tabs[index];
+    if (!target) return;
+    onChange(target.value);
+    tabRefs.current[index]?.focus();
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (tabs.length === 0) return;
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        nextIndex = (index + 1) % tabs.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        nextIndex = (index - 1 + tabs.length) % tabs.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = tabs.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    moveFocus(nextIndex);
+  };
+
   return (
-    <div className="neu-tab-bar">
-      {tabs.map((t) => (
-        <button key={t.value} type="button" className={cn("neu-tab", value === t.value && "is-active")} onClick={() => onChange(t.value)}>
+    <div
+      className={cn("neu-tab-bar", variant === "line" && "sp-tabs-line")}
+      role={usesTabSemantics ? "tablist" : "group"}
+      aria-label={ariaLabel}
+      aria-orientation={usesTabSemantics ? "horizontal" : undefined}
+    >
+      {tabs.map((t, index) => (
+        <button
+          key={t.value}
+          ref={(element) => { tabRefs.current[index] = element; }}
+          id={t.tabId}
+          type="button"
+          role={usesTabSemantics ? "tab" : undefined}
+          aria-controls={usesTabSemantics ? t.panelId : undefined}
+          aria-selected={usesTabSemantics ? value === t.value : undefined}
+          aria-pressed={usesTabSemantics ? undefined : value === t.value}
+          tabIndex={usesTabSemantics ? (value === t.value ? 0 : -1) : undefined}
+          className={cn(
+            "neu-tab",
+            variant === "line" && "sp-tab-line",
+            value === t.value && "is-active",
+          )}
+          onClick={() => onChange(t.value)}
+          onKeyDown={(event) => onKeyDown(event, index)}
+        >
           {t.label}
           {typeof t.count === "number" && <span className="neu-tab-count">{t.count}</span>}
         </button>
       ))}
     </div>
+  );
+}
+
+/** Keeps tab ID relationships valid while mounting content for only the active data domain. */
+export function SpTabPanel({
+  id,
+  labelledBy,
+  active,
+  className,
+  children,
+}: {
+  id: string;
+  labelledBy: string;
+  active: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      className={className}
+      role="tabpanel"
+      aria-labelledby={labelledBy}
+      hidden={!active}
+    >
+      {active ? children : null}
+    </section>
   );
 }
 
@@ -213,49 +413,63 @@ export function SpPagination({ page, pageSize, total, onChange }: {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (total === 0) return null;
   return (
-    <div className="sp-pg">
-      <span>共 {total} 条 · 第 {page}/{pages} 页</span>
+    <nav className="sp-pg" aria-label="分页导航">
+      <span aria-live="polite">共 {total} 条 · 第 {page}/{pages} 页</span>
       <div className="flex gap-1.5">
-        <button type="button" className="neu-btn-xs" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+        <button type="button" className="neu-btn-xs" aria-label="上一页" disabled={page <= 1} onClick={() => onChange(page - 1)}>
           <ChevronLeft size={13} />
         </button>
-        <button type="button" className="neu-btn-xs" disabled={page >= pages} onClick={() => onChange(page + 1)}>
+        <button type="button" className="neu-btn-xs" aria-label="下一页" disabled={page >= pages} onClick={() => onChange(page + 1)}>
           <ChevronRight size={13} />
         </button>
       </div>
-    </div>
+    </nav>
   );
 }
 
 /* ─── 进度条 ─── */
-export function SpProgress({ value, tone }: { value: number; tone?: "success" | "warning" | "danger" }) {
+export function SpProgress({ value, tone, label = "进度" }: { value: number; tone?: "success" | "warning" | "danger"; label?: string }) {
+  const normalizedValue = Math.min(100, Math.max(0, value));
   return (
-    <div className="sp-prog">
+    <div
+      className="sp-prog"
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={normalizedValue}
+      aria-valuetext={`${normalizedValue}%`}
+    >
       <div
         className={cn("sp-prog-fill", tone === "success" && "ok", tone === "warning" && "warn", tone === "danger" && "bad")}
-        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+        style={{ width: `${normalizedValue}%` }}
       />
     </div>
   );
 }
 
-/* ─── 空态（统一 .sp-empty-icon 44×44 徽章 + lucide 22/1.75）─── */
-export function EmptyState({ icon: Icon, title, desc, children }: {
+/* ─── 空态：居中竖排；card=true 时装入模块卡片（tab 面板等整模块空场景） ─── */
+export function EmptyState({ icon: Icon, title, desc, children, role = "status", card = false }: {
   icon: ComponentType<{ size?: number | string; className?: string; strokeWidth?: number }>;
   title: string;
   desc?: string;
   children?: ReactNode;
+  role?: "status" | "alert";
+  card?: boolean;
 }) {
-  return (
-    <div className="sp-empty-panel">
-      <div className="sp-empty-icon">
-        <Icon size={22} strokeWidth={1.75} />
+  const panel = (
+    <div className="sp-empty-panel" role={role}>
+      <div className="sp-empty-icon" aria-hidden="true">
+        <Icon size={18} strokeWidth={1.75} />
       </div>
-      <div className="sp-empty-text">{title}</div>
-      {desc && <div className="sp-empty-desc">{desc}</div>}
-      {children}
+      <div className="sp-empty-copy">
+        <div className="sp-empty-text">{title}</div>
+        {desc && <div className="sp-empty-desc">{desc}</div>}
+      </div>
+      {children && <div className="sp-empty-actions">{children}</div>}
     </div>
   );
+  return card ? <div className="sp-module sp-empty-module">{panel}</div> : panel;
 }
 
 /* ─── 加载 / 错误块 ─── */

@@ -12,6 +12,7 @@ import type { RegisterSignDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import { BidService } from './bid.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
+import { buildStandardFileName } from '@water-erp/shared';
 
 export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
 
@@ -395,7 +396,7 @@ export class BidSignPacketService {
     const docxBuffer = await this.docxService.generateDocument(snapshot);
 
     // 打印降级（spec §10）：libreoffice 失败时直接提供 DOCX 下载
-    const docxName = `评标签字包-${project.projectCode}.docx`;
+    const docxName = buildStandardFileName({ code: project.projectCode, docType: '评标签字包' });
     const pdf = convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', docxName);
     const buffer = pdf ? pdf.buffer : docxBuffer;
     const mimeType = pdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';

@@ -17,6 +17,11 @@ export class ExportTenderWriteDto {
 
   @IsObject()
   answers: Record<string, unknown>;
+
+  /** 项目编号（统一命名用，项目绑定场景由前端传入） */
+  @IsString()
+  @IsOptional()
+  projectCode?: string;
 }
 
 export class ExportAnnouncementDto {
@@ -39,12 +44,22 @@ export class ExportAnnouncementDto {
 
   @IsObject()
   draft: Record<string, unknown>;
+
+  /** 项目编号（统一命名用，项目绑定场景由前端传入） */
+  @IsString()
+  @IsOptional()
+  projectCode?: string;
 }
 
 export class ExportNotificationLetterDto {
   @IsString()
   @IsOptional()
   projectName?: string;
+
+  /** 项目编号（统一命名用） */
+  @IsString()
+  @IsOptional()
+  projectCode?: string;
 
   @IsString()
   @IsOptional()

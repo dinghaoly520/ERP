@@ -2,8 +2,24 @@ import { api } from '../api';
 
 /* ── C2/C3/C4（GB/T 43711 7.5.4/7.6/7.5.4.4）：采购合同订立·履行·验收 ── */
 
-export type ContractStatus = 'drafting' | 'internal_review' | 'signed' | 'performing' | 'accepted' | 'terminated';
+export type ContractStatus =
+  | 'drafting'
+  | 'internal_review'
+  | 'approved_for_signing'
+  | 'signed'
+  | 'performing'
+  | 'accepted'
+  | 'terminated';
 export type FulfillmentType = 'delivery' | 'payment' | 'acceptance';
+
+export interface ContractProofAsset {
+  id: string;
+  originalName: string;
+  size: number;
+  sha256: string;
+  mimeType: string;
+  createdAt: string;
+}
 
 export interface ContractFulfillment {
   id: string;
@@ -15,6 +31,7 @@ export interface ContractFulfillment {
   amount?: number | null;
   status: 'pending' | 'done' | 'exception';
   proofAssetId?: string | null;
+  proofAsset?: ContractProofAsset | null;
   note?: string | null;
 }
 
@@ -34,6 +51,7 @@ export interface Contract {
   keyTerms?: Record<string, any> | null;
   draftAssetId?: string | null;
   signedAssetId?: string | null;
+  signedAsset?: ContractProofAsset | null;
   consistencyResult?: { checkedAt: string; manualConfirm: boolean; source: string; consistent: boolean; issues: Array<{ field: string; expected: string; actual: string }> } | null;
   reviewNote?: string | null;
   fulfillments: ContractFulfillment[];
@@ -41,9 +59,70 @@ export interface Contract {
 }
 
 export const CONTRACT_STATUS_LABEL: Record<ContractStatus, string> = {
-  drafting: '草拟', internal_review: '内审中', signed: '已签署', performing: '履行中', accepted: '已验收', terminated: '已终止',
+  drafting: '草拟',
+  internal_review: '内审中',
+  approved_for_signing: '内审通过·待签署',
+  signed: '已签署',
+  performing: '履行中',
+  accepted: '已验收',
+  terminated: '已终止',
 };
 export const FULFILLMENT_LABEL: Record<FulfillmentType, string> = { delivery: '交付', payment: '付款', acceptance: '验收' };
+
+export function contractProofAssetUrl(assetId: string | null | undefined) {
+  return assetId ? `/api/upload/files/${encodeURIComponent(assetId)}` : null;
+}
+
+export function canCompleteContractFulfillment(
+  fulfillment: Pick<ContractFulfillment, 'proofAssetId' | 'proofAsset'>,
+  hasSelectedProof: boolean,
+) {
+  return Boolean(fulfillment.proofAssetId || fulfillment.proofAsset?.id || hasSelectedProof);
+}
+
+export function canAcceptContract(
+  fulfillments: Array<Pick<ContractFulfillment, 'type' | 'status' | 'proofAssetId' | 'proofAsset'>>,
+  hasSelectedProof: boolean,
+) {
+  if (hasSelectedProof) return true;
+  return fulfillments.some(fulfillment => (
+    fulfillment.type === 'acceptance'
+    && fulfillment.status === 'done'
+    && Boolean(fulfillment.proofAssetId || fulfillment.proofAsset?.id)
+  ));
+}
+
+export function canRegisterContractSigning(status: ContractStatus, hasSelectedSignedAsset: boolean) {
+  return (status === 'approved_for_signing' || status === 'signed') && hasSelectedSignedAsset;
+}
+
+function formatProofSize(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)} KB`;
+  return `${(size / 1024 / 1024).toFixed(2)} MB`;
+}
+
+export function formatContractProofMetadata(asset: ContractProofAsset) {
+  const createdAt = new Date(asset.createdAt);
+  return {
+    name: asset.originalName,
+    size: formatProofSize(asset.size),
+    sha256: asset.sha256,
+    mimeType: asset.mimeType,
+    createdAt: Number.isNaN(createdAt.getTime())
+      ? asset.createdAt
+      : createdAt.toLocaleString('zh-CN', { hour12: false }),
+  };
+}
+
+export function uploadContractProof(file: File) {
+  const body = new FormData();
+  body.append('file', file);
+  return api.postForm<ContractProofAsset & { key: string; url: string; category: string }>(
+    '/upload?category=contract_document',
+    body,
+  );
+}
 
 export function listContractsByProject(params: { projectManagementItemId?: string; projectCode?: string }) {
   const q = new URLSearchParams();

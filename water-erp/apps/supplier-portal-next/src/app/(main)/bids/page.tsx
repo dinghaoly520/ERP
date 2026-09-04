@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import { Gavel, ClipboardList, Search, X, ArrowRight, TriangleAlert } from "lucide-react";
@@ -51,7 +51,6 @@ function negoWindowState(p: any): "before" | "open" | "after" {
 
 /** 可投标项目列表 — 服务端真分页 + 服务端 search 过滤 */
 export default function BidListPage() {
-  const router = useRouter();
   const [firstLoad, setFirstLoad] = useState(true);
   const [search, setSearch] = useState("");
   const [filterScope] = useState("");
@@ -198,6 +197,7 @@ export default function BidListPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索项目名称或编号"
+                aria-label="搜索项目名称或编号"
               />
               {search && (
                 <button type="button" className="bs-clear" aria-label="清空" onClick={() => setSearch("")}>
@@ -216,10 +216,10 @@ export default function BidListPage() {
               {projects.map((p) => {
                 const winState = negoWindowState(p);
                 return (
-                  <div key={p.id} className={`opportunity-row ${rowClass(p)}`} onClick={() => router.push(`/bids/${p.id}?from=list`)}>
+                  <article key={p.id} className={`opportunity-row ${rowClass(p)}`} aria-labelledby={`bid-project-${p.id}`}>
                     <div className="row-main">
                       <div className="row-title-line">
-                        <h3>{p.name}</h3>
+                        <h3 id={`bid-project-${p.id}`}>{p.name}</h3>
                         <span className={`bid-tag ${p.stage === "SUBMIT" ? "bid-tag-submit" : ""}`}>
                           {p.accessScope === "INVITED" || p.accessScope === "DESIGNATED" ? "受邀" : "公告"}
                         </span>
@@ -252,10 +252,7 @@ export default function BidListPage() {
                             type="button"
                             className={`neu-btn-xs nego-dl ${winState === "open" ? "is-open" : ""} ${winState === "before" ? "is-before" : ""}`}
                             disabled={winState !== "open" || negoLoading === p.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              downloadNegotiationFiles(p);
-                            }}
+                            onClick={() => downloadNegotiationFiles(p)}
                           >
                             {negoLoading === p.id
                               ? "下载中…"
@@ -273,10 +270,14 @@ export default function BidListPage() {
                       <strong>{dayjs(p.deadline).format("MM-DD HH:mm")}</strong>
                       <CountdownTimer deadline={p.deadline} />
                     </div>
-                    <button type="button" className="neu-btn-xs row-action">
+                    <Link
+                      href={`/bids/${encodeURIComponent(p.id)}?from=list`}
+                      className="opportunity-detail-link neu-btn-xs row-action"
+                      aria-label={`查看项目 ${p.name}详情`}
+                    >
                       详情<ArrowRight size={12} strokeWidth={1.75} style={{ marginLeft: 2 }} />
-                    </button>
-                  </div>
+                    </Link>
+                  </article>
                 );
               })}
             </div>

@@ -281,7 +281,7 @@ export default function OpeningHallPage() {
     return (
       <div className="hall">
         <div className="hall-error">
-          <EmptyState icon={CloudOff} title={loadErrorMsg || "加载开标大厅数据失败"}>
+          <EmptyState role="alert" icon={CloudOff} title={loadErrorMsg || "加载开标大厅数据失败"}>
             <SpButton variant="primary" loading={bootstrapping} onClick={bootstrap}>
               重试
             </SpButton>
@@ -488,7 +488,7 @@ export default function OpeningHallPage() {
         ) : profileError ? (
           <section className="hall-card">
             <div className="hall-card__body">
-              <EmptyState icon={MessageSquareOff} title="会话加载失败">
+              <EmptyState role="alert" icon={MessageSquareOff} title="会话加载失败">
                 <SpButton variant="primary" onClick={retryProfile}>
                   重试
                 </SpButton>

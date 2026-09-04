@@ -10,12 +10,25 @@ import {
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment } from '@/lib/api/announcement';
 import { Upload, PlusCircle, Save, Send } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 
-type NoticeType = 'POLICY' | 'PLATFORM' | 'PRE_WIN_NOTICE' | 'ADDENDUM';
+/** 可手工新建的公告类型。
+ *  采购公告（BID_NOTICE）、流标公告（FAILED_BID_NOTICE）、中标公告（WIN_BID_NOTICE）
+ *  由系统在项目公告发布向导中生成，不在此手工创建。 */
+type NoticeType =
+  | 'ADDENDUM'
+  | 'PREQUAL_NOTICE'
+  | 'PRE_WIN_NOTICE'
+  | 'WIN_NOTICE'
+  | 'CONTRACT_NOTICE'
+  | 'PERFORMANCE_NOTICE'
+  | 'POLICY'
+  | 'PLATFORM';
 
 const typeLabel: Record<NoticeType, string> = {
-  POLICY: '政策法规', PLATFORM: '平台通知', PRE_WIN_NOTICE: '预成交公示', ADDENDUM: '补遗公告',
+  ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '预成交公示', WIN_NOTICE: '成交公告',
+  CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
@@ -25,10 +38,35 @@ const TYPE_META: Record<NoticeType, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
     { key: 'newDeadline', label: '调整后递交截止', date: true },
   ],
+  // 7.2.3 资格预审公告：供应商按公告约定提交资格预审申请
+  PREQUAL_NOTICE: [
+    { key: 'title', label: '预审名称' }, { key: 'projectCode', label: '项目编号' },
+    { key: 'method', label: '预审方式（合格制/有限数量制）' }, { key: 'applyDeadline', label: '申请截止时间', date: true },
+    { key: 'documents', label: '需提交的申请材料', area: true }, { key: 'validUntil', label: '预审结果有效期', date: true },
+    { key: 'contact', label: '联系方式' },
+  ],
   // C1（GB/T 43711 7.5.2.2）：线下完成评审的项目由此登记预成交公示（线上归档项目自动生成草稿）
   PRE_WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
     { key: 'period', label: '工期/交货期/服务期限' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
+  // 7.5.2.7 成交公告：登记线下成交结果（两段式第二段期满确认由系统自动生成）
+  WIN_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },
+    { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' },
+    { key: 'objection', label: '异议渠道', area: true },
+  ],
+  // 7.5.4.5 合同公告（宜公开）：名称/编码、当事人、价款、签约时间、期限
+  CONTRACT_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'contractCode', label: '合同编号' },
+    { key: 'supplierName', label: '成交供应商' }, { key: 'amount', label: '合同价款' },
+    { key: 'signedAt', label: '签约时间', date: true }, { key: 'period', label: '合同期限' },
+  ],
+  // 7.6.2.2 履行结果公告：验收/履约结果
+  PERFORMANCE_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'contractCode', label: '合同编号' },
+    { key: 'supplierName', label: '成交供应商' }, { key: 'result', label: '履行结果', area: true },
+    { key: 'acceptanceDate', label: '验收日期', date: true }, { key: 'issues', label: '存在问题及处理', area: true },
   ],
   POLICY: [
     { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
@@ -39,6 +77,9 @@ const TYPE_META: Record<NoticeType, MetaField[]> = {
     { key: 'guide', label: '操作指引', area: true }, { key: 'support', label: '支持渠道' },
   ],
 };
+
+/** 项目绑定类公告：projectCode 字段同步写入 relatedProjectCode（供项目反查/期满派生/发布联动） */
+const PROJECT_LINKED_TYPES: NoticeType[] = ['ADDENDUM', 'PREQUAL_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE', 'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE'];
 
 const Step = ({ n }: { n: number }) => (
   <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold bg-[var(--accent)] text-white">{n}</span>
@@ -83,10 +124,9 @@ export default function NewNoticePage() {
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
     const finalMeta = configToMetadata(publishConfig, meta);
     const payload: any = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta };
-    // C1：登记的预成交公示挂项目编号，供期满确认派生成交公告时幂等去重与项目反查
-    if (type === 'PRE_WIN_NOTICE' && meta.projectCode) payload.relatedProjectCode = meta.projectCode;
-    // C5：补遗公告挂项目编号，供发布联动（补遗计数 + 供应商定向通知）
-    if (type === 'ADDENDUM' && meta.projectCode) payload.relatedProjectCode = meta.projectCode;
+    // 项目绑定类公告挂项目编号：预成交公示供期满确认派生成交公告幂等去重；补遗公告供发布联动
+    // （补遗计数 + 供应商定向通知）；其余类型供项目反查与列表关联
+    if (PROJECT_LINKED_TYPES.includes(type) && meta.projectCode) payload.relatedProjectCode = meta.projectCode;
     try {
       const saved = await createAnnouncement(payload);
       setAnnId(saved.id);
@@ -147,17 +187,24 @@ export default function NewNoticePage() {
             <Step n={1} />信息类型
           </legend>
           <div className="neu-tab-bar">
-            {(Object.keys(typeLabel) as NoticeType[]).map(t => (
-              <button
-                key={t}
-                onClick={() => onTypeChange(t)}
-                className={`neu-tab ${type === t ? 'is-active' : ''}`}
-                disabled={!!annId}
-              >
-                {typeLabel[t]}
-              </button>
+            {(Object.keys(typeLabel) as NoticeType[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b)).map((t, i, arr) => (
+              <span key={t} className="flex items-center gap-1">
+                {i > 0 && announcementTypeGroupIndex(t) !== announcementTypeGroupIndex(arr[i - 1]) && (
+                  <span className="mx-1.5 h-4 w-px shrink-0 bg-[var(--border)]" aria-hidden="true" />
+                )}
+                <button
+                  onClick={() => onTypeChange(t)}
+                  className={`neu-tab ${type === t ? 'is-active' : ''}`}
+                  disabled={!!annId}
+                >
+                  {typeLabel[t]}
+                </button>
+              </span>
             ))}
           </div>
+          <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
+            采购公告、流标公告、中标公告由系统在项目的「公告制作与发布」向导中生成，不在此手工创建。
+          </p>
         </fieldset>
 
         <hr className="wb-section-rule" />

@@ -69,6 +69,14 @@ const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
 /** F14：workerIdle 队列探测宽限窗——task 行先建、job 后 add 的入队竞态余量，超窗才探测 */
 const AI_WORKER_IDLE_GRACE_MS = 30 * 1000;
 
+/** 成交通知书交付附件边界：上传后的实际存储元数据必须仍是 PDF/Word，且不超过 20 MiB。 */
+const AWARD_LETTER_MAX_ASSET_BYTES = 20 * 1024 * 1024;
+const AWARD_LETTER_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
 /** 双信封 v2 角色 → 提交记录资产引用列（与 supplier-portal reupload-dual 的 ROLE_ASSET_KEYS 同构，勿漂移） */
 const DUAL_ROLE_ASSET_KEYS = {
   technical: 'technicalFileAssetId',
@@ -1684,7 +1692,7 @@ export class BidService {
                 type: 'BID_OPENING_STARTED',
                 title: `开标已启动：${project.name}`,
                 content: '请前往开标大厅查看解密窗口时间并参与开标。',
-                link: `/supplier/bid/${id}`,
+                link: `/my-bids/${id}/opening-hall`,
               });
             }
           }
@@ -3068,7 +3076,7 @@ export class BidService {
           type: 'BID_DECRYPT_FAILED',
           title: `投标文件解密异常：${supplierName}`,
           content: `您在项目中的投标文件解密失败：${reason}。因平台原因未完成解密，视为撤回投标文件，你有权要求责任方赔偿因此遭受的直接损失（《电子招标投标办法》第31条）。`,
-          link: `/supplier/bid/${projectId}`,
+          link: `/my-bids/${projectId}/opening-hall`,
         });
       }
     } catch {
@@ -3102,7 +3110,7 @@ export class BidService {
           type: 'BID_DECRYPT_ADJUDGED',
           title: `${MESSAGES[kind].title}：${supplierName}`,
           content: MESSAGES[kind].content,
-          link: `/supplier/bid/${projectId}`,
+          link: `/my-bids/${projectId}/opening-hall`,
         });
       }
     } catch {
@@ -4135,7 +4143,7 @@ export class BidService {
               content: dto.confirm
                 ? `您的异议已确认受理：${dto.result}`
                 : `您的异议已处理（退回）：${dto.result}`,
-              link: `/supplier/bid/${projectId}`,
+              link: `/my-bids/${projectId}/opening-hall`,
             });
           }
         } catch { /* 通知失败不阻塞异议处理 */ }
@@ -4910,21 +4918,37 @@ export class BidService {
       if (rowByName) clarSupplierId = rowByName.supplierId;
     }
 
-    return this.prisma.bidClarification.create({
+    const created = await this.prisma.bidClarification.create({
       data: { projectId, type: dto.type || 'clarification', question: dto.question, issuer: dto.issuer, supplierName: dto.supplierName, supplierId: clarSupplierId },
-    }).then((created) => {
-      this.gateway?.notifyClarificationCreated(projectId, {
-        id: created.id, issuer: dto.issuer, issuerRole: 'host',
-        supplierName: dto.supplierName, questionPreview: dto.question.slice(0, 60),
-      });
-      // F18（2026-08-28）：补审计——澄清发起是现场关键动作，旧实现零 AuditLog（try/catch 兜底）
-      if (actorId) {
-        this.prisma.auditLog?.create({
-          data: { userId: actorId, action: 'BID_CLARIFICATION_CREATE', resourceType: `BidProject:${projectId}`, details: { clarificationId: created.id, type: dto.type || 'clarification', supplierName: dto.supplierName } },
-        }).catch(() => {});
-      }
-      return created;
     });
+    this.gateway?.notifyClarificationCreated(projectId, {
+      id: created.id, issuer: dto.issuer, issuerRole: 'host',
+      supplierName: dto.supplierName, questionPreview: dto.question.slice(0, 60),
+    });
+    // F18（2026-08-28）：补审计——澄清发起是现场关键动作，旧实现零 AuditLog（try/catch 兜底）
+    if (actorId) {
+      this.prisma.auditLog?.create({
+        data: { userId: actorId, action: 'BID_CLARIFICATION_CREATE', resourceType: `BidProject:${projectId}`, details: { clarificationId: created.id, type: dto.type || 'clarification', supplierName: dto.supplierName } },
+      }).catch(() => {});
+    }
+    // 定向提醒被询问供应商；不广播给无关供应商，且链接直达答疑页。
+    if (clarSupplierId && (dto.type || 'clarification') === 'clarification') {
+      try {
+        const supplier = await this.prisma.supplier.findUnique({
+          where: { id: clarSupplierId },
+          select: { userId: true },
+        });
+        if (supplier?.userId) {
+          await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
+            type: 'BID_CLARIFICATION_CREATED',
+            title: `收到澄清要求：${project?.name ?? dto.supplierName}`,
+            content: '采购人已发起澄清，请在规定时间内查看并提交答复。',
+            link: `/bids/${projectId}/clarifications`,
+          });
+        }
+      } catch { /* 通知失败不阻塞澄清发起 */ }
+    }
+    return created;
   }
 
   /** 获取评标完整性快照信息（指纹 + 下载链接），供验证端点使用 */
@@ -5897,24 +5921,133 @@ export class BidService {
     const supplierId = winnerResult.supplierId;
     const supplierName = winnerResult.supplierName;
 
-    const delivery = await this.prisma.awardLetterDelivery.upsert({
-      where: { projectId_supplierId: { projectId, supplierId } },
-      update: {
-        supplierName,
-        content: (dto.content as any) ?? undefined,
-        letterAssetId: dto.letterAssetId,
-        deliveredAt: new Date(),
-        // 如果之前已签收，保留签收状态（幂等重推不清除签收）
-      },
-      create: {
-        projectId,
-        supplierId,
-        supplierName,
-        content: (dto.content as any) ?? undefined,
-        letterAssetId: dto.letterAssetId,
-        deliveredAt: new Date(),
-      },
+    if (!dto.letterAssetId?.trim()) {
+      throw new BadRequestException({ error: '请先上传中标通知书文件', code: 'AWARD_LETTER_ASSET_REQUIRED' });
+    }
+    if (!actorId) {
+      throw new BadRequestException({ error: '无法核验通知书文件上传人', code: 'AWARD_LETTER_ASSET_INVALID' });
+    }
+    const letterAssetId = dto.letterAssetId.trim();
+    const letterAsset = await this.prisma.fileAsset.findFirst({
+      where: { id: letterAssetId, category: 'contract_document', uploaderId: actorId },
+      select: { id: true, mimeType: true, size: true },
     });
+    if (!letterAsset) {
+      throw new BadRequestException({ error: '通知书文件不存在、分类不符或不属于当前账号', code: 'AWARD_LETTER_ASSET_INVALID' });
+    }
+    if (!AWARD_LETTER_MIME_TYPES.has(letterAsset.mimeType)) {
+      throw new BadRequestException({
+        error: '中标通知书仅支持可信的 PDF 或 Word 文件',
+        code: 'AWARD_LETTER_ASSET_TYPE_INVALID',
+      });
+    }
+    if (letterAsset.size > AWARD_LETTER_MAX_ASSET_BYTES) {
+      throw new BadRequestException({
+        error: '中标通知书文件不得超过 20 MiB',
+        code: 'AWARD_LETTER_ASSET_TOO_LARGE',
+      });
+    }
+
+    const delivery = await this.prisma.$transaction(async (tx) => {
+      const deliveryKey = { projectId_supplierId: { projectId, supplierId } };
+      const existing = await tx.awardLetterDelivery.findUnique({
+        where: deliveryKey,
+        select: { id: true, signedAt: true, deliveredAt: true },
+      });
+
+      if (existing?.signedAt) {
+        throw new ConflictException({
+          error: '中标通知书已签收，不可覆盖或重新交付',
+          code: 'AWARD_LETTER_ALREADY_SIGNED',
+        });
+      }
+
+      const [otherDeliveryBinding, contractBinding, fulfillmentBinding] = await Promise.all([
+        tx.awardLetterDelivery.findFirst({
+          where: {
+            letterAssetId,
+            NOT: { projectId, supplierId },
+          },
+          select: { id: true },
+        }),
+        tx.contract.findFirst({
+          where: {
+            OR: [
+              { draftAssetId: letterAssetId },
+              { signedAssetId: letterAssetId },
+            ],
+          },
+          select: { id: true },
+        }),
+        tx.contractFulfillment.findFirst({
+          where: { proofAssetId: letterAssetId },
+          select: { id: true },
+        }),
+      ]);
+      if (otherDeliveryBinding || contractBinding || fulfillmentBinding) {
+        throw new ConflictException({
+          error: '该中标通知书文件已绑定其他业务记录，不可重复使用',
+          code: 'AWARD_LETTER_ASSET_ALREADY_BOUND',
+        });
+      }
+
+      const nowMs = Date.now();
+      const deliveredAt = new Date(existing?.deliveredAt
+        ? Math.max(nowMs, existing.deliveredAt.getTime() + 1)
+        : nowMs);
+
+      if (!existing) {
+        return tx.awardLetterDelivery.create({
+          data: {
+            projectId,
+            supplierId,
+            supplierName,
+            content: (dto.content as any) ?? undefined,
+            letterAssetId,
+            deliveredAt,
+          },
+        });
+      }
+
+      // 未签收通知书可重发，但新文件不能继承旧文件的查看回执。
+      // signedAt 条件是并发闸门：若供应商在读取后先完成签收，本更新必须零命中并拒绝。
+      const updated = await tx.awardLetterDelivery.updateMany({
+        where: { id: existing.id, signedAt: null, deliveredAt: existing.deliveredAt },
+        data: {
+          supplierName,
+          content: (dto.content as any) ?? undefined,
+          letterAssetId,
+          deliveredAt,
+          receivedAt: null,
+          signedBy: null,
+        },
+      });
+      if (updated.count !== 1) {
+        const current = await tx.awardLetterDelivery.findUnique({
+          where: { id: existing.id },
+          select: { signedAt: true, deliveredAt: true },
+        });
+        if (current?.signedAt) {
+          throw new ConflictException({
+            error: '中标通知书已签收，不可覆盖或重新交付',
+            code: 'AWARD_LETTER_ALREADY_SIGNED',
+          });
+        }
+        throw new ConflictException({
+          error: '中标通知书版本已变更，请刷新后重试',
+          code: 'AWARD_LETTER_VERSION_CHANGED',
+        });
+      }
+
+      const persisted = await tx.awardLetterDelivery.findUnique({ where: { id: existing.id } });
+      if (!persisted) {
+        throw new ConflictException({
+          error: '中标通知书版本已变更，请刷新后重试',
+          code: 'AWARD_LETTER_VERSION_CHANGED',
+        });
+      }
+      return persisted;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     // CTS A-203 / 拍板 #7（2026-08-27）：定标（发出中标通知书）即从交易链自动回写台账中标信息，
     // 替代手工维护 awardedSupplier 的双头不一致；管理端手工值仍可兜底覆盖（回写幂等，值一致则跳过）。
@@ -5936,16 +6069,18 @@ export class BidService {
 
     // P1-8：定向通知中标供应商（不再广播全体供应商）
     try {
-      const winner = await this.prisma.supplier.findUnique({
+      // BidEvaluationResult.supplierId / AwardLetterDelivery.supplierId 均保存 BidSupplier.id，
+      // 必须先沿 BidSupplier → Supplier → User 解析真实站内信接收人。
+      const winner = await this.prisma.bidSupplier.findUnique({
         where: { id: supplierId },
-        select: { userId: true },
+        select: { supplier: { select: { userId: true } } },
       });
-      if (winner?.userId) {
-        await this.notificationService.sendToUser(winner.userId, ['in_app'], {
+      if (winner?.supplier?.userId) {
+        await this.notificationService.sendToUser(winner.supplier.userId, ['in_app'], {
           type: 'AWARD_LETTER',
           title: `中标通知书：${project.name}`,
           content: `恭喜贵公司中标${project.name}，请及时签收中标通知书。`,
-          link: `/award-letter`,
+          link: `/award-letters?deliveryId=${encodeURIComponent(delivery.id)}`,
         });
       } else {
         this.logger.warn(`中标通知书已生成，但供应商 ${supplierName} 无关联用户，跳过站内信`);
@@ -5995,7 +6130,33 @@ export class BidService {
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
-    return deliveries;
+    const assetIds = [...new Set(deliveries.map(item => item.letterAssetId).filter((id): id is string => Boolean(id)))];
+    const signerIds = [...new Set(deliveries.map(item => item.signedBy).filter((id): id is string => Boolean(id)))];
+    const [assets, signers] = await Promise.all([
+      assetIds.length
+        ? this.prisma.fileAsset.findMany({
+            where: { id: { in: assetIds } },
+            select: { id: true, originalName: true, mimeType: true, size: true, sha256: true, createdAt: true },
+          })
+        : [],
+      signerIds.length
+        ? this.prisma.user.findMany({
+            where: { id: { in: signerIds } },
+            select: { id: true, username: true, displayName: true },
+          })
+        : [],
+    ]);
+    const assetById = new Map<string, (typeof assets)[number]>();
+    for (const asset of assets) assetById.set(asset.id, asset);
+    const signerById = new Map<string, string>();
+    for (const user of signers) signerById.set(user.id, user.displayName || user.username);
+
+    return deliveries.map(delivery => ({
+      ...delivery,
+      receiptNo: `AL-${delivery.id.replace(/[^a-zA-Z0-9]/g, '').slice(-12).toUpperCase() || 'RECEIPT'}`,
+      signedByName: delivery.signedBy ? signerById.get(delivery.signedBy) ?? null : null,
+      letterAsset: delivery.letterAssetId ? assetById.get(delivery.letterAssetId) ?? null : null,
+    }));
   }
 
   /** D2: 采购端裁决专家异议工单 */
@@ -6276,11 +6437,21 @@ export class BidService {
       data: { projectId, time: new Date(), role: '开标主持人', target: `第${roundNo}轮报价`, action: '创建报价轮次', result: `类型: ${roundType}`, riskFlag: '无' },
     }).catch(() => {});
 
-    // 通知供应商新报价轮已开放
+    // 仅通知本轮被邀请供应商，避免向全体供应商泄露定向谈判/报价轮次。
     try {
-      await this.notificationService.sendToRole('supplier', {
-        type: 'BID_ROUND_OPEN', title: `新报价轮次已开放(第${roundNo}轮)`, content: `请尽快提交报价`, link: `/bids`,
+      const eligibleAccounts = await this.prisma.bidSupplier.findMany({
+        where: { id: { in: finalEligibleIds }, projectId },
+        select: { supplier: { select: { userId: true } } },
       });
+      const userIds = [...new Set(eligibleAccounts.map(row => row.supplier?.userId).filter((id): id is string => Boolean(id)))];
+      for (const userId of userIds) {
+        await this.notificationService.sendToUser(userId, ['in_app'], {
+          type: 'BID_ROUND_OPEN',
+          title: `新报价轮次已开放（第${roundNo}轮）`,
+          content: '请在截止时间前提交本轮报价。',
+          link: `/bids/${projectId}/round-quote`,
+        });
+      }
     } catch {}
 
     // H2: WS 广播轮次状态变更
@@ -6296,6 +6467,12 @@ export class BidService {
     if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
 
     const updated = await this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'sealed' } });
+    await this.notificationService.resolveActionable(
+      'BID_ROUND_OPEN',
+      `/bids/${projectId}/round-quote`,
+    ).catch(() => {
+      // 轮次已截止；通知清理失败不得把已生效的业务状态回滚。
+    });
     this.gateway?.notifyRoundStatusChange(projectId, { projectId, roundId, roundNo: round.roundNo, status: 'sealed', timestamp: Date.now() });
     return updated;
   }

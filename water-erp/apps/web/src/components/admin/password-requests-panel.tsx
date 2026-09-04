@@ -2,7 +2,6 @@
 
 import {
   Check,
-  Copy,
   IdCard,
   KeyRound,
   LifeBuoy,
@@ -125,27 +124,6 @@ function ConfirmDialog({
 }
 
 /** Copy-to-clipboard button with brief check-mark feedback */
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback – silently ignore
-    }
-  };
-
-  return (
-    <button type="button" onClick={handleCopy} className="neu-btn-xs" aria-label="复制临时密码">
-      {copied ? <Check size={12} strokeWidth={2} /> : <Copy size={12} strokeWidth={1.9} />}
-      {copied ? "已复制" : "复制"}
-    </button>
-  );
-}
-
 function EmptyState({ icon, title, hint }: { icon: React.ReactNode; title: string; hint?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -179,11 +157,6 @@ export function PasswordRequestsPanel() {
   const [profileRequests, setProfileRequests] = useState<PendingProfileChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [temporaryPasswordNotice, setTemporaryPasswordNotice] = useState<{
-    requestedUsername: string;
-    applicantName: string;
-    temporaryPassword: string;
-  } | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -217,7 +190,6 @@ export function PasswordRequestsPanel() {
 
   const handleRefresh = () => {
     setActionMessage(null);
-    setTemporaryPasswordNotice(null);
     startTransition(async () => {
       await loadRequests();
     });
@@ -241,7 +213,6 @@ export function PasswordRequestsPanel() {
 
   const handleRejectChange = (requestId: string, reason?: string) => {
     setActionMessage(null);
-    setTemporaryPasswordNotice(null);
     startTransition(async () => {
       try {
         await rejectPasswordChangeRequest(requestId, reason);
@@ -256,19 +227,13 @@ export function PasswordRequestsPanel() {
 
   const handleApproveReset = (requestId: string) => {
     setActionMessage(null);
-    setTemporaryPasswordNotice(null);
     startTransition(async () => {
       try {
         const resetRequest = resetRequests.find((item) => item.id === requestId) ?? null;
         const result = await approvePasswordResetRequest(requestId);
         setResetRequests((prev) => prev.filter((r) => r.id !== requestId));
-        setTemporaryPasswordNotice({
-          requestedUsername: result.requestedUsername,
-          applicantName: resetRequest?.applicantName ?? "申请人",
-          temporaryPassword: result.temporaryPassword,
-        });
         setActionMessage(
-          `已为账号 ${result.requestedUsername} 生成临时密码，请尽快线下告知申请人。`,
+          `已批准「${result.requestedUsername}」的忘记密码申请（申请人：${resetRequest?.applicantName ?? "未知"}）。该账号密码已按提交内容更新，请通知其尽快登录后修改。`,
         );
       } catch (error) {
         setActionMessage(error instanceof Error ? error.message : "重置密码失败，请稍后重试。");
@@ -279,7 +244,6 @@ export function PasswordRequestsPanel() {
 
   const handleRejectReset = (requestId: string, reason?: string) => {
     setActionMessage(null);
-    setTemporaryPasswordNotice(null);
     startTransition(async () => {
       try {
         await rejectPasswordResetRequest(requestId, reason);
@@ -375,33 +339,6 @@ export function PasswordRequestsPanel() {
       {actionMessage ? (
         <div className="rounded-[14px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-4 py-3 text-sm text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.55)]">
           {actionMessage}
-        </div>
-      ) : null}
-
-      {/* --- Temporary password notice --- */}
-      {temporaryPasswordNotice ? (
-        <div className="neu-surface flex items-start gap-3 px-5 py-4">
-          <span className="neu-icon-well inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-[var(--warning)]">
-            <KeyRound size={16} strokeWidth={1.9} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-              临时密码已生成
-            </div>
-            <div className="mt-1.5 text-sm leading-6 text-[var(--muted-foreground)]">
-              账号 <span className="font-medium text-[var(--foreground)]">{temporaryPasswordNotice.requestedUsername}</span>
-              （申请人：{temporaryPasswordNotice.applicantName}）
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <code className="inline-flex items-center rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-4 py-2 text-base font-semibold tracking-[0.16em] tabular-nums text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.45),inset_2px_2px_5px_oklch(0.55_0.03_258/0.1)]">
-                {temporaryPasswordNotice.temporaryPassword}
-              </code>
-              <CopyButton text={temporaryPasswordNotice.temporaryPassword} />
-            </div>
-            <div className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
-              临时密码仅展示一次，请立即通知申请人登录后修改。
-            </div>
-          </div>
         </div>
       ) : null}
 
@@ -535,16 +472,16 @@ export function PasswordRequestsPanel() {
                               <X size={12} strokeWidth={2} />
                               拒绝
                             </button>
-                            <button
-                              type="button"
-                              disabled={isPending || !canApprove}
-                              onClick={() => setConfirmState({ type: "approve-reset", id: request.id })}
-                              className="neu-btn-xs is-success"
-                              title={canApprove ? "生成临时密码" : "未匹配账号，无法批准"}
-                            >
-                              <KeyRound size={12} strokeWidth={2} />
-                              生成临时密码
-                            </button>
+        <button
+          type="button"
+          disabled={isPending || !canApprove}
+          onClick={() => setConfirmState({ type: "approve-reset", id: request.id })}
+          className="neu-btn-xs is-success"
+          title={canApprove ? "按申请新密码生效" : "未匹配账号，无法批准"}
+        >
+          <KeyRound size={12} strokeWidth={2} />
+          审核通过
+        </button>
                           </div>
                         </td>
                       </tr>
@@ -683,8 +620,8 @@ export function PasswordRequestsPanel() {
       },
       "approve-reset": {
         title: "确认重置密码",
-        description: "系统将生成一个随机临时密码，请务必线下转达申请人并提醒立即登录修改。",
-        confirmLabel: "生成临时密码",
+        description: "系统将按申请人提交的新密码重置该账号，请务必线下转达并提醒申请人立即登录修改。",
+        confirmLabel: "确认通过",
         confirmVariant: "primary",
         showReason: false,
         onConfirm: () => handleApproveReset(confirmState.id),

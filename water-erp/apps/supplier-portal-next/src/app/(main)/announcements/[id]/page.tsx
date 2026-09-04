@@ -13,8 +13,9 @@ import "@/styles/pages/announcements.css";
 const typeLabel: Record<string, string> = {
   BID_NOTICE: "采购公告", ADDENDUM: "补遗公告", PRE_WIN_NOTICE: "预成交公示", WIN_NOTICE: "成交公告",
   CONTRACT_NOTICE: "合同公告", PERFORMANCE_NOTICE: "履行结果公告", POLICY: "政策法规", PLATFORM: "平台通知",
+  FAILED_BID_NOTICE: "流标公告", WIN_BID_NOTICE: "中标公告",
 };
-const typeTagType: Record<string, string> = { BID_NOTICE: "primary", PRE_WIN_NOTICE: "success", WIN_NOTICE: "success", POLICY: "warning", PLATFORM: "info" };
+const typeTagType: Record<string, string> = { BID_NOTICE: "primary", PRE_WIN_NOTICE: "success", WIN_NOTICE: "success", POLICY: "warning", PLATFORM: "info", FAILED_BID_NOTICE: "warning", WIN_BID_NOTICE: "success" };
 
 // ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）──
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
@@ -169,7 +170,7 @@ export default function AnnouncementDetailPage() {
 
   return (
     <>
-      <SpPageHero icon={ScrollText} title="公告详情" sub="阅读公告全文，采购公告可在此查阅并下载招标文件。" />
+      <SpPageHero icon={ScrollText} title="公告详情" sub="阅读公告全文，采购公告可在此查阅并下载招标文件。" headingLevel={2} />
 
       <button type="button" className="flow-back ann-back" onClick={() => router.push("/announcements")}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6" /></svg>

@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
+import { buildStandardFileName } from '@water-erp/shared';
 
 /** P1-3①A：开标记录纸面签字（办法第32条——开标记录经电子签名）。
  * 主持人/监督人打印签字页 → 手写签字 → 扫描回传 → 登记闭环 → 重建开标文件包（signatures 段入哈希链）。
@@ -76,7 +77,7 @@ export class OpeningSignService {
     const snap = await this.buildSnapshot(projectId);
     const doc = this.buildDocx(snap);
     const docxBuffer = await Packer.toBuffer(doc);
-    const pdf = convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', `开标记录签字页-${snap.project.projectCode}.docx`);
+    const pdf = convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buildStandardFileName({ code: snap.project.projectCode, docType: '开标记录签字页' }));
     if (!pdf) throw new BadRequestException({ error: '签字页 PDF 转换失败（LibreOffice 不可用）', code: 'PDF_CONVERT_FAILED' });
 
     const buffer = pdf.buffer;

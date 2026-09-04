@@ -181,6 +181,12 @@ export type ProjectManagementItem = {
   projectOverview?: string | null;
   bidOpeningTime?: string | null;
   documentAcquireTime?: string | null;
+  // B1（GB/T 43711 7.2.1.2 采购方案要素，选填）
+  implementerName?: string | null;
+  contractPricingType?: string | null;
+  sectionPlan?: string | null;
+  activitySchedule?: string | null; // 采购活动时间安排（公告「工期及进度要求」直填来源）
+  riskMeasures?: string | null;
   invitedSuppliers?: string | null;
   paymentPerformance?: string | null;
   expertInfo?: string | null;

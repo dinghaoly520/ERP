@@ -19,11 +19,15 @@ class SubmitChangeDto {
 class SubmitResetDto {
   @IsString() @IsNotEmpty() username: string;
   @IsString() @IsNotEmpty() applicantName: string;
-  @IsString() @IsNotEmpty() applicantContact: string;
+  @IsString() @Matches(/^1\d{10}$/) applicantContact: string;
+  @IsString() @IsNotEmpty() @Matches(/^\d{6}$/) verificationCode: string;
+  @IsString()
+  @Matches(PASSWORD_PATTERN, { message: PASSWORD_POLICY_MESSAGE })
+  newPassword: string;
 }
 
-class RejectDto {
-  @IsString() note?: string;
+export class RejectDto {
+  @IsOptional() @IsString() decisionNote?: string;
 }
 
 class SubmitProfileChangeDto {
@@ -69,9 +73,9 @@ export class PasswordRequestsController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: '忘记密码：提交重置申请（管理员审批后发放临时密码）' })
+  @ApiOperation({ summary: '忘记密码：提交重置申请（管理员审核后按新密码生效）' })
   submitReset(@Body() dto: SubmitResetDto) {
-    return this.service.submitReset(dto.username, dto.applicantName, dto.applicantContact);
+    return this.service.submitReset(dto.username, dto.applicantName, dto.applicantContact, dto.verificationCode, dto.newPassword);
   }
 
   // ── 管理端（admin/leader）──
@@ -98,7 +102,7 @@ export class PasswordRequestsController {
     @CurrentUser('sub') reviewerId: string,
     @Body() dto: RejectDto,
   ) {
-    return this.service.rejectChange(id, reviewerId, dto.note);
+    return this.service.rejectChange(id, reviewerId, dto.decisionNote);
   }
 
   @Get('admin/password-reset-requests')
@@ -110,7 +114,7 @@ export class PasswordRequestsController {
 
   @Post('admin/password-reset-requests/:id/approve')
   @Roles('admin', 'leader')
-  @ApiOperation({ summary: '批准重置：生成一次性临时密码（仅本次响应返回）' })
+  @ApiOperation({ summary: '批准重置：按申请新密码更新账号密码' })
   approveReset(@Param('id') id: string, @CurrentUser('sub') reviewerId: string) {
     return this.service.approveReset(id, reviewerId);
   }
@@ -123,7 +127,7 @@ export class PasswordRequestsController {
     @CurrentUser('sub') reviewerId: string,
     @Body() dto: RejectDto,
   ) {
-    return this.service.rejectReset(id, reviewerId, dto.note);
+    return this.service.rejectReset(id, reviewerId, dto.decisionNote);
   }
 
   @Get('admin/profile-change-requests')
@@ -148,6 +152,6 @@ export class PasswordRequestsController {
     @CurrentUser('sub') reviewerId: string,
     @Body() dto: RejectDto,
   ) {
-    return this.service.rejectProfileChange(id, reviewerId, dto.note);
+    return this.service.rejectProfileChange(id, reviewerId, dto.decisionNote);
   }
 }

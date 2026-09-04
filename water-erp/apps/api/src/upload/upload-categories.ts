@@ -23,6 +23,10 @@ export const UPLOAD_CATEGORIES = new Set<string>([
   'commercial',                     // 商务标（供应商分部上传）
   'technical',                      // 技术标（供应商分部上传）
   'procurement_document',           // 采购文件（documentAcquireTime 流程）
+  'prequal_document',               // 资格预审文件
+  'contract_document',              // 合同草稿、签署版与履约证明
+  'framework_document',             // 框架协议文件
+  'performance_report',             // 采购质效报告
   'bid_opening_handover',           // 开标文件包（:3007 完成开标回传 :3005）
   'bid_evaluation_handover',        // 评标回流包
   'bid_evaluation_sign_handover',   // 评标签字回流包
@@ -31,6 +35,43 @@ export const UPLOAD_CATEGORIES = new Set<string>([
   'expert_memo_ink',                // 专家手写备忘扫描
   'expert_sign_scan',               // 专家签字扫描件
   'clarification_reply',            // A-143：供应商澄清答复附件（证据件）
+  'expert_signin_photo',            // 专家签到照片
+  'opening_sign_page',              // 开标记录签字页
+  'opening_sign_scan',              // 开标签字扫描件
+  'bid_inner_ciphertext',           // 双信封内层密文
+  'bid_decrypted',                  // 经校验的解密文件
   'supervision_push_packet',        // A-153：监督推送信封（系统生成）
   'supervision_push_voucher',       // A-153：监督推送离线凭证（系统生成）
 ]);
+
+const SUPPLIER_UPLOAD_CATEGORIES = new Set([
+  'general',
+  'qualification',
+  'profile',
+  'bid_document',
+  'commercial',
+  'technical',
+  'clarification_reply',
+  'prequal_document',
+  'contract_document',
+]);
+
+const EXPERT_UPLOAD_CATEGORIES = new Set([
+  'general',
+  'profile',
+  'expert_signin_photo',
+  'expert_memo_ink',
+  'expert_sign_scan',
+]);
+
+/**
+ * `/upload` 是登录用户的通用入口；系统生成类目仍可由内部服务直接写入，
+ * 但供应商/专家不能借此伪造开评标留痕或监督证据。
+ */
+export function isUploadCategoryAllowedForRole(category: string, role?: string): boolean {
+  if (!UPLOAD_CATEGORIES.has(category)) return false;
+  if (['admin', 'leader', 'staff', 'bid_host'].includes(role ?? '')) return true;
+  if (role === 'supplier') return SUPPLIER_UPLOAD_CATEGORIES.has(category);
+  if (role === 'bid_expert') return EXPERT_UPLOAD_CATEGORIES.has(category);
+  return role === 'mall' && ['general', 'profile'].includes(category);
+}

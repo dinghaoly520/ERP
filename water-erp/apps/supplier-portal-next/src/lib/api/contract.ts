@@ -18,10 +18,10 @@ export interface SpContract {
   contractCode: string;
   projectCode: string;
   contractType: "standard" | "order";
-  status: "drafting" | "internal_review" | "signed" | "performing" | "accepted" | "terminated";
+  status: "approved_for_signing" | "signed" | "performing" | "accepted" | "terminated";
   amount?: number | null;
   signedAt?: string | null;
-  reviewNote?: string | null;
+  signedAssetId?: string | null;
   fulfillments: SpContractFulfillment[];
   createdAt: string;
 }
@@ -34,3 +34,7 @@ export const contractApi = {
     return api.post<SpContractFulfillment>(`/supplier-portal/contracts/${contractId}/fulfillments/${fulfillmentId}/proof`, { proofAssetId });
   },
 };
+
+export function contractAssetUrl(assetId: string | null | undefined): string | null {
+  return assetId ? `/api/upload/files/${encodeURIComponent(assetId)}` : null;
+}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import dayjs from "dayjs";
 import { ArrowRight, Bell, Megaphone, Search, TriangleAlert, X } from "lucide-react";
+import { serverNowMs } from "@water-erp/shared";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { EmptyState, LoadingBlock, SpButton, SpInput, SpPagination } from "@/components/ui";
+import { EmptyState, LoadingBlock, SpButton, SpInput, SpPagination, SpTabs } from "@/components/ui";
 import "@/styles/pages/announcements.css";
 
 const typeOptions = [
@@ -20,6 +21,8 @@ const typeOptions = [
   { label: "履行结果", value: "PERFORMANCE_NOTICE" },
   { label: "政策法规", value: "POLICY" },
   { label: "平台通知", value: "PLATFORM" },
+  { label: "流标公告", value: "FAILED_BID_NOTICE" },
+  { label: "中标公告", value: "WIN_BID_NOTICE" },
 ];
 const typeTagMap: Record<string, { label: string; type: string }> = {
   BID_NOTICE: { label: "采购公告", type: "primary" },
@@ -31,22 +34,48 @@ const typeTagMap: Record<string, { label: string; type: string }> = {
   PERFORMANCE_NOTICE: { label: "履行结果公告", type: "success" },
   POLICY: { label: "政策法规", type: "warning" },
   PLATFORM: { label: "平台通知", type: "info" },
+  FAILED_BID_NOTICE: { label: "流标公告", type: "warning" },
+  WIN_BID_NOTICE: { label: "中标公告", type: "success" },
 };
 
 // NEW 标记：上次访问之后发布，或 48h 内发布（兜底首次访问 lastVisit=0 也能看到新公告）。
 // 未来时间（脏数据）不标，避免"还没发生的公告"被误标 NEW。
 const NEW_WINDOW_MS = 48 * 3600 * 1000;
 
+interface AnnouncementListItem {
+  id: string;
+  title: string;
+  type: string;
+  summary?: string | null;
+  isTop?: boolean;
+  publishDate?: string | null;
+  createdAt: string;
+}
+
+interface AnnouncementListResponse {
+  items?: AnnouncementListItem[];
+  total?: number;
+}
+
+function readLastVisit(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    return Number.parseInt(window.localStorage.getItem("supplier_announce_visit") || "0", 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export default function AnnouncementListPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<AnnouncementListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [activeType, setActiveType] = useState("");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [lastVisit, setLastVisit] = useState(0);
+  const [lastVisit] = useState(readLastVisit);
+  const [currentTime, setCurrentTime] = useState(0);
 
   const fetchData = useCallback(
     async (opts?: { type?: string; search?: string; page?: number }) => {
@@ -56,16 +85,17 @@ export default function AnnouncementListPage() {
       setLoading(true);
       setError(false);
       try {
-        const res: any = await announcementApi.publicList({
+        const res = (await announcementApi.publicList({
           type: type || undefined,
           search: s || undefined,
           page,
           pageSize: 10,
-        });
+        })) as AnnouncementListResponse;
         setItems(res?.items || []);
         setTotal(res?.total || 0);
-        localStorage.setItem("supplier_announce_visit", String(Date.now()));
-        setLastVisit(Date.now());
+        const seenAt = serverNowMs();
+        setCurrentTime(seenAt);
+        localStorage.setItem("supplier_announce_visit", String(seenAt));
       } catch {
         setError(true);
       } finally {
@@ -76,10 +106,6 @@ export default function AnnouncementListPage() {
   );
 
   useEffect(() => {
-    try {
-      const v = localStorage.getItem("supplier_announce_visit");
-      if (v) setLastVisit(parseInt(v, 10) || 0);
-    } catch { /* ignore */ }
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -87,8 +113,8 @@ export default function AnnouncementListPage() {
   function isNew(ts: string): boolean {
     if (!ts) return false;
     const t = new Date(ts).getTime();
-    if (t > Date.now()) return false;
-    return t > Date.now() - NEW_WINDOW_MS || (lastVisit > 0 && t > lastVisit);
+    if (!Number.isFinite(t) || currentTime <= 0 || t > currentTime) return false;
+    return t > currentTime - NEW_WINDOW_MS || (lastVisit > 0 && t > lastVisit);
   }
 
   function handleSearch() {
@@ -121,23 +147,21 @@ export default function AnnouncementListPage() {
       <SpPageHero icon={Megaphone} title="公告公示" sub="集中查看采购公告、预成交公示、成交公告、政策法规和平台通知。" />
 
       <div className="neu-card ann-filter">
-        <div className="neu-tab-bar ann-tabs">
-          {typeOptions.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              className={`neu-tab${activeType === t.value ? " active" : ""}`}
-              onClick={() => handleTab(t.value)}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="ann-tabs">
+          <SpTabs
+            value={activeType}
+            onChange={handleTab}
+            tabs={typeOptions}
+            ariaLabel="公告类型"
+            semantics="filter"
+          />
         </div>
         <div className="search-box">
           <Search size={14} className="search-box__icon" />
           <SpInput
             value={search}
             placeholder="搜索公告标题"
+            aria-label="搜索公告标题"
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
           />
@@ -159,7 +183,12 @@ export default function AnnouncementListPage() {
       ) : items.length > 0 ? (
         <div className="announcement-list">
           {items.map((a) => (
-            <div key={a.id} className="announcement-row" onClick={() => router.push(`/announcements/${a.id}`)}>
+            <Link
+              key={a.id}
+              href={`/announcements/${encodeURIComponent(a.id)}`}
+              className="announcement-row"
+              aria-label={`查看公告：${a.title}`}
+            >
               <div className="ann-row-left">
                 <span className={`ann-tag ann-tag--sm ann-tag--${typeTagMap[a.type]?.type || "info"}`}>
                   {typeTagMap[a.type]?.label || a.type}
@@ -175,7 +204,7 @@ export default function AnnouncementListPage() {
                 <span className="ann-row-date">{dayjs(a.publishDate || a.createdAt).format("YYYY-MM-DD")}</span>
                 <ArrowRight size={16} className="ann-arrow" strokeWidth={1.75} />
               </div>
-            </div>
+            </Link>
           ))}
           <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>
             <SpPagination page={currentPage} pageSize={10} total={total} onChange={handlePageChange} />

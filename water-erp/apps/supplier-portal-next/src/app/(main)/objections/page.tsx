@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import { Bell, Inbox, MessageSquareWarning, Plus, TriangleAlert } from "lucide-react";
 import { objectionApi, type SupplierObjection } from "@/lib/api/objection";
 import { bidApi } from "@/lib/api/bid";
+import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpSelect, SpTextarea } from "@/components/ui";
 import { toast } from "sonner";
@@ -50,13 +51,23 @@ export default function ObjectionsPage() {
   }, []);
 
   useEffect(() => {
-    bidApi.listProjects({ page: 1, pageSize: 100 })
-      .then((res: any) => {
+    // 关联项目候选 = 我相关的投标项目 + 公告中的项目编号（relatedProjectCode/metadata.projectCode），合并去重
+    (async () => {
+      const codes = new Set<string>();
+      try {
+        const res: any = await bidApi.listProjects({ page: 1, pageSize: 100 });
         const items = Array.isArray(res) ? res : res?.items || [];
-        const codes = Array.from(new Set(items.map((x: any) => x.projectCode).filter(Boolean))) as string[];
-        setProjectCodeOptions(codes);
-      })
-      .catch(() => setProjectCodeOptions([]));
+        for (const x of items) if (x.projectCode) codes.add(x.projectCode);
+      } catch { /* 静默 */ }
+      try {
+        const ann: any = await announcementApi.publicList({ page: 1, pageSize: 100 });
+        for (const a of ann?.items || []) {
+          const c = a.relatedProjectCode || a.metadata?.projectCode;
+          if (c) codes.add(c);
+        }
+      } catch { /* 静默 */ }
+      setProjectCodeOptions(Array.from(codes).sort());
+    })();
   }, []);
 
   const retry = async () => {

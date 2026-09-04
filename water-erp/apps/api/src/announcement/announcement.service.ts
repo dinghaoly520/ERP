@@ -975,4 +975,47 @@ export class AnnouncementService {
       hasBidDocument: !!bidDoc,
     };
   }
+
+  /** 按项目编号查参与供应商（项目基本信息「供应商参与」数据源）：
+   *  取该项目最新一条采购/资格预审公告的投标情况（下载者 ∪ 项目供应商，去重）。 */
+  async getProjectParticipants(projectCode: string) {
+    const ann = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: projectCode, type: { in: ['BID_NOTICE', 'PREQUAL_NOTICE'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (!ann) {
+      return { announcementId: null, suppliers: [], stats: { total: 0, submitted: 0 } };
+    }
+    const result = await this.getParticipants(ann.id);
+    return {
+      announcementId: ann.id,
+      suppliers: result.suppliers,
+      stats: result.stats,
+    };
+  }
+
+  /** 发布前查重（发布配置点「发布」时）：同标题 或 同项目编号+同类型 的已发布/已归档公告。
+   *  命中不阻断——由前端弹窗提示，经办确认后可仍要发布（流标重发等合法场景）。 */
+  async checkDuplicate(
+    dto: { title?: string; relatedProjectCode?: string; type?: string },
+    companyFilter: { companyId?: string } = {},
+  ) {
+    const or: any[] = [];
+    if (dto.title?.trim()) or.push({ title: dto.title.trim() });
+    if (dto.relatedProjectCode?.trim() && dto.type) {
+      or.push({ relatedProjectCode: dto.relatedProjectCode.trim(), type: dto.type });
+    }
+    if (or.length === 0) return { matches: [] };
+    const matches = await this.prisma.announcement.findMany({
+      where: { ...companyFilter, status: { in: ['PUBLISHED', 'ARCHIVED'] }, OR: or },
+      select: {
+        id: true, title: true, type: true, status: true,
+        publishDate: true, relatedProjectCode: true,
+      },
+      orderBy: [{ publishDate: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+    });
+    return { matches };
+  }
 }

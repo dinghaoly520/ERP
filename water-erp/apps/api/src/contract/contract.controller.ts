@@ -17,16 +17,42 @@ export class ContractController {
     private companyScope: CompanyScopeService,
   ) {}
 
+  private async resolveCompanyFilter(req: any, requestedCompanyId?: string) {
+    const scope = await this.companyScope.resolveScope(req.user, requestedCompanyId);
+    return this.companyScope.filter(scope);
+  }
+
+  private async resolveActor(req: any) {
+    const companyFilter = await this.resolveCompanyFilter(req);
+    return {
+      userId: req.user.sub,
+      username: req.user.username,
+      ...companyFilter,
+    };
+  }
+
   @Get()
   @ApiOperation({ summary: '合同列表（按状态/关键词）' })
-  list(@Query('status') status?: string, @Query('q') q?: string) {
-    return this.contractService.list({ status, q });
+  async list(
+    @Request() req: any,
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const companyFilter = await this.resolveCompanyFilter(req, companyId);
+    return this.contractService.list({ status, q, ...companyFilter });
   }
 
   @Get('by-project')
   @ApiOperation({ summary: '按项目管理项/项目编号取合同（详情合同 tab）' })
-  byProject(@Query('projectManagementItemId') projectManagementItemId?: string, @Query('projectCode') projectCode?: string) {
-    return this.contractService.listByProject({ projectManagementItemId, projectCode });
+  async byProject(
+    @Request() req: any,
+    @Query('projectManagementItemId') projectManagementItemId?: string,
+    @Query('projectCode') projectCode?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const companyFilter = await this.resolveCompanyFilter(req, companyId);
+    return this.contractService.listByProject({ projectManagementItemId, projectCode, ...companyFilter });
   }
 
   @Post()
@@ -38,70 +64,87 @@ export class ContractController {
 
   @Get(':id')
   @ApiOperation({ summary: '合同详情（含履行台账）' })
-  get(@Param('id') id: string) {
-    return this.contractService.get(id);
+  async get(@Param('id') id: string, @Request() req: any) {
+    return this.contractService.get(id, await this.resolveCompanyFilter(req));
   }
 
   @Post(':id/consistency')
   @ApiOperation({ summary: '一致性校验（7.5.4.3：合同 vs 成交记录）' })
-  consistency(@Param('id') id: string) {
-    return this.contractService.runConsistency(id);
+  async consistency(@Param('id') id: string, @Request() req: any) {
+    return this.contractService.runConsistency(id, await this.resolveCompanyFilter(req));
   }
 
   @Post(':id/submit-review')
   @ApiOperation({ summary: '提交内审（草拟→内审）' })
-  submitReview(@Param('id') id: string, @Request() req: any) {
-    return this.contractService.submitReview(id, { userId: req.user.sub, username: req.user.username });
+  async submitReview(@Param('id') id: string, @Request() req: any) {
+    return this.contractService.submitReview(id, await this.resolveActor(req));
   }
 
   @Post(':id/review')
-  @ApiOperation({ summary: '内审结论（通过→已签署；驳回→回草拟）' })
-  review(@Param('id') id: string, @Body() dto: { approved: boolean; note?: string }, @Request() req: any) {
-    return this.contractService.review(id, dto, { userId: req.user.sub, username: req.user.username });
+  @ApiOperation({ summary: '内审结论（通过→待登记签署；驳回→回草拟）' })
+  async review(@Param('id') id: string, @Body() dto: { approved: boolean; note?: string }, @Request() req: any) {
+    return this.contractService.review(id, dto, await this.resolveActor(req));
   }
 
   @Post(':id/sign')
   @ApiOperation({ summary: '登记签署（前置：一致性校验通过）' })
-  sign(@Param('id') id: string, @Body() dto: { signedAssetId?: string; signedAt?: string }) {
-    return this.contractService.sign(id, dto);
+  async sign(
+    @Param('id') id: string,
+    @Body() dto: { signedAssetId?: string; signedAt?: string },
+    @Request() req: any,
+  ) {
+    return this.contractService.sign(id, dto, await this.resolveActor(req));
   }
 
   @Post(':id/contract-notice')
   @ApiOperation({ summary: '发布合同公告（7.5.4.5，幂等）' })
-  contractNotice(@Param('id') id: string) {
-    return this.contractService.publishContractNotice(id);
+  async contractNotice(@Param('id') id: string, @Request() req: any) {
+    return this.contractService.publishContractNotice(id, await this.resolveCompanyFilter(req));
   }
 
   @Post(':id/draft-docx')
   @ApiOperation({ summary: '生成合同文本草稿 DOCX（keyTerms → docx）' })
-  draftDocx(@Param('id') id: string, @Request() req: any) {
-    return this.contractService.generateDraftDocx(id, req.user.sub);
+  async draftDocx(@Param('id') id: string, @Request() req: any) {
+    return this.contractService.generateDraftDocx(id, req.user.sub, await this.resolveCompanyFilter(req));
   }
 
   // ── C3 履行与验收 ──
 
   @Post(':id/fulfillments')
   @ApiOperation({ summary: '登记履行节点（交付/付款/验收）' })
-  async addFulfillment(@Param('id') id: string, @Body() dto: any) {
-    await this.contractService.startPerforming(id);
-    return this.contractService.addFulfillment(id, dto);
+  async addFulfillment(@Param('id') id: string, @Body() dto: any, @Request() req: any) {
+    return this.contractService.addFulfillment(id, dto, await this.resolveActor(req));
   }
 
   @Post(':id/fulfillments/:fid')
   @ApiOperation({ summary: '更新履行节点（完成/异常/凭证）' })
-  updateFulfillment(@Param('id') id: string, @Param('fid') fid: string, @Body() dto: any) {
-    return this.contractService.updateFulfillment(id, fid, dto);
+  async updateFulfillment(
+    @Param('id') id: string,
+    @Param('fid') fid: string,
+    @Body() dto: any,
+    @Request() req: any,
+  ) {
+    return this.contractService.updateFulfillment(
+      id,
+      fid,
+      dto,
+      await this.resolveActor(req),
+    );
   }
 
   @Post(':id/accept')
   @ApiOperation({ summary: '验收办结（→accepted + 履行结果公告 7.6.2.2）' })
-  accept(@Param('id') id: string, @Body() dto: { note?: string; proofAssetId?: string; publishNotice?: boolean }) {
-    return this.contractService.accept(id, dto);
+  async accept(
+    @Param('id') id: string,
+    @Body() dto: { note?: string; proofAssetId?: string; publishNotice?: boolean },
+    @Request() req: any,
+  ) {
+    return this.contractService.accept(id, dto, await this.resolveActor(req));
   }
 
   @Post(':id/terminate')
   @ApiOperation({ summary: '终止合同（理由必填）' })
-  terminate(@Param('id') id: string, @Body() dto: { reason: string }) {
-    return this.contractService.terminate(id, dto.reason);
+  async terminate(@Param('id') id: string, @Body() dto: { reason: string }, @Request() req: any) {
+    return this.contractService.terminate(id, dto.reason, await this.resolveActor(req));
   }
 }

@@ -13,9 +13,39 @@ export const ANNOUNCEMENT_TYPE_LABELS = {
   PERFORMANCE_NOTICE: '履行结果公告',
   POLICY: '政策法规',
   PLATFORM: '平台通知',
+  FAILED_BID_NOTICE: '流标公告',
+  WIN_BID_NOTICE: '中标公告',
 } as const;
 
 export type AnnouncementTypeValue = keyof typeof ANNOUNCEMENT_TYPE_LABELS;
+
+/** 公告类型的规范展示顺序（列表筛选页签 / 新建类型选择 / 类型下拉统一按此排序）：
+ *  采购公告 → 流标公告 → 中标公告（采购公告的三种系统生成走向）→ 流程过程类 → 平台类 */
+export const ANNOUNCEMENT_TYPE_ORDER: AnnouncementTypeValue[] = [
+  'BID_NOTICE',
+  'FAILED_BID_NOTICE',
+  'WIN_BID_NOTICE',
+  'ADDENDUM',
+  'PREQUAL_NOTICE',
+  'PRE_WIN_NOTICE',
+  'WIN_NOTICE',
+  'CONTRACT_NOTICE',
+  'PERFORMANCE_NOTICE',
+  'POLICY',
+  'PLATFORM',
+];
+
+/** 类型分组（与 ORDER 对应，组间在 UI 上加隔断符区分）：
+ *  ① 采购走向（系统生成） ② 采购流程过程公告 ③ 平台信息 */
+export const ANNOUNCEMENT_TYPE_GROUPS: AnnouncementTypeValue[][] = [
+  ['BID_NOTICE', 'FAILED_BID_NOTICE', 'WIN_BID_NOTICE'],
+  ['ADDENDUM', 'PREQUAL_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE', 'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE'],
+  ['POLICY', 'PLATFORM'],
+];
+
+export function announcementTypeGroupIndex(type: string): number {
+  return ANNOUNCEMENT_TYPE_GROUPS.findIndex((g) => g.includes(type as AnnouncementTypeValue));
+}
 
 /**
  * 直接采购类方式集合（GB/T 43711 6.2.5 + 本系统 KNOWN_METHODS）。

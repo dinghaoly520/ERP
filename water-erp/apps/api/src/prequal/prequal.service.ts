@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { htmlToDocxChildren } from '../project-management/docx/html-to-docx.converter';
+import { buildStandardFileName } from '@water-erp/shared';
 
 /**
  * B3（GB/T 43711 7.2.3）：资格预审——登记制。
@@ -219,7 +220,7 @@ export class PrequalService {
     const asset = await this.prisma.fileAsset.create({
       data: {
         key: objectKey,
-        originalName: `${supplierName}-资格预审合格通知书.docx`,
+        originalName: buildStandardFileName({ code: prequal.title, name: supplierName, docType: '资格预审合格通知书' }),
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         size: buffer.length,
         sha256: createHash('sha256').update(buffer).digest('hex'),

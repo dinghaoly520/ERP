@@ -10,13 +10,13 @@ import {
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant, ParticipantsResult } from '@/lib/api/announcement';
 import { toast } from 'sonner';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw, History as HistoryIcon, MessageSquareWarning,
+  Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw, History as HistoryIcon,
 } from 'lucide-react';
 import { AnnouncementHistoryModal, AllAnnouncementHistoriesModal } from '@/components/notice/announcement-history-modal';
-import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 
 /* ── 类型/状态映射 ── */
 const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
@@ -29,6 +29,8 @@ const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green'
   PERFORMANCE_NOTICE: { label: '履行结果公告', tone: 'green' },
   POLICY: { label: '政策法规', tone: 'orange' },
   PLATFORM: { label: '平台通知', tone: 'gray' },
+  FAILED_BID_NOTICE: { label: '流标公告', tone: 'orange' },
+  WIN_BID_NOTICE: { label: '中标公告', tone: 'green' },
 };
 const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'gray' }> = {
   DRAFT: { label: '草稿', tone: 'gray' },
@@ -51,7 +53,7 @@ export default function NoticePage() {
   const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
   const [historyAnnId, setHistoryAnnId] = useState<string | null>(null);
   const [showAllHistories, setShowAllHistories] = useState(false);
-  const [showObjections, setShowObjections] = useState(false);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey | null>('publishDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -162,9 +164,6 @@ export default function NoticePage() {
             <button onClick={() => setShowAllHistories(true)} className="neu-btn-xs">
               <HistoryIcon size={13} /> 公告历史
             </button>
-            <button onClick={() => setShowObjections(true)} className="neu-btn-xs">
-              <MessageSquareWarning size={13} /> 异议/投诉
-            </button>
             <button onClick={() => router.push('/notice/new')} className="neu-btn-soft">
               <PlusCircle size={15} /> 新建信息
             </button>
@@ -185,10 +184,15 @@ export default function NoticePage() {
       {/* ══════ 工具栏卡片（类型 tab + 搜索 + 状态下拉） ══════ */}
       <div className="wb-toolbar">
         <div className="neu-tab-bar">
-          {(Object.keys(typeMeta) as AnnouncementType[]).map(t => (
-            <button key={t} onClick={() => { setFilterType(t); setPage(1); }} className={`neu-tab ${filterType === t ? 'is-active' : ''}`}>
-              {typeMeta[t].label}
-            </button>
+          {(Object.keys(typeMeta) as AnnouncementType[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b)).map((t, i, arr) => (
+            <span key={t} className="flex items-center gap-1">
+              {i > 0 && announcementTypeGroupIndex(t) !== announcementTypeGroupIndex(arr[i - 1]) && (
+                <span className="mx-1.5 h-4 w-px shrink-0 bg-[var(--border)]" aria-hidden="true" />
+              )}
+              <button onClick={() => { setFilterType(t); setPage(1); }} className={`neu-tab ${filterType === t ? 'is-active' : ''}`}>
+                {typeMeta[t].label}
+              </button>
+            </span>
           ))}
         </div>
         <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
@@ -263,6 +267,12 @@ export default function NoticePage() {
                 </tr>
               ) : sortedItems.map(a => {
                 const tm = typeMeta[a.type] || typeMeta.PLATFORM;
+                // 采购公告的类型徽标显示具体采购方式（发布向导 canonical meta.method，如「询比采购」）；
+                // 无 method 的存量/手工公告回落到通用「采购公告」
+                const methodOf = (a as { metadata?: Record<string, unknown> }).metadata?.method;
+                const typeLabel = a.type === 'BID_NOTICE' && typeof methodOf === 'string' && methodOf.trim()
+                  ? methodOf.trim()
+                  : tm.label;
                 const sm = statusMeta[a.status] || statusMeta.DRAFT;
                 const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
                 const isSel = selectedIds.has(a.id);
@@ -288,7 +298,7 @@ export default function NoticePage() {
                         </div>
                       </div>
                     </td>
-                    <td><StatusBadge tone={tm.tone}>{tm.label}</StatusBadge></td>
+                    <td><StatusBadge tone={tm.tone}>{typeLabel}</StatusBadge></td>
                     <td><StatusBadge tone={sm.tone}>{sm.label}</StatusBadge></td>
                     <td>
                       <div className="flex flex-wrap items-center justify-center gap-1.5">
@@ -333,7 +343,7 @@ export default function NoticePage() {
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
       {historyAnnId && <AnnouncementHistoryModal announcementId={historyAnnId} onClose={() => setHistoryAnnId(null)} />}
       {showAllHistories && <AllAnnouncementHistoriesModal onClose={() => setShowAllHistories(false)} />}
-      {showObjections && <ObjectionBoardModal onClose={() => setShowObjections(false)} />}
+
     </div>
   );
 }

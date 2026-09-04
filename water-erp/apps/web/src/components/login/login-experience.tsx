@@ -53,6 +53,17 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const handleOpenForgotPasswordDialog = () => {
+    setShowForgotPasswordDialog(true);
+    setShowRegisterDialog(false);
+    setLoginErrorMessage(null);
+  };
+
+  const handleOpenRegisterDialog = () => {
+    setShowRegisterDialog(true);
+    setShowForgotPasswordDialog(false);
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -222,13 +233,14 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
           </p>
         </motion.div>
 
-        <motion.form
-          initial={reducedMotion ? undefined : { opacity: 0, y: 18 }}
-          animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
-          transition={{ duration: 0.78, delay: 0.16, ease: easeOutQuint }}
-          className="mx-auto mt-8 flex w-full max-w-[430px] flex-col items-center gap-[1.05rem]"
-          onSubmit={onSubmit}
-        >
+        {!showForgotPasswordDialog ? (
+          <motion.form
+            initial={reducedMotion ? undefined : { opacity: 0, y: 18 }}
+            animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.78, delay: 0.16, ease: easeOutQuint }}
+            className="mx-auto mt-8 flex w-full max-w-[430px] flex-col items-center gap-[1.05rem]"
+            onSubmit={onSubmit}
+          >
           <motion.div
             initial={reducedMotion ? undefined : { opacity: 0, y: 14 }}
             animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
@@ -333,7 +345,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
               </label>
               <button
                 type="button"
-                onClick={() => setShowForgotPasswordDialog(true)}
+                onClick={handleOpenForgotPasswordDialog}
                 className="login-utility-button inline-flex items-center justify-end gap-2 font-medium text-[color:var(--muted-foreground)]"
               >
                 忘记密码
@@ -353,7 +365,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
               aria-label="注册"
               whileHover={reducedMotion ? undefined : { y: -2 }}
               whileTap={reducedMotion ? undefined : { scale: 0.96 }}
-              onClick={() => setShowRegisterDialog(true)}
+              onClick={handleOpenRegisterDialog}
               className="login-register-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[20px] px-5 py-4 text-sm font-semibold"
             >
               <UserPlus size={15} strokeWidth={2} />
@@ -405,7 +417,8 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
               />
             )}
           </motion.div>
-        </motion.form>
+          </motion.form>
+        ) : null}
       </motion.div>
 
       <ForgotPasswordDialog

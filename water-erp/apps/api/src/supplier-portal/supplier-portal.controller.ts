@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, UploadedFiles, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { SupplierPortalService } from './supplier-portal.service';
@@ -23,6 +24,7 @@ import { PrequalService } from '../prequal/prequal.service';
 import { FrameworkService } from '../framework/framework.service';
 import { PerformanceService } from '../performance/performance.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Controller('supplier-portal')
 @Roles('supplier')
@@ -36,6 +38,7 @@ export class SupplierPortalController {
     private prequalService: PrequalService,
     private frameworkService: FrameworkService,
     private performanceService: PerformanceService,
+    private notificationService: NotificationService,
   ) {}
 
   private async getSupplierId(userId: string): Promise<string> {
@@ -242,6 +245,7 @@ export class SupplierPortalController {
     return this.portalService.convertToRegular(req.user.sub, dto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('reactivate')
   @Public()
   async reactivate(@Body() dto: ReactivateDto) {
@@ -309,24 +313,51 @@ export class SupplierPortalController {
   @Get('contracts')
   async myContracts(@Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.prisma.contract.findMany({
-      where: { supplierId },
+    const contracts = await this.prisma.contract.findMany({
+      where: {
+        supplierId,
+        status: { in: ['approved_for_signing', 'signed', 'performing', 'accepted', 'terminated'] },
+      },
       orderBy: { createdAt: 'desc' },
-      include: { fulfillments: { orderBy: { createdAt: 'desc' } } },
+      select: {
+        id: true,
+        contractCode: true,
+        projectCode: true,
+        contractType: true,
+        status: true,
+        amount: true,
+        signedAt: true,
+        signedAssetId: true,
+        createdAt: true,
+        fulfillments: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            contractId: true,
+            type: true,
+            title: true,
+            dueDate: true,
+            doneDate: true,
+            amount: true,
+            status: true,
+            proofAssetId: true,
+            note: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
     });
+    // 防存量脏数据：待签署状态绝不暴露已预挂的签署件/签署时间。
+    return contracts.map((contract) => contract.status === 'approved_for_signing'
+      ? { ...contract, signedAt: null, signedAssetId: null, fulfillments: [] }
+      : contract);
   }
 
   /** 供应商上传履约/验收证明（先走 /upload 拿 fileAssetId，再挂到履行节点） */
   @Post('contracts/:id/fulfillments/:fid/proof')
   async attachFulfillmentProof(@Request() req: any, @Param('id') id: string, @Param('fid') fid: string, @Body() dto: { proofAssetId: string }) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    const contract = await this.prisma.contract.findFirst({ where: { id, supplierId }, select: { id: true } });
-    if (!contract) throw new BadRequestException({ error: '合同不存在', code: 'NOT_FOUND' });
-    if (!dto.proofAssetId) throw new BadRequestException({ error: '缺少证明文件', code: 'BAD_PARAMS' });
-    return this.prisma.contractFulfillment.update({
-      where: { id: fid },
-      data: { proofAssetId: dto.proofAssetId },
-    });
+    return this.portalService.attachContractFulfillmentProof(req.user.sub, id, fid, dto.proofAssetId);
   }
 
   // ─── Evaluations ───
@@ -559,6 +590,36 @@ export class SupplierPortalController {
     return this.portalService.disputeOpening(supplierId, projectId, body.reason);
   }
 
+  // ─── 供应商自有档案（合同/框架协议自建留存）───
+
+  @Get('own-archives')
+  @ApiOperation({ summary: '我的自有档案（category=contract|framework）' })
+  async listOwnArchives(@Request() req: any, @Query('category') category?: 'contract' | 'framework') {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.listOwnArchives(supplierId, category);
+  }
+
+  @Post('own-archives')
+  @ApiOperation({ summary: '新增自有档案（上传留存的合同/协议记录）' })
+  async createOwnArchive(@Request() req: any, @Body() dto: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.createOwnArchive(supplierId, dto);
+  }
+
+  @Patch('own-archives/:id')
+  @ApiOperation({ summary: '修改自有档案' })
+  async updateOwnArchive(@Request() req: any, @Param('id') id: string, @Body() dto: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.updateOwnArchive(supplierId, id, dto);
+  }
+
+  @Delete('own-archives/:id')
+  @ApiOperation({ summary: '删除自有档案' })
+  async deleteOwnArchive(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.deleteOwnArchive(supplierId, id);
+  }
+
   // ─── Password ───
 
   @Post('change-password')
@@ -675,51 +736,25 @@ export class SupplierPortalController {
 
   @Get('award-letters')
   async listAwardLetters(@Request() req: any) {
-    const supplierTableId = await this.getSupplierId(req.user.sub);
-    // AwardLetterDelivery.supplierId = BidSupplier.id；需通过 BidSupplier 关联到 Supplier
-    const bidSuppliers = await this.prisma.bidSupplier.findMany({
-      where: { supplierId: supplierTableId },
-      select: { id: true },
-    });
-    if (bidSuppliers.length === 0) return [];
-    return this.prisma.awardLetterDelivery.findMany({
-      where: { supplierId: { in: bidSuppliers.map(s => s.id) } },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.portalService.listMyAwardLetters(req.user.sub);
   }
 
   @Post('award-letters/:id/sign')
-  async signAwardLetter(@Request() req: any, @Param('id') id: string) {
-    const record = await this.prisma.awardLetterDelivery.findUnique({ where: { id } });
-    if (!record) throw new BadRequestException({ error: '通知书不存在', code: 'NOT_FOUND' });
-    // 验证所有权：该 delivery 的 supplierId 必须属于当前供应商
-    const supplierTableId = await this.getSupplierId(req.user.sub);
-    const bidSupplier = await this.prisma.bidSupplier.findFirst({
-      where: { id: record.supplierId, supplierId: supplierTableId },
-    });
-    if (!bidSupplier) throw new ForbiddenException({ error: '无权签收此通知书', code: 'FORBIDDEN' });
-
-    return this.prisma.awardLetterDelivery.update({
-      where: { id },
-      data: { signedAt: new Date(), signedBy: req.user.sub, receivedAt: record.receivedAt ?? new Date() },
-    });
+  async signAwardLetter(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: { letterAssetId: string; deliveredAt: string },
+  ) {
+    return this.portalService.signAwardLetter(req.user.sub, id, dto.letterAssetId, dto.deliveredAt);
   }
 
   @Post('award-letters/:id/received')
-  async markAwardLetterReceived(@Request() req: any, @Param('id') id: string) {
-    const supplierTableId = await this.getSupplierId(req.user.sub);
-    const bidSuppliers = await this.prisma.bidSupplier.findMany({
-      where: { supplierId: supplierTableId },
-      select: { id: true },
-    });
-    const record = await this.prisma.awardLetterDelivery.findFirst({
-      where: { id, supplierId: { in: bidSuppliers.map(s => s.id) } },
-    });
-    if (!record) throw new BadRequestException({ error: '通知书不存在', code: 'NOT_FOUND' });
-    if (!record.receivedAt) {
-      await this.prisma.awardLetterDelivery.update({ where: { id }, data: { receivedAt: new Date() } });
-    }
-    return { received: true };
+  async markAwardLetterReceived(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: { letterAssetId: string; deliveredAt: string },
+  ) {
+    return this.portalService.markAwardLetterReceived(req.user.sub, id, dto.letterAssetId, dto.deliveredAt);
   }
 
   // ─── P2c: 多轮报价(供应商端) ───
@@ -791,9 +826,17 @@ export class SupplierPortalController {
 
     // C4: 严格一报制——try-create-catch（原子操作，消除 TOCTOU 竞态）
     try {
-      return await this.prisma.bidQuote.create({
+      const quote = await this.prisma.bidQuote.create({
         data: { roundId, bidSupplierId: body.bidSupplierId, quotePrice: body.quotePrice },
       });
+      await this.notificationService.resolveActionableForUser(
+        req.user.sub,
+        'BID_ROUND_OPEN',
+        `/bids/${projectId}/round-quote`,
+      ).catch(() => {
+        // 报价已成功落库；待办清理失败由轮询/运维补偿，不回滚有效报价。
+      });
+      return quote;
     } catch (e: any) {
       if (e?.code === 'P2002') throw new BadRequestException({ error: '本轮已提交报价，不可修改', code: 'ALREADY_QUOTED' });
       throw e;

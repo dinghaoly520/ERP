@@ -33,6 +33,8 @@ export const ANNOUNCEMENT_TYPE_DATA_CLASS: Record<string, DataClassValue> = {
   PERFORMANCE_NOTICE: 'public_mandatory',
   POLICY: 'public_voluntary',
   PLATFORM: 'public_voluntary',
+  FAILED_BID_NOTICE: 'public_mandatory',
+  WIN_BID_NOTICE: 'public_mandatory',
 };
 
 /** 表 B.1：文件类目 → 默认分级与归属域 */

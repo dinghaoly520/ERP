@@ -243,13 +243,11 @@ export async function requestPasswordReset(payload: {
   username: string;
   applicantName: string;
   applicantContact: string;
+  verificationCode: string;
+  newPassword: string;
 }) {
   return requestJson<{
     id: string;
-    requestedUsername: string;
-    applicantName: string;
-    applicantContact: string;
-    matchedUserId: string | null;
     status: "PENDING";
     requestedAt: string;
   }>(`${API_BASE}/auth/password-reset-requests`, {
@@ -317,7 +315,6 @@ export async function approvePasswordResetRequest(id: string) {
     status: "APPROVED";
     reviewedById: string;
     reviewedAt: string;
-    temporaryPassword: string;
   }>(`${API_BASE}/auth/admin/password-reset-requests/${id}/approve`, {
     method: "POST",
     credentials: "include",

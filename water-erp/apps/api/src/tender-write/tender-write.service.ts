@@ -12,6 +12,7 @@ import * as mammoth from 'mammoth';
 import pdfParse = require('pdf-parse');
 import * as XLSX from 'xlsx';
 import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto } from './tender-write.dto';
+import { buildStandardFileName } from '@water-erp/shared';
 import {
   buildCompetitiveNegotiationReplacementPlan,
   buildSingleSourceReplacementPlan,
@@ -95,6 +96,7 @@ export class TenderWriteService {
   private resolveDownloadFileName(
     documentType: ExportTenderWriteDto['documentType'],
     projectName: string,
+    projectCode?: string,
   ) {
     const trimmedName = projectName.trim();
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -111,11 +113,8 @@ export class TenderWriteService {
       typeLabel = '谈判采购文件';
     }
 
-    if (trimmedName) {
-      return `${trimmedName}-${typeLabel}-${dateStr}.docx`;
-    }
-
-    return `${typeLabel}-${dateStr}.docx`;
+    // 统一命名：{项目编号}-{项目名称}-{文件类型}-{YYYYMMDD}.docx
+    return buildStandardFileName({ code: projectCode, name: trimmedName, docType: typeLabel });
   }
 
   async exportDocument(dto: ExportTenderWriteDto) {
@@ -179,6 +178,7 @@ export class TenderWriteService {
       fileName: this.resolveDownloadFileName(
         dto.documentType,
         (dto.answers.projectName as string) ?? '',
+        dto.projectCode,
       ),
     };
   }
@@ -360,11 +360,13 @@ export class TenderWriteService {
     const updatedXml = renderTemplateXml(xmlToRender, replacementPlan);
     zip.file('word/document.xml', updatedXml);
 
+    // 统一命名：{项目编号}-{项目名称}-{公告类型}-{YYYYMMDD}.docx
     const projectName = (draft as Record<string, string>).projectName?.trim();
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const fileName = projectName
-      ? `${projectName}-${typeLabel}-${dateStr}.docx`
-      : `${typeLabel}-${dateStr}.docx`;
+    const fileName = buildStandardFileName({
+      code: dto.projectCode,
+      name: projectName,
+      docType: typeLabel,
+    });
 
     return {
       buffer: await zip.generateAsync({ type: 'nodebuffer' }),
@@ -777,13 +779,12 @@ export class TenderWriteService {
     const updatedXml = renderTemplateXml(documentXml, replacementPlan);
     zip.file('word/document.xml', updatedXml);
 
-    const dateStr = new Date()
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, '');
-    const fileName = dto.projectName?.trim()
-      ? `${dto.projectName.trim()}-中标通知书-${dateStr}.docx`
-      : `中标通知书-${dateStr}.docx`;
+    // 统一命名：{项目编号}-{项目名称}-中标通知书-{YYYYMMDD}.docx
+    const fileName = buildStandardFileName({
+      code: dto.projectCode,
+      name: dto.projectName,
+      docType: '中标通知书',
+    });
 
     return {
       buffer: await zip.generateAsync({ type: 'nodebuffer' }),

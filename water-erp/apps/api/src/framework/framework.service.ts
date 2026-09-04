@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { htmlToDocxChildren } from '../project-management/docx/html-to-docx.converter';
-import { checkEliminationRatio } from '@water-erp/shared';
+import { checkEliminationRatio, buildStandardFileName } from '@water-erp/shared';
 
 /**
  * B4（GB/T 43711 附录 D）：框架协议采购两阶段——登记制。
@@ -205,6 +205,8 @@ export class FrameworkService {
 
     // 复用合同域生成订单（projectCode 用 faCode 承载关联）
     const contractCode = await this.nextOrderCode();
+    const selectionRule = dto.selectionRule?.trim()
+      || '第一阶段已完成价格竞争且约定要素不变，按采购文件约定规则直接选定（D.3.7）';
     const contract = await this.prisma.contract.create({
       data: {
         contractCode,
@@ -213,14 +215,26 @@ export class FrameworkService {
         supplierId: entry.supplierId ?? 'fa-' + entry.id,
         supplierName: entry.supplierName,
         contractType: 'order',
-        status: 'signed',
-        signedAt: new Date(),
+        // 二阶段选定不等于合同已签署；签署件上传后再由合同域 sign() 落 signed。
+        status: 'approved_for_signing',
+        signedAt: null,
+        signedAssetId: null,
+        consistencyResult: {
+          checkedAt: new Date().toISOString(),
+          manualConfirm: true,
+          source: 'none',
+          consistent: true,
+          issues: [],
+          basis: 'framework_second_stage',
+          faCode: fa.faCode,
+          selectionRule,
+        } as any,
         amount: dto.amount != null ? dto.amount : null,
         keyTerms: {
           ...(dto.keyTerms ?? {}),
           faCode: fa.faCode,
           secondStageRule: fa.secondStageRule,
-          selectionRule: dto.selectionRule?.trim() || '第一阶段已完成价格竞争且约定要素不变，按采购文件约定规则直接选定（D.3.7）',
+          selectionRule,
         } as any,
         companyId: fa.companyId,
         companyName: fa.companyName,
@@ -332,7 +346,7 @@ export class FrameworkService {
     const asset = await this.prisma.fileAsset.create({
       data: {
         key: objectKey,
-        originalName: `${fa.faCode}-框架协议.docx`,
+        originalName: buildStandardFileName({ code: fa.faCode, name: fa.title, docType: '框架协议' }),
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         size: buffer.length,
         sha256: createHash('sha256').update(buffer).digest('hex'),

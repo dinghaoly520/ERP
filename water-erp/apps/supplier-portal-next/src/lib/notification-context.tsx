@@ -2,13 +2,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { notificationApi } from "@/lib/api/notification";
+import type { SupplierNotification } from "@/lib/api/notification";
 
 /**
  * 消息通知上下文 — 移植自 Vue notification store。
  * 未读数 30s 轮询（外壳挂载时）；标记已读走乐观更新 + 失败回滚。
  */
 interface NotificationContextValue {
-  notifications: any[];
+  notifications: SupplierNotification[];
   unreadCount: number;
   total: number;
   loading: boolean;
@@ -21,7 +22,7 @@ interface NotificationContextValue {
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
 export function NotificationProvider({ children, poll = true }: { children: React.ReactNode; poll?: boolean }) {
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<SupplierNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -46,13 +47,20 @@ export function NotificationProvider({ children, poll = true }: { children: Reac
 
   useEffect(() => {
     if (!poll) return;
-    fetchUnreadCount();
-    const timer = setInterval(fetchUnreadCount, 30_000);
-    return () => clearInterval(timer);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void fetchUnreadCount();
+    };
+    refreshWhenVisible();
+    const timer = window.setInterval(refreshWhenVisible, 30_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [poll, fetchUnreadCount]);
 
   const markAsRead = useCallback(async (id: string) => {
-    let target: any = null;
+    let target: SupplierNotification | null = null;
     let wasUnread = false;
     setNotifications((prev) => {
       target = prev.find((x) => x.id === id) || null;
@@ -70,9 +78,9 @@ export function NotificationProvider({ children, poll = true }: { children: Reac
   }, []);
 
   const markAllAsRead = useCallback(async () => {
-    let prevUnread = 0;
+    const previous = notifications;
+    const prevUnread = previous.filter((notification) => !notification.isRead).length;
     setNotifications((prev) => {
-      prevUnread = prev.filter((n) => !n.isRead).length;
       return prev.map((n) => ({ ...n, isRead: true }));
     });
     setUnreadCount(0);
@@ -80,7 +88,7 @@ export function NotificationProvider({ children, poll = true }: { children: Reac
       await notificationApi.markAllAsRead();
       await fetchUnreadCount();
     } catch {
-      setNotifications((prev) => prev.map((n) => (n.id && notifications.find((o) => o.id === n.id && !o.isRead) ? { ...n, isRead: false } : n)));
+      setNotifications(previous);
       setUnreadCount(prevUnread);
       throw new Error("failed");
     }

@@ -480,7 +480,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     setExporting(true);
     setErrorMessage(null);
     try {
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft });
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
       // 下载
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
@@ -534,7 +534,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     setErrorMessage(null);
     try {
       // 1. 生成 DOCX
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft });
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
       const file = new File([result.blob], result.fileName, {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
@@ -576,7 +576,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const handleReviewComplete = useCallback(async (_task: ReviewTask) => {
     if (!selectedType) return;
     try {
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft });
+      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
       reviewPendingFileRef.current = { blob: result.blob, fileName: result.fileName };
       setShowReviewUploadDialog(true);
     } catch (err) {

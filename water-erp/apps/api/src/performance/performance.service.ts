@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { htmlToDocxChildren } from '../project-management/docx/html-to-docx.converter';
 import { createHash } from 'crypto';
+import { buildStandardFileName } from '@water-erp/shared';
 
 /**
  * E1（GB/T 43711 第 9 章）：采购质效评价。
@@ -153,12 +154,20 @@ export class PerformanceService {
     if (!Number.isInteger(dto.score) || dto.score < 1 || dto.score > 5) {
       throw new BadRequestException({ error: '评分须 1-5', code: 'BAD_SCORE' });
     }
+    const projectCode = dto.projectCode.trim();
+    const acceptedContract = await this.prisma.contract.findFirst({
+      where: { supplierId: supplier.id, projectCode, status: 'accepted' },
+      select: { id: true },
+    });
+    if (!acceptedContract) {
+      throw new BadRequestException({ error: '仅可评价本企业已验收的成交项目', code: 'SATISFACTION_NOT_ALLOWED' });
+    }
     return this.prisma.satisfactionFeedback.upsert({
-      where: { supplierId_projectCode: { supplierId: supplier.id, projectCode: dto.projectCode.trim() } },
+      where: { supplierId_projectCode: { supplierId: supplier.id, projectCode } },
       update: { score: dto.score, comment: dto.comment?.trim() || null },
       create: {
         supplierId: supplier.id, supplierName: supplier.name,
-        projectCode: dto.projectCode.trim(), score: dto.score, comment: dto.comment?.trim() || null,
+        projectCode, score: dto.score, comment: dto.comment?.trim() || null,
       },
     });
   }
@@ -198,7 +207,7 @@ export class PerformanceService {
     const asset = await this.prisma.fileAsset.create({
       data: {
         key: objectKey,
-        originalName: `采购质效评价报告${periodLabel ? `-${periodLabel}` : ''}.docx`,
+        originalName: buildStandardFileName({ docType: '采购质效评价报告', tag: periodLabel }),
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         size: buffer.length,
         sha256: createHash('sha256').update(buffer).digest('hex'),

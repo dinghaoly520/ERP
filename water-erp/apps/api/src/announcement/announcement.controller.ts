@@ -108,6 +108,13 @@ export class AnnouncementController {
     return this.announcementService.getParticipants(id);
   }
 
+  @Get('project/:projectCode/participants')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '按项目编号查询公告参与供应商（项目基本信息「供应商参与」）' })
+  getProjectParticipants(@Param('projectCode') projectCode: string) {
+    return this.announcementService.getProjectParticipants(projectCode);
+  }
+
   // ─── 普通附件 ───
 
   @Get(':id/attachments')
@@ -353,6 +360,17 @@ export class AnnouncementController {
   private clientIp(req: any): string | undefined {
     const xff = (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim();
     return xff || req.socket?.remoteAddress || req.ip;
+  }
+
+  @Post('check-duplicate')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '发布前查重：同标题或同项目同类型的已发布公告（命中不阻断，前端提示确认）' })
+  async checkDuplicate(
+    @Body() dto: { title?: string; relatedProjectCode?: string; type?: string },
+    @Request() req: any,
+  ) {
+    const scope = await this.companyScope.resolveScope(req.user);
+    return this.announcementService.checkDuplicate(dto, this.companyScope.filter(scope));
   }
 
   @Post('bid-notice-checklist')

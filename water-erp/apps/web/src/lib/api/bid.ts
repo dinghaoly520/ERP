@@ -376,13 +376,64 @@ export function getPublicityStatus(bidProjectId: string) {
 }
 
 /** A3: 推送中标通知书 */
-export function deliverAwardLetter(bidProjectId: string, data: { winnerName: string; winnerSupplierId?: string; content?: Record<string, unknown> }) {
+export type AwardLetterFileLike = Pick<File, 'name' | 'type' | 'size'>;
+export type AwardLetterDeliveryUiState = 'initial' | 'reissue' | 'locked';
+export interface AwardLetterStatus {
+  id: string;
+  supplierName: string;
+  deliveredAt: string | null;
+  receivedAt: string | null;
+  signedAt: string | null;
+  signedBy: string | null;
+  signedByName: string | null;
+  receiptNo: string;
+  letterAssetId: string | null;
+  letterAsset: {
+    id: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+    sha256: string | null;
+    createdAt: string;
+  } | null;
+}
+
+export function awardLetterDeliveryUiState(
+  delivery: { signedAt: string | null } | null | undefined,
+): AwardLetterDeliveryUiState {
+  if (!delivery) return 'initial';
+  return delivery.signedAt ? 'locked' : 'reissue';
+}
+
+const AWARD_LETTER_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+const AWARD_LETTER_MAX_BYTES = 20 * 1024 * 1024;
+
+export function validateAwardLetterFile(file: AwardLetterFileLike | null): string | null {
+  if (!file) return '请先选择中标通知书文件';
+  const extensionAllowed = /\.(pdf|doc|docx)$/i.test(file.name);
+  if (!AWARD_LETTER_MIME_TYPES.has(file.type) || !extensionAllowed) {
+    return '仅支持 PDF、DOC 或 DOCX 格式的通知书';
+  }
+  if (file.size > AWARD_LETTER_MAX_BYTES) return '通知书文件不得超过 20 MB';
+  return null;
+}
+
+export function deliverAwardLetter(bidProjectId: string, data: {
+  winnerName: string;
+  winnerSupplierId?: string;
+  content?: Record<string, unknown>;
+  letterAssetId: string;
+}) {
   return api.post(`/bid/projects/${bidProjectId}/award-letter/deliver`, data);
 }
 
 /** A3: 中标通知书签收状态 */
 export function getAwardLetterStatus(bidProjectId: string) {
-  return api.get<Array<{ id: string; supplierName: string; deliveredAt: string | null; signedAt: string | null; signedBy: string | null }>>(
+  return api.get<AwardLetterStatus[]>(
     `/bid/projects/${bidProjectId}/award-letter/status`,
   );
 }

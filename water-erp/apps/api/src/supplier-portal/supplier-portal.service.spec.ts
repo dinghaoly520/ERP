@@ -99,6 +99,7 @@ describe('SupplierPortalService', () => {
       supplierEvaluation: { count: jest.fn() },
       supplierBidSubmission: {
         count: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
@@ -1127,6 +1128,28 @@ describe('SupplierPortalService', () => {
       });
     });
 
+    it('直接采购·公告已发布·非受邀 → 拦截 INVITATION_REQUIRED（公告仅信息披露）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.bidProject.findUnique.mockResolvedValue({ ...futureProject, procurementMethod: '直接采购' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'ann-1' }); // 公告确已发布
+      prisma.invitationRsvp = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect((service as any).assertCanSubmitBid('supplier-1', 'p1')).rejects.toMatchObject({
+        response: { code: 'INVITATION_REQUIRED' },
+      });
+    });
+
+    it('直接采购·公告已发布·受邀（候选行）→ 放行投递', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.bidProject.findUnique.mockResolvedValue({ ...futureProject, procurementMethod: '直接采购' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'ann-1' });
+      prisma.invitationRsvp = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+
+      await expect((service as any).assertCanSubmitBid('supplier-1', 'p1')).resolves.toBeTruthy();
+    });
+
     it('listBidProjects：公开可见性含已发布公告解析的项目 + 阶段限定 DOWNLOAD/SUBMIT', async () => {
       const future = new Date(Date.now() + 3600_000);
       prisma.bidSupplier.findMany = jest.fn().mockResolvedValue([{ projectId: 'bp-inv' }]); // 受邀分支
@@ -1144,8 +1167,15 @@ describe('SupplierPortalService', () => {
       const finalQueries: any[] = [];
       prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
         finalQueries.push(where);
-        // 受邀项目明细查询（top-level id.in）→ 返回非直接采购项目，放行受邀分支
-        if (where?.id?.in) return [{ id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-INV' }];
+        // top-level id.in 查询：受邀明细（bp-inv=谈判采购放行）与公开分支方式过滤（bp-doc/bp-ann=询比采购放行）
+        if (where?.id?.in) {
+          const known = [
+            { id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-INV' },
+            { id: 'bp-doc', procurementMethod: '询比采购' },
+            { id: 'bp-ann', procurementMethod: '询比采购' },
+          ];
+          return known.filter(k => where.id.in.includes(k.id));
+        }
         // 公告编号→项目桥接（OR[0].projectCode.in）→ 解析出 bp-ann
         if (where?.OR?.[0]?.projectCode?.in) return [{ id: 'bp-ann' }];
         // 主列表查询（OR 分支为 id.in）
@@ -1154,7 +1184,8 @@ describe('SupplierPortalService', () => {
       });
       prisma.bidProject.count.mockResolvedValue(1);
 
-      await service.listBidProjects(1, 20, {}, 'supplier-1');
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ projectId: 'bp-inv', status: 'draft' }]);
+      const result = await service.listBidProjects(1, 20, {}, 'supplier-1');
 
       // 受邀项目查询：先按 id 取受邀项目（区分直接采购须公告发布）
       const invitedQuery = finalQueries.find(w => w?.id?.in?.includes('bp-inv'));
@@ -1173,6 +1204,63 @@ describe('SupplierPortalService', () => {
       expect(openBranch!.stage).toEqual({ in: ['DOWNLOAD', 'SUBMIT'] });
       // 受邀分支：同样限定投递阶段（OPENING+ 靠投标进展/开标大厅，不再混入可投标列表）
       const invitedBranch = orBranches.find(b => b.id?.in?.includes('bp-inv'));
+      expect(invitedBranch).toBeDefined();
+      expect(invitedBranch!.stage).toEqual({ in: ['DOWNLOAD', 'SUBMIT'] });
+      expect(result.items[0]).toMatchObject({ id: 'bp-inv', mySubmissionStatus: 'draft' });
+    });
+
+    it('listBidProjects：直接采购公告仅信息披露——公告发布不对全体供应商开放（非受邀不可见）', async () => {
+      const future = new Date(Date.now() + 3600_000);
+      prisma.bidSupplier.findMany = jest.fn().mockResolvedValue([]); // 非受邀
+      prisma.bidDocument.findMany.mockResolvedValue([]);
+      prisma.announcement.findMany = jest.fn().mockResolvedValue([{ relatedProjectCode: 'ZJ-DIRECT-01' }]);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      const queries: any[] = [];
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        queries.push(where);
+        if (where?.OR?.[0]?.projectCode?.in) return [{ id: 'bp-direct' }]; // 公告编号直连内部编号
+        if (where?.id?.in) return [{ id: 'bp-direct', procurementMethod: '直接采购' }]; // 公开分支方式过滤查询
+        return [];
+      });
+      prisma.bidProject.count.mockResolvedValue(0);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+
+      const result = await service.listBidProjects(1, 20, {}, 'supplier-1');
+      expect(result.total).toBe(0);
+      // 公开分支方式过滤确已执行（查询存在），且直接采购被排除出 openIds
+      const scopeFilter = queries.find(w => w?.id?.in?.includes('bp-direct'));
+      expect(scopeFilter).toBeDefined();
+    });
+
+    it('listBidProjects：直接采购受邀供应商须等公告发布后才可见', async () => {
+      prisma.bidSupplier.findMany = jest.fn().mockResolvedValue([{ projectId: 'bp-direct' }]);
+      prisma.bidDocument.findMany.mockResolvedValue([]);
+      let published: any[] = [];
+      prisma.announcement.findMany = jest.fn().mockImplementation(async () => published);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+
+      const runWithRoster = () => {
+        const listWheres: any[] = [];
+        prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+          if (where?.OR) { listWheres.push(where); return []; }
+          if (where?.id?.in?.includes('bp-direct')) {
+            return [{ id: 'bp-direct', procurementMethod: '直接采购', projectManagementItemId: null, projectCode: 'ZJ-DIRECT-01' }];
+          }
+          return [];
+        });
+        prisma.bidProject.count.mockResolvedValue(0);
+        return service.listBidProjects(1, 20, {}, 'supplier-1').then(() => listWheres);
+      };
+
+      // 公告未发布：受邀明细被门控（OR 分支不含 bp-direct → 或分支为空直接零返回）
+      let listWheres = await runWithRoster();
+      expect(listWheres.flatMap(w => w.OR ?? []).some((b: any) => b?.id?.in?.includes('bp-direct'))).toBe(false);
+
+      // 公告发布（内部编号直连）：受邀分支放行 bp-direct
+      published = [{ relatedProjectCode: 'ZJ-DIRECT-01' }];
+      listWheres = await runWithRoster();
+      const invitedBranch = listWheres.flatMap(w => w.OR ?? []).find((b: any) => b?.id?.in?.includes('bp-direct'));
       expect(invitedBranch).toBeDefined();
       expect(invitedBranch!.stage).toEqual({ in: ['DOWNLOAD', 'SUBMIT'] });
     });
@@ -2370,7 +2458,7 @@ describe('SupplierPortalService', () => {
         type: 'BID_DECRYPT_FAILED',
         title: expect.stringContaining('四川水发建设有限公司'),
         content: expect.stringContaining('解密失败'),
-        link: '/supplier/bid/project-1',
+        link: '/my-bids/project-1/opening-hall',
       }));
     });
 
@@ -2678,5 +2766,339 @@ describe('投标回执签名（A-101）', () => {
     await expect(svc2.signSubmissionReceipt('sb-1', 'sup-1', 'deadbeef')).rejects.toMatchObject({
       response: { code: 'RECEIPT_SIGNATURE_INVALID' },
     });
+  });
+});
+
+describe('SupplierPortalService — 合同履约证明归属校验', () => {
+  const createSubject = (overrides: Record<string, any> = {}) => {
+    const prisma = {
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'supplier-1' }) },
+      contract: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'contract-1', status: 'performing', signedAssetId: 'signed-contract-asset',
+        }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      contractFulfillment: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'fulfillment-1', contractId: 'contract-1', status: 'pending', proofAssetId: null }),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({ id: 'fulfillment-1', proofAssetId: 'asset-1' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'fulfillment-1', proofAssetId: 'asset-1' }),
+      },
+      fileAsset: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'asset-1', uploaderId: 'user-1', category: 'contract_document' }),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
+      ...overrides,
+    };
+    const subject = Object.create(SupplierPortalService.prototype) as SupplierPortalService;
+    (subject as any).prisma = prisma;
+    return { subject, prisma };
+  };
+
+  it('仅在供应商、合同、履约节点和文件资产同时匹配时挂接并留痕', async () => {
+    const { subject, prisma } = createSubject();
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-1', 'fulfillment-1', 'asset-1',
+    )).resolves.toMatchObject({ id: 'fulfillment-1', proofAssetId: 'asset-1' });
+
+    expect(prisma.contract.findFirst).toHaveBeenCalledWith({
+      where: { id: 'contract-1', supplierId: 'supplier-1' },
+      select: { id: true, status: true, signedAssetId: true },
+    });
+    expect(prisma.contractFulfillment.findFirst).toHaveBeenCalledWith({
+      where: { id: 'fulfillment-1', contractId: 'contract-1' },
+      select: { id: true, contractId: true, status: true, proofAssetId: true },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        action: 'CONTRACT_FULFILLMENT_PROOF_ATTACHED',
+        resourceId: 'fulfillment-1',
+      }),
+    });
+    expect(prisma.contractFulfillment.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'fulfillment-1',
+        contractId: 'contract-1',
+        status: { not: 'done' },
+        proofAssetId: null,
+        contract: {
+          supplierId: 'supplier-1',
+          status: { in: ['signed', 'performing'] },
+          signedAssetId: { not: null },
+        },
+      },
+      data: { proofAssetId: 'asset-1' },
+    });
+  });
+
+  it('拒绝向只有已签状态但没有签署版文件的历史合同挂接证明', async () => {
+    const { subject, prisma } = createSubject();
+    prisma.contract.findFirst.mockResolvedValue({
+      id: 'contract-1', status: 'performing', signedAssetId: null,
+    });
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-1', 'fulfillment-1', 'asset-1',
+    )).rejects.toMatchObject({ response: { code: 'CONTRACT_SIGNED_ASSET_REQUIRED' } });
+    expect(prisma.contractFulfillment.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('拒绝访问其他供应商的合同', async () => {
+    const { subject, prisma } = createSubject();
+    prisma.contract.findFirst.mockResolvedValue(null);
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-other', 'fulfillment-1', 'asset-1',
+    )).rejects.toMatchObject({ response: { code: 'CONTRACT_NOT_FOUND' } });
+    expect(prisma.contractFulfillment.update).not.toHaveBeenCalled();
+  });
+
+  it('拒绝把其他合同的履约节点挂到当前合同', async () => {
+    const { subject, prisma } = createSubject();
+    prisma.contractFulfillment.findFirst.mockResolvedValue(null);
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-1', 'fulfillment-other', 'asset-1',
+    )).rejects.toMatchObject({ response: { code: 'FULFILLMENT_NOT_FOUND' } });
+    expect(prisma.contractFulfillment.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['accepted', 'pending'],
+    ['terminated', 'exception'],
+  ])('拒绝向 %s 合同挂接或替换履约证明', async (contractStatus, fulfillmentStatus) => {
+    const { subject, prisma } = createSubject();
+    prisma.contract.findFirst.mockResolvedValue({
+      id: 'contract-1', status: contractStatus, signedAssetId: 'signed-contract-asset',
+    });
+    prisma.contractFulfillment.findFirst.mockResolvedValue({
+      id: 'fulfillment-1', contractId: 'contract-1', status: fulfillmentStatus,
+    });
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-1', 'fulfillment-1', 'asset-1',
+    )).rejects.toMatchObject({ response: { code: 'PROOF_ATTACHMENT_LOCKED' } });
+    expect(prisma.contractFulfillment.update).not.toHaveBeenCalled();
+  });
+
+  it('拒绝替换已经完成节点的履约证明', async () => {
+    const { subject, prisma } = createSubject();
+    prisma.contract.findFirst.mockResolvedValue({
+      id: 'contract-1', status: 'performing', signedAssetId: 'signed-contract-asset',
+    });
+    prisma.contractFulfillment.findFirst.mockResolvedValue({
+      id: 'fulfillment-1', contractId: 'contract-1', status: 'done', proofAssetId: 'asset-old',
+    });
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-1', 'fulfillment-1', 'asset-new',
+    )).rejects.toMatchObject({ response: { code: 'PROOF_ATTACHMENT_LOCKED' } });
+    expect(prisma.contractFulfillment.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ id: 'asset-1', uploaderId: 'user-other', category: 'contract_document' }, 'PROOF_ASSET_FORBIDDEN'],
+    [{ id: 'asset-1', uploaderId: 'user-1', category: 'bid_document' }, 'PROOF_ASSET_CATEGORY_INVALID'],
+    [null, 'PROOF_ASSET_NOT_FOUND'],
+  ])('拒绝不安全的证明资产 %#', async (asset, code) => {
+    const { subject, prisma } = createSubject();
+    prisma.fileAsset.findUnique.mockResolvedValue(asset);
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-1', 'fulfillment-1', 'asset-1',
+    )).rejects.toMatchObject({ response: { code } });
+    expect(prisma.contractFulfillment.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['合同正文/签署件', 'contract'],
+    ['其他合同履约节点', 'contractFulfillment'],
+  ])('拒绝把已用于其他%s的证明资产再次挂接', async (_label, model) => {
+    const { subject, prisma } = createSubject();
+    prisma[model].findMany.mockResolvedValue([{ id: 'foreign-ref', contractId: 'contract-other' }]);
+
+    await expect(subject.attachContractFulfillmentProof(
+      'user-1', 'contract-1', 'fulfillment-1', 'asset-1',
+    )).rejects.toMatchObject({ response: { code: 'PROOF_ASSET_ALREADY_BOUND' } });
+    expect(prisma.contractFulfillment.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('SupplierPortalService — 成交通知书签收闭环', () => {
+  const DELIVERY_VERSION = '2026-09-03T07:00:00.000Z';
+
+  const createSubject = () => {
+    const notificationService = {
+      resolveActionableForUser: jest.fn().mockResolvedValue({ count: 1 }),
+    };
+    const prisma = {
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 'supplier-1' }) },
+      bidSupplier: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'bid-supplier-1' }]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'bid-supplier-1' }),
+      },
+      awardLetterDelivery: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'delivery-abcdef123456', letterAssetId: 'asset-1', signedAt: null }]),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-1',
+          deliveredAt: new Date(DELIVERY_VERSION), receivedAt: new Date('2026-09-03T08:00:00.000Z'), signedAt: null,
+        }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', receivedAt: null }),
+        update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'delivery-abcdef123456', ...data })),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      fileAsset: {
+        findMany: jest.fn().mockResolvedValue([{
+          id: 'asset-1', originalName: '成交通知书.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          size: 2048, sha256: 'sha',
+        }]),
+      },
+    };
+    const subject = Object.create(SupplierPortalService.prototype) as SupplierPortalService;
+    (subject as any).prisma = prisma;
+    (subject as any).notificationService = notificationService;
+    return { subject, prisma, notificationService };
+  };
+
+  it('列表仅返回本企业通知书并附安全文件元数据和回执编号', async () => {
+    const { subject } = createSubject();
+
+    await expect(subject.listMyAwardLetters('user-1')).resolves.toEqual([
+      expect.objectContaining({
+        id: 'delivery-abcdef123456',
+        receiptNo: expect.stringMatching(/^AL-/),
+        letterAsset: expect.objectContaining({ id: 'asset-1', originalName: '成交通知书.docx' }),
+      }),
+    ]);
+  });
+
+  it('签收前校验 delivery 对应的 BidSupplier 属于当前供应商', async () => {
+    const { subject, prisma, notificationService } = createSubject();
+
+    await subject.signAwardLetter('user-1', 'delivery-abcdef123456', 'asset-1', DELIVERY_VERSION);
+
+    expect(prisma.bidSupplier.findFirst).toHaveBeenCalledWith({
+      where: { id: 'bid-supplier-1', supplierId: 'supplier-1' },
+      select: { id: true },
+    });
+    expect(prisma.awardLetterDelivery.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'delivery-abcdef123456', letterAssetId: 'asset-1',
+        deliveredAt: new Date(DELIVERY_VERSION), signedAt: null, receivedAt: { not: null },
+      },
+      data: expect.objectContaining({ signedBy: 'user-1', signedAt: expect.any(Date) }),
+    });
+    expect(notificationService.resolveActionableForUser).toHaveBeenCalledWith(
+      'user-1', 'AWARD_LETTER', '/award-letters?deliveryId=delivery-abcdef123456',
+    );
+  });
+
+  it('拒绝签收没有实际文件的遗留通知书记录', async () => {
+    const { subject, prisma, notificationService } = createSubject();
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue({
+      id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: null,
+      deliveredAt: new Date(DELIVERY_VERSION), receivedAt: new Date('2026-09-03T08:00:00.000Z'), signedAt: null,
+    });
+
+    await expect(subject.signAwardLetter('user-1', 'delivery-abcdef123456', 'asset-1', DELIVERY_VERSION))
+      .rejects.toMatchObject({ response: { code: 'AWARD_LETTER_ASSET_REQUIRED' } });
+
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+    expect(notificationService.resolveActionableForUser).not.toHaveBeenCalled();
+  });
+
+  it('拒绝在明确查看通知书文件之前签收', async () => {
+    const { subject, prisma, notificationService } = createSubject();
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue({
+      id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-1',
+      deliveredAt: new Date(DELIVERY_VERSION), receivedAt: null, signedAt: null,
+    });
+
+    await expect(subject.signAwardLetter('user-1', 'delivery-abcdef123456', 'asset-1', DELIVERY_VERSION))
+      .rejects.toMatchObject({ response: { code: 'AWARD_LETTER_NOT_RECEIVED' } });
+
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+    expect(notificationService.resolveActionableForUser).not.toHaveBeenCalled();
+  });
+
+  it('拒绝签收其他供应商的通知书', async () => {
+    const { subject, prisma } = createSubject();
+    prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+    await expect(subject.signAwardLetter('user-1', 'delivery-abcdef123456', 'asset-1', DELIVERY_VERSION))
+      .rejects.toMatchObject({ response: { code: 'AWARD_LETTER_FORBIDDEN' } });
+    expect(prisma.awardLetterDelivery.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('并发签收只有首个请求能落签，随后返回数据库中的同一签收结果', async () => {
+    const { subject, prisma } = createSubject();
+    const persisted = {
+      id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-1',
+      deliveredAt: new Date(DELIVERY_VERSION), receivedAt: new Date('2026-09-03T08:00:00Z'),
+      signedAt: new Date('2026-09-03T08:00:00Z'), signedBy: 'user-1',
+    };
+    prisma.awardLetterDelivery.updateMany.mockResolvedValue({ count: 0 });
+    prisma.awardLetterDelivery.findUnique
+      .mockResolvedValueOnce({
+        id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-1',
+        deliveredAt: new Date(DELIVERY_VERSION), receivedAt: new Date('2026-09-03T08:00:00Z'), signedAt: null,
+      })
+      .mockResolvedValueOnce(persisted);
+
+    await expect(subject.signAwardLetter('user-1', 'delivery-abcdef123456', 'asset-1', DELIVERY_VERSION))
+      .resolves.toMatchObject({ ...persisted, receiptNo: expect.stringMatching(/^AL-/) });
+  });
+
+  it('查看回执只能写入客户端实际打开的通知书版本', async () => {
+    const { subject, prisma } = createSubject();
+    prisma.awardLetterDelivery.findUnique
+      .mockResolvedValueOnce({
+        id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-1',
+        deliveredAt: new Date(DELIVERY_VERSION), receivedAt: null, signedAt: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-2',
+        deliveredAt: new Date('2026-09-03T09:00:00.000Z'), receivedAt: null, signedAt: null,
+      });
+    prisma.awardLetterDelivery.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(subject.markAwardLetterReceived(
+      'user-1', 'delivery-abcdef123456', 'asset-1', DELIVERY_VERSION,
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_VERSION_CHANGED' } });
+
+    expect(prisma.awardLetterDelivery.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'delivery-abcdef123456', letterAssetId: 'asset-1',
+        deliveredAt: new Date(DELIVERY_VERSION), receivedAt: null,
+      },
+      data: { receivedAt: expect.any(Date) },
+    });
+  });
+
+  it('签收更新未命中且文件已重发时拒绝旧版本回调', async () => {
+    const { subject, prisma, notificationService } = createSubject();
+    prisma.awardLetterDelivery.updateMany.mockResolvedValue({ count: 0 });
+    prisma.awardLetterDelivery.findUnique
+      .mockResolvedValueOnce({
+        id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-1',
+        deliveredAt: new Date(DELIVERY_VERSION), receivedAt: new Date('2026-09-03T08:00:00Z'), signedAt: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'delivery-abcdef123456', supplierId: 'bid-supplier-1', letterAssetId: 'asset-2',
+        deliveredAt: new Date('2026-09-03T09:00:00.000Z'), receivedAt: null, signedAt: null,
+      });
+
+    await expect(subject.signAwardLetter(
+      'user-1', 'delivery-abcdef123456', 'asset-1', DELIVERY_VERSION,
+    )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_VERSION_CHANGED' } });
+
+    expect(notificationService.resolveActionableForUser).not.toHaveBeenCalled();
   });
 });

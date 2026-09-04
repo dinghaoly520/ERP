@@ -14,6 +14,11 @@ export interface FileAssetResponse {
   createdAt: string;
 }
 
+export interface RegistrationUploadCredentials {
+  phone: string;
+  code: string;
+}
+
 /**
  * 上传文件到后端（落 MinIO + 写元数据）。
  * 用 XMLHttpRequest 以保留上传进度回调（fetch 无原生 upload progress）；
@@ -25,16 +30,24 @@ export function uploadFile(
   onProgress?: (pct: number) => void,
   clientEncrypted = false,
   plaintextSha256?: string,
+  registration?: RegistrationUploadCredentials,
 ): Promise<FileAssetResponse> {
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.append("file", file);
-    const params = new URLSearchParams({ category });
-    if (clientEncrypted) params.set("clientEncrypted", "true");
-    if (plaintextSha256) params.set("plaintextSha256", plaintextSha256);
+    const params = new URLSearchParams();
+    if (registration) {
+      fd.append("phone", registration.phone.trim());
+      fd.append("code", registration.code.trim());
+      fd.append("category", category);
+    } else {
+      params.set("category", category);
+      if (clientEncrypted) params.set("clientEncrypted", "true");
+      if (plaintextSha256) params.set("plaintextSha256", plaintextSha256);
+    }
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/upload?${params.toString()}`);
+    xhr.open("POST", registration ? "/api/upload/registration" : `/api/upload?${params.toString()}`);
     xhr.withCredentials = true;
     xhr.setRequestHeader("X-Portal", "supplier");
     xhr.timeout = 120000;
@@ -77,4 +90,16 @@ export function uploadFile(
 
     xhr.send(fd);
   });
+}
+
+export function uploadRegistrationFile(
+  file: File,
+  category: "qualification" | "general",
+  credentials: RegistrationUploadCredentials,
+  onProgress?: (pct: number) => void,
+) {
+  if (!/^1[3-9]\d{9}$/.test(credentials.phone.trim()) || !/^\d{6}$/.test(credentials.code.trim())) {
+    return Promise.reject(new Error("请先填写手机号并获取有效的 6 位验证码"));
+  }
+  return uploadFile(file, category, onProgress, false, undefined, credentials);
 }

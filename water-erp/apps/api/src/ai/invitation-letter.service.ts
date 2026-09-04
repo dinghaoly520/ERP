@@ -4,6 +4,7 @@ import * as crypto from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { LlmService } from '../local-ai/llm.service';
+import { buildStandardFileName } from '@water-erp/shared';
 
 /**
  * 采购邀请书（CTS-EBS01 A-53 邀请采购 · 非招标方式）：
@@ -243,7 +244,7 @@ export class InvitationLetterService {
 
     // ── 落 MinIO + FileAsset（不经过 UploadService：其会把 docx 转 PDF）──
     const now = new Date();
-    const fileName = `采购邀请书-${project.name}-${now.getTime()}.docx`;
+    const fileName = buildStandardFileName({ code: project.code, name: project.name, docType: '采购邀请书' });
     const key = `general/invitation/${project.code}/${now.getTime()}.docx`;
     await this.storage.upload(key, buffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     const asset = await this.prisma.fileAsset.create({

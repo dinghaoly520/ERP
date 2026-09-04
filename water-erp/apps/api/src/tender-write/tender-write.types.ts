@@ -80,7 +80,8 @@ export type InquiryPurchaseAnswers = {
   requiredDocuments: string;
   evaluationMethod: string;
   priceLimit: string;
-  submissionDeadline: string;
+  documentAcquireTime: string;
+  bidOpeningTime: string;
   contactName: string;
   contactEmail: string;
   contactPhone: string;

@@ -563,3 +563,60 @@ export function approveBusinessTag(id: string) {
 export function rejectBusinessTag(id: string) {
   return api.post(`/supplier/admin/tags/${id}/reject`, {});
 }
+
+/* ── 供应商密码重置审批（2026-09-03：供应商账号的重置申请归供应商管理中心，staff/leader 审批）── */
+export interface SupplierPasswordResetRequest {
+  id: string;
+  requestedUsername: string;
+  applicantName: string;
+  applicantContact: string;
+  status: 'PENDING';
+  requestedAt: string;
+  decisionNote: string | null;
+  matchedUser: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    phone: string | null;
+    role: string;
+    company: string | null;
+  } | null;
+}
+
+export function fetchSupplierPasswordResets() {
+  return api.get<SupplierPasswordResetRequest[]>('/supplier/password-reset-requests');
+}
+
+export function approveSupplierPasswordReset(id: string) {
+  return api.post<{ id: string; status: string }>(`/supplier/password-reset-requests/${id}/approve`, {});
+}
+
+export function rejectSupplierPasswordReset(id: string, decisionNote?: string) {
+  return api.post(`/supplier/password-reset-requests/${id}/reject`, { decisionNote: decisionNote ?? null });
+}
+
+/* ── 供应商资料变更审批（:3004 供应商门户提交的资料变更，审批中心处理）── */
+export interface SupplierChangePendingRow {
+  id: string;
+  supplierId: string;
+  fieldName: string;
+  fieldLabel: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  reason: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RETURNED';
+  createdAt: string;
+  supplier: { id: string; name: string; supplierNo: string };
+}
+
+export function fetchPendingSupplierChanges() {
+  return api.get<SupplierChangePendingRow[]>('/supplier/changes/pending');
+}
+
+export function approveSupplierChange(id: string) {
+  return api.post(`/supplier/changes/${id}/approve`, {});
+}
+
+export function rejectSupplierChange(id: string, rejectReason?: string) {
+  return api.post(`/supplier/changes/${id}/reject`, { rejectReason: rejectReason ?? '' });
+}

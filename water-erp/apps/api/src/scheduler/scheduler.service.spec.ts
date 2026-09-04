@@ -8,7 +8,7 @@ describe('buildExpiryNotification', () => {
     expect(n.title).toContain('资质即将到期');
     expect(n.content).toContain('安全生产许可证');
     expect(n.content).toContain('26');
-    expect(n.link).toBe('/supplier/qualifications');
+    expect(n.link).toBe('/profile');
   });
 });
 

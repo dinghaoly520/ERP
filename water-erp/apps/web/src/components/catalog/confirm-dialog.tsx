@@ -37,13 +37,27 @@ type Pending =
   | { kind: 'confirm'; opts: ConfirmOptions; resolve: (v: boolean) => void }
   | { kind: 'prompt'; opts: PromptOptions; resolve: (v: string | null) => void };
 
-let openFn: ((p: Pending) => void) | null = null;
+// 宿主注册表（Set）：支持 layout 全局 + 页面自挂多处并存，卸载只注销自己——
+// 旧版单一 openFn 会被「后挂载页面的卸载清理」覆盖置空，导致 confirmDialog 的 Promise 永不
+// resolve、调用方 await 卡死（发布按钮无限转圈且无任何弹窗）。
+const hostFns = new Set<(p: Pending) => void>();
+
+/** 派发给任意存活宿主；一个都没有时兜底按「取消」返回，绝不永久挂起 */
+function dispatch(p: Pending) {
+  const open = hostFns.values().next().value as ((p: Pending) => void) | undefined;
+  if (open) {
+    open(p);
+  } else {
+    console.warn('[confirmDialog] 无存活的 ConfirmHost，已按取消处理');
+    p.kind === 'confirm' ? p.resolve(false) : p.resolve(null);
+  }
+}
 
 export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
-  return new Promise((resolve) => { openFn?.({ kind: 'confirm', opts, resolve }); });
+  return new Promise((resolve) => { dispatch({ kind: 'confirm', opts, resolve }); });
 }
 export function promptDialog(opts: PromptOptions): Promise<string | null> {
-  return new Promise((resolve) => { openFn?.({ kind: 'prompt', opts, resolve }); });
+  return new Promise((resolve) => { dispatch({ kind: 'prompt', opts, resolve }); });
 }
 
 export function ConfirmHost() {
@@ -52,7 +66,10 @@ export function ConfirmHost() {
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { openFn = setPending; return () => { openFn = null; }; }, []);
+  useEffect(() => {
+    hostFns.add(setPending);
+    return () => { hostFns.delete(setPending); };
+  }, []);
 
   // 打开 prompt 时初始化输入值并聚焦输入框
   useEffect(() => {
@@ -110,7 +127,7 @@ export function ConfirmHost() {
       </>}
     >
       {pending.kind === 'confirm' && (
-        <p className="text-sm text-[var(--foreground)] leading-relaxed">{opts.message}</p>
+        <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-line">{opts.message}</p>
       )}
 
       {isPrompt && pOpts && (

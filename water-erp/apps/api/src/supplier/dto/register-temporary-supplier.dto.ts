@@ -1,4 +1,14 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, MinLength, MaxLength, Matches } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 
 // 临时供应商注册：凭邀请码 + 极简字段。登录用户名强制为机构代码。
@@ -40,4 +50,12 @@ export class RegisterTemporarySupplierDto {
 
   @IsEmail() @IsOptional()
   email?: string; // 联系人邮箱
+
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(20, { each: true })
+  tags: string[];
 }

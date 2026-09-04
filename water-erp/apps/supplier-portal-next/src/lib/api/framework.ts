@@ -13,8 +13,8 @@ export interface MyFaEntry {
     variant: "supplier_only" | "supplier_price" | "supplier_price_qty";
     validUntil: string;
     status: string;
-    priceRule?: Record<string, any> | null;
-    quotaRule?: Record<string, any> | null;
+    priceRule?: Record<string, unknown> | null;
+    quotaRule?: Record<string, unknown> | null;
     secondStageRule?: string | null;
   };
 }

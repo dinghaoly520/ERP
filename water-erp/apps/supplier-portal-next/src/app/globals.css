@@ -7153,8 +7153,8 @@ a {
   --asst-shadow: 0 24px 64px oklch(0.25 0.03 258 / 0.18);
   --asst-shadow-lg: 0 32px 80px oklch(0.25 0.03 258 / 0.22);
   --asst-sprite-blue-1: oklch(0.52 0.14 251 / 0.82);
-  --asst-sprite-blue-2: oklch(0.44 0.15 252 / 0.76);
-  --asst-sprite-glow: oklch(0.48 0.14 252 / 0.32);
+  --asst-sprite-blue-2: oklch(0.44 0.15 258 / 0.76);
+  --asst-sprite-glow: oklch(0.48 0.14 258 / 0.32);
   --asst-sprite-highlight: oklch(1 0 0 / 0.78);
   --asst-chart-border: oklch(0.68 0.03 255 / 0.45);
   --asst-chart-bg: linear-gradient(175deg, oklch(1 0 0 / 0.88), oklch(0.96 0.01 255 / 0.8));
@@ -7907,7 +7907,7 @@ a {
   overflow: hidden;
   padding: 14px;
   background:
-    radial-gradient(circle at 34% 26%, oklch(0.9 0.05 248 / 0.96) 0%, oklch(0.65 0.1 250 / 0.82) 50%, oklch(0.48 0.14 252 / 0.74) 100%);
+    radial-gradient(circle at 34% 26%, oklch(0.9 0.05 248 / 0.96) 0%, oklch(0.65 0.1 250 / 0.82) 50%, oklch(0.48 0.14 258 / 0.74) 100%);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.65),
     2px 2.5px 5px oklch(0.55 0.03 258 / 0.1),
@@ -8258,7 +8258,7 @@ a {
   border-radius: 14px;
   background: linear-gradient(175deg, oklch(1 0 0 / 0.92), oklch(0.965 0.012 255 / 0.88));
   border: 1px solid oklch(0.68 0.03 255 / 0.35);
-  box-shadow: 3px 3px 8px oklch(0.42 0.05 252 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.6);
+  box-shadow: 3px 3px 8px oklch(0.42 0.05 258 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 .asst-card-table-header {
   padding: 10px 14px;
@@ -8307,7 +8307,7 @@ a {
   border-radius: 14px;
   background: linear-gradient(175deg, oklch(1 0 0 / 0.92), oklch(0.965 0.012 255 / 0.88));
   border: 1px solid oklch(0.68 0.03 255 / 0.35);
-  box-shadow: 3px 3px 8px oklch(0.42 0.05 252 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.6);
+  box-shadow: 3px 3px 8px oklch(0.42 0.05 258 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 .asst-card-chart-title {
   padding: 10px 14px 4px;
@@ -10047,8 +10047,47 @@ select.workbench-input {
     -2.5px -2.5px 7px oklch(1 0 0 / 0.95);
 }
 /* ══════════════════════════════════════════════════════════════════
-   页面标题栏 — 玻璃凸起卡片 + 右侧径向光芒
-   标题行 + KPI 行统一容器
+   工作区标题 — 紧凑、扁平、以 hairline 建立内容层级
+   SpPageHero 使用本组样式；legacy .page-hero 保留给工作台专用区域。
+   ══════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════
+   工作区标题卡（sp-hero）— SpPageHero 渲染 cgzxui page-hero 卡片，
+   本块只补 hero 的子元素排版（eyebrow / 标题换行 / 右侧操作区）。
+   ══════════════════════════════════════════════════════════════════ */
+.sp-hero { margin-bottom: 20px; }
+.sp-hero .page-hero__title { overflow-wrap: anywhere; }
+.page-hero__eyebrow {
+  margin-bottom: 2px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.sp-hero__aside,
+.sp-hero__meta,
+.sp-hero__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sp-hero__aside { justify-content: flex-end; gap: 8px 12px; min-width: 0; }
+.sp-hero__meta,
+.sp-hero__actions { gap: 8px; }
+.sp-hero__actions :is(button, a) { min-height: 44px; }
+
+@media (max-width: 768px) {
+  .sp-hero .page-hero__row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sp-hero__aside { width: 100%; justify-content: flex-start; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Legacy 页面标题卡 — dashboard 等直接使用者暂时保留
    ══════════════════════════════════════════════════════════════════ */
 .page-hero {
   position: relative;
@@ -10137,17 +10176,6 @@ select.workbench-input {
 
 /* ── 右侧：统计标签 + 操作 ── */
 .page-hero__right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
-.page-hero__stat {
-  display: flex; align-items: center; gap: 0.35rem;
-  font-size: 0.688rem; font-weight: 600; white-space: nowrap;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid oklch(0.6 0.04 258 / 0.22);
-  background: oklch(0.99 0.004 258);
-  line-height: 1.4;
-}
-.page-hero__stat--warn  { color: var(--danger); border-color: color-mix(in oklch, var(--danger) 28%, transparent); background: color-mix(in oklch, var(--danger) 6%, transparent); }
-.page-hero__stat--info  { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 25%, transparent); background: color-mix(in oklch, var(--accent) 6%, transparent); }
 
 /* ══════════════════════════════════════════════════════════════════
    阶段流 Pill — 项目卡内阶段时间线
@@ -11258,20 +11286,21 @@ select.workbench-input {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.sp-status.pending   { background: var(--sp-orange-light); color: #92400e; }
-.sp-status.pending::before   { background: var(--sp-orange); }
-.sp-status.approved  { background: var(--sp-green-light); color: #065f46; }
-.sp-status.approved::before  { background: var(--sp-green); }
-.sp-status.rejected  { background: var(--sp-red-light); color: #991b1b; }
-.sp-status.rejected::before  { background: var(--sp-red); }
-.sp-status.returned  { background: #fef3c7; color: #92400e; }
-.sp-status.returned::before  { background: #b45309; }
-.sp-status.disabled  { background: var(--sp-gray-100); color: var(--sp-gray-400); }
-.sp-status.disabled::before  { background: var(--sp-gray-400); }
-.sp-status.draft     { background: var(--sp-gray-100); color: var(--sp-gray-500); }
-.sp-status.draft::before     { background: var(--sp-gray-400); }
-.sp-status.submitted { background: var(--sp-primary-lighter); color: var(--sp-primary); }
-.sp-status.submitted::before { background: var(--sp-primary); }
+/* 色调统一走语义变量的 color-mix 淡染（oklch），与全站一致 */
+.sp-status.pending   { background: color-mix(in oklch, var(--warning) 14%, transparent); color: color-mix(in oklch, var(--warning) 78%, oklch(0.3 0.05 258)); }
+.sp-status.pending::before   { background: var(--warning); }
+.sp-status.approved  { background: color-mix(in oklch, var(--success) 14%, transparent); color: color-mix(in oklch, var(--success) 72%, oklch(0.3 0.05 258)); }
+.sp-status.approved::before  { background: var(--success); }
+.sp-status.rejected  { background: color-mix(in oklch, var(--danger) 12%, transparent); color: color-mix(in oklch, var(--danger) 78%, oklch(0.3 0.05 258)); }
+.sp-status.rejected::before  { background: var(--danger); }
+.sp-status.returned  { background: color-mix(in oklch, var(--warning) 18%, transparent); color: color-mix(in oklch, var(--warning) 80%, oklch(0.32 0.05 258)); }
+.sp-status.returned::before  { background: color-mix(in oklch, var(--warning) 85%, oklch(0.4 0.08 258)); }
+.sp-status.disabled  { background: oklch(0.94 0.008 258); color: oklch(0.6 0.02 258); }
+.sp-status.disabled::before  { background: oklch(0.62 0.02 258); }
+.sp-status.draft     { background: oklch(0.945 0.008 258); color: oklch(0.52 0.025 258); }
+.sp-status.draft::before     { background: oklch(0.62 0.02 258); }
+.sp-status.submitted { background: color-mix(in oklch, var(--brand) 10%, transparent); color: var(--brand); }
+.sp-status.submitted::before { background: var(--brand); }
 
 /* ─── Empty state ─── */
 .sp-empty {
@@ -11282,37 +11311,71 @@ select.workbench-input {
   padding: 48px 20px;
   color: var(--sp-gray-400);
 }
-/* sp-empty-panel — 同 sp-empty 的居中能力（flex 列 + 水平居中），
-   专供使用 .sp-empty-panel 类名的空态容器（NotificationList / AnnouncementList / BidList）。
-   text-align: center 无法居中块级 .sp-empty-icon 徽章，必须用 flex。 */
+/* sp-empty-panel — 两行高的扁平状态行；兼容新版 copy/actions 包装和旧版直属文字节点。 */
 .sp-empty-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 20px;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 120px;
+  padding: 28px 20px;
   text-align: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  box-shadow: none;
 }
 .sp-empty-icon {
+  display: grid;
+  place-items: center;
   width: 44px;
   height: 44px;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--sp-radius-sm);
-  background: var(--sp-gray-100);
-  color: var(--sp-gray-400);
+  margin: 0 0 2px;
+  border-radius: 50%;
+  background: oklch(0.955 0.012 258);
+  color: oklch(0.58 0.04 258);
   font-size: 20px;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1.5px -1.5px 4px oklch(1 0 0 / 0.8);
+}
+.sp-empty-copy {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  min-width: 0;
 }
 .sp-empty-text {
+  margin: 0;
   font-size: 14px;
   font-weight: 700;
   color: var(--sp-gray-500);
-  margin-bottom: 4px;
+  line-height: 1.4;
 }
 .sp-empty-desc {
+  margin: 0;
   font-size: 13px;
   color: var(--sp-gray-400);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.sp-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  min-width: 0;
+}
+.sp-empty-actions :is(button, a) {
+  min-height: 44px;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .sp-empty-panel { padding: 24px 16px; }
 }
 
 /* ─── Filter bar — extreme glass, max transparency ─── */
@@ -11713,7 +11776,7 @@ select.workbench-input {
 
   --hairline: oklch(0.6 0.04 258 / 0.16);
 
-  --font-display: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-display: var(--font-sans), "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 
   /* re-point legacy --sp-* brand/semantic vars to oklch so existing templates align */
   --sp-primary: var(--brand);
@@ -11919,6 +11982,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 .page-hero__stat--warn { color: var(--danger); background: color-mix(in oklch, var(--danger) 7%, transparent); }
+.page-hero__stat--info { color: var(--accent); background: color-mix(in oklch, var(--accent) 8%, transparent); }
 .page-hero__rule { border-top: 1px solid var(--hairline); }
 
 /* ═══════════════════════════════════════════════════════════
@@ -11988,6 +12052,62 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 /* active 态兼容两种命名（.is-active 与 .active），统一为凹面按压分段控件 */
 .neu-tab.is-active, .neu-tab.active { color: var(--brand); background: var(--surface);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7); }
+
+/* Flat line variant for dense, in-page data-source switching. */
+.neu-tab-bar.sp-tabs-line {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  box-shadow: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.neu-tab.sp-tab-line {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.neu-tab.sp-tab-line:hover,
+.neu-tab.sp-tab-line:active,
+.neu-tab.sp-tab-line.is-active {
+  background: transparent;
+  box-shadow: none;
+}
+.neu-tab.sp-tab-line.is-active { color: var(--brand); }
+.neu-tab.sp-tab-line.is-active::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--brand);
+}
+.neu-tab.sp-tab-line:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: -3px;
+}
+.sp-tab-line .neu-tab-count {
+  padding-inline: 2px;
+  background: transparent;
+  border-radius: 0;
+}
 
 /* ═══════════════════════════════════════════════════════════
    FILE DROP ZONE + ATTACHMENT ITEM
@@ -12201,7 +12321,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   height: 72px; padding: 0 24px;
 }
 .sp-header-left, .sp-header-right { display: flex; align-items: center; gap: 12px; }
-.sp-brand { display: flex; align-items: center; gap: 10px; text-align: left; background: none; border: none; cursor: pointer; padding: 0; }
+.sp-brand { display: flex; align-items: center; gap: 10px; min-height: 44px; text-align: left; background: none; border: none; cursor: pointer; padding: 0; }
 .sp-brand-logo { height: 40px; width: auto; object-fit: contain; }
 .sp-brand-title {
   display: block; font-size: 18px; font-weight: 900; letter-spacing: 0.10em;
@@ -12212,7 +12332,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 @keyframes spBrandShift { 0% { background-position: 0% center; } 50% { background-position: 100% center; } 100% { background-position: 0% center; } }
 .sp-header-icon {
-  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; min-width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
   color: #5a6d8a; border-radius: 12px; cursor: pointer; transition: all 0.18s ease;
   border: 1px solid #e5ecf4; background: #f8fbff;
 }
@@ -12225,6 +12345,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .sp-user-pill {
   display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 12px 4px 4px;
+  min-height: 44px;
   border-radius: 12px; transition: background 0.18s ease; border: 1px solid #e5ecf4; background: #fff;
   box-shadow: 0 1px 3px rgba(15, 47, 87, 0.04);
 }
@@ -12237,7 +12358,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-user-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; color: #18243a; }
 .sp-user-arrow { color: #8a96aa; font-size: 12px; display: inline-flex; }
 .sp-logout-btn {
-  display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 6px 14px; border-radius: 12px;
   border: 1px solid #d5e0ef; background: #fff; color: #5a6d8a; font-size: 14px; font-weight: 700;
   cursor: pointer; transition: all 0.18s ease;
 }
@@ -12269,14 +12390,15 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-sidebar:hover::before { opacity: 0.58; }
 .sp-sidebar > * { position: relative; z-index: 1; }
 .sp-sidebar.collapsed { width: 68px; }
-.sp-nav { flex: 1; overflow-y: auto; padding: 12px 8px; }
+.sp-nav { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 8px; }
 .sp-nav::-webkit-scrollbar { width: 0; }
 .sp-nav-section { padding: 16px 12px 6px; color: #8a96aa; font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
 .sp-nav-section-dot { height: 8px; }
+.sp-nav-item-shell { position: relative; width: 100%; }
 .sp-nav-item {
   position: relative; display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 10px 12px; margin-bottom: 4px; border: none; border-radius: 16px; background: transparent;
-  color: #5a6d8a; text-align: left; cursor: pointer; transition: all 0.18s ease; font-size: 14px;
+  min-height: 44px; padding: 10px 12px; margin-bottom: 4px; border: none; border-radius: 16px; background: transparent;
+  color: #5a6d8a; text-align: left; text-decoration: none; cursor: pointer; transition: all 0.18s ease; font-size: 14px;
 }
 .sp-nav-item:hover { background: #eff6ff; color: var(--sp-primary); }
 .sp-nav-item.active {
@@ -12293,18 +12415,127 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-nav-title { display: block; font-size: 14px; font-weight: 900; letter-spacing: -0.01em; line-height: 1.3; }
 .sp-nav-desc { display: block; margin-top: 1px; font-size: 11px; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-nav-item.active .sp-nav-desc { opacity: 0.75; }
+.sp-nav-tooltip {
+  position: fixed;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 10px;
+  border: 1px solid color-mix(in oklab, var(--foreground) 78%, white);
+  border-radius: 6px;
+  background: var(--foreground);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
 .sp-nav-badge {
   position: absolute; top: 6px; right: 6px; min-width: 17px; height: 17px; padding: 0 4px;
   border-radius: 999px; background: var(--sp-red); color: #fff; font-size: 10px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
 }
 .sp-collapse-toggle {
-  display: flex; align-items: center; justify-content: center; height: 44px; margin: 8px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; height: 44px; margin: 8px;
   border-radius: 16px; border: 1px solid #e5ecf4; background: #f8fbff; color: #5a6d8a;
   cursor: pointer; transition: all 0.18s ease;
 }
 .sp-collapse-toggle:hover { border-color: #bfdbfe; color: var(--sp-primary); }
 .sp-content { position: relative; z-index: 0; flex: 1; min-width: 0; overflow-y: auto; padding: 24px; background: transparent; }
+
+.sp-shell-status-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid #f2d39b;
+  border-radius: 0;
+  background: #fffaf0;
+  box-shadow: none;
+  color: #7c4a03;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.sp-shell-status-retry {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sp-shell-status-retry:hover { text-decoration: underline; }
+.sp-shell-status-retry:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: -3px;
+}
+
+@media (max-width: 520px) {
+  .sp-shell-status-alert {
+    align-items: flex-start;
+    padding-left: 10px;
+  }
+}
+
+/* ─── Workspace context navigation ─── */
+/* 工作区子导航（标题卡内，sp-page-hero 渲染）：
+   内凹轨道 + 凸起图标 tab，激活态内凹品牌蓝——三态完整。 */
+.sp-hero-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1rem;
+  padding: 5px;
+  border-radius: 14px;
+  background: oklch(0.955 0.012 258);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1.5px -1.5px 4px oklch(1 0 0 / 0.8);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.sp-hero-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  color: var(--fg-2);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  background: linear-gradient(180deg, oklch(0.99 0.004 258), oklch(0.965 0.01 258));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.2s ease;
+}
+.sp-hero-tab svg { color: oklch(0.55 0.06 258); transition: color 0.2s ease; }
+.sp-hero-tab:hover { transform: translateY(-1px); color: var(--brand); }
+.sp-hero-tab:hover svg { color: var(--brand); }
+.sp-hero-tab.is-active {
+  color: var(--brand);
+  background: oklch(0.952 0.012 258);
+  box-shadow: inset 2px 2px 5px oklch(0.5 0.1 258 / 0.14), inset -2px -2px 4px oklch(1 0 0 / 0.7);
+}
+.sp-hero-tab.is-active svg { color: var(--brand); }
+.sp-hero-tab:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 
 /* ─── Notification popover（React 版：绝对定位卡片，替代 el-popover）─── */
 .sp-notif-anchor { position: relative; }
@@ -12317,11 +12548,11 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .sp-notif-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #dbe7f3; }
 .sp-notif-title { font-weight: 900; font-size: 15px; }
-.sp-notif-mark-all { background: none; border: none; color: var(--sp-primary); font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; }
+.sp-notif-mark-all { min-height: 44px; background: none; border: none; color: var(--sp-primary); font-size: 12px; font-weight: 700; cursor: pointer; padding: 0 8px; }
 .sp-notif-mark-all:hover { opacity: 0.8; }
 .sp-notif-empty { padding: 40px; text-align: center; color: #94a3b8; font-size: 13px; }
 .sp-notif-list { max-height: 360px; overflow-y: auto; }
-.sp-notif-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; cursor: pointer; transition: background 0.15s; position: relative; }
+.sp-notif-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 44px; padding: 12px 16px; border: none; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background 0.15s; position: relative; }
 .sp-notif-item:hover { background: #f8fafc; }
 .sp-notif-item.unread { background: #f0f7ff; }
 .sp-notif-dot { width: 8px; height: 8px; border-radius: 50%; background: #0756a5; margin-top: 6px; flex-shrink: 0; }
@@ -12329,7 +12560,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-notif-item-title { font-weight: 700; font-size: 13px; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-notif-item-desc { font-size: 12px; color: #64748b; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-notif-item-time { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-.sp-notif-footer { text-align: center; padding: 12px; border-top: 1px solid #dbe7f3; color: #0756a5; font-size: 13px; font-weight: 800; cursor: pointer; transition: background 0.15s; background: none; width: 100%; }
+.sp-notif-footer { min-height: 44px; text-align: center; padding: 12px; border: none; border-top: 1px solid #dbe7f3; color: #0756a5; font-size: 13px; font-weight: 800; cursor: pointer; transition: background 0.15s; background: none; width: 100%; }
 .sp-notif-footer:hover { background: #e8f4ff; }
 
 /* ─── 用户下拉菜单（React 版，替代 el-dropdown）─── */
@@ -12341,7 +12572,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   box-shadow: 0 4px 6px rgba(15, 35, 65, 0.04), 0 12px 40px rgba(91, 155, 213, 0.10);
 }
 .sp-user-menu-item {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border: none;
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 9px 12px; border: none;
   background: transparent; color: #334155; font-size: 13px; font-weight: 600; text-align: left;
   border-radius: 8px; cursor: pointer; transition: all 0.15s;
 }
@@ -12349,21 +12580,49 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 /* ─── Mobile ─── */
 .mobile-fab {
-  position: fixed; bottom: 24px; left: 24px; width: 48px; height: 48px; border-radius: 50%;
+  position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: max(24px, env(safe-area-inset-left)); width: 48px; height: 48px; border-radius: 50%;
   background: #0756a5; color: #fff; display: flex; align-items: center; justify-content: center;
   border: none; box-shadow: 0 4px 16px rgba(10, 94, 184, 0.4); cursor: pointer; z-index: 100; transition: transform 0.2s;
 }
-.mobile-fab:hover { transform: scale(1.1); }
-.sp-mobile-drawer-ov { position: fixed; inset: 0; z-index: 900; background: rgba(15, 35, 65, 0.35); }
+.mobile-fab[hidden] { display: none; }
+@media (hover: hover) { .mobile-fab:hover { transform: scale(1.06); } }
+.sp-mobile-drawer-ov { position: fixed; inset: 0; z-index: 900; padding: 0; border: none; background: rgba(15, 35, 65, 0.35); cursor: pointer; }
 .sp-mobile-drawer {
-  position: fixed; top: 0; left: 0; bottom: 0; width: 272px; z-index: 901; overflow-y: auto;
+  position: fixed; top: 0; left: 0; bottom: 0; width: min(320px, 88vw); z-index: 901; display: flex; flex-direction: column; overflow: hidden;
   background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(20px) saturate(1.15);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15); padding: 16px 8px;
+  -webkit-backdrop-filter: blur(20px) saturate(1.15); padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+}
+.sp-mobile-drawer-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 4px 4px 4px 14px; color: var(--foreground); }
+.sp-mobile-drawer-close { width: 44px; height: 44px; flex: 0 0 44px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 12px; background: var(--surface); color: var(--fg-2); cursor: pointer; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85); }
+.sp-mobile-drawer > .sp-nav { min-height: 0; }
+.sp-brand:focus-visible,
+.sp-header-icon:focus-visible,
+.sp-user-pill:focus-visible,
+.sp-logout-btn:focus-visible,
+.sp-collapse-toggle:focus-visible,
+.sp-nav-item:focus-visible,
+.sp-notif-mark-all:focus-visible,
+.sp-notif-item:focus-visible,
+.sp-notif-footer:focus-visible,
+.sp-user-menu-item:focus-visible,
+.mobile-fab:focus-visible,
+.sp-mobile-drawer-close:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
 }
 @media (max-width: 768px) {
+  .sp-notif-popover { position: fixed; top: 72px; left: 12px; right: 12px; width: auto; max-height: calc(100dvh - 84px); }
   .sp-sidebar { display: none; }
-  .sp-header { padding: 0 14px; }
+  .sp-header { padding: 0 max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left)); }
+  .sp-header-right { gap: 6px; }
+  .sp-user-pill { width: 44px; padding: 4px; justify-content: center; }
   .sp-user-name { display: none; }
+  .sp-user-arrow { display: none; }
+  .sp-logout-btn { width: 44px; padding: 0; }
+  .sp-logout-label { display: none; }
+}
+@media (max-width: 560px) {
+  .sp-brand-title { display: none; }
 }
 
 /* ─── 修改密码弹窗 — cgzxui neumorphic（规格对齐 ChangeRequest .dlg-*）─── */
@@ -12462,6 +12721,16 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .gdlg-ft .neu-btn-primary { height: 38px; font-size: 13px; padding: 0 20px; }
 .gdlg-ft .neu-btn-soft { height: 38px; }
 
+@media (max-width: 768px) {
+  .gdlg-ov { padding: 12px; }
+  .gdlg-h { padding: 16px; }
+  .gdlg-b { padding: 16px; }
+  .gdlg-x { width: 44px; height: 44px; }
+  .gdlg-ft { flex-wrap: wrap; padding: 12px 16px; }
+  .gdlg-ft .neu-btn-primary,
+  .gdlg-ft .neu-btn-soft { min-height: 44px; height: 44px; }
+}
+
 /* 开关 */
 .sp-switch { position: relative; width: 40px; height: 22px; border-radius: 999px; border: none; cursor: pointer; background: oklch(0.9 0.01 258); box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 3px oklch(1 0 0 / 0.7); transition: background .2s ease; flex-shrink: 0; }
 .sp-switch.on { background: var(--brand); }
@@ -12483,13 +12752,34 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-prog-fill.warn { background: var(--warning); }
 .sp-prog-fill.bad { background: var(--danger); }
 
-/* 通用表格（el-table 的等价基底；页面可叠加自己的类） */
+/* 通用表格（el-table 的等价基底；页面可叠加自己的类）
+   cgzxui neu-table 语言：透明行 + hairline 行分割 + 四层交互
+   （透明 → hover 白色半透抬升 → data-selected 品牌淡蓝 → 按下内凹）。 */
 .sp-table-wrap { overflow-x: auto; }
 .sp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.sp-table th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: #5a6d8a; background: rgba(255,255,255,0.40); border-bottom: 1px solid var(--sp-border); white-space: nowrap; }
-.sp-table td { padding: 11px 12px; border-bottom: 1px solid rgba(0,0,0,0.035); color: var(--sp-gray-700); vertical-align: middle; }
-.sp-table tbody tr { background: transparent; transition: background 0.15s; }
-.sp-table tbody tr:hover { background: rgba(248, 251, 255, 0.70); }
+.sp-table th {
+  text-align: left; padding: 10px 12px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: oklch(0.55 0.025 258);
+  background: oklch(1 0 0 / 0.34);
+  box-shadow: inset 0 -1px 0 oklch(0.6 0.04 258 / 0.14);
+  white-space: nowrap;
+}
+.sp-table td {
+  padding: 11px 12px;
+  border-top: 1px solid oklch(0.6 0.04 258 / 0.07);
+  color: oklch(0.35 0.03 258);
+  vertical-align: middle;
+}
+.sp-table tbody tr { background: transparent; transition: background .18s ease, box-shadow .18s ease; }
+.sp-table tbody tr:hover {
+  background: oklch(1 0 0 / 0.55);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), inset 0 0 0 1px oklch(0.5 0.16 258 / 0.08);
+}
+.sp-table tbody tr[data-selected="true"] {
+  background: oklch(0.96 0.02 258 / 0.6);
+  box-shadow: inset 2px 0 0 var(--brand);
+}
 .sp-table tbody tr:last-child td { border-bottom: none; }
 
 /* 头部图标按钮承载角标需要相对定位 */
@@ -12508,19 +12798,24 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 640px;
-  min-height: 100vh;
+  min-height: 100dvh;
   isolation: isolate;
-  overflow: hidden;
-  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: var(--font-display);
   color: var(--ink);
   background: var(--tint);
 }
-.lp--supplier { --hue: 252; }
+.lp--supplier { --hue: 258; --hue-water: 200; }
 
 /* Water-texture atmosphere (kept as hero backdrop; tinted brand-blue via --hue) */
 .lp-bg {
   position: absolute; inset: 0; z-index: -3;
   background-image: url('/bg-hydro-hero-7.png');
+  background-image: image-set(
+    url('/images/hydro-hero.avif') type('image/avif'),
+    url('/bg-hydro-hero-7.png') type('image/png')
+  );
   background-position: center; background-size: cover;
   filter: saturate(0.7) contrast(0.92) brightness(1.02);
   transform: scale(1.04);
@@ -12544,26 +12839,26 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-brand-mark {
   width: 54px; height: 54px; border-radius: 15px; object-fit: cover;
   background: #fff; padding: 5px; box-sizing: border-box;
-  box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4);
+  box-shadow: 4px 4px 12px oklch(0.3 0.05 258 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4);
 }
 .lp-brand-name {
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-display);
   font-size: 22px; font-weight: 800; letter-spacing: 0.05em; color: #fff;
   text-shadow: 0 6px 22px rgba(0, 0, 0, 0.32);
 }
 
 .lp-panel {
-  grid-column: 2; grid-row: 1; display: flex; min-height: 100vh;
+  grid-column: 2; grid-row: 1; display: flex; min-height: 100dvh;
   flex-direction: column; justify-content: center; align-items: flex-end;
-  padding: 96px 150px 40px 32px;
+  padding: 72px 118px 36px 32px;
 }
 
 /* Neumorphic raised card (no glass backdrop, no conic edge, no gradient ring border) */
 .lp-card {
-  position: relative; width: 440px; padding: 52px 34px 44px; border-radius: 24px;
-  background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));
+  position: relative; width: 460px; padding: 38px 32px 30px; border-radius: 24px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.965 0.015 258));
   box-shadow:
-    12px 12px 30px oklch(0.42 0.05 252 / 0.16),
+    12px 12px 30px oklch(0.42 0.05 258 / 0.16),
     -9px -9px 24px oklch(1 0 0 / 0.92),
     inset 0 1px 0 oklch(1 0 0 / 0.85);
   animation: lp-rise 0.58s var(--ease) backwards;
@@ -12573,32 +12868,33 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-card:hover {
   transform: translateY(-3px);
   box-shadow:
-    16px 16px 38px oklch(0.42 0.05 252 / 0.2),
+    16px 16px 38px oklch(0.42 0.05 258 / 0.2),
     -11px -11px 28px oklch(1 0 0 / 0.95),
     inset 0 1px 0 oklch(1 0 0 / 0.9);
 }
 
-.lp-head { margin-bottom: 26px; text-align: center; }
+.lp-head { margin-bottom: 20px; text-align: center; }
 .lp-brand-word {
   display: block;
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-display);
   font-size: 34px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em;
-  color: var(--brand-deep, oklch(0.42 0.13 252));
-  text-align: center; margin: 0 -34px; padding: 6px 34px;
+  color: var(--brand-deep, oklch(0.42 0.13 258));
+  text-align: center; margin: 0 -32px; padding: 4px 32px;
 }
-.lp-brand-word .lp-dot { font-size: 26px; line-height: 1; margin: 0 8px; opacity: 0.5; color: var(--brand, oklch(0.55 0.16 252)); }
+.lp-brand-word .lp-dot { font-size: 26px; line-height: 1; margin: 0 8px; opacity: 0.5; color: var(--brand, oklch(0.5 0.16 258)); }
 .lp-divider {
   display: flex; align-items: center; justify-content: center;
-  width: 168px; margin: 18px auto 4px; color: oklch(0.55 0.12 var(--hue)); font-size: 9px; line-height: 1;
+  width: 154px; margin: 13px auto 4px; color: oklch(0.55 0.12 var(--hue)); font-size: 9px; line-height: 1;
 }
 .lp-divider::before, .lp-divider::after { content: ''; flex: 1; height: 1px; }
 .lp-divider::before { background: linear-gradient(90deg, transparent, oklch(0.6 0.1 var(--hue))); margin-right: 10px; }
 .lp-divider::after { background: linear-gradient(270deg, transparent, oklch(0.6 0.1 var(--hue))); margin-left: 10px; }
 .lp-title {
   margin: 0; font-family: 'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif;
-  font-size: 28px; font-weight: 600; line-height: 1.2; color: oklch(0.32 0.05 var(--hue));
+  font-size: 27px; font-weight: 600; line-height: 1.2; color: oklch(0.32 0.05 var(--hue));
   letter-spacing: 0.14em; text-align: center;
 }
+.lp-subtitle { margin: 7px 0 0; color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 
 
 /* Primary — raised brand neumorphic button (no sweep, no flat border) */
@@ -12606,53 +12902,78 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   display: inline-flex; align-items: center; justify-content: center;
   width: 100%; height: 56px; margin-top: 4px; border: none; border-radius: 14px;
   color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 4px 4px 12px oklch(0.4 0.1 252 / 0.35), -3px -3px 8px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  background: linear-gradient(180deg, oklch(0.5 0.16 258), oklch(0.42 0.15 258));
+  box-shadow: 4px 4px 12px oklch(0.4 0.1 258 / 0.35), -3px -3px 8px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
   font-family: inherit; font-weight: 800; font-size: 16px; letter-spacing: 0.16em; cursor: pointer;
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 .lp-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 6px 6px 18px oklch(0.4 0.1 252 / 0.42), -3px -3px 8px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  box-shadow: 6px 6px 18px oklch(0.4 0.1 258 / 0.42), -3px -3px 8px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35);
 }
-.lp-primary:active { transform: translateY(0); box-shadow: inset 3px 3px 8px oklch(0.3 0.1 252 / 0.5), inset -2px -2px 6px oklch(0.7 0.1 252 / 0.3); }
+.lp-primary:active { transform: translateY(0); box-shadow: inset 3px 3px 8px oklch(0.3 0.1 258 / 0.5), inset -2px -2px 6px oklch(0.7 0.1 258 / 0.3); }
 .lp-primary:disabled { cursor: wait; opacity: 0.7; transform: none; }
 
-.lp-foot { margin-top: 14px; text-align: center; color: var(--muted); font-size: 13px; }
-.lp-foot a, .lp-foot-link { color: oklch(0.5 0.13 var(--hue)); font-weight: 700; text-decoration: none; cursor: pointer; }
-.lp-foot a:hover, .lp-foot-link:hover { text-decoration: underline; }
-.lp-foot-sep { margin: 0 12px; color: oklch(0.8 0.02 var(--hue)); }
+/* Footer — 辅助操作胶囊（凸起软键，三态完整） */
+.lp-foot { display: flex; justify-content: center; gap: 12px; margin-top: 13px; }
+.lp-foot-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 44px; padding: 0 16px;
+  border: 0; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
+  color: oklch(0.42 0.11 258);
+  background: oklch(0.965 0.01 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.lp-foot-pill svg { color: oklch(0.5 0.12 230); flex-shrink: 0; transition: color 0.25s ease; }
+.lp-foot-pill:hover {
+  transform: translateY(-1px);
+  color: oklch(0.36 0.12 258);
+  background: oklch(0.975 0.012 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 3px 7px oklch(0.5 0.05 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.lp-foot-pill:hover svg { color: oklch(0.46 0.13 230); }
+.lp-foot-pill:active {
+  transform: none;
+  background: oklch(0.955 0.01 258);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
 
-/* 注册入口：正式（实心品牌）+ 临时（凸起中性）—— 复用 cgzxui 凸起按钮语言 */
-.lp-register-entry { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
-.lp-reg-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  height: 46px; border: none; border-radius: 12px;
-  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none;
-  transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+/* 首次使用：同层级双入口，不与登录主按钮竞争 */
+.lp-onboarding { margin-top: 16px; padding-top: 14px; border-top: 1px solid oklch(0.89 0.018 258); }
+.lp-onboarding-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.lp-onboarding-head h2 { margin: 0; color: oklch(0.35 0.045 258); font-size: 12px; font-weight: 800; }
+.lp-onboarding-head span { color: var(--muted); font-size: 10px; }
+.lp-register-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.lp-register-option {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) 14px; align-items: center; gap: 8px;
+  min-height: 70px; padding: 10px 9px; border: 1px solid oklch(0.87 0.025 258); border-radius: 12px;
+  color: oklch(0.43 0.1 258); text-decoration: none;
+  background: linear-gradient(145deg, oklch(0.992 0.006 258), oklch(0.962 0.014 258));
+  box-shadow: 2px 3px 7px oklch(0.48 0.04 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.84), inset 0 1px 0 oklch(1 0 0 / 0.82);
+  transition: transform .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);
 }
-.lp-reg-btn--primary {
-  color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 3px 3px 8px oklch(0.4 0.1 252 / 0.3), -2px -2px 6px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
-}
-.lp-reg-btn--primary:hover { transform: translateY(-1px); box-shadow: 4px 4px 12px oklch(0.4 0.1 252 / 0.38), -2px -2px 6px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35); }
-.lp-reg-btn--temp {
-  color: oklch(0.45 0.13 252);
-  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85);
-}
-.lp-reg-btn--temp:hover { transform: translateY(-1px); color: oklch(0.4 0.15 252); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 8px oklch(0.55 0.03 258 / 0.16), -2px -2px 6px oklch(1 0 0 / 0.9); }
-.lp-reg-divider { display: flex; align-items: center; gap: 10px; color: oklch(0.7 0.02 252); font-size: 12px; }
-.lp-reg-divider::before, .lp-reg-divider::after { content: ''; flex: 1; height: 1px; background: oklch(0.9 0.02 252); }
+.lp-register-option:hover { transform: translateY(-1px); border-color: oklch(0.68 0.09 258); box-shadow: 3px 5px 11px oklch(0.45 0.06 258 / 0.14), -2px -2px 6px oklch(1 0 0 / 0.88); }
+.lp-register-option__icon { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 9px; color: var(--brand-deep); background: color-mix(in oklab, var(--brand) 9%, white); box-shadow: inset 0 1px 0 rgba(255,255,255,.8); }
+.lp-register-option__copy { min-width: 0; }
+.lp-register-option__copy strong { display: block; color: var(--brand-deep); font-size: 12px; font-weight: 800; }
+.lp-register-option__copy small { display: block; margin-top: 3px; color: #6c7e8f; font-size: 9px; line-height: 1.35; }
 
 /* Staggered entrance (motion only; no glass) */
-.lp-head, .lp-field, .lp-primary, .lp-foot { animation: lp-up 0.5s var(--ease) backwards; }
+.lp-head, .lp-field, .lp-primary, .lp-foot, .lp-onboarding { animation: lp-up 0.5s var(--ease) backwards; }
 .lp-head { animation-delay: 0.06s; }
 .lp-field:nth-of-type(1) { animation-delay: 0.14s; }
 .lp-field:nth-of-type(2) { animation-delay: 0.22s; }
 .lp-primary { animation-delay: 0.3s; }
 .lp-foot { animation-delay: 0.38s; }
+.lp-onboarding { animation-delay: 0.44s; }
 @keyframes lp-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 860px) {
@@ -12668,6 +12989,14 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   }
   .lp-brand { top: 18px; left: 18px; }
   .lp-panel { grid-column: 1; grid-row: 2; align-items: stretch; min-height: auto; padding: 80px 18px 28px; }
+  .lp-card { width: min(460px, 100%); margin-left: auto; }
+}
+
+@media (max-width: 520px) {
+  .lp-card { padding: 32px 22px 24px; border-radius: 20px; }
+  .lp-brand-word { margin-inline: -22px; padding-inline: 22px; font-size: 29px; }
+  .lp-register-options { grid-template-columns: 1fr; }
+  .lp-register-option { min-height: 62px; }
 }
 
 /* Pending / register-status callout (semantic warning surface) */
@@ -12681,9 +13010,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-query { display: flex; gap: 8px; }
 
 .lp-secondary {
-  flex: none; padding: 0 14px; border: none; border-radius: 12px;
-  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
-  color: var(--brand, oklch(0.5 0.15 252)); font-size: 13px; cursor: pointer; white-space: nowrap;
+  flex: none; min-height: 44px; padding: 0 14px; border: none; border-radius: 12px;
+  background: linear-gradient(180deg, oklch(0.99 0.008 258), oklch(0.96 0.015 258));
+  color: var(--brand, oklch(0.5 0.15 258)); font-size: 13px; cursor: pointer; white-space: nowrap;
   box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
   transition: transform .15s var(--ease);
 }
@@ -12693,39 +13022,40 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-query__reason { color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-card, .lp-head, .lp-field, .lp-primary, .lp-foot { animation: none; }
-  .lp-card:hover, .lp-primary:hover, .lp-secondary:hover { transform: none; }
+  .lp-card, .lp-head, .lp-field, .lp-primary, .lp-foot, .lp-onboarding { animation: none; }
+  .lp-card:hover, .lp-primary:hover, .lp-secondary:hover, .lp-register-option:hover, .lp-foot-pill:hover { transform: none; }
 }
 /* React 版登录输入结构（原 el-input 内凹规格的等价实现） */
 .lp-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
 .lp-label { font-size: 13px; font-weight: 800; letter-spacing: 0.06em; color: color-mix(in oklch, var(--ink) 82%, #000); transition: color 0.2s var(--ease); }
-.lp-field:focus-within .lp-label { color: oklch(0.5 0.14 252); }
+.lp-field:focus-within .lp-label { color: oklch(0.5 0.14 258); }
 .lp-input-wrap {
   position: relative; display: flex; align-items: center; height: 56px; border-radius: 14px;
-  background: var(--surface, oklch(0.965 0.012 252));
+  background: var(--surface, oklch(0.965 0.012 258));
   box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85);
   transition: box-shadow 0.2s var(--ease);
 }
 .lp-input-wrap:hover { box-shadow: inset 4px 4px 9px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9); }
 .lp-input-wrap:focus-within {
-  background: oklch(0.985 0.01 252);
-  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.55 0.16 252)) 16%, transparent);
+  background: oklch(0.985 0.008 258);
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 16%, transparent);
 }
 .lp-input-wrap input {
   flex: 1; height: 100%; border: none; outline: none; background: transparent; padding: 0 42px 0 4px;
   color: var(--ink); font-family: inherit; font-size: 16px;
 }
-.lp-input-wrap input::placeholder { color: oklch(0.66 0.02 252); }
-.lp-prefix { display: inline-flex; color: oklch(0.55 0.1 252); margin: 0 6px 0 14px; transition: color 0.2s var(--ease), transform 0.2s var(--ease); }
-.lp-field:focus-within .lp-prefix { color: oklch(0.5 0.14 252); transform: scale(1.12); }
-.lp-eye { position: absolute; right: 6px; border: none; background: transparent; color: oklch(0.55 0.1 252); cursor: pointer; display: flex; padding: 6px; border-radius: 8px; }
-.lp-eye:hover { color: oklch(0.5 0.14 252); }
+.lp-input-wrap input::placeholder { color: oklch(0.66 0.02 258); }
+.lp-prefix { display: inline-flex; color: oklch(0.55 0.1 258); margin: 0 6px 0 14px; transition: color 0.2s var(--ease), transform 0.2s var(--ease); }
+.lp-field:focus-within .lp-prefix { color: oklch(0.5 0.14 258); transform: scale(1.12); }
+.lp-eye { position: absolute; right: 0; width: 44px; height: 44px; align-items: center; justify-content: center; border: none; background: transparent; color: oklch(0.55 0.1 258); cursor: pointer; display: flex; padding: 0; border-radius: 8px; }
+.lp-eye:hover { color: oklch(0.5 0.14 258); }
+.lp-eye:focus-visible, .lp-register-option:focus-visible, .lp-primary:focus-visible, .lp-secondary:focus-visible, .lp-foot-pill:focus-visible { outline: 3px solid color-mix(in oklab, var(--brand) 24%, transparent); outline-offset: 2px; }
 .lp-query-input {
   flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: none; border-radius: 10px; outline: none;
-  background: oklch(0.98 0.008 252); color: var(--ink); font-size: 14px;
+  background: oklch(0.98 0.008 258); color: var(--ink); font-size: 14px;
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.8);
 }
-.lp-query-input:focus { box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 5px oklch(1 0 0 / 0.6), 0 0 0 3px oklch(0.5 0.16 252 / 0.1); }
+.lp-query-input:focus { box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 5px oklch(1 0 0 / 0.6), 0 0 0 3px oklch(0.5 0.16 258 / 0.1); }
 .lp-form .lp-primary { margin-top: 4px; }
 
 /* ────── Part 6: 注册页（reg-* 移植自 Vue Register.vue；el-input/select/date 已映射为原生 .reg-inp/.reg-sel/.reg-date）────── */
@@ -12743,16 +13073,16 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   --reg-muted: #64748b;
   --reg-line: oklch(0.9 0.02 var(--hue));
   --reg-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --reg-surface: var(--surface, oklch(0.985 0.005 252));
+  --reg-surface: var(--surface, oklch(0.985 0.005 258));
   --reg-tint: oklch(0.975 0.02 var(--hue));
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   isolation: isolate;
   overflow-x: hidden;
-  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-display);
   color: var(--reg-ink);
   background: var(--reg-tint);
 }
@@ -12763,6 +13093,10 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   inset: 0;
   z-index: -3;
   background-image: url('/bg-hydro-hero-7.png');
+  background-image: image-set(
+    url('/images/hydro-hero.avif') type('image/avif'),
+    url('/bg-hydro-hero-7.png') type('image/png')
+  );
   background-position: center;
   background-size: cover;
   filter: saturate(0.7) contrast(0.92) brightness(1.02);
@@ -12799,7 +13133,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   z-index: 3;
   display: inline-flex;
   align-items: center;
+  min-height: 44px;
   gap: 12px;
+  text-decoration: none;
 }
 .reg-brand-mark {
   width: 54px;
@@ -12809,10 +13145,10 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   background: #fff;
   padding: 5px;
   box-sizing: border-box;
-  box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4);
+  box-shadow: 4px 4px 12px oklch(0.3 0.05 258 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4);
 }
 .reg-brand-name {
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -12835,9 +13171,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   width: min(680px, 100%);
   padding: 48px 40px 40px;
   border-radius: 24px;
-  background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.965 0.015 258));
   box-shadow:
-    12px 12px 30px oklch(0.42 0.05 252 / 0.16),
+    12px 12px 30px oklch(0.42 0.05 258 / 0.16),
     -9px -9px 24px oklch(1 0 0 / 0.92),
     inset 0 1px 0 oklch(1 0 0 / 0.85);
   animation: reg-rise 0.58s var(--reg-ease) backwards;
@@ -12850,7 +13186,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .reg-card:hover {
   transform: translateY(-3px);
   box-shadow:
-    16px 16px 38px oklch(0.42 0.05 252 / 0.2),
+    16px 16px 38px oklch(0.42 0.05 258 / 0.2),
     -11px -11px 28px oklch(1 0 0 / 0.95),
     inset 0 1px 0 oklch(1 0 0 / 0.9);
 }
@@ -12864,12 +13200,12 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .reg-brand-word {
   display: block;
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-display);
   font-size: 34px;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.01em;
-  color: var(--brand-deep, oklch(0.42 0.13 252));
+  color: var(--brand-deep, oklch(0.42 0.13 258));
   text-align: center;
   margin: 0 -40px;
   padding: 6px 40px;
@@ -12879,7 +13215,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   line-height: 1;
   margin: 0 8px;
   opacity: 0.5;
-  color: var(--brand, oklch(0.55 0.16 252));
+  color: var(--brand, oklch(0.5 0.16 258));
 }
 
 .reg-divider {
@@ -12965,25 +13301,57 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   position: relative;
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  padding: 0 24px;
+  gap: 12px;
+  padding: 0 14px;
   margin-bottom: 6px;
 }
-.reg-steps-track {
-  position: absolute;
-  top: 20px;
-  left: calc(24px + 20px);
-  right: calc(24px + 20px);
-  height: 1px;
-  background: oklch(0.9 0.01 var(--hue));
+
+/* 段落式连线：节点之间的独立凹槽，间距隔出段落感。
+   未达段 = 内凹槽（与节点井同语言）；已过段 = 品牌渐变凸起光带 + 流光。 */
+.reg-seg {
+  position: relative;
+  flex: 1 1 0;
+  height: 10px;
+  margin-top: 15px; /* 对齐 40px 节点圆心 */
+  border-radius: 999px;
+  overflow: hidden;
+  background: oklch(0.962 0.009 258);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.13), inset -1.5px -1.5px 3px oklch(1 0 0 / 0.85);
+  transition: box-shadow 0.35s var(--reg-ease);
 }
-.reg-steps-fill {
+.reg-seg.is-filled {
+  background: oklch(0.985 0.006 258);
+  box-shadow:
+    2px 2px 6px oklch(0.45 0.08 258 / 0.2),
+    -1.5px -1.5px 4px oklch(1 0 0 / 0.9),
+    inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.reg-seg-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, oklch(0.52 0.15 258), oklch(0.46 0.14 230) 55%, oklch(0.5 0.13 200));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.32), inset 0 -1px 0 oklch(0 0 0 / 0.12);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.45s var(--reg-ease);
+}
+.reg-seg.is-filled .reg-seg-fill { transform: scaleX(1); }
+
+/* 流光：横贯光带的白色斜向光束 */
+.reg-seg-sheen {
   position: absolute;
   top: 0;
+  bottom: 0;
   left: 0;
-  height: 100%;
-  background: oklch(0.5 0.16 var(--hue));
-  transition: width 0.45s var(--reg-ease);
+  width: 42%;
+  background: linear-gradient(100deg, transparent, oklch(1 0 0 / 0.55) 50%, transparent);
+  transform: translateX(-140%) skewX(-14deg);
+  animation: reg-seg-sheen 2.6s var(--reg-ease) infinite;
+}
+@keyframes reg-seg-sheen {
+  0% { transform: translateX(-140%) skewX(-14deg); }
+  55%, 100% { transform: translateX(340%) skewX(-14deg); }
 }
 
 .reg-step {
@@ -12996,6 +13364,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   border: none;
   background: none;
   cursor: pointer;
+  min-width: 44px;
   padding: 0;
   font-family: inherit;
   transition: opacity 0.25s ease;
@@ -13023,21 +13392,48 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .reg-step.is-active .reg-step-dot {
   color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
+  background: linear-gradient(180deg, oklch(0.5 0.16 258), oklch(0.42 0.15 258));
   box-shadow:
-    3px 3px 8px oklch(0.4 0.1 252 / 0.32),
+    3px 3px 8px oklch(0.4 0.1 258 / 0.32),
     -2px -2px 6px oklch(1 0 0 / 0.5),
     inset 0 1px 0 oklch(1 0 0 / 0.3),
-    0 0 0 6px color-mix(in oklab, var(--brand, oklch(0.55 0.16 252)) 14%, transparent);
+    0 0 0 6px color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 14%, transparent);
 }
 .reg-step.is-done .reg-step-dot {
   color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 3px 3px 8px oklch(0.4 0.1 252 / 0.32), -2px -2px 6px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  background: linear-gradient(180deg, oklch(0.5 0.16 258), oklch(0.42 0.15 258));
+  box-shadow: 3px 3px 8px oklch(0.4 0.1 258 / 0.32), -2px -2px 6px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3), 0 0 10px oklch(0.5 0.16 258 / 0.28);
+}
+
+/* 激活节点光影流动：旋转光斑扫过圆面 + 呼吸光环 */
+.reg-step-dot { position: relative; }
+.reg-step.is-active .reg-step-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 68%, oklch(1 0 0 / 0.4) 80%, oklch(1 0 0 / 0.08) 88%, transparent 96%);
+  animation: reg-dot-orbit 3.2s linear infinite;
+  pointer-events: none;
+}
+.reg-step-num { position: relative; }
+@keyframes reg-dot-orbit { to { transform: rotate(1turn); } }
+.reg-step.is-active .reg-step-dot::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px oklch(0.5 0.16 258 / 0.3), 0 0 16px oklch(0.5 0.16 258 / 0.3);
+  animation: reg-dot-halo 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes reg-dot-halo {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
 }
 
 .reg-step-num {
-  font-family: 'Plus Jakarta Sans', 'Manrope', sans-serif;
+  font-family: var(--font-display);
   font-size: 15px;
   font-weight: 700;
   color: oklch(0.45 0.03 var(--hue));
@@ -13085,19 +13481,6 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   gap: 0 20px;
 }
 
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-.reg-form
-
 /* ═══════════════════════════════════════════════
    Step 3: Contact / Qualification rows
    ═══════════════════════════════════════════════ */
@@ -13140,7 +13523,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   color: oklch(0.5 0.04 var(--hue));
   background: var(--reg-surface);
   box-shadow: inset 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.12), inset -1.5px -1.5px 3px oklch(1 0 0 / 0.8);
-  font-family: 'Plus Jakarta Sans', 'Manrope', sans-serif;
+  font-family: var(--font-display);
 }
 .reg-row-fields {
   flex: 1;
@@ -13192,13 +13575,6 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   opacity: 0.25;
   cursor: default;
 }
-
-/* Step 3 Element Plus overrides — compact concave rows */
-.reg-row
-.reg-row
-.reg-row
-.reg-row
-.reg-row
 
 /* ═══════════════════════════════════════════════
    Step 4: Summary
@@ -13298,7 +13674,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   background: color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 7%, transparent);
   border: 1px solid color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 18%, transparent);
   font-size: 13px;
-  color: var(--brand-deep, oklch(0.42 0.13 252));
+  color: var(--brand-deep, oklch(0.42 0.13 258));
   line-height: 1.55;
 }
 
@@ -13324,25 +13700,25 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .reg-btn:disabled { cursor: wait; opacity: 0.65; }
 
-/* Primary — raised brand neumorphic button (mirrors login .lp-primary) */
+/* Primary — raised water-teal neumorphic button (wizard 主操作：下一步/提交) */
 .reg-btn--primary {
-  height: 54px;
-  padding: 0 32px;
-  border-radius: 14px;
-  font-size: 15px;
+  height: 44px;
+  padding: 0 28px;
+  border-radius: 13px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.08em;
   color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 4px 4px 12px oklch(0.4 0.1 252 / 0.35), -3px -3px 8px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  background: linear-gradient(180deg, oklch(0.62 0.11 200), oklch(0.5 0.12 200));
+  box-shadow: 4px 4px 12px oklch(0.45 0.08 200 / 0.32), -3px -3px 8px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.35);
 }
 .reg-btn--primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 6px 6px 18px oklch(0.4 0.1 252 / 0.42), -3px -3px 8px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  box-shadow: 6px 6px 18px oklch(0.45 0.08 200 / 0.4), -3px -3px 8px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.4);
 }
 .reg-btn--primary:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: inset 3px 3px 8px oklch(0.3 0.1 252 / 0.5), inset -2px -2px 6px oklch(0.7 0.1 252 / 0.3);
+  box-shadow: inset 3px 3px 8px oklch(0.35 0.08 200 / 0.45), inset -2px -2px 6px oklch(0.85 0.06 200 / 0.35);
 }
 
 /* Ghost (secondary / small action) — soft plate */
@@ -13354,12 +13730,12 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   font-weight: 600;
   gap: 6px;
   color: oklch(0.45 0.04 var(--hue));
-  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  background: linear-gradient(180deg, oklch(0.99 0.008 258), oklch(0.96 0.015 258));
   box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 .reg-btn--ghost:hover:not(:disabled) {
   transform: translateY(-1px);
-  color: var(--brand, oklch(0.5 0.15 252));
+  color: var(--brand, oklch(0.5 0.15 258));
 }
 
 .reg-btn--primary-sm {
@@ -13370,12 +13746,12 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   font-weight: 700;
   letter-spacing: 0.04em;
   color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 2px 2px 6px oklch(0.4 0.1 252 / 0.3), -2px -2px 4px oklch(1 0 0 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  background: linear-gradient(180deg, oklch(0.62 0.11 200), oklch(0.5 0.12 200));
+  box-shadow: 2px 2px 6px oklch(0.45 0.08 200 / 0.3), -2px -2px 4px oklch(1 0 0 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.35);
 }
 .reg-btn--primary-sm:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 3px 3px 9px oklch(0.4 0.1 252 / 0.36), -2px -2px 5px oklch(1 0 0 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  box-shadow: 3px 3px 9px oklch(0.45 0.08 200 / 0.36), -2px -2px 5px oklch(1 0 0 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.4);
 }
 
 .reg-btn--ghost-sm {
@@ -13386,29 +13762,29 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   font-weight: 600;
   gap: 5px;
   color: oklch(0.5 0.06 var(--hue));
-  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  background: linear-gradient(180deg, oklch(0.99 0.008 258), oklch(0.96 0.015 258));
   box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 .reg-btn--ghost-sm:hover:not(:disabled) {
   transform: translateY(-1px);
-  color: var(--brand, oklch(0.5 0.15 252));
+  color: var(--brand, oklch(0.5 0.15 258));
 }
 
 /* Back button — soft plate */
 .reg-btn--back {
-  height: 48px;
+  height: 44px;
   padding: 0 20px;
-  border-radius: 14px;
+  border-radius: 13px;
   font-size: 14px;
   font-weight: 600;
   gap: 4px;
   color: oklch(0.48 0.03 var(--hue));
-  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  background: linear-gradient(180deg, oklch(0.99 0.008 258), oklch(0.96 0.015 258));
   box-shadow: 3px 3px 8px oklch(0.55 0.03 258 / 0.14), -2px -2px 6px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 .reg-btn--back:hover:not(:disabled) {
   transform: translateY(-1px);
-  color: var(--brand, oklch(0.5 0.15 252));
+  color: var(--brand, oklch(0.5 0.15 258));
 }
 
 /* File upload — concave drop-zone style */
@@ -13423,11 +13799,11 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   overflow: hidden;
   text-overflow: ellipsis;
   color: oklch(0.5 0.06 var(--hue));
-  background: var(--surface, oklch(0.965 0.012 252));
+  background: var(--surface, oklch(0.965 0.012 258));
   box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
 }
 .reg-btn--file:hover {
-  color: var(--brand, oklch(0.5 0.15 252));
+  color: var(--brand, oklch(0.5 0.15 258));
   box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.13), inset -2px -2px 4px oklch(1 0 0 / 0.75);
 }
 
@@ -13435,17 +13811,55 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
    Footer
    ═══════════════════════════════════════════════ */
 .reg-foot {
-  margin-top: 18px;
-  text-align: center;
-  color: var(--reg-muted);
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
 }
-.reg-foot a {
-  color: oklch(0.5 0.13 var(--hue));
+.reg-foot::before,
+.reg-foot::after {
+  content: '';
+  flex: 0 1 64px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(0.78 0.02 258 / 0.5));
+}
+.reg-foot::after { background: linear-gradient(90deg, oklch(0.78 0.02 258 / 0.5), transparent); }
+.reg-foot-text { color: var(--reg-muted); font-size: 12.5px; letter-spacing: 0.02em; }
+.reg-foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
   font-weight: 700;
-  text-decoration: none;
+  letter-spacing: 0.02em;
+  color: oklch(0.42 0.11 258);
+  background: oklch(0.965 0.01 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.25s var(--reg-ease);
 }
-.reg-foot a:hover { text-decoration: underline; }
+.reg-foot-link svg { color: oklch(0.5 0.12 230); flex-shrink: 0; transition: color 0.25s ease; }
+.reg-foot-link:hover {
+  transform: translateY(-1px);
+  color: oklch(0.36 0.12 258);
+  background: oklch(0.975 0.012 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 3px 7px oklch(0.5 0.05 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.reg-foot-link:hover svg { color: oklch(0.46 0.13 230); }
+.reg-foot-link:active {
+  transform: none;
+  background: oklch(0.955 0.01 258);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
 
 /* ═══════════════════════════════════════════════
    Transition
@@ -13508,11 +13922,12 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   .reg-title { font-size: 26px; }
 
   .reg-steps {
-    padding: 0 8px;
+    gap: 8px;
+    padding: 0 6px;
   }
-  .reg-steps-track {
-    left: calc(8px + 16px);
-    right: calc(8px + 16px);
+  .reg-seg {
+    height: 8px;
+    margin-top: 12px; /* 对齐 32px 节点圆心 */
   }
   .reg-step-dot {
     width: 32px;
@@ -13558,14 +13973,18 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   .reg-card, .reg-head, .reg-steps, .reg-body, .reg-actions, .reg-foot, .reg-step-pane { animation: none; }
   .reg-card:hover, .reg-btn--primary:hover:not(:disabled), .reg-btn--ghost:hover:not(:disabled),
   .reg-btn--ghost-sm:hover:not(:disabled), .reg-btn--back:hover:not(:disabled), .reg-btn--primary-sm:hover:not(:disabled) { transform: none; }
-  .reg-steps-fill { transition: none; }
+  .reg-seg-sheen,
+  .reg-step.is-active .reg-step-dot::before,
+  .reg-step.is-active .reg-step-dot::after { animation: none; }
+  .reg-seg-sheen { display: none; }
+  .reg-seg-fill { transition: none; }
 }
 /* React 版注册输入（原 el-input 内凹规格的等价实现） */
 .reg-item { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
 .reg-label { font-size: 13px; font-weight: 800; letter-spacing: 0.06em; color: color-mix(in oklch, var(--reg-ink) 82%, #000); line-height: 1; }
 .reg-form .reg-inp, .reg-form .reg-sel, .reg-form .reg-date {
   height: 52px; border: none; border-radius: 14px; outline: none; padding: 0 16px;
-  background: var(--surface, oklch(0.965 0.012 252)); color: var(--reg-ink); font-family: inherit; font-size: 15px;
+  background: var(--surface, oklch(0.965 0.012 258)); color: var(--reg-ink); font-family: inherit; font-size: 15px;
   box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85);
   transition: box-shadow 0.2s var(--reg-ease); width: 100%; box-sizing: border-box;
   appearance: none;
@@ -13577,8 +13996,8 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   box-shadow: inset 4px 4px 9px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9);
 }
 .reg-form .reg-inp:focus, .reg-form .reg-sel:focus, .reg-form .reg-date:focus, .reg-form textarea.reg-inp:focus {
-  background: oklch(0.985 0.01 252);
-  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.55 0.16 252)) 16%, transparent);
+  background: oklch(0.985 0.008 258);
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 16%, transparent);
 }
 .reg-form .reg-inp::placeholder, .reg-form textarea.reg-inp::placeholder { color: oklch(0.66 0.02 var(--hue)); }
 /* 下拉箭头 */
@@ -13607,7 +14026,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   background: none;
   padding: 0;
   font: inherit;
-  color: var(--brand, oklch(0.5 0.16 252));
+  color: var(--brand, oklch(0.5 0.16 258));
   font-weight: 700;
   cursor: pointer;
 }
@@ -13619,7 +14038,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   max-height: 56vh;
   overflow-y: auto;
   padding-right: 6px;
-  color: oklch(0.3 0.03 252);
+  color: oklch(0.3 0.03 258);
 }
 .reg-agree-lead {
   margin: 0 0 16px;
@@ -13628,7 +14047,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   color: var(--muted, #64748b);
   padding: 12px 14px;
   border-radius: 10px;
-  background: color-mix(in oklab, var(--brand, oklch(0.5 0.16 252)) 6%, transparent);
+  background: color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 6%, transparent);
 }
 .reg-agree-sec {
   margin-bottom: 18px;
@@ -13637,14 +14056,14 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 800;
-  color: oklch(0.32 0.05 252);
+  color: oklch(0.32 0.05 258);
 }
 .reg-agree-p {
   margin: 0 0 6px;
   font-size: 13px;
   line-height: 1.75;
   text-align: justify;
-  color: oklch(0.38 0.03 252);
+  color: oklch(0.38 0.03 258);
 }
 
 .reg-agree-foot {
@@ -13662,14 +14081,14 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   font-weight: 700;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 2px 2px 6px oklch(0.4 0.1 252 / 0.3), -2px -2px 4px oklch(1 0 0 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  background: linear-gradient(180deg, oklch(0.5 0.16 258), oklch(0.42 0.15 258));
+  box-shadow: 2px 2px 6px oklch(0.4 0.1 258 / 0.3), -2px -2px 4px oklch(1 0 0 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.3);
   transition: transform 0.15s ease;
 }
 .reg-agree-btn:hover { transform: translateY(-1px); }
 .reg-agree-btn--ghost {
-  color: oklch(0.5 0.06 252);
-  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  color: oklch(0.5 0.06 258);
+  background: linear-gradient(180deg, oklch(0.99 0.008 258), oklch(0.96 0.015 258));
   box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 
@@ -13678,7 +14097,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-panel--reg { grid-column: 1; align-items: center; justify-content: flex-start; padding: 80px 24px 40px; }
 .lp-card--reg { width: 460px; }
 .lp-sub { margin: 8px 0 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
-.lp-invite-ok { margin-top: 6px; font-size: 12px; font-weight: 600; color: oklch(0.5 0.14 152); }
+.lp-invite-ok { margin-top: 6px; font-size: 12px; font-weight: 600; color: oklch(0.5 0.14 160); }
 .lp-invite-err { margin-top: 6px; font-size: 12px; font-weight: 600; color: oklch(0.55 0.18 27); }
 .lp-field.has-err .lp-input-wrap { box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85), 0 0 0 2px color-mix(in oklab, var(--danger) 40%, transparent); }
 .lp-err-text { font-size: 12px; padding-top: 4px; color: var(--danger); }
@@ -13701,7 +14120,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   isolation: isolate;
   box-sizing: border-box;
   padding: 96px 16px 48px; /* 顶部固定品牌栏留白 */
-  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-display);
   color: var(--ink);
   background: var(--tint);
 }
@@ -13713,7 +14132,12 @@ main.rv { overflow: hidden; }
 
 .rv-bg {
   position: absolute; inset: 0; z-index: -3;
-  background-image: url('/bg-hydro-hero-7.png'); background-position: center; background-size: cover;
+  background-image: url('/bg-hydro-hero-7.png');
+  background-image: image-set(
+    url('/images/hydro-hero.avif') type('image/avif'),
+    url('/bg-hydro-hero-7.png') type('image/png')
+  );
+  background-position: center; background-size: cover;
   filter: saturate(0.7) contrast(0.92) brightness(1.02); transform: scale(1.04);
 }
 .rv::after {
@@ -13723,18 +14147,18 @@ main.rv { overflow: hidden; }
     radial-gradient(circle at 50% 30%, color-mix(in oklch, white 22%, transparent), transparent 50%);
 }
 .rv-brand { position: fixed; top: 26px; left: 6vw; z-index: 3; display: inline-flex; align-items: center; gap: 12px; }
-.rv-brand-mark { width: 50px; height: 50px; border-radius: 14px; object-fit: cover; background: #fff; padding: 5px; box-sizing: border-box; box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4); }
-.rv-brand-name { font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: 0.05em; color: #fff; text-shadow: 0 6px 22px rgba(0,0,0,0.32); }
+.rv-brand-mark { width: 50px; height: 50px; border-radius: 14px; object-fit: cover; background: #fff; padding: 5px; box-sizing: border-box; box-shadow: 4px 4px 12px oklch(0.3 0.05 258 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4); }
+.rv-brand-name { font-family: var(--font-display); font-size: 20px; font-weight: 800; letter-spacing: 0.05em; color: #fff; text-shadow: 0 6px 22px rgba(0,0,0,0.32); }
 .rv-panel { width: 100%; max-width: 680px; }
 .rv-card {
   position: relative; width: 100%; padding: 44px 34px 38px; border-radius: 24px;
-  background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));
-  box-shadow: 12px 12px 30px oklch(0.42 0.05 252 / 0.16), -9px -9px 24px oklch(1 0 0 / 0.92), inset 0 1px 0 oklch(1 0 0 / 0.85);
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.965 0.015 258));
+  box-shadow: 12px 12px 30px oklch(0.42 0.05 258 / 0.16), -9px -9px 24px oklch(1 0 0 / 0.92), inset 0 1px 0 oklch(1 0 0 / 0.85);
   animation: rv-rise 0.5s var(--ease) backwards;
 }
 @keyframes rv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 .rv-head { margin-bottom: 22px; text-align: center; }
-.rv-brand-word { display: block; font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; color: var(--brand-deep); }
+.rv-brand-word { display: block; font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.01em; color: var(--brand-deep); }
 .rv-brand-word .rv-dot { font-size: 20px; margin: 0 6px; opacity: 0.5; color: var(--brand); }
 .rv-divider { display: flex; align-items: center; justify-content: center; width: 150px; margin: 14px auto 4px; color: oklch(0.55 0.12 var(--hue)); font-size: 9px; }
 .rv-divider::before, .rv-divider::after { content: ''; flex: 1; height: 1px; }
@@ -13766,7 +14190,7 @@ main.rv { overflow: hidden; }
 .rv-btn--decline:hover { transform: translateY(-1px); color: oklch(0.45 0.18 25); }
 .rv-note-label { display: block; margin: 16px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .rv-note { width: 100%; box-sizing: border-box; resize: vertical; padding: 12px 14px; border-radius: 12px; border: none; font-family: inherit; font-size: 14px; color: var(--ink);
-  background: oklch(0.965 0.012 252); box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85); }
+  background: oklch(0.965 0.012 258); box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85); }
 .rv-note:focus { outline: none; box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand) 16%, transparent); }
 .rv-privacy { margin: 12px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); text-align: center; }
 
@@ -14018,12 +14442,124 @@ main.rv { overflow: hidden; }
 }
 
 /* ── 公开长页滚动（根布局 body overflow-hidden 服务于工作台内滚动；注册等公开页须自滚动）── */
-main.lp, main.reg, main.rv { height: 100vh; overflow-y: auto; }
+main.lp, main.reg, main.rv { height: 100dvh; overflow-y: auto; }
 main.reg { align-items: flex-start; }
 @media (prefers-reduced-motion: reduce) { main.lp, main.reg, main.rv { scroll-behavior: auto; } }
 
+@media (max-width: 720px) {
+  .lp-bg, .reg-bg, .rv-bg {
+    background-image: url('/bg-hydro-hero-7.png');
+    background-image: image-set(
+      url('/images/hydro-hero-mobile.avif') type('image/avif'),
+      url('/bg-hydro-hero-7.png') type('image/png')
+    );
+  }
+}
+
 /* ── 临时注册：分组小节标题 ── */
-.lp-subsec { display: flex; align-items: center; gap: 8px; margin: 20px 0 4px; padding-top: 14px; border-top: 1px solid oklch(0.9 0.02 252); }
+.lp-subsec { display: flex; align-items: center; gap: 8px; margin: 20px 0 4px; padding-top: 14px; border-top: 1px solid oklch(0.9 0.02 258); }
 .lp-form .lp-subsec:first-child { margin-top: 0; padding-top: 0; border-top: none; }
-.lp-subsec h3 { margin: 0; font-size: 13.5px; font-weight: 800; color: oklch(0.32 0.05 252); }
-.lp-subsec-hint { font-size: 11.5px; color: oklch(0.62 0.02 252); }
+.lp-subsec h3 { margin: 0; font-size: 13.5px; font-weight: 800; color: oklch(0.32 0.05 258); }
+.lp-subsec-hint { font-size: 11.5px; color: oklch(0.62 0.02 258); }
+
+/* ═══ 登录/注册页水系配色优化（蜀水云采品牌：蓝 258 + 水青 200）═══
+   原为单一紫蓝 hue 252，现改为：
+   - 主色调 hue 258（品牌蓝 oklch(0.5 0.16 258) ≈ #064ea2）——按钮/链接/边框
+   - 辅助色 hue 200（水青 oklch(0.5 0.12 200) ≈ #0e7490）——品牌字第二段渐变/悬停点缀
+   - 整体降低饱和度（0.16→0.15 级），减轻紫感，增强水系蓝调 */
+
+/* 品牌字：渐变流光（对齐 :3005 login-title--gradient——蓝→青→绿亮色光谱，
+   200% 平铺 + ease-in-out 往返漂移，颜色更亮、节奏更缓；首尾同色保证无缝） */
+.lp-brand-word,
+.reg-brand-word {
+  background: linear-gradient(
+    90deg,
+    oklch(0.34 0.11 259) 0%,
+    oklch(0.44 0.15 258) 22%,
+    oklch(0.61 0.09 205) 48%,
+    oklch(0.66 0.14 160) 70%,
+    oklch(0.44 0.15 258) 88%,
+    oklch(0.34 0.11 259) 100%
+  );
+  background-size: 200% 100%;
+  animation: brand-word-flow 8s ease-in-out infinite alternate;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+@keyframes brand-word-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+/* 点分隔符：水青（显式填回——父级 text-fill transparent 会继承吞掉点） */
+.lp-brand-word .lp-dot, .reg-brand-word .reg-dot {
+  color: oklch(0.5 0.12 200);
+  -webkit-text-fill-color: oklch(0.5 0.12 200);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-brand-word, .reg-brand-word {
+    animation: none;
+    background-position: 22% 50%;
+  }
+}
+
+/* 分割线渐变端点缀水青 */
+.lp-divider::before { background: linear-gradient(90deg, transparent, oklch(0.6 0.1 var(--hue)), oklch(0.5 0.12 200)); margin-right: 10px; }
+.lp-divider::after { background: linear-gradient(270deg, transparent, oklch(0.6 0.1 var(--hue)), oklch(0.5 0.12 200)); margin-left: 10px; }
+
+/* 登录按钮 hover 微光水青 */
+.lp-primary:hover:not(:disabled) {
+  box-shadow: 6px 6px 18px oklch(0.4 0.1 258 / 0.42),
+    -3px -3px 8px oklch(1 0 0 / 0.55),
+    inset 0 1px 0 oklch(1 0 0 / 0.35),
+    0 0 20px oklch(0.5 0.12 200 / 0.15);
+}
+
+/* 临时注册入口保留水青；注册表单次级动作统一使用品牌蓝。 */
+.lp-reg-btn--temp {
+  color: oklch(0.42 0.11 210);
+}
+.lp-reg-btn--temp:hover {
+  color: oklch(0.36 0.12 205);
+}
+.reg-btn--ghost-sm,
+.reg-btn--ghost-sm:hover { color: var(--brand, oklch(0.5 0.16 258)); }
+
+/* 注册输入框 focus 环：单一品牌蓝，避免字段状态出现多套强调色。 */
+.reg-form .reg-inp:focus, .reg-form .reg-sel:focus, .reg-form .reg-date:focus,
+.reg-form textarea.reg-inp:focus {
+  background: oklch(0.985 0.008 258);
+  box-shadow:
+    inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14),
+    inset -3px -3px 7px oklch(1 0 0 / 0.9),
+    0 0 0 3px oklch(0.5 0.16 258 / 0.14);
+}
+.lp-input-wrap:focus-within {
+  background: oklch(0.985 0.008 258);
+  box-shadow:
+    inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14),
+    inset -3px -3px 7px oklch(1 0 0 / 0.9),
+    0 0 0 3px oklch(0.5 0.16 258 / 0.1),
+    0 0 12px oklch(0.5 0.12 200 / 0.08);
+}
+
+/* 步骤条激活节点：品牌蓝。 */
+.reg-step.is-active .reg-step-dot {
+  background: linear-gradient(180deg, oklch(0.5 0.16 258), oklch(0.42 0.15 258));
+  box-shadow:
+    3px 3px 8px oklch(0.4 0.1 258 / 0.32),
+    -2px -2px 6px oklch(1 0 0 / 0.5),
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    0 0 0 6px oklch(0.5 0.16 258 / 0.12);
+}
+
+/* 业务标签选中：与步骤和主按钮保持同一品牌蓝。 */
+.reg-tagpick.on {
+  background: linear-gradient(180deg, oklch(0.54 0.16 252), oklch(0.44 0.15 258));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-primary:hover, .lp-input-wrap:focus-within { box-shadow: none; }
+}

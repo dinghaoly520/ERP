@@ -1,9 +1,13 @@
 "use client";
 
 import { AlertCircle, CheckCircle2, LifeBuoy } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/workbench";
-import { requestPasswordReset } from "@/lib/api/auth";
+import { requestPasswordReset, sendRegistrationCode } from "@/lib/api/auth";
+import {
+  normalizePasswordResetRequest,
+  validatePasswordResetRequest,
+} from "@/lib/password-reset";
 
 type ForgotPasswordDialogProps = {
   isOpen: boolean;
@@ -17,6 +21,12 @@ export function ForgotPasswordDialog({
   const [username, setUsername] = useState("");
   const [applicantName, setApplicantName] = useState("");
   const [applicantContact, setApplicantContact] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [codeSending, setCodeSending] = useState(false);
+  const [codeCooldown, setCodeCooldown] = useState(0);
+  const codeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -25,9 +35,62 @@ export function ForgotPasswordDialog({
     setUsername("");
     setApplicantName("");
     setApplicantContact("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setVerificationCode("");
     setSubmitting(false);
     setErrorMessage(null);
     setSuccessMessage(null);
+    setCodeCooldown(0);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      if (codeTimerRef.current) {
+        clearInterval(codeTimerRef.current);
+        codeTimerRef.current = null;
+      }
+      setCodeCooldown(0);
+    }
+  }, [isOpen]);
+
+  function startCooldown(seconds = 60) {
+    if (codeTimerRef.current) {
+      clearInterval(codeTimerRef.current);
+      codeTimerRef.current = null;
+    }
+    setCodeCooldown(seconds);
+    codeTimerRef.current = setInterval(() => {
+      setCodeCooldown((prev) => {
+        if (prev <= 1) {
+          if (codeTimerRef.current) {
+            clearInterval(codeTimerRef.current);
+            codeTimerRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  const handleSendCode = async () => {
+    const phone = applicantContact.trim();
+    if (!/^1\d{10}$/.test(phone)) {
+      setErrorMessage("请输入有效的手机号");
+      return;
+    }
+    setErrorMessage(null);
+    setCodeSending(true);
+    try {
+      await sendRegistrationCode(phone);
+      setErrorMessage("验证码已发送，请查收");
+      startCooldown();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "验证码发送失败");
+    } finally {
+      setCodeSending(false);
+    }
   };
 
   const handleClose = () => {
@@ -40,36 +103,27 @@ export function ForgotPasswordDialog({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!username.trim()) {
-      setErrorMessage("请输入需要重置的账号。");
-      return;
-    }
-
-    if (!applicantName.trim()) {
-      setErrorMessage("请输入申请人姓名。");
-      return;
-    }
-
-    if (!applicantContact.trim()) {
-      setErrorMessage("请输入申请人联系方式。");
+    const form = { username, applicantName, applicantContact, verificationCode, newPassword, confirmPassword };
+    const validationError = validatePasswordResetRequest(form);
+    if (validationError) {
+      setErrorMessage(validationError);
       return;
     }
 
     setSubmitting(true);
 
     try {
-      await requestPasswordReset({
-        username: username.trim(),
-        applicantName: applicantName.trim(),
-        applicantContact: applicantContact.trim(),
-      });
+      await requestPasswordReset(normalizePasswordResetRequest(form));
 
       setSuccessMessage(
-        "申请已提交，管理员收到后会核验信息，并决定是否为该账号生成临时密码。",
+        "申请已提交。无论账号是否存在，平台都会按统一流程受理；审核通过后将按本次填写的新密码生效。",
       );
       setUsername("");
       setApplicantName("");
       setApplicantContact("");
+      setVerificationCode("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -86,7 +140,7 @@ export function ForgotPasswordDialog({
       footer={<>
         <button type="button" onClick={handleClose} className="neu-btn-soft">取消</button>
         <button type="submit" form="forgot-password-form" disabled={submitting} className="neu-btn-primary">
-          {submitting ? "提交中..." : "联系管理员"}
+          {submitting ? "提交中..." : "提交申请"}
         </button>
       </>}>
       <div className="flex items-start gap-3">
@@ -94,7 +148,7 @@ export function ForgotPasswordDialog({
         <div>
           <div className="text-sm font-semibold text-[var(--foreground)]">提交密码重置申请</div>
           <p className="text-xs text-[var(--muted-foreground)] mt-1 leading-relaxed">
-            请填写账号、申请人姓名和联系方式。管理员收到申请后会核验信息，并决定是否为该账号生成临时密码。
+            请填写身份核验信息和新密码。管理员审核通过后，新密码才会生效。
           </p>
         </div>
       </div>
@@ -109,6 +163,30 @@ export function ForgotPasswordDialog({
             placeholder="请输入需要重置的账号"
             className="neu-input w-full text-sm"
             autoComplete="username"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">新密码</span>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            placeholder="至少 8 位，同时包含字母和数字"
+            className="neu-input w-full text-sm"
+            autoComplete="new-password"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">确认新密码</span>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            placeholder="请再次输入新密码"
+            className="neu-input w-full text-sm"
+            autoComplete="new-password"
           />
         </label>
 
@@ -135,6 +213,32 @@ export function ForgotPasswordDialog({
             autoComplete="tel"
           />
         </label>
+        <label className="block">
+          <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">验证码</span>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={verificationCode}
+              onChange={(event) => setVerificationCode(event.target.value)}
+              placeholder="6 位验证码"
+              className="neu-input w-full text-sm"
+              maxLength={6}
+            />
+            <button
+              type="button"
+              onClick={handleSendCode}
+              disabled={codeSending || codeCooldown > 0}
+              className="neu-btn-soft shrink-0 text-xs disabled:opacity-50"
+            >
+              {codeSending ? "发送中..." : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
+            </button>
+          </div>
+        </label>
+
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          如需人工核验身份，请先联系采购中心 <a className="underline" href="tel:02866666666">028-66666666</a>。
+          页面会对手机号码进行短信验证码校验，提交申请后由采购管理人员审核并通过后生效。
+        </p>
 
         {errorMessage ? (
           <div className="flex items-start gap-2 text-sm text-[var(--danger)]" aria-live="polite">

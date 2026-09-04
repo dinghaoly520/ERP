@@ -21,6 +21,7 @@ import {
   type ClientDek,
 } from "@/utils/bid-crypto";
 import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@water-erp/ukey";
+import { serverNowMs, syncServerClock } from "@water-erp/shared";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
@@ -190,6 +191,7 @@ function BidSubmitInner() {
   const [saving, setSaving] = useState(false);
   const [project, setProject] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [nowMs, setNowMs] = useState(() => serverNowMs());
 
   // 提交模式：full=完整标书，split=拆分文件
   const [submissionMode, setSubmissionMode] = useState<"full" | "split">("full");
@@ -208,7 +210,7 @@ function BidSubmitInner() {
   // 双层加密密封条目缓存：assetId → { role, entry{sha256,kself,kadmin}, certPublicKey }（全部公开信息，无私钥）
   // certPublicKey 记录上传时所用证书公钥——提交前与签名证书比对，拦截换证窗口期 kself/签名错位
   const [dualEntries, setDualEntries] = useState<Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry; certPublicKey: string }>>({});
-  const DUAL_STORAGE_KEY = `supplier_dual:bidsubmit:${projectId}`;
+  const DUAL_STORAGE_KEY = `supplier_dual:bidsubmit:${projectId}:${profile?.userId || ''}`;
   const dualKeyRef = useRef(DUAL_STORAGE_KEY);
   dualKeyRef.current = DUAL_STORAGE_KEY;
   // 管理方加密证书（getAdminCert，惰性缓存）
@@ -272,7 +274,7 @@ function BidSubmitInner() {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const draftKey = `bidsubmit:${projectId}`;
+  const draftKey = `bidsubmit:${projectId}:${profile?.userId || ''}`;
   const draft = useAutoSave(draftKey, form, { enabled: autoSaveReady });
   useLeaveGuard(draft.dirty);
 
@@ -281,7 +283,7 @@ function BidSubmitInner() {
     : "";
 
   // E2EE: localStorage key for DEK persistence (separate from form draft)
-  const dekStorageKey = `supplier_dek:bidsubmit:${projectId}`;
+  const dekStorageKey = `supplier_dek:bidsubmit:${projectId}:${profile?.userId || ''}`;
   const dekKeyRef = useRef(dekStorageKey);
   dekKeyRef.current = dekStorageKey;
 
@@ -505,6 +507,12 @@ function BidSubmitInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
+  useEffect(() => {
+    void syncServerClock().then(() => setNowMs(serverNowMs()));
+    const timer = window.setInterval(() => setNowMs(serverNowMs()), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   async function retryLoad() {
     setError(false);
     setLoading(true);
@@ -537,7 +545,7 @@ function BidSubmitInner() {
   const isApproved = profile?.status === "APPROVED";
   const canSubmit = !!project && isApproved
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
-    && new Date(project.deadline) > new Date();
+    && new Date(project.deadline).getTime() > nowMs;
   const formDisabled = !canSubmit || existingSubmission?.status === "submitted";
   /** A-90 方案a（2026-08-31）：旧轨投递 UI 退役——未绑盾且可投递时仅显示绑盾引导卡（双信封为唯一交互投递通道）；已递交状态展示区保留原样 */
   const legacyRetired = canSubmit && !dualReady && existingSubmission?.status !== "submitted";
@@ -609,7 +617,10 @@ function BidSubmitInner() {
       const certs = await uk.listCertificates();
       // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底按公钥匹配 profile.sm2PublicKey
       const profilePub = profile?.sm2PublicKey;
-      const cert = certs.find((c) => c.certSn === boundCertSn()) || certs.find((c) => c.publicKey === profilePub);
+      // 【防错签】服务端 ACTIVE 绑定证书优先（共用浏览器下 supplier_ukey_bound 可能是前一供应商的）
+      const serverCerts: any = await supplierApi.listMyCerts().catch(() => []);
+      const activeCertSn = Array.isArray(serverCerts) ? serverCerts.find((c: any) => c.bindingStatus === "ACTIVE")?.certSn : undefined;
+      const cert = certs.find((c) => c.certSn === activeCertSn) || certs.find((c) => c.publicKey === profilePub) || certs.find((c) => c.certSn === boundCertSn());
       if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
       setUkeyAdapter(uk);
       setUkeyCertSn(cert.certSn);
@@ -697,7 +708,7 @@ function BidSubmitInner() {
 
   const preflightItems = (() => {
     const d = project?.deadline ? new Date(project.deadline) : null;
-    const deadlineOk = !!(d && d > new Date());
+    const deadlineOk = !!(d && d.getTime() > nowMs);
     let fileOk = false;
     let fileDetail = "";
     if (submissionMode === "full") {
@@ -755,10 +766,11 @@ function BidSubmitInner() {
       clearDeks();
       // W11-①（A-101）：双信封轨投递成功后自动签回执（U盾私钥 SM2 签 canonical，服务端验签存档）
       // 失败不阻塞投递结果——提示可稍后在「我的投标」补签
-      if (dualReady && ukeyAdapter && ukeyCertSn && submitted?.id) {
+      const session = ukeySessionRef.current; // 【stale state 修复】用 ref 而非 useState——解锁后同一闭包内 useState 读到旧值
+      if (dualReady && session?.adapter && session?.certSn && submitted?.id) {
         try {
           const { canonical } = await supplierApi.getReceiptPayload(submitted.id);
-          const signature = await ukeyAdapter.sign(ukeyCertSn, canonical);
+          const signature = await session.adapter.sign(session.certSn, canonical);
           await supplierApi.signReceiptSignature(submitted.id, signature);
           toast.success("投标回执已签署存档（SM2 防抵赖）");
         } catch (e: unknown) {

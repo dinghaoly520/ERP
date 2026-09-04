@@ -1,29 +1,27 @@
 "use client";
 
 /**
- * 供应商正式注册 — 注册 2.0 六部分向导：
- * 1 基本信息（logo/名称/信用代码/机构代码/国别/区域/地址/注册资本/体制类型/行业/法人/公司联系/业务标签）
- * 2 联系人信息（多项：姓名/性别/电话/身份证/邮箱/部门职务）
- * 3 银行账户信息（多项）
- * 4 资质信息（营业执照固定 + 其他，支持附加材料多上传）
- * 5 主体业绩（多项，每项须上传证明材料）
- * 6 总览确认 + 协议 + 提交审核
+ * 供应商正式注册五步向导：
+ * 1 身份与账号  2 企业与业务  3 联系人  4 资质与履历  5 确认提交
  *
  * 暂存/恢复：useAutoSave('register') 草稿存于本机 localStorage——
  * 恢复只读取当前浏览器自己的草稿，天然不会恢复他机/他人填写内容。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { toast } from "sonner";
-import { Building2, Check, ImagePlus, Paperclip, Plus, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Download, ImagePlus, Info, KeyRound, Mail, Paperclip, Plus, ShieldCheck, Tags, Trash2, Upload, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { authApi } from "@/lib/api/auth";
-import { uploadFile } from "@/lib/api/upload";
+import { uploadRegistrationFile, type RegistrationUploadCredentials } from "@/lib/api/upload";
 import { useAutoSave } from "@/hooks/use-auto-save";
+import { getErrorMessage, getRegistrationDraftKey } from "@/lib/registration-validation";
+import { replaceObjectUrlPreview, revokeObjectUrlPreview } from "@/lib/object-url-preview";
 import { RegisterAgreement } from "@/components/register-agreement";
+import { BusinessTagField } from "@/components/registration/business-tag-field";
+import { PasswordField } from "@/components/registration/password-field";
+import { RegistrationField, RegistrationSection, RegistrationShell, type RegistrationStep } from "@/components/registration/registration-shell";
 import { SpSwitch } from "@/components/ui";
 import { ENTERPRISE_TYPES, INDUSTRY_OPTIONS } from "@/constants/supplier";
 import "@/styles/pages/register2.css";
@@ -34,14 +32,21 @@ interface QualRow { type: string; name: string; fileUrl: string; attachments: { 
 interface PerfRow { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string }[] }
 interface FileAsset { url: string; originalName: string }
 
-const STEPS = ["基本信息", "联系人", "银行账户", "资质信息", "主体业绩", "总览确认"];
+const STEPS = [
+  { label: "身份与账号", description: "验证登录身份" },
+  { label: "企业与业务", description: "登记主体与业务方向" },
+  { label: "联系人", description: "维护业务联系人" },
+  { label: "资质与履历", description: "补充账户、证照与业绩" },
+  { label: "确认提交", description: "核对资料并提交审核" },
+] satisfies RegistrationStep[];
 const QUAL_TYPES = ["营业执照", "资质证书", "安全生产许可证", "质量管理体系认证", "环境管理体系认证", "其他"];
 
 /* ─── 多文件上传（附加材料 / 业绩证明）─── */
-function MultiFiles({ value, onChange, label = "上传附件" }: {
+function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
   value: { name: string; url: string }[];
   onChange: (v: { name: string; url: string }[]) => void;
   label?: string;
+  credentials: RegistrationUploadCredentials;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -50,13 +55,13 @@ function MultiFiles({ value, onChange, label = "上传附件" }: {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 50 * 1024 * 1024) { toast.warning("文件不能超过50MB"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.warning("注册附件不能超过10MB"); return; }
     setBusy(true);
     try {
-      const asset: FileAsset = await uploadFile(file, "qualification");
+      const asset: FileAsset = await uploadRegistrationFile(file, "qualification", credentials);
       onChange([...value, { name: asset.originalName || file.name, url: asset.url }]);
-    } catch (err: any) {
-      toast.error(err?.message || "上传失败，请重试");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "上传失败，请重试"));
     } finally {
       setBusy(false);
     }
@@ -83,20 +88,24 @@ function MultiFiles({ value, onChange, label = "上传附件" }: {
 }
 
 /* ─── 单文件上传按钮（资质主文件）─── */
-function SingleFile({ url, onPicked }: { url: string; onPicked: (a: FileAsset | null) => void }) {
+function SingleFile({ url, onPicked, credentials }: {
+  url: string;
+  onPicked: (a: FileAsset | null) => void;
+  credentials: RegistrationUploadCredentials;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 50 * 1024 * 1024) { toast.warning("文件不能超过50MB"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.warning("注册附件不能超过10MB"); return; }
     setBusy(true);
     try {
-      onPicked(await uploadFile(file, "qualification"));
-    } catch (err: any) {
+      onPicked(await uploadRegistrationFile(file, "qualification", credentials));
+    } catch (error: unknown) {
       onPicked(null);
-      toast.error(err?.message || "上传失败，请重试");
+      toast.error(getErrorMessage(error, "上传失败，请重试"));
     } finally {
       setBusy(false);
     }
@@ -114,11 +123,13 @@ function SingleFile({ url, onPicked }: { url: string; onPicked: (a: FileAsset | 
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { user } = useAuth();
 
   const [step, setStep] = useState(0);
+  const [maxVisitedStep, setMaxVisitedStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submissionError, setSubmissionError] = useState("");
 
   /* ── 第 1 部分：账号 + 基本信息 ── */
   // 用户名固定取「机构代码」、联系人/邮箱在第二步维护，故此处仅保留密码
@@ -128,10 +139,11 @@ export default function RegisterPage() {
     detailedAddress: "", registeredAddress: "", registeredCapital: "", enterpriseType: "", industry: "",
     businessScope: "", legalPerson: "", legalPersonIdCard: "", legalPersonPhone: "", companyEmail: "", companyWebsite: "",
   });
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
+  const logoPreviewUrlRef = useRef("");
   // 业务标签：以标签库选择为主（自创标签提交后进入待审核，审核通过入池）
   const [tags, setTags] = useState<string[]>([]);
   const [tagOptions, setTagOptions] = useState<{ id: string; name: string }[]>([]);
-  const [customTagInput, setCustomTagInput] = useState("");
   // 注册手机验证码（后端必填）
   const [registrationPhone, setRegistrationPhone] = useState("");
   const [registrationCode, setRegistrationCode] = useState("");
@@ -153,21 +165,44 @@ export default function RegisterPage() {
     step,
     registrationPhone,
     basic, tags, contacts, banks, quals, perfs,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [step, registrationPhone, JSON.stringify(basic), JSON.stringify(tags), JSON.stringify(contacts), JSON.stringify(banks), JSON.stringify(quals), JSON.stringify(perfs)]);
-  const draft = useAutoSave("register", draftData);
+  }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs]);
+  const recoverableDraftKey = getRegistrationDraftKey(user?.id);
+  const draft = useAutoSave(recoverableDraftKey ?? "register:disabled", draftData, {
+    enabled: Boolean(recoverableDraftKey),
+  });
   const draftTimeLabel = draft.storedAt ? dayjs(draft.storedAt).format("MM月DD日 HH:mm") : "";
   const [showRecovery, setShowRecovery] = useState(false);
-  const recoveredRef = useRef(false);
-  if (!recoveredRef.current && typeof window !== "undefined") {
-    recoveredRef.current = true;
-    const d = draft.restoreDraft() as any;
-    if (d && (d.basic?.name || d.basic?.creditCode)) setShowRecovery(true);
-  }
+  const { restoreDraft } = draft;
+  const restoreRegistrationDraft = useCallback(
+    () => restoreDraft() as Partial<typeof draftData> | null,
+    [restoreDraft],
+  );
+  useEffect(() => {
+    if (user?.id) return;
+    try {
+      localStorage.removeItem("supplier_draft:register:anonymous");
+    } catch {
+      // 隐私清理不应阻塞注册流程。
+    }
+  }, [user?.id]);
+  useEffect(() => () => {
+    revokeObjectUrlPreview(logoPreviewUrlRef.current);
+    logoPreviewUrlRef.current = "";
+  }, []);
+  useEffect(() => {
+    if (!recoverableDraftKey) return;
+    const timer = window.setTimeout(() => {
+      const recovered = restoreRegistrationDraft();
+      if (recovered && (recovered.basic?.name || recovered.basic?.creditCode)) {
+        setShowRecovery(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [recoverableDraftKey, restoreRegistrationDraft]);
+
   function acceptRecovery() {
-    const d = draft.restoreDraft() as any;
+    const d = restoreRegistrationDraft();
     if (!d) return;
-    setAccount((a) => ({ ...a, ...d.account, password: "", confirmPassword: "" }));
     setBasic((b) => ({ ...b, ...d.basic }));
     setTags(Array.isArray(d.tags) ? d.tags.filter(Boolean) : []);
     if (d.registrationPhone) setRegistrationPhone(d.registrationPhone);
@@ -175,7 +210,9 @@ export default function RegisterPage() {
     setBanks(d.banks?.length ? d.banks.map((b: BankRow) => ({ ...b })) : []);
     setQuals(d.quals?.length ? d.quals.map((q: QualRow) => ({ ...q, attachments: q.attachments ?? [] })) : quals);
     setPerfs(d.perfs?.length ? d.perfs.map((p: PerfRow) => ({ ...p, proofFiles: p.proofFiles ?? [] })) : []);
-    setStep(d.step || 0);
+    const recoveredStep = Math.min(Number(d.step) || 0, STEPS.length - 1);
+    setStep(recoveredStep);
+    setMaxVisitedStep(recoveredStep);
     draft.markClean();
     setShowRecovery(false);
     toast.success("已恢复本机草稿（密码需重新输入）");
@@ -187,19 +224,6 @@ export default function RegisterPage() {
     authApi.listBusinessTags().then(setTagOptions).catch(() => setTagOptions([]));
   }, []);
   const inTagPool = useCallback((t: string) => tagOptions.some((o) => o.name === t), [tagOptions]);
-  const customTags = tags.filter((t) => !inTagPool(t));
-  function toggleTag(name: string) {
-    setTags((prev) => (prev.includes(name) ? prev.filter((t) => t !== name) : prev.length >= 8 ? prev : [...prev, name]));
-  }
-  function addCustomTag() {
-    const t = customTagInput.trim();
-    if (!t) { toast.warning("请输入自定义标签名称"); return; }
-    if (t.length > 20) { toast.warning("标签不超过 20 个字符"); return; }
-    if (tags.includes(t)) { toast.warning("该标签已选择"); return; }
-    if (tags.length >= 8) { toast.warning("最多 8 个标签"); return; }
-    setTags((prev) => [...prev, t]);
-    setCustomTagInput("");
-  }
 
   /* ── 注册短信验证码 ── */
   async function sendRegCode() {
@@ -212,8 +236,8 @@ export default function RegisterPage() {
       const timer = setInterval(() => {
         setCodeCooldown((c) => { if (c <= 1) { clearInterval(timer); return 0; } return c - 1; });
       }, 1000);
-    } catch (e: any) {
-      toast.error(e?.message || "验证码发送失败，请稍后重试");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "验证码发送失败，请稍后重试"));
     } finally {
       setCodeSending(false);
     }
@@ -242,12 +266,26 @@ export default function RegisterPage() {
   }
 
   /* ── 分步校验 ── */
-  function validate(): boolean {
+  function focusFirstError() {
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(
+        ".reg-step-pane:not([hidden]) [aria-invalid='true'], .reg-step-pane:not([hidden]) .is-err",
+      )?.focus();
+    });
+  }
+
+  function validate(targetStep = step): boolean {
     const e: Record<string, string> = {};
-    if (step === 0) {
+    if (targetStep === 0) {
       if (!account.password) e.password = "请输入密码";
-      else if (account.password.length < 6) e.password = "密码不少于6位";
+      else if (account.password.length < 8 || !/(?=.*[A-Za-z])(?=.*\d)/.test(account.password)) e.password = "密码须≥8位且同时包含字母和数字";
       if (account.confirmPassword !== account.password) e.confirmPassword = "两次输入的密码不一致";
+      if (!registrationPhone.trim()) e.registrationPhone = "请输入注册手机号";
+      else if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) e.registrationPhone = "注册手机号格式不正确";
+      if (!registrationCode.trim()) e.registrationCode = "请输入短信验证码";
+      else if (!/^\d{6}$/.test(registrationCode.trim())) e.registrationCode = "请输入 6 位短信验证码";
+    }
+    if (targetStep === 1) {
       if (!basic.name.trim()) e.name = "请输入企业名称";
       if (!basic.creditCode.trim()) e.creditCode = "请输入统一社会信用代码";
       else if (!/^[0-9A-Z]{18}$/.test(basic.creditCode.trim())) e.creditCode = "请输入18位统一社会信用代码";
@@ -259,15 +297,19 @@ export default function RegisterPage() {
       else if (!/^\d{17}[\dXx]$/.test(basic.legalPersonIdCard.trim())) e.legalPersonIdCard = "请输入18位身份证号";
       if (basic.legalPersonPhone && !/^1[3-9]\d{9}$/.test(basic.legalPersonPhone.trim())) e.legalPersonPhone = "法人电话须为11位手机号";
       if (basic.companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(basic.companyEmail.trim())) e.companyEmail = "公司邮箱格式不正确";
-      if (tags.filter((t) => t.trim()).length < 2) e.tags = "请至少选择 2 个业务标签";
-      if (!registrationPhone.trim()) e.registrationPhone = "请输入注册手机号";
-      else if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) e.registrationPhone = "注册手机号格式不正确";
-      if (!registrationCode.trim()) e.registrationCode = "请输入短信验证码";
+      const normalizedTags = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+      if (normalizedTags.length < 2) e.tags = "请至少选择 2 个业务标签";
+      else if (normalizedTags.length > 8) e.tags = "最多选择 8 个业务标签";
     }
-    if (step === 1) {
+    if (targetStep === 2) {
       const contactEmptyRow = (c: ContactRow) => !c.name.trim() && !c.gender && !c.phone.trim() && !c.idCard.trim() && !c.email.trim() && !c.position.trim();
       const ok = contacts.some((c) => c.name.trim() && /^1[3-9]\d{9}$/.test(c.phone.trim()) && /^\d{17}[\dXx]$/.test(c.idCard.trim()));
       if (!ok) e.contacts = "请至少完整填写 1 个联系人（姓名 + 11位手机号 + 18位身份证号）";
+      const primaryContacts = contacts.filter((contact) => contact.isPrimary);
+      if (primaryContacts.length !== 1) e.contacts = "请指定且只能指定 1 名主要联系人";
+      else if (primaryContacts[0].phone.trim() !== registrationPhone.trim()) {
+        e.contacts = "主要联系人手机号须与注册验证手机号一致";
+      }
       contacts.forEach((c, i) => {
         if (contactEmptyRow(c)) return; // 全空行提交时过滤
         if (!c.name.trim()) e[`contact-${i}-name`] = "请输入姓名";
@@ -278,15 +320,13 @@ export default function RegisterPage() {
         if (c.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) e[`contact-${i}-email`] = "邮箱格式不正确";
       });
     }
-    if (step === 2) {
+    if (targetStep === 3) {
       banks.forEach((b, i) => {
         if (!b.accountName.trim() && !b.bankName.trim() && !b.bankBranch.trim() && !b.accountNo.trim()) return; // 全空行提交时过滤
         if (!b.accountName.trim()) e[`bank-${i}-accountName`] = "请输入户名";
         if (!b.bankName.trim()) e[`bank-${i}-bankName`] = "请输入开户银行";
         if (!b.accountNo.trim()) e[`bank-${i}-accountNo`] = "请输入银行账号";
       });
-    }
-    if (step === 3) {
       const lic = quals[0];
       if (!lic?.name.trim() || !lic.fileUrl) e.license = "营业执照为必填资质，请填写名称并上传文件";
       if (lic?.validFrom && lic?.validTo && lic.validFrom > lic.validTo) e[`qual-0-validTo`] = "有效期止须晚于有效期起";
@@ -298,8 +338,6 @@ export default function RegisterPage() {
         if (!q.fileUrl) e[`qual-${i}-fileUrl`] = "请上传资质文件";
         if (q.validFrom && q.validTo && q.validFrom > q.validTo) e[`qual-${i}-validTo`] = "有效期止须晚于有效期起";
       });
-    }
-    if (step === 4) {
       perfs.forEach((p, i) => {
         if (!p.projectName.trim() && !p.clientName.trim() && !p.contractAmount.trim() && !p.signDate && !p.description.trim() && p.proofFiles.length === 0) return; // 全空行提交时过滤
         if (!p.projectName.trim()) e[`perf-${i}-projectName`] = "项目名称必填";
@@ -308,24 +346,40 @@ export default function RegisterPage() {
     }
     setErrors(e);
     const first = Object.values(e)[0];
-    if (first) { toast.warning(first); return false; }
+    if (first) { toast.warning(first); focusFirstError(); return false; }
     return true;
   }
 
   function nextStep() {
-    if (step === 0) {
+    if (step === 1) {
       if (creditCodeDuplicate) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
       if (legalIdCardDuplicate) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
     }
     if (!validate()) return;
     setErrors({});
-    setStep((s) => Math.min(s + 1, 5));
+    setStep((current) => {
+      const next = Math.min(current + 1, STEPS.length - 1);
+      setMaxVisitedStep((visited) => Math.max(visited, next));
+      return next;
+    });
   }
   function prevStep() { setStep((s) => Math.max(s - 1, 0)); }
 
   /* ── 提交 ── */
   async function submit() {
-    if (!agree) { toast.warning("请先阅读并同意《供应商注册入驻协议》"); return; }
+    setSubmissionError("");
+    for (let targetStep = 0; targetStep < STEPS.length - 1; targetStep += 1) {
+      if (!validate(targetStep)) {
+        setStep(targetStep);
+        return;
+      }
+    }
+    if (!agree) {
+      const message = "请先阅读并同意《供应商注册入驻协议》";
+      setSubmissionError(message);
+      toast.warning(message);
+      return;
+    }
     const contactIdCards = contacts.map((c) => c.idCard.trim()).filter(Boolean);
     try {
       const dup = await authApi.checkDuplicate({
@@ -340,7 +394,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const ok = await register({
+      await authApi.register({
         username: basic.creditCode.trim(), // 用户名 = 统一社会信用代码（机构代码）
         registrationPhone: registrationPhone.trim(),
         registrationCode: registrationCode.trim(),
@@ -364,7 +418,7 @@ export default function RegisterPage() {
         legalPersonPhone: basic.legalPersonPhone.trim() || undefined,
         companyEmail: basic.companyEmail.trim() || undefined,
         companyWebsite: basic.companyWebsite.trim() || undefined,
-        tags: tags.filter((t) => t.trim()),
+        tags: [...new Set(tags.map((t) => t.trim()).filter(Boolean))],
         contacts: contacts
           .filter((c) => c.name.trim() || c.gender || c.phone.trim() || c.idCard.trim() || c.email.trim() || c.position.trim())
           .map((c) => ({
@@ -387,14 +441,12 @@ export default function RegisterPage() {
         })),
       });
       draft.clearDraft();
-      if (ok) {
-        toast.success("注册申请已提交，请耐心等待采购中心审核（通常 3 个工作日内）");
-        router.push(`/login?registered=1&creditCode=${encodeURIComponent(basic.creditCode)}`);
-      } else {
-        toast.error("注册失败，请检查信息后重试");
-      }
-    } catch {
-      toast.error("注册失败，请检查信息后重试");
+      toast.success("注册申请已提交，请耐心等待采购中心审核（通常 3 个工作日内）");
+      router.push(`/login?registered=1&creditCode=${encodeURIComponent(basic.creditCode)}`);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "注册失败，请检查信息后重试");
+      setSubmissionError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -408,20 +460,24 @@ export default function RegisterPage() {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { toast.warning("logo 图片不能超过5MB"); return; }
     try {
-      const asset = await uploadFile(file, "general");
+      const asset = await uploadRegistrationFile(file, "general", {
+        phone: registrationPhone,
+        code: registrationCode,
+      });
+      const nextPreviewUrl = replaceObjectUrlPreview(file, logoPreviewUrlRef.current);
+      logoPreviewUrlRef.current = nextPreviewUrl;
+      setLogoPreviewUrl(nextPreviewUrl);
       setBasic((b) => ({ ...b, logoUrl: asset.url }));
       toast.success("logo 已上传");
-    } catch (err: any) {
-      toast.error(err?.message || "logo 上传失败");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "logo 上传失败"));
     }
   }
 
   const item = (prop: string, label: string, node: React.ReactNode, required = false) => (
-    <div className={`reg-item${errors[prop] ? " has-error" : ""}`}>
-      <label className="reg-label">{label}{required && <i style={{ color: "var(--danger)", fontStyle: "normal" }}> *</i>}</label>
+    <RegistrationField id={`register-${prop}`} label={label} error={errors[prop]} required={required}>
       {node}
-      {errors[prop] && <span className="reg-error-text">{errors[prop]}</span>}
-    </div>
+    </RegistrationField>
   );
   const inp = (v: string, set: (s: string) => void, ph: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <input className="reg-inp" value={v} placeholder={ph} onChange={(e) => set(e.target.value)} {...extra} />
@@ -432,107 +488,101 @@ export default function RegisterPage() {
 
   const filledTags = tags.filter((t) => t.trim());
 
-  return (
-    <main className="reg reg--supplier">
-      <div className="reg-bg" aria-hidden="true" />
+  const recoveryNotice = showRecovery ? (
+    <div className="reg-recovery" role="status">
+      <div className="reg-recovery-icon" aria-hidden="true"><Download size={20} strokeWidth={1.6} /></div>
+      <div className="reg-recovery-body">
+        <p className="reg-recovery-title">检测到 {draftTimeLabel} 有未完成的注册草稿</p>
+        <p className="reg-recovery-hint">草稿仅存于本机浏览器，恢复不会读取他人内容</p>
+      </div>
+      <div className="reg-recovery-actions">
+        <button type="button" className="reg-btn reg-btn--ghost" onClick={discardRecovery}>重新开始</button>
+        <button type="button" className="reg-btn reg-btn--primary-sm" onClick={acceptRecovery}>继续填写</button>
+      </div>
+    </div>
+  ) : undefined;
 
-      <div className="reg-brand" aria-label="智慧水发 · 蜀水云采">
-        <Image src="/logo.png" alt="" width={54} height={54} className="reg-brand-mark" priority />
-        <span className="reg-brand-name">智慧水发 · 蜀水云采</span>
+  const registrationActions = (
+    <>
+      {step > 0 && (
+        <button type="button" className="reg-btn reg-btn--back" onClick={prevStep}>
+          <ArrowLeft size={16} aria-hidden="true" />上一步
+        </button>
+      )}
+      <span className="reg-actions-spacer" />
+      {step < STEPS.length - 1 && (
+        <button type="button" className="reg-btn reg-btn--primary" onClick={nextStep}>
+          下一步<ArrowRight size={16} aria-hidden="true" />
+        </button>
+      )}
+      {step === STEPS.length - 1 && (
+        <button type="button" className="reg-btn reg-btn--primary" disabled={loading} onClick={submit}>
+          {!loading && <CheckCircle2 size={16} aria-hidden="true" />}
+          {loading ? "提交中…" : "提交注册申请"}
+        </button>
+      )}
+    </>
+  );
+
+  return (
+    <RegistrationShell
+      title="供应商正式注册"
+      subtitle="分五步完成完整资料入库，提交后由采购中心审核"
+      formLabel="供应商正式注册表单"
+      steps={STEPS}
+      currentStep={step}
+      maxVisitedStep={maxVisitedStep}
+      onStepChange={(nextStep) => { setStep(nextStep); setErrors({}); }}
+      notice={recoveryNotice}
+      actions={registrationActions}
+    >
+      {/* 1 · 身份与账号 */}
+      <div className="reg-step-pane" hidden={step !== 0}>
+        <div className="reg-form">
+          <RegistrationSection icon={KeyRound} title="身份与账号" hint="手机号验证后设置登录密码">
+            <div className="reg-form-grid">
+              {item("registrationPhone", "注册手机号", inp(registrationPhone, setRegistrationPhone, "用于接收注册验证码", { maxLength: 11, inputMode: "numeric", autoComplete: "tel" }), true)}
+              {item("registrationCode", "短信验证码", (
+                <div className="reg-code-row">
+                  <input id="register-registrationCode" className="reg-inp" value={registrationCode} placeholder="6 位验证码" maxLength={6} inputMode="numeric" autoComplete="one-time-code"
+                    onChange={(e) => setRegistrationCode(e.target.value.replace(/\D/g, ""))} />
+                  <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
+                    {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
+                  </button>
+                </div>
+              ), true)}
+              <PasswordField
+                label="登录密码"
+                value={account.password}
+                onChange={(password) => setAccount((current) => ({ ...current, password }))}
+                error={errors.password}
+                placeholder="至少 8 位，同时包含字母和数字"
+                required
+              />
+              <PasswordField
+                label="确认密码"
+                value={account.confirmPassword}
+                onChange={(confirmPassword) => setAccount((current) => ({ ...current, confirmPassword }))}
+                error={errors.confirmPassword}
+                placeholder="请再次输入登录密码"
+                required
+              />
+            </div>
+          </RegistrationSection>
+        </div>
       </div>
 
-      <section className="reg-panel" aria-label="供应商注册表单">
-        <div className="reg-card">
-          <div className="reg-head">
-            <div className="reg-brand-word">智慧水发<span className="reg-dot">·</span>蜀水云采</div>
-            <div className="reg-divider" aria-hidden="true">◆</div>
-            <h1 className="reg-title">供应商注册</h1>
-            <p className="reg-sub">请填写以下六部分信息完成供应商注册申请</p>
-          </div>
-
-          {/* ── 本机草稿恢复 ── */}
-          {showRecovery && (
-            <div className="reg-recovery">
-              <div className="reg-recovery-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              </div>
-              <div className="reg-recovery-body">
-                <p className="reg-recovery-title">检测到 {draftTimeLabel} 有未完成的注册草稿</p>
-                <p className="reg-recovery-hint">草稿仅存于本机浏览器，恢复不会读取他人内容</p>
-              </div>
-              <div className="reg-recovery-actions">
-                <button className="reg-btn reg-btn--ghost" onClick={discardRecovery}>重新开始</button>
-                <button className="reg-btn reg-btn--primary-sm" onClick={acceptRecovery}>继续填写</button>
-              </div>
-            </div>
-          )}
-
-          {/* ── 步骤条 ── */}
-          <nav className="reg-steps" aria-label="注册进度">
-            <div className="reg-steps-track" aria-hidden="true">
-              <div className="reg-steps-fill" style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} />
-            </div>
-            {STEPS.map((title, i) => (
-              <button
-                key={i}
-                type="button"
-                className={`reg-step${i === step ? " is-active" : ""}${i < step ? " is-done" : ""}`}
-                disabled={i > step}
-                onClick={() => { if (i < step) setStep(i); }}
-              >
-                <span className="reg-step-dot">
-                  {i < step ? (
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3.5,8 6.5,11 12.5,5" /></svg>
-                  ) : (
-                    <span className="reg-step-num">{i + 1}</span>
-                  )}
-                </span>
-                <span className="reg-step-label">{title}</span>
-              </button>
-            ))}
-          </nav>
-
-          <div className="reg-body">
-            {/* ═══ 1 基本信息 ═══ */}
-            <div className="reg-step-pane" hidden={step !== 0}>
-              <div className="reg-form">
-                {/* 登录账号（后端注册契约必填 username/displayName/password；密码不入草稿） */}
-                <div className="reg-subsec">
-                  <h3>登录账号</h3>
-                  <span className="reg-hint">机构代码即登录用户名，密码不保存在草稿中</span>
-                </div>
-                <div className="reg-form-grid">
-                  {item("creditCode", "统一社会信用代码（登录账号）", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s })), "18 位代码，即登录用户名", { maxLength: 18, onBlur: checkCreditCode }), true)}
-                  {item("password", "登录密码", (
-                    <input className="reg-inp" type="password" value={account.password} placeholder="不少于6位" autoComplete="new-password"
-                      onChange={(e) => setAccount((a) => ({ ...a, password: e.target.value }))} />
-                  ), true)}
-                  {item("registrationPhone", "注册手机号", inp(registrationPhone, setRegistrationPhone, "用于接收注册验证码", { maxLength: 11 }), true)}
-                  {item("registrationCode", "短信验证码", (
-                    <div className="reg-code-row">
-                      <input className="reg-inp" value={registrationCode} placeholder="6 位验证码" maxLength={6}
-                        onChange={(e) => setRegistrationCode(e.target.value)} />
-                      <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
-                        {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
-                      </button>
-                    </div>
-                  ), true)}
-                  {item("confirmPassword", "确认密码", (
-                    <input className="reg-inp" type="password" value={account.confirmPassword} placeholder="请再次输入密码" autoComplete="new-password"
-                      onChange={(e) => setAccount((a) => ({ ...a, confirmPassword: e.target.value }))} />
-                  ), true)}
-                </div>
-                <div className="reg-subsec"><h3>企业信息</h3></div>
+      {/* 2 · 企业与业务 */}
+      <div className="reg-step-pane" hidden={step !== 1}>
+        <div className="reg-form">
+          <RegistrationSection icon={Building2} title="企业信息" hint="请按营业执照如实填写">
                 <div className="reg-item">
                   <label className="reg-label">公司 logo</label>
-                  <div className="reg-logo-drop" onClick={() => logoInputRef.current?.click()}>
-                    {basic.logoUrl ? (
+                  <button type="button" className="reg-logo-drop" onClick={() => logoInputRef.current?.click()}
+                    aria-label={basic.logoUrl ? "更换公司 logo" : "上传公司 logo"}>
+                    {logoPreviewUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={basic.logoUrl} alt="公司 logo" className="reg-logo-preview" />
+                      <img src={logoPreviewUrl} alt="公司 logo 本地预览" className="reg-logo-preview" />
                     ) : (
                       <span className="reg-logo-ph"><ImagePlus size={22} strokeWidth={1.75} /></span>
                     )}
@@ -540,15 +590,13 @@ export default function RegisterPage() {
                       <strong>{basic.logoUrl ? "已上传，点击更换" : "点击上传公司 logo"}</strong>
                       <span>支持 png / jpg，≤5MB</span>
                     </span>
-                  </div>
+                  </button>
                   <input ref={logoInputRef} type="file" hidden accept=".png,.jpg,.jpeg" onChange={pickLogo} />
                 </div>
 
                 <div className="reg-form-grid">
                   {item("name", "公司名称", inp(basic.name, (s) => setBasic((b) => ({ ...b, name: s })), "营业执照上的企业全称"), true)}
-                  {item("creditCode", "统一社会信用代码", (
-                    <input className="reg-inp" value={basic.creditCode} disabled readOnly placeholder="同步登录账号中的统一社会信用代码" />
-                  ))}
+                  {item("creditCode", "统一社会信用代码（登录账号）", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s.toUpperCase() })), "18 位代码，注册后作为登录账号", { maxLength: 18, onBlur: checkCreditCode }), true)}
                   {item("country", "国别", inp(basic.country, (s) => setBasic((b) => ({ ...b, country: s })), "中国"))}
                   {item("region", "所属行政区域", inp(basic.region, (s) => setBasic((b) => ({ ...b, region: s })), "如：四川省/成都市/双流区"))}
                   {item("registeredCapital", "注册资本", inp(basic.registeredCapital, (s) => setBasic((b) => ({ ...b, registeredCapital: s })), "如：5000 万元"))}
@@ -573,68 +621,31 @@ export default function RegisterPage() {
                 {item("businessScope", "经营范围", (
                   <textarea className="reg-inp" rows={3} value={basic.businessScope} placeholder="请输入经营范围" onChange={(e) => setBasic((b) => ({ ...b, businessScope: e.target.value }))} />
                 ), true)}
+          </RegistrationSection>
 
-                <div className="reg-subsec"><h3>法人信息</h3></div>
+          <RegistrationSection icon={ShieldCheck} title="法人信息" hint="须与营业执照登记一致">
                 <div className="reg-grid-3">
                   {item("legalPerson", "法人姓名", inp(basic.legalPerson, (s) => setBasic((b) => ({ ...b, legalPerson: s })), "法定代表人姓名"), true)}
                   {item("legalPersonIdCard", "身份证号", inp(basic.legalPersonIdCard, (s) => setBasic((b) => ({ ...b, legalPersonIdCard: s })), "18位身份证号", { maxLength: 18, onBlur: checkLegalIdCard }), true)}
                   {item("legalPersonPhone", "联系电话", inp(basic.legalPersonPhone, (s) => setBasic((b) => ({ ...b, legalPersonPhone: s })), "11位手机号", { maxLength: 11 }))}
                 </div>
+          </RegistrationSection>
 
-                <div className="reg-subsec"><h3>公司联系方式</h3></div>
+          <RegistrationSection icon={Mail} title="公司联系方式" hint="选填，用于平台沟通">
                 <div className="reg-form-grid">
                   {item("companyEmail", "公司邮箱", inp(basic.companyEmail, (s) => setBasic((b) => ({ ...b, companyEmail: s })), "如：service@company.cn"))}
                   {item("companyWebsite", "公司官网地址", inp(basic.companyWebsite, (s) => setBasic((b) => ({ ...b, companyWebsite: s })), "如：https://www.company.cn"))}
                 </div>
+          </RegistrationSection>
 
-                <div className="reg-subsec">
-                  <h3>业务标签</h3>
-                  <span className="reg-hint">从标签库选择（2-8 个）；无合适标签可自定义，审核通过后进入标签库</span>
-                </div>
-                <div className="reg-item">
-                  <label className="reg-label">标签库（点选）</label>
-                  <div className="reg-tagpool">
-                    {tagOptions.map((o) => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        className={`reg-tagpick${tags.includes(o.name) ? " on" : ""}`}
-                        onClick={() => toggleTag(o.name)}
-                      >
-                        {o.name}
-                        {tags.includes(o.name) && <Check size={11} />}
-                      </button>
-                    ))}
-                  </div>
-                  {customTags.length > 0 && (
-                    <div className="reg-tagpool reg-tagpool--custom">
-                      {customTags.map((t) => (
-                        <span key={t} className="reg-tagpick on reg-tagpick--custom">
-                          {t}
-                          <em className="reg-tagbadge">待审核</em>
-                          <button type="button" className="reg-file-x" aria-label="移除" onClick={() => toggleTag(t)}>
-                            <X size={11} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="reg-code-row" style={{ marginTop: 8 }}>
-                    <input className="reg-inp" value={customTagInput} maxLength={20} placeholder="没有合适的标签？输入自定义标签"
-                      onChange={(e) => setCustomTagInput(e.target.value)}
-                      onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); addCustomTag(); } }} />
-                    <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={tags.length >= 8} onClick={addCustomTag}>
-                      <Plus size={13} />添加
-                    </button>
-                  </div>
-                  <p className="reg-hint" style={{ marginTop: 6 }}>已选 {tags.length}/8 · 自定义标签提交后进入待审核，采购中心审核通过后将加入标签库</p>
-                  {errors.tags && <span className="reg-error-text">{errors.tags}</span>}
-                </div>
-              </div>
-            </div>
+          <RegistrationSection icon={Tags} title="业务标签" hint="用于采购需求与供应商能力匹配">
+            <BusinessTagField value={tags} options={tagOptions} onChange={setTags} error={errors.tags} />
+          </RegistrationSection>
+        </div>
+      </div>
 
-            {/* ═══ 2 联系人信息 ═══ */}
-            <div className="reg-step-pane" hidden={step !== 1}>
+            {/* 3 · 联系人 */}
+            <div className="reg-step-pane" hidden={step !== 2}>
               <div className="reg-form">
               <section className="reg-block">
                 <div className="reg-block-head">
@@ -649,35 +660,38 @@ export default function RegisterPage() {
                   <div key={i} className="reg-row">
                     <span className="reg-row-idx">{i + 1}</span>
                     <div className="reg-row-fields reg-row-fields--qual">
-                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-name`)}`} placeholder="姓名" value={c.name} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+                      <input id={`contact-${i}-name`} className={`reg-inp reg-row-input${errCls(`contact-${i}-name`)}`} aria-label={`联系人 ${i + 1} 姓名`} aria-invalid={Boolean(errors[`contact-${i}-name`])} aria-describedby={errors[`contact-${i}-name`] ? `contact-${i}-errors` : undefined} placeholder="姓名" value={c.name} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
                       <select className="reg-sel reg-row-gender" value={c.gender} aria-label="性别" onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, gender: e.target.value } : x)))}>
                         <option value="">性别</option>
                         <option value="男">男</option>
                         <option value="女">女</option>
                       </select>
-                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-phone`)}`} placeholder="联系电话" maxLength={11} value={c.phone} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))} />
-                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-idCard`)}`} placeholder="身份证号" maxLength={18} value={c.idCard} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, idCard: e.target.value } : x)))} />
-                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-email`)}`} placeholder="邮箱（选填）" value={c.email} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
-                      <input className="reg-inp reg-row-input" placeholder="部门职务" value={c.position} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, position: e.target.value } : x)))} />
+                      <input id={`contact-${i}-phone`} className={`reg-inp reg-row-input${errCls(`contact-${i}-phone`)}`} aria-label={`联系人 ${i + 1} 电话`} aria-invalid={Boolean(errors[`contact-${i}-phone`])} aria-describedby={errors[`contact-${i}-phone`] ? `contact-${i}-errors` : undefined} placeholder="联系电话" maxLength={11} inputMode="tel" value={c.phone} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))} />
+                      <input id={`contact-${i}-idCard`} className={`reg-inp reg-row-input${errCls(`contact-${i}-idCard`)}`} aria-label={`联系人 ${i + 1} 身份证号`} aria-invalid={Boolean(errors[`contact-${i}-idCard`])} aria-describedby={errors[`contact-${i}-idCard`] ? `contact-${i}-errors` : undefined} placeholder="身份证号" maxLength={18} value={c.idCard} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, idCard: e.target.value } : x)))} />
+                      <input id={`contact-${i}-email`} className={`reg-inp reg-row-input${errCls(`contact-${i}-email`)}`} aria-label={`联系人 ${i + 1} 邮箱`} aria-invalid={Boolean(errors[`contact-${i}-email`])} aria-describedby={errors[`contact-${i}-email`] ? `contact-${i}-errors` : undefined} placeholder="邮箱（选填）" type="email" value={c.email} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
+                      <input className="reg-inp reg-row-input" aria-label={`联系人 ${i + 1} 部门职务`} placeholder="部门职务" value={c.position} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, position: e.target.value } : x)))} />
                       <label className="reg-row-switch">
                         <span className="reg-row-switch-label">主要联系人</span>
-                        <SpSwitch checked={c.isPrimary} onChange={(v) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, isPrimary: v } : x)))} />
+                        <SpSwitch checked={c.isPrimary} onChange={(v) => setContacts((cs) => cs.map((x, j) => ({
+                          ...x,
+                          isPrimary: j === i ? v : v ? false : x.isPrimary,
+                        })))} ariaLabel={`设联系人 ${i + 1} 为主要联系人`} />
                       </label>
-                      {rowErrText("contact-", i) && <div className="reg-row-errors">{rowErrText("contact-", i)}</div>}
+                      {rowErrText("contact-", i) && <div id={`contact-${i}-errors`} className="reg-row-errors" role="alert">{rowErrText("contact-", i)}</div>}
                     </div>
                     <button type="button" className="reg-row-remove" disabled={contacts.length <= 1} onClick={() => setContacts((cs) => cs.filter((_, j) => j !== i))} aria-label="删除联系人">
                       <Trash2 size={14} />
                     </button>
                   </div>
                 ))}
-                {errors.contacts && <span className="reg-error-text">{errors.contacts}</span>}
+                {errors.contacts && <span className="reg-error-text" role="alert">{errors.contacts}</span>}
               </section>
               </div>
             </div>
 
-            {/* ═══ 3 银行账户信息 ═══ */}
-            <div className="reg-step-pane" hidden={step !== 2}>
-              <div className="reg-form">
+            {/* 4 · 资质与履历 */}
+            <div className="reg-step-pane" hidden={step !== 3}>
+              <div className="reg-form reg-stage-stack">
               <section className="reg-block">
                 <div className="reg-block-head">
                   <h2 className="reg-block-title">银行账户信息</h2>
@@ -691,22 +705,22 @@ export default function RegisterPage() {
                   <div className="sp-empty-panel">
                     <div className="sp-empty-icon"><Building2 size={22} strokeWidth={1.75} /></div>
                     <div className="sp-empty-text">暂无银行账户</div>
-                    <div className="sp-empty-desc">可点击"添加账户"填写对公账户信息</div>
+                    <div className="sp-empty-desc">可点击“添加账户”填写对公账户信息</div>
                   </div>
                 )}
                 {banks.map((b, i) => (
                   <div key={i} className="reg-row">
                     <span className="reg-row-idx">{i + 1}</span>
                     <div className="reg-row-fields reg-row-fields--qual">
-                      <input className={`reg-inp reg-row-input${errCls(`bank-${i}-accountName`)}`} placeholder="户名" value={b.accountName} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, accountName: e.target.value } : x)))} />
-                      <input className={`reg-inp reg-row-input${errCls(`bank-${i}-bankName`)}`} placeholder="开户银行" value={b.bankName} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, bankName: e.target.value } : x)))} />
-                      <input className="reg-inp reg-row-input" placeholder="开户支行（选填）" value={b.bankBranch} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, bankBranch: e.target.value } : x)))} />
-                      <input className={`reg-inp reg-row-input${errCls(`bank-${i}-accountNo`)}`} placeholder="银行账号" value={b.accountNo} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, accountNo: e.target.value } : x)))} />
+                      <input id={`bank-${i}-accountName`} className={`reg-inp reg-row-input${errCls(`bank-${i}-accountName`)}`} aria-label={`账户 ${i + 1} 户名`} aria-invalid={Boolean(errors[`bank-${i}-accountName`])} aria-describedby={errors[`bank-${i}-accountName`] ? `bank-${i}-errors` : undefined} placeholder="户名" value={b.accountName} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, accountName: e.target.value } : x)))} />
+                      <input id={`bank-${i}-bankName`} className={`reg-inp reg-row-input${errCls(`bank-${i}-bankName`)}`} aria-label={`账户 ${i + 1} 开户银行`} aria-invalid={Boolean(errors[`bank-${i}-bankName`])} aria-describedby={errors[`bank-${i}-bankName`] ? `bank-${i}-errors` : undefined} placeholder="开户银行" value={b.bankName} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, bankName: e.target.value } : x)))} />
+                      <input className="reg-inp reg-row-input" aria-label={`账户 ${i + 1} 开户支行`} placeholder="开户支行（选填）" value={b.bankBranch} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, bankBranch: e.target.value } : x)))} />
+                      <input id={`bank-${i}-accountNo`} className={`reg-inp reg-row-input${errCls(`bank-${i}-accountNo`)}`} aria-label={`账户 ${i + 1} 银行账号`} aria-invalid={Boolean(errors[`bank-${i}-accountNo`])} aria-describedby={errors[`bank-${i}-accountNo`] ? `bank-${i}-errors` : undefined} placeholder="银行账号" inputMode="numeric" value={b.accountNo} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, accountNo: e.target.value } : x)))} />
                       <label className="reg-row-switch">
                         <span className="reg-row-switch-label">默认账户</span>
-                        <SpSwitch checked={b.isDefault} onChange={(v) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, isDefault: v } : x)))} />
+                        <SpSwitch checked={b.isDefault} onChange={(v) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, isDefault: v } : x)))} ariaLabel={`设账户 ${i + 1} 为默认账户`} />
                       </label>
-                      {rowErrText("bank-", i) && <div className="reg-row-errors">{rowErrText("bank-", i)}</div>}
+                      {rowErrText("bank-", i) && <div id={`bank-${i}-errors`} className="reg-row-errors" role="alert">{rowErrText("bank-", i)}</div>}
                     </div>
                     <button type="button" className="reg-row-remove" onClick={() => setBanks((bs) => bs.filter((_, j) => j !== i))} aria-label="删除账户">
                       <Trash2 size={14} />
@@ -714,12 +728,8 @@ export default function RegisterPage() {
                   </div>
                 ))}
               </section>
-              </div>
-            </div>
 
-            {/* ═══ 4 资质信息 ═══ */}
-            <div className="reg-step-pane" hidden={step !== 3}>
-              <div className="reg-form">
+            {/* 资质信息 */}
               <section className="reg-block">
                 <div className="reg-block-head">
                   <h2 className="reg-block-title">资质材料</h2>
@@ -734,7 +744,7 @@ export default function RegisterPage() {
                     <div className="reg-row-line">
                     <span className="reg-row-idx">{i + 1}</span>
                     <div className="reg-row-fields reg-row-fields--qual">
-                      <select className={`reg-sel reg-row-sel${errCls(`qual-${i}-type`)}`} value={q.type} disabled={i === 0}
+                      <select id={`qual-${i}-type`} className={`reg-sel reg-row-sel${errCls(`qual-${i}-type`)}`} value={q.type} disabled={i === 0} aria-label={`资质 ${i + 1} 类型`} aria-invalid={Boolean(errors[`qual-${i}-type`])} aria-describedby={errors[`qual-${i}-type`] ? `qual-${i}-errors` : undefined}
                         onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}>
                         {i === 0 ? (
                           <option value="营业执照">营业执照</option>
@@ -745,12 +755,16 @@ export default function RegisterPage() {
                           </>
                         )}
                       </select>
-                      <input className={`reg-inp reg-row-input${errCls(`qual-${i}-name`)}`} placeholder={i === 0 ? "营业执照名称（必填）" : "资质名称"} value={q.name}
+                      <input id={`qual-${i}-name`} className={`reg-inp reg-row-input${errCls(`qual-${i}-name`)}`} aria-label={`资质 ${i + 1} 名称`} aria-invalid={Boolean(errors[`qual-${i}-name`])} aria-describedby={errors[`qual-${i}-name`] || (i === 0 && errors.license) ? `qual-${i}-errors` : undefined} placeholder={i === 0 ? "营业执照名称（必填）" : "资质名称"} value={q.name}
                         onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
                       <input type="date" className="reg-date reg-row-date" value={q.validFrom} aria-label="有效期起" onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validFrom: e.target.value } : x)))} />
-                      <input type="date" className={`reg-date reg-row-date${errCls(`qual-${i}-validTo`)}`} value={q.validTo} aria-label="有效期止" onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validTo: e.target.value } : x)))} />
+                      <input id={`qual-${i}-validTo`} type="date" className={`reg-date reg-row-date${errCls(`qual-${i}-validTo`)}`} value={q.validTo} aria-label="有效期止" aria-invalid={Boolean(errors[`qual-${i}-validTo`])} aria-describedby={errors[`qual-${i}-validTo`] ? `qual-${i}-errors` : undefined} onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validTo: e.target.value } : x)))} />
                       <span className={errors[`qual-${i}-fileUrl`] || (i === 0 && errors.license) ? "reg-file-err" : undefined}>
-                        <SingleFile url={q.fileUrl} onPicked={(a) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, fileUrl: a?.url || "" } : x)))} />
+                        <SingleFile
+                          url={q.fileUrl}
+                          credentials={{ phone: registrationPhone, code: registrationCode }}
+                          onPicked={(a) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, fileUrl: a?.url || "" } : x)))}
+                        />
                       </span>
                     </div>
                     <button type="button" className="reg-row-remove" disabled={i === 0}
@@ -759,20 +773,21 @@ export default function RegisterPage() {
                     </button>
                     </div>
                     <div className="reg-attach-wrap">
-                      <MultiFiles value={q.attachments} onChange={(v) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, attachments: v } : x)))} label="附加材料" />
+                      <MultiFiles
+                        value={q.attachments}
+                        credentials={{ phone: registrationPhone, code: registrationCode }}
+                        onChange={(v) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, attachments: v } : x)))}
+                        label="附加材料"
+                      />
                     </div>
                     {(i === 0 && errors.license || rowErrText("qual-", i)) && (
-                      <span className="reg-error-text">{[i === 0 ? errors.license : "", rowErrText("qual-", i)].filter(Boolean).join("；")}</span>
+                      <span id={`qual-${i}-errors`} className="reg-error-text" role="alert">{[i === 0 ? errors.license : "", rowErrText("qual-", i)].filter(Boolean).join("；")}</span>
                     )}
                   </div>
                 ))}
               </section>
-              </div>
-            </div>
 
-            {/* ═══ 5 主体业绩 ═══ */}
-            <div className="reg-step-pane" hidden={step !== 4}>
-              <div className="reg-form">
+            {/* 主体业绩 */}
               <section className="reg-block">
                 <div className="reg-block-head">
                   <h2 className="reg-block-title">主体业绩</h2>
@@ -786,7 +801,7 @@ export default function RegisterPage() {
                   <div className="sp-empty-panel">
                     <div className="sp-empty-icon"><Building2 size={22} strokeWidth={1.75} /></div>
                     <div className="sp-empty-text">暂无业绩</div>
-                    <div className="sp-empty-desc">可点击"添加业绩"填写代表性项目（含证明材料）</div>
+                    <div className="sp-empty-desc">可点击“添加业绩”填写代表性项目（含证明材料）</div>
                   </div>
                 )}
                 {perfs.map((p, i) => (
@@ -809,8 +824,13 @@ export default function RegisterPage() {
                     ))}
                     <div className={`reg-item${errors[`perf-${i}-proofFiles`] ? " has-error" : ""}`}>
                       <label className="reg-label">证明材料 <i style={{ color: "var(--danger)", fontStyle: "normal" }}>*</i></label>
-                      <MultiFiles value={p.proofFiles} onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, proofFiles: v } : x)))} label="上传证明材料" />
-                      {errors[`perf-${i}-proofFiles`] && <span className="reg-error-text">{errors[`perf-${i}-proofFiles`]}</span>}
+                      <MultiFiles
+                        value={p.proofFiles}
+                        credentials={{ phone: registrationPhone, code: registrationCode }}
+                        onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, proofFiles: v } : x)))}
+                        label="上传证明材料"
+                      />
+                      {errors[`perf-${i}-proofFiles`] && <span className="reg-error-text" role="alert">{errors[`perf-${i}-proofFiles`]}</span>}
                     </div>
                   </div>
                 ))}
@@ -818,97 +838,65 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* ═══ 6 总览确认 ═══ */}
-            <div className="reg-step-pane" hidden={step !== 5}>
+            {/* 5 · 确认提交 */}
+            <div className="reg-step-pane" hidden={step !== 4}>
               <div className="reg-ov-sec">
-                <h4>登录账号</h4>
+                <h4>身份与账号</h4>
                 <dl className="reg-ov-grid">
-                  <div className="reg-ov-item"><dt>登录用户名（统一社会信用代码）</dt><dd className="reg-mono">{basic.creditCode || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>注册手机号</dt><dd>{registrationPhone || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>登录用户名（统一社会信用代码）</dt><dd className="reg-mono">{basic.creditCode || "未填写"}</dd></div>
                 </dl>
               </div>
               <div className="reg-ov-sec">
-                <h4>1 · 基本信息</h4>
-                {basic.logoUrl && (
+                <h4>企业与业务</h4>
+                {logoPreviewUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={basic.logoUrl} alt="公司 logo" className="reg-logo-preview reg-ov-logo" />
+                  <img src={logoPreviewUrl} alt="公司 logo 本地预览" className="reg-logo-preview reg-ov-logo" />
                 )}
                 <dl className="reg-ov-grid">
-                  <div className="reg-ov-item"><dt>公司名称</dt><dd>{basic.name || "—"}</dd></div>
-                  <div className="reg-ov-item"><dt>统一社会信用代码</dt><dd className="reg-mono">{basic.creditCode || "—"}</dd></div>
-                  <div className="reg-ov-item"><dt>国别 / 行政区域</dt><dd>{basic.country || "—"} / {basic.region || "—"}</dd></div>
-                  <div className="reg-ov-item"><dt>注册地址</dt><dd>{basic.registeredAddress || "—"}{basic.detailedAddress ? `（${basic.detailedAddress}）` : ""}</dd></div>
-                  <div className="reg-ov-item"><dt>注册资本 / 行业</dt><dd>{basic.registeredCapital || "—"} / {basic.industry || "—"}</dd></div>
-                  <div className="reg-ov-item"><dt>体制类型</dt><dd>{basic.enterpriseType || "—"}</dd></div>
-                  <div className="reg-ov-item"><dt>法人</dt><dd>{basic.legalPerson || "—"}{basic.legalPersonPhone ? ` · ${basic.legalPersonPhone}` : ""}</dd></div>
-                  <div className="reg-ov-item"><dt>公司邮箱 / 官网</dt><dd>{basic.companyEmail || "—"} / {basic.companyWebsite || "—"}</dd></div>
-                  <div className="reg-ov-item"><dt>业务标签</dt><dd>{filledTags.length ? filledTags.map((t) => (inTagPool(t) ? t : `${t}（待审核）`)).join("、") : "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>公司名称</dt><dd>{basic.name || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>统一社会信用代码</dt><dd className="reg-mono">{basic.creditCode || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>国别 / 行政区域</dt><dd>{basic.country || "未填写"} / {basic.region || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>注册地址</dt><dd>{basic.registeredAddress || "未填写"}{basic.detailedAddress ? `（${basic.detailedAddress}）` : ""}</dd></div>
+                  <div className="reg-ov-item"><dt>注册资本 / 行业</dt><dd>{basic.registeredCapital || "未填写"} / {basic.industry || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>体制类型</dt><dd>{basic.enterpriseType || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>法人</dt><dd>{basic.legalPerson || "未填写"}{basic.legalPersonPhone ? ` · ${basic.legalPersonPhone}` : ""}</dd></div>
+                  <div className="reg-ov-item"><dt>公司邮箱 / 官网</dt><dd>{basic.companyEmail || "未填写"} / {basic.companyWebsite || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>业务标签</dt><dd>{filledTags.length ? filledTags.map((t) => (inTagPool(t) ? t : `${t}（待审核）`)).join("、") : "未选择"}</dd></div>
                 </dl>
               </div>
               <div className="reg-ov-sec">
-                <h4>2 · 联系人（{contacts.filter((c) => c.name.trim() || c.gender || c.phone.trim() || c.idCard.trim() || c.email.trim() || c.position.trim()).length}）</h4>
+                <h4>联系人（{contacts.filter((c) => c.name.trim() || c.gender || c.phone.trim() || c.idCard.trim() || c.email.trim() || c.position.trim()).length}）</h4>
                 {contacts.filter((c) => c.name.trim() || c.gender || c.phone.trim() || c.idCard.trim() || c.email.trim() || c.position.trim()).map((c, i) => (
-                  <p key={i} className="reg-ov-line">{c.name || "—"}{c.gender ? ` · ${c.gender}` : ""} · {c.phone || "—"}{c.idCard ? ` · 身份证 ${c.idCard}` : ""}{c.position ? ` · ${c.position}` : ""}{c.isPrimary ? " · 主要" : ""}</p>
+                  <p key={i} className="reg-ov-line">{c.name || "未填写"}{c.gender ? ` · ${c.gender}` : ""} · {c.phone || "未填写"}{c.idCard ? ` · 身份证 ${c.idCard}` : ""}{c.position ? ` · ${c.position}` : ""}{c.isPrimary ? " · 主要" : ""}</p>
                 ))}
               </div>
               <div className="reg-ov-sec">
-                <h4>3 · 银行账户（{banks.length}）</h4>
+                <h4>资质与履历 · 银行账户（{banks.length}）</h4>
                 {banks.length === 0 ? <p className="reg-ov-line">未填写</p> : banks.map((b, i) => (
                   <p key={i} className="reg-ov-line">{b.accountName} · {b.bankName}{b.bankBranch ? ` ${b.bankBranch}` : ""} · {b.accountNo}{b.isDefault ? " · 默认" : ""}</p>
                 ))}
               </div>
               <div className="reg-ov-sec">
-                <h4>4 · 资质材料（{quals.filter((q) => q.name.trim()).length}）</h4>
+                <h4>资质与履历 · 资质材料（{quals.filter((q) => q.name.trim()).length}）</h4>
                 {quals.filter((q) => q.name.trim()).map((q, i) => (
                   <p key={i} className="reg-ov-line">{q.type} · {q.name}{q.fileUrl ? " · 已上传" : ""}{q.attachments.length ? ` · 附加 ${q.attachments.length} 份` : ""}</p>
                 ))}
               </div>
               <div className="reg-ov-sec">
-                <h4>5 · 主体业绩（{perfs.filter((p) => p.projectName.trim()).length}）</h4>
+                <h4>资质与履历 · 主体业绩（{perfs.filter((p) => p.projectName.trim()).length}）</h4>
                 {perfs.filter((p) => p.projectName.trim()).map((p, i) => (
                   <p key={i} className="reg-ov-line">{p.projectName}{p.clientName ? ` · ${p.clientName}` : ""}{p.contractAmount ? ` · ${p.contractAmount}` : ""} · 证明 {p.proofFiles.length} 份</p>
                 ))}
               </div>
 
               <div className="reg-notice">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
-                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
+                <Info size={18} strokeWidth={1.7} aria-hidden="true" />
                 <span>提交注册后，系统将自动进入审核流程。审核通过后您将获得完整的使用权限。</span>
               </div>
               <RegisterAgreement value={agree} onChange={setAgree} />
             </div>
-          </div>
-
-          {/* ── Actions ── */}
-          <div className="reg-actions">
-            {step > 0 && (
-              <button type="button" className="reg-btn reg-btn--back" onClick={prevStep}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><polyline points="10,3 5,8 10,13" /></svg>
-                上一步
-              </button>
-            )}
-            <div style={{ flex: 1 }} />
-            {step < 5 && (
-              <button type="button" className="reg-btn reg-btn--primary" onClick={nextStep}>
-                下一步
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4 }}><polyline points="6,3 11,8 6,13" /></svg>
-              </button>
-            )}
-            {step === 5 && (
-              <button type="button" className="reg-btn reg-btn--primary" disabled={loading} onClick={submit}>
-                {!loading && (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}><polyline points="3.5,8 6.5,11 12.5,5" /></svg>
-                )}
-                {loading ? "提交中…" : "提交注册申请"}
-              </button>
-            )}
-          </div>
-
-          <div className="reg-foot">
-            已有账号？<Link href="/login">返回登录</Link>
-          </div>
-        </div>
-      </section>
-    </main>
+            {submissionError && <p className="reg-submit-error" role="alert">{submissionError}</p>}
+    </RegistrationShell>
   );
 }

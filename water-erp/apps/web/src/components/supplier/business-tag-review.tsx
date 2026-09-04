@@ -8,7 +8,8 @@ import { approveBusinessTag, listBusinessTags, rejectBusinessTag, type BusinessT
 
 /**
  * 业务标签审核（供应商注册选择制）：供应商注册时自创的标签进入待审，
- * 审核通过后入池，成为后续注册供应商的可选项。无待审时不占版面（单行状态条）。
+ * 审核通过后入池，成为后续注册供应商的可选项。
+ * 常驻于 /supplier/approval（与密码重置审批同页），空态在卡片内提示——入口稳定可寻。
  */
 export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
   const [pending, setPending] = useState<BusinessTagRow[] | null>(null);
@@ -39,28 +40,24 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
     }
   }
 
-  if (pending === null) {
-    return <div className="py-2 text-xs text-[var(--muted-foreground)] flex items-center gap-2"><Loader2 size={13} className="animate-spin" />业务标签审核加载中…</div>;
-  }
-  if (pending.length === 0) {
-    return (
-      <div className="flex items-center gap-2 py-1 text-xs text-[var(--muted-foreground)]">
-        <Tags size={13} strokeWidth={1.75} />
-        业务标签库：暂无待审核的自创标签（供应商注册自创标签后将出现在此处）
-      </div>
-    );
-  }
+  const emptyHint = pending === null
+    ? '加载中…'
+    : '暂无待审核的自创标签 · 供应商注册自创标签后将出现在此处';
 
   return (
-    <div className="neu-table-card !p-0 mb-4">
+    <div className="neu-table-card !p-0">
       <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Tags size={15} strokeWidth={1.75} className="text-[var(--accent)]" />
           <span className="text-sm font-bold">业务标签审核</span>
           <span className="text-xs text-[var(--muted-foreground)]">供应商注册自创标签，通过后进入标签库供后续注册选择</span>
         </div>
-        <span className="neu-tab-count">{pending.length} 待审</span>
+        {pending !== null && pending.length > 0 && <span className="neu-tab-count">{pending.length} 待审</span>}
       </div>
+      {(pending === null || pending.length === 0) && (
+        <div className="px-4 py-5 text-center text-xs text-[var(--muted-foreground)]">{emptyHint}</div>
+      )}
+      {pending !== null && pending.length > 0 && (
       <div className="overflow-x-auto">
         <table className="neu-table w-full min-w-[600px]">
           <thead>
@@ -104,6 +101,7 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

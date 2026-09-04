@@ -9,26 +9,42 @@ import { supplierApi } from "@/lib/api/supplier";
  */
 interface SupplierStatusContextValue {
   status: any | null;
+  statusError: boolean;
   fetchStatus: () => Promise<void>;
 }
 
 const SupplierStatusContext = createContext<SupplierStatusContextValue | null>(null);
 
+export async function loadSupplierStatus<T>(
+  request: () => Promise<T>,
+  onStatus: (status: T | null) => void,
+  onErrorChange: (hasError: boolean) => void,
+): Promise<void> {
+  try {
+    onStatus(await request());
+    onErrorChange(false);
+  } catch (error) {
+    onStatus(null);
+    onErrorChange(true);
+    throw error;
+  }
+}
+
 export function SupplierStatusProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<any | null>(null);
+  const [statusError, setStatusError] = useState(false);
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      setStatus(await supplierApi.getStatus());
-    } catch { /* 静默：状态失败不阻塞外壳 */ }
-  }, []);
+  const fetchStatus = useCallback(
+    () => loadSupplierStatus(supplierApi.getStatus, setStatus, setStatusError),
+    [],
+  );
 
   useEffect(() => {
-    fetchStatus();
+    void fetchStatus().catch(() => {});
   }, [fetchStatus]);
 
   return (
-    <SupplierStatusContext.Provider value={{ status, fetchStatus }}>
+    <SupplierStatusContext.Provider value={{ status, statusError, fetchStatus }}>
       {children}
     </SupplierStatusContext.Provider>
   );

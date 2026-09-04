@@ -24,6 +24,7 @@ import {
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import {
+  awardLetterDeliveryUiState,
   BID_STAGE_LABELS,
   deliverAwardLetter,
   ensureBidProject,
@@ -36,9 +37,11 @@ import {
   startOpening,
   swapExpertRole,
   updateBidProjectSchedule,
+  validateAwardLetterFile,
   type BidProjectDetail,
   type BidProjectRef,
   type BidWorkspace,
+  type AwardLetterStatus,
 } from '@/lib/api/bid';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
 import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
@@ -53,6 +56,7 @@ import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { ArchiveTemplateCard } from './archive-template-card';
+import { uploadFile } from '@/lib/api/announcement';
 
 type Props = {
   isOpen: boolean;
@@ -1215,8 +1219,10 @@ function EmptyHint({ text }: { text: string }) {
 /** A1+A3: 公示期状态指示 + 中标通知书推送——归档后显示公示倒计时 / 期满可发通知书 */
 function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detail: BidProjectDetail | null }) {
   const [status, setStatus] = useState<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean } | null>(null);
-  const [letters, setLetters] = useState<Array<{ id: string; supplierName: string; deliveredAt: string | null; signedAt: string | null; signedBy: string | null }>>([]);
+  const [letters, setLetters] = useState<AwardLetterStatus[]>([]);
   const [delivering, setDelivering] = useState(false);
+  const [letterFile, setLetterFile] = useState<File | null>(null);
+  const [deliverError, setDeliverError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     getPublicityStatus(bidProjectId).then(setStatus).catch(() => {});
@@ -1228,11 +1234,25 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
   const handleDeliver = async () => {
     const winner = (detail?.evaluationResults ?? []).find(r => r.rank === 1 && r.recommended);
     if (!winner) return;
+    const validationError = validateAwardLetterFile(letterFile);
+    if (validationError || !letterFile) {
+      setDeliverError(validationError);
+      return;
+    }
     setDelivering(true);
+    setDeliverError(null);
     try {
-      await deliverAwardLetter(bidProjectId, { winnerName: winner.supplierName, winnerSupplierId: winner.supplierId });
+      const asset = await uploadFile(letterFile, 'contract_document');
+      await deliverAwardLetter(bidProjectId, {
+        winnerName: winner.supplierName,
+        winnerSupplierId: winner.supplierId,
+        letterAssetId: asset.id,
+      });
+      setLetterFile(null);
       refresh();
-    } catch { /* toast handled by caller */ }
+    } catch (error) {
+      setDeliverError(error instanceof Error ? error.message : '中标通知书发出失败，请重试');
+    }
     finally { setDelivering(false); }
   };
 
@@ -1240,6 +1260,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
 
   // M12: 中标价格展示
   const winner = (detail?.evaluationResults ?? []).find(r => r.rank === 1 && r.recommended);
+  const deliveryUiState = awardLetterDeliveryUiState(letters[0]);
 
   return (
     <div className="space-y-2">
@@ -1254,13 +1275,46 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
           )}
         </div>
       ) : status.canIssueAward ? (
-        <div className="exp-alert exp-alert--success flex items-center gap-2 !p-3">
-          <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" />
-          <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
-          {detail?.evaluationResults?.some(r => r.rank === 1 && r.recommended) && letters.length === 0 && (
-            <button type="button" onClick={handleDeliver} disabled={delivering} className="neu-btn-primary !h-[26px] !px-2.5 !text-[11px] ml-auto">
-              {delivering ? '推送中…' : '推送中标通知书'}
-            </button>
+        <div className="exp-alert exp-alert--success !p-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" />
+            <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
+          </div>
+          {detail?.evaluationResults?.some(r => r.rank === 1 && r.recommended) && deliveryUiState !== 'locked' && (
+            <div className="mt-3 rounded-lg border border-[color-mix(in_oklch,var(--success)_22%,transparent)] bg-white/65 p-3">
+              <label htmlFor={`award-letter-${bidProjectId}`} className="mb-1.5 block text-xs font-semibold text-[var(--foreground)]">
+                {deliveryUiState === 'reissue' ? '更换中标通知书文件' : '中标通知书文件'} <span className="font-normal text-[var(--danger)]">*</span>
+              </label>
+              {deliveryUiState === 'reissue' && (
+                <p className="mb-2 text-[11px] text-[var(--muted-foreground)]">
+                  当前通知书尚未签收，可更换文件并重发；重发后供应商需重新查看文件。
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  id={`award-letter-${bidProjectId}`}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  disabled={delivering}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setLetterFile(file);
+                    setDeliverError(validateAwardLetterFile(file));
+                  }}
+                  aria-describedby={`award-letter-help-${bidProjectId}`}
+                  className="min-w-0 flex-1 text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[var(--muted)] file:px-3 file:py-2 file:text-xs file:font-semibold"
+                />
+                <button type="button" onClick={handleDeliver} disabled={delivering || !letterFile || Boolean(validateAwardLetterFile(letterFile))} className="neu-btn-primary !min-h-9 !px-3 !text-xs">
+                  {delivering
+                    ? (deliveryUiState === 'reissue' ? '更换并重发中…' : '上传并发出中…')
+                    : (deliveryUiState === 'reissue' ? '更换文件并重发' : '上传并发出')}
+                </button>
+              </div>
+              <p id={`award-letter-help-${bidProjectId}`} className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                支持 PDF、DOC、DOCX，最大 20 MB；供应商将在门户内查看、下载并签收该文件。
+              </p>
+              {deliverError && <p role="alert" className="mt-1.5 text-xs font-medium text-[var(--danger)]">{deliverError}</p>}
+            </div>
           )}
         </div>
       ) : (
@@ -1275,14 +1329,44 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
         <div className="rounded-[12px] border border-[color-mix(in_oklch,var(--foreground)_10%,transparent)] px-3 py-2">
           <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">中标通知书签收</div>
           {letters.map(l => (
-            <div key={l.id} className="flex items-center gap-2 py-0.5 text-xs">
-              <span className="font-medium text-[var(--foreground)]">{l.supplierName}</span>
-              {l.signedAt ? (
-                <span className="text-[var(--success)] font-semibold">✓ 已签收</span>
-              ) : l.deliveredAt ? (
-                <span className="text-[var(--muted-foreground)]">已推送，待签收</span>
-              ) : (
-                <span className="text-[var(--muted-foreground)]">未推送</span>
+            <div key={l.id} className="border-t border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] py-2 first:border-t-0">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-medium text-[var(--foreground)]">{l.supplierName}</span>
+                {l.signedAt ? (
+                  <span className="font-semibold text-[var(--success)]">✓ 已签收，通知书已锁定，不可更换或重发</span>
+                ) : l.receivedAt ? (
+                  <span className="font-semibold text-[var(--warning)]">已收阅，待签收</span>
+                ) : l.deliveredAt ? (
+                  <span className="text-[var(--muted-foreground)]">已送达，待收阅</span>
+                ) : (
+                  <span className="text-[var(--muted-foreground)]">未推送</span>
+                )}
+              </div>
+              <div className="mt-2 grid gap-1 text-[11px] text-[var(--muted-foreground)] sm:grid-cols-3">
+                <span><b className="text-[var(--foreground)]">送达</b> {l.deliveredAt ? new Date(l.deliveredAt).toLocaleString('zh-CN') : '—'}</span>
+                <span><b className="text-[var(--foreground)]">收阅</b> {l.receivedAt ? new Date(l.receivedAt).toLocaleString('zh-CN') : '—'}</span>
+                <span><b className="text-[var(--foreground)]">签收</b> {l.signedAt ? new Date(l.signedAt).toLocaleString('zh-CN') : '—'}</span>
+              </div>
+              {l.letterAsset && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-[var(--muted)]/45 px-2.5 py-2 text-[11px]">
+                  <a
+                    href={`/api/upload/files/${encodeURIComponent(l.letterAsset.id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline"
+                  >
+                    <FileText size={12} aria-hidden="true" />{l.letterAsset.originalName}
+                  </a>
+                  <span>{(l.letterAsset.size / 1024).toFixed(l.letterAsset.size >= 1024 * 1024 ? 0 : 1)} KB</span>
+                  {l.letterAsset.sha256 && <span className="font-mono" title={l.letterAsset.sha256}>SHA-256 {l.letterAsset.sha256.slice(0, 12)}…</span>}
+                  <span>上传 {new Date(l.letterAsset.createdAt).toLocaleString('zh-CN')}</span>
+                </div>
+              )}
+              {l.signedAt && (
+                <div className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                  回执编号 <span className="font-mono font-semibold text-[var(--foreground)]">{l.receiptNo}</span>
+                  {' · '}签收人 {l.signedByName || l.signedBy || '—'}
+                </div>
               )}
             </div>
           ))}

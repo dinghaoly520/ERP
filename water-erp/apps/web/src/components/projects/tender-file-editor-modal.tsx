@@ -1125,7 +1125,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
                   </div>
                   <div>
                     <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">修改历史</div>
-                    <div className="text-[11px] text-[color:var(--muted-foreground)]">每次保存并替换的完整记录 · 只读不可删改</div>
+                    <div className="text-[11px] text-[color:var(--muted-foreground)]">每次保存并替换的完整记录</div>
                   </div>
                 </div>
                 <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-xs"><X size={16} /></button>

@@ -68,7 +68,7 @@ export function ObjectionBoardModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal open onClose={onClose} title="异议 / 投诉处理" description="在线受理并答复供应商异议（GB/T 43711 4.1.4）；转投诉的登记监管处理结果" size="lg">
+    <Modal open onClose={onClose} title="异议 / 投诉处理" description="在线受理并答复供应商异议；转投诉的登记监管处理结果" size="lg">
       <div className="flex items-center gap-2 mb-3">
         {[['', '全部'], ['open', '待答复'], ['answered', '已答复'], ['complaint', '已转投诉'], ['closed', '已办结']].map(([v, label]) => (
           <button key={v} onClick={() => setFilter(v)} className={`neu-tab ${filter === v ? 'is-active' : ''}`}>{label}</button>

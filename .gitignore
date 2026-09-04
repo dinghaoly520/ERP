@@ -27,3 +27,8 @@ packages/*/src/**/*.d.ts
 
 # 管理方加密证书私钥 keystore（双信封 v2，Task 5）——绝不入库
 water-erp/apps/api/.data/
+
+# 本地产物/交付物——不入库（2026-09-04 拍板）
+water-erp/tmp/
+water-erp/outputs/
+泳道图交付/

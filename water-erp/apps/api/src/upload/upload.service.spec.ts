@@ -3,11 +3,13 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UploadService } from './upload.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient } from './minio.client';
+import { CompanyScopeService } from '../company/company-scope';
 
 describe('UploadService — download permission', () => {
   let service: UploadService;
   let prisma: any;
   let res: any;
+  let companyScope: any;
 
   const asset = {
     id: 'fa-1', key: 'uploads/x.pdf', originalName: 'x.pdf',
@@ -19,23 +21,67 @@ describe('UploadService — download permission', () => {
       fileAsset: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
       bidExpert: { findFirst: jest.fn() },
       supplierBidSubmission: { findFirst: jest.fn() },
-      bidSupplier: { findFirst: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       supplier: { findUnique: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       bidOpeningSession: { findFirst: jest.fn() },
       bidSignPacket: { findFirst: jest.fn() },
-      awardLetterDelivery: { findFirst: jest.fn() },
+      awardLetterDelivery: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      contract: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      contractFulfillment: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      supplierQualification: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierPerformance: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierOwnArchive: { findMany: jest.fn().mockResolvedValue([]) },
+      user: { findUnique: jest.fn() },
       expertMemo: { findFirst: jest.fn() },
       openingHallMessage: { findFirst: jest.fn() },
     };
     res = { setHeader: jest.fn() };
+    companyScope = {
+      resolveScope: jest.fn().mockImplementation((user: any) => Promise.resolve(
+        user.role === 'admin'
+          ? { all: true }
+          : { all: false, companyId: user.sub === 'u-company-b' ? 'company-b' : 'company-a' },
+      )),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UploadService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        UploadService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: CompanyScopeService, useValue: companyScope },
+      ],
     }).compile();
 
     service = module.get<UploadService>(UploadService);
     jest.spyOn(minioClient, 'getObject').mockClear().mockResolvedValue({ pipe: jest.fn() } as any);
+  });
+
+  describe('上传分类单一来源', () => {
+    const file = {
+      mimetype: 'application/pdf',
+      originalname: 'proof.pdf',
+      buffer: Buffer.from('%PDF-1.7\nproof'),
+      size: 14,
+    } as Express.Multer.File;
+
+    it.each(['contract_document', 'prequal_document'])('接受实际业务使用的 %s 分类', (category) => {
+      expect(() => service.validateFile(file, category)).not.toThrow();
+    });
+
+    it('拒绝未知分类', () => {
+      expect(() => service.validateFile(file, 'made_up_category'))
+        .toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'INVALID_CATEGORY' }) }));
+    });
+
+    it.each([
+      ['application/zip', 'proof.pdf', Buffer.from('PK\u0003\u0004fake')],
+      ['application/pdf', 'proof.zip', Buffer.from('%PDF-1.7\nfake')],
+      ['application/pdf', 'proof.pdf', Buffer.from('not-a-pdf')],
+    ])('合同证明拒绝伪装的 MIME、扩展名或文件头 %#', (mimetype, originalname, buffer) => {
+      expect(() => service.validateFile({ ...file, mimetype, originalname, buffer } as Express.Multer.File, 'contract_document'))
+        .toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'CONTRACT_DOCUMENT_TYPE_MISMATCH' }) }));
+    });
   });
 
   it('allows the uploader to stream their own file', async () => {
@@ -49,6 +95,168 @@ describe('UploadService — download permission', () => {
     prisma.supplierBidSubmission.findFirst.mockResolvedValue(null); // file not part of any submission
     await service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res);
     expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  describe('合同文档内部用户公司隔离', () => {
+    const contractAsset = {
+      ...asset,
+      category: 'contract_document',
+      uploaderId: 'u-staff',
+    };
+
+    it('即使是上传人本人，资产已挂他企合同时仍拒绝下载', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(contractAsset);
+      prisma.contract.findMany.mockResolvedValue([{ companyId: 'company-b' }]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+
+      expect(companyScope.resolveScope).toHaveBeenCalledWith({ sub: 'u-staff', role: 'staff' });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('他企履约证明对本公司 staff 拒绝下载', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.contractFulfillment.findMany.mockResolvedValue([{
+        contract: { companyId: 'company-b' },
+      }]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('本公司合同凭证对非上传人经办人放行', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.contractFulfillment.findMany.mockResolvedValue([{
+        contract: { companyId: 'company-a' },
+      }]);
+
+      await service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res);
+
+      expect(minioClient.getObject).toHaveBeenCalled();
+    });
+
+    it('admin 可访问任何公司已引用的合同资产', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.contract.findMany.mockResolvedValue([{ companyId: 'company-b' }]);
+
+      await service.streamFile('fa-1', { sub: 'u-admin', role: 'admin' }, res);
+
+      expect(minioClient.getObject).toHaveBeenCalled();
+    });
+
+    it('未被合同链引用的 contract_document 仍按旧规则判定', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(contractAsset);
+      await service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res);
+
+      expect(companyScope.resolveScope).not.toHaveBeenCalled();
+      expect(minioClient.getObject).toHaveBeenCalled();
+    });
+
+    it('存量资产同时被多公司合同引用时，非 admin 一律不放行', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.contract.findMany.mockResolvedValue([
+        { companyId: 'company-a' },
+        { companyId: 'company-b' },
+      ]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('存量合同引用缺失 companyId 时对非 admin 默认拒绝', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.contract.findMany.mockResolvedValue([{ companyId: null }]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('即使是上传人本人，他企项目成交通知书也拒绝下载', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(contractAsset);
+      prisma.awardLetterDelivery.findMany.mockResolvedValue([{
+        project: { companyId: 'company-b' },
+      }]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      expect(prisma.awardLetterDelivery.findMany).toHaveBeenCalledWith({
+        where: { letterAssetId: 'fa-1' },
+        select: { project: { select: { companyId: true, assignedHostUserId: true } } },
+      });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('本公司成交通知书对非上传人经办人放行', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.awardLetterDelivery.findMany.mockResolvedValue([{
+        project: { companyId: 'company-a' },
+      }]);
+
+      await service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res);
+
+      expect(minioClient.getObject).toHaveBeenCalled();
+    });
+
+    it('成交通知书引用中含他公司或缺失 companyId 时非 admin 一律拒绝', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.awardLetterDelivery.findMany.mockResolvedValue([
+        { project: { companyId: 'company-a' } },
+        { project: { companyId: null } },
+      ]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-staff', role: 'staff' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('admin 可访问任意公司成交通知书', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.awardLetterDelivery.findMany.mockResolvedValue([{
+        project: { companyId: 'company-b' },
+      }]);
+
+      await service.streamFile('fa-1', { sub: 'u-admin', role: 'admin' }, res);
+
+      expect(minioClient.getObject).toHaveBeenCalled();
+    });
+
+    it('跨公司被指派的 bid_host 可回看其负责项目的成交通知书', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.awardLetterDelivery.findMany.mockResolvedValue([{
+        project: { companyId: 'company-b', assignedHostUserId: 'u-host' },
+      }]);
+
+      await service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res);
+
+      expect(minioClient.getObject).toHaveBeenCalled();
+    });
+
+    it('未被指派的 bid_host 不可借角色跨公司下载通知书', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.awardLetterDelivery.findMany.mockResolvedValue([{
+        project: { companyId: 'company-b', assignedHostUserId: 'u-another-host' },
+      }]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('资产同时被合同引用时，指派主持人不能绕过合同公司域', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...contractAsset, uploaderId: 'u-other' });
+      prisma.contract.findMany.mockResolvedValue([{ companyId: 'company-a' }]);
+      prisma.awardLetterDelivery.findMany.mockResolvedValue([{
+        project: { companyId: 'company-b', assignedHostUserId: 'u-host' },
+      }]);
+
+      await expect(service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
   });
 
   it('denies admin when bid submission file is not yet decrypted', async () => {
@@ -74,6 +282,67 @@ describe('UploadService — download permission', () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     await expect(service.streamFile('fa-1', { sub: 'u-other', role: 'supplier' }, res))
       .rejects.toThrow(ForbiddenException);
+    expect(minioClient.getObject).not.toHaveBeenCalled();
+  });
+
+  it('allows only the recipient supplier to view an admin-uploaded award letter', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'contract_document', uploaderId: 'u-admin' });
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', userId: 'u-supplier', logoUrl: null });
+    prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bid-supplier-1' }]);
+    prisma.awardLetterDelivery.findFirst.mockResolvedValue({ id: 'delivery-1' });
+
+    await service.streamFile('fa-1', { sub: 'u-supplier', role: 'supplier' }, res);
+
+    expect(prisma.awardLetterDelivery.findFirst).toHaveBeenCalledWith({
+      where: { letterAssetId: 'fa-1', supplierId: { in: ['bid-supplier-1'] } },
+      select: { id: true },
+    });
+    expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  it('allows a supplier to view files referenced by its own contract', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'contract_document', uploaderId: 'u-admin' });
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', userId: 'u-supplier', logoUrl: null });
+    prisma.contract.findFirst.mockResolvedValue({ id: 'contract-1' });
+
+    await service.streamFile('fa-1', { sub: 'u-supplier', role: 'supplier' }, res);
+
+    expect(prisma.contract.findFirst).toHaveBeenCalledWith({
+      where: {
+        supplierId: 'supplier-1',
+        signedAssetId: 'fa-1',
+        status: { in: ['signed', 'performing', 'accepted', 'terminated'] },
+      },
+      select: { id: true },
+    });
+    expect(minioClient.getObject).toHaveBeenCalled();
+  });
+
+  it('供应商即使知道 assetId 也不能下载采购人合同草稿', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'contract_document', uploaderId: 'u-admin' });
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', userId: 'u-supplier', logoUrl: null });
+    // 仿真草稿资产：只有查询 draftAssetId 才会命中，安全实现不应发出该条件。
+    prisma.contract.findFirst.mockImplementation(({ where }: any) => (
+      where?.OR?.some((clause: any) => clause.draftAssetId === 'fa-1') ? { id: 'draft-contract' } : null
+    ));
+
+    await expect(service.streamFile('fa-1', { sub: 'u-supplier', role: 'supplier' }, res))
+      .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+    expect(minioClient.getObject).not.toHaveBeenCalled();
+  });
+
+  it('草拟/内审阶段的存量 signedAssetId 对供应商仍拒绝下载', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'contract_document', uploaderId: 'u-admin' });
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', userId: 'u-supplier', logoUrl: null });
+    prisma.contract.findFirst.mockImplementation(({ where }: any) => {
+      if (where?.OR?.some((clause: any) => clause.signedAssetId === 'fa-1' && !clause.status)) {
+        return { id: 'internal-review-contract' };
+      }
+      return null;
+    });
+
+    await expect(service.streamFile('fa-1', { sub: 'u-supplier', role: 'supplier' }, res))
+      .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
     expect(minioClient.getObject).not.toHaveBeenCalled();
   });
 
@@ -244,6 +513,19 @@ describe('UploadService — download permission', () => {
       prisma.bidSignPacket.findFirst.mockResolvedValue({ id: 'sp-1' });
 
       await expect(service.delete('uploads/packet.pdf', { sub: 'u-admin', role: 'admin' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['合同正文', 'contract', 'draftAssetId'],
+      ['签署版合同', 'contract', 'signedAssetId'],
+      ['履约证明', 'contractFulfillment', 'proofAssetId'],
+    ])('反查兜底：%s被引用后不可删除', async (_label, model, _field) => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'contract_document' });
+      prisma[model].findFirst.mockResolvedValue({ id: 'ref-1' });
+
+      await expect(service.delete('uploads/contract-proof.pdf', { sub: 'u-supplier', role: 'supplier' }))
         .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
       expect(minioClient.removeObject).not.toHaveBeenCalled();
     });

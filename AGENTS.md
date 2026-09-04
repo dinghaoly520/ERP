@@ -4,9 +4,9 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project Overview
 
-**智慧水发·招采ERP系统** — A procurement and bidding ERP system for Sichuan Water Development Group. Chinese-language application covering bid management, supplier lifecycle management, expert evaluation, AI-assisted scoring, announcements, and e-commerce.
+**智慧水发·招采ERP系统** — A Chinese-language procurement and bidding ERP system covering the public information portal, procurement mall, supplier lifecycle, internal procurement workbench, bid opening/evaluation, expert scoring, AI assistance, and operational dashboards.
 
-The active codebase is in `water-erp/`. The `water_erp_web/` directory is a legacy prototype (static HTML + Vue.js) — not the current development target.
+The active pnpm monorepo is `water-erp/`. `apps/web-erp-old/` is the legacy ERP frontend and is not started by the root `pnpm dev` command.
 
 ## Monorepo Structure
 
@@ -14,14 +14,20 @@ pnpm workspace monorepo (`water-erp/`):
 
 | Directory | Tech | Port | Role |
 |-----------|------|------|------|
+| `apps/public-portal` | Next.js 16 (App Router) | 3002 | Public information portal and announcements |
+| `apps/mall` | Next.js 16 (App Router) | 3003 | Procurement mall |
+| `apps/supplier-portal-next` | Next.js 16 (App Router) | 3004 | Supplier self-service portal; `/login`, `/register`, `/register-temporary` |
+| `apps/web` | Next.js 16 (App Router) | 3005 | Unified procurement management workbench |
+| `apps/expert-portal` | Next.js 16 (App Router) | 3006 | Bid expert portal |
+| `apps/bid-portal` | Next.js 16 (App Router) | 3007 | Bid opening and evaluation management |
+| `apps/assistant` | Next.js 16 (App Router) | 3008 | 水叮当 intelligent assistant |
+| `apps/bigscreen` | Next.js 16 (App Router) | 3010 | Operational big-screen display |
 | `apps/api` | NestJS 11 + Prisma | 4001 | REST API + Swagger at `/api/docs` |
-| `apps/web` | Next.js 16 (App Router) | 3002 | Admin/internal staff portal |
-| `apps/supplier-portal` | Vue 3 + Vite | 3003 | Supplier self-service portal |
-| `apps/expert-portal` | Next.js 16 (App Router) | 3004 | Bid expert portal |
-| `apps/public-portal` | Next.js 16 (App Router) | 3005 | Public-facing landing + announcements |
 | `packages/config` | TypeScript | — | Shared config: PORTS, role→portal routing (`@water-erp/config`) |
 | `packages/shared` | TypeScript | — | Shared types, constants, design tokens (`@water-erp/shared`) |
 | `packages/ui` | — | — | Scaffold (unused) |
+
+`apps/web-erp-old/` uses port 3009 when run manually. `PORTS.supplierNext = 3020` remains a migration-compatibility alias used by API websocket/origin checks; the active supplier portal runs on 3004.
 
 Infrastructure via `docker-compose.yml`: PostgreSQL 16 (:5432), Redis 7 (:6380 mapped to avoid host conflict), MinIO (:9000/:9001).
 
@@ -38,15 +44,19 @@ pnpm --filter @water-erp/config exec tsc -p tsconfig.json   # build config packa
 pnpm db:migrate                        # apply Prisma migrations
 pnpm db:seed                           # seed demo data
 
-# Dev — starts all 5 apps (api + 4 portals) concurrently
+# Dev — starts the API plus all 8 active frontends concurrently
 pnpm dev
 
 # Individual apps
-pnpm --filter web dev                  # admin portal :3002
-pnpm --filter supplier-portal dev      # supplier portal :3003
-pnpm --filter expert-portal dev        # expert portal :3004
-pnpm --filter public-portal dev        # public portal :3005
-pnpm --filter api start:dev            # API :4001
+pnpm dev:public                        # public information portal :3002
+pnpm dev:mall                          # procurement mall :3003
+pnpm dev:supplier                      # supplier portal :3004
+pnpm dev:web                           # procurement workbench :3005
+pnpm dev:expert                        # expert portal :3006
+pnpm dev:bid                           # bid opening/evaluation :3007
+pnpm dev:assistant                     # intelligent assistant :3008
+pnpm dev:bigscreen                     # operational big screen :3010
+pnpm dev:api                           # API :4001
 
 # Database
 pnpm db:generate                       # prisma generate
@@ -71,12 +81,13 @@ JWT_SECRET=water-erp-jwt-secret
 
 ### Multi-Portal Design
 
-Each user role lands on a different portal after login, routed by `@water-erp/config` (`ROLE_PORTAL` map):
+Each user role lands on a different portal after login, routed by `@water-erp/config` (`ROLE_PORTAL` and `ROLE_LANDING`):
 
-- `admin` / `bid_host` / `procurement_staff` → **web** (`:3002`)
-- `supplier` → **supplier-portal** (`:3003`)
-- `bid_expert` → **expert-portal** (`:3004`)
-- Unauthenticated → **public-portal** (`:3005`)
+- `admin` / `bid_host` → **bid-portal** (`:3007/bid`)
+- `supplier` → **supplier-portal-next** (`:3004/dashboard`)
+- `bid_expert` → **expert-portal** (`:3006/`)
+- `mall` → **mall** (`:3003/`)
+- Unmapped or unauthenticated traffic falls back to **public-portal** (`:3002/`)
 
 Portals share zero code at the component level; they share types and constants via `@water-erp/shared`. Each portal has its own `src/lib/api.ts` client and proxied `/api/*` calls.
 
@@ -106,7 +117,7 @@ Portals share zero code at the component level; they share types and constants v
 
 ### Frontend Conventions
 
-- **Proxy**: each portal's Next.js/Vite config rewrites `/api/*` → `http://localhost:4001/api/*`
+- **Proxy**: active portals use Next.js rewrites/proxy logic to forward `/api/*` to the API origin from `@water-erp/config` (default `http://localhost:4001`)
 - **API client pattern**: thin `fetch` wrapper with `credentials: 'include'`, e.g. `src/lib/api.ts`
 - **Types**: re-exported from `@water-erp/shared` in portal-level `src/lib/types.ts`
 - **UI**: Tailwind CSS v4 (no component library), brand colors `#042a58` / `#064ea2` (navy blue)
@@ -124,10 +135,4 @@ Portals share zero code at the component level; they share types and constants v
 
 ### Database
 
-Prisma schema at `apps/api/prisma/schema.prisma`. Three migrations: `init`, `add_announcement_and_bid_submission`, `add_submission_project_relation`.
-
-Seed data creates:
-- Department: 采购中心
-- Users: `caigou/caigou@2026` (采购管理员), `lizhuren/lizhuren@2026` (开标主持), `wangjg/wangjg@2026` (专家·王建国), `liuxm/liuxm@2026` (专家·刘晓梅), `chenzq/chenzq@2026` (专家·陈志强), `supplier1/supplier1@2026` (供应商·已入库), `supplier2/supplier2@2026` (供应商·待审核), `mall/mall@2026` (商城采购员)
-- 1 demo bid project `BID-2026-0518` with 5 suppliers, 3 experts, scores, supervision logs, archive items
-- 5 demo announcements
+The Prisma schema is at `apps/api/prisma/schema.prisma`; dated migrations live in `apps/api/prisma/migrations/`. The seed workflow is actively maintained and contains many compatibility/data-repair steps, so inspect `apps/api/prisma/seed.ts` rather than relying on a static account list in this guide.

@@ -343,6 +343,13 @@ export function ExpertExtractPage({
 
   // ② modal 模式 invitationData 兜底（仅无 localStorage 时还原已分配专家）
   const invitationRestoredRef = useRef(false);
+  // ②-a modal 模式：pid 就绪即拉取服务端已分配专家——不等步骤3。
+  // 重开步骤（reopen）后再次进入专家抽取时，BidExpert 记录仍在服务端，
+  // 立即加载才能触发下方兜底还原，而不是当作全新抽取从步骤1重来。
+  useEffect(() => {
+    if (defaultPid === undefined || !pid || invitationData) return;
+    getProjectInvitations(pid).then(setInvitationData).catch(() => {});
+  }, [pid, invitationData, defaultPid]);
   useEffect(() => {
     if (defaultPid === undefined) return;
     if (!pid || !invitationData || modalLocalRestoredRef.current || invitationRestoredRef.current) return;
@@ -377,7 +384,14 @@ export function ExpertExtractPage({
       suggestedLeaderId: null,
       generatedAt: new Date().toISOString(),
     });
-  }, [pid, invitationData, demandRepPersons, defaultPid]);
+    // 之前已确认过名单（BidExpert 存在即步骤3已完成）→ 按通知进度回到对应步骤：
+    // 全部终态（已确认/已拒绝）→ 步骤5 专家组确认；部分已通知 → 步骤4 查看回复；否则 → 步骤3 确认通知
+    setConfirmedExpertIds(main.map(e => e.userId));
+    setStep3Confirmed(true);
+    const anyNotified = invitationData.experts.some(e => e.invitationStatus !== 'pending');
+    const allFinal = invitationData.experts.length > 0 && invitationData.experts.every(e => e.invitationStatus !== 'pending');
+    setStep(allFinal ? 5 : anyNotified ? 4 : 3);
+  }, [pid, invitationData, defaultPid]);
 
   // 步骤6：进入时自动抽取候补专家（仅首次，已抽过时直接展示）
   useEffect(() => {

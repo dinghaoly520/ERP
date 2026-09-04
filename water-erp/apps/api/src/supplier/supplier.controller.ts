@@ -153,6 +153,13 @@ export class SupplierController {
     return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard });
   }
 
+  @Get('changes/pending')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '审批中心：全部待审的供应商资料变更（跨供应商）' })
+  async listPendingChanges() {
+    return this.supplierService.listPendingChanges();
+  }
+
   @Get('stats')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商统计数据（Dashboard用）' })

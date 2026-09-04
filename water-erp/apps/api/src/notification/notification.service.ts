@@ -159,7 +159,13 @@ export class NotificationService {
     return notifications;
   }
 
-  async list(userId: string, page: number = 1, pageSize: number = 20, tab: 'all' | 'todo' = 'all') {
+  async list(
+    userId: string,
+    page: number = 1,
+    pageSize: number = 20,
+    tab: 'all' | 'todo' = 'all',
+    types: string[] = [],
+  ) {
     const skip = (page - 1) * pageSize;
 
     const where: any = { userId };
@@ -167,6 +173,7 @@ export class NotificationService {
       // 「待办」= 未 resolve 的通知（actionable 与否由前端 META 判定，后端仅按 resolvedAt 过滤）
       where.resolvedAt = null;
     }
+    if (types.length > 0) where.type = { in: types };
 
     const [total, items] = await Promise.all([
       this.prisma.notification.count({ where }),
@@ -185,6 +192,14 @@ export class NotificationService {
   async resolveActionable(type: string, link: string) {
     return this.prisma.notification.updateMany({
       where: { type, link, resolvedAt: null },
+      data: { resolvedAt: new Date() },
+    });
+  }
+
+  /** 仅完成某个用户的某个精确业务待办，避免同类型通知被批量误处理。 */
+  async resolveActionableForUser(userId: string, type: string, link: string) {
+    return this.prisma.notification.updateMany({
+      where: { userId, type, link, resolvedAt: null },
       data: { resolvedAt: new Date() },
     });
   }
