@@ -18,6 +18,7 @@ import {
   type BidProjectDetail,
   type SignPacketResponse,
 } from '@/lib/api/bid';
+import { Modal } from '@/components/workbench';
 
 type Props = {
   bidProjectId: string;
@@ -135,10 +136,10 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-            style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
+            className="wb-icon-well wb-icon-well--xs"
+            style={{ '--well-bg': 'color-mix(in oklch, var(--success) 12%, transparent)', '--well-fg': 'var(--success)' } as React.CSSProperties}
           >
-            <Archive size={15} className="text-[var(--success)]" />
+            <Archive size={15} />
           </div>
           <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">项目归档</h3>
         </div>
@@ -168,8 +169,8 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
 
       {/* 签字闸门警示（完整归档闸门 = 签字包 + 全员闭环 + 评标回流包） */}
       {signGate.blocked && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--warning, #b7791f) 10%, transparent)' }}>
-          <PenLine size={13} className="shrink-0 text-[var(--warning, #b7791f)]" />
+        <div className="wb-tone-banner wb-tone-banner--warning mt-3 flex flex-wrap text-xs">
+          <PenLine size={13} className="shrink-0" />
           <span className="font-semibold text-[var(--foreground)]">{signGate.reason}</span>
           <span className="text-[var(--muted-foreground)]">——请在 :3007 评标签字 tab 完成后重试（完整归档闸门：签字包 + 全员闭环 + 评标回流包）。</span>
         </div>
@@ -177,20 +178,14 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
 
       {/* 行内反馈 */}
       {feedback && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
-          style={{
-            background: feedback.tone === 'ok' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--danger) 10%, transparent)',
-            color: feedback.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-          }}
-        >
+        <div className={`wb-tone-banner mb-3 text-xs font-semibold ${feedback.tone === 'ok' ? 'wb-tone-banner--success' : 'wb-tone-banner--danger'}`}>
           {feedback.tone === 'ok' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
           {feedback.text}
         </div>
       )}
 
       {stage !== 'ARCHIVED' ? (
-        <div className="rounded-[14px] px-4 py-3.5 text-xs leading-5 text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.4)' }}>
+        <div className="wb-note px-4 py-3.5 text-xs leading-5 text-[var(--muted-foreground)]">
           {stage === 'OPENING' ? (
             <>项目处于开标阶段。若本项目<span className="font-semibold text-[var(--foreground)]">不进入评标</span>（流标 / 废标 / 开标后终止），可执行「开标归档」——仅归档开标文件材料（不含评分明细与评标结果）。<span className="font-semibold text-[var(--danger)]">归档后流程终结，不可再启动评标。</span>需要评标请改用下方评标管理区块。</>
           ) : (
@@ -201,7 +196,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
         <div className="space-y-3">
           {/* 档案指纹 */}
           {rootDigest && (
-            <div className="flex items-center gap-2.5 rounded-[14px] px-3.5 py-2.5" style={{ background: 'color-mix(in oklch, var(--success) 7%, transparent)' }}>
+            <div className="wb-note flex items-center gap-2.5 px-3.5 py-2.5">
               <Fingerprint size={15} className="shrink-0 text-[var(--success)]" />
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">档案指纹（哈希链根）</div>
@@ -214,38 +209,35 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
           )}
 
           {/* 归档材料清单 */}
-          <div className="overflow-hidden rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-            <table className="w-full text-left text-xs">
+          <div className="overflow-hidden rounded-[14px]">
+            <table className="neu-table !text-xs [&_td]:!py-2 [&_td]:!text-left [&_th]:!py-2 [&_th]:!text-left">
               <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.5)' }}>
-                  <th className="px-3.5 py-2">归档材料</th>
-                  <th className="px-3.5 py-2">责任端</th>
-                  <th className="px-3.5 py-2">状态</th>
-                  <th className="px-3.5 py-2">归档时间</th>
-                  <th className="px-3.5 py-2">哈希摘要</th>
+                <tr>
+                  <th>归档材料</th>
+                  <th>责任端</th>
+                  <th>状态</th>
+                  <th>归档时间</th>
+                  <th>哈希摘要</th>
                 </tr>
               </thead>
               <tbody>
                 {archiveItems.length === 0 ? (
-                  <tr><td colSpan={5} className="px-3.5 py-5 text-center text-[var(--muted-foreground)]">暂无归档材料</td></tr>
+                  <tr><td colSpan={5} className="!py-5 text-center text-[var(--muted-foreground)]">暂无归档材料</td></tr>
                 ) : (
                   archiveItems.map(item => (
-                    <tr key={item.id} style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
-                      <td className="px-3.5 py-2 font-medium text-[var(--foreground)]">{item.name}</td>
-                      <td className="px-3.5 py-2 text-[var(--muted-foreground)]">{item.ownerRole}</td>
-                      <td className="px-3.5 py-2">
+                    <tr key={item.id}>
+                      <td className="font-medium text-[var(--foreground)]">{item.name}</td>
+                      <td className="text-[var(--muted-foreground)]">{item.ownerRole}</td>
+                      <td>
                         <span
-                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                          style={{
-                            background: item.status === 'ARCHIVED' ? 'color-mix(in oklch, var(--success) 12%, transparent)' : 'color-mix(in oklch, var(--warning) 14%, transparent)',
-                            color: item.status === 'ARCHIVED' ? 'var(--success)' : 'var(--warning)',
-                          }}
+                          className="wb-status-pill"
+                          style={{ '--tone': item.status === 'ARCHIVED' ? 'var(--success)' : 'var(--warning)' } as React.CSSProperties}
                         >
                           {item.status === 'ARCHIVED' ? '已归档' : '待确认'}
                         </span>
                       </td>
-                      <td className="px-3.5 py-2 tabular-nums text-[var(--muted-foreground)]">{formatDateTime(item.archivedAt)}</td>
-                      <td className="px-3.5 py-2">
+                      <td className="tabular-nums text-[var(--muted-foreground)]">{formatDateTime(item.archivedAt)}</td>
+                      <td>
                         {item.hashDigest ? (
                           <span className="font-mono text-[10px] text-[var(--muted-foreground)]" title={item.hashDigest}>{item.hashDigest.slice(0, 18)}…</span>
                         ) : '—'}
@@ -261,60 +253,71 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
 
       {/* 归档确认对话框 */}
       {confirmScope && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
-          <div className="w-full max-w-[440px] rounded-[20px] px-6 py-5" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
-            <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-[10px]" style={{ background: confirmScope === 'opening' ? 'color-mix(in oklch, var(--warning) 16%, transparent)' : 'color-mix(in oklch, var(--success) 16%, transparent)' }}>
-                <AlertTriangle size={15} style={{ color: confirmScope === 'opening' ? 'var(--warning)' : 'var(--success)' }} />
-              </div>
-              <span className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-                {confirmScope === 'opening' ? '确认开标归档？' : '确认完整归档？'}
-              </span>
-            </div>
-            <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-              {confirmScope === 'opening' ? (
-                <>开标归档仅封存开标文件材料（项目基础信息、供应商名单、开标记录表、确认/异议记录、监督日志），<span className="font-semibold text-[var(--danger)]">归档后本项目流程终结，不可再启动评标或重新开标。</span>适用于流标、废标等开标后终止的场景。</>
-              ) : (
-                <>完整归档将封存全部开评标材料（含专家评分明细与评标结果汇总）并生成防篡改哈希链，归档后项目进入 ARCHIVED 终态。</>
-              )}
-            </p>
-            {/* F15：开标归档确认框动态展示当前开标进度，避免开标进行中误终局 */}
-            {confirmScope === 'opening' && (() => {
-              const active = (detail?.suppliers ?? []).filter(s => s.submitStatus !== '已撤回');
-              const total = active.length;
-              const decrypted = active.filter(s => s.decryptStatus === 'SUCCESS').length;
-              const danger = active.filter(s => s.decryptStatus === 'DANGER').length;
-              const confirmed = active.filter(s => s.confirmStatus === 'CONFIRMED').length;
-              if (total === 0) return null;
-              return (
-                <div className="mb-4 rounded-[12px] px-3.5 py-2.5 text-xs leading-5" style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
-                  <span className="font-bold text-[var(--foreground)]">当前开标进度：</span>
-                  <span className="tabular-nums text-[var(--muted-foreground)]">
-                    解密 {decrypted}/{total}{danger > 0 && `（含 ${danger} 家解密异常）`} · 确认 {confirmed}/{total}
-                  </span>
-                  {confirmed < total && <span className="ml-1 font-semibold text-[var(--warning)]">—— 仍有供应商未确认，确认要终止流程？</span>}
-                </div>
-              );
-            })()}
-            {confirmScope === 'opening' && openingIncomplete && (
-              <label className="mb-4 flex cursor-pointer items-start gap-2 rounded-[12px] px-3.5 py-2.5 text-xs leading-5" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
-                <input type="checkbox" checked={ackTerminate} onChange={e => setAckTerminate(e.target.checked)} className="mt-0.5" />
-                <span className="text-[var(--foreground)]">我已知晓开标尚未完成（解密 {archDecrypted}/{archTotal}{archDanger > 0 && `，含 ${archDanger} 家异常`}、确认 {archConfirmed}/{archTotal}），确认终止本项目流程。</span>
-              </label>
-            )}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirmScope(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+        <Modal
+          open
+          onClose={() => setConfirmScope(null)}
+          size="sm"
+          footer={
+            <div className="neu-btn-group">
+              <button type="button" onClick={() => setConfirmScope(null)} className="neu-btn-soft">取消</button>
               <button
                 type="button"
                 onClick={() => void doArchive(confirmScope)}
                 disabled={confirmScope === 'opening' && openingIncomplete && !ackTerminate}
-                className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
+                className="neu-btn-primary disabled:opacity-40"
               >
                 <Archive size={13} /> 确认归档
               </button>
             </div>
+          }
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className="wb-icon-well wb-icon-well--sm"
+              style={
+                (confirmScope === 'opening'
+                  ? { '--well-bg': 'color-mix(in oklch, var(--warning) 16%, transparent)', '--well-fg': 'var(--warning)' }
+                  : { '--well-bg': 'color-mix(in oklch, var(--success) 16%, transparent)', '--well-fg': 'var(--success)' }) as React.CSSProperties
+              }
+            >
+              <AlertTriangle size={15} />
+            </div>
+            <span className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">
+              {confirmScope === 'opening' ? '确认开标归档？' : '确认完整归档？'}
+            </span>
           </div>
-        </div>
+          <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+            {confirmScope === 'opening' ? (
+              <>开标归档仅封存开标文件材料（项目基础信息、供应商名单、开标记录表、确认/异议记录、监督日志），<span className="font-semibold text-[var(--danger)]">归档后本项目流程终结，不可再启动评标或重新开标。</span>适用于流标、废标等开标后终止的场景。</>
+            ) : (
+              <>完整归档将封存全部开评标材料（含专家评分明细与评标结果汇总）并生成防篡改哈希链，归档后项目进入 ARCHIVED 终态。</>
+            )}
+          </p>
+          {/* F15：开标归档确认框动态展示当前开标进度，避免开标进行中误终局 */}
+          {confirmScope === 'opening' && (() => {
+            const active = (detail?.suppliers ?? []).filter(s => s.submitStatus !== '已撤回');
+            const total = active.length;
+            const decrypted = active.filter(s => s.decryptStatus === 'SUCCESS').length;
+            const danger = active.filter(s => s.decryptStatus === 'DANGER').length;
+            const confirmed = active.filter(s => s.confirmStatus === 'CONFIRMED').length;
+            if (total === 0) return null;
+            return (
+              <div className="wb-tone-banner wb-tone-banner--warning text-xs leading-5">
+                <span className="font-bold text-[var(--foreground)]">当前开标进度：</span>
+                <span className="tabular-nums text-[var(--muted-foreground)]">
+                  解密 {decrypted}/{total}{danger > 0 && `（含 ${danger} 家解密异常）`} · 确认 {confirmed}/{total}
+                </span>
+                {confirmed < total && <span className="ml-1 font-semibold">—— 仍有供应商未确认，确认要终止流程？</span>}
+              </div>
+            );
+          })()}
+          {confirmScope === 'opening' && openingIncomplete && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3.5 py-2.5 text-xs leading-5">
+              <input type="checkbox" checked={ackTerminate} onChange={e => setAckTerminate(e.target.checked)} className="neu-checkbox" />
+              <span className="text-[var(--foreground)]">我已知晓开标尚未完成（解密 {archDecrypted}/{archTotal}{archDanger > 0 && `，含 ${archDanger} 家异常`}、确认 {archConfirmed}/{archTotal}），确认终止本项目流程。</span>
+            </label>
+          )}
+        </Modal>
       )}
     </section>
   );
