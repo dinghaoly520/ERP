@@ -76,7 +76,7 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
                   <tr key={r.id} style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.08)' }}>
                     <td className="px-3 py-2 font-mono font-bold tabular-nums text-[var(--foreground)]">{r.rank}</td>
                     <td className="px-3 py-2 font-medium text-[var(--foreground)]">{r.supplierName}</td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">{Number(r.averageScore).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{Number(r.totalScore).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums text-[var(--foreground)]">
                       {r.bidPrice != null ? `¥${Number(r.bidPrice).toLocaleString('zh-CN')}` : '—'}
                     </td>
