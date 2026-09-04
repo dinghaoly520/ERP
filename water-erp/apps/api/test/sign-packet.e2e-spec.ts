@@ -32,15 +32,17 @@ describe('评标签字包全流程 (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
 
-    hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
+    hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'bid');
+    expect(hostCookie.join()).toContain('token_bid=');
     leaderCookie = await loginAs(app, 'Swhi-CGZX-01', 'Swhi-CGZX-01@2026', 'web');
 
-    // 建项目（对齐 bid.e2e 模式：openTime 在 deadline 之后，均远未来）
+    // 建项目（对齐 bid.e2e 模式：openTime 在 deadline 之后，均远未来；
+    // 2026-08-21 起截标↔开标 24h 规则：deadline 必须 = openTime−24h（align 模式 ±60s））
     const proj = await request(app.getHttpServer())
       .post('/api/bid/projects')
       .set('Cookie', hostCookie)
-      .set('X-Portal', 'web')
-      .send({ name: `签字E2E项目-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-30T17:00:00Z' })
+      .set('X-Portal', 'bid')
+      .send({ name: `签字E2E项目-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-30T09:00:00Z' })
       .expect(201);
     projectId = proj.body.id;
 
@@ -92,13 +94,16 @@ describe('评标签字包全流程 (e2e)', () => {
         await prisma.bidScoreRecord.create({ data: { expertId: expert.id, supplierId, scoreItemId: it.id, score: 18, passed: true } });
       }
     }
-    await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'EVALUATING', leaderCoSigned: true, leaderCoSignedAt: new Date() } });
+    // 指派回填：种子有第二个 bid_host「开标主持人」——按用户名锁定陈源远（与 hostCookie 会话同一人）；
+    // BidCompanyScopeGuard 的 :3007 指派放行分支要求 assignedHostUserId === 会话用户
+    const hostUser = await prisma.user.findFirst({ where: { username: '陈源远', role: 'bid_host', isActive: true } });
+    await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'EVALUATING', leaderCoSigned: true, leaderCoSignedAt: new Date(), assignedHostUserId: hostUser?.id ?? null } });
 
     // 生成评标结果（前置全绿）
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/evaluation-results/generate`)
       .set('Cookie', hostCookie)
-      .set('X-Portal', 'web')
+      .set('X-Portal', 'bid')
       .expect(201);
   });
 
@@ -122,7 +127,7 @@ describe('评标签字包全流程 (e2e)', () => {
   it('未生成签字包时 GET 返回 canGenerate=true、packet=null', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/sign-packet`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     expect(res.body.resultsGenerated).toBe(true);
     expect(res.body.packet).toBeNull();
     expect(res.body.experts).toHaveLength(3);
@@ -131,7 +136,7 @@ describe('评标签字包全流程 (e2e)', () => {
   it('生成签字包 → 包与指纹存在，全员 PENDING', async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/generate`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(201);
     expect(res.body.packet.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(res.body.experts.every((e: any) => e.signStatus === 'PENDING')).toBe(true);
   });
@@ -140,7 +145,7 @@ describe('评标签字包全流程 (e2e)', () => {
     // 上传专家签字扫描件（multipart 字段名 'file'，与 Task 5 FileInterceptor('file') 一致；走 MinIO，需 infra up——与 upload e2e 同前提）
     const up = await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[2]}/scan`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .set('Cookie', hostCookie).set('X-Portal', 'bid')
       .attach('file', Buffer.from('fake-scan-bytes'), { filename: 'sign.png', contentType: 'image/png' })
       .expect(201);
     // 专家扫描落 BidExpert.signScanFileId，响应中对应 experts[].signScanUrl（signPageScanFileId 是主报告签字页字段，勿混用）
@@ -149,26 +154,26 @@ describe('评标签字包全流程 (e2e)', () => {
     // 先登记为已签（撤销登记要求存在登记记录；扫描上传本身不改变 signStatus）
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[2]}/register`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .set('Cookie', hostCookie).set('X-Portal', 'bid')
       .send({ status: 'SIGNED' }).expect(201);
 
     // 闭环前撤销：状态回 PENDING
     const un = await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[2]}/unregister`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(201);
     expect(un.body.allClosed).toBe(false);
 
     // 重登：拒绝且未陈述理由 → 视为同意（§43）
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[2]}/register`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .set('Cookie', hostCookie).set('X-Portal', 'bid')
       .send({ status: 'DEEMED_AGREED' }).expect(201);
   });
 
   it('§43：拒绝不填意见 → 400 SIGN_DISSENT_REQUIRED', async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[1]}/register`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .set('Cookie', hostCookie).set('X-Portal', 'bid')
       .send({ status: 'REFUSED_DISSENT' }).expect(400);
     expect(res.body.code).toBe('SIGN_DISSENT_REQUIRED');
   });
@@ -177,7 +182,7 @@ describe('评标签字包全流程 (e2e)', () => {
     const sign = (expertId: string, body: any) =>
       request(app.getHttpServer())
         .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertId}/register`)
-        .set('Cookie', hostCookie).set('X-Portal', 'web').send(body);
+        .set('Cookie', hostCookie).set('X-Portal', 'bid').send(body);
 
     await sign(expertIds[0], { status: 'SIGNED' }).expect(201);
     await sign(expertIds[1], { status: 'REFUSED_DISSENT', dissentingOpinion: '对价格分计算有异议', dissentingReason: '公式系数与实际不符' }).expect(201);
@@ -185,14 +190,14 @@ describe('评标签字包全流程 (e2e)', () => {
 
     const closedRes = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/sign-packet`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     expect(closedRes.body.allClosed).toBe(true);
     expect(closedRes.body.packet.closed).toBe(true);
 
     // 闭环后撤销 → 409
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[0]}/unregister`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(409);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(409);
   });
 
   it('闭环后回流缺失 → 归档 409 HANDOVER_NOT_GENERATED；生成回流包后归档成功', async () => {
@@ -205,13 +210,13 @@ describe('评标签字包全流程 (e2e)', () => {
 
     const ho = await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/handover`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(201);
     expect(ho.body.packet.handoverFileAssetId).toBeTruthy();
 
     // 幂等：再次生成直接返回既有包
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/handover`)
-      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(201);
+      .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(201);
 
     const archived = await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/archive-all`)
