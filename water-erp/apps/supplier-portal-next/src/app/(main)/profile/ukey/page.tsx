@@ -121,6 +121,13 @@ export default function UkeyManagePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* dev 提示：模拟 U盾轨道的启动命令只进控制台，不上 UI（正式环境 UKEY_STRICT 下本轨道不可达） */
+  useEffect(() => {
+    if (mwOffline && !UKEY_STRICT) {
+      console.warn("[dev] 未检测到 U盾中间件——启动：pnpm dev:ukey-mw（发行：ukeymw issue --cn 企业名）");
+    }
+  }, [mwOffline]);
+
   /* ═══ 会话倒计时（厂商中间件空闲 TTL 镜像）：秒级刷新，到期自动翻回锁定态 ═══ */
   useEffect(() => {
     if (!ukey || typeof ukey.secondsUntilLock !== "function") { setLockCountdown(null); return; }
@@ -343,7 +350,7 @@ export default function UkeyManagePage() {
       {!UKEY_STRICT && mwOffline && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: "#e6a23c", background: "#fdf6ec", border: "1px solid #faecd8" }}>
           <TriangleAlert size={14} strokeWidth={1.75} style={{ flexShrink: 0 }} />
-          <span>未检测到 U盾中间件——当前使用浏览器模拟 U盾。启动：<b>pnpm dev:ukey-mw</b>（发行：<b>ukeymw issue --cn 企业名</b>）</span>
+          <span>未检测到 U盾驱动服务——当前使用浏览器内置模拟 U盾（仅供系统联调演示，正式投标请安装 U盾驱动）</span>
         </div>
       )}
 
@@ -403,7 +410,7 @@ export default function UkeyManagePage() {
                   <>
                     <SpButton icon={Plus} loading={creating} onClick={() => void handleCreateCert()}>生成演示证书</SpButton>
                     <SpButton icon={Download} onClick={() => setExportVisible(true)}>导出备份</SpButton>
-                    <span className="file-hint">证书主体 CN 自动取注册企业名称，绑定校验 CN↔企业名一致性</span>
+                    <span className="file-hint">证书主体名称自动使用注册企业名称，并校验与企业名一致</span>
                   </>
                 ) : (
                   <span className="file-hint">证书由 CA 服务机构制发，此处枚举本企业 U盾内证书并绑定</span>
@@ -416,7 +423,7 @@ export default function UkeyManagePage() {
                     ? otherCertCount > 0
                       ? `U盾内未检测到本企业证书（已隐藏 ${otherCertCount} 张其他单位盾），请联系 CA 服务机构办理`
                       : "U盾内未检测到证书，请联系 CA 服务机构办理"
-                    : `U盾内暂无证书，点击「生成演示证书」创建（label=${companyName || "企业名称"}）`}
+                    : `U盾内暂无证书，点击「生成演示证书」创建`}
                 </div>
               ) : (
                 <div className="cert-list">

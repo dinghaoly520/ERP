@@ -16,6 +16,20 @@ const FA_STATUS_LABEL: Record<string, string> = {
   drafting: "草拟中", entry: "入围登记中", active: "生效中", expired: "已到期", terminated: "已终止",
 };
 
+/** quotaRule 为自由 Json（无固定 schema）：常见键中文渲染，未知键/嵌套结构兜底原文 */
+const QUOTA_KEY_LABEL: Record<string, string> = {
+  min: "数量下限", max: "数量上限", ratio: "占比上限", share: "份额上限", quantity: "数量", unit: "单位",
+};
+function formatQuotaRule(rule: unknown): string {
+  if (!rule || typeof rule !== "object" || Array.isArray(rule)) return JSON.stringify(rule);
+  const parts = Object.entries(rule as Record<string, unknown>).map(([k, v]) => {
+    const label = QUOTA_KEY_LABEL[k] ?? k;
+    const value = v !== null && typeof v === "object" ? JSON.stringify(v) : String(v);
+    return `${label}：${value}`;
+  });
+  return parts.length > 0 ? parts.join("；") : JSON.stringify(rule);
+}
+
 export default function FrameworksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -75,11 +89,11 @@ export default function FrameworksPage() {
               </div>
               <div className="obj-title">
                 {e.fa.title}
-                <span className="obj-phase" style={{ marginLeft: 10 }}>{VARIANT_LABEL[e.fa.variant] ?? e.fa.variant}</span>
+                <span className="obj-phase" style={{ marginLeft: 10 }}>{VARIANT_LABEL[e.fa.variant] ?? "其他"}</span>
                 {e.shareRatio != null && <span className="obj-code" style={{ marginLeft: 10 }}>占比 {e.shareRatio}%</span>}
               </div>
               {e.fa.priceRule?.formula && <p className="obj-content">价格规则：{String(e.fa.priceRule.formula)}</p>}
-              {e.fa.quotaRule && <p className="obj-content">数量/占比约定：{JSON.stringify(e.fa.quotaRule)}</p>}
+              {e.fa.quotaRule && <p className="obj-content">数量/占比约定：{formatQuotaRule(e.fa.quotaRule)}</p>}
               {e.fa.secondStageRule && <p className="obj-content">第二阶段规则：{e.fa.secondStageRule}</p>}
             </div>
           ))}

@@ -206,7 +206,7 @@ export default function BidClarificationsPage() {
       <SpPageHero
         icon={MessageSquareReply}
         title="评标澄清答复"
-        sub="对评标委员会寻址贵司的澄清问题在线答复，经 U盾电子签名后提交（A-143）"
+        sub="对评标委员会寻址贵司的澄清问题在线答复，经 U盾电子签名后提交"
         actions={pendingCount > 0 ? <span className="b-tag b-tag--warning">{pendingCount} 条待答复</span> : undefined}
       />
 

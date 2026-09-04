@@ -210,7 +210,7 @@ export default function ProfilePage() {
     e.target.value = "";
     if (!f) return;
     if (f.size > 50 * 1024 * 1024) { toast.error("文件不能超过50MB"); return; }
-    toast.warning("附件上传将在后续版本支持");
+    toast.warning("附件上传功能即将上线");
   };
 
   /* ═══════════ 变更申请弹窗逻辑 ═══════════ */

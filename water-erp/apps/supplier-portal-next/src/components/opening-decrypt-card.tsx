@@ -263,7 +263,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
         <>
           {/* 密封核验 */}
           <div className="seal-block">
-            <div className="seal-title">密封核验 —— 本地重算 C_inner 密文 SHA-256，与投递存证比对</div>
+            <div className="seal-title">密封核验 —— 本地重新计算投标文件密文的完整性校验值（SHA-256），与投递时存证值比对</div>
             {pkg.files.map((f) => (
               <div key={f.assetId} className="seal-row">
                 <span className="seal-role">{ROLE_LABELS[f.role] ?? f.role}</span>

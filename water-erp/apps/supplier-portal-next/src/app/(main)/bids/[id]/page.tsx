@@ -691,7 +691,7 @@ function BidDetailInner() {
                       <span className="inline-flex items-center gap-1.5">澄清答疑</span>
                       {["EVALUATING", "ARCHIVED"].includes(project.stage) && (
                         <Link href={`/bids/${projectId}/clarifications`} className="b-tag b-tag--warning">
-                          评标澄清答复（A-143）
+                          评标澄清答复
                         </Link>
                       )}
                     </div>
@@ -770,7 +770,7 @@ function BidDetailInner() {
                           if (e.currentTarget.open && !submission.receiptSignature) void loadReceiptPayload();
                         }}
                       >
-                        <summary>核验回执负载（JSON）</summary>
+                        <summary>投递回执核验</summary>
                         <div
                           className="ov-notif-body"
                           style={{
@@ -779,13 +779,16 @@ function BidDetailInner() {
                             whiteSpace: "pre-wrap",
                           }}
                         >
+                          {(submission.receiptSignature?.payload || receiptPayload) && (
+                            <div style={{ marginBottom: 6, opacity: 0.72 }}>以下为投递回执的存档原文，供完整性核验：</div>
+                          )}
                           {submission.receiptSignature?.payload
                             ? JSON.stringify(submission.receiptSignature.payload, null, 2)
                             : receiptPayload
                               ? JSON.stringify(receiptPayload, null, 2)
-                              : payloadLoading ? "正在获取回执负载…"
-                            : payloadFailed ? "回执负载获取失败，请重新展开重试"
-                            : "展开后向服务端获取回执负载（以数据库为准重建）"}
+                              : payloadLoading ? "正在获取回执信息…"
+                            : payloadFailed ? "回执获取失败，请重新展开重试"
+                            : "展开后获取投递回执的存档信息"}
                         </div>
                       </details>
                     </div>
