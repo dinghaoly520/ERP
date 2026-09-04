@@ -45,7 +45,9 @@ describe('Upload (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
-    adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
+    // 2026-08-14 auth port-roles 后陈源远(bid_host)被 web 门户拒——改 admin 会话（admin ∈ PORT_ALLOWED_ROLES.web）
+    adminCookie = await loginAs(app, 'Swhi-CGZX-admin', 'Swhi-CGZX-admin@2026', 'web');
+    expect(adminCookie.join()).toContain('token_web=');
   });
 
   afterAll(async () => {
