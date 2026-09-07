@@ -7,6 +7,7 @@ import { BondLedgerService } from './bond-ledger.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
+import { BidSignPacketService } from './bid-sign-packet.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { portalFromRequest } from '../auth/portal-cookie';
@@ -50,6 +51,7 @@ export class BidController {
     private readonly scorePointExtractor: ScorePointExtractorService,
     private readonly bidBackup: BidBackupService,
     private readonly bondLedger: BondLedgerService,
+    private readonly signPacket: BidSignPacketService,
   ) {}
 
   @Get('dashboard-stats')
@@ -602,8 +604,20 @@ export class BidController {
   getLiveOfficialScores(@Param('id') id: string) { return this.bidService.getLiveOfficialScores(id); }
 
   @Post('projects/:id/evaluation-results/generate')
-  @ApiOperation({ summary: '生成评标结果与候选人' })
-  generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.generateEvaluationResults(id, userId); }
+  @ApiOperation({ summary: '生成评标结果与候选人（成功后自动生成评标签字包）' })
+  async generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    const result = await this.bidService.generateEvaluationResults(id, userId);
+    // P2（2026-09-07）：签字包以评标结果为内容，此前须在 :3007 手动再点一次「生成签字包」，
+    // API/流程驱动场景极易遗漏 → full 归档被「签字包未生成」挡下而降级 opening。
+    // 此处串联自动生成（幂等：同轮重复生成会重建包并重置签字状态），失败不阻断结果返回。
+    try {
+      const packet = await this.signPacket.generate(id, userId);
+      if (packet?.packet?.id) (result as Record<string, unknown>).signPacket = { id: packet.packet.id, sha256: packet.packet.sha256 };
+    } catch {
+      // 生成失败由调用方按原有 sign-packet/generate 端点重试，不视为结果生成失败
+    }
+    return result;
+  }
 
   @Get('projects/:id/scores')
   @ApiOperation({ summary: '评分列表' })

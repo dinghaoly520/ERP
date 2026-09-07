@@ -91,6 +91,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
         if (typeof obj.code === 'string' && typeof obj.error === 'string') {
           code = obj.code;
           message = obj.error;
+        // class-validator 校验错误数组：{ message: string[], error: 'Bad Request' }
+        // 注意必须先于下方 object 分支判断 —— typeof 数组 === 'object'，
+        // 否则数组被当 nested 对象吞掉，只剩 exception.message（'Bad Request Exception'）
+        } else if (Array.isArray(obj.message)) {
+          message = (obj.message as unknown[]).map(String).join('; ');
+          code = 'VALIDATION_ERROR';
         // NestJS nests custom objects into message: { message: { code, error }, error: 'Bad Request' }
         } else if (typeof obj.message === 'object' && obj.message !== null) {
           const nested = obj.message as Record<string, unknown>;
@@ -103,14 +109,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
           }
         } else {
           // NestJS convention: { message: '...', error: 'ErrorName' }
+          // （数组形态已在上方提前分支处理）
           message = (obj.message as string) || exception.message;
           code = (obj.error as string) || code;
-
-          // Handle class-validator array messages
-          if (Array.isArray(obj.message)) {
-            message = (obj.message as string[]).join('; ');
-            code = 'VALIDATION_ERROR';
-          }
         }
       }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {

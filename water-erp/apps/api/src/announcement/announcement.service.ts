@@ -633,17 +633,54 @@ export class AnnouncementService {
     if (!this.bidService) return;
     try {
       const meta = AnnouncementService.validateMetadata(announcement.metadata);
-      const existingProject = announcement.relatedProjectCode
-        ? await this.prisma.bidProject.findUnique({
+      // ── P1（2026-09-07）：relatedProjectCode 的两个编码空间 ──
+      // :3005 向导传的是 PMI（ProjectManagementItem）projectCode，而旧逻辑拿它 findUnique
+      // BidProject.projectCode —— 永远 miss → 每次发布都走「直建新项」分支，产生孤儿 PMI
+      // 且立项↔招标关联断裂。正确次序：
+      //   a) 按 PMI 编码找立项项目 → 其名下最新 BidProject（多轮取最新一轮）
+      //   b) 回退按 BidProject 编码直接找（公告直建项目后 relatedProjectCode 被回写为
+      //      BidProject 编码，二次发布走此路径）
+      let existingProject: Awaited<ReturnType<typeof this.prisma.bidProject.findFirst>> = null;
+      let linkedPmi: { id: string; projectCode: string | null } | null = null;
+      if (announcement.relatedProjectCode) {
+        const pmi = await this.prisma.projectManagementItem.findUnique({
+          where: { projectCode: announcement.relatedProjectCode },
+          select: { id: true, projectCode: true },
+        });
+        if (pmi) {
+          linkedPmi = pmi;
+          existingProject = await this.prisma.bidProject.findFirst({
+            where: { projectManagementItemId: pmi.id },
+            orderBy: { createdAt: 'desc' },
+          });
+        }
+        if (!existingProject) {
+          existingProject = await this.prisma.bidProject.findUnique({
             where: { projectCode: announcement.relatedProjectCode },
-          })
-        : null;
+          });
+          if (existingProject?.projectManagementItemId && !linkedPmi) {
+            linkedPmi = await this.prisma.projectManagementItem.findUnique({
+              where: { id: existingProject.projectManagementItemId },
+              select: { id: true, projectCode: true },
+            });
+          }
+        }
+      }
 
       // A-87（P1 波4）：发布联动命中的项目 id——两分支（关联既有/直建新项）收敛后触发要点提取前移
       let linkedProjectId: string | null = null;
 
       if (existingProject) {
         linkedProjectId = existingProject.id;
+        // P1：旧数据 BidProject 可能缺 PMI 关联（发布匹配失败的历史遗留）——命中 PMI 时回填
+        if (linkedPmi && !existingProject.projectManagementItemId) {
+          await this.prisma.bidProject.update({
+            where: { id: existingProject.id },
+            data: { projectManagementItemId: linkedPmi.id },
+          });
+          existingProject.projectManagementItemId = linkedPmi.id;
+          this.logger.log(`回填 BidProject ${existingProject.projectCode} ↔ PMI ${linkedPmi.projectCode} 关联`);
+        }
         await this.bidService.syncFromAnnouncement(existingProject.id, { title: announcement.title }, meta);
         this.logger.log(`公告已关联项目 ${existingProject.projectCode}，同步更新字段`);
         // 流标公告：发布后自动将 BidProject 置为 ABORTED
@@ -673,7 +710,18 @@ export class AnnouncementService {
         }
         // N16 方案 A（2026-08-17）：公告直建项目补最小 PMI 并回填关联（新建部分原子）——
         // :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主，此前此类项目无宿主
-        if (this.projectManagementService) {
+        // P1（2026-09-07）：relatedProjectCode 已命中既有 PMI 时（立项后首次发公告），新建的
+        // BidProject 直接关联该 PMI —— 不再另建孤儿 PMI。
+        if (linkedPmi) {
+          await this.prisma.bidProject.update({
+            where: { id: project.id },
+            data: {
+              projectManagementItemId: linkedPmi.id,
+              riskNote: `${project.riskNote || ''}；PMI ${linkedPmi.projectCode}`,
+            },
+          });
+          this.logger.log(`公告发布关联既有立项 ${linkedPmi.projectCode} → BidProject ${project.projectCode}（未另建 PMI）`);
+        } else if (this.projectManagementService) {
           const pmi = await this.prisma.$transaction(async (tx) => {
             const created = await this.projectManagementService!.createItemFromAnnouncement(
               { companyId: announcement.companyId, companyName: announcement.companyName },
