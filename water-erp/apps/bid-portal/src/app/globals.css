@@ -588,6 +588,7 @@ select.neu-select {
 .bid-pill[data-invite="invited"] { --c: var(--warning); }
 .bid-pill--success { --c: var(--success); }
 .bid-pill--danger { --c: var(--danger); }
+.bid-pill--accent { --c: var(--accent); }
 .bid-pill--muted { --c: var(--muted-foreground); }
 .bid-pill--gold { --c: oklch(0.45 0.12 70); }
 
@@ -621,8 +622,34 @@ select.neu-select {
 .eval-check-item[data-ok="true"] { background: color-mix(in oklch, var(--success) 10%, transparent); color: var(--success); }
 .eval-anomaly-row { background: color-mix(in oklch, var(--danger) 7%, transparent); }
 
+/* ── 签字轨（signing-tab / sign-register-dialog）—— T2.15：三态选择钮 / 签字状态字色 ── */
+
+/* 三态登记选择钮：未选透明底 + hairline 内描 / 选中 accent 凸起（内高光+accent 内环+方向影） */
+.sign-choice {
+  background: transparent;
+  color: var(--muted-foreground);
+  box-shadow: inset 0 0 0 1px oklch(0.6 0.04 258 / 0.14);
+  transition: all 0.18s ease;
+}
+.sign-choice:hover { background: color-mix(in oklch, var(--accent) 5%, transparent); }
+.sign-choice:active { box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 4px oklch(1 0 0 / 0.5); }
+.sign-choice[data-selected="true"] {
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+  color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.55),
+    inset 0 0 0 1px color-mix(in oklch, var(--accent) 45%, transparent),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.08);
+}
+
+/* 签字状态字色（枚举驱动，原 STATUS_TONE 内联映射，去 hex 回退） */
+.sign-status { color: var(--muted-foreground); }
+.sign-status[data-status="SIGNED"] { color: var(--success); }
+.sign-status[data-status="REFUSED_DISSENT"] { color: var(--danger); }
+.sign-status[data-status="DEEMED_AGREED"] { color: var(--warning); }
+
 @media (prefers-reduced-motion: reduce) {
-  .neu-checkbox, .bid-pick-row { transition: none !important; }
+  .neu-checkbox, .bid-pick-row, .sign-choice { transition: none !important; }
 }
 
 /* =============================================================================
