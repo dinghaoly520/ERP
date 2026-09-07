@@ -47,4 +47,38 @@ export class WorkTemplateService {
   async activeForKind(kind: string) {
     return this.prisma.workTemplate.findFirst({ where: { kind, isActive: true }, orderBy: { updatedAt: 'desc' } });
   }
+
+  /** A-115：修改模板（name/content；kind 不可改——保持归类稳定，防模板在 opening_record/evaluation 间漂移） */
+  async update(id: string, body: { name?: string; content?: object }) {
+    const tpl = await this.prisma.workTemplate.findUnique({ where: { id } });
+    if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
+    try {
+      return await this.prisma.workTemplate.update({
+        where: { id },
+        data: {
+          ...(body.name && { name: body.name }),
+          ...(body.content && { content: body.content as Prisma.InputJsonValue }),
+        },
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        throw new BadRequestException({ error: '同名模板已存在（kind+name 唯一）', code: 'TEMPLATE_DUPLICATE' });
+      }
+      throw e;
+    }
+  }
+
+  /** A-115：删除模板——生效中禁删（监管导出 bid.service 正按 active 模板输出；须先启用其他模板） */
+  async remove(id: string) {
+    const tpl = await this.prisma.workTemplate.findUnique({ where: { id } });
+    if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
+    if (tpl.isActive) {
+      throw new BadRequestException({
+        error: '生效中模板不可删除（监管导出正在使用，请先启用其他模板）',
+        code: 'TEMPLATE_ACTIVE_DELETE_FORBIDDEN',
+      });
+    }
+    await this.prisma.workTemplate.delete({ where: { id } });
+    return { deleted: true };
+  }
 }

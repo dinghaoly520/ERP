@@ -12,6 +12,7 @@ describe('WorkTemplateService（W8）', () => {
       update: jest.fn().mockResolvedValue({ id: 'wt-1' }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn().mockResolvedValue(over.count ?? 0),
+      delete: jest.fn().mockResolvedValue({ id: 'wt-1' }),
     },
   });
 
@@ -53,5 +54,40 @@ describe('WorkTemplateService（W8）', () => {
     const prisma = mk({ active: null });
     const r = await new WorkTemplateService(prisma as any).activeForKind('opening_record');
     expect(r).toBeNull();
+  });
+
+  // ── A-115：PATCH/DELETE（active 禁删保监管导出）──
+
+  it('A-115 update：改 name/content 正常落库（kind 不可改）', async () => {
+    const prisma = mk({ one: { id: 'wt-1', kind: 'opening_record', name: '旧名', isActive: true } });
+    const svc = new WorkTemplateService(prisma as any);
+    await svc.update('wt-1', { name: '新名', content: { cols: ['报价'] } as any });
+    expect(prisma.workTemplate.update).toHaveBeenCalledWith({
+      where: { id: 'wt-1' },
+      data: { name: '新名', content: { cols: ['报价'] } },
+    });
+  });
+
+  it('A-115 update：同名冲突 P2002 → TEMPLATE_DUPLICATE；不存在 → NOT_FOUND', async () => {
+    const dup = mk({ one: { id: 'wt-1', kind: 'opening_record' } });
+    dup.workTemplate.update.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    await expect(new WorkTemplateService(dup as any).update('wt-1', { name: '已存在名' }))
+      .rejects.toMatchObject({ response: { code: 'TEMPLATE_DUPLICATE' } });
+    await expect(new WorkTemplateService(mk({ one: null }) as any).update('nope', { name: 'x' }))
+      .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+  });
+
+  it('A-115 remove：生效中模板 → 400 TEMPLATE_ACTIVE_DELETE_FORBIDDEN（监管导出正在使用）', async () => {
+    const prisma = mk({ one: { id: 'wt-1', kind: 'opening_record', isActive: true } });
+    await expect(new WorkTemplateService(prisma as any).remove('wt-1'))
+      .rejects.toMatchObject({ response: { code: 'TEMPLATE_ACTIVE_DELETE_FORBIDDEN' } });
+    expect(prisma.workTemplate.delete).not.toHaveBeenCalled();
+  });
+
+  it('A-115 remove：非活跃模板 → 删除成功返回 {deleted:true}', async () => {
+    const prisma = mk({ one: { id: 'wt-2', kind: 'opening_record', isActive: false } });
+    const r = await new WorkTemplateService(prisma as any).remove('wt-2');
+    expect(r).toEqual({ deleted: true });
+    expect(prisma.workTemplate.delete).toHaveBeenCalledWith({ where: { id: 'wt-2' } });
   });
 });

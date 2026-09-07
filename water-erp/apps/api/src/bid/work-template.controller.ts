@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -29,5 +29,17 @@ export class WorkTemplateController {
   @Post(':id/activate')
   activate(@Param('id') id: string) {
     return this.svc.activate(id);
+  }
+
+  /** A-115：修改模板（name/content；kind 不可改） */
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: { name?: string; content?: object }) {
+    return this.svc.update(id, body);
+  }
+
+  /** A-115：删除模板（生效中禁删——监管导出正在使用） */
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.svc.remove(id);
   }
 }
