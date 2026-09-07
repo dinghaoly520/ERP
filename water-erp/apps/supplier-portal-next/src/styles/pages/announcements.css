@@ -209,3 +209,9 @@
   padding: 10px 20px; font-size: 14px; border-bottom: 1px solid #e4e7ed;
 }
 .award-card__body { padding: 20px; }
+
+/* ═══ reduced-motion 降级（T3.6）：本文件全部含 transition 的选择器 ═══ */
+@media (prefers-reduced-motion: reduce) {
+  .neu-card.ann-filter, .ann-tabs .neu-tab, .announcement-row { transition: none !important; }
+  .neu-card.ann-filter:hover { transform: none; }
+}

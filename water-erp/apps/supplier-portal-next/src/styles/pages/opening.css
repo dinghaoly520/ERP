@@ -155,3 +155,9 @@
 .ukey-desc { margin: 0 0 10px; color: #606266; font-size: 13px; line-height: 1.6; }
 .revealed { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 13px; }
 .revealed b { color: #303133; font-variant-numeric: tabular-nums; }
+
+/* ═══ reduced-motion 降级（T3.6）：本文件唯一含 transition 的选择器 ═══ */
+@media (prefers-reduced-motion: reduce) {
+  .rq-card--open { transition: none !important; }
+  .rq-card--open:hover { transform: none; }
+}
