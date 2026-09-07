@@ -576,6 +576,7 @@ select.neu-select {
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08);
 }
 .bid-icon-well--danger { --well-bg: color-mix(in oklch, var(--danger) 12%, transparent); --well-fg: var(--danger); }
+.bid-icon-well--warning { --well-bg: color-mix(in oklch, var(--warning) 14%, transparent); --well-fg: var(--warning); }
 .bid-icon-well--accent { --well-bg: color-mix(in oklch, var(--stage-evaluation, var(--accent)) 14%, transparent); --well-fg: var(--accent); }
 
 /* 评标截止横幅：超时/未超时双色（原内联三元） */
@@ -588,6 +589,7 @@ select.neu-select {
 .bid-pill[data-invite="invited"] { --c: var(--warning); }
 .bid-pill--success { --c: var(--success); }
 .bid-pill--danger { --c: var(--danger); }
+.bid-pill--warning { --c: var(--warning); }
 .bid-pill--accent { --c: var(--accent); }
 .bid-pill--muted { --c: var(--muted-foreground); }
 .bid-pill--gold { --c: oklch(0.45 0.12 70); }
@@ -653,6 +655,20 @@ select.neu-select {
 .round-status[data-status="open"] { color: var(--accent); }
 .round-status[data-status="sealed"] { color: var(--warning); }
 .round-status[data-status="published"] { color: var(--success); }
+
+/* ── 澄清答疑（clarifications-block）—— T2.17：澄清状态徽章（已回复/已关闭/待回复） ── */
+.clar-status { --c: var(--warning); }
+.clar-status[data-status="replied"] { --c: var(--success); }
+.clar-status[data-status="closed"] { --c: var(--muted-foreground); }
+
+/* ── 专家异议（dispute-block）—— T2.17：异议卡左色标 + 状态徽章（枚举 3 值） ── */
+.dispute-card { border-left: 3px solid var(--c, var(--muted-foreground)); }
+.dispute-card[data-status="open"] { --c: var(--warning); }
+.dispute-card[data-status="resolved"] { --c: var(--success); }
+.dispute-card[data-status="rejected"] { --c: var(--danger); }
+.bid-pill[data-dispute="open"] { --c: var(--warning); }
+.bid-pill[data-dispute="resolved"] { --c: var(--success); }
+.bid-pill[data-dispute="rejected"] { --c: var(--danger); }
 
 @media (prefers-reduced-motion: reduce) {
   .neu-checkbox, .bid-pick-row, .sign-choice { transition: none !important; }

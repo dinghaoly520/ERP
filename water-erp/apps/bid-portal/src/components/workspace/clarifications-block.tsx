@@ -201,11 +201,8 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
     <section className="neu-table-card px-4 py-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-            style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
-          >
-            <MessageSquare size={15} className="text-[var(--warning)]" />
+          <div className="bid-icon-well bid-icon-well--warning flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]">
+            <MessageSquare size={15} />
           </div>
           <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">澄清答疑</h3>
         </div>
@@ -223,19 +220,19 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
       ) : (
         <div className="space-y-3">
           {/* 书面来函 */}
-          <div className="rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-            <div className="px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
+          <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+            <div className="border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
               <span className="text-[11px] font-bold text-[var(--foreground)]">书面来函</span>
               <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">供应商提问由主持端在此登记并答复，答复全文随函展示（含受保护附件）</span>
             </div>
             {letters.length === 0 ? (
               <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">暂无书面来函</div>
             ) : (
-              <div className="divide-y" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
+              <div className="divide-y divide-[oklch(0.6_0.04_258/0.1)]">
                 {letters.map(c => {
                   const letterReplying = replying === c.id;
                   return (
-                  <div key={c.id} className="px-3.5 py-2.5" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
+                  <div key={c.id} className="px-3.5 py-2.5">
                     <div className="flex items-center gap-2 text-[11px]">
                       <span className="font-semibold text-[var(--accent-strong)]">{c.supplierName}</span>
                       <span className="tabular-nums text-[var(--muted-foreground)]">{formatTime(c.createdAt)}</span>
@@ -261,7 +258,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                     </div>
                     <p className="mt-1 whitespace-pre-line text-xs leading-5 text-[var(--foreground)]">{c.question}</p>
                     {c.reply && (
-                      <div className="mt-1.5 rounded-[8px] px-2 py-1.5 text-xs leading-5" style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)' }}>
+                      <div className="mt-1.5 rounded-[8px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2 py-1.5 text-xs leading-5">
                         <span className="text-[10px] font-bold text-[var(--muted-foreground)]">答复 · </span>
                         <span className="whitespace-pre-line text-[var(--foreground)]">{c.reply}</span>
                       </div>
@@ -291,55 +288,46 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
           </div>
 
           {/* 澄清记录表 */}
-          <div className="overflow-hidden rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-            <table className="w-full text-left text-xs">
+          <div className="overflow-hidden rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+            <table className="neu-table is-dense w-full">
               <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.5)' }}>
-                  <th className="px-3.5 py-2">类型</th>
-                  <th className="px-3.5 py-2">发起人</th>
-                  <th className="px-3.5 py-2">供应商</th>
-                  <th className="px-3.5 py-2">问题</th>
-                  <th className="px-3.5 py-2">状态</th>
-                  <th className="px-3.5 py-2">回复</th>
-                  <th className="px-3.5 py-2">时间</th>
-                  <th className="px-3.5 py-2">操作</th>
+                <tr>
+                  <th>类型</th>
+                  <th>发起人</th>
+                  <th>供应商</th>
+                  <th>问题</th>
+                  <th>状态</th>
+                  <th>回复</th>
+                  <th>时间</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
-                  <tr><td colSpan={8} className="px-3.5 py-6 text-center text-[var(--muted-foreground)]">暂无澄清记录</td></tr>
+                  <tr><td colSpan={8} className="py-6 text-center text-[var(--muted-foreground)]">暂无澄清记录</td></tr>
                 ) : (
                   items.filter(c => c.type !== 'question').map(c => {
                     const isReplied = !!c.reply;
                     const statusLabel = c.status || (isReplied ? '已回复' : '待回复');
-                    const statusColor =
-                      statusLabel === '已回复' ? 'var(--success)' : statusLabel === '已关闭' ? 'var(--muted-foreground)' : 'var(--warning)';
+                    const statusTone =
+                      statusLabel === '已回复' ? 'replied' : statusLabel === '已关闭' ? 'closed' : 'pending';
                     return (
                       <Fragment key={c.id}>
-                        <tr style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)', background: isReplied ? undefined : 'color-mix(in oklch, var(--warning) 4%, transparent)' }} className="align-top">
-                          <td className="px-3.5 py-2.5">
-                            <span
-                              className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                              style={{
-                                color: c.type === 'question' ? 'var(--accent)' : 'var(--warning)',
-                                background: c.type === 'question' ? 'color-mix(in oklch, var(--accent) 10%, transparent)' : 'color-mix(in oklch, var(--warning) 12%, transparent)',
-                              }}
-                            >
+                        <tr className={`align-top ${isReplied ? '' : 'bg-[color-mix(in_oklch,var(--warning)_4%,transparent)]'}`}>
+                          <td className="py-2.5">
+                            <span className={`bid-pill ${c.type === 'question' ? 'bid-pill--accent' : 'bid-pill--warning'}`}>
                               {c.type === 'question' ? '答疑' : '澄清'}
                             </span>
                           </td>
-                          <td className="px-3.5 py-2.5 font-medium text-[var(--accent-strong)]">{c.issuer}</td>
-                          <td className="px-3.5 py-2.5 text-[var(--foreground)]">{c.supplierName}</td>
-                          <td className="max-w-[200px] px-3.5 py-2.5 text-[var(--foreground)]">{c.question}</td>
-                          <td className="px-3.5 py-2.5">
-                            <span
-                              className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                              style={{ color: statusColor, background: `color-mix(in oklch, ${statusColor} 12%, transparent)` }}
-                            >
+                          <td className="font-medium text-[var(--accent-strong)]">{c.issuer}</td>
+                          <td className="text-[var(--foreground)]">{c.supplierName}</td>
+                          <td className="max-w-[200px] text-[var(--foreground)]">{c.question}</td>
+                          <td className="py-2.5">
+                            <span className="bid-pill clar-status" data-status={statusTone}>
                               {statusLabel}
                             </span>
                           </td>
-                          <td className="max-w-[220px] px-3.5 py-2.5 text-[var(--muted-foreground)]">
+                          <td className="max-w-[220px] text-[var(--muted-foreground)]">
                             {c.reply ? (
                               <div className="space-y-1">
                                 <div>{c.reply}</div>
@@ -348,8 +336,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                                     {c.replyAttachmentIds.map(a => (
                                       /* 受保护下载禁用 noreferrer（丢 Referer → 401） */
                                       <a key={a.fileAssetId} href={`/api/upload/files/${a.fileAssetId}`} target="_blank" rel="noopener"
-                                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]"
-                                        style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
+                                        className="inline-flex items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
                                         <FileSignature size={10} /> {a.name}
                                       </a>
                                     ))}
@@ -364,15 +351,15 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                                   <div className="text-[10px] text-[var(--muted-foreground)]">离线登记缘由：{c.replyOfflineReason}</div>
                                 )}
                                 {c.aiSummary && (
-                                  <div className="whitespace-pre-line rounded-[8px] px-2 py-1 text-[10px] text-[var(--accent-strong)]" style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
+                                  <div className="whitespace-pre-line rounded-[8px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-1 text-[10px] text-[var(--accent-strong)]">
                                     <span className="font-bold">AI 摘要：</span>{c.aiSummary}
                                   </div>
                                 )}
                               </div>
                             ) : '—'}
                           </td>
-                          <td className="whitespace-nowrap px-3.5 py-2.5 tabular-nums text-[10px] text-[var(--muted-foreground)]">{formatTime(c.createdAt)}</td>
-                          <td className="px-3.5 py-2.5">
+                          <td className="whitespace-nowrap tabular-nums text-[10px] text-[var(--muted-foreground)]">{formatTime(c.createdAt)}</td>
+                          <td className="py-2.5">
                             {!isReplied ? (
                               archived ? (
                                 <span className="text-[10px] text-[var(--muted-foreground)]">已归档</span>
