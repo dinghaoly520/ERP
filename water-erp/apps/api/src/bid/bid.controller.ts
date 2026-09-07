@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagg
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BidService } from './bid.service';
 import { BondLedgerService } from './bond-ledger.service';
+import { BidBondService } from './bid-bond.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -50,6 +51,7 @@ export class BidController {
     private readonly scorePointExtractor: ScorePointExtractorService,
     private readonly bidBackup: BidBackupService,
     private readonly bondLedger: BondLedgerService,
+    private readonly bond: BidBondService,
   ) {}
 
   @Get('dashboard-stats')
@@ -137,19 +139,19 @@ export class BidController {
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'C4: 登记响应担保退还/不予退还（项目级·兼容保留——新代码请用逐家端点 bond-return-supplier；不予退还必填理由，记监督日志）' })
   markBondReturned(@Param('id') id: string, @Body() dto: { returned: boolean; reason?: string }) {
-    return this.bidService.markBondReturned(id, dto);
+    return this.bond.markBondReturned(id, dto);
   }
 
   @Get('projects/:id/bond-returns')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'A-105: 保证金逐家退还清单（花名册行 × 唱标 bondStatus × 退还态 × 中标标识）' })
-  listBondReturns(@Param('id') id: string) { return this.bidService.listBondReturns(id); }
+  listBondReturns(@Param('id') id: string) { return this.bond.listBondReturns(id); }
 
   @Post('projects/:id/bond-return-supplier')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'A-105: 逐家登记保证金退还/不予退还（同步开标记录 bondStatus，记监督日志；不予退还必填理由）' })
   markSupplierBondReturned(@Param('id') id: string, @Body() dto: SupplierBondReturnDto) {
-    return this.bidService.markSupplierBondReturned(id, dto);
+    return this.bond.markSupplierBondReturned(id, dto);
   }
 
   @Get('projects/:id/report-notes')
