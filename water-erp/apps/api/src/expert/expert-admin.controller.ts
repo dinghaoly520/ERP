@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { ExpertAdminService } from './expert-admin.service';
+import { ExpertExtractionService } from './expert-extraction.service';
 import { ExpertMemoService } from './expert-memo.service';
 import { CreateExpertDto } from './dto/create-expert.dto';
 import { ExtractPreviewDto } from './dto/extract-preview.dto';
@@ -35,6 +36,7 @@ export class ExpertAdminController {
   constructor(
     private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
+    private extractionService: ExpertExtractionService,
   ) {}
 
   @Public()
@@ -89,7 +91,7 @@ export class ExpertAdminController {
   @Post('extract')
   @ApiOperation({ summary: '专家智能抽取预览（三种模式：specialty_match/random/merit_best）' })
   previewExtraction(@Body() dto: ExtractPreviewDto) {
-    return this.expertAdminService.previewExtraction(dto.projectId, dto);
+    return this.extractionService.previewExtraction(dto.projectId, dto);
   }
 
   @Post('notification/generate')
@@ -101,7 +103,7 @@ export class ExpertAdminController {
   @Post('extract/confirm')
   @ApiOperation({ summary: '确认专家抽取（建 BidExpert + 写审计日志）' })
   confirmExtraction(@Body() dto: ConfirmExtractionDto, @Request() req: any) {
-    return this.expertAdminService.confirmExtraction(dto.projectId, dto, req.user?.sub);
+    return this.extractionService.confirmExtraction(dto.projectId, dto, req.user?.sub);
   }
 
   @Patch('extract/leader')

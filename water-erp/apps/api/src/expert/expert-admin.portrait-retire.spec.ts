@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ExpertAdminService } from './expert-admin.service';
+import { ExpertExtractionService } from './expert-extraction.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
 import { NotificationService } from '../notification/notification.service';
@@ -35,6 +36,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
         { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
         { provide: ExpertCrossConflictService, useValue: { checkCrossConflicts: jest.fn().mockResolvedValue([]) } },
+        { provide: ExpertExtractionService, useValue: { extendedRuleScore: jest.fn() } },
       ],
     }).compile();
     service = module.get<ExpertAdminService>(ExpertAdminService);
