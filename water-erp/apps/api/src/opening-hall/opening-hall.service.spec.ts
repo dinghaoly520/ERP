@@ -30,7 +30,7 @@ const outsider = { userId: 'u-expert', role: 'bid_expert', supplierId: undefined
 function setup() {
   prismaMock.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
   prismaMock.bidOpeningSession.findUnique.mockResolvedValue({ projectId: 'p1', exchangeControl: 'OPEN' });
-  prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: null });
+  prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: null, submitStatus: '已提交' });
   prismaMock.bidSupplier.updateMany.mockResolvedValue({ count: 1 }); // R6：默认抢占成功（首签）
   prismaMock.bidSupplier.findUnique.mockResolvedValue({ checkInAt: null });
   prismaMock.openingHallMessage.create.mockImplementation(async ({ data }: any) => ({ ...data, id: 'm1', createdAt: new Date('2026-07-23T00:00:00Z') }));
@@ -171,7 +171,7 @@ describe('OpeningHallService', () => {
 
   it('签到幂等：已签到直接返回原时间', async () => {
     const t = new Date('2026-07-23T01:00:00Z');
-    prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: t });
+    prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: t, submitStatus: '已提交' });
     const res = await svc.checkIn(sup, 'p1', { ip: '1.2.3.4', ua: 'test' });
     expect(res.checkInAt.toISOString()).toBe(t.toISOString());
     expect(prismaMock.bidSupplier.update).not.toHaveBeenCalled();
@@ -395,6 +395,28 @@ describe('OpeningHallService', () => {
       expect(res.checkInAt.toISOString()).toBe(t.toISOString()); // 回读首签时间
       expect(prismaMock.bidSupervisionLog.create).not.toHaveBeenCalled(); // 无重复留痕
       expect(gatewayMock.notifyHallCheckin).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('checkIn 递交前置闸（A-106：签到须已成功递交，受邀未投递/已撤回者禁入）', () => {
+    it('未递交（submitStatus=null）→ 400 CHECKIN_SUBMIT_REQUIRED，不抢占不广播', async () => {
+      prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: null, submitStatus: null });
+      await expect(svc.checkIn(sup, 'p1', { ip: '1.2.3.4', ua: 'test' }))
+        .rejects.toMatchObject({ response: { code: 'CHECKIN_SUBMIT_REQUIRED' } });
+      expect(prismaMock.bidSupplier.updateMany).not.toHaveBeenCalled();
+      expect(gatewayMock.notifyHallCheckin).not.toHaveBeenCalled();
+    });
+
+    it('已撤回 → 400 CHECKIN_SUBMIT_REQUIRED', async () => {
+      prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: null, submitStatus: '已撤回' });
+      await expect(svc.checkIn(sup, 'p1', { ip: '1.2.3.4', ua: 'test' }))
+        .rejects.toMatchObject({ response: { code: 'CHECKIN_SUBMIT_REQUIRED' } });
+    });
+
+    it('解密异常（DANGER）但已递交 → 闸放行（递交事实与解密结果解耦）', async () => {
+      prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: null, submitStatus: '已提交', decryptStatus: 'DANGER' });
+      const res = await svc.checkIn(sup, 'p1', { ip: '1.2.3.4', ua: 'test' });
+      expect(res.already).toBe(false);
     });
   });
 });

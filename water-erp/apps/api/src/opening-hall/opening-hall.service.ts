@@ -235,6 +235,13 @@ export class OpeningHallService {
     if (project.stage !== 'OPENING') throw new ForbiddenException({ error: '大厅仅在开标阶段开放', code: 'HALL_CLOSED' });
     const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: actor.supplierId } });
     if (!member) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_MEMBER' });
+    // A-106：签到前置——须已成功递交（受邀未投递/已撤回者不得签到；递交事实与解密结果解耦）
+    if (member.submitStatus !== '已提交') {
+      throw new BadRequestException({
+        error: `签到前须成功递交投标文件（当前状态：${member.submitStatus ?? '未递交'}）`,
+        code: 'CHECKIN_SUBMIT_REQUIRED',
+      });
+    }
     if (member.checkInAt) return { checkInAt: member.checkInAt, already: true };
 
     // R6：原子抢占——updateMany({ where: { id, checkInAt: null } }) 仅首签命中一行；
