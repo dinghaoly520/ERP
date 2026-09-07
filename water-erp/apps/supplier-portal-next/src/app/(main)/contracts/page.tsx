@@ -118,7 +118,7 @@ export default function ContractsPage() {
                         <span className="obj-answer-label">履行台账（可上传履约证明）</span>
                         <div className="mt-2 flex flex-col gap-2">
                           {c.fulfillments.map(f => (
-                            <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white/60 p-2.5 text-xs">
+                            <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--hairline)] bg-[var(--surface)]/60 p-2.5 text-xs">
                               <span className={`obj-status ${f.status === "done" ? "st-answered" : f.status === "exception" ? "st-complaint" : "st-open"}`}>
                                 {f.status === "done" ? "完成" : f.status === "exception" ? "异常" : "待办"}
                               </span>

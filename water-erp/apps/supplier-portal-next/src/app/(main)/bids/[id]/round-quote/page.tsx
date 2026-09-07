@@ -229,7 +229,7 @@ export default function RoundQuotePage() {
 
                 <div className="rq-card__body">
                   {currentOpenRound.deadline && (
-                    <div className="mb-4 text-sm text-gray-500">截止时间: {formatTime(currentOpenRound.deadline)}</div>
+                    <div className="mb-4 text-sm text-muted-foreground">截止时间: {formatTime(currentOpenRound.deadline)}</div>
                   )}
 
                   {/* 已提交：锁定状态 */}
@@ -290,14 +290,14 @@ export default function RoundQuotePage() {
               <section key={r.id} className="rq-card rq-card--plain">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">第 {r.roundNo} 轮</span>
+                    <span className="rounded bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-bold text-[var(--brand)]">第 {r.roundNo} 轮</span>
                     <span
                       className="rq-tag rq-tag--sm"
                       style={statusColors[r.status] ? { color: statusColors[r.status], borderColor: statusColors[r.status] } : undefined}
                     >
                       {statusLabels[r.status]}
                     </span>
-                    {r.deadline && <span className="text-xs text-gray-400">截止 {formatTime(r.deadline)}</span>}
+                    {r.deadline && <span className="text-xs text-muted-foreground">截止 {formatTime(r.deadline)}</span>}
                   </div>
                   {/* sealed 轮次：已提交标记 */}
                   {r.status === "sealed" && myQuotes[r.id] && (
@@ -310,10 +310,10 @@ export default function RoundQuotePage() {
                 {/* 已公布轮次: 报价排名 */}
                 {(r.status === "published" || r.status === "closed") && publishedQuotes[r.id]?.length ? (
                   <div className="mt-3">
-                    <div className="overflow-hidden rounded-lg border border-gray-100">
+                    <div className="overflow-hidden rounded-lg border border-[var(--hairline)]">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-gray-50 text-xs text-gray-500">
+                          <tr className="bg-[var(--surface)] text-xs text-muted-foreground">
                             <th className="px-3 py-2 text-left font-semibold">排名</th>
                             <th className="px-3 py-2 text-left font-semibold">供应商</th>
                             <th className="px-3 py-2 text-right font-semibold">报价(元)</th>
@@ -323,10 +323,10 @@ export default function RoundQuotePage() {
                           {publishedQuotes[r.id].map((q, idx) => (
                             <tr
                               key={q.id}
-                              className={`border-t border-gray-100${q.bidSupplierId === myBidSupplierId ? " bg-blue-50" : ""}`}
+                              className={`border-t border-[var(--hairline)]${q.bidSupplierId === myBidSupplierId ? " bg-[var(--accent-soft)]" : ""}`}
                             >
-                              <td className="px-3 py-2 font-mono font-bold text-blue-600">{idx + 1}</td>
-                              <td className={`px-3 py-2 font-medium${q.bidSupplierId === myBidSupplierId ? " text-blue-700" : ""}`}>
+                              <td className="px-3 py-2 font-mono font-bold text-[var(--brand)]">{idx + 1}</td>
+                              <td className={`px-3 py-2 font-medium${q.bidSupplierId === myBidSupplierId ? " text-[var(--brand)]" : ""}`}>
                                 {q.bidSupplierId === myBidSupplierId ? "本企业" : "其他供应商"}
                               </td>
                               <td className="px-3 py-2 text-right font-mono font-semibold">{formatPrice(q.quotePrice)}</td>
