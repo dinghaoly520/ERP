@@ -36,7 +36,7 @@ export function Pagination({ page, totalPages, totalItems, pageSize, onPage }: P
             onClick={() => onPage(p)}
             className={`flex h-7 w-7 items-center justify-center rounded-[10px] text-[11px] font-bold transition ${
               p === page
-                ? 'bg-[var(--accent)] text-white shadow-[0_4px_12px_oklch(0.56_0.153_251_/_0.3)]'
+                ? 'bg-[var(--accent)] text-white shadow-[inset_2px_2px_4px_oklch(0.55_0.03_258/0.15),inset_-2px_-2px_4px_oklch(1_0_0/0.5)]'
                 : 'text-[color:var(--muted-foreground)] hover:bg-[oklch(0.985_0.006_258_/_0.7)]'
             }`}
           >

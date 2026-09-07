@@ -141,7 +141,7 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
           onClick={() => handleDayClick(year, month, day)}
           className={`flex h-8 w-8 items-center justify-center rounded-[10px] text-[12px] font-medium transition-colors relative ${
             isBoundary
-              ? 'bg-[var(--accent)] text-white shadow-[0_4px_12px_oklch(0.56_0.153_251_/_0.3)]'
+              ? 'bg-[var(--accent)] text-white shadow-[inset_2px_2px_4px_oklch(0.55_0.03_258/0.15),inset_-2px_-2px_4px_oklch(1_0_0/0.5)]'
               : inRange
                 ? 'bg-[oklch(0.62_0.16_258_/_0.1)] text-[color:var(--accent-strong)]'
                 : 'text-[color:var(--muted-foreground)] hover:bg-[oklch(0.985_0.006_258_/_0.7)]'
@@ -166,7 +166,7 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
         type="button"
         onClick={() => setOpen(!open)}
         className={`neu-btn-soft inline-flex items-center gap-1.5 !px-3 !py-2 text-[12px] whitespace-nowrap ${
-          hasValue ? '!border-[var(--accent)] !bg-[oklch(0.62_0.16_258_/_0.08)] !text-[color:var(--accent-strong)]' : ''
+          hasValue ? '!bg-[oklch(0.62_0.16_258_/_0.08)] !text-[color:var(--accent-strong)]' : ''
         }`}
       >
         <Calendar size={14} strokeWidth={1.5} />
