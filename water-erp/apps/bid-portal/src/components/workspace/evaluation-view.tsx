@@ -125,7 +125,7 @@ function cellDeviationAnomaly(
 
 function StatTile({ label, value, sub, pct, color }: { label: string; value: string; sub: string; pct: number; color: string }) {
   return (
-    <div className="flex flex-1 items-center gap-2.5 rounded-[14px] px-3 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.4)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+    <div className="bid-tile flex flex-1 items-center gap-2.5 rounded-[14px] px-3 py-2.5">
       <Ring pct={pct} color={color} />
       <div className="min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</div>
@@ -286,18 +286,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     return (
       <section className="neu-table-card px-4 py-4">
         <div className="mb-3 flex items-center gap-2.5">
-          <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-            style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
-          >
-            <AlertTriangle size={15} className="text-[var(--danger)]" />
+          <div className="bid-icon-well bid-icon-well--danger flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]">
+            <AlertTriangle size={15} />
           </div>
           <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标管理</h3>
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}>
-            已流标
-          </span>
+          <span className="bid-pill bid-pill--danger">已流标</span>
         </div>
-        <div className="rounded-[14px] px-4 py-3.5 text-xs leading-relaxed" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
+        <div className="rounded-[14px] bg-[oklch(0.975_0.012_258/0.5)] px-4 py-3.5 text-xs leading-relaxed shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
           <p className="font-semibold text-[var(--foreground)]">本项目已流标，评标活动终止，无评标过程可执行。</p>
           <p className="mt-1.5 text-[var(--muted-foreground)]">
             流标原因：<span className="text-[var(--foreground)]">{project.riskNote || '未记录原因'}</span>
@@ -455,15 +450,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     <section className="neu-table-card px-4 py-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-            style={{ background: 'color-mix(in oklch, var(--stage-evaluation, var(--accent)) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
-          >
-            <ClipboardCheck size={15} className="text-[var(--accent)]" />
+          <div className="bid-icon-well bid-icon-well--accent flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]">
+            <ClipboardCheck size={15} />
           </div>
           <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标管理</h3>
           {results.length > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>
+            <span className="bid-pill bid-pill--success">
               <Trophy size={10} /> 结果已生成
             </span>
           )}
@@ -491,8 +483,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         const remaining = Math.ceil((new Date(project.evaluationDeadline).getTime() - Date.now()) / MS_PER_HOUR);
         const expired = remaining <= 0;
         return (
-          <div className="mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold"
-            style={{ background: expired ? 'color-mix(in oklch, var(--danger) 8%, transparent)' : 'color-mix(in oklch, var(--warning, var(--accent)) 8%, transparent)' }}>
+          <div className="eval-deadline-bar mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold"
+            data-expired={expired ? 'true' : 'false'}>
             <div className="flex min-w-0 items-center gap-2">
               <Clock size={13} className={expired ? 'text-[var(--danger)]' : 'text-[var(--accent)]'} />
               <span className={expired ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}>
@@ -517,7 +509,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* 启动评标横幅（OPENING 阶段） */}
       {stage === 'OPENING' && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[14px] px-4 py-3" style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-4 py-3">
           <div className="flex items-center gap-2.5 text-xs">
             <Play size={15} className="shrink-0 text-[var(--accent)]" />
             <span className="font-bold text-[var(--accent-strong)]">当前阶段：在线开标</span>
@@ -570,8 +562,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       <div className="space-y-3">
         {/* ── 专家状态卡 ── */}
-        <div className="rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-          <div className="px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
+        <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+          <div className="border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
             <span className="text-[11px] font-bold text-[var(--foreground)]">专家状态</span>
             <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">实名组织视图——签到·签字·现场沟通（查看留痕）；评分明细见下方编号矩阵</span>
           </div>
@@ -584,8 +576,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               {experts.map(expert => (
                 <div
                   key={expert.id}
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left"
-                  style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.08)' }}
+                  className="flex w-full items-center gap-2.5 border-t border-[oklch(0.6_0.04_258/0.08)] px-3.5 py-2.5 text-left"
                 >
                   <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                     {expert.expertName}
@@ -600,36 +591,35 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   {/* F10（2026-08-28）：邀请状态徽章（与 :3005 专家确认同词表）——declined 标红；
                       婉拒/未确认的正选不计入启动评标委员会（后端只认 confirmed 正选） */}
                   {expert.invitationStatus === 'confirmed' && (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>
+                    <span className="bid-pill shrink-0" data-invite="confirmed">
                       已确认邀请
                     </span>
                   )}
                   {expert.invitationStatus === 'declined' && (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }} title="专家已婉拒邀请——正选缺席时由候补递补（由采购管理工作台专家确认环节处理）">
+                    <span className="bid-pill shrink-0" data-invite="declined" title="专家已婉拒邀请——正选缺席时由候补递补（由采购管理工作台专家确认环节处理）">
                       已婉拒
                     </span>
                   )}
                   {(!expert.invitationStatus || expert.invitationStatus === 'invited') && (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)', color: 'var(--warning)' }} title="专家尚未确认邀请">
+                    <span className="bid-pill shrink-0" data-invite="invited" title="专家尚未确认邀请">
                       待确认邀请
                     </span>
                   )}
                   {expert.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span
-                      className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold"
-                      style={{ background: 'color-mix(in oklch, var(--muted-foreground) 14%, transparent)', color: 'var(--muted-foreground)' }}
+                      className="bid-pill bid-pill--muted shrink-0"
                       title="候补专家不参与评分、评审报告确认与签字；正选缺席时递补后方可参与"
                     >
                       候补·未递补
                     </span>
                   )}
-                  <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.signedIn ? 'var(--success)' : 'var(--muted-foreground)' }}>
+                  <span className={`hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex ${expert.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
                     <UserCheck size={11} /> {expert.signedIn ? '已签到' : '未签到'}
                   </span>
-                  <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.avoidanceConfirmed ? 'var(--success)' : 'var(--warning)' }}>
+                  <span className={`hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex ${expert.avoidanceConfirmed ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
                     <ShieldCheck size={11} /> {expert.avoidanceConfirmed ? '已回避确认' : '待回避确认'}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold" style={{ color: expert.reportConfirmed ? 'var(--success)' : 'var(--muted-foreground)' }}>
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${expert.reportConfirmed ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
                     <FileCheck size={11} /> {expert.reportConfirmed ? '报告已确认' : '报告未确认'}
                   </span>
                 </div>
@@ -647,28 +637,28 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               {/* F4：矩阵仅列正选专家；编号为服务端按全体专家预分配的稳定号，候补在列时可能不连续（不重排，防刷新换号） */}
               {alternateExperts.length > 0 && `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。`}
             </p>
-            <div className="overflow-x-auto rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-            <table className="w-full min-w-[560px] text-left text-xs">
+            <div className="overflow-x-auto rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+            <table className="neu-table is-dense w-full min-w-[560px]">
               <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.5)' }}>
-                  <th className="px-3.5 py-2">评分矩阵</th>
+                <tr>
+                  <th>评分矩阵</th>
                   {suppliers.map(s => (
-                    <th key={s.id} className="max-w-[130px] truncate px-3.5 py-2" title={s.supplierName}>{s.supplierName}</th>
+                    <th key={s.id} className="max-w-[130px] truncate" title={s.supplierName}>{s.supplierName}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {regularExperts.map(expert => (
                   <Fragment key={expert.id}>
-                    <tr style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
-                      <td className="px-3.5 py-2 font-medium text-[var(--foreground)]">{expert.anonLabel ?? expert.expertName}</td>
+                    <tr>
+                      <td className="font-medium">{expert.anonLabel ?? expert.expertName}</td>
                       {suppliers.map(s => {
                         const cell = matrix.get(expert.id)?.get(s.id);
                         const scored = cell && cell.scoredCount > 0;
                         const anomaly = isCellAnomaly(expert.id, s.id);
                         const key = `${expert.id}:${s.id}`;
                         return (
-                          <td key={s.id} className="px-3.5 py-2">
+                          <td key={s.id}>
                             {scored ? (
                               <button
                                 type="button"
@@ -677,12 +667,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                                   if (next) loadAnnotationCounts(expert.id, s.id);
                                   return next;
                                 })}
-                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums transition-colors hover:bg-[oklch(0.94_0.01_258_/_0.8)]"
+                                className="eval-score-cell inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums transition-colors hover:bg-[oklch(0.94_0.01_258_/_0.8)]"
                                 title="点击查看评分项明细"
-                                style={{
-                                  color: anomaly ? 'var(--danger)' : 'var(--accent-strong)',
-                                  background: anomaly ? 'color-mix(in oklch, var(--danger) 10%, transparent)' : undefined,
-                                }}
+                                data-anomaly={anomaly ? 'true' : undefined}
                               >
                                 {cell.totalScore.toFixed(1)}<span className="text-[9px] font-normal text-[var(--muted-foreground)]">/{cell.maxScore}</span>
                                 {anomaly && <AlertTriangle size={10} />}
@@ -701,8 +688,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       if (!cell || cell.scoredCount === 0) return null;
                       const supplier = suppliers.find(s => s.id === spId);
                       return (
-                        <tr key={`${expert.id}-detail`}>
-                          <td colSpan={suppliers.length + 1} className="px-6 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.35)', borderTop: '1px dashed oklch(0.6 0.04 258 / 0.12)' }}>
+                        <tr key={`${expert.id}-detail`} className="eval-detail-row bid-expand-row">
+                          <td colSpan={suppliers.length + 1} className="px-6 py-2.5">
                             <div className="mb-1 flex items-center justify-between">
                               <span className="text-[10px] font-bold text-[var(--muted-foreground)]">
                                 {expert.anonLabel ?? expert.expertName} → {supplier?.supplierName} · {cell.totalScore.toFixed(1)}/{cell.maxScore}（{cell.scoredCount}/{scoreItems.length} 项）
@@ -715,7 +702,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                                 return (
                                   <span key={it.scoreItemId} className="text-[10px] text-[var(--muted-foreground)]" title={it.reason ?? undefined}>
                                     {it.name}{' '}
-                                    <b style={{ color: it.passed === false ? 'var(--danger)' : 'var(--foreground)' }}>
+                                    <b className={it.passed === false ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'}>
                                       {PASS_FAIL_CATEGORIES.includes(it.category) ? (it.passed === false ? '不通过' : '通过') : `${it.score}/${it.maxScore}`}
                                     </b>
                                     <button
@@ -744,7 +731,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               </tbody>
             </table>
             {anomalies.length > 0 && (
-              <div className="flex items-start gap-1.5 px-3.5 py-2 text-[10px]" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'color-mix(in oklch, var(--danger) 5%, transparent)', color: 'var(--danger)' }}>
+              <div className="flex items-start gap-1.5 border-t border-[oklch(0.6_0.04_258/0.1)] bg-[color-mix(in_oklch,var(--danger)_5%,transparent)] px-3.5 py-2 text-[10px] text-[var(--danger)]">
                 <AlertTriangle size={11} className="mt-0.5 shrink-0" />
                 <span>{anomalies.length} 处评分偏差超过 {ANOMALY_THRESHOLD}%（与全体均分相比），生成结果前请重点复核。</span>
               </div>
@@ -754,8 +741,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         )}
 
         {/* ── 供应商汇总与排名 ── */}
-        <div className="rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-          <div className="flex items-center justify-between px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
+        <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+          <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
             <span className="text-[11px] font-bold text-[var(--foreground)]">供应商排名</span>
             <span className="text-[10px] text-[var(--muted-foreground)]">
               {results.length > 0
@@ -803,27 +790,23 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 return (
                   <div
                     key={s.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2.5"
-                    style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.08)', opacity: disqualified ? 0.55 : undefined }}
+                    className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[oklch(0.6_0.04_258/0.08)] px-3.5 py-2.5 ${disqualified ? 'opacity-55' : ''}`}
                   >
                     <span
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black tabular-nums"
-                      style={{
-                        background: rank === 1 && !disqualified ? 'color-mix(in oklch, var(--warning) 22%, transparent)' : 'oklch(0.94 0.01 258 / 0.8)',
-                        color: rank === 1 && !disqualified ? 'oklch(0.45 0.12 70)' : 'var(--muted-foreground)',
-                      }}
+                      className="eval-rank-badge flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black tabular-nums"
+                      data-rank={rank === 1 && !disqualified ? 'first' : undefined}
                     >
                       {rank}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                       {s.supplierName}
                       {recommended && (
-                        <span className="ml-1.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 16%, transparent)', color: 'oklch(0.45 0.12 70)' }}>
+                        <span className="bid-pill bid-pill--gold ml-1.5">
                           <Star size={10} className="inline fill-[oklch(0.65_0.15_70)] text-[oklch(0.65_0.15_70)]" />
                           中标候选人
                         </span>
                       )}
-                      {disqualified && <span className="ml-2 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}>废标</span>}
+                      {disqualified && <span className="bid-pill bid-pill--danger ml-2">废标</span>}
                     </span>
                     {official?.bidPrice && (
                       <span className="font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">
@@ -853,13 +836,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 <div className="flex items-center gap-1.5">
                   {['专家确认', '异常审阅', '确认生成'].map((label, i) => (
                     <Fragment key={label}>
-                      {i > 0 && <span className="h-px w-4" style={{ background: 'oklch(0.7 0.02 258)' }} />}
+                      {i > 0 && <span className="h-px w-4 bg-[oklch(0.7_0.02_258)]" />}
                       <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                        style={{
-                          background: wizardStep >= i ? 'color-mix(in oklch, var(--accent) 14%, transparent)' : 'transparent',
-                          color: wizardStep >= i ? 'var(--accent-strong)' : 'var(--muted-foreground)',
-                        }}
+                        className="eval-step-badge rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        data-done={wizardStep >= i ? 'true' : 'false'}
                       >
                         {i + 1} {label}
                       </span>
@@ -902,11 +882,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   ].map(p => (
                     <div
                       key={p.text}
-                      className="flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 font-semibold"
-                      style={{
-                        background: `color-mix(in oklch, ${p.ok ? 'var(--success)' : 'var(--warning)'} 10%, transparent)`,
-                        color: p.ok ? 'var(--success)' : 'var(--warning)',
-                      }}
+                      className="eval-check-item flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 font-semibold"
+                      data-ok={p.ok ? 'true' : 'false'}
                     >
                       {p.ok ? <CheckCircle2 size={14} className="shrink-0" /> : <Clock size={13} className="shrink-0" />}
                       {p.text}
@@ -915,7 +892,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   {unconfirmed.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
                       {unconfirmed.map(e => (
-                        <span key={e.id} className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'oklch(1 0 0 / 0.7)', color: 'var(--foreground)' }}>
+                        <span key={e.id} className="rounded-full bg-[oklch(1_0_0/0.7)] px-2 py-0.5 text-[10px] font-semibold text-[var(--foreground)]">
                           {e.expertName}{!e.signedIn && '（未签到）'}
                         </span>
                       ))}
@@ -928,17 +905,17 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 <div className="space-y-2 text-xs">
                   <p className="leading-5 text-[var(--muted-foreground)]">以下评分与全体均分偏差超过 {ANOMALY_THRESHOLD}%，生成前请确认无异常（生成时按规则去极值）：</p>
                   {anomalies.length === 0 ? (
-                    <div className="flex items-center gap-2 rounded-[12px] px-3.5 py-3 font-semibold" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)', color: 'var(--success)' }}>
+                    <div className="eval-check-item flex items-center gap-2 rounded-[12px] px-3.5 py-3 font-semibold" data-ok="true">
                       <CheckCircle2 size={14} /> 未发现异常偏差评分。
                     </div>
                   ) : (
                     <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
                       {anomalies.map((a, i) => (
-                        <div key={i} className="flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ background: 'color-mix(in oklch, var(--danger) 7%, transparent)' }}>
+                        <div key={i} className="eval-anomaly-row flex items-center gap-2 rounded-[10px] px-3 py-2">
                           <AlertTriangle size={12} className="shrink-0 text-[var(--danger)]" />
                           <span className="flex-1 text-[11px]">
                             <b>{a.expert.anonLabel ?? a.expert.expertName}</b> 对 <b>{a.supplier.supplierName}</b> 打分
-                            <b className="mx-1 tabular-nums" style={{ color: 'var(--danger)' }}>{a.pct.toFixed(1)}%</b>
+                            <b className="mx-1 tabular-nums text-[var(--danger)]">{a.pct.toFixed(1)}%</b>
                             （全体均分 <b className="tabular-nums">{a.avg.toFixed(1)}%</b>）
                           </span>
                         </div>

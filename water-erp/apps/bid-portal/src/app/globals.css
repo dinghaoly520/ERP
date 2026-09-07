@@ -561,6 +561,66 @@ select.neu-select {
 }
 .neu-checkbox:disabled { opacity: 0.6; cursor: default; }
 
+/* ── 评标管理区块（evaluation-view）状态色与瓷片 —— T2.14：枚举状态色 data-* 化 ── */
+
+/* 统计瓷片 StatTile 底板（原内联静态字面量） */
+.bid-tile {
+  background: oklch(0.975 0.012 258 / 0.4);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5);
+}
+
+/* 内凹图标井 --well-bg/--well-fg 驱动（原内联 color-mix + 方向影） */
+.bid-icon-well {
+  background: var(--well-bg, color-mix(in oklch, var(--accent) 14%, transparent));
+  color: var(--well-fg, var(--accent));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08);
+}
+.bid-icon-well--danger { --well-bg: color-mix(in oklch, var(--danger) 12%, transparent); --well-fg: var(--danger); }
+.bid-icon-well--accent { --well-bg: color-mix(in oklch, var(--stage-evaluation, var(--accent)) 14%, transparent); --well-fg: var(--accent); }
+
+/* 评标截止横幅：超时/未超时双色（原内联三元） */
+.eval-deadline-bar { background: color-mix(in oklch, var(--warning, var(--accent)) 8%, transparent); }
+.eval-deadline-bar[data-expired="true"] { background: color-mix(in oklch, var(--danger) 8%, transparent); }
+
+/* .bid-pill 枚举/静态色修饰（原多处内联徽章底+字色） */
+.bid-pill[data-invite="confirmed"] { --c: var(--success); }
+.bid-pill[data-invite="declined"] { --c: var(--danger); }
+.bid-pill[data-invite="invited"] { --c: var(--warning); }
+.bid-pill--success { --c: var(--success); }
+.bid-pill--danger { --c: var(--danger); }
+.bid-pill--muted { --c: var(--muted-foreground); }
+.bid-pill--gold { --c: oklch(0.45 0.12 70); }
+
+/* 评分矩阵单元格异常标色（原内联三元 color/background） */
+.eval-score-cell { color: var(--accent-strong); }
+.eval-score-cell[data-anomaly="true"] {
+  color: var(--danger);
+  background: color-mix(in oklch, var(--danger) 10%, transparent);
+}
+.eval-score-cell[data-anomaly="true"]:hover {
+  background: color-mix(in oklch, var(--danger) 16%, transparent);
+}
+
+/* 评分明细展开行：浅凹底 + 虚线 hairline（特异性压过 .neu-table td 的 solid 分隔） */
+.neu-table tbody tr.eval-detail-row > td {
+  background: oklch(0.975 0.012 258 / 0.35);
+  border-top: 1px dashed oklch(0.6 0.04 258 / 0.12);
+}
+
+/* 名次徽：第 1 名金色 / 其余灰（原内联三元） */
+.eval-rank-badge { background: oklch(0.94 0.01 258 / 0.8); color: var(--muted-foreground); }
+.eval-rank-badge[data-rank="first"] {
+  background: color-mix(in oklch, var(--warning) 22%, transparent);
+  color: oklch(0.45 0.12 70);
+}
+
+/* 生成向导：步骤徽 / 前置清单行 / 异常偏差行（原内联条件色） */
+.eval-step-badge { background: transparent; color: var(--muted-foreground); }
+.eval-step-badge[data-done="true"] { background: color-mix(in oklch, var(--accent) 14%, transparent); color: var(--accent-strong); }
+.eval-check-item { background: color-mix(in oklch, var(--warning) 10%, transparent); color: var(--warning); }
+.eval-check-item[data-ok="true"] { background: color-mix(in oklch, var(--success) 10%, transparent); color: var(--success); }
+.eval-anomaly-row { background: color-mix(in oklch, var(--danger) 7%, transparent); }
+
 @media (prefers-reduced-motion: reduce) {
   .neu-checkbox, .bid-pick-row { transition: none !important; }
 }
