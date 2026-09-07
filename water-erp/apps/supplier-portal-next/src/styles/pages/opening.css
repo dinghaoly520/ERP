@@ -137,7 +137,7 @@
   border-radius: 10px; border: 1px solid #dce6f3;
   background: rgba(255, 255, 255, 0.7); color: inherit;
   font: inherit; font-size: 13.5px; outline: none;
-  box-shadow: inset 1px 1px 3px rgba(15, 47, 87, 0.05);
+  box-shadow: inset 1px 1px 3px oklch(0.4 0.05 258 / 0.05);
 }
 .rq-input-number:focus { border-color: var(--sp-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 12%, transparent); }
 .rq-input-number:disabled { background: #f5f7fa; color: #aaa; }

@@ -41,9 +41,10 @@
 .db-task-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .db-task-item {
   width: 100%; min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  border: 1px solid var(--hairline); border-left: 3px solid var(--brand); border-radius: 10px;
+  border: none; border-left: 3px solid var(--brand); border-radius: 10px;
   background: color-mix(in oklab, var(--surface) 92%, var(--brand) 8%); color: inherit;
   padding: 11px 12px; text-align: left; cursor: pointer; font: inherit;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 5px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7);
 }
 .db-task-item.overdue { border-left-color: var(--danger); }
 .db-task-item.critical { border-left-color: var(--warning); }
