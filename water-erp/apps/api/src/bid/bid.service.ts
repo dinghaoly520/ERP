@@ -5558,7 +5558,9 @@ export class BidService {
       await this.prisma.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name,
           action: '中标公示生成失败', result: (e as Error).message, riskFlag: '高' },
-      }).catch(() => {});
+      }).catch((dbErr) =>
+        this.logger.warn(`中标公示失败告警的监督日志写入失败: projectId=${id} err=${(dbErr as Error).message}`),
+      );
     }
 
     return result;

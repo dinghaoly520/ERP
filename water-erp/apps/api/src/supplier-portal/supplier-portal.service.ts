@@ -2061,7 +2061,9 @@ export class SupplierPortalService {
       this.prisma.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
           action: '新轨补传拦截', result: `${detail}，拒绝恢复（疑似替换尝试）`, riskFlag: '高风险' },
-      }).catch(() => {});
+      }).catch((dbErr) =>
+        this.logger.warn(`新轨补传拦截监督日志写入失败（拦截已生效）: supplier=${bidSupplier.supplierName} role=${input.role} err=${(dbErr as Error).message}`),
+      );
       this.gateway?.notifyAnomaly(projectId, {
         type: 'tamper_attempt', supplierId: bidSupplier.id, supplierName: bidSupplier.supplierName,
         detail: `${input.role} 新轨补传被拦截：${detail}`, severity: 'danger',
@@ -2104,7 +2106,9 @@ export class SupplierPortalService {
       this.prisma.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
           action: '新轨补传拦截', result: `${input.role} 唱标字段密封件（fieldsCommit/fieldsSha256）与投递时不一致，拒绝恢复（疑似借补传改价）`, riskFlag: '高风险' },
-      }).catch(() => {});
+      }).catch((dbErr) =>
+        this.logger.warn(`新轨补传拦截监督日志写入失败（拦截已生效）: supplier=${bidSupplier.supplierName} role=${input.role} err=${(dbErr as Error).message}`),
+      );
       throw new BadRequestException({ error: '唱标字段密封件不得变更（补传仅恢复文件）', code: 'FIELDS_COMMIT_CHANGED' });
     }
 
