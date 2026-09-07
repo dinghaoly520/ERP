@@ -6,6 +6,7 @@ import { BidService } from './bid.service';
 import { BondLedgerService } from './bond-ledger.service';
 import { BidBondService } from './bid-bond.service';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service';
+import { BidOpeningRecordService } from './bid-opening-record.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -54,6 +55,7 @@ export class BidController {
     private readonly bondLedger: BondLedgerService,
     private readonly bond: BidBondService,
     private readonly evalResults: BidEvaluationResultsService,
+    private readonly openingRecord: BidOpeningRecordService,
   ) {}
 
   @Get('dashboard-stats')
@@ -545,18 +547,18 @@ export class BidController {
 
   @Get('projects/:id/opening-records')
   @ApiOperation({ summary: '开标记录' })
-  listOpeningRecords(@Param('id') id: string) { return this.bidService.listOpeningRecords(id); }
+  listOpeningRecords(@Param('id') id: string) { return this.openingRecord.listOpeningRecords(id); }
 
   @Post('projects/:id/opening-records')
   @ApiOperation({ summary: '录入唱标信息（建/更新开标记录）' })
   enterOpeningRecord(@Param('id') id: string, @Body() dto: CreateOpeningRecordDto) {
-    return this.bidService.enterOpeningRecord(id, dto);
+    return this.openingRecord.enterOpeningRecord(id, dto);
   }
 
   @Get('projects/:id/suppliers/:supplierId/opening-draft')
   @ApiOperation({ summary: '唱标预填草稿（OPENING 阶段聚合报价/工期/质量目标/保证金凭证）' })
   getOpeningRecordDraft(@Param('id') id: string, @Param('supplierId') supplierId: string) {
-    return this.bidService.getOpeningRecordDraft(id, supplierId);
+    return this.openingRecord.getOpeningRecordDraft(id, supplierId);
   }
 
   @Post('projects/:id/opening-records/:recordId/resolve-dispute')
@@ -566,7 +568,7 @@ export class BidController {
     @Param('recordId') recordId: string,
     @Body() dto: ResolveOpeningDisputeDto,
     @CurrentUser('sub') userId: string,
-  ) { return this.bidService.resolveOpeningDispute(id, recordId, dto, userId); }
+  ) { return this.openingRecord.resolveOpeningDispute(id, recordId, dto, userId); }
 
   @Post('projects/:id/suppliers/:supplierId/override-dispute')
   @Roles('admin', 'leader')
@@ -576,7 +578,7 @@ export class BidController {
     @Param('supplierId') supplierId: string,
     @Body() dto: { reason: string; target?: 'confirmed' | 'exception' },
     @CurrentUser('sub') userId: string,
-  ) { return this.bidService.overrideDispute(id, supplierId, dto.reason, userId, dto.target); }
+  ) { return this.openingRecord.overrideDispute(id, supplierId, dto.reason, userId, dto.target); }
 
   @Post('projects/:id/suppliers/:supplierId/accept-danger')
   @ApiOperation({ summary: '主持人确认接受供应商解密失败（不可恢复）' })

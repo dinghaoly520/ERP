@@ -11,6 +11,7 @@ import { NonTenderDealService } from './non-tender-deal.service';
 import { BidService } from './bid.service';
 import { BidBondService } from './bid-bond.service';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service';
+import { BidOpeningRecordService } from './bid-opening-record.service';
 import { BondLedgerService } from './bond-ledger.service';
 import { GbCodeService } from '../common/gb-code.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
@@ -46,7 +47,7 @@ import { SignatureService } from '../common/crypto/signature.service';
   ],
   controllers: [BidController, BidSignPacketController, AdminCertController, NonTenderDealController, OpeningSignController, WorkTemplateController],
   providers: [
-    GbCodeService, NonTenderDealService, WorkTemplateService, BidService, BidEvaluationResultsService, BidBondService, BondLedgerService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService, OpeningSignService],
+    GbCodeService, NonTenderDealService, WorkTemplateService, BidService, BidEvaluationResultsService, BidOpeningRecordService, BidBondService, BondLedgerService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService, OpeningSignService],
   exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService, BidSignPacketService],
 })
 export class BidModule implements OnModuleInit {
