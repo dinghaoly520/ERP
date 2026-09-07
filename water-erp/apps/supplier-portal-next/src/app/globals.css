@@ -11652,8 +11652,6 @@ select.workbench-input {
   .sp-card:hover::before,
   .sp-page-hero-card:hover::before,
   .sp-stat-row:hover::before { opacity: 0.22; }
-  .el-dialog::before { animation: none; opacity: 0.18; }
-  .el-overlay-dialog { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
 /* ─── Scrollbar ─── */
@@ -11802,12 +11800,6 @@ body {
 .el-dialog::before,
 .el-message-box::before { display: none !important; }
 @keyframes glass-glow-drift { 0%,100% { transform: none; } }
-
-/* legacy el-card border off */
-.el-card { border: none !important; box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    2px 2px 8px oklch(0.55 0.03 258 / 0.10),
-    -2px -2px 8px oklch(1 0 0 / 0.9) !important; }
 
 /* ═══════════════════════════════════════════════════════════
    BUTTONS
@@ -11977,10 +11969,6 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .neu-table tbody tr[data-selected="true"] { background: oklch(0.96 0.03 258 / 0.3); box-shadow: inset 2px 0 0 var(--accent-strong); }
 .neu-table tbody tr.row-clickable { cursor: pointer; }
 .neu-table tbody tr.row-clickable:active { transform: scale(0.995); box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08); }
-/* apply same row interaction to el-table rows inside a neu-table-card / cat-table-wrap */
-.neu-table-card .el-table tbody tr:hover > td,
-.cat-table-wrap .el-table tbody tr:hover > td { background: oklch(1 0 0 / 0.4) !important; }
-
 /* ═══════════════════════════════════════════════════════════
    TABS (concave bar + raised tabs)
    ═══════════════════════════════════════════════════════════ */
@@ -12015,53 +12003,6 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 /* status dot chip (tags are flat-color, allowed; no neumorphism on text-level) */
 .sp-status { border: none !important; }
-
-/* ═══════════════════════════════════════════════════════════
-   Element Plus → neumorphic (authoritative overrides)
-   ═══════════════════════════════════════════════════════════ */
-.el-button { border: none !important; font-weight: 600; border-radius: 9px !important; transition: all .2s ease; }
-.el-button--primary { background: var(--brand) !important; color: #fff !important;
-  box-shadow: 2px 2px 5px oklch(0.5 0.08 258 / 0.22), -1px -1px 3px oklch(1 0 0 / 0.4) !important; }
-.el-button--primary:hover { background: var(--brand-deep) !important; transform: translateY(-1px);
-  box-shadow: 3px 3px 8px oklch(0.45 0.08 258 / 0.26), -2px -2px 5px oklch(1 0 0 / 0.5) !important; }
-.el-button--primary:active { transform: none; box-shadow: inset 2px 2px 5px oklch(0.35 0.08 258 / 0.35), inset -2px -2px 5px oklch(1 0 0 / 0.2) !important; }
-.el-button--primary.is-plain { background: color-mix(in oklch, var(--brand) 12%, transparent) !important; color: var(--brand) !important;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5) !important; }
-.el-button--default { background: var(--surface) !important; color: var(--fg) !important;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85) !important; }
-.el-button--default:hover { transform: translateY(-1px); color: var(--brand) !important;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9) !important; }
-.el-button--default:active { transform: none; box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5) !important; }
-
-.el-input__wrapper, .el-textarea__inner {
-  border-radius: 9px !important; background: oklch(0.99 0.004 258) !important;
-  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7) !important;
-  transition: box-shadow .2s ease;
-}
-.el-input__wrapper:hover { box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.13), inset -2px -2px 5px oklch(1 0 0 / 0.8) !important; }
-.el-input__wrapper.is-focus { box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08) !important; }
-.el-input-number .el-input__wrapper, .el-select .el-input__wrapper, .el-date-editor .el-input__wrapper { background: oklch(0.99 0.004 258) !important; }
-
-/* dialogs per cgzxui modal spec (soft drop shadow allowed for floating overlays) */
-.el-dialog, .el-message-box {
-  border: none !important; border-radius: 20px !important; background: var(--bg) !important;
-  box-shadow: 0 20px 60px oklch(0.3 0.05 258 / 0.18) !important;
-}
-.el-dialog__header { background: oklch(1 0 0 / 0.3) !important; border-bottom: 1px solid var(--hairline) !important; }
-.el-dialog__footer { border-top: 1px solid var(--hairline) !important; }
-
-/* floating poppers: subtle directional, no pastel drift */
-.el-select-dropdown, .el-picker-panel, .el-date-picker, .el-time-panel, .el-dropdown-menu, .el-popper.is-light, .el-cascader__dropdown, .el-autocomplete-suggestion {
-  border: none !important; border-radius: 14px !important; background: oklch(0.99 0.004 258 / 0.96) !important;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 12px oklch(0.5 0.06 258 / 0.14), -2px -2px 8px oklch(1 0 0 / 0.9) !important;
-}
-.el-select-dropdown__item.selected { color: var(--brand) !important; font-weight: 700; }
-
-/* el-table transparent inside neu shell */
-.el-table { --el-table-border-color: var(--hairline); background: transparent !important; }
-.el-table th.el-table__cell { background: oklch(1 0 0 / 0.35) !important; color: var(--foreground); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid var(--hairline) !important; }
-.el-table td.el-table__cell { border-bottom: 1px solid oklch(0.55 0.03 258 / 0.06) !important; }
-.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell { background: oklch(1 0 0 / 0.4) !important; }
 
 /* ═══════════════════════════════════════════════════════════
    reduced motion
@@ -12141,9 +12082,6 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   -webkit-text-fill-color: transparent !important;
 }
 
-/* mobile drawer (structural add in MainLayout template) */
-.sp-mobile-drawer .el-drawer { background: var(--bg) !important; box-shadow: 4px 0 24px oklch(0.4 0.08 258 / 0.18) !important; }
-.sp-mobile-drawer .el-drawer__body { padding: 8px !important; display: flex !important; }
 .sp-mobile-drawer .sp-nav { flex: 1; }
 
 /* ═══════════════════════════════════════════════════════════
@@ -12489,7 +12427,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-prog-fill.warn { background: var(--warning); }
 .sp-prog-fill.bad { background: var(--danger); }
 
-/* 通用表格（el-table 的等价基底；页面可叠加自己的类） */
+/* 通用表格（页面可叠加自己的类） */
 .sp-table-wrap { overflow-x: auto; }
 .sp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .sp-table th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: #5a6d8a; background: rgba(255,255,255,0.40); border-bottom: 1px solid var(--sp-border); white-space: nowrap; }

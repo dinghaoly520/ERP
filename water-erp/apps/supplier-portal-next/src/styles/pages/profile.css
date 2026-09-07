@@ -348,7 +348,6 @@
 .cr-diff-n .cr-diff-v { font-size: 14px; color: var(--foreground); font-weight: 700; word-break: break-all; }
 .cr-diff-ar { flex-shrink: 0; color: var(--st); opacity: .6; }
 .cr-why { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 10px; font-size: 12px; color: var(--foreground); line-height: 1.5; }
-.cr-why .el-icon { flex-shrink: 0; margin-top: 1px; color: var(--muted-foreground); }
 .cr-foot { display: flex; align-items: center; gap: 14px; padding-top: 10px; border-top: 1px solid var(--hairline); font-size: 11px; }
 .cr-ft { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .cr-wait { display: inline-flex; align-items: center; gap: 5px; color: var(--warning); font-weight: 600; }
