@@ -934,6 +934,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           {attributionMeta.label}
                         </span>
                       )}
+                      {/* A-112：异常行直显失败原因（truncate+title 悬停全文，审计要求的主持端可见性） */}
+                      {s.decryptError && (
+                        <div title={s.decryptError} className="mt-1 max-w-[240px] truncate text-[10.5px] leading-4 text-[var(--danger)]">
+                          {s.decryptError}
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-3 font-mono text-[11px] tracking-tight text-[color:var(--muted-foreground)]">
                       {s.decryptedAt
