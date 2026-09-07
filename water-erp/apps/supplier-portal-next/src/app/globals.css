@@ -14094,7 +14094,7 @@ main.reg { align-items: flex-start; }
   border-radius: 14px; overflow: hidden;
   background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(20px) saturate(1.15);
   -webkit-backdrop-filter: blur(20px) saturate(1.15); border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 4px 6px rgba(15, 35, 65, 0.04), 0 16px 48px rgba(91, 155, 213, 0.12);
+  box-shadow: 2px 3px 6px oklch(0.4 0.05 258 / 0.04), -1px -1px 3px oklch(1 0 0 / 0.55), 0 16px 48px oklch(0.62 0.13 240 / 0.12);
 }
 .sp-notif-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #dbe7f3; }
 .sp-notif-title { font-weight: 900; font-size: 15px; }
@@ -14119,7 +14119,7 @@ main.reg { align-items: flex-start; }
   border-radius: 12px; overflow: hidden; padding: 6px;
   background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(20px) saturate(1.15);
   -webkit-backdrop-filter: blur(20px) saturate(1.15); border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 4px 6px rgba(15, 35, 65, 0.04), 0 12px 40px rgba(91, 155, 213, 0.10);
+  box-shadow: 2px 3px 6px oklch(0.4 0.05 258 / 0.04), -1px -1px 3px oklch(1 0 0 / 0.55), 0 12px 40px oklch(0.62 0.13 240 / 0.10);
 }
 .sp-user-menu-item {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 9px 12px; border: none;
@@ -14132,7 +14132,7 @@ main.reg { align-items: flex-start; }
 .mobile-fab {
   position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: max(24px, env(safe-area-inset-left)); width: 48px; height: 48px; border-radius: 50%;
   background: #0756a5; color: #fff; display: flex; align-items: center; justify-content: center;
-  border: none; box-shadow: 0 4px 16px rgba(10, 94, 184, 0.4); cursor: pointer; z-index: 100; transition: transform 0.2s;
+  border: none; box-shadow: 2px 3px 10px oklch(0.42 0.14 250 / 0.4), -1px -1px 4px oklch(1 0 0 / 0.35); cursor: pointer; z-index: 100; transition: transform 0.2s;
 }
 .mobile-fab[hidden] { display: none; }
 @media (hover: hover) { .mobile-fab:hover { transform: scale(1.06); } }
