@@ -38,7 +38,7 @@ export function RegisterAgreement({ value, onChange }: { value: boolean; onChang
 
       {visible && (
         <div className="gdlg-ov" onMouseDown={(e) => { if (e.target === e.currentTarget) setVisible(false); }}>
-          <div className="gdlg-pn" style={{ width: 680 }} role="dialog" aria-modal>
+          <div className="gdlg-pn w-[680px]" role="dialog" aria-modal>
             <div className="gdlg-h">
               <div className="gdlg-hl">
                 <div>

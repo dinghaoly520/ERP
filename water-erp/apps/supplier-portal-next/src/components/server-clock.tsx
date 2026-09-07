@@ -22,16 +22,14 @@ export function ServerClock() {
   }, []);
 
   return (
-    <span className="sp-clock" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+    <span className="sp-clock inline-flex items-center gap-1.5 text-xs">
       <span
         aria-hidden
-        style={{
-          width: 6, height: 6, borderRadius: "50%",
-          background: synced ? "var(--sp-success, #16a34a)" : "#9ca3af",
-        }}
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ background: synced ? "var(--success)" : "var(--muted-foreground)" }}
       />
       服务器标准时间
-      <strong style={{ fontFamily: "var(--sp-mono, monospace)" }}>
+      <strong className="font-mono">
         {now ? dayjs(now).format("YYYY-MM-DD HH:mm:ss") : "--"}
       </strong>
     </span>

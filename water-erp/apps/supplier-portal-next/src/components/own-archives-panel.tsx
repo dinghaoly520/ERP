@@ -302,7 +302,7 @@ export function OwnArchivesPanel({
         <div className="oa-form">
           <div className="oa-form-grid">
             <div className="reg-item">
-              <label className="reg-label" htmlFor={fieldIds.title}>{noun}名称 <i style={{ color: "var(--danger)", fontStyle: "normal" }}>*</i></label>
+              <label className="reg-label" htmlFor={fieldIds.title}>{noun}名称 <i className="not-italic text-danger">*</i></label>
               <input id={fieldIds.title} className="reg-inp" required value={form.title} placeholder={`如：XX项目${noun}`} onChange={(e) => set("title", e.target.value)} />
             </div>
             <div className="reg-item">
