@@ -1590,8 +1590,7 @@ export default function ExpertEvaluatePage() {
             <div className="p-6">
               {/* WS 同步冲突横幅 */}
               {draftConflicts.length > 0 && (
-                <div className="mb-4 flex items-center gap-3 rounded-[10px] px-4 py-2"
-                  style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', borderLeft: '3px solid var(--warning)' }}>
+                <div className="exp-alert exp-alert--warn mb-4 flex items-center gap-3">
                   <AlertTriangle size={15} className="shrink-0 text-[var(--warning)]" />
                   <span className="flex-1 text-xs font-semibold text-[var(--warning)]">
                     检测到 {draftConflicts.length} 项评分变更（来自平板端）

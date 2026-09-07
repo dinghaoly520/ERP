@@ -162,7 +162,7 @@ export default function InvitationConfirmPage() {
               </button>
               <span className="flex items-center gap-1 text-[11px] text-[var(--muted-foreground)]">
                 <Clock size={12} /> 当前状态：
-                <span className="font-bold" style={{ color: STATUS[inv.invitationStatus]?.tone }}>
+                <span className="exp-pill" style={{ '--c': STATUS[inv.invitationStatus]?.tone } as React.CSSProperties}>
                   {STATUS[inv.invitationStatus]?.label || inv.invitationStatus}
                 </span>
               </span>

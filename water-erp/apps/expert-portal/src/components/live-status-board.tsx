@@ -96,8 +96,7 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
         <button
           onClick={onOpenMessages}
           title="开标大厅消息"
-          className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--accent-strong)]"
-          style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}
+          className="flex items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--accent-strong)]"
         >
           <MessageSquare size={10} strokeWidth={2} /> {unreadMessageCount}
         </button>
@@ -109,13 +108,12 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
           <button
             onClick={() => setShowEvents(prev => !prev)}
             title="最近事件"
-            className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--accent-strong)]"
-            style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}
+            className="flex items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--accent-strong)]"
           >
             <Radio size={10} strokeWidth={2} /> {events.length}
           </button>
           {showEvents && (
-            <div className="neu-card-static absolute right-0 top-full z-30 mt-2 w-72 space-y-1 rounded-xl p-3 shadow-lg">
+            <div className="neu-card-static absolute right-0 top-full z-30 mt-2 w-72 space-y-1 rounded-xl p-3 !shadow-[2px_4px_14px_oklch(0.5_0.06_258/0.18),-2px_-2px_8px_oklch(1_0_0/0.85)]">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">最近事件</span>
                 <button onClick={() => setShowEvents(false)} className="text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]">收起</button>

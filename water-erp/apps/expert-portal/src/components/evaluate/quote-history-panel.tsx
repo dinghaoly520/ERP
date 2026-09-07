@@ -61,7 +61,11 @@ export function QuoteHistoryPanel({ projectId, defaultCollapsed = false }: Props
           {rounds.map((r) => {
             const isLast = r.roundNo === lastRound.roundNo;
             return (
-              <div key={r.roundNo} className={isLast ? 'rounded-lg border-2 border-[var(--accent)] p-3' : 'rounded-lg border border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] p-3'}>
+              <div key={r.roundNo} className={
+                isLast
+                  ? 'rounded-lg bg-[oklch(0.985_0.005_258)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.8),2px_2px_5px_oklch(0.55_0.03_258/0.1),-1.5px_-1.5px_4px_oklch(1_0_0/0.85),inset_0_0_0_1.5px_color-mix(in_oklch,var(--accent)_45%,transparent)]'
+                  : 'rounded-lg bg-[oklch(0.985_0.005_258)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.8),2px_2px_5px_oklch(0.55_0.03_258/0.1),-1.5px_-1.5px_4px_oklch(1_0_0/0.85)]'
+              }>
                 <div className="mb-2 flex items-center gap-2">
                   <span className={`rounded px-2 py-0.5 text-xs font-bold text-white ${isLast ? 'bg-[var(--accent-strong)]' : 'bg-[oklch(0.55_0.03_258)]'}`}>
                     第 {r.roundNo} 轮
@@ -70,26 +74,26 @@ export function QuoteHistoryPanel({ projectId, defaultCollapsed = false }: Props
                     {ROUND_TYPE_LABEL[r.roundType] || r.roundType}
                   </span>
                   {isLast && (
-                    <span className="rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--accent-strong)]">
+                    <span className="exp-pill !text-[10px]" style={{ '--c': 'var(--accent-strong)' } as React.CSSProperties}>
                       最终报价
                     </span>
                   )}
                 </div>
-                <div className="overflow-hidden rounded-lg border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)]">
-                  <table className="w-full text-sm">
+                <div className="overflow-hidden rounded-lg">
+                  <table className="neu-table is-dense w-full">
                     <thead>
-                      <tr className="bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] text-xs text-[var(--muted-foreground)]">
-                        <th className="px-3 py-1.5 text-left font-semibold">排名</th>
-                        <th className="px-3 py-1.5 text-left font-semibold">供应商</th>
-                        <th className="px-3 py-1.5 text-right font-semibold">报价(元)</th>
+                      <tr>
+                        <th className="!px-3 !py-1.5">排名</th>
+                        <th className="!px-3 !py-1.5">供应商</th>
+                        <th className="!px-3 !py-1.5 !text-right">报价(元)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {r.quotes.map((q, idx) => (
-                        <tr key={idx} className={`border-t border-[color-mix(in_oklch,var(--foreground)_4%,transparent)] ${idx === 0 ? 'bg-[var(--accent)]/5' : ''}`}>
-                          <td className="px-3 py-1.5 font-mono font-bold text-[var(--accent)]">{idx + 1}</td>
-                          <td className="px-3 py-1.5 text-[var(--foreground)]">{q.supplierName}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-semibold">¥{formatPrice(q.quotePrice)}</td>
+                        <tr key={idx} className={idx === 0 ? 'bg-[var(--accent)]/5' : ''}>
+                          <td className="!px-3 !py-1.5 font-mono font-bold text-[var(--accent)]">{idx + 1}</td>
+                          <td className="!px-3 !py-1.5 text-[var(--foreground)]">{q.supplierName}</td>
+                          <td className="!px-3 !py-1.5 !text-right font-mono font-semibold">¥{formatPrice(q.quotePrice)}</td>
                         </tr>
                       ))}
                     </tbody>

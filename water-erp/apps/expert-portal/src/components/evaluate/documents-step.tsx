@@ -121,7 +121,7 @@ function ClarificationDocsCard({ projectId }: { projectId: string }) {
             {docs.map((doc) => {
               const expanded = expandedId === doc.id;
               return (
-                <div key={doc.id} className="rounded-xl border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)] p-3">
+                <div key={doc.id} className="rounded-xl bg-[oklch(0.985_0.005_258)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.8),2px_2px_5px_oklch(0.55_0.03_258/0.1),-1.5px_-1.5px_4px_oklch(1_0_0/0.85)]">
                   <div className="flex items-center gap-2">
                     <span className="shrink-0 rounded bg-[var(--accent-strong)] px-2 py-0.5 text-[10px] font-bold text-white">
                       v{doc.version}

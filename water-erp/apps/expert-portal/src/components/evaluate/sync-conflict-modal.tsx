@@ -55,14 +55,11 @@ export function SyncConflictModal({ open, newItems, conflictItems, localDevice, 
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-6"
-      style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-6 backdrop-blur-sm"
       onClick={onClose}>
-      <div className="w-full max-w-[520px] rounded-[20px] bg-white"
-        style={{ boxShadow: '3px 4px 16px oklch(0.46 0.07 258 / 0.18)' }}
+      <div className="exp-dialog w-full max-w-[520px]"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258/0.12)] px-5 py-4">
           <h3 className="text-sm font-bold text-[var(--foreground)]">
             同步草稿 — 来自{remoteLabel}
           </h3>
@@ -98,7 +95,7 @@ export function SyncConflictModal({ open, newItems, conflictItems, localDevice, 
               </div>
               <div className="space-y-2">
                 {conflictItems.map(c => (
-                  <div key={c.key} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] px-3 py-2">
+                  <div key={c.key} className="rounded-[10px] bg-[oklch(0.975_0.012_258/0.4)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
                     <div className="mb-1.5 text-xs font-semibold text-[var(--foreground)]">{c.scoreItemName}</div>
                     <div className="flex items-center gap-4">
                       <label className="flex cursor-pointer items-center gap-1.5 text-xs">
@@ -127,8 +124,7 @@ export function SyncConflictModal({ open, newItems, conflictItems, localDevice, 
           )}
         </div>
 
-        <div className="flex items-center justify-between px-5 py-4"
-          style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <div className="flex items-center justify-between border-t border-[oklch(0.6_0.04_258/0.12)] px-5 py-4">
           <button type="button" onClick={() => setAll('local')}
             className="text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
             全部采用{localLabel}

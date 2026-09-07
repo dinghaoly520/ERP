@@ -176,10 +176,7 @@ export default function ExpertTasksPage() {
       <div className="page-hero">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
-              style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
-            >
+            <div className="exp-icon-well">
               <ListTodo size={16} strokeWidth={1.8} className="text-[var(--accent)]" />
             </div>
             <div>
@@ -189,7 +186,7 @@ export default function ExpertTasksPage() {
           </div>
           <div className="flex items-center gap-2">
             {(motions.length > 0 || disputes.length > 0) && (
-              <span className="rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums text-white" style={{ background: 'var(--accent)' }}>
+              <span className="exp-pill exp-pill--solid !px-2.5 !text-[11px] tabular-nums" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
                 {motions.length + disputes.length} 项
               </span>
             )}
@@ -213,7 +210,7 @@ export default function ExpertTasksPage() {
               <div className="flex items-center gap-2">
                 <Gavel size={15} strokeWidth={1.8} className="text-[var(--accent)]" />
                 <h3 className="text-sm font-bold text-[var(--foreground)]">动议记录</h3>
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: motions.length > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                <span className="exp-pill exp-pill--solid tabular-nums" style={{ '--c': motions.length > 0 ? 'var(--warning)' : 'var(--muted-foreground)' } as React.CSSProperties}>
                   {motions.length}
                 </span>
               </div>
@@ -282,8 +279,8 @@ export default function ExpertTasksPage() {
                           {m.projectName}
                         </button>
                         <span
-                          className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                          style={{ background: `color-mix(in oklch, ${STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR] ?? '#7c3aed'} 12%, transparent)`, color: STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR] ?? '#7c3aed' }}
+                          className="exp-pill"
+                          style={{ '--c': STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR] ?? '#7c3aed' } as React.CSSProperties}
                         >
                           {STAGE_LABEL[m.projectStage as keyof typeof STAGE_LABEL] ?? m.projectStage}
                         </span>
@@ -294,7 +291,7 @@ export default function ExpertTasksPage() {
                       <div className="mb-2 flex items-center justify-between">
                         <div>
                           <span className="text-sm font-bold text-[var(--foreground)]">{m.title}</span>
-                          <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `color-mix(in oklch, ${resultMeta.color} 14%, transparent)`, color: resultMeta.color }}>
+                          <span className="exp-pill ml-2" style={{ '--c': resultMeta.color } as React.CSSProperties}>
                             {resultMeta.label}
                           </span>
                         </div>
@@ -314,7 +311,7 @@ export default function ExpertTasksPage() {
                         <span className="tabular-nums text-[var(--muted-foreground)]">已投 {totalVotes}</span>
 
                         {m.myVote ? (
-                          <span className="ml-auto rounded px-2 py-1 text-xs font-semibold" style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}>
+                          <span className="exp-pill ml-auto !text-xs" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
                             已投：{VOTE_LABEL[m.myVote] ?? m.myVote}
                           </span>
                         ) : isVoting ? (
@@ -352,7 +349,7 @@ export default function ExpertTasksPage() {
               <div className="flex items-center gap-2">
                 <AlertTriangle size={15} strokeWidth={1.8} className="text-[var(--warning)]" />
                 <h3 className="text-sm font-bold text-[var(--foreground)]">我的异议工单</h3>
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: disputes.length > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                <span className="exp-pill exp-pill--solid tabular-nums" style={{ '--c': disputes.length > 0 ? 'var(--warning)' : 'var(--muted-foreground)' } as React.CSSProperties}>
                   {disputes.length}
                 </span>
               </div>
@@ -414,20 +411,20 @@ export default function ExpertTasksPage() {
                           {d.projectName}
                         </button>
                         <span
-                          className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                          style={{ background: `color-mix(in oklch, ${STAGE_COLOR[d.projectStage as keyof typeof STAGE_COLOR] ?? '#7c3aed'} 12%, transparent)`, color: STAGE_COLOR[d.projectStage as keyof typeof STAGE_COLOR] ?? '#7c3aed' }}
+                          className="exp-pill"
+                          style={{ '--c': STAGE_COLOR[d.projectStage as keyof typeof STAGE_COLOR] ?? '#7c3aed' } as React.CSSProperties}
                         >
                           {STAGE_LABEL[d.projectStage as keyof typeof STAGE_LABEL] ?? d.projectStage}
                         </span>
                         <span
-                          className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                          style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}
+                          className="exp-pill"
+                          style={{ '--c': 'var(--accent)' } as React.CSSProperties}
                         >
                           {TYPE_LABEL[d.type] ?? d.type}
                         </span>
                         <span
-                          className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
-                          style={{ background: `color-mix(in oklch, ${statusColor} 12%, transparent)`, color: statusColor }}
+                          className="exp-pill ml-auto flex items-center gap-1"
+                          style={{ '--c': statusColor } as React.CSSProperties}
                         >
                           <StatusIcon size={11} strokeWidth={2} />
                           {statusLabel}
@@ -438,7 +435,7 @@ export default function ExpertTasksPage() {
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--muted-foreground)]">{d.content}</p>
 
                       {d.response && (
-                        <div className="mt-2 rounded-[10px] px-3 py-2" style={{ background: 'oklch(0.975 0.012 258 / 0.5)', border: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
+                        <div className="mt-2 rounded-[10px] bg-[oklch(0.975_0.012_258/0.5)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.45)]">
                           <p className="text-[10px] font-semibold text-[var(--muted-foreground)]">
                             {isResolved ? '采纳回复' : '驳回理由'} · {new Date(d.resolvedAt!).toLocaleString('zh-CN')}
                           </p>

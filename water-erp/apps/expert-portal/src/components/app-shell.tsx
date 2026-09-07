@@ -211,7 +211,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setSidebarHidden(true)}
             aria-label="收起菜单栏"
-            className="sidebar-edge-tab group absolute right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px] border border-r-0 border-white/85 bg-[linear-gradient(90deg,rgba(241,245,251,0.62),rgba(255,255,255,0.95))] text-[color:var(--muted-foreground)] shadow-[-4px_0_7px_-3px_rgba(69,99,158,0.22)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)]"
+            className="sidebar-edge-tab group absolute right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px] bg-[linear-gradient(90deg,oklch(0.975_0.012_258/0.62),oklch(1_0_0/0.95))] text-[color:var(--muted-foreground)] shadow-[-4px_0_7px_-3px_oklch(0.5_0.1_263/0.22),1px_0_3px_-2px_oklch(1_0_0/0.55)] transition-colors duration-200 hover:bg-[oklch(1_0_0/0.9)] hover:text-[color:var(--accent)]"
           >
             <ChevronLeft size={12} />
           </button>
@@ -223,7 +223,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setSidebarHidden(false)}
             aria-label="展开菜单栏"
-            className="sidebar-edge-tab group fixed left-0 top-1/2 z-30 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] border border-l-0 border-white/85 bg-[linear-gradient(270deg,rgba(241,245,251,0.62),rgba(255,255,255,0.95))] text-[color:var(--muted-foreground)] shadow-[4px_0_7px_-3px_rgba(69,99,158,0.22)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)]"
+            className="sidebar-edge-tab group fixed left-0 top-1/2 z-30 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] bg-[linear-gradient(270deg,oklch(0.975_0.012_258/0.62),oklch(1_0_0/0.95))] text-[color:var(--muted-foreground)] shadow-[4px_0_7px_-3px_oklch(0.5_0.1_263/0.22),-1px_0_3px_-2px_oklch(1_0_0/0.55)] transition-colors duration-200 hover:bg-[oklch(1_0_0/0.9)] hover:text-[color:var(--accent)]"
           >
             <ChevronRight size={12} />
           </button>
