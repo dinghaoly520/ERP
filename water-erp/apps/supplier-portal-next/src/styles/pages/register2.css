@@ -90,12 +90,12 @@
 /* 行内控件标红（行式布局不走 .reg-item.has-error，单独补危险色描边） */
 .reg .reg-inp.is-err, .reg .reg-sel.is-err, .reg .reg-date.is-err {
   box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85),
-    0 0 0 2px color-mix(in oklab, var(--danger, #dc2626) 40%, transparent);
+    0 0 0 2px color-mix(in oklab, var(--danger, oklch(0.62 0.21 27)) 40%, transparent);
 }
 /* 资质主文件上传按钮标红包裹层 */
 .reg-file-err .reg-btn--file {
   box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7),
-    0 0 0 2px color-mix(in oklab, var(--danger, #dc2626) 40%, transparent);
+    0 0 0 2px color-mix(in oklab, var(--danger, oklch(0.62 0.21 27)) 40%, transparent);
 }
 
 /* 性别窄下拉（特异性需压过 .reg-form .reg-sel 的 width:100%） */
@@ -177,3 +177,9 @@
 .reg-form .pwd-eye:hover,
 .reg-form .pwd-eye.on { color: var(--brand); background: color-mix(in oklab, var(--brand) 6%, transparent); }
 
+/* ── reduced-motion：本文件过渡降级 ── */
+@media (prefers-reduced-motion: reduce) {
+  .reg-logo-drop,
+  .reg-add-file,
+  .reg-tagpick { transition: none !important; animation: none !important; }
+}

@@ -13243,6 +13243,10 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   transform: translateY(-1px);
   color: var(--brand, oklch(0.5 0.15 252));
 }
+.reg-btn--ghost:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
 
 .reg-btn--primary-sm {
   height: 36px;
@@ -13258,6 +13262,10 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .reg-btn--primary-sm:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 3px 3px 9px oklch(0.4 0.1 252 / 0.36), -2px -2px 5px oklch(1 0 0 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.35);
+}
+.reg-btn--primary-sm:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 2px 2px 6px oklch(0.3 0.1 252 / 0.5), inset -2px -2px 5px oklch(0.7 0.1 252 / 0.3);
 }
 
 .reg-btn--ghost-sm {
@@ -13275,6 +13283,10 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   transform: translateY(-1px);
   color: var(--brand, oklch(0.5 0.15 252));
 }
+.reg-btn--ghost-sm:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
 
 /* Back button — soft plate */
 .reg-btn--back {
@@ -13291,6 +13303,10 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .reg-btn--back:hover:not(:disabled) {
   transform: translateY(-1px);
   color: var(--brand, oklch(0.5 0.15 252));
+}
+.reg-btn--back:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
 }
 
 /* File upload — concave drop-zone style */
@@ -13311,6 +13327,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .reg-btn--file:hover {
   color: var(--brand, oklch(0.5 0.15 252));
   box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.13), inset -2px -2px 4px oklch(1 0 0 / 0.75);
+}
+.reg-btn--file:active {
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
 }
 
 /* ═══════════════════════════════════════════════
