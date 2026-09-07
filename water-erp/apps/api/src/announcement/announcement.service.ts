@@ -43,6 +43,15 @@ export class AnnouncementService {
       await this.assertBidNoticeTimingGuard(dto);
     }
 
+    // GB/T 43711（7.3）：谈判采购通过定向邀请组织，不发布采购公告（前端类别矩阵
+    // ANNOUNCEMENT_AVAILABILITY 已限定谈判只有流标/中标公告）——此为 API 直发防线
+    if (dto.type === 'BID_NOTICE' && (dto.metadata as Record<string, any> | null)?.method === '谈判采购') {
+      throw new BadRequestException({
+        error: '谈判采购不发布采购公告：应通过供应商邀请（定向邀请函 + 回执）组织，供应商接受邀请后自动纳入投标项目',
+        code: 'NEGOTIATION_NO_PROCUREMENT_NOTICE',
+      });
+    }
+
     // A2（表 B.1）：公告按类型落默认公开范围（可由 dto.metadata.dataClass 覆盖）
     const dataClass = ((dto.metadata as any)?.dataClass as string) ?? ANNOUNCEMENT_TYPE_DATA_CLASS[dto.type] ?? 'public_voluntary';
 

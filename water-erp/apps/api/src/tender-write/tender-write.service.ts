@@ -267,6 +267,16 @@ export class TenderWriteService {
   async exportAnnouncement(dto: ExportAnnouncementDto) {
     const { tenderType, category, draft } = dto;
 
+    // GB/T 43711（7.3）：谈判采购通过定向邀请（≥3 家）组织，不发布采购公告——
+    // 前端 ANNOUNCEMENT_AVAILABILITY 已限定谈判只有流标/中标公告，此处后端防线
+    // 堵 API 直发（此前 else 兜底复用邀请招标公告模板放行过「谈判采购公告」）
+    if (category === 'procurement_document' && tenderType === 'COMPETITIVE_NEGOTIATION') {
+      throw new BadRequestException({
+        error: '谈判采购不发布采购公告：应通过供应商邀请（定向邀请函 + 回执）组织，供应商接受邀请后自动纳入投标项目',
+        code: 'NEGOTIATION_NO_PROCUREMENT_NOTICE',
+      });
+    }
+
     let templatePath: string;
     let replacementPlan: ReturnType<typeof buildFailedBidAnnouncementPlan>;
     let typeLabel: string;

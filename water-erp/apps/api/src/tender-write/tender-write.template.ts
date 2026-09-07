@@ -2054,6 +2054,10 @@ export function buildWinningBidAnnouncementPlan(
           { targetText: '中标金额2', ...buildReplacement('中标金额（小写）', bidders[0].price) },
         ]
       : []),
+    // 公示期限（2026-09-07）：此前模板硬编码「1日」，与数据层 3 天公示期（发布后顺延）
+    // 不一致——占位符化后取 draft.publicityPeriod（前端向导自动填「X日 至 Y日（3天）」），
+    // 兜底法定 3 日
+    { targetText: '公示期限', replacementText: answers.publicityPeriod?.trim() || '3日', highlight: false },
   ];
 
   // Generate the full bidder table as a replacement
