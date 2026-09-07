@@ -358,7 +358,11 @@ export class TenderWriteService {
     }
 
     const updatedXml = renderTemplateXml(xmlToRender, replacementPlan);
-    zip.file('word/document.xml', updatedXml);
+    // 公告模板标题段为「{{项目名称}}采购」——项目名以「采购」结尾时拼出「采购采购」
+    // （如「便携式全液压岩心钻机（800型）采购」）。渲染后全文归一；公告正文不存在
+    // 合法的连续「采购采购」，采购文件导出走另一路径（144-166 行）不受影响。
+    const normalizedXml = updatedXml.replace(/采购采购+/g, '采购');
+    zip.file('word/document.xml', normalizedXml);
 
     // 统一命名：{项目编号}-{项目名称}-{公告类型}-{YYYYMMDD}.docx
     const projectName = (draft as Record<string, string>).projectName?.trim();
@@ -393,6 +397,10 @@ export class TenderWriteService {
         `buildAnnouncementWithContent: mammoth 提取全文失败 ${(e as Error).message}`,
       );
     }
+    // 正文兜底归一：模板标题段已去除硬编码「采购」，此处再兜一层跨 run 拼接出的
+    // 「采购采购」（docx XML 层的归一见 exportAnnouncement，正则抓不到跨 run 重复，
+    // 提取为纯文本后可稳定归一）。
+    textContent = textContent.replace(/采购采购+/g, '采购');
     return { buffer, fileName, textContent };
   }
 
