@@ -422,7 +422,7 @@ export default function ArchivePage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-[var(--foreground)] px-4 py-2.5 text-sm text-[var(--background)] shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-[var(--foreground)] px-4 py-2.5 text-sm text-[var(--background)] shadow-[2px_3px_8px_oklch(0.45_0.05_258/0.25),-1px_-1px_3px_oklch(1_0_0/0.15)]">
           {toast}
         </div>
       )}
