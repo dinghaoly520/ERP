@@ -11,7 +11,7 @@ import { stripExpertEsignature } from '../expert/expert-esign.util';
 import type { RegisterSignDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
-import { BidService } from './bid.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
+import { BidEvaluationResultsService } from './bid-evaluation-results.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
 import { buildStandardFileName } from '@water-erp/shared';
 
 export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
@@ -70,7 +70,7 @@ export class BidSignPacketService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly docxService: BidSignPacketDocxService,
-    private readonly bidService: BidService,
+    private readonly evalResults: BidEvaluationResultsService,
   ) {}
 
   /** 组装响应（GET 与各写端点共用，保证前端只依赖一个形状） */
@@ -298,7 +298,7 @@ export class BidSignPacketService {
     if (packet.handoverFileAssetId) return this.getStatus(projectId); // 幂等：已生成直接返回
 
     // 基础快照复用评标完整性包（结果生成时的同一数据来源），扩展签字/异议/动议信息
-    const base = await this.bidService.buildEvaluationPackage(projectId);
+    const base = await this.evalResults.buildEvaluationPackage(projectId);
     const [disputes, motions, clarifications, experts, evalResults] = await Promise.all([
       this.prisma.expertDispute.findMany({ where: { projectId } }),
       this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true } }),

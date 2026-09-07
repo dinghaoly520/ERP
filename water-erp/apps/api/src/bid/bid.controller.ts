@@ -5,6 +5,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { BidService } from './bid.service';
 import { BondLedgerService } from './bond-ledger.service';
 import { BidBondService } from './bid-bond.service';
+import { BidEvaluationResultsService } from './bid-evaluation-results.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -52,6 +53,7 @@ export class BidController {
     private readonly bidBackup: BidBackupService,
     private readonly bondLedger: BondLedgerService,
     private readonly bond: BidBondService,
+    private readonly evalResults: BidEvaluationResultsService,
   ) {}
 
   @Get('dashboard-stats')
@@ -593,7 +595,7 @@ export class BidController {
 
   @Get('projects/:id/evaluation-results')
   @ApiOperation({ summary: '评标结果汇总' })
-  listEvaluationResults(@Param('id') id: string) { return this.bidService.listEvaluationResults(id); }
+  listEvaluationResults(@Param('id') id: string) { return this.evalResults.listEvaluationResults(id); }
 
   @Get('projects/:id/ai-analysis-progress')
   @ApiOperation({ summary: 'AI 辅助评标进度聚合（:3007 进度卡片轮询；异常判定在后端）' })
@@ -605,7 +607,7 @@ export class BidController {
 
   @Post('projects/:id/evaluation-results/generate')
   @ApiOperation({ summary: '生成评标结果与候选人' })
-  generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.generateEvaluationResults(id, userId); }
+  generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.evalResults.generateEvaluationResults(id, userId); }
 
   @Get('projects/:id/scores')
   @ApiOperation({ summary: '评分列表' })
