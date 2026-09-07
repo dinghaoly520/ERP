@@ -290,7 +290,11 @@ describe('AnnouncementService — A-87 发布钩子（招标要点提取前移�
     const ensureTenderAnalysis = jest.fn().mockResolvedValue(true);
     const { service } = await makeSvc(
       { syncFromAnnouncement: jest.fn().mockResolvedValue({}), ensureTenderAnalysis },
-      { bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-existing', projectCode: 'BID-1' }), update: jest.fn() } },
+      {
+        // P1 编码空间次序：先按 PMI 编码查（此处 BID-1 非 PMI → null 回退 BidProject 直查）
+        projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-existing', projectCode: 'BID-1' }), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+      },
     );
     await service.syncBidProject('ann1', { ...ann, relatedProjectCode: 'BID-1' });
     expect(ensureTenderAnalysis).toHaveBeenCalledWith('p-existing');
@@ -310,7 +314,10 @@ describe('AnnouncementService — A-87 发布钩子（招标要点提取前移�
     const ensureTenderAnalysis = jest.fn();
     const { service } = await makeSvc(
       { syncFromAnnouncement: jest.fn().mockResolvedValue({}), abortBidProject: jest.fn().mockResolvedValue({}), ensureTenderAnalysis },
-      { bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-abort', projectCode: 'BID-3' }), update: jest.fn() } },
+      {
+        projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-abort', projectCode: 'BID-3' }), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+      },
     );
     await service.syncBidProject('ann1', {
       ...ann, relatedProjectCode: 'BID-3',
