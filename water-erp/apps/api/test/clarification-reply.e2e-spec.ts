@@ -67,8 +67,14 @@ describe('A-143 澄清在线答复 (e2e)', () => {
 
     // 定位：seed EVALUATING 项目（hero/引大济岷演示项目 BID-1786934256839 等）中，
     // bidder 满足 Supplier.userId 关联可登录账号；目标行还须无 ACTIVE 证书。
+    // 候选限定 staff 公司域：库里可能有演示快照恢复的无公司 EVALUATING 项目（companyId=null，
+    // web 公司隔离下不可见）——若不限，updatedAt 最新的它会被选中导致步骤 1 的列表断言假红。
+    const staffUser = await prisma.user.findFirst({
+      where: { username: 'Swhi-CGZX-05' },
+      select: { companyId: true },
+    });
     const evaluating = await prisma.bidProject.findMany({
-      where: { stage: 'EVALUATING' },
+      where: { stage: 'EVALUATING', companyId: staffUser?.companyId ?? null },
       select: { id: true },
       orderBy: { updatedAt: 'desc' },
     });
