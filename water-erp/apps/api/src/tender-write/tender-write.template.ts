@@ -136,7 +136,8 @@ function convertSectionToChinese(section: number): string {
     const digit = Math.floor(section / divisor) % 10;
 
     if (digit === 0) {
-      zeroFlag = true;
+      // 前导零不置 flag（82 → 「捌拾贰」而非「零捌拾贰」）；节中零仍补（1002 → 「壹仟零贰」）
+      if (result) zeroFlag = true;
     } else {
       if (zeroFlag) {
         result += '零';
@@ -2041,9 +2042,18 @@ export function buildWinningBidAnnouncementPlan(
   const replacements: TemplateReplacement[] = [
     { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
     { targetText: '项目简要说明', ...buildReplacement('项目简要说明', answers.projectBriefDescription), isHierarchicalText: true },
-    { targetText: '最高限价（大写）', ...buildReplacement('最高限价（大写）', answers.maxPriceChinese) },
-    { targetText: '最高限价（小写）', ...buildReplacement('最高限价（小写）', answers.maxPrice) },
+    // 模板占位符为编号式：{{最高限价1}}（大写）/ {{最高限价2}}（小写）——
+    // 与询比/竞价/邀请招标公告同一套口径（旧版括号式目标在模板中不存在 → 占位符原样残留）
+    { targetText: '最高限价1', ...buildReplacement('最高限价（大写）', answers.maxPriceChinese) },
+    { targetText: '最高限价2', ...buildReplacement('最高限价（小写）', answers.maxPrice) },
     { targetText: '开标时间', ...buildReplacement('开标时间', formatBidOpeningTime(answers.bidOpeningTime, answers.bidOpeningTimeType)) },
+    // 正文「中标金额为人民币{{中标金额1}}（￥{{中标金额2}}）」：第一名报价大小写
+    ...(bidders.length > 0
+      ? [
+          { targetText: '中标金额1', ...buildReplacement('中标金额（大写）', numberToChineseUppercase(bidders[0].price)) },
+          { targetText: '中标金额2', ...buildReplacement('中标金额（小写）', bidders[0].price) },
+        ]
+      : []),
   ];
 
   // Generate the full bidder table as a replacement
