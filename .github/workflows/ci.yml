@@ -61,6 +61,9 @@ jobs:
       - name: Lint (api)
         run: pnpm --filter api exec eslint "src/**/*.ts" "test/**/*.ts"
 
+      - name: cgzxui red-card check (前端硬性红牌闸)
+        run: bash scripts/check-cgzxui-redcards.sh --ci
+
       - name: Unit tests (api)
         run: pnpm --filter api test
 
