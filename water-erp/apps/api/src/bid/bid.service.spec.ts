@@ -410,6 +410,26 @@ describe('BidService — stage transitions', () => {
       });
     });
 
+    it('A-107/A-110：decryptWindowStart 早于 openTime → 400 DECRYPT_BEFORE_OPEN_TIME（开标时间未到不得建会解密）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目', openTime: new Date('2026-06-16T12:00:00.000Z') });
+      await expect(service.startOpening('p1', sessionDto)).rejects.toMatchObject({
+        response: { code: 'DECRYPT_BEFORE_OPEN_TIME' },
+      });
+    });
+
+    it('A-107/A-110：decryptWindowStart ≥ openTime → 放行组建会话（延时开标经修改 openTime 实现不受影响）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目', openTime: new Date('2026-06-16T09:00:00.000Z') });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+      prisma.bidOpeningSession.create.mockResolvedValue({ id: 'sess-ot' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1', sessionDto);
+
+      expect(result.stage).toBe('OPENING');
+      expect(prisma.bidOpeningSession.create).toHaveBeenCalled();
+    });
+
     it('N4：开标 checklist 按「已提交」计数——3 行候选仅 1 家已提交 → OPENING_CHECKLIST_FAILED', async () => {
       const past = new Date(Date.now() - 3600_000);
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', deadline: past, projectManagementItemId: null, round: 1, assignedHostUserId: 'u1', procurementMethod: '谈判采购' });

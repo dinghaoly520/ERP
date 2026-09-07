@@ -1452,7 +1452,7 @@ export class BidService {
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true, assignedHostUserId: true, procurementMethod: true },
+      select: { stage: true, name: true, deadline: true, openTime: true, projectManagementItemId: true, round: true, assignedHostUserId: true, procurementMethod: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
@@ -1531,6 +1531,14 @@ export class BidService {
         throw new BadRequestException({
           error: '解密窗口结束时间必须晚于开始时间',
           code: 'INVALID_DECRYPT_WINDOW',
+        });
+      }
+      // A-107/A-110（K-6 锚定缺口）：解密窗口不得早于开标时间——此前门控只锚定「阶段/截标」，
+      // 截标后、openTime 前仍可组建会话=理论上提前开标。硬闸（延时开标的合法场景经修改 openTime 实现，无须 force 通道）。
+      if (project.openTime && new Date(dto.decryptWindowStart) < new Date(project.openTime)) {
+        throw new BadRequestException({
+          error: '解密窗口开始时间不得早于开标时间（《招标投标法》第34条：开标应当在开标时间公开进行）',
+          code: 'DECRYPT_BEFORE_OPEN_TIME',
         });
       }
     }
