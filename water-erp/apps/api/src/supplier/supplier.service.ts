@@ -19,19 +19,14 @@ import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { isSupplierChangeAllowedField } from './supplier-change-fields';
 import { shouldAutoDisable, aggregatePerformance } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
-import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
+import { generateBusinessTags, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
 import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
-import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
 
 // 等级→数值映射（与 expert-admin.service.ts 共享语义，ExpertLevel: A=5 B=4 C=3 D=2 E=1）
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
 const SCORE_GRADE: Record<number, ExpertLevel> = { 5: 'A', 4: 'B', 3: 'C', 2: 'D', 1: 'E' };
-
-function normalizeRegistrationTags(tags: string[]): string[] {
-  return [...new Set((tags || []).map((tag) => tag.trim()).filter(Boolean))];
-}
 
 /** 加权计算综合等级：
  *  completeness(20%) + responsiveness(30%) + cooperation(20%) + compliance(20%) + comprehensive(10%)
@@ -77,43 +72,17 @@ export class SupplierService {
   async register(dto: RegisterSupplierDto) {
     // P1-13：注册实名核验——主联系人手机号短信验证码前置校验（verifyRegistrationCode 消费后失效）。
     // 内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
-    const isInternalImport = dto.registrationCode === '__INTERNAL_IMPORT__';
-    if (!isInternalImport) {
-      await this.verificationService.assertRegistrationCodeForUpload(dto.registrationPhone, dto.registrationCode);
-
-      const primaryContacts = (dto.contacts ?? []).filter((contact) => contact.isPrimary);
-      if (primaryContacts.length !== 1) {
-        throw new BadRequestException({
-          error: '正式注册须指定且只能指定一名主要联系人',
-          code: 'REGISTRATION_PRIMARY_CONTACT_REQUIRED',
-        });
-      }
-      if (primaryContacts[0].phone.trim() !== dto.registrationPhone.trim()) {
-        throw new BadRequestException({
-          error: '主要联系人手机号须与短信验证手机号一致',
-          code: 'REGISTRATION_PHONE_CONTACT_MISMATCH',
-        });
-      }
-
-      const businessLicense = (dto.qualifications ?? []).find(
-        (qualification) => qualification.type.trim() === '营业执照',
-      );
-      if (!businessLicense?.fileUrl) {
-        throw new BadRequestException({
-          error: '正式注册须上传营业执照',
-          code: 'REGISTRATION_LICENSE_REQUIRED',
-        });
-      }
+    if (dto.registrationCode !== '__INTERNAL_IMPORT__') {
+      await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
     }
 
     // ★ 用户名强制 = 统一社会信用代码（机构代码）：忽略调用方传入的 username。
     //   creditCode 唯一 → 登录用户名天然唯一。
-    const creditCode = dto.creditCode.trim();
-    const username = creditCode;
+    const username = dto.creditCode.trim();
 
     // 检查信用代码是否重复
     const existingCreditCode = await this.prisma.supplier.findUnique({
-      where: { creditCode },
+      where: { creditCode: dto.creditCode },
     });
     if (existingCreditCode) {
       throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
@@ -152,66 +121,8 @@ export class SupplierService {
       }
     }
 
-    const registrationAssetRequirements = (() => {
-      if (isInternalImport) return [];
-
-      const submittedUrls = [
-        ...(dto.logoUrl ? [{ url: dto.logoUrl, category: 'general' }] : []),
-        ...(dto.qualifications ?? []).flatMap((qualification) => [
-          { url: qualification.fileUrl, category: 'qualification' },
-          ...((qualification.attachments ?? []).map((attachment) => ({
-            url: attachment.url,
-            category: 'qualification',
-          }))),
-        ]),
-        ...((dto.performances ?? []).flatMap((performance) =>
-          (performance.proofFiles ?? []).map((proof) => ({
-            url: proof.url,
-            category: 'qualification',
-          })))),
-      ];
-      const parsedRequirements = submittedUrls.map(({ url, category }) => ({
-        id: registrationAssetIdFromUrl(url),
-        category,
-      }));
-      if (parsedRequirements.some(({ id }) => !id)) {
-        throw new BadRequestException({
-          error: '注册附件必须通过本页上传，不接受外部或伪造文件地址',
-          code: 'REGISTRATION_ASSET_URL_INVALID',
-        });
-      }
-      return parsedRequirements as Array<{ id: string; category: string }>;
-    })();
-    const registrationAssetIds = Array.from(new Set(
-      registrationAssetRequirements.map(({ id }) => id),
-    ));
-
-    if (registrationAssetIds.length > 0) {
-      const assets = await this.prisma.fileAsset.findMany({
-        where: {
-          id: { in: registrationAssetIds },
-          uploaderId: null,
-          category: { in: ['qualification', 'general'] },
-          key: { startsWith: `${registrationUploadNamespace(dto.registrationPhone)}/` },
-        },
-        select: { id: true, category: true },
-      });
-      const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
-      const hasInvalidAsset = registrationAssetRequirements.some(({ id, category }) =>
-        assetsById.get(id)?.category !== category,
-      );
-      if (assets.length !== registrationAssetIds.length || hasInvalidAsset) {
-        throw new BadRequestException({ error: '注册附件无效或不属于当前验证手机号', code: 'REGISTRATION_ASSET_INVALID' });
-      }
-    }
-
-    // 所有字段和附件通过校验后再消费短信码，减少校验错误导致验证码无谓失效。
-    if (!isInternalImport) {
-      await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
-    }
-
     // 创建用户和供应商 — 事务保证原子性
-    const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
+    const { user, supplier } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           username, // = 机构代码
@@ -222,16 +133,6 @@ export class SupplierService {
           isActive: false, // 待审核后激活
         },
       });
-
-      if (registrationAssetIds.length > 0) {
-        const claimed = await tx.fileAsset.updateMany({
-          where: { id: { in: registrationAssetIds }, uploaderId: null },
-          data: { uploaderId: user.id },
-        });
-        if (claimed.count !== registrationAssetIds.length) {
-          throw new ConflictException({ error: '注册附件已被其他申请占用，请重新上传', code: 'REGISTRATION_ASSET_ALREADY_CLAIMED' });
-        }
-      }
 
       const supplierNo = await this.generateSupplierNo(tx);
       const supplier = await tx.supplier.create({
@@ -311,17 +212,17 @@ export class SupplierService {
       const submittedTags = (dto.tags || []).map((t) => t.trim()).filter(Boolean);
       const customTags: string[] = [];
       for (const t of submittedTags) {
-        const persistedTag = await tx.businessTag.upsert({
-          where: { name: t },
-          create: { name: t, status: 'PENDING', source: 'supplier_register', createdBySupplierId: supplier.id },
-          update: {},
-        });
-        if (persistedTag.createdBySupplierId === supplier.id) {
+        const exists = await tx.businessTag.findUnique({ where: { name: t } });
+        if (!exists) {
+          await tx.businessTag.create({
+            data: { name: t, status: 'PENDING', source: 'supplier_register', createdBySupplierId: supplier.id },
+          });
           customTags.push(t);
         }
       }
+      (supplier as any)._customTags = customTags;
 
-      return { user, supplier, customTags };
+      return { user, supplier };
     });
 
     // 通知采购管理员：新供应商待审批（待办型，审批后自动 resolve）
@@ -329,7 +230,7 @@ export class SupplierService {
     const { passwordHash: _omit, ...safeUser } = user;
     void _omit;
 
-    await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
       type: 'SUPPLIER_PENDING',
       title: '新供应商注册待审批',
       content: `${supplier.name} 提交了注册申请，信用代码 ${supplier.creditCode}，请前往审批。`,
@@ -337,11 +238,11 @@ export class SupplierService {
     })));
 
     // 含自创业务标签时，额外提醒管理员到供应商管理中心审核标签入池
-    if (customTags.length) {
-      await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    if ((supplier as any)._customTags?.length) {
+      void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
         type: 'SUPPLIER_PENDING',
         title: '新自创业务标签待审核',
-        content: `${supplier.name} 注册时自创标签：${customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
+        content: `${supplier.name} 注册时自创标签：${(supplier as any)._customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
         link: '/supplier',
       })));
     }
@@ -451,14 +352,6 @@ export class SupplierService {
   //  临时供应商注册（凭邀请码，极简字段；审批通过后由供应商补全资料）
   // ═══════════════════════════════════════════════════════════
   async registerTemporary(dto: RegisterTemporarySupplierDto) {
-    const submittedTags = normalizeRegistrationTags(dto.tags);
-    if (submittedTags.length < TAG_MIN || submittedTags.length > TAG_MAX) {
-      throw new BadRequestException({
-        error: `业务标签须选择 ${TAG_MIN} 至 ${TAG_MAX} 项`,
-        code: 'INVALID_BUSINESS_TAGS',
-      });
-    }
-
     const code = dto.invitationCode.toUpperCase().trim();
     await this.syncExpiredStatus();
     const inv = await this.prisma.supplierInvitation.findUnique({ where: { code } });
@@ -473,14 +366,13 @@ export class SupplierService {
 
     const normalizedName = dto.name.trim().toLowerCase();
     // ★ 用户名强制 = 机构代码（与正式注册一致）
-    const creditCode = dto.creditCode.trim();
-    const username = creditCode; // 用户名强制 = 统一社会信用代码（机构代码）
+    const username = dto.creditCode.trim(); // 用户名强制 = 统一社会信用代码（机构代码）
     const existingCredit = await this.prisma.supplier.findUnique({ where: { creditCode: dto.creditCode.trim() } });
     if (existingCredit) throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
     const existingUser = await this.prisma.user.findFirst({ where: { username, role: 'supplier' } });
     if (existingUser) throw new BadRequestException({ error: '该机构代码已被注册为登录账号，请更换', code: 'DUPLICATE_USERNAME' });
 
-    const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
+    const { user, supplier } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           username,
@@ -500,40 +392,19 @@ export class SupplierService {
           subjectCode: buildSubjectCode(dto.creditCode.trim()), // A1（B.4.2）
           organizationCode: dto.creditCode.trim(), // 机构代码 = 统一社会信用代码
           supplierNo: await this.generateSupplierNo(tx),
-          // 临时注册 2.0：法人三件套与地址随注册写入（此前留空串占位）；
-          // enterpriseType/businessScope 仍留空，审批通过后由供应商在企业信息中自行补全。
-          legalPerson: dto.legalPerson.trim(),
-          legalPersonIdCard: dto.legalPersonIdCard.trim(),
-          registeredAddress: dto.registeredAddress?.trim() || '',
-          region: dto.region?.trim() || null,
+          // 临时供应商必填字段留空（DB NOT NULL 用空串满足），不写入占位/虚假内容；
+          // 审批通过后由供应商在企业信息中自行补全。
           enterpriseType: '',
+          legalPerson: '',
+          registeredAddress: '',
           businessScope: '',
-          tags: submittedTags,
           isTemporary: true,
           temporaryExpiresAt: inv.expiresAt,
           invitation: { connect: { id: inv.id } },
-          contacts: { create: [{ name: dto.displayName, phone: dto.phone, email: dto.email || null, isPrimary: true, position: '联系人' }] },
+          contacts: { create: [{ name: dto.displayName, phone: dto.phone, isPrimary: true, position: '联系人' }] },
         },
         include: { contacts: true },
       });
-
-      // 与正式注册保持一致：库外标签进入待审核池，并在事务完成后触发管理员提醒。
-      const customTags: string[] = [];
-      for (const tag of submittedTags) {
-        const persistedTag = await tx.businessTag.upsert({
-          where: { name: tag },
-          create: {
-              name: tag,
-              status: 'PENDING',
-              source: 'supplier_register',
-              createdBySupplierId: supplier.id,
-          },
-          update: {},
-        });
-        if (persistedTag.createdBySupplierId === supplier.id) {
-          customTags.push(tag);
-        }
-      }
       // P0-7 邀请码消费原子化：并发同码双注册时仅一方能把 status 从 ACTIVE 置 USED，
       // 另一方 count=0 → 事务回滚（其 user/supplier 创建一并撤销），杜绝孤儿 supplier 与占位冲突。
       const claimedInv = await tx.supplierInvitation.updateMany({
@@ -543,12 +414,12 @@ export class SupplierService {
       if (claimedInv.count === 0) {
         throw new BadRequestException({ error: '邀请码已被使用或已失效', code: 'INVITATION_CONFLICT' });
       }
-      return { user, supplier, customTags };
+      return { user, supplier };
     });
 
     const expireLabel = inv.expiresAt.toISOString().slice(0, 10);
     const { passwordHash: _omit, ...safeUser } = user; void _omit;
-    await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
       type: 'SUPPLIER_PENDING',
       title: '新临时供应商注册待审批',
       content: `${supplier.name}（临时供应商，有效期至 ${expireLabel}）提交了注册申请，请前往审批。`,
@@ -556,11 +427,11 @@ export class SupplierService {
     })));
 
     // 含自创业务标签时，额外提醒管理员到供应商管理中心审核标签入池
-    if (customTags.length) {
-      await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    if ((supplier as any)._customTags?.length) {
+      void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
         type: 'SUPPLIER_PENDING',
         title: '新自创业务标签待审核',
-        content: `${supplier.name} 注册时自创标签：${customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
+        content: `${supplier.name} 注册时自创标签：${(supplier as any)._customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
         link: '/supplier',
       })));
     }
@@ -1191,15 +1062,6 @@ export class SupplierService {
     return this.prisma.supplierChangeRecord.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  /** 审批中心：全部待审的供应商资料变更（:3004 供应商门户提交，跨供应商） */
-  async listPendingChanges() {
-    return this.prisma.supplierChangeRecord.findMany({
-      where: { status: 'PENDING' },
-      orderBy: { createdAt: 'asc' },
-      include: { supplier: { select: { id: true, name: true, supplierNo: true } } },
     });
   }
 
