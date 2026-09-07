@@ -600,7 +600,6 @@ export class BidDecryptService {
     }
   }
 
-
   /**
    * 解密失败归因裁决（§5.5 主持人处置，POST projects/:id/opening/decrypt-adjudge）：
    * - BIDDER / PLATFORM：UNKNOWN 家落终局 DANGER+EXCEPTION（已 DANGER 家仅落归因），

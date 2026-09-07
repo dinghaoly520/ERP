@@ -12,7 +12,7 @@
    ────────────────────────────────────────────────────────────────── */
 
 /* —— 布局（原 <style scoped> 直迁）—— */
-.hall { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.2fr); gap: 16px; }
+.hall { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; }
 .hall-error { grid-column: 1 / -1; }
 .left { display: flex; flex-direction: column; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -54,7 +54,10 @@
 .hall-desc td { padding: 8px 12px; color: var(--sp-gray-700); border: 1px solid var(--sp-border-light); word-break: break-all; }
 
 /* —— el-table（size=small）原生等价（hall-table）—— */
-.hall-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+/* H5-①（2026-09-07）375px 适配：轨道下限降为 0 防内容撑破（配合 960px 折列断点），
+   卡片体内横向滚动承接宽表，表格保 620px 可读宽 */
+.hall-card__body { overflow-x: auto; }
+.hall-table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 12px; }
 .hall-table th {
   padding: 8px 10px; text-align: left; white-space: nowrap;
   font-weight: 600; font-size: 12px; letter-spacing: 0.04em; color: #5a6d8a;
@@ -85,7 +88,7 @@
 /* type="warning" effect="plain"：透明底 + 同色 hairline 边 + 深一档文字 */
 .hall-tag--warning-plain { background: transparent; color: #b88230; border-color: #e6a23c; }
 
-@media (max-width: 960px) { .hall { grid-template-columns: 1fr; } }
+@media (max-width: 960px) { .hall { grid-template-columns: minmax(0, 1fr); } }
 /* 桌面端：网格撑满内容区高度，左右两列同高——右列聊天面板与左列唱标总表卡均延伸至页面底部（底边对齐） */
 @media (min-width: 961px) {
   .hall { height: 100%; }
