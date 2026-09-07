@@ -55,11 +55,11 @@ function boundCertSn(): string {
 
 const STAGES = ["DOWNLOAD", "SUBMIT", "OPENING", "EVALUATING", "ARCHIVED"] as const;
 const stageMap: Record<string, { label: string; color: string; guide: string }> = {
-  DOWNLOAD: { label: "文件下载", color: "#0891b2", guide: "可下载招标文件、查看项目范围与资质要求，提前准备投标材料。" },
-  SUBMIT: { label: "加密投递", color: "#c00a6b", guide: "标书已开放投递，请在截止时间前完成标书文件加密上传与提交。" },
-  OPENING: { label: "在线开标", color: "#d97706", guide: "项目已进入开标流程，届时可在线参与开标确认，核实开标信息。" },
-  EVALUATING: { label: "专家评标", color: "#7c3aed", guide: "评标委员会正在对标书进行综合评审，请耐心等候评标结果公示。" },
-  ARCHIVED: { label: "已归档", color: "#059669", guide: "招投标流程已完成并归档，可查看最终评标结果与中标公示。" },
+  DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)", guide: "可下载招标文件、查看项目范围与资质要求，提前准备投标材料。" },
+  SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)", guide: "标书已开放投递，请在截止时间前完成标书文件加密上传与提交。" },
+  OPENING: { label: "在线开标", color: "var(--bid-stage-opening)", guide: "项目已进入开标流程，届时可在线参与开标确认，核实开标信息。" },
+  EVALUATING: { label: "专家评标", color: "var(--bid-stage-evaluating)", guide: "评标委员会正在对标书进行综合评审，请耐心等候评标结果公示。" },
+  ARCHIVED: { label: "已归档", color: "var(--bid-stage-archived)", guide: "招投标流程已完成并归档，可查看最终评标结果与中标公示。" },
 };
 
 function fmtBudget(raw: any): string {

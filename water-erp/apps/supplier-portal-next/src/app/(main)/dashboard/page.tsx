@@ -71,11 +71,11 @@ const NOTIF_COLORS: Record<string, { dot: string; glow: string }> = {
 };
 
 const STAGES = [
-  { key: "DOWNLOAD", label: "文件下载", color: "#0891b2" },
-  { key: "SUBMIT", label: "加密投递", color: "#c00a6b" },
-  { key: "OPENING", label: "在线开标", color: "#d97706" },
-  { key: "EVALUATING", label: "专家评标", color: "#7c3aed" },
-  { key: "ARCHIVED", label: "已归档", color: "#059669" },
+  { key: "DOWNLOAD", label: "文件下载", color: "var(--bid-stage-download)" },
+  { key: "SUBMIT", label: "加密投递", color: "var(--bid-stage-submit)" },
+  { key: "OPENING", label: "在线开标", color: "var(--bid-stage-opening)" },
+  { key: "EVALUATING", label: "专家评标", color: "var(--bid-stage-evaluating)" },
+  { key: "ARCHIVED", label: "已归档", color: "var(--bid-stage-archived)" },
 ] as const;
 
 interface CatDim {
@@ -456,7 +456,7 @@ export default function DashboardPage() {
                       <div className="db-list-right">
                         <span
                           className="db-list-stage"
-                          style={{ "--stage-c": STAGES.find((s) => s.key === row.project.stage)?.color || "#94a3b8" } as React.CSSProperties}
+                          style={{ "--stage-c": STAGES.find((s) => s.key === row.project.stage)?.color || "var(--stage-default)" } as React.CSSProperties}
                         >
                           {STAGES.find((s) => s.key === row.project.stage)?.label || row.project.stage}
                         </span>

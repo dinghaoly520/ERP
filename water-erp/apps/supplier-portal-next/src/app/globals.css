@@ -44,6 +44,13 @@
   --stage-contract-soft: color-mix(in oklch, var(--stage-contract) 12%, transparent);
   --stage-default: var(--muted-foreground);
   --stage-default-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
+  /* 投标阶段五色（BidProject.stage 台账色，bids/[id]·bids·my-bids·dashboard 四处 stageMap 共用；
+     oklch 等值换算自原散落 hex #0891b2/#c00a6b/#d97706/#7c3aed/#059669，零视觉变更） */
+  --bid-stage-download: oklch(0.609 0.111 221.7);
+  --bid-stage-submit: oklch(0.528 0.211 357.8);
+  --bid-stage-opening: oklch(0.666 0.157 58.3);
+  --bid-stage-evaluating: oklch(0.541 0.247 293.0);
+  --bid-stage-archived: oklch(0.596 0.127 163.2);
   --shadow-soft: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8);
   --shadow-panel: inset 0 1px 0 oklch(1 0 0 / 0.72), 3px 3px 10px oklch(0.5 0.04 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.85);
   --shadow-focus: 0 0 0 4px oklch(0.63 0.128 247 / 0.12);

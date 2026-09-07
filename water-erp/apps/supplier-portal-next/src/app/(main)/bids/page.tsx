@@ -15,11 +15,11 @@ import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 const stageMap: Record<string, { label: string; color: string }> = {
-  DOWNLOAD: { label: "文件下载", color: "#0891b2" },
-  SUBMIT: { label: "加密投递", color: "#c00a6b" },
-  OPENING: { label: "在线开标", color: "#d97706" },
-  EVALUATING: { label: "专家评标", color: "#7c3aed" },
-  ARCHIVED: { label: "已归档", color: "#059669" },
+  DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)" },
+  SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)" },
+  OPENING: { label: "在线开标", color: "var(--bid-stage-opening)" },
+  EVALUATING: { label: "专家评标", color: "var(--bid-stage-evaluating)" },
+  ARCHIVED: { label: "已归档", color: "var(--bid-stage-archived)" },
 };
 
 function isSubmitStage(stage: string) {
@@ -225,7 +225,7 @@ export default function BidListPage() {
                         </span>
                         <span
                           className="bid-stage"
-                          style={{ "--stage-c": stageMap[p.stage]?.color || "#94a3b8" } as React.CSSProperties}
+                          style={{ "--stage-c": stageMap[p.stage]?.color || "var(--stage-default)" } as React.CSSProperties}
                         >
                           {stageMap[p.stage]?.label || p.stage}
                         </span>

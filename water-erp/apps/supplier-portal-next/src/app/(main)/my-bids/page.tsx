@@ -13,11 +13,11 @@ import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 const STAGES = [
-  { key: "DOWNLOAD", label: "文件下载", color: "#0891b2" },
-  { key: "SUBMIT", label: "加密投递", color: "#c00a6b" },
-  { key: "OPENING", label: "在线开标", color: "#d97706" },
-  { key: "EVALUATING", label: "专家评标", color: "#7c3aed" },
-  { key: "ARCHIVED", label: "已归档", color: "#059669" },
+  { key: "DOWNLOAD", label: "文件下载", color: "var(--bid-stage-download)" },
+  { key: "SUBMIT", label: "加密投递", color: "var(--bid-stage-submit)" },
+  { key: "OPENING", label: "在线开标", color: "var(--bid-stage-opening)" },
+  { key: "EVALUATING", label: "专家评标", color: "var(--bid-stage-evaluating)" },
+  { key: "ARCHIVED", label: "已归档", color: "var(--bid-stage-archived)" },
 ] as const;
 
 function stageIdx(stage: string): number {
@@ -25,7 +25,7 @@ function stageIdx(stage: string): number {
 }
 
 function stageColor(stage: string): string {
-  return STAGES.find((s) => s.key === stage)?.color || "#94a3b8";
+  return STAGES.find((s) => s.key === stage)?.color || "var(--stage-default)";
 }
 
 // ── Status helpers ──
