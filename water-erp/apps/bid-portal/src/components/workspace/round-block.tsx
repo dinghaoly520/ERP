@@ -29,10 +29,6 @@ type Round = {
 const STATUS_LABEL: Record<string, string> = {
   pending: '待开放', open: '报价中', sealed: '已截止', published: '已公布', closed: '已结束',
 };
-// F19：状态色改主题令牌（原硬编码十六进制与全站 var(--…) 体系不一致）
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'var(--muted-foreground)', open: 'var(--accent)', sealed: 'var(--warning)', published: 'var(--success)', closed: 'var(--muted-foreground)',
-};
 
 export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -131,13 +127,13 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
           {rounds.map((r, idx) => {
           const isLast = idx === rounds.length - 1; // 仅最后一轮显示操作按钮
           return (
-            <div key={r.id} className="rounded-xl border border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] p-4">
+            <div key={r.id} className="rounded-xl bg-[oklch(1_0_0/0.28)] p-4 shadow-[inset_0_1px_0_oklch(1_0_0/0.6),2px_2px_4px_oklch(0.55_0.03_258/0.08)]">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="rounded-md bg-[var(--accent)] px-2 py-0.5 text-xs font-bold text-white">
                     第 {r.roundNo} 轮
                   </span>
-                  <span className="text-sm font-semibold" style={{ color: STATUS_COLOR[r.status] }}>
+                  <span className="round-status text-sm font-semibold" data-status={r.status}>
                     {STATUS_LABEL[r.status] || r.status}
                   </span>
                   {r.deadline && (
@@ -193,23 +189,23 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
 
               {/* 报价一览(published/closed 时显示) */}
               {(r.status === 'published' || r.status === 'closed') && r.quotes && r.quotes.length > 0 && (
-                <div className="overflow-hidden rounded-lg border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)]">
-                  <table className="w-full text-sm">
+                <div className="overflow-hidden rounded-lg">
+                  <table className="neu-table is-dense w-full">
                     <thead>
-                      <tr className="bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] text-xs text-[var(--muted-foreground)]">
-                        <th className="px-3 py-2 text-left font-semibold">排名</th>
-                        <th className="px-3 py-2 text-left font-semibold">供应商</th>
-                        <th className="px-3 py-2 text-right font-semibold">报价(元)</th>
+                      <tr>
+                        <th>排名</th>
+                        <th>供应商</th>
+                        <th className="text-right">报价(元)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {[...r.quotes].sort((a, b) => Number(a.quotePrice) - Number(b.quotePrice)).map((q, idx) => {
                         const sup = suppliers.find(s => s.id === q.bidSupplierId);
                         return (
-                          <tr key={q.id} className="border-t border-[color-mix(in_oklch,var(--foreground)_4%,transparent)]">
-                            <td className="px-3 py-2 font-mono font-bold text-[var(--accent)]">{idx + 1}</td>
-                            <td className="px-3 py-2 text-[var(--foreground)]">{sup?.supplierName ?? q.bidSupplierId}</td>
-                            <td className="px-3 py-2 text-right font-mono font-semibold">
+                          <tr key={q.id}>
+                            <td className="font-mono font-bold text-[var(--accent)]">{idx + 1}</td>
+                            <td className="text-[var(--foreground)]">{sup?.supplierName ?? q.bidSupplierId}</td>
+                            <td className="text-right font-mono font-semibold">
                               {Number(q.quotePrice).toLocaleString('zh-CN')}
                             </td>
                           </tr>
@@ -227,42 +223,51 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
       )}
       {/* 供应商选择弹窗 */}
       {showSupplierDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}>
-          <div className="neu-card-static w-[480px] max-w-[90vw] rounded-2xl p-6">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" onClick={() => setShowSupplierDialog(false)} />
+          <div
+            className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)]"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
               <h3 className="text-sm font-bold text-[var(--foreground)]">选择参与报价的供应商</h3>
-              <button onClick={() => setShowSupplierDialog(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              <button onClick={() => setShowSupplierDialog(false)} className="neu-btn-xs" aria-label="关闭">
                 <X size={16} />
               </button>
             </div>
-            <p className="mb-3 text-xs text-[var(--muted-foreground)]">
-              合格供应商默认全选，可按需取消。废标供应商不可参与。
-            </p>
-            <div className="mb-4 max-h-[300px] space-y-2 overflow-y-auto">
-              {qualifiedSuppliers.map(s => (
-                <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] px-3 py-2 hover:bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]">
-                  <input
-                    type="checkbox"
-                    checked={selectedSupplierIds.includes(s.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedSupplierIds(prev => [...prev, s.id]);
-                      else setSelectedSupplierIds(prev => prev.filter(id => id !== s.id));
-                    }}
-                    className="accent-[var(--accent)]"
-                  />
-                  <span className="text-sm text-[var(--foreground)]">{s.supplierName}</span>
-                  <span className="ml-auto text-xs text-[var(--success)]">✅ 合格</span>
-                </label>
-              ))}
-              {invalidSuppliers.map(s => (
-                <div key={s.id} className="flex items-center gap-2 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_4%,transparent)] px-3 py-2 opacity-50">
-                  <input type="checkbox" disabled className="accent-[var(--accent)]" />
-                  <span className="text-sm text-[var(--muted-foreground)]">{s.supplierName}</span>
-                  <span className="ml-auto text-xs text-[var(--danger)]">🔒 已废标</span>
-                </div>
-              ))}
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-3 text-xs text-[var(--muted-foreground)]">
+                合格供应商默认全选，可按需取消。废标供应商不可参与。
+              </p>
+              <div className="max-h-[300px] space-y-2 overflow-y-auto">
+                {qualifiedSuppliers.map(s => (
+                  <label key={s.id} className="bid-pick-row flex cursor-pointer items-center gap-2 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      className="neu-checkbox"
+                      checked={selectedSupplierIds.includes(s.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedSupplierIds(prev => [...prev, s.id]);
+                        else setSelectedSupplierIds(prev => prev.filter(id => id !== s.id));
+                      }}
+                    />
+                    <span className="text-sm text-[var(--foreground)]">{s.supplierName}</span>
+                    <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--success)]"><CheckCircle2 size={12} strokeWidth={1.5} /> 合格</span>
+                  </label>
+                ))}
+                {invalidSuppliers.map(s => (
+                  <div key={s.id} className="flex items-center gap-2 rounded-lg px-3 py-2 opacity-50">
+                    <input type="checkbox" disabled className="neu-checkbox" />
+                    <span className="text-sm text-[var(--muted-foreground)]">{s.supplierName}</span>
+                    <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--danger)]"><Lock size={12} strokeWidth={1.5} /> 已废标</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
               <button onClick={() => setShowSupplierDialog(false)} className="neu-btn-soft !h-[34px] !text-xs">取消</button>
               <button
                 onClick={handleCreateFromDialog}

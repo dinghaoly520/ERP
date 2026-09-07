@@ -648,6 +648,12 @@ select.neu-select {
 .sign-status[data-status="REFUSED_DISSENT"] { color: var(--danger); }
 .sign-status[data-status="DEEMED_AGREED"] { color: var(--warning); }
 
+/* ── 多轮报价（round-block）—— T2.16：轮次状态字色（枚举 5 值，原 STATUS_COLOR 内联映射） ── */
+.round-status { color: var(--muted-foreground); }
+.round-status[data-status="open"] { color: var(--accent); }
+.round-status[data-status="sealed"] { color: var(--warning); }
+.round-status[data-status="published"] { color: var(--success); }
+
 @media (prefers-reduced-motion: reduce) {
   .neu-checkbox, .bid-pick-row, .sign-choice { transition: none !important; }
 }
