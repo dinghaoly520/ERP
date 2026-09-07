@@ -53,32 +53,46 @@ body {
   -webkit-backdrop-filter: blur(44px) saturate(1.12);
 }
 
-/* ─── Input — crisp bordered field ─── */
+/* ─── Input — 内凹输入框（cgzxui：oklch 内凹三件套 input/textarea/select，对齐 :3005）─── */
 .workbench-input {
-  border: 1px solid #dbe6f3;
-  border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 0.625rem 0.75rem;
-  color: #18243a;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid oklch(0.78 0.03 258 / 0.45);
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--foreground, oklch(0.28 0.03 258));
+  background: oklch(0.99 0.004 258);
   outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.6);
+  transition: all 0.2s ease;
+  width: 100%;
 }
 
 .workbench-input:focus {
-  border-color: #0b63ce;
-  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
+  border-color: oklch(0.5 0.16 251 / 0.5);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.06), inset -2px -2px 4px oklch(1 0 0 / 0.45), 0 0 0 3px oklch(0.5 0.16 251 / 0.08);
 }
 
-/* ── Workbench select (like input-glow) ── */
+textarea.workbench-input {
+  height: auto;
+  min-height: 88px;
+  padding: 10px 14px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
 select.workbench-input {
-  padding-right: 0.375rem;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7d99' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
 }
 
 select.workbench-input:focus {
-  border-color: #0b63ce;
-  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.10);
-  background: #fff;
+  background-color: oklch(0.99 0.004 258);
 }
 
 /* ─── Table — industrial data display ─── */
@@ -545,9 +559,12 @@ select.neu-select {
   padding: 14px 16px; color: var(--foreground);
   border-top: 1px solid oklch(0.55 0.03 258 / 0.06); vertical-align: middle; text-align: center;
 }
-/* 密集数据表修饰符 —— 左对齐（项目编号/名称等富文本列）*/
+/* 密集数据表修饰符 —— 左对齐（项目编号/名称等富文本列）+ padding 减半 + 12px 字号 */
+.neu-table.is-dense { font-size: 12px; }
 .neu-table.is-dense th,
 .neu-table.is-dense td { text-align: left; }
+.neu-table.is-dense th { padding: 6px 10px; }
+.neu-table.is-dense td { padding: 5px 10px; }
 /* 行交互四层 */
 .neu-table tbody tr {
   background: transparent;
@@ -642,16 +659,40 @@ select.neu-select {
     0 20px 60px oklch(0.3 0.05 258 / 0.2);
 }
 
-/* ── 内联错误提示（无边框，danger 色调底）── */
+/* ── 弹窗蒙层 .bid-overlay / .bid-overlay-backdrop（亮色蒙层 + 模糊，替代暗色内联 MODAL_OVERLAY_STYLE）── */
+.bid-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.bid-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--background);
+  opacity: 0.6;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* ── 内联提示 .bid-alert（--tone 驱动色调，默认 danger；无边框）── */
 .bid-alert {
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.5;
-  color: var(--danger);
-  background: color-mix(in oklch, var(--danger) 8%, transparent);
+  color: var(--tone, var(--danger));
+  background: color-mix(in oklch, var(--tone, var(--danger)) 10%, transparent);
 }
+.bid-alert--success { --tone: var(--success); }
+.bid-alert--info { --tone: var(--accent); }
+.bid-alert--warning { --tone: var(--warning); }
+.bid-alert--danger { --tone: var(--danger); }
 
 /* ── 可选列表行（邀请供应商等）── */
 .bid-pick-row {
@@ -679,6 +720,10 @@ select.neu-select {
   transition: all 0.2s ease;
 }
 .neu-checkbox:hover { background: var(--neu-raised-bg-hover); }
+.neu-checkbox:active {
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
+  transform: scale(0.95);
+}
 .neu-checkbox:checked { background: var(--accent); box-shadow: none; }
 .neu-checkbox:checked::after {
   content: "";
