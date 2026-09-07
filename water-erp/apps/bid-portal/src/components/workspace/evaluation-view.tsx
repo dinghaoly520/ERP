@@ -30,7 +30,7 @@ import {
 import type { BidProjectDetail } from '@/lib/types';
 import { EXPERT_ROLE } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
-import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS, MODAL_OVERLAY_STYLE } from './shared';
+import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
 
 type Props = {
@@ -844,9 +844,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* ── 3 步生成向导 ── */}
       {wizardOpen && stage === 'EVALUATING' && results.length === 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
-          <div className="w-full max-w-[560px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
-            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[560px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">生成评标结果</h2>
                 <div className="flex items-center gap-1.5">
@@ -866,8 +867,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   ))}
                 </div>
               </div>
-              <button type="button" onClick={() => setWizardOpen(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={16} /></button>
+              <button type="button" onClick={() => setWizardOpen(false)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
             </div>
+
+            <hr className="wb-section-rule mx-6" />
 
             <div className="px-6 py-5">
               {wizardStep === 0 && (
@@ -959,7 +962,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               )}
             </div>
 
-            <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+            <hr className="wb-section-rule mx-6" />
+
+            <div className="flex items-center justify-between px-6 py-4">
               <button type="button" onClick={() => (wizardStep === 0 ? setWizardOpen(false) : setWizardStep((wizardStep - 1) as 0 | 1))} className="neu-btn-soft !h-[36px] !text-xs">
                 {wizardStep === 0 ? '取消' : '上一步'}
               </button>
@@ -989,46 +994,46 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         const expertName = expert ? (expert.anonLabel ?? expert.expertName) : '';
         const supplierName = suppliers.find(s => s.id === spId)?.supplierName ?? '';
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-6"
-            style={MODAL_OVERLAY_STYLE}
-            onClick={() => setAnnotationCell(null)}>
-            <div className="w-full max-w-[480px] rounded-[20px] bg-white p-5"
-              style={{ boxShadow: '3px 4px 16px oklch(0.46 0.07 258 / 0.18)' }}
-              onClick={e => e.stopPropagation()}>
-              <div className="mb-3 flex items-center justify-between">
+          <div className="bid-overlay">
+            <div className="bid-overlay-backdrop" onClick={() => setAnnotationCell(null)} />
+            <div className="bid-dialog relative mx-4 w-full max-w-[480px]" role="dialog" aria-modal="true">
+              <div className="flex items-center justify-between px-6 pb-4 pt-5">
                 <h3 className="text-sm font-bold text-[var(--foreground)]">
                   批注 · {expertName} → {supplierName}
                 </h3>
                 <button type="button" onClick={() => setAnnotationCell(null)}
-                  className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  className="neu-btn-xs" aria-label="关闭">
                   <X size={16} />
                 </button>
               </div>
-              {annotationLoading ? (
-                <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">加载中…</p>
-              ) : annotationMemos.length === 0 ? (
-                <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无批注</p>
-              ) : (
-                <div className="max-h-80 space-y-2 overflow-y-auto">
-                  {annotationMemos.map(m => (
-                    <div key={m.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.3)] px-3 py-2">
-                      {m.contentText && (
-                        <p className="break-words text-xs text-[var(--foreground)]">{m.contentText}</p>
-                      )}
-                      {m.inkFileId && inkUrls[m.id] && (
-                        <img src={inkUrls[m.id]} alt="手写批注" className="mt-1 w-full rounded-lg" />
-                      )}
-                      {m.inkFileId && !inkUrls[m.id] && (
-                        <p className="text-[10px] italic text-[var(--muted-foreground)]">墨迹加载中…</p>
-                      )}
-                      <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
-                        {new Date(m.createdAt).toLocaleString('zh-CN')}
-                        {m.sourceDevice && ` · ${memoDeviceLabel(m.sourceDevice)}`}
+              <hr className="wb-section-rule mx-6" />
+              <div className="px-6 py-5">
+                {annotationLoading ? (
+                  <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">加载中…</p>
+                ) : annotationMemos.length === 0 ? (
+                  <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无批注</p>
+                ) : (
+                  <div className="max-h-80 space-y-2 overflow-y-auto">
+                    {annotationMemos.map(m => (
+                      <div key={m.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.3)] px-3 py-2">
+                        {m.contentText && (
+                          <p className="break-words text-xs text-[var(--foreground)]">{m.contentText}</p>
+                        )}
+                        {m.inkFileId && inkUrls[m.id] && (
+                          <img src={inkUrls[m.id]} alt="手写批注" className="mt-1 w-full rounded-lg" />
+                        )}
+                        {m.inkFileId && !inkUrls[m.id] && (
+                          <p className="text-[10px] italic text-[var(--muted-foreground)]">墨迹加载中…</p>
+                        )}
+                        <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                          {new Date(m.createdAt).toLocaleString('zh-CN')}
+                          {m.sourceDevice && ` · ${memoDeviceLabel(m.sourceDevice)}`}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -1036,12 +1041,14 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* ── 自定义评标时长（启动评标弹窗，E2）── */}
       {startDialogOpen && stage === 'OPENING' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
-          <div className="w-full max-w-[440px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
-            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">启动评标 · 自定义评标时长</h2>
-              <button type="button" onClick={() => setStartDialogOpen(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={16} /></button>
+              <button type="button" onClick={() => setStartDialogOpen(false)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
             </div>
+            <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
               <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
                 评标时限 = 启动评标时刻 + 时长（小时）。截止后仍可在本页经「评标延期审批」延长。
@@ -1060,7 +1067,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 预计截止：{new Date(Date.now() + durationHours * MS_PER_HOUR).toLocaleString('zh-CN')}
               </p>
             </div>
-            <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setStartDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleStartEvaluation(durationHours)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
                 <Play size={13} /> {busy ? '启动中…' : '启动评标'}
@@ -1072,12 +1080,14 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* ── 评标延期审批（leader/admin，E2）── */}
       {extendDialogOpen && stage === 'EVALUATING' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
-          <div className="w-full max-w-[460px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
-            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[460px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标延期审批</h2>
-              <button type="button" onClick={() => setExtendDialogOpen(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={16} /></button>
+              <button type="button" onClick={() => setExtendDialogOpen(false)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
             </div>
+            <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
               <p className="mb-3 text-xs leading-5 text-[var(--muted-foreground)]">
                 当前截止：<span className="tabular-nums text-[var(--foreground)]">{project?.evaluationDeadline ? new Date(project.evaluationDeadline).toLocaleString('zh-CN') : '—'}</span>
@@ -1105,7 +1115,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 审批后将在当前截止时间（已超时则自当前时刻）基础上累加 {extendHours} 小时，并写入监督日志与审计日志。
               </p>
             </div>
-            <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setExtendDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleExtendEvaluation()} disabled={extendBusy || !extendReason.trim()} className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40">
                 <CalendarClock size={13} /> {extendBusy ? '审批中…' : '确认延期'}

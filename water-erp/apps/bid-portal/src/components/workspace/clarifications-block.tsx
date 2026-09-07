@@ -17,7 +17,7 @@ import {
   verifyClarificationReply,
   type BidClarificationInfo,
 } from '@/lib/api/evaluation';
-import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS, MODAL_OVERLAY_STYLE } from './shared';
+import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import type { BidProjectDetail } from '@/lib/types';
 
 type Props = {
@@ -422,14 +422,16 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
 
       {/* 发起澄清对话框 */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
-          <div className="w-full max-w-[520px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
-            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[520px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">发起澄清</h2>
-              <button type="button" onClick={() => setShowForm(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              <button type="button" onClick={() => setShowForm(false)} className="neu-btn-xs" aria-label="关闭">
                 <X size={16} />
               </button>
             </div>
+            <hr className="wb-section-rule mx-6" />
             <div className="space-y-3.5 px-6 py-5">
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">类型</label>
@@ -482,7 +484,8 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex items-center justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setShowForm(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleCreate()} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
                 <Send size={13} /> {busy ? '发送中…' : '发起澄清'}
@@ -494,14 +497,16 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
 
       {/* A-143：离线答复登记对话框（降级通道） */}
       {offlineFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={MODAL_OVERLAY_STYLE}>
-          <div className="w-full max-w-[480px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
-            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[480px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
               <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">离线答复登记</h2>
-              <button type="button" onClick={() => setOfflineFor(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              <button type="button" onClick={() => setOfflineFor(null)} className="neu-btn-xs" aria-label="关闭">
                 <X size={16} />
               </button>
             </div>
+            <hr className="wb-section-rule mx-6" />
             <div className="space-y-3.5 px-6 py-5">
               <p className="text-[11px] leading-5 text-[var(--muted-foreground)]">
                 评标澄清的在线答复已由供应商经门户电子签名提交；此处仅登记供应商经书面/电话等线下途径作出的答复（降级留痕，无电子签名）。
@@ -515,7 +520,8 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                 <input value={offlineReason} onChange={e => setOfflineReason(e.target.value)} className="workbench-input w-full" placeholder="例：供应商书面来函，扫描件另存" />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex items-center justify-end gap-2 px-6 py-4">
               <button type="button" onClick={() => setOfflineFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleOfflineRegister(offlineFor)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
                 {busy ? '登记中…' : '确认登记'}
