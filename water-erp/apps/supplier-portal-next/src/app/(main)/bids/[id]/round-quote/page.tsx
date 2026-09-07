@@ -254,7 +254,7 @@ export default function RoundQuotePage() {
                       </div>
 
                       <div className="mb-4 flex items-center gap-4">
-                        <label className="text-sm" style={{ width: 100, textAlign: "right" }}>
+                        <label className="w-[100px] text-right text-sm">
                           报价(元)
                         </label>
                         <input

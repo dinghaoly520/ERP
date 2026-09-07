@@ -161,10 +161,10 @@ export default function BidListPage() {
     <div className="page-container">
       {firstLoad && loading ? (
         <div className="skel-wrap">
-          <div className="skel-hero"><span className="sp-skel" style={{ width: 120, height: 13 }} /><span className="sp-skel" style={{ width: 220, height: 24, marginTop: 12 }} /><span className="sp-skel" style={{ width: 320, height: 14, marginTop: 10 }} /></div>
-          <div className="skel-filter"><span className="sp-skel" style={{ width: 300, height: 36 }} /><span className="sp-skel" style={{ flex: 1, height: 36 }} /></div>
+          <div className="skel-hero"><span className="sp-skel h-[13px] w-[120px]" /><span className="sp-skel mt-3 h-6 w-[220px]" /><span className="sp-skel mt-2.5 h-3.5 w-[320px]" /></div>
+          <div className="skel-filter"><span className="sp-skel h-9 w-[300px]" /><span className="sp-skel h-9 flex-1" /></div>
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="skel-row"><div style={{ flex: 1 }}><span className="sp-skel" style={{ width: "60%", height: 18 }} /><span className="sp-skel" style={{ width: "40%", height: 12, marginTop: 10 }} /></div><span className="sp-skel" style={{ width: 120, height: 36 }} /></div>
+            <div key={i} className="skel-row"><div className="flex-1"><span className="sp-skel h-[18px] w-3/5" /><span className="sp-skel mt-2.5 h-3 w-2/5" /></div><span className="sp-skel h-9 w-[120px]" /></div>
           ))}
         </div>
       ) : error ? (
@@ -206,7 +206,7 @@ export default function BidListPage() {
               )}
             </div>
             {/* A-98：服务器标准时间常显（与截止预检/倒计时同源 /api/time） */}
-            <span style={{ marginLeft: "auto", color: "var(--muted-foreground)" }}>
+            <span className="ml-auto text-muted-foreground">
               <ServerClock />
             </span>
           </div>
@@ -275,7 +275,7 @@ export default function BidListPage() {
                       className="opportunity-detail-link neu-btn-xs row-action"
                       aria-label={`查看项目 ${p.name}详情`}
                     >
-                      详情<ArrowRight size={12} strokeWidth={1.75} style={{ marginLeft: 2 }} />
+                      详情<ArrowRight size={12} strokeWidth={1.75} className="ml-0.5" />
                     </Link>
                   </article>
                 );

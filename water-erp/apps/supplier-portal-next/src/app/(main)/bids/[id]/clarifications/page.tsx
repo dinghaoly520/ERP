@@ -220,9 +220,9 @@ export default function BidClarificationsPage() {
           <SpButton variant="primary" onClick={retryLoad}>重新加载</SpButton>
         </div>
       ) : items.length === 0 ? (
-        <div className="bc-empty" style={{ padding: "48px 0" }}>暂无寻址贵司的评标澄清</div>
+        <div className="bc-empty !py-12">暂无寻址贵司的评标澄清</div>
       ) : (
-        <div className="neu-card" style={{ marginTop: 20 }}>
+        <div className="neu-card mt-5">
           <div className="cq-list">
             {items.map((c) => (
               <div key={c.id} className="cq-item">
@@ -347,7 +347,7 @@ export default function BidClarificationsPage() {
           即将对答复内容（服务端返回的规范化文本{attachments.length > 0 ? "及附件清单" : ""}）进行 U盾电子签名，提交后不可修改。
         </p>
         {ukeyPresent === false ? (
-          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
         ) : (
         <>
         <label className="reg-label">证书口令</label>

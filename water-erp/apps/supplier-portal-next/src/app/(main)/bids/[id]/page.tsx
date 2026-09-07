@@ -411,7 +411,7 @@ function BidDetailInner() {
       <details className="ov-notif">
         <summary>{title}（{items.length} 条）</summary>
         {items.length > 0 ? (
-          <div className="cq-list" style={{ marginTop: 8 }}>
+          <div className="cq-list mt-2">
             {items.map((it, i) => (
               <div key={`${i}-${it.category}`} className="cq-item">
                 {(it.category || (starred && it.isStarred)) && (
@@ -454,12 +454,12 @@ function BidDetailInner() {
               <SpPageHero icon={FileText} title={project.name} sub={heroSub}
                 actions={
                   <>
-                    <button type="button" className="neu-btn-primary" disabled={!canSubmit} onClick={goToSubmit} style={{ height: 40, padding: "0 20px" }}>
+                    <button type="button" className="neu-btn-primary !h-10 !px-5" disabled={!canSubmit} onClick={goToSubmit}>
                       <Upload size={14} strokeWidth={1.75} />{canSubmit ? "提交标书" : "不可投标"}
                     </button>
                     {/* 2c: 多轮报价入口——仅谈判采购（roundMode=negotiation）；竞价采购 sealed_auction 为单轮唱标模式 */}
                     {project.roundMode === "negotiation" && (
-                      <button type="button" className="neu-btn-soft" onClick={() => router.push(`/bids/${projectId}/round-quote`)} style={{ height: 40, padding: "0 20px" }}>
+                      <button type="button" className="neu-btn-soft !h-10 !px-5" onClick={() => router.push(`/bids/${projectId}/round-quote`)}>
                         多轮报价
                       </button>
                     )}
@@ -492,7 +492,7 @@ function BidDetailInner() {
                   <span>保证金<strong>{project.bondRequired && project.bondAmount ? "¥" + Number(project.bondAmount).toLocaleString() : "无"}</strong></span>
                   {showSupplierCount && <span>投标方<strong>{supplierCount} 家</strong></span>}
                   {/* A-98：服务器标准时间常显（截止预检/倒计时同源 /api/time） */}
-                  <span style={{ marginLeft: "auto" }}><ServerClock /></span>
+                  <span className="ml-auto"><ServerClock /></span>
                 </div>
               )}
 
@@ -547,26 +547,26 @@ function BidDetailInner() {
                   <>
                     {/* 摘要行：项目类型 · 评标办法 · 最高限价 · 截止（空值段略去） */}
                     {trSummary.length > 0 && (
-                      <p style={{ margin: "0 0 6px", fontSize: 12.5, color: "var(--muted-foreground)" }}>
+                      <p className="mb-1.5 text-[12.5px] text-muted-foreground">
                         {trSummary.map((s, i) => (
                           <span key={s.label}>
-                            {i > 0 && <span style={{ color: "var(--hairline)", margin: "0 8px" }}>·</span>}
-                            {s.label}{" "}<strong style={{ color: "var(--foreground)", fontWeight: 700 }}>{s.value}</strong>
+                            {i > 0 && <span className="mx-2 text-[var(--hairline)]">·</span>}
+                            {s.label}{" "}<strong className="font-bold text-foreground">{s.value}</strong>
                           </span>
                         ))}
                       </p>
                     )}
-                    <div style={{ marginTop: 6 }}>
+                    <div className="mt-1.5">
                       {renderTrGroup("资格要求", tenderReq.requirements.qualification, false)}
                       {renderTrGroup("技术要求", tenderReq.requirements.technical, true)}
                       {renderTrGroup("商务要求", tenderReq.requirements.commercial, false)}
                     </div>
-                    <p className="cq-desc" style={{ margin: "12px 0 0" }}>解析由系统自动生成，以招标文件原文为准</p>
+                    <p className="cq-desc !mt-3 !mb-0">解析由系统自动生成，以招标文件原文为准</p>
                   </>
                 ) : (
                   /* PENDING/无数据显解析空态；拉取失败显错误文案（真零条款项目后端也返 PENDING） */
-                  <div className="bc-empty" style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12, padding: "18px 0" }}>
-                    <p style={{ margin: 0 }}>{trError ? "获取失败，请点击重新获取重试" : "解析中或尚未生成——可先下载招标文件查阅原文"}</p>
+                  <div className="bc-empty !py-4.5">
+                    <p>{trError ? "获取失败，请点击重新获取重试" : "解析中或尚未生成——可先下载招标文件查阅原文"}</p>
                     <SpButton variant="soft" onClick={loadTenderReq}>重新获取</SpButton>
                   </div>
                 )}
@@ -738,7 +738,7 @@ function BidDetailInner() {
                           <span className="b-tag b-tag--warning">未签署</span>
                         )}
                       </div>
-                      <div className="cc-meta" style={{ marginBottom: 12 }}>
+                      <div className="cc-meta mb-3">
                         <div className="cc-meta-item">
                           <span className="cc-meta-label">回执编号</span>
                           <span className="cc-meta-value mono">{submission.receiptNo || "待生成"}</span>
@@ -757,7 +757,7 @@ function BidDetailInner() {
                             : ""}）
                         </div>
                       ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div className="flex items-center gap-2">
                           <SpButton variant="primary" icon={ShieldCheck} loading={signing} onClick={handleSignReceipt}>
                             签署回执（U盾）
                           </SpButton>
@@ -774,16 +774,9 @@ function BidDetailInner() {
                         }}
                       >
                         <summary>投递回执核验</summary>
-                        <div
-                          className="ov-notif-body"
-                          style={{
-                            fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
-                            fontSize: 12,
-                            whiteSpace: "pre-wrap",
-                          }}
-                        >
+                        <div className="ov-notif-body font-mono !text-xs !whitespace-pre-wrap">
                           {(submission.receiptSignature?.payload || receiptPayload) && (
-                            <div style={{ marginBottom: 6, opacity: 0.72 }}>以下为投递回执的存档原文，供完整性核验：</div>
+                            <div className="mb-1.5 opacity-[0.72]">以下为投递回执的存档原文，供完整性核验：</div>
                           )}
                           {submission.receiptSignature?.payload
                             ? JSON.stringify(submission.receiptSignature.payload, null, 2)
@@ -860,7 +853,7 @@ function BidDetailInner() {
           即将对本标书递交回执（服务端重建的规范化负载，含文件指纹与接收时间）进行 U盾电子签名，签署后归档留痕。
         </p>
         {ukeyPresent === false ? (
-          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
         ) : (
         <>
         <label className="reg-label">证书口令</label>
