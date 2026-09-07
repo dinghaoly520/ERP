@@ -101,23 +101,27 @@ describe('Supplier (e2e)', () => {
   it('注册失败不留下孤立 user（重复信用代码→400，新用户名不存在）', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/supplier/register')
+      .set('X-Portal', 'public')
       .send({
         name: 'E2E重复信用代码公司',
         creditCode: dupCreditCode,
         enterpriseType: '有限责任公司',
         legalPerson: '张三',
+        legalPersonIdCard: '510104199001011234', // 注册 2.0 必填（18 位）
         registeredAddress: '测试地址',
         businessScope: '测试范围',
         username: orphanUsername,
         displayName: '孤儿测试',
-        password: '123456',
+        password: 'Test1234', // 注册 2.0 口令强度（≥8 位含字母数字）
         email: 'orph@test.com',
-        contacts: [{ name: '联系人', phone: '13800000000', isPrimary: true }],
-        qualifications: [],
+        registrationPhone: '13800000000', // P1-13 手机验证必填（SMS_DEBUG_BYPASS 下 123456 直接过）
+        registrationCode: '123456',
+        contacts: [{ name: '联系人', phone: '13800000000', idCard: '510104199001015678', isPrimary: true }],
+        qualifications: [{ type: '营业执照', name: '企业法人营业执照', fileUrl: '/api/upload/files/e2e-orphan-license' }],
         tags: ['物资供应', '工程服务'],
       })
       .expect(400);
-    // 应是信用代码重复导致的业务错误
+    // 应是信用代码重复导致的业务错误（验证码 bypass 通过后到达重复分支）
     expect(res.body.code).toBe('DUPLICATE_CREDIT_CODE');
 
     // 关键：失败后 user 表不应留下孤立记录
