@@ -206,7 +206,7 @@ export default function AnnouncementListPage() {
               </div>
             </Link>
           ))}
-          <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>
+          <div className="flex justify-center pt-4">
             <SpPagination page={currentPage} pageSize={10} total={total} onChange={handlePageChange} />
           </div>
         </div>

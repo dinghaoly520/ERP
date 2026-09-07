@@ -109,20 +109,20 @@ export default function CatalogListPage() {
       {loading && firstLoad ? (
         <div className="skel-wrap">
           <div className="skel-hero">
-            <span className="sp-skel" style={{ width: 120, height: 13 }} />
-            <span className="sp-skel" style={{ width: 240, height: 24, marginTop: 12 }} />
-            <span className="sp-skel" style={{ width: 360, height: 14, marginTop: 10 }} />
+            <span className="sp-skel h-[13px] w-[120px]" />
+            <span className="sp-skel mt-3 h-6 w-[240px]" />
+            <span className="sp-skel mt-2.5 h-3.5 w-[360px]" />
           </div>
           <div className="skel-cat">
             <div className="skel-sidebar">
               {Array.from({ length: 6 }).map((_, i) => (
-                <span key={i} className="sp-skel" style={{ width: "100%", height: 32, marginBottom: 4 }} />
+                <span key={i} className="sp-skel mb-1 h-8 w-full" />
               ))}
             </div>
             <div className="skel-main">
-              <span className="sp-skel" style={{ width: "100%", height: 36, marginBottom: 12 }} />
+              <span className="sp-skel mb-3 h-9 w-full" />
               {Array.from({ length: 6 }).map((_, i) => (
-                <span key={i} className="sp-skel" style={{ width: "100%", height: 40, marginBottom: 4 }} />
+                <span key={i} className="sp-skel mb-1 h-10 w-full" />
               ))}
             </div>
           </div>

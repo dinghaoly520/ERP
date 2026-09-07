@@ -93,7 +93,7 @@ function SkeletonCard({ lines = 3, className = "" }: { lines?: number; className
     <div className={`skeleton-card${className ? ` ${className}` : ""}`}>
       <div className="skeleton-lines">
         {Array.from({ length: lines }).map((_, i) => (
-          <div key={i} className="skeleton-line" style={{ width: i === lines - 1 ? "60%" : "100%" }} />
+          <div key={i} className={`skeleton-line ${i === lines - 1 ? "w-3/5" : "w-full"}`} />
         ))}
       </div>
     </div>
@@ -605,7 +605,7 @@ export default function DashboardPage() {
                 <div className="cv-form-ctrl">
                   <SpSelect
                     value={convertForm.enterpriseType}
-                    style={{ width: "100%" }}
+                    className="w-full"
                     onChange={(e) => setConvertForm((f) => ({ ...f, enterpriseType: e.target.value }))}
                   >
                     {ENTERPRISE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
