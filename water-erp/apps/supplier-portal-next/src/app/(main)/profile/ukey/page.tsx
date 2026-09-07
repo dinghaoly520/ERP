@@ -348,8 +348,8 @@ export default function UkeyManagePage() {
       </SpPageHero>
 
       {!UKEY_STRICT && mwOffline && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: "#e6a23c", background: "#fdf6ec", border: "1px solid #faecd8" }}>
-          <TriangleAlert size={14} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+        <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_oklch,var(--warning)_26%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-warning">
+          <TriangleAlert size={14} strokeWidth={1.75} className="shrink-0" />
           <span>未检测到 U盾驱动服务——当前使用浏览器内置模拟 U盾（仅供系统联调演示，正式投标请安装 U盾驱动）</span>
         </div>
       )}
@@ -359,7 +359,7 @@ export default function UkeyManagePage() {
         <div className="neu-card ukey-card">
           <div className="card-header">
             <span className="card-title">U盾</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span className="inline-flex items-center gap-2">
               <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
                 {UKEY_STRICT || ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
               </span>
@@ -382,7 +382,7 @@ export default function UkeyManagePage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") void handleOpen(); }}
-                  style={{ flex: 1 }}
+                  className="flex-1"
                 />
                 <SpButton variant="primary" icon={Unlock} loading={opening} onClick={() => void handleOpen()}>解锁</SpButton>
               </div>
@@ -395,7 +395,7 @@ export default function UkeyManagePage() {
                       placeholder="备份文件口令"
                       value={importPassword}
                       onChange={(e) => setImportPassword(e.target.value)}
-                      style={{ flex: 1 }}
+                      className="flex-1"
                     />
                     <SpButton icon={Upload} loading={importing} onClick={() => importFileRef.current?.click()}>导入备份</SpButton>
                     <input ref={importFileRef} type="file" accept=".ukey" style={{ display: "none" }} onChange={(e) => void handleImportFile(e)} />
@@ -456,7 +456,7 @@ export default function UkeyManagePage() {
                     </div>
                   ))}
                   {otherCertCount > 0 && (
-                    <div className="file-hint" style={{ padding: "8px 12px" }}>
+                    <div className="file-hint px-3 py-2">
                       已隐藏 {otherCertCount} 张其他单位证书
                     </div>
                   )}
