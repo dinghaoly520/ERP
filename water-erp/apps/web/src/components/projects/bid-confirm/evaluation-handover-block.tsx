@@ -44,10 +44,10 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
     <section className="neu-table-card px-4 py-4">
       <div className="mb-3 flex items-center gap-2.5 min-w-0">
         <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-          style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
+          className="wb-icon-well wb-icon-well--xs"
+          style={{ '--well-bg': 'color-mix(in oklch, var(--success) 12%, transparent)', '--well-fg': 'var(--success)' } as React.CSSProperties}
         >
-          <PenLine size={15} className="text-[var(--success)]" />
+          <PenLine size={15} />
         </div>
         <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标资料接收</h3>
       </div>
@@ -57,34 +57,31 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
           <div className="mb-1.5 text-[11px] text-[var(--muted-foreground)]">
             中标候选人（评标结果汇总，与评标回流包同源；公示发布前请勿外传）
           </div>
-          <div className="overflow-hidden rounded-[12px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
-            <table className="w-full text-xs">
+          <div className="overflow-hidden rounded-[12px]">
+            <table className="neu-table !text-xs [&_td]:!py-2 [&_th]:!py-2">
               <thead>
-                <tr
-                  className="text-left text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]"
-                  style={{ background: 'oklch(0.96 0.006 258)' }}
-                >
-                  <th className="px-3 py-2">名次</th>
-                  <th className="px-3 py-2">供应商</th>
-                  <th className="px-3 py-2 text-right">总得分</th>
-                  <th className="px-3 py-2 text-right">报价</th>
-                  <th className="px-3 py-2">状态</th>
+                <tr>
+                  <th className="!text-left">名次</th>
+                  <th className="!text-left">供应商</th>
+                  <th className="!text-right">总得分</th>
+                  <th className="!text-right">报价</th>
+                  <th className="!text-left">状态</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map(r => (
-                  <tr key={r.id} style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.08)' }}>
-                    <td className="px-3 py-2 font-mono font-bold tabular-nums text-[var(--foreground)]">{r.rank}</td>
-                    <td className="px-3 py-2 font-medium text-[var(--foreground)]">{r.supplierName}</td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">{Number(r.totalScore).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums text-[var(--foreground)]">
+                  <tr key={r.id}>
+                    <td className="!text-left font-mono font-bold tabular-nums text-[var(--foreground)]">{r.rank}</td>
+                    <td className="!text-left font-medium text-[var(--foreground)]">{r.supplierName}</td>
+                    <td className="!text-right font-mono tabular-nums">{Number(r.totalScore).toFixed(2)}</td>
+                    <td className="!text-right font-mono tabular-nums text-[var(--foreground)]">
                       {r.bidPrice != null ? `¥${Number(r.bidPrice).toLocaleString('zh-CN')}` : '—'}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="!text-left">
                       {r.disqualified ? (
-                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 10%, transparent)', color: 'var(--danger)' }}>废标</span>
+                        <span className="wb-status-pill" style={{ '--tone': 'var(--danger)' } as React.CSSProperties}>废标</span>
                       ) : r.recommended ? (
-                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>中标候选人</span>
+                        <span className="wb-status-pill" style={{ '--tone': 'var(--success)' } as React.CSSProperties}>中标候选人</span>
                       ) : (
                         <span className="text-[var(--muted-foreground)]">—</span>
                       )}
@@ -98,7 +95,7 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
       )}
 
       {signData?.packet?.handoverFileAssetId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--success) 8%, transparent)' }}>
+        <div className="wb-tone-banner wb-tone-banner--success flex-wrap text-xs">
           <PenLine size={13} className="shrink-0 text-[var(--success)]" />
           <span className="font-semibold text-[var(--success)]">评标资料已接收（签字闭环 {signData.packet.closedAt ? new Date(signData.packet.closedAt).toLocaleString('zh-CN') : ''}）</span>
           <a
