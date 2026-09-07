@@ -44,9 +44,9 @@
   --stage-contract-soft: color-mix(in oklch, var(--stage-contract) 12%, transparent);
   --stage-default: var(--muted-foreground);
   --stage-default-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
-  --shadow-soft: 0 16px 34px rgba(50, 83, 141, 0.08);
-  --shadow-panel: 0 24px 64px rgba(34, 62, 110, 0.12);
-  --shadow-focus: 0 0 0 4px rgba(136, 172, 255, 0.12);
+  --shadow-soft: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8);
+  --shadow-panel: inset 0 1px 0 oklch(1 0 0 / 0.72), 3px 3px 10px oklch(0.5 0.04 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.85);
+  --shadow-focus: 0 0 0 4px oklch(0.63 0.128 247 / 0.12);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
