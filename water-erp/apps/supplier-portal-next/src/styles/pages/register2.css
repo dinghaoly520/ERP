@@ -183,3 +183,83 @@
   .reg-add-file,
   .reg-tagpick { transition: none !important; animation: none !important; }
 }
+
+/* ══ 冻结 WIP 回填（30c62940 删减孤儿类规则复原，2026-09-07）══ */
+.reg-module {
+  --mod-accent: var(--brand, oklch(0.5 0.16 258));
+  position: relative;
+  margin: 18px 0;
+  padding: 18px 20px 16px;
+  overflow: hidden;
+  border: 1px solid oklch(0.89 0.018 258 / 0.88);
+  border-radius: 16px;
+  background: oklch(0.988 0.006 258 / 0.94);
+  box-shadow: 0 8px 24px oklch(0.4 0.04 258 / 0.055), inset 0 1px 0 oklch(1 0 0 / 0.9);
+}
+
+/* 移动端进度摘要默认隐藏。 */ .reg-steps-mobile { display: none; }
+.reg-mod-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid oklch(0.87 0.02 258 / 0.62);
+}
+.reg-mod-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--mod-accent);
+  background: color-mix(in oklab, var(--mod-accent) 9%, white);
+}
+.reg-mod-title {
+  margin: 0;
+  color: oklch(0.28 0.04 258);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.reg-mod-hint {
+  margin: 0 0 0 auto;
+  color: oklch(0.56 0.025 258);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+}
+/* 业务标签。 */ .reg-tag-field__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.reg-tag-count { color: var(--brand-deep); font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.reg-field-helper { margin: -2px 0 12px; color: var(--reg-muted, #64748b); font-size: 12px; line-height: 1.55; }
+.reg-custom-tag-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.reg-submit-error {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklab, var(--danger, #dc2626) 24%, transparent);
+  border-radius: 12px;
+  color: var(--danger, #dc2626);
+  background: color-mix(in oklab, var(--danger, #dc2626) 7%, white);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+/* 动态联系人、账户、资质与业绩。 */ .reg-stage-stack { display: grid; gap: 18px; }
+.reg-stage-stack .reg-block {
+  position: relative;
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid oklch(0.89 0.018 258 / 0.88);
+  border-radius: 16px;
+  background: oklch(0.988 0.006 258 / 0.94);
+  box-shadow: 0 8px 24px oklch(0.4 0.04 258 / 0.05), inset 0 1px 0 #fff;
+}
+.reg-actions-spacer { flex: 1 1 auto; }
