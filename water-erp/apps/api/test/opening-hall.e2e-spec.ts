@@ -166,8 +166,8 @@ describe('Opening Hall (e2e)', () => {
       data: { projectId, host: '陈源远', supervisor: '监督', decryptWindowStart: new Date(), decryptWindowEnd: new Date(Date.now() + 3600_000) },
     });
     await prisma.bidSupplier.createMany({ data: [
-      { projectId, supplierId: sup1Id, supplierName: s1!.name, decryptStatus: 'SUCCESS' },
-      { projectId, supplierId: sup2Id, supplierName: s2!.name, decryptStatus: 'SUCCESS' },
+      { projectId, supplierId: sup1Id, supplierName: s1!.name, decryptStatus: 'SUCCESS', submitStatus: '已提交' },
+      { projectId, supplierId: sup2Id, supplierName: s2!.name, decryptStatus: 'SUCCESS', submitStatus: '已提交' },
     ]});
     const bs1 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup1Id } });
     const bs2 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup2Id } });

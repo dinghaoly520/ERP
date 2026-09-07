@@ -218,9 +218,10 @@ describe('Bid Lifecycle (e2e)', () => {
   it('管理员可启动开标 SUBMIT → OPENING', async () => {
     // P1：开标要求截标时间已过（DEADLINE_NOT_PASSED）；而供应商提交要求未过——
     // 故提交后用 prisma 把 deadline 改到过去，再开标。
+    // A-107/A-110：openTime 须一并改到过去（且早于解密窗口起点）——解密窗口不得早于开标时间。
     await prisma.bidProject.update({
       where: { id: createdProjectId },
-      data: { deadline: new Date(Date.now() - 3600_000) },
+      data: { openTime: new Date(Date.now() - 2 * 3600_000), deadline: new Date(Date.now() - 3600_000) },
     });
     // 解密窗口设为「当前开启」(start 已过、end 未到)，否则后续解密报 DECRYPT_WINDOW_NOT_OPEN
     const decryptWindowStart = new Date(Date.now() - 3600_000).toISOString();
