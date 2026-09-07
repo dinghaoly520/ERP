@@ -37,6 +37,14 @@ export interface RegisterParams {
   tags?: string[];
 }
 
+export interface PasswordResetRequestParams {
+  username: string;
+  applicantName: string;
+  applicantContact: string;
+  verificationCode: string;
+  newPassword: string;
+}
+
 export interface RegisterTemporaryParams {
   invitationCode: string;
   name: string;
@@ -101,5 +109,14 @@ export const authApi = {
   /** 公开：临时供应商过期续期（凭新邀请码，需用户名+密码验证身份）。 */
   reactivateTemporary(data: { username: string; password: string; invitationCode: string }) {
     return api.post<any>("/supplier-portal/reactivate", data, { silent: true });
+  },
+
+  /** 忘记密码提交：匿名提交重置申请，管理员审核后生效。 */
+  requestPasswordReset(data: PasswordResetRequestParams) {
+    return api.post<{ id: string; status: "PENDING"; requestedAt: string }>(
+      "/auth/password-reset-requests",
+      data,
+      { silent: true },
+    );
   },
 };

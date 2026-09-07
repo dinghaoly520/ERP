@@ -131,3 +131,49 @@
 .reg-code-row { display: flex; gap: 8px; align-items: center; }
 .reg-code-row .reg-inp { flex: 1; }
 .reg-code-btn { height: 44px; flex-shrink: 0; white-space: nowrap; }
+
+/* ═══ 契约测试锚点恢复（2026-09-07，自 HEAD~1 原样回填）═════════════════
+   遗留 WIP 重写本文件时移除了 accessibility-markup 契约测试锚定的
+   44px 触控目标规则（.reg-page .reg-foot-link / .reg-form .pwd-eye）。 */
+.reg-page .reg-card {
+  width: min(900px, 100%);
+  padding: 42px 44px 38px;
+  border: 1px solid oklch(0.88 0.018 258 / 0.74);
+}
+.reg-page .reg-card:hover {
+  transform: none;
+  box-shadow:
+    12px 12px 30px oklch(0.42 0.05 258 / 0.16),
+    -9px -9px 24px oklch(1 0 0 / 0.92),
+    inset 0 1px 0 oklch(1 0 0 / 0.85);
+}
+.reg-page .reg-brand { text-decoration: none; }
+.reg-page .reg-foot-link { min-height: 44px; }
+.reg-page .reg-head { margin-bottom: 26px; }
+.reg-page .reg-head .reg-title { font-size: 29px; letter-spacing: 0.1em; }
+.reg-page .reg-head .reg-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: oklch(0.5 0.03 258);
+}
+.reg-form .pwd-eye {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  color: oklch(0.58 0.03 252);
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.reg-form .pwd-eye:hover,
+.reg-form .pwd-eye.on { color: var(--brand); background: color-mix(in oklab, var(--brand) 6%, transparent); }
+
