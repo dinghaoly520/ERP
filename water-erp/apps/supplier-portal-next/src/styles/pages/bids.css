@@ -363,6 +363,7 @@
   padding: 0; line-height: 1;
 }
 .file-chip-remove:hover { color: var(--danger); }
+.file-chip-remove:active { transform: scale(0.9); }
 
 /* ─── Split categories ─── */
 .split-cat {
@@ -691,6 +692,7 @@
   color: var(--muted-foreground); cursor: pointer;
 }
 .bid-search .bs-clear:hover { color: var(--danger); }
+.bid-search .bs-clear:active { transform: scale(0.9); }
 
 /* ── el-alert → 原生（show-icon：左图标 + 标题/描述；EP 四色调）── */
 .b-alert {
@@ -757,6 +759,7 @@
   font: inherit; font-size: 12.5px; font-weight: 700; color: var(--brand);
 }
 .b-link-btn:hover { text-decoration: underline; }
+.b-link-btn:active { opacity: 0.7; }
 
 /* el-button(primary · plain · small) → MyBids「详情」 */
 .mb-detail-btn {
@@ -767,6 +770,7 @@
   transition: background 0.15s ease;
 }
 .mb-detail-btn:hover { background: color-mix(in oklab, var(--brand) 14%, transparent); }
+.mb-detail-btn:active { box-shadow: inset 1px 1px 2px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.5); }
 
 /* dual-v2 密封报价展示 */
 .mb-card-meta-item.sealed { color: oklch(0.5 0.14 252); font-weight: 600; }
@@ -791,12 +795,14 @@
 }
 a.cq-att-item { color: var(--brand); font-weight: 600; }
 a.cq-att-item:hover { opacity: 0.8; }
+a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.5); }
 .cq-att-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cq-att-del {
   display: inline-flex; align-items: center; padding: 2px; cursor: pointer;
   border: none; background: none; color: var(--muted-foreground);
 }
 .cq-att-del:hover { color: var(--danger); }
+.cq-att-del:active { transform: scale(0.9); }
 
 /* 上传触发区（虚线轻凸） */
 .cq-upzone {
@@ -805,6 +811,7 @@ a.cq-att-item:hover { opacity: 0.8; }
   border: 1px dashed color-mix(in oklab, var(--brand) 35%, transparent);
 }
 .cq-upzone:hover { background: color-mix(in oklab, var(--brand) 8%, transparent); }
+.cq-upzone:active { background: color-mix(in oklab, var(--brand) 14%, transparent); }
 
 /* 操作行（编辑/只读卡片底部；hint 靠左吸收余量） */
 .cq-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }

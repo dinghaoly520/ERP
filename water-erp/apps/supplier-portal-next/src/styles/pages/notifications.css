@@ -24,6 +24,7 @@
   color: var(--brand); background: var(--surface);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7);
 }
+.notif-tabs .neu-tab:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 3px oklch(1 0 0 / 0.6); }
 
 /* List */
 .notif-list {
@@ -34,6 +35,7 @@
 .notif-row { display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background 0.15s; }
 .notif-row:last-child { border-bottom: none; }
 .notif-row:hover { background: oklch(0.985 0.01 258 / 0.6); }
+.notif-row:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.5); }
 .notif-row.unread { background: color-mix(in oklab, var(--brand) 5%, transparent); }
 .notif-row.unread:hover { background: color-mix(in oklab, var(--brand) 8%, transparent); }
 .notif-icon {
@@ -90,10 +92,16 @@
 .nd-btn--xs.nd-btn--soft:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.8); }
 .nd-btn--sm.nd-btn--danger:hover { box-shadow: 3px 3px 7px oklch(0.45 0.16 27 / 0.22), -1.5px -1.5px 4px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.25); }
 .nd-btn--xs.nd-btn--danger:hover { box-shadow: 2.5px 2.5px 5px oklch(0.45 0.16 27 / 0.18), -1px -1px 3px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.25); }
+/* 尺寸变体 hover 特异度(0,3,0)压过基类 :active(0,2,0)，须按变体补按压内凹 */
+.nd-btn--sm.nd-btn--soft:active, .nd-btn--xs.nd-btn--soft:active { transform: translateY(0);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
+.nd-btn--sm.nd-btn--danger:active, .nd-btn--xs.nd-btn--danger:active { transform: translateY(0);
+  box-shadow: inset 2px 2px 5px oklch(0.45 0.16 27 / 0.25), inset -2px -2px 5px oklch(1 0 0 / 0.4); }
 
 /* 内容链接 + 落款（原 :deep 穿透 v-html 注入的 DOM → 后代选择器） */
 .nd-content .notif-link { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
 .nd-content .notif-link:hover { color: var(--brand-deep); }
+.nd-content .notif-link:active { opacity: 0.7; }
 .nd-content .nd-signature { text-align: right; margin-top: 14px; color: var(--muted-foreground); font-size: 13px; }
 
 @media (prefers-reduced-motion: reduce) {

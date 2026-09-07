@@ -33,6 +33,7 @@
   color: var(--sp-gray-600); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: all 0.15s;
 }
 .cp-tab:hover { border-color: #bfdbfe; color: var(--sp-primary); }
+.cp-tab:active { box-shadow: inset 1px 1px 2px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.5); }
 .cp-tab.on { background: var(--sp-primary); border-color: var(--sp-primary); color: #fff; }
 .cp-badge {
   position: absolute; top: -6px; right: -8px; min-width: 17px; height: 17px; padding: 0 4px;
@@ -79,6 +80,7 @@
   font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .15s;
 }
 .cp-send:hover:not(:disabled) { opacity: 0.9; }
+.cp-send:active:not(:disabled) { opacity: 0.8; transform: scale(0.97); }
 .cp-send:disabled { opacity: 0.5; cursor: not-allowed; }
 /* 移动端单列布局不拉伸：恢复 480px 上限，消息列表内部滚动 */
 @media (max-width: 960px) {

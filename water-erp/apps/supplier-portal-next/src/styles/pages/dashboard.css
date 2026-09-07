@@ -49,6 +49,7 @@
 .db-task-item.critical { border-left-color: var(--warning); }
 .db-task-item.warning { border-left-color: var(--brand-soft); }
 .db-task-item:hover { border-color: color-mix(in oklab, var(--brand) 35%, var(--hairline)); transform: translateY(-1px); }
+.db-task-item:active { transform: none; box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
 .db-task-item:focus-visible, .db-list-row:focus-visible, .db-msg-row:focus-visible, .db-comp-missing-tag:focus-visible {
   outline: 3px solid color-mix(in oklab, var(--brand) 35%, transparent); outline-offset: 2px;
 }
@@ -88,6 +89,7 @@
 }
 .db-list-row.is-last { border-bottom: none; }
 .db-list-row:hover { background: oklch(0.985 0.01 258 / 0.5); border-radius: 8px; }
+.db-list-row:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.5); }
 .db-list-row.critical { background: linear-gradient(90deg, color-mix(in oklab, oklch(0.72 0.16 350) 9%, transparent) 0%, transparent 26%); }
 .db-list-row.critical:hover { background: linear-gradient(90deg, color-mix(in oklab, oklch(0.72 0.16 350) 13%, transparent) 0%, oklch(0.985 0.01 258 / 0.5) 50%); border-radius: 8px; }
 /* SUBMIT 阶段洋红色强调 */
@@ -127,6 +129,7 @@
   border: 0; font-family: inherit;
 }
 .db-comp-missing-tag:hover { transform: translateY(-1px); }
+.db-comp-missing-tag:active { transform: none; box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
 .db-comp-missing-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
 .db-comp-done { border-top: 1px solid var(--hairline); padding-top: 12px; font-size: 12px; font-weight: 600; color: var(--success); display: flex; align-items: center; gap: 5px; }
 
@@ -135,6 +138,7 @@
 .db-msg-row { width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 9px 8px; border-radius: 8px; border: 0; border-bottom: 1px solid var(--hairline); background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease), box-shadow 0.2s ease; }
 .db-msg-row.is-last { border-bottom: none; }
 .db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.6); }
+.db-msg-row:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.5); }
 /* 未读 — 品牌色高亮：色块底 + 左侧品牌色标 + 深蓝标题 + 强调圆点，与已读的灰调形成鲜明区分 */
 .db-msg-row.unread { background: color-mix(in oklab, var(--brand) 7%, transparent); box-shadow: inset 2.5px 0 0 0 var(--brand); }
 .db-msg-row.unread:hover { background: color-mix(in oklab, var(--brand) 11%, transparent); }
