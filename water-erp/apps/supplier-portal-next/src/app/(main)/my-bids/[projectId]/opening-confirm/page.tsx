@@ -12,5 +12,5 @@ export default function OpeningConfirmPage() {
     router.replace(`/my-bids/${params.projectId}/opening-hall`);
   }, [params.projectId, router]);
 
-  return <div style={{ padding: 40, textAlign: "center", color: "#909399" }}>正在进入在线开标大厅…</div>;
+  return <div className="p-10 text-center text-muted-foreground">正在进入在线开标大厅…</div>;
 }

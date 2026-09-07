@@ -150,15 +150,15 @@ export default function MyBidsPage() {
         /* ═══ Skeleton ═══ */
         <>
           <div className="mb-skel-hero">
-            <span className="sp-skel" style={{ width: 100, height: 13 }} />
-            <span className="sp-skel" style={{ width: 200, height: 24, marginTop: 12 }} />
-            <span className="sp-skel" style={{ width: 280, height: 14, marginTop: 10 }} />
+            <span className="sp-skel h-[13px] w-[100px]" />
+            <span className="sp-skel mt-3 h-6 w-[200px]" />
+            <span className="sp-skel mt-2.5 h-3.5 w-[280px]" />
           </div>
           <div className="mb-skel-list">
             {[1, 2, 3].map((i) => (
               <div key={i} className="mb-skel-row">
-                <div style={{ flex: 1 }}><span className="sp-skel" style={{ width: "50%", height: 16 }} /><span className="sp-skel" style={{ width: "35%", height: 12, marginTop: 8 }} /></div>
-                <span className="sp-skel" style={{ width: 80, height: 28 }} />
+                <div className="flex-1"><span className="sp-skel h-4 w-1/2" /><span className="sp-skel mt-2 h-3 w-[35%]" /></div>
+                <span className="sp-skel h-7 w-[80px]" />
               </div>
             ))}
           </div>
@@ -328,7 +328,7 @@ export default function MyBidsPage() {
               <div className="sp-empty-icon"><ClipboardList size={22} strokeWidth={1.75} /></div>
               <p className="sp-empty-text">暂无投标记录</p>
               <p className="sp-empty-desc">浏览招标项目并提交您的标书</p>
-              <SpButton variant="primary" onClick={() => router.push("/bids")} style={{ marginTop: 16 }}>浏览投标机会</SpButton>
+              <SpButton variant="primary" className="mt-4" onClick={() => router.push("/bids")}>浏览投标机会</SpButton>
             </div>
           )}
         </div>
