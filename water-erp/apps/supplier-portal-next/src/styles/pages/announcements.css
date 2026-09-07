@@ -5,7 +5,7 @@
    - :deep(el-*) 规则已删除，页面依赖处改写为原生等价
    - .sp-empty-text / .sp-empty-desc 已由 globals.css 提供同名定义，不重复定义
    - el-tag / el-divider / el-alert / el-form-item / el-card 原生等价见各分节
-   - 2026-09-02 NotificationList（nd-*/notif-*）整块移至 notifications.css（消息中心+
+   - 2026-09-02 NotificationList（nd-* / notif-* 前缀族）整块移至 notifications.css（消息中心+
      dashboard 共用，原先寄居此处 + dashboard.css 另有 17 条子集副本，裸类同名
      在 Next 客户端导航下互相覆盖）
    ════════════════════════════════════════════════════════════════════ */
