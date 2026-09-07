@@ -7,6 +7,7 @@ import { BondLedgerService } from './bond-ledger.service';
 import { BidBondService } from './bid-bond.service';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service';
 import { BidOpeningRecordService } from './bid-opening-record.service';
+import { BidDecryptService } from './bid-decrypt.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -56,6 +57,7 @@ export class BidController {
     private readonly bond: BidBondService,
     private readonly evalResults: BidEvaluationResultsService,
     private readonly openingRecord: BidOpeningRecordService,
+    private readonly decrypt: BidDecryptService,
   ) {}
 
   @Get('dashboard-stats')
@@ -389,7 +391,7 @@ export class BidController {
   @Post('projects/:id/decrypt-all')
   @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
   @Throttle({ default: { ttl: 60000, limit: 2 } })
-  decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.decryptAllSuppliers(id, userId); }
+  decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.decrypt.decryptAllSuppliers(id, userId); }
 
   @Post('projects/:id/rerun-ai-analysis')
   @Roles('admin', 'bid_host', 'leader', 'staff')
@@ -480,14 +482,14 @@ export class BidController {
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
-  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }
+  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.decrypt.decryptSupplier(id, supplierId, dto, userId); }
 
   @Post('projects/:id/opening/decrypt-outer')
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '主持端解外层（dual-v2）：管理方私钥解 K_admin → C_inner 归属链落库；supplierId 缺省=批量' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   decryptOuter(@Param('id') id: string, @Body() dto?: DecryptOuterDto, @CurrentUser('sub') userId?: string) {
-    return this.bidService.decryptOuter(id, dto?.supplierId, userId);
+    return this.decrypt.decryptOuter(id, dto?.supplierId, userId);
   }
 
   @Post('projects/:id/opening/decrypt-adjudge')
@@ -499,7 +501,7 @@ export class BidController {
     @Body() dto: AdjudicateDecryptFaultDto,
     @CurrentUser('sub') userId?: string,
   ) {
-    return this.bidService.adjudicateDecryptFault(id, dto.supplierId, dto.attribution, dto.reason, userId);
+    return this.decrypt.adjudicateDecryptFault(id, dto.supplierId, dto.attribution, dto.reason, userId);
   }
 
   @Post('projects/:id/suppliers/:supplierId/files/:role/reupload')
@@ -516,7 +518,7 @@ export class BidController {
     @CurrentUser('sub') userId: string,
   ) {
     if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
-    return this.bidService.reuploadBidFile(id, supplierId, role, file, userId);
+    return this.decrypt.reuploadBidFile(id, supplierId, role, file, userId);
   }
 
   @Post('projects/:id/suppliers/:supplierId/reseal')
@@ -528,14 +530,14 @@ export class BidController {
     @Param('supplierId') supplierId: string,
     @CurrentUser('sub') userId: string,
   ) {
-    return this.bidService.resealBidFiles(id, supplierId, userId);
+    return this.decrypt.resealBidFiles(id, supplierId, userId);
   }
 
   @Post('projects/:id/tender-document/reload')
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '重新加载招标文件（验证可解密 + 自动修复关联）' })
   reloadTenderDocument(@Param('id') id: string, @CurrentUser('sub') userId: string) {
-    return this.bidService.reloadTenderDocument(id, userId);
+    return this.decrypt.reloadTenderDocument(id, userId);
   }
 
   @Get('projects/:id/backup-verify/:supplierId')
@@ -587,7 +589,7 @@ export class BidController {
     @Param('supplierId') supplierId: string,
     @Body() dto: { reason: string },
     @CurrentUser('sub') userId: string,
-  ) { return this.bidService.acceptSupplierDanger(id, supplierId, dto.reason, userId); }
+  ) { return this.decrypt.acceptSupplierDanger(id, supplierId, dto.reason, userId); }
 
   @Get('projects/:id/experts')
   @ApiOperation({ summary: '评标专家列表' })
