@@ -25,6 +25,7 @@ describe('A-113 唱标字段配置入口（PUT opening-field-config / 模板 app
         create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         delete: jest.fn(), count: jest.fn().mockResolvedValue(0),
       },
+      user: { findUnique: jest.fn().mockResolvedValue({ companyId: 'c-owner' }) },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -37,7 +38,7 @@ describe('A-113 唱标字段配置入口（PUT opening-field-config / 模板 app
   });
 
   const mockProject = (stage: string) =>
-    prisma.bidProject.findUnique.mockResolvedValue({ stage, name: '测试项目' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage, name: '测试项目', companyId: 'c-owner' });
 
   it('PUT fields 直给：SUBMIT 阶段成功——落 openingFieldConfig、监督日志记字段数与来源、回显 {fields}', async () => {
     mockProject('SUBMIT');
@@ -107,6 +108,29 @@ describe('A-113 唱标字段配置入口（PUT opening-field-config / 模板 app
       .rejects.toMatchObject({ response: { code: 'TEMPLATE_KIND_MISMATCH' } });
     expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
+  });
+
+  it('R1 公司隔离：跨公司 staff apply → 403 COMPANY_SCOPE_FORBIDDEN，不写库不落日志', async () => {
+    mockProject('SUBMIT');
+    prisma.workTemplate.findUnique.mockResolvedValue({
+      id: 'wt1', kind: 'opening_record', name: '标准唱标表', content: { fields: FIELDS },
+    });
+    prisma.user.findUnique.mockResolvedValue({ companyId: 'c-other' }); // 操作人属他司
+    await expect(wtController.apply('wt1', 'p1', 'u1', 'staff'))
+      .rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+    expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('R1 公司隔离：admin 跨公司放行（不查 user.companyId），同司 staff 正常通过（前置用例已覆盖）', async () => {
+    mockProject('SUBMIT');
+    prisma.workTemplate.findUnique.mockResolvedValue({
+      id: 'wt1', kind: 'opening_record', name: '标准唱标表', content: { fields: FIELDS },
+    });
+    const res = await wtController.apply('wt1', 'p1', 'u-admin', 'admin');
+    expect(res).toEqual({ fields: FIELDS });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled(); // admin 免查
+    expect(prisma.bidProject.update).toHaveBeenCalled();
   });
 
   it('apply：opening_record 模板成功——与 PUT 复用同一写径（同断言 update/监督日志）', async () => {

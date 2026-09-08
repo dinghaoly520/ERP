@@ -563,16 +563,17 @@ export class BidController {
     @Param('id') id: string,
     @Body() dto: UpdateOpeningFieldConfigDto,
     @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role?: string,
   ) {
     if (dto.fields && dto.fromTemplateId) {
       throw new BadRequestException({ error: 'fields 与 fromTemplateId 只能二选一', code: 'OPENING_FIELD_CONFIG_BODY_INVALID' });
     }
     if (dto.fields) {
-      return this.openingRecord.setOpeningFieldConfig(id, dto.fields, userId, '手工录入');
+      return this.openingRecord.setOpeningFieldConfig(id, dto.fields, { id: userId, role }, '手工录入');
     }
     if (dto.fromTemplateId) {
       const tpl = await this.workTemplates.getOpeningFieldsFromTemplate(dto.fromTemplateId);
-      return this.openingRecord.setOpeningFieldConfig(id, tpl.fields, userId, `模板「${tpl.name}」`);
+      return this.openingRecord.setOpeningFieldConfig(id, tpl.fields, { id: userId, role }, `模板「${tpl.name}」`);
     }
     throw new BadRequestException({ error: '请提供 fields 或 fromTemplateId 之一', code: 'OPENING_FIELD_CONFIG_BODY_INVALID' });
   }

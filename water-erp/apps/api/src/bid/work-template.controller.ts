@@ -45,9 +45,14 @@ export class WorkTemplateController {
    *  与 PUT /bid/projects/:id/opening-field-config 复用同一写径/阶段闸——开标开始后 409 锁定） */
   @ApiOperation({ summary: 'A-113：开标记录模板的唱标字段配置应用到项目（开标开始后锁定）' })
   @Post(':id/apply/:projectId')
-  async apply(@Param('id') id: string, @Param('projectId') projectId: string, @CurrentUser('sub') userId?: string) {
+  async apply(
+    @Param('id') id: string,
+    @Param('projectId') projectId: string,
+    @CurrentUser('sub') userId?: string,
+    @CurrentUser('role') role?: string,
+  ) {
     const { fields, name } = await this.svc.getOpeningFieldsFromTemplate(id);
-    return this.openingRecords.setOpeningFieldConfig(projectId, fields, userId, `模板「${name}」`);
+    return this.openingRecords.setOpeningFieldConfig(projectId, fields, userId ? { id: userId, role } : undefined, `模板「${name}」`);
   }
 
   /** A-115：删除模板（生效中禁删——监管导出正在使用） */

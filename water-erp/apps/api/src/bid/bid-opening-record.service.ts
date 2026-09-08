@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, Optional, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { evaluateBondCompliance } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -239,16 +239,30 @@ export class BidOpeningRecordService {
 
   /**
    * A-113：写入项目级唱标字段配置——PUT /bid/projects/:id/opening-field-config 与 WorkTemplate apply
-   * 的唯一写径（阶段闸/校验/落库/监督日志在此一处，两端点复用）。
+   * 的唯一写径（公司隔离/阶段闸/校验/落库/监督日志在此一处，两端点复用）。
+   * 公司隔离（R1）：apply 入口在 WorkTemplateController，无 BidCompanyScopeGuard 覆盖（该守卫读
+   * params.id=模板 id 亦不适用）——写径内镜像守卫尾段语义：admin 放行；非 admin 须本人 companyId
+   * 与项目一致（companyId 空的存量项目同守卫口径 403），杜绝跨公司 staff 经 apply 完成 PUT 被 403 的写入。
    * 阶段闸：OPENING/EVALUATING/ARCHIVED 拒改（409 OPENING_FIELDS_LOCKED）；形状校验经
    * assertValidOpeningFieldConfig（法定四键不可删/type 固定）。写后回显 { fields }。
    */
-  async setOpeningFieldConfig(projectId: string, fields: OpeningFieldDef[], actorId: string | undefined, source: string) {
+  async setOpeningFieldConfig(
+    projectId: string,
+    fields: OpeningFieldDef[],
+    actor: { id: string; role?: string } | undefined,
+    source: string,
+  ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, name: true },
+      select: { stage: true, name: true, companyId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (actor && actor.role !== 'admin') {
+      const me = await this.prisma.user.findUnique({ where: { id: actor.id }, select: { companyId: true } });
+      if (!me?.companyId || me.companyId !== project.companyId) {
+        throw new ForbiddenException({ error: '该项目不属于本公司，无权修改唱标字段配置', code: 'COMPANY_SCOPE_FORBIDDEN' });
+      }
+    }
     if (OPENING_FIELD_CONFIG_LOCKED_STAGES.includes(project.stage)) {
       throw new ConflictException({ error: '开标已开始，唱标字段配置锁定', code: 'OPENING_FIELDS_LOCKED' });
     }
@@ -264,9 +278,9 @@ export class BidOpeningRecordService {
         action: '唱标字段配置更新', result: `${fields.length} 字段（来源：${source}）`, riskFlag: '无',
       },
     });
-    if (actorId) {
+    if (actor?.id) {
       await this.prisma.auditLog.create({
-        data: { userId: actorId, action: 'BID_OPENING_FIELD_CONFIG_SET', resourceType: `BidProject:${projectId}`, details: { projectId, fieldCount: fields.length, source } },
+        data: { userId: actor.id, action: 'BID_OPENING_FIELD_CONFIG_SET', resourceType: `BidProject:${projectId}`, details: { projectId, fieldCount: fields.length, source } },
       });
     }
     return { fields };
