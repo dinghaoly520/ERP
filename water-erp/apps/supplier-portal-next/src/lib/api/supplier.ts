@@ -1,4 +1,4 @@
-import { api } from "../api";
+import { api, type ReqOpts } from "../api";
 import type { OpeningFieldDef } from "../opening-fields";
 
 /** 公开唱标行（大厅脱敏视图：不含异议裁决过程字段） */
@@ -104,8 +104,8 @@ export const supplierApi = {
     return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/submit`, data);
   },
   /** W11-①（A-101）：投标回执 SM2 签名——取待签负载/提交签名 */
-  getReceiptPayload(submissionId: string) {
-    return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${submissionId}/receipt-payload`);
+  getReceiptPayload(submissionId: string, opts?: ReqOpts) {
+    return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${submissionId}/receipt-payload`, opts);
   },
   signReceiptSignature(submissionId: string, signature: string) {
     return api.post(`/supplier-portal/bid-submissions/${submissionId}/receipt-signature`, { signature });

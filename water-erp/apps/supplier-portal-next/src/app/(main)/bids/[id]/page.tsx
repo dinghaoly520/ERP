@@ -134,7 +134,8 @@ function BidDetailInner() {
   const [submission, setSubmission] = useState<any>(null);
   const [receiptPayload, setReceiptPayload] = useState<Record<string, unknown> | null>(null);
   const [payloadLoading, setPayloadLoading] = useState(false);
-  const [payloadFailed, setPayloadFailed] = useState(false); // A-101 验收补：区分「未尝试」与「真失败」，闭合态不再误显失败文案
+  // P1-6：失败分类——unbound=未绑定 U盾证书（确定性失败，不可重试，面板给去绑定入口）；retry=网络/服务端瞬时故障
+  const [payloadFailed, setPayloadFailed] = useState<"unbound" | "retry" | null>(null);
   const [signing, setSigning] = useState(false);
 
   // ── U盾会话（克隆 clarifications 页：口令仅内存持有，解锁一次覆盖本页回执补签）──
@@ -372,15 +373,25 @@ function BidDetailInner() {
     }
   }
 
-  /** 未签署时展开「核验负载」→ 向服务端取回执负载（以 DB 为准重建；已签署直接看存档 payload） */
+  /** 未签署时展开「核验负载」→ 向服务端取回执负载（以 DB 为准重建；已签署直接看存档 payload）
+   *  P1-6：silent 取回——未绑定证书（确定性失败）不再弹「无法签署回执」全局 toast，改面板内解释+去绑定入口 */
   async function loadReceiptPayload() {
     if (!submission || receiptPayload || payloadLoading) return;
     setPayloadLoading(true);
-    setPayloadFailed(false);
+    setPayloadFailed(null);
     try {
-      const r = await supplierApi.getReceiptPayload(submission.id);
+      const r = await supplierApi.getReceiptPayload(submission.id, { silent: true });
       setReceiptPayload(r.payload);
-    } catch { setPayloadFailed(true); /* API 层已全局错误 toast（含 SM2_PUBLIC_KEY_MISSING 绑定引导） */ }
+    } catch (e: any) {
+      const code = e?.code ?? (e?.data as Record<string, unknown> | undefined)?.code;
+      const unbound = code === "SM2_PUBLIC_KEY_MISSING" || String(e?.message ?? "").includes("未绑定");
+      if (unbound) {
+        setPayloadFailed("unbound"); // 确定性失败：面板解释 + 去绑定，不弹 toast、不误导为可重试
+      } else {
+        setPayloadFailed("retry");
+        toast.error(e?.message || "回执获取失败，请重新展开重试"); // 瞬时故障保留 toast 反馈（原全局 toast 同等语义）
+      }
+    }
     finally { setPayloadLoading(false); }
   }
 
@@ -783,7 +794,17 @@ function BidDetailInner() {
                             : receiptPayload
                               ? JSON.stringify(receiptPayload, null, 2)
                               : payloadLoading ? "正在获取回执信息…"
-                            : payloadFailed ? "回执获取失败，请重新展开重试"
+                            : payloadFailed === "unbound" ? (
+                              <div className="!whitespace-normal">
+                                <div>回执获取失败：尚未绑定 U盾 数字证书（此操作无法通过重试解决）。</div>
+                                <div className="mt-2">
+                                  <SpButton variant="primary" icon={KeyRound} onClick={() => router.push("/profile/ukey")}>
+                                    去绑定 U盾
+                                  </SpButton>
+                                </div>
+                              </div>
+                            )
+                            : payloadFailed === "retry" ? "回执获取失败，请重新展开重试"
                             : "展开后获取投递回执的存档信息"}
                         </div>
                       </details>

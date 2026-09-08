@@ -2765,6 +2765,18 @@ describe('投标回执签名（A-101）', () => {
     await expect(svcA.getReceiptPayloadFor('sb-1', 'sup-1')).rejects.toMatchObject({ response: { code: 'SM2_PUBLIC_KEY_MISSING' } });
   });
 
+  // P1-6：核验（取负载）与签署两入口的守卫文案分离——展开核验面板不得再弹「无法签署回执」
+  it('未绑定 SM2 公钥：核验路径文案含「回执核验失败」且不含「签署」，签署路径保留「无法签署回执」', async () => {
+    const mk = () => new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+    const verifyErr: any = await mk().getReceiptPayloadFor('sb-1', 'sup-1').catch((e) => e);
+    expect(verifyErr.response).toMatchObject({ code: 'SM2_PUBLIC_KEY_MISSING', error: expect.stringContaining('回执核验失败') });
+    expect(verifyErr.response.error).toContain('绑定');
+    expect(verifyErr.response.error).not.toContain('签署');
+
+    const signErr: any = await mk().signSubmissionReceipt('sb-1', 'sup-1', 'sig-hex').catch((e) => e);
+    expect(signErr.response).toMatchObject({ code: 'SM2_PUBLIC_KEY_MISSING', error: expect.stringContaining('无法签署回执') });
+  });
+
   it('非本人提交 → 403', async () => {
     const svcB = new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     await expect(svcB.getReceiptPayloadFor('sb-1', 'sup-other')).rejects.toMatchObject({ status: 403 });

@@ -527,16 +527,27 @@ export class SupplierPortalService {
     return JSON.stringify(keys.reduce((acc, k) => { acc[k] = payload[k]; return acc; }, {} as Record<string, unknown>));
   }
 
+  /** 回执核验/签署共用的 SM2 公钥守卫（P1-6）：两入口按上下文区分文案——核验给绑定指引，签署保留签署语义。 */
+  private async assertReceiptSm2PublicKey(supplierId: string, context: 'verify' | 'sign') {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
+    if (!supplier?.sm2PublicKey) {
+      throw new BadRequestException({
+        error: context === 'verify'
+          ? '回执核验失败：供应商未绑定 SM2 公钥，请先在 企业资料→证书与U盾 绑定'
+          : '供应商未绑定 SM2 公钥（U盾证书），无法签署回执',
+        code: 'SM2_PUBLIC_KEY_MISSING',
+      });
+    }
+    return supplier.sm2PublicKey;
+  }
+
   /** 取回执待签负载（供应商本人；负载以 DB 为准重建，不信任客户端传入）。 */
   async getReceiptPayloadFor(submissionId: string, supplierId: string) {
     const sub = await this.prisma.supplierBidSubmission.findUnique({ where: { id: submissionId } });
     if (!sub || sub.supplierId !== supplierId) {
       throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
     }
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
-    if (!supplier?.sm2PublicKey) {
-      throw new BadRequestException({ error: '供应商未绑定 SM2 公钥（U盾证书），无法签署回执', code: 'SM2_PUBLIC_KEY_MISSING' });
-    }
+    await this.assertReceiptSm2PublicKey(supplierId, 'verify');
     const envelope = sub.envelope as { fieldsCommit?: string } | null;
     const payload = {
       v: 1,
@@ -556,12 +567,9 @@ export class SupplierPortalService {
       throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
     }
     if (sub.receiptSignature) return sub; // 幂等：已签署直接返回
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
-    if (!supplier?.sm2PublicKey) {
-      throw new BadRequestException({ error: '供应商未绑定 SM2 公钥（U盾证书），无法签署回执', code: 'SM2_PUBLIC_KEY_MISSING' });
-    }
+    const sm2PublicKey = await this.assertReceiptSm2PublicKey(supplierId, 'sign');
     const { payload, canonical } = await this.getReceiptPayloadFor(submissionId, supplierId);
-    const valid = this.signatureService.verify(canonical, signature, supplier.sm2PublicKey);
+    const valid = this.signatureService.verify(canonical, signature, sm2PublicKey);
     if (!valid) {
       throw new BadRequestException({ error: '回执签名验证失败（SM2）', code: 'RECEIPT_SIGNATURE_INVALID' });
     }
