@@ -1,3 +1,5 @@
+import { parseAmountToYuan } from "@water-erp/shared";
+
 /**
  * A-113：供应商端唱标字段动态渲染辅助。
  * 后端权威源 = apps/api/src/bid/opening-field-config.util.ts（DEFAULT_OPENING_FIELDS /
@@ -92,4 +94,18 @@ export function otherOpeningRows(
   return fields
     .filter((f) => !isStatutoryKey(f.key) && custom[f.key])
     .map((f) => ({ key: f.key, label: f.label, value: String(custom[f.key]) }));
+}
+
+/**
+ * P1-1（UI审计）：开标记录金额展示归一——裸数字（含千分位/小数）归一为「千分位 + 元」。
+ * BidOpeningRecord.amount 为主持人自由文本：parseAmountToYuan 对「万元」形态亦可解析出元值，
+ * 但该形态已自带单位（归一即「10,800,000 元」改写主持人原话），连同不可解析自由文本
+ * （如「面议」）一律原文直出——杜绝本司区「1080万元 元」双单位拼接。
+ */
+export function formatOpeningAmount(raw: string | null | undefined): string {
+  const s = raw?.trim();
+  if (!s) return "—";
+  const yuan = parseAmountToYuan(s);
+  if (yuan == null || s.includes("万")) return s;
+  return `${yuan.toLocaleString("zh-CN")} 元`;
 }

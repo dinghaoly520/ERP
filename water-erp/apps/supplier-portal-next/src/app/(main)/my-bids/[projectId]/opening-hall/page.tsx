@@ -17,6 +17,7 @@ import {
   openingColumnWidth,
   openingRecordCell,
   otherOpeningRows,
+  formatOpeningAmount,
   type OpeningFieldDef,
 } from "@/lib/opening-fields";
 import { openingHallApi } from "@/lib/api/opening-hall";
@@ -352,7 +353,8 @@ export default function OpeningHallPage() {
                 </tr>
                 <tr>
                   <th>唱标金额</th>
-                  <td>{record?.amount != null ? `${record.amount} 元` : "—"}</td>
+                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出（修「1080万元 元」双单位） */}
+                  <td>{formatOpeningAmount(record?.amount)}</td>
                 </tr>
                 <tr>
                   <th>投递报价</th>
@@ -515,7 +517,10 @@ export default function OpeningHallPage() {
                     </td>
                     {tableFields.map((f) => (
                       <td key={f.key} className={openingColumnWidth(f)}>
-                        {openingRecordCell(f, row)}
+                        {/* P1-1：法定金额列归一展示（裸数字千分位+元、带单位原文直出）；其余列取值口径不变 */}
+                        {f.key === "amount"
+                          ? formatOpeningAmount(openingRecordCell(f, row))
+                          : openingRecordCell(f, row)}
                       </td>
                     ))}
                     <td className="w-status">{OPENING_CONFIRM_LABELS[row.confirmStatus] ?? row.confirmStatus}</td>

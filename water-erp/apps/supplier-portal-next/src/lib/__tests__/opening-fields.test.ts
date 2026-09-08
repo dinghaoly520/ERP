@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   FALLBACK_FIELDS,
+  formatOpeningAmount,
   openingColumnLabel,
   openingColumnWidth,
   openingRecordCell,
@@ -68,6 +69,12 @@ test("A-113 法定列取值走专属列原值（空值维持空渲染，不加 '
   assert.equal(openingRecordCell({ key: "amount", label: "报价", type: "text" }, row), "4200000");
   assert.equal(openingRecordCell({ key: "period", label: "工期", type: "text" }, row), null);
   assert.equal(openingRecordCell({ key: "bondStatus", label: "保证金", type: "select" }, null), null);
+});
+
+test("P1-1：开标记录金额展示——裸数字千分位+元，带单位原文直出", () => {
+  assert.equal(formatOpeningAmount("1485000"), "1,485,000 元");
+  assert.equal(formatOpeningAmount("1080万元"), "1080万元");
+  assert.equal(formatOpeningAmount(""), "—");
 });
 
 test("A-113 otherOpeningRows：仅取 config 动态键且有值者（法定键/空值排除；无 customFields 不渲染）", () => {
