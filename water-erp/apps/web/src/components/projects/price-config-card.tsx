@@ -39,6 +39,12 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
   }, [detail?.id, formulaCanonical]);
 
   const stage = detail?.stage;
+  // P1-A：脏检查——与唱标字段配置卡口径一致（无修改时禁用而非点击后提示）
+  const dirty = useMemo(() => (
+    ceilingPrice !== (detail?.ceilingPrice != null ? String(detail.ceilingPrice) : "")
+    || evaluationMethod !== (detail?.evaluationMethod ?? "")
+    || formulaRaw.trim() !== formulaCanonical.trim()
+  ), [ceilingPrice, evaluationMethod, formulaRaw, detail?.ceilingPrice, detail?.evaluationMethod, formulaCanonical]);
   const softLocked = stage === "EVALUATING" || stage === "ARCHIVED";
 
   async function save() {
@@ -106,16 +112,27 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
           {advancedOpen ? "收起" : "展开"}价格分公式参数（高级）
         </button>
         {advancedOpen && (
-          <textarea
-            value={formulaRaw} onChange={(e) => setFormulaRaw(e.target.value)}
-            rows={6} spellCheck={false}
-            placeholder='{"benchmarkMode":"average","lowPriceRatio":0.7}（留空=使用内置默认公式）'
-            className="workbench-input mt-2 w-full font-mono !text-[12px] leading-relaxed"
-          />
+          <>
+            <textarea
+              value={formulaRaw} onChange={(e) => setFormulaRaw(e.target.value)}
+              rows={6} spellCheck={false}
+              placeholder='{"formulaType":"benchmark_deviation","K":0.97,"penaltyRate":2}（留空=使用内置默认公式）'
+              className="workbench-input mt-2 w-full font-mono !text-[12px] leading-relaxed"
+            />
+            <p className="mt-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]">
+              可用键：formulaType（lowest_price 最低评标价法|benchmark_deviation 基准价偏离法|ratio 比例法）、K（基准价偏离法折扣系数，默认 0.97）、penaltyRate（每 1% 偏离扣分比例，默认 2）、noPenaltyRange（无惩罚区间百分比，默认 0）。留空 = 内置默认公式。
+            </p>
+          </>
         )}
       </div>
       <div className="flex justify-end">
-        <button type="button" className="neu-btn" disabled={saving || !detail} onClick={save}>
+        <button
+          type="button"
+          className="neu-btn-primary !h-[34px] !text-xs"
+          disabled={saving || !detail || !dirty}
+          title={!dirty ? '无修改' : undefined}
+          onClick={save}
+        >
           {saving ? "保存中…" : "保存配置"}
         </button>
       </div>
