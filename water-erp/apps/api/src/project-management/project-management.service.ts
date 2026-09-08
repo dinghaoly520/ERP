@@ -4150,7 +4150,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // ── 按阶段构建分析数据（各取真实链路）──
     const isExpert = stageKey === 'EXPERT_SELECTION';
     let rosterRaw = '';
-    let stageContext = `当前阶段：${meta.label}（${stageKey}）。采购方式：${project.procurementMethod || '未知'}。`;
+    const stageContext = `当前阶段：${meta.label}（${stageKey}）。采购方式：${project.procurementMethod || '未知'}。`;
 
     if (isExpert) {
       rosterRaw = (project.expertInfo ?? '').trim();

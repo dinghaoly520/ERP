@@ -94,7 +94,7 @@ export class RsvpService {
       // 供应商确认参加后门户「可投标项目/工作台」需立即可见（此前要等采购端后续操作才补挂，
       // 造成"已确认却看不到项目"）。ensureBidProject 幂等，且创建时会回填全部已接受回执的候选。
       if (body.status === 'ACCEPTED' && row.projectId) {
-        let bp = await tx.bidProject.findFirst({
+        const bp = await tx.bidProject.findFirst({
           where: { projectManagementItemId: row.projectId },
           orderBy: { createdAt: 'desc' },
           select: { id: true },
