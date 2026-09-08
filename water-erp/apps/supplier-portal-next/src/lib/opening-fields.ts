@@ -5,7 +5,7 @@ import { parseAmountToYuan } from "@water-erp/shared";
  * 后端权威源 = apps/api/src/bid/opening-field-config.util.ts（DEFAULT_OPENING_FIELDS /
  * resolveOpeningFieldConfig），本文件是其供应商端渲染镜像（两端同步改；:3007 主持端镜像
  * 见 apps/bid-portal/src/components/opening-hall.tsx FALLBACK_FIELDS——同一先例）。
- * 供应商端差异：法定四列沿用本页历史标签/列宽（报价（元）/质量目标——与 :3007 措辞本就
+ * 供应商端差异：法定四列沿用本页历史标签/列宽（报价——P1-C 去单位后缀，值自带单位 /质量目标——与 :3007 措辞本就
  * 不同），保「无配置项目与现状渲染一致」的零漂移铁律；config 仅驱动列序与动态列。
  */
 
@@ -29,7 +29,7 @@ export const isStatutoryKey = (key: string): key is StatutoryKey =>
 
 /** 法定四列本页固定口径：标签 + 列宽类（历史措辞，默认态零漂移的契约来源） */
 export const STATUTORY_COLUMNS: Record<StatutoryKey, { label: string; width: string }> = {
-  amount: { label: "报价（元）", width: "w-amount" },
+  amount: { label: "报价", width: "w-amount" },
   period: { label: "工期", width: "w-period" },
   qualityTarget: { label: "质量目标", width: "w-quality" },
   bondStatus: { label: "保证金", width: "w-bond" },
@@ -108,4 +108,14 @@ export function formatOpeningAmount(raw: string | null | undefined): string {
   const yuan = parseAmountToYuan(s);
   if (yuan == null || s.includes("万")) return s;
   return `${yuan.toLocaleString("zh-CN")} 元`;
+}
+
+/** P1-C（二轮 UI 审查）：投递报价显示文本。bidPriceInYuan（后端已折算的元数字）→千分位+元；
+    仅有自由文本 bidPrice（如「1080万元」/「1485000」）→ 走 formatOpeningAmount 同口径（原文直出或归一）。 */
+export function formatBidSubmissionPrice(
+  raw: string | null | undefined,
+  yuan: number | null | undefined,
+): string {
+  if (yuan != null && Number.isFinite(yuan)) return `${yuan.toLocaleString("zh-CN")} 元`;
+  return formatOpeningAmount(raw ?? null);
 }

@@ -18,6 +18,7 @@ import {
   openingRecordCell,
   otherOpeningRows,
   formatOpeningAmount,
+  formatBidSubmissionPrice,
   type OpeningFieldDef,
 } from "@/lib/opening-fields";
 import { openingHallApi } from "@/lib/api/opening-hall";
@@ -103,16 +104,11 @@ export default function OpeningHallPage() {
   const stage: string = project?.stage ?? "";
   const isOpening = stage === "OPENING";
 
-  /** 投递报价显示文本：有唱标锚点时归一为元（与唱标总表「报价（元）」单位统一）；
-   *  未唱标回落投递表单口径（<10000 万元、≥10000 元，见 BidSubmit formatBidPrice） */
-  const submittedPriceText = (() => {
-    const s = record?.submitted;
-    if (!s?.bidPrice) return "—";
-    if (s.bidPriceInYuan != null) return `${s.bidPriceInYuan} 元`;
-    const n = Number(s.bidPrice);
-    if (!Number.isFinite(n)) return "—";
-    return n >= 10000 ? `${s.bidPrice} 元` : `${s.bidPrice} 万元`;
-  })();
+  /** 投递报价显示文本（P1-C：与唱标总表同口径——千分位+元 / 带单位原文直出） */
+  const submittedPriceText = formatBidSubmissionPrice(
+    record?.submitted?.bidPrice,
+    record?.submitted?.bidPriceInYuan,
+  );
 
   async function refresh() {
     // 失败保留上次成功数据，仅置标志；首屏（project 为空）时由错误态 + 重试展示

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   FALLBACK_FIELDS,
+  formatBidSubmissionPrice,
   formatOpeningAmount,
   openingColumnLabel,
   openingColumnWidth,
@@ -11,9 +12,10 @@ import {
   type OpeningFieldDef,
 } from "../opening-fields";
 
-/** 法定四列历史标签契约（默认态零漂移铁律：与改造前公开总表表头逐字一致） */
+/** 法定四列历史标签契约（默认态零漂移铁律：与公开总表表头逐字一致；
+ *  P1-C 2026-09-08 amount 去「（元）」后缀——值自带单位，消表头/值单位矛盾） */
 const STATUTORY_LABEL_CONTRACT: Array<[string, string]> = [
-  ["amount", "报价（元）"],
+  ["amount", "报价"],
   ["period", "工期"],
   ["qualityTarget", "质量目标"],
   ["bondStatus", "保证金"],
@@ -75,6 +77,13 @@ test("P1-1：开标记录金额展示——裸数字千分位+元，带单位原
   assert.equal(formatOpeningAmount("1485000"), "1,485,000 元");
   assert.equal(formatOpeningAmount("1080万元"), "1080万元");
   assert.equal(formatOpeningAmount(""), "—");
+});
+
+test("P1-C：投递报价格式化——bidPriceInYuan 千分位+元、带单位原文直出、空占位", () => {
+  assert.equal(formatBidSubmissionPrice(null, 10800000), "10,800,000 元");
+  assert.equal(formatBidSubmissionPrice("1080万元", null), "1080万元");
+  assert.equal(formatBidSubmissionPrice("1485000", null), "1,485,000 元");
+  assert.equal(formatBidSubmissionPrice("", null), "—");
 });
 
 test("A-113 otherOpeningRows：仅取 config 动态键且有值者（法定键/空值排除；无 customFields 不渲染）", () => {
