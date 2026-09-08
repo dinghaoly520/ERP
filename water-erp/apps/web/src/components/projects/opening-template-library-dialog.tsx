@@ -204,7 +204,7 @@ export function OpeningTemplateLibraryDialog({
               const hasColumns = !!t.content.columns?.length;
               return (
                 <div key={t.id}>
-                  <div className="flex items-center gap-3 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] bg-[var(--surface)] px-3 py-2.5">
+                  <div className="flex items-center gap-3 rounded-xl bg-[var(--surface)] px-3 py-2.5">
                     <ListChecks size={16} strokeWidth={1.5} className="shrink-0 text-[var(--accent)]" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ export function OpeningTemplateLibraryDialog({
                         onClick={() => handleApply(t)}
                         disabled={locked || applyingId === t.id || fieldCount === 0}
                         title={locked ? '开标已开始，字段配置已锁定' : fieldCount === 0 ? '模板未定义唱标字段' : '应用到此项目'}
-                        className="rounded-lg bg-[var(--accent)] px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="neu-btn-xs !h-[30px]"
                       >
                         {applyingId === t.id ? '应用中…' : '应用'}
                       </button>
@@ -242,24 +242,24 @@ export function OpeningTemplateLibraryDialog({
                       <button
                         onClick={() => (editing?.id === t.id ? setEditing(null) : startEdit(t))}
                         title={editing?.id === t.id ? '收起编辑' : '编辑模板'}
-                        className="rounded-lg p-1.5 text-[var(--muted-foreground)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                        className="neu-btn-xs !h-[30px] !w-[30px] !p-0"
                       >
-                        {editing?.id === t.id ? <span className="text-xs font-bold">收起</span> : <Pencil size={14} strokeWidth={1.5} />}
+                        {editing?.id === t.id ? <span className="text-xs font-bold">收起</span> : <Pencil size={13} strokeWidth={1.5} />}
                       </button>
                       <button
                         onClick={() => setDeleteTarget(t)}
                         disabled={t.isActive}
                         title={t.isActive ? '生效中不可删，先启用其他模板' : '删除模板'}
-                        className="rounded-lg p-1.5 text-[var(--muted-foreground)] transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="neu-btn-xs !h-[30px] !w-[30px] !p-0 is-danger"
                       >
-                        <Trash2 size={14} strokeWidth={1.5} />
+                        <Trash2 size={13} strokeWidth={1.5} />
                       </button>
                     </div>
                   </div>
 
                   {/* 行内轻编辑：name + fields JSON 文本域（完整形状校验在后端，前端只拦 JSON 语法与 label 长度） */}
                   {editing?.id === t.id && (
-                    <div className="mt-1.5 space-y-2 rounded-lg border border-[color-mix(in_oklch,var(--accent)_25%,transparent)] bg-[var(--accent-soft)] px-3 py-3">
+                    <div className="mt-1.5 space-y-2 rounded-xl bg-[var(--accent-soft)] px-3 py-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <label className="text-xs font-semibold text-[var(--foreground)]">模板名称</label>
                         <input
@@ -303,7 +303,7 @@ export function OpeningTemplateLibraryDialog({
         )}
 
         {/* 底部：把配置卡当前字段（含未保存草稿）存为新模板 */}
-        <div className="mt-4 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] bg-[var(--accent-soft)] px-3 py-3">
+        <div className="mt-4 rounded-xl bg-[var(--accent-soft)] px-3 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-[var(--foreground)]">存为当前项目配置为模板：</span>
             <input
