@@ -5,7 +5,7 @@
    - :deep(el-*) 规则已删除，页面依赖处改写为原生等价
    - .sp-empty-text / .sp-empty-desc 已由 globals.css 提供同名定义，不重复定义
    - el-tag / el-divider / el-alert / el-form-item / el-card 原生等价见各分节
-   - 2026-09-02 NotificationList（nd-*/notif-*）整块移至 notifications.css（消息中心+
+   - 2026-09-02 NotificationList（nd-* / notif-* 前缀族）整块移至 notifications.css（消息中心+
      dashboard 共用，原先寄居此处 + dashboard.css 另有 17 条子集副本，裸类同名
      在 Next 客户端导航下互相覆盖）
    ════════════════════════════════════════════════════════════════════ */
@@ -33,6 +33,7 @@
   color: var(--muted-foreground); cursor: pointer;
 }
 .ann-search-clear:hover { color: var(--foreground); }
+.ann-search-clear:active { transform: translateY(-50%) scale(0.9); }
 /* Tabs — tab 基础按 Vue cgzxui 归一（透明底 / 10px 圆角 / 无凸起影） */
 .ann-tabs { flex: 1; min-width: 0; }
 .ann-tabs > .neu-tab-bar {
@@ -55,6 +56,7 @@
   color: var(--brand); background: var(--surface);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7);
 }
+.ann-tabs .neu-tab:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 3px oklch(1 0 0 / 0.6); }
 
 /* List — neumorphic plate (no glass / no drift) */
 .announcement-list {
@@ -65,6 +67,7 @@
 .announcement-row { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); color: inherit; text-decoration: none; transition: background 0.15s; }
 .announcement-row:last-child { border-bottom: none; }
 .announcement-row:hover { background: oklch(0.985 0.01 258 / 0.6); }
+.announcement-row:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.5); }
 .announcement-row:focus-visible { position: relative; z-index: 1; outline: 3px solid color-mix(in oklab, var(--brand) 72%, white); outline-offset: -3px; }
 .ann-row-left { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0; }
 .ann-row-body { display: flex; flex-direction: column; min-width: 0; }
@@ -164,6 +167,7 @@
   font-size: 12px; font-weight: 600; color: var(--sp-primary); cursor: pointer;
 }
 .detail-link-btn:hover { color: var(--sp-primary-light); }
+.detail-link-btn:active { transform: scale(0.97); }
 /* Bid document well — concave subsurface */
 .bid-doc-section { padding: 16px; border: none; border-radius: 12px; background: var(--surface); box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.10), inset -3px -3px 7px oklch(1 0 0 / 0.8); }
 .bid-doc-head { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--foreground); flex-wrap: wrap; }
@@ -174,9 +178,10 @@
 /* el-alert 原生等价 — 玻璃底（门户 global.css 覆写）+ 类型色（Element Plus 默认调色） */
 .ann-alert {
   display: flex; align-items: center; width: 100%; margin: 0; padding: 8px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.05); border-radius: 4px; font-size: 14px; line-height: 24px;
+  border: none; border-radius: 4px; font-size: 14px; line-height: 24px;
   background: rgba(255, 255, 255, 0.52);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
   box-sizing: border-box;
 }
 .ann-alert__icon { display: inline-flex; flex-shrink: 0; margin-right: 8px; }
@@ -192,16 +197,22 @@
 /* ── AwardLetterList（原文件无 <style scoped>；以下为 el-card 等 Element 组件的原生等价）── */
 .award-card {
   background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
+  border: none;
   border-radius: var(--sp-radius-md);
   overflow: hidden;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 6px oklch(0.55 0.03 258 / 0.08), -1px -1px 4px oklch(1 0 0 / 0.7);
 }
 .award-card--focused {
-  border-color: color-mix(in oklch, var(--brand) 58%, var(--sp-border));
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand) 14%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 6px oklch(0.55 0.03 258 / 0.08), -1px -1px 4px oklch(1 0 0 / 0.7), 0 0 0 3px color-mix(in oklch, var(--brand) 14%, transparent);
 }
 .award-card__header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 20px; font-size: 14px; border-bottom: 1px solid #e4e7ed;
+  padding: 10px 20px; font-size: 14px; box-shadow: inset 0 -1px 0 var(--hairline);
 }
 .award-card__body { padding: 20px; }
+
+/* ═══ reduced-motion 降级（T3.6）：本文件全部含 transition 的选择器 ═══ */
+@media (prefers-reduced-motion: reduce) {
+  .neu-card.ann-filter, .ann-tabs .neu-tab, .announcement-row { transition: none !important; }
+  .neu-card.ann-filter:hover { transform: none; }
+}

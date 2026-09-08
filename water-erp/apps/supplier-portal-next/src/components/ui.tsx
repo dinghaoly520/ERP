@@ -249,8 +249,8 @@ export function SpDialog({
     <div className="gdlg-ov" onMouseDown={(e) => { if (closeOnOverlay && e.target === e.currentTarget) onClose(); }}>
       <div
         ref={dialogRef}
-        className="gdlg-pn"
-        style={{ width, maxWidth: "100%" }}
+        className="gdlg-pn max-w-full"
+        style={{ width }}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -489,7 +489,7 @@ export function SkeletonList({ count = 3 }: { count?: number }) {
         <div key={i} className="skeleton-card">
           <div className="skeleton-lines">
             {Array.from({ length: 3 }).map((_, j) => (
-              <div key={j} className="skeleton-line" style={{ width: j === 2 ? "60%" : "100%" }} />
+              <div key={j} className={`skeleton-line ${j === 2 ? "w-3/5" : "w-full"}`} />
             ))}
           </div>
         </div>

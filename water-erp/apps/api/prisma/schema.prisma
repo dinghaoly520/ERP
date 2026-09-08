@@ -353,6 +353,7 @@ model BidProject {
   evaluationDeadline       DateTime? // E2: 评标截止时间(超时告警)
   bondReturnedAt           DateTime? // C4（7.5.4.4）：响应担保退还时间（null=未退还；不退的记录见 BidSupervisionLog）
   reportNotes              Json? // A-151：评标报告章节附注 [{section:'一'..'十', content}]（签字包生成前编辑、docx 渲染）
+  openingFieldConfig       Json? // A-113（P2）：唱标字段动态配置 {fields:[{key,label,type,options?,required?,prefillFrom?}]}；null=内置默认四字段（OPENING 前可改，法定四键不可删）
   isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
   // ── 开标主持人指派（R1 硬分流）── null = 未指派（:3007 不可见，:3005 公开池）
   assignedHostUserId       String?
@@ -551,6 +552,7 @@ model BidOpeningRecord {
   handleResult    String?
   project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt       DateTime   @default(now())
+  customFields    Json? // A-113（P2）：唱标动态字段值仓 { [key]: string }（openingFieldConfig 派生键；法定四列仍在专属列）
 
   @@unique([projectId, bidSupplierId])
   @@index([bidSupplierId])
@@ -3505,9 +3507,13 @@ model ScoreTemplate {
   payload       Json
   createdById   String?
   createdByName String?
+  // A-147（P2）：维度快照（保存时服务端自动从项目取；null=通用模板，任何方式/类型可用）
+  procurementMethod String? // BidProject.procurementMethod 快照
+  projectCategory   String? // PMI.procurementCategory 快照（经 projectManagementItem 关联）
   createdAt     DateTime @default(now())
 
   @@index([createdById])
+  @@index([procurementMethod])
 }
 
 /// 评标签字登记状态（《评标委员会和评标方法暂行规定》第四十三条语义）

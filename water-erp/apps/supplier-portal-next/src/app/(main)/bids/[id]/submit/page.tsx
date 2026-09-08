@@ -29,15 +29,15 @@ import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 /** el-alert 的原生等价（EP 四色调 + show-icon） */
-function BAlert({ type, title, children, style }: {
+function BAlert({ type, title, children, className }: {
   type: "info" | "warning" | "success" | "error";
   title?: React.ReactNode;
   children?: React.ReactNode;
-  style?: React.CSSProperties;
+  className?: string;
 }) {
   const Icon = type === "error" ? CircleX : type === "warning" ? TriangleAlert : type === "success" ? CircleCheck : Info;
   return (
-    <div className={`b-alert b-alert--${type}`} style={style}>
+    <div className={`b-alert b-alert--${type}${className ? " " + className : ""}`}>
       <span className="b-alert-ico"><Icon size={15} strokeWidth={2} /></span>
       <div className="b-alert-body">
         {title !== undefined && <span className="b-alert-title">{title}</span>}
@@ -58,8 +58,7 @@ function UploadZone({ accept, disabled, onFile, label }: {
   return (
     <>
       <div
-        className="neu-drop-zone"
-        style={disabled ? { opacity: 0.5, pointerEvents: "none" } : undefined}
+        className={disabled ? "neu-drop-zone pointer-events-none opacity-50" : "neu-drop-zone"}
         onClick={() => !disabled && ref.current?.click()}
       >
         <Upload size={14} strokeWidth={1.75} />
@@ -817,21 +816,21 @@ function BidSubmitInner() {
           ) : project ? (
             <>
               {!canSubmit && (
-                <BAlert type="error" style={{ marginBottom: 20 }} title={!isApproved ? "供应商账号尚未通过审核，无法投标" : "该项目当前不可投标"} />
+                <BAlert type="error" className="mb-5" title={!isApproved ? "供应商账号尚未通过审核，无法投标" : "该项目当前不可投标"} />
               )}
               {canSubmit && (
-                <BAlert type="warning" style={{ marginBottom: 20 }} title={`投标截止：${project.deadline ? dayjs(project.deadline).format("YYYY年MM月DD日 HH:mm") : "--"}，请在截止前完成提交。`} />
+                <BAlert type="warning" className="mb-5" title={`投标截止：${project.deadline ? dayjs(project.deadline).format("YYYY年MM月DD日 HH:mm") : "--"}，请在截止前完成提交。`} />
               )}
               {canSubmit && dualReady && (
-                <BAlert type="success" style={{ marginBottom: 20 }} title="双层加密信封投递：文件将双层加密上传，报价等唱标字段密封至开标时揭示。提交时需插入 U盾并输入证书口令完成签名。" />
+                <BAlert type="success" className="mb-5" title="双层加密信封投递：文件将双层加密上传，报价等唱标字段密封至开标时揭示。提交时需插入 U盾并输入证书口令完成签名。" />
               )}
               {showRecovery && (
                 <BAlert
                   type="success"
-                  style={{ marginBottom: 20 }}
+                  className="mb-5"
                   title={`检测到本地草稿${recoveryTs ? "（" + dayjs(recoveryTs).format("HH:mm") + "）" : ""}，是否恢复？`}
                 >
-                  <div style={{ display: "flex", gap: 12 }}>
+                  <div className="flex gap-3">
                     <SpButton variant="xs" onClick={acceptRecovery}>恢复草稿</SpButton>
                     <SpButton variant="xs" onClick={discardRecovery}>丢弃</SpButton>
                   </div>
@@ -849,7 +848,7 @@ function BidSubmitInner() {
                   <BAlert type="warning" title="双信封加密投递为唯一投递通道，传统加密通道已停止受理。">
                     投标文件须以双层 SM4 加密上传，报价等唱标字段经 SM2 证书签名密封，开标时解密揭示。
                   </BAlert>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, marginTop: 20 }}>
+                  <div className="mt-5 flex flex-col items-start gap-3">
                     <SpButton variant="primary" icon={KeyRound} onClick={() => router.push("/profile/ukey")}>前往绑定 U盾</SpButton>
                     <span className="file-hint">绑定后本页自动切换为双信封投递。</span>
                     <span className="file-hint">已保存的草稿字段（报价/工期等）在绑定后可直接回读；已上传的加密文件需重新上传。</span>
@@ -927,7 +926,7 @@ function BidSubmitInner() {
                               <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => updateForm({ fullBidFileAssetId: "" })}>×</button>
                             </span>
                           ) : null}
-                          {fullBidProgress !== null && <div style={{ width: 200 }}><SpProgress value={fullBidProgress} /></div>}
+                          {fullBidProgress !== null && <div className="w-[200px]"><SpProgress value={fullBidProgress} /></div>}
                         </div>
                       </div>
                     </div>
@@ -947,7 +946,7 @@ function BidSubmitInner() {
                               onFile={(f) => handleSplitUpload(cat, f)}
                             />
                             <span className="file-hint">{splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB</span>
-                            {splitCats[cat].progress !== null && <div style={{ width: 120 }}><SpProgress value={splitCats[cat].progress} /></div>}
+                            {splitCats[cat].progress !== null && <div className="w-[120px]"><SpProgress value={splitCats[cat].progress} /></div>}
                           </div>
                           {splitCats[cat].files.length > 0 && (
                             <div className="split-files">
@@ -986,7 +985,7 @@ function BidSubmitInner() {
                               <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => updateForm({ bidBondAssetId: "" })}>×</button>
                             </span>
                           ) : null}
-                          {bondUploadProgress !== null && <div style={{ width: 200 }}><SpProgress value={bondUploadProgress} /></div>}
+                          {bondUploadProgress !== null && <div className="w-[200px]"><SpProgress value={bondUploadProgress} /></div>}
                         </div>
                       </div>
                     </div>
@@ -1018,7 +1017,7 @@ function BidSubmitInner() {
                                 <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => updateForm({ coverLetterFileAssetId: "" })}>×</button>
                               </span>
                             ) : null}
-                            {coverLetterProgress !== null && <div style={{ width: 200 }}><SpProgress value={coverLetterProgress} /></div>}
+                            {coverLetterProgress !== null && <div className="w-[200px]"><SpProgress value={coverLetterProgress} /></div>}
                           </div>
                         )}
                       </div>
@@ -1076,8 +1075,8 @@ function BidSubmitInner() {
           ))}
         </div>
         {!canConfirm
-          ? <BAlert type="error" style={{ marginTop: 16 }} title="存在未通过的必填项，请完善后重新提交" />
-          : <BAlert type="success" style={{ marginTop: 16 }} title="检查通过，可以提交" />}
+          ? <BAlert type="error" className="mt-4" title="存在未通过的必填项，请完善后重新提交" />
+          : <BAlert type="success" className="mt-4" title="检查通过，可以提交" />}
       </SpDialog>
 
       {/* ═══ A-88：删除草稿确认 ═══ */}
@@ -1111,7 +1110,7 @@ function BidSubmitInner() {
         }
       >
         {ukeyPresent === false ? (
-          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
         ) : (
         <>
         <label className="reg-label">证书口令</label>

@@ -69,7 +69,7 @@ export function SatisfactionDialog({ open, projectCode, contractCode, onClose, o
           <legend className="text-sm font-semibold">整体满意度（必选）</legend>
           <div className="mt-3 grid grid-cols-5 gap-2">
             {[1, 2, 3, 4, 5].map((value) => (
-              <label key={value} className="cursor-pointer rounded-xl border border-slate-200 p-2 text-center has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+              <label key={value} className="cursor-pointer rounded-xl border border-[var(--hairline)] p-2 text-center has-[:checked]:border-[var(--brand)] has-[:checked]:bg-[var(--accent-soft)]">
                 <input
                   className="sr-only"
                   type="radio"

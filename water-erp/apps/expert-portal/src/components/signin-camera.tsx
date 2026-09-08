@@ -143,7 +143,7 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
       </div>
 
       {/* 取景区 */}
-      <div className="relative mx-auto mb-4 flex h-[220px] w-[240px] items-center justify-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[oklch(0.96_0.01_258)]">
+      <div className="relative mx-auto mb-4 flex h-[220px] w-[240px] items-center justify-center overflow-hidden rounded-2xl bg-[oklch(0.96_0.01_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.12),inset_-2px_-2px_5px_oklch(1_0_0/0.6)]">
         {state === 'idle' && (
           <div className="flex flex-col items-center gap-3 px-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[oklch(0.985_0.005_258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">

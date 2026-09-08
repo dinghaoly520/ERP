@@ -17,9 +17,6 @@ import { useBidUser } from '@/hooks/use-bid-user';
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
 };
-const STATUS_TONE: Record<string, string> = {
-  PENDING: 'var(--muted-foreground)', SIGNED: 'var(--success)', REFUSED_DISSENT: 'var(--danger)', DEEMED_AGREED: 'var(--warning, #b7791f)',
-};
 
 export default function SigningTab({ projectId, stage }: { projectId: string; stage: string }) {
   const [data, setData] = useState<SignPacketResponse | null>(null);
@@ -206,7 +203,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         }}
       />
       {error && (
-        <div className="rounded-xl border border-[color-mix(in_oklch,var(--danger)_30%,transparent)] px-4 py-2.5 text-xs text-[var(--danger)]">{error}</div>
+        <div className="bid-alert bid-alert--danger">{error}</div>
       )}
 
       {/* 生成/下载区 */}
@@ -241,6 +238,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
           {canHost && (
           <button
             type="button"
+            disabled={busy !== null}
             onClick={() => setNotesOpen(true)}
             className="neu-btn-soft !h-[34px] !text-xs"
             title="编辑《评标报告》十项法定内容的章节附注；生成签字包时取库内最新值"
@@ -300,7 +298,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               {canHost && (
               <button
                 type="button"
-                disabled={closed}
+                disabled={busy !== null || closed}
                 onClick={() => setNotesOpen(true)}
                 className="neu-btn-soft !h-[34px] !text-xs"
                 title="编辑《评标报告》十项法定内容的章节附注；重新生成签字包时取库内最新值"
@@ -319,7 +317,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 <FileDown size={11} /> 查看已回传扫描
               </a>
             ) : (
-              <span className="text-xs text-[var(--warning,#b7791f)]">未回传</span>
+              <span className="text-xs text-[var(--warning)]">未回传</span>
             )}
 
           </div>
@@ -329,28 +327,27 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
       {/* 专家签字清单（Task 8 叠加登记按钮与弹窗）—— cgzxui 玻璃卡承表（原裸 border 无面底，玻璃卡旁显透明） */}
       <div className="neu-card-static overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-xs">
+        <table className="neu-table is-dense w-full min-w-[640px]">
           <thead>
-            <tr className="border-b border-[var(--hairline)] text-[11px] text-[var(--muted-foreground)]">
-              <th className="px-4 py-2.5 font-medium">专家</th>
-              <th className="px-3 py-2.5 font-medium">角色</th>
-              <th className="px-3 py-2.5 font-medium">签字状态</th>
-              <th className="px-3 py-2.5 font-medium">不同意见</th>
-              <th className="px-3 py-2.5 font-medium">扫描件</th>
-              <th className="px-3 py-2.5 text-right font-medium">操作</th>
+            <tr>
+              <th>专家</th>
+              <th>角色</th>
+              <th>签字状态</th>
+              <th>不同意见</th>
+              <th>扫描件</th>
+              <th className="text-right">操作</th>
             </tr>
           </thead>
           <tbody>
             {data.experts.map((e) => (
-              <tr key={e.expertId} className="border-b border-[var(--hairline)] last:border-0">
-                <td className="px-4 py-2.5">
+              <tr key={e.expertId}>
+                <td>
                   <span className="font-semibold text-[var(--foreground)]">{e.name}</span>
-                  {e.isLead && <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] text-[var(--accent)]" style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>组长</span>}
+                  {e.isLead && <span className="bid-pill bid-pill--accent ml-1.5">组长</span>}
                   {/* A-132：评委分工徽标（分组 · 职责，仅显示已设维度；两维皆空则不加） */}
                   {(e.reviewGroup || e.dutyRole) && (
                     <span
-                      className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]"
-                      style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}
+                      className="bid-pill bid-pill--muted ml-1.5"
                       title="评标委员会分工（在采购管理工作台开标确认流程中配置，写入评标报告名单）"
                     >
                       {[e.reviewGroup, e.dutyRole].filter(Boolean).join(' · ')}
@@ -358,16 +355,15 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   )}
                   <span className="ml-1 text-[11px] text-[var(--muted-foreground)]">{e.major}</span>
                 </td>
-                <td className="px-3 py-2.5 text-[var(--muted-foreground)]">{e.role}{e.isPurchaserRepresentative ? '·采购人代表' : ''}</td>
-                <td className="px-3 py-2.5">
-                  <span className="font-semibold" style={{ color: STATUS_TONE[e.signStatus] ?? 'var(--muted-foreground)' }}>
+                <td className="text-[var(--muted-foreground)]">{e.role}{e.isPurchaserRepresentative ? '·采购人代表' : ''}</td>
+                <td>
+                  <span className="sign-status font-semibold" data-status={e.signStatus}>
                     {STATUS_LABEL[e.signStatus] ?? e.signStatus}
                   </span>
                   {/* A-152：电子签名小徽标（SIGNED 且带 esignature = 专家端电子签署；仅纸质登记维持原展示） */}
                   {e.signStatus === 'SIGNED' && e.esignature && (
                     <span
-                      className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[var(--success)]"
-                      style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
+                      className="bid-pill bid-pill--success ml-1.5"
                       title={`${e.esignature.algorithm} · ${e.esignature.certSn ?? '—'} · ${e.esignature.verifiedAt ?? '—'}`}
                     >
                       电子签名
@@ -375,15 +371,15 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   )}
                   {e.signStatusAt && <span className="ml-1 text-[10px] text-[var(--muted-foreground)] tabular-nums">{new Date(e.signStatusAt).toLocaleString('zh-CN')}</span>}
                 </td>
-                <td className="max-w-[220px] truncate px-3 py-2.5 text-[var(--muted-foreground)]" title={e.dissentingOpinion ?? undefined}>
+                <td className="max-w-[220px] truncate text-[var(--muted-foreground)]" title={e.dissentingOpinion ?? undefined}>
                   {e.dissentingOpinion ?? '—'}
                 </td>
-                <td className="px-3 py-2.5">
+                <td>
                   {e.signScanUrl ? (
                     <a href={e.signScanUrl} target="_blank" rel="noopener" className="text-[var(--accent)] hover:underline">查看</a>
                   ) : <span className="text-[var(--muted-foreground)]">—</span>}
                 </td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="text-right">
                   {/* 两步走：待签只给「登记」；已登记只给「撤销」（撤销后回待签再登记）——
                       与服务端「已登记须先撤销再重登」（409 SIGN_ALREADY_REGISTERED）语义对齐，
                       不再提供提交必被 409 挡回的「重新登记」入口。
@@ -394,7 +390,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                         type="button"
                         disabled={busy !== null}
                         onClick={() => setRegistering(e)}
-                        className="rounded-lg border border-[var(--hairline)] px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-40"
+                        className="neu-btn-xs"
                       >
                         登记
                       </button>
@@ -411,7 +407,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                             });
                           }
                         }}
-                        className="rounded-lg border border-[var(--hairline)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--danger)] disabled:opacity-40"
+                        className="neu-btn-xs is-danger"
                       >
                         撤销
                       </button>
@@ -451,7 +447,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
       {/* 闭环横幅 + 回流包 */}
       {closed && (
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3" style={{ background: 'color-mix(in oklch, var(--success) 8%, transparent)' }}>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-4 py-3">
           <ClipboardCheck size={15} className="text-[var(--success)]" />
           <span className="text-sm font-semibold text-[var(--success)]">签字已闭环，采购管理工作台可执行完整归档</span>
           {esignedCount > 0 && <span className="text-xs text-[var(--success)]">含 {esignedCount} 位专家电子签名</span>}
@@ -465,7 +461,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 type="button"
                 disabled={busy !== null}
                 onClick={() => void run('handover', () => generateHandover(projectId))}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-40"
+                className="neu-btn-soft !h-[30px] !text-xs"
               >
                 {busy === 'handover' ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
                 生成评标回流包
@@ -549,18 +545,25 @@ function ReportNotesDialog({ projectId, onClose }: { projectId: string; onClose:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { if (!busy) onClose(); }}>
-      <div className="flex max-h-[82vh] w-[640px] max-w-[92vw] flex-col rounded-2xl border border-[var(--hairline)] bg-[var(--background)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 flex items-center justify-between">
+    <div className="bid-overlay" onClick={() => { if (!busy) onClose(); }}>
+      <div className="bid-overlay-backdrop" />
+      <div
+        className="bid-dialog relative mx-4 flex max-h-[82vh] w-full max-w-[min(640px,92vw)] flex-col"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 pb-4 pt-5">
           <p className="text-sm font-semibold text-[var(--foreground)]">报告附注 — 《评标报告》十项法定内容</p>
-          <button type="button" onClick={onClose} disabled={busy} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={15} /></button>
+          <button type="button" onClick={onClose} disabled={busy} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
         </div>
-        <p className="mb-3 text-[11px] text-[var(--muted-foreground)]">一~九节内容以「附注：」段插入对应章节末；十节内容直接拼入报告正文。</p>
+        <hr className="wb-section-rule mx-6" />
+        <p className="px-6 pt-4 text-[11px] text-[var(--muted-foreground)]">一~九节内容以「附注：」段插入对应章节末；十节内容直接拼入报告正文。</p>
 
-        {error && <div className="mb-3 rounded-xl border border-[color-mix(in_oklch,var(--danger)_30%,transparent)] px-3 py-2 text-xs text-[var(--danger)]">{error}</div>}
-        {loading && <div className="mb-3 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><Loader2 size={12} className="animate-spin" /> 正在加载附注…</div>}
+        {error && <div className="bid-alert bid-alert--danger mx-6 mt-3">{error}</div>}
+        {loading && <div className="mx-6 mt-3 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><Loader2 size={12} className="animate-spin" /> 正在加载附注…</div>}
 
-        <div className="-mr-2 flex-1 space-y-3 overflow-y-auto pr-2">
+        <div className="-mr-2 flex-1 space-y-3 overflow-y-auto px-6 pb-5 pt-3 pr-4">
           {REPORT_NOTE_ROWS.map((r) => {
             const v = contents[r.section] ?? '';
             return (
@@ -570,8 +573,7 @@ function ReportNotesDialog({ projectId, onClose }: { projectId: string; onClose:
                     {r.label}
                     {r.section === '十' && (
                       <span
-                        className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]"
-                        style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}
+                        className="bid-pill bid-pill--accent ml-1.5"
                         title="一~九节为章末附注段，十节内容续写进本节正文"
                       >
                         拼入报告正文
@@ -587,22 +589,23 @@ function ReportNotesDialog({ projectId, onClose }: { projectId: string; onClose:
                   rows={2}
                   disabled={!loaded}
                   placeholder="（可不填）"
-                  className="w-full resize-none rounded-xl border border-[var(--hairline)] bg-transparent px-3 py-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)] disabled:opacity-50"
+                  className="workbench-input w-full resize-none disabled:opacity-50"
                 />
               </div>
             );
           })}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-end justify-between gap-2 border-t border-[var(--hairline)] pt-3">
+        <hr className="wb-section-rule mx-6" />
+        <div className="flex flex-wrap items-end justify-between gap-2 px-6 py-4">
           <p className="max-w-[380px] text-[10px] leading-relaxed text-[var(--muted-foreground)]">保存后生成/重新生成签字包时生效（生成时取库内最新）；十行全空保存即清空全部附注。</p>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} disabled={busy} className="rounded-xl border border-[var(--hairline)] px-4 py-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-40">取消</button>
+            <button type="button" onClick={onClose} disabled={busy} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
             <button
               type="button"
               disabled={!loaded || busy}
               onClick={() => void save()}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--accent)] px-4 py-2 text-xs font-semibold text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] disabled:opacity-40"
+              className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
             >
               {busy ? <Loader2 size={13} className="animate-spin" /> : null}
               保存

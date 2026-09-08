@@ -156,7 +156,7 @@ export function ContactPanel({ editing, onSaved, onClose }: {
                 />
               </div>
             </div>
-            <div className="ct-panel-row" style={{ marginTop: 14 }}>
+            <div className="ct-panel-row mt-3.5">
               <div className="ct-panel-field">
                 <label className="ct-panel-label ct-panel-label--opt">邮箱</label>
                 <input
@@ -177,7 +177,7 @@ export function ContactPanel({ editing, onSaved, onClose }: {
                 />
               </div>
             </div>
-            <div className="ct-panel-row" style={{ marginTop: 14 }}>
+            <div className="ct-panel-row mt-3.5">
               <div className="ct-panel-field ct-panel-field--toggle">
                 <label className="ct-panel-label ct-panel-label--opt">主要联系人</label>
                 <button

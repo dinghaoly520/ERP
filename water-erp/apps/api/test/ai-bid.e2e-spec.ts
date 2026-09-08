@@ -36,6 +36,8 @@ describe('AI Bid Analysis (e2e) — C14', () => {
   let prisma: PrismaService;
   let bidHostCookie: string[];
   let expertCookie: string[];
+  let chenHostId: string;
+  let rerunProjectId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -51,7 +53,26 @@ describe('AI Bid Analysis (e2e) — C14', () => {
     prisma = app.get(PrismaService);
 
     // 登录：bid_host（陈主任）+ bid_expert（任一专家）
-    bidHostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
+    // 2026-08-14 auth port-roles 后 bid_host 被 web 门户拒（403 无 cookie），改 bid 门户（token_bid + X-Portal:bid）
+    bidHostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'bid');
+    expect(bidHostCookie.join()).toContain('token_bid=');
+    chenHostId = (await prisma.user.findFirst({ where: { username: '陈源远', role: 'bid_host', isActive: true } }))!.id;
+
+    // rerun 正例自建 EVALUATING fixture：2026-08-28 评标产出保护闸门（存在条款标注/评分记录即 409
+    // EVALUATION_IN_PROGRESS）后，种子/残留的 EVALUATING 项目均带评分记录，201 路径只能自建无产出项目验证
+    // （直接 prisma 建，不经 HTTP create——不受截标↔开标 24h 校验；assignedHostUserId 供公司隔离 :3007 放行）
+    const rerunProj = await prisma.bidProject.create({
+      data: {
+        projectCode: `E2E-AIBID-${Date.now()}`,
+        name: `AI分析E2E-${Date.now()}`,
+        procurementMethod: '公开招标',
+        stage: 'EVALUATING',
+        openTime: new Date(Date.now() + 7200_000),
+        deadline: new Date(Date.now() + 3600_000),
+        assignedHostUserId: chenHostId,
+      },
+    });
+    rerunProjectId = rerunProj.id;
     // 找一个有项目的专家
     const expert = await prisma.bidExpert.findFirst({
       where: { project: { stage: 'EVALUATING' } },
@@ -63,6 +84,12 @@ describe('AI Bid Analysis (e2e) — C14', () => {
   });
 
   afterAll(async () => {
+    if (rerunProjectId) {
+      // rerun 副作用：监督日志 + AI 任务（task 随项目 onDelete:Cascade，先清日志防 FK）
+      await prisma.bidSupervisionLog.deleteMany({ where: { projectId: rerunProjectId } }).catch(() => {});
+      await prisma.aiBidAnalysisTask.deleteMany({ where: { projectId: rerunProjectId } }).catch(() => {});
+      await prisma.bidProject.delete({ where: { id: rerunProjectId } }).catch(() => {});
+    }
     await app.close();
   });
 
@@ -70,28 +97,20 @@ describe('AI Bid Analysis (e2e) — C14', () => {
 
   describe('POST /bid/projects/:id/rerun-ai-analysis', () => {
     it('对 EVALUATING 阶段项目返回 201', async () => {
-      // 找一个 EVALUATING 阶段的项目
-      const project = await prisma.bidProject.findFirst({
-        where: { stage: 'EVALUATING' },
-        select: { id: true },
-      });
-      if (!project) {
-        console.warn('No EVALUATING project found — skipping rerun test');
-        return;
-      }
-
+      // 用 beforeAll 自建的无评标产出 EVALUATING fixture（2026-08-28 产出保护闸门后
+      // 种子项目均带评分记录必 409，正例 201 只能靠自建项目验证）
       const res = await request(app.getHttpServer())
-        .post(`/api/bid/projects/${project.id}/rerun-ai-analysis`)
+        .post(`/api/bid/projects/${rerunProjectId}/rerun-ai-analysis`)
         .set('Cookie', bidHostCookie)
-        .set('X-Portal', 'web');
+        .set('X-Portal', 'bid');
 
       expect([201, 400]).toContain(res.status);
-      // 400 = 项目不在 EVALUATING（状态已变） or 入队失败 — 均可接受
+      // 400 = 入队失败（ensureTenderAnalysis 保留入队失败语义）— 可接受；201 = 正常入队
     });
 
     it('非 EVALUATING 阶段返回 400', async () => {
       const project = await prisma.bidProject.findFirst({
-        where: { stage: { not: 'EVALUATING' } },
+        where: { stage: { not: 'EVALUATING' }, assignedHostUserId: chenHostId },
         select: { id: true },
       });
       if (!project) {
@@ -102,7 +121,7 @@ describe('AI Bid Analysis (e2e) — C14', () => {
       const res = await request(app.getHttpServer())
         .post(`/api/bid/projects/${project.id}/rerun-ai-analysis`)
         .set('Cookie', bidHostCookie)
-        .set('X-Portal', 'web');
+        .set('X-Portal', 'bid');
 
       expect(res.status).toBe(400);
     });
@@ -172,7 +191,7 @@ describe('AI Bid Analysis (e2e) — C14', () => {
       const res = await request(app.getHttpServer())
         .get(`/api/upload/files/${report.docxFileId}`)
         .set('Cookie', bidHostCookie)
-        .set('X-Portal', 'web');
+        .set('X-Portal', 'bid');
 
       // 200（可下载）或 404（文件未在 MinIO）/403 — 均接受
       expect([200, 403, 404]).toContain(res.status);

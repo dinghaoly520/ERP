@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { WorkTemplateService } from './work-template.service';
+import { DEFAULT_OPENING_FIELDS } from './opening-field-config.util';
 
 /** W8（CTS A-115/A-147）：开标记录/评标模板 CRUD + 生效选择 */
 describe('WorkTemplateService（W8）', () => {
@@ -12,6 +13,7 @@ describe('WorkTemplateService（W8）', () => {
       update: jest.fn().mockResolvedValue({ id: 'wt-1' }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn().mockResolvedValue(over.count ?? 0),
+      delete: jest.fn().mockResolvedValue({ id: 'wt-1' }),
     },
   });
 
@@ -53,5 +55,73 @@ describe('WorkTemplateService（W8）', () => {
     const prisma = mk({ active: null });
     const r = await new WorkTemplateService(prisma as any).activeForKind('opening_record');
     expect(r).toBeNull();
+  });
+
+  // ── A-115：PATCH/DELETE（active 禁删保监管导出）──
+
+  it('A-115 update：改 name/content 正常落库（kind 不可改）', async () => {
+    const prisma = mk({ one: { id: 'wt-1', kind: 'opening_record', name: '旧名', isActive: true } });
+    const svc = new WorkTemplateService(prisma as any);
+    await svc.update('wt-1', { name: '新名', content: { cols: ['报价'] } as any });
+    expect(prisma.workTemplate.update).toHaveBeenCalledWith({
+      where: { id: 'wt-1' },
+      data: { name: '新名', content: { cols: ['报价'] } },
+    });
+  });
+
+  it('A-115 update：同名冲突 P2002 → TEMPLATE_DUPLICATE；不存在 → NOT_FOUND', async () => {
+    const dup = mk({ one: { id: 'wt-1', kind: 'opening_record' } });
+    dup.workTemplate.update.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    await expect(new WorkTemplateService(dup as any).update('wt-1', { name: '已存在名' }))
+      .rejects.toMatchObject({ response: { code: 'TEMPLATE_DUPLICATE' } });
+    await expect(new WorkTemplateService(mk({ one: null }) as any).update('nope', { name: 'x' }))
+      .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+  });
+
+  it('A-115 remove：生效中模板 → 400 TEMPLATE_ACTIVE_DELETE_FORBIDDEN（监管导出正在使用）', async () => {
+    const prisma = mk({ one: { id: 'wt-1', kind: 'opening_record', isActive: true } });
+    await expect(new WorkTemplateService(prisma as any).remove('wt-1'))
+      .rejects.toMatchObject({ response: { code: 'TEMPLATE_ACTIVE_DELETE_FORBIDDEN' } });
+    expect(prisma.workTemplate.delete).not.toHaveBeenCalled();
+  });
+
+  it('A-115 remove：非活跃模板 → 删除成功返回 {deleted:true}', async () => {
+    const prisma = mk({ one: { id: 'wt-2', kind: 'opening_record', isActive: false } });
+    const r = await new WorkTemplateService(prisma as any).remove('wt-2');
+    expect(r).toEqual({ deleted: true });
+    expect(prisma.workTemplate.delete).toHaveBeenCalledWith({ where: { id: 'wt-2' } });
+  });
+
+  // ── A-113：opening_record 模板 content.fields 形状校验（columns 既有语义不动）──
+
+  it('A-113 create：kind=opening_record 带合法 fields（含 columns 共存）→ 通过并落库', async () => {
+    const prisma = mk({ count: 1 });
+    const svc = new WorkTemplateService(prisma as any);
+    await svc.create('opening_record', '唱标字段模板', {
+      columns: [{ key: 'amount', label: '报价' }],
+      fields: [...DEFAULT_OPENING_FIELDS],
+    } as any, 'u1');
+    expect(prisma.workTemplate.create).toHaveBeenCalled();
+  });
+
+  it('A-113 create：fields 缺法定键（删 amount）→ 400 OPENING_FIELD_CONFIG_INVALID，不落库', async () => {
+    const prisma = mk({ count: 1 });
+    const svc = new WorkTemplateService(prisma as any);
+    await expect(svc.create('opening_record', '坏模板', {
+      fields: DEFAULT_OPENING_FIELDS.filter((f) => f.key !== 'amount'),
+    } as any, 'u1')).rejects.toMatchObject({ response: { code: 'OPENING_FIELD_CONFIG_INVALID' } });
+    expect(prisma.workTemplate.create).not.toHaveBeenCalled();
+  });
+
+  it('A-113 update：content.fields 非法 → 400 拒不落库；content 无 fields 键（仅 columns，存量模板）→ 不校验照常更新', async () => {
+    const one = { id: 'wt-1', kind: 'opening_record', name: '旧名' };
+    const bad = mk({ one });
+    await expect(new WorkTemplateService(bad as any).update('wt-1', { content: { fields: [{ key: 'x', label: 'X', type: 'text' }] } as any }))
+      .rejects.toMatchObject({ response: { code: 'OPENING_FIELD_CONFIG_INVALID' } });
+    expect(bad.workTemplate.update).not.toHaveBeenCalled();
+
+    const ok = mk({ one });
+    await new WorkTemplateService(ok as any).update('wt-1', { content: { columns: [{ key: 'amount', label: '报价' }] } as any });
+    expect(ok.workTemplate.update).toHaveBeenCalled();
   });
 });

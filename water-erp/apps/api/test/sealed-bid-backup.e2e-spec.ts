@@ -43,7 +43,8 @@ describe('Sealed Bid Backup (e2e)', () => {
     await ensureBucket();
 
     prisma = app.get(PrismaService);
-    adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');       // web 门户解析为 bid_host
+    adminCookie = await loginAs(app, 'Swhi-CGZX-admin', 'Swhi-CGZX-admin@2026', 'web');       // web 门户 admin 会话
+    expect(adminCookie.join()).toContain('token_web=');
     supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
 
     const user = await prisma.user.findFirst({ where: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } });
@@ -51,9 +52,10 @@ describe('Sealed Bid Backup (e2e)', () => {
     supplierId = supplier!.id;
 
     // 建项目并强制进入 SUBMIT 阶段、截止时间设为未来
+    // 2026-08-21 起截标↔开标 24h 规则：创建时 deadline 必须 = openTime−24h（align 模式 ±60s）
     const pres = await request(app.getHttpServer())
       .post('/api/bid/projects').set('Cookie', adminCookie).set('X-Portal', 'web')
-      .send({ name: `E2E备份-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-30T17:00:00Z' })
+      .send({ name: `E2E备份-${Date.now()}`, procurementMethod: '公开招标', openTime: '2099-12-31T09:00:00Z', deadline: '2099-12-30T09:00:00Z' })
       .expect(201);
     projectId = pres.body.id;
     await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'SUBMIT', deadline: new Date('2099-12-30T17:00:00Z') } });
@@ -97,7 +99,8 @@ describe('Sealed Bid Backup (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/api/supplier-portal/bid-submissions/${projectId}/submit`)
       .set('Cookie', supplierCookie).set('X-Portal', 'supplier')
-      .send({ technicalFileAssetId: assetId, bidPrice: '1000000', deliveryPeriod: '90天' })
+      // P1-1 旧轨投递闸门：须勾选代解密授权（hostDecryptAuthorized=true，办法第30条留痕）
+      .send({ technicalFileAssetId: assetId, bidPrice: '1000000', deliveryPeriod: '90天', hostDecryptAuthorized: true })
       .expect(201);
 
     const submission = await prisma.supplierBidSubmission.findUnique({ where: { supplierId_projectId: { supplierId, projectId } } });

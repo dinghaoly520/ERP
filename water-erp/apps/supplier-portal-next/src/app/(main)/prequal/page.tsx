@@ -76,7 +76,7 @@ export default function PrequalPage() {
                   <p className="obj-content">合格有效期至：{dayjs(p.validUntil).format("YYYY-MM-DD")}（期内同品类免重复审查）</p>
                 )}
                 {!p.myStatus && (
-                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                  <div className="mt-2.5 flex justify-end">
                     <SpButton variant="primary" onClick={() => setApplicationTarget(p)}><Send size={13} /> 提交申请</SpButton>
                   </div>
                 )}

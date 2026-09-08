@@ -101,8 +101,8 @@ export default function FrameworksPage() {
                     </div>
                     <div className="obj-title">
                       {e.fa.title}
-                      <span className="obj-phase" style={{ marginLeft: 10 }}>{VARIANT_LABEL[e.fa.variant] ?? e.fa.variant}</span>
-                      {e.shareRatio != null && <span className="obj-code" style={{ marginLeft: 10 }}>占比 {e.shareRatio}%</span>}
+                      <span className="obj-phase ml-2.5">{VARIANT_LABEL[e.fa.variant] ?? e.fa.variant}</span>
+                      {e.shareRatio != null && <span className="obj-code ml-2.5">占比 {e.shareRatio}%</span>}
                     </div>
                     {priceFormula && <p className="obj-content">价格规则：{priceFormula}</p>}
                     {quotaRule && <p className="obj-content">数量/占比约定：{quotaRule}</p>}

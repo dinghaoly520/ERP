@@ -81,7 +81,7 @@ export function InvitationDocxPreview({ url, fileName }: { url: string; fileName
         {error && !loading && (
           <div className="cc-inv-docx-mask">
             <TriangleAlert size={16} /> {error}
-            <button type="button" className="neu-btn-xs" style={{ marginLeft: 12 }} onClick={download}>直接下载</button>
+            <button type="button" className="neu-btn-xs ml-3" onClick={download}>直接下载</button>
           </div>
         )}
       </div>

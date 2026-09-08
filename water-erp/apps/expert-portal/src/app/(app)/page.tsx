@@ -160,7 +160,7 @@ export default function ExpertDashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             {totalPending > 0 && (
-              <span className="rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums text-white" style={{ background: 'var(--warning)' }}>
+              <span className="exp-pill exp-pill--solid !px-2.5 !text-[11px] tabular-nums" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>
                 {totalPending} 项待处理
               </span>
             )}
@@ -183,7 +183,7 @@ export default function ExpertDashboardPage() {
             <div className="mb-3 flex items-center gap-2">
               <ClipboardCheck size={15} strokeWidth={1.8} className="text-[var(--accent-strong)]" />
               <h3 className="text-sm font-bold text-[var(--foreground)]">进行中评审</h3>
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: inProgress.length > 0 ? 'var(--accent)' : 'var(--muted-foreground)' }}>
+              <span className="exp-pill exp-pill--solid tabular-nums" style={{ '--c': inProgress.length > 0 ? 'var(--accent)' : 'var(--muted-foreground)' } as React.CSSProperties}>
                 {inProgress.length}
               </span>
             </div>
@@ -203,7 +203,7 @@ export default function ExpertDashboardPage() {
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
-                          <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
+                          <span className="exp-pill shrink-0" style={{ '--c': sc } as React.CSSProperties}>
                             {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
                           </span>
                         </div>
@@ -232,7 +232,7 @@ export default function ExpertDashboardPage() {
           <section>
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${totalPending > 0 ? 'animate-pulse' : ''}`} style={{ background: totalPending > 0 ? 'var(--warning)' : 'var(--success)' }} />
+                <span className={`exp-pill-dot ${totalPending > 0 ? 'animate-pulse' : ''}`} style={{ '--c': totalPending > 0 ? 'var(--warning)' : 'var(--success)' } as React.CSSProperties} />
                 <h3 className="text-sm font-bold text-[var(--foreground)]">待处理事项</h3>
                 {totalPending > 0 && <span className="text-xs font-semibold tabular-nums text-[var(--warning)]">{totalPending}</span>}
               </div>
@@ -334,15 +334,12 @@ export default function ExpertDashboardPage() {
                           <div className="flex items-center gap-2 text-xs mb-1.5">
                             <span className="truncate font-semibold text-[var(--foreground)]">{m.projectName}</span>
                             {sc && (
-                              <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
+                              <span className="exp-pill shrink-0 !px-1 !py-0.5 !text-[9px]" style={{ '--c': sc } as React.CSSProperties}>
                                 {STAGE_LABEL[m.projectStage as keyof typeof STAGE_LABEL] ?? m.projectStage}
                               </span>
                             )}
-                            <span className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold"
-                              style={{
-                                background: needVote ? 'color-mix(in oklch, var(--warning) 14%, transparent)' : 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)',
-                                color: needVote ? 'var(--warning)' : 'var(--muted-foreground)',
-                              }}>
+                            <span className="exp-pill ml-auto shrink-0 !px-1.5 !py-0.5 !text-[9px]"
+                              style={{ '--c': needVote ? 'var(--warning)' : 'var(--muted-foreground)' } as React.CSSProperties}>
                               {isVoting ? (m.myVote ? `已投：${VOTE_LABEL[m.myVote] ?? m.myVote}` : '待投票') : (
                                 m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : '△ 平票'
                               )}
@@ -407,7 +404,7 @@ export default function ExpertDashboardPage() {
               <div className="mb-3 flex items-center gap-2">
                 <CheckCircle2 size={15} strokeWidth={1.8} className="text-[var(--success)]" />
                 <h3 className="text-sm font-bold text-[var(--foreground)]">最近完成</h3>
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: 'var(--success)' }}>
+                <span className="exp-pill exp-pill--solid tabular-nums" style={{ '--c': 'var(--success)' } as React.CSSProperties}>
                   {completed.length}
                 </span>
               </div>
@@ -436,10 +433,10 @@ function TaskGroup({ icon, color, label, count, children }: {
 }) {
   return (
     <div className="neu-card-static rounded-xl p-4">
-      <div className="mb-2 flex items-center gap-2" style={{ color }}>
+      <div className="mb-2 flex items-center gap-2 text-[color:var(--c)]" style={{ '--c': color } as React.CSSProperties}>
         {icon}
         <span className="text-xs font-bold">{label}</span>
-        <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: color }}>
+        <span className="exp-pill exp-pill--solid tabular-nums" style={{ '--c': color } as React.CSSProperties}>
           {count}
         </span>
       </div>
@@ -456,7 +453,7 @@ function TaskRow({ name, stage, subtitle, meta, onClick }: {
     <button onClick={onClick} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
       <span className="truncate text-xs font-semibold text-[var(--foreground)]">{name}</span>
       {stage && sc && (
-        <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
+        <span className="exp-pill shrink-0 !px-1 !py-0.5 !text-[9px]" style={{ '--c': sc } as React.CSSProperties}>
           {STAGE_LABEL[stage as keyof typeof STAGE_LABEL] ?? stage}
         </span>
       )}

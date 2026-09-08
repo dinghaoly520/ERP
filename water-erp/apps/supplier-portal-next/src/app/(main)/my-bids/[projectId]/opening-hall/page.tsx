@@ -329,7 +329,7 @@ export default function OpeningHallPage() {
                   <td>
                     <span className={record?.submitted?.priceMismatch ? "mismatch" : undefined}>{submittedPriceText}</span>
                     {record?.submitted?.priceMismatch && (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain" style={{ marginLeft: 6 }}>
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">
                         与唱标不一致
                       </span>
                     )}
@@ -346,7 +346,7 @@ export default function OpeningHallPage() {
                       {record?.submitted?.deliveryPeriod || "—"}
                     </span>
                     {record?.submitted?.periodMismatch && (
-                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain" style={{ marginLeft: 6 }}>
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain ml-1.5">
                         与唱标不一致
                       </span>
                     )}
@@ -379,8 +379,7 @@ export default function OpeningHallPage() {
                     {/* A-114：已电子签名徽标（本人视图完整归档含 algorithm/verifiedAt；配色同本页 .presence 绿色药丸） */}
                     {record?.confirmSignature && (
                       <span
-                        className="hall-tag hall-tag--sm"
-                        style={{ marginLeft: 6, gap: 4, background: "#f0f9eb", borderColor: "#e1f3d8", color: "#529b2e" }}
+                        className="hall-tag hall-tag--sm ml-1.5 gap-1 bg-[color-mix(in_oklch,var(--success)_12%,transparent)] border-[color-mix(in_oklch,var(--success)_30%,transparent)] text-success"
                       >
                         <Lock size={12} strokeWidth={1.75} />
                         已电子签名（{record.confirmSignature.algorithm ?? "SM2/SM3"}
@@ -525,7 +524,7 @@ export default function OpeningHallPage() {
           placeholder="请输入异议原因"
           autoFocus
         />
-        {!disputeReason.trim() && <p style={{ marginTop: 8, fontSize: 12, color: "#e6a23c" }}>请填写异议原因</p>}
+        {!disputeReason.trim() && <p className="mt-2 text-xs text-warning">请填写异议原因</p>}
       </SpDialog>
 
       {/* ═══ U盾口令对话框（克隆回执卡 A-101：解锁后自动续跑挂起的开标确认/补签签名，A-114）═══ */}
@@ -547,7 +546,7 @@ export default function OpeningHallPage() {
           即将对本开标记录（唱标信息快照：报价/工期/质量目标等）进行 U盾电子签名，签名后随确认结果归档留痕。
         </p>
         {ukeyPresent === false ? (
-          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
         ) : (
         <>
         <label className="reg-label">证书口令</label>

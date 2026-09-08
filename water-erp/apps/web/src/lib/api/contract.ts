@@ -199,5 +199,5 @@ export function listBondReturns(projectId: string) {
 
 /** A-105：逐家登记保证金退还/不予退还（同步开标记录 bondStatus、记监督日志；不予退还必填理由） */
 export function markSupplierBondReturned(projectId: string, data: { supplierName: string; returned: boolean; reason?: string }) {
-  return api.post<{ supplierName: string; bondReturnedAt: string | null; bondReturnReason: string | null }>(`/bid/projects/${projectId}/bond-return-supplier`, data);
+  return api.post<{ success: boolean }>(`/bid/projects/${projectId}/bond-return-supplier`, data);
 }

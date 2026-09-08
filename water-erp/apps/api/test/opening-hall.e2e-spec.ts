@@ -166,14 +166,14 @@ describe('Opening Hall (e2e)', () => {
       data: { projectId, host: '陈源远', supervisor: '监督', decryptWindowStart: new Date(), decryptWindowEnd: new Date(Date.now() + 3600_000) },
     });
     await prisma.bidSupplier.createMany({ data: [
-      { projectId, supplierId: sup1Id, supplierName: s1!.name, decryptStatus: 'SUCCESS' },
-      { projectId, supplierId: sup2Id, supplierName: s2!.name, decryptStatus: 'SUCCESS' },
+      { projectId, supplierId: sup1Id, supplierName: s1!.name, decryptStatus: 'SUCCESS', submitStatus: '已提交' },
+      { projectId, supplierId: sup2Id, supplierName: s2!.name, decryptStatus: 'SUCCESS', submitStatus: '已提交' },
     ]});
     const bs1 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup1Id } });
     const bs2 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup2Id } });
     await prisma.bidOpeningRecord.createMany({ data: [
-      { projectId, supplierName: s1!.name, amount: '100', period: '90', qualityTarget: '合格', bondStatus: '已缴', decryptResult: '成功', confirmStatus: '待确认', bidSupplierId: bs1!.id },
-      { projectId, supplierName: s2!.name, amount: '200', period: '90', qualityTarget: '合格', bondStatus: '已缴', decryptResult: '成功', confirmStatus: '待确认', bidSupplierId: bs2!.id },
+      { projectId, supplierName: s1!.name, amount: '100', period: '90', qualityTarget: '合格', bondStatus: '已缴纳', decryptResult: '成功', confirmStatus: '待确认', bidSupplierId: bs1!.id },
+      { projectId, supplierName: s2!.name, amount: '200', period: '90', qualityTarget: '合格', bondStatus: '已缴纳', decryptResult: '成功', confirmStatus: '待确认', bidSupplierId: bs2!.id },
     ]});
   });
 

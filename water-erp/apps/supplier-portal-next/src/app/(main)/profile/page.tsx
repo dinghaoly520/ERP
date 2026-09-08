@@ -469,7 +469,7 @@ export default function ProfilePage() {
                       type="button"
                       onClick={() => void copyCreditCode()}
                       title="复制信用代码"
-                      style={{ padding: 0, fontSize: 18, color: "var(--brand)", background: "none", border: "none", cursor: "pointer", lineHeight: 1, display: "inline-flex" }}
+                      className="inline-flex cursor-pointer items-center border-none bg-transparent p-0 text-lg leading-none text-[var(--brand)]"
                     >
                       <Copy size={18} />
                     </button>
@@ -773,22 +773,21 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   {/* 业务标签 */}
-                  <div className="crp-f" style={{ marginBottom: 17 }}>
+                  <div className="crp-f mb-[17px]">
                     <div className="crp-fh">
                       <label>业务标签</label>
                       <span className="crp-n">{crTags.filter((t) => t.trim()).length}/8</span>
-                      <button type="button" className="neu-btn-xs" disabled={crTags.length >= 8} onClick={crAddTag} style={{ marginLeft: "auto" }}>+ 添加</button>
+                      <button type="button" className="neu-btn-xs ml-auto" disabled={crTags.length >= 8} onClick={crAddTag}>+ 添加</button>
                     </div>
                     {crTags.map((t, i) => (
-                      <div key={"crtag" + i} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                        <span className="crp-fh" style={{ minWidth: 24, fontSize: 12, color: "var(--muted-foreground)", fontWeight: 700 }}>{i + 1}.</span>
+                      <div key={"crtag" + i} className="mt-1.5 flex items-center gap-2">
+                        <span className="crp-fh min-w-6 text-xs font-bold text-muted-foreground">{i + 1}.</span>
                         <input
-                          className={cn("neu-input", t.trim() && (!(profile?.tags?.[i]) || t !== profile.tags[i]) && "dirty")}
+                          className={cn("neu-input flex-1", t.trim() && (!(profile?.tags?.[i]) || t !== profile.tags[i]) && "dirty")}
                           value={t}
                           onChange={(e) => { const next = [...crTags]; next[i] = e.target.value; setCrTags(next); }}
                           placeholder={i === 0 ? "如：办公用品" : i === 1 ? "如：钻机销售" : "标签" + (i + 1)}
                           maxLength={20}
-                          style={{ flex: 1 }}
                         />
                         {crTags.length > 2 && <button type="button" className="neu-btn-xs is-danger" onClick={() => crRemoveTag(i)}>删除</button>}
                       </div>
@@ -816,7 +815,7 @@ export default function ProfilePage() {
                       <span>个账户将提交（审批通过后替换现有 {bankAccounts.length} 个账户）</span>
                     </div>
                   )}
-                  <div style={{ marginBottom: 12 }}>
+                  <div className="mb-3">
                     <SpButton variant="soft" icon={Plus} onClick={crBankAdd}>添加银行账户</SpButton>
                   </div>
                   <div className="crp-rows">
@@ -862,7 +861,7 @@ export default function ProfilePage() {
                       </div>
                     ))}
                   </div>
-                  <div className="crp-f" style={{ marginTop: 4 }}>
+                  <div className="crp-f mt-1">
                     <label>变更原因</label>
                     <span className="crp-n">{crReason.length}/200</span>
                     <textarea
@@ -884,7 +883,7 @@ export default function ProfilePage() {
                       <span>项业绩将提交（审批通过后替换现有 {performances.length} 项业绩）</span>
                     </div>
                   )}
-                  <div style={{ marginBottom: 12 }}>
+                  <div className="mb-3">
                     <SpButton variant="soft" icon={Plus} onClick={crPerfAdd}>添加业绩</SpButton>
                   </div>
                   <div className="crp-rows">
@@ -951,7 +950,7 @@ export default function ProfilePage() {
                       </div>
                     ))}
                   </div>
-                  <div className="crp-f" style={{ marginTop: 4 }}>
+                  <div className="crp-f mt-1">
                     <label>变更原因</label>
                     <span className="crp-n">{crReason.length}/200</span>
                     <textarea
@@ -968,7 +967,7 @@ export default function ProfilePage() {
                 <div>
                   {qualsLoading ? <LoadingBlock /> : (
                     <>
-                      <div style={{ marginBottom: 12 }}>
+                      <div className="mb-3">
                         <SpButton variant="primary" icon={Plus} onClick={() => setQualDialogOpen(true)}>添加资质</SpButton>
                       </div>
                       {qualifications.length > 0 ? (
@@ -992,7 +991,7 @@ export default function ProfilePage() {
                 <div>
                   {contactsLoading ? <LoadingBlock /> : (
                     <>
-                      <div style={{ marginBottom: 12 }}>
+                      <div className="mb-3">
                         <SpButton variant="primary" icon={Plus} onClick={() => setCtPanel({ open: true, editing: null })}>添加联系人</SpButton>
                       </div>
                       {contacts.length > 0 ? (
@@ -1052,7 +1051,7 @@ export default function ProfilePage() {
                 <span className="crp-ft-h ok">检测到变更</span>
               )}
               {(crMode === "quals" || crMode === "contacts") && (
-                <span style={{ fontSize: 11, color: "var(--warning)", fontWeight: 600, marginLeft: "auto" }}>⚠ 资质与联系人修改保存后立即生效（不走审核）</span>
+                <span className="ml-auto text-[11px] font-semibold text-warning">⚠ 资质与联系人修改保存后立即生效（不走审核）</span>
               )}
               <div className="neu-btn-group">
                 <button type="button" className="neu-btn-soft" onClick={() => setCrDlg(false)}>取消</button>

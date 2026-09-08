@@ -27,10 +27,10 @@ const TYPE_LABEL: Record<string, string> = {
   other: '其他',
 };
 
-const STATUS_META: Record<string, { label: string; color: string; icon: typeof AlertTriangle }> = {
-  open: { label: '待裁决', color: 'var(--warning)', icon: AlertTriangle },
-  resolved: { label: '已采纳', color: 'var(--success)', icon: CheckCircle2 },
-  rejected: { label: '已驳回', color: 'var(--danger)', icon: XCircle },
+const STATUS_META: Record<string, { label: string; icon: typeof AlertTriangle }> = {
+  open: { label: '待裁决', icon: AlertTriangle },
+  resolved: { label: '已采纳', icon: CheckCircle2 },
+  rejected: { label: '已驳回', icon: XCircle },
 };
 
 function formatTime(iso: string | null | undefined): string {
@@ -128,18 +128,12 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
     <section className="neu-table-card px-4 py-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-            style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
-          >
-            <AlertTriangle size={15} className="text-[var(--warning)]" />
+          <div className="bid-icon-well bid-icon-well--warning flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]">
+            <AlertTriangle size={15} />
           </div>
           <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">专家异议处理</h3>
           {pendingCount > 0 && (
-            <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white"
-              style={{ background: 'var(--warning)' }}
-            >
+            <span className="bid-pill bid-pill--warning tabular-nums">
               {pendingCount} 待裁决
             </span>
           )}
@@ -152,8 +146,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
           F10：结果已生成不再收起建议流标——confirm 文案会作废警示，后端凭书面理由放行（N4c）。 */}
       {(suggestAbort || hasOpenDispute) && (
         <div
-          className="mb-3 flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
-          style={{ background: 'color-mix(in oklch, var(--danger) 10%, transparent)', color: 'var(--danger)' }}
+          className="bid-alert bid-alert--danger mb-3 flex items-center justify-between gap-3 rounded-[12px]"
         >
           {suggestAbort ? (
             <>
@@ -164,8 +157,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                 type="button"
                 onClick={handleAbort}
                 disabled={busyId === '__abort__'}
-                className="neu-btn-soft !h-[28px] !text-xs shrink-0"
-                style={{ color: 'var(--danger)' }}
+                className="neu-btn-soft is-danger !h-[28px] !text-xs shrink-0"
               >
                 {busyId === '__abort__' ? '流标中…' : '执行流标'}
               </button>
@@ -189,24 +181,18 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
             return (
               <div
                 key={d.id}
-                className="overflow-hidden rounded-[14px]"
-                style={{ border: `1px solid color-mix(in oklch, ${meta.color} 30%, oklch(0.6 0.04 258 / 0.1))` }}
+                className="dispute-card overflow-hidden rounded-[14px]"
+                data-status={d.status}
               >
                 {/* 头部：标题 / 专家 / 类型 / 状态 */}
-                <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.5)' }}>
+                <div className="flex flex-wrap items-center gap-2 bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
                   <span className="text-[13px] font-bold text-[var(--foreground)]">{d.title}</span>
                   <span className="text-[10px] text-[var(--muted-foreground)]">{d.expertName}</span>
-                  <span
-                    className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                    style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}
-                  >
+                  <span className="bid-pill bid-pill--accent">
                     {TYPE_LABEL[d.type] ?? d.type}
                   </span>
                   <span className="ml-auto tabular-nums text-[10px] text-[var(--muted-foreground)]">{formatTime(d.createdAt)}</span>
-                  <span
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
-                    style={{ background: `color-mix(in oklch, ${meta.color} 12%, transparent)`, color: meta.color }}
-                  >
+                  <span className="bid-pill" data-dispute={d.status}>
                     <StatusIcon size={11} strokeWidth={2} />
                     {meta.label}
                   </span>
@@ -219,8 +205,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                 {canResolve && (
                   <div className="space-y-2 px-3.5 pb-3">
                     <textarea
-                      className="w-full rounded-[10px] px-3 py-2 text-xs leading-5 outline-none"
-                      style={{ border: '1px solid oklch(0.6 0.04 258 / 0.16)', background: 'oklch(0.985 0.008 258 / 0.6)' }}
+                      className="workbench-input w-full resize-none"
                       rows={2}
                       placeholder="裁决回复（采纳说明 / 驳回理由）"
                       value={responseById[d.id] ?? ''}
@@ -230,8 +215,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                     {/* 联动废标：选择供应商后「废标并采纳」同事务生效 */}
                     {validSuppliers.length > 0 && (
                       <select
-                        className="w-full rounded-[10px] px-3 py-2 text-xs outline-none"
-                        style={{ border: '1px solid oklch(0.6 0.04 258 / 0.16)', background: 'oklch(0.985 0.008 258 / 0.6)' }}
+                        className="workbench-input w-full"
                         value={invalidateById[d.id] ?? ''}
                         onChange={(e) => setInvalidateById((prev) => ({ ...prev, [d.id]: e.target.value }))}
                         disabled={busyId === d.id}
@@ -247,8 +231,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                         type="button"
                         onClick={() => handleResolve(d.id, 'resolved')}
                         disabled={busyId === d.id}
-                        className="neu-btn-soft !h-[30px] !text-xs"
-                        style={{ color: 'var(--success)' }}
+                        className="neu-btn-soft is-success !h-[30px] !text-xs"
                       >
                         <ShieldCheck size={13} /> 采纳并回复
                       </button>
@@ -256,8 +239,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                         type="button"
                         onClick={() => handleResolve(d.id, 'resolved', true)}
                         disabled={busyId === d.id || !invalidateById[d.id]}
-                        className="neu-btn-soft !h-[30px] !text-xs"
-                        style={{ color: 'var(--danger)' }}
+                        className="neu-btn-soft is-danger !h-[30px] !text-xs"
                         title="采纳异议并把所选供应商置为废标"
                       >
                         <Ban size={13} /> 废标并采纳
@@ -266,8 +248,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                         type="button"
                         onClick={() => handleResolve(d.id, 'rejected')}
                         disabled={busyId === d.id}
-                        className="neu-btn-soft !h-[30px] !text-xs"
-                        style={{ color: 'var(--danger)' }}
+                        className="neu-btn-soft is-danger !h-[30px] !text-xs"
                       >
                         <XCircle size={13} /> 驳回
                       </button>
@@ -277,7 +258,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
 
                 {/* 已裁决回复 */}
                 {d.status !== 'open' && d.response && (
-                  <div className="px-3.5 py-2.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
+                  <div className="border-t border-[oklch(0.6_0.04_258/0.1)] px-3.5 py-2.5">
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--muted-foreground)]">
                       <ShieldCheck size={11} /> 裁决回复 · {formatTime(d.resolvedAt)}
                     </div>

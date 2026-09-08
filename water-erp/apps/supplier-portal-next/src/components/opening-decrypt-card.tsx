@@ -244,7 +244,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
     <div className="sp-module decrypt-card">
       <div className="sp-module-header">
         <h2 className="sp-module-title">解密我的投标</h2>
-        <span className="sp-module-title" style={{ fontSize: 12, fontWeight: 500, color: "#8a96aa" }}>双层信封 · 每 10 秒自动刷新</span>
+        <span className="sp-module-title !text-xs !font-medium !text-muted-foreground">双层信封 · 每 10 秒自动刷新</span>
       </div>
 
       {pkgState !== "ready" ? (
@@ -293,7 +293,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
           ) : (
             <>
               {decryptError && (
-                <div className="ann-alert ann-alert--error" style={{ marginBottom: 10 }}>
+                <div className="ann-alert ann-alert--error !mb-2.5">
                   <span className="ann-alert-ico"><CircleX size={15} strokeWidth={2} /></span>
                   <div className="ann-alert-body">
                     <span className="ann-alert-title">{decryptError}</span>
@@ -332,7 +332,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
         }
       >
         {ukeyPresent === false ? (
-          <p style={{ fontSize: 13, color: "#e6a23c" }}>未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
+          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
         ) : (
         <>
         <p className="ukey-desc">请输入证书口令完成 U盾解锁。</p>

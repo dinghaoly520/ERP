@@ -22,8 +22,6 @@ async function loginAs(
 
 const PRICE_KEYS = ['referencePrice', 'priceMin', 'priceMax', 'lastDealPrice', 'averagePrice', 'changeRate', 'priceSource'];
 
-/** 公共 /catalog 端点对 supplier 脱敏剥离的 6 个数值价格字段（stripPricesForRole；不含 priceSource 等元数据） */
-const CATALOG_STRIPPED_KEYS = ['referencePrice', 'priceMin', 'priceMax', 'lastDealPrice', 'averagePrice', 'changeRate'];
 
 describe('Catalog supply application (e2e)', () => {
   let app: INestApplication;
@@ -252,59 +250,49 @@ describe('Catalog supply application (e2e)', () => {
     expect((res.body as any[]).length).toBeGreaterThan(0);
   });
 
-  // ── 公共 /catalog 端点对 supplier 的脱敏 / 闸门（本轮改造的回归防线）──
-  // supplier 走 token_supplier + X-Portal:supplier 认证（AuthGuard 按门户读 cookie，req.user.role='supplier' 触发脱敏）。
+  // ── supplier 的目录访问面与脱敏（2026-09-04 E1 收敛：现行真实面 = /supplier-portal/catalog/* 代理白名单投影）──
+  // 8-26 角色标注波后 /api/catalog 内部端点 @Roles 不含 supplier（收藏属 mall 门户功能）——
+  // 供应商侧脱敏防线已上收到 supplier-portal 代理的 toCatalogPublicView 白名单（新敏感字段默认不漏）。
 
-  it('脱敏：supplier 调公共列表/详情/收藏均不返回价格字段', async () => {
+  it('脱敏：supplier 目录代理列表/详情均不返回价格字段（白名单投影）', async () => {
     // 列表
     const listRes = await request(app.getHttpServer())
-      .get('/api/catalog')
+      .get('/api/supplier-portal/catalog/items')
       .set('Cookie', supplierCookie)
       .set('X-Portal', 'supplier')
       .expect(200);
     expect((listRes.body as any[]).length).toBeGreaterThan(0);
-    for (const it of listRes.body as any[]) for (const k of CATALOG_STRIPPED_KEYS) expect(it).not.toHaveProperty(k);
+    for (const it of listRes.body as any[]) for (const k of PRICE_KEYS) expect(it).not.toHaveProperty(k);
 
-    // 详情（回归：get() 曾漏传 role 导致 supplier 读全价）
+    // 详情
     const detailRes = await request(app.getHttpServer())
-      .get(`/api/catalog/${cleanItemId}`)
+      .get(`/api/supplier-portal/catalog/items/${cleanItemId}`)
       .set('Cookie', supplierCookie)
       .set('X-Portal', 'supplier')
       .expect(200);
-    for (const k of CATALOG_STRIPPED_KEYS) expect(detailRes.body).not.toHaveProperty(k);
+    for (const k of PRICE_KEYS) expect(detailRes.body).not.toHaveProperty(k);
     expect(detailRes.body).toHaveProperty('name');
+  });
 
-    // 收藏：确保已收藏后读取，验证收藏序列化同样脱敏
-    const t1 = await request(app.getHttpServer())
+  it('闸门：supplier 直调 /api/catalog 内部端点 403（列表/详情/收藏/关联——2026-08-26 角色收窄回归墙）', async () => {
+    for (const path of [
+      '/api/catalog',
+      `/api/catalog/${cleanItemId}`,
+      '/api/catalog/favorites',
+      `/api/catalog/items/${cleanItemId}/relations`,
+    ]) {
+      await request(app.getHttpServer())
+        .get(path)
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(403);
+    }
+    // 收藏切换为 POST 端点（无 GET 路由，404 非角色拒绝）——POST 角色拒绝也断言
+    await request(app.getHttpServer())
       .post(`/api/catalog/${cleanItemId}/favorite`)
       .set('Cookie', supplierCookie)
       .set('X-Portal', 'supplier')
-      .expect(201);
-    if (t1.body.favorited === false) {
-      await request(app.getHttpServer())
-        .post(`/api/catalog/${cleanItemId}/favorite`)
-        .set('Cookie', supplierCookie)
-        .set('X-Portal', 'supplier')
-        .expect(201);
-    }
-    const favRes = await request(app.getHttpServer())
-      .get('/api/catalog/favorites')
-      .set('Cookie', supplierCookie)
-      .set('X-Portal', 'supplier')
-      .expect(200);
-    expect((favRes.body as any[]).some(i => i.id === cleanItemId)).toBe(true);
-    for (const it of favRes.body as any[]) for (const k of CATALOG_STRIPPED_KEYS) expect(it).not.toHaveProperty(k);
-  });
-
-  it('脱敏：supplier 调关联端点不返回 relatedItem.referencePrice（侧信道）', async () => {
-    const res = await request(app.getHttpServer())
-      .get(`/api/catalog/items/${cleanItemId}/relations`)
-      .set('Cookie', supplierCookie)
-      .set('X-Portal', 'supplier')
-      .expect(200);
-    for (const r of res.body as any[]) {
-      if (r.relatedItem) expect(r.relatedItem).not.toHaveProperty('referencePrice');
-    }
+      .expect(403);
   });
 
   it('闸门：supplier 调价格敏感端点应 403（prediction/attachments/history/suppliers）', async () => {

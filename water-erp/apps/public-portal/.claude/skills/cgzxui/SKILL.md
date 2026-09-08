@@ -1,22 +1,26 @@
 ---
 name: cgzxui
-description: Use when building or restyling ANY visual element in public-portal (:3002) or web (:3005) — including new pages, buttons, cards, inputs, modals, drawers, or when the user says "和首页风格一致", "neumorphic", "新拟态", "凸起边框", or asks what class to use for a button/card/input. Also use whenever a component has inline style, bg-white, border-gray-200, rounded-full buttons, or flat box-shadows that violate cgzxui principles.
+description: Use when building or restyling ANY visual element in the five portals that carry the cgzxui system — public-portal (:3002), web (:3005), bid-portal (:3007), expert-portal (:3006), supplier-portal-next (:3004) — including new pages, buttons, cards, inputs, modals, drawers, or when the user says "和首页风格一致", "neumorphic", "新拟态", "凸起边框", or asks what class to use for a button/card/input. Also use whenever a component has inline style, bg-white, border-gray-200, rounded-full buttons, or flat box-shadows that violate cgzxui principles.
 ---
 
 # cgzxui — 信息门户 UI 设计标准
 
-`apps/public-portal`（:3002）和 `apps/web`（:3005，已移植）的 UI 规范。覆盖页面骨架、配色体系、neomorphic 模式、组件类目、弹窗抽屉、反模式。
+`apps/public-portal`（:3002）、`apps/web`（:3005）、`apps/bid-portal`（:3007）、`apps/expert-portal`（:3006）、`apps/supplier-portal-next`（:3004）五门户共用的 UI 规范。覆盖页面骨架、配色体系、neomorphic 模式、组件类目、弹窗抽屉、反模式。每门户在自身 `globals.css` 内置本规范的类层（同名同义，细节微调）；本技能 2026-09-04 起覆盖五门户：**git 入库源**在 apps/public-portal/.claude/skills/cgzxui/（被追踪），**仓库根** .claude/skills/cgzxui/ 为本地全工作目录生效副本（.claude/ 被 gitignore）——改动先写入入库源，再 cp 同步到根副本。
 
 ## 何时使用 / 何时不使用
 
-✅ `apps/public-portal` 或 `apps/web` 内任何视觉元素
+✅ 五门户（public-portal / web / bid-portal / expert-portal / supplier-portal-next）内任何视觉元素
 ✅ 看到内联 `style`、`bg-white`、`border-gray-200`、`rounded-full` 按钮、扁平 `box-shadow`
 ✅ 新建页面/按钮/卡片/输入框/弹窗/抽屉
 ✅ 被要求"和首页一致"
 
-❌ 其他 portal（mall / supplier / expert / bid）— 未移植 cgzxui 类
+❌ `apps/mall`（未移植）与 `apps/web` 中 tender-review/admin 等**范围外区域**的存量旧风格（不主动重制；新代码仍须合规）
 ❌ 纯逻辑/数据工作（无 UI 改动）
 ❌ 装饰性小元素的状态点/标签/badge — neumorphism 不用于文字级元素
+
+## 红牌检查（自动闸）
+
+`bash scripts/check-cgzxui-redcards.sh --ci`（在 water-erp/ 下）——确定性硬性模式（bg-white / border-gray / shadow-lg+ / 内联 boxShadow / CSS box-shadow 内 rgba/hex / 深色蒙层 / exp-alert 幽灵类），命中 exit 1；全门户清零后接入 CI validate job。报告模式（B1 内联计数等）供整改对账。
 
 ## 核心原则
 
@@ -247,17 +251,52 @@ box-shadow:
 | 漏 `@media (prefers-reduced-motion: reduce)` | 前庭功能障碍用户会被动画触发眩晕 |
 | 同组件混用 Material elevation shadow | 两种设计语言打架，视觉不协调 |
 
+## 跨门户新增类目录（2026-09-04 链路整改引入）
+
+| 门户 | 类 | 用途 |
+|------|-----|------|
+| web | `.wb-alert` + `--info/--success/--warning/--danger` | 告警条（color-mix 底 + --tone 变量）——**替代 exp-alert**（web 端幽灵类） |
+| web | `.wb-icon-well` + `--xs/--sm/--md` | 图标井（`--well-bg`/`--well-fg` 变量驱动 + 内凹井影） |
+| web | `.wb-tone-banner` + 四变体 | 色调横幅（10% color-mix 底、无边框、svg 吃 tone） |
+| web | `.wb-status-pill` + `.wb-status-pill-dot` | 状态胶囊（--tone 驱动 12% 底） |
+| web | `.wb-note` | 凸起便笺（oklch(1 0 0/.48) 底 + 顶缘高光） |
+| web | `.wb-overlay-backdrop` / `.wb-modal-shell` / `.wb-overlay-panel(-header/-footer)` | 手写弹窗壳层（不 Modal 化的场景） |
+| web | `.tender-toast--ok/--err` | toast 色调变体（基类 .tender-toast） |
+| bid-portal | `.bid-overlay` + `.bid-overlay-backdrop` | 标准三层蒙层（替代 JSX 字符串/内联蒙层常量） |
+| bid-portal | `.bid-dialog` | 弹窗薄板（+ `.neu-table.is-dense` 密度变体 / `.bid-tile` / `.bid-icon-well` / `.bid-pick-row`） |
+| bid-portal | `.bid-alert` + `--success/--info/--warning/--danger` | 告警条（--tone 化） |
+| bid-portal | `.bid-pill--*` + `data-invite/data-status/data-anomaly/data-rank…` | 状态徽章与状态色选择器组（7 个属性选择器先例） |
+| expert-portal | `.exp-icon-well` / `.exp-bubble` / `.exp-pill--solid` | 图标井 / 聊天气泡 / 实底徽章 |
+
+## 弹窗「Modal 化」决策规则（web :3005）
+
+- **默认用 workbench `Modal` 组件**（`src/components/workbench/modal.tsx`）：token 蒙层 + oklch 阴影 + focus trap + Esc + 滚动锁 + aria 全套；宽度用 `size` 或 `className="!max-w-[480px]"` 覆写；busy 防护映射 `closeOnBackdrop/closeOnEsc`。
+- **强制步骤弹窗不得 Modal 化**——Modal 头部固定渲染 X 关闭钮，会凭空新增关闭语义。判例：bid-confirm 的 notify-confirm（自动通知失败重试，无任何关闭途径）。这类用 `.wb-overlay-backdrop`+`.wb-modal-shell` 抽壳类。
+- **不变式**：同一时刻至多一个 Modal（Esc 会双层同关）。改造前核对弹窗开关互斥。
+- bid-portal 用 `.bid-overlay`+`.bid-dialog` 三层 JSX（范本 adjudicate-dialog.tsx L70-72）。
+
+## 合规范本（新代码照抄这些）
+
+- web：`apps/web/src/app/(main)/archive/page.tsx`（page-hero + neu-table-card + 模态模板全套）、`bid-confirm/supervision-push-block.tsx`
+- bid-portal：`opening-hall-sign-block.tsx`（纯 neu-card-static/neu-btn-soft）、`ai-analysis-card.tsx`、`adjudicate-dialog.tsx`
+- expert-portal：`exp-pin-dialog.tsx`（.exp-dialog + neu-input + 38px 齐平按钮组）
+
 ## 文件参考
 
 | 文件 | 内容 |
 |------|------|
-| `apps/public-portal/src/app/globals.css` | **所有 CSS 类名单一来源**（搜 `/* ──` 跳章节） |
+| `apps/public-portal/src/app/globals.css` | public-portal 类名源（搜 `/* ──` 跳章节） |
+| `apps/web/src/app/globals.css` | web 类名源（wb-alert/wb-icon-well 等新类在末尾段落） |
+| `apps/bid-portal/src/app/globals.css` | bid-portal 类名源（bid-dialog/bid-overlay/data-* 选择器组） |
+| `apps/expert-portal/src/app/globals.css` | expert-portal 类名源（cgzxui 段 L212-851 + exp-*） |
+| `apps/supplier-portal-next/src/app/globals.css` | supplier 类名源（注意三层叠写结构，见台账） |
 | `apps/public-portal/src/app/home-client.tsx` | 首页参考实现（hero / 公告 / tabs / CTA） |
 | `apps/public-portal/src/components/unified-header.tsx` | 统一顶栏 |
 | `apps/public-portal/src/components/flow-track.tsx` | `FlowBackdrop` + `FlowTrack` |
 | `references/component-specs.md`（本 skill 内） | 按钮/卡片/输入框的完整 CSS 规格 |
 | `apps/public-portal/.claude/skills/neumorphic-design/SKILL.md` | 专注新拟态细节的伴随 skill |
 | `docs/superpowers/specs/2026-07-02-announcement-raised-border-design.md` | 公告区新拟态设计规格 |
+| `scripts/check-cgzxui-redcards.sh`（water-erp/ 下） | 红牌检查闸（--ci / --app / --files） |
 
 ## 常见任务
 

@@ -21,7 +21,7 @@ export class BondLedgerService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '系统', target: dto.supplierName,
         action: '保证金到账登记', result: `缴纳人 ${dto.supplierName}；金额 ${dto.amount} 元；到账 ${dto.arrivedAt}；收款账户 ${dto.account}；支付形式 ${dto.payMethod}${dto.note ? `；备注 ${dto.note}` : ''}`, riskFlag: '无' },
-    }).catch(() => {});
+    }).catch(e => console.warn('监督日志写入失败(action=保证金到账登记): ' + String(e)));
     return row;
   }
 
@@ -37,7 +37,7 @@ export class BondLedgerService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '系统', target: row.supplierName,
         action: '保证金到账台账删除', result: `删除记录：金额 ${row.amount} 元、到账 ${row.arrivedAt.toISOString()}`, riskFlag: '高风险' },
-    }).catch(() => {});
+    }).catch(e => console.warn('监督日志写入失败(action=保证金到账台账删除): ' + String(e)));
     return { success: true };
   }
 }

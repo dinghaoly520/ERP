@@ -93,7 +93,7 @@ export function ProofUploadDialog({
       )}
     >
       <form id="contract-proof-upload-form" className="space-y-4" onSubmit={submit}>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        <div className="rounded-xl border border-[var(--hairline)] bg-[var(--surface)] p-4 text-sm text-muted-foreground">
           支持 PDF、Word、JPG、PNG，单个文件不超过 50 MB。上传成功后将作为该履约节点的审计凭证。
         </div>
         <label className="block text-sm font-medium" htmlFor="contract-proof-file">
@@ -101,7 +101,7 @@ export function ProofUploadDialog({
         </label>
         <input
           id="contract-proof-file"
-          className="block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5"
+          className="block min-h-11 w-full rounded-lg border border-[var(--hairline)] bg-[var(--surface)] px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-contrast)] file:px-3 file:py-1.5"
           type="file"
           accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
           onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}

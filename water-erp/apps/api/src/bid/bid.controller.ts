@@ -4,6 +4,11 @@ import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagg
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BidService } from './bid.service';
 import { BondLedgerService } from './bond-ledger.service';
+import { BidBondService } from './bid-bond.service';
+import { BidEvaluationResultsService } from './bid-evaluation-results.service';
+import { BidOpeningRecordService } from './bid-opening-record.service';
+import { BidDecryptService } from './bid-decrypt.service';
+import { WorkTemplateService } from './work-template.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -29,6 +34,7 @@ import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { UpdateLinkedRequirementsDto } from './dto/update-linked-requirements.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
+import { UpdateOpeningFieldConfigDto } from './dto/update-opening-field-config.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
 import { UseGuards } from '@nestjs/common';
@@ -52,6 +58,11 @@ export class BidController {
     private readonly bidBackup: BidBackupService,
     private readonly bondLedger: BondLedgerService,
     private readonly signPacket: BidSignPacketService,
+    private readonly bond: BidBondService,
+    private readonly evalResults: BidEvaluationResultsService,
+    private readonly openingRecord: BidOpeningRecordService,
+    private readonly decrypt: BidDecryptService,
+    private readonly workTemplates: WorkTemplateService,
   ) {}
 
   @Get('dashboard-stats')
@@ -139,19 +150,19 @@ export class BidController {
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'C4: 登记响应担保退还/不予退还（项目级·兼容保留——新代码请用逐家端点 bond-return-supplier；不予退还必填理由，记监督日志）' })
   markBondReturned(@Param('id') id: string, @Body() dto: { returned: boolean; reason?: string }) {
-    return this.bidService.markBondReturned(id, dto);
+    return this.bond.markBondReturned(id, dto);
   }
 
   @Get('projects/:id/bond-returns')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'A-105: 保证金逐家退还清单（花名册行 × 唱标 bondStatus × 退还态 × 中标标识）' })
-  listBondReturns(@Param('id') id: string) { return this.bidService.listBondReturns(id); }
+  listBondReturns(@Param('id') id: string) { return this.bond.listBondReturns(id); }
 
   @Post('projects/:id/bond-return-supplier')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'A-105: 逐家登记保证金退还/不予退还（同步开标记录 bondStatus，记监督日志；不予退还必填理由）' })
   markSupplierBondReturned(@Param('id') id: string, @Body() dto: SupplierBondReturnDto) {
-    return this.bidService.markSupplierBondReturned(id, dto);
+    return this.bond.markSupplierBondReturned(id, dto);
   }
 
   @Get('projects/:id/report-notes')
@@ -385,7 +396,7 @@ export class BidController {
   @Post('projects/:id/decrypt-all')
   @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
   @Throttle({ default: { ttl: 60000, limit: 2 } })
-  decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.decryptAllSuppliers(id, userId); }
+  decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.decrypt.decryptAllSuppliers(id, userId); }
 
   @Post('projects/:id/rerun-ai-analysis')
   @Roles('admin', 'bid_host', 'leader', 'staff')
@@ -476,14 +487,14 @@ export class BidController {
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
-  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }
+  decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.decrypt.decryptSupplier(id, supplierId, dto, userId); }
 
   @Post('projects/:id/opening/decrypt-outer')
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '主持端解外层（dual-v2）：管理方私钥解 K_admin → C_inner 归属链落库；supplierId 缺省=批量' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   decryptOuter(@Param('id') id: string, @Body() dto?: DecryptOuterDto, @CurrentUser('sub') userId?: string) {
-    return this.bidService.decryptOuter(id, dto?.supplierId, userId);
+    return this.decrypt.decryptOuter(id, dto?.supplierId, userId);
   }
 
   @Post('projects/:id/opening/decrypt-adjudge')
@@ -495,7 +506,7 @@ export class BidController {
     @Body() dto: AdjudicateDecryptFaultDto,
     @CurrentUser('sub') userId?: string,
   ) {
-    return this.bidService.adjudicateDecryptFault(id, dto.supplierId, dto.attribution, dto.reason, userId);
+    return this.decrypt.adjudicateDecryptFault(id, dto.supplierId, dto.attribution, dto.reason, userId);
   }
 
   @Post('projects/:id/suppliers/:supplierId/files/:role/reupload')
@@ -512,7 +523,7 @@ export class BidController {
     @CurrentUser('sub') userId: string,
   ) {
     if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
-    return this.bidService.reuploadBidFile(id, supplierId, role, file, userId);
+    return this.decrypt.reuploadBidFile(id, supplierId, role, file, userId);
   }
 
   @Post('projects/:id/suppliers/:supplierId/reseal')
@@ -524,14 +535,14 @@ export class BidController {
     @Param('supplierId') supplierId: string,
     @CurrentUser('sub') userId: string,
   ) {
-    return this.bidService.resealBidFiles(id, supplierId, userId);
+    return this.decrypt.resealBidFiles(id, supplierId, userId);
   }
 
   @Post('projects/:id/tender-document/reload')
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '重新加载招标文件（验证可解密 + 自动修复关联）' })
   reloadTenderDocument(@Param('id') id: string, @CurrentUser('sub') userId: string) {
-    return this.bidService.reloadTenderDocument(id, userId);
+    return this.decrypt.reloadTenderDocument(id, userId);
   }
 
   @Get('projects/:id/backup-verify/:supplierId')
@@ -543,18 +554,42 @@ export class BidController {
 
   @Get('projects/:id/opening-records')
   @ApiOperation({ summary: '开标记录' })
-  listOpeningRecords(@Param('id') id: string) { return this.bidService.listOpeningRecords(id); }
+  listOpeningRecords(@Param('id') id: string) { return this.openingRecord.listOpeningRecords(id); }
+
+  /** A-113：配置项目唱标字段（body 二选一 fields 直给 / fromTemplateId 取 opening_record 模板）；
+   *  开标开始后 409 锁定（防既有唱标记录历史列漂移）。写径/阶段闸在 BidOpeningRecordService 一处。 */
+  @Put('projects/:id/opening-field-config')
+  @Roles('staff', 'leader', 'admin')
+  @ApiOperation({ summary: 'A-113：配置项目唱标字段（fields 或 fromTemplateId；开标开始后锁定）' })
+  async setOpeningFieldConfig(
+    @Param('id') id: string,
+    @Body() dto: UpdateOpeningFieldConfigDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role?: string,
+  ) {
+    if (dto.fields && dto.fromTemplateId) {
+      throw new BadRequestException({ error: 'fields 与 fromTemplateId 只能二选一', code: 'OPENING_FIELD_CONFIG_BODY_INVALID' });
+    }
+    if (dto.fields) {
+      return this.openingRecord.setOpeningFieldConfig(id, dto.fields, { id: userId, role }, '手工录入');
+    }
+    if (dto.fromTemplateId) {
+      const tpl = await this.workTemplates.getOpeningFieldsFromTemplate(dto.fromTemplateId);
+      return this.openingRecord.setOpeningFieldConfig(id, tpl.fields, { id: userId, role }, `模板「${tpl.name}」`);
+    }
+    throw new BadRequestException({ error: '请提供 fields 或 fromTemplateId 之一', code: 'OPENING_FIELD_CONFIG_BODY_INVALID' });
+  }
 
   @Post('projects/:id/opening-records')
   @ApiOperation({ summary: '录入唱标信息（建/更新开标记录）' })
   enterOpeningRecord(@Param('id') id: string, @Body() dto: CreateOpeningRecordDto) {
-    return this.bidService.enterOpeningRecord(id, dto);
+    return this.openingRecord.enterOpeningRecord(id, dto);
   }
 
   @Get('projects/:id/suppliers/:supplierId/opening-draft')
   @ApiOperation({ summary: '唱标预填草稿（OPENING 阶段聚合报价/工期/质量目标/保证金凭证）' })
   getOpeningRecordDraft(@Param('id') id: string, @Param('supplierId') supplierId: string) {
-    return this.bidService.getOpeningRecordDraft(id, supplierId);
+    return this.openingRecord.getOpeningRecordDraft(id, supplierId);
   }
 
   @Post('projects/:id/opening-records/:recordId/resolve-dispute')
@@ -564,7 +599,7 @@ export class BidController {
     @Param('recordId') recordId: string,
     @Body() dto: ResolveOpeningDisputeDto,
     @CurrentUser('sub') userId: string,
-  ) { return this.bidService.resolveOpeningDispute(id, recordId, dto, userId); }
+  ) { return this.openingRecord.resolveOpeningDispute(id, recordId, dto, userId); }
 
   @Post('projects/:id/suppliers/:supplierId/override-dispute')
   @Roles('admin', 'leader')
@@ -574,7 +609,7 @@ export class BidController {
     @Param('supplierId') supplierId: string,
     @Body() dto: { reason: string; target?: 'confirmed' | 'exception' },
     @CurrentUser('sub') userId: string,
-  ) { return this.bidService.overrideDispute(id, supplierId, dto.reason, userId, dto.target); }
+  ) { return this.openingRecord.overrideDispute(id, supplierId, dto.reason, userId, dto.target); }
 
   @Post('projects/:id/suppliers/:supplierId/accept-danger')
   @ApiOperation({ summary: '主持人确认接受供应商解密失败（不可恢复）' })
@@ -583,7 +618,7 @@ export class BidController {
     @Param('supplierId') supplierId: string,
     @Body() dto: { reason: string },
     @CurrentUser('sub') userId: string,
-  ) { return this.bidService.acceptSupplierDanger(id, supplierId, dto.reason, userId); }
+  ) { return this.decrypt.acceptSupplierDanger(id, supplierId, dto.reason, userId); }
 
   @Get('projects/:id/experts')
   @ApiOperation({ summary: '评标专家列表' })
@@ -593,7 +628,7 @@ export class BidController {
 
   @Get('projects/:id/evaluation-results')
   @ApiOperation({ summary: '评标结果汇总' })
-  listEvaluationResults(@Param('id') id: string) { return this.bidService.listEvaluationResults(id); }
+  listEvaluationResults(@Param('id') id: string) { return this.evalResults.listEvaluationResults(id); }
 
   @Get('projects/:id/ai-analysis-progress')
   @ApiOperation({ summary: 'AI 辅助评标进度聚合（:3007 进度卡片轮询；异常判定在后端）' })
@@ -606,7 +641,7 @@ export class BidController {
   @Post('projects/:id/evaluation-results/generate')
   @ApiOperation({ summary: '生成评标结果与候选人（成功后自动生成评标签字包）' })
   async generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) {
-    const result = await this.bidService.generateEvaluationResults(id, userId);
+    const result = await this.evalResults.generateEvaluationResults(id, userId);
     // P2（2026-09-07）：签字包以评标结果为内容，此前须在 :3007 手动再点一次「生成签字包」，
     // API/流程驱动场景极易遗漏 → full 归档被「签字包未生成」挡下而降级 opening。
     // 此处串联自动生成（幂等：同轮重复生成会重建包并重置签字状态），失败不阻断结果返回。

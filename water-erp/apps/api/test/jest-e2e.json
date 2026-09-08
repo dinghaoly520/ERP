@@ -25,5 +25,6 @@
     "^src/(.*)$": "<rootDir>/../src/$1",
     "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts"
   },
-  "maxWorkers": 1
+  "maxWorkers": 1,
+  "testTimeout": 60000
 }

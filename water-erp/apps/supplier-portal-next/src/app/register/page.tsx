@@ -823,7 +823,7 @@ export default function RegisterPage() {
                         onChange={(e) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
                     ))}
                     <div className={`reg-item${errors[`perf-${i}-proofFiles`] ? " has-error" : ""}`}>
-                      <label className="reg-label">证明材料 <i style={{ color: "var(--danger)", fontStyle: "normal" }}>*</i></label>
+                      <label className="reg-label">证明材料 <i className="not-italic text-danger">*</i></label>
                       <MultiFiles
                         value={p.proofFiles}
                         credentials={{ phone: registrationPhone, code: registrationCode }}

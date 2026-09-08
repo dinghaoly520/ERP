@@ -15,11 +15,11 @@ import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
 const stageMap: Record<string, { label: string; color: string }> = {
-  DOWNLOAD: { label: "文件下载", color: "#0891b2" },
-  SUBMIT: { label: "加密投递", color: "#c00a6b" },
-  OPENING: { label: "在线开标", color: "#d97706" },
-  EVALUATING: { label: "专家评标", color: "#7c3aed" },
-  ARCHIVED: { label: "已归档", color: "#059669" },
+  DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)" },
+  SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)" },
+  OPENING: { label: "在线开标", color: "var(--bid-stage-opening)" },
+  EVALUATING: { label: "专家评标", color: "var(--bid-stage-evaluating)" },
+  ARCHIVED: { label: "已归档", color: "var(--bid-stage-archived)" },
 };
 
 function isSubmitStage(stage: string) {
@@ -161,10 +161,10 @@ export default function BidListPage() {
     <div className="page-container">
       {firstLoad && loading ? (
         <div className="skel-wrap">
-          <div className="skel-hero"><span className="sp-skel" style={{ width: 120, height: 13 }} /><span className="sp-skel" style={{ width: 220, height: 24, marginTop: 12 }} /><span className="sp-skel" style={{ width: 320, height: 14, marginTop: 10 }} /></div>
-          <div className="skel-filter"><span className="sp-skel" style={{ width: 300, height: 36 }} /><span className="sp-skel" style={{ flex: 1, height: 36 }} /></div>
+          <div className="skel-hero"><span className="sp-skel h-[13px] w-[120px]" /><span className="sp-skel mt-3 h-6 w-[220px]" /><span className="sp-skel mt-2.5 h-3.5 w-[320px]" /></div>
+          <div className="skel-filter"><span className="sp-skel h-9 w-[300px]" /><span className="sp-skel h-9 flex-1" /></div>
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="skel-row"><div style={{ flex: 1 }}><span className="sp-skel" style={{ width: "60%", height: 18 }} /><span className="sp-skel" style={{ width: "40%", height: 12, marginTop: 10 }} /></div><span className="sp-skel" style={{ width: 120, height: 36 }} /></div>
+            <div key={i} className="skel-row"><div className="flex-1"><span className="sp-skel h-[18px] w-3/5" /><span className="sp-skel mt-2.5 h-3 w-2/5" /></div><span className="sp-skel h-9 w-[120px]" /></div>
           ))}
         </div>
       ) : error ? (
@@ -206,7 +206,7 @@ export default function BidListPage() {
               )}
             </div>
             {/* A-98：服务器标准时间常显（与截止预检/倒计时同源 /api/time） */}
-            <span style={{ marginLeft: "auto", color: "var(--muted-foreground)" }}>
+            <span className="ml-auto text-muted-foreground">
               <ServerClock />
             </span>
           </div>
@@ -225,7 +225,7 @@ export default function BidListPage() {
                         </span>
                         <span
                           className="bid-stage"
-                          style={{ "--stage-c": stageMap[p.stage]?.color || "#94a3b8" } as React.CSSProperties}
+                          style={{ "--stage-c": stageMap[p.stage]?.color || "var(--stage-default)" } as React.CSSProperties}
                         >
                           {stageMap[p.stage]?.label || p.stage}
                         </span>
@@ -275,7 +275,7 @@ export default function BidListPage() {
                       className="opportunity-detail-link neu-btn-xs row-action"
                       aria-label={`查看项目 ${p.name}详情`}
                     >
-                      详情<ArrowRight size={12} strokeWidth={1.75} style={{ marginLeft: 2 }} />
+                      详情<ArrowRight size={12} strokeWidth={1.75} className="ml-0.5" />
                     </Link>
                   </article>
                 );

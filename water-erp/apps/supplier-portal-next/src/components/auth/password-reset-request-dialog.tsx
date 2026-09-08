@@ -193,7 +193,7 @@ export function PasswordResetRequestDialog({ open, onClose, initialUsername = ""
             </label>
             <button
               type="button"
-              className="mt-6 inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="neu-btn-soft mt-6 shrink-0 disabled:cursor-not-allowed"
               onClick={sendCode}
               disabled={isSendCodeDisabled}
             >

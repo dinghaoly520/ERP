@@ -37,7 +37,7 @@ function makeService(): BidSignPacketService {
     prisma as unknown as PrismaService,
     { upload: jest.fn() } as any,          // storage：Task 3/4 才用到
     { generateDocument: jest.fn() } as any, // docx：Task 3 才用到
-    { buildEvaluationPackage: jest.fn() } as any, // bidService（handover 用例挂 buildEvaluationPackage mock；空对象会 TypeError）
+    { buildEvaluationPackage: jest.fn() } as any, // evalResults（handover 用例挂 buildEvaluationPackage mock；空对象会 TypeError）
   );
 }
 
@@ -322,8 +322,8 @@ describe('BidSignPacketService.generateHandover', () => {
     (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa99' });
     (prisma.bidSignPacket.update as jest.Mock).mockResolvedValue({});
     // 快照 delegate（expertDispute/bidMotion/bidClarification/bidExpert.findMany）由 fake 常量 + baseArrange 回 []，无需再 mock
-    // buildEvaluationPackage 由注入的 BidService 提供——spec 挂 mock
-    (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({ packageType: 'BID_EVALUATION_HANDOVER', fingerprint: 'x' });
+    // buildEvaluationPackage 由注入的 BidEvaluationResultsService 提供——spec 挂 mock
+    (svc as any).evalResults.buildEvaluationPackage.mockResolvedValue({ packageType: 'BID_EVALUATION_HANDOVER', fingerprint: 'x' });
 
     await svc.generateHandover(projectId, 'u1');
 
@@ -350,7 +350,7 @@ describe('BidSignPacketService.generateHandover', () => {
     (svc as any).storage.upload.mockResolvedValue(undefined);
     (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa98' });
     (prisma.bidSignPacket.update as jest.Mock).mockResolvedValue({});
-    (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({ packageType: 'BID_EVALUATION_HANDOVER', fingerprint: 'x' });
+    (svc as any).evalResults.buildEvaluationPackage.mockResolvedValue({ packageType: 'BID_EVALUATION_HANDOVER', fingerprint: 'x' });
 
     await svc.generateHandover(projectId, 'u1');
 
@@ -381,7 +381,7 @@ describe('BidSignPacketService.generateHandover', () => {
     const svc = makeService();
     (svc as any).storage.upload.mockResolvedValue(undefined);
     (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa97' });
-    (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({});
+    (svc as any).evalResults.buildEvaluationPackage.mockResolvedValue({});
 
     await svc.generateHandover(projectId, 'u1');
 

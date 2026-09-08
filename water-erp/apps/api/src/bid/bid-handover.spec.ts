@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, BadRequestException } from '@nestjs/common';
 import { BidService } from './bid.service';
+import { BidOpeningRecordService } from './bid-opening-record.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
 import { GbCodeService } from '../common/gb-code.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -48,6 +49,7 @@ async function buildService(prisma: any) {
   const moduleRef: TestingModule = await Test.createTestingModule({
     providers: [
       BidService,
+      BidOpeningRecordService,
       BidScoreStandardService,
       { provide: PrismaService, useValue: prisma },
       { provide: GbCodeService, useValue: { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } },

@@ -79,11 +79,7 @@ export function HallMessagePanel({ messages, onOpen }: Props) {
                     {m.senderName} · {fmtTime(m.createdAt)}
                   </div>
                   {/* 气泡 */}
-                  <div className="whitespace-pre-wrap break-all rounded-xl rounded-tl-sm bg-[oklch(0.985_0.006_258)] px-3 py-2 text-sm leading-relaxed text-[var(--foreground)]"
-                    style={{
-                      boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 5px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85)',
-                    }}
-                  >
+                  <div className="exp-bubble whitespace-pre-wrap break-all rounded-xl rounded-tl-sm px-3 py-2 text-sm leading-relaxed text-[var(--foreground)]">
                     {m.content}
                   </div>
                 </div>

@@ -323,7 +323,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
    *  唱标信息自 OPENING 阶段起属公开信息（《电子招标投标办法》第30条 /《招标投标法》第36条），
    *  广播 payload 仅金额里程碑 + 名称，不含密封报价原文（评分/报价保密铁律）。
    *  计划约束：2026-08-17-supplier-opening-records-hall（WS/后端广播零改动，勿收口为定向推送）。 */
-  notifyOpeningRecordUpdated(projectId: string, data: { supplierId: string; supplierName: string; recordId: string; amount: number }) {
+  notifyOpeningRecordUpdated(projectId: string, data: { supplierId: string; supplierName: string; recordId: string; amount: number; customFields?: Record<string, string> | null }) {
     const payload: OpeningRecordUpdatedPayload = { projectId, ...data, timestamp: Date.now() };
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
   }

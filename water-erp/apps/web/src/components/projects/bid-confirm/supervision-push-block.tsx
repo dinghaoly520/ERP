@@ -154,38 +154,25 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
     <section className="neu-table-card px-4 py-4">
       <div className="mb-3 flex items-center gap-2.5 min-w-0">
         <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-          style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
+          className="wb-icon-well wb-icon-well--xs"
+          style={{ '--well-bg': 'color-mix(in oklch, var(--accent) 12%, transparent)', '--well-fg': 'var(--accent)' } as React.CSSProperties}
         >
-          <RadioTower size={15} className="text-[var(--accent)]" />
+          <RadioTower size={15} />
         </div>
         <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">监督推送</h3>
         <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">A-153 · 评标报告 → 公共服务平台监督通道</span>
       </div>
 
       {feedback && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2 text-xs font-medium"
-          style={{
-            background: feedback.tone === 'ok' ? 'color-mix(in oklch, var(--success) 10%, transparent)' : 'color-mix(in oklch, var(--danger) 10%, transparent)',
-            color: feedback.tone === 'ok' ? 'var(--success)' : 'var(--danger)',
-          }}
-        >
+        <div className={`wb-tone-banner mb-3 text-xs font-medium ${feedback.tone === 'ok' ? 'wb-tone-banner--success' : 'wb-tone-banner--danger'}`}>
           {feedback.tone === 'ok' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
           {feedback.text}
         </div>
       )}
 
-      {/* 闸门横幅（镜像 EvaluationHandoverBlock 的着色横幅 idiom）*/}
+      {/* 闸门横幅（镜像 EvaluationHandoverBlock 的着色横幅 idiom；加载中=中性便笺）*/}
       <div
-        className="mb-2.5 flex flex-wrap items-center gap-2 rounded-[14px] px-3.5 py-2.5 text-xs"
-        style={{
-          background: gate == null
-            ? 'color-mix(in oklch, var(--muted-foreground) 8%, transparent)'
-            : gate.ready
-              ? 'color-mix(in oklch, var(--success) 8%, transparent)'
-              : 'color-mix(in oklch, var(--warning) 10%, transparent)',
-        }}
+        className={`mb-2.5 flex flex-wrap items-center text-xs ${gate == null ? 'wb-note px-3.5 py-2.5' : gate.ready ? 'wb-tone-banner wb-tone-banner--success' : 'wb-tone-banner wb-tone-banner--warning'}`}
       >
         {gate == null
           ? <span className="font-semibold text-[var(--muted-foreground)]">推送前置状态加载中…</span>
@@ -270,6 +257,7 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
         <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--foreground)]">
           <input
             type="checkbox"
+            className="neu-checkbox"
             checked={cfgForm.enabled}
             onChange={(e) => setCfgForm({ ...cfgForm, enabled: e.target.checked })}
           />

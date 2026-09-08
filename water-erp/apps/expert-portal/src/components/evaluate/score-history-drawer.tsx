@@ -88,9 +88,9 @@ export function ScoreHistoryDrawer({ open, projectId, supplierId: initialSupplie
                     const hasHistory = h.history.length > 0;
                     const isUnscored = !hasCommitted && !hasDraft;
                     return (
-                      <div key={h.scoreItemId} className={`rounded-[10px] border px-3 py-2 ${
-                        isUnscored ? 'border-[oklch(0.6_0.04_258/0.06)] bg-transparent opacity-50'
-                        : 'border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.3)]'
+                      <div key={h.scoreItemId} className={`rounded-[10px] px-3 py-2 ${
+                        isUnscored ? 'bg-transparent opacity-50'
+                        : 'bg-[oklch(0.975_0.012_258/0.35)] shadow-[inset_0_1px_0_oklch(1_0_0/0.45)]'
                       }`}>
                         <div className="mb-1 text-xs font-semibold text-[var(--foreground)]">{h.scoreItemName}</div>
                         {isUnscored ? (

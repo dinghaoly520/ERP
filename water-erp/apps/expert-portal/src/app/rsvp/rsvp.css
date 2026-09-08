@@ -15,7 +15,7 @@
 .rv-divider::before { background: linear-gradient(90deg, transparent, oklch(0.6 0.1 252)); margin-right: 10px; }
 .rv-divider::after { background: linear-gradient(270deg, transparent, oklch(0.6 0.1 252)); margin-left: 10px; }
 .rv-title { margin: 0; font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 24px; font-weight: 600; letter-spacing: 0.12em; color: oklch(0.32 0.05 252); }
-.rv-to { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px; border-radius: 14px; margin-bottom: 14px; background: oklch(0.55 0.15 252 / 8%); border: 1px solid oklch(0.55 0.15 252 / 22%); }
+.rv-to { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px; border-radius: 14px; margin-bottom: 14px; background: oklch(0.55 0.15 252 / 8%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.55); }
 .rv-to-label { font-size: 12px; color: #999; white-space: nowrap; }
 .rv-to-name { font-size: 17px; font-weight: 800; color: oklch(0.38 0.08 252); }
 .rv-subject { margin: 0 0 14px; font-size: 15px; font-weight: 700; line-height: 1.5; color: #333; }
@@ -24,7 +24,7 @@
 .rv-info-row { display: flex; gap: 10px; font-size: 13px; line-height: 1.5; padding-bottom: 8px; border-bottom: 1px dashed #e0e0e0; }
 .rv-info-row dt { flex: none; width: 72px; color: #999; font-weight: 600; }
 .rv-info-row dd { margin: 0; color: #333; font-weight: 600; }
-.rv-warn { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px; color: #b45309; background: oklch(0.7 0.15 60 / 10%); border: 1px solid oklch(0.7 0.15 60 / 30%); }
+.rv-warn { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px; color: #b45309; background: oklch(0.7 0.15 60 / 10%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5); }
 .rv-actions { margin-top: 4px; }
 .rv-prompt { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #333; }
 .rv-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -32,8 +32,10 @@
 .rv-btn:disabled { opacity: 0.6; cursor: wait; }
 .rv-btn--accept { color: #fff; background: linear-gradient(180deg, oklch(0.62 0.16 150), oklch(0.5 0.15 150)); box-shadow: 4px 4px 12px oklch(0.4 0.12 150 / 0.32), inset 0 1px 0 oklch(1 0 0 / 0.3); }
 .rv-btn--accept:hover { transform: translateY(-2px); }
+.rv-btn--accept:active { transform: translateY(0); box-shadow: inset 2px 2px 6px oklch(0.35 0.12 150 / 0.35), inset -2px -2px 5px oklch(1 0 0 / 0.35); }
 .rv-btn--decline { color: oklch(0.5 0.16 25); background: linear-gradient(180deg, oklch(0.99 0.01 25), oklch(0.95 0.02 25)); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12); }
 .rv-btn--decline:hover { transform: translateY(-1px); }
+.rv-btn--decline:active { transform: translateY(0); box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.6); }
 .rv-state { text-align: center; padding: 30px 0; }
 .rv-spin { width: 28px; height: 28px; margin: 0 auto 10px; border: 3px solid oklch(0.9 0.02 252); border-top-color: oklch(0.55 0.15 252); border-radius: 50%; animation: rv-spin 0.8s linear infinite; }
 @keyframes rv-spin { to { transform: rotate(360deg); } }
@@ -42,6 +44,13 @@
 .rv-hint { font-size: 12px; color: #aaa; margin-top: 4px; }
 .rv-done { text-align: center; padding: 24px 0; }
 .rv-done-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 22px; border-radius: 14px; font-size: 16px; font-weight: 800; }
-.rv-done--accept .rv-done-badge { color: oklch(0.45 0.15 150); background: oklch(0.7 0.15 150 / 10%); border: 1px solid oklch(0.7 0.15 150 / 30%); }
-.rv-done--decline .rv-done-badge { color: oklch(0.5 0.15 25); background: oklch(0.7 0.15 25 / 10%); border: 1px solid oklch(0.7 0.15 25 / 30%); }
+.rv-done--accept .rv-done-badge { color: oklch(0.45 0.15 150); background: oklch(0.7 0.15 150 / 10%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.55); }
+.rv-done--decline .rv-done-badge { color: oklch(0.5 0.15 25); background: oklch(0.7 0.15 25 / 10%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.55); }
 .rv-credit { text-align: center; font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 18px; letter-spacing: 0.1em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-card { animation: none; }
+  .rv-btn { transition: none; }
+  .rv-btn--accept:hover, .rv-btn--decline:hover { transform: none; }
+  .rv-spin { animation-duration: 1.6s; }
+}
