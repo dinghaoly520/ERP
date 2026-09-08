@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ConflictException, Optional, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { evaluateBondCompliance } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -8,6 +9,7 @@ import { openField } from '../common/crypto/field-crypto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { assertPriceMatchesSealed, assertPeriodMatchesSubmitted } from './opening-record-assert.util';
+import { OpeningFieldDef, STATUTORY_OPENING_KEYS, resolveOpeningFieldConfig } from './opening-field-config.util';
 
 /** 开标记录/异议域（F1c）——自 bid.service.ts 迁出（P1 审查 F 簇拆分，纯移动）。索引：listOpeningRecords / getOpeningRecordDraft / enterOpeningRecord / resolveOpeningDispute / overrideDispute；唱标校验共用 opening-record-assert.util */
 @Injectable()
@@ -36,9 +38,11 @@ export class BidOpeningRecordService {
   async getOpeningRecordDraft(projectId: string, bidSupplierId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, qualityRequirement: true, bondRequired: true, bondAmount: true, deadline: true },
+      select: { stage: true, qualityRequirement: true, bondRequired: true, bondAmount: true, deadline: true, openingFieldConfig: true },
     });
-    const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null, bondNotApplicable: false, bondCompliance: null };
+    // A-113：唱标字段配置随草稿下发（null 配置=默认四字段）；customFields 为既有记录动态字段回读
+    const fieldConfig = resolveOpeningFieldConfig(project);
+    const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null, bondNotApplicable: false, bondCompliance: null, customFields: null, fieldConfig };
     if (!project || project.stage !== 'OPENING') return { ...empty, qualityTarget: project?.qualityRequirement ?? null };
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
@@ -56,7 +60,7 @@ export class BidOpeningRecordService {
 
     const existingRecord = await this.prisma.bidOpeningRecord.findFirst({
       where: { projectId, bidSupplierId },
-      select: { bondStatus: true },
+      select: { bondStatus: true, customFields: true },
     });
 
     // §5.4a：dual-v2 保证金凭证下发 decryptedAssets['bond'] 明文资产（C_outer 密文已被下载端拒收）
@@ -85,6 +89,8 @@ export class BidOpeningRecordService {
       period: submission?.deliveryPeriod ?? null,
       qualityTarget: submission?.qualityCommitment || project.qualityRequirement,
       bondStatus: existingRecord?.bondStatus ?? null,
+      customFields: (existingRecord?.customFields as Record<string, string> | null) ?? null,
+      fieldConfig,
       bidBondAssetId: bondAssetId,
       bondNotApplicable: !project.bondRequired,
       // A-104：保证金符合性自动比对（台账 × bondAmount/截标 × 唱标录入状态）——只提示不裁决
@@ -113,7 +119,7 @@ export class BidOpeningRecordService {
   async enterOpeningRecord(projectId: string, dto: CreateOpeningRecordDto) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, name: true },
+      select: { stage: true, name: true, openingFieldConfig: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (project.stage !== 'OPENING') {
@@ -139,6 +145,10 @@ export class BidOpeningRecordService {
     // P1-4 同构：与投递工期比对（误录工期一路进评标/公示的防线）
     const periodNote = await assertPeriodMatchesSubmitted(this.prisma, projectId, bidSupplier.id, dto.period, dto.confirmSealedPeriod);
 
+    // A-113：动态字段录入校验与净化——config 中非法定键逐项校验，未定义键剥除（只落配置内键）。
+    // 法定四字段路径零改动（密封比对在上方、专属列写入在 payload 下方，均不触碰）。
+    const customFields = this.sanitizeCustomFields(resolveOpeningFieldConfig(project).fields, dto.customFields);
+
     const payload = {
       amount: dto.amount,
       period: dto.period,
@@ -146,6 +156,8 @@ export class BidOpeningRecordService {
       bondStatus: dto.bondStatus,
       decryptResult: '解密成功',
       confirmStatus: '待供应商确认',
+      // 空对象落 JsonNull 防脏数据（重录语义=完整覆盖，不 merge 旧动态字段）
+      customFields: customFields ?? Prisma.JsonNull,
     };
 
     // P0: Wrap check-then-act + log in transaction to prevent duplicate record race
@@ -189,8 +201,37 @@ export class BidOpeningRecordService {
       supplierName: bidSupplier.supplierName,
       recordId: record.id,
       amount: Number(dto.amount),
+      // A-113：广播带动态字段值，触发各家公开表动态列刷新（法定四列不在内）
+      customFields,
     });
     return record;
+  }
+
+  /**
+   * A-113：动态唱标字段净化——config.fields 中非法定键逐项校验（法定四键走专属列，跳过）：
+   * required 且空 → 400 OPENING_FIELD_REQUIRED（文案含 label）；
+   * type=number 且非数值串 → 400 OPENING_FIELD_INVALID；type=select 且值不在 options → 同 code；
+   * dto.customFields 中未定义的键剥除。返回 null=无动态字段（落库 JsonNull）。
+   */
+  private sanitizeCustomFields(fields: OpeningFieldDef[], input?: Record<string, string>): Record<string, string> | null {
+    const sanitized: Record<string, string> = {};
+    for (const f of fields) {
+      if ((STATUTORY_OPENING_KEYS as readonly string[]).includes(f.key)) continue;
+      const raw = input?.[f.key];
+      const value = typeof raw === 'string' ? raw.trim() : '';
+      if (f.required && !value) {
+        throw new BadRequestException({ error: `请填写「${f.label}」`, code: 'OPENING_FIELD_REQUIRED' });
+      }
+      if (!value) continue;
+      if (f.type === 'number' && !/^-?\d+(\.\d+)?$/.test(value)) {
+        throw new BadRequestException({ error: `「${f.label}」须为数值`, code: 'OPENING_FIELD_INVALID' });
+      }
+      if (f.type === 'select' && !(f.options ?? []).includes(value)) {
+        throw new BadRequestException({ error: `「${f.label}」的值须在可选项内`, code: 'OPENING_FIELD_INVALID' });
+      }
+      sanitized[f.key] = value;
+    }
+    return Object.keys(sanitized).length > 0 ? sanitized : null;
   }
 
   async resolveOpeningDispute(projectId: string, recordId: string, dto: ResolveOpeningDisputeDto, actorId?: string) {

@@ -4480,7 +4480,8 @@ export class BidService {
       const openingCols = (openingTpl?.content as { columns?: Array<{ key: string; label: string }> } | null)?.columns;
       if (openingCols && openingCols.length > 0) {
         lines.push(openingCols.map(c => c.label).map(esc).join(','));
-        project.openingRecords.forEach(r => lines.push(openingCols.map(c => String((r as unknown as Record<string, unknown>)[c.key] ?? '')).map(esc).join(',')));
+        // A-113：模板列不在法定专属列时回退 customFields 动态字段仓（仍无则空串）
+        project.openingRecords.forEach(r => lines.push(openingCols.map(c => String((r as unknown as Record<string, unknown>)[c.key] ?? (r.customFields as Record<string, string> | undefined)?.[c.key] ?? '')).map(esc).join(',')));
       } else {
         lines.push(['供应商', '报价', '工期', '质量目标', '保证金', '解密结果', '确认状态'].map(esc).join(','));
         project.openingRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));

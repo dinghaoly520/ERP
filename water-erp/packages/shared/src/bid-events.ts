@@ -207,6 +207,8 @@ export interface OpeningRecordUpdatedPayload {
   recordId: string;
   /** 唱标金额（元）。事件只带里程碑数据，不含密封报价原文；接收端自行 refresh 拉全量 */
   amount: number;
+  /** A-113：动态唱标字段值（法定四列不在内；null=无动态字段）。接收端自行 refresh 拉全量 */
+  customFields?: Record<string, string> | null;
   timestamp: number;
 }
 

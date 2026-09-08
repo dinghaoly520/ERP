@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsBoolean, IsObject, IsOptional } from 'class-validator';
 
 /** 主持人录入唱标信息（报价/工期/质量目标/保证金），据此生成开标记录供供应商确认。 */
 export class CreateOpeningRecordDto {
@@ -31,4 +31,10 @@ export class CreateOpeningRecordDto {
   @IsBoolean()
   @IsOptional()
   confirmSealedPeriod?: boolean;
+
+  /** A-113：动态唱标字段值（key→值）。仅 openingFieldConfig 定义的非法定键生效，
+   *  未定义键由 service 剥除；required/number/select 逐项校验亦在 service 循环做。 */
+  @IsObject()
+  @IsOptional()
+  customFields?: Record<string, string>;
 }

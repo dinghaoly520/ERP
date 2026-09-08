@@ -1,10 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { BidOpeningRecordService } from './bid-opening-record.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
 import { sealField } from '../common/crypto/field-crypto';
+import {
+  DEFAULT_OPENING_FIELDS,
+  assertValidOpeningFieldConfig,
+  type OpeningFieldDef,
+} from './opening-field-config.util';
 
 // getOpeningRecordDraft 等暴露点用 openField 拆封 bidPrice。
 // KMS_SECRET 在 jest 同进程可能被其他 spec 污染，此处显式自洽设置。
@@ -581,6 +587,9 @@ describe('BidOpeningRecordService — getOpeningRecordDraft', () => {
       bondNotApplicable: false,
       // A-104：bondRequired + 无台账 → LEDGER_MISSING（凭证 fa-1 在场，凭证维不计）
       bondCompliance: { issues: [{ field: 'LEDGER_MISSING', message: '未登记到账台账' }] },
+      // A-113：草稿随项目配置下发 fieldConfig（无配置=默认四字段）+ 既有记录 customFields 回读
+      customFields: null,
+      fieldConfig: { fields: DEFAULT_OPENING_FIELDS as OpeningFieldDef[] },
     });
   });
 
@@ -673,5 +682,123 @@ describe('BidOpeningRecordService — getOpeningRecordDraft', () => {
 
     const draft = await service.getOpeningRecordDraft('p1', 's1');
     expect(draft.amount).toBe('1234567.89');
+  });
+});
+describe('BidOpeningRecordService — A-113 唱标字段动态化', () => {
+  let service: BidOpeningRecordService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      bidOpeningRecord: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), upsert: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+      bidBondLedger: { findUnique: jest.fn().mockResolvedValue(null) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn() } },
+        BidOpeningRecordService,
+      ],
+    }).compile();
+    service = module.get(BidOpeningRecordService);
+  });
+
+  const baseDto = { bidSupplierId: 'bs1', amount: '980000', period: '180天', qualityTarget: '合格', bondStatus: '已缴纳' };
+  // 带动态字段的项目配置（法定四键 + text/number/select 三型动态键）
+  const CFG = {
+    fields: [
+      ...DEFAULT_OPENING_FIELDS,
+      { key: 'projectManager', label: '项目经理', type: 'text' },
+      { key: 'subcontractRatio', label: '分包比例', type: 'number' },
+      { key: 'paymentTerms', label: '付款方式', type: 'select', options: ['月付', '季付'] },
+    ] as OpeningFieldDef[],
+  };
+
+  const mockEnterOk = (openingFieldConfig?: unknown) => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A', openingFieldConfig });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 's1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+    prisma.bidOpeningRecord.upsert.mockResolvedValue({ id: 'r1', confirmStatus: '待供应商确认' });
+  };
+
+  it('默认 config（项目无配置）：dto 带未定义 customFields 键 → 剥除后落 JsonNull（防脏数据），法定四字段路径零改动', async () => {
+    mockEnterOk(null);
+    await service.enterOpeningRecord('p1', { ...baseDto, customFields: { hacked: 'x' } } as any);
+    expect(prisma.bidOpeningRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ customFields: Prisma.JsonNull }),
+      update: expect.objectContaining({ customFields: Prisma.JsonNull }),
+    }));
+  });
+
+  it('带配置项目：customFields 写入读回——enter 落净化值（未定义键剥除），draft 回读 customFields 并下发 fieldConfig', async () => {
+    mockEnterOk(CFG);
+    await service.enterOpeningRecord('p1', { ...baseDto, customFields: { projectManager: '张三', paymentTerms: '月付', rogue: '应被剥除' } } as any);
+    const call = prisma.bidOpeningRecord.upsert.mock.calls[0][0];
+    expect(call.create.customFields).toEqual({ projectManager: '张三', paymentTerms: '月付' });
+    expect(call.create.customFields).not.toHaveProperty('rogue');
+
+    // 读回：既有记录 customFields 原样回读；fieldConfig 按项目配置下发
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue({ bondStatus: '已缴纳', customFields: { projectManager: '张三', paymentTerms: '月付' } });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: false, deadline: new Date('2026-08-01T17:00:00+08:00'), openingFieldConfig: CFG });
+    const draft = await service.getOpeningRecordDraft('p1', 'bs1');
+    expect(draft.customFields).toEqual({ projectManager: '张三', paymentTerms: '月付' });
+    expect(draft.fieldConfig).toEqual({ fields: CFG.fields });
+  });
+
+  it('required 动态字段缺失 → 400 OPENING_FIELD_REQUIRED（文案含 label），不落库', async () => {
+    mockEnterOk({ fields: [...DEFAULT_OPENING_FIELDS, { key: 'safetyGrade', label: '安全等级', type: 'text', required: true }] });
+    await expect(service.enterOpeningRecord('p1', { ...baseDto } as any))
+      .rejects.toMatchObject({ response: { code: 'OPENING_FIELD_REQUIRED', error: expect.stringContaining('安全等级') } });
+    expect(prisma.bidOpeningRecord.upsert).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['select 越值', { key: 'paymentTerms', label: '付款方式', type: 'select', options: ['月付', '季付'] }, '年付'],
+    ['number 非数值串', { key: 'subcontractRatio', label: '分包比例', type: 'number' }, '三成'],
+  ])('%s → 400 OPENING_FIELD_INVALID', async (_label, def, value) => {
+    mockEnterOk({ fields: [...DEFAULT_OPENING_FIELDS, def] });
+    await expect(service.enterOpeningRecord('p1', { ...baseDto, customFields: { [def.key]: value } } as any))
+      .rejects.toMatchObject({ response: { code: 'OPENING_FIELD_INVALID' } });
+    expect(prisma.bidOpeningRecord.upsert).not.toHaveBeenCalled();
+  });
+
+  it('number 动态字段合法数值串（-12.5）放行；非 required 空值跳过不落键', async () => {
+    mockEnterOk(CFG);
+    await service.enterOpeningRecord('p1', { ...baseDto, customFields: { subcontractRatio: '-12.5', projectManager: '' } } as any);
+    expect(prisma.bidOpeningRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ customFields: { subcontractRatio: '-12.5' } }),
+    }));
+  });
+
+  describe('assertValidOpeningFieldConfig（写入端形状校验，PUT/模板 apply 复用）', () => {
+    it.each([
+      ['删除法定键（amount）', DEFAULT_OPENING_FIELDS.filter((f) => f.key !== 'amount')],
+      ['法定键 type 被改（amount→number）', [{ ...DEFAULT_OPENING_FIELDS[0], type: 'number' }, ...DEFAULT_OPENING_FIELDS.slice(1)]],
+      ['select 无 options', [...DEFAULT_OPENING_FIELDS, { key: 'x', label: 'X', type: 'select' }]],
+      ['prefillFrom 非法定键', [...DEFAULT_OPENING_FIELDS, { key: 'x', label: 'X', type: 'text', prefillFrom: 'rogue' as any }]],
+      ['key 重复', [...DEFAULT_OPENING_FIELDS, { key: 'amount', label: '重复', type: 'text' }]],
+      ['label 空', [...DEFAULT_OPENING_FIELDS, { key: 'x', label: '', type: 'text' }]],
+      ['label 超 20 字', [...DEFAULT_OPENING_FIELDS, { key: 'x', label: '超'.repeat(21), type: 'text' }]],
+    ])('%s → 400 OPENING_FIELD_CONFIG_INVALID', (_label, fields) => {
+      let thrown: unknown;
+      try {
+        assertValidOpeningFieldConfig(fields as OpeningFieldDef[]);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(BadRequestException);
+      expect((thrown as BadRequestException).getResponse()).toMatchObject({ code: 'OPENING_FIELD_CONFIG_INVALID' });
+    });
+
+    it('合法配置（法定四键 + 动态字段）→ 不抛', () => {
+      expect(() => assertValidOpeningFieldConfig([...DEFAULT_OPENING_FIELDS, { key: 'x', label: 'X', type: 'number' }])).not.toThrow();
+    });
   });
 });

@@ -2866,6 +2866,7 @@ export class SupplierPortalService {
         period: true,
         qualityTarget: true,
         bondStatus: true,
+        customFields: true, // A-113：动态唱标字段值（公开表动态列渲染；法定四列仍在上方专属列）
         decryptResult: true,
         confirmStatus: true,
         confirmedAt: true,
