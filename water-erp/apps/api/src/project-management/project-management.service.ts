@@ -840,7 +840,9 @@ export class ProjectManagementService {
           sectionPlan: dto.sectionPlan ?? null,
           activitySchedule: dto.activitySchedule ?? null,
           riskMeasures: dto.riskMeasures ?? null,
-          initiationDate: dto.initiationDate ? new Date(dto.initiationDate) : null,
+          initiationDate: dto.initiationDate
+            ? new Date(dto.initiationDate.length === 10 ? `${dto.initiationDate}T00:00:00` : dto.initiationDate)
+            : null,
           currentStage: firstActiveStage,
           status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
           createdById: dto.createdById,
@@ -1082,6 +1084,35 @@ export class ProjectManagementService {
       } catch (err) {
         this.logger.warn(`Failed to extract info from award decision document: ${err}`);
         // Don't throw - attachment upload should succeed even if extraction fails
+      }
+    }
+
+    // For INITIATION stage, extract 立项时间 from 立项申请表（2026-09-08 用户拍板）：
+    // 项目基本信息的立项时间来源于本步骤上传的文件——此前只有创建向导的提取链
+    // （extract-initiation → 表单 → 创建传参）写入 initiationDate，立项步骤补传/
+    // 替换文件不回填，时间轴因此显示「未登记」。仅空值回填，不覆盖已登记值。
+    if (stageKey === 'INITIATION' && /立项/.test(decodedFileName)) {
+      try {
+        const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
+        const cur = await this.prisma.projectManagementItem.findUnique({
+          where: { id: projectId },
+          select: { initiationDate: true },
+        });
+        if (!cur?.initiationDate) {
+          const { initiationDate } = this.extractInitiationFieldsFromText(text);
+          if (initiationDate) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: projectId },
+              // date-only 字符串 new Date() 按 UTC 零点解析，时间轴 toIsoFromBare 再按本地
+              // 折算会前移一天（3/18 → 3/17 16:00）——补 T00:00:00 落本地零点
+              data: { initiationDate: new Date(initiationDate.length === 10 ? `${initiationDate}T00:00:00` : initiationDate) },
+            });
+            this.logger.log(`[INITIATION] 从 ${decodedFileName} 提取立项时间 ${initiationDate} 已回填项目基本信息`);
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to extract initiation date from document: ${err}`);
+        // 提取失败不阻断上传
       }
     }
 
@@ -3409,6 +3440,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
           expertInfo: project.expertInfo || null,
           biddingUnits: project.biddingUnits || null,
         },
+      });
+
+      // 归档即全流程终结：未完成阶段一律收口为 COMPLETED（避免归档详情的步骤卡显示「进行中」）
+      await tx.projectManagementStage.updateMany({
+        where: { projectManagementItemId: projectId, status: { not: PROJECT_STAGE_STATUS.COMPLETED } },
+        data: { status: PROJECT_STAGE_STATUS.COMPLETED, completedAt: archivedAt },
       });
 
       return tx.projectManagementItem.update({
