@@ -9,7 +9,10 @@ import { openField } from '../common/crypto/field-crypto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { assertPriceMatchesSealed, assertPeriodMatchesSubmitted } from './opening-record-assert.util';
-import { OpeningFieldDef, STATUTORY_OPENING_KEYS, resolveOpeningFieldConfig } from './opening-field-config.util';
+import { OpeningFieldDef, STATUTORY_OPENING_KEYS, resolveOpeningFieldConfig, assertValidOpeningFieldConfig } from './opening-field-config.util';
+
+/** A-113：唱标字段配置锁定阶段——开标已开始后改配置会造成既有唱标记录历史列漂移 */
+const OPENING_FIELD_CONFIG_LOCKED_STAGES = ['OPENING', 'EVALUATING', 'ARCHIVED'];
 
 /** 开标记录/异议域（F1c）——自 bid.service.ts 迁出（P1 审查 F 簇拆分，纯移动）。索引：listOpeningRecords / getOpeningRecordDraft / enterOpeningRecord / resolveOpeningDispute / overrideDispute；唱标校验共用 opening-record-assert.util */
 @Injectable()
@@ -232,6 +235,41 @@ export class BidOpeningRecordService {
       sanitized[f.key] = value;
     }
     return Object.keys(sanitized).length > 0 ? sanitized : null;
+  }
+
+  /**
+   * A-113：写入项目级唱标字段配置——PUT /bid/projects/:id/opening-field-config 与 WorkTemplate apply
+   * 的唯一写径（阶段闸/校验/落库/监督日志在此一处，两端点复用）。
+   * 阶段闸：OPENING/EVALUATING/ARCHIVED 拒改（409 OPENING_FIELDS_LOCKED）；形状校验经
+   * assertValidOpeningFieldConfig（法定四键不可删/type 固定）。写后回显 { fields }。
+   */
+  async setOpeningFieldConfig(projectId: string, fields: OpeningFieldDef[], actorId: string | undefined, source: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (OPENING_FIELD_CONFIG_LOCKED_STAGES.includes(project.stage)) {
+      throw new ConflictException({ error: '开标已开始，唱标字段配置锁定', code: 'OPENING_FIELDS_LOCKED' });
+    }
+    assertValidOpeningFieldConfig(fields);
+
+    await this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: { openingFieldConfig: { fields } as unknown as Prisma.InputJsonValue },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '采购管理员', target: project.name,
+        action: '唱标字段配置更新', result: `${fields.length} 字段（来源：${source}）`, riskFlag: '无',
+      },
+    });
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action: 'BID_OPENING_FIELD_CONFIG_SET', resourceType: `BidProject:${projectId}`, details: { projectId, fieldCount: fields.length, source } },
+      });
+    }
+    return { fields };
   }
 
   async resolveOpeningDispute(projectId: string, recordId: string, dto: ResolveOpeningDisputeDto, actorId?: string) {

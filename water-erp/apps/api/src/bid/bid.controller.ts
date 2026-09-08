@@ -8,6 +8,7 @@ import { BidBondService } from './bid-bond.service';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service';
 import { BidOpeningRecordService } from './bid-opening-record.service';
 import { BidDecryptService } from './bid-decrypt.service';
+import { WorkTemplateService } from './work-template.service';
 import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -32,6 +33,7 @@ import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { UpdateLinkedRequirementsDto } from './dto/update-linked-requirements.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
+import { UpdateOpeningFieldConfigDto } from './dto/update-opening-field-config.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
 import { UseGuards } from '@nestjs/common';
@@ -58,6 +60,7 @@ export class BidController {
     private readonly evalResults: BidEvaluationResultsService,
     private readonly openingRecord: BidOpeningRecordService,
     private readonly decrypt: BidDecryptService,
+    private readonly workTemplates: WorkTemplateService,
   ) {}
 
   @Get('dashboard-stats')
@@ -550,6 +553,29 @@ export class BidController {
   @Get('projects/:id/opening-records')
   @ApiOperation({ summary: '开标记录' })
   listOpeningRecords(@Param('id') id: string) { return this.openingRecord.listOpeningRecords(id); }
+
+  /** A-113：配置项目唱标字段（body 二选一 fields 直给 / fromTemplateId 取 opening_record 模板）；
+   *  开标开始后 409 锁定（防既有唱标记录历史列漂移）。写径/阶段闸在 BidOpeningRecordService 一处。 */
+  @Put('projects/:id/opening-field-config')
+  @Roles('staff', 'leader', 'admin')
+  @ApiOperation({ summary: 'A-113：配置项目唱标字段（fields 或 fromTemplateId；开标开始后锁定）' })
+  async setOpeningFieldConfig(
+    @Param('id') id: string,
+    @Body() dto: UpdateOpeningFieldConfigDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    if (dto.fields && dto.fromTemplateId) {
+      throw new BadRequestException({ error: 'fields 与 fromTemplateId 只能二选一', code: 'OPENING_FIELD_CONFIG_BODY_INVALID' });
+    }
+    if (dto.fields) {
+      return this.openingRecord.setOpeningFieldConfig(id, dto.fields, userId, '手工录入');
+    }
+    if (dto.fromTemplateId) {
+      const tpl = await this.workTemplates.getOpeningFieldsFromTemplate(dto.fromTemplateId);
+      return this.openingRecord.setOpeningFieldConfig(id, tpl.fields, userId, `模板「${tpl.name}」`);
+    }
+    throw new BadRequestException({ error: '请提供 fields 或 fromTemplateId 之一', code: 'OPENING_FIELD_CONFIG_BODY_INVALID' });
+  }
 
   @Post('projects/:id/opening-records')
   @ApiOperation({ summary: '录入唱标信息（建/更新开标记录）' })

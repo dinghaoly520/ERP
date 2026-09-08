@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { assertValidOpeningFieldConfig, OpeningFieldDef } from './opening-field-config.util';
 
 /**
  * W8（CTS-EBS01 A-115 开标记录模板 / A-147 评标模板，★★★）。
- * 通用模板仓库：kind=opening_record（导出列预设）/ evaluation（评分项预设）。
+ * 通用模板仓库：kind=opening_record（导出列预设 + A-113 唱标字段预设）/ evaluation（评分项预设）。
  * 同 kind 同一时刻仅一个 isActive 生效（取最新 active）；无 active 时调用方回退内置默认。
  */
 @Injectable()
@@ -21,6 +22,7 @@ export class WorkTemplateService {
   }
 
   async create(kind: string, name: string, content: object, createdBy?: string) {
+    this.assertTemplateFieldsValid(kind, content);
     // 同 kind 首个模板自动置活跃；后续默认非活跃（须手动 activate）
     const existingCount = await this.prisma.workTemplate.count({ where: { kind } });
     try {
@@ -48,10 +50,37 @@ export class WorkTemplateService {
     return this.prisma.workTemplate.findFirst({ where: { kind, isActive: true }, orderBy: { updatedAt: 'desc' } });
   }
 
+  /** A-113：opening_record 模板 content.fields 形状校验（create/update 写入前）。
+   *  columns 既有语义不动——content 不含 fields 键（存量模板只有导出列）时不校验。 */
+  private assertTemplateFieldsValid(kind: string, content: object | undefined): void {
+    if (kind !== 'opening_record' || !content || !('fields' in content)) return;
+    assertValidOpeningFieldConfig((content as { fields: OpeningFieldDef[] }).fields);
+  }
+
+  /**
+   * A-113：从模板解析唱标字段配置（PUT opening-field-config 的 fromTemplateId 与 apply 端点共用读径）。
+   * 模板不存在 → NOT_FOUND；kind 非 opening_record → TEMPLATE_KIND_MISMATCH；
+   * content.fields 缺失/空 → TEMPLATE_NO_FIELDS；形状非法由 assertValidOpeningFieldConfig 拒。
+   */
+  async getOpeningFieldsFromTemplate(templateId: string): Promise<{ fields: OpeningFieldDef[]; name: string }> {
+    const tpl = await this.prisma.workTemplate.findUnique({ where: { id: templateId } });
+    if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
+    if (tpl.kind !== 'opening_record') {
+      throw new BadRequestException({ error: '仅开标记录模板可用于唱标字段配置', code: 'TEMPLATE_KIND_MISMATCH' });
+    }
+    const fields = (tpl.content as { fields?: OpeningFieldDef[] })?.fields;
+    if (!Array.isArray(fields) || fields.length === 0) {
+      throw new BadRequestException({ error: '模板未定义唱标字段（content.fields 缺失或为空）', code: 'TEMPLATE_NO_FIELDS' });
+    }
+    assertValidOpeningFieldConfig(fields);
+    return { fields, name: tpl.name };
+  }
+
   /** A-115：修改模板（name/content；kind 不可改——保持归类稳定，防模板在 opening_record/evaluation 间漂移） */
   async update(id: string, body: { name?: string; content?: object }) {
     const tpl = await this.prisma.workTemplate.findUnique({ where: { id } });
     if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
+    if (body.content) this.assertTemplateFieldsValid(tpl.kind, body.content);
     try {
       return await this.prisma.workTemplate.update({
         where: { id },
