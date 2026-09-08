@@ -1,5 +1,6 @@
 /* Re-exports from @water-erp/shared — single source of type truth */
 import type { BidProjectDetail as SharedBidProjectDetail } from '@water-erp/shared';
+import type { OpeningFieldDef } from './api/bid';
 
 export type {
   User, BidProject, BidSupplier, BidExpert, BidScoreItem,
@@ -46,7 +47,14 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
    *  shared 的内联 openingRecords 类型暂未含该字段，:3007 侧本地补齐（同 openingSession handoverAt 模式）。 */
   openingRecords: (SharedBidProjectDetail['openingRecords'][number] & {
     confirmSignature?: { algorithm?: string; verifiedAt?: string | null } | null;
+    /** A-113（2026-09-08）：动态唱标字段值仓（BidOpeningRecord.customFields 随详情全量下发；
+     *  旧记录/无动态字段为 null）。shared 的内联类型暂未含该字段，:3007 侧本地补齐。 */
+    customFields?: Record<string, string> | null;
   })[];
+  /** A-113（2026-09-08）：项目级唱标字段配置（BidProject.openingFieldConfig 随详情全量下发；
+   *  null=内置默认四字段，消费侧与后端 resolveOpeningFieldConfig 同语义兜底）。
+   *  shared 的 BidProject 类型暂未含该字段，:3007 侧本地补齐（同 bondRequired 模式）。 */
+  openingFieldConfig?: { fields: OpeningFieldDef[] } | null;
   /** E2: 评标截止时间（供移植的评标管理块倒计时用；后端 GET /bid/projects/:id 对两端返回同数据） */
   evaluationDeadline?: string | null;
   /** N4: 法定最少投标家数（直接采购=1，其余=3）——后端 getProject 下发，dispute-block 流标建议按采购方式取数 */

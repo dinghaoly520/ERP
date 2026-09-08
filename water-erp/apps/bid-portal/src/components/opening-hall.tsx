@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail } from '@/lib/api';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail, type OpeningFieldDef } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
@@ -39,6 +39,53 @@ function isDecryptOuterBatch(r: DecryptOuterResult): r is DecryptOuterBatch {
 }
 
 // 保证金状态选项 BOND_STATUS_OPTIONS 从 @water-erp/shared 导入（单一来源，原前端镜像已删）
+
+/* ── A-113：唱标字段动态渲染 ── */
+
+/** 法定四键（与后端 opening-field-config.util.ts STATUTORY_OPENING_KEYS 镜像） */
+const STATUTORY_KEYS = ['amount', 'period', 'qualityTarget', 'bondStatus'] as const;
+type StatutoryKey = (typeof STATUTORY_KEYS)[number];
+const isStatutoryKey = (key: string): key is StatutoryKey => (STATUTORY_KEYS as readonly string[]).includes(key);
+
+/**
+ * 默认四字段兜底——后端 DEFAULT_OPENING_FIELDS 的前端镜像（后端为权威源，两端同步改）。
+ * draft.fieldConfig 缺失/为空（历史响应未带）时兜底渲染，保证默认态与既有渲染零漂移。
+ */
+const FALLBACK_FIELDS: readonly OpeningFieldDef[] = [
+  { key: 'amount', label: '报价', type: 'text', required: true, prefillFrom: 'amount' },
+  { key: 'period', label: '工期', type: 'text', required: true, prefillFrom: 'period' },
+  { key: 'qualityTarget', label: '质量承诺', type: 'text', required: true, prefillFrom: 'qualityTarget' },
+  { key: 'bondStatus', label: '保证金', type: 'select', options: [...BOND_STATUS_OPTIONS], required: true, prefillFrom: 'bondStatus' },
+];
+
+/** 项目配置解析（与后端 resolveOpeningFieldConfig 同语义）：fields 非空数组 → 用之，否则默认四字段。 */
+function resolveOpeningFields(cfg?: { fields?: unknown } | null): OpeningFieldDef[] {
+  const fields = Array.isArray(cfg?.fields) && cfg.fields.length > 0 ? (cfg.fields as OpeningFieldDef[]) : FALLBACK_FIELDS;
+  return [...fields];
+}
+
+/** A-113：开标记录表单元格——法定四键沿用既有渲染（金额等宽加粗/保证金配色），动态列取 customFields。 */
+function renderRecordCell(
+  f: OpeningFieldDef,
+  r: { amount: string; period: string; qualityTarget: string; bondStatus: string; customFields?: Record<string, string> | null },
+) {
+  switch (f.key) {
+    case 'amount':
+      return <td key={f.key} className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amount}</td>;
+    case 'period':
+      return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.period}</td>;
+    case 'qualityTarget':
+      return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.qualityTarget}</td>;
+    case 'bondStatus':
+      return (
+        <td key={f.key} className={`px-5 py-3 text-[13px] font-bold ${r.bondStatus === '已缴纳' || r.bondStatus === '保函有效' ? 'text-[var(--success)]' : r.bondStatus === '未缴纳' || r.bondStatus === '异常' ? 'text-[var(--danger)]' : 'text-[color:var(--muted-foreground)]'}`}>
+          {r.bondStatus || '—'}
+        </td>
+      );
+    default:
+      return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.customFields?.[f.key] || '—'}</td>;
+  }
+}
 
 /* ── Ring Countdown（浅色 cgzxui：data-urgent 驱动配色）── */
 function RingCountdown({ remaining, big }: { remaining: number; big?: boolean }) {
@@ -117,7 +164,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     amount: string; period: string; qualityTarget: string; bondStatus: string;
     /** A-104：到账台账比对结论（null=项目不要求保证金/早期守卫，不渲染提示） */
     bondCompliance: { issues: { field: string; message: string }[] } | null;
-  }>({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null });
+    /** A-113：本项目唱标字段配置（draft 拉取前为空 → 消费处 FALLBACK_FIELDS 兜底） */
+    fieldConfig: OpeningFieldDef[];
+    /** A-113：动态字段值（非法定键；重录时预填既有记录回读值） */
+    customFields: Record<string, string>;
+  }>({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null, fieldConfig: [], customFields: {} });
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
@@ -305,6 +356,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     });
   }, [project]);
 
+  // A-113：开标记录表动态列（项目配置驱动；null 配置/历史数据未带 → 默认四列，与后端 resolve 同语义）
+  const tableFields = useMemo(() => resolveOpeningFields(project?.openingFieldConfig), [project?.openingFieldConfig]);
+  const recordTableColSpan = tableFields.length + 3; // 供应商 + 字段列 + 确认状态 + 操作
+  // A-113：录入弹窗字段序——draft 拉取后为 draft.fieldConfig（T2 随草稿下发），此前兜底项目配置/默认四字段
+  const entryFields = recordDraft.fieldConfig.length ? recordDraft.fieldConfig : tableFields;
+
   /** 开标完成判定（口径对齐后端可评供应商过滤集 bid.service.ts）：
    *  - 已撤回供应商排除出全集；
    *  - 解密"已处理" = SUCCESS 或 DANGER（DANGER 为解密异常但已处理，不参与评标）；
@@ -453,11 +510,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const openRecordEntry = async (s: { id: string; supplierName: string }, reentry = false) => {
     if (!projectId) return;
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry });
-    setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null });
+    setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null, fieldConfig: [], customFields: {} });
     setBidBondAssetId(null);
     setRecordEntryLoading(true);
     try {
       const draft = await getOpeningDraft(projectId, s.id);
+      // A-113：字段配置随草稿下发（canView=false 的空壳响应也带）；预填失败回退项目配置/默认四字段
+      const fieldConfig = draft.fieldConfig?.fields?.length ? draft.fieldConfig.fields : resolveOpeningFields(project.openingFieldConfig);
       if (draft.canView) {
         setRecordDraft({
           amount: draft.amount ?? '',
@@ -465,8 +524,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           qualityTarget: draft.qualityTarget ?? '',
           bondStatus: draft.bondStatus ?? (draft.bondNotApplicable ? '不适用' : ''),
           bondCompliance: draft.bondCompliance ?? null,
+          fieldConfig,
+          customFields: draft.customFields ?? {},
         });
         setBidBondAssetId(draft.bidBondAssetId ?? null);
+      } else {
+        setRecordDraft(d => ({ ...d, fieldConfig }));
       }
     } catch { /* 预填失败不阻断手填 */ }
     finally { setRecordEntryLoading(false); }
@@ -478,8 +541,29 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     if (!amount.trim() || !period.trim() || !qualityTarget.trim() || !bondStatus.trim()) {
       toast.error('请完整填写唱标信息'); return;
     }
+    // A-113：动态字段校验（法定四字段校验在上方，保持既有文案零漂移）——
+    // required 空→提示含 label；number 与后端正则同源轻校验（服务端 400 为准）
+    const dynamicFields = entryFields.filter(f => !isStatutoryKey(f.key));
+    const missingLabels = dynamicFields
+      .filter(f => f.required && !(recordDraft.customFields[f.key] ?? '').trim())
+      .map(f => f.label);
+    if (missingLabels.length > 0) {
+      toast.error(`请填写「${missingLabels.join('」「')}」`); return;
+    }
+    const badNumber = dynamicFields.find(f => f.type === 'number'
+      && (recordDraft.customFields[f.key] ?? '').trim() !== ''
+      && !/^-?\d+(\.\d+)?$/.test((recordDraft.customFields[f.key] ?? '').trim()));
+    if (badNumber) {
+      toast.error(`「${badNumber.label}」须为数值`); return;
+    }
+    const customFields: Record<string, string> = {};
+    for (const f of dynamicFields) customFields[f.key] = (recordDraft.customFields[f.key] ?? '').trim();
     try {
-      await enterOpeningRecord(projectId, { bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus, confirmSealedPrice: confirmSealedPrice || undefined, confirmSealedPeriod: confirmSealedPeriod || undefined });
+      await enterOpeningRecord(projectId, {
+        bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus,
+        customFields: dynamicFields.length > 0 ? customFields : undefined,
+        confirmSealedPrice: confirmSealedPrice || undefined, confirmSealedPeriod: confirmSealedPeriod || undefined,
+      });
       toast.success('唱标信息已录入，待供应商确认');
       setRecordEntry(null);
       onRefresh();
@@ -1234,17 +1318,16 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <thead>
               <tr className="text-[color:var(--muted-foreground)]">
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">供应商</th>
-                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">报价</th>
-                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">工期</th>
-                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">质量承诺</th>
-                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">保证金</th>
+                {tableFields.map(f => (
+                  <th key={f.key} className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">{f.label}</th>
+                ))}
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">确认状态</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">操作</th>
               </tr>
             </thead>
             <tbody>
               {sortedRecords.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无开标记录</td></tr>
+                <tr><td colSpan={recordTableColSpan} className="px-5 py-12 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无开标记录</td></tr>
               ) : sortedRecords.map((r) => {
                 const sm = openingStatusMeta(r.confirmStatus);
                 const isDisputed = r.confirmStatus === '供应商提出异议';
@@ -1259,12 +1342,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         {r.objectionReason && <div className="mt-1 text-[11px] font-normal text-[var(--danger)]">异议：{r.objectionReason}</div>}
                         {r.handleResult && <div className="mt-1 text-[11px] font-normal text-[color:var(--muted-foreground)]">处理：{r.handleResult}</div>}
                       </td>
-                      <td className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amount}</td>
-                      <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.period}</td>
-                      <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.qualityTarget}</td>
-                      <td className={`px-5 py-3 text-[13px] font-bold ${r.bondStatus === '已缴纳' || r.bondStatus === '保函有效' ? 'text-[var(--success)]' : r.bondStatus === '未缴纳' || r.bondStatus === '异常' ? 'text-[var(--danger)]' : 'text-[color:var(--muted-foreground)]'}`}>
-                        {r.bondStatus || '—'}
-                      </td>
+                      {/* A-113：字段列按项目配置渲染（法定列沿用既有单元格样式，动态列取 customFields） */}
+                      {tableFields.map(f => renderRecordCell(f, r))}
                       <td className="px-5 py-3">
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide ${sm.cls}`}>{sm.label}</span>
                       </td>
@@ -1282,7 +1361,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     {/* Inline dispute handling panel */}
                     {disputeOpen && (
                       <tr key={`${r.id}-dispute`}>
-                        <td colSpan={7} className="border-b border-[oklch(0.78_0.12_83_/_0.3)] bg-[oklch(0.985_0.006_258_/_0.7)]">
+                        <td colSpan={recordTableColSpan} className="border-b border-[oklch(0.78_0.12_83_/_0.3)] bg-[oklch(0.985_0.006_258_/_0.7)]">
                           <div className="space-y-3 px-5 py-4">
                             <div className="flex items-start gap-2">
                               <Shield size={14} className="mt-0.5 flex-shrink-0 text-[oklch(0.46_0.11_65)]" />
@@ -1362,47 +1441,79 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <div className="bid-dialog w-[480px] p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">{recordEntry.reentry ? '重录唱标信息' : '录入唱标信息'} — {recordEntry.supplierName}</h3>
             <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">据解密后的投标内容填写，提交后{recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。</p>
+            {/* A-113：字段按项目配置序渲染——法定四键沿用既有控件（含 A-104 台账提示/凭证链接/密封 409 双确认流在提交侧），
+                动态键按 type 渲染 input/select；label 用配置 label（默认配置下与既有文案一致即零漂移） */}
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-                报价（元）
-                <input value={recordDraft.amount} onChange={e => setRecordDraft(d => ({ ...d, amount: e.target.value }))}
-                  className="neu-input mt-1 w-full font-mono" placeholder="如 980000" />
-              </label>
-              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-                工期
-                <input value={recordDraft.period} onChange={e => setRecordDraft(d => ({ ...d, period: e.target.value }))}
-                  className="neu-input mt-1 w-full" placeholder="如 180天" />
-              </label>
-              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-                质量承诺
-                <input value={recordDraft.qualityTarget} onChange={e => setRecordDraft(d => ({ ...d, qualityTarget: e.target.value }))}
-                  className="neu-input mt-1 w-full" placeholder="如 满足招标文件要求（按投标承诺）" />
-              </label>
-              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-                保证金
-                <select value={recordDraft.bondStatus}
-                  onChange={e => setRecordDraft(d => ({ ...d, bondStatus: e.target.value }))}
-                  className="neu-select mt-1 w-full">
-                  <option value="">— 请核对凭证后选择 —</option>
-                  {BOND_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-                {/* A-104：到账台账自动比对提示（null=项目不要求保证金/早期守卫，不渲染）——span 块级化，label 内容模型不含块级元素 */}
-                {recordDraft.bondCompliance && (
-                  recordDraft.bondCompliance.issues.length > 0 ? (
-                    <span className="mt-1 block rounded-[8px] bg-[oklch(0.66_0.175_27_/_0.08)] px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
-                      保证金台账比对不符：{recordDraft.bondCompliance.issues.map(i => i.message).join('；')}
-                    </span>
-                  ) : (
-                    <span className="mt-1 block rounded-[8px] bg-[oklch(0.71_0.11_164_/_0.08)] px-3 py-2 text-[11px] text-[var(--success)]">保证金台账比对相符</span>
-                  )
-                )}
-                {bidBondAssetId && (
-                  <a href={`/api/upload/files/${bidBondAssetId}`} target="_blank" rel="noopener"
-                     className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--accent-strong)] hover:underline">
-                    <FileText size={12} strokeWidth={1.5} /> 查看保证金凭证
-                  </a>
-                )}
-              </label>
+              {entryFields.map(f => {
+                if (isStatutoryKey(f.key)) {
+                  // 法定四键：label 用配置（amount 恒为金额，补（元）后缀对齐既有文案）
+                  const labelText = f.key === 'amount' ? `${f.label}（元）` : f.label;
+                  if (f.key === 'bondStatus') {
+                    return (
+                      <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+                        {labelText}
+                        <select value={recordDraft.bondStatus}
+                          onChange={e => setRecordDraft(d => ({ ...d, bondStatus: e.target.value }))}
+                          className="neu-select mt-1 w-full">
+                          <option value="">— 请核对凭证后选择 —</option>
+                          {BOND_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                        {/* A-104：到账台账自动比对提示（null=项目不要求保证金/早期守卫，不渲染）——span 块级化，label 内容模型不含块级元素 */}
+                        {recordDraft.bondCompliance && (
+                          recordDraft.bondCompliance.issues.length > 0 ? (
+                            <span className="mt-1 block rounded-[8px] bg-[oklch(0.66_0.175_27_/_0.08)] px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+                              保证金台账比对不符：{recordDraft.bondCompliance.issues.map(i => i.message).join('；')}
+                            </span>
+                          ) : (
+                            <span className="mt-1 block rounded-[8px] bg-[oklch(0.71_0.11_164_/_0.08)] px-3 py-2 text-[11px] text-[var(--success)]">保证金台账比对相符</span>
+                          )
+                        )}
+                        {bidBondAssetId && (
+                          <a href={`/api/upload/files/${bidBondAssetId}`} target="_blank" rel="noopener"
+                             className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--accent-strong)] hover:underline">
+                            <FileText size={12} strokeWidth={1.5} /> 查看保证金凭证
+                          </a>
+                        )}
+                      </label>
+                    );
+                  }
+                  const statutoryValue = f.key === 'amount' ? recordDraft.amount
+                    : f.key === 'period' ? recordDraft.period : recordDraft.qualityTarget;
+                  const statutoryPlaceholder = f.key === 'amount' ? '如 980000'
+                    : f.key === 'period' ? '如 180天' : '如 满足招标文件要求（按投标承诺）';
+                  return (
+                    <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+                      {labelText}
+                      <input value={statutoryValue}
+                        onChange={e => setRecordDraft(d => f.key === 'amount'
+                          ? { ...d, amount: e.target.value }
+                          : f.key === 'period' ? { ...d, period: e.target.value } : { ...d, qualityTarget: e.target.value })}
+                        className={`neu-input mt-1 w-full ${f.key === 'amount' ? 'font-mono' : ''}`}
+                        placeholder={statutoryPlaceholder} />
+                    </label>
+                  );
+                }
+                // 动态键：text/number→input（number 带 decimal 软键盘）、select→下拉；required 标星
+                const value = recordDraft.customFields[f.key] ?? '';
+                const onCustomChange = (v: string) => setRecordDraft(d => ({ ...d, customFields: { ...d.customFields, [f.key]: v } }));
+                return (
+                  <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">
+                    {f.label}{f.required ? ' *' : ''}
+                    {f.type === 'select' ? (
+                      <select value={value} onChange={e => onCustomChange(e.target.value)}
+                        className="neu-select mt-1 w-full">
+                        <option value="">— 请选择 —</option>
+                        {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input value={value} onChange={e => onCustomChange(e.target.value)}
+                        inputMode={f.type === 'number' ? 'decimal' : undefined}
+                        className={`neu-input mt-1 w-full ${f.type === 'number' ? 'font-mono' : ''}`}
+                        placeholder={f.type === 'number' ? '如 120' : '按招标文件约定填写'} />
+                    )}
+                  </label>
+                );
+              })}
             </div>
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" onClick={() => setRecordEntry(null)}

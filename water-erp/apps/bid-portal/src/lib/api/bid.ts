@@ -155,9 +155,34 @@ export function resolveOpeningDispute(projectId: string, recordId: string, body:
   return api.post(`/bid/projects/${projectId}/opening-records/${recordId}/resolve-dispute`, body);
 }
 
+/* ── A-113：唱标字段动态配置（前端镜像）──
+   权威形状在后端 apps/api/src/bid/opening-field-config.util.ts（OpeningFieldDef /
+   resolveOpeningFieldConfig），此处仅作 :3007 消费侧类型镜像；两端形状同步改。 */
+
+export type OpeningFieldType = 'text' | 'number' | 'select';
+
+/** 法定四键：amount 报价 / period 工期 / qualityTarget 质量承诺 / bondStatus 保证金 */
+export type StatutoryOpeningKey = 'amount' | 'period' | 'qualityTarget' | 'bondStatus';
+
+export interface OpeningFieldDef {
+  /** 唯一键；法定四键不可删、type 固定 */
+  key: string;
+  /** 列/表单标签 */
+  label: string;
+  type: OpeningFieldType;
+  /** type=select 必填（非空选项集） */
+  options?: string[];
+  /** 默认 false；法定四字段恒 true */
+  required?: boolean;
+  /** 复用既有解密封预填（仅法定键——动态键无密封源） */
+  prefillFrom?: StatutoryOpeningKey;
+}
+
 /** 主持人录入唱标信息（报价/工期/质量目标/保证金）→ 生成/更新开标记录供供应商确认。 */
 export function enterOpeningRecord(projectId: string, body: {
   bidSupplierId: string; amount: string; period: string; qualityTarget: string; bondStatus: string;
+  /** A-113：动态字段值集合（非法定键；服务端按配置净化——未定义键剥除、空值剥除） */
+  customFields?: Record<string, string>;
   /** P1-4：录入价与密封报价不一致时的主持人显式确认（409 PRICE_MISMATCH 后回传） */
   confirmSealedPrice?: boolean;
   /** P1-4 同构：录入工期与投递工期不一致时的主持人显式确认（409 PERIOD_MISMATCH 后回传） */
@@ -178,6 +203,10 @@ export type OpeningDraftResult = {
   bondNotApplicable: boolean;
   /** A-104：到账台账自动比对结论（bondRequired=false 或早期守卫返回时 null；空 issues=相符） */
   bondCompliance?: { issues: { field: string; message: string }[] } | null;
+  /** A-113：既有记录动态字段回读（重录草稿预填；无记录/无动态字段为 null） */
+  customFields: Record<string, string> | null;
+  /** A-113：本项目唱标字段配置（后端 resolve 后恒非空——null 配置=默认四字段） */
+  fieldConfig: { fields: OpeningFieldDef[] };
 };
 
 /* ── 保证金到账台账（A-102 登记幂等/错登删除；A-104 比对徽标消费）── */
