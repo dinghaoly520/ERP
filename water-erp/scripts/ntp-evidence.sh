@@ -19,7 +19,7 @@ CHRONY_OK=0 API_OK=0
 chrony_reason="" api_reason="" offset_ms="" api_offset_ms=""
 
 TRACKING="$(LC_ALL=C chronyc tracking 2>&1)"; TRACK_RC=$?
-SOURCES="$(LC_ALL=C chronyc sources -v 2>&1)"
+SOURCES="$(LC_ALL=C chronyc -N sources -v 2>&1)"
 SOURCESTATS="$(LC_ALL=C chronyc sourcestats 2>&1)"
 
 if ! command -v chronyc >/dev/null 2>&1; then
@@ -29,16 +29,19 @@ elif [ "$TRACK_RC" -ne 0 ]; then
 else
   leap="$(printf '%s\n' "$TRACKING" | awk -F: '/^Leap status/{gsub(/ /,"",$2); print $2}')"
   offset_ms="$(printf '%s\n' "$TRACKING" | awk -F: '/^System time/{print $2}' | awk '{printf "%d", ($1<0?-$1:$1)*1000}')"
-  ntsc_count="$(printf '%s\n' "$SOURCES" | grep -ci 'ntsc')"
+  ref_id="$(printf '%s\n' "$TRACKING" | awk -F: '/^Reference ID/{print $2}' | sed 's/^ *//')"
+  # chrony 4.2 的 tracking Reference ID 只显解析后 IP，同步源身份以 chronyc -N sources 的
+  # ^* 选择标记为准（^* = chronyd 当前同步源；prefer 使 NTSC 在候选中胜出）
+  selected_ntsc="$(printf '%s\n' "$SOURCES" | grep -cE '^\^\*[[:space:]].*ntsc')"
   if [ "$leap" != "Normal" ]; then
     chrony_reason="Leap status = ${leap:-（空）}，未正常同步"
   elif [ -z "$offset_ms" ] || [ "$offset_ms" -gt 1000 ]; then
     chrony_reason="系统时间偏差 ${offset_ms:-未解析}ms（要求 <1000ms）"
-  elif [ "${ntsc_count:-0}" -eq 0 ]; then
-    chrony_reason="chrony sources 中无国家授时中心源（ntsc）——请检查 chrony.conf server 配置"
+  elif [ "${selected_ntsc:-0}" -eq 0 ]; then
+    chrony_reason="实际同步源非国家授时中心（Reference ID = ${ref_id:-未解析}，sources 中 NTSC 无 ^* 选择标记）——检查 ntp.ntsc.ac.cn 可达性/prefer 配置"
   else
     CHRONY_OK=1
-    chrony_reason="OK（Leap=Normal，偏差 ${offset_ms}ms <1000ms，NTSC 源在线）"
+    chrony_reason="OK（Leap=Normal，偏差 ${offset_ms}ms <1000ms，同步源=^* ntp.ntsc.ac.cn，RefID=${ref_id:-}）"
   fi
 fi
 

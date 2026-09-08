@@ -18,14 +18,20 @@ A-97：投标截止/开标等关键时间须使用国家授时中心标准时间
 sudo systemsetup -setusingnetworktime on
 sudo systemsetup -setnetworktimeserver ntp.ntsc.ac.cn
 
-# Linux（生产）
-sudo tee /etc/chrony/chrony.conf <<'CONF'
-server ntp.ntsc.ac.cn iburst
+# Linux（生产）——实测有效的三步（2026-09-08 本机落地）：
+# 1) 追加 NTSC 主源（prefer）+ 备源。勿保留 Ubuntu 默认池一起跑：
+#    NTSC 与池源存在数十 ms 系统差，9 个池源多数派会把 NTSC 判为离群（^?），prefer 救不了已被排除的源
+sudo tee -a /etc/chrony/chrony.conf <<'CONF'
+server ntp.ntsc.ac.cn iburst prefer
 server ntp.aliyun.com iburst   # 备源
-makestep 1.0 3                 # 启动 3 次内允许跳变校准
 CONF
-sudo systemctl enable --now chronyd
-chronyc tracking                # 验证：System time 偏差应 < 1s
+# 2) 注释发行版池与 DHCP 源，让源选择以 NTSC 为准
+sudo sed -i 's|^pool |# pool |; s|^sourcedir /run/chrony-dhcp|#sourcedir /run/chrony-dhcp|' /etc/chrony/chrony.conf
+sudo systemctl restart chrony
+# 3) NTSC 公网服务间歇限答：若 sources 里 NTSC 行长期 ^?（reach 低），root 发一轮探测突发加速建样本
+#    （burst 按已解析 IP 下发，主机名报 503 No such source）
+sudo chronyc -N burst 4/8 "$(getent ahostsv4 ntp.ntsc.ac.cn | awk '{print $1; exit}')"
+# 验证：chronyc -N sources 中 NTSC 行出现 ^*（当前同步源）；chronyc tracking System time 偏差 <1s
 ```
 
 ## 验收口径
