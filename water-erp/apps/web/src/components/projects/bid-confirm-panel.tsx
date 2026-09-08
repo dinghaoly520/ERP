@@ -19,6 +19,7 @@ import {
   Sparkles,
   UserCheck,
   Users,
+  Volume2,
   X,
 } from 'lucide-react';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
@@ -56,6 +57,7 @@ import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { ArchiveTemplateCard } from './archive-template-card';
+import { OpeningFieldConfigCard } from './opening-field-config-card';
 import { uploadFile } from '@/lib/api/announcement';
 
 type Props = {
@@ -754,6 +756,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   />
                 )}
               </SectionCard>
+
+              {/* ▸ A-113/A-115：唱标字段配置 + 开标记录模板库（API-only 收口 UI，2026-09-08）。
+                  bidProject 优先取 detail（含 openingFieldConfig 全量列；详情拉取失败回退 ref 只读兜底） */}
+              {bidProject && (
+                <SectionCard
+                  icon={<Volume2 size={14} />}
+                  title="唱标字段配置"
+                  accent="var(--stage-announce)"
+                  accentSoft="var(--stage-announce-soft)"
+                >
+                  <OpeningFieldConfigCard
+                    bidProject={detail ?? bidProject}
+                    onChanged={() => void load()}
+                  />
+                </SectionCard>
+              )}
 
               {/* ▸ D1（GB/T 43711 4.1.5.1）：档案清单对标 + 线下材料人工登记 */}
               {bpId && <ArchiveTemplateCard bidProjectId={bpId} />}

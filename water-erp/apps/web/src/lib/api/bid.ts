@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { BOND_STATUS_OPTIONS } from '@water-erp/shared';
 import type { ScorePointSuggestion, ScorePointSuggestionGroup } from '@water-erp/shared';
 
 export type { ScorePointSuggestion, ScorePointSuggestionGroup };
@@ -542,6 +543,8 @@ export interface BidProjectDetail {
   qualityRequirement?: string | null;
   scoreStandardPublishedAt?: string | null;
   evaluationDeadline?: string | null; // E2: 评标截止时间
+  /** A-113：唱标字段动态配置（null = 内置默认四字段；OPENING 起锁定不可改） */
+  openingFieldConfig?: { fields?: OpeningFieldDef[] } | null;
   suppliers: BidProjectSupplierInfo[];
   openingSession: BidOpeningSessionInfo | null;
   openingRecords: Array<{
@@ -692,4 +695,99 @@ export async function registerNonTenderDeal(
 
 export async function getNonTenderDeal(bidProjectId: string) {
   return api.get<NonTenderDealRecord | null>(`/bid/projects/${bidProjectId}/non-tender-deal`);
+}
+
+/* ── A-113/A-115：唱标字段配置 + 开标记录模板库（:3005 开标确认面板「唱标字段配置」卡）── */
+
+/**
+ * 唱标字段定义——形状权威在后端 `apps/api/src/bid/opening-field-config.util.ts`（OpeningFieldDef），
+ * 此处为前端镜像（两侧互指，改形状须同步）。法定不变量：amount/period/qualityTarget/bondStatus
+ * 四法定键不可删、type 不可改（配置只能增列/调序/改标签）；label ≤20 字；select 须带非空 options。
+ */
+export type OpeningFieldType = 'text' | 'number' | 'select';
+export type StatutoryOpeningKey = 'amount' | 'period' | 'qualityTarget' | 'bondStatus';
+
+export const STATUTORY_OPENING_KEYS: readonly StatutoryOpeningKey[] = ['amount', 'period', 'qualityTarget', 'bondStatus'];
+
+export interface OpeningFieldDef {
+  /** 唯一键；法定四键不可删、type 固定 */
+  key: string;
+  /** 列/表单标签（非空，≤20 字） */
+  label: string;
+  type: OpeningFieldType;
+  /** type=select 必填（非空选项集） */
+  options?: string[];
+  /** 默认 false；法定四字段恒 true */
+  required?: boolean;
+  /** 复用既有解密封预填（仅法定键——动态键无密封源） */
+  prefillFrom?: StatutoryOpeningKey;
+}
+
+/** 内置默认四字段镜像（后端 DEFAULT_OPENING_FIELDS 权威；保证金下拉选项取 @water-erp/shared 枚举） */
+export const DEFAULT_OPENING_FIELDS: readonly OpeningFieldDef[] = [
+  { key: 'amount', label: '报价', type: 'text', required: true, prefillFrom: 'amount' },
+  { key: 'period', label: '工期', type: 'text', required: true, prefillFrom: 'period' },
+  { key: 'qualityTarget', label: '质量承诺', type: 'text', required: true, prefillFrom: 'qualityTarget' },
+  { key: 'bondStatus', label: '保证金', type: 'select', options: [...BOND_STATUS_OPTIONS], required: true, prefillFrom: 'bondStatus' },
+];
+
+/** resolveOpeningFieldConfig 镜像（后端权威）：openingFieldConfig.fields 非空数组 → 用之，否则默认四字段 */
+export function resolveOpeningFields(
+  project: { openingFieldConfig?: { fields?: OpeningFieldDef[] } | null } | null | undefined,
+): OpeningFieldDef[] {
+  const fields = project?.openingFieldConfig?.fields;
+  return Array.isArray(fields) && fields.length > 0
+    ? fields.map((f) => ({ ...f }))
+    : DEFAULT_OPENING_FIELDS.map((f) => ({ ...f, ...(f.options ? { options: [...f.options] } : {}) }));
+}
+
+/** A-113：配置项目唱标字段。{fields} 手工录入或 {fromTemplateId} 从模板应用（PUT 统一写径）；
+ *  开标开始后 409 OPENING_FIELDS_LOCKED，形状非法 400 OPENING_FIELD_CONFIG_INVALID */
+export function setOpeningFieldConfig(
+  projectId: string,
+  body: { fields: OpeningFieldDef[] } | { fromTemplateId: string },
+) {
+  return api.put<{ fields: OpeningFieldDef[] }>(`/bid/projects/${projectId}/opening-field-config`, body);
+}
+
+/** A-113：开标记录模板的唱标字段应用到项目（POST 专用写径，与 PUT 复用同一阶段闸/校验） */
+export function applyOpeningTemplate(templateId: string, projectId: string) {
+  return api.post<{ fields: OpeningFieldDef[] }>(`/work-templates/${templateId}/apply/${projectId}`, {});
+}
+
+/** 通用工作模板（A-115）：kind=opening_record 开标记录（content.fields 唱标字段 + 既有 content.columns 导出列）｜evaluation 评标 */
+export interface WorkTemplateRef {
+  id: string;
+  kind: string;
+  name: string;
+  content: { columns?: string[]; fields?: OpeningFieldDef[] };
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 列某 kind 全部模板（后端按 isActive desc, updatedAt desc 排序） */
+export function listWorkTemplates(kind: string) {
+  return api.get<WorkTemplateRef[]>(`/work-templates/${kind}`);
+}
+
+/** 新建模板；同 kind 同名 → 400 TEMPLATE_DUPLICATE；opening_record 含 fields 时走形状校验 */
+export function createWorkTemplate(body: { kind: string; name: string; content: { columns?: string[]; fields?: OpeningFieldDef[] } }) {
+  return api.post<WorkTemplateRef>('/work-templates', body);
+}
+
+/** 修改模板（name/content；kind 不可改）。content 整体替换——保留既有 columns 须随 body 带回 */
+export function updateWorkTemplate(id: string, body: { name?: string; content: { columns?: string[]; fields?: OpeningFieldDef[] } }) {
+  return api.patch<WorkTemplateRef>(`/work-templates/${id}`, body);
+}
+
+/** 设为生效（同 kind 其余自动停用） */
+export function activateWorkTemplate(id: string) {
+  return api.post<WorkTemplateRef>(`/work-templates/${id}/activate`, {});
+}
+
+/** 删除模板；生效中禁删 → 400 TEMPLATE_ACTIVE_DELETE_FORBIDDEN（先启用其他模板） */
+export function deleteWorkTemplate(id: string) {
+  return api.delete<{ deleted: boolean }>(`/work-templates/${id}`);
 }
