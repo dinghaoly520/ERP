@@ -468,6 +468,9 @@
   border: 1px solid oklch(0.89 0.018 258 / 0.88);
   border-radius: 16px;
   background: oklch(0.988 0.006 258 / 0.94);
-  box-shadow: 0 8px 24px oklch(0.4 0.04 258 / 0.05), inset 0 1px 0 #fff;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
 }
 .reg-actions-spacer { flex: 1 1 auto; }
