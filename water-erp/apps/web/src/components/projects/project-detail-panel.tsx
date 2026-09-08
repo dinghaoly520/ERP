@@ -1488,7 +1488,7 @@ export function ProjectDetailPanel({
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span>
                     <button
                       type="button"
-                      onClick={() => void handleAiOptimizeInitiation()} data-ai-btn="1" data-ai-btn="1"
+                      onClick={() => void handleAiOptimizeInitiation()} data-ai-btn="1"
                       disabled={aiExtracting === 'initiation' || stageLocked}
                       title="依据采购需求、采购立项阶段上传的文件，AI 提取并优化以下两项内容"
                       className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]"

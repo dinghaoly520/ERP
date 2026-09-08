@@ -174,9 +174,11 @@ export type ProjectManagementItem = {
   // 需求表独有字段
   demandProject?: string | null;
   demandContractNumber?: string | null;
+  demandProcurementTitle?: string | null; // 采购需求标题（prefill-from-project 消费）
   contractNumber?: string | null;
   departmentNumber?: string | null;
   projectCode?: string | null;
+  recycledAt?: string | null; // 移入回收站时间（3 年保留期起算点，回收站抽屉消费）
   // 提取的关键信息（分步骤展示）
   initiationDate?: string | null;
   projectOverview?: string | null;
