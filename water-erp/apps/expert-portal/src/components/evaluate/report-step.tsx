@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Check, AlertTriangle, BarChart3, Gavel, ClipboardList, ChevronRight, ChevronDown, ShieldCheck } from 'lucide-react';
 import type { EvaluationReport } from '@/lib/types';
-import { CATEGORY_LABEL, CATEGORY_COLOR, isPassFailCategory } from '@water-erp/shared';
+import { CATEGORY_LABEL, CATEGORY_COLOR, isPassFailCategory, formatBidPrice } from '@water-erp/shared';
 import { QuoteHistoryPanel } from './quote-history-panel';
 
 interface MotionItem {
@@ -185,15 +185,18 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
           {report.supplierScores.map((ss, i) => {
             const supplierDisputes = disputedBySupplier.get(ss.supplierName) ?? [];
             return (
-              <div key={i} className="neu-card-static overflow-hidden">
+              <div key={i} className={`neu-card-static overflow-hidden ${ss.invalid ? 'opacity-60' : ''}`}>
                 {/* 供应商头部 + 总分 */}
                 <div className="flex items-center justify-between p-5">
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-strong)] text-sm font-bold text-white">{i + 1}</div>
                     <h3 className="font-bold text-[var(--foreground)]">{ss.supplierName}</h3>
+                    {ss.invalid && (
+                      <span className="exp-pill" style={{ '--c': 'var(--danger)' } as React.CSSProperties}>废标</span>
+                    )}
                     {ss.bidPrice && (
                       <span className="text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
-                        报价：¥{Number(ss.bidPrice).toLocaleString('zh-CN')}
+                        报价：{formatBidPrice(ss.bidPrice)}
                       </span>
                     )}
                     {ss.perSupplierComplete && (

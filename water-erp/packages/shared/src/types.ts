@@ -331,6 +331,8 @@ export interface EvaluationReport {
     supplierName: string;
     totalScore: number;
     bidPrice?: string;
+    /** P1-9（UI审计）：废标标记——服务端按供应商 bidValidity === 'invalid' 派生 */
+    invalid?: boolean;
     perSupplierComplete: boolean;
     categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string; points?: { name: string; checked: boolean; awardedScore: number; fullScore: number; note?: string }[] }[] }>;
   }[];
