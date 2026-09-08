@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { ArchiveModule } from '../archive/archive.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { LocalAiModule } from '../local-ai/local-ai.module';
 import { StorageModule } from '../storage/storage.module';
 import { ProjectManagementController } from './project-management.controller';
 import { StageComplianceConfigService } from './stage-compliance-config.service';
@@ -13,7 +14,7 @@ import { ProjectManagementService } from './project-management.service';
 import { GbCodeService } from '../common/gb-code.service';
 
 @Module({
-  imports: [AiModule, AuthModule, KnowledgeModule, PrismaModule, StorageModule, ArchiveModule],
+  imports: [AiModule, AuthModule, KnowledgeModule, LocalAiModule, PrismaModule, StorageModule, ArchiveModule],
   controllers: [StageComplianceController, ProjectManagementController],
   providers: [
     TimelineService,

@@ -7,7 +7,11 @@ import { parseFlexibleDate } from '../common/parse-date.util';
  * B3 项目时间信息轴（CTS-EBS01 A-204：项目相关时间信息的建立和维护）。
  * 聚合 PMI / BidProject / Contract 三域六类时间节点：
  * 采购立项 · 采购文件获取 · 投标截止 · 开标 · 合同签订 · 归档。
- * 输出：有值节点按时间升序在前，缺值节点保持声明顺序垫底（前端灰显占位）。
+ * 输出：固定业务顺序（2026-09-08 用户拍板）——此前有值节点按时间升序，
+ * 时间压缩/回填场景下「归档」会插进中间（实测 6/23 归档排在 9/7 文件获取
+ * 之前），阅读割裂；缺值节点原地灰显占位（前端「未登记」）。
+ * 兜底：采购立项 initiationDate 缺 → PMI.createdAt（建档即立项下限）；
+ * 合同签订 Contract.signedAt 缺 → CONTRACT 阶段 completedAt（阶段完成≈签订完成）。
  */
 
 export interface TimelineNode {
@@ -64,7 +68,7 @@ export class TimelineService {
   async getTimeline(pmiId: string): Promise<TimelineNode[]> {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: pmiId },
-      select: { id: true, initiationDate: true, documentAcquireTime: true, bidOpeningTime: true, archivedAt: true },
+      select: { id: true, createdAt: true, initiationDate: true, documentAcquireTime: true, bidOpeningTime: true, archivedAt: true },
     });
     if (!item) throw new NotFoundException('未找到对应项目');
 
@@ -79,6 +83,20 @@ export class TimelineService {
       select: { signedAt: true },
       orderBy: { createdAt: 'desc' },
     });
+    // 合同签订兜底：未走合同模块登记（signedAt 空）时取 CONTRACT 阶段完成时刻
+    let contractSignIso = toIsoFromBare(contract?.signedAt);
+    let contractSignSource = '合同';
+    if (!contractSignIso) {
+      const contractStage = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: pmiId, stageKey: 'CONTRACT', completedAt: { not: null } },
+        select: { completedAt: true },
+        orderBy: { completedAt: 'desc' },
+      });
+      if (contractStage) {
+        contractSignIso = toIsoFromBare(contractStage.completedAt);
+        contractSignSource = '合同阶段完成';
+      }
+    }
 
     // 采购文件获取是时段（AI 提取的起止区间；上传同步的单点值 → 无终点）
     const acquireRange = parseDateRange(item.documentAcquireTime);
@@ -93,24 +111,17 @@ export class TimelineService {
     const deadlineSource = deadlineRaw ? '招标项目' : openingIso ? '按开标时间推算（前24小时）' : '招标项目';
 
     const nodes: TimelineNode[] = [
-      { key: 'initiation', label: '采购立项', time: toIsoFromBare(item.initiationDate), source: '项目管理' },
+      // initiationDate 未登记（直建/AI 提取缺失）→ 建档时刻兜底，避免「采购立项 未登记」
+      { key: 'initiation', label: '采购立项', time: toIsoFromBare(item.initiationDate) ?? toIsoFromBare(item.createdAt), source: item.initiationDate ? '项目管理' : '项目建档' },
       { key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' },
-      // 展示顺序：投标截止在开标之前（时间升序排序天然保证，此处声明数组顺序便于无值兜底段一致）
       { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
       { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
-      { key: 'contractSign', label: '合同签订', time: toIsoFromBare(contract?.signedAt), source: '合同' },
+      { key: 'contractSign', label: '合同签订', time: contractSignIso, source: contractSignSource },
       { key: 'archived', label: '归档', time: toIsoFromBare(item.archivedAt), source: '归档' },
     ];
 
-    // 有值节点按时间升序（投标截止=开标-24h 必然早于开标，排在开标之前）；
-    // 同刻并列时按业务序（立项→获取→截止→开标→签约→归档）稳定排序
-    const ORDER: Record<string, number> = { initiation: 0, documentAcquire: 1, bidDeadline: 2, bidOpening: 3, contractSign: 4, archived: 5 };
-    const withTime = nodes.filter(n => n.time).sort((a, b) => {
-      const d = new Date(a.time!).getTime() - new Date(b.time!).getTime();
-      if (d !== 0) return d;
-      return ORDER[a.key] - ORDER[b.key];
-    });
-    const without = nodes.filter(n => !n.time);
-    return [...withTime, ...without];
+    // 固定业务顺序（2026-09-08）：立项→获取→截止→开标→签约→归档，与流程阅读习惯一致；
+    // 缺值节点原位保留（前端灰显「未登记」），不再按时间重排
+    return nodes;
   }
 }

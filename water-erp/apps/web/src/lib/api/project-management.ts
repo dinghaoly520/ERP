@@ -406,7 +406,7 @@ export async function createProjectManagementItem(fields: InitiationFields) {
 export async function updateProjectStage(
   projectId: string,
   stageKey: ProjectWorkflowStageKey,
-  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; note?: string; confirmedThreshold?: number },
+  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean },
 ) {
   const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}`, {
     method: 'PATCH',
@@ -415,6 +415,18 @@ export async function updateProjectStage(
     body: JSON.stringify(payload),
   });
 
+  if (!response.ok) {
+    // 保留后端 code（如 ARCHIVE_GATE_MISSING）供调用方分支处理，而非只透出 message
+    try {
+      const body = (await response.json()) as { code?: string; message?: string; error?: string };
+      const err = new Error(body.error || body.message || `更新阶段失败（${response.status}）`);
+      (err as Error & { code?: string }).code = body.code;
+      throw err;
+    } catch (e) {
+      if (e instanceof Error && 'code' in e) throw e;
+      throw new Error(`更新阶段失败（${response.status}）`);
+    }
+  }
   return parseJsonResponse(response);
 }
 

@@ -21,6 +21,7 @@ import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractCon
 import { patchDocx, ConcurrentEditError } from './docx/html-to-docx.patcher';
 import { Document, Packer } from 'docx';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
+import { LlmService } from '../local-ai/llm.service';
 import { StorageService } from '../storage/storage.service';
 import { GbCodeService } from '../common/gb-code.service';
 import { ArchiveScopeService } from '../archive/archive-scope.service';
@@ -210,6 +211,7 @@ export class ProjectManagementService {
     private readonly prisma: PrismaService,
     private readonly gbCode: GbCodeService,
     private readonly aiService: AiService,
+    private readonly llm: LlmService,
     private readonly documentParser: DocumentParserService,
     private readonly storage: StorageService,
     private readonly archiveScope: ArchiveScopeService,
@@ -838,7 +840,9 @@ export class ProjectManagementService {
           sectionPlan: dto.sectionPlan ?? null,
           activitySchedule: dto.activitySchedule ?? null,
           riskMeasures: dto.riskMeasures ?? null,
-          initiationDate: dto.initiationDate ? new Date(dto.initiationDate) : null,
+          initiationDate: dto.initiationDate
+            ? new Date(dto.initiationDate.length === 10 ? `${dto.initiationDate}T00:00:00` : dto.initiationDate)
+            : null,
           currentStage: firstActiveStage,
           status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
           createdById: dto.createdById,
@@ -1083,6 +1087,35 @@ export class ProjectManagementService {
       }
     }
 
+    // For INITIATION stage, extract 立项时间 from 立项申请表（2026-09-08 用户拍板）：
+    // 项目基本信息的立项时间来源于本步骤上传的文件——此前只有创建向导的提取链
+    // （extract-initiation → 表单 → 创建传参）写入 initiationDate，立项步骤补传/
+    // 替换文件不回填，时间轴因此显示「未登记」。仅空值回填，不覆盖已登记值。
+    if (stageKey === 'INITIATION' && /立项/.test(decodedFileName)) {
+      try {
+        const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
+        const cur = await this.prisma.projectManagementItem.findUnique({
+          where: { id: projectId },
+          select: { initiationDate: true },
+        });
+        if (!cur?.initiationDate) {
+          const { initiationDate } = this.extractInitiationFieldsFromText(text);
+          if (initiationDate) {
+            await this.prisma.projectManagementItem.update({
+              where: { id: projectId },
+              // date-only 字符串 new Date() 按 UTC 零点解析，时间轴 toIsoFromBare 再按本地
+              // 折算会前移一天（3/18 → 3/17 16:00）——补 T00:00:00 落本地零点
+              data: { initiationDate: new Date(initiationDate.length === 10 ? `${initiationDate}T00:00:00` : initiationDate) },
+            });
+            this.logger.log(`[INITIATION] 从 ${decodedFileName} 提取立项时间 ${initiationDate} 已回填项目基本信息`);
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to extract initiation date from document: ${err}`);
+        // 提取失败不阻断上传
+      }
+    }
+
     // For EXPERT_SELECTION stage, extract expert info from 抽取结果单
     if (stageKey === 'EXPERT_SELECTION') {
       try {
@@ -1234,7 +1267,8 @@ export class ProjectManagementService {
       }
     }
 
-    // For CONTRACT stage, extract contract amount and awarded supplier from the document
+    // For CONTRACT stage, extract contract fields via AI (contract PDFs vary in format —
+    // regex extractors are unreliable; 2026-09-02 switched to LLM structured extraction)
     if (stageKey === 'CONTRACT') {
       try {
         const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
@@ -1244,30 +1278,73 @@ export class ProjectManagementService {
         // Guard: read current project to avoid overwriting existing values
         const currentProject = await this.prisma.projectManagementItem.findUnique({
           where: { id: projectId },
-          select: { contractAmount: true, awardedSupplier: true, contractNumber: true },
+          select: { contractAmount: true, awardedSupplier: true, contractNumber: true, paymentPerformance: true },
         });
 
-        const contractAmount = currentProject?.contractAmount ? null : extractContractAmountFromText(text);
-        const contractNumber = currentProject?.contractNumber ? null : extractContractNumberFromText(text);
+        // LLM structured extraction: 评审表/审批表 → 编号+金额；合同本体 → 编号+金额+支付及履约条款
+        const isReviewOrApproval = /评审|审批/.test(fileName);
+        const userPrompt = [
+          `文件名：${fileName}`,
+          isReviewOrApproval
+            ? '这是合同评审表或合同审批表。请从中提取合同编号与合同金额。合同编号=合同正式编号（形如 E202604062 的字母+数字编号，与所附合同文本编号一致），不要取审批单号/登记号/订单号等其他编号。'
+            : '这是采购合同文本（格式多样）。请提取合同编号、合同金额，以及支付及履约相关条款要点。合同编号=合同首部或「合同编号：」栏的正式编号（形如 E202604062），不要取审批单号/登记号/订单号/系统流水号等其他编号。',
+          '',
+          '=== 文件内容 ===',
+          text.slice(0, 6000),
+          '',
+          isReviewOrApproval
+            ? '输出 json：{"contractNumber": "合同编号（无则 null）", "contractAmount": 金额数字（元，无则 null）}'
+            : `输出 json：{"contractNumber": "合同编号（无则 null）", "contractAmount": 金额数字（元，无则 null）, "paymentPerformance": "支付及履约内容摘要"}
+paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例节点（如预付款/到货款/质保金）、履约保证（履约保证金/保函）、交付与验收、质保期与售后；每条一句话（30-60字），用换行分隔；合同中无相关条款则输出 null。不得编造。`,
+        ].join('\n');
+
+        const updateData: { contractAmount?: number; contractNumber?: string | null; awardedSupplier?: string; paymentPerformance?: string } = {};
+        try {
+          const ai = await this.llm.chatJson<{ contractNumber?: string | null; contractAmount?: number | null; paymentPerformance?: string | null }>(
+            '你是采购合同信息提取助手，只输出 json，不添加任何解释。',
+            userPrompt,
+            0.1,
+            undefined,
+            undefined,
+            { timeoutMs: 60_000, retries: 1 },
+          );
+          // 合同编号优先取文件名括号内的正式编号（如「购销合同（E202604062）」→ E202604062）：
+          // 归档命名规范中括号内即合同编号；正文常为扫描件 OCR（编号可能落在截断段之外），
+          // AI 又易误取审批单号/登记号（如 SCN0CK…）。正则限定字母开头编号格式防误取日期/页码。
+          // 注意 decodedFileName 已被 normalize 小写化（e202604062），写入时恢复大写。
+          const fnNo = decodedFileName.match(/[（(]([A-Za-z][A-Za-z0-9-]{4,})[）)]/)?.[1];
+          const provenNo = fnNo ? fnNo.toUpperCase() : null;
+          if (!currentProject?.contractNumber && (provenNo || ai?.contractNumber)) {
+            updateData.contractNumber = (provenNo ?? String(ai!.contractNumber).trim()).slice(0, 64);
+          }
+          if (currentProject?.contractAmount == null && ai?.contractAmount != null && Number.isFinite(Number(ai.contractAmount))) {
+            updateData.contractAmount = Number(ai.contractAmount);
+          }
+          if (!isReviewOrApproval && !currentProject?.paymentPerformance && ai?.paymentPerformance) {
+            updateData.paymentPerformance = String(ai.paymentPerformance).trim().slice(0, 800);
+          }
+          this.logger.log(
+            `[CONTRACT][AI] ${fileName} → contractNumber=${updateData.contractNumber ?? '(skip)'}, ` +
+            `contractAmount=${updateData.contractAmount ?? '(skip)'}, ` +
+            `paymentPerformance=${updateData.paymentPerformance ? `${updateData.paymentPerformance.length}字` : '(skip)'}`,
+          );
+        } catch (aiErr) {
+          // AI 失败回退旧正则提取（编号/金额），支付履约留待人工
+          this.logger.warn(`[CONTRACT][AI] 提取失败，回退正则: ${aiErr instanceof Error ? aiErr.message : aiErr}`);
+          if (!currentProject?.contractNumber) {
+            const n = extractContractNumberFromText(text);
+            if (n) updateData.contractNumber = n;
+          }
+          if (currentProject?.contractAmount == null) {
+            const a = extractContractAmountFromText(text);
+            if (a !== null) updateData.contractAmount = a;
+          }
+        }
+
+        // 供应商名沿用正则（AI 职责聚焦编号/金额/支付履约）
         const awardedSupplier = fileName.includes('合同') || fileName.includes('购销')
           ? extractAwardedSupplierFromContract(text)
           : extractAwardedSupplierFromText(text);
-
-        this.logger.log(
-          `[CONTRACT] Extracted — contractNumber=${contractNumber ?? '(none)'}, ` +
-          `contractAmount=${contractAmount ?? '(none)'}, ` +
-          `awardedSupplier=${awardedSupplier || '(none)'}` +
-          ` | currentProject had: contractNumber=${currentProject?.contractNumber || '(none)'}, ` +
-          `contractAmount=${currentProject?.contractAmount || '(none)'}`,
-        );
-
-        const updateData: { contractAmount?: number; contractNumber?: string | null; awardedSupplier?: string } = {};
-        if (contractAmount !== null) {
-          updateData.contractAmount = contractAmount;
-        }
-        if (contractNumber !== null) {
-          updateData.contractNumber = contractNumber;
-        }
         if (awardedSupplier) {
           updateData.awardedSupplier = awardedSupplier;
         }
@@ -3096,11 +3173,28 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
+    // 补录（2026-09-07）：目标阶段早于当前活跃阶段（流程已越过的前置）允许补完成——
+    // 附件后传/历史数据补齐场景（此前一律拒绝，导致已越过阶段永远停在 NOT_STARTED，
+    // 归档台账与实际不符）。后续实质闸门（归档材料 DA/T 103、邀请回执等）照常校验。
+    // 补录只改该阶段 status：不触发 nextStage 推进/激活（那是"完成当前步骤往前走"的
+    // 语义，补录历史阶段时执行会把 currentStage 拉回过去——实测把已归档项目指针
+    // 从 CONTRACT 拉回 INITIATION，卡片「当前阶段」错显示「采购立项」）。
+    let isBackfill = false;
     if (
       dto.status === PROJECT_STAGE_STATUS.COMPLETED &&
       project.currentStage !== stageKey
     ) {
-      throw new BadRequestException('请先完成当前阶段后再推进下一阶段。');
+      const current = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: projectId, stageKey: project.currentStage ?? undefined },
+        select: { stageOrder: true },
+      });
+      isBackfill = !!current && stage.stageOrder < current.stageOrder;
+      if (!isBackfill) {
+        throw new BadRequestException('请先完成当前阶段后再推进下一阶段。');
+      }
+      this.logger.warn(
+        `[阶段补录] 项目 ${projectId} 阶段 ${stageKey} 已越过 currentStage(${project.currentStage})，补记完成（不推进项目指针）`,
+      );
     }
 
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
@@ -3128,15 +3222,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
       if (gateMissing.length > 0) {
         if (dto.waiveArchiveGate === true) {
           if (!dto.note?.trim()) {
-            throw new BadRequestException('豁免归档材料检查必须填写豁免理由（note 字段留痕）');
+            throw new BadRequestException({ error: '已选择豁免，请填写豁免理由（将记入操作日志留痕）', code: 'WAIVE_NOTE_REQUIRED' });
           }
           this.logger.warn(
             `[归档闸门豁免] 项目 ${projectId} 阶段 ${stageKey} 缺件放行：${gateMissing.join('、')}；理由：${dto.note.trim()}`,
           );
         } else {
-          throw new BadRequestException(
-            `该阶段归档必选材料缺失（DA/T 103-2024 附录B）：${gateMissing.join('、')}，请上传后再标记完成；如确无此类材料（如流标终止），可传 waiveArchiveGate=true 并填写 note 豁免`,
-          );
+          throw new BadRequestException({
+            error: `无法完成该阶段：归档必选材料（DA/T 103-2024）尚未上传——${gateMissing.join('、')}。请先上传上述材料后再标记完成；若确无此类材料（如流标终止），可豁免并填写理由后继续。`,
+            code: 'ARCHIVE_GATE_MISSING',
+          });
         }
       }
       if (stageKey === 'SUPPLIER_INVITATION') {
@@ -3201,7 +3296,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         nextStage = nextIndex >= 0 ? projectStages[nextIndex + 1] ?? null : null;
       }
 
-      if (nextStage) {
+      if (nextStage && !isBackfill) {
         await this.prisma.projectManagementStage.updateMany({
           where: {
             projectManagementItemId: projectId,
@@ -3350,6 +3445,47 @@ ${JSON.stringify(algorithmResult, null, 2)}
           biddingUnits: project.biddingUnits || null,
         },
       });
+
+      // 归档即全流程终结：未完成阶段一律收口为 COMPLETED（避免归档详情的步骤卡显示「进行中」）
+      await tx.projectManagementStage.updateMany({
+        where: { projectManagementItemId: projectId, status: { not: PROJECT_STAGE_STATUS.COMPLETED } },
+        data: { status: PROJECT_STAGE_STATUS.COMPLETED, completedAt: archivedAt },
+      });
+
+      // 基本信息快照兜底回写（此前邀请/专家流程不回写 → 详情页恒"待补充"）：
+      // 专家评审 = BidExpert（正选+候补，User/ExpertProfile 补部门职称）；供应商参与 = 邀请回执名单
+      try {
+        const bpIds = await tx.bidProject.findMany({ where: { projectManagementItemId: projectId }, select: { id: true } });
+        const bpIdSet = bpIds.map(b => b.id);
+        const bidExperts = bpIdSet.length > 0
+          ? await tx.bidExpert.findMany({ where: { projectId: { in: bpIdSet } }, orderBy: [{ expertRole: 'asc' }, { createdAt: 'asc' }], select: { userId: true, expertName: true, major: true, expertRole: true } })
+          : [];
+        if (bidExperts.length > 0) {
+          const profs = await tx.user.findMany({
+            where: { id: { in: bidExperts.map(e => e.userId) } },
+            select: { id: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
+          });
+          const byId = new Map(profs.map(u => [u.id, u]));
+          const expertInfo = bidExperts.map(e => {
+            const u = byId.get(e.userId);
+            return [e.expertName, u?.department?.name ?? '', e.major ?? '', u?.expertProfile?.title ?? '', e.expertRole].join('|');
+          }).join('\n');
+          await tx.projectManagementItem.update({ where: { id: projectId }, data: { expertInfo } });
+        }
+        const [rsvps, bidSuppliers] = await Promise.all([
+          tx.invitationRsvp.findMany({
+            where: { OR: [{ projectId }, { projectId: { in: bpIdSet } }] },
+            select: { supplierName: true },
+          }),
+          bpIdSet.length > 0
+            ? tx.bidSupplier.findMany({ where: { projectId: { in: bpIdSet } }, select: { supplierName: true } })
+            : Promise.resolve([] as { supplierName: string }[]),
+        ]);
+        const supplierNames = [...new Set([...rsvps, ...bidSuppliers].map(r => r.supplierName?.trim()).filter(Boolean))];
+        if (supplierNames.length > 0) {
+          await tx.projectManagementItem.update({ where: { id: projectId }, data: { invitedSuppliers: supplierNames.join('\n') } });
+        }
+      } catch { /* 快照回写失败不阻断归档 */ }
 
       return tx.projectManagementItem.update({
         where: { id: projectId },

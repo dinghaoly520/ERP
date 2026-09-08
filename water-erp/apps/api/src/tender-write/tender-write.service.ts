@@ -267,6 +267,16 @@ export class TenderWriteService {
   async exportAnnouncement(dto: ExportAnnouncementDto) {
     const { tenderType, category, draft } = dto;
 
+    // GB/T 43711（7.3）：谈判采购通过定向邀请（≥3 家）组织，不发布采购公告——
+    // 前端 ANNOUNCEMENT_AVAILABILITY 已限定谈判只有流标/中标公告，此处后端防线
+    // 堵 API 直发（此前 else 兜底复用邀请招标公告模板放行过「谈判采购公告」）
+    if (category === 'procurement_document' && tenderType === 'COMPETITIVE_NEGOTIATION') {
+      throw new BadRequestException({
+        error: '谈判采购不发布采购公告：应通过供应商邀请（定向邀请函 + 回执）组织，供应商接受邀请后自动纳入投标项目',
+        code: 'NEGOTIATION_NO_PROCUREMENT_NOTICE',
+      });
+    }
+
     let templatePath: string;
     let replacementPlan: ReturnType<typeof buildFailedBidAnnouncementPlan>;
     let typeLabel: string;
@@ -358,7 +368,11 @@ export class TenderWriteService {
     }
 
     const updatedXml = renderTemplateXml(xmlToRender, replacementPlan);
-    zip.file('word/document.xml', updatedXml);
+    // 公告模板标题段为「{{项目名称}}采购」——项目名以「采购」结尾时拼出「采购采购」
+    // （如「便携式全液压岩心钻机（800型）采购」）。渲染后全文归一；公告正文不存在
+    // 合法的连续「采购采购」，采购文件导出走另一路径（144-166 行）不受影响。
+    const normalizedXml = updatedXml.replace(/采购采购+/g, '采购');
+    zip.file('word/document.xml', normalizedXml);
 
     // 统一命名：{项目编号}-{项目名称}-{公告类型}-{YYYYMMDD}.docx
     const projectName = (draft as Record<string, string>).projectName?.trim();
@@ -393,6 +407,10 @@ export class TenderWriteService {
         `buildAnnouncementWithContent: mammoth 提取全文失败 ${(e as Error).message}`,
       );
     }
+    // 正文兜底归一：模板标题段已去除硬编码「采购」，此处再兜一层跨 run 拼接出的
+    // 「采购采购」（docx XML 层的归一见 exportAnnouncement，正则抓不到跨 run 重复，
+    // 提取为纯文本后可稳定归一）。
+    textContent = textContent.replace(/采购采购+/g, '采购');
     return { buffer, fileName, textContent };
   }
 

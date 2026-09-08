@@ -60,7 +60,7 @@ export default function CompletedProjectsPage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="sp-module">
-          <EmptyState icon={Archive} title="暂无已完成项目" desc="合作项目完结（归档）后将在此记录" />
+          <EmptyState card icon={Archive} title="暂无已完成项目" desc="合作项目完结（归档）后将在此记录" />
         </div>
       ) : (
         <div className="neu-table-card">

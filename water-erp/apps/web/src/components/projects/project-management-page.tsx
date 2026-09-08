@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Archive, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -173,7 +173,10 @@ export function ProjectManagementPage() {
     return result;
   }, [activeTab, items, archivedItems, keyword, sortBy, filterType, filterValue]);
 
-  const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
+  // 已完成（归档）项目同样可打开详情（只读）——selectedItem 须在 active+archived 两个集合中查找
+  const selectedItem = items.find((item) => item.id === selectedItemId)
+    ?? archivedItems.find((item) => item.id === selectedItemId)
+    ?? null;
 
   /** Whether the current user is allowed to modify (recycle/restore/delete) a given project */
   const canModifyProject = (project: { createdById?: string | null }) => {
@@ -255,11 +258,7 @@ export function ProjectManagementPage() {
                 </div>
               </div>
               <div className="page-hero__right">
-                {/* CTS A-200/201 · DA/T 103-2024 归档管理入口（卷台账/四性/ASIP） */}
-                <Link href="/archive" className="neu-btn-soft">
-                  <Archive size={16} />
-                  归档管理
-                </Link>
+                {/* 归档记录入口已收敛至「采购台账」（2026-09-02 拍板）；/archive 页保留供归档待办通知直达 */}
                 <button
                   type="button"
                   onClick={() => setShowRecycleBin(true)}

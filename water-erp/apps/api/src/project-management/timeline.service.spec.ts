@@ -3,23 +3,26 @@ import { TimelineService } from './timeline.service';
 
 /** B3 项目时间信息轴（CTS-EBS01 A-204）：聚合各域时间节点，有值升序、缺值垫底 */
 describe('TimelineService（B3 A-204）', () => {
-  const mk = (pmi: any, bp: any = null, contract: any = null) => ({
+  const mk = (pmi: any, bp: any = null, contract: any = null, stage: any = null) => ({
     projectManagementItem: { findUnique: jest.fn().mockResolvedValue(pmi) },
     bidProject: { findFirst: jest.fn().mockResolvedValue(bp) },
     contract: { findFirst: jest.fn().mockResolvedValue(contract) },
+    projectManagementStage: { findFirst: jest.fn().mockResolvedValue(stage) },
   });
 
-  it('六类节点齐全：有值按时间升序，缺值垫底保序', async () => {
+  it('固定业务顺序（2026-09-08）：时间乱序（归档早于文件获取/开标）也不重排', async () => {
     const prisma = mk(
       {
         id: 'pmi-1',
+        createdAt: new Date('2026-06-30T00:00:00Z'),
+        // 刻意乱序：归档(8/20)早于文件获取(9/10)与开标(9/12)——固定顺序下不得重排
         initiationDate: new Date('2026-07-01T00:00:00Z'),
-        documentAcquireTime: '2026-07-10', // String 字段（半 ISO）
+        documentAcquireTime: '2026-09-10',
         bidOpeningTime: null,
         archivedAt: new Date('2026-08-20T00:00:00Z'),
       },
-      { deadline: new Date('2026-08-01T00:00:00Z'), openTime: new Date('2026-08-02T00:00:00Z') },
-      { signedAt: new Date('2026-08-10T00:00:00Z') },
+      { deadline: new Date('2026-09-11T00:00:00Z'), openTime: new Date('2026-09-12T00:00:00Z') },
+      { signedAt: new Date('2026-08-21T00:00:00Z') },
     );
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
     expect(nodes.map(n => n.key)).toEqual([
@@ -49,6 +52,22 @@ describe('TimelineService（B3 A-204）', () => {
     expect(deadlineNode.source).toBe('按开标时间推算（前24小时）');
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - 24 * 3600 * 1000).getTime());
     expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['documentAcquire', 'contractSign', 'archived']);
+  });
+
+  it('兜底：立项缺 initiationDate → 建档时刻；合同缺 Contract 记录 → CONTRACT 阶段完成时刻', async () => {
+    const prisma = mk(
+      { id: 'pmi-1', createdAt: new Date('2026-09-07T02:00:00Z'), initiationDate: null, documentAcquireTime: null, bidOpeningTime: null, archivedAt: new Date('2026-09-07T06:00:00Z') },
+      null,
+      null, // 无 Contract 行
+      { completedAt: new Date('2026-09-07T05:00:00Z') }, // CONTRACT 阶段已完成
+    );
+    const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
+    const init = nodes.find(n => n.key === 'initiation')!;
+    expect(init.time).toBeTruthy();
+    expect(init.source).toBe('项目建档');
+    const sign = nodes.find(n => n.key === 'contractSign')!;
+    expect(sign.time).toBeTruthy();
+    expect(sign.source).toBe('合同阶段完成');
   });
 
   it('项目不存在 → 404', async () => {

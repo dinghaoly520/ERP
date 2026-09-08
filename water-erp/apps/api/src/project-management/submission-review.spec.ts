@@ -14,6 +14,7 @@ describe('ProjectManagementService 递交受理（CTS A-36/37）', () => {
       prisma as never,
       { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } as never, // gbCode
       {} as never,
+      {} as never, // llm（合同 AI 提取，单测不触达）
       {} as never,
       {} as never,
       {} as never,

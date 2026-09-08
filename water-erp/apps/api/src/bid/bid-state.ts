@@ -71,7 +71,7 @@ export function assertSignGateClosed(
   pendingExpertNames: string[],
 ): void {
   if (scope !== 'full') return; // 开标归档（流标/废标）不受签字闸门约束
-  if (!packet) throw new ConflictException({ error: '评标签字包未生成，无法执行完整归档。请在 :3007 生成签字包并完成专家签字登记。', code: 'SIGN_PACKET_NOT_GENERATED' });
+  if (!packet) throw new ConflictException({ error: '评标签字包未生成，无法执行完整归档。请先在 :3007 生成评标结果（现已自动附带签字包），再完成专家签字登记与评标回流包。', code: 'SIGN_PACKET_NOT_GENERATED' });
   if (!packet.closedAt) {
     // HttpExceptionFilter 固定 5 键、丢 detail——名单嵌入 error 文案（与 OPENING_RECORDS_MISSING 同约定）
     throw new ConflictException({

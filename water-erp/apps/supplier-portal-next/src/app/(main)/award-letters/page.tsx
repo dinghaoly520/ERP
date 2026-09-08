@@ -75,7 +75,7 @@ function AwardLetterListContent() {
     <>
       <SpPageHero icon={Trophy} title="中标通知书" sub="查收并签收中标通知书" />
 
-      <div className="mx-auto max-w-4xl p-4 sm:p-6" aria-busy={loading}>
+      <div className="space-y-4" aria-busy={loading}>
         {!loading && letters.length === 0 ? (
           <EmptyState card icon={FileText} title="暂无中标通知书" />
         ) : (
@@ -181,7 +181,7 @@ function AwardLetterListContent() {
 
 export default function AwardLetterListPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-4xl p-4 sm:p-6" aria-busy="true" />}>
+    <Suspense fallback={<div className="space-y-4" aria-busy="true" />}>
       <AwardLetterListContent />
     </Suspense>
   );

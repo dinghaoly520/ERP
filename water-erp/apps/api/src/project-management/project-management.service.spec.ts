@@ -445,6 +445,7 @@ describe('ProjectManagementService', () => {
       prisma as never,
       { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } as never, // gbCode
       aiService as never,
+      {} as never, // llm（合同 AI 提取用；单测不触达）
       documentParser as never,
       storage as never,
       archiveScope as never, // archiveScope（DA/T103 归档范围闸门，测试可覆写缺失清单）
@@ -1212,7 +1213,10 @@ describe('ProjectManagementService', () => {
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'TENDER_DOCUMENT' });
       prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'TENDER_DOCUMENT', stages: [] });
       archiveScope.checkStageGate.mockResolvedValueOnce(['采购文件']);
-      await expect(service.updateStage('pm-01', 'TENDER_DOCUMENT', completing)).rejects.toThrow('归档必选材料缺失');
+      // 2026-09-04 文案优化：错误结构化 { error, code }，按 code 断言（文案不含旧关键词）
+      await expect(service.updateStage('pm-01', 'TENDER_DOCUMENT', completing)).rejects.toMatchObject({
+        response: { code: 'ARCHIVE_GATE_MISSING' },
+      });
     });
 
     it('SUPPLIER_INVITATION 完成 + 0 邀请回执 → 400', async () => {

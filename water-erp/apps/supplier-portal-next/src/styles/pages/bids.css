@@ -183,8 +183,8 @@
 /* ════════ 阶段进度 + 指引（单卡） ════════ */
 .stage-card {
   margin-top: 16px; border-radius: 14px; overflow: hidden;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
-  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 .stage-bar {
   display: flex; height: 50px;
@@ -220,7 +220,7 @@
 .info-bar {
   display: flex; flex-wrap: wrap; gap: 24px;
   margin-top: 16px; padding: 12px 24px; border-radius: 12px;
-  background: linear-gradient(180deg, oklch(0.993 0.008 258), oklch(0.975 0.012 258));
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.9), oklch(0.99 0.004 258 / 0.66) 45%, oklch(1 0 0 / 0.22) 88%);
   box-shadow: 3px 3px 8px oklch(0.55 0.03 258 / 0.07), -2px -2px 6px oklch(1 0 0 / 0.75), inset 0 1px 0 oklch(1 0 0 / 0.6);
   font-size: 12px; font-variant-numeric: tabular-nums;
 }
@@ -423,14 +423,14 @@
   display: flex; gap: 0;
   position: relative;
   border-radius: 16px;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
-  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);
   animation: mbCardIn 0.4s cubic-bezier(0.22,0.61,0.36,1) both;
   transition: transform .15s ease, box-shadow .15s ease;
 }
 .mb-card:hover {
   transform: translateY(-1px);
-  box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 3px 3px 10px oklch(0.5 0.05 258 / 0.13), -2px -2px 8px oklch(1 0 0 / 0.95);
 }
 @keyframes mbCardIn {
   from { opacity: 0; transform: translateY(8px); }

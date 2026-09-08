@@ -329,7 +329,7 @@ export default function DashboardPage() {
     }
   }
 
-  const ringCircumference = 2 * Math.PI * 30;
+  const ringCircumference = 2 * Math.PI * 36;
 
   return (
     <div className="page-container">
@@ -442,11 +442,11 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="db-list">
-                  {projectRows.map((row, idx) => (
+                  {projectRows.map((row) => (
                     <button
                       key={row.project.id}
                       type="button"
-                      className={`db-list-row ${row.urgency}${idx === projectRows.length - 1 ? " is-last" : ""}${row.project.stage === "SUBMIT" ? " submit-stage" : ""}`}
+                      className={`db-list-row ${row.urgency}`}
                       onClick={() => router.push(`/bids/${row.project.id}?from=list`)}
                     >
                       <div className="db-list-info">
@@ -461,6 +461,7 @@ export default function DashboardPage() {
                           {STAGES.find((s) => s.key === row.project.stage)?.label || row.project.stage}
                         </span>
                         <span className={`db-list-dl ${row.urgency}`}>
+                          <Clock size={11} strokeWidth={2} aria-hidden="true" />
                           {row.urgency === "past" ? "已截止" : row.urgency === "critical" ? `剩${row.daysLeft}天` : `${row.daysLeft}天`}
                         </span>
                       </div>
@@ -481,23 +482,23 @@ export default function DashboardPage() {
                 {/* Ring + total score */}
                 <div className="db-comp-top">
                   <div className="db-comp-ring">
-                    <svg width="72" height="72" viewBox="0 0 72 72">
-                      <circle cx="36" cy="36" r="30" fill="none" stroke="var(--hairline)" strokeWidth="5" />
+                    <svg width="84" height="84" viewBox="0 0 84 84">
+                      <circle cx="42" cy="42" r="36" fill="none" stroke="transparent" strokeWidth="6" />
                       <circle
-                        cx="36" cy="36" r="30"
+                        cx="42" cy="42" r="36"
                         fill="none"
                         stroke={profileScore >= 80 ? "var(--success)" : profileScore >= 50 ? "var(--warning)" : "var(--danger)"}
-                        strokeWidth="5"
+                        strokeWidth="6"
                         strokeLinecap="round"
                         strokeDasharray={`${ringCircumference * profileScore / 100} ${ringCircumference * (1 - profileScore / 100)}`}
-                        transform="rotate(-90 36 36)"
+                        transform="rotate(-90 42 42)"
                       />
                     </svg>
                     <span className="db-comp-score">{profileScore}<small>分</small></span>
                   </div>
                   <div className="db-comp-bars">
                     {completenessCats.map((cat) => (
-                      <div key={cat.key} className="db-comp-bar-row" style={{ "--c": cat.color } as React.CSSProperties}>
+                      <div key={cat.key} className={`db-comp-bar-row${cat.max > 0 && cat.score >= cat.max ? " is-full" : ""}`} style={{ "--c": cat.color } as React.CSSProperties}>
                         <div className="db-comp-bar-head">
                           <span className="db-comp-bar-icon"><cat.icon size={13} /></span>
                           <span className="db-comp-bar-label">{cat.label}</span>

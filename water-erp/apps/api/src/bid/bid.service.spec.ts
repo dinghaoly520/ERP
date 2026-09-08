@@ -4544,11 +4544,11 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       bidEvaluationResult: { findFirst: jest.fn() },
       // 并行会话新增中标通知书文件闸（letterAssetId 必填+上传人校验+三绑定防复用）所需 mock
-      awardLetterDelivery: { upsert: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'd1' }) },
+      awardLetterDelivery: { upsert: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'd1' }), updateMany: jest.fn() },
       fileAsset: { findFirst: jest.fn().mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 }) },
+      supplier: { findUnique: jest.fn() },
       contract: { findFirst: jest.fn().mockResolvedValue(null) },
       contractFulfillment: { findFirst: jest.fn().mockResolvedValue(null) },
-      supplier: { findUnique: jest.fn() },
       projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
       announcement: { findFirst: jest.fn() },
       systemConfig: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
@@ -4579,7 +4579,10 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
-    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+    // 2026-09-04 契约对齐：deliverAwardLetter 现需 letterAssetId + fileAsset 校验（upsert → findUnique/create）
+    prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+    prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
     prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }, { supplierName: '丙公司' }]);
 
     await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
@@ -4618,7 +4621,9 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
-    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+    prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+    prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
     prisma.bidSupplier.findMany.mockResolvedValue([]); // pending=0
 
     await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1')).resolves.toEqual({ id: 'd1' });
@@ -4632,7 +4637,9 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
-    prisma.awardLetterDelivery.upsert.mockResolvedValue({ id: 'd1' });
+    prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+    prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
     prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }]);
     notification.sendToRole.mockRejectedValue(new Error('通知服务不可用'));
     const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});

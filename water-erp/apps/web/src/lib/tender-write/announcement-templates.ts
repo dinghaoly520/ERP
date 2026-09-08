@@ -318,6 +318,19 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     placeholder: "请输入备注内容",
   },
   {
+    key: "publicityPeriod",
+    label: "公示期（异议期）",
+    placeholder: "发布后自动生成（顺延 3 天）",
+    autoFill: "publicityPeriod",
+  },
+  {
+    key: "objection",
+    label: "异议受理",
+    multiline: true,
+    placeholder: "发布后自动生成",
+    autoFill: "objection",
+  },
+  {
     key: "signatureDate",
     label: "落款日期",
     placeholder: "选择日期",
@@ -418,6 +431,8 @@ export function createEmptyWinningBidAnnouncementDraft(): WinningBidAnnouncement
     bidder3Name: "",
     bidder3Price: "",
     signatureDate: "",
+    publicityPeriod: "",
+    objection: "",
   };
 }
 
@@ -461,6 +476,8 @@ export const ANNOUNCEMENT_AUTO_FILL: Record<string, string> = {
   announcementDays: "announcementDays",
   procurementTime: "procurementTime",
   signatureDate: "signatureDate",
+  publicityPeriod: "publicityPeriod",
+  objection: "objection",
 };
 
 /**
