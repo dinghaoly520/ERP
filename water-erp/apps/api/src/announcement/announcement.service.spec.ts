@@ -339,6 +339,8 @@ describe('AnnouncementService — E2 category 白名单（failed_bid 死分支�
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-e2', projectCode: 'BID-E2' }), update: jest.fn() },
       announcement: { update: jest.fn().mockResolvedValue({}) },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      // P1 编码空间次序（2026-09-07）：syncBidProject 先按 PMI 编码 findUnique——缺此 mock 即 TypeError
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
       ...prismaOverrides,
     };

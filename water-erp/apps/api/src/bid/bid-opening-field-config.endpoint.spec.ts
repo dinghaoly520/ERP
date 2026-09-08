@@ -33,7 +33,7 @@ describe('A-113 唱标字段配置入口（PUT opening-field-config / 模板 app
     const workTemplates = new WorkTemplateService(prisma);
     // BidController 其余依赖本用例路径不触碰，占位即可
     const stub = () => ({}) as any;
-    bidController = new BidController(stub(), stub(), stub(), stub(), stub(), stub(), openingRecord, stub(), workTemplates);
+    bidController = new BidController(stub(), stub(), stub(), stub(), stub(), stub(), stub(), openingRecord, stub(), workTemplates);
     wtController = new WorkTemplateController(workTemplates, openingRecord);
   });
 

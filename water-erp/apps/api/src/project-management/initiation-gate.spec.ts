@@ -3,13 +3,15 @@ import { ProjectManagementService } from './project-management.service';
 
 /** 拍板 #6（2026-08-27）：立项硬闸——未受理审核通过不得完成 INITIATION 进入采购文件编制 */
 describe('updateStage 立项硬闸（INITIATION_NOT_APPROVED）', () => {
-  // 构造器 8 参：prisma, gbCode, ai, documentParser, storage, archiveScope, archiveFlow, stageCompliance
+  // 构造器 9 参：prisma, gbCode, ai, llm, documentParser, storage, archiveScope, archiveFlow, stageCompliance
+  // （2026-09-08 合并远程公告/立项线：新增第 4 参 llm——立项时间 AI 提取回填用，单测不触达）
   const mkService = (prisma: object, archiveScope?: object) =>
     new ProjectManagementService(
       prisma as never,
       {} as never,
       {} as never,
       {} as never, // llm（合同 AI 提取，单测不触达）
+      {} as never,
       {} as never,
       (archiveScope ?? { checkStageGate: jest.fn().mockResolvedValue([]) }) as never,
       {} as never,
