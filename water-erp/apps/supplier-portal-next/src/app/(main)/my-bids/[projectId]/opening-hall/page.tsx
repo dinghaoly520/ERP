@@ -40,12 +40,17 @@ function boundCertSn(): string {
   } catch { return ""; }
 }
 
-/** 唱标总表「状态」列短标签——后端直出 BidOpeningRecord.confirmStatus 枚举
- *  （PENDING/CONFIRMED/EXCEPTION，schema ConfirmStatus）；未知值原串直出，不静默吞信息 */
+/** 唱标总表「状态」列短标签——BidOpeningRecord.confirmStatus 为 String 列（非 ConfirmStatus 枚举，
+ *  该枚举属 BidSupplier.confirmStatus），实际写入域为中文状态：待供应商确认/供应商已确认/供应商提出异议/
+ *  异议已处理-确认/异议已处理-退回，另有 legacy「待确认」与封拍卖轨建录 PENDING；未知值原串直出，不静默吞信息 */
 const OPENING_CONFIRM_LABELS: Record<string, string> = {
-  CONFIRMED: "已确认",
+  待供应商确认: "待确认",
+  供应商已确认: "已确认",
+  供应商提出异议: "有异议",
+  "异议已处理-确认": "异议后确认",
+  "异议已处理-退回": "异议后退回",
+  待确认: "待确认",
   PENDING: "待确认",
-  EXCEPTION: "异常确认",
 };
 
 export default function OpeningHallPage() {
