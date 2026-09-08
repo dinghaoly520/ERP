@@ -1524,50 +1524,54 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
       {/* P2（二轮审查）：解密异常定性受控弹窗——替代 window.prompt（原生弹窗无样式无校验） */}
       {dangerQualify && (
-        <>
-          <div className="bid-overlay-backdrop" onClick={() => !dangerBusy && setDangerQualify(null)} />
-          <div className="bid-overlay">
-            <div className="bid-dialog" role="dialog" aria-label="解密异常定性">
-              <h3 className="text-base font-black text-[color:var(--foreground)]">解密异常定性 — {dangerQualify.supplierName}</h3>
-              <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                定性后该供应商解密状态记为异常（EXCEPTION），将计入开标记录与监督日志，请填写事实性原因。
-              </p>
-              <textarea
-                className="neu-input w-full text-sm"
-                rows={3}
-                maxLength={200}
-                placeholder="如：供应商未在解密窗口内完成解密 / 文件完整性校验不通过"
-                value={dangerReason}
-                onChange={(e) => setDangerReason(e.target.value)}
-                disabled={dangerBusy}
-              />
-              <div className="mt-3 flex justify-end gap-2">
-                <button type="button" className="neu-btn-soft !h-8 !text-xs" disabled={dangerBusy} onClick={() => setDangerQualify(null)}>取消</button>
-                <button
-                  type="button"
-                  className="neu-btn-primary !h-8 !text-xs"
-                  disabled={dangerBusy || dangerReason.trim().length < 5}
-                  onClick={async () => {
-                    setDangerBusy(true);
-                    try {
-                      await acceptSupplierDanger(project.id, dangerQualify.submissionId, dangerReason.trim());
-                      toast.success('已定性为解密异常（EXCEPTION）');
-                      setDangerQualify(null);
-                      setDangerReason('');
-                      onRefresh();
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : '定性失败');
-                    } finally {
-                      setDangerBusy(false);
-                    }
-                  }}
-                >
-                  确认定性
-                </button>
-              </div>
+        <div className="bid-overlay" onClick={() => !dangerBusy && setDangerQualify(null)}>
+          <div className="bid-overlay-backdrop" />
+          <div
+            className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="解密异常定性"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-black text-[color:var(--foreground)]">解密异常定性 — {dangerQualify.supplierName}</h3>
+            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+              定性后该供应商解密状态记为异常（EXCEPTION），将计入开标记录与监督日志，请填写事实性原因。
+            </p>
+            <textarea
+              className="neu-input w-full text-sm"
+              rows={3}
+              maxLength={200}
+              placeholder="如：供应商未在解密窗口内完成解密 / 文件完整性校验不通过"
+              value={dangerReason}
+              onChange={(e) => setDangerReason(e.target.value)}
+              disabled={dangerBusy}
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" className="neu-btn-soft !h-8 !text-xs" disabled={dangerBusy} onClick={() => setDangerQualify(null)}>取消</button>
+              <button
+                type="button"
+                className="neu-btn-primary !h-8 !text-xs"
+                disabled={dangerBusy || dangerReason.trim().length < 5}
+                onClick={async () => {
+                  setDangerBusy(true);
+                  try {
+                    await acceptSupplierDanger(project.id, dangerQualify.submissionId, dangerReason.trim());
+                    toast.success('已定性为解密异常（EXCEPTION）');
+                    setDangerQualify(null);
+                    setDangerReason('');
+                    onRefresh();
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : '定性失败');
+                  } finally {
+                    setDangerBusy(false);
+                  }
+                }}
+              >
+                确认定性
+              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
