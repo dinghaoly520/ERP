@@ -46,10 +46,8 @@ function ExpertLoginPage() {
     const r = searchParams.get('redirect');
     return r && r.startsWith('/') && !r.startsWith('//') ? r : '/';
   })();
-  // 从邀请确认链接（/invitation）进入时默认专家登录 tab，避免专家看到管理员登录表单
-  const fromInvitation = returnTo.startsWith('/invitation');
-  const [tab, setTab] = useState<Tab>(fromInvitation ? 'expert' : 'admin');
-  const [form, setForm] = useState(fromInvitation ? { ...DEMO_ACCOUNTS.expert } : { ...DEMO_ACCOUNTS.admin });
+  const [tab, setTab] = useState<Tab>('expert');
+  const [form, setForm] = useState({ ...DEMO_ACCOUNTS.expert });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
