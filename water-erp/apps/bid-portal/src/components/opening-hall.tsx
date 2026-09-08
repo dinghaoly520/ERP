@@ -930,10 +930,10 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   <div className="h-full bg-[var(--danger)]" style={{ width: `${decryptProgress.total ? (decryptProgress.danger / decryptProgress.total) * 100 : 0}%` }} />
                 </div>
               </div>
-              <span className="text-[11px] font-mono font-bold tabular-nums text-[color:var(--foreground)]">
+              <span className="whitespace-nowrap text-[11px] font-mono font-bold tabular-nums text-[color:var(--foreground)]">
                 <span className="text-[var(--success)]">{decryptProgress.success}</span>
-                {decryptProgress.danger > 0 && <span className="text-[var(--danger)]">/{decryptProgress.danger}</span>}
-                <span className="text-[color:var(--muted-foreground)]">/{decryptProgress.total}</span>
+                <span className="text-[color:var(--muted-foreground)]">/{decryptProgress.total} 已处理</span>
+                {decryptProgress.danger > 0 && <span className="text-[var(--danger)]"> · {decryptProgress.danger} 异常</span>}
                 <span className="ml-1 text-[color:var(--muted-foreground)]">({Math.round(decryptProgress.pct * 100)}%)</span>
               </span>
             </div>
