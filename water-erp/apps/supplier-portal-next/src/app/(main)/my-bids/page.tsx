@@ -241,24 +241,20 @@ export default function MyBidsPage() {
                             {row.deliveryPeriod}
                           </span>
                         )}
-                        {row.submittedAt && (
-                          <span className="mb-card-meta-item">
-                            <span className="mb-card-meta-label">提交</span>
-                            {dayjs(row.submittedAt).format("MM-DD HH:mm")}
-                          </span>
-                        )}
-                        {row.project?.openTime && (
-                          <span className="mb-card-meta-item">
-                            <span className="mb-card-meta-label">开标</span>
-                            {dayjs(row.project.openTime).format("MM-DD HH:mm")}
-                          </span>
-                        )}
-                        {row.project?.deadline && (
-                          <span className="mb-card-meta-item">
-                            <span className="mb-card-meta-label">截止</span>
-                            {dayjs(row.project.deadline).format("MM-DD HH:mm")}
-                          </span>
-                        )}
+                        {/* 时间三元组按时间值升序渲染（业务恒有 截止<开标；提交时刻以实际时间戳参与排序，不再静态固定 提交→开标→截止） */}
+                        {([
+                          ["提交", row.submittedAt],
+                          ["开标", row.project?.openTime],
+                          ["截止", row.project?.deadline],
+                        ] as [string, string | null | undefined][])
+                          .filter((x): x is [string, string] => !!x[1])
+                          .sort((a, b) => dayjs(a[1]).valueOf() - dayjs(b[1]).valueOf())
+                          .map(([label, time]) => (
+                            <span key={label} className="mb-card-meta-item">
+                              <span className="mb-card-meta-label">{label}</span>
+                              {dayjs(time).format("MM-DD HH:mm")}
+                            </span>
+                          ))}
                       </div>
 
                       {/* Stage progress track (only for submitted with known stage) */}
@@ -303,7 +299,7 @@ export default function MyBidsPage() {
                         </button>
                       )}
                       {row.confirmStatus === "CONFIRMED" ? (
-                        <button type="button" className="neu-btn-xs is-success" disabled>已确认</button>
+                        <button type="button" className="neu-btn-xs is-success" disabled title="开标记录确认状态：已确认">唱标已确认</button>
                       ) : canConfirmOpening(row) ? (
                         <button type="button" className="neu-btn-xs is-success" onClick={() => router.push(`/my-bids/${row.projectId}/opening-confirm`)}>开标确认</button>
                       ) : overdueUnconfirmed(row) ? (

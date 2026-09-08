@@ -482,7 +482,7 @@ export default function UkeyManagePage() {
 
           {serverCerts.length === 0 ? (
             <div className="ukey-empty">
-              暂无绑定记录。解锁 U盾并生成证书后，点击「绑定」完成企业身份与证书的关联。
+              暂无绑定记录。解锁 U盾 并枚举到本企业证书后，可在「U盾」卡片完成绑定关联。
             </div>
           ) : (
             <div className="cert-list">

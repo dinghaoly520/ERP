@@ -40,6 +40,14 @@ function boundCertSn(): string {
   } catch { return ""; }
 }
 
+/** 唱标总表「状态」列短标签——后端直出 BidOpeningRecord.confirmStatus 枚举
+ *  （PENDING/CONFIRMED/EXCEPTION，schema ConfirmStatus）；未知值原串直出，不静默吞信息 */
+const OPENING_CONFIRM_LABELS: Record<string, string> = {
+  CONFIRMED: "已确认",
+  PENDING: "待确认",
+  EXCEPTION: "异常确认",
+};
+
 export default function OpeningHallPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
@@ -505,7 +513,7 @@ export default function OpeningHallPage() {
                         {openingRecordCell(f, row)}
                       </td>
                     ))}
-                    <td className="w-status">{row.confirmStatus}</td>
+                    <td className="w-status">{OPENING_CONFIRM_LABELS[row.confirmStatus] ?? row.confirmStatus}</td>
                   </tr>
                 ))}
               </tbody>

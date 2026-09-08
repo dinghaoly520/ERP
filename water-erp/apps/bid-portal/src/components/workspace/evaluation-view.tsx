@@ -71,11 +71,14 @@ type ExpertSupplierMatrix = Map<string, Map<string, ExpertSupplierCell>>;
 
 function buildExpertSupplierMatrix(project: BidProjectDetail): ExpertSupplierMatrix {
   const itemMap = new Map(project.scoreItems.map(si => [si.id, si]));
+  // 分母口径：单元格满分对全部 scoreItems 累计（未评项 max 也计入）——部分评分与完整评分
+  // 同列可比；评分进度由 scoredCount / scoreItems.length 表达，不随分母收缩。
+  const fullMaxScore = project.scoreItems.reduce((sum, si) => sum + Number(si.maxScore), 0);
   const matrix: ExpertSupplierMatrix = new Map();
   for (const expert of project.experts) {
     const row: Map<string, ExpertSupplierCell> = new Map();
     for (const supplier of project.suppliers) {
-      row.set(supplier.id, { totalScore: 0, maxScore: 0, scoredCount: 0, items: [] });
+      row.set(supplier.id, { totalScore: 0, maxScore: fullMaxScore, scoredCount: 0, items: [] });
     }
     for (const record of expert.scoreRecords) {
       const item = itemMap.get(record.scoreItemId);
@@ -84,7 +87,6 @@ function buildExpertSupplierMatrix(project: BidProjectDetail): ExpertSupplierMat
       if (!cell) continue;
       const score = Number(record.score);
       cell.totalScore += score;
-      cell.maxScore += Number(item.maxScore);
       cell.scoredCount += 1;
       cell.items.push({
         scoreItemId: record.scoreItemId,
@@ -103,7 +105,8 @@ function supplierPercentScores(project: BidProjectDetail, matrix: ExpertSupplier
   // F4：均分只统计正选专家（候补无评分权限；与后端去极值口径一致）
   for (const expert of project.experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR)) {
     const cell = matrix.get(expert.id)?.get(supplierId);
-    if (cell && cell.maxScore > 0) scores.push((cell.totalScore / cell.maxScore) * 100);
+    // 空格判定用 scoredCount（分母已是全部 scoreItems 的稳定满分，未评格 maxScore 也非 0）
+    if (cell && cell.scoredCount > 0 && cell.maxScore > 0) scores.push((cell.totalScore / cell.maxScore) * 100);
   }
   return scores;
 }
@@ -117,7 +120,8 @@ function cellDeviationAnomaly(
   supplierId: string,
 ): { pct: number; avg: number } | null {
   const cell = matrix.get(expertId)?.get(supplierId);
-  if (!cell || cell.maxScore <= 0) return null;
+  // 空格判定用 scoredCount（分母为全部 scoreItems 的稳定满分，未评格 maxScore 也非 0）
+  if (!cell || cell.scoredCount === 0 || cell.maxScore <= 0) return null;
   const pct = (cell.totalScore / cell.maxScore) * 100;
   const avg = avgBySupplier.get(supplierId) ?? 0;
   return avg > 0 && Math.abs(pct - avg) > ANOMALY_THRESHOLD ? { pct, avg } : null;
@@ -373,7 +377,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   });
 
   /** 偏差异常清单（某专家对某供应商的百分制得分偏离全体均分 >20%） */
-  // F4：仅正选参与偏差检测（候补无评分记录，行内为空会被 maxScore<=0 跳过，此处显式收口）
+  // F4：仅正选参与偏差检测（候补无评分记录，行内为空会被 scoredCount===0 跳过，此处显式收口）
   const anomalies: { expert: BidProjectDetail['experts'][number]; supplier: BidProjectDetail['suppliers'][number]; pct: number; avg: number }[] = [];
   for (const expert of regularExperts) {
     for (const s of suppliers) {
