@@ -842,15 +842,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                         {formatBidPrice(official.bidPrice)}
                       </span>
                     )}
-                    {/* P0-3c：主显对齐排序口径——live 态官方预览真值并列均分次指标（防「合计总分高却居后」误读）；
-                        回退态只显示均分（排序键本身），绝不显示均分×专家数的近似总分 */}
+                    {/* P0-3c：主显对齐排序口径——live 态官方预览真值并列「去极值均分」次指标（=排序键本身，
+                        三家并列 96.0 时顺序由名称/编号定，观感矛盾消解为可见并列）；回退态只显示均分
+                        （该态排序键），绝不显示均分×专家数的近似总分 */}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
                       {official ? Number(official.totalScore).toFixed(2) : live ? live.totalScore.toFixed(2) : avg.toFixed(1)}
                       <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分(排序口径)'}</span>
                     </span>
                     {!official && live && (
                       <span className="font-mono text-[10px] tabular-nums text-[var(--muted-foreground)]">
-                        均分 {avg.toFixed(1)}
+                        去极值均分 {live.averageScore.toFixed(1)}（{live.trimmedCount}/{live.expertCount} 位）
                       </span>
                     )}
                   </div>
