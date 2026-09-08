@@ -616,17 +616,6 @@
     "createdAt": "2026-07-22T02:55:52.967Z"
   },
   {
-    "id": "cms17k9sc0008uu351falifty",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785034684801",
-    "content": "项目编号 BID-1785034684807 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms17k9s70006uu35ydjpgous",
-    "createdAt": "2026-07-26T02:58:04.812Z"
-  },
-  {
     "id": "cms17k9ve000ruu35jmz0rsm5",
     "userId": "cmrai35fr0002koddvbs7wm1b",
     "type": "BID_PUBLISHED",
@@ -658,17 +647,6 @@
     "resolvedAt": null,
     "link": "/bid?id=cms17k9zt001uuu354uvn9hhp",
     "createdAt": "2026-07-26T02:58:05.085Z"
-  },
-  {
-    "id": "cms1nct3b0008uur3tewg3g5i",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061210428",
-    "content": "项目编号 BID-1785061210432 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1nct340006uur3gt2qz6pu",
-    "createdAt": "2026-07-26T10:20:10.435Z"
   },
   {
     "id": "cms1nct4q000ruur39thuoo47",
@@ -834,17 +812,6 @@
     "resolvedAt": null,
     "link": "/projects",
     "createdAt": "2026-07-26T10:20:10.817Z"
-  },
-  {
-    "id": "cms1netbw0008uubm9cd1b0p5",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061304054",
-    "content": "项目编号 BID-1785061304058 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1netbu0006uubm39jeme14",
-    "createdAt": "2026-07-26T10:21:44.061Z"
   },
   {
     "id": "cms1netdl000ruubmjs7tft36",
@@ -1199,17 +1166,6 @@
     "createdAt": "2026-07-26T10:22:08.776Z"
   },
   {
-    "id": "cms1ng1gx0008uuahiazl8d9q",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061361248",
-    "content": "项目编号 BID-1785061361258 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1ng1gq0006uuah9lzz2bx3",
-    "createdAt": "2026-07-26T10:22:41.266Z"
-  },
-  {
     "id": "cms1ng1l20025uuahaacp3srj",
     "userId": "cmrai35fr0002koddvbs7wm1b",
     "type": "BID_PUBLISHED",
@@ -1320,17 +1276,6 @@
     "createdAt": "2026-07-26T10:21:44.439Z"
   },
   {
-    "id": "cms1nfc500008uun2urvsc9q9",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061328429",
-    "content": "项目编号 BID-1785061328433 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1nfc4x0006uun2r1hmxnfe",
-    "createdAt": "2026-07-26T10:22:08.437Z"
-  },
-  {
     "id": "cms1nfc8v0025uun2ydqjj7gf",
     "userId": "cmrai35fr0002koddvbs7wm1b",
     "type": "BID_PUBLISHED",
@@ -1406,17 +1351,6 @@
     "resolvedAt": null,
     "link": "/projects",
     "createdAt": "2026-07-26T10:22:08.794Z"
-  },
-  {
-    "id": "cms1ni17t0008uuydvu3bwpov",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061454242",
-    "content": "项目编号 BID-1785061454246 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1ni17q0006uuydvcz4vx65",
-    "createdAt": "2026-07-26T10:24:14.250Z"
   },
   {
     "id": "cms1ni194000ruuydpw9w1rsi",
@@ -1584,17 +1518,6 @@
     "createdAt": "2026-07-26T10:24:14.657Z"
   },
   {
-    "id": "cms1niftt0008uuyx3kbi1e0c",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061473176",
-    "content": "项目编号 BID-1785061473181 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1niftp0006uuyx81woffm7",
-    "createdAt": "2026-07-26T10:24:33.186Z"
-  },
-  {
     "id": "cms1nifv6000ruuyxtho5yl7q",
     "userId": "cmrai35fr0002koddvbs7wm1b",
     "type": "BID_PUBLISHED",
@@ -1727,17 +1650,6 @@
     "createdAt": "2026-07-26T10:22:08.794Z"
   },
   {
-    "id": "cms1nfm2m0008uuej9co9snke",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061341302",
-    "content": "项目编号 BID-1785061341307 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1nfm2j0006uuejnza8sg2l",
-    "createdAt": "2026-07-26T10:22:21.310Z"
-  },
-  {
     "id": "cms1nfm7c0025uuejgqnxdgr5",
     "userId": "cmrai35fr0002koddvbs7wm1b",
     "type": "BID_PUBLISHED",
@@ -1835,17 +1747,6 @@
     "resolvedAt": null,
     "link": "/projects",
     "createdAt": "2026-07-26T10:22:41.621Z"
-  },
-  {
-    "id": "cms1nhmyh0008uuxuwurxsh6k",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：E2E测试项目-1785061435763",
-    "content": "项目编号 BID-1785061435767 已创建，采购方式：公开招标。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms1nhmyf0006uuxua7d92wye",
-    "createdAt": "2026-07-26T10:23:55.770Z"
   },
   {
     "id": "cms1nhmzw000ruuxuhvszpef6",

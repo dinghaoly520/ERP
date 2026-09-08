@@ -286,7 +286,7 @@ export default function BidListPage() {
               <EmptyState
                 icon={ClipboardList}
                 title="暂无招标项目"
-                desc={search || filterScope ? "没有符合当前筛选条件的项目，试试调整搜索或类别" : "当前没有符合条件的招标项目"}
+                desc={search || filterScope ? "没有符合当前筛选条件的项目，试试调整搜索或类别" : "当前没有处于投标期内（下载/递交阶段且未截标）的招标项目；已截止或已开评标的项目请在「我的投标」中查看进度"}
               />
             )
           )}

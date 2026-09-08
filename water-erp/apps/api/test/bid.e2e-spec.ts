@@ -94,6 +94,13 @@ describe('Bid Lifecycle (e2e)', () => {
       await prisma.bidSupplier.deleteMany({ where: { projectId: createdProjectId } });
       await prisma.bidProject.delete({ where: { id: createdProjectId } }).catch(() => {});
     }
+    // P1-5（UI审计）：清理 e2e 造的公告及其站内信——此前只删项目不删公告。
+    // 本套件两处造公告（首例 + 幂等开标例）均以「E2E招标公示-」前缀命名，且以 PUBLISHED 创建
+    // 即向全部供应商 fan-out 站内信（新采购公告：E2E招标公示-<ts>）；公告直建/同步联动还会把
+    // 项目名改写为公告标题，阶段流转通知（已确定开标/开标完成/已启动评标）同样带此标记。
+    // 种子公告/通知均无此前缀（e2e 专属标记），按前缀定向清理，顺带扫净历史运行残留。
+    await prisma.announcement.deleteMany({ where: { title: { startsWith: 'E2E招标公示-' } } }).catch(() => {});
+    await prisma.notification.deleteMany({ where: { title: { contains: 'E2E招标公示-' } } }).catch(() => {});
     await app.close();
   });
 
@@ -132,6 +139,7 @@ describe('Bid Lifecycle (e2e)', () => {
         status: 'PUBLISHED',
         relatedProjectCode: createdProjectCode,
         aiSummary: 'E2E 测试摘要', // 给定 aiSummary 跳过 LLM 摘要调用
+        metadata: { notifyOnPublish: false }, // P1-5：关闭发布 fan-out——否则每条公告向全部供应商刷站内信
       })
       .expect(201);
   });
@@ -331,6 +339,7 @@ describe('Bid Lifecycle (e2e)', () => {
         status: 'PUBLISHED',
         relatedProjectCode: tmpCode,
         aiSummary: 'x',
+        metadata: { notifyOnPublish: false }, // P1-5：关闭发布 fan-out（同上）
       })
       .expect(201);
 
