@@ -80,7 +80,7 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
   return (
     <div className="space-y-3">
       {softLocked && (
-        <div className="rounded-lg border border-[color-mix(in_oklch,var(--warning)_38%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+        <div className="wb-alert wb-alert--warning text-xs">
           项目已进入评标/归档阶段——修改评标办法或公式会影响后续评分口径，请谨慎操作。
         </div>
       )}

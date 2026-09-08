@@ -145,15 +145,8 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
   return (
     <div>
       {locked && (
-        <div
-          className="mb-3 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold"
-          style={{
-            background: 'color-mix(in oklch, var(--warning) 8%, transparent)',
-            color: 'oklch(0.55 0.08 75)',
-          }}
-        >
-          <Lock size={13} />
-          开标已开始，唱标字段配置已锁定（《招标投标法》开标程序确定性）
+        <div className="wb-alert wb-alert--warning mb-3 flex items-center gap-2 text-xs">
+          <Lock size={13} /> 开标已开始，唱标字段配置已锁定（《招标投标法》开标程序确定性）
         </div>
       )}
 
