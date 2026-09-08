@@ -67,6 +67,13 @@ jobs:
       - name: Unit tests (api)
         run: pnpm --filter api test
 
+      # 2026-09-08 UI审计终审：shared（format-bid 三端消费）与 supplier-portal 的 node:test
+      # 套件接入 validate——此前仅开发者本机执行，format-bid 逻辑回归在 CI 静默溜过
+      - name: Unit tests (shared + supplier-portal, node:test via tsx)
+        run: |
+          pnpm --filter @water-erp/shared test
+          pnpm --filter supplier-portal-next test
+
   # 2026-08-25：e2e 回归流水线——三条实战教训各对应一道闸：
   #   migrate deploy 全新库重放   → 迁移链可重放（漂移/坏迁移）
   #   boot smoke（build→启动→200）→ 单测绿但启动崩（Length 导入教训）
