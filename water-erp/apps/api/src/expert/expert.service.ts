@@ -44,6 +44,25 @@ function extractDnCn(dn: string): string | null {
   return m ? m[1].trim() : null;
 }
 
+/** P1-8：专家核验缺失项 → 人话清单（顿号连接，供监督日志 result 用；判定与五项核验守卫同真值语义） */
+export function verificationMissingList(expert: {
+  signedIn: boolean;
+  avoidanceConfirmed: boolean;
+  aiConsentConfirmed: boolean;
+  confidentialityAgreed: boolean;
+  disciplineAgreed: boolean;
+}): string {
+  return [
+    !expert.signedIn && '未签到',
+    !expert.avoidanceConfirmed && '未完成回避确认',
+    !expert.aiConsentConfirmed && '未确认 AI 辅助评标声明',
+    !expert.confidentialityAgreed && '未同意保密承诺',
+    !expert.disciplineAgreed && '未确认评标纪律',
+  ]
+    .filter(Boolean)
+    .join('、');
+}
+
 @Injectable()
 export class ExpertService {
   private readonly logger = new Logger(ExpertService.name);
@@ -564,10 +583,10 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '获取投标文件');
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
-      // 审计：专家核验未完成即尝试访问
+      // 审计：专家核验未完成即尝试访问（P1-8：人话缺失清单替代 signedIn=true 调试串）
       this.prisma.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
-          action: '尝试查看投标文件（被拒：核验未完成）', result: `signedIn=${expert.signedIn} avoidanceConfirmed=${expert.avoidanceConfirmed} aiConsentConfirmed=${expert.aiConsentConfirmed} confidentialityAgreed=${expert.confidentialityAgreed} disciplineAgreed=${expert.disciplineAgreed}`, riskFlag: '无' },
+          action: '尝试查看投标文件（被拒：核验未完成）', result: `核验未完成：${verificationMissingList(expert)}`, riskFlag: '无' },
       }).catch(() => {});
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }

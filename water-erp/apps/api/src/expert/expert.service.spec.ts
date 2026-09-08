@@ -1028,6 +1028,24 @@ describe('ExpertService', () => {
         .rejects.toMatchObject({ response: { code: 'VERIFICATION_REQUIRED' } });
     });
 
+    it('P1-8：核验未完成监督日志 result 为人话缺失清单（无 debug 串）', async () => {
+      // 五项核验全缺 → 监督日志 result 应为人话缺失清单
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, expertRole: '正选',
+        signedIn: false, avoidanceConfirmed: false, aiConsentConfirmed: false,
+        confidentialityAgreed: false, disciplineAgreed: false,
+      });
+
+      await expect(service.getDecryptedDocuments('user-1', 'proj-1', 'bs-1'))
+        .rejects.toMatchObject({ response: { code: 'VERIFICATION_REQUIRED' } });
+
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledTimes(1);
+      const data = prisma.bidSupervisionLog.create.mock.calls[0][0].data;
+      expect(data.action).toBe('尝试查看投标文件（被拒：核验未完成）');
+      expect(data.result).toBe('核验未完成：未签到、未完成回避确认、未确认 AI 辅助评标声明、未同意保密承诺、未确认评标纪律');
+      expect(data.result).not.toMatch(/=/); // P1-8：不再是 signedIn=true 调试串
+    });
+
     it('returns real uploaded file assets with download urls after decrypt success', async () => {
       prisma.bidSupplier.findFirst.mockResolvedValue({
         id: 'bs-1', supplierId: 'supplier-1', supplierName: '川水建设', decryptStatus: 'SUCCESS',
@@ -2396,5 +2414,30 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
     prisma.bidExpert.update.mockResolvedValue({ ...promoted, signedIn: true });
     const res = await svc.signIn('user-sub', 'proj-1', { ip: '127.0.0.1', userAgent: 'test' });
     expect(res.signedIn).toBe(true);
+  });
+});
+
+describe('P1-8 verificationMissingList（纯函数：核验缺失项人话清单）', () => {
+  const { verificationMissingList } = require('./expert.service');
+
+  it('五项全缺 → 按固定顺序全列（监督日志 result 用）', () => {
+    expect(verificationMissingList({
+      signedIn: false, avoidanceConfirmed: false, aiConsentConfirmed: false,
+      confidentialityAgreed: false, disciplineAgreed: false,
+    })).toBe('未签到、未完成回避确认、未确认 AI 辅助评标声明、未同意保密承诺、未确认评标纪律');
+  });
+
+  it('部分缺失 → 只列缺失项，顿号连接，无 = 调试串', () => {
+    expect(verificationMissingList({
+      signedIn: false, avoidanceConfirmed: false, aiConsentConfirmed: true,
+      confidentialityAgreed: true, disciplineAgreed: true,
+    })).toBe('未签到、未完成回避确认');
+  });
+
+  it('五项齐全 → 空串（调用点仅在守卫拒绝分支内使用）', () => {
+    expect(verificationMissingList({
+      signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+      confidentialityAgreed: true, disciplineAgreed: true,
+    })).toBe('');
   });
 });
