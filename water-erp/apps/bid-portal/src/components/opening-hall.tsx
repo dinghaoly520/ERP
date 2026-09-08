@@ -937,9 +937,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               </div>
               <span className="whitespace-nowrap text-[11px] font-mono font-bold tabular-nums text-[color:var(--foreground)]">
                 <span className="text-[var(--success)]">{decryptProgress.success}</span>
-                <span className="text-[color:var(--muted-foreground)]">/{decryptProgress.total} 已处理</span>
+                <span className="text-[color:var(--muted-foreground)]">/{decryptProgress.total} 成功</span>
                 {decryptProgress.danger > 0 && <span className="text-[var(--danger)]"> · {decryptProgress.danger} 异常</span>}
-                <span className="ml-1 text-[color:var(--muted-foreground)]">({Math.round(decryptProgress.pct * 100)}%)</span>
+                <span className="ml-1 text-[color:var(--muted-foreground)]">({Math.round(decryptProgress.pct * 100)}% 已处理)</span>
               </span>
             </div>
           </div>
@@ -1524,7 +1524,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
       {/* P2（二轮审查）：解密异常定性受控弹窗——替代 window.prompt（原生弹窗无样式无校验） */}
       {dangerQualify && (
-        <div className="bid-overlay" onClick={() => !dangerBusy && setDangerQualify(null)}>
+        <div className="bid-overlay" onClick={() => { if (!dangerBusy) { setDangerQualify(null); setDangerReason(''); } }}>
           <div className="bid-overlay-backdrop" />
           <div
             className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)]"
@@ -1547,7 +1547,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               disabled={dangerBusy}
             />
             <div className="mt-3 flex justify-end gap-2">
-              <button type="button" className="neu-btn-soft !h-8 !text-xs" disabled={dangerBusy} onClick={() => setDangerQualify(null)}>取消</button>
+              <button type="button" className="neu-btn-soft !h-8 !text-xs" disabled={dangerBusy} onClick={() => { setDangerQualify(null); setDangerReason(''); }}>取消</button>
               <button
                 type="button"
                 className="neu-btn-primary !h-8 !text-xs"
