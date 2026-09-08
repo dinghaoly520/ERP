@@ -543,6 +543,10 @@ export interface BidProjectDetail {
   qualityRequirement?: string | null;
   scoreStandardPublishedAt?: string | null;
   evaluationDeadline?: string | null; // E2: 评标截止时间
+  /** W3（盲区收口）：价格与评标办法（PATCH price-config；null=未设置） */
+  ceilingPrice?: number | null;
+  evaluationMethod?: string | null;
+  priceFormulaConfig?: Record<string, unknown> | null;
   /** A-113：唱标字段动态配置（null = 内置默认四字段；OPENING 起锁定不可改） */
   openingFieldConfig?: { fields?: OpeningFieldDef[] } | null;
   suppliers: BidProjectSupplierInfo[];

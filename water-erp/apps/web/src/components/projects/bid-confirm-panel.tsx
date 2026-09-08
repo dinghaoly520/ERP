@@ -10,6 +10,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock,
+  Coins,
   Crown,
   FileText,
   Gavel,
@@ -58,6 +59,7 @@ import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { ArchiveTemplateCard } from './archive-template-card';
 import { OpeningFieldConfigCard } from './opening-field-config-card';
+import { PriceConfigCard } from './price-config-card';
 import { uploadFile } from '@/lib/api/announcement';
 
 type Props = {
@@ -770,6 +772,18 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                     bidProject={detail ?? bidProject}
                     onChanged={() => void load()}
                   />
+                </SectionCard>
+              )}
+
+              {/* ▸ W3（API-only 盲区收口，2026-09-08）：价格与评标办法（最高限价/评标办法/价格分公式） */}
+              {bidProject && (
+                <SectionCard
+                  icon={<Coins size={14} />}
+                  title="价格与评标办法"
+                  accent="var(--stage-demand)"
+                  accentSoft="var(--stage-demand-soft)"
+                >
+                  <PriceConfigCard detail={detail ?? bidProject} onChanged={() => void load()} />
                 </SectionCard>
               )}
 
