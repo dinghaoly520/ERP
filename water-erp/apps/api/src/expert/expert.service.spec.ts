@@ -74,6 +74,7 @@ describe('ExpertService', () => {
       bidSignPacket: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       expertCert: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({}), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidRequirementReview: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn(async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
       $queryRaw: jest.fn(),
@@ -427,6 +428,30 @@ describe('ExpertService', () => {
 
       await expect(service.getReport('user-1', 'proj-1'))
         .rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('getReport', () => {
+    it('P1-9：supplierScores 按供应商 bidValidity 输出 invalid 布尔（invalid→true，valid/null→false）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, signedIn: true, avoidanceConfirmed: true,
+        aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', displayName: '王建国' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', name: '测试项目', projectCode: 'SC-TEST-01',
+        suppliers: [
+          { id: 'sup-1', supplierName: '有效供应商', bidValidity: 'valid' },
+          { id: 'sup-2', supplierName: '废标供应商', bidValidity: 'invalid' },
+          { id: 'sup-3', supplierName: '未判定供应商', bidValidity: null },
+        ],
+        scoreItems: [],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+
+      const result = await service.getReport('user-1', 'proj-1');
+
+      expect(result.supplierScores.map(s => s.invalid)).toEqual([false, true, false]);
     });
   });
 

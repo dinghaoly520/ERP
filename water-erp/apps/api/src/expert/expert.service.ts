@@ -1896,6 +1896,7 @@ export class ExpertService {
       return {
         supplierName: supplier.supplierName,
         totalScore,
+        invalid: supplier.bidValidity === 'invalid', // P1-9（UI审计）：报告页废标标记——与评分页 bidValidity 同口径
         bidPrice: openingRecMap.get(supplier.id) ?? undefined, // C3+M9: 最终报价
         categoryScores,
         perSupplierComplete: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
