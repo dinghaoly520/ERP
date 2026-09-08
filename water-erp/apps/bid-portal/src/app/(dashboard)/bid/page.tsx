@@ -18,17 +18,18 @@ function fmt(iso: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function MiniStat({ icon, label, done, total, tone }: {
-  icon: React.ReactNode; label: string; done: number; total: number; tone: 'accent' | 'danger';
+function MiniStat({ icon, label, done, total, tone, hideTotal }: {
+  icon: React.ReactNode; label: string; done: number; total: number; tone: 'accent' | 'danger'; hideTotal?: boolean;
 }) {
   const danger = tone === 'danger' && done > 0;
   return (
     <span
       className={`inline-flex items-center gap-1 text-[11px] tabular-nums ${danger ? 'text-[var(--danger)]' : 'text-[color:var(--accent-strong)]'}`}
-      title={`${label} ${done}/${total}`}
+      title={hideTotal ? `${label} ${done} 件` : `${label} ${done}/${total}`}
     >
       {icon}
-      <b className="font-bold">{done}</b><span className="opacity-50">/{total}</span>
+      <b className="font-bold">{done}</b>{!hideTotal && <span className="opacity-50">/{total}</span>}
+      {hideTotal && <span className="font-normal opacity-70"> 件</span>}
     </span>
   );
 }
@@ -127,7 +128,7 @@ export default function BidTaskBoard() {
                         <MiniStat icon={<KeyRound size={11} />} label="解密" done={p.decryptedCount ?? 0} total={total} tone="accent" />
                         <MiniStat icon={<FileCheck size={11} />} label="唱标" done={p.openingRecordedCount ?? 0} total={total} tone="accent" />
                         <MiniStat icon={<UserCheck size={11} />} label="确认" done={p.confirmedCount ?? 0} total={total} tone="accent" />
-                        <MiniStat icon={<AlertTriangle size={11} />} label="异议" done={disputed} total={total} tone="danger" />
+                        <MiniStat icon={<AlertTriangle size={11} />} label="异议" done={disputed} total={total} tone="danger" hideTotal />
                       </div>
                       <span className="neu-btn-primary pointer-events-none !h-[34px] !px-3.5 text-[12px]">
                         进入开标大厅 <ChevronRight size={13} />
