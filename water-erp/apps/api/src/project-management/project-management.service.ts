@@ -3173,23 +3173,27 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
+    // 补录（2026-09-07）：目标阶段早于当前活跃阶段（流程已越过的前置）允许补完成——
+    // 附件后传/历史数据补齐场景（此前一律拒绝，导致已越过阶段永远停在 NOT_STARTED，
+    // 归档台账与实际不符）。后续实质闸门（归档材料 DA/T 103、邀请回执等）照常校验。
+    // 补录只改该阶段 status：不触发 nextStage 推进/激活（那是"完成当前步骤往前走"的
+    // 语义，补录历史阶段时执行会把 currentStage 拉回过去——实测把已归档项目指针
+    // 从 CONTRACT 拉回 INITIATION，卡片「当前阶段」错显示「采购立项」）。
+    let isBackfill = false;
     if (
       dto.status === PROJECT_STAGE_STATUS.COMPLETED &&
       project.currentStage !== stageKey
     ) {
-      // 补录（2026-09-07）：目标阶段早于当前活跃阶段（流程已越过的前置）允许补完成——
-      // 附件后传/历史数据补齐场景（此前一律拒绝，导致已越过阶段永远停在 NOT_STARTED，
-      // 归档台账与实际不符）。后续实质闸门（归档材料 DA/T 103、邀请回执等）照常校验。
       const current = await this.prisma.projectManagementStage.findFirst({
         where: { projectManagementItemId: projectId, stageKey: project.currentStage ?? undefined },
         select: { stageOrder: true },
       });
-      const isBackfill = !!current && stage.stageOrder < current.stageOrder;
+      isBackfill = !!current && stage.stageOrder < current.stageOrder;
       if (!isBackfill) {
         throw new BadRequestException('请先完成当前阶段后再推进下一阶段。');
       }
       this.logger.warn(
-        `[阶段补录] 项目 ${projectId} 阶段 ${stageKey} 已越过 currentStage(${project.currentStage})，补记完成`,
+        `[阶段补录] 项目 ${projectId} 阶段 ${stageKey} 已越过 currentStage(${project.currentStage})，补记完成（不推进项目指针）`,
       );
     }
 
@@ -3292,7 +3296,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         nextStage = nextIndex >= 0 ? projectStages[nextIndex + 1] ?? null : null;
       }
 
-      if (nextStage) {
+      if (nextStage && !isBackfill) {
         await this.prisma.projectManagementStage.updateMany({
           where: {
             projectManagementItemId: projectId,
@@ -3447,6 +3451,41 @@ ${JSON.stringify(algorithmResult, null, 2)}
         where: { projectManagementItemId: projectId, status: { not: PROJECT_STAGE_STATUS.COMPLETED } },
         data: { status: PROJECT_STAGE_STATUS.COMPLETED, completedAt: archivedAt },
       });
+
+      // 基本信息快照兜底回写（此前邀请/专家流程不回写 → 详情页恒"待补充"）：
+      // 专家评审 = BidExpert（正选+候补，User/ExpertProfile 补部门职称）；供应商参与 = 邀请回执名单
+      try {
+        const bpIds = await tx.bidProject.findMany({ where: { projectManagementItemId: projectId }, select: { id: true } });
+        const bpIdSet = bpIds.map(b => b.id);
+        const bidExperts = bpIdSet.length > 0
+          ? await tx.bidExpert.findMany({ where: { projectId: { in: bpIdSet } }, orderBy: [{ expertRole: 'asc' }, { createdAt: 'asc' }], select: { userId: true, expertName: true, major: true, expertRole: true } })
+          : [];
+        if (bidExperts.length > 0) {
+          const profs = await tx.user.findMany({
+            where: { id: { in: bidExperts.map(e => e.userId) } },
+            select: { id: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
+          });
+          const byId = new Map(profs.map(u => [u.id, u]));
+          const expertInfo = bidExperts.map(e => {
+            const u = byId.get(e.userId);
+            return [e.expertName, u?.department?.name ?? '', e.major ?? '', u?.expertProfile?.title ?? '', e.expertRole].join('|');
+          }).join('\n');
+          await tx.projectManagementItem.update({ where: { id: projectId }, data: { expertInfo } });
+        }
+        const [rsvps, bidSuppliers] = await Promise.all([
+          tx.invitationRsvp.findMany({
+            where: { OR: [{ projectId }, { projectId: { in: bpIdSet } }] },
+            select: { supplierName: true },
+          }),
+          bpIdSet.length > 0
+            ? tx.bidSupplier.findMany({ where: { projectId: { in: bpIdSet } }, select: { supplierName: true } })
+            : Promise.resolve([] as { supplierName: string }[]),
+        ]);
+        const supplierNames = [...new Set([...rsvps, ...bidSuppliers].map(r => r.supplierName?.trim()).filter(Boolean))];
+        if (supplierNames.length > 0) {
+          await tx.projectManagementItem.update({ where: { id: projectId }, data: { invitedSuppliers: supplierNames.join('\n') } });
+        }
+      } catch { /* 快照回写失败不阻断归档 */ }
 
       return tx.projectManagementItem.update({
         where: { id: projectId },
