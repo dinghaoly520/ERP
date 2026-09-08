@@ -747,7 +747,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标资料已移交</h2>
-            <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台，后续启动评标 / 归档请前往采购管理工作台开标确认面板。</p>
+            <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台；启动评标请在本工作区「评标管理」tab 操作，完整归档与公示由采购管理工作台办理。</p>
           </div>
           {canGoWeb && (
             <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
