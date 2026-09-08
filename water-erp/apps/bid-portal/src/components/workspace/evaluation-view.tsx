@@ -28,7 +28,7 @@ import {
   type ScoreCategory,
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
-import { EXPERT_ROLE } from '@water-erp/shared';
+import { EXPERT_ROLE, formatBidPrice } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
 import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
@@ -220,6 +220,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   // F12（2026-08-28）：官方口径实时排名预览（结果未生成时排名区主数据源）——与生成同源聚合
   // （去极值/公式价格分/废标置后），替代旧的「正选百分制原始均分」；端点失败回退旧均分。
   const [liveOfficial, setLiveOfficial] = useState<LiveOfficialScoresResponse | null>(null);
+  /** P0-3c：官方口径预览拉取失败标记——回退客户端均分估算时排名区显式告警，不再静默换量纲 */
+  const [liveFailed, setLiveFailed] = useState(false);
 
   // F12：按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致
   // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新。
@@ -252,8 +254,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     if (!projectId || results.length > 0) return;
     let cancelled = false;
     getLiveOfficialScores(projectId)
-      .then(r => { if (!cancelled) setLiveOfficial(r); })
-      .catch(() => { if (!cancelled) setLiveOfficial(null); });
+      .then(r => { if (!cancelled) { setLiveOfficial(r); setLiveFailed(false); } })
+      .catch(() => { if (!cancelled) { setLiveOfficial(null); setLiveFailed(true); } });
     return () => { cancelled = true; };
   }, [projectId, results.length, liveScoresSignature]);
 
@@ -270,8 +272,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   /** 实时均分排名（未生成官方结果时，仅供参考） */
   const liveRanks = useMemo(() => {
     if (!project) return new Map<string, number>();
-    const entries = [...project.suppliers].map(s => ({ id: s.id, avg: supplierAvg.get(s.id) ?? 0 }));
-    entries.sort((a, b) => b.avg - a.avg);
+    const entries = [...project.suppliers].map(s => ({ id: s.id, name: s.supplierName, avg: supplierAvg.get(s.id) ?? 0 }));
+    // P0-3c：并列分 tie-break（zh-CN 供应商名 localeCompare，与 aggregate-supplier-scores.ts 服务端同款）——防刷新顺序抖动
+    entries.sort((a, b) => b.avg - a.avg || a.name.localeCompare(b.name, 'zh-CN'));
     const ranks = new Map<string, number>();
     let rank = 1;
     for (let i = 0; i < entries.length; i++) {
@@ -545,6 +548,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
+      {/* P0-3a：OPENING 预演标注——评标未启动，本 tab 评分/排名均为预演口径，与「启动评标」同屏矛盾需显式区分 */}
+      {stage === 'OPENING' && (
+        <div className="bid-alert bid-alert--warning mb-3 flex items-center gap-2 rounded-[12px]">
+          <AlertTriangle size={14} className="shrink-0" />
+          <span className="text-xs">
+            评标尚未启动——当前展示的评分/排名为预演数据，不作为评标依据；请先在上方完成「启动评标」。
+          </span>
+        </div>
+      )}
+
       {/* 进度四联 */}
       <div className="mb-3 flex flex-wrap gap-2.5">
         <StatTile
@@ -761,6 +774,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   : '实时均分参考（未生成官方结果）'}
             </span>
           </div>
+          {/* P0-3c：官方口径预览拉取失败可见化——此前 catch→null 静默回退客户端均分序，两次刷新数据源/量纲切换无感知 */}
+          {liveFailed && results.length === 0 && (
+            <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>实时官方预览暂不可用——当前为客户端估算排名（按专家均分），仅供参考。</span>
+            </div>
+          )}
           {/* P1-6: 预览口径提示——F12 后官方口径预览为主，原始均分仅为端点失败回退 */}
           {results.length === 0 && suppliers.length > 0 && (
             liveOfficial?.priceFormulaError ? (
@@ -819,13 +839,20 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                     {official?.bidPrice && (
                       <span className="font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">
-                        ¥{Number(official.bidPrice).toLocaleString('zh-CN')}
+                        {formatBidPrice(official.bidPrice)}
                       </span>
                     )}
+                    {/* P0-3c：主显对齐排序口径——live 态官方预览真值并列均分次指标（防「合计总分高却居后」误读）；
+                        回退态只显示均分（排序键本身），绝不显示均分×专家数的近似总分 */}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
                       {official ? Number(official.totalScore).toFixed(2) : live ? live.totalScore.toFixed(2) : avg.toFixed(1)}
-                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分参考'}</span>
+                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分(排序口径)'}</span>
                     </span>
+                    {!official && live && (
+                      <span className="font-mono text-[10px] tabular-nums text-[var(--muted-foreground)]">
+                        均分 {avg.toFixed(1)}
+                      </span>
+                    )}
                   </div>
                 );
               })}
