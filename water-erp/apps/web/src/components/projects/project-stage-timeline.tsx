@@ -328,8 +328,9 @@ export function ProjectStageTimeline({
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1.5">
-                          {/* 步骤操作按钮仅对"进行中"步骤开放——已完成/待解锁均不可再操作 */}
-                          {actionLabel && onStageAction && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
+                          {/* 步骤操作按钮对"进行中"或"当前聚焦"步骤开放——P1-B：currentStage 指向的阶段
+                              即为项目实际所处阶段，status 脱节（直建/存量数据）时入口不能消失 */}
+                          {actionLabel && onStageAction && (entry.isInProgress || stageKey === activeStageKey) && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
                             <span
                               role="button"
                               tabIndex={0}
