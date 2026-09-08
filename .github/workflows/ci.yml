@@ -13,7 +13,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15   # 2026-09-08：+8 门户 tsc 闸后 10→15 留缓冲
     defaults:
       run:
         working-directory: water-erp
@@ -57,6 +57,19 @@ jobs:
 
       - name: TypeScript type check (api)
         run: pnpm --filter api exec tsc --noEmit
+
+      # 2026-09-08：全门户 tsc 闸——此前 CI 只查 api，远程两度推来 web tsc 不过的代码漏网
+      # （本地八门户 tsc 已全绿基线）
+      - name: TypeScript type check (8 portals)
+        run: |
+          pnpm --filter web exec tsc --noEmit
+          pnpm --filter bid-portal exec tsc --noEmit
+          pnpm --filter expert-portal exec tsc --noEmit
+          pnpm --filter supplier-portal-next exec tsc --noEmit
+          pnpm --filter public-portal exec tsc --noEmit
+          pnpm --filter mall exec tsc --noEmit
+          pnpm --filter assistant exec tsc --noEmit
+          pnpm --filter bigscreen exec tsc --noEmit
 
       - name: Lint (api)
         run: pnpm --filter api exec eslint "src/**/*.ts" "test/**/*.ts"
