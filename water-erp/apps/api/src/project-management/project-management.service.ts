@@ -368,7 +368,11 @@ export class ProjectManagementService {
         stageName: stage.label,
         stageOrder: index + 1,
         round: 1,
-        status: completedKeys.has(stage.key) ? PROJECT_STAGE_STATUS.COMPLETED : PROJECT_STAGE_STATUS.NOT_STARTED,
+        // P1-B：currentStage 指向的开标评标阶段置 IN_PROGRESS——:3005 流程卡动作按钮按
+        // isInProgress 渲染，NOT_STARTED 会让开标确认面板在 DOWNLOAD/SUBMIT 期（开标前准备窗口）不可达
+        status: stage.key === 'BID_EVALUATION'
+          ? PROJECT_STAGE_STATUS.IN_PROGRESS
+          : completedKeys.has(stage.key) ? PROJECT_STAGE_STATUS.COMPLETED : PROJECT_STAGE_STATUS.NOT_STARTED,
         completedAt: completedKeys.has(stage.key) ? now : null,
       })),
     });

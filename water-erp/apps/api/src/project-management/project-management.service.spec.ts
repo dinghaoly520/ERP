@@ -1362,6 +1362,25 @@ describe('ProjectManagementService', () => {
       expect(orders.every((v, i) => i === 0 || v > orders[i - 1])).toBe(true);
     });
 
+    it('P1-B：BID_EVALUATION 阶段落 IN_PROGRESS（currentStage 指向的阶段必须可操作，否则 :3005 开标确认入口不渲染）', async () => {
+      const { service, prisma } = makeService();
+      (prisma as any).user = { findUnique: jest.fn().mockResolvedValue(null) };
+      prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-18', projectCode: 'GK-2099010101' });
+
+      await service.createItemFromAnnouncement({} as any, prisma as any, {
+        title: '直建入口测试', procurementMethod: '公开招标', budget: null, authorId: null,
+      });
+
+      const stages = prisma.projectManagementStage.createMany.mock.calls[0][0].data as any[];
+      const bidEval = stages.find((x) => x.stageKey === 'BID_EVALUATION');
+      expect(bidEval).toBeDefined();
+      expect(bidEval.status).toBe('IN_PROGRESS');
+      expect(bidEval.completedAt).toBeNull();
+      // 其余非前置阶段仍 NOT_STARTED（EXPERT_SELECTION 不动）
+      const expert = stages.find((x) => x.stageKey === 'EXPERT_SELECTION');
+      expect(expert?.status).toBe('NOT_STARTED');
+    });
+
     it('谈判采购：无 PUBLIC_ANNOUNCEMENT 段，SUPPLIER_INVITATION 记 COMPLETED', async () => {
       const { service, prisma } = makeService();
       (prisma as any).user = { findUnique: jest.fn().mockResolvedValue(null) };
