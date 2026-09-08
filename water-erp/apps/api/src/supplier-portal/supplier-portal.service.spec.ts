@@ -1282,9 +1282,9 @@ describe('SupplierPortalService', () => {
       expect(prisma.bidOpeningRecord.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { projectId: 'project-1' }, orderBy: { createdAt: 'asc' } }),
       );
-      expect(result).toHaveLength(2);
-      expect(result[0]).toMatchObject({ supplierName: '四川川水建设工程有限公司', amount: '4200000' });
-      expect(result[1].confirmStatus).toBe('供应商已确认');
+      expect(result.records).toHaveLength(2);
+      expect(result.records[0]).toMatchObject({ supplierName: '四川川水建设工程有限公司', amount: '4200000' });
+      expect(result.records[1].confirmStatus).toBe('供应商已确认');
       // 脱敏口径：select 白名单不含异议裁决过程字段——jest mock 不过滤字段（返回原对象），
       // 故以 select 断言契约（Prisma 运行时按 select 下发，不含即不返回）。
       const select = prisma.bidOpeningRecord.findMany.mock.calls[0][0].select;
@@ -1292,6 +1292,37 @@ describe('SupplierPortalService', () => {
         expect(select[f]).toBeUndefined();
       }
       expect(select.confirmStatus).toBe(true);
+      expect(select.customFields).toBe(true); // A-113：动态唱标字段值随行下发
+    });
+
+    it('A-113：项目未配置 openingFieldConfig → fieldConfig 回落默认四字段（与主持端 draft 同源）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidOpeningRecord.findMany.mockResolvedValue(mockRecords);
+
+      const result = await service.listOpeningRecords('supplier-1', 'project-1');
+
+      expect(result.fieldConfig.fields.map((f: any) => f.key)).toEqual(['amount', 'period', 'qualityTarget', 'bondStatus']);
+      expect(prisma.bidProject.findUnique.mock.calls[0][0].select.openingFieldConfig).toBe(true);
+    });
+
+    it('A-113：项目已配置动态字段 → fieldConfig 原样透传（两表同一 config 渲染）', async () => {
+      const configured = {
+        fields: [
+          { key: 'amount', label: '报价', type: 'text', required: true, prefillFrom: 'amount' },
+          { key: 'technicalProposal', label: '技术方案概述', type: 'text' },
+          { key: 'period', label: '工期', type: 'text', required: true, prefillFrom: 'period' },
+          { key: 'qualityTarget', label: '质量承诺', type: 'text', required: true, prefillFrom: 'qualityTarget' },
+          { key: 'bondStatus', label: '保证金', type: 'select', options: ['已缴纳', '未缴纳'], required: true, prefillFrom: 'bondStatus' },
+        ],
+      };
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', openingFieldConfig: configured });
+      prisma.bidOpeningRecord.findMany.mockResolvedValue(mockRecords);
+
+      const result = await service.listOpeningRecords('supplier-1', 'project-1');
+
+      expect(result.fieldConfig.fields).toEqual(configured.fields);
     });
 
     it('EVALUATING/ARCHIVED 阶段同样可见（唱标信息开标后属公开信息）', async () => {
@@ -1299,7 +1330,8 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
       prisma.bidOpeningRecord.findMany.mockResolvedValue(mockRecords);
 
-      await expect(service.listOpeningRecords('supplier-1', 'project-1')).resolves.toHaveLength(2);
+      const result = await service.listOpeningRecords('supplier-1', 'project-1');
+      expect(result.records).toHaveLength(2);
     });
 
     it('开标前（SUBMIT）→ 400 OPENING_NOT_STARTED', async () => {

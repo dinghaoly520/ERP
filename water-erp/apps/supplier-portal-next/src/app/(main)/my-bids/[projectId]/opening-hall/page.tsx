@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
@@ -9,7 +9,16 @@ import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import type { UKeyAdapter } from "@water-erp/ukey";
 import { bidApi } from "@/lib/api/bid";
-import { supplierApi } from "@/lib/api/supplier";
+import { supplierApi, type OpeningRecordRow } from "@/lib/api/supplier";
+// A-113：唱标字段动态渲染辅助（后端 opening-field-config.util.ts 的渲染镜像，含法定四列本页固定口径）
+import {
+  resolveOpeningFields,
+  openingColumnLabel,
+  openingColumnWidth,
+  openingRecordCell,
+  otherOpeningRows,
+  type OpeningFieldDef,
+} from "@/lib/opening-fields";
 import { openingHallApi } from "@/lib/api/opening-hall";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -39,7 +48,9 @@ export default function OpeningHallPage() {
 
   const [project, setProject] = useState<any>(null);
   const [record, setRecord] = useState<any>(null);
-  const [records, setRecords] = useState<any[]>([]);
+  const [records, setRecords] = useState<OpeningRecordRow[]>([]);
+  // A-113：本项目唱标字段配置（随公开唱标表端点附带；开标前端点 400 → null，渲染处回退默认四列）
+  const [fieldConfig, setFieldConfig] = useState<OpeningFieldDef[] | null>(null);
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
   const [decryptStatus, setDecryptStatus] = useState<string>("");
@@ -100,7 +111,8 @@ export default function OpeningHallPage() {
       ]);
       setProject(p);
       setRecord(r);
-      setRecords(list ?? []);
+      setRecords(list?.records ?? []);
+      setFieldConfig(list?.fieldConfig?.fields ?? null);
       setLoadError(false);
       loadErrorRef.current = false;
       projectRef.current = p;
@@ -296,6 +308,11 @@ export default function OpeningHallPage() {
   // A-114 补签：已确认但未电子签名（本人视图 record.confirmSignature 为完整归档）——同一签名流，服务端按 resign 处理
   const canResign = isOpening && record?.confirmStatus === "供应商已确认" && !record?.confirmSignature;
 
+  // A-113：两表同一 config 渲染——公开总表列序（config 缺失回退默认四列=现状渲染）、
+  // 本司对比区动态字段增显行（仅 config 动态键且有值；无密封源不做比对，仅展示）
+  const tableFields = useMemo(() => resolveOpeningFields(fieldConfig), [fieldConfig]);
+  const myOtherRows = useMemo(() => otherOpeningRows(tableFields, record), [tableFields, record]);
+
   return (
     <div className="hall">
       <div className="left">
@@ -371,6 +388,20 @@ export default function OpeningHallPage() {
                       </span>
                     </td>
                   </tr>
+                )}
+                {/* A-113：动态唱标字段增显区（仅 config 含动态键且有值时渲染；无法定密封源不比对，仅展示） */}
+                {myOtherRows.length > 0 && (
+                  <>
+                    <tr className="hall-desc__group">
+                      <th colSpan={2}>其他唱标字段</th>
+                    </tr>
+                    {myOtherRows.map((r) => (
+                      <tr key={r.key}>
+                        <th>{r.label}</th>
+                        <td>{r.value}</td>
+                      </tr>
+                    ))}
+                  </>
                 )}
                 <tr>
                   <th>开标记录状态</th>
@@ -451,10 +482,12 @@ export default function OpeningHallPage() {
               <thead>
                 <tr>
                   <th className="col-supplier w-supplier">供应商</th>
-                  <th className="w-amount">报价（元）</th>
-                  <th className="w-period">工期</th>
-                  <th className="w-quality">质量目标</th>
-                  <th className="w-bond">保证金</th>
+                  {/* A-113：字段列按项目配置渲染（法定列沿用既有标签/列宽/取值，动态列取 customFields 空显 '—'） */}
+                  {tableFields.map((f) => (
+                    <th key={f.key} className={openingColumnWidth(f)}>
+                      {openingColumnLabel(f)}
+                    </th>
+                  ))}
                   <th className="w-status">状态</th>
                 </tr>
               </thead>
@@ -467,10 +500,11 @@ export default function OpeningHallPage() {
                         <span className="hall-tag hall-tag--sm hall-tag--info self-tag">本司</span>
                       )}
                     </td>
-                    <td className="w-amount">{row.amount}</td>
-                    <td className="w-period">{row.period}</td>
-                    <td className="w-quality">{row.qualityTarget}</td>
-                    <td className="w-bond">{row.bondStatus}</td>
+                    {tableFields.map((f) => (
+                      <td key={f.key} className={openingColumnWidth(f)}>
+                        {openingRecordCell(f, row)}
+                      </td>
+                    ))}
                     <td className="w-status">{row.confirmStatus}</td>
                   </tr>
                 ))}

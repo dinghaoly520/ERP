@@ -1,4 +1,27 @@
 import { api } from "../api";
+import type { OpeningFieldDef } from "../opening-fields";
+
+/** 公开唱标行（大厅脱敏视图：不含异议裁决过程字段） */
+export interface OpeningRecordRow {
+  id: string;
+  bidSupplierId: string;
+  supplierName: string;
+  amount: string | null;
+  period: string | null;
+  qualityTarget: string | null;
+  bondStatus: string | null;
+  /** A-113：动态唱标字段值（{ [key]: string }） */
+  customFields?: Record<string, string> | null;
+  decryptResult: string | null;
+  confirmStatus: string;
+  confirmedAt: string | null;
+}
+
+/** A-113：公开唱标表响应——records + 项目级字段配置（列表端点附带，null 配置由后端解析为默认四字段） */
+export interface OpeningRecordsResponse {
+  fieldConfig: { fields: OpeningFieldDef[] };
+  records: OpeningRecordRow[];
+}
 
 export const supplierApi = {
   // Profile
@@ -97,8 +120,9 @@ export const supplierApi = {
     return api.get<any>(`/supplier-portal/bid-submissions/${projectId}/opening-record`);
   },
   // 唱标记录列表（大厅公开视图：自 OPENING 起向全体投标人公开各家唱标信息）
+  // A-113：响应附带项目级 fieldConfig——公开总表与本司对比区按同一 config 渲染动态字段
   getOpeningRecords(projectId: string) {
-    return api.get<any[]>(`/supplier-portal/bid-submissions/${projectId}/opening-records`);
+    return api.get<OpeningRecordsResponse>(`/supplier-portal/bid-submissions/${projectId}/opening-records`);
   },
   /** A-114：开标确认待签负载（待确认=首次确认签名；已确认未签名=补签，purpose 由服务端按记录态派生） */
   getOpeningConfirmPayload(projectId: string) {

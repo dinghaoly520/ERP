@@ -52,6 +52,11 @@
   background: #f7f9fc; color: #5a6d8a; border: 1px solid var(--sp-border-light);
 }
 .hall-desc td { padding: 8px 12px; color: var(--sp-gray-700); border: 1px solid var(--sp-border-light); word-break: break-all; }
+/* A-113：本司对比区动态唱标字段分组标题行（「其他唱标字段」小节隔断，弱于法定行标签） */
+.hall-desc .hall-desc__group th {
+  padding: 5px 12px; text-align: center; font-size: 11px; letter-spacing: 0.06em;
+  color: #8a97ab; background: #f3f7fc;
+}
 
 /* —— el-table（size=small）原生等价（hall-table）—— */
 /* H5-①（2026-09-07）375px 适配：轨道下限降为 0 防内容撑破（配合 960px 折列断点），

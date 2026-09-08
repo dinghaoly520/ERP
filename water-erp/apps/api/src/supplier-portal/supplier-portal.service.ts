@@ -25,6 +25,7 @@ import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bi
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan, resolveDisplayInYuan } from '../bid/opening-compare.util';
+import { resolveOpeningFieldConfig } from '../bid/opening-field-config.util';
 import { assertDecryptCheckInQuorum } from '../bid/decrypt-quorum.util';
 import { LlmService } from '../local-ai/llm.service';
 import type { TenderRequirements } from '../ai-bid-analysis/types';
@@ -2838,6 +2839,8 @@ export class SupplierPortalService {
    * 脱敏：异议原因/处理结果/操作人留痕（objectionReason/handleResult/handledBy/handledAt）
    * 属主持端裁决过程信息，不下发；confirmStatus 为大厅公开状态，保留。
    * 成员门控与 WS join:project 对齐（bid.gateway.ts）——非本项目投标人不得查看。
+   * A-113：响应附带 fieldConfig（resolveOpeningFieldConfig——null 配置→默认四字段，与主持端
+   * draft 同源），供应商端公开总表与本司对比区按同一 config 渲染动态字段。
    */
   async listOpeningRecords(supplierId: string, projectId: string) {
     const member = await this.prisma.bidSupplier.findFirst({
@@ -2849,13 +2852,13 @@ export class SupplierPortalService {
     }
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true },
+      select: { stage: true, openingFieldConfig: true }, // A-113：附带唱标字段配置
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (!['OPENING', 'EVALUATING', 'ARCHIVED'].includes(project.stage)) {
       throw new BadRequestException({ error: '开标尚未开始，唱标记录暂不可见', code: 'OPENING_NOT_STARTED' });
     }
-    return this.prisma.bidOpeningRecord.findMany({
+    const records = await this.prisma.bidOpeningRecord.findMany({
       where: { projectId },
       orderBy: { createdAt: 'asc' },
       select: {
@@ -2872,6 +2875,10 @@ export class SupplierPortalService {
         confirmedAt: true,
       },
     });
+    return {
+      fieldConfig: resolveOpeningFieldConfig(project),
+      records,
+    };
   }
 
   /* ── A-114：开标记录确认 SM2 电子签名（canonical/验签/归档，范式同回执签名通道）── */
