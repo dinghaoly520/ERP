@@ -465,7 +465,17 @@ function BidDetailInner() {
               <SpPageHero icon={FileText} title={project.name} sub={heroSub}
                 actions={
                   <>
-                    <button type="button" className="neu-btn-primary !h-10 !px-5" disabled={!canSubmit} onClick={goToSubmit}>
+                    <button
+                      type="button"
+                      className="neu-btn-primary !h-10 !px-5"
+                      disabled={!canSubmit}
+                      title={canSubmit ? undefined : (
+                        !isApproved ? "供应商资料未审核通过，暂不可投标"
+                          : !["DOWNLOAD", "SUBMIT"].includes(project?.stage || "") ? "项目不在投标期内（下载/递交阶段）"
+                          : "投标截止时间已过"
+                      )}
+                      onClick={goToSubmit}
+                    >
                       <Upload size={14} strokeWidth={1.75} />{canSubmit ? "提交标书" : "不可投标"}
                     </button>
                     {/* 2c: 多轮报价入口——仅谈判采购（roundMode=negotiation）；竞价采购 sealed_auction 为单轮唱标模式 */}
