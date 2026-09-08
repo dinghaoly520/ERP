@@ -53,12 +53,12 @@ export default function PrequalPage() {
 
   return (
     <>
-      <SpPageHero icon={BadgeCheck} title="资格预审" sub="提交资格预审申请，审查结果将站内通知（GB/T 43711 7.2.3）" />
+      <SpPageHero icon={BadgeCheck} title="资格预审" sub="提交资格预审申请，审查结果将站内通知" />
 
       {loading ? (
         <LoadingBlock text="正在加载预审…" />
       ) : items.length === 0 ? (
-        <EmptyState icon={Inbox} title="暂无进行中的资格预审" desc="有新的预审公告时会在此展示，请留意消息通知" />
+        <EmptyState card icon={Inbox} title="暂无进行中的资格预审" desc="有新的预审公告时会在此展示，请留意消息通知" />
       ) : (
         <div className="obj-list">
           {items.map(p => {

@@ -406,9 +406,66 @@ export type TemplateReplacement = {
   shouldDeleteComprehensiveScoringTable?: boolean;
 };
 
+
+// ── 时间类字段兜底引擎（2026-09-08）：前端 AI 生成/手动填写遗漏时，后端按业务规则推导，
+// 消除「请填写XX时间」占位——所有采购方式的 plan builder 统一经过 applyTimeFallbacks ──
+
+/** 加 N 个工作日（跳过周六日） */
+function addWorkdays(from: Date, days: number): Date {
+  const d = new Date(from);
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** Date → 'YYYY年MM月DD日HH:MM'（与前端 aiPrompt 输出格式一致） */
+function fmtZh(dt: Date, hh: number, mm: number): string {
+  const d = new Date(dt);
+  d.setHours(hh, mm, 0, 0);
+  return `${d.getFullYear()}年${pad2(d.getMonth() + 1)}月${pad2(d.getDate())}日${pad2(hh)}:${pad2(mm)}`;
+}
+
+/** 从「获取时间」区间串（…至YYYY年MM月DD日HH:MM）解析结束日期；失败返回今天 */
+function parseAcquireEnd(acquireTime: string | undefined): Date {
+  const m = (acquireTime || '').match(/至\s*(\d{4})年(\d{1,2})月(\d{1,2})日/) || (acquireTime || '').match(/(\d{4})年(\d{1,2})月(\d{1,2})日[^至]*$/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date();
+}
+
+/** 时间类字段兜底（各字段空值才推导，已有值不覆盖） */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyTimeFallbacks<T extends Record<string, any>>(answers: T): T {
+  const out = { ...answers } as Record<string, any>;
+  const today = new Date();
+  const empty = (k: string) => !String(out[k] ?? '').trim();
+
+  // 封面时间：空 → 当前年月
+  if (empty('coverDate')) out.coverDate = `${today.getFullYear()}年${pad2(today.getMonth() + 1)}月`;
+
+  // 文件获取时间：空 → 今天+3工作日09:00 至 +5工作日15:00
+  if (empty('documentAcquireTime')) {
+    out.documentAcquireTime = `${fmtZh(addWorkdays(today, 3), 9, 0)}至${fmtZh(addWorkdays(today, 5), 15, 0)}`;
+  }
+
+  const acquireEnd = parseAcquireEnd(out.documentAcquireTime);
+
+  // 响应/递交/开标类截止时间：空 → 获取结束后+3工作日 14:00（单一直接来源为 09:00）
+  if (empty('responseDeadline')) out.responseDeadline = fmtZh(addWorkdays(acquireEnd, 3), 14, 0);
+  if (empty('responseSubmissionTime')) out.responseSubmissionTime = fmtZh(addWorkdays(acquireEnd, 3), 14, 0);
+  if (empty('submissionAndNegotiationTime')) out.submissionAndNegotiationTime = fmtZh(addWorkdays(acquireEnd, 3), 9, 0);
+  if (empty('bidOpeningTime')) out.bidOpeningTime = fmtZh(addWorkdays(acquireEnd, 3), 14, 0);
+  return out as T;
+}
+
 export function buildCompetitiveNegotiationReplacementPlan(
   answers: CompetitiveNegotiationAnswers,
 ): TemplateReplacement[] {
+  answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
   // quotationLetterType defaults to 'text' when empty
   const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
@@ -565,6 +622,7 @@ export function buildCompetitiveNegotiationReplacementPlan(
 export function buildSingleSourceReplacementPlan(
   answers: SingleSourceAnswers,
 ): TemplateReplacement[] {
+  answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
   const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
   let quotationReplacement: TemplateReplacement;
@@ -591,10 +649,16 @@ export function buildSingleSourceReplacementPlan(
     };
   }
 
-  // 采购要求：内容替换，保留模板格式
+  // 采购要求：内容替换，保留模板格式；空值时按采购内容生成通用要求要点（不再留「请填写采购要求」占位）
+  const fallbackRequirements = [
+    '1、供应商须按采购内容完整供货，产品质量符合国家现行标准及行业规范，并随货提供合格证明文件。',
+    '2、供货周期：合同签订后按合同约定时间完成供货，供应商负责运输、安装调试及操作培训。',
+    '3、验收方式：货到后由采购人按采购内容组织验收，验收合格后方可办理结算。',
+    '4、质保要求：整机质保期不低于12个月，质保期内出现质量问题的，供应商负责免费维修或更换。',
+  ].join('\n');
   const procurementRequirementsReplacement: TemplateReplacement = {
     targetText: '采购要求',
-    ...buildReplacement('采购要求', answers.procurementRequirements),
+    ...buildReplacement('采购要求', answers.procurementRequirements?.trim() || fallbackRequirements),
     isHierarchicalText: true,
   };
 
@@ -625,7 +689,8 @@ export function buildSingleSourceReplacementPlan(
     },
     {
       targetText: '采购文件售价',
-      ...buildReplacement('采购文件售价', answers.documentPrice),
+      // 电子采购文件免费提供：售价缺失时兜底 0，不再留「请填写采购文件售价」占位
+      ...buildReplacement('采购文件售价', answers.documentPrice || '0'),
     },
     {
       targetText: '递交和谈判时间',
@@ -669,6 +734,7 @@ export function buildSingleSourceReplacementPlan(
 export function buildInquiryPurchaseReplacementPlan(
   answers: InquiryPurchaseAnswers,
 ): TemplateReplacement[] {
+  answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
   const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
   let quotationReplacement: TemplateReplacement;
@@ -760,6 +826,7 @@ export function buildInquiryPurchaseReplacementPlan(
 export function buildInternalBiddingReplacementPlan(
   answers: InternalBiddingAnswers,
 ): TemplateReplacement[] {
+  answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
   const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
   let quotationReplacement: TemplateReplacement;
@@ -965,7 +1032,8 @@ export function buildInternalBiddingReplacementPlan(
     },
     {
       targetText: '采购文件售价',
-      ...buildReplacement('采购文件售价', answers.documentPrice),
+      // 电子采购文件免费提供：售价缺失时兜底 0，不再留「请填写采购文件售价」占位
+      ...buildReplacement('采购文件售价', answers.documentPrice || '0'),
     },
     {
       targetText: '响应文件提交时间',

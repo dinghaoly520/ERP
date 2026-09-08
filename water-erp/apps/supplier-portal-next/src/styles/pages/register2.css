@@ -138,14 +138,14 @@
 .reg-page .reg-card {
   width: min(900px, 100%);
   padding: 42px 44px 38px;
-  border: 1px solid oklch(0.88 0.018 258 / 0.74);
+  border: none;
 }
 .reg-page .reg-card:hover {
   transform: none;
   box-shadow:
-    12px 12px 30px oklch(0.42 0.05 258 / 0.16),
-    -9px -9px 24px oklch(1 0 0 / 0.92),
-    inset 0 1px 0 oklch(1 0 0 / 0.85);
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 14px oklch(0.5 0.06 258 / 0.12),
+    -3px -3px 10px oklch(1 0 0 / 0.95);
 }
 .reg-page .reg-brand { text-decoration: none; }
 .reg-page .reg-foot-link { min-height: 44px; }
@@ -156,6 +156,180 @@
   font-weight: 500;
   color: oklch(0.5 0.03 258);
 }
+
+/* 移动端进度摘要默认隐藏。 */
+.reg-steps-mobile { display: none; }
+
+/* 统一内容模块：仅使用品牌蓝作为交互强调色。 */
+.reg-module {
+  --mod-accent: var(--brand, oklch(0.5 0.16 258));
+  position: relative;
+  margin: 18px 0;
+  padding: 18px 20px 16px;
+  overflow: hidden;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.9) 0%, oklch(0.99 0.003 258 / 0.6) 45%, oklch(1 0 0 / 0.2) 85%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 6px oklch(0.55 0.03 258 / 0.09), -1.5px -1.5px 5px oklch(1 0 0 / 0.85);
+}
+
+.reg-module::before {
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--mod-accent);
+  content: "";
+}
+
+.reg-module:first-child { margin-top: 0; }
+.reg-module:last-child { margin-bottom: 0; }
+
+.reg-mod-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid oklch(0.87 0.02 258 / 0.62);
+}
+
+.reg-mod-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--mod-accent);
+  background: color-mix(in oklab, var(--mod-accent) 9%, white);
+}
+
+.reg-mod-title {
+  margin: 0;
+  color: oklch(0.28 0.04 258);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.reg-mod-hint {
+  margin: 0 0 0 auto;
+  color: oklch(0.56 0.025 258);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+}
+
+.reg-form .reg-label {
+  margin-bottom: 2px;
+  color: oklch(0.35 0.03 258);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.reg-form .reg-label i {
+  margin-left: 2px;
+  color: var(--danger, #dc2626);
+  font-style: normal;
+}
+
+.reg-form .reg-inp::placeholder,
+.reg-form .pwd-inp::placeholder,
+.reg-form .reg-sel:invalid {
+  color: oklch(0.66 0.018 258);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* 三列字段与 Logo。 */
+.reg-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.reg-logo-drop {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px dashed oklch(0.7 0.04 258 / 0.62);
+  border-radius: 14px;
+  background: oklch(0.982 0.008 252);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.055);
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.reg-logo-drop:hover {
+  border-color: var(--brand, oklch(0.5 0.16 252));
+  background: color-mix(in oklab, var(--brand) 3%, white);
+}
+
+.reg-logo-drop:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--brand) 32%, transparent);
+  outline-offset: 2px;
+  border-color: var(--brand, oklch(0.5 0.16 252));
+}
+
+.reg-logo-preview {
+  width: 64px;
+  height: 64px;
+  border: 1px solid oklch(0.85 0.02 258 / 0.5);
+  border-radius: 12px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 2px 2px 6px oklch(0.55 0.03 258 / 0.1);
+}
+
+.reg-logo-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  color: oklch(0.56 0.08 258);
+  background: oklch(0.96 0.012 252);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.09), inset -2px -2px 5px oklch(1 0 0 / 0.82);
+}
+
+.reg-logo-meta { display: flex; flex-direction: column; gap: 4px; }
+.reg-logo-meta strong { color: var(--reg-ink); font-size: 13px; }
+.reg-logo-meta span { color: var(--reg-muted, #64748b); font-size: 12px; }
+
+/* 密码与验证码。 */
+.reg-form .pwd-iw { position: relative; }
+.reg-form .pwd-inp {
+  box-sizing: border-box;
+  width: 100%;
+  height: 52px;
+  padding: 0 44px 0 16px;
+  border: 0;
+  border-radius: 14px;
+  outline: 0;
+  color: var(--reg-ink);
+  background: var(--surface, oklch(0.965 0.012 252));
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85);
+  font: inherit;
+  font-size: 15px;
+  transition: box-shadow 180ms ease, background 180ms ease;
+}
+
+.reg-form .pwd-inp:focus {
+  background: oklch(0.985 0.008 258);
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand) 16%, transparent);
+}
+
 .reg-form .pwd-eye {
   position: absolute;
   top: 50%;
@@ -240,6 +414,40 @@
   align-items: center;
   gap: 10px;
   margin-top: 12px;
+}
+
+/* 邀请资格状态与说明。 */
+.reg-invite-input { letter-spacing: 0.28em; font-weight: 800; text-transform: uppercase; }
+.reg-invite-state { display: block; margin-top: 7px; font-size: 12px; font-weight: 650; }
+.reg-invite-state.is-loading { color: var(--reg-muted, #64748b); }
+.reg-invite-state.is-valid { color: oklch(0.48 0.13 155); }
+.reg-invite-state.is-invalid { color: var(--danger, #dc2626); }
+
+.reg-temporary-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0 0 24px;
+  padding: 13px 15px;
+  border: none;
+  border-radius: 13px;
+  color: var(--brand-deep);
+  background: color-mix(in oklab, var(--brand) 6%, white);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65), inset 2px 2px 5px oklch(0.55 0.03 258 / 0.05);
+}
+
+.reg-temporary-note > svg { flex: 0 0 auto; margin-top: 1px; }
+.reg-temporary-note div { display: flex; flex-direction: column; gap: 2px; }
+.reg-temporary-note strong { font-size: 13px; }
+.reg-temporary-note span { color: var(--reg-muted, #64748b); font-size: 12px; line-height: 1.55; }
+.reg-error-banner {
+  margin: -4px 0 18px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--danger, #dc2626);
+  background: color-mix(in oklab, var(--danger, #dc2626) 7%, white);
+  font-size: 12px;
+  font-weight: 650;
 }
 .reg-submit-error {
   margin: 18px 0 0;

@@ -9,7 +9,7 @@ describe('updateStage 立项硬闸（INITIATION_NOT_APPROVED）', () => {
       prisma as never,
       {} as never,
       {} as never,
-      {} as never,
+      {} as never, // llm（合同 AI 提取，单测不触达）
       {} as never,
       (archiveScope ?? { checkStageGate: jest.fn().mockResolvedValue([]) }) as never,
       {} as never,

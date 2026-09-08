@@ -211,7 +211,7 @@ export default function AnnouncementListPage() {
           </div>
         </div>
       ) : (
-        <EmptyState icon={Bell} title="暂无公告" desc="当前没有符合条件的公告信息" />
+        <EmptyState card icon={Bell} title="暂无公告" desc="当前没有符合条件的公告信息" />
       )}
     </>
   );

@@ -10,6 +10,11 @@ import {
   Table,
   FileTextIcon,
   Sparkles,
+  Wand2,
+  ShieldCheck,
+  Send,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import type { ReadyTenderDraft, ReadyTenderDocumentType } from "@/lib/types/tender-write";
 import { Modal } from "@/components/workbench";
@@ -18,11 +23,13 @@ import {
   extractNotificationData,
   exportNotificationLetter,
   exportNotificationLedger,
+  uploadFile,
   type NotificationLetterDraft,
 } from "@/lib/api/announcement";
-import { fetchProjectAttributions, updateProjectExtractedInfo, type ProjectAttribution } from "@/lib/api/project-management";
+import { fetchProjectAttributions, updateProjectExtractedInfo, getPmBidProject, type ProjectAttribution } from "@/lib/api/project-management";
 import { aiIdentifyField } from "@/lib/api/project-management";
-import type { FieldCandidate } from "@/lib/types/project-management";
+import { getBidProjectDetail, getPublicityStatus, deliverAwardLetter } from "@/lib/api/bid";
+import type { FieldCandidate, ProjectManagementItem } from "@/lib/types/project-management";
 import { ContactPickerDialog } from "./contact-picker-dialog";
 
 function downloadBlobFile(blob: Blob, fileName: string) {
@@ -67,7 +74,7 @@ async function saveFileWithPicker(
   return true;
 }
 
-type Step = "upload" | "edit";
+type Step = "upload" | "edit" | "publish";
 type PreviewMode = "letter" | "table";
 
 const CATEGORY_OPTIONS = [
@@ -114,13 +121,16 @@ export function NotificationLetterDialog({
   tenderDraft,
   project,
   onClose,
+  onPublished,
 }: {
   isOpen: boolean;
   tenderType: ReadyTenderDocumentType;
   tenderDraft: ReadyTenderDraft;
-  /** 定标回填：导出中标通知书成功后，把中标单位写回项目基本信息（线下定标→扫描上传→系统回填） */
-  project?: { id: string } | null;
+  /** 定标回填 + 自动填入数据源：完整项目管理项（含 awardedSupplier/contractAmount/requesterDepartment） */
+  project?: ProjectManagementItem | { id: string } | null;
   onClose: () => void;
+  /** 通知书发出成功后回调（刷新项目/开标面板） */
+  onPublished?: () => void;
 }) {
   const [step, setStep] = useState<Step>("upload");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("letter");
@@ -137,7 +147,96 @@ export function NotificationLetterDialog({
   const [draft, setDraft] = useState<NotificationLetterDraft>({ ...EMPTY_DRAFT });
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [aiCandidates, setAiCandidates] = useState<Record<string, FieldCandidate[]>>({});
-  const [storedExtractedText, setStoredExtractedText] = useState("");
+  const [storedExtractedText, setStoredExtractedText] = useState<string>("");
+
+  // ── 模式1 自动填入：从项目数据 + 评标结果直接填入（无 PDF 也可发通知书）──
+  const [autoFilling, setAutoFilling] = useState(false);
+  const handleAutoFill = async () => {
+    if (!project?.id) return;
+    setAutoFilling(true);
+    setErrorMessage(null);
+    try {
+      const p = project as ProjectManagementItem;
+      const bp = await getPmBidProject(project.id, p.currentRound ?? 1);
+      const detail = await getBidProjectDetail(bp.id);
+      const winner = (detail.evaluationResults ?? []).find(r => r.rank === 1 && r.recommended)
+        ?? detail.evaluationResults?.[0];
+      const price = winner?.bidPrice ?? (p.contractAmount != null ? String(p.contractAmount) : '');
+      const today = new Date();
+      setDraft((prev) => ({
+        ...prev,
+        projectName: prev.projectName?.trim() || p.title || '',
+        winnerName: winner?.supplierName || p.awardedSupplier || prev.winnerName || '',
+        winnerPrice: price || prev.winnerPrice,
+        winnerPriceChinese: price ? numberToChineseAmount(price) : prev.winnerPriceChinese,
+        department: p.requesterDepartment || prev.department || '',
+        controlPrice: p.budgetAmount != null ? String(p.budgetAmount) : prev.controlPrice || '',
+        category: p.procurementCategory || prev.category || '',
+        procurementMethod: p.procurementMethod || prev.procurementMethod || '',
+        project: p.demandProject || prev.project || '',
+        contactName: prev.contactName || p.requesterName || '',
+        signatureDate: prev.signatureDate
+          || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
+      }));
+      setFileName('已按项目数据与评标结果自动填入');
+      setStep('edit');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '自动填入失败，请改用上传审批表或手动填写');
+    } finally {
+      setAutoFilling(false);
+    }
+  };
+
+  // ── 发布步骤：公示状态检查 + 生成 docx → 上传 → 定向发出（门户成交通知 + 站内信）──
+  const [publishing, setPublishing] = useState(false);
+  const [publicity, setPublicity] = useState<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean } | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (step !== 'publish' || !project?.id) return;
+    setPublishError(null);
+    getPmBidProject(project.id, (project as ProjectManagementItem).currentRound ?? 1)
+      .then((bp) => getPublicityStatus(bp.id))
+      .then(setPublicity)
+      .catch(() => setPublicity(null));
+  }, [step, project]);
+
+  const handlePublish = async () => {
+    if (!project?.id) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const p = project as ProjectManagementItem;
+      const bp = await getPmBidProject(project.id, p.currentRound ?? 1);
+      const detail = await getBidProjectDetail(bp.id);
+      const winner = (detail.evaluationResults ?? []).find(r => r.rank === 1 && r.recommended);
+      if (!winner) throw new Error('缺少评标结果（rank1 推荐），无法定向发出；请先在开标确认完成评标');
+      if (draft.winnerName?.trim() && draft.winnerName.trim() !== winner.supplierName) {
+        throw new Error(`通知书中标人（${draft.winnerName}）与评标推荐中标人（${winner.supplierName}）不一致，请修正`);
+      }
+      // 1. 生成通知书 docx（后端模板渲染）
+      const docxResult = await exportNotificationLetter(draft);
+      // 2. 上传为 FileAsset（与开标确认「中标通知书发出」同款 category）
+      const file = new File([docxResult.blob], docxResult.fileName, {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      const asset = await uploadFile(file, 'contract_document');
+      // 3. 定向发出：后端公示硬闸 + 中标人一致性校验 + AwardLetterDelivery + 站内信 + 门户成交通知
+      await deliverAwardLetter(bp.id, {
+        winnerName: winner.supplierName,
+        winnerSupplierId: winner.supplierId,
+        letterAssetId: asset.id,
+      });
+      // 4. 台账留档（非关键，失败不阻塞）
+      try { await exportNotificationLedger(draft); } catch {}
+      onPublished?.();
+      onClose();
+    } catch (error) {
+      setPublishError(error instanceof Error ? error.message : '发出失败，请重试');
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   // Load project options
   useEffect(() => {
@@ -162,6 +261,10 @@ export function NotificationLetterDialog({
       setAiLoading(null);
       setAiCandidates({});
       setStoredExtractedText("");
+      setAutoFilling(false);
+      setPublishing(false);
+      setPublicity(null);
+      setPublishError(null);
 
       const td = tenderDraft as Record<string, string>;
       setDraft({
@@ -249,37 +352,6 @@ export function NotificationLetterDialog({
     }));
   };
 
-  const handleExport = async () => {
-    setExporting(true);
-    setErrorMessage(null);
-
-    try {
-      // 1. Generate and download the notification letter DOCX
-      const docxResult = await exportNotificationLetter(draft);
-      const saved = await saveFileWithPicker(docxResult.blob, docxResult.fileName, [".docx"]);
-      if (saved) {
-        // 2. Silently write to the ledger (server-side)
-        try {
-          await exportNotificationLedger(draft);
-        } catch { /* ledger write is non-critical */ }
-        // 3. 定标回填：线下定标完成（扫描上传+确认导出）→ 中标单位写回项目基本信息
-        if (project?.id && draft.winnerName?.trim()) {
-          try {
-            await updateProjectExtractedInfo(project.id, { awardedSupplier: draft.winnerName.trim() });
-          } catch { /* 回填非关键，不阻塞导出 */ }
-        }
-        setSuccessMessage("导出成功！已同步写入台账。");
-        setTimeout(() => setSuccessMessage(null), 2000);
-      }
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "导出失败，请稍后重试。",
-      );
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const handleProjectSelect = (name: string) => {
     handleFieldChange("project", name);
     setProjectSearch("");
@@ -320,12 +392,34 @@ export function NotificationLetterDialog({
       <Modal
         open={isOpen}
         onClose={onClose}
-        title={step === "upload" ? "上传定标审批表" : "确认信息并导出"}
+        title={step === "upload" ? "中标通知书 · 选择填入方式" : step === "publish" ? "发布配置" : "确认信息"}
         description="中标通知书台账"
         size="lg"
         className={step === "edit" ? "!max-w-[min(1200px,95vw)]" : undefined}
         footer={
-          step === "edit" ? (
+          step === "publish" ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { setStep("edit"); setPublishError(null); }}
+                disabled={publishing}
+                className="neu-btn-soft"
+              >
+                ← 返回编辑
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePublish()}
+                disabled={publishing || !draft.winnerName?.trim()}
+                className="tender-btn tender-btn--export disabled:cursor-not-allowed"
+              >
+                <span className="tb-icon tb-anim-bob">
+                  {publishing ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                </span>
+                {publishing ? "发出中..." : "生成并发出通知书"}
+              </button>
+            </>
+          ) : step === "edit" ? (
             <>
               <div className="flex items-center rounded-[14px] border border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.4)] p-0.5 mr-auto">
                 <button
@@ -367,52 +461,123 @@ export function NotificationLetterDialog({
               </button>
               <button
                 type="button"
-                onClick={() => void handleExport()}
-                disabled={exporting}
+                onClick={() => { setStep("publish"); setPublishError(null); }}
+                disabled={!draft.winnerName?.trim()}
+                title={!draft.winnerName?.trim() ? '请先填写中标单位名称' : undefined}
                 className="tender-btn tender-btn--export disabled:cursor-not-allowed"
               >
                 <span className="tb-icon tb-anim-bob">
-                  <FileDown size={13} />
+                  <Send size={13} />
                 </span>
-                {exporting ? "导出中..." : "生成通知书"}
+                下一步：发布配置
               </button>
             </>
           ) : undefined
         }
       >
         {step === "upload" ? (
-          <div className="flex items-center justify-center py-4">
-            <div className="w-full max-w-md">
+          <div className="flex flex-col items-center justify-center gap-5 py-4">
+            <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* ── 模式1：自动填入 ── */}
+              <button
+                type="button"
+                onClick={() => void handleAutoFill()}
+                disabled={autoFilling || extracting || !project?.id}
+                className="group flex flex-col items-center gap-3 rounded-[16px] border-2 border-[color-mix(in_oklch,var(--success)_22%,transparent)] bg-[color-mix(in_oklch,var(--success)_4%,oklch(0.985_0.005_258))] px-6 py-9 text-center transition-all duration-300 hover:bg-[color-mix(in_oklch,var(--success)_8%,oklch(0.975_0.008_258))] disabled:opacity-50"
+                style={{ boxShadow: "inset 2px 2px 6px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 6px oklch(1 0 0 / 0.7)" }}
+              >
+                {autoFilling ? (
+                  <>
+                    <Loader2 size={22} className="animate-spin text-[color:var(--success)]" />
+                    <div className="text-sm font-semibold text-[color:var(--foreground)]">正在读取项目与评标结果…</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-[12px] text-[color:var(--success)]"
+                      style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)' }}>
+                      <Wand2 size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-[color:var(--foreground)]">自动填入</div>
+                      <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">按项目数据 + 评标结果（rank1）直接生成，无需上传文件</div>
+                    </div>
+                  </>
+                )}
+              </button>
+
+              {/* ── 模式2：上传定标审批表 ── */}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={extracting}
-                className="group w-full rounded-[16px] border-2 border-dashed border-[oklch(0.55_0.05_258_/_0.18)] bg-[oklch(0.985_0.005_258)] px-8 py-10 text-center transition-all duration-300 [box-shadow:var(--cs)] hover:bg-[oklch(0.975_0.008_258)]"
-                style={{
-                  "--cs": "inset 2px 2px 6px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 6px oklch(1 0 0 / 0.7)",
-                } as React.CSSProperties}
+                disabled={extracting || autoFilling}
+                className="group flex flex-col items-center gap-3 rounded-[16px] border-2 border-dashed border-[oklch(0.55_0.05_258_/_0.18)] bg-[oklch(0.985_0.005_258)] px-6 py-9 text-center transition-all duration-300 hover:bg-[oklch(0.975_0.008_258)] disabled:opacity-50"
+                style={{ boxShadow: "inset 2px 2px 6px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 6px oklch(1 0 0 / 0.7)" }}
               >
                 {extracting ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <Loader2 size={20} className="animate-spin text-[color:var(--accent)]" />
-                    <div className="text-sm font-medium text-[color:var(--foreground)]">正在识别定标审批表...</div>
-                  </div>
+                  <>
+                    <Loader2 size={22} className="animate-spin text-[color:var(--accent)]" />
+                    <div className="text-sm font-semibold text-[color:var(--foreground)]">正在识别定标审批表…</div>
+                  </>
                 ) : (
-                  <div className="flex flex-col items-center gap-3">
+                  <>
                     <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-[12px] text-[color:var(--accent)]">
                       <Upload size={20} />
                     </div>
                     <div>
-                      <div className="text-sm font-semibold text-[color:var(--foreground)]">点击上传定标审批表</div>
-                      <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">PDF 格式，系统自动识别中标信息</div>
+                      <div className="text-sm font-semibold text-[color:var(--foreground)]">上传定标审批表</div>
+                      <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">PDF 格式，AI 自动识别中标信息</div>
                     </div>
-                  </div>
+                  </>
                 )}
               </button>
-              {fileName && !extracting && (
-                <div className="mt-3 flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-4 py-2">
-                  <FileText size={14} className="text-[color:var(--success)]" />
-                  <span className="text-sm text-[color:var(--foreground)]">{fileName}</span>
+            </div>
+            {fileName && !extracting && !autoFilling && (
+              <div className="flex max-w-2xl w-full items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-4 py-2">
+                <FileText size={14} className="text-[color:var(--success)]" />
+                <span className="text-sm text-[color:var(--foreground)]">{fileName}</span>
+              </div>
+            )}
+          </div>
+        ) : step === "publish" ? (
+          /* ── 发布步骤：公示闸状态 + 定向发出 ── */
+          <div className="flex flex-col items-center justify-center py-6">
+            <div className="w-full max-w-lg space-y-4">
+              {/* 接收方确认 */}
+              <div className="rounded-[16px] px-5 py-4" style={{ background: 'color-mix(in oklch, var(--success) 5%, oklch(1 0 0 / 0.48))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7)' }}>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={15} className="text-[color:var(--success)]" />
+                  <span className="text-xs font-bold text-[color:var(--muted-foreground)] uppercase tracking-[0.1em]">接收方</span>
+                </div>
+                <div className="mt-2 text-sm font-bold text-[color:var(--foreground)]">{draft.winnerName || '（未填中标单位）'}</div>
+                <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+                  通知书将定向发出至该中标供应商：自动写入其门户「成交履约 · 成交通知」，并发送站内通知。后端将校验与评标推荐中标人（rank1）一致。
+                </p>
+              </div>
+              {/* 公示闸状态 */}
+              <div className="rounded-[16px] px-5 py-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7)' }}>
+                <div className="flex items-center gap-2">
+                  <Clock size={15} className="text-[color:var(--warning)]" />
+                  <span className="text-xs font-bold text-[color:var(--muted-foreground)] uppercase tracking-[0.1em]">公示期状态</span>
+                </div>
+                {publicity === null ? (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-[color:var(--muted-foreground)]">
+                    <Loader2 size={13} className="animate-spin" /> 正在查询公示状态…
+                  </div>
+                ) : publicity.canIssueAward ? (
+                  <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--success)]">
+                    <CheckCircle2 size={14} /> 公示期已满，可发出中标通知书
+                  </div>
+                ) : (
+                  <div className="mt-2 text-sm text-[color:var(--warning)]">
+                    {publicity.hasPublicity
+                      ? `中标候选人公示期未满（截止 ${publicity.publicityEnd ? new Date(publicity.publicityEnd).toLocaleString('zh-CN') : '—'}），期满后方可发出`
+                      : '尚未发布中标候选人公示，须先发布中标公告并公示期满'}
+                  </div>
+                )}
+              </div>
+              {publishError && (
+                <div className="rounded-[10px] px-4 py-3 text-sm text-[color:var(--danger)]" style={{ background: 'color-mix(in oklch, var(--danger) 7%, transparent)' }}>
+                  {publishError}
                 </div>
               )}
             </div>

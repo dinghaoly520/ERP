@@ -477,6 +477,34 @@ export class ExpertExtractionService {
       });
     });
 
+    // 项目基本信息「专家信息」快照回写（此前从不写入 → 详情页专家评审恒"待补充"）：
+    // 从 User/ExpertProfile 补部门与职称，格式 `姓名|部门|专业|职称|角色` 每行一人（parseExperts 同格式）
+    try {
+      const pmiId = project.projectManagementItemId;
+      if (pmiId) {
+        const all = [...(dto.experts ?? []).map(e => ({ ...e, role: (e as any).isPurchaserRepresentative ? '需求方代表' : '正选' })),
+                    ...(dto.candidates ?? []).map(c => ({ ...c, role: '候补' }))];
+        if (all.length > 0) {
+          const userIds = all.map(e => e.userId);
+          const profiles = await this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
+          });
+          const infoById = new Map(profiles.map(u => [u.id, u]));
+          const lines = all.map(e => {
+            const u = infoById.get(e.userId);
+            return [e.expertName, u?.department?.name ?? '', e.major ?? '', u?.expertProfile?.title ?? '', e.role ?? '正选'].join('|');
+          });
+          await this.prisma.projectManagementItem.update({
+            where: { id: pmiId },
+            data: { expertInfo: lines.join('\n') },
+          });
+        }
+      }
+    } catch (err) {
+      new Logger(ExpertExtractionService.name).warn(`expertInfo 快照回写失败（不阻塞抽取确认）: ${err instanceof Error ? err.message : err}`);
+    }
+
     // 交叉回避检查：同单位专家告警（事务外：不阻塞抽取，仅告警留痕）
     const experts = dto.experts ?? [];
     if (experts.length > 0) {

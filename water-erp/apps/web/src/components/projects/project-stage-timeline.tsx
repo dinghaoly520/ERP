@@ -91,6 +91,8 @@ export function ProjectStageTimeline({
   onStageAction,
   showArchiveStep,
   archiveStepState,
+  onArchive,
+  canArchive,
   tenderDocxAttachments,
   onEditTenderFile,
   onReopenStage,
@@ -102,6 +104,9 @@ export function ProjectStageTimeline({
   onStageAction?: (stageKey: ProjectWorkflowStageKey) => void;
   showArchiveStep: boolean;
   archiveStepState: ArchiveStepState;
+  /** 归档卡内「确认归档」动作（READY 态显示，与阶段卡操作按钮同款设计） */
+  onArchive?: () => void;
+  canArchive?: boolean;
   tenderDocxAttachments?: Array<{ id: string; fileName: string }>;
   onEditTenderFile?: (attachmentId: string, fileName: string) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
@@ -193,8 +198,12 @@ export function ProjectStageTimeline({
       items: roundMap.get(r)!,
     });
   }
+  // 归档卡并入最后一轮组（CONTRACT 右侧、同一行连排），不再单独成行
   const archiveEntry = entries.find((e) => !e.selectable);
-  if (archiveEntry) groups.push({ items: [archiveEntry] });
+  if (archiveEntry) {
+    if (groups.length > 0) groups[groups.length - 1].items.push(archiveEntry);
+    else groups.push({ items: [archiveEntry] });
+  }
 
   // #11 多轮分组折叠：旧轮默认收起，当前轮展开；round>1 显示"流标重采"
   const maxRound = sortedRounds.length > 0 ? sortedRounds[sortedRounds.length - 1] : 1;
@@ -374,7 +383,7 @@ export function ProjectStageTimeline({
                   <button
                     type="button"
                     data-archive-state={archiveStepState}
-                    disabled
+                    onClick={(e) => e.preventDefault()}
                     className={[
                       'pm-stage-card group relative flex min-h-[172px] min-w-0 flex-1 cursor-default flex-col rounded-[28px] px-4 py-4 text-left',
                       entry.toneClassName,
@@ -410,6 +419,19 @@ export function ProjectStageTimeline({
                       <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">
                         {entry.summary}
                       </div>
+                      {/* READY 态：确认归档（与阶段卡操作按钮同款设计；DONE 态只读无按钮） */}
+                      {archiveStepState === 'READY' && onArchive && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onArchive(); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onArchive(); } }}
+                          className={['pm-stage-action-btn shrink-0 mt-3', !canArchive ? 'opacity-40 cursor-not-allowed' : ''].join(' ')}
+                          title={canArchive ? '执行归档，项目转入已完成' : '存在未满足的归档条件'}
+                        >
+                          确认归档
+                        </span>
+                      )}
                     </div>
                   </button>
                 </div>

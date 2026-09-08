@@ -32,3 +32,8 @@ water-erp/apps/api/.data/
 water-erp/tmp/
 water-erp/outputs/
 泳道图交付/
+
+# 本地数据库 / dev 生成物 / 模板备份——不入库（2026-09-08）
+water-erp/apps/api/prisma/dev.db
+water-erp/apps/supplier-portal-next/src/tsconfig.json
+*.bak*

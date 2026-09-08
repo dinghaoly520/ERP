@@ -143,6 +143,16 @@ export function RecycleBinDrawer({
                             {getStageLabel(item.currentStage)}
                           </div>
                         </div>
+                        <div className="sm:col-span-2">
+                          <div className="text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">
+                            移除时间
+                          </div>
+                          <div className="mt-1 text-sm tabular-nums text-[color:var(--foreground)]">
+                            {item.recycledAt
+                              ? new Date(item.recycledAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+                              : '未记录（存量数据，恢复后重新移除可记录）'}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="mt-5 flex flex-wrap gap-3">

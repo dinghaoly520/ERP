@@ -112,14 +112,14 @@ export default function ObjectionsPage() {
       <SpPageHero
         icon={MessageSquareWarning}
         title="异议与投诉"
-        sub="对采购文件、资格预审结果、采购结果有异议的，按公告约定在线提出（GB/T 43711 4.2.2）"
+        sub="对采购文件、资格预审结果、采购结果有异议的，按公告约定在线提出"
         actions={<SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>}
       />
 
       {loading ? (
         <LoadingBlock text="正在加载异议记录…" />
       ) : items.length === 0 ? (
-        <EmptyState icon={Inbox} title="暂无异议记录" desc="如对采购文件、资格预审结果或采购结果有异议，可点击右上角「提出异议」在线提交" />
+        <EmptyState card icon={Inbox} title="暂无异议记录" desc="如对采购文件、资格预审结果或采购结果有异议，可点击右上角「提出异议」在线提交" />
       ) : (
         <div className="obj-list">
           {items.map(o => (

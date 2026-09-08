@@ -11178,3 +11178,7 @@ select.workbench-input {
   background: linear-gradient(105deg, oklch(1 0 0 / 0.3), oklch(1 0 0 / 0.05));
   border-top: 1px solid oklch(0.6 0.04 258 / 0.14);
 }
+/* ── 已归档项目详情只读态：隐藏全部编辑入口（铅笔 / AI 提取 / AI 优化 / 补充材料按钮） ── */
+.pm-archived-readonly .lucide-pencil { display: none !important; }
+.pm-archived-readonly .ai-inline-btn,
+.pm-archived-readonly [data-ai-btn="1"] { display: none !important; }

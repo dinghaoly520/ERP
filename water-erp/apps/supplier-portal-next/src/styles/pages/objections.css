@@ -6,8 +6,13 @@
   gap: 14px;
 }
 
+/* 记录卡 — 系统统一 105° 横向流动渐变底板（与 sp-module reset 层同配方） */
 .obj-card {
   padding: 16px 18px;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 
 .obj-head {
@@ -162,7 +167,7 @@
 .oa-panel-count { font-size: 12px; font-weight: 500; color: var(--muted-foreground, #8a96aa); }
 .oa-panel-hint { margin: 0 0 14px; font-size: 12px; color: var(--muted-foreground, #8a96aa); line-height: 1.6; }
 .oa-list { display: flex; flex-direction: column; gap: 12px; }
-.oa-card { display: flex; gap: 14px; padding: 14px 16px; border-radius: 14px; background: linear-gradient(180deg, oklch(0.99 0.006 252), oklch(0.975 0.01 252)); box-shadow: 2px 2px 6px oklch(0.55 0.03 258 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7); }
+.oa-card { display: flex; gap: 14px; padding: 14px 16px; border-radius: 16px; background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9); }
 .oa-card-main { flex: 1; min-width: 0; }
 .oa-card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .oa-card-title { font-size: 14.5px; font-weight: 800; color: var(--foreground, #18243a); }

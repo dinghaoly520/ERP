@@ -124,7 +124,9 @@ export type WinningBidAnnouncementFieldKey =
   | "bidder2Price"
   | "bidder3Name"
   | "bidder3Price"
-  | "signatureDate";
+  | "signatureDate"
+  | "publicityPeriod"
+  | "objection";
 
 export type WinningBidAnnouncementDraft = Record<
   WinningBidAnnouncementFieldKey,

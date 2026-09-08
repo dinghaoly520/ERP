@@ -58,11 +58,13 @@
 }
 .ann-tabs .neu-tab:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 3px oklch(1 0 0 / 0.6); }
 
-/* List — neumorphic plate (no glass / no drift) */
+/* List — 与全局 reset 层 / ann-filter 同源的 105° 横向流动渐变底板（内容板不抬升，行自带 hover） */
 .announcement-list {
-  border: none; border-radius: 16px; overflow: hidden;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
-  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  border: none; border-radius: 20px; overflow: hidden;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 .announcement-row { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); color: inherit; text-decoration: none; transition: background 0.15s; }
 .announcement-row:last-child { border-bottom: none; }
@@ -132,8 +134,8 @@
    （原类名 .detail-card 与 bids.css/profile.css 冲突，本页改名 .ann-detail-card） */
 .ann-detail-card {
   padding: 28px; border: none; border-radius: 16px;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
-  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 @media print { .ann-detail-card { box-shadow: none; font-size: 12pt; } }
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }

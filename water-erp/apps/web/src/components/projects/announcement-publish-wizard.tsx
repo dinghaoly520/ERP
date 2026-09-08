@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search,
+  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2,
 } from 'lucide-react';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import {
@@ -17,10 +17,11 @@ import {
   type AnnouncementStatus,
   type AnnouncementType,
 } from '@/lib/api/announcement';
-import { uploadProjectStageAttachment, reprocProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
+import { uploadProjectStageAttachment, reprocProject, getPmBidProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
+import { getBidProjectDetail } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { getSupplierList } from '@/lib/api/supplier';
-import { listBidProjects, getBidProjectDetail, type BidProjectOption } from '@/lib/api/expert';
+import { listBidProjects, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
 import { confirmDialog } from '@/components/catalog/confirm-dialog';
@@ -258,9 +259,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setAnnouncementEndDate(fromDraft.length <= 10 ? `${fromDraft}T23:59` : fromDraft);
   }, [announcementEndDate, draft]);
   // 采购文件下载方式：免费 / 解密密码 / 付费（占位）
-  const [downloadMode, setDownloadMode] = useState<'free' | 'encrypted' | 'paid'>('free');
-  const [downloadPassword, setDownloadPassword] = useState('');
-  const [paidAmount, setPaidAmount] = useState('');
+  const [downloadMode, setDownloadMode] = useState<'free'>('free');
   const [attachOn, setAttachOn] = useState(false);
   const [tenderOn, setTenderOn] = useState(false);
   // 多份采购文件时，公告引用哪一份（objectKey 唯一标识）；单份默认选它
@@ -280,11 +279,13 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [autoMatchName, setAutoMatchName] = useState('');
 
   // #20 公告类型配置：控制各类型公告的发布配置区块可见性；新增类型仅需加一行
+  // 中标公告（2026-09-04 重构）：不沿用采购公告的配置——无关键时间线（开标已完成）、
+  // 无引用采购文件、无按公示期限（起）发布；以「公示期」面板取而代之（发布后 3 天异议期）
   const categoryConfig = useMemo(() => {
     const on: { showTiming: boolean; showKeyTime: boolean; showFullToggles: boolean } = { showTiming: true, showKeyTime: true, showFullToggles: true };
     const map: Record<string, typeof on> = {
       procurement_document: on,
-      winning_bid: on,
+      winning_bid: { showTiming: true, showKeyTime: false, showFullToggles: true },
       failed_bid: { showTiming: false, showKeyTime: false, showFullToggles: false },
     };
     return map[category ?? 'procurement_document'] ?? on;
@@ -335,13 +336,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       setDraft(cachedWiz.draft as AnnouncementDraft);
       setVisibility(cachedWiz.visibility ?? 'PUBLIC');
       setRestrictedSupplierIds(cachedWiz.restrictedSupplierIds ?? []);
-      setPublishTiming(cachedWiz.publishTiming ?? 'now');
+      setPublishTiming(cachedWiz.publishTiming === 'scheduled' ? 'scheduled' : 'now'); // 旧缓存的 announcement_start 已废弃，归一到 now
       setScheduledDate(cachedWiz.scheduledDate ?? '');
       setAnnouncementEndDate(cachedWiz.announcementEndDate ?? '');
       setBidSubmissionDeadline(cachedWiz.bidSubmissionDeadline ?? '');
-      setDownloadMode(cachedWiz.downloadMode ?? 'free');
-      setDownloadPassword(cachedWiz.downloadPassword ?? '');
-      setPaidAmount(cachedWiz.paidAmount ?? '');
+      setDownloadMode('free');
       setAttachOn(cachedWiz.attachOn ?? false);
       setTenderOn(cachedWiz.tenderOn ?? tenderFiles.length > 0);
       setSelectedTenderObjectKey(cachedWiz.selectedTenderObjectKey ?? tenderFiles[0]?.objectKey ?? '');
@@ -416,7 +415,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
 
       // ★ 中标公告：直接从项目数据预填（字段键与采购公告不同——maxPrice 非 maxPriceNumeric、
-      // 开标时间为 composite、中标人走 bidder1 动态行）
+      // 开标时间为 composite；投标单位/报价改由评标结果异步导入，这里只做无评标结果时的兜底）
       if (initialCategory === 'winning_bid') {
         if (!fd.maxPrice?.trim() && project.budgetAmount != null) fd.maxPrice = String(project.budgetAmount);
         if (!fd.bidOpeningTime?.trim() && project.bidOpeningTime?.trim()) {
@@ -428,6 +427,23 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           if (!fd.bidderCount?.trim()) fd.bidderCount = '1';
         }
         if (!fd.bidder1Price?.trim() && project.contractAmount != null) fd.bidder1Price = String(project.contractAmount);
+        // 备注（评标方式）：开标确认阶段已确定，直接带入（bidder1Remark 由导入链覆盖为同一来源）
+        const em = ((project as unknown as Record<string, unknown>).evaluationMethod as string | undefined)?.trim();
+        if (em && !fd.bidder1Remark?.trim()) {
+          fd.bidder1RemarkType = '手动填入';
+          fd.bidder1Remark = em;
+        }
+        // 公示期（异议期）+ 异议受理：公告正文单列展示（发布配置面板同口径，顺延 3 天）
+        if (!fd.publicityPeriod?.trim()) {
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const fmtD = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+          const start = new Date();
+          const end = new Date(start.getTime() + 3 * 86400000);
+          fd.publicityPeriod = `${fmtD(start)} 至 ${fmtD(end)}（3天）`;
+        }
+        if (!fd.objection?.trim()) {
+          fd.objection = '公示期为 3 天，自发布之日起算。供应商或其他利害关系人对中标结果有异议的，应在公示期内以书面形式向采购人提出。';
+        }
       }
     }
 
@@ -462,7 +478,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     saveWizardState(project.id, procCat, { step: 1, draft: filledDraft as Record<string, string> });
 
     // ★ 默认引用采购文件（多份时默认选第一份）
-    setTenderOn(tenderFiles.length > 0);
+    // 引用采购文件仅采购公告默认开启；中标/流标公告不挂采购文件（开关也已隐藏，防状态残留导致后端自动生成 BidDocument）
+    setTenderOn(initialCategory === 'procurement_document' && tenderFiles.length > 0);
     setSelectedTenderObjectKey(tenderFiles[0]?.objectKey ?? '');
     // 默认截止时间：优先取公示期限（止）→ 兜底按采购方式给默认
     const isQuickDeadlineCategory = project.procurementMethod === '询比采购' || project.procurementMethod === '竞价采购';
@@ -570,9 +587,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
     }
 
-    // ★ 中标公告：AI 自动填入（项目简要说明）+ 进度展示；不走采购文件 .docx 解析（那是采购公告的字段来源）
+    // ★ 中标公告：导入评标结果（投标单位/报价/评标方式备注）+ AI 填入简要说明 + 进度展示；
+    // 不走采购文件 .docx 解析（那是采购公告的字段来源）
     if (initialCategory === 'winning_bid') {
-      const steps = ['基础信息预填', 'AI 生成项目简要说明'];
+      const steps = ['基础信息预填', '导入评标结果（投标单位与备注）', 'AI 生成项目简要说明'];
       setAiFill({ steps, done: 1 }); // 基础预填为同步，已完成
       const briefContext: Record<string, string> = {};
       if (project?.title) briefContext['项目名称'] = project.title;
@@ -583,6 +601,43 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (project?.bidOpeningTime) briefContext['开标时间'] = project.bidOpeningTime;
 
       const finishAiFill = () => setAiFill(null);
+
+      // 步骤2：从评标回流包（BidEvaluationResult，rank 升序）导入候选人与评标方式备注
+      const importPromise = (async (): Promise<void> => {
+        try {
+          const bp = await getPmBidProject(project.id, project.currentRound ?? 1);
+          const detail = await getBidProjectDetail(bp.id);
+          const results = detail.evaluationResults ?? [];
+          if (results.length === 0) return; // 无评标结果 → 保留预填兜底（awardedSupplier 单行）
+          setDraft((prev) => {
+            if (!prev) return prev;
+            const next = { ...(prev as Record<string, string>) };
+            const fd = (filledDraft as Record<string, string>);
+            // 已手动填过投标单位则不覆盖（缓存恢复场景）
+            if (!fd.bidder1Name?.trim()) {
+              results.forEach((r, i) => {
+                next[`bidder${i + 1}Name`] = r.supplierName;
+                if (r.bidPrice != null) next[`bidder${i + 1}Price`] = String(r.bidPrice);
+              });
+              next.bidderCount = String(results.length);
+            }
+            // 备注（评标方式）：评标结果优先，项目 evaluationMethod 兜底（预填已写入）
+            const em = ((project as unknown as Record<string, unknown>).evaluationMethod as string | undefined)?.trim();
+            if (!next.bidder1Remark?.trim() && em) {
+              next.bidder1RemarkType = '手动填入';
+              next.bidder1Remark = em;
+            }
+            return next as AnnouncementDraft;
+          });
+          // 中标人上下文给 AI 用更准
+          if (results[0]) {
+            briefContext['中标候选人（第一名）'] = results[0].supplierName;
+            if (results[0].bidPrice != null) briefContext['第一候选报价'] = String(results[0].bidPrice);
+          }
+        } catch { /* 导入失败不阻塞 AI 简要说明 */ }
+        setAiFill((p) => (p ? { ...p, done: p.done + 1 } : p));
+      })();
+
       const briefPromise = (filledDraft as Record<string, string>).projectBriefDescription?.trim()
         ? Promise.resolve(null) // 已有值（预填/恢复）→ 跳过 AI
         : generateFieldContent({
@@ -593,18 +648,19 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
             context: briefContext,
           }).catch(() => null);
 
-      briefPromise
-        .then((res) => {
-          if (res?.content) {
+      Promise.all([importPromise, briefPromise])
+        .then(([, res]) => {
+          if (res && (res as { content?: string }).content) {
+            const content = (res as { content: string }).content;
             setDraft((prev) => {
               if (!prev) return prev;
               const next = { ...(prev as Record<string, string>) };
-              if (!next.projectBriefDescription?.trim()) next.projectBriefDescription = res.content;
+              if (!next.projectBriefDescription?.trim()) next.projectBriefDescription = content;
               return next as AnnouncementDraft;
             });
           }
           setAiFill((p) => (p ? { ...p, done: p.done + 1 } : p));
-          return new Promise((r) => setTimeout(r, 250)); // 让 2/2 状态短暂可见，避免进度条闪没
+          return new Promise((r) => setTimeout(r, 250)); // 让完成态短暂可见，避免进度条闪没
         })
         .finally(() => { finishAiFill(); setLoading(false); });
       return;
@@ -707,6 +763,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         return;
       }
     }
+    // 公示期限（止）空值会让 docx 模板渲染出「请填写公示期限（止）」占位文案并随公告发布
+    // （实测存量公告已出现）——采购公告发布前强制校验。中标公告无此字段（公示期发布后顺延 3 天），不校验。
+    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
+      toast.error('公告制作中未填写公示期限（止），请返回填写');
+      return;
+    }
     if (visibility === 'RESTRICTED' && restrictedSupplierIds.length === 0) {
       toast.error('请至少选择一家可见供应商');
       return;
@@ -773,11 +835,24 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         meta.deadline = derivedSubmissionDeadline || effectiveAnnouncementEnd;
         if (effectiveAnnouncementEnd) meta.downloadDeadline = effectiveAnnouncementEnd;
       }
-      // 下载方式 —— 引用采购文件时生效
+      // 下载方式已删除（统一免费下载）——保留 'free' 写入以兼容旧元数据消费方
       if (tenderOn) {
-        meta.downloadMode = downloadMode;
-        if (downloadMode === 'encrypted') meta.downloadPassword = downloadPassword;
-        if (downloadMode === 'paid') meta.paidAmount = paidAmount;
+        meta.downloadMode = 'free';
+      }
+      // 中标公告：公示期/异议受理写入 metadata（详情页公示期与异议渠道芯片消费）；
+      // 公示期口径 = 实际发布时刻顺延 3 天（A1 同源），优先取草稿正文值兜底重算
+      if (category === 'winning_bid') {
+        const draftPeriod = (draft as Record<string, string>).publicityPeriod?.trim();
+        if (draftPeriod) {
+          meta.publicityPeriod = draftPeriod;
+        } else {
+          const publicityBase = publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : new Date();
+          const publicityEnd = new Date(publicityBase.getTime() + 3 * 86400000);
+          const pad = (n: number) => String(n).padStart(2, '0');
+          meta.publicityPeriod = `3天（${publicityBase.getFullYear()}-${pad(publicityBase.getMonth() + 1)}-${pad(publicityBase.getDate())} 至 ${publicityEnd.getFullYear()}-${pad(publicityEnd.getMonth() + 1)}-${pad(publicityEnd.getDate())}）`;
+        }
+        const draftObjection = (draft as Record<string, string>).objection?.trim();
+        if (draftObjection) meta.objection = draftObjection;
       }
       // 发布前查重：同标题或同项目同类型已发布公告 → 提示确认（流标重发等场景可确认后继续）
       try {
@@ -1007,7 +1082,16 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
               {/* 公告范围 + 发布时间 — 同一行 */}
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {/* Visibility */}
+              {/* Visibility —— 流标公告强制全员可见（不可选部分可见），隐藏选择器 */}
+              {category === 'failed_bid' ? (
+                <div className="flex flex-col rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">公告范围</div>
+                  <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                    <CheckCircle2 size={14} className="text-[var(--success)]" />
+                    全部可见（流标公告强制公开）
+                  </span>
+                </div>
+              ) : (
               <div className="flex flex-col rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">公告范围</div>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -1065,6 +1149,32 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   </div>
                 )}
               </div>
+              )}
+
+              {/* ★ 中标公告公示期（2026-09-04）：发布后顺延 3 天异议期，与 BidProject A1 口径一致 */}
+              {category === 'winning_bid' && (() => {
+                const base = publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : new Date();
+                const publicityEnd = new Date(base.getTime() + 3 * 86400000);
+                const fmt = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                return (
+                  <div className="rounded-[20px] p-5" style={{ background: 'color-mix(in oklch, var(--success) 5%, oklch(1 0 0 / 0.48))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                    <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">公示期（异议期）</div>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+                      <span className="inline-flex items-center gap-2 text-sm">
+                        <span className="text-[10px] font-bold text-[var(--muted-foreground)]">发布时间</span>
+                        <span className="font-semibold text-[var(--foreground)] tabular-nums">{publishTiming === 'scheduled' && scheduledDate ? fmt(base) : '发布后'}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-2 text-sm">
+                        <span className="text-[10px] font-bold text-[var(--muted-foreground)]">公示截止</span>
+                        <span className="font-semibold text-[var(--success)] tabular-nums">{fmt(publicityEnd)}</span>
+                      </span>
+                    </div>
+                    <p className="mt-3 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                      公示期为 3 天，自发布之日起算。供应商或其他利害关系人对中标结果有异议的，应在公示期内以书面形式向采购人提出。
+                    </p>
+                  </div>
+                );
+              })()}
 
               {categoryConfig.showTiming ? (
               <div className="flex flex-col rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
@@ -1097,27 +1207,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     className="workbench-input w-full text-sm"
                   />
                 )}
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="timing"
-                    checked={publishTiming === 'announcement_start'}
-                    onChange={() => setPublishTiming('announcement_start')}
-                    className="accent-[var(--accent)]"
-                  />
-                  按公示期限（起）发布
-                </label>
-                {publishTiming === 'announcement_start' && (
-                  <div className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-3 py-2 text-xs text-[var(--accent-strong)]">
-                    将于公示期限起始时间
-                    <strong className="mx-1">
-                      {(draft as Record<string, string>).announcementStart
-                        ? (draft as Record<string, string>).announcementStart
-                        : '（未填写）'}
-                    </strong>
-                    自动发布
-                  </div>
-                )}
+                {/* 按公示期限（起）发布已删除（2026-09-04）——中标公告公示期改为发布后顺延 3 天 */}
               </div>
               ) : <div />}
               </div>
@@ -1174,6 +1264,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         />
                         添加附件
                       </label>
+                      {category !== 'winning_bid' && (
                       <label
                         className={[
                           'flex items-center gap-2 text-sm',
@@ -1189,6 +1280,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         />
                         引用采购文件{tenderAvailable ? ` · ${tenderFiles.length} 份` : ''}
                       </label>
+                      )}
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                           type="checkbox"
@@ -1224,56 +1316,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     </div>
                   )}
 
-                  {/* 下载方式 —— 仅在引用采购文件时显示 */}
-                  {tenderOn && (
-                    <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                      <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">下载方式</div>
-                      <div className="mt-2 space-y-2">
-                        {([
-                          { value: 'free', label: '免费下载', desc: '供应商可直接下载采购文件' },
-                          { value: 'encrypted', label: '解密下载', desc: '供应商需输入密码才可下载' },
-                          { value: 'paid', label: '付费下载', desc: '供应商需付费后下载（功能开发中，暂为占位）' },
-                        ] as const).map((m) => (
-                          <label key={m.value} className="flex items-start gap-2 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name="downloadMode"
-                              checked={downloadMode === m.value}
-                              onChange={() => {
-                                setDownloadMode(m.value);
-                                if (m.value === 'encrypted' && !downloadPassword) {
-                                  setDownloadPassword(String(Math.floor(100000 + Math.random() * 900000)));
-                                }
-                              }}
-                              className="accent-[var(--accent)] mt-0.5"
-                            />
-                            <div>
-                              <div className="font-semibold text-[var(--foreground)]">{m.label}</div>
-                              <div className="text-[10px] text-[var(--muted-foreground)]">{m.desc}</div>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                      {downloadMode === 'encrypted' && (
-                        <div className="mt-3 rounded-lg px-3 py-2 flex items-center gap-2" style={{ background: 'color-mix(in oklch, var(--accent-soft) 15%, transparent)' }}>
-                          <span className="text-[11px] font-bold text-[var(--foreground)]">下载密码：</span>
-                          <code className="text-[11px] font-mono tabular-nums tracking-[0.15em] text-[var(--accent-strong)]">{downloadPassword}</code>
-                          <button type="button" onClick={() => setDownloadPassword(String(Math.floor(100000 + Math.random() * 900000)))} className="neu-btn-xs ml-auto">刷新</button>
-                        </div>
-                      )}
-                      {downloadMode === 'paid' && (
-                        <div className="mt-3">
-                          <input
-                            type="number"
-                            value={paidAmount}
-                            onChange={(e) => setPaidAmount(e.target.value)}
-                            placeholder="请输入售价（元）"
-                            className="workbench-input w-full text-sm"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* 下载方式区块已删除（2026-09-04）——采购文件统一免费下载，解密/付费占位移除 */}
                 </>
               ) : (
                 <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>

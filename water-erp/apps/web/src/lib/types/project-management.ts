@@ -128,6 +128,7 @@ export type ProjectManagementStage = {
   status: ProjectStageStatus;
   note?: string | null;
   completedAt?: string | null;
+  recycledAt?: string | null; // 移入回收站时间（3 年保留期起算点，恢复时清空）
   createdAt?: string;
   updatedAt?: string;
   attachments: ProjectManagementAttachment[];

@@ -10556,9 +10556,13 @@ select.workbench-input {
   color: var(--sp-gray-500);
   margin-bottom: 4px;
 }
-.sp-empty-desc {
-  font-size: 13px;
-  color: var(--sp-gray-400);
+/* 模块框空态（EmptyState card）：去掉表内行残留的下缘 hairline，模块卡内不再有线 */
+.sp-empty-module .sp-empty-panel {
+  border-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .sp-empty-panel { padding: 24px 16px; }
 }
 
 /* ─── Filter bar — extreme glass, max transparency ─── */
@@ -11820,12 +11824,12 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 /* Neumorphic raised card (no glass backdrop, no conic edge, no gradient ring border) */
 .lp-card {
-  position: relative; width: 440px; padding: 52px 34px 44px; border-radius: 24px;
-  background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));
+  position: relative; width: 460px; padding: 38px 32px 30px; border-radius: 24px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.72) 40%, oklch(1 0 0 / 0.24) 85%);
   box-shadow:
-    12px 12px 30px oklch(0.42 0.05 252 / 0.16),
-    -9px -9px 24px oklch(1 0 0 / 0.92),
-    inset 0 1px 0 oklch(1 0 0 / 0.85);
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 14px oklch(0.5 0.06 258 / 0.12),
+    -3px -3px 10px oklch(1 0 0 / 0.95);
   animation: lp-rise 0.58s var(--ease) backwards;
   transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease);
 }
@@ -11833,9 +11837,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-card:hover {
   transform: translateY(-3px);
   box-shadow:
-    16px 16px 38px oklch(0.42 0.05 252 / 0.2),
-    -11px -11px 28px oklch(1 0 0 / 0.95),
-    inset 0 1px 0 oklch(1 0 0 / 0.9);
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    5px 6px 18px oklch(0.48 0.06 258 / 0.15),
+    -4px -4px 12px oklch(1 0 0 / 0.98);
 }
 
 .lp-head { margin-bottom: 26px; text-align: center; }
@@ -11866,14 +11870,15 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   display: inline-flex; align-items: center; justify-content: center;
   width: 100%; height: 56px; margin-top: 4px; border: none; border-radius: 14px;
   color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 4px 4px 12px oklch(0.4 0.1 252 / 0.35), -3px -3px 8px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  background: var(--brand);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.28), 3px 3px 8px oklch(0.5 0.08 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.5);
   font-family: inherit; font-weight: 800; font-size: 16px; letter-spacing: 0.16em; cursor: pointer;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.2s var(--ease);
 }
 .lp-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 6px 6px 18px oklch(0.4 0.1 252 / 0.42), -3px -3px 8px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  background: var(--brand-deep);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.32), 4px 4px 12px oklch(0.45 0.08 258 / 0.32), -2px -2px 7px oklch(1 0 0 / 0.55);
 }
 .lp-primary:active { transform: translateY(0); box-shadow: inset 3px 3px 8px oklch(0.3 0.1 252 / 0.5), inset -2px -2px 6px oklch(0.7 0.1 252 / 0.3); }
 .lp-primary:disabled { cursor: wait; opacity: 0.7; transform: none; }
@@ -11883,28 +11888,25 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-foot a:hover, .lp-foot-link:hover { text-decoration: underline; }
 .lp-foot-sep { margin: 0 12px; color: oklch(0.8 0.02 var(--hue)); }
 
-/* 注册入口：正式（实心品牌）+ 临时（凸起中性）—— 复用 cgzxui 凸起按钮语言 */
-.lp-register-entry { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
-.lp-reg-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  height: 46px; border: none; border-radius: 12px;
-  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none;
-  transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+/* 首次使用：同层级双入口，不与登录主按钮竞争 */
+.lp-onboarding { margin-top: 16px; padding-top: 14px; border-top: 1px solid oklch(0.89 0.018 258); }
+.lp-onboarding-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.lp-onboarding-head h2 { margin: 0; color: oklch(0.35 0.045 258); font-size: 12px; font-weight: 800; }
+.lp-onboarding-head span { color: var(--muted); font-size: 10px; }
+.lp-register-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.lp-register-option {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) 14px; align-items: center; gap: 8px;
+  min-height: 70px; padding: 10px 9px; border: none; border-radius: 12px;
+  color: oklch(0.43 0.1 258); text-decoration: none;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.99 0.003 258 / 0.6) 45%, oklch(1 0 0 / 0.2) 85%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -1.5px -1.5px 5px oklch(1 0 0 / 0.85);
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease);
 }
-.lp-reg-btn--primary {
-  color: #fff;
-  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
-  box-shadow: 3px 3px 8px oklch(0.4 0.1 252 / 0.3), -2px -2px 6px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
-}
-.lp-reg-btn--primary:hover { transform: translateY(-1px); box-shadow: 4px 4px 12px oklch(0.4 0.1 252 / 0.38), -2px -2px 6px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35); }
-.lp-reg-btn--temp {
-  color: oklch(0.45 0.13 252);
-  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85);
-}
-.lp-reg-btn--temp:hover { transform: translateY(-1px); color: oklch(0.4 0.15 252); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 8px oklch(0.55 0.03 258 / 0.16), -2px -2px 6px oklch(1 0 0 / 0.9); }
-.lp-reg-divider { display: flex; align-items: center; gap: 10px; color: oklch(0.7 0.02 252); font-size: 12px; }
-.lp-reg-divider::before, .lp-reg-divider::after { content: ''; flex: 1; height: 1px; background: oklch(0.9 0.02 252); }
+.lp-register-option:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 3px 4px 9px oklch(0.45 0.06 258 / 0.14), -2px -2px 6px oklch(1 0 0 / 0.9); }
+.lp-register-option__icon { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 9px; color: var(--brand-deep); background: color-mix(in oklab, var(--brand) 9%, white); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8); }
+.lp-register-option__copy { min-width: 0; }
+.lp-register-option__copy strong { display: block; color: var(--brand-deep); font-size: 12px; font-weight: 800; }
+.lp-register-option__copy small { display: block; margin-top: 3px; color: #6c7e8f; font-size: 9px; line-height: 1.35; }
 
 /* Staggered entrance (motion only; no glass) */
 .lp-head, .lp-field, .lp-primary, .lp-foot { animation: lp-up 0.5s var(--ease) backwards; }
@@ -12095,11 +12097,11 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   width: min(680px, 100%);
   padding: 48px 40px 40px;
   border-radius: 24px;
-  background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.72) 40%, oklch(1 0 0 / 0.24) 85%);
   box-shadow:
-    12px 12px 30px oklch(0.42 0.05 252 / 0.16),
-    -9px -9px 24px oklch(1 0 0 / 0.92),
-    inset 0 1px 0 oklch(1 0 0 / 0.85);
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 14px oklch(0.5 0.06 258 / 0.12),
+    -3px -3px 10px oklch(1 0 0 / 0.95);
   animation: reg-rise 0.58s var(--reg-ease) backwards;
   transition: transform 0.35s var(--reg-ease), box-shadow 0.35s var(--reg-ease);
 }
@@ -12110,9 +12112,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .reg-card:hover {
   transform: translateY(-3px);
   box-shadow:
-    16px 16px 38px oklch(0.42 0.05 252 / 0.2),
-    -11px -11px 28px oklch(1 0 0 / 0.95),
-    inset 0 1px 0 oklch(1 0 0 / 0.9);
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    5px 6px 18px oklch(0.48 0.06 258 / 0.15),
+    -4px -4px 12px oklch(1 0 0 / 0.98);
 }
 
 /* ═══════════════════════════════════════════════
@@ -13008,8 +13010,8 @@ main.rv { overflow: hidden; }
 .rv-panel { width: 100%; max-width: 680px; }
 .rv-card {
   position: relative; width: 100%; padding: 44px 34px 38px; border-radius: 24px;
-  background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));
-  box-shadow: 12px 12px 30px oklch(0.42 0.05 252 / 0.16), -9px -9px 24px oklch(1 0 0 / 0.92), inset 0 1px 0 oklch(1 0 0 / 0.85);
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.72) 40%, oklch(1 0 0 / 0.24) 85%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 14px oklch(0.5 0.06 258 / 0.12), -3px -3px 10px oklch(1 0 0 / 0.95);
   animation: rv-rise 0.5s var(--ease) backwards;
 }
 @keyframes rv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
