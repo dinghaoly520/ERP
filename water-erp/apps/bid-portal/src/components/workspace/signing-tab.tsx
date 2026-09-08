@@ -186,6 +186,34 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
   return (
     <div className="space-y-4">
+      {/* P2（二轮审查）：签字流程六步引导——当前步按数据态推导（只读指示，不可点击跳转）。
+          推导口径：无包→待①生成；有包未闭环→待⑤回传登记（②③④为线下步骤，不判✓只显中性）；
+          闭环未回流→待⑥；已回流→全部完成。cur≥6 时 ①-⑤ 全✓（闭环间接证实线下链路完成）。 */}
+      {(() => {
+        const cur = !data?.packet ? 1
+          : !data.packet.closed ? 5
+          : !data.packet.handoverFileAssetId ? 6 : 7;
+        const steps = ['① 生成签字包', '② 打印', '③ 现场签字', '④ 扫描', '⑤ 回传登记', '⑥ 闭环回流'];
+        return (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[oklch(0.985 0.006 258 / 0.6)] px-4 py-2.5 text-[11px] font-semibold">
+            <span className="text-[color:var(--muted-foreground)]">签字流程：</span>
+            {steps.map((s, i) => {
+              const n = i + 1;
+              const done = n < cur && (cur >= 6 || n === 1);
+              return (
+                <span key={s} className={
+                  n === cur ? 'text-[var(--accent-strong)]'
+                  : done ? 'text-[var(--success)]'
+                  : 'text-[color:var(--muted-foreground)] opacity-60'
+                }>
+                  {done ? '✓ ' : ''}{s}
+                </span>
+              );
+            })}
+            <span className="ml-auto text-[color:var(--muted-foreground)] opacity-50 font-normal">②③④为线下步骤</span>
+          </div>
+        );
+      })()}
       <OpeningSignBlock projectId={projectId} refreshKey={signRefreshTick} />
       {/* 批量回传共用多选入口（两种卡片态都触发） */}
       <input
