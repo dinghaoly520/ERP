@@ -705,9 +705,13 @@ export class BidController {
   // ── 评分模板（整套评分标准的保存 / 列表 / 应用 / 删除）──
 
   @Get('score-templates')
-  @ApiOperation({ summary: '评分标准模板列表（自己 + 公共）' })
-  listScoreTemplates(@CurrentUser('sub') userId?: string) {
-    return this.bidService.listScoreTemplates(userId);
+  @ApiOperation({ summary: '评分标准模板列表（自己 + 公共；可选按采购方式/项目类型过滤：通用(null)+精确匹配）' })
+  listScoreTemplates(
+    @CurrentUser('sub') userId?: string,
+    @Query('procurementMethod') procurementMethod?: string,
+    @Query('projectCategory') projectCategory?: string,
+  ) {
+    return this.bidService.listScoreTemplates(userId, procurementMethod, projectCategory);
   }
 
   @Post('score-templates')

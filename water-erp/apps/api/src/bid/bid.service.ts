@@ -4653,7 +4653,7 @@ export class BidService {
   async applyScoreItemTemplate(projectId: string, actor: { userId: string; role: string }) { return this.scoreStandard.applyScoreItemTemplate(projectId, actor); }
   async publishScoreStandard(projectId: string, actor: { userId: string; role: string; username: string }) { return this.scoreStandard.publishScoreStandard(projectId, actor); }
   async saveScoreTemplate(projectId: string, name: string, userId?: string, username?: string) { return this.scoreStandard.saveScoreTemplate(projectId, name, userId, username); }
-  async listScoreTemplates(userId?: string) { return this.scoreStandard.listScoreTemplates(userId); }
+  async listScoreTemplates(userId?: string, procurementMethod?: string, projectCategory?: string) { return this.scoreStandard.listScoreTemplates(userId, procurementMethod, projectCategory); }
   async applyScoreTemplateById(projectId: string, templateId: string, actor: { userId: string; role: string }) { return this.scoreStandard.applyScoreTemplateById(projectId, templateId, actor); }
   async deleteScoreTemplate(templateId: string, userId?: string, role?: string) { return this.scoreStandard.deleteScoreTemplate(templateId, userId, role); }
 

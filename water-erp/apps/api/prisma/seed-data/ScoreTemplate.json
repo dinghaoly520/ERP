@@ -1,1 +1,121 @@
-[]
+[
+  {
+    "name": "谈判采购·最低价模板",
+    "createdById": null,
+    "createdByName": "系统",
+    "procurementMethod": "谈判采购",
+    "projectCategory": null,
+    "payload": {
+      "items": [
+        {
+          "category": "QUALIFICATION",
+          "name": "资格性审查",
+          "maxScore": 0
+        },
+        {
+          "category": "BUSINESS",
+          "name": "商务评分",
+          "maxScore": 30,
+          "points": [
+            { "name": "商务响应与合同条款", "fullScore": 15, "evidenceHint": "见投标文件商务部分", "objective": false },
+            { "name": "类似项目业绩与信誉", "fullScore": 15, "evidenceHint": "业绩合同/获奖证明", "objective": false }
+          ]
+        },
+        {
+          "category": "TECHNICAL",
+          "name": "技术评分",
+          "maxScore": 70,
+          "points": [
+            { "name": "技术方案完整性", "fullScore": 40, "evidenceHint": "见投标文件技术部分", "objective": false },
+            { "name": "实施方案与进度保障", "fullScore": 30, "evidenceHint": "施工组织设计/进度计划", "objective": false }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "邀请招标·综合模板",
+    "createdById": null,
+    "createdByName": "系统",
+    "procurementMethod": "邀请招标",
+    "projectCategory": null,
+    "payload": {
+      "items": [
+        {
+          "category": "BUSINESS",
+          "name": "商务评分",
+          "maxScore": 20,
+          "points": [
+            { "name": "商务响应完整性", "fullScore": 10, "evidenceHint": "见投标文件商务部分", "objective": false },
+            { "name": "类似项目业绩", "fullScore": 10, "evidenceHint": "业绩合同", "objective": false }
+          ]
+        },
+        {
+          "category": "TECHNICAL",
+          "name": "技术评分",
+          "maxScore": 50,
+          "points": [
+            { "name": "技术方案与深化设计", "fullScore": 30, "evidenceHint": "见投标文件技术部分", "objective": false },
+            { "name": "人员配置与质量保障", "fullScore": 20, "evidenceHint": "项目部组成/质量保证体系", "objective": false }
+          ]
+        },
+        {
+          "category": "PRICE",
+          "name": "价格评分",
+          "maxScore": 30,
+          "points": [
+            { "name": "价格基准偏离度", "fullScore": 30, "evidenceHint": "按评标办法价格公式计算", "objective": true }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "通用·综合评估模板",
+    "createdById": null,
+    "createdByName": "系统",
+    "procurementMethod": null,
+    "projectCategory": null,
+    "payload": {
+      "items": [
+        {
+          "category": "QUALIFICATION",
+          "name": "资格性审查",
+          "maxScore": 0
+        },
+        {
+          "category": "RESPONSIVE",
+          "name": "符合性审查",
+          "maxScore": 0
+        },
+        {
+          "category": "BUSINESS",
+          "name": "商务评分",
+          "maxScore": 20,
+          "points": [
+            { "name": "商务响应完整性", "fullScore": 10, "evidenceHint": "见投标文件商务部分", "objective": false },
+            { "name": "类似项目业绩", "fullScore": 10, "evidenceHint": "业绩合同", "objective": false }
+          ]
+        },
+        {
+          "category": "TECHNICAL",
+          "name": "技术评分",
+          "maxScore": 50,
+          "points": [
+            { "name": "技术方案完整性", "fullScore": 20, "evidenceHint": "见投标文件技术部分", "objective": false },
+            { "name": "人员配置与资质", "fullScore": 15, "evidenceHint": "项目部组成/职称证书", "objective": false },
+            { "name": "质量与安全保障措施", "fullScore": 15, "evidenceHint": "质量保证/安全文明施工措施", "objective": false }
+          ]
+        },
+        {
+          "category": "PRICE",
+          "name": "价格评分",
+          "maxScore": 30,
+          "points": [
+            { "name": "价格基准偏离度", "fullScore": 30, "evidenceHint": "按评标办法价格公式计算", "objective": true }
+          ]
+        }
+      ]
+    }
+  }
+]

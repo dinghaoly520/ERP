@@ -9,9 +9,12 @@ interface Props {
   open: boolean;
   onClose: () => void;
   projectId: string;
+  /** A-147：当前项目维度（宿主传入，与保存时服务端快照同源）；仅作只读提示，不参与提交 */
+  procurementMethod?: string;
+  projectCategory?: string;
 }
 
-export function SaveTemplateDialog({ open, onClose, projectId }: Props) {
+export function SaveTemplateDialog({ open, onClose, projectId, procurementMethod, projectCategory }: Props) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -64,6 +67,12 @@ export function SaveTemplateDialog({ open, onClose, projectId }: Props) {
         onChange={(e) => setName(e.target.value)}
         className="workbench-input w-full"
       />
+      {/* A-147：维度由服务端保存时自动快照（防篡改，用户不可改），此处仅只读提示 */}
+      <p className="mt-3 text-xs leading-relaxed text-[#8a96aa]">
+        保存时将自动记录维度：采购方式 {procurementMethod || '—'} · 项目类型 {projectCategory || '—'}
+        <br />
+        （通用模板可跨项目复用；应用端不按维度硬拦）
+      </p>
     </Modal>
   );
 }

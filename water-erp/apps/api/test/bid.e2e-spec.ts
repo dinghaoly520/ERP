@@ -496,6 +496,39 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(201);
     const templateId = saved.body.id;
 
+    // A-147：维度服务端自动快照——采购方式取 BidProject，项目类型经 PMI（本项目无关联 → null 通用）
+    expect(saved.body.procurementMethod).toBe('公开招标');
+    expect(saved.body.projectCategory).toBeNull();
+
+    // A-147：列表按采购方式过滤（通用 null ∪ 精确匹配）——本项目方式命中该模板
+    await request(app.getHttpServer())
+      .get(`/api/bid/score-templates?procurementMethod=${encodeURIComponent('公开招标')}`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.some((t: { id: string }) => t.id === templateId)).toBe(true);
+      });
+
+    // A-147：按其他采购方式过滤——不含该模板（仅剩通用兜底/空列表，仍 200）
+    await request(app.getHttpServer())
+      .get(`/api/bid/score-templates?procurementMethod=${encodeURIComponent('谈判采购')}`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.some((t: { id: string }) => t.id === templateId)).toBe(false);
+      });
+
+    // A-147：无参回归——全量含该模板且行含维度列
+    await request(app.getHttpServer())
+      .get('/api/bid/score-templates')
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .expect(200)
+      .expect((res) => {
+        const row = res.body.find((t: { id: string }) => t.id === templateId);
+        expect(row).toBeTruthy();
+        expect(row.procurementMethod).toBe('公开招标');
+      });
+
     // 应用到新项目
     const proj2 = await prisma.bidProject.create({
       data: { projectCode: `BID-TPL2-${Date.now()}`, name: '模板应用项目', stage: 'DOWNLOAD', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },

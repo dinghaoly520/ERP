@@ -1355,6 +1355,68 @@ describe('BidService — score items (评分标准)', () => {
     }));
   });
 
+  it('A-147：saveScoreTemplate 服务端自动快照采购方式 + 项目类型（经 PMI 关联）', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([{ category: 'TECHNICAL', name: '技术', maxScore: 50, points: [] }]);
+    prisma.bidProject.findUnique.mockResolvedValue({
+      procurementMethod: '谈判采购',
+      projectManagementItem: { procurementCategory: '工程' },
+    });
+    prisma.scoreTemplate.create.mockResolvedValue({ id: 't10' });
+    await service.saveScoreTemplate('p1', '维度模板', 'u1', '陈源远');
+    expect(prisma.bidProject.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({
+        procurementMethod: true,
+        projectManagementItem: { select: { procurementCategory: true } },
+      }),
+    }));
+    expect(prisma.scoreTemplate.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ procurementMethod: '谈判采购', projectCategory: '工程' }),
+    }));
+  });
+
+  it('A-147：saveScoreTemplate 无 PMI 关联时维度落 null（通用模板）', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([{ category: 'TECHNICAL', name: '技术', maxScore: 50, points: [] }]);
+    prisma.bidProject.findUnique.mockResolvedValue({ procurementMethod: '公开招标', projectManagementItem: null });
+    prisma.scoreTemplate.create.mockResolvedValue({ id: 't11' });
+    await service.saveScoreTemplate('p1', '通用模板', 'u1', '陈源远');
+    expect(prisma.scoreTemplate.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ procurementMethod: '公开招标', projectCategory: null }),
+    }));
+  });
+
+  it('A-147：listScoreTemplates 传采购方式时 where 含「通用(null)+精确匹配」OR 分支', async () => {
+    prisma.scoreTemplate.findMany.mockResolvedValue([]);
+    await service.listScoreTemplates('u1', '谈判采购');
+    expect(prisma.scoreTemplate.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        OR: [{ createdById: 'u1' }, { createdById: null }],
+        AND: [{ OR: [{ procurementMethod: null }, { procurementMethod: '谈判采购' }] }],
+      }),
+      select: expect.objectContaining({ procurementMethod: true, projectCategory: true }),
+    }));
+  });
+
+  it('A-147：listScoreTemplates 双参各占一个 AND 分支（维度间 AND、维度内 null∪精确）', async () => {
+    prisma.scoreTemplate.findMany.mockResolvedValue([]);
+    await service.listScoreTemplates('u1', '谈判采购', '工程');
+    expect(prisma.scoreTemplate.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        AND: [
+          { OR: [{ procurementMethod: null }, { procurementMethod: '谈判采购' }] },
+          { OR: [{ projectCategory: null }, { projectCategory: '工程' }] },
+        ],
+      }),
+    }));
+  });
+
+  it('A-147：listScoreTemplates 无维度参时 where 不含维度键（现状回归）', async () => {
+    prisma.scoreTemplate.findMany.mockResolvedValue([]);
+    await service.listScoreTemplates('u1');
+    const arg = (prisma.scoreTemplate.findMany as jest.Mock).mock.calls[0][0];
+    expect(arg.where).toEqual({ OR: [{ createdById: 'u1' }, { createdById: null }] });
+    expect(arg.where).not.toHaveProperty('AND');
+  });
+
   it('P2：公共模板（createdById=null）非管理员删除 → FORBIDDEN', async () => {
     prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: null });
     await expect(service.deleteScoreTemplate('t1', 'u1', 'procurement_staff')).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });

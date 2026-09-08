@@ -19,19 +19,26 @@ interface Props {
   projectId: string;
   locked: boolean;
   onChanged: (items: BidScoreItem[]) => void;
+  /** A-147：当前项目维度（宿主传入，与保存时服务端快照同源）；缺省则不过滤（现状全量） */
+  procurementMethod?: string;
+  projectCategory?: string;
 }
 
-export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChanged }: Props) {
+export function TemplateLibraryDialog({
+  open, onClose, projectId, locked, onChanged, procurementMethod, projectCategory,
+}: Props) {
   const [templates, setTemplates] = useState<ScoreTemplateRef[]>([]);
   const [loading, setLoading] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScoreTemplateRef | null>(null);
   const [applyingStandard, setApplyingStandard] = useState(false);
+  // 「仅显示通用模板」= 前端本地过滤（后端已放行 通用+当前维度，开关只隐藏带维度的行）
+  const [genericOnly, setGenericOnly] = useState(false);
 
   const reload = async () => {
     setLoading(true);
     try {
-      setTemplates(await listScoreTemplates());
+      setTemplates(await listScoreTemplates({ procurementMethod, projectCategory }));
     } catch {
       setTemplates([]);
     } finally {
@@ -42,7 +49,7 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
     if (open) reload();
-  }, [open]);
+  }, [open, procurementMethod, projectCategory]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleApplyStandard = async () => {
@@ -90,9 +97,21 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
   return (
     <>
       <Modal open={open} onClose={onClose} title="评分模板库" size="lg">
-        <p className="mb-3 rounded-lg bg-[#f3f7fc] px-3 py-2 text-xs text-[#5a6d8a]">
-          应用按名称合并到当前项目（已存在的项不重复添加），不会覆盖或删除已有项。
-        </p>
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-[#f3f7fc] px-3 py-2">
+          <p className="text-xs text-[#5a6d8a]">
+            应用按名称合并到当前项目（已存在的项不重复添加），不会覆盖或删除已有项。
+            {procurementMethod || projectCategory ? '列表已按当前项目维度筛选（通用模板始终显示）。' : ''}
+          </p>
+          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-[#5a6d8a]">
+            <input
+              type="checkbox"
+              checked={genericOnly}
+              onChange={(e) => setGenericOnly(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[#064ea2]"
+            />
+            仅显示通用模板
+          </label>
+        </div>
 
         {loading ? (
           <div className="py-10 text-center text-sm text-[#8a96aa]">加载中…</div>
@@ -122,14 +141,23 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
               </button>
             </div>
 
-            {/* 已保存模板 */}
-            {templates.length === 0 ? (
-              <div className="py-6 text-center text-sm text-[#8a96aa]">
-                尚无保存的模板。可在评分项页用「存为模板」创建。
-              </div>
-            ) : (
-              templates.map((t) => {
+            {/* 已保存模板（「仅显示通用」= 本地隐藏带维度行；跨方式复用合法，维度仅提示不硬拦） */}
+            {(() => {
+              const visible = genericOnly
+                ? templates.filter((t) => !t.procurementMethod && !t.projectCategory)
+                : templates;
+              if (visible.length === 0) {
+                return (
+                  <div className="py-6 text-center text-sm text-[#8a96aa]">
+                    {templates.length === 0
+                      ? '尚无保存的模板。可在评分项页用「存为模板」创建。'
+                      : '当前筛选下无模板。'}
+                  </div>
+                );
+              }
+              return visible.map((t) => {
                 const mine = !!t.createdById;
+                const generic = !t.procurementMethod && !t.projectCategory;
                 return (
                   <div
                     key={t.id}
@@ -146,6 +174,33 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
                         >
                           {mine ? '我的' : '公共'}
                         </span>
+                        {generic ? (
+                          <span
+                            className="shrink-0 rounded-full bg-[#e8f4ee] px-2 py-0.5 text-xs font-bold text-[#2f7a5e]"
+                            title="通用模板：不限采购方式/项目类型，任何项目可用"
+                          >
+                            通用
+                          </span>
+                        ) : (
+                          <>
+                            {t.procurementMethod && (
+                              <span
+                                className="shrink-0 rounded-full border border-[#dce6f3] bg-[#f0f5fb] px-2 py-0.5 text-xs font-bold text-[#4a6fa5]"
+                                title="保存时快照的采购方式"
+                              >
+                                {t.procurementMethod}
+                              </span>
+                            )}
+                            {t.projectCategory && (
+                              <span
+                                className="shrink-0 rounded-full border border-[#dce6f3] bg-[#f0f5fb] px-2 py-0.5 text-xs font-bold text-[#4a6fa5]"
+                                title="保存时快照的项目类型"
+                              >
+                                {t.projectCategory}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </div>
                       <div className="mt-0.5 text-xs text-[#8a96aa]">
                         {t.createdByName || '—'} · {new Date(t.createdAt).toLocaleString('zh-CN')}
@@ -170,8 +225,8 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
                     </div>
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         )}
       </Modal>

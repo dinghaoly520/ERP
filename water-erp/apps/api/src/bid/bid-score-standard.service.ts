@@ -408,6 +408,12 @@ export class BidScoreStandardService {
     if (items.length === 0) {
       throw new BadRequestException({ error: '当前项目尚无评分项，无法保存为模板', code: 'EMPTY' });
     }
+    // A-147：维度服务端自动快照（防篡改，不让用户填）——采购方式取 BidProject，
+    // 项目类型经 projectManagementItem 关联取 PMI.procurementCategory；无关联/无项目时为 null（通用模板）
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { procurementMethod: true, projectManagementItem: { select: { procurementCategory: true } } },
+    });
     const payload = {
       items: items.map((it) => ({
         category: it.category,
@@ -422,16 +428,39 @@ export class BidScoreStandardService {
       })),
     };
     return this.prisma.scoreTemplate.create({
-       
-      data: { name, payload: payload as any, createdById: userId ?? null, createdByName: username ?? null },
+
+      data: {
+        name, payload: payload as any, createdById: userId ?? null, createdByName: username ?? null,
+        procurementMethod: project?.procurementMethod ?? null,
+        projectCategory: project?.projectManagementItem?.procurementCategory ?? null,
+      },
     });
   }
 
-  async listScoreTemplates(userId?: string) {
+  /**
+   * A-147：维度可选过滤——传任一维度时该维度上「通用（null）+ 精确匹配」都放行（跨方式复用合法，
+   * 选择器过滤只是控制面）；不传任何维度 = 现状全量。与 userId 归属过滤（OR 我的+公共）AND 组合。
+   */
+  async listScoreTemplates(userId?: string, procurementMethod?: string, projectCategory?: string) {
+    const where: Prisma.ScoreTemplateWhereInput = {};
+    if (userId) {
+      where.OR = [{ createdById: userId }, { createdById: null }];
+    }
+    const pm = procurementMethod || undefined;
+    const pc = projectCategory || undefined;
+    if (pm || pc) {
+      where.AND = [
+        ...(pm ? [{ OR: [{ procurementMethod: null }, { procurementMethod: pm }] }] : []),
+        ...(pc ? [{ OR: [{ projectCategory: null }, { projectCategory: pc }] }] : []),
+      ];
+    }
     return this.prisma.scoreTemplate.findMany({
-      where: userId ? { OR: [{ createdById: userId }, { createdById: null }] } : {},
+      where,
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, createdById: true, createdByName: true, createdAt: true },
+      select: {
+        id: true, name: true, createdById: true, createdByName: true, createdAt: true,
+        procurementMethod: true, projectCategory: true,
+      },
     });
   }
 

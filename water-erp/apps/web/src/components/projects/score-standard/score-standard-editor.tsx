@@ -64,6 +64,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showSaveTpl, setShowSaveTpl] = useState(false);
   const [showLib, setShowLib] = useState(false);
+  // A-147：模板维度（保存快照/列表过滤同源）——采购方式取 BidProject 明细，项目类型取 PMI
+  const [tplDims, setTplDims] = useState<{ procurementMethod: string; projectCategory: string }>({
+    procurementMethod: '',
+    projectCategory: '',
+  });
   const [bulkGroups, setBulkGroups] = useState<EditableGroup[] | null>(null);
   const [extractingAll, setExtractingAll] = useState(false);
 
@@ -81,6 +86,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         setBpId(bp.id);
         setStage(detail.stage);
         setPublishedAt(detail.scoreStandardPublishedAt ?? null);
+        setTplDims({ procurementMethod: detail.procurementMethod || '', projectCategory: project.procurementCategory || '' });
         setItems(its);
       } catch {
         if (!cancelled) toast.error('评分标准加载失败');
@@ -602,13 +608,23 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         </p>
       </Modal>
 
-      {bpId && <SaveTemplateDialog open={showSaveTpl} onClose={() => setShowSaveTpl(false)} projectId={bpId} />}
+      {bpId && (
+        <SaveTemplateDialog
+          open={showSaveTpl}
+          onClose={() => setShowSaveTpl(false)}
+          projectId={bpId}
+          procurementMethod={tplDims.procurementMethod}
+          projectCategory={tplDims.projectCategory}
+        />
+      )}
       {bpId && (
         <TemplateLibraryDialog
           open={showLib}
           onClose={() => setShowLib(false)}
           projectId={bpId}
           locked={locked}
+          procurementMethod={tplDims.procurementMethod}
+          projectCategory={tplDims.projectCategory}
           onChanged={(updated) => {
             setItems(updated);
             // 应用模板可能作废已发布状态，回读详情同步

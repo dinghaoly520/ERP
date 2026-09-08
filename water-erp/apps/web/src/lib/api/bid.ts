@@ -268,10 +268,18 @@ export interface ScoreTemplateRef {
   createdById?: string | null; // null/缺省 = 公共模板；有值 = 创建者本人（后端按当前用户过滤，非空即「我的」）
   createdByName: string | null;
   createdAt: string;
+  /** A-147 维度快照：保存时服务端自动从项目取；null = 通用模板（任何方式/类型可用） */
+  procurementMethod?: string | null;
+  projectCategory?: string | null;
 }
 
-export function listScoreTemplates() {
-  return api.get<ScoreTemplateRef[]>('/bid/score-templates');
+/** 列出模板（自己 + 公共）；传维度时后端放行「通用(null) + 精确匹配」，空参省略 */
+export function listScoreTemplates(params?: { procurementMethod?: string; projectCategory?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.procurementMethod) qs.set('procurementMethod', params.procurementMethod);
+  if (params?.projectCategory) qs.set('projectCategory', params.projectCategory);
+  const query = qs.toString();
+  return api.get<ScoreTemplateRef[]>(`/bid/score-templates${query ? `?${query}` : ''}`);
 }
 
 /** 把当前项目的全部评分项 + 得分点存为命名模板 */
