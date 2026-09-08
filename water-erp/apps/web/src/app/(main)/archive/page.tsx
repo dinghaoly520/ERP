@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Archive, ClipboardCheck, Download, FileArchive, History, PlayCircle, RefreshCw, ShieldCheck, Upload,
@@ -66,7 +66,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export default function ArchivePage() {
+function ArchivePageInner() {
   const params = useSearchParams();
   const focusPmi = params.get('pmi');
 
@@ -427,5 +427,15 @@ export default function ArchivePage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** 修（2026-09-08，页面波批末总闸 incidental）：useSearchParams 须 Suspense 包裹——
+ *  否则 next build 预渲染 /archive 报 missing-suspense-with-csr-bailout（并行线既有缺陷，CI 不 build web 故漏网）。 */
+export default function ArchivePage() {
+  return (
+    <Suspense>
+      <ArchivePageInner />
+    </Suspense>
   );
 }
