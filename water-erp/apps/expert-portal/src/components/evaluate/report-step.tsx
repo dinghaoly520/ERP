@@ -228,7 +228,7 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
                                 {firstPassed === false ? '不通过' : '通过'}
                               </div>
                             ) : (
-                              <div className="text-lg font-bold text-[var(--foreground)]">{data.total} <span className="text-xs font-normal text-[var(--muted-foreground)]">/ {data.max}</span></div>
+                              <div className={`text-lg font-bold ${data.total > data.max ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'}`}>{data.total} <span className="text-xs font-normal text-[var(--muted-foreground)]">/ {data.max}</span>{data.total > data.max && <span className="ml-1 text-[10px]">⚠ 超满分</span>}</div>
                             )}
                           </div>
                         );

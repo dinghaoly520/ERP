@@ -671,7 +671,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                                 title="点击查看评分项明细"
                                 data-anomaly={anomaly ? 'true' : undefined}
                               >
-                                {cell.totalScore.toFixed(1)}<span className="text-[9px] font-normal text-[var(--muted-foreground)]">/{cell.maxScore}</span>
+                                <span className={cell.totalScore > cell.maxScore ? 'text-[var(--danger)] font-bold' : ''}>{cell.totalScore.toFixed(1)}<span className="text-[9px] font-normal text-[var(--muted-foreground)]">/{cell.maxScore}</span>{cell.totalScore > cell.maxScore ? ' ⚠' : ''}</span>
                                 {anomaly && <AlertTriangle size={10} />}
                               </button>
                             ) : (
