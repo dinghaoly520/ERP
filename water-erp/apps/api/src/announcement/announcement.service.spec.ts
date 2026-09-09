@@ -420,3 +420,39 @@ describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞�
     expect(svc.syncBidProject).toHaveBeenCalled();
   });
 });
+
+describe('AnnouncementService — 对接专项 T4 发布赋码强制闸（GB_CODE_REQUIRED）', () => {
+  const mk = async (proj: { gbProcureCode: string | null } | null) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue(proj) },
+      announcement: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'a1', status: 'DRAFT', type: 'BID_NOTICE', relatedProjectCode: 'BID-1', metadata: {} }),
+        update: jest.fn().mockResolvedValue({ id: 'a1', status: 'PUBLISHED' }),
+        create: jest.fn().mockResolvedValue({ id: 'a2', status: 'PUBLISHED' }),
+      },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, { summarize: jest.fn().mockResolvedValue('摘要') }, { syncFromAnnouncement: jest.fn().mockResolvedValue({}), ensureTenderAnalysis: jest.fn() }, undefined);
+    return { service, prisma };
+  };
+
+  it('update 转入 PUBLISHED 且关联项目缺码 → 400 GB_CODE_REQUIRED', async () => {
+    const { service } = await mk({ gbProcureCode: null });
+    await expect(service.update('a1', { status: 'PUBLISHED' } as any))
+      .rejects.toMatchObject({ response: { code: 'GB_CODE_REQUIRED' } });
+  });
+
+  it('update 转入 PUBLISHED 且关联项目有码 → 放行（update 执行）', async () => {
+    const { service, prisma } = await mk({ gbProcureCode: '511510000260909001001' });
+    await service.update('a1', { status: 'PUBLISHED' } as any);
+    expect(prisma.announcement.update).toHaveBeenCalled();
+  });
+
+  it('create 即 PUBLISHED 但无关联项目（POLICY 等）→ 不拦（findUnique 不被调）', async () => {
+    const { service, prisma } = await mk({ gbProcureCode: null });
+    await service.create({ title: '政策', content: 'x', type: 'POLICY' as any, status: 'PUBLISHED' } as any, 'u1');
+    expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
+  });
+});

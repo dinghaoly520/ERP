@@ -25,6 +25,23 @@ export class AnnouncementService {
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名；两段式公示语义收口 shared） */
   private static readonly TYPE_LABELS: Record<string, string> = { ...ANNOUNCEMENT_TYPE_LABELS };
 
+  /** 对接专项 Phase 1（T4）：发布赋码强制闸——发布关联 BidProject 的公告时，
+   *  项目须已有 21 位国标采购编码（省平台统一交易识别码前置）。无关联项目（POLICY/PLATFORM 等）不拦。
+   *  存量项目已在回填清单（docs/认证送测材料/gb-code-backfill-*.csv）；新项目 API 创建时自动赋码。 */
+  private async assertGbCodeIfLinked(relatedProjectCode?: string | null) {
+    if (!relatedProjectCode) return;
+    const project = await this.prisma.bidProject.findUnique({
+      where: { projectCode: relatedProjectCode },
+      select: { gbProcureCode: true },
+    });
+    if (project && !project.gbProcureCode) {
+      throw new BadRequestException({
+        error: '项目未取得国标采购编码（gbProcureCode），不能发布关联公告——请先在项目管理补码（存量项目已在回填清单）；新项目创建时自动赋码',
+        code: 'GB_CODE_REQUIRED',
+      });
+    }
+  }
+
   async create(
     dto: CreateAnnouncementDto,
     authorId?: string,
@@ -41,6 +58,11 @@ export class AnnouncementService {
     // W2（B-004/B-009）：依法必招时间规则预检——置于建行之前，违者 400 且不留孤儿公告
     if (dto.type === 'BID_NOTICE' && status === 'PUBLISHED') {
       await this.assertBidNoticeTimingGuard(dto);
+    }
+
+    // 对接专项 Phase 1（T4）：发布赋码强制闸（create 路径——发布即生效的公告）
+    if (status === 'PUBLISHED') {
+      await this.assertGbCodeIfLinked(dto.relatedProjectCode);
     }
 
     // GB/T 43711（7.3）：谈判采购通过定向邀请组织，不发布采购公告（前端类别矩阵
@@ -269,6 +291,11 @@ export class AnnouncementService {
         relatedProjectCode: dto.relatedProjectCode ?? announcement.relatedProjectCode,
         publishDate: dto.publishDate ?? announcement.publishDate ?? new Date(),
       });
+    }
+
+    // 对接专项 Phase 1（T4）：发布赋码强制闸（update 路径——状态转入 PUBLISHED 时）
+    if (isPublishTransition) {
+      await this.assertGbCodeIfLinked(dto.relatedProjectCode ?? announcement.relatedProjectCode);
     }
 
     let result;
