@@ -325,6 +325,37 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('updateProject — 阶段锁（P1-3，2026-09-09）', () => {
+    const itRejects = async (stage: string, dto: any, code: string) => {
+      prisma.bidProject.findUnique.mockResolvedValue({ openTime: new Date(), deadline: new Date(), stage });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage });
+      await expect(service.updateProject('p1', dto, 'u1')).rejects.toMatchObject({ response: { code } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    };
+
+    it('OPENING 改采购方式 → 409 STAGE_FIELD_LOCKED（防法定家数门槛口径漂移：评标中改直接采购使 3→1 事后合法化）', async () => {
+      await itRejects('OPENING', { procurementMethod: '直接采购' } as any, 'STAGE_FIELD_LOCKED');
+    });
+    it('EVALUATING 改保证金 → 409 STAGE_FIELD_LOCKED', async () => {
+      await itRejects('EVALUATING', { bondAmount: 5000 } as any, 'STAGE_FIELD_LOCKED');
+    });
+    it('ARCHIVED 改任意字段（含 name）→ 409 PROJECT_ARCHIVED_IMMUTABLE（历史证据不可污染）', async () => {
+      await itRejects('ARCHIVED', { name: '改名' } as any, 'PROJECT_ARCHIVED_IMMUTABLE');
+    });
+    it('ARCHIVED 改 openTime → 409 PROJECT_ARCHIVED_IMMUTABLE（原 frozen 分支仅校验相对关系、时间可改）', async () => {
+      await itRejects('ARCHIVED', { openTime: new Date().toISOString() } as any, 'PROJECT_ARCHIVED_IMMUTABLE');
+    });
+    it('DOWNLOAD/SUBMIT/ABORTED 改采购方式放行（发标期调整 + 流标重启前修正正当窗口）', async () => {
+      for (const stage of ['DOWNLOAD', 'SUBMIT', 'ABORTED']) {
+        prisma.bidProject.findUnique.mockResolvedValue({ openTime: new Date(), deadline: new Date(), stage });
+        prisma.bidProject.update.mockClear();
+        prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage });
+        await service.updateProject('p1', { procurementMethod: '询比采购' } as any, 'u1');
+        expect(prisma.bidProject.update).toHaveBeenCalled();
+      }
+    });
+  });
+
   describe('assertBidStageTransition', () => {
     it('allows DOWNLOAD → SUBMIT', () => {
       expect(() => assertBidStageTransition('DOWNLOAD', 'SUBMIT')).not.toThrow();
@@ -3786,7 +3817,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
           size: 1_024,
         }),
       },
-      supplier: { findUnique: jest.fn() },
+      supplier: { findUnique: jest.fn(), findMany: jest.fn() },
       bidSupplier: { findUnique: jest.fn() },
       projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() }, // CTS A-203 定标回写
     };
@@ -4710,14 +4741,16 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
   beforeEach(async () => {
     prisma = {
       bidProject: { findUnique: jest.fn() },
-      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
+      // P1-6 落标通知链路：中标人行/提交记录/落标用户解析
+      supplierBidSubmission: { findMany: jest.fn() },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       bidEvaluationResult: { findFirst: jest.fn() },
       // 并行会话新增中标通知书文件闸（letterAssetId 必填+上传人校验+三绑定防复用）所需 mock
       awardLetterDelivery: { upsert: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'd1' }), updateMany: jest.fn() },
       fileAsset: { findFirst: jest.fn().mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 }) },
-      supplier: { findUnique: jest.fn() },
+      supplier: { findUnique: jest.fn(), findMany: jest.fn() },
       contract: { findFirst: jest.fn().mockResolvedValue(null) },
       contractFulfillment: { findFirst: jest.fn().mockResolvedValue(null) },
       projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
@@ -4821,4 +4854,71 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/A-105 定标提醒发送失败 project=p1:/));
   });
+    it('P1-6：定标即定向通知未中标投标人（法45条）——BID_AWARD_RESULT 含中标人名称 + marker 幂等', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
+      prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
+      prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+      prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+      prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+      prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 'sup-win' }); // 中标人行（落标排除）
+      // A-105 pending 查询（按 supplierName 过滤）返回空；P1-6 落标行查询（按 supplierId in）返回落标家
+      prisma.bidSupplier.findMany.mockImplementation(async (args: any) =>
+        args?.where?.supplierId ? [{ supplierId: 'sup-lose', supplierName: '乙公司' }] : []);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([
+        { supplierId: 'sup-win', status: 'submitted' }, { supplierId: 'sup-lose', status: 'submitted' },
+      ]);
+      prisma.supplier.findMany.mockResolvedValue([{ userId: 'u-lose' }]);
+      prisma.systemConfig.findUnique.mockResolvedValue(null);
+
+      await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
+
+      const loserCalls = (notification.sendToUser as jest.Mock).mock.calls.filter((c: any[]) => c[2]?.type === 'BID_AWARD_RESULT');
+      expect(loserCalls).toHaveLength(1);
+      expect(loserCalls[0][0]).toBe('u-lose');
+      expect(loserCalls[0][2].content).toContain('中标公司');
+      expect(prisma.systemConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { key: 'award_result_notified:p1' } }),
+      );
+    });
+
+    it('P1-6：marker 已在 → 不重复通知落标家（重签收/重发不重复）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
+      prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
+      prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+      prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+      prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+      prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
+      prisma.systemConfig.findUnique.mockResolvedValue({ key: 'award_result_notified:p1' });
+
+      await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
+
+      const loserCalls = (notification.sendToUser as jest.Mock).mock.calls.filter((c: any[]) => c[2]?.type === 'BID_AWARD_RESULT');
+      expect(loserCalls).toHaveLength(0);
+    });
+
+    it('P1-6：仅中标人参标（无落标者）→ 不发落标通知、不写 marker', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
+      prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
+      prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+      prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+      prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+      prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 'sup-win' });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 'sup-win', status: 'submitted' }]);
+      prisma.systemConfig.findUnique.mockResolvedValue(null);
+
+      await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
+
+      const loserCalls = (notification.sendToUser as jest.Mock).mock.calls.filter((c: any[]) => c[2]?.type === 'BID_AWARD_RESULT');
+      expect(loserCalls).toHaveLength(0);
+      expect(prisma.systemConfig.upsert).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: { key: 'award_result_notified:p1' } }),
+      );
+    });
+
 });

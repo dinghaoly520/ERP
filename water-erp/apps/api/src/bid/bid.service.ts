@@ -857,6 +857,39 @@ export class BidService {
       }
     }
 
+    // P1-3（2026-09-09 审查）：阶段锁——①定标语义字段（采购方式/资质要求/保证金）自开标启动
+    // （OPENING）起锁定：改 procurementMethod 会漂移法定家数门槛 getMinBidders 口径（如评标中
+    // 改「直接采购」使门槛 3→1，事后合法化家数不足），更正须走法定程序（更正公告）；
+    // ②ARCHIVED 为不可逆终局，任何字段不可再改——开标文件包/归档包/签字包记录的是归档时值，
+    // 事后 PATCH（含旧 frozen 分支仅校验相对关系的 openTime/deadline）都会污染历史证据。
+    // DOWNLOAD/SUBMIT/ABORTED 维持可编辑（发标期调整；流标项目重启前修正是正当窗口——
+    // reopenFromAborted 复制这些字段进新一轮）。
+    // null 守卫（同 P0-2 终审口径）：@IsOptional 放行显式 null，null 一律视同未提供
+    const providedAnyField = [
+      'name', 'procurementMethod', 'openTime', 'deadline', 'riskNote', 'budget', 'scope',
+      'qualification', 'contact', 'qualityRequirement', 'bondRequired', 'bondAmount',
+      'sectionNo', 'sectionName', 'legalMandatory',
+    ].some(k => (dto as Record<string, unknown>)[k] != null);
+    if (providedAnyField) {
+      const stageRow = await this.prisma.bidProject.findUnique({ where: { id }, select: { stage: true } });
+      if (stageRow) {
+        if (stageRow.stage === 'ARCHIVED') {
+          throw new ConflictException({
+            error: '项目已归档（不可逆终局），项目信息不可再修改；如需更正请走数据修正流程',
+            code: 'PROJECT_ARCHIVED_IMMUTABLE',
+          });
+        }
+        const stageLocked = ['procurementMethod', 'qualification', 'bondRequired', 'bondAmount']
+          .some(k => (dto as Record<string, unknown>)[k] != null);
+        if (stageLocked && (stageRow.stage === 'OPENING' || stageRow.stage === 'EVALUATING')) {
+          throw new ConflictException({
+            error: `开标已启动（${stageRow.stage}），采购方式/资质要求/保证金等定标语义字段已锁定；如需更正请按法定程序办理（更正公告）`,
+            code: 'STAGE_FIELD_LOCKED',
+          });
+        }
+      }
+    }
+
     // 截标↔开标 24h（P0-2）分阶段语义：
     // - align（prev.deadline 未过）：仅传 openTime → deadline 派生；仅传 deadline → openTime 派生；双传 → align 校验
     // - frozen（prev.deadline 已过，延时开标 PATCH openTime 走此分支）：deadline 不得变更；openTime ≥ deadline + 24h
@@ -3957,6 +3990,52 @@ export class BidService {
         }
       }
     } catch { /* 逐家退还提醒失败不阻塞中标通知书 */ }
+
+    // P1-6（2026-09-09 审查）：定标即定向通知所有未中标投标人（《招标投标法》第45条——
+    // 中标人确定后应同时将中标结果通知所有未中标的投标人）。公开的预成交公示不构成定向通知。
+    // 口径：已投递家（submission status='submitted'）中排除中标人（BidSupplier.id → Supplier.id）；
+    // 幂等：systemConfig marker award_result_notified:<projectId>（发送成功后写，失败不占坑；
+    // 未签收前重发通知书不重复通知落标家）。响应担保退还另行通知（A-105 同点已提醒经办）。
+    try {
+      const markerKey = `award_result_notified:${projectId}`;
+      const alreadyNotified = await this.prisma.systemConfig.findUnique({ where: { key: markerKey } });
+      if (!alreadyNotified) {
+        const winnerRow = await this.prisma.bidSupplier.findUnique({
+          where: { id: supplierId },
+          select: { supplierId: true },
+        });
+        const winnerSupplierId = winnerRow?.supplierId ?? null;
+        const submissions = await this.prisma.supplierBidSubmission.findMany({
+          where: { projectId, status: 'submitted' },
+          select: { supplierId: true },
+        });
+        const loserSupplierIds = [...new Set(
+          submissions.map(x => x.supplierId).filter((v): v is string => !!v && v !== winnerSupplierId),
+        )];
+        if (loserSupplierIds.length > 0) {
+          const loserUsers = await this.prisma.supplier.findMany({
+            where: { id: { in: loserSupplierIds } },
+            select: { userId: true },
+          });
+          const userIds = [...new Set(loserUsers.map(u => u.userId).filter((u): u is string => !!u))];
+          for (const uid of userIds) {
+            await this.notificationService.sendToUser(uid, ['in_app'], {
+              type: 'BID_AWARD_RESULT',
+              title: `定标结果通知：${project.name}`,
+              content: `项目 ${project.projectCode}（${project.name}）已完成定标，中标供应商：${supplierName}。感谢贵公司参与本项目投标。响应担保退还事宜将按《招标投标法实施条例》第57条另行通知安排。`,
+              link: `/my-bids/${projectId}/opening-hall`,
+            }).catch(() => {});
+          }
+          if (userIds.length > 0) {
+            await this.prisma.systemConfig.upsert({
+              where: { key: markerKey },
+              update: { value: new Date().toISOString() },
+              create: { key: markerKey, value: new Date().toISOString() },
+            });
+          }
+        }
+      }
+    } catch { /* 落标通知失败不阻塞中标通知书（法45条义务由重发路径兜底） */ }
 
     return delivery;
   }
