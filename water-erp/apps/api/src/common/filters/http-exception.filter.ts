@@ -83,8 +83,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
-
-      if (typeof res === 'string') {
+      // 限流（429 ThrottlerException）此前把英文类名原样透给前端（实测用户看到
+      // "ThrottlerException: Too Many Requests"高频弹错）——转中文并给出等待指引
+      if (status === 429) {
+        message = '操作过于频繁，请稍候片刻再试';
+        code = 'TOO_MANY_REQUESTS';
+      } else if (typeof res === 'string') {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
         const obj = res as Record<string, unknown>;
