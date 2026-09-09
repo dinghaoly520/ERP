@@ -4,12 +4,14 @@
  * 用门户通用弹窗原语 .gdlg-ov/.gdlg-pn 手写壳（非 SpDialog）——可在已打开的 SpDialog / ct-panel /
  * add-panel / app-dlg 等弹窗上层叠加，规避「同一时刻至多一个弹窗」的焦点陷阱冲突。
  * confirm() 返回 Promise<boolean>，调用点 await 后语义与原生确认框完全一致（true=确认）。
+ * onConfirm 可选同步回调：在确认按钮 click 事件内同步执行，保留用户手势上下文（供 window.open 等
+ * 受弹窗拦截策略约束的 API 使用）。
  * 内联 z-10001 盖过门户最高层级（水叮当浮层 z-10000）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
-type ConfirmOptions = { title?: string; message: string; danger?: boolean };
+type ConfirmOptions = { title?: string; message: string; danger?: boolean; onConfirm?: () => void };
 
 export function useConfirm() {
   const [state, setState] = useState<ConfirmOptions | null>(null);
@@ -49,7 +51,7 @@ export function useConfirm() {
         </div>
         <div className="gdlg-ft">
           <button type="button" className="neu-btn-soft" onClick={() => close(false)}>取消</button>
-          <button type="button" autoFocus className={`neu-btn-primary${state.danger ? ' is-danger' : ''}`} onClick={() => close(true)}>确认</button>
+          <button type="button" autoFocus className={`neu-btn-primary${state.danger ? ' is-danger' : ''}`} onClick={() => { state.onConfirm?.(); close(true); }}>确认</button>
         </div>
       </div>
     </div>

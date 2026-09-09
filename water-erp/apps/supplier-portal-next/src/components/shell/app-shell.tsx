@@ -288,9 +288,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (destination?.kind === "internal") {
       router.push(destination.href);
     } else if (destination?.kind === "external") {
-      if (await confirm({ message: "该消息将打开外部网站，是否继续？" })) {
-        window.open(destination.href, "_blank", "noopener,noreferrer");
-      }
+      // window.open 必须在确认按钮的同步 click 手势内执行（await 后的 microtask 会被弹窗拦截策略静默丢弃）
+      if (!(await confirm({
+        message: "该消息将打开外部网站，是否继续？",
+        onConfirm: () => { window.open(destination.href, "_blank", "noopener,noreferrer"); },
+      }))) return;
     } else {
       router.push("/notifications");
     }
