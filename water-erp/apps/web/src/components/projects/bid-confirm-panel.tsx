@@ -54,6 +54,7 @@ import { ArchiveBlock } from './bid-confirm/archive-block';
 import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
 import { EvaluationHandoverBlock } from './bid-confirm/evaluation-handover-block';
 import { SupervisionPushBlock } from './bid-confirm/supervision-push-block';
+import { PlatformPushBlock } from './bid-confirm/platform-push-block';
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
@@ -887,6 +888,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   <EvaluationHandoverBlock bidProjectId={bpId} detail={detail} />
                   {/* A-153：监督推送（评标报告 → 公共服务平台监督通道；推送不作为归档闸门） */}
                   <SupervisionPushBlock bidProjectId={bpId} isAdmin={isAdminUser} />
+                  {/* 对接专项 Phase 1：上级平台推送（383号文十类 → 省平台五通道，人工确认制；与 A-153 并列，Phase 2 再评估合并） */}
+                  <PlatformPushBlock bidProjectId={bpId} />
                   {/* 评标管理/异议裁决/澄清答疑已迁至 :3007 开评标管理端（现场）——分工 v3（2026-08-13） */}
                   <p className="text-xs text-[var(--muted-foreground)]">
                     评标管理、专家异议裁决、澄清答疑已在 :3007 开评标管理端现场办理。本面板保留评标前准备与评标后收尾。
