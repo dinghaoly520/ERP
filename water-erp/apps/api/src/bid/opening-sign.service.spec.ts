@@ -80,6 +80,17 @@ describe('OpeningSignService — P1-3①A 开标记录纸面签字', () => {
   });
 
   describe('registerSign', () => {
+    it('P2-6：ARCHIVED 后登记 → 409（签字登记会重建开标文件包并改写指纹——归档证据不可变异）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...PROJECT, stage: 'ARCHIVED' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({
+        ...SESSION, supervisor: null, handoverAssetId: 'fa-h', hostSignScanFileId: 'fa-scan-host',
+      });
+      await expect(svc.registerSign('p1')).rejects.toMatchObject({
+        response: { code: 'PROJECT_ARCHIVED_IMMUTABLE' },
+      });
+      expect(storage.upload).not.toHaveBeenCalled();
+    });
+
     it('未完成开标（无 handoverAssetId）→ 400 HANDOVER_NOT_READY', async () => {
       prisma.bidOpeningSession.findUnique.mockResolvedValue({ ...SESSION, handoverAssetId: null });
       await expect(svc.registerSign('p1')).rejects.toMatchObject({ response: { code: 'HANDOVER_NOT_READY' } });

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from 'docx';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -141,6 +141,11 @@ export class OpeningSignService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
     if (!session) throw new BadRequestException({ error: '开标会话不存在', code: 'OPENING_NOT_STARTED' });
+    // P2-6（2026-09-09 审查）：归档后不得再登记开标签字——登记会重建开标文件包并改写
+    // FileAsset 指纹（已归档证据件的事后变异）。补签走数据修正流程。
+    if (project.stage === 'ARCHIVED') {
+      throw new ConflictException({ error: '项目已归档（不可逆终局），开标记录签字登记通道已关闭；如需补登请走数据修正流程', code: 'PROJECT_ARCHIVED_IMMUTABLE' });
+    }
     if (!session.handoverAssetId) {
       throw new BadRequestException({ error: '尚未完成开标（无开标文件包），无法登记签字', code: 'HANDOVER_NOT_READY' });
     }

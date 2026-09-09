@@ -1599,6 +1599,21 @@ export class BidService {
           code: 'DECRYPT_BEFORE_OPEN_TIME',
         });
       }
+      // P2-7（2026-09-09 审查）：窗口结束须在未来——组建即已关闭的窗口等同提前终止供应商
+      // 解密权；既有开放窗口不得缩短（缩短=中途剥夺解密权），只能延长或暂停/恢复；
+      // 已过期窗口的重组=延长恢复通道，放行。
+      if (new Date(dto.decryptWindowEnd).getTime() <= Date.now()) {
+        throw new BadRequestException({ error: '解密窗口结束时间必须晚于当前时刻（不得组建即已关闭的窗口）', code: 'DECRYPT_WINDOW_IN_PAST' });
+      }
+      const priorSession = await this.prisma.bidOpeningSession.findUnique({
+        where: { projectId: id },
+        select: { decryptWindowEnd: true },
+      });
+      if (priorSession?.decryptWindowEnd
+        && priorSession.decryptWindowEnd.getTime() > Date.now()
+        && new Date(dto.decryptWindowEnd).getTime() < priorSession.decryptWindowEnd.getTime()) {
+        throw new ConflictException({ error: '既有解密窗口仍在开放，不得缩短（将剥夺供应商解密权）；如需调整只能延长或暂停/恢复', code: 'DECRYPT_WINDOW_SHRINK' });
+      }
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -4333,7 +4348,7 @@ export class BidService {
       // 显式指定：校验都属于项目且未废标
       const specified = await this.prisma.bidSupplier.findMany({
         where: { id: { in: supplierIds }, projectId },
-        select: { id: true, bidValidity: true, supplierName: true },
+        select: { id: true, bidValidity: true, supplierName: true, decryptStatus: true, submitStatus: true },
       });
       const invalidOnes = specified.filter(s => s.bidValidity === 'invalid');
       if (invalidOnes.length > 0) {
@@ -4342,14 +4357,26 @@ export class BidService {
           code: 'SUPPLIER_DISQUALIFIED',
         });
       }
+      // P2-3（2026-09-09 审查）：未达参评状态（未解密/解密失败/已撤回）的家不可被点名进报价轮
+      const notEvaluable = specified.filter(s => s.decryptStatus !== 'SUCCESS' || s.submitStatus === '已撤回');
+      if (notEvaluable.length > 0) {
+        throw new BadRequestException({
+          error: `以下供应商未达参评状态（须解密成功且未撤回），不可参与报价：${notEvaluable.map(s => s.supplierName).join('、')}`,
+          code: 'SUPPLIER_NOT_EVALUABLE',
+        });
+      }
       finalEligibleIds = specified.map(s => s.id);
     } else {
-      // 默认：所有 bidValidity !== 'invalid' 的供应商
-      const qualified = await this.prisma.bidSupplier.findMany({
+      // 默认：所有达参评状态的供应商——P2-3（2026-09-09 审查）：旧口径仅排除废标，
+      // 已撤回/解密失败/未解密家照入轮（撤回家可继续报价、其报价经 syncMultiRoundPrices
+      // 污染开标记录价格源）。收紧为解密成功 + 未撤回 + 未废标（谈判/竞价轮次在有效参卖家中组织）。
+      const candidates = await this.prisma.bidSupplier.findMany({
         where: { projectId, bidValidity: { not: 'invalid' } },
-        select: { id: true },
+        select: { id: true, decryptStatus: true, submitStatus: true },
       });
-      finalEligibleIds = qualified.map(s => s.id);
+      finalEligibleIds = candidates
+        .filter(s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回')
+        .map(s => s.id);
     }
 
     const round = await this.prisma.bidRound.create({
@@ -4513,6 +4540,10 @@ export class BidService {
     if (supplier.bidValidity === 'invalid') {
       throw new ForbiddenException({ error: '供应商已废标，不可报价', code: 'SUPPLIER_DISQUALIFIED' });
     }
+    // P2-3：未达参评状态（未解密/已撤回）的家不可报价——与 createRound 名单口径一致
+    if (supplier.decryptStatus !== 'SUCCESS' || supplier.submitStatus === '已撤回') {
+      throw new ForbiddenException({ error: '供应商未达参评状态（须解密成功且未撤回），不可报价', code: 'SUPPLIER_NOT_EVALUABLE' });
+    }
 
     // H4: 严格一报制——与供应商端一致，upsert 改为 create + P2002 catch
     try {
@@ -4551,6 +4582,18 @@ export class BidService {
       },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // P2-2（2026-09-09 审查）：导出与 listScores/getProject 的评标期匿名化同口径——EVALUATING
+    // 且未全员确认报告时 expertScores 以稳定编号（专家 N）脱敏，防止导出通道成为
+    // EXPERT_SCORE_ANONYMIZED_DURING_EVAL 的旁路；全员确认/归档后证据文件自然实名。
+    const anonymizeExport = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL !== 'false';
+    const allConfirmedExport = project.experts.length > 0 && project.experts.every(e => e.reportConfirmed);
+    const maskExport = anonymizeExport && project.stage === 'EVALUATING' && !allConfirmedExport;
+    const anonLabelExport = new Map(
+      [...project.experts].map(e => e.id).sort().map((id, i) => [id, `专家 ${i + 1}`]),
+    );
+    const displayExpertName = (e: { id: string; expertName: string }) =>
+      maskExport ? (anonLabelExport.get(e.id) ?? '专家') : e.expertName;
 
     const hallMessages = await this.prisma.openingHallMessage.findMany({
       where: { projectId },
@@ -4648,7 +4691,7 @@ export class BidService {
       lines.push('');
       lines.push('=== 专家评分明细 ===');
       lines.push(['专家', '供应商', '评分项', '分数', '评语'].map(esc).join(','));
-      project.experts.forEach(e => e.scoreRecords.forEach(sr => lines.push([e.expertName, project.suppliers.find(s => s.id === sr.supplierId)?.supplierName || '', sr.scoreItem?.name || '', sr.score, sr.reason].map(esc).join(','))));
+      project.experts.forEach(e => e.scoreRecords.forEach(sr => lines.push([displayExpertName(e), project.suppliers.find(s => s.id === sr.supplierId)?.supplierName || '', sr.scoreItem?.name || '', sr.score, sr.reason].map(esc).join(','))));
       lines.push('');
       lines.push('=== 评标结果汇总 ===');
       lines.push(['排名', '供应商', '总分', '平均分', '推荐'].map(esc).join(','));
@@ -4780,7 +4823,7 @@ export class BidService {
       sections: {
         suppliers: project.suppliers.map(s => ({ supplierName: s.supplierName, downloadStatus: s.downloadStatus, submitStatus: s.submitStatus, encryptStatus: s.encryptStatus, decryptStatus: s.decryptStatus, confirmStatus: s.confirmStatus })),
         openingRecords: project.openingRecords,
-        expertScores: project.experts.map(e => ({ expertName: e.expertName, major: e.major, scores: e.scoreRecords.map(sr => ({ supplierId: sr.supplierId, scoreItemName: sr.scoreItem?.name, score: sr.score, reason: sr.reason })) })),
+        expertScores: project.experts.map(e => ({ expertName: displayExpertName(e), major: e.major, scores: e.scoreRecords.map(sr => ({ supplierId: sr.supplierId, scoreItemName: sr.scoreItem?.name, score: sr.score, reason: sr.reason })) })),
         evaluationResults: project.evaluationResults,
         supervisionLogs: project.supervisionLogs,
         clarifications: project.clarifications,
@@ -5142,11 +5185,23 @@ export class BidService {
 
   /** 通知开标时间变更：向全部投标供应商 + 评标专家发送变更通知 */
   async notifyScheduleChange(id: string, openTime: string, actorId?: string): Promise<{ reached: number }> {
+    // P2-8（2026-09-09 审查）：通知内容校验——openTime 须可解析且与项目当前值一致。
+    // 实际变更须先经 updateProject（24h 规则闸 + 监督/审计留痕），通知不得脱离变更任意广播。
+    const openTimeDate = new Date(openTime);
+    if (Number.isNaN(openTimeDate.getTime())) {
+      throw new BadRequestException({ error: '开标时间无法解析', code: 'INVALID_TIME' });
+    }
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, projectCode: true, name: true },
+      select: { id: true, projectCode: true, name: true, openTime: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.openTime && Math.abs(openTimeDate.getTime() - new Date(project.openTime).getTime()) > 1000) {
+      throw new BadRequestException({
+        error: '通知中的开标时间与项目当前值不一致；请先通过项目编辑完成时间变更（含 24h 规则校验与留痕），再发送变更通知',
+        code: 'SCHEDULE_MISMATCH',
+      });
+    }
 
     const [suppliers, experts] = await Promise.all([
       this.prisma.bidSupplier.findMany({

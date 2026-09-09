@@ -22,7 +22,7 @@ describe('BidEvaluationResultsService — evaluation results', () => {
         count: jest.fn(),
         groupBy: jest.fn(),
       },
-      bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
+      bidSupervisionLog: { findMany: jest.fn(), create: jest.fn().mockResolvedValue({}) }, // P2-5 告警链 .catch——须回 Promise
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
@@ -94,6 +94,53 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: 'x', experts: [], suppliers: [] });
       await expect(service.generateEvaluationResults('p1'))
         .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_EVALUATING' } });
+    });
+
+    it('P2-4：评标超时未审批延期 → 409 EVALUATION_OVERDUE（延期审批闸不可被结果生成绕过）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        evaluationDeadline: new Date(Date.now() - 3600_000),
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [],
+      });
+      await expect(service.generateEvaluationResults('p1'))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_OVERDUE' } });
+    });
+
+    it('P2-5：公式激活但唱标金额缺失 → 高风险监督告警（价格分静默 0 不再无声）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        evaluationDeadline: new Date(Date.now() + 7200_000),
+        priceFormulaConfig: { formulaType: 'lowest_price' }, ceilingPrice: null,
+        procurementMethod: '公开招标', roundMode: null, bondRequired: false,
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 'bs1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'valid' },
+          { id: 'bs2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'valid' },
+        ],
+      });
+      // PRICE 查询形如 category:'PRICE'（字符串），通过性查询形如 category:{in:[...]}——两形都判
+      prisma.bidScoreItem.findMany.mockImplementation(async (args: any) => {
+        const cat = args?.where?.category;
+        return cat === 'PRICE' || cat?.in?.includes('PRICE') ? [{ id: 'pi1', maxScore: 40 }] : [];
+      });
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 'bs1', amount: '100' }, // 乙无开标记录 → 金额缺失
+      ]);
+      await service.generateEvaluationResults('p1');
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: '价格分缺失告警', target: '乙' }),
+      }));
+    });
+
+    it('P2-4：评标时限内 → 放行至后续闸门（未到 evaluationDeadline 不拦）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        evaluationDeadline: new Date(Date.now() + 7200_000),
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [],
+      });
+      await expect(service.generateEvaluationResults('p1')).resolves.toBeDefined();
     });
 
     it('spec §10：签字包已闭环 → 重生成结果 409（闭环签字与结果一一对应）', async () => {
