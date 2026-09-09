@@ -477,6 +477,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
               type="checkbox"
               className="neu-checkbox"
               checked={mask.ceilingPrice ?? false}
+              disabled={previewBusy}
               onChange={(e) => toggleMask('ceilingPrice', e.target.checked)}
             />
             最高限价置空（招标公告）
@@ -486,6 +487,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
               type="checkbox"
               className="neu-checkbox"
               checked={mask.contractAmount ?? false}
+              disabled={previewBusy}
               onChange={(e) => toggleMask('contractAmount', e.target.checked)}
             />
             合同金额置空（合同公告）
