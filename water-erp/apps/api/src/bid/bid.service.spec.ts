@@ -146,7 +146,7 @@ describe('BidService — stage transitions', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
-      bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+      bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
       expertDispute: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
       bidScoreRecordHistory: { create: jest.fn() },
       bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
@@ -249,6 +249,42 @@ describe('BidService — stage transitions', () => {
           .rejects.toMatchObject({ response: { code: 'LEGAL_FLAG_LOCKED' } });
         expect(prisma.bidProject.update).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('manualMarkInvalidBid — H6 联动清结果/失效签字包（P1-2，2026-09-09）', () => {
+    const setup = (results: number, packet: any) => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', projectId: 'p1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidInvalidBid.findFirst.mockResolvedValue(null);
+      prisma.bidInvalidBid.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.count.mockResolvedValue(results);
+      prisma.bidSignPacket.findUnique.mockResolvedValue(packet);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+    };
+    const openPacket = { fileAssetId: 'fa1', sha256: 'a'.repeat(64), signPageScanFileId: null, closedAt: null, handoverFileAssetId: null };
+
+    it('已有评标结果 + 未闭环签字包 → 清结果 + 删包 + 重置正选签字状态（与异议裁决同口径）', async () => {
+      setup(3, openPacket);
+      await service.manualMarkInvalidBid('p1', 'bs1', '围标串标', 'u1');
+      expect(prisma.bidEvaluationResult.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'p1' } });
+      expect(prisma.bidSignPacket.delete).toHaveBeenCalledWith({ where: { projectId: 'p1' } });
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { projectId: 'p1', expertRole: '正选' }, data: expect.objectContaining({ signStatus: 'PENDING' }) }),
+      );
+    });
+
+    it('已闭环签字包 → 409 SIGN_PACKET_CLOSED（事务回滚，废标不生效——闭环后不可更正）', async () => {
+      setup(2, { ...openPacket, closedAt: new Date() });
+      await expect(service.manualMarkInvalidBid('p1', 'bs1', '围标串标', 'u1'))
+        .rejects.toMatchObject({ response: { code: 'SIGN_PACKET_CLOSED' } });
+    });
+
+    it('无评标结果 → 不触碰结果/签字包（既有行为回归）', async () => {
+      setup(0, openPacket);
+      await service.manualMarkInvalidBid('p1', 'bs1', '资质造假', 'u1');
+      expect(prisma.bidEvaluationResult.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.bidSignPacket.delete).not.toHaveBeenCalled();
     });
   });
 
