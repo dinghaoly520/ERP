@@ -124,12 +124,15 @@ describe('评标签字包全流程 (e2e)', () => {
     await app.close();
   });
 
-  it('未生成签字包时 GET 返回 canGenerate=true、packet=null', async () => {
+  it('评标结果生成即自动附签字包（c3cb999f P2：消除归档被「签字包未生成」挡下的时序坑）', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/sign-packet`)
       .set('Cookie', hostCookie).set('X-Portal', 'bid').expect(200);
     expect(res.body.resultsGenerated).toBe(true);
-    expect(res.body.packet).toBeNull();
+    // beforeAll 的 evaluation-results/generate 已幂等自动生成签字包——不再是 packet=null 起步
+    expect(res.body.packet).toBeTruthy();
+    expect(res.body.packet.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(res.body.packet.closed).toBe(false);
     expect(res.body.experts).toHaveLength(3);
   });
 

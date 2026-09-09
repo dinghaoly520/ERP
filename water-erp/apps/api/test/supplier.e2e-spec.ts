@@ -148,10 +148,11 @@ describe('Supplier (e2e)', () => {
       .send({ bidPrice: '12,600' })
       .expect(400);
     // 区分管道格式 400 与递交期业务 400：业务闸门返回专属 code（HOST_DECRYPT_CONSENT_REQUIRED/
-    // DEADLINE_PASSED 等）；ValidationPipe 400 经 HttpExceptionFilter 输出通用 code 'Bad Request'
-    // （filter 的 VALIDATION_ERROR/文案分支对数组 message 不可达——pre-existing，故无法断「投标报价」文案）
-    expect(res.body.code).toBe('Bad Request');
-    expect(res.body.error).toBe('Bad Request Exception');
+    // DEADLINE_PASSED 等）；ValidationPipe 400 经 HttpExceptionFilter 展开 class-validator 数组详情
+    // （c3cb999f 修 filter bug：数组 message 此前被 nested-object 分支吞成 'Bad Request Exception'，
+    //  校验文案不可见；现 code=VALIDATION_ERROR、文案上线，故可直接断「投标报价」格式闸门文案）
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error).toContain('投标报价须为不超过 4 位小数的数字');
   });
 
   it('A-94：合法草稿全字段（含 splitFiles/clientDeks）→ 201 且回读字段在（whitelist 不剥落、空串转未填）', async () => {
