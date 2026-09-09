@@ -289,7 +289,13 @@ export class SchedulerService {
     this.logger.log(`退库/淘汰预警扫描完成：专家候选 ${experts.length} 名，供应商候选 ${suppliers.length} 家`);
   }
 
-  /** 每分钟扫描定时公告（status=DRAFT + metadata.scheduledPublishDate），到期设 PUBLISHED 并可选发通知 */
+  /** 每分钟扫描定时公告（status=DRAFT + metadata.scheduledPublishDate），到期发布。
+   *  P0-2（2026-09-09 审查）：改走 announcementService.update 的发布转换——旧实现裸
+   *  prisma.update 直改 PUBLISHED，绕过手动发布的全部闸门/联动（B-004/B-009 依法必招时限
+   *  预检、GB 赋码强制闸、PRE_WIN/WIN_NOTICE publicityEnd 推导、BID_NOTICE 建项+招标文件
+   *  联动）。最重后果：定时发布的预成交公示 publicityEnd 恒 null → 中标通知书永久死锁。
+   *  update 内部已含发布通知（notifySuppliersOnPublish，按可见范围），cron 不再另发。
+   *  发布失败（如时限闸拒绝）→ error 日志并保留 DRAFT（下轮重扫；违规草稿修正后可再发布）。 */
   @Cron('0 * * * * *')
   async publishScheduledAnnouncements() {
     const drafts = await this.prisma.announcement.findMany({
@@ -299,13 +305,15 @@ export class SchedulerService {
       const meta = (a.metadata as Record<string, any>) || {};
       if (!meta.scheduledPublishDate) continue;
       if (new Date(meta.scheduledPublishDate) <= new Date()) {
-        await this.prisma.announcement.update({
-          where: { id: a.id },
-          data: { status: 'PUBLISHED', publishDate: new Date() },
-        });
-        // 委托给 AnnouncementService 统一通知逻辑（按可见范围 + notifyOnPublish 开关）
-        await this.announcementService.notifySuppliersOnPublish(a.id, a.title, { ...meta, __type: a.type });
-        this.logger.log(`定时公告发布: ${a.title} (${a.id})`);
+        try {
+          await this.announcementService.update(a.id, {
+            status: 'PUBLISHED',
+            publishDate: new Date().toISOString(),
+          });
+          this.logger.log(`定时公告发布: ${a.title} (${a.id})`);
+        } catch (e) {
+          this.logger.error(`定时公告发布失败（保留草稿待修正）: ${a.title} (${a.id}): ${(e as Error).message}`);
+        }
       }
     }
   }

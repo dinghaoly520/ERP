@@ -146,3 +146,61 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
     expect(payload.content.match(/甲公司/g)).toHaveLength(1);
   });
 });
+
+describe('publishScheduledAnnouncements — P0-2 走 announcementService.update 发布闸门', () => {
+  const makeScheduler = () => {
+    const prisma: any = {
+      announcement: { findMany: jest.fn() },
+      // 故意不提供 announcement.update：旧实现裸 update 直改 PUBLISHED 属 P0-2 旁路，新实现不得触碰
+    };
+    const announcementService: any = {
+      update: jest.fn().mockResolvedValue({ id: 'a1', status: 'PUBLISHED' }),
+      notifySuppliersOnPublish: jest.fn().mockResolvedValue({}),
+    };
+    const scheduler = new SchedulerService(prisma, { create: jest.fn() } as any, {} as any, {} as any, announcementService, {} as any);
+    return { scheduler, prisma, announcementService };
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('到期草稿委托 update({status:PUBLISHED, publishDate:now})；cron 侧不再另发通知（update 内部已含）', async () => {
+    const { scheduler, prisma, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a1', title: '预成交公示', type: 'PRE_WIN_NOTICE', status: 'DRAFT', metadata: { scheduledPublishDate: new Date(Date.now() - 60_000).toISOString() } },
+    ]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).toHaveBeenCalledTimes(1);
+    const [id, dto] = announcementService.update.mock.calls[0];
+    expect(id).toBe('a1');
+    expect(dto.status).toBe('PUBLISHED');
+    expect(new Date(dto.publishDate).getTime()).toBeGreaterThan(Date.now() - 60_000);
+    // 发布通知由 update() 内部负责——cron 不得重复直发
+    expect(announcementService.notifySuppliersOnPublish).not.toHaveBeenCalled();
+  });
+
+  it('update 抛错（如时限/赋码闸拒绝）→ 记录错误、不中断后续条目（违规草稿保持 DRAFT 待修正）', async () => {
+    const { scheduler, prisma, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'bad', title: '违规招标公告', type: 'BID_NOTICE', status: 'DRAFT', metadata: { scheduledPublishDate: new Date(Date.now() - 60_000).toISOString() } },
+      { id: 'ok', title: '常规公告', type: 'POLICY', status: 'DRAFT', metadata: { scheduledPublishDate: new Date(Date.now() - 60_000).toISOString() } },
+    ]);
+    announcementService.update.mockImplementation(async (id: string) => {
+      if (id === 'bad') throw new Error('依法必招项目：招标文件出售开始至开标须不少于 20 日');
+      return { id, status: 'PUBLISHED' };
+    });
+    await expect(scheduler.publishScheduledAnnouncements()).resolves.toBeUndefined();
+    expect(announcementService.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('未到期 / 无 scheduledPublishDate 的草稿不动', async () => {
+    const { scheduler, prisma, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'future', title: '未到期', type: 'POLICY', status: 'DRAFT', metadata: { scheduledPublishDate: new Date(Date.now() + 3600_000).toISOString() } },
+      { id: 'plain', title: '普通草稿', type: 'POLICY', status: 'DRAFT', metadata: {} },
+    ]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).not.toHaveBeenCalled();
+  });
+});
