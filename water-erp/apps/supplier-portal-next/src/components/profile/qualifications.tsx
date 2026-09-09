@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { supplierApi } from "@/lib/api/supplier";
+import { useConfirm } from "@/components/use-confirm";
 import { uploadFile, type FileAssetResponse } from "@/lib/api/upload";
 import { cn } from "@/lib/utils";
 import "@/styles/pages/profile.css";
@@ -249,11 +250,12 @@ export function QualAddPanel({ onAdded, onClose }: {
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { confirm, dialog } = useConfirm();
 
   const markDirty = () => setDirty(true);
 
-  const closePanel = () => {
-    if (dirty && !window.confirm("当前有未保存的修改，关闭后会丢失。确定关闭吗？")) return;
+  const closePanel = async () => {
+    if (dirty && !(await confirm({ message: "当前有未保存的修改，关闭后会丢失。确定关闭吗？" }))) return;
     onClose();
   };
 
@@ -427,6 +429,7 @@ export function QualAddPanel({ onAdded, onClose }: {
           </div>
         </div>
       </div>
+      {dialog}
     </div>,
     document.body,
   );

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { catalogApi } from "@/lib/api/catalog";
+import { useConfirm } from "@/components/use-confirm";
 import "@/styles/pages/catalog.css";
 
 export type DialogMode = "NEW_ITEM" | "JOIN_EXISTING" | "UPDATE_QUOTE" | "edit";
@@ -132,6 +133,7 @@ export function ApplicationDialog({
   onSuccess: () => void;
 }) {
   const title = TITLE_MAP[mode] ?? mode;
+  const { confirm, dialog } = useConfirm();
 
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -179,9 +181,9 @@ export function ApplicationDialog({
     setFormDirty(true);
   };
 
-  /* 有未保存内容时关闭需确认（ElMessageBox.confirm → window.confirm） */
-  function requestClose() {
-    if (formDirty && !window.confirm("有未保存的填写内容，确定放弃吗？")) return;
+  /* 有未保存内容时关闭需确认（已迁移 useConfirm） */
+  async function requestClose() {
+    if (formDirty && !(await confirm({ message: "有未保存的填写内容，确定放弃吗？" }))) return;
     onClose();
   }
 
@@ -195,7 +197,7 @@ export function ApplicationDialog({
       if (!form.proposedUnit.trim()) { toast.warning("请填写单位"); return; }
     }
     if (mode === "UPDATE_QUOTE") {
-      if (!window.confirm(`确认将报价修改为 ¥${Number(price).toFixed(2)}？`)) return;
+      if (!(await confirm({ message: `确认将报价修改为 ¥${Number(price).toFixed(2)}？` }))) return;
     }
     setSubmitting(true);
     try {
@@ -403,6 +405,7 @@ export function ApplicationDialog({
           </div>
         </div>
       </div>
+      {dialog}
     </div>,
     document.body,
   );

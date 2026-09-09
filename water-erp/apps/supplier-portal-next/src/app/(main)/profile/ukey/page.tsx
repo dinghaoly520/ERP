@@ -5,7 +5,7 @@
  * 介质与口令逻辑走 @water-erp/ukey 的 MockUKeyAdapter：
  *  - storage 适配 localStorage，与 Vue 版同键同逻辑（keystore 键 `mock-ukey-keystore`）
  *  - 绑定公开信息缓存键 `supplier_ukey_bound`（供投标提交页恢复 certSn 参考）
- * 差异仅为框架等价替换：ElMessage→sonner toast、ElMessageBox→window.confirm/alert。
+ * 差异仅为框架等价替换：ElMessage→sonner toast、ElMessageBox→useConfirm/window.alert。
  */
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { UKEY_STRICT, detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-f
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
+import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
 import "@/styles/pages/ukey.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
@@ -53,6 +54,7 @@ const ukeyStorage: StorageLike = {
 };
 
 export default function UkeyManagePage() {
+  const { confirm, dialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -230,8 +232,8 @@ export default function UkeyManagePage() {
   // ── 解绑 ──
   async function handleRevoke(row: ServerCertRow) {
     if (UKEY_STRICT && !ukey) { toast.warning("请先解锁 U盾，再进行证书解绑"); return; }
-    // ElMessageBox.confirm → window.confirm（取消直接返回，不再走 catch 的 error 分支）
-    if (!window.confirm(`确定解绑证书 ${row.certSn} 吗？解绑后该证书将无法再用于投标签名。`)) return;
+    // 已迁移 useConfirm（取消直接返回，不再走 catch 的 error 分支）
+    if (!(await confirm({ message: `确定解绑证书 ${row.certSn} 吗？解绑后该证书将无法再用于投标签名。`, danger: true }))) return;
     setRevoking(true);
     try {
       const res: any = await supplierApi.revokeCert(row.id);
@@ -547,6 +549,7 @@ export default function UkeyManagePage() {
           </div>
         </div>
       </SpDialog>
+      {dialog}
     </>
   );
 }

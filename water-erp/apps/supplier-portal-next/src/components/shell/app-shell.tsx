@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notification-context";
 import { useSupplierStatus } from "@/lib/supplier-status-context";
+import { useConfirm } from "@/components/use-confirm";
 import type { SupplierNotification } from "@/lib/api/notification";
 import { resolveNotificationLink, summarizeNotification } from "@/lib/notification-meta";
 import {
@@ -178,6 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [pwdOpen, setPwdOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     const check = () => {
@@ -280,13 +282,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     fetchNotifications(1, 5);
   }
 
-  function goToNotif(n: SupplierNotification) {
+  async function goToNotif(n: SupplierNotification) {
     setNotifOpen(false);
     const destination = resolveNotificationLink(n.link, window.location.origin);
     if (destination?.kind === "internal") {
       router.push(destination.href);
     } else if (destination?.kind === "external") {
-      if (window.confirm("该消息将打开外部网站，是否继续？")) {
+      if (await confirm({ message: "该消息将打开外部网站，是否继续？" })) {
         window.open(destination.href, "_blank", "noopener,noreferrer");
       }
     } else {
@@ -296,7 +298,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   async function handleLogout() {
-    if (!window.confirm("确定要退出登录吗？")) return;
+    if (!(await confirm({ message: "确定要退出登录吗？" }))) return;
     await logout();
   }
 
@@ -542,6 +544,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <ChangePasswordDialog open={pwdOpen} onClose={() => setPwdOpen(false)} />
         <BackToTop />
       </div>
+      {dialog}
     </div>
   );
 }

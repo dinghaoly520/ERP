@@ -9,6 +9,7 @@ import { ClipboardList, TriangleAlert, Plus } from "lucide-react";
 import { supplierApi } from "@/lib/api/supplier";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { SpButton } from "@/components/ui";
+import { useConfirm } from "@/components/use-confirm";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
@@ -79,6 +80,7 @@ function cardStageLabel(row: any): string {
 /** 投标进展 — 已提交投标记录 + 阶段时间线 + 撤回/开标确认入口 */
 export default function MyBidsPage() {
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [firstLoad, setFirstLoad] = useState(true);
   const [error, setError] = useState(false);
@@ -128,7 +130,7 @@ export default function MyBidsPage() {
   }, [load]);
 
   async function handleWithdraw(id: string) {
-    if (!window.confirm("确定要撤回此标书吗？")) return;
+    if (!(await confirm({ message: "确定要撤回此标书吗？" }))) return;
     try {
       await supplierApi.withdrawSubmission(id);
       toast.success("投标已撤回");
@@ -329,6 +331,7 @@ export default function MyBidsPage() {
           )}
         </div>
       )}
+      {dialog}
     </div>
   );
 }

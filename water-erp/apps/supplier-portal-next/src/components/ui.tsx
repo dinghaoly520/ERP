@@ -280,11 +280,6 @@ export function SpDialog({
   );
 }
 
-/** ElMessageBox.confirm 的 Promise 等价（原生 confirm 保同步拦截语义） */
-export function confirmBox(message: string, confirmText = "确定"): Promise<boolean> {
-  return Promise.resolve(window.confirm(`${message}`));
-}
-
 /* ─── Tabs（neu-tab-bar / neu-tab 来自 web 设计系统）─── */
 export function SpTabs<T extends string>({
   value,

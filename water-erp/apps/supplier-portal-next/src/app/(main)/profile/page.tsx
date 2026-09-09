@@ -24,6 +24,7 @@ import { supplierApi } from "@/lib/api/supplier";
 import { uploadFile } from "@/lib/api/upload";
 import { cn } from "@/lib/utils";
 import { LoadingBlock, SpButton } from "@/components/ui";
+import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { QualAddPanel, QualCompactCard, QualsTab } from "@/components/profile/qualifications";
 import { ContactPanel, ContactsTab } from "@/components/profile/contacts";
@@ -73,6 +74,7 @@ const normPerf = (p: PerfDraft) => ({ projectName: p.projectName.trim(), clientN
 
 /** 企业信息（CompanyInfo.vue 移植 — 三 tab：企业信息 / 资质与证照 / 联系人 + 变更申请弹窗） */
 export default function ProfilePage() {
+  const { confirm, dialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -187,7 +189,7 @@ export default function ProfilePage() {
 
   /* ═══════════ 资质删除 ═══════════ */
   const qHandleDelete = async (id: string) => {
-    if (!window.confirm("确定要删除此资质材料吗？")) return;
+    if (!(await confirm({ message: "确定要删除此资质材料吗？", danger: true }))) return;
     try {
       await supplierApi.deleteQualification(id);
       setQualifications(await supplierApi.listQualifications());
@@ -197,7 +199,7 @@ export default function ProfilePage() {
 
   /* ═══════════ 联系人删除 ═══════════ */
   const ctHandleDelete = async (id: string) => {
-    if (!window.confirm("确定要删除此联系人吗？")) return;
+    if (!(await confirm({ message: "确定要删除此联系人吗？", danger: true }))) return;
     try {
       await supplierApi.deleteContact(id);
       setContacts(await supplierApi.listContacts());
@@ -353,7 +355,7 @@ export default function ProfilePage() {
         if (rows.some((b) => !b.accountName || !b.bankName || !b.accountNo)) {
           toast.warning("银行账户的户名、开户银行、账号为必填项"); return;
         }
-        if (!window.confirm(`将提交「银行账户」整体变更（共 ${rows.length} 个账户），审批通过后现有账户将被本次提交替换。\n\n———\n变更原因：${crReason}`)) return;
+        if (!(await confirm({ message: `将提交「银行账户」整体变更（共 ${rows.length} 个账户），审批通过后现有账户将被本次提交替换。\n\n———\n变更原因：${crReason}` }))) return;
         setCrSub(true);
         try {
           await supplierApi.createChangeRequest({ fieldName: "bankAccounts", fieldLabel: "银行账户", newValue: JSON.stringify(rows), reason: crReason.trim() });
@@ -365,7 +367,7 @@ export default function ProfilePage() {
         const rows = crPerfs.map(normPerf);
         if (rows.some((p) => !p.projectName)) { toast.warning("业绩项目名称为必填项"); return; }
         if (rows.some((p) => p.proofFiles.length === 0)) { toast.warning("每项业绩须至少上传一份证明材料"); return; }
-        if (!window.confirm(`将提交「主体业绩」整体变更（共 ${rows.length} 项业绩），审批通过后现有业绩将被本次提交替换。\n\n———\n变更原因：${crReason}`)) return;
+        if (!(await confirm({ message: `将提交「主体业绩」整体变更（共 ${rows.length} 项业绩），审批通过后现有业绩将被本次提交替换。\n\n———\n变更原因：${crReason}` }))) return;
         setCrSub(true);
         try {
           await supplierApi.createChangeRequest({ fieldName: "performances", fieldLabel: "主体业绩", newValue: JSON.stringify(rows), reason: crReason.trim() });
@@ -381,8 +383,8 @@ export default function ProfilePage() {
       const changeCount = crFieldChanged.length + (crHasTagsChanges ? 1 : 0);
       const lines = crFieldChanged.map((k) => `${CR_FIELD_LABELS[k]}\n${crOrig[k] || "（空）"} → ${crForm[k]}`);
       if (crHasTagsChanges) lines.push(`业务标签\n${crTags.filter((t) => t.trim()).join("、")}`);
-      // 原 ElMessageBox HTML 摘要 → 原生 confirm 纯文本摘要（转义无需，confirm 不解析 HTML）
-      if (!window.confirm(`将提交 ${changeCount} 项变更：\n\n${lines.join("\n\n")}\n\n———\n变更原因：${crReason}`)) return;
+      // 原 ElMessageBox HTML 摘要 → 纯文本摘要（已迁移 useConfirm，whitespace-pre-line 渲染 \n）
+      if (!(await confirm({ message: `将提交 ${changeCount} 项变更：\n\n${lines.join("\n\n")}\n\n———\n变更原因：${crReason}` }))) return;
       setCrSub(true);
       let ok = 0, fail = 0;
       for (const k of crFieldChanged) {
@@ -1069,6 +1071,7 @@ export default function ProfilePage() {
         </div>,
         document.body,
       )}
+      {dialog}
     </>
   );
 }

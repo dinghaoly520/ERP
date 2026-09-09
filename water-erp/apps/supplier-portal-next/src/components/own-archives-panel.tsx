@@ -7,6 +7,7 @@ import { Archive, Paperclip, Pencil, Plus, Trash2, TriangleAlert, X } from "luci
 import { api, qs } from "@/lib/api";
 import { uploadFile } from "@/lib/api/upload";
 import { EmptyState, SpButton, SpDateInput, SpDialog, SpTextarea } from "@/components/ui";
+import { useConfirm } from "@/components/use-confirm";
 
 /**
  * 供应商自有档案面板（:3004 我的合同 / 框架协议页）——供应商自己上传留存的资料：
@@ -138,6 +139,7 @@ export function OwnArchivesPanel({
   const [editing, setEditing] = useState<OwnArchive | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [busy, setBusy] = useState(false);
+  const { confirm, dialog } = useConfirm();
   const formId = useId();
   const fieldIds = {
     title: `${formId}-title`,
@@ -199,7 +201,7 @@ export function OwnArchivesPanel({
   }
 
   async function remove(row: OwnArchive) {
-    if (!window.confirm(`确定删除「${row.title}」吗？已上传的附件仍保留在文件库。`)) return;
+    if (!(await confirm({ message: `确定删除「${row.title}」吗？已上传的附件仍保留在文件库。`, danger: true }))) return;
     try {
       await api.delete(`/supplier-portal/own-archives/${row.id}`);
       toast.success("已删除");
@@ -344,6 +346,7 @@ export function OwnArchivesPanel({
           </div>
         </div>
       </SpDialog>
+      {dialog}
     </div>
   );
 }

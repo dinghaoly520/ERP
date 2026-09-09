@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import { toast } from "sonner";
 import { AlertTriangle, FileSpreadsheet, Handshake, Inbox, Loader2 } from "lucide-react";
 import { SpButton } from "@/components/ui";
+import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { catalogApi } from "@/lib/api/catalog";
 import {
@@ -57,6 +58,7 @@ function itemSpec(a: CatalogApplication): string {
 }
 
 export default function MyApplicationsPage() {
+  const { confirm, dialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [applications, setApplications] = useState<CatalogApplication[]>([]);
@@ -83,7 +85,7 @@ export default function MyApplicationsPage() {
   };
 
   async function withdraw(a: CatalogApplication) {
-    if (!window.confirm("确认撤回？")) return;
+    if (!(await confirm({ message: "确认撤回？" }))) return;
     try {
       await catalogApi.withdraw(a.id);
       toast.success("已撤回");
@@ -92,7 +94,7 @@ export default function MyApplicationsPage() {
   }
 
   async function acceptCounter(a: CatalogApplication) {
-    if (!window.confirm(`接受议价 ¥${a.counterPrice}？`)) return;
+    if (!(await confirm({ message: `接受议价 ¥${a.counterPrice}？` }))) return;
     try {
       await catalogApi.acceptCounter(a.id);
       toast.success("已接受议价");
@@ -244,6 +246,7 @@ export default function MyApplicationsPage() {
           />
         </div>
       )}
+      {dialog}
     </div>
   );
 }

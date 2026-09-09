@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, CircleCheck, Coins, Inbox, Lock } from "lucide-react";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton } from "@/components/ui";
+import { useConfirm } from "@/components/use-confirm";
 import { bidApi } from "@/lib/api/bid";
 import { ApiError } from "@/lib/api";
 import { useBidWebSocket } from "@/hooks/use-bid-websocket";
@@ -62,6 +63,7 @@ export default function RoundQuotePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const projectId = params.id;
+  const { confirm, dialog } = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -169,10 +171,10 @@ export default function RoundQuotePage() {
     if (!currentOpenRound || !myBidSupplierId || !quotePriceValid) return;
     const price = Math.round(quotePrice! * 100) / 100; // precision=2
 
-    // 提交前确认弹窗——提醒供应商仔细核对价格（ElMessageBox.confirm → 原生 confirm）
-    const confirmed = window.confirm(
-      `请确认您的报价金额：\n\n¥${formatPrice(price)}\n\n提交后不可修改，请确保价格准确无误。`,
-    );
+    // 提交前确认弹窗——提醒供应商仔细核对价格（已迁移 useConfirm）
+    const confirmed = await confirm({
+      message: `请确认您的报价金额：\n\n¥${formatPrice(price)}\n\n提交后不可修改，请确保价格准确无误。`,
+    });
     if (!confirmed) return; // 用户取消
 
     setSubmitting(true);
@@ -342,6 +344,7 @@ export default function RoundQuotePage() {
           </div>
         )}
       </div>
+      {dialog}
     </div>
   );
 }

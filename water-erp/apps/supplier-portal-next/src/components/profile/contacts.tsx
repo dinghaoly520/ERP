@@ -7,6 +7,7 @@ import { ArrowRight, Phone, Plus, X } from "lucide-react";
 import { supplierApi } from "@/lib/api/supplier";
 import { cn } from "@/lib/utils";
 import { SpButton } from "@/components/ui";
+import { useConfirm } from "@/components/use-confirm";
 import "@/styles/pages/profile.css";
 
 /* ═══ 联系人 Tab（CompanyInfo 内联版 — 操作栏 + 表格 + 空态）═══ */
@@ -81,6 +82,7 @@ export function ContactPanel({ editing, onSaved, onClose }: {
   onClose: () => void;
 }) {
   const isEdit = !!editing;
+  const { confirm, dialog } = useConfirm();
   const [form, setForm] = useState({
     name: editing?.name ?? "",
     phone: editing?.phone ?? "",
@@ -93,8 +95,8 @@ export function ContactPanel({ editing, onSaved, onClose }: {
 
   const markDirty = () => setDirty(true);
 
-  const closePanel = () => {
-    if (dirty && !window.confirm("当前有未保存的修改，关闭后会丢失。确定关闭吗？")) return;
+  const closePanel = async () => {
+    if (dirty && !(await confirm({ message: "当前有未保存的修改，关闭后会丢失。确定关闭吗？" }))) return;
     onClose();
   };
 
@@ -208,6 +210,7 @@ export function ContactPanel({ editing, onSaved, onClose }: {
           </div>
         </div>
       </div>
+      {dialog}
     </div>,
     document.body,
   );
