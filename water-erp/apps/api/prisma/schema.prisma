@@ -1372,6 +1372,7 @@ model Supplier {
   performances        SupplierPerformance[]
   evaluations         SupplierEvaluation[]
   changeRecords       SupplierChangeRecord[]
+  penalties           SupplierPenalty[]
   tenderClarifications TenderClarification[]
   clarificationReceipts TenderClarificationReceipt[]
   bidSuppliers        BidSupplier[]
@@ -1640,6 +1641,26 @@ model SupplierChangeRecord {
 
   @@index([supplierId])
   @@index([status])
+}
+
+/// 对接专项 Phase 1（383号文曝光台数据源）：供应商处罚结构化登记。
+/// 黑名单状态位（Supplier.status=BLACKLIST）Phase 2 起由本表派生，本批不动既有状态机。
+model SupplierPenalty {
+  id                 String    @id @default(cuid())
+  supplierId         String
+  penaltyDocNo       String    @unique // 处罚决定文号（唯一，防重复登记）
+  authority          String // 处罚机关
+  decisionDate       DateTime // 决定日期
+  penaltyContent     String // 处罚内容
+  publicUntil        DateTime? // 公示截止（null=长期）
+  attachmentAssetId  String? // 处罚决定书扫描件 FileAsset
+  createdById        String?
+  createdAt          DateTime  @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([decisionDate])
 }
 
 model SupplierDocument {
@@ -3623,6 +3644,32 @@ model SupervisionPushLog {
   project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, payloadType])
+}
+
+/// 对接专项 Phase 1：上级平台推送台账（人工确认制——每次 dispatch/export 一行）。
+/// 与 SupervisionPushLog（A-153 评标报告监督推送）并列隔离，互不侵入。
+/// 幂等：同通道+同数据项+同载荷哈希只许一次（重复 → 409 ALREADY_PUSHED）。
+model PlatformPushLog {
+  id              String   @id @default(cuid())
+  channel         String // offline | mock | sc_province | ceb_national | mwr_water
+  itemType        String // 383号文十类（bid_notice/clarify/failed_bid/pre_win/win/contract/fulfillment/penalty/prequal/plan）
+  itemId          String // 如 announcement:<cuid> / contract:<cuid>
+  projectId       String?
+  projectCode     String?
+  status          String // SUCCESS | FAILED | EXPORTED | STUB_REFUSED
+  payloadSha256   String // 预览/推送一致性锚（dispatch 校验）
+  endpoint        String?
+  packetAssetId   String? // 离线导出文件包 FileAsset（category=platform_push_package）
+  responseSnippet String? // ≤2KB
+  errorMessage    String?
+  attemptNo       Int      @default(1)
+  masked          Json? // 本次推送的脱敏项清单
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  @@unique([channel, itemId, payloadSha256])
+  @@index([projectId])
+  @@index([itemType])
 }
 
 /// A-102：保证金到账台账（资金级登记——缴纳人/金额/到账时间/收款账户/支付形式；一家一条幂等）
