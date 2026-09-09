@@ -172,7 +172,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
-  const [pausing, setPausing] = useState(false);
   const [resuming, setResuming] = useState(false);
   // ═══ DANGER 兜底：重新封标（从系统内原始明文恢复）═══
   const [resealing, setResealing] = useState<Set<string>>(new Set());
@@ -189,10 +188,20 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [bondLedgerSubmitting, setBondLedgerSubmitting] = useState(false);
   const [bondLedgerDeleting, setBondLedgerDeleting] = useState<Set<string>>(new Set());
 
-  /** P2（二轮审查）：解密异常定性受控弹窗——替代 window.prompt（原生弹窗无样式无校验） */
-  const [dangerQualify, setDangerQualify] = useState<{ submissionId: string; supplierName: string } | null>(null);
-  const [dangerReason, setDangerReason] = useState('');
-  const [dangerBusy, setDangerBusy] = useState(false);
+  /** P2 收尾：统一原因弹窗（定性异常/暂停开标/接受解密失败三处共用，替代裸 prompt） */
+  const [reasonDialog, setReasonDialog] = useState<{ title: string; placeholder: string; minLen?: number; submitLabel: string; onSubmit: (reason: string) => Promise<void> } | null>(null);
+  const [reasonText, setReasonText] = useState('');
+  const [reasonBusy, setReasonBusy] = useState(false);
+
+  // Esc 关闭原因弹窗（提交中不响应，防误关丢稿）
+  useEffect(() => {
+    if (!reasonDialog) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !reasonBusy) { setReasonDialog(null); setReasonText(''); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [reasonDialog, reasonBusy]);
 
   const handleReseal = async (supplierId: string) => {
     setResealing(prev => new Set(prev).add(supplierId));
@@ -822,14 +831,15 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 ><Clock size={13} className="mr-1 inline" />延长 +15分钟</button>
                 {canHost && (!session.pausedAt ? (
                   <button
-                    type="button" disabled={pausing}
+                    type="button"
                     className="neu-btn-soft text-xs text-[var(--warning)]"
-                    onClick={async () => {
-                      setPausing(true);
-                      const reason = window.prompt('暂停原因（可选）'); try { await pauseOpening(projectId, reason || undefined); toast.success('开标已暂停'); onRefresh(); }
-                      catch (e: any) { toast.error(e?.message || '暂停失败'); }
-                      finally { setPausing(false); }
-                    }}
+                    onClick={() => setReasonDialog({
+                      title: '暂停开标',
+                      placeholder: '暂停原因（可选，留空即暂停）',
+                      minLen: 0,
+                      submitLabel: '确认暂停',
+                      onSubmit: async (reason) => { await pauseOpening(projectId, reason || undefined); toast.success('开标已暂停'); onRefresh(); },
+                    })}
                   ><AlertTriangle size={13} className="mr-1 inline" />暂停开标</button>
                 ) : (
                   <button
@@ -1096,7 +1106,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         {/* P1-1：窗口过期后的未解密定性通道（后端已放宽 PENDING/RUNNING）；dual-v2 行改用归因裁决 */}
                         {!!session && remaining <= 0 && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
                           <button type="button"
-                            onClick={() => setDangerQualify({ submissionId: s.id, supplierName: s.supplierName })}
+                            onClick={() => setReasonDialog({
+                              title: `解密异常定性 — ${s.supplierName}`,
+                              placeholder: '如：供应商未在解密窗口内完成解密 / 文件完整性校验不通过',
+                              minLen: 5,
+                              submitLabel: '确认定性',
+                              onSubmit: async (reason) => { await acceptSupplierDanger(project.id, s.id, reason); toast.success('已定性为解密异常（EXCEPTION）'); onRefresh(); },
+                            })}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:opacity-80 disabled:opacity-50">
                             定性异常
                           </button>
@@ -1138,15 +1154,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             </button>
                             )}
                             <button type="button"
-                              onClick={async () => {
-                                const reason = prompt('请填写确认接受解密失败的原因：');
-                                if (!reason) return;
-                                try {
-                                  await acceptSupplierDanger(project.id, s.id, reason);
-                                  toast.success('已确认接受解密失败');
-                                  onRefresh();
-                                } catch (e: any) { toast.error(e?.message || '操作失败'); }
-                              }}
+                              onClick={() => setReasonDialog({
+                                title: '确认接受解密失败',
+                                placeholder: '请填写确认接受解密失败的原因：',
+                                minLen: 1,
+                                submitLabel: '确认接受',
+                                onSubmit: async (reason) => { await acceptSupplierDanger(project.id, s.id, reason); toast.success('已确认接受解密失败'); onRefresh(); },
+                              })}
                               className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]">
                               <AlertTriangle size={12} strokeWidth={1.5} /> 接受
                             </button>
@@ -1522,52 +1536,46 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       )}
 
-      {/* P2（二轮审查）：解密异常定性受控弹窗——替代 window.prompt（原生弹窗无样式无校验） */}
-      {dangerQualify && (
-        <div className="bid-overlay" onClick={() => { if (!dangerBusy) { setDangerQualify(null); setDangerReason(''); } }}>
+      {/* P2 收尾：统一原因弹窗（定性异常/暂停开标/接受解密失败三处共用，替代裸 prompt） */}
+      {reasonDialog && (
+        <div className="bid-overlay" onClick={() => { if (!reasonBusy) { setReasonDialog(null); setReasonText(''); } }}>
           <div className="bid-overlay-backdrop" />
-          <div
-            className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)]"
-            role="dialog"
-            aria-modal="true"
-            aria-label="解密异常定性"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-black text-[color:var(--foreground)]">解密异常定性 — {dangerQualify.supplierName}</h3>
-            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-              定性后该供应商解密状态记为异常（EXCEPTION），将计入开标记录与监督日志，请填写事实性原因。
-            </p>
+          <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)] px-6 py-5" role="dialog" aria-modal="true" aria-label={reasonDialog.title} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-black text-[color:var(--foreground)]">{reasonDialog.title}</h3>
             <textarea
               className="neu-input w-full text-sm"
               rows={3}
               maxLength={200}
-              placeholder="如：供应商未在解密窗口内完成解密 / 文件完整性校验不通过"
-              value={dangerReason}
-              onChange={(e) => setDangerReason(e.target.value)}
-              disabled={dangerBusy}
+              placeholder={reasonDialog.placeholder}
+              value={reasonText}
+              onChange={(e) => setReasonText(e.target.value)}
+              disabled={reasonBusy}
             />
+            {(reasonDialog.minLen ?? 0) > 0 && reasonText.trim().length < (reasonDialog.minLen ?? 0) && (
+              <p className="mt-1 text-[10px] text-[color:var(--muted-foreground)]">
+                至少 {(reasonDialog.minLen ?? 0)} 字，当前 {reasonText.trim().length} 字
+              </p>
+            )}
             <div className="mt-3 flex justify-end gap-2">
-              <button type="button" className="neu-btn-soft !h-8 !text-xs" disabled={dangerBusy} onClick={() => { setDangerQualify(null); setDangerReason(''); }}>取消</button>
+              <button type="button" className="neu-btn-soft !h-8 !text-xs" disabled={reasonBusy} onClick={() => { setReasonDialog(null); setReasonText(''); }}>取消</button>
               <button
                 type="button"
                 className="neu-btn-primary !h-8 !text-xs"
-                disabled={dangerBusy || dangerReason.trim().length < 5}
+                disabled={reasonBusy || reasonText.trim().length < (reasonDialog.minLen ?? 0)}
                 onClick={async () => {
-                  setDangerBusy(true);
+                  setReasonBusy(true);
                   try {
-                    await acceptSupplierDanger(project.id, dangerQualify.submissionId, dangerReason.trim());
-                    toast.success('已定性为解密异常（EXCEPTION）');
-                    setDangerQualify(null);
-                    setDangerReason('');
-                    onRefresh();
+                    await reasonDialog.onSubmit(reasonText.trim());
+                    setReasonDialog(null);
+                    setReasonText('');
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : '定性失败');
+                    toast.error(e instanceof Error ? e.message : '操作失败');
                   } finally {
-                    setDangerBusy(false);
+                    setReasonBusy(false);
                   }
                 }}
               >
-                确认定性
+                {reasonBusy ? '处理中…' : reasonDialog.submitLabel}
               </button>
             </div>
           </div>
