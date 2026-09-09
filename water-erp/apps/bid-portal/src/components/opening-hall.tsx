@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
 import { useBidUser } from '@/hooks/use-bid-user';
+import { useConfirm } from '@/components/use-confirm';
 // 注：开标记录签字卡在「评标签字」tab（评标结束一次性办理的运营口径），本组件不再渲染
 
 /** cgzxui 裸面板（取代 @water-erp/ui SectionCard 的 p-0 用法）——无边框玻璃静态卡 */
@@ -192,6 +193,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [reasonDialog, setReasonDialog] = useState<{ title: string; placeholder: string; minLen?: number; submitLabel: string; description?: string; onSubmit: (reason: string) => Promise<void> } | null>(null);
   const [reasonText, setReasonText] = useState('');
   const [reasonBusy, setReasonBusy] = useState(false);
+  // confirm 普查专批（2026-09-09）：不可逆/高后果操作统一受控确认弹窗（与 reasonDialog 并存，互不干扰）
+  const { confirm, dialog } = useConfirm();
 
   // Esc 关闭原因弹窗（提交中不响应，防误关丢稿）
   useEffect(() => {
@@ -586,14 +589,14 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       if (e?.code === 'RECORD_LOCKED') { toast.error('该开标记录已锁定，无法重录'); return; }
       // P1-4：录入价与投标文件密封报价不一致——主持人显式确认后带 flag 重试（保留工期 flag 状态）
       if (e?.code === 'PRICE_MISMATCH' && !confirmSealedPrice) {
-        if (window.confirm(`${e?.message ?? '录入报价与密封报价不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`)) {
+        if (await confirm({ message: `${e?.message ?? '录入报价与密封报价不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`, danger: true })) {
           void handleEnterRecord(true, confirmSealedPeriod);
         }
         return;
       }
       // 工期一致性校验（P1-4 同构）：录入工期与投递工期不一致——确认后带 flag 重试（保留报价 flag 状态）
       if (e?.code === 'PERIOD_MISMATCH' && !confirmSealedPeriod) {
-        if (window.confirm(`${e?.message ?? '录入工期与投递工期不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`)) {
+        if (await confirm({ message: `${e?.message ?? '录入工期与投递工期不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`, danger: true })) {
           void handleEnterRecord(confirmSealedPrice, true);
         }
         return;
@@ -652,7 +655,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
   const handleRemoveBondLedger = async (row: BondLedgerRow) => {
     if (!projectId || bondLedgerDeleting.has(row.id)) return;
-    if (!window.confirm(`确认删除「${row.supplierName}」的到账记录？\n（仅限错登纠正，删除将记入监督日志高风险留痕）`)) return;
+    if (!(await confirm({ message: `确认删除「${row.supplierName}」的到账记录？\n（仅限错登纠正，删除将记入监督日志高风险留痕）`, danger: true }))) return;
     setBondLedgerDeleting(prev => new Set(prev).add(row.id));
     try {
       await removeBondLedger(projectId, row.id);
@@ -1583,6 +1586,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </div>
         </div>
       )}
+
+      {/* confirm 普查专批：受控确认弹窗（danger 态，!z-[60] 盖过 bid-overlay z-50） */}
+      {dialog}
     </div>
   );
 }

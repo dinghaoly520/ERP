@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Ban, CheckCircle2, Flag, ShieldCheck, XCircle } from 'lucide-react';
 import { abortBidProject, listEvaluationResults, resolveExpertDispute } from '@/lib/api/evaluation';
 import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
+import { useConfirm } from '@/components/use-confirm';
 import type { BidProjectDetail } from '@/lib/types';
 
 type Props = {
@@ -59,6 +60,8 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
     // 生成/重生成/裁决（onEvalChanged）与裁决废标后的刷新都经 refreshSignal 传达
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bidProjectId, detail?.stage, refreshSignal]);
+  // confirm 普查专批（2026-09-09）：评标中流标为法定不可逆操作——受控确认弹窗（danger 态）
+  const { confirm, dialog } = useConfirm();
 
   if (!detail) return null;
   const { stage, expertDisputes } = detail;
@@ -110,7 +113,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
     const warn = resultsGenerated
       ? `${reasonBase}；已生成的官方评标结果将作废并高风险留痕。确认执行？此操作不可逆。`
       : `${reasonBase}。确认执行流标？此操作不可逆。`;
-    if (!window.confirm(warn)) return;
+    if (!(await confirm({ message: warn, danger: true }))) return;
     setBusyId('__abort__');
     try {
       // N4c：结果已生成时后端强制书面理由（ABORT_REASON_REQUIRED），此处同步带上
@@ -270,6 +273,9 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
           })}
         </div>
       )}
+
+      {/* confirm 普查专批：受控确认弹窗（danger 态，!z-[60] 盖过 bid-overlay z-50） */}
+      {dialog}
     </section>
   );
 }
