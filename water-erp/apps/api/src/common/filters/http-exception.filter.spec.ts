@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 import { OperationLogService } from '../../operation-log/operation-log.service';
 
@@ -66,5 +66,25 @@ describe('HttpExceptionFilter — operation-log 补记', () => {
     expect(oplog.create).not.toHaveBeenCalled();
     // 响应仍照常发出
     expect(host._res.status).toHaveBeenCalledWith(500);
+  });
+
+  // ── 对接专项 Phase 2 K4：结构化附加键透传（加法契约）──
+
+  it('K4：业务异常携 itemIds 数组 → 响应体透传 itemIds（ALREADY_PUSHED 类）', () => {
+    const host = makeHost();
+    filter.catch(new ConflictException({ code: 'ALREADY_PUSHED', error: 'x', itemIds: ['announcement:a1', 'contract:c2'] } as any), host);
+    const body = host._res.json.mock.calls[0][0];
+    expect(body.itemIds).toEqual(['announcement:a1', 'contract:c2']);
+    expect(body.code).toBe('ALREADY_PUSHED');
+  });
+
+  it('K4：携 items 数组 → 透传；不含附加键 → 响应体形状与旧契约逐键相等（零破坏）', () => {
+    const host = makeHost();
+    filter.catch(new BadRequestException({ code: 'OPENING_CHECKLIST_FAILED', error: 'y', items: ['a', 'b'] } as any), host);
+    expect(host._res.json.mock.calls[0][0].items).toEqual(['a', 'b']);
+
+    const host2 = makeHost();
+    filter.catch(new BadRequestException({ code: 'X', error: 'z' }), host2);
+    expect(Object.keys(host2._res.json.mock.calls[0][0]).sort()).toEqual(['code', 'error', 'path', 'statusCode', 'timestamp']);
   });
 });

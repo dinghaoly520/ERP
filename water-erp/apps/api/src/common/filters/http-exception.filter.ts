@@ -73,10 +73,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     }
 
-    // ── 以下为原有标准化响应逻辑（不变）──
+    // ── 以下为原有标准化响应逻辑（不变；K4 为加法契约）──
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = '服务器内部错误';
     let code = 'INTERNAL_ERROR';
+    // 对接专项 Phase 2 K4：结构化附加键（加法契约）——业务异常携 itemIds/items 数组时透传进响应体
+    const extra: Record<string, unknown> = {};
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -91,6 +93,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         if (typeof obj.code === 'string' && typeof obj.error === 'string') {
           code = obj.code;
           message = obj.error;
+          if (Array.isArray(obj.itemIds)) extra.itemIds = obj.itemIds;
+          if (Array.isArray(obj.items)) extra.items = obj.items;
         // class-validator 校验错误数组：{ message: string[], error: 'Bad Request' }
         // 注意必须先于下方 object 分支判断 —— typeof 数组 === 'object'，
         // 否则数组被当 nested 对象吞掉，只剩 exception.message（'Bad Request Exception'）
@@ -153,6 +157,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error: message,
       timestamp: new Date().toISOString(),
       path: request.url,
+      ...extra,
     });
   }
 }

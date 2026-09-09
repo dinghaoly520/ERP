@@ -345,7 +345,9 @@ export class UploadService implements OnModuleInit {
     if (
       asset.category === 'clarification_reply' ||
       asset.category === 'supervision_push_packet' ||
-      asset.category === 'supervision_push_voucher'
+      asset.category === 'supervision_push_voucher' ||
+      // 对接专项 Phase 2 K3：上级平台推送离线文件包——管理角色可见（原走兜底分支，收口为显式白名单）
+      asset.category === 'platform_push_package'
     ) {
       return ['admin', 'bid_host', 'leader', 'staff'].includes(user.role);
     }
