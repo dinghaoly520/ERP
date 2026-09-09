@@ -1015,13 +1015,11 @@ export class BidService {
       // 异议可并发修改 confirmStatus，须 tx 内重读。
       const txSuppliers = await tx.bidSupplier.findMany({
         where: { projectId: id, submitStatus: { not: '已撤回' } },
-        select: { supplierName: true, decryptStatus: true, confirmStatus: true },
+        select: { supplierName: true, supplierId: true, submitStatus: true, decryptStatus: true, confirmStatus: true },
       });
-      const txNotReady = txSuppliers.filter(s => {
-        if (s.decryptStatus === 'DANGER') return false;                              // 解密异常已定性
-        if (s.decryptStatus !== 'SUCCESS') return true;                              // PENDING/RUNNING 未解密
-        return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';   // 解密成功但确认未闭环
-      });
+      // P1-5b：事务内复查同口径排除未投递家（与 getOpeningNotReady 一致，防 check→tx 间隙口径分叉）
+      const txSubMap = await this.loadSubmissionStatusMap(tx, id);
+      const txNotReady = txSuppliers.filter(s => BidService.isSubmittedRow(s, txSubMap) && BidService.openingRowNotReady(s));
       if (txNotReady.length > 0) {
         throw new ConflictException({
           error: `事务内复查：开标尚未完成，${txNotReady.map(s => s.supplierName).join('、')} 未到终局态`,
@@ -1728,15 +1726,42 @@ export class BidService {
     await this.attributePendingDualSuppliers(id);
     const activeSuppliers = await this.prisma.bidSupplier.findMany({
       where: { projectId: id, submitStatus: { not: '已撤回' } },
-      select: { supplierName: true, decryptStatus: true, confirmStatus: true },
+      select: { supplierName: true, supplierId: true, submitStatus: true, decryptStatus: true, confirmStatus: true },
     });
+    const subBySupplier = await this.loadSubmissionStatusMap(this.prisma, id);
     return activeSuppliers
-      .filter(s => {
-        if (s.decryptStatus === 'DANGER') return false;                             // 解密异常已定性
-        if (s.decryptStatus !== 'SUCCESS') return true;                             // PENDING/RUNNING 未解密
-        return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';  // 解密成功但确认未闭环
-      })
+      .filter(s => BidService.isSubmittedRow(s, subBySupplier)) // P1-5b：未投递家不参与开标完成度
+      .filter(s => BidService.openingRowNotReady(s))
       .map(s => s.supplierName);
+  }
+
+  /** P1-5b（2026-09-09 审查）：参标（已投递）判定——有 SupplierBidSubmission 以 status='submitted'
+   *  为准（单一事实源，同 getWorkspace 口径），无提交记录回退 BidSupplier.submitStatus；
+   *  supplierId 为空的名册行不可能有提交记录，按 submitStatus 兜底。未投递≠解密异常，
+   *  不得进入开标完成度（旧口径令 H4 永久阻塞且只能靠「接受未解密」错位定性）。 */
+  static isSubmittedRow(
+    s: { supplierId: string | null; submitStatus: string | null },
+    subBySupplier: Map<string, string>,
+  ): boolean {
+    if (!s.supplierId) return s.submitStatus === '已提交';
+    const sub = subBySupplier.get(s.supplierId);
+    return sub !== undefined ? sub === 'submitted' : s.submitStatus === '已提交';
+  }
+
+  /** H4 未到终局态判定（解密/确认/异议未结）——对参标家的既有口径，抽出共享。 */
+  static openingRowNotReady(s: { decryptStatus: string; confirmStatus: string }): boolean {
+    if (s.decryptStatus === 'DANGER') return false;                             // 解密异常已定性
+    if (s.decryptStatus !== 'SUCCESS') return true;                             // PENDING/RUNNING 未解密
+    return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';  // 解密成功但确认未闭环
+  }
+
+  /** 项目提交记录状态表（supplierId → submission.status），H4 参标判定用。 */
+  private async loadSubmissionStatusMap(db: any, id: string): Promise<Map<string, string>> {
+    const rows = await db.supplierBidSubmission.findMany({
+      where: { projectId: id },
+      select: { supplierId: true, status: true },
+    });
+    return new Map(rows.filter((r: any) => r.supplierId).map((r: any) => [r.supplierId as string, r.status as string]));
   }
 
   private async assertOpeningDone(id: string): Promise<void> {

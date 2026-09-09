@@ -288,6 +288,43 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('H4 开标完成度口径 — 未投递家不阻塞（P1-5b，2026-09-09）', () => {
+    const setupH4 = (rows: any[], submissions: any[]) => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目', procurementMethod: '公开招标' });
+      prisma.bidExpert.count.mockImplementation(async (args: any) => args?.where?.isPurchaserRepresentative === true ? 0 : 5);
+      prisma.bidSupplier.count.mockResolvedValue(3);
+      prisma.bidSupplier.findMany.mockResolvedValue(rows);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue(submissions);
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(undefined); // 惰性归因短路
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+    };
+
+    it('名册未投递家（待提交、无提交记录）不再阻塞启动评标——仅参标家须到终局态', async () => {
+      setupH4(
+        [
+          { supplierName: '甲', supplierId: 'sup-1', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
+          { supplierName: '乙（未投递）', supplierId: 'sup-2', decryptStatus: 'PENDING', confirmStatus: 'PENDING', submitStatus: '待提交' },
+        ],
+        [{ supplierId: 'sup-1', status: 'submitted' }],
+      );
+      await service.startEvaluation('p1', 'u1');
+      expect(prisma.bidProject.update).toHaveBeenCalled(); // 通过 H4 闸门完成阶段推进
+    });
+
+    it('已投递但未解密的家仍阻塞（409 OPENING_NOT_DONE）——对参标家口径不变', async () => {
+      setupH4(
+        [
+          { supplierName: '甲', supplierId: 'sup-1', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
+          { supplierName: '乙', supplierId: 'sup-2', decryptStatus: 'PENDING', confirmStatus: 'PENDING', submitStatus: '已提交' },
+        ],
+        [{ supplierId: 'sup-1', status: 'submitted' }, { supplierId: 'sup-2', status: 'submitted' }],
+      );
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({ response: { code: 'OPENING_NOT_DONE' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('assertBidStageTransition', () => {
     it('allows DOWNLOAD → SUBMIT', () => {
       expect(() => assertBidStageTransition('DOWNLOAD', 'SUBMIT')).not.toThrow();
@@ -1135,9 +1172,12 @@ describe('BidService — stage transitions', () => {
       prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // P1-7：首次=确认正选数，其后=采购人代表数(0)
       prisma.bidSupplier.count.mockResolvedValue(3);
       prisma.bidSupplier.findMany.mockResolvedValue([
-        { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
-        { supplierName: 'B', decryptStatus: 'PENDING', confirmStatus: 'PENDING' },
-        { supplierName: 'C', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+        { supplierName: 'A', supplierId: 's-a', submitStatus: '已提交', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+        { supplierName: 'B', supplierId: 's-b', submitStatus: '已提交', decryptStatus: 'PENDING', confirmStatus: 'PENDING' },
+        { supplierName: 'C', supplierId: 's-c', submitStatus: '已提交', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+      ]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([
+        { supplierId: 's-a', status: 'submitted' }, { supplierId: 's-b', status: 'submitted' }, { supplierId: 's-c', status: 'submitted' },
       ]);
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
 
@@ -3540,9 +3580,9 @@ describe('BidService — 解密失败归因矩阵（Task 15, §5.5）——裁�
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: WINDOW_ENDED });
     prisma.bidSupplier.findMany
       .mockResolvedValueOnce([{ id: 'bs1', supplierId: 's1', supplierName: '甲公司' }])                       // 归因扫描
-      .mockResolvedValue([{ supplierName: '甲公司', decryptStatus: 'PENDING', confirmStatus: 'PENDING' }]);   // 守卫读
+      .mockResolvedValue([{ supplierName: '甲公司', supplierId: 's1', submitStatus: '已提交', decryptStatus: 'PENDING', confirmStatus: 'PENDING' }]);   // 守卫读
     prisma.supplierBidSubmission.findMany.mockResolvedValue([
-      { supplierId: 's1', envelopeVersion: 'dual-v2', outerDecryptedAt: null, packageFetchedAt: new Date() },
+      { supplierId: 's1', status: 'submitted', envelopeVersion: 'dual-v2', outerDecryptedAt: null, packageFetchedAt: new Date() },
     ]);
     prisma.bidSupplier.updateMany.mockResolvedValue({ count: 1 });
 
@@ -3565,9 +3605,9 @@ describe('BidService — 解密失败归因矩阵（Task 15, §5.5）——裁�
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: WINDOW_ENDED });
     prisma.bidSupplier.findMany
       .mockResolvedValueOnce([{ id: 'bs1', supplierId: 's1', supplierName: '乙公司' }])
-      .mockResolvedValue([{ supplierName: '乙公司', decryptStatus: 'PENDING', confirmStatus: 'PENDING' }]);
+      .mockResolvedValue([{ supplierName: '乙公司', supplierId: 's1', submitStatus: '已提交', decryptStatus: 'PENDING', confirmStatus: 'PENDING' }]);
     prisma.supplierBidSubmission.findMany.mockResolvedValue([
-      { supplierId: 's1', envelopeVersion: 'dual-v2', outerDecryptedAt: new Date(), packageFetchedAt: null },
+      { supplierId: 's1', status: 'submitted', envelopeVersion: 'dual-v2', outerDecryptedAt: new Date(), packageFetchedAt: null },
     ]);
     prisma.bidSupplier.updateMany.mockResolvedValue({ count: 1 });
 
@@ -3626,10 +3666,11 @@ describe('BidService — 解密失败归因矩阵（Task 15, §5.5）——裁�
   it('解密窗口未过 → 不归因（供应商仍可自行解密，守卫照常阻塞 PENDING）', async () => {
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: WINDOW_OPEN });
     prisma.bidSupplier.findMany
-      .mockResolvedValue([{ supplierName: '甲公司', decryptStatus: 'PENDING', confirmStatus: 'PENDING' }]);
+      .mockResolvedValue([{ supplierName: '甲公司', supplierId: 's1', submitStatus: '已提交', decryptStatus: 'PENDING', confirmStatus: 'PENDING' }]);
+    // P1-5b：参标过滤（isSubmittedRow）现在也会读 submissions——归因扫描不动，断言改盯 updateMany
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
 
     await expect(runGuard()).rejects.toMatchObject({ response: { code: 'OPENING_NOT_DONE' } });
-    expect(prisma.supplierBidSubmission.findMany).not.toHaveBeenCalled();
     expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
     expect(sendToUser).not.toHaveBeenCalled();
   });
