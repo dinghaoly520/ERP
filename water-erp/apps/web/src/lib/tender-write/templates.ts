@@ -220,7 +220,7 @@ export function createEmptyCompetitiveNegotiationDraft(): CompetitiveNegotiation
     businessRequirements: "",
     technicalRequirements: "",
     quotationLetter: "",
-    quotationLetterType: "",
+    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
   };
 }
 
@@ -351,7 +351,7 @@ export function createEmptySingleSourceDraft(): SingleSourceDraft {
     procurementContent: "",
     procurementRequirements: "",
     quotationLetter: "",
-    quotationLetterType: "",
+    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
   };
 }
 
@@ -459,7 +459,7 @@ export function createEmptyInquiryPurchaseDraft(): InquiryPurchaseDraft {
     contactEmail: "",
     contactPhone: "",
     quotationLetter: "",
-    quotationLetterType: "",
+    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
   };
 }
 
@@ -822,7 +822,7 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     businessRequirements: "",
     technicalRequirements: "",
     quotationLetter: "",
-    quotationLetterType: "",
+    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
   };
 }
 

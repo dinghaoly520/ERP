@@ -341,14 +341,82 @@ function buildReplacement(
  * Uses 仿宋 for Chinese characters as default (consistent with template)
  * Table width is set to auto-fit to window
  */
+/** 报价函模式解析（2026-09-09 拍板：优先表格）——显式选择按存值；
+ * 未选择时：已有文字内容的老草稿保持文字（不吞存量），否则默认表格。 */
+function resolveQuotationMode(answers: {
+  quotationLetterType?: string;
+  quotationLetter?: string;
+}): 'text' | 'table' {
+  if (answers.quotationLetterType === 'table' || answers.quotationLetterType === 'text') {
+    return answers.quotationLetterType;
+  }
+  return answers.quotationLetter?.trim() ? 'text' : 'table';
+}
+
+/** 表格模式下无表数据时的兜底空表（与前端 createDefaultQuotationTable 同构）。 */
+function defaultQuotationTable(): TableData {
+  const headers = ['名称', '规格型号', '单位', '数量', '单价（元）', '合价（元）'];
+  const cells = [
+    headers.map((h) => ({ content: h, rowSpan: 1, colSpan: 1, align: 'center' as const })),
+    ...Array.from({ length: 3 }, () =>
+      headers.map((_, i) => ({ content: '', rowSpan: 1, colSpan: 1, align: (i <= 3 ? 'center' : 'right') as 'center' | 'right' })),
+    ),
+  ];
+  return { rows: cells.length, cols: headers.length, cells };
+}
+
 function tableDataToWordXml(table: TableData): string {
   const rows: string[] = [];
+
+  // ── 网格完整性（2026-09-09 修复：空单元格/合并单元格导出后线条缺失）──
+  // Word 的 <w:tbl> 要求每行的 <w:tc> 数与 tblGrid 列数严格对齐：
+  //  1. 纵向合并（rowSpan>1）覆盖的下方单元格必须仍然输出 <w:tc><w:vmerge/></w:tc> 续格，
+  //     直接跳过会导致该行列数不足 → Word 修复表格 → 边框线缺失/错位；
+  //  2. 未填写（模型缺失）的单元格也要输出空 <w:tc>，保持网格；
+  //  3. 仅横向合并（colSpan）覆盖的同行单元格不输出（由 gridSpan 占位），维持原逻辑。
+  // 预计算纵向合并覆盖：锚点 (r,c) rowSpan>1 时，其下方 (r+1..r+rowSpan-1, c..c+colSpan-1)
+  // 均为 vmerge 续格，续格的 gridSpan 取锚点的 colSpan。
+  const vmergeContinue = new Map<string, number>(); // "r,c" → 锚点 colSpan
+  for (let r = 0; r < table.rows; r++) {
+    for (let c = 0; c < table.cols; c++) {
+      const anchor = table.cells[r]?.[c];
+      if (!anchor || anchor.hidden || anchor.rowSpan <= 1) continue;
+      for (let rr = r + 1; rr < Math.min(r + anchor.rowSpan, table.rows); rr++) {
+        for (let cc = c; cc < Math.min(c + anchor.colSpan, table.cols); cc++) {
+          vmergeContinue.set(`${rr},${cc}`, anchor.colSpan);
+        }
+      }
+    }
+  }
+
+  const emptyCellXml = (gridSpan: number, vmerge: boolean) =>
+    `<w:tc>` +
+    `<w:tcPr>` +
+    (vmerge ? '<w:vmerge/>' : '') +
+    (gridSpan > 1 ? `<w:gridSpan w:val="${gridSpan}"/>` : '') +
+    `<w:tcW w:w="0" w:type="auto"/>` +
+    `</w:tcPr>` +
+    `<w:p/>` +
+    `</w:tc>`;
 
   for (let r = 0; r < table.rows; r++) {
     const cells: string[] = [];
     for (let c = 0; c < table.cols; c++) {
+      // 纵向合并续格：输出 vmerge 续 tc（跳过模型中可能存在的 hidden 标记）
+      const contSpan = vmergeContinue.get(`${r},${c}`);
+      if (contSpan !== undefined) {
+        cells.push(emptyCellXml(contSpan, true));
+        // 横向被该续格覆盖的后续列一并消费
+        c += contSpan - 1;
+        continue;
+      }
       const cell = table.cells[r]?.[c];
-      if (!cell || cell.hidden) continue;
+      if (!cell) {
+        // 未填写的空单元格：输出空 tc，保住网格与边框
+        cells.push(emptyCellXml(1, false));
+        continue;
+      }
+      if (cell.hidden) continue; // 横向合并覆盖 → 不输出
 
       const alignValue =
         cell.align === 'center'
@@ -356,20 +424,22 @@ function tableDataToWordXml(table: TableData): string {
           : cell.align === 'right'
             ? 'right'
             : 'left';
-      const rowSpanAttr = cell.rowSpan > 1 ? ` w:val="${cell.rowSpan}"` : '';
-      const colSpanAttr = cell.colSpan > 1 ? ` w:val="${cell.colSpan}"` : '';
 
       cells.push(
         `<w:tc>` +
           `<w:tcPr>` +
-          (rowSpanAttr ? `<w:vmerge w:val="restart"/>` : '') +
-          (colSpanAttr ? `<w:gridSpan${colSpanAttr}/>` : '') +
+          (cell.rowSpan > 1 ? '<w:vmerge w:val="restart"/>' : '') +
+          (cell.colSpan > 1 ? `<w:gridSpan w:val="${cell.colSpan}"/>` : '') +
           `<w:tcW w:w="0" w:type="auto"/>` +
           `<w:vAlign w:val="${alignValue}"/>` +
           `</w:tcPr>` +
-          `<w:p><w:r><w:rPr><w:rFonts w:ascii="仿宋" w:eastAsia="仿宋" w:hAnsi="仿宋" w:cs="仿宋"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>${escapeXml(cell.content)}</w:t></w:r></w:p>` +
+          `<w:p><w:r><w:rPr><w:rFonts w:ascii="仿宋" w:eastAsia="仿宋" w:hAnsi="仿宋" w:cs="仿宋"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">${escapeXml(cell.content ?? '')}</w:t></w:r></w:p>` +
           `</w:tc>`,
       );
+    }
+    // 整行被隐藏/缺失时兜底输出完整空行，避免出现 <w:tr> 无 <w:tc> 的非法结构
+    if (cells.length === 0) {
+      for (let c = 0; c < table.cols; c++) cells.push(emptyCellXml(1, false));
     }
     rows.push(`<w:tr>${cells.join('')}</w:tr>`);
   }
@@ -478,16 +548,16 @@ export function buildCompetitiveNegotiationReplacementPlan(
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
-  // quotationLetterType defaults to 'text' when empty
-  const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
+  // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
+  const isQuotationText = resolveQuotationMode(answers) !== 'table';
   let quotationReplacement: TemplateReplacement;
-  if (!isQuotationText && answers.quotationLetterTable) {
+  if (!isQuotationText && (answers.quotationLetterTable || defaultQuotationTable())) {
     quotationReplacement = {
       targetText: '报价表',
       replacementText: '',
       highlight: false,
       isTable: true,
-      tableXml: tableDataToWordXml(answers.quotationLetterTable),
+      tableXml: tableDataToWordXml(answers.quotationLetterTable || defaultQuotationTable()),
     };
   } else if (answers.quotationLetter && answers.quotationLetter.trim()) {
     // 文本模式的报价函，使用格式化段落
@@ -636,15 +706,16 @@ export function buildSingleSourceReplacementPlan(
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
-  const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
+  // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
+  const isQuotationText = resolveQuotationMode(answers) !== 'table';
   let quotationReplacement: TemplateReplacement;
-  if (!isQuotationText && answers.quotationLetterTable) {
+  if (!isQuotationText && (answers.quotationLetterTable || defaultQuotationTable())) {
     quotationReplacement = {
       targetText: '报价表',
       replacementText: '',
       highlight: false,
       isTable: true,
-      tableXml: tableDataToWordXml(answers.quotationLetterTable),
+      tableXml: tableDataToWordXml(answers.quotationLetterTable || defaultQuotationTable()),
     };
   } else if (answers.quotationLetter && answers.quotationLetter.trim()) {
     quotationReplacement = {
@@ -749,15 +820,16 @@ export function buildInquiryPurchaseReplacementPlan(
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
-  const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
+  // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
+  const isQuotationText = resolveQuotationMode(answers) !== 'table';
   let quotationReplacement: TemplateReplacement;
-  if (!isQuotationText && answers.quotationLetterTable) {
+  if (!isQuotationText && (answers.quotationLetterTable || defaultQuotationTable())) {
     quotationReplacement = {
       targetText: '报价表',
       replacementText: '',
       highlight: false,
       isTable: true,
-      tableXml: tableDataToWordXml(answers.quotationLetterTable),
+      tableXml: tableDataToWordXml(answers.quotationLetterTable || defaultQuotationTable()),
     };
   } else if (answers.quotationLetter && answers.quotationLetter.trim()) {
     quotationReplacement = {
@@ -841,15 +913,16 @@ export function buildInternalBiddingReplacementPlan(
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
   // Handle quotation letter - could be text or table
-  const isQuotationText = (answers.quotationLetterType || 'text') !== 'table';
+  // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
+  const isQuotationText = resolveQuotationMode(answers) !== 'table';
   let quotationReplacement: TemplateReplacement;
-  if (!isQuotationText && answers.quotationLetterTable) {
+  if (!isQuotationText && (answers.quotationLetterTable || defaultQuotationTable())) {
     quotationReplacement = {
       targetText: '报价表',
       replacementText: '',
       highlight: false,
       isTable: true,
-      tableXml: tableDataToWordXml(answers.quotationLetterTable),
+      tableXml: tableDataToWordXml(answers.quotationLetterTable || defaultQuotationTable()),
     };
   } else if (answers.quotationLetter && answers.quotationLetter.trim()) {
     quotationReplacement = {

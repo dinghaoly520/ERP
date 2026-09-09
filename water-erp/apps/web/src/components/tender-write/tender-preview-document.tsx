@@ -10,6 +10,7 @@ import type {
   TenderFieldKey,
 } from '../../lib/types/tender-write';
 import type { TableData, TableCell } from './quotation-table-editor';
+import { createDefaultQuotationTable } from './quotation-table-editor';
 
 const CHINESE_NUMBERS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const CHINESE_TENS = ['', '十', '二十', '三十'];
@@ -79,6 +80,15 @@ function normalizeSubmissionRequirements(value: string): string {
   return /^5[.．]\s*提交成果要求[:：]/.test(trimmed)
     ? trimmed
     : `5.提交成果要求：${trimmed}`;
+}
+
+
+/** 报价表模式（与后端 resolveQuotationMode 同口径，2026-09-09 拍板：优先表格）。
+ * 显式选择按存值；未选择时无文字存量 → 表格模式（无表数据时展示默认空表）。 */
+function isQuotationTableMode(draft: ReadyTenderDraft): boolean {
+  const t = (draft as { quotationLetterType?: string }).quotationLetterType;
+  if (t === 'table' || t === 'text') return t === 'table';
+  return !(typeof draft.quotationLetter === 'string' && draft.quotationLetter.trim());
 }
 
 function renderPreviewTable(tableData: TableData) {
@@ -651,18 +661,14 @@ function CompetitiveNegotiationPreview({
               6. 报价表
             </div>
             <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
-              {draft.quotationLetterType === 'table' ? (
+              {isQuotationTableMode(draft) ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
-                  const tableData = draftWithTable.quotationLetterTable;
+                  const tableData = draftWithTable.quotationLetterTable ?? createDefaultQuotationTable();
                   if (tableData && tableData.rows > 0) {
                     return renderPreviewTable(tableData);
                   }
-                  return (
-                    <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)] transition-all duration-200">
-                      {"{{报价表}}"}
-                    </span>
-                  );
+                  return null;
                 })()
               ) : (
                 (typeof draft.quotationLetter === 'string' && draft.quotationLetter.trim()) ? (
@@ -1006,18 +1012,14 @@ function SingleSourcePreview({
               一、报价函及报价函附录
             </div>
             <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
-              {draft.quotationLetterType === 'table' ? (
+              {isQuotationTableMode(draft) ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
-                  const tableData = draftWithTable.quotationLetterTable;
+                  const tableData = draftWithTable.quotationLetterTable ?? createDefaultQuotationTable();
                   if (tableData && tableData.rows > 0) {
                     return renderPreviewTable(tableData);
                   }
-                  return (
-                    <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)] transition-all duration-200">
-                      {"{{报价表}}"}
-                    </span>
-                  );
+                  return null;
                 })()
               ) : (
                 (typeof draft.quotationLetter === 'string' && draft.quotationLetter.trim()) ? (
@@ -1217,18 +1219,14 @@ function InquiryPurchasePreview({
               报价表
             </div>
             <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
-              {draft.quotationLetterType === 'table' ? (
+              {isQuotationTableMode(draft) ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
-                  const tableData = draftWithTable.quotationLetterTable;
+                  const tableData = draftWithTable.quotationLetterTable ?? createDefaultQuotationTable();
                   if (tableData && tableData.rows > 0) {
                     return renderPreviewTable(tableData);
                   }
-                  return (
-                    <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)] transition-all duration-200">
-                      {"{{报价表}}"}
-                    </span>
-                  );
+                  return null;
                 })()
               ) : (
                 (typeof draft.quotationLetter === 'string' && draft.quotationLetter.trim()) ? (
@@ -1650,18 +1648,14 @@ function InternalBiddingPreview({
               6. 报价表
             </div>
             <div className="mt-3 text-sm leading-7 text-[color:var(--foreground)]">
-              {draft.quotationLetterType === 'table' ? (
+              {isQuotationTableMode(draft) ? (
                 (() => {
                   const draftWithTable = draft as { quotationLetterTable?: TableData };
-                  const tableData = draftWithTable.quotationLetterTable;
+                  const tableData = draftWithTable.quotationLetterTable ?? createDefaultQuotationTable();
                   if (tableData && tableData.rows > 0) {
                     return renderPreviewTable(tableData);
                   }
-                  return (
-                    <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)] transition-all duration-200">
-                      {"{{报价表}}"}
-                    </span>
-                  );
+                  return null;
                 })()
               ) : (
                 (typeof draft.quotationLetter === 'string' && draft.quotationLetter.trim()) ? (

@@ -56,8 +56,12 @@ export function buildTenderSectionProgress(
       if (field.quotationType) {
         const typeKey = 'quotationLetterType';
         const typeValue = draft[typeKey as keyof ReadyTenderDraft] as string;
-        // 默认为 text 模式（与 tender-section-editor.tsx 保持一致）
-        const effectiveType = typeValue || 'text';
+        // 2026-09-09 拍板：优先表格（与 tender-section-editor.tsx 同口径）——
+        // 显式选择按存值；未选择时无文字存量 → 表格模式
+        const effectiveType =
+          typeValue === 'table' || typeValue === 'text'
+            ? typeValue
+            : (typeof value === 'string' && value.trim() ? 'text' : 'table');
         if (effectiveType === 'text') {
           return typeof value === 'string' && value.trim().length > 0;
         }
