@@ -204,7 +204,7 @@ export function OpeningTemplateLibraryDialog({
               const hasColumns = !!t.content.columns?.length;
               return (
                 <div key={t.id}>
-                  <div className="flex items-center gap-3 rounded-xl bg-[var(--surface)] px-3 py-2.5">
+                  <div className="flex items-center gap-3 rounded-xl bg-[var(--surface)] px-3 py-2.5 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.7)]">
                     <ListChecks size={16} strokeWidth={1.5} className="shrink-0 text-[var(--accent)]" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -242,7 +242,7 @@ export function OpeningTemplateLibraryDialog({
                       <button
                         onClick={() => (editing?.id === t.id ? setEditing(null) : startEdit(t))}
                         title={editing?.id === t.id ? '收起编辑' : '编辑模板'}
-                        className="neu-btn-xs !h-[30px] !w-[30px] !p-0"
+                        className="neu-btn-xs !h-[30px] !w-[30px] !p-0 justify-center"
                       >
                         {editing?.id === t.id ? <span className="text-xs font-bold">收起</span> : <Pencil size={13} strokeWidth={1.5} />}
                       </button>
@@ -250,7 +250,7 @@ export function OpeningTemplateLibraryDialog({
                         onClick={() => setDeleteTarget(t)}
                         disabled={t.isActive}
                         title={t.isActive ? '生效中不可删，先启用其他模板' : '删除模板'}
-                        className="neu-btn-xs !h-[30px] !w-[30px] !p-0 is-danger"
+                        className="neu-btn-xs !h-[30px] !w-[30px] !p-0 justify-center is-danger"
                       >
                         <Trash2 size={13} strokeWidth={1.5} />
                       </button>

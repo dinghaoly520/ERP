@@ -19,6 +19,7 @@ import {
   type OpeningFieldDef,
   type OpeningFieldType,
 } from '@/lib/api/bid';
+import { Modal } from '@/components/workbench';
 import { OpeningTemplateLibraryDialog } from './opening-template-library-dialog';
 
 type Props = {
@@ -84,6 +85,8 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
   const [saving, setSaving] = useState(false);
   /** 模板库弹窗：false 关闭 / 'manage' 管理 / 'save' 存为模板（打开即聚焦名称输入） */
   const [libOpen, setLibOpen] = useState<false | 'manage' | 'save'>(false);
+  /** 恢复默认确认弹窗 */
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- 宿主 load() 后随 props 重置草稿：
      保存/应用模板成功后回显服务端真值；props 引用仅在 load() 换新，面板内部重渲染不打扰编辑中草稿 */
@@ -117,7 +120,9 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
     setFields((prev) => [...prev, { key: '', label: '', type: 'text', required: false }]);
   };
   const resetDefault = () => {
-    if (!window.confirm('恢复为内置默认四字段（报价/工期/质量承诺/保证金）？当前列表将被替换，保存前可反悔。')) return;
+    setResetConfirmOpen(true);
+  };
+  const doReset = () => {
     setFields(resolveOpeningFields(null));
     toast.success('已恢复默认四字段（尚未保存，请点击「保存配置」生效）');
   };
@@ -267,7 +272,7 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
                     ) : (
                       <input
                         type="checkbox"
-                        className="h-3.5 w-3.5 accent-[var(--accent)]"
+                        className="neu-checkbox"
                         checked={!!f.required}
                         disabled={locked}
                         onChange={(e) => updateField(i, { required: e.target.checked })}
@@ -319,6 +324,14 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
       <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
         法定四字段（报价 / 工期 / 质量承诺 / 保证金）不可删除、类型锁定，仅可修改标签；动态字段在唱标时人工录入，值落开标记录 customFields。
       </p>
+
+      <Modal open={resetConfirmOpen} onClose={() => setResetConfirmOpen(false)} title="恢复默认字段" size="sm"
+        footer={<>
+          <button type="button" className="neu-btn-soft" onClick={() => setResetConfirmOpen(false)}>取消</button>
+          <button type="button" className="neu-btn-primary !h-[38px] !text-xs" onClick={() => { setResetConfirmOpen(false); doReset(); }}>确认恢复</button>
+        </>}>
+        <p className="text-sm text-[var(--muted-foreground)]">恢复为内置默认四字段（报价/工期/质量承诺/保证金）？当前列表将被替换，保存前可反悔。</p>
+      </Modal>
 
       <OpeningTemplateLibraryDialog
         open={libOpen !== false}

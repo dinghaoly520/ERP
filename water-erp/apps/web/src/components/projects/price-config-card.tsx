@@ -41,7 +41,7 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
   const stage = detail?.stage;
   // P1-A：脏检查——与唱标字段配置卡口径一致（无修改时禁用而非点击后提示）
   const dirty = useMemo(() => (
-    ceilingPrice !== (detail?.ceilingPrice != null ? String(detail.ceilingPrice) : "")
+    ceilingPrice.trim() !== (detail?.ceilingPrice != null ? String(detail.ceilingPrice) : "")
     || evaluationMethod !== (detail?.evaluationMethod ?? "")
     || formulaRaw.trim() !== formulaCanonical.trim()
   ), [ceilingPrice, evaluationMethod, formulaRaw, detail?.ceilingPrice, detail?.evaluationMethod, formulaCanonical]);
