@@ -1125,14 +1125,17 @@ export function TenderSectionEditor({
                 ) : (
                   <input
                     ref={(el) => {
-                      if ((field.type === 'date' || field.type === 'month') && el) {
+                      if ((field.type === 'date' || field.type === 'month' || field.type === 'datetime') && el) {
                         dateInputRefs.current[field.key] = el;
                       }
                     }}
-                    type={field.type ?? 'text'}
-                    value={value}
+                    type={field.type === 'datetime' ? 'datetime-local' : (field.type ?? 'text')}
+                    value={field.type === 'datetime' ? chineseDatetimeToISO(value) : value}
                     onChange={(event) => {
-                      if (field.type === 'date' || field.type === 'month') {
+                      if (field.type === 'datetime') {
+                        // datetime-local 选择值（ISO）转中文格式存储；清空则一并清除
+                        handleDateChange(field.key, isoDatetimeToChinese(event.target.value));
+                      } else if (field.type === 'date' || field.type === 'month') {
                         handleDateChange(field.key, event.target.value);
                       } else if (field.key === 'contactName') {
                         handleContactNameChange(event.target.value);
@@ -1155,7 +1158,7 @@ export function TenderSectionEditor({
                     }}
                     onBlur={(event) => {
                       const content = event.target.value;
-                      if (content.trim() && field.type !== 'date' && field.type !== 'month' && !['contactName', 'contactEmail', 'contactPhone', 'maxPrice'].includes(field.key)) {
+                      if (content.trim() && field.type !== 'date' && field.type !== 'month' && field.type !== 'datetime' && !['contactName', 'contactEmail', 'contactPhone', 'maxPrice'].includes(field.key)) {
                         saveManualSample(field.key, content);
                       }
                       setActiveFieldKey((current) => (current === field.key ? null : current));

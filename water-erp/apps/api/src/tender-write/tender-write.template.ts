@@ -309,7 +309,8 @@ function stripTrailingZheng(v?: string | null): string | undefined {
 }
 
 function normalizeSubmissionRequirements(value: string): string {
-  const trimmed = value.trim();
+  // DTO 字段可缺省（直调测试/导入场景）——空值直接归一为空串，不在此抛 500
+  const trimmed = (value ?? '').trim();
   if (!trimmed) return '';
 
   return /^5[.．]\s*提交成果要求[:：]/.test(trimmed)
@@ -589,8 +590,9 @@ export function buildCompetitiveNegotiationReplacementPlan(
       ...buildReplacement('文件获取时间', answers.documentAcquireTime),
     },
     {
-      targetText: '响应文件提交截至时间',
-      ...buildReplacement('响应文件提交截至时间', answers.responseDeadline),
+      // 2026-09-09 拍板：原「响应文件提交截止时间」统一改「开标时间」（docx 模板已同步改名）
+      targetText: '开标时间',
+      ...buildReplacement('开标时间', answers.responseDeadline),
     },
     {
       targetText: '联系人',
@@ -703,9 +705,10 @@ export function buildSingleSourceReplacementPlan(
       ...buildReplacement('采购文件售价', answers.documentPrice || '0'),
     },
     {
-      targetText: '递交和谈判时间',
+      // 2026-09-09 拍板：原「递交和谈判时间」统一改「开标时间」（docx 模板已同步改名）
+      targetText: '开标时间',
       ...buildReplacement(
-        '递交和谈判时间',
+        '开标时间',
         answers.submissionAndNegotiationTime,
       ),
     },
@@ -1046,8 +1049,9 @@ export function buildInternalBiddingReplacementPlan(
       ...buildReplacement('采购文件售价', answers.documentPrice || '0'),
     },
     {
-      targetText: '响应文件提交时间',
-      ...buildReplacement('响应文件提交时间', answers.responseSubmissionTime),
+      // 2026-09-09 拍板：原「响应文件提交时间」统一改「开标时间」（docx 模板已同步改名）
+      targetText: '开标时间',
+      ...buildReplacement('开标时间', answers.responseSubmissionTime),
     },
     {
       targetText: '联系人',

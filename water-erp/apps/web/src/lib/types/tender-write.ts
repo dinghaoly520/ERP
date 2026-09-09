@@ -234,7 +234,9 @@ export type TenderFieldConfig<K extends TenderFieldKey = TenderFieldKey> = {
   label: string;
   placeholder: string;
   multiline?: boolean;
-  type?: "text" | "date" | "month" | "email" | "tel";
+  // "datetime" = datetime-local 选择器（存中文格式「YYYY年MM月DD日HH:MM」），
+  // 用于开标时间等只允许填时间的字段（2026-09-09 起开标时间不再支持文字）
+  type?: "text" | "date" | "month" | "datetime" | "email" | "tel";
   aiPrompt?: string;
   composite?: {
     typeKey: TenderFieldKey;

@@ -107,17 +107,12 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
       },
       {
         key: "responseDeadline",
-        label: "响应文件提交截止时间",
-        placeholder: "另行通知",
-        aiPrompt: "生成响应文件提交截止时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
-        composite: {
-          typeKey: "responseDeadlineType",
-          typeLabel: "时间类型",
-          typeOptions: [
-            { value: "datetime", label: "选择时间" },
-            { value: "text", label: "填写文字" },
-          ],
-        },
+        label: "开标时间",
+        // 2026-09-09 拍板：原「响应文件提交截止时间」统一改「开标时间」（截止即开标），
+        // 且不再支持填写文字——仅 datetime-local 选择时间
+        type: "datetime",
+        placeholder: "选择日期时间",
+        aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
       },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
@@ -264,17 +259,11 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元", aiPrompt: "生成采购文件售价。本公司电子采购文件免费提供，只输出数字 0，不要添加元、元/份等单位或任何说明。" },
       {
         key: "submissionAndNegotiationTime",
-        label: "递交和谈判时间",
-        placeholder: "另行通知",
-        aiPrompt: "生成递交和谈判时间。规则：从今天起往后推3-5个工作日（跳过周六日）。格式为'YYYY年MM月DD日HH:MM'（如2026年05月28日09:00），只输出一个具体时间，不要其他说明。",
-        composite: {
-          typeKey: "submissionAndNegotiationTimeType",
-          typeLabel: "时间类型",
-          typeOptions: [
-            { value: "datetime", label: "选择时间" },
-            { value: "text", label: "填写文字" },
-          ],
-        },
+        label: "开标时间",
+        // 2026-09-09 拍板：原「递交和谈判时间」统一改「开标时间」，仅支持时间选择
+        type: "datetime",
+        placeholder: "选择日期时间",
+        aiPrompt: "生成开标时间。规则：从今天起往后推3-5个工作日（跳过周六日）。格式为'YYYY年MM月DD日HH:MM'（如2026年05月28日09:00），只输出一个具体时间，不要其他说明。",
       },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
@@ -424,7 +413,9 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
       {
         key: "bidOpeningTime",
         label: "开标时间",
-        placeholder: "另行通知",
+        // 2026-09-09 拍板：与其他采购方式统一——仅支持时间选择，不再允许填写文字
+        type: "datetime",
+        placeholder: "选择日期时间",
         aiPrompt: "生成开标时间。规则：从'采购文件获取时间'的结束日期往后推1-3个工作日（跳过周六日），取该工作日的上午09:30。格式为'YYYY年MM月DD日HH:MM'（如2026年03月30日09:30），只输出该日期时间，不要其他说明。",
       },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
@@ -556,9 +547,11 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元", aiPrompt: "生成采购文件售价。本公司电子采购文件免费提供，只输出数字 0，不要添加元、元/份等单位或任何说明。" },
       {
         key: "responseSubmissionTime",
-        label: "响应文件提交时间",
-        placeholder: "另行通知",
-        aiPrompt: "生成响应文件提交时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
+        label: "开标时间",
+        // 2026-09-09 拍板：原「响应文件提交时间」统一改「开标时间」，仅支持时间选择
+        type: "datetime",
+        placeholder: "选择日期时间",
+        aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
       },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },

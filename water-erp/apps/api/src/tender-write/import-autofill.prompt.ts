@@ -213,7 +213,7 @@ const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionDef[] = [
       { key: 'submissionRequirements', label: '提交成果要求' },
       { key: 'qualificationRequirements', label: '特定资格要求' },
       { key: 'documentAcquireTime', label: '文件获取时间' },
-      { key: 'responseDeadline', label: '响应文件提交截止时间' },
+      { key: 'responseDeadline', label: '开标时间' },
       { key: 'contactName', label: '联系人' },
       { key: 'contactPhone', label: '联系电话' },
       { key: 'contactEmail', label: '联系邮箱' },

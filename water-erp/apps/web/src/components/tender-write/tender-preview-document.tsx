@@ -446,7 +446,7 @@ function CompetitiveNegotiationPreview({
               四、响应文件提交、开标
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>响应文件提交截止时间、开标时间：<PreviewValue value={draft.responseDeadline} placeholder="{{响应文件提交截至时间}}" fieldKey="responseDeadline" onValueChange={onValueChange} />。</p>
+              <p>开标时间：<PreviewValue value={draft.responseDeadline} placeholder="{{开标时间}}" fieldKey="responseDeadline" onValueChange={onValueChange} />。</p>
               <p className="mt-2">地　　点：成都市天府新区红莲街三段383号 B栋3楼。</p>
             </div>
           </div>
@@ -819,14 +819,14 @@ function SingleSourcePreview({
           </div>
           <div className="tender-preview-subsection">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
-              二、响应文件递交和谈判的时间及地点
+              二、响应文件递交、开标的时间及地点
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>
-                1．递交和谈判时间：<PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{递交和谈判时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />。
+                1．开标时间：<PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{开标时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />。
               </p>
               <p>
-                2．递交和谈判地点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼。响应文件必须在递交响应文件截止时间前送达谈判地点。逾期送达的响应文件不予接收。
+                2．递交和谈判地点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼。响应文件必须在开标时间前送达谈判地点。逾期送达的响应文件不予接收。
               </p>
               <p>3．届时请参加报价的法定代表人或授权代表出席。</p>
             </div>
@@ -909,9 +909,9 @@ function SingleSourcePreview({
                   </tr>
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">6</td>
-                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">递交响应文件截止时间</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">开标时间</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                      <PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{递交和谈判时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />
+                      <PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{开标时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
@@ -1372,7 +1372,7 @@ function InternalBiddingPreview({
               四、{T.file}提交、开标
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>{T.file}提交截止时间、开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{响应文件提交时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
+              <p>开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{开标时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
               <p className="mt-2">地　　点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋。</p>
             </div>
           </div>

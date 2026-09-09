@@ -86,7 +86,8 @@ describe('single-source tender template helpers', () => {
       },
       { targetText: '采购文件售价', replacementText: '0 元', highlight: false },
       {
-        targetText: '递交和谈判时间',
+        // 2026-09-09 拍板：原「递交和谈判时间」统一改「开标时间」
+        targetText: '开标时间',
         replacementText: '2026-05-25 10:00',
         highlight: false,
       },
