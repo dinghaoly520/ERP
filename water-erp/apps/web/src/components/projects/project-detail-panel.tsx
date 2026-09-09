@@ -699,7 +699,7 @@ export function ProjectDetailPanel({
     // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
     // BidProject 状态脱节）。加确认门槛。
     if (stage.stageKey === 'BID_EVALUATION'
-        && !(await confirm({ message: '确认「开标评标」阶段已全部完成（开标、评标、签字、回流均已收尾）？完成后将进入定标阶段。' }))) {
+        && !(await confirm({ message: '确认「开标评标」阶段已全部完成（开标、评标、签字、回流均已收尾）？完成后将进入定标阶段。', danger: true }))) {
       return;
     }
     setSubmitting(true);

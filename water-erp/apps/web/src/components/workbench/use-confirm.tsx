@@ -5,7 +5,7 @@
  * 规避「同一时刻至多一个 Modal」约束。confirm() 返回 Promise<boolean>，调用点 await 后语义与原生
  * 确认框完全一致（true=确认）。z-[700] 盖过 workbench Modal 的 z-[600]。
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type ConfirmOptions = { title?: string; message: string; danger?: boolean };
 
@@ -19,7 +19,15 @@ export function useConfirm() {
     setState(opts);
   }), []);
 
-  const close = (v: boolean) => { resolverRef.current?.(v); resolverRef.current = null; setState(null); };
+  const close = useCallback((v: boolean) => { resolverRef.current?.(v); resolverRef.current = null; setState(null); }, []);
+
+  // Esc 关闭（结算为取消）；confirm 按钮 autoFocus——键盘流打开即可回车确认
+  useEffect(() => {
+    if (!state) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [state, close]);
 
   const dialog = state ? (
     <div className="fixed inset-0 z-[700] flex items-center justify-center">
@@ -29,7 +37,7 @@ export function useConfirm() {
         <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--muted-foreground)]">{state.message}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="neu-btn-soft" onClick={() => close(false)}>取消</button>
-          <button type="button" className={`neu-btn-primary !h-[38px]${state.danger ? ' is-danger' : ''}`} onClick={() => close(true)}>确认</button>
+          <button type="button" autoFocus className={`neu-btn-primary !h-[38px]${state.danger ? ' is-danger' : ''}`} onClick={() => close(true)}>确认</button>
         </div>
       </div>
     </div>
