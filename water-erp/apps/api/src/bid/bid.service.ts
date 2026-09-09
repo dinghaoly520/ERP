@@ -3610,6 +3610,13 @@ export class BidService {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
+    // P2-17（二轮审查收尾）：评标/归档阶段锁定价格与评标办法配置——评标办法在招标文件确定，
+    // 评标中变更评标办法/最高限价/价格分公式会改变评分与排名口径（合规风险）；更正须走法定程序
+    if ((project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')
+      && (dto.evaluationMethod !== undefined || dto.ceilingPrice !== undefined || dto.priceFormulaConfig !== undefined)) {
+      throw new ConflictException({ error: '评标已开始，价格与评标办法配置已锁定；如需更正请按法定程序办理', code: 'PRICE_CONFIG_LOCKED' });
+    }
+
     const data: Record<string, unknown> = {};
     if (dto.ceilingPrice !== undefined) data.ceilingPrice = dto.ceilingPrice;
     if (dto.evaluationMethod !== undefined) data.evaluationMethod = dto.evaluationMethod;

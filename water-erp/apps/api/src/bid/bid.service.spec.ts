@@ -1204,6 +1204,33 @@ describe('BidService — stage transitions', () => {
       expect(res).not.toHaveProperty('budgetAmount');
     });
   });
+
+  describe('updatePriceConfig 阶段闸（P2-17）', () => {
+    it('EVALUATING：变更任一配置键 → 409 PRICE_CONFIG_LOCKED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      await expect(service.updatePriceConfig('p1', { ceilingPrice: 100 }, 'u1'))
+        .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+    it('ARCHIVED：变更评标办法 → 409', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      await expect(service.updatePriceConfig('p1', { evaluationMethod: 'lowest_price' }, 'u1'))
+        .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+    it('DOWNLOAD：正常放行', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+      await service.updatePriceConfig('p1', { ceilingPrice: 100 }, 'u1');
+      expect(prisma.bidProject.update).toHaveBeenCalled();
+    });
+    it('EVALUATING：空 body（无键）不触发闸', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+      await service.updatePriceConfig('p1', {}, 'u1');
+      expect(prisma.bidProject.update).toHaveBeenCalled();
+    });
+  });
 });
 
 describe('BidService — score items (评分标准)', () => {
