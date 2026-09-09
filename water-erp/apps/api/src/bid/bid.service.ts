@@ -657,7 +657,11 @@ export class BidService {
     const host = dto.projectManagementItemId
       ? await this.prisma.projectManagementItem.findUnique({ where: { id: dto.projectManagementItemId }, select: { gbProjectCode: true } })
       : null;
-    const gbCodes = await this.gbCode.allocateProcureCode(host?.gbProjectCode ?? null).catch(() => null);
+    // 赋码失败降级不阻塞建项，但必须可见（静默教训：0/18 全空曾被 .catch(()=>null) 掩盖——真因种子直载）
+    const gbCodes = await this.gbCode.allocateProcureCode(host?.gbProjectCode ?? null).catch((e) => {
+      this.logger.warn(`国标采购编码分配失败（建项降级为无码，须回填）: ${(e as Error).message}`);
+      return null;
+    });
     // 截标↔开标 24h（P0-2）：双字段提供 → align 校验；缺 deadline → 按规则派生
     // （DTO 层 openTime/deadline 均为必填，此分支为服务层防御；缺 openTime 保持原行为不动）
     const openTime = new Date(dto.openTime);
@@ -722,7 +726,10 @@ export class BidService {
     const host = metadata.projectManagementItemId
       ? await this.prisma.projectManagementItem.findUnique({ where: { id: metadata.projectManagementItemId }, select: { gbProjectCode: true } })
       : null;
-    const gbCodes = await this.gbCode.allocateProcureCode(host?.gbProjectCode).catch(() => null);
+    const gbCodes = await this.gbCode.allocateProcureCode(host?.gbProjectCode).catch((e) => {
+      this.logger.warn(`国标采购编码分配失败（公告直建降级为无码，须回填）: ${(e as Error).message}`);
+      return null;
+    });
     const openTime = parseFlexibleDate(metadata.openTime) ?? (announcement.publishDate || new Date());
     // 截标↔开标 24h（P0-2）：metadata.deadline 缺省 → 派生（替换原 +7 天兜底）；提供 → align 校验
     const parsedDeadline = parseFlexibleDate(metadata.deadline);
