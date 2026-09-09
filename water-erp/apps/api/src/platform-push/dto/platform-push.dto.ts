@@ -20,8 +20,8 @@ export class PushMaskDto {
   contractAmount?: boolean;
 }
 
-/** 待推清单行 id 格式：announcement:<id> / contract:<id> / penalty:<id>（两组捕获：类别与 id） */
-export const ITEM_ID_PATTERN = /^(announcement|contract|penalty):([A-Za-z0-9_-]+)$/;
+/** 待推清单行 id 格式：announcement:<id> / contract:<id> / penalty:<id> / plan:<bidProjectId>（两组捕获：类别与 id；plan 为开标前合成项，K2） */
+export const ITEM_ID_PATTERN = /^(announcement|contract|penalty|plan):([A-Za-z0-9_-]+)$/;
 
 export class PreviewPushDto {
   @ApiProperty({ description: '待预览数据项 id 列表', type: [String] })

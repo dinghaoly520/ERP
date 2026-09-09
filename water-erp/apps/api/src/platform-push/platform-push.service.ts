@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PlatformPushLog as PlatformPushLogRow } from '@prisma/client';
 import {
   ANNOUNCEMENT_TYPE_TO_ITEM_TYPE, PUSHABLE_ANNOUNCEMENT_TYPES, payloadFingerprint,
-  PlatformPushEnvelope, PushChannelCode, PushItemType, PushMaskOptions,
+  FulfillmentEvent, PlanPushFields, PlatformPushEnvelope, PushChannelCode, PushItemType, PushMaskOptions,
 } from './platform-push-payload';
 import { PushChannel, PushChannelDispatchResult } from './push-channel.interface';
 import { ScProvinceChannel } from './channels/sc-province.channel';
@@ -43,6 +43,12 @@ export interface PushItem {
     supplierName: string; penaltyDocNo: string; authority: string;
     decisionDate: Date; penaltyContent: string; publicUntil: Date | null;
   } | null;
+  /** K2：招标计划合成项（开标前，无公告体）——PMI+BidProject 字段链 */
+  plan?: {
+    projectName: string; procurementCategory: string | null;
+    budget: { toString(): string } | null; openTime: Date | null; deadline: Date | null;
+    procurementMethod: string;
+  } | null;
   project?: {
     procurementMethod: string; deadline: Date; openTime: Date;
     ceilingPrice: { toString(): string } | null; budget: { toString(): string } | null;
@@ -73,7 +79,10 @@ export class PlatformPushService {
   // ── 待推清单（doc §五：信息类别/编号/映射完整度/历史推送态）──
 
   async pending(query: PendingQueryDto) {
-    const project = await this.prisma.bidProject.findUnique({ where: { id: query.projectId } });
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: query.projectId },
+      include: { projectManagementItem: { select: { title: true, procurementCategory: true } } },
+    });
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'PROJECT_NOT_FOUND' });
 
     const announcements = await this.prisma.announcement.findMany({
@@ -91,7 +100,12 @@ export class PlatformPushService {
       take: 100,
     });
 
+    // K2：开标前（DOWNLOAD/SUBMIT）合成招标计划项（383号文信息类 #1——无公告体，BidProject+PMI 回源；
+    // 开标后计划信息窗口关闭，由招标公告类信息接管，不再出现）
+    const planItems = project.stage === 'DOWNLOAD' || project.stage === 'SUBMIT' ? [this.planToItem(project)] : [];
+
     const items = [
+      ...planItems,
       ...announcements.map((a) => this.announcementToItem(a, project)),
       ...contracts.map((c) => this.contractToItem(c, project)),
       ...penalties.map((p) => this.penaltyToItem(p, p.supplier.name)),
@@ -221,7 +235,7 @@ export class PlatformPushService {
     const items: PushItem[] = [];
     for (const raw of [...new Set(itemIds)]) {
       const m = ITEM_ID_PATTERN.exec(raw);
-      if (!m) throw new BadRequestException({ error: `数据项 id 格式不合法：${raw}（应为 announcement:/contract:/penalty: 前缀）`, code: 'INVALID_ITEM_ID' });
+      if (!m) throw new BadRequestException({ error: `数据项 id 格式不合法：${raw}（应为 announcement:/contract:/penalty:/plan: 前缀）`, code: 'INVALID_ITEM_ID' });
       const [, kind, id] = m;
       if (kind === 'announcement') {
         const a = await this.prisma.announcement.findUnique({ where: { id } });
@@ -241,6 +255,17 @@ export class PlatformPushService {
           ? await this.prisma.bidProject.findUnique({ where: { id: c.projectId } })
           : await this.prisma.bidProject.findUnique({ where: { projectCode: c.projectCode } });
         items.push(this.contractToItem(c, project));
+      } else if (kind === 'plan') {
+        const p = await this.prisma.bidProject.findUnique({
+          where: { id },
+          include: { projectManagementItem: { select: { title: true, procurementCategory: true } } },
+        });
+        if (!p) throw new NotFoundException({ error: `招标计划项不存在（项目未找到）：${raw}`, code: 'ITEM_NOT_FOUND' });
+        // stage 闸（与公告 PUBLISHED 校验对称）：防 dispatch 直传 plan: 绕过 pending 的开标前限定
+        if (p.stage !== 'DOWNLOAD' && p.stage !== 'SUBMIT') {
+          throw new BadRequestException({ error: `招标计划项不在可推送范围（须为开标前 DOWNLOAD/SUBMIT 阶段；开标后由招标公告类信息承接）：${raw}`, code: 'ITEM_NOT_PUSHABLE' });
+        }
+        items.push(this.planToItem(p));
       } else {
         const p = await this.prisma.supplierPenalty.findUnique({
           where: { id }, include: { supplier: { select: { name: true } } },
@@ -328,6 +353,38 @@ export class PlatformPushService {
     };
   }
 
+  /**
+   * K2：招标计划合成项（383号文信息类 #1）——开标前无公告体，由 BidProject+PMI 回源合成。
+   * ready = gbProcureCode+budget 非空；PMI 缺失只降级字段（projectName 回退项目名）不禁推。
+   */
+  private planToItem(project: {
+    id: string; projectCode: string; name: string; gbProcureCode: string | null;
+    procurementMethod: string; deadline: Date; openTime: Date;
+    budget: { toString(): string } | null;
+    projectManagementItem?: { title: string; procurementCategory: string } | null;
+  }): PushItem {
+    const missing: string[] = [];
+    if (!project.gbProcureCode) missing.push('gbProcureCode');
+    if (project.budget == null) missing.push('budget');
+    return {
+      itemId: `plan:${project.id}`,
+      itemType: 'plan',
+      title: `${project.name}·招标计划`,
+      projectId: project.id,
+      projectCode: project.projectCode,
+      gbProcureCode: project.gbProcureCode,
+      missing,
+      plan: {
+        projectName: project.projectManagementItem?.title ?? project.name,
+        procurementCategory: project.projectManagementItem?.procurementCategory ?? null,
+        budget: project.budget,
+        openTime: project.openTime,
+        deadline: project.deadline,
+        procurementMethod: project.procurementMethod,
+      },
+    };
+  }
+
   // ── 序列化（中间信封：五通道共享；mask 在此层执行——预览与推送同源）──
 
   private async serialize(item: PushItem, mask?: PushMaskOptions): Promise<PlatformPushEnvelope> {
@@ -379,9 +436,24 @@ export class PlatformPushService {
           fields.relatedProjectCode = a.relatedProjectCode;
           fields.winner = await this.evaluationSnapshot(item.projectId, 'winner');
           break;
-        default: // clarify / contract / fulfillment / prequal：直接映射+关联编号
+        case 'fulfillment':
+          fields.relatedProjectCode = a.relatedProjectCode;
+          fields.fulfillments = await this.fulfillmentEvents(a.relatedProjectCode);
+          break;
+        default: // clarify / contract / prequal：直接映射+关联编号
           fields.relatedProjectCode = a.relatedProjectCode;
       }
+    } else if (item.plan) {
+      // K2：招标计划信封（PMI+BidProject 字段链；无公告体 → publishedAt 为空）
+      const plan: PlanPushFields = {
+        projectName: item.plan.projectName,
+        procurementCategory: item.plan.procurementCategory,
+        budget: dec(item.plan.budget),
+        openTime: iso(item.plan.openTime),
+        deadline: iso(item.plan.deadline),
+        procurementMethod: item.plan.procurementMethod,
+      };
+      Object.assign(fields, plan);
     }
 
     const publishedAt = item.announcement?.publishDate
@@ -412,6 +484,26 @@ export class PlatformPushService {
       return first ? toRow(first) : null;
     }
     return rows.filter((r) => r.recommended && !r.disqualified).map(toRow);
+  }
+
+  /**
+   * K2：履约事件（doc §三 #8）——PERFORMANCE_NOTICE 公告项按 relatedProjectCode 关联合同，
+   * 附 ContractFulfillment 最近 5 条交付/付款/验收节点（已完成在前，未完成按创建时间倒序）。
+   * 无关联编号/无合同 → 空数组（公告本体仍在 fields.content，事件为附带增强，不设闸）。
+   */
+  private async fulfillmentEvents(relatedProjectCode: string | null): Promise<FulfillmentEvent[]> {
+    if (!relatedProjectCode) return [];
+    const contracts = await this.prisma.contract.findMany({
+      where: { projectCode: relatedProjectCode },
+      select: { id: true },
+    });
+    if (!contracts.length) return [];
+    const rows = await this.prisma.contractFulfillment.findMany({
+      where: { contractId: { in: contracts.map((c) => c.id) } },
+      orderBy: [{ doneDate: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+      take: 5,
+    });
+    return rows.map((f) => ({ type: f.type, dueDate: iso(f.dueDate), doneDate: iso(f.doneDate) }));
   }
 
   // ── 确认链公共段：装载 → 完整度闸 → 逐项 hash 校验（PAYLOAD_DRIFT）→ 幂等预检（ALREADY_PUSHED）──

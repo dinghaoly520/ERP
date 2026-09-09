@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { canonicalJson } from '@water-erp/ukey';
 import { AnnouncementType } from '@prisma/client';
 
-/** 383号文信息范围十类（doc §三映射表；plan 暂无公告体——Phase 2 公告 metadata 扩展键承载） */
+/** 383号文信息范围十类（doc §三映射表；plan 无公告体——Phase 2 K2 由 BidProject+PMI 开标前合成，见 planToItem） */
 export const PUSH_ITEM_TYPES = [
   'plan', 'bid_notice', 'clarify', 'failed_bid', 'pre_win', 'win',
   'contract', 'fulfillment', 'penalty', 'prequal',
@@ -48,6 +48,23 @@ export interface PlatformPushEnvelope {
 export interface PushMaskOptions {
   ceilingPrice?: boolean;
   contractAmount?: boolean;
+}
+
+/** plan 信封 fields 形状（K2，doc §三 #1：项目名称/类别/预算/计划工期——PMI+BidProject 字段链；Decimal 序列化为字符串） */
+export interface PlanPushFields {
+  projectName: string;
+  procurementCategory: string | null;
+  budget: string | null;
+  openTime: string | null;
+  deadline: string | null;
+  procurementMethod: string;
+}
+
+/** fulfillment 信封附带的履约事件（K2，doc §三 #8：ContractFulfillment 最近 5 条交付/付款/验收节点；日期 ISO 字符串） */
+export interface FulfillmentEvent {
+  type: string;
+  dueDate: string | null;
+  doneDate: string | null;
 }
 
 /**

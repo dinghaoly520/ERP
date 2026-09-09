@@ -1,6 +1,7 @@
 // apps/api/src/platform-push/platform-push.service.spec.ts
 // 对接专项 Phase 1 定向 spec：pending 完整度判定 / preview hash 一致 / dispatch 幂等 409 /
 // PAYLOAD_DRIFT 400 / stub 501 / mock 全链 / offline EXPORTED / 脱敏生效 / ITEM_NOT_READY。
+// Phase 2 K2 新增：plan 合成项（开标前限定+budget 缺口）/ plan: stage 闸防直传绕过 / fulfillment 信封附履约事件。
 // 依赖全部 mock（同 supervision-push.service.spec 的轻量直构风格）；通道用真实薄实现。
 import { canonicalJson } from '@water-erp/ukey';
 import * as crypto from 'crypto';
@@ -16,6 +17,15 @@ const PROJECT = {
   procurementMethod: '公开招标', deadline: new Date('2026-08-20T09:00:00Z'), openTime: new Date('2026-08-21T09:00:00Z'),
   ceilingPrice: { toString: () => '1200000.00' } as any, budget: { toString: () => '1500000.00' } as any,
 };
+
+/** K2：PMI 关联（pending/loadItems 的 include projectManagementItem 形状） */
+const PMI = { title: '引大济岷工程2026年度采购计划', procurementCategory: '工程' };
+
+/** K2：履约事件（ContractFulfillment 行——已交付 + 未付款两条） */
+const FULFILLMENTS = [
+  { type: 'delivery', dueDate: new Date('2026-09-01T00:00:00Z'), doneDate: new Date('2026-08-30T00:00:00Z') },
+  { type: 'payment', dueDate: new Date('2026-10-01T00:00:00Z'), doneDate: null },
+];
 
 const ANN = {
   id: 'a1', type: 'BID_NOTICE', title: '引大济岷工程招标公告', content: '<p>正文</p>',
@@ -38,14 +48,19 @@ const PENALTY = {
 /** 单项路径（preview/dispatch/export——loadItems 走 findUnique） */
 function makeSvc(ov: {
   bidProject?: unknown; announcements?: unknown[]; contracts?: unknown[]; penalties?: unknown[];
-  existingLogs?: unknown[]; evalResults?: unknown[]; uploadError?: Error;
+  fulfillments?: unknown[]; existingLogs?: unknown[]; evalResults?: unknown[]; uploadError?: Error;
 } = {}) {
   const created = { pushLogs: [] as any[], supervisionLogs: [] as any[], auditLogs: [] as any[], fileAssets: [] as any[] };
   const prisma = {
     bidProject: { findUnique: async (a: any) =>
       a.where.id === 'p1' || a.where.projectCode === PROJECT.projectCode ? (ov.bidProject ?? PROJECT) : null },
     announcement: { findUnique: async (a: any) => (a.where.id === 'a1' ? (ov.announcements?.[0] ?? ANN) : null) },
-    contract: { findUnique: async (a: any) => (a.where.id === 'c1' ? (ov.contracts?.[0] ?? CONTRACT) : null) },
+    contract: {
+      findUnique: async (a: any) => (a.where.id === 'c1' ? (ov.contracts?.[0] ?? CONTRACT) : null),
+      // K2：fulfillment 信封回源（按 projectCode 找合同 id 集）
+      findMany: async () => ov.contracts ?? [],
+    },
+    contractFulfillment: { findMany: async () => ov.fulfillments ?? [] },
     supplierPenalty: { findUnique: async (a: any) => (a.where.id === 'pen1' ? (ov.penalties?.[0] ?? PENALTY) : null) },
     bidEvaluationResult: { findMany: async () => ov.evalResults ?? [] },
     platformPushLog: {
@@ -132,6 +147,78 @@ describe('PlatformPushService.pending 完整度判定', () => {
   });
 });
 
+describe('PlatformPushService K2：plan 合成项（开标前）', () => {
+  it('pending：stage=DOWNLOAD → 合成 plan:p1 行（PMI+budget 齐 → ready）；preview 信封含 PMI+BidProject 字段链', async () => {
+    const svc = makePendingSvc({
+      anns: [], contracts: [], penalties: [],
+      project: { ...PROJECT, stage: 'DOWNLOAD', projectManagementItem: PMI },
+    });
+    const out = await svc.pending({ projectId: 'p1' });
+    const planRow = out.items.find((i: any) => i.itemId === 'plan:p1')!;
+    expect(planRow.itemType).toBe('plan');
+    expect(planRow.title).toBe(`${PROJECT.name}·招标计划`);
+    expect(planRow.ready).toBe(true);
+    expect(planRow.missing).toEqual([]);
+    // loadItems plan: 回源 → 同一 planToItem → 信封字段链（projectName 取 PMI 立项名）
+    const prev = await svc.preview({ itemIds: ['plan:p1'] });
+    expect(prev.items[0].envelope.itemType).toBe('plan');
+    expect(prev.items[0].envelope.fields).toMatchObject({
+      projectName: PMI.title,
+      procurementCategory: PMI.procurementCategory,
+      budget: '1500000.00',
+      openTime: PROJECT.openTime.toISOString(),
+      deadline: PROJECT.deadline.toISOString(),
+      procurementMethod: '公开招标',
+    });
+  });
+
+  it('pending：budget 缺失 → plan 行 missing 标注禁推；已开标（OPENING）→ 不再合成 plan 行', async () => {
+    const svc = makePendingSvc({
+      anns: [], contracts: [], penalties: [],
+      project: { ...PROJECT, stage: 'DOWNLOAD', budget: null },
+    });
+    const out = await svc.pending({ projectId: 'p1' });
+    const planRow = out.items.find((i: any) => i.itemId === 'plan:p1')!;
+    expect(planRow.ready).toBe(false);
+    expect(planRow.missing).toEqual(['budget']);
+    // 开标后计划信息窗口关闭——清单不再出现 plan 行（由招标公告类承接）
+    const opened = makePendingSvc({
+      anns: [], contracts: [], penalties: [],
+      project: { ...PROJECT, stage: 'OPENING' },
+    });
+    const out2 = await opened.pending({ projectId: 'p1' });
+    expect(out2.items.find((i: any) => i.itemId === 'plan:p1')).toBeUndefined();
+  });
+
+  it('loadItems stage 闸：plan: 直传但项目已 OPENING → 400 ITEM_NOT_PUSHABLE（防绕过开标前限定）', async () => {
+    const svc = makePendingSvc({
+      anns: [], contracts: [], penalties: [],
+      project: { ...PROJECT, stage: 'OPENING', projectManagementItem: PMI },
+    });
+    await expect(svc.preview({ itemIds: ['plan:p1'] })).rejects.toMatchObject({
+      status: 400, response: { code: 'ITEM_NOT_PUSHABLE' },
+    });
+  });
+});
+
+describe('PlatformPushService K2：fulfillment 信封附履约事件', () => {
+  it('PERFORMANCE_NOTICE 公告 → itemType=fulfillment，fields.fulfillments=最近事件（type/dueDate/doneDate ISO）', async () => {
+    const { svc } = makeSvc({
+      announcements: [{ ...ANN, type: 'PERFORMANCE_NOTICE', title: '引大济岷工程履约公告' }],
+      contracts: [CONTRACT],
+      fulfillments: FULFILLMENTS,
+    });
+    const r = await svc.preview({ itemIds: ['announcement:a1'] });
+    const env = r.items[0].envelope;
+    expect(env.itemType).toBe('fulfillment');
+    expect(env.fields.relatedProjectCode).toBe(PROJECT.projectCode);
+    expect(env.fields.fulfillments).toEqual([
+      { type: 'delivery', dueDate: '2026-09-01T00:00:00.000Z', doneDate: '2026-08-30T00:00:00.000Z' },
+      { type: 'payment', dueDate: '2026-10-01T00:00:00.000Z', doneDate: null },
+    ]);
+  });
+});
+
 describe('PlatformPushService.preview', () => {
   it('返回中间信封+payloadHash；hash=sha256(canonicalJson(envelope)) 且两次调用一致', async () => {
     const { svc } = makeSvc();
@@ -165,7 +252,7 @@ describe('PlatformPushService.preview', () => {
 
   it('itemId 前缀不合法 → 400 INVALID_ITEM_ID', async () => {
     const { svc } = makeSvc();
-    await expect(svc.preview({ itemIds: ['plan:xyz'] })).rejects.toMatchObject({
+    await expect(svc.preview({ itemIds: ['bogus:xyz'] })).rejects.toMatchObject({
       status: 400, response: { code: 'INVALID_ITEM_ID' },
     });
   });
