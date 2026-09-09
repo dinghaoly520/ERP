@@ -27,6 +27,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [registering, setRegistering] = useState<SignPacketExpertRow | null>(null);
   // A-151：报告附注编辑弹窗（可选编辑，生成/重新生成签字包时取库内最新）
   const [notesOpen, setNotesOpen] = useState(false);
+  // P2-14：通用二次确认弹窗（重新生成 / 撤销登记两处共用，替代 window.confirm）
+  const [confirmBox, setConfirmBox] = useState<{ message: string; onOk: () => void } | null>(null);
   // ═══ 批量回传签字扫描件：一次多选 → 文件名智能路由直传 → 结果清单肉眼核对 ═══
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
@@ -317,7 +319,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               <button
                 type="button"
                 disabled={busy !== null || closed}
-                onClick={() => { if (window.confirm('重新生成将覆盖旧包并重置全部签字登记，确认？')) void run('generate', () => generateSignPacket(projectId)); }}
+                onClick={() => setConfirmBox({ message: '重新生成将覆盖旧包并重置全部签字登记，确认？', onOk: () => void run('generate', () => generateSignPacket(projectId)) })}
                 className="neu-btn-soft !h-[34px] !text-xs hover:!text-[var(--danger)]"
               >
                 <RefreshCw size={13} /> 重新生成
@@ -427,14 +429,15 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                         title="撤销仅适用于主持登记的纸质签字；电子签名撤销须「重新生成」整包"
                         type="button"
                         disabled={busy !== null}
-                        onClick={() => {
-                          if (window.confirm(`撤销 ${e.name} 的签字登记（${STATUS_LABEL[e.signStatus]}）？撤销后状态回到待签，可再点「登记」重新登记。`)) {
+                        onClick={() => setConfirmBox({
+                          message: `撤销 ${e.name} 的签字登记（${STATUS_LABEL[e.signStatus]}）？撤销后状态回到待签，可再点「登记」重新登记。`,
+                          onOk: () => {
                             void run(`unreg-${e.expertId}`, async () => {
                               const res = await unregisterSign(projectId, e.expertId);
                               return res;
                             });
-                          }
-                        }}
+                          },
+                        })}
                         className="neu-btn-xs is-danger"
                       >
                         撤销
@@ -509,6 +512,21 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
       )}
 
       {notesOpen && <ReportNotesDialog projectId={projectId} onClose={() => setNotesOpen(false)} />}
+
+      {/* P2-14：通用二次确认弹窗（重新生成 / 撤销登记共用） */}
+      {confirmBox && (
+        <div className="bid-overlay" onClick={() => setConfirmBox(null)}>
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[min(440px,92vw)] px-6 py-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-black text-[color:var(--foreground)]">确认操作</h3>
+            <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted-foreground)]">{confirmBox.message}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setConfirmBox(null)}>取消</button>
+              <button type="button" className="neu-btn-primary !h-8 !text-xs" onClick={() => { const ok = confirmBox.onOk; setConfirmBox(null); ok(); }}>确认</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

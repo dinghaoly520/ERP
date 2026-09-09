@@ -26,6 +26,7 @@ function MiniStat({ icon, label, done, total, tone, hideTotal }: {
     <span
       className={`inline-flex items-center gap-1 text-[11px] tabular-nums ${danger ? 'text-[var(--danger)]' : 'text-[color:var(--accent-strong)]'}`}
       title={hideTotal ? `${label} ${done} 件` : `${label} ${done}/${total}`}
+      aria-label={hideTotal ? `${label} ${done} 件` : `${label} ${done}/${total}`}
     >
       {icon}
       <b className="font-bold">{done}</b>{!hideTotal && <span className="opacity-50">/{total}</span>}
