@@ -64,6 +64,7 @@ describe('NotificationService', () => {
     const where = {
       userId: 'u1',
       resolvedAt: null,
+      isRead: false, // 919d5391：待办口径=未读且未 resolve（已读即视为已知晓）
       type: { in: ['AWARD_LETTER', 'CONTRACT_NOTICE'] },
     };
     expect(prisma.notification.count).toHaveBeenCalledWith({ where });
