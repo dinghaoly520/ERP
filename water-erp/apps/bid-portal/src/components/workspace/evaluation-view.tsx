@@ -576,7 +576,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         />
         <StatTile
           label="可生成结果" value={results.length > 0 ? '已生成' : canGenerate ? '是' : '否'}
-          sub={results.length > 0 ? '如需重生成须先完成专家确认' : canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
+          sub={results.length > 0
+            ? (canGenerate ? '已生成，可重新生成' : '如需重生成须先完成专家确认')
+            : canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
           pct={results.length > 0 || canGenerate ? 100 : 0} color={results.length > 0 || canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
       </div>

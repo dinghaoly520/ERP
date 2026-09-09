@@ -189,7 +189,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [bondLedgerDeleting, setBondLedgerDeleting] = useState<Set<string>>(new Set());
 
   /** P2 收尾：统一原因弹窗（定性异常/暂停开标/接受解密失败三处共用，替代裸 prompt） */
-  const [reasonDialog, setReasonDialog] = useState<{ title: string; placeholder: string; minLen?: number; submitLabel: string; onSubmit: (reason: string) => Promise<void> } | null>(null);
+  const [reasonDialog, setReasonDialog] = useState<{ title: string; placeholder: string; minLen?: number; submitLabel: string; description?: string; onSubmit: (reason: string) => Promise<void> } | null>(null);
   const [reasonText, setReasonText] = useState('');
   const [reasonBusy, setReasonBusy] = useState(false);
 
@@ -1111,6 +1111,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                               placeholder: '如：供应商未在解密窗口内完成解密 / 文件完整性校验不通过',
                               minLen: 5,
                               submitLabel: '确认定性',
+                              description: '定性后该供应商解密状态记为异常（EXCEPTION），将计入开标记录与监督日志，请填写事实性原因。',
                               onSubmit: async (reason) => { await acceptSupplierDanger(project.id, s.id, reason); toast.success('已定性为解密异常（EXCEPTION）'); onRefresh(); },
                             })}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:opacity-80 disabled:opacity-50">
@@ -1542,6 +1543,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <div className="bid-overlay-backdrop" />
           <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)] px-6 py-5" role="dialog" aria-modal="true" aria-label={reasonDialog.title} onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">{reasonDialog.title}</h3>
+            {reasonDialog.description && <p className="mb-2 text-xs text-[color:var(--muted-foreground)]">{reasonDialog.description}</p>}
             <textarea
               className="neu-input w-full text-sm"
               rows={3}
