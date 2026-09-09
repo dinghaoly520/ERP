@@ -16,12 +16,14 @@ import { fetchReviewTasks, deleteReviewTask, stopReviewTask } from '@/lib/api/re
 import type { ReviewTask } from '@/lib/types/tender-review';
 import { STATUS_COLORS } from '@/lib/types/tender-review';
 import TaskReportView from './task-report-view';
+import { useConfirm } from '@/components/workbench/use-confirm';
 
 export default function ReportPanel() {
   const [tasks, setTasks] = useState<ReviewTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<ReviewTask | null>(null);
   const [search, setSearch] = useState('');
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     loadTasks();
@@ -168,7 +170,7 @@ export default function ReportPanel() {
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (!confirm('确定停止该审查任务？')) return;
+                          if (!(await confirm({ message: '确定停止该审查任务？', danger: true }))) return;
                           try {
                             await stopReviewTask(task.id);
                             setTasks((prev) =>
@@ -192,7 +194,7 @@ export default function ReportPanel() {
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (!confirm('确定删除该审查记录？')) return;
+                          if (!(await confirm({ message: '确定删除该审查记录？', danger: true }))) return;
                           try {
                             await deleteReviewTask(task.id);
                             setTasks((prev) => prev.filter((t) => t.id !== task.id));
@@ -214,6 +216,7 @@ export default function ReportPanel() {
         </div>
         );
       })()}
+      {dialog}
     </div>
   );
 }

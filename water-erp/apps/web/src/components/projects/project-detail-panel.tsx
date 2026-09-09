@@ -47,6 +47,7 @@ import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { FrameworkModal } from '../framework/framework-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal, StatusBadge } from '@/components/workbench';
+import { useConfirm } from '@/components/workbench/use-confirm';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
 
@@ -362,6 +363,7 @@ export function ProjectDetailPanel({
   const [waiving, setWaiving] = useState(false);
   const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
   const [bidConfirmRound, setBidConfirmRound] = useState(1);
+  const { confirm, dialog } = useConfirm();
 
   // 本地 item 镜像 —— 上传后立即注入附件，不等父组件 onUpdated 回流
   const [localItem, setLocalItem] = useState(item);
@@ -697,7 +699,7 @@ export function ProjectDetailPanel({
     // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
     // BidProject 状态脱节）。加确认门槛。
     if (stage.stageKey === 'BID_EVALUATION'
-        && !window.confirm('确认「开标评标」阶段已全部完成（开标、评标、签字、回流均已收尾）？完成后将进入定标阶段。')) {
+        && !(await confirm({ message: '确认「开标评标」阶段已全部完成（开标、评标、签字、回流均已收尾）？完成后将进入定标阶段。' }))) {
       return;
     }
     setSubmitting(true);
@@ -2252,6 +2254,7 @@ export function ProjectDetailPanel({
           </div>
         </div>
       )}
+      {dialog}
     </>
   );
 }

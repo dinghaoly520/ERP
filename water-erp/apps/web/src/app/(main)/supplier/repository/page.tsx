@@ -13,6 +13,7 @@ import {
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { useConfirm } from '@/components/workbench/use-confirm';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
@@ -24,6 +25,7 @@ import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
 
 export default function SupplierRepositoryPage() {
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0, temporaryApproved: 0 });
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,7 @@ export default function SupplierRepositoryPage() {
     finally { setInvCreating(false); }
   };
   const handleRevokeInvitation = async (id: string) => {
-    if (!confirm('确定作废此邀请码？未使用的将无法再用于注册。')) return;
+    if (!(await confirm({ message: '确定作废此邀请码？未使用的将无法再用于注册。', danger: true }))) return;
     try { await revokeInvitation(id); toast.success('已作废'); await loadInvitations(); }
     catch { toast.error('作废失败'); }
   };
@@ -595,6 +597,7 @@ export default function SupplierRepositoryPage() {
           )}
         </Modal>
       )}
+      {dialog}
     </div>
   );
 }

@@ -32,6 +32,7 @@ import {
 } from '@/lib/api/bid';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { Modal, TableSkeleton } from '@/components/workbench';
+import { useConfirm } from '@/components/workbench/use-confirm';
 import { ScorePointsEditor } from './score-points-editor';
 import { SaveTemplateDialog } from './save-template-dialog';
 import { TemplateLibraryDialog } from './template-library-dialog';
@@ -58,6 +59,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [draft, setDraft] = useState<{ category: ScoreCategory; name: string; maxScore: number }>({ category: 'TECHNICAL', name: '', maxScore: 0 });
+  const { confirm, dialog } = useConfirm();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ category: ScoreCategory; name: string; maxScore: number }>({ category: 'TECHNICAL', name: '', maxScore: 0 });
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
@@ -137,7 +139,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       toast.error(`发布前请确保:打分项满分合计=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
       return;
     }
-    if (!window.confirm('发布后开标前仍可修改，但修改后原发布作废、需重新发布。确认发布?')) return;
+    if (!(await confirm({ message: '发布后开标前仍可修改，但修改后原发布作废、需重新发布。确认发布?' }))) return;
     try {
       const res = await publishScoreStandard(bpId);
       setPublishedAt(res.scoreStandardPublishedAt ?? null);
@@ -642,6 +644,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           onImport={handleBulkImport}
         />
       )}
+      {dialog}
     </div>
   );
 }

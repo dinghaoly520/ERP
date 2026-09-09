@@ -18,9 +18,11 @@ import type { ReviewTask, ReviewReport } from '@/lib/types/tender-review';
 import { STATUS_COLORS } from '@/lib/types/tender-review';
 import ReportViewCombined from './report-view-combined';
 import { useTenderReview } from './tender-review-context';
+import { useConfirm } from '@/components/workbench/use-confirm';
 
 export default function ReportsPanelCompact() {
   const { selectedReportTask, setSelectedReportTask, refreshTasks } = useTenderReview();
+  const { confirm, dialog } = useConfirm();
   const [tasks, setTasks] = useState<ReviewTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [localSelectedTask, setLocalSelectedTask] = useState<ReviewTask | null>(null);
@@ -44,7 +46,7 @@ export default function ReportsPanelCompact() {
   }
 
   async function handleStop(task: ReviewTask) {
-    if (!confirm('确定停止该审查任务？')) return;
+    if (!(await confirm({ message: '确定停止该审查任务？', danger: true }))) return;
     try {
       await stopReviewTask(task.id);
       setTasks((prev) =>
@@ -59,7 +61,7 @@ export default function ReportsPanelCompact() {
   }
 
   async function handleDelete(task: ReviewTask) {
-    if (!confirm('确定删除该审查记录？')) return;
+    if (!(await confirm({ message: '确定删除该审查记录？', danger: true }))) return;
     try {
       await deleteReviewTask(task.id);
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
@@ -176,6 +178,7 @@ export default function ReportsPanelCompact() {
           ))}
         </div>
       )}
+      {dialog}
     </div>
   );
 }

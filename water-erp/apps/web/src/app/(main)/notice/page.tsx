@@ -10,6 +10,7 @@ import {
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant, ParticipantsResult } from '@/lib/api/announcement';
 import { toast } from 'sonner';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
@@ -44,6 +45,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function NoticePage() {
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<{ total: number; items: AnnouncementListItem[] }>({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<AnnouncementType>('BID_NOTICE');
@@ -106,7 +108,7 @@ export default function NoticePage() {
     const target = Array.from(selectedIds);
     if (target.length === 0) return;
     const label = action === 'publish' ? '发布' : action === 'archive' ? '归档' : '删除';
-    if (action === 'delete' && !confirm(`确认删除选中的 ${target.length} 条信息？此操作不可撤销。`)) return;
+    if (action === 'delete' && !(await confirm({ message: `确认删除选中的 ${target.length} 条信息？此操作不可撤销。`, danger: true }))) return;
     clearSelection();
     const results = await Promise.allSettled(target.map(id =>
       action === 'delete' ? deleteAnnouncement(id) : updateAnnouncement(id, { status: action === 'publish' ? 'PUBLISHED' : 'ARCHIVED' })
@@ -120,7 +122,7 @@ export default function NoticePage() {
   };
 
   const remove = async (a: AnnouncementListItem) => {
-    if (!confirm(`确认删除「${a.title}」？`)) return;
+    if (!(await confirm({ message: `确认删除「${a.title}」？`, danger: true }))) return;
     const prevItems = data.items;
     setData(d => ({ ...d, items: d.items.filter(x => x.id !== a.id) }));
     let cancelled = false;
@@ -343,6 +345,7 @@ export default function NoticePage() {
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
       {historyAnnId && <AnnouncementHistoryModal announcementId={historyAnnId} onClose={() => setHistoryAnnId(null)} />}
       {showAllHistories && <AllAnnouncementHistoriesModal onClose={() => setShowAllHistories(false)} />}
+      {dialog}
 
     </div>
   );

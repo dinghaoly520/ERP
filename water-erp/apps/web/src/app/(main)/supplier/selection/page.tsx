@@ -15,6 +15,7 @@ import { analyzeProjectManagementItem, extractTenderFields, updateProjectStage }
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, ExternalLink, MapPin, Phone, Mail, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
 import { Modal } from '@/components/workbench';
+import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
 import { InvitationLetterModal } from '@/components/supplier/invitation-letter-modal';
@@ -215,6 +216,7 @@ export function SupplierSelectionPage({
   onAttachmentUploaded?: () => void;
 }) {
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
   const [projectId, setProjectId] = useState('');
   const [projectDetail, setProjectDetail] = useState<BidProjectDetail | null>(null);
@@ -1200,7 +1202,7 @@ export function SupplierSelectionPage({
     if (notifyPerSupplier.size === 0) { toast.error('请先生成供应商通知内容'); return; }
     // P1-11：模板预填可直接发送；但回执链接由 AI 端点签发——未就绪时二次确认
     if (Object.keys(notifyRsvpTokens || {}).length === 0) {
-      const proceed = window.confirm('AI 回执链接尚未生成（仍在生成或已失败）。此时发送的通知不含「点击确认参加」链接，供应商将无法在线回执。\n\n建议稍候 AI 完成后发送；仍要现在发送吗？');
+      const proceed = await confirm({ message: 'AI 回执链接尚未生成（仍在生成或已失败）。此时发送的通知不含「点击确认参加」链接，供应商将无法在线回执。\n\n建议稍候 AI 完成后发送；仍要现在发送吗？' });
       if (!proceed) return;
     }
     setNotifySending(true);
@@ -3838,6 +3840,7 @@ export function SupplierSelectionPage({
           onAttachmentUploaded?.();
         }}
       />
+      {dialog}
 
     </div>
   );

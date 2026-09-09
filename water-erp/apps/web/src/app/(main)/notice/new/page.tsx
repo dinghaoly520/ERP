@@ -10,6 +10,7 @@ import {
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment } from '@/lib/api/announcement';
 import { Upload, PlusCircle, Save, Send } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 
@@ -324,6 +325,7 @@ export default function NewNoticePage() {
 function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
+  const { confirm, dialog } = useConfirm();
   const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
     setUploading(true);
@@ -343,9 +345,10 @@ function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; 
       {attachments.length === 0 ? <p className="text-xs text-[var(--muted-foreground)]">暂无附件</p> : attachments.map(a => (
         <div key={a.id} className="neu-attachment-item">
           <div><div className="text-sm font-semibold text-[var(--foreground)]">{a.title}</div><div className="text-xs text-[var(--muted-foreground)]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div></div>
-          <button onClick={async () => { if (confirm('删除该附件？')) { await removeAttachment(a.id); onChanged(); } }} className="neu-btn-xs is-danger">删除</button>
+          <button onClick={async () => { if (!(await confirm({ message: '删除该附件？', danger: true }))) return; await removeAttachment(a.id); onChanged(); }} className="neu-btn-xs is-danger">删除</button>
         </div>
       ))}
+      {dialog}
     </div>
   );
 }

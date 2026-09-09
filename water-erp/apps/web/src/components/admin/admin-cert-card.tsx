@@ -14,6 +14,7 @@ import { ChevronRight, Eye, KeyRound, Loader2, Lock, RefreshCw, ShieldAlert, Shi
 import { toast } from "sonner";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { fetchAdminCert, generateAdminCert, type AdminCertInfo } from "@/lib/api/admin-cert";
+import { useConfirm } from "@/components/workbench/use-confirm";
 
 /** 双锁流程条：投标保密的三步（hero 第二行，替代大段说明文字） */
 const LOCK_FLOW = [
@@ -27,6 +28,7 @@ export function AdminCertPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [denied, setDenied] = useState(false); // 非 admin（URL 直达侧栏不可见时兜底）
+  const { confirm, dialog } = useConfirm();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -47,10 +49,11 @@ export function AdminCertPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleGenerate = async () => {
-    if (!window.confirm(
-      "更换证书后，新的投标文件将立即改用新证书加密。\n" +
-      "此前已递交的投标不受任何影响——系统保留旧钥匙，开标时照常解密。\n\n确认更换新证书？",
-    )) return;
+    if (!(await confirm({
+      message: "更换证书后，新的投标文件将立即改用新证书加密。\n" +
+        "此前已递交的投标不受任何影响——系统保留旧钥匙，开标时照常解密。\n\n确认更换新证书？",
+      danger: true,
+    }))) return;
     setGenerating(true);
     try {
       await generateAdminCert();
@@ -198,6 +201,7 @@ export function AdminCertPage() {
           </button>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

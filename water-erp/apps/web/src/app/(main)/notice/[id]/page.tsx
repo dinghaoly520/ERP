@@ -13,6 +13,7 @@ import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Announ
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
+import { useConfirm } from '@/components/workbench/use-confirm';
 import { ArrowLeft, Pencil, X, Trash2, Megaphone, Upload, Sparkles } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
@@ -89,6 +90,7 @@ export default function NoticeDetailPage() {
   const [ann, setAnn] = useState<AnnouncementListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     getAnnouncement(id).then(setAnn).catch(() => setAnn(null)).finally(() => setLoading(false));
@@ -101,8 +103,8 @@ export default function NoticeDetailPage() {
       <div className="h-64 w-full animate-pulse rounded-[20px] bg-[var(--muted)]" />
     </div>
   );
-  const handleDelete = () => {
-    if (!ann || !confirm(`确认删除「${ann.title}」？`)) return;
+  const handleDelete = async () => {
+    if (!ann || !(await confirm({ message: `确认删除「${ann.title}」？`, danger: true }))) return;
     deleteAnnouncement(ann.id)
       .then(() => { toast.success("已删除"); router.push("/notice"); })
       .catch((e: any) => toast.error(e?.message || "删除失败"));
@@ -172,6 +174,7 @@ export default function NoticeDetailPage() {
       ) : (
         <ReadOnlyView ann={ann} />
       )}
+      {dialog}
     </div>
   );
 }
@@ -240,10 +243,11 @@ function renderMeta(ann: AnnouncementListItem) {
 function ConfirmWinnerButton({ ann }: { ann: AnnouncementListItem }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const { confirm, dialog } = useConfirm();
   const publicityEnded = !!ann.publicityEnd && new Date(ann.publicityEnd).getTime() <= Date.now();
 
   const handleConfirm = async () => {
-    if (!confirm('公示期已满且无异议，确认发布成交公告？确认后将生成成交公告并通知供应商。')) return;
+    if (!(await confirm({ message: '公示期已满且无异议，确认发布成交公告？确认后将生成成交公告并通知供应商。' }))) return;
     setBusy(true);
     try {
       const { winnerNotice } = await confirmWinnerNotice(ann.id);
@@ -260,9 +264,12 @@ function ConfirmWinnerButton({ ann }: { ann: AnnouncementListItem }) {
     return <StatusBadge tone="gray">公示期至 {ann.publicityEnd ? new Date(ann.publicityEnd).toLocaleDateString('zh-CN') : '—'}</StatusBadge>;
   }
   return (
-    <button onClick={handleConfirm} disabled={busy} className="neu-btn-primary !h-[30px] !px-3 !text-xs disabled:opacity-50">
-      {busy ? '发布中…' : '发布成交公告'}
-    </button>
+    <>
+      <button onClick={handleConfirm} disabled={busy} className="neu-btn-primary !h-[30px] !px-3 !text-xs disabled:opacity-50">
+        {busy ? '发布中…' : '发布成交公告'}
+      </button>
+      {dialog}
+    </>
   );
 }
 
@@ -417,6 +424,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   const [metadata, setMetadata] = useState<Record<string, string>>(() => buildMeta(ann.type));
   const [publishConfig, setPublishConfig] = useState<PublishConfig>(() => configFromMetadata(ann.metadata));
   const [busy, setBusy] = useState(false);
+  const { confirm, dialog } = useConfirm();
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
   const [bidDoc, setBidDoc] = useState<BidDocumentManage | null>(null);
 
@@ -461,7 +469,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   const saveDraft = async () => { const s = await save('DRAFT'); if (s) { toast.success('草稿已保存'); onSaved(s); } };
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) { toast.error('请设置定时发布时间'); return; }
-    if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !confirm('该采购公告尚未上传采购文件，确认直接发布？')) return;
+    if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !(await confirm({ message: '该采购公告尚未上传采购文件，确认直接发布？' }))) return;
     const s = await save('PUBLISHED');
     if (s) {
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
@@ -545,6 +553,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
         <div className="text-xs font-bold text-[var(--accent-strong)] mb-4">发布配置</div>
         <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
       </div>
+      {dialog}
     </div>
   );
 }
@@ -554,6 +563,7 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   const handleAdd = async () => {
     if (!file) return;
@@ -601,11 +611,12 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
                 <div className="break-words text-[0.85rem] font-semibold text-[var(--foreground)] leading-snug">{a.title}</div>
                 <div className="text-[11px] text-[var(--muted-foreground)]">{a.fileAsset.originalName} · {(a.fileAsset.size / 1024).toFixed(0)} KB</div>
               </div>
-              <button onClick={async () => { if (confirm("删除？")) { await removeAttachment(a.id); onChanged(); } }} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
+              <button onClick={async () => { if (!(await confirm({ message: "删除？", danger: true }))) return; await removeAttachment(a.id); onChanged(); }} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
             </div>
           ))}
         </div>
       )}
+      {dialog}
     </div>
   );
 }
@@ -621,6 +632,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
   const [price, setPrice] = useState<number | "">(bidDoc?.price ?? "");
   const [selected, setSelected] = useState<string[]>(bidDoc?.allowedSupplierIds || []);
   const [busy, setBusy] = useState(false);
+  const { confirm, dialog } = useConfirm();
   useEffect(() => { if (scope === "INVITED") getSupplierList({ status: "APPROVED", search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {}); }, [scope, supplierSearch]);
 
   const doUpload = async () => {
@@ -640,7 +652,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
     finally { setBusy(false); }
   };
   const confirmPay = async (id: string) => { try { await confirmBidDocPayment(annId, id); toast.success("已确认"); onChanged(); } catch (e: any) { toast.error(e?.message || "失败"); } };
-  const removeDoc = async () => { if (!bidDoc || !confirm("删除？")) return; try { await removeBidDocument(annId); toast.success("已删除"); onChanged(); } catch (e: any) { toast.error(e?.message || "失败"); } };
+  const removeDoc = async () => { if (!bidDoc || !(await confirm({ message: "删除？", danger: true }))) return; try { await removeBidDocument(annId); toast.success("已删除"); onChanged(); } catch (e: any) { toast.error(e?.message || "失败"); } };
 
   return (
     <div className="neu-table-card p-4 text-sm">
@@ -711,6 +723,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
           <button onClick={doUpload} disabled={busy || !file} className="neu-btn-soft w-full justify-center disabled:opacity-40">{busy ? "加密上传中..." : "加密上传"}</button>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

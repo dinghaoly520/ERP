@@ -17,6 +17,7 @@ import { fetchKnowledgeBases } from '@/lib/api/knowledge';
 import type { ComplianceRule, KnowledgeBase, RuleType, Severity } from '@/lib/types/tender-review';
 import { RULE_TYPE_LABELS, SEVERITY_LABELS, SEVERITY_COLORS } from '@/lib/types/tender-review';
 import { Modal } from '@/components/workbench';
+import { useConfirm } from '@/components/workbench/use-confirm';
 
 export default function RulesPanel() {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
@@ -33,6 +34,7 @@ export default function RulesPanel() {
   const [extractedCount, setExtractedCount] = useState(0);
   const [prevRuleIds, setPrevRuleIds] = useState<Set<string>>(new Set());
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
     return () => {
@@ -149,7 +151,7 @@ export default function RulesPanel() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('确定删除此规则？')) return;
+    if (!(await confirm({ message: '确定删除此规则？', danger: true }))) return;
     try {
       await deleteRule(id);
       toast.success('已删除');
@@ -659,6 +661,7 @@ export default function RulesPanel() {
           </div>
         </Modal>
       )}
+      {dialog}
     </div>
   );
 }

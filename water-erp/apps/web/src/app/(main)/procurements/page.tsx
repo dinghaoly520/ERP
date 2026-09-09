@@ -53,6 +53,7 @@ import { canAccessCockpit } from "@/lib/login/login-routing";
 import { ArchiveDetailModal } from "@/components/procurements/archive-detail-modal";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { Modal } from "@/components/workbench";
+import { useConfirm } from "@/components/workbench/use-confirm";
 
 // ─── Animation Utilities ───────────────────────────────────────────────────────
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -988,6 +989,7 @@ function RecycleConfirmModal({
 export default function ProcurementsPage() {
   const router = useRouter();
   const reducedMotion = useReducedMotion();
+  const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<ProcurementRoundItem[]>([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 12, total: 0, totalPages: 0 });
   const [methods, setMethods] = useState<string[]>([]);
@@ -1098,7 +1100,7 @@ export default function ProcurementsPage() {
   };
 
   const handleDeletePermanently = async (item: ProcurementRoundItem) => {
-    if (!confirm(`确定要彻底删除「${item.projectName}」吗？此操作不可恢复。`)) return;
+    if (!(await confirm({ message: `确定要彻底删除「${item.projectName}」吗？此操作不可恢复。`, danger: true }))) return;
 
     setMovingToRecycleBinId(item.id);
     try {
@@ -1454,6 +1456,7 @@ export default function ProcurementsPage() {
             }}
           />
         )}
+        {dialog}
       </div>
   );
 }
