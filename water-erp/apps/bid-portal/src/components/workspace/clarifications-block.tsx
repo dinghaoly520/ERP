@@ -319,7 +319,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                               {c.type === 'question' ? '答疑' : '澄清'}
                             </span>
                           </td>
-                          <td className="font-medium text-[var(--accent-strong)]">{c.issuer}</td>
+                          <td className="font-medium text-[var(--accent-strong)]">{c.issuer === c.supplierName ? '供应商自发' : c.issuer}</td>
                           <td className="text-[var(--foreground)]">{c.supplierName}</td>
                           <td className="max-w-[200px] text-[var(--foreground)]">{c.question}</td>
                           <td className="py-2.5">

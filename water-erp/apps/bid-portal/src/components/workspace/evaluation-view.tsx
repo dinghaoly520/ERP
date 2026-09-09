@@ -156,6 +156,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [expandedCell, setExpandedCell] = useState<string | null>(null); // `${expertId}:${supplierId}`
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2>(0);
+  // P2-14：重生成二次确认弹窗（替代 window.confirm）
+  const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
   const [annotationCell, setAnnotationCell] = useState<string | null>(null); // `${expertId}:${supplierId}:${scoreItemId}`
   const [annotationMemos, setAnnotationMemos] = useState<ExpertMemoForAdmin[]>([]);
   const [annotationLoading, setAnnotationLoading] = useState(false);
@@ -446,13 +448,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   }
 
   /** F6（2026-08-28）：重生成入口——结果已存在时此前无入口（按钮仅在 results.length===0 显示），
-   *  裁决废标/评分修正后只能刷新整页。二次确认：未闭环签字包将随重生成作废（后端同事务删除+重置签字）。 */
-  async function handleRegenerate() {
-    const ok = window.confirm(
-      '重新生成评标结果？\n· 未闭环的评标签字包将随之作废（签字登记全部重置，须重新生成与登记）；\n· 已闭环签字包则后端拒绝重生成。\n确认后继续。',
-    );
-    if (!ok) return;
-    await handleGenerate();
+   *  裁决废标/评分修正后只能刷新整页。P2-14：二次确认改受控弹窗（未闭环签字包将随重生成作废，
+   *  后端同事务删除+重置签字；确认后走 handleGenerate）。 */
+  function handleRegenerate() {
+    setRegenerateConfirmOpen(true);
   }
 
   const isCellAnomaly = (expertId: string, supplierId: string): boolean =>
@@ -562,7 +561,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       <div className="mb-3 flex flex-wrap gap-2.5">
         <StatTile
           label="评分进度" value={`${scorePct}%`}
-          sub={scorePct >= 80 ? '即将完成全部评分' : scorePct >= 50 ? '评分进行中' : '评分刚起步'}
+          sub={`已评 ${scoredSlots}/${totalSlots} 格位`}
           pct={scorePct} color={scorePct >= 80 ? 'var(--success)' : scorePct >= 50 ? 'var(--accent)' : 'var(--warning)'}
         />
         <StatTile
@@ -576,9 +575,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           color={reportsDone === regularExperts.length && regularExperts.length > 0 ? 'var(--success)' : reportsDone > 0 ? 'var(--accent)' : 'var(--muted-foreground)'}
         />
         <StatTile
-          label="可生成结果" value={canGenerate ? '是' : '否'}
-          sub={canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
-          pct={canGenerate ? 100 : 0} color={canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
+          label="可生成结果" value={results.length > 0 ? '已生成' : canGenerate ? '是' : '否'}
+          sub={results.length > 0 ? '如需重生成须先完成专家确认' : canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
+          pct={results.length > 0 || canGenerate ? 100 : 0} color={results.length > 0 || canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
       </div>
 
@@ -1135,6 +1134,23 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <button type="button" onClick={() => void handleExtendEvaluation()} disabled={extendBusy || !extendReason.trim()} className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40">
                 <CalendarClock size={13} /> {extendBusy ? '审批中…' : '确认延期'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* P2-14：重生成评标结果二次确认弹窗（替代 window.confirm） */}
+      {regenerateConfirmOpen && (
+        <div className="bid-overlay" onClick={() => setRegenerateConfirmOpen(false)}>
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)] px-6 py-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-black text-[color:var(--foreground)]">重新生成评标结果？</h3>
+            <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
+              未闭环的评标签字包将随之作废（签字登记全部重置，须重新生成与登记）；已闭环签字包则后端拒绝重生成。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setRegenerateConfirmOpen(false)}>取消</button>
+              <button type="button" className="neu-btn-primary !h-8 !text-xs" onClick={() => { setRegenerateConfirmOpen(false); void handleGenerate(); }}>确认重新生成</button>
             </div>
           </div>
         </div>
