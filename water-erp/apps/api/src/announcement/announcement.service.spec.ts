@@ -391,7 +391,7 @@ describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞�
 
   beforeEach(async () => {
     prisma = {
-      announcement: { create: jest.fn(), findUnique: jest.fn() },
+      announcement: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     };
     const { AnnouncementService } = await import('./announcement.service');
     svc = Object.create(AnnouncementService.prototype);
@@ -463,6 +463,8 @@ describe('W2 依法必招标示录入口（P1-4，2026-09-09）— guard 读 met
       announcement: {
         create: jest.fn().mockResolvedValue({ id: 'a1', title: 'T', type: 'BID_NOTICE', status: 'PUBLISHED', publishDate: new Date(), metadata: {}, relatedProjectCode: null, authorId: 'u1' }),
         findUnique: jest.fn(),
+        // 对方会话 919d5391：BID_NOTICE 直接发布也派生 publicityEnd（create 内二次 update）
+        update: jest.fn().mockImplementation(async (_args: any) => ({ id: 'a1', publicityEnd: new Date(Date.now() + 3 * 86400000) })),
       },
       bidProject: { findUnique: jest.fn() },
       // 非必招项目偏离留痕路径（deviated → supervisionLog）需要
