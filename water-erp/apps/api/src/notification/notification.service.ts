@@ -170,12 +170,14 @@ export class NotificationService {
 
     const where: any = { userId };
     if (tab === 'todo') {
-      // 「待办」= 未 resolve 的通知（actionable 与否由前端 META 判定，后端仅按 resolvedAt 过滤）
+      // 「待办」= 未读且未 resolve 的通知——已读即视为已知晓，不再留在待办
+      // （actionable 与否由前端 META 判定，后端按 resolvedAt + isRead 过滤）
       where.resolvedAt = null;
+      where.isRead = false;
     }
     if (types.length > 0) where.type = { in: types };
 
-    const [total, items] = await Promise.all([
+    const [total, items, unreadCount, todoCount] = await Promise.all([
       this.prisma.notification.count({ where }),
       this.prisma.notification.findMany({
         where,
@@ -183,9 +185,12 @@ export class NotificationService {
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
+      // KPI 元信息（2026-09-09）：服务端口径，前端不再用当前页 items 估算
+      this.prisma.notification.count({ where: { userId, isRead: false } }),
+      this.prisma.notification.count({ where: { userId, isRead: false, resolvedAt: null } }),
     ]);
 
-    return { total, page, pageSize, items };
+    return { total, page, pageSize, items, unreadCount, todoCount };
   }
 
   /** 将某 type+link 对应的未 resolve 通知标记为已处理（待办清零）。 */

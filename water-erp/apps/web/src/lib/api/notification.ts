@@ -12,9 +12,10 @@ export interface NotificationItem {
   createdAt: string;
 }
 
-export function listNotifications(tab: 'all' | 'todo' = 'all', page = 1, pageSize = 20) {
+export function listNotifications(tab: 'all' | 'todo' = 'all', page = 1, pageSize = 20, types?: string[]) {
   const q = new URLSearchParams({ tab, page: String(page), pageSize: String(pageSize) });
-  return api.get<{ total: number; page: number; pageSize: number; items: NotificationItem[] }>(`/notifications?${q.toString()}`);
+  if (types?.length) q.set('types', types.join(','));
+  return api.get<{ total: number; page: number; pageSize: number; items: NotificationItem[]; unreadCount: number; todoCount: number }>(`/notifications?${q.toString()}`);
 }
 export function getUnreadCount() {
   return api.get<{ count: number }>('/notifications/unread-count');

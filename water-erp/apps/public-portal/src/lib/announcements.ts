@@ -70,12 +70,10 @@ export function formatMetaValue(field: MetaField, raw: any): string {
 export const ANNOUNCEMENT_TABS = [
   { key: '', label: '全部' },
   { key: 'BID_NOTICE', label: '采购公告', color: '#064ea2' },
+  { key: 'FAILED_BID_NOTICE', label: '流标公告', color: '#e08a00' },
+  { key: 'WIN_BID_NOTICE,PRE_WIN_NOTICE', label: '中标公告', color: '#18a56c' },
   { key: 'ADDENDUM', label: '补遗公告', color: '#e08a00' },
   { key: 'PREQUAL_NOTICE', label: '资格预审', color: '#0b63ce' },
-  { key: 'PRE_WIN_NOTICE', label: '预成交公示', color: '#7bb461' },
-  { key: 'WIN_NOTICE', label: '成交公告', color: '#18a56c' },
-  { key: 'CONTRACT_NOTICE', label: '合同公告', color: '#064ea2' },
-  { key: 'PERFORMANCE_NOTICE', label: '履行结果公告', color: '#4c9a7a' },
   { key: 'POLICY', label: '政策法规', color: '#d43030' },
   { key: 'PLATFORM', label: '平台通知', color: '#f5a623' },
 ];
@@ -86,7 +84,7 @@ const TYPE_META: Record<string, { tag: string; color: string }> = {
   ADDENDUM: { tag: '补遗公告', color: '#e08a00' },
   CLARIFY_NOTICE: { tag: '澄清与修改', color: '#e08a00' },
   PREQUAL_NOTICE: { tag: '资格预审公告', color: '#0b63ce' },
-  PRE_WIN_NOTICE: { tag: '预成交公示', color: '#7bb461' },
+  PRE_WIN_NOTICE: { tag: '中标公告', color: '#18a56c' },
   WIN_NOTICE: { tag: '成交公告', color: '#18a56c' },
   CONTRACT_NOTICE: { tag: '合同公告', color: '#064ea2' },
   PERFORMANCE_NOTICE: { tag: '履行结果公告', color: '#4c9a7a' },

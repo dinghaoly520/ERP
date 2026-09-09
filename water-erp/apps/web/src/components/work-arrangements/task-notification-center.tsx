@@ -11,6 +11,7 @@ import { Modal } from '@/components/workbench';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import type { NotificationItem } from '@/lib/api/notification';
 import { listNotifications, markNotificationRead } from '@/lib/api/notification';
+import { Bell, Inbox, ClipboardList, Users, Gavel, FileArchive, Megaphone } from 'lucide-react';
 import { handleNotificationClick } from '@/lib/notification-click';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
@@ -112,7 +113,7 @@ function sortNotifications(items: EnrichedItem[]): EnrichedItem[] {
 
 type GroupedItem =
   | { kind: 'single'; key: string; item: EnrichedItem }
-  | { kind: 'group'; key: string; typeLabel: string; toneColor: string; toneBg: string; icon: string; items: EnrichedItem[] };
+  | { kind: 'group'; key: string; typeLabel: string; title: string; toneColor: string; toneBg: string; icon: string; items: EnrichedItem[] };
 
 function groupByType(items: EnrichedItem[]): GroupedItem[] {
   const map = new Map<string, EnrichedItem[]>();
@@ -126,7 +127,7 @@ function groupByType(items: EnrichedItem[]): GroupedItem[] {
   for (const [k, arr] of map.entries()) {
     if (arr.length > 1) {
       const head = arr[0];
-      groups.push({ kind: 'group', key: k, typeLabel: head.typeLabel, toneColor: head.toneColor, toneBg: head.toneBg, icon: head.icon, items: arr });
+      groups.push({ kind: 'group', key: k, typeLabel: head.typeLabel, title: head.title, toneColor: head.toneColor, toneBg: head.toneBg, icon: head.icon, items: arr });
     } else {
       groups.push({ kind: 'single', key: arr[0].id, item: arr[0] });
     }
@@ -142,7 +143,7 @@ function groupByType(items: EnrichedItem[]): GroupedItem[] {
 
 function AggregatedGroup({ group, router, onAckItem }: { group: Extract<GroupedItem, { kind: 'group' }>; router: ReturnType<typeof useRouter>; onAckItem: (id: string) => void }) {
   const [open, setOpen] = useState(false);
-  const { items, typeLabel, toneColor, toneBg, icon } = group;
+  const { items, typeLabel, title, toneColor, toneBg, icon } = group;
   const Icon = (LucideIcons as any)[icon] ?? LucideIcons.Bell;
   const unread = items.filter((i) => !i.isRead).length;
   return (
@@ -157,7 +158,8 @@ function AggregatedGroup({ group, router, onAckItem }: { group: Extract<GroupedI
             <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md" style={{ backgroundColor: toneBg }}>
               <Icon size={12} style={{ color: toneColor }} />
             </span>
-            <span className="min-w-0 flex-1 text-[13px] font-bold text-[#18243a]">{typeLabel}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#18243a]">{title}</span>
+            <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold" style={{ color: toneColor, backgroundColor: `color-mix(in oklch, ${toneColor} 8%, transparent)` }}>{typeLabel}</span>
             <span
               className="shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wide"
               style={{ color: toneColor, backgroundColor: `color-mix(in oklch, ${toneColor} 8%, transparent)`, boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.75)' }}
@@ -178,7 +180,8 @@ function AggregatedGroup({ group, router, onAckItem }: { group: Extract<GroupedI
             <span className="flex h-6 w-6 items-center justify-center rounded-md" style={{ backgroundColor: toneBg }}>
               <Icon size={13} style={{ color: toneColor }} />
             </span>
-            {typeLabel} · {items.length} 项
+            <span className="truncate">{title}</span>
+            <span className="shrink-0 text-[11px] font-normal text-[#5a6d8a]">{typeLabel} · {items.length} 项</span>
           </span>
         }
         description={unread > 0 ? `${unread} 项待处理` : undefined}
@@ -298,6 +301,15 @@ interface TaskNotificationCenterProps {
   hasActiveTasks?: boolean;
 }
 
+/** 通知域分组（与通知管理页 /notifications 一致）——按业务域分类展示 */
+const NOTIFY_DOMAINS: { key: string; label: string; icon: any; types: string[] }[] = [
+  { key: 'all', label: '全部', icon: Inbox, types: [] },
+  { key: 'supplier', label: '供应商', icon: Users, types: ['SUPPLIER_PENDING', 'SUPPLIER_APPROVED', 'SUPPLIER_REJECTED', 'SUPPLIER_RETURNED', 'SUPPLIER_BLACKLISTED', 'SUPPLIER_UNBLACKLISTED', 'SUPPLIER_ELIMINATE_CANDIDATE', 'USER_REGISTRATION_PENDING', 'ACCOUNT_SECURITY_FEEDBACK', 'SELECTION_SHARED'] },
+  { key: 'bid', label: '开评标', icon: Gavel, types: ['BID_INVITED', 'BID_NUDGE_EXPERT', 'BID_NUDGE_SUPPLIER', 'BID_OPENING_STARTED', 'BID_OPENING_CONFIRMED', 'BID_OPENING_HANDED_OVER', 'BID_EVALUATION_STARTED', 'BID_ABORTED', 'EXPERT_ASSIGNED', 'EXPERT_RETIRE_CANDIDATE', 'CLARIFICATION'] },
+  { key: 'archive', label: '归档', icon: FileArchive, types: ['ARCHIVE_READY', 'ARCHIVE_TRANSFER_DUE', 'ARCHIVE_OVERDUE'] },
+  { key: 'ann', label: '公告', icon: Megaphone, types: ['ANNOUNCEMENT_PUBLISHED', 'AWARD_LETTER', 'PROFILE_CHANGE_REVIEWED', 'PASSWORD_CHANGE_REVIEWED', 'PASSWORD_RESET_APPROVED', 'QUALIFICATION_EXPIRING'] },
+];
+
 export function TaskNotificationCenter({
   dailyPlan, refreshingPlan,
   onRefreshPlan, onSelectTimeBlock, onAddToCalendar,
@@ -308,6 +320,8 @@ export function TaskNotificationCenter({
   const [directItems, setDirectItems] = useState<NotificationItem[] | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [showAll, setShowAll] = useState(false);
+  // 域分类 tab（2026-09-09：分类展示，而非点每个标签内容都一样）
+  const [domain, setDomain] = useState('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -335,10 +349,23 @@ export function TaskNotificationCenter({
 
   const source = directItems && directItems.length > 0 ? directItems : recent;
 
-  const allItems = useMemo(
-    () => sortNotifications(source.map(enrich)).filter((i) => !i.isRead),
-    [source],
-  );
+  const allItems = useMemo(() => {
+    const base = sortNotifications(source.map(enrich)).filter((i) => !i.isRead);
+    const dom = NOTIFY_DOMAINS.find((d) => d.key === domain);
+    if (!dom || dom.types.length === 0) return base;
+    return base.filter((i) => dom.types.includes(i.type));
+  }, [source, domain]);
+
+  // 各域未读计数（tab 徽标）
+  const domainCounts = useMemo(() => {
+    const base = sortNotifications(source.map(enrich)).filter((i) => !i.isRead);
+    const counts: Record<string, number> = { all: base.length };
+    for (const d of NOTIFY_DOMAINS) {
+      if (d.key === 'all') continue;
+      counts[d.key] = base.filter((i) => d.types.includes(i.type)).length;
+    }
+    return counts;
+  }, [source]);
 
   // 同类通知聚合：同 type+title 多条折叠为一组（避免目录价格预警等批量通知刷屏）
   const grouped = useMemo(() => groupByType(allItems), [allItems]);
@@ -355,6 +382,25 @@ export function TaskNotificationCenter({
               共 {allItems.length} 条{hasMore ? '，显示前 10 条' : ''}
             </span>
           )}
+        </div>
+
+        {/* 域分类 tab：切换只看该业务域的通知 */}
+        <div className="neu-tab-bar mx-3 mt-2 flex-wrap">
+          {NOTIFY_DOMAINS.map((d) => {
+            const n = domainCounts[d.key] ?? 0;
+            return (
+              <button
+                key={d.key}
+                type="button"
+                onClick={() => setDomain(d.key)}
+                className={`neu-tab ${domain === d.key ? 'is-active' : ''}`}
+              >
+                <d.icon size={12} strokeWidth={1.9} />
+                {d.label}
+                {n > 0 && <span className="neu-tab-count">{n}</span>}
+              </button>
+            );
+          })}
         </div>
 
         {allItems.length === 0 ? (

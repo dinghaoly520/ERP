@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import {
+import { Bell,
   FolderKanban,
   LayoutDashboard,
   FileEdit,
@@ -85,10 +85,11 @@ const navGroups: NavGroup[] = [
   },
   {
     key: "announcement",
-    label: "公告管理",
+    label: "信息管理",
     icon: Megaphone,
     items: [
-      { key: "notice", label: "信息发布中心", href: "/notice", icon: Megaphone, meta: "公告/公示/政策" },
+      { key: "notice", label: "公告发布中心", href: "/notice", icon: Megaphone, meta: "公告/公示/政策" },
+      { key: "notifications", label: "通知管理", href: "/notifications", icon: Bell, meta: "站内通知/待办处理" },
       { key: "clar-notice", label: "澄清说明", href: "/clar-notice", icon: MessageSquare, meta: "供应商端展示文案", roles: ["admin", "bid_host", "leader", "staff"] },
     ],
   },

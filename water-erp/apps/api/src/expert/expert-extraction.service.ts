@@ -482,7 +482,7 @@ export class ExpertExtractionService {
     try {
       const pmiId = project.projectManagementItemId;
       if (pmiId) {
-        const all = [...(dto.experts ?? []).map(e => ({ ...e, role: (e as any).isPurchaserRepresentative ? '需求方代表' : '正选' })),
+        const all = [...(dto.experts ?? []).map(e => ({ ...e, role: (e as any).isPurchaserRepresentative ? '需求方代表' : (e.isLead ? '正选·组长' : '正选') })),
                     ...(dto.candidates ?? []).map(c => ({ ...c, role: '候补' }))];
         if (all.length > 0) {
           const userIds = all.map(e => e.userId);

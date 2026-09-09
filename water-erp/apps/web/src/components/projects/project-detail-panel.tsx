@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Send, Shield, Sparkles, UploadCloud, UserPlus, X , Layers } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Building2, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Send, Shield, Sparkles, UploadCloud, UserPlus, X , Layers } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
@@ -163,7 +163,9 @@ function ExpertInfoField({
               {experts.map((expert, i) => (
                 <tr key={i}>
                   <td className="text-center tabular-nums" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{i + 1}</td>
-                  <td className="font-medium" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)' }}>{expert.name}</td>
+                  <td className="font-medium" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)' }}>
+                      <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <Crown size={12} className="text-[#7c3aed]" title="评审组长" aria-label="评审组长" /> : null}</span>
+                    </td>
                   <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.department}</td>
                   <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.specialty}</td>
                   <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.title}</td>

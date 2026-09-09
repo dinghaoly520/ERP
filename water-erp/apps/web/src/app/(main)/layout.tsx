@@ -59,7 +59,7 @@ const routeToModule: Record<string, string> = {
   "/admin/password-requests": "密码审批",
   "/admin/accounts": "账号管理",
   "/admin/crypto": "加密管理",
-  "/notice": "信息发布中心",
+  "/notice": "公告发布中心",
   "/clar-notice": "澄清说明",
   "/notifications": "通知中心",
   "/supplier": "供应商管理",

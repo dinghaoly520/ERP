@@ -65,23 +65,23 @@ test("menu construction stays fail-closed while supplier status is unknown", () 
     isTemporary: boolean | null | undefined,
   ) => MenuItem[];
 
-  assert.equal(workspaces(buildForStatus(null)).length, 6);
-  assert.equal(workspaces(buildForStatus(undefined)).length, 6);
-  assert.equal(workspaces(buildForStatus(true)).length, 6);
-  assert.equal(workspaces(buildForStatus(false)).length, 8);
+  assert.equal(workspaces(buildForStatus(null)).length, 7);
+  assert.equal(workspaces(buildForStatus(undefined)).length, 7);
+  assert.equal(workspaces(buildForStatus(true)).length, 7);
+  assert.equal(workspaces(buildForStatus(false)).length, 9);
 });
 
-test("regular suppliers see the eight task-oriented workspaces in order", () => {
+test("regular suppliers see the nine task-oriented workspaces in order", () => {
   assert.deepEqual(
     workspaces(buildMenuItems(false)).map((item) => item.title),
-    ["工作台", "项目机会", "我的投标", "成交履约", "供货管理", "企业资料", "公告中心", "异议投诉"],
+    ["工作台", "项目机会", "我的投标", "成交履约", "供货管理", "企业资料", "消息中心", "公告中心", "异议投诉"],
   );
 });
 
 test("temporary suppliers omit supply and company workspaces", () => {
   assert.deepEqual(
     workspaces(buildMenuItems(true)).map((item) => item.title),
-    ["工作台", "项目机会", "我的投标", "成交履约", "公告中心", "异议投诉"],
+    ["工作台", "项目机会", "我的投标", "成交履约", "消息中心", "公告中心", "异议投诉"],
   );
 });
 
@@ -89,8 +89,8 @@ test("workspace menus retain section dividers", () => {
   const dividerLabels = (items: readonly MenuItem[]) =>
     items.filter((item) => "divider" in item).map((item) => item.label);
 
-  assert.deepEqual(dividerLabels(buildMenuItems(false)), ["招采业务", "供应商管理", "信息服务"]);
-  assert.deepEqual(dividerLabels(buildMenuItems(true)), ["招采业务", "信息服务"]);
+  assert.deepEqual(dividerLabels(buildMenuItems(false)), ["采购业务", "物资管理", "信息服务"]);
+  assert.deepEqual(dividerLabels(buildMenuItems(true)), ["采购业务", "信息服务"]);
 });
 
 test("only multi-route workspaces define tabs", () => {
@@ -108,6 +108,7 @@ test("only multi-route workspaces define tabs", () => {
     成交履约: ["/award-letters", "/contracts", "/frameworks"],
     供货管理: ["/catalog", "/catalog-applications", "/supply"],
     企业资料: ["/profile", "/profile/ukey", "/change-records"],
+    消息中心: [],
     公告中心: [],
     异议投诉: [],
   });
@@ -132,14 +133,19 @@ test("multi-route workspaces use concise task-oriented tab labels", () => {
   });
 });
 
-test("notifications remain outside the supplier sidebar", () => {
+test("notifications live in the 信息服务 section above the announcement center", () => {
   const sidebarPaths = workspaces(buildMenuItems(false)).flatMap((workspace) => [
     workspace.path,
     ...(workspace.tabs?.map((tab) => tab.path) ?? []),
   ]);
 
-  assert.equal(sidebarPaths.includes("/notifications"), false);
-  assert.equal(findWorkspaceForPath("/notifications", buildMenuItems(false)), null);
+  assert.equal(sidebarPaths.includes("/notifications"), true);
+  assert.equal(findWorkspaceForPath("/notifications", buildMenuItems(false))?.title, "消息中心");
+
+  const section = buildMenuItems(false);
+  const messagesIndex = section.findIndex((item) => "path" in item && item.path === "/notifications");
+  const announcementsIndex = section.findIndex((item) => "path" in item && item.path === "/announcements");
+  assert.ok(messagesIndex > -1 && announcementsIndex > -1 && messagesIndex < announcementsIndex);
 });
 
 test("longest path matching respects route boundaries", () => {

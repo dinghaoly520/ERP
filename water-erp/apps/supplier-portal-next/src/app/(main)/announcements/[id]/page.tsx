@@ -11,7 +11,7 @@ import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput } from "@/compone
 import "@/styles/pages/announcements.css";
 
 const typeLabel: Record<string, string> = {
-  BID_NOTICE: "采购公告", ADDENDUM: "补遗公告", PRE_WIN_NOTICE: "预成交公示", WIN_NOTICE: "成交公告",
+  BID_NOTICE: "采购公告", ADDENDUM: "补遗公告", PRE_WIN_NOTICE: "中标公告", WIN_NOTICE: "成交公告",
   CONTRACT_NOTICE: "合同公告", PERFORMANCE_NOTICE: "履行结果公告", POLICY: "政策法规", PLATFORM: "平台通知",
   FAILED_BID_NOTICE: "流标公告", WIN_BID_NOTICE: "中标公告",
 };

@@ -28,7 +28,7 @@ type NoticeType =
   | 'PLATFORM';
 
 const typeLabel: Record<NoticeType, string> = {
-  ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '预成交公示', WIN_NOTICE: '成交公告',
+  ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '中标公示', WIN_NOTICE: '成交公告',
   CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 

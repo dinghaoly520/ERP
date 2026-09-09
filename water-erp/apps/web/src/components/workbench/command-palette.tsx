@@ -7,7 +7,7 @@ interface CommandItem { label: string; path: string; keywords?: string; }
 
 const COMMANDS: CommandItem[] = [
   { label: '首页驾驶舱', path: '/dashboard', keywords: 'dashboard 首页 驾驶舱' },
-  { label: '信息发布中心', path: '/notice', keywords: 'notice 公告 公示 信息发布' },
+  { label: '公告发布中心', path: '/notice', keywords: 'notice 公告 公示 信息发布' },
   { label: '流程中心', path: '/workflow', keywords: '流程 审批 待办 收件箱 workflow' },
   { label: '单位管理', path: '/admin/companies', keywords: '单位 公司 主数据 业绩 company' },
   { label: '系统健康', path: '/admin/health', keywords: '健康 监控 探活 队列 自声明 health' },

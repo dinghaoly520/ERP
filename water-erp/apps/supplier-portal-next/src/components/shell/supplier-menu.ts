@@ -15,6 +15,7 @@ import {
   History,
   Home,
   IdCard,
+  Inbox,
   KeyRound,
   LayoutGrid,
   ListChecks,
@@ -105,7 +106,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
       icon: Home,
       desc: "状态与待办总览",
     },
-    { divider: true, label: "招采业务" },
+    { divider: true, label: "采购业务" },
     {
       path: "/bids",
       title: "项目机会",
@@ -141,7 +142,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
 
   if (canAccessRegularSupplierWorkspaces(isTemporary)) {
     items.push(
-      { divider: true, label: "供应商管理" },
+      { divider: true, label: "物资管理" },
       {
         path: "/catalog",
         title: "供货管理",
@@ -169,6 +170,13 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
 
   items.push(
     { divider: true, label: "信息服务" },
+    {
+      path: "/notifications",
+      title: "消息中心",
+      icon: Inbox,
+      desc: "业务消息与站内通知",
+      badge: true,
+    },
     {
       path: "/announcements",
       title: "公告中心",

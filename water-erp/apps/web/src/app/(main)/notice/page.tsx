@@ -20,11 +20,28 @@ import {
 import { AnnouncementHistoryModal, AllAnnouncementHistoriesModal } from '@/components/notice/announcement-history-modal';
 
 /* ── 类型/状态映射 ── */
-const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
+// 2026-09-09 拍板：公告类型入口收敛为 6 类（删中标公示/成交/合同/履行结果/流标/中标公告 tab，与公开端一致）；
+// 被删类型的历史数据仍在「全部」中展示（列表类型徽标用 typeBadgeMeta 完整映射）
+// 2026-09-09 最终拍板：采购公告/流标公告/中标公告（系统三类走向）+ 补遗/资格预审 + 政策/平台
+type TypeTabKey = AnnouncementType | 'WIN_BID_NOTICE,PRE_WIN_NOTICE';
+const typeMeta: Partial<Record<TypeTabKey, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }>> = {
+  BID_NOTICE: { label: '采购公告', tone: 'blue' },
+  FAILED_BID_NOTICE: { label: '流标公告', tone: 'orange' },
+  'WIN_BID_NOTICE,PRE_WIN_NOTICE': { label: '中标公告', tone: 'green' },
+  ADDENDUM: { label: '补遗公告', tone: 'orange' },
+  PREQUAL_NOTICE: { label: '资格预审公告', tone: 'blue' },
+  POLICY: { label: '政策法规', tone: 'orange' },
+  PLATFORM: { label: '平台通知', tone: 'gray' },
+};
+// 复合 tab 键（逗号联合多类型）排序/分组锚定其首个类型，保持规范页签顺序
+const tabAnchor = (t: string): string => t.split(',')[0];
+
+/** 列表徽标完整映射（含被收敛 tab 的类型——历史数据在「全部」中仍正确标注） */
+const typeBadgeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
   BID_NOTICE: { label: '采购公告', tone: 'blue' },
   ADDENDUM: { label: '补遗公告', tone: 'orange' },
   PREQUAL_NOTICE: { label: '资格预审公告', tone: 'blue' },
-  PRE_WIN_NOTICE: { label: '预成交公示', tone: 'green' },
+  PRE_WIN_NOTICE: { label: '中标公告', tone: 'green' },
   WIN_NOTICE: { label: '成交公告', tone: 'green' },
   CONTRACT_NOTICE: { label: '合同公告', tone: 'blue' },
   PERFORMANCE_NOTICE: { label: '履行结果公告', tone: 'green' },
@@ -36,8 +53,28 @@ const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green'
 const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'gray' }> = {
   DRAFT: { label: '草稿', tone: 'gray' },
   PUBLISHED: { label: '已发布', tone: 'green' },
-  ARCHIVED: { label: '已归档', tone: 'gray' },
+  ARCHIVED: { label: '已公示', tone: 'gray' },
 };
+
+/**
+ * 2026-09-09 拍板：已发布公告的状态徽标按时间动态细分——
+ *   发布后 1 小时内 → 已发布（绿）
+ *   1 小时后 ~ 公示期结束（publicityEnd；无该字段按发布 + 3 天）→ 公示中（橙）
+ *   公示期结束后 → 已公示（灰）
+ * 底层 DB 状态仍是 PUBLISHED（草稿/ARCHIVED 不变），仅展示层细分。ARCHIVED 对外显示「已公示」（下线=结束公示）。
+ */
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+
+function displayStatus(a: { status: AnnouncementStatus; publishDate?: string | null; publicityEnd?: string | null }): { label: string; tone: 'green' | 'orange' | 'gray' } {
+  if (a.status !== 'PUBLISHED') return statusMeta[a.status];
+  const pub = a.publishDate ? new Date(a.publishDate).getTime() : 0;
+  const end = a.publicityEnd ? new Date(a.publicityEnd).getTime() : pub + 3 * DAY_MS; // 兜底 3 天
+  const now = Date.now();
+  if (now - pub < HOUR_MS) return { label: '已发布', tone: 'green' };
+  if (now < end) return { label: '公示中', tone: 'orange' };
+  return { label: '已公示', tone: 'gray' };
+}
 
 type SortKey = 'publishDate' | 'viewCount' | 'type' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -48,7 +85,7 @@ export default function NoticePage() {
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<{ total: number; items: AnnouncementListItem[] }>({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
-  const [filterType, setFilterType] = useState<AnnouncementType>('BID_NOTICE');
+  const [filterType, setFilterType] = useState<string>('BID_NOTICE');
   const [filterStatus, setFilterStatus] = useState<AnnouncementStatus | ''>('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -107,7 +144,7 @@ export default function NoticePage() {
   const runBatch = async (action: 'publish' | 'archive' | 'delete') => {
     const target = Array.from(selectedIds);
     if (target.length === 0) return;
-    const label = action === 'publish' ? '发布' : action === 'archive' ? '归档' : '删除';
+    const label = action === 'publish' ? '发布' : action === 'archive' ? '下线' : '删除';
     if (action === 'delete' && !(await confirm({ message: `确认删除选中的 ${target.length} 条信息？此操作不可撤销。`, danger: true }))) return;
     clearSelection();
     const results = await Promise.allSettled(target.map(id =>
@@ -153,8 +190,8 @@ export default function NoticePage() {
               <MegaphoneIcon size={17} />
             </div>
             <div>
-              <div className="page-hero__title">信息发布中心</div>
-              <div className="page-hero__sub">采购公告、预成交公示、成交公告、政策法规、平台通知的起草与发布管理</div>
+              <div className="page-hero__title">公告发布中心</div>
+              <div className="page-hero__sub">采购公告、中标公示、成交公告、政策法规、平台通知的起草与发布管理</div>
             </div>
           </div>
 
@@ -186,13 +223,13 @@ export default function NoticePage() {
       {/* ══════ 工具栏卡片（类型 tab + 搜索 + 状态下拉） ══════ */}
       <div className="wb-toolbar">
         <div className="neu-tab-bar">
-          {(Object.keys(typeMeta) as AnnouncementType[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b)).map((t, i, arr) => (
+          {(Object.keys(typeMeta) as TypeTabKey[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(a) as AnnouncementType) - ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(b) as AnnouncementType)).map((t, i, arr) => (
             <span key={t} className="flex items-center gap-1">
-              {i > 0 && announcementTypeGroupIndex(t) !== announcementTypeGroupIndex(arr[i - 1]) && (
+              {i > 0 && announcementTypeGroupIndex(tabAnchor(t)) !== announcementTypeGroupIndex(tabAnchor(arr[i - 1])) && (
                 <span className="mx-1.5 h-4 w-px shrink-0 bg-[var(--border)]" aria-hidden="true" />
               )}
               <button onClick={() => { setFilterType(t); setPage(1); }} className={`neu-tab ${filterType === t ? 'is-active' : ''}`}>
-                {typeMeta[t].label}
+                {typeMeta[t]?.label ?? t}
               </button>
             </span>
           ))}
@@ -220,7 +257,7 @@ export default function NoticePage() {
           <option value="">全部状态</option>
           <option value="PUBLISHED">已发布</option>
           <option value="DRAFT">草稿</option>
-          <option value="ARCHIVED">已归档</option>
+          <option value="ARCHIVED">已公示</option>
         </select>
       </div>
 
@@ -231,7 +268,7 @@ export default function NoticePage() {
             <span className="neu-batch-bar-count">已选 <strong>{selectedCount}</strong> 条</span>
             <div className="neu-batch-bar-spacer" />
             <button onClick={() => runBatch('publish')} className="neu-btn-xs is-success"><Send size={13} /> 发布</button>
-            <button onClick={() => runBatch('archive')} className="neu-btn-xs is-warning"><Archive size={13} /> 归档</button>
+            <button onClick={() => runBatch('archive')} className="neu-btn-xs is-warning"><Archive size={13} /> 下线</button>
             <button onClick={() => runBatch('delete')} className="neu-btn-xs is-danger"><Trash2 size={13} /> 删除</button>
             <button onClick={clearSelection} className="neu-btn-xs"><X size={13} /> 取消选择</button>
           </div>
@@ -268,14 +305,14 @@ export default function NoticePage() {
                   </td>
                 </tr>
               ) : sortedItems.map(a => {
-                const tm = typeMeta[a.type] || typeMeta.PLATFORM;
+                const tm = typeBadgeMeta[a.type] || typeBadgeMeta.PLATFORM;
                 // 采购公告的类型徽标显示具体采购方式（发布向导 canonical meta.method，如「询比采购」）；
                 // 无 method 的存量/手工公告回落到通用「采购公告」
                 const methodOf = (a as { metadata?: Record<string, unknown> }).metadata?.method;
                 const typeLabel = a.type === 'BID_NOTICE' && typeof methodOf === 'string' && methodOf.trim()
                   ? methodOf.trim()
                   : tm.label;
-                const sm = statusMeta[a.status] || statusMeta.DRAFT;
+                const sm = displayStatus(a);
                 const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
                 const isSel = selectedIds.has(a.id);
                 const hasAttachments = a.attachments && a.attachments.length > 0;

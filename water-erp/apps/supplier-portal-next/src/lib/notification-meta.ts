@@ -35,7 +35,7 @@ const META: Record<string, NotificationMeta> = {
   BID_DISPUTE_TIMEOUT: { label: "异议超时", group: "project", tone: "warning" },
   BID_ABORTED: { label: "项目终止", group: "project", tone: "danger" },
   ANNOUNCEMENT_PUBLISHED: { label: "公告发布", group: "project", tone: "info" },
-  PRE_WIN_NOTICE: { label: "预成交公示", group: "project", tone: "accent" },
+  PRE_WIN_NOTICE: { label: "中标公示", group: "project", tone: "accent" },
   WIN_NOTICE: { label: "成交公告", group: "project", tone: "success" },
   CONTRACT_NOTICE: { label: "合同通知", group: "contract", tone: "info", actionable: true, actionLabel: "查看合同" },
   PERFORMANCE_NOTICE: { label: "履约结果", group: "contract", tone: "success" },

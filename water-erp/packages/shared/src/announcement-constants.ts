@@ -1,13 +1,13 @@
 /**
  * 公告类型共享常量 —— 三端（:3005 管理 / :3002 门户 / :3020 供应商）与 API 的单一来源。
- * GB/T 43711—2024 7.5.2：预成交公示期满无异议 → 发布成交公告（两段式）。
- * 注意：历史 WIN_NOTICE 数据语义按"成交公告"展示，不再称"中标公示"。
+ * GB/T 43711—2024 7.5.2：两段式公示期满无异议 → 发布成交公告（第二段）。
+ * 2026-09-09 用户拍板：PRE_WIN_NOTICE 对外并入「中标公告」（与 WIN_BID_NOTICE 同名联合展示）。
  */
 export const ANNOUNCEMENT_TYPE_LABELS = {
   BID_NOTICE: '采购公告',
   ADDENDUM: '补遗公告',
   PREQUAL_NOTICE: '资格预审公告',
-  PRE_WIN_NOTICE: '预成交公示',
+  PRE_WIN_NOTICE: '中标公告',
   WIN_NOTICE: '成交公告',
   CONTRACT_NOTICE: '合同公告',
   PERFORMANCE_NOTICE: '履行结果公告',

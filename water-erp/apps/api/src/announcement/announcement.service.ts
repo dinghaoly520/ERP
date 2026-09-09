@@ -100,8 +100,9 @@ export class AnnouncementService {
     });
 
     // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设置公示期（登记制路径，
-    // publishDate 可回填线下实际发布日 → 公示期随之起算）
-    if ((dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE') && status === 'PUBLISHED' && !result.publicityEnd) {
+    // publishDate 可回填线下实际发布日 → 公示期随之起算）；
+    // BID_NOTICE 同样设 3 天公示期（2026-09-09：前端状态徽标「公示中/已公示」按此判定，兜底同款）
+    if ((dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE') && status === 'PUBLISHED' && !result.publicityEnd) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
       await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
@@ -190,7 +191,11 @@ export class AnnouncementService {
     if (opts.publicVisibilityOnly) {
       where.AND = [...(where.AND ?? []), { OR: [{ dataClass: { in: [...PUBLIC_VISIBLE_CLASSES] } }, { dataClass: null }] }];
     }
-    if (params.type) where.type = params.type;
+    if (params.type) {
+      // 逗号分隔多类型（2026-09-09：「中标公告」tab 联合 WIN_BID_NOTICE + 历史存量 PRE_WIN_NOTICE）
+      const types = params.type.split(',').map((t: string) => t.trim()).filter(Boolean);
+      where.type = types.length > 1 ? { in: types } : params.type;
+    }
     if (params.status) where.status = params.status;
     if (params.search) {
       where.OR = [
@@ -259,7 +264,36 @@ export class AnnouncementService {
   /** 移除招标文件信息（首页/公开端不暴露） */
   private stripForPublic(a: any) {
     const { bidDocument, ...rest } = a;
-    return rest;
+    return { ...rest, content: this.normalizePublicContent(a.content as string | null) };
+  }
+
+  /**
+   * 公开端正文归一（2026-09-08）：
+   * - 剥离未替换的 {{占位符}}（生成链路漏替换时不再裸露给公众，置灰说明代替）；
+   * - 纯文本正文（无任何 HTML 标签、无换行结构）按中文章节序号智能分段为 <p>——
+   *   docx→mammoth 提取的公告全文若被上游压成单行，公开详情页不再是"缩成一团"。
+   */
+  private normalizePublicContent(raw: string | null | undefined): string {
+    if (!raw) return raw ?? '';
+    let text = raw;
+    // 1. 清理未替换占位符：{{最高限价}} / {{报价11}} 等 → 移除，避免破句
+    text = text.replace(/\{\{[^}]{1,30}\}\}/g, '');
+    text = text.replace(/（¥\s*）（）/g, '');
+    // 2. 已含有效 HTML 结构（≥2 个块级标签，或含 br/table 等结构标签）→ 只做占位清理。
+    // 单个 <p> 整段包裹视同纯文本（mammoth 单段/历史单 <p> 全文的压缩态）
+    const blockTags = text.match(/<(p|div|br|h[1-6]|table|ul|ol)[\s>]/gi) ?? [];
+    if (blockTags.length >= 2) return text;
+    text = text.replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '').trim();
+    // 3. 纯文本：按「一、二、三…」章节序号与长句边界分段
+    const sections = text
+      .replace(/([一二三四五六七八九十]、)/g, '\n$1')
+      .replace(/(第[一二三四五六七八九十]+名)/g, '\n$1')
+      .replace(/(四川水发[^，。\n]{0,20}(有限公司|采购中心))/g, '\n$1')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const esc = (x: string) => x.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    return sections.map((l) => `<p>${esc(l)}</p>`).join('');
   }
 
   async update(id: string, dto: UpdateAnnouncementDto) {
@@ -339,7 +373,7 @@ export class AnnouncementService {
 
     // A1→C1（GB/T 43711 7.5.2）：预成交公示发布时自动设置公示期（3 个日历日）；
     // WIN_NOTICE 保留同逻辑以兼容存量"中标公示"与手动直发成交公告的路径
-    if ((result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE') && targetStatus === 'PUBLISHED' && !result.publicityEnd) {
+    if ((result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE' || result.type === 'BID_NOTICE') && targetStatus === 'PUBLISHED' && !result.publicityEnd) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
       await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
