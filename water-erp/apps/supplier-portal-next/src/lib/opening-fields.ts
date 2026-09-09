@@ -3,10 +3,11 @@ import { parseAmountToYuan } from "@water-erp/shared";
 /**
  * A-113：供应商端唱标字段动态渲染辅助。
  * 后端权威源 = apps/api/src/bid/opening-field-config.util.ts（DEFAULT_OPENING_FIELDS /
- * resolveOpeningFieldConfig），本文件是其供应商端渲染镜像（两端同步改；:3007 主持端镜像
- * 见 apps/bid-portal/src/components/opening-hall.tsx FALLBACK_FIELDS——同一先例）。
- * 供应商端差异：法定四列沿用本页历史标签/列宽（报价——P1-C 去单位后缀，值自带单位 /质量目标——与 :3007 措辞本就
- * 不同），保「无配置项目与现状渲染一致」的零漂移铁律；config 仅驱动列序与动态列。
+ * resolveOpeningFieldConfig）；本文件为其供应商端渲染镜像，改动须后端与本文件同步。
+ * :3007 主持端镜像同例：apps/bid-portal/src/components/opening-hall.tsx FALLBACK_FIELDS。
+ * 供应商端差异：法定四列沿用本页历史标签/列宽——报价（P1-C 去单位后缀，值自带单位）、
+ * 质量目标（与 :3007 措辞本就不同），维持「无配置项目与现状渲染一致」的零漂移铁律；
+ * config 仅驱动列序与动态列。
  */
 
 /** 唱标字段定义——后端 OpeningFieldDef 前端镜像 */
