@@ -2912,6 +2912,8 @@ model ProjectManagementItem {
   bidProjects                 BidProject[]
   planItems                   ProjectPlanItem[]
   teamMembers                 ProjectTeamMember[]
+  tenderDraft                 ProjectTenderDraft?
+  tenderDraftVersions         ProjectTenderDraftVersion[]
 
   // ── DA/T 103-2024 归档（一卷单元）──
   retentionPeriod             ArchiveRetentionPeriod? // 保管期限（§9.3：永久/30年/10年）
@@ -3151,6 +3153,36 @@ model ProjectManagementStage {
 
   @@unique([projectManagementItemId, stageKey, round])
   @@index([projectManagementItemId, stageOrder])
+}
+
+// ── 采购文件编写·项目草稿（2026-09-09 跨设备同步）──
+// 草稿此前仅存浏览器 localStorage（按设备隔离），换设备登录同账号不可见；
+// 现以服务器为准（last-write-wins），localStorage 降级为离线缓存。
+
+/// 每项目一份「当前草稿」（全部模板类型合并存储，键 = TenderDraftsState）
+model ProjectTenderDraft {
+  id          String               @id @default(cuid())
+  projectId   String               @unique
+  drafts      Json
+  createdById String? // 首次创建人
+  updatedById String? // 最近保存人（同账号多设备可追溯）
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  project     ProjectManagementItem @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
+}
+
+/// 「保存当前」产生的历史版本（恢复点），每项目保留最近 20 条
+model ProjectTenderDraftVersion {
+  id        String               @id @default(cuid())
+  projectId String
+  label     String // 展示用时间标签（前端生成）
+  drafts    Json
+  createdAt DateTime             @default(now())
+  project   ProjectManagementItem @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
 }
 
 // ── Excel 导入批次 ──

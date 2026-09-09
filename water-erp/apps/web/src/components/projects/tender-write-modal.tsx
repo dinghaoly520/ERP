@@ -32,7 +32,17 @@ import TenderReviewWorkspace from '@/components/tender-review/tender-review-work
 import { uploadReviewDocument, executeReview } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
-import { uploadProjectStageAttachment, updateProjectExtractedInfo, type UploadStageAttachmentResult } from '@/lib/api/project-management';
+import {
+  uploadProjectStageAttachment,
+  updateProjectExtractedInfo,
+  fetchProjectTenderDraft,
+  saveProjectTenderDraft,
+  clearProjectTenderDraft,
+  fetchProjectTenderDraftVersions,
+  addProjectTenderDraftVersion,
+  clearProjectTenderDraftVersions,
+  type UploadStageAttachmentResult,
+} from '@/lib/api/project-management';
 import { SupplierSelectModal } from '@/components/tender-write/supplier-select-modal';
 import { buildTenderSectionProgress } from '@/lib/tender-write/progress';
 import type {
@@ -47,13 +57,21 @@ import type {
 } from '@/lib/types/tender-write';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
-// ── localStorage 历史版本持久化（按项目 ID 存储版本列表，支持恢复）──
+// ── 草稿持久化：服务器为准（跨设备同步，2026-09-09），localStorage 降级为离线缓存 ──
+// 背景：此前草稿仅存本机 localStorage（tender-write:project-drafts:v1:<projectId>），
+// 按设备隔离——另一台电脑登录同账号看不到已写内容。现打开时先拉服务器草稿
+// （服务器优先、本地缓存兜底并自动上云迁移），编辑期防抖推送服务器，
+// 同一账号在任何设备打开均一致（last-write-wins）。
 const DRAFTS_STORAGE_PREFIX = 'tender-write:project-drafts:v1:';
 const DRAFTS_HISTORY_PREFIX = 'tender-write:project-draft-history:';
 const MAX_HISTORY = 20;
+/** 编辑期服务器推送防抖间隔：AI 批量生成/连续键入时合并为一次请求。 */
+const SERVER_SYNC_DEBOUNCE_MS = 800;
 
 const getDraftsStorageKey = (projectId: string) => `${DRAFTS_STORAGE_PREFIX}${projectId}`;
 const getDraftsHistoryKey = (projectId: string) => `${DRAFTS_HISTORY_PREFIX}${projectId}`;
+
+const asDraftPayload = (d: TenderDraftsState) => d as unknown as Record<string, unknown>;
 
 type DraftHistoryEntry = { timestamp: string; label: string; drafts: TenderDraftsState };
 
@@ -127,19 +145,29 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
 
-  // 草稿变更后自动持久化
+  // 草稿变更后自动持久化：本地缓存即时写 + 服务器防抖推送（跨设备同步）
+  const serverSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (project?.id && draftRestoredFromStorageRef.current) {
-      saveDraftsToStorage(project.id, drafts);
-    }
+    if (!project?.id || !draftRestoredFromStorageRef.current) return;
+    const projectId = project.id;
+    saveDraftsToStorage(projectId, drafts);
+    if (serverSyncTimerRef.current) clearTimeout(serverSyncTimerRef.current);
+    serverSyncTimerRef.current = setTimeout(() => {
+      void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current)).catch(() => {});
+    }, SERVER_SYNC_DEBOUNCE_MS);
   }, [drafts, project?.id]);
 
-  // 组件卸载时保存草稿（父组件通过条件渲染直接卸载弹窗，isOpen 始终为 true）
+  // 组件卸载时保存草稿（父组件通过条件渲染直接卸载弹窗，isOpen 始终为 true）；
+  // 同时冲刷服务器——防抖中的最后一次变更不能丢，否则另一台设备看到的是旧内容
   useEffect(() => {
     const projectId = project?.id;
     return () => {
       if (projectId) {
         saveDraftsToStorage(projectId, draftsRef.current);
+        if (draftRestoredFromStorageRef.current) {
+          if (serverSyncTimerRef.current) clearTimeout(serverSyncTimerRef.current);
+          void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current)).catch(() => {});
+        }
       }
     };
   }, [project?.id]);
@@ -157,8 +185,22 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     const prefill = buildPrefillFromProject(project, selectedType as TenderDocumentType);
     const aiFields = getAiGenerationFields(type);
 
-    // Step 1: 检查 localStorage 是否有已保存的草稿
-    const saved = loadDraftsFromStorage(project.id);
+    const runOpenFlow = async () => {
+    // Step 1: 服务器草稿优先（跨设备同步）；服务器不可用/无记录回落 localStorage 缓存，
+    // 并将本地遗留草稿回传服务器（旧数据一次性上云迁移）
+    let saved: TenderDraftsState | null = loadDraftsFromStorage(project.id);
+    let hadServerDraft = false;
+    try {
+      const remote = await fetchProjectTenderDraft(project.id);
+      if (remote?.drafts) {
+        saved = remote.drafts as TenderDraftsState;
+        hadServerDraft = true;
+      }
+    } catch { /* 服务器不可用 → 本地缓存离线兜底 */ }
+    if (!hadServerDraft && saved) {
+      void saveProjectTenderDraft(project.id, asDraftPayload(saved)).catch(() => {});
+    }
+
     const hasSavedAiContent = saved
       ? aiFields.some((f) => String((saved[typeKey] as Record<string, unknown>)?.[f.fieldKey] ?? '').trim().length > 0)
       : false;
@@ -257,6 +299,9 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       setShowWorkspace(true);
       draftRestoredFromStorageRef.current = true;
     })();
+    };
+
+    void runOpenFlow();
   }, [isOpen, selectedType, project]);
 
   const selectedMeta = useMemo(
@@ -433,18 +478,35 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     }
   }, [project, selectedType, onAttachmentUploaded, handleAutoFillAll]);
 
-  // ── 保存当前 ──
+  // ── 保存当前：本地缓存 + 服务器当前草稿 + 服务器历史版本（三处一致）──
   const handleSaveCurrent = useCallback(() => {
-    if (project?.id) {
-      saveDraftsToStorage(project.id, draftsRef.current);
-      addDraftToHistory(project.id, draftsRef.current);
-      toast.success('已保存当前草稿');
-    }
+    if (!project?.id) return;
+    const projectId = project.id;
+    const now = new Date();
+    const label = `${now.toLocaleDateString('zh-CN')} ${now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+    saveDraftsToStorage(projectId, draftsRef.current);
+    void saveProjectTenderDraft(projectId, asDraftPayload(draftsRef.current)).catch(() => {
+      toast.error('已保存到本机，但同步服务器失败');
+    });
+    void addProjectTenderDraftVersion(projectId, asDraftPayload(draftsRef.current), label).catch(() => {});
+    addDraftToHistory(projectId, draftsRef.current); // 本地历史缓存（离线兜底）
+    toast.success('已保存当前草稿（已同步服务器，任意设备可恢复）');
   }, [project?.id]);
 
   // ── 历史记录 ──
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyEntries, setHistoryEntries] = useState<DraftHistoryEntry[]>([]);
+  const openHistory = useCallback(async () => {
+    const projectId = project?.id ?? '';
+    // 服务器版本列表优先；失败回落本地缓存（离线兜底）
+    let entries: DraftHistoryEntry[] | null = null;
+    try {
+      const versions = await fetchProjectTenderDraftVersions(projectId);
+      entries = versions.map((v) => ({ timestamp: v.timestamp, label: v.label, drafts: v.drafts as TenderDraftsState }));
+    } catch { entries = null; }
+    setHistoryEntries(entries ?? loadDraftHistory(projectId));
+    setHistoryOpen(true);
+  }, [project?.id]);
 
   // ── 一键清除 ──
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -459,7 +521,11 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       INVITED_BIDDING: createEmptyInvitedBiddingDraft,
     }[selectedType];
     setDrafts((prev) => ({ ...prev, [typeKey]: emptyFn?.() ?? {} }));
-    if (project.id) { clearDraftsStorage(project.id); saveDraftHistory(project.id, []); }
+    if (project.id) {
+      clearDraftsStorage(project.id);
+      saveDraftHistory(project.id, []);
+      void clearProjectTenderDraft(project.id).catch(() => {}); // 服务器当前草稿+历史版本同清
+    }
     setClearConfirmOpen(false);
     toast.success('已清除所有内容');
   }, [selectedType, project]);
@@ -753,7 +819,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             </button>
 
             {/* 历史记录 */}
-            <button type="button" onClick={() => { setHistoryEntries(loadDraftHistory(project?.id ?? '')); setHistoryOpen(true); }} className="neu-btn-xs gap-1" title="查看并恢复草稿历史版本">
+            <button type="button" onClick={() => { void openHistory(); }} className="neu-btn-xs gap-1" title="查看并恢复草稿历史版本">
               <History size={13} />历史记录
             </button>
 
@@ -1078,10 +1144,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击任意版本即可恢复草稿内容。草稿存储在浏览器本地，清除缓存后不可恢复。</p>
+            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击任意版本即可恢复草稿内容。草稿与历史版本已同步至服务器，同一账号在任何设备登录均保持一致。</p>
             <div className="flex justify-end gap-2">
               {historyEntries.length > 0 && (
-                <button type="button" onClick={() => { if (project?.id) { saveDraftHistory(project.id, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>
+                <button type="button" onClick={() => { const pid = project?.id; if (pid) { void clearProjectTenderDraftVersions(pid).catch(() => {}); saveDraftHistory(pid, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>
               )}
               <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-soft">关闭</button>
             </div>

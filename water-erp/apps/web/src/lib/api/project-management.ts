@@ -660,3 +660,75 @@ export async function getPmBidProject(
   });
   return parseJsonResponse(response);
 }
+
+// ═══ 采购文件编写·项目草稿（跨设备同步，2026-09-09）═══
+// 草稿以服务器为准（同账号任意设备一致），localStorage 仅作离线缓存；
+// 详见 tender-write-modal.tsx 同步逻辑。
+
+/** 服务器当前草稿；无记录时后端返回 null（body 为 "null"，parse 后亦为 null）。 */
+export async function fetchProjectTenderDraft(
+  projectId: string,
+): Promise<{ drafts: Record<string, unknown>; updatedAt: string } | null> {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  if (response.status === 404) return null;
+  return parseJsonResponse<{ drafts: Record<string, unknown>; updatedAt: string } | null>(response);
+}
+
+/** 保存（upsert）当前草稿——编辑期 debounce 推送，多设备 last-write-wins。 */
+export async function saveProjectTenderDraft(
+  projectId: string,
+  drafts: Record<string, unknown>,
+): Promise<{ projectId: string; updatedAt: string }> {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ drafts }),
+  });
+  return parseJsonResponse(response);
+}
+
+/** 一键清除：删除服务器当前草稿与全部历史版本。 */
+export async function clearProjectTenderDraft(projectId: string): Promise<void> {
+  await fetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+}
+
+/** 历史版本列表（新→旧，含草稿全文供恢复）。 */
+export async function fetchProjectTenderDraftVersions(
+  projectId: string,
+): Promise<{ id: string; label: string; timestamp: string; drafts: Record<string, unknown> }[]> {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  return parseJsonResponse(response);
+}
+
+/** 「保存当前」产生一个历史版本（服务器侧裁剪至最近 20 条）。 */
+export async function addProjectTenderDraftVersion(
+  projectId: string,
+  drafts: Record<string, unknown>,
+  label?: string,
+): Promise<{ id: string; label: string; createdAt: string }> {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ drafts, label }),
+  });
+  return parseJsonResponse(response);
+}
+
+/** 清空历史版本（保留当前草稿）。 */
+export async function clearProjectTenderDraftVersions(projectId: string): Promise<void> {
+  await fetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+}

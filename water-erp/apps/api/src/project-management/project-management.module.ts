@@ -11,6 +11,7 @@ import { StageComplianceConfigService } from './stage-compliance-config.service'
 import { StageComplianceController } from './stage-compliance.controller';
 import { TimelineService } from './timeline.service';
 import { ProjectManagementService } from './project-management.service';
+import { TenderDraftService } from './tender-draft.service';
 import { GbCodeService } from '../common/gb-code.service';
 
 @Module({
@@ -18,7 +19,7 @@ import { GbCodeService } from '../common/gb-code.service';
   controllers: [StageComplianceController, ProjectManagementController],
   providers: [
     TimelineService,
-    GbCodeService, StageComplianceConfigService, ProjectManagementService],
+    GbCodeService, StageComplianceConfigService, ProjectManagementService, TenderDraftService],
   exports: [ProjectManagementService],
 })
 export class ProjectManagementModule {}

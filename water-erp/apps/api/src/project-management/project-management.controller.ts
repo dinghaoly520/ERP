@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Put,
   Patch,
   Post,
   Query,
@@ -24,7 +25,9 @@ import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
+import { CreateTenderDraftVersionDto, SaveTenderDraftDto } from './dto/tender-draft.dto';
 import { TimelineService } from './timeline.service';
+import { TenderDraftService } from './tender-draft.service';
 import { ProjectManagementService } from './project-management.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UseGuards } from '@nestjs/common';
@@ -39,6 +42,7 @@ export class ProjectManagementController {
     private readonly projectManagementService: ProjectManagementService,
     private readonly companyScope: CompanyScopeService,
     private readonly timelineService: TimelineService,
+    private readonly tenderDraftService: TenderDraftService,
   ) {}
 
   @Get()
@@ -249,6 +253,47 @@ export class ProjectManagementController {
   @Get(':id/summary')
   getProjectSummary(@Param('id') id: string) {
     return this.projectManagementService.getProjectSummary(id);
+  }
+
+  // ═══ 采购文件编写·项目草稿（跨设备同步，2026-09-09）═══
+  // 草稿从 localStorage 迁至服务器：同一账号在任何设备打开均一致；
+  // 越权由类级 PmiOwnershipGuard 拦截（与项目其余 :id 端点同语义）。
+
+  @Get(':id/tender-draft')
+  getTenderDraft(@Param('id') id: string) {
+    return this.tenderDraftService.getDraft(id);
+  }
+
+  @Put(':id/tender-draft')
+  saveTenderDraft(
+    @Param('id') id: string,
+    @Body() dto: SaveTenderDraftDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.tenderDraftService.saveDraft(id, dto, user);
+  }
+
+  @Delete(':id/tender-draft')
+  clearTenderDraft(@Param('id') id: string) {
+    return this.tenderDraftService.clearDraft(id);
+  }
+
+  @Get(':id/tender-draft/versions')
+  listTenderDraftVersions(@Param('id') id: string) {
+    return this.tenderDraftService.listVersions(id);
+  }
+
+  @Post(':id/tender-draft/versions')
+  addTenderDraftVersion(
+    @Param('id') id: string,
+    @Body() dto: CreateTenderDraftVersionDto,
+  ) {
+    return this.tenderDraftService.addVersion(id, dto);
+  }
+
+  @Delete(':id/tender-draft/versions')
+  clearTenderDraftVersions(@Param('id') id: string) {
+    return this.tenderDraftService.clearVersions(id);
   }
 
   @Post(':id/refresh-summary')
