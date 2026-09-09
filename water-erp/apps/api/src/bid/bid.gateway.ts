@@ -328,8 +328,22 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
   }
 
-  notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string }) {
+  notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string; type?: 'question' | 'clarification'; supplierId?: string | null }) {
     const payload: ClarificationCreatedPayload = { ...data, timestamp: Date.now() };
+    // P1-1（2026-09-09 审查）：评标澄清（type=clarification）法定保密——project 房含全体投标人，
+    // 广播 supplierName+questionPreview 会把被询供应商的澄清内容泄露给竞争对手（实施条例第52条）。
+    // 与 notifyClarificationReplied（2026-08-28 收口）同拓扑：host+experts 房 + 当事供应商定向；
+    // type=question（答疑）为公开信息，维持 project 房广播（缺省按旧口径公开，兼容存量调用方）。
+    if (data.type === 'clarification') {
+      this.server.to(`host:${projectId}`).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
+      this.server.to(`experts:${projectId}`).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
+      if (data.supplierId) {
+        for (const sid of this.supplierSocketsIn(data.supplierId, projectId)) {
+          this.server.to(sid).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
+        }
+      }
+      return;
+    }
     this.server.to(`project:${projectId}`).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
   }
 

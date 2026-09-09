@@ -2845,6 +2845,9 @@ export class BidService {
     this.gateway?.notifyClarificationCreated(projectId, {
       id: created.id, issuer: dto.issuer, issuerRole: 'host',
       supplierName: dto.supplierName, questionPreview: dto.question.slice(0, 60),
+      // P1-1：评标澄清定向投递（host/experts/当事供应商），答疑维持公开广播
+      type: dto.type === 'question' ? 'question' : 'clarification',
+      supplierId: clarSupplierId,
     });
     // F18（2026-08-28）：补审计——澄清发起是现场关键动作，旧实现零 AuditLog（try/catch 兜底）
     if (actorId) {

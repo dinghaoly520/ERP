@@ -362,3 +362,63 @@ describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归�
     expect(nonMember.joined).toEqual([]);
   });
 });
+
+describe('BidGateway 澄清事件分级投递（P1-1：评标澄清不进 project 房，2026-09-09）', () => {
+  function makeGateway() {
+    return new BidGateway({} as any, {} as any);
+  }
+  function captureServer(gw: BidGateway) {
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = { to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }) } as any;
+    return emitted;
+  }
+  /** 两家供应商在线 p1：sup-1（当事）/ sup-2（竞争对手） */
+  function seedSuppliers(gw: BidGateway) {
+    (gw as any).supplierSockets.set('sup-1', new Set(['sock-sup1']));
+    (gw as any).supplierSockets.set('sup-2', new Set(['sock-sup2']));
+    (gw as any).socketProjects.set('sock-sup1', 'p1');
+    (gw as any).socketProjects.set('sock-sup2', 'p1');
+  }
+
+  it('type=clarification（评标澄清，保密）→ host 房 + experts 房 + 当事供应商定向；竞争对手与 project 房不收', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    seedSuppliers(gw);
+    gw.notifyClarificationCreated('p1', {
+      id: 'c1', issuer: '主持人', issuerRole: 'host',
+      supplierName: '甲公司', questionPreview: '请澄清技术参数偏离表第 3 项',
+      type: 'clarification', supplierId: 'sup-1',
+    });
+    const rooms = emitted.filter(e => e.event === BID_EVENT.CLARIFICATION_CREATED).map(e => e.room);
+    expect(rooms).toContain('host:p1');
+    expect(rooms).toContain('experts:p1');
+    expect(rooms).toContain('sock-sup1');       // 当事供应商定向（R8 同款 supplierSocketsIn）
+    expect(rooms).not.toContain('sock-sup2');   // 竞争对手不收
+    expect(rooms).not.toContain('project:p1');  // 全体投标人广播通道对保密澄清关闭
+  });
+
+  it('type=question（答疑，公开）→ project 房广播（既有公开口径回归）', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    seedSuppliers(gw);
+    gw.notifyClarificationCreated('p1', {
+      id: 'c2', issuer: '采购人', issuerRole: 'host',
+      supplierName: '乙公司', questionPreview: '关于资格要求的统一答复',
+      type: 'question', supplierId: 'sup-2',
+    });
+    const rooms = emitted.filter(e => e.event === BID_EVENT.CLARIFICATION_CREATED).map(e => e.room);
+    expect(rooms).toEqual(['project:p1']);
+  });
+
+  it('type=clarification 但供应商离线/寻址失败 → 仅 host+experts，仍不进 project 房', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    gw.notifyClarificationCreated('p1', {
+      id: 'c3', issuer: '主持人', issuerRole: 'host',
+      supplierName: '丙公司', questionPreview: '请澄清',
+      type: 'clarification', supplierId: 'sup-x',
+    });
+    const rooms = emitted.filter(e => e.event === BID_EVENT.CLARIFICATION_CREATED).map(e => e.room);
+    expect(rooms.sort()).toEqual(['experts:p1', 'host:p1']);
+  });
+});
