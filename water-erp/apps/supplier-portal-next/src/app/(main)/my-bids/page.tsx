@@ -40,7 +40,7 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 function formatBidPrice(raw: string | number | null | undefined): string {
   const n = Number(raw);
   if (!raw || isNaN(n)) return "--";
-  if (n >= 10000) return `${(n / 10000).toFixed(2)} 万元`;
+  if (n >= 10000) return `${parseFloat((n / 10000).toFixed(2))} 万元`;
   return `${n} 万元`;
 }
 
