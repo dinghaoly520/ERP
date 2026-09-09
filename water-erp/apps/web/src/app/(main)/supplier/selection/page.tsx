@@ -841,8 +841,13 @@ export function SupplierSelectionPage({
         vocabulary: vocab,
       });
       if (!tagsUserEditedRef.current) setSelectedTags(tags);
+      // 空/失败此前完全静默（实测「点击运行但无结果」无从判断）——给出可行动提示
+      if (tags.length === 0) {
+        toast.info('词表中暂无与本项目匹配的业务标签——可手动选择标签，或先在供应商库补充该领域供应商及其业务标签');
+      }
     } catch {
       // 预填失败不阻断选取流程，用户仍可手动选择
+      toast.error('AI 标签匹配失败，请稍后重试或手动选择');
     } finally {
       setTagSuggesting(false);
     }
