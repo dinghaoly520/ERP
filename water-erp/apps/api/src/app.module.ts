@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { CompanyScopeModule } from './company/company-scope';
 import { BidModule } from './bid/bid.module';
 import { SupervisionPushModule } from './supervision-push/supervision-push.module';
+import { PlatformPushModule } from './platform-push/platform-push.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { NotificationModule } from './notification/notification.module';
 import { UploadModule } from './upload/upload.module';
@@ -81,6 +82,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     AuthModule,
     BidModule,
     SupervisionPushModule,
+    PlatformPushModule,
     SupplierModule,
     NotificationModule,
     UploadModule,
