@@ -2,10 +2,12 @@
 
 /**
  * W3（API-only 盲区收口，2026-09-08）：价格与评标办法配置卡。
- * 写径 PATCH /bid/projects/:id/price-config（后端语义：undefined=不更新，无阶段闸——本卡如实不加锁，
- * EVALUATING+ 给软提示）。载荷来源 BidProjectDetail（include 全标量）。
+ * 写径 PATCH /bid/projects/:id/price-config（后端语义：undefined=不更新；P2-17 起
+ * EVALUATING/ARCHIVED 后端 409 PRICE_CONFIG_LOCKED——本卡锁定态如实前置，输入禁用+锁定文案）。
+ * 载荷来源 BidProjectDetail（include 全标量）。
  */
 import { useEffect, useMemo, useState } from "react";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { updatePriceConfig, type BidProjectDetail } from "@/lib/api/bid";
 
@@ -45,6 +47,7 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
     || evaluationMethod !== (detail?.evaluationMethod ?? "")
     || formulaRaw.trim() !== formulaCanonical.trim()
   ), [ceilingPrice, evaluationMethod, formulaRaw, detail?.ceilingPrice, detail?.evaluationMethod, formulaCanonical]);
+  // P2-17（二轮审查收尾）：后端 409 PRICE_CONFIG_LOCKED 如实前置——评标/归档阶段输入禁用（评标口径确定性）
   const softLocked = stage === "EVALUATING" || stage === "ARCHIVED";
 
   async function save() {
@@ -80,8 +83,8 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
   return (
     <div className="space-y-3">
       {softLocked && (
-        <div className="wb-alert wb-alert--warning text-xs">
-          项目已进入评标/归档阶段——修改评标办法或公式会影响后续评分口径，请谨慎操作。
+        <div className="wb-alert wb-alert--warning flex items-center gap-2 text-xs">
+          <Lock size={13} /> 项目已进入评标/归档阶段——价格与评标办法配置已锁定（评标口径确定性）。如需更正请按法定程序办理。
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -90,7 +93,7 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
           <input
             type="number" min="0" step="0.01" inputMode="decimal"
             value={ceilingPrice} onChange={(e) => setCeilingPrice(e.target.value)}
-            placeholder="未设置"
+            placeholder="未设置" disabled={softLocked}
             className="workbench-input mt-1 w-full !text-[13px] tabular-nums"
           />
         </label>
@@ -98,6 +101,7 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
           评标办法
           <select
             value={evaluationMethod} onChange={(e) => setEvaluationMethod(e.target.value)}
+            disabled={softLocked}
             className="workbench-input mt-1 w-full !text-[13px]"
           >
             <option value="">未设置（按采购方式默认）</option>
@@ -115,7 +119,7 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
           <>
             <textarea
               value={formulaRaw} onChange={(e) => setFormulaRaw(e.target.value)}
-              rows={6} spellCheck={false}
+              rows={6} spellCheck={false} disabled={softLocked}
               placeholder='{"formulaType":"benchmark_deviation","K":0.97,"penaltyRate":2}（留空=使用内置默认公式）'
               className="workbench-input mt-2 w-full font-mono !text-[12px] leading-relaxed"
             />
@@ -129,8 +133,8 @@ export function PriceConfigCard({ detail, onChanged }: { detail: PriceConfigSour
         <button
           type="button"
           className="neu-btn-primary !h-[34px] !text-xs"
-          disabled={saving || !detail || !dirty}
-          title={!dirty ? '无修改' : undefined}
+          disabled={saving || !detail || !dirty || softLocked}
+          title={softLocked ? '评标/归档阶段配置已锁定' : !dirty ? '无修改' : undefined}
           onClick={save}
         >
           {saving ? "保存中…" : "保存配置"}
