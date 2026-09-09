@@ -298,6 +298,16 @@ function formatHierarchicalText(text: string): string {
   return result.trim();
 }
 
+/**
+ * 大写金额去尾「整」：询比/竞价/邀请招标/直接采购公告模板的金额占位符后自带「整」字
+ * （「人民币{{最高限价1}}整」），调用方传入的大写值若也带「整」会拼出「元整整」
+ * （实测「捌拾柒万叁仟元整整」）——归一为不带「整」，由模板补。
+ */
+function stripTrailingZheng(v?: string | null): string | undefined {
+  const t = v?.trim();
+  return t ? t.replace(/整$/, '') : (v ?? undefined);
+}
+
 function normalizeSubmissionRequirements(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
@@ -2037,7 +2047,7 @@ export function buildInvitedBiddingAnnouncementPlan(
     { targetText: '项目概况和采购内容', ...buildReplacement('项目概况和采购内容', answers.projectOverview), isHierarchicalText: true },
     // 模板（询比采购公示/竞价采购公告/邀请招标公告）占位符为编号式：{{最高限价1}}（大写）/ {{最高限价2}}（小写）。
     // 旧版括号式目标（最高限价（大写）等）在模板中不存在 → 占位符原样残留（用户实测反馈）。
-    { targetText: '最高限价1', ...buildReplacement('最高限价（大写）', answers.maxPriceChinese) },
+    { targetText: '最高限价1', ...buildReplacement('最高限价（大写）', stripTrailingZheng(answers.maxPriceChinese)) },
     { targetText: '最高限价2', ...buildReplacement('最高限价（小写）', answers.maxPriceNumeric) },
     { targetText: '工期及进度要求', ...buildReplacement('工期及进度要求', answers.scheduleRequirementsType === 'none' ? '无' : answers.scheduleRequirements), isHierarchicalText: true },
     { targetText: '报名方式及条件', ...buildReplacement('报名方式及条件', answers.registrationMethod), isHierarchicalText: true },
@@ -2065,7 +2075,7 @@ export function buildSingleSourceAnnouncementPlan(
     { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
     { targetText: '项目概况和采购内容', ...buildReplacement('项目概况和采购内容', answers.projectOverview), isHierarchicalText: true },
     // 模板占位符为 {{最高限价1}}（大写）/ {{最高限价2}}（小写）
-    { targetText: '最高限价1', ...buildReplacement('预算金额（大写）', answers.maxPriceChinese) },
+    { targetText: '最高限价1', ...buildReplacement('预算金额（大写）', stripTrailingZheng(answers.maxPriceChinese)) },
     { targetText: '最高限价2', ...buildReplacement('预算金额（小写）', answers.maxPriceNumeric) },
     { targetText: '论证意见', ...buildReplacement('论证意见', answers.argumentOpinion), isHierarchicalText: true },
     { targetText: '供应商名称', ...buildReplacement('供应商名称', answers.supplierName) },
@@ -2112,7 +2122,7 @@ export function buildWinningBidAnnouncementPlan(
     { targetText: '项目简要说明', ...buildReplacement('项目简要说明', answers.projectBriefDescription), isHierarchicalText: true },
     // 模板占位符为编号式：{{最高限价1}}（大写）/ {{最高限价2}}（小写）——
     // 与询比/竞价/邀请招标公告同一套口径（旧版括号式目标在模板中不存在 → 占位符原样残留）
-    { targetText: '最高限价1', ...buildReplacement('最高限价（大写）', answers.maxPriceChinese) },
+    { targetText: '最高限价1', ...buildReplacement('最高限价（大写）', stripTrailingZheng(answers.maxPriceChinese)) },
     { targetText: '最高限价2', ...buildReplacement('最高限价（小写）', answers.maxPrice) },
     { targetText: '开标时间', ...buildReplacement('开标时间', formatBidOpeningTime(answers.bidOpeningTime, answers.bidOpeningTimeType)) },
     // 正文「中标金额为人民币{{中标金额1}}（￥{{中标金额2}}）」：第一名报价大小写
