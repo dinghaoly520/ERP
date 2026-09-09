@@ -456,3 +456,69 @@ describe('AnnouncementService — 对接专项 T4 发布赋码强制闸（GB_COD
     expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
   });
 });
+
+describe('W2 依法必招标示录入口（P1-4，2026-09-09）— guard 读 metadata.legalMandatory', () => {
+  const mkSvc = async () => {
+    const prisma: any = {
+      announcement: {
+        create: jest.fn().mockResolvedValue({ id: 'a1', title: 'T', type: 'BID_NOTICE', status: 'PUBLISHED', publishDate: new Date(), metadata: {}, relatedProjectCode: null, authorId: 'u1' }),
+        findUnique: jest.fn(),
+      },
+      bidProject: { findUnique: jest.fn() },
+      // 非必招项目偏离留痕路径（deviated → supervisionLog）需要
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const svc: any = Object.create(Svc.prototype);
+    svc.prisma = prisma;
+    svc.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    svc.announcementAi = { summarize: jest.fn().mockResolvedValue('摘要') };
+    svc.notificationService = undefined;
+    svc.syncBidProject = jest.fn().mockResolvedValue({});
+    // create 尾部 this.get(result.id) 需要 findUnique 回已建公告（create 首个 resolved 值）
+    prisma.announcement.findUnique.mockImplementation(async () => prisma.announcement.create.mock.results[0]?.value);
+    return { svc, prisma };
+  };
+  // 售标（发布）→ 开标仅 15 日：B-004 依法必招应拦；openTime 距今足够远（2099）供对照组
+  const baseDto = (openTime: string, metadata: Record<string, unknown>) => ({
+    title: 'T', content: 'c', type: 'BID_NOTICE', status: 'PUBLISHED',
+    publishDate: new Date().toISOString(),
+    metadata: { method: '公开招标', openTime, deadline: openTime, ...metadata },
+  } as any);
+
+  it('直建发布（无关联项目）+ metadata.legalMandatory=true + 售标→开标<20日 → 400 BID_TIMING_20D', async () => {
+    const { svc } = await mkSvc();
+    const openTime = new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString();
+    await expect(svc.create(baseDto(openTime, { legalMandatory: true }), 'u1'))
+      .rejects.toMatchObject({ response: { code: 'BID_TIMING_20D' } });
+  });
+
+  it('直建发布无 legalMandatory（集团非必招惯例）→ 放行（回归：24h 惯例不受影响）', async () => {
+    const { svc, prisma } = await mkSvc();
+    const openTime = new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString();
+    await svc.create(baseDto(openTime, {}), 'u1');
+    expect(prisma.announcement.create).toHaveBeenCalled();
+  });
+
+  it('validateMetadata 白名单保留 legalMandatory 布尔（不再剥落）', async () => {
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const validated = (Svc as any).validateMetadata({ legalMandatory: true, method: '公开招标' });
+    expect(validated.legalMandatory).toBe(true);
+  });
+
+  it('关联项目列优先：existing.legalMandatory=true（metadata 无标志）→ 仍拦 BID_TIMING_20D', async () => {
+    const { svc, prisma } = await mkSvc();
+    prisma.bidProject.findUnique.mockResolvedValue({ legalMandatory: true, gbProcureCode: '511510000260909001001', openTime: new Date(Date.now() + 15 * 24 * 3600 * 1000), downloadDeadline: null, deadline: new Date(Date.now() + 14 * 24 * 3600 * 1000) });
+    const openTime = new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString();
+    await expect(svc.create({ ...baseDto(openTime, {}), relatedProjectCode: 'TP-1' }, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'BID_TIMING_20D' } });
+  });
+
+  it('关联项目列优先：existing.legalMandatory=false + metadata.legalMandatory=true → 以列为准放行', async () => {
+    const { svc, prisma } = await mkSvc();
+    prisma.bidProject.findUnique.mockResolvedValue({ legalMandatory: false, gbProcureCode: '511510000260909001001', openTime: new Date(Date.now() + 15 * 24 * 3600 * 1000), downloadDeadline: null, deadline: new Date(Date.now() + 14 * 24 * 3600 * 1000) });
+    const openTime = new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString();
+    await svc.create({ ...baseDto(openTime, { legalMandatory: true }), relatedProjectCode: 'TP-1' }, 'u1');
+    expect(prisma.announcement.create).toHaveBeenCalled();
+  });
+});

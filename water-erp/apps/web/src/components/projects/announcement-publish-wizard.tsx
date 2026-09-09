@@ -265,6 +265,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // 多份采购文件时，公告引用哪一份（objectKey 唯一标识）；单份默认选它
   const [selectedTenderObjectKey, setSelectedTenderObjectKey] = useState<string>('');
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
+  // P1-4（2026-09-09 补录入口）：依法必招标式——勾选后发布闸门强制 B-004（售标→开标≥20 日）/B-009（发售期≥5 日）；
+  // 集团内部采购惯例（24h 截标↔开标）不勾选即维持非强制 + 偏离留痕。仅采购公告类目展示。
+  const [legalMandatory, setLegalMandatory] = useState(false);
   const [annId, setAnnId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
   const [busy, setBusy] = useState(false);
@@ -810,6 +813,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
       meta.notifyOnPublish = notifyOnPublish;
+      // P1-4：依法必招标式随 metadata 下发（直建发布 guard 读取；建项后持久化为 BidProject.legalMandatory）
+      if (legalMandatory) meta.legalMandatory = true;
       if (tenderOn && selectedTenderObjectKey) {
         meta.selectedTenderObjectKey = selectedTenderObjectKey;
         const tenderFile = tenderFiles.find((f) => f.objectKey === selectedTenderObjectKey) ?? tenderFiles[0];
@@ -1149,6 +1154,27 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   </div>
                 )}
               </div>
+              )}
+
+              {/* ★ P1-4（2026-09-09）：依法必招标式——B-004/B-009 法定时限强制入口（仅采购公告） */}
+              {category === 'procurement_document' && (
+                <div className="rounded-[20px] p-5" style={{ background: legalMandatory ? 'color-mix(in oklch, var(--warning, #d97706) 6%, oklch(1 0 0 / 0.48))' : 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">法定时限</div>
+                  <label className="mt-3 flex items-start gap-2.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={legalMandatory}
+                      onChange={(e) => setLegalMandatory(e.target.checked)}
+                      className="mt-0.5 accent-[var(--accent)]"
+                    />
+                    <span>
+                      <span className="font-semibold text-[var(--foreground)]">本项目属于依法必须进行招标的项目</span>
+                      <span className="mt-1 block text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                        勾选后发布时强制校验：招标文件出售开始至开标不少于 20 日、发售期不少于 5 日（法定节假日顺延）；不满足将无法发布。集团内部采购惯例（截标↔开标 24 小时）请勿勾选——不勾选仅偏离留痕不拦截。
+                      </span>
+                    </span>
+                  </label>
+                </div>
               )}
 
               {/* ★ 中标公告公示期（2026-09-04）：发布后顺延 3 天异议期，与 BidProject A1 口径一致 */}

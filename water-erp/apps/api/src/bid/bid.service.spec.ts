@@ -185,6 +185,73 @@ describe('BidService — stage transitions', () => {
     service = module.get<BidService>(BidService);
   });
 
+  describe('legalMandatory 录入口（P1-4 补录入口，2026-09-09）', () => {
+    describe('createProject — DTO 直录', () => {
+    beforeEach(() => { prisma.bidProject.count.mockResolvedValue(0); });
+      it('dto.legalMandatory=true → 建项落库 true', async () => {
+        prisma.bidProject.create.mockResolvedValue({ id: 'p1' });
+        await service.createProject({ name: 'X', procurementMethod: '公开招标', openTime: '2099-01-01T10:00:00.000Z', legalMandatory: true } as any);
+        expect(prisma.bidProject.create.mock.calls[0][0].data.legalMandatory).toBe(true);
+      });
+      it('缺省 → false（显式落库，语义确定）', async () => {
+        prisma.bidProject.create.mockResolvedValue({ id: 'p1' });
+        await service.createProject({ name: 'X', procurementMethod: '公开招标', openTime: '2099-01-01T10:00:00.000Z' } as any);
+        expect(prisma.bidProject.create.mock.calls[0][0].data.legalMandatory).toBe(false);
+      });
+    });
+
+    describe('createFromAnnouncement — 公告直建持久化', () => {
+    beforeEach(() => { prisma.bidProject.count.mockResolvedValue(0); });
+      it('metadata.legalMandatory=true → 建项落库 true', async () => {
+        prisma.bidProject.create.mockResolvedValue({ id: 'p1', projectCode: 'GK-2026090901' });
+        await service.createFromAnnouncement(
+          { id: 'a1', title: 'T', publishDate: new Date() },
+          { method: '公开招标', legalMandatory: true },
+        );
+        expect(prisma.bidProject.create.mock.calls[0][0].data.legalMandatory).toBe(true);
+      });
+      it('缺省 → false', async () => {
+        prisma.bidProject.create.mockResolvedValue({ id: 'p1', projectCode: 'GK-2026090902' });
+        await service.createFromAnnouncement(
+          { id: 'a1', title: 'T', publishDate: new Date() },
+          { method: '公开招标' },
+        );
+        expect(prisma.bidProject.create.mock.calls[0][0].data.legalMandatory).toBe(false);
+      });
+    });
+
+    describe('syncFromAnnouncement — 公告再编辑同步', () => {
+      it('metadata.legalMandatory=true → 同步项目列', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'GK-1' });
+        prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+        await service.syncFromAnnouncement('p1', { title: 'T' }, { legalMandatory: true });
+        expect(prisma.bidProject.update.mock.calls[0][0].data.legalMandatory).toBe(true);
+      });
+      it('metadata 未提供 → 不覆盖既有值（data 无 legalMandatory 键）', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'GK-1' });
+        prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+        await service.syncFromAnnouncement('p1', { title: 'T' }, { budget: 100 });
+        expect(prisma.bidProject.update.mock.calls[0][0].data).not.toHaveProperty('legalMandatory');
+      });
+    });
+
+    describe('updateProject — 开标前可改、开标后锁定', () => {
+      it('DOWNLOAD 阶段 legalMandatory=true → 落库', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue({ openTime: new Date(), deadline: new Date(), stage: 'DOWNLOAD' });
+        prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD' });
+        await service.updateProject('p1', { legalMandatory: true } as any, 'u1');
+        expect(prisma.bidProject.update.mock.calls[0][0].data.legalMandatory).toBe(true);
+      });
+      it('OPENING 阶段改 legalMandatory → 409 LEGAL_FLAG_LOCKED', async () => {
+        prisma.bidProject.findUnique.mockResolvedValue({ openTime: new Date(), deadline: new Date(), stage: 'OPENING' });
+        prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+        await expect(service.updateProject('p1', { legalMandatory: true } as any, 'u1'))
+          .rejects.toMatchObject({ response: { code: 'LEGAL_FLAG_LOCKED' } });
+        expect(prisma.bidProject.update).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('assertBidStageTransition', () => {
     it('allows DOWNLOAD → SUBMIT', () => {
       expect(() => assertBidStageTransition('DOWNLOAD', 'SUBMIT')).not.toThrow();

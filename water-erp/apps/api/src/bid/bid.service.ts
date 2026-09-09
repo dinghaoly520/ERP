@@ -686,6 +686,8 @@ export class BidService {
         deadline,
         riskNote: dto.riskNote,
         qualityRequirement: dto.qualityRequirement,
+        // P1-4（2026-09-09 补录入口）：依法必招标式落库——B-004/B-009 发布闸门据此强制（缺省 false）
+        legalMandatory: dto.legalMandatory === true,
         bondRequired: dto.bondRequired ?? false,
         bondAmount: dto.bondAmount,
         // 公司归属快照自创建人（BidCompanyScopeGuard：非_admin 内部角色仅本公司项目可见）
@@ -763,6 +765,9 @@ export class BidService {
         // A3（7.2.2.3）：直接采购理由随公告建项落库，供公告/详情公示
         directSourcingReason: metadata.directSourcingReason || null,
         contact: metadata.contact || null,
+        // P1-4（2026-09-09 补录入口）：公告直建持久化依法必招标式（guard 直建路径读 metadata，
+        // 建项后随列存储——后续再发布以项目列为准）
+        legalMandatory: metadata.legalMandatory === true,
         stage: 'DOWNLOAD',
         // 公司归属：跟随公告（admin 代发时项目归公告所属公司，而非操作人）
         companyId: companyStamp.companyId ?? null,
@@ -826,6 +831,8 @@ export class BidService {
         ...(metadata.qualification !== undefined && { qualification: metadata.qualification }),
         ...(metadata.directSourcingReason !== undefined && { directSourcingReason: metadata.directSourcingReason }),
         ...(metadata.contact !== undefined && { contact: metadata.contact }),
+        // P1-4：metadata 显式携带时同步（未提供不覆盖既有值）
+        ...(metadata.legalMandatory !== undefined && { legalMandatory: metadata.legalMandatory === true }),
       },
     });
 
@@ -837,6 +844,18 @@ export class BidService {
     // stage 流转不走此接口：曾允许 PATCH stage 绕过专用端点的前置校验/副作用/审计
     // （OPENING→EVALUATING 不建 AI task 致分析死锁，且无监督/审计日志）。
     // 阶段变更须走 openSubmission/startOpening/startEvaluation/archiveAll 等专用端点。
+
+    // P1-4（2026-09-09 补录入口）：依法必招标式——开标启动前可录可改，OPENING 起锁定。
+    // 标志决定 B-004/B-009 发布闸门是否强制，开标后翻标志无法追溯已发布流程，只允许前进期录入。
+    if (dto.legalMandatory !== undefined) {
+      const stageRow = await this.prisma.bidProject.findUnique({ where: { id }, select: { stage: true } });
+      if (stageRow && !['DOWNLOAD', 'SUBMIT'].includes(stageRow.stage)) {
+        throw new ConflictException({
+          error: `开标已启动（${stageRow.stage}），依法必招标式不可变更；如需更正请走数据修正流程`,
+          code: 'LEGAL_FLAG_LOCKED',
+        });
+      }
+    }
 
     // 截标↔开标 24h（P0-2）分阶段语义：
     // - align（prev.deadline 未过）：仅传 openTime → deadline 派生；仅传 deadline → openTime 派生；双传 → align 校验
@@ -899,6 +918,7 @@ export class BidService {
         ...(dto.qualityRequirement !== undefined && { qualityRequirement: dto.qualityRequirement }),
         ...(dto.bondRequired !== undefined && { bondRequired: dto.bondRequired }),
         ...(dto.bondAmount !== undefined && { bondAmount: dto.bondAmount }),
+        ...(dto.legalMandatory !== undefined && { legalMandatory: dto.legalMandatory === true }),
         ...(dto.sectionNo !== undefined && { sectionNo: dto.sectionNo }),
         ...(dto.sectionName !== undefined && { sectionName: dto.sectionName }),
       },
