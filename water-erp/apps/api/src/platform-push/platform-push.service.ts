@@ -445,18 +445,20 @@ export class PlatformPushService {
       });
     }
 
-    // 幂等三元组（channel+itemId+payloadSha256）预检：命中即 409（并发竞态由 create P2002 兜底）
+    // 幂等三元组（channel+itemId+payloadSha256）预检：仅终态占坑（Phase 2 K1——FAILED/STUB_REFUSED 可重推，
+    // DB partial index WHERE status IN ('SUCCESS','EXPORTED') 与此同口径；并发竞态由 create P2002 兜底）
     const existing = await this.prisma.platformPushLog.findMany({
       where: {
         channel, itemId: { in: prepared.map((p) => p.item.itemId) },
         payloadSha256: { in: prepared.map((p) => p.hash) },
+        status: { in: ['SUCCESS', 'EXPORTED'] },
       },
       select: { itemId: true },
     });
     if (existing.length) {
       const ids = [...new Set(existing.map((e) => e.itemId))];
       throw new ConflictException({
-        error: `以下数据项在通道 ${channel} 已按相同载荷处理过：${ids.join('、')}（幂等三元组：通道+数据项+载荷指纹）`,
+        error: `以下数据项在通道 ${channel} 已成功推送或已导出过（相同载荷）：${ids.join('、')}——如需重发请先修改数据或等待内容变化`,
         code: 'ALREADY_PUSHED', itemIds: ids,
       });
     }

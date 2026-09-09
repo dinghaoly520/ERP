@@ -49,7 +49,9 @@ function makeSvc(ov: {
     supplierPenalty: { findUnique: async (a: any) => (a.where.id === 'pen1' ? (ov.penalties?.[0] ?? PENALTY) : null) },
     bidEvaluationResult: { findMany: async () => ov.evalResults ?? [] },
     platformPushLog: {
-      findMany: async () => ov.existingLogs ?? [],
+      findMany: async (args?: any) => (ov.existingLogs ?? []).filter((l: any) =>
+        // Phase 2 K1：尊重预检的 status 过滤（无 status 的行按 SUCCESS 终态处理——与既有用例口径一致）
+        !args?.where?.status?.in || args.where.status.in.includes(l.status ?? 'SUCCESS')),
       count: async () => 0,
       create: async (a: any) => { created.pushLogs.push(a.data); return { id: `log-${created.pushLogs.length}`, ...a.data }; },
     },
@@ -186,6 +188,27 @@ describe('PlatformPushService.dispatch（人工确认制铁律）', () => {
       itemIds: ['announcement:a1'], channel: 'mock',
       payloadHashes: [{ itemId: 'announcement:a1', payloadHash: hash }],
     }, 'u1')).rejects.toMatchObject({ status: 409, response: { code: 'ALREADY_PUSHED' } });
+  });
+
+  it('Phase 2 K1：FAILED 行不占坑——同载荷重推放行（新 attemptNo 行）', async () => {
+    const { svc: s0 } = makeSvc();
+    const hash = (await s0.preview({ itemIds: ['announcement:a1'] })).items[0].payloadHash;
+    const { svc, created } = makeSvc({ existingLogs: [{ itemId: 'announcement:a1', status: 'FAILED' }] });
+    await expect(svc.dispatch({
+      itemIds: ['announcement:a1'], channel: 'mock',
+      payloadHashes: [{ itemId: 'announcement:a1', payloadHash: hash }],
+    }, 'u1')).resolves.toBeDefined();
+    expect(created.pushLogs.length).toBeGreaterThan(0);
+  });
+
+  it('Phase 2 K1：STUB_REFUSED 行不占坑——同载荷重试再落新行（不再 409）', async () => {
+    const { svc: s0 } = makeSvc();
+    const hash = (await s0.preview({ itemIds: ['announcement:a1'] })).items[0].payloadHash;
+    const { svc } = makeSvc({ existingLogs: [{ itemId: 'announcement:a1', status: 'STUB_REFUSED' }] });
+    await expect(svc.dispatch({
+      itemIds: ['announcement:a1'], channel: 'mock',
+      payloadHashes: [{ itemId: 'announcement:a1', payloadHash: hash }],
+    }, 'u1')).resolves.toBeDefined();
   });
 
   it('stub 通道 → 落 STUB_REFUSED 台账行后 501 CHANNEL_NOT_CONNECTED', async () => {
