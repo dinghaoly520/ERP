@@ -5,18 +5,21 @@
  * 规避「同一时刻至多一个 Modal」约束。confirm() 返回 Promise<boolean>，调用点 await 后语义与原生
  * 确认框完全一致（true=确认）。z-[700] 盖过 workbench Modal 的 z-[600]。
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 type ConfirmOptions = { title?: string; message: string; danger?: boolean };
 
 export function useConfirm() {
-  const [state, setState] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null);
+  const [state, setState] = useState<ConfirmOptions | null>(null);
+  const resolverRef = useRef<((v: boolean) => void) | null>(null);
 
   const confirm = useCallback((opts: ConfirmOptions) => new Promise<boolean>((resolve) => {
-    setState({ ...opts, resolve });
+    resolverRef.current?.(false); // 二次调用：先结算上一个为取消（弹窗被替换）
+    resolverRef.current = resolve;
+    setState(opts);
   }), []);
 
-  const close = (v: boolean) => { state?.resolve(v); setState(null); };
+  const close = (v: boolean) => { resolverRef.current?.(v); resolverRef.current = null; setState(null); };
 
   const dialog = state ? (
     <div className="fixed inset-0 z-[700] flex items-center justify-center">
