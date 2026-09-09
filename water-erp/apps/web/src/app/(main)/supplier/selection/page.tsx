@@ -543,8 +543,15 @@ export function SupplierSelectionPage({
     setDetailLoading(true);
     try {
       const res = await fetch(`/api/supplier/${r.supplierId}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
-      if (res.ok) setDetailData(await res.json());
-    } catch { /* 静默 */ }
+      if (res.ok) {
+        setDetailData(await res.json());
+      } else {
+        // 此前非 ok 静默 → 弹窗永远「无法加载供应商详情」且无指引（限流风暴期高频出现）
+        toast.error(`供应商档案加载失败（${res.status}），请稍候重开详情`);
+      }
+    } catch {
+      toast.error('供应商档案加载失败，请检查网络后重试');
+    }
     setDetailLoading(false);
   };
 

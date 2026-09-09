@@ -46,16 +46,21 @@ export function QualificationAnalysisPanel({
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MatchResult | null>(null);
+  const [failed, setFailed] = useState(false); // 失败后停止自动重试（改手动），防 429 重试风暴
   const lastKey = useRef('');
 
   const run = useCallback(async () => {
     if (!supplierId || !projectId) { toast.error('未关联项目，无法分析'); return; }
     setLoading(true);
+    setFailed(false);
     try {
       const res = await api.post<MatchResult>('/ai/supplier-qualification-match', { supplierId, projectId });
       setResult(res);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '分析失败，请稍后重试');
+      // 此前失败后 result 仍 null、loading 复位 → 自动触发效应条件再次成立 → 无限重试
+      // （实测同一秒连发十余次，把全局限流打爆后所有请求 429 风暴自我维持）
+      setFailed(true);
+      toast.error(e instanceof Error ? e.message : '分析失败，请稍候重试');
     } finally {
       setLoading(false);
     }
@@ -67,12 +72,13 @@ export function QualificationAnalysisPanel({
     if (lastKey.current !== key) {
       lastKey.current = key;
       setResult(null);
+      setFailed(false);
     }
   }, [supplierId, projectId]);
 
   useEffect(() => {
-    if (supplierId && projectId && !result && !loading) void run();
-  }, [supplierId, projectId, result, loading, run]);
+    if (supplierId && projectId && !result && !loading && !failed) void run();
+  }, [supplierId, projectId, result, loading, failed, run]);
 
   const ConclusionIcon = result ? CONCLUSION_META[result.conclusion].icon : null;
 
@@ -159,6 +165,14 @@ export function QualificationAnalysisPanel({
             <p className="text-[9px] leading-relaxed text-[var(--muted-foreground)] px-1 pb-1">
               分析依据为供应商库内资料（资质/业绩/经营范围/历史评价），不构成资格审查结论；最终资格认定以资格审查结果为准。
             </p>
+          </div>
+        ) : failed ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-14">
+            <p className="text-xs text-[var(--danger)]">分析失败（限流或服务暂不可用）</p>
+            <button type="button" onClick={() => void run()} className="neu-btn-xs is-info">
+              <RefreshCw size={12} /> 重试
+            </button>
+            <p className="text-[10px] text-[var(--muted-foreground)]/70">失败后已停止自动重试，稍候手动重试即可</p>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-3 py-14">
