@@ -18,7 +18,7 @@ const STAGE_ORDER: Record<BidStage, number> = {
  * 2026-07 重构：原相邻白名单状态机弱化为**单向进度标记**——
  * - 同阶段 (from === to) 幂等放行
  * - 只许前进，允许跳步（DOWNLOAD→OPENING、OPENING→ARCHIVED 均合法）
- * - 回退或离开 ARCHIVED 抛 409 ConflictException（ARCHIVED 作 from 时天然终态）
+ * - 回退或离开 ARCHIVED 抛 409 ConflictException（ARCHIVED 为不可逆终态——显式守卫，ABORTED 序号在其后不构成例外）
  *
  * 阶段推进由 :3005 采购管理工作台统一驱动；实质准入闸门下沉到各端点
  * 业务前置（投递=OPENING 前+截止前+公告已发布；解密=OPENING+解密窗口内）。
@@ -27,6 +27,13 @@ export function assertBidStageTransition(from: BidStage, to: BidStage): void {
   if (from === to) return;
   // 流标后归档是合法终局操作（AbortDialog: abort → archive）
   if (from === 'ABORTED' && to === 'ARCHIVED') return;
+  // P0-1（2026-09-09 审查）：ARCHIVED 为不可逆终态——离开 ARCHIVED 的任何流转一律拒绝。
+  // 旧实现仅按 STAGE_ORDER 比较，而 ABORTED(5) 排在 ARCHIVED(4) 之后，ARCHIVED→ABORTED
+  // 被当作"前进"放行——已归档项目可经 abortBidProject 流标（终局被绕过、归档清单分裂、
+  // 还能 reopen 出第二轮）。唯一合法的终局收尾是既有特例 ABORTED→ARCHIVED。
+  if (from === 'ARCHIVED') {
+    throw new ConflictException(`非法招标阶段流转：${from} -> ${to}（ARCHIVED 为不可逆终态，仅 ABORTED→ARCHIVED 收尾合法）`);
+  }
   if (STAGE_ORDER[to] < STAGE_ORDER[from]) {
     throw new ConflictException(`非法招标阶段流转：${from} -> ${to}（只允许前进，ARCHIVED 为终态）`);
   }
