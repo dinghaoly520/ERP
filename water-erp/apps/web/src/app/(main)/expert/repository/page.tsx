@@ -181,10 +181,10 @@ export default function ExpertRepositoryPage() {
             <div><div className="page-hero__title">专家库</div><div className="page-hero__sub">评审专家目录、专业分类与启停管理，支持按专业和姓名筛选</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
             <Link href="/expert/ranking" className="neu-btn-soft"><Trophy size={15} />排名</Link>
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
             <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>
+            <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
             <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>

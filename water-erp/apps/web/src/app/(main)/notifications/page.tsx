@@ -148,14 +148,14 @@ export default function NotificationsPage() {
           </div>
 
           <div className="page-hero__right">
-            <button onClick={() => { setPage(1); setTypeFilter(null); load(); }} disabled={loading} className="neu-btn-xs" aria-label="刷新">
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
             {unread > 0 && (
               <button onClick={onAllRead} className="neu-btn-soft">
                 <CheckCheck size={15} /> 全部已读
               </button>
             )}
+            <button onClick={() => { setPage(1); setTypeFilter(null); load(); }} disabled={loading} className="neu-btn-xs" aria-label="刷新">
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            </button>
           </div>
         </div>
 

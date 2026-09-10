@@ -352,8 +352,22 @@ export class AnnouncementController {
   @Get('histories/all')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '全部公告操作历史（只读）' })
-  async allHistories(@Query('page') page?: number, @Query('pageSize') pageSize?: number) {
-    return this.history.listAll({ page: page ? Number(page) : undefined, pageSize: pageSize ? Number(pageSize) : undefined });
+  async allHistories(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('action') action?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.history.listAll({
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      dateFrom,
+      dateTo,
+      action,
+      search,
+    });
   }
 
   /** 提取客户端 IP（信任反代一跳） */
