@@ -10,7 +10,6 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock,
-  Coins,
   Crown,
   FileText,
   Gavel,
@@ -61,7 +60,7 @@ import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { ArchiveTemplateCard } from './archive-template-card';
 import { OpeningFieldConfigCard } from './opening-field-config-card';
-import { PriceConfigCard } from './price-config-card';
+import { EvaluationBasisFields, PriceFormulaFields } from './price-config-card';
 import { uploadFile } from '@/lib/api/announcement';
 
 type Props = {
@@ -757,22 +756,56 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 </Modal>
               )}
 
-              {/* ▸ 区块4：评分标准编制（2026-07-24 换用从 :3007 移植的完整编辑器：AI 提取 / 发布锁定 / 模板库 / 客观主观）*/}
+              {/* ▸ 区块4：评分标准与评标办法（2026-09-10 合并原「评分标准编制」「价格与评标办法」两卡：
+                  评标办法管整个评标口径（evaluation-method.config 采购方式映射），上移与评分标准同卡；
+                  价格分公式作用于「价格」类评分项，收尾） */}
               <SectionCard
                 icon={<FileText size={14} />}
-                title="评分标准编制"
+                title="评分标准与评标办法"
                 accent="var(--stage-evaluation)"
                 accentSoft="var(--stage-evaluation-soft)"
               >
-                {project && (
-                  <ScoreStandardEditor
-                    project={project}
-                    round={round}
-                    bidProject={bidProject}
-                    onChanged={() => void load()}
-                    variant="embedded"
-                  />
-                )}
+                <div className="space-y-4">
+                  {/* ① 评标口径：评标办法 + 最高限价（W3 原「价格与评标办法」卡；EVALUATING 起锁定） */}
+                  {bidProject && (
+                    <div>
+                      <h4 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                        评标办法与最高限价
+                      </h4>
+                      <EvaluationBasisFields detail={detail ?? bidProject} onChanged={() => void load()} />
+                    </div>
+                  )}
+                  {/* ② 评分项与得分点（2026-07-24 从 :3007 移植的完整编辑器：AI 提取 / 发布锁定 / 模板库 / 客观主观；OPENING 起锁定） */}
+                  {project && (
+                    <>
+                      <hr className="wb-section-rule" />
+                      <div>
+                        <h4 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                          评分项与得分点
+                        </h4>
+                        <ScoreStandardEditor
+                          project={project}
+                          round={round}
+                          bidProject={bidProject}
+                          onChanged={() => void load()}
+                          variant="embedded"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {/* ③ 价格分公式参数（W3 原卡高级折叠区；作用于「价格」类评分项，留空=内置默认公式） */}
+                  {bidProject && (
+                    <>
+                      <hr className="wb-section-rule" />
+                      <div>
+                        <h4 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                          价格分公式参数（高级）
+                        </h4>
+                        <PriceFormulaFields detail={detail ?? bidProject} onChanged={() => void load()} />
+                      </div>
+                    </>
+                  )}
+                </div>
               </SectionCard>
 
               {/* ▸ A-113/A-115：唱标字段配置 + 开标记录模板库（API-only 收口 UI，2026-09-08）。
@@ -788,18 +821,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                     bidProject={detail ?? bidProject}
                     onChanged={() => void load()}
                   />
-                </SectionCard>
-              )}
-
-              {/* ▸ W3（API-only 盲区收口，2026-09-08）：价格与评标办法（最高限价/评标办法/价格分公式） */}
-              {bidProject && (
-                <SectionCard
-                  icon={<Coins size={14} />}
-                  title="价格与评标办法"
-                  accent="var(--stage-demand)"
-                  accentSoft="var(--stage-demand-soft)"
-                >
-                  <PriceConfigCard detail={detail ?? bidProject} onChanged={() => void load()} />
                 </SectionCard>
               )}
 
