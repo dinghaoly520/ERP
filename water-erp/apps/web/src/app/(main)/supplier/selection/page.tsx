@@ -3691,6 +3691,29 @@ export function SupplierSelectionPage({
                       </div>
                     </div>
                   )}
+                  {/* 业绩记录（同资格分析的 P 清单数据源） */}
+                  {detailData.performances?.length > 0 && (
+                    <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">业绩记录（{detailData.performances.length}）</h4>
+                      <div className="space-y-2">
+                        {detailData.performances.map((p: any, i: number) => (
+                          <div key={i} className="rounded-[10px] px-3 py-2" style={{ background: 'oklch(1 0 0 / 0.4)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.45)' }}>
+                            <div className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="min-w-0 flex-1 truncate text-[var(--foreground)] font-semibold" title={p.projectName}>{p.projectName}</span>
+                              <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">{p.signDate ? p.signDate.slice(0, 10) : ''}</span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[var(--muted-foreground)]">
+                              {p.clientName && <span>业主：{p.clientName}</span>}
+                              {p.contractAmount && <span className="font-semibold text-[var(--foreground)]">合同额 {p.contractAmount}</span>}
+                              {p.recordType === 'reward' && <span className="text-[var(--success)] font-semibold">奖励</span>}
+                              {p.recordType === 'punishment' && <span className="text-[var(--danger)] font-semibold">惩戒</span>}
+                            </div>
+                            {p.description && <p className="mt-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]/85 line-clamp-2">{p.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 业绩记录（证明文件可点开） */}
                   {detailData.performances?.length > 0 && (
