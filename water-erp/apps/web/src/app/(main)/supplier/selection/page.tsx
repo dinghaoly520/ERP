@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual } from '@/lib/api/supplier';
+import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual } from '@/lib/api/supplier';
 import type { TagVocabularyItem, RsvpListResult, RsvpListItem } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { getPmBidProject } from '@/lib/api/project-management';
@@ -12,9 +12,9 @@ import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
-import { analyzeProjectManagementItem, extractTenderFields, updateProjectStage } from '@/lib/api/project-management';
+import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, ExternalLink, MapPin, Phone, Mail, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
+import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, Phone, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
@@ -29,24 +29,9 @@ import { StepTrack } from '@/components/step-track';
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
 
-const STAGE_LABELS: Record<string, string> = {
-  DOWNLOAD: '下载标书', SUBMIT: '投标提交', OPENING: '开标中', EVALUATING: '评标中', ARCHIVED: '已归档',
-};
 const METHOD_LABELS: Record<string, string> = {
   '公开招标': '公开招标', '邀请招标': '邀请招标', '竞争性谈判': '竞争性谈判', '竞争性磋商': '竞争性磋商', '询价': '询价', '单一来源': '单一来源',
 };
-
-const PROMPT_TEMPLATE = `【项目概况】
-（点明采购事项及所属行业领域，作为供应商寻源的方向参照）
-
-【经营范围要求】
-（供应商的经营范围应覆盖哪些业务、应是什么类型的供应商）
-
-【资质要求】
-（供应商应具备的企业类型、行业资质与认证）
-
-【业绩要求】
-（供应商的同类业绩门槛与经验要求）`;
 
 // 向导步骤定义 — 从项目管理进入且为竞争性谈判时，确认通知后插入「附件选择」
 // 2026-08-31 重构：原「选择项目 + 描述需求」合并为「供应商要求描述」——
@@ -54,19 +39,19 @@ const PROMPT_TEMPLATE = `【项目概况】
 const STEPS = [
   { num: 1, label: '供应商要求', desc: '描述对供应商的要求，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
-  { num: 3, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 const NEGOTIATION_STEPS = [
   { num: 1, label: '供应商要求', desc: '描述对供应商的要求，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
-  { num: 3, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
   { num: 5, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 // 直接采购：已确定供应商 → 仅显示通知+确认两步，隐藏前置选取步骤
 const DIRECT_STEPS = [
-  { num: 1, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 1, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 2, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 // 补选模式下追加的步骤
@@ -256,11 +241,6 @@ export function SupplierSelectionPage({
   const [showHistory, setShowHistory] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
   const [savedHistoryId, setSavedHistoryId] = useState<string | null>(null);
-  const [inviting, setInviting] = useState(false);
-  const [shareModal, setShareModal] = useState(false);
-  const [shareNote, setShareNote] = useState('');
-  const [shareSending, setShareSending] = useState(false);
-  const [notifyTemplate, setNotifyTemplate] = useState({ title: '', body: '' });
   const [notifyChannels, setNotifyChannels] = useState<string[]>(['in_app', 'sms', 'phone']);
   const [notifyAiLoading, setNotifyAiLoading] = useState(false);
   const [notifySending, setNotifySending] = useState(false);
@@ -326,7 +306,6 @@ export function SupplierSelectionPage({
         baseRenumbered.push({ num: baseRenumbered.length + 1, label: e.label, desc: e.desc });
       });
       return baseRenumbered;
-    return baseRenumbered;
   }, [neg, isRerun, rerunRound]);
   // 日期解析：从 AI 提取的中文/ISO 格式字符串中提取日期和时分
   // 开标时间为单点时间："2026年3月27日14:00"→ {date, time}
@@ -1137,18 +1116,6 @@ export function SupplierSelectionPage({
     toast.success(`已恢复 ${items.length} 家候选供应商`);
   };
 
-  const handleInvite = async () => {
-    if (!projectId) { toast.error('请先关联项目'); return; }
-    setInviting(true);
-    try {
-      const ids = [...shortlist.keys()];
-      const res = await inviteSuppliers(projectId, ids);
-      if (res.skipped > 0) toast.warning(`已添加 ${res.added} 家，跳过 ${res.skipped} 家（已在项目中）`);
-      else toast.success(`已发送 ${res.added} 家供应商邀请`);
-    } catch (e: any) { toast.error(e?.message || '邀请失败'); }
-    setInviting(false);
-  };
-
   /** 构建通知上下文（正选 + 各轮补选共用，确保 RSVP 链接内容一致） */
   const buildNotifyContext = useCallback(() => {
     const ctxParts: string[] = [];
@@ -1219,7 +1186,6 @@ export function SupplierSelectionPage({
         projectId: projectId || (project as any)?.id || null,
         validityDays: 1,
       });
-      setNotifyTemplate({ title: res.title, body: res.body });
       setNotifyRsvpTokens(res.rsvpTokens || {});
       // 为每家供应商组装完整消息：抬头 + AI 正文（{rsvpLink} 逐家替换为专属回执链接）+ 落款
       const dateStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -1319,19 +1285,6 @@ export function SupplierSelectionPage({
   const getSupplierMessage = (sid: string): { title: string; body: string; phoneScript: string } => {
     const m = notifyPerSupplier.get(sid);
     return m ? { title: m.title, body: m.body, phoneScript: m.phoneScript ?? '' } : { title: '', body: '', phoneScript: '' };
-  };
-
-  const handleShare = async () => {
-    if (!shareNote.trim()) return;
-    setShareSending(true);
-    const shortlistData = [...shortlist.values()].map(({ item: r, note }) => ({ name: r.name, matchScore: r.matchScore, reason: r.reason }));
-    try {
-      await shareShortlist({ requirement: buildRequirement(), shortlist: shortlistData, note: shareNote.trim() || undefined });
-      toast.success('候选名单已分享');
-      setShareModal(false);
-      setShareNote('');
-    } catch (e: any) { toast.error(e?.message || '分享失败'); }
-    setShareSending(false);
   };
 
   const handleBatchAdd = (count?: number) => {
@@ -1628,10 +1581,6 @@ export function SupplierSelectionPage({
     setRerunNotifySending(false);
   };
 
-  const setRerunConfirmation = (sid: string, st: 'confirmed' | 'declined' | 'pending') => {
-    setRerunConfirmations(prev => { const n = new Map(prev); n.set(sid, st); return n; });
-  };
-
   // 合并名单与确认状态（正选 + 历史补选 + 当前补选）
   const allShortlist = useMemo(() => new Map([...shortlist, ...previousRerunShortlist, ...rerunShortlist]), [shortlist, previousRerunShortlist, rerunShortlist]);
 
@@ -1835,12 +1784,9 @@ export function SupplierSelectionPage({
     return { confirmed, declined, pending: allSupplierStatuses.size - confirmed - declined, total: allSupplierStatuses.size };
   }, [allSupplierStatuses]);
 
-  // 已废弃——用 allSupplierStatuses 替代
-  const allConfirmations = allSupplierStatuses;
-
   // 同步 RSVP 回执到 confirmations/rerunConfirmations：
   // 缺失的条目补上，pending 的条目覆盖；已手动设为 confirmed/declined 的不覆盖。
-  // 正选只写 confirmations，补选只写 rerunConfirmations——避免 allConfirmations 合并时 stale 历史 Map 覆盖正确值。
+  // 正选只写 confirmations，补选只写 rerunConfirmations——避免 allSupplierStatuses 合并时 stale 历史 Map 覆盖正确值。
   const rerunSids = useMemo(() => new Set([...rerunShortlist.keys(), ...previousRerunShortlist.keys()]), [rerunShortlist, previousRerunShortlist]);
   useEffect(() => {
     if (!filteredRsvp?.items?.length) return;
@@ -3855,39 +3801,6 @@ export function SupplierSelectionPage({
         candidates={[...shortlist.values()].map((v) => v.item)}
         onClose={() => setShowCompare(false)}
       />
-
-      {/* ══════ 分享候选人名单弹窗 ══════ */}
-      {shareModal && (
-        <Modal
-          open
-          onClose={() => setShareModal(false)}
-          title="分享候选名单"
-          description={`将选中的 ${shortlist.size} 家供应商分享给采购主管审阅`}
-          footer={
-            <>
-              <button onClick={() => setShareModal(false)} className="neu-btn-soft">取消</button>
-              <button onClick={handleShare} disabled={shareSending || !shareNote.trim()} className="neu-btn-primary">
-                {shareSending ? '分享中...' : '确认分享'}
-              </button>
-            </>
-          }
-        >
-          <textarea
-            value={shareNote}
-            onChange={e => setShareNote(e.target.value)}
-            placeholder={`分享备注（必填），如：已根据水利工程施工需求筛选，建议约谈以下 ${shortlist.size} 家供应商。重点标签：水利工程施工、设备供应`}
-            className="neu-input w-full h-24 resize-none text-sm"
-          />
-          <div className="rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-            <p className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1.5">将分享以下供应商：</p>
-            <div className="flex flex-wrap gap-1">
-              {[...shortlist.values()].map(({ item: r }) => (
-                <span key={r.supplierId} className="neu-tab-count">{r.name}</span>
-              ))}
-            </div>
-          </div>
-        </Modal>
-      )}
 
       {/* 采购邀请书（附件步骤）：AI 起草 → 导出 Word → 自动加入附件清单 */}
       <InvitationLetterModal

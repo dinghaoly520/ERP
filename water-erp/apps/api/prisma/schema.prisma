@@ -1267,6 +1267,7 @@ model ExpertEvaluation {
   disciplineGrade ExpertLevel // 廉洁纪律等级（权重 30%）
   overallGrade    ExpertLevel // 综合等级 = weighted(质量×0.5 + 纪律×0.3 + 出勤×0.2)
   comment         String?
+  evidence        Json?       // 三维评价依据 { attendanceGrade, qualityGrade, disciplineGrade }
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 

@@ -18,7 +18,8 @@ import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluat
 import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 import { ReviewHubModal } from '@/components/supplier/review-hub-modal';
-import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2, ClipboardCheck } from 'lucide-react';
+import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-modal';
+import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2, ClipboardCheck, History } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
@@ -54,6 +55,9 @@ export default function SupplierRepositoryPage() {
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
 
   const [favFilter, setFavFilter] = useState(false);
+
+  // 操作历史弹窗
+  const [showAuditLog, setShowAuditLog] = useState(false);
 
   // 状态标签定义须先于 loadData 声明（loadData 用到 effectiveStatus，避免 TDZ）。
   // key 为唯一标识（已入库/临时供应商同为 APPROVED，须靠 key+isTemporary 区分激活态）。
@@ -180,7 +184,7 @@ export default function SupplierRepositoryPage() {
     if (!statusModal || !statusReason.trim()) { toast.error('请填写原因'); return; }
     setStatusLoading(true);
     try {
-      await updateSupplierStatus(statusModal.supplier.id, statusModal.type.toUpperCase() as 'DISABLED' | 'BLACKLIST', statusReason);
+      await updateSupplierStatus(statusModal.supplier.id, statusModal.type === 'disable' ? 'DISABLED' : 'BLACKLIST', statusReason);
       toast.success(statusModal.type === 'disable' ? '已停用' : '已加入黑名单');
       setStatusModal(null); setStatusReason(''); loadData();
     } catch (e: any) { toast.error(e?.message || '操作失败'); }
@@ -191,6 +195,9 @@ export default function SupplierRepositoryPage() {
     <div className="flex flex-col gap-5">
       {/* 异议与投诉受理（与供应商门户 :3004 异议提交端联结：在线答复/转投诉/办结） */}
       {showObjections && <ObjectionBoardModal onClose={() => setShowObjections(false)} />}
+
+      {/* 操作历史（审计留痕，只读） */}
+      {showAuditLog && <SupplierAuditLogModal onClose={() => setShowAuditLog(false)} />}
 
       {/* ══════ page-hero ══════ */}
       <div className="page-hero">
@@ -209,6 +216,7 @@ export default function SupplierRepositoryPage() {
             <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
             <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>
+            <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
             <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>

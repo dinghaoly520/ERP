@@ -1497,6 +1497,28 @@ body {
     inset -1px -1px 3px oklch(1 0 0 / 0.6);
 }
 
+/* CTA 箭头容器 — cgzxui 箭头规范：13×13 chevron SVG 置于 18×18 圆形容器，
+   hover 右滑 4px 与箭头方向同向（primary=白on深底、ghost=品牌色on浅底，
+   故背景用 color-mix(currentColor) 而非写死色值） */
+.flow-cta-arrow {
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+  border-radius: 50%;
+  background: transparent;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.3s ease;
+}
+.flow-cta-btn:hover .flow-cta-arrow {
+  transform: translateX(4px);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-cta-arrow { transition: none; }
+  .flow-cta-btn:hover .flow-cta-arrow { transform: none; }
+}
+
 @media (max-width: 860px) {
   .flow-hero-split,
   .flow-live-board {

@@ -84,8 +84,8 @@ export class ExpertAdminController {
 
   @Post()
   @ApiOperation({ summary: '录入专家' })
-  createExpert(@Body() dto: CreateExpertDto) {
-    return this.expertAdminService.createExpert(dto);
+  createExpert(@Body() dto: CreateExpertDto, @Request() req: any) {
+    return this.expertAdminService.createExpert(dto, req.user?.sub);
   }
 
   @Post('extract')
@@ -234,16 +234,36 @@ export class ExpertAdminController {
     return this.expertAdminService.exportExperts(ids ? ids.split(',').filter(Boolean) : undefined);
   }
 
+  @Get('operation-history')
+  @ApiOperation({ summary: '专家管理操作历史（审计，只读：入库/评价/停用/暂停/退库等，附操作人/时间/事由）' })
+  getOperationHistory(
+    @Query('expertId') expertId?: string,
+    @Query('action') action?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.expertAdminService.getExpertOperationHistory({
+      expertId,
+      action,
+      startDate,
+      endDate,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
+  }
+
   @Post('batch')
   @ApiOperation({ summary: '批量启用/停用专家' })
-  batchOperation(@Body() dto: BatchOperationDto) {
-    return this.expertAdminService.batchOperation(dto);
+  batchOperation(@Body() dto: BatchOperationDto, @Request() req: any) {
+    return this.expertAdminService.batchOperation(dto, req.user?.sub);
   }
 
   @Post('import-csv')
   @ApiOperation({ summary: 'CSV 批量导入专家' })
-  importCsv(@Body() dto: ImportCsvDto) {
-    return this.expertAdminService.importCsv(dto.rows);
+  importCsv(@Body() dto: ImportCsvDto, @Request() req: any) {
+    return this.expertAdminService.importCsv(dto.rows, req.user?.sub);
   }
 
   @Get('projects/:projectId/memos')
@@ -276,14 +296,14 @@ export class ExpertAdminController {
 
   @Patch(':id/availability')
   @ApiOperation({ summary: '启用/停用专家' })
-  setAvailability(@Param('id') id: string, @Body() dto: SetAvailabilityDto) {
-    return this.expertAdminService.setAvailability(id, dto.available);
+  setAvailability(@Param('id') id: string, @Body() dto: SetAvailabilityDto, @Request() req: any) {
+    return this.expertAdminService.setAvailability(id, dto.available, req.user?.sub);
   }
 
   @Patch(':id/profile')
   @ApiOperation({ summary: '更新专家资料' })
-  updateProfile(@Param('id') id: string, @Body() dto: UpdateExpertProfileDto) {
-    return this.expertAdminService.updateProfile(id, dto);
+  updateProfile(@Param('id') id: string, @Body() dto: UpdateExpertProfileDto, @Request() req: any) {
+    return this.expertAdminService.updateProfile(id, dto, req.user?.sub);
   }
 
   @Get(':id/portrait')
@@ -330,14 +350,14 @@ export class ExpertAdminController {
 
   @Post(':id/retire-ignore')
   @ApiOperation({ summary: '忽略本轮退库预警（90 天内跳过此专家的扫描）' })
-  ignoreRetirement(@Param('id') id: string) {
-    return this.expertAdminService.ignoreRetirementWarning(id);
+  ignoreRetirement(@Param('id') id: string, @Request() req: any) {
+    return this.expertAdminService.ignoreRetirementWarning(id, req.user?.sub);
   }
 
   @Post(':id/retire')
   @ApiOperation({ summary: '人工确认专家退库' })
-  confirmRetire(@Param('id') id: string, @Body() dto: ConfirmRetireDto) {
-    return this.expertAdminService.confirmRetire(id, dto.reason);
+  confirmRetire(@Param('id') id: string, @Body() dto: ConfirmRetireDto, @Request() req: any) {
+    return this.expertAdminService.confirmRetire(id, dto.reason, req.user?.sub);
   }
 
   @Patch(':id/status')

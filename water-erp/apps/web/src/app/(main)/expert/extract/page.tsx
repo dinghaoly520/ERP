@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prersvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { StepTrack } from '@/components/step-track';
@@ -255,7 +255,7 @@ export function ExpertExtractPage({
     (async () => {
       let links = rsvpLinks;
       if (!Object.keys(links).length) {
-        try { const d = await prersvpLinks(pid); links = d.links || {}; setRsvpLinks(links); } catch { return; }
+        try { const d = await prepRsvpLinks(pid); links = d.links || {}; setRsvpLinks(links); } catch { return; }
       }
       // 替换已有通知内容中的 {RSVP_LINK} 占位符
       const updated = new Map(notifyMessages);
@@ -1451,7 +1451,7 @@ export function ExpertExtractPage({
         ? prev.map(h => h.roundNo === item.roundNo ? { ...h, ...item } : h)
         : [...prev, item]);
       // 入库后立即预拉 RSVP 链接（await 等就绪，供通知预览和发送使用，避免预览时链接未生成）
-      const linksRes = await prersvpLinks(pid).catch(() => ({ links: {} as Record<string, string> }));
+      const linksRes = await prepRsvpLinks(pid).catch(() => ({ links: {} as Record<string, string> }));
       if (linksRes.links) setRsvpLinks(prev => ({ ...prev, ...linksRes.links }));
       toast.success(`第${reDraft.roundNo}次补选专家组已确认（${exps.length} 人），可一键通知`);
     } catch (e: any) { toast.error(e?.message || '确认失败'); }
@@ -1468,7 +1468,7 @@ export function ExpertExtractPage({
     updateDraft({ phase: 'sending' });
     setNotifying(true);
     try {
-      const rsvpData = await prersvpLinks(pid).catch(() => ({ links: {} as Record<string, string> }));
+      const rsvpData = await prepRsvpLinks(pid).catch(() => ({ links: {} as Record<string, string> }));
       const links = rsvpData.links || {};
       setRsvpLinks(links);
       const tplLink = tplExpert ? (links[tplExpert.userId] || rsvpLinks[tplExpert.userId] || '') : '';
@@ -1592,7 +1592,7 @@ export function ExpertExtractPage({
     }
     if (pid) {
       try {
-        const data = await prersvpLinks(pid);
+        const data = await prepRsvpLinks(pid);
         setRsvpLinks(data.links || {});
       } catch {}
     }
@@ -2413,7 +2413,7 @@ export function ExpertExtractPage({
                       try {
                         // 1. 先拉取 RSVP 链接，失败则直接报错不继续
                         if (!pid) throw new Error('缺少项目 ID');
-                        const data = await prersvpLinks(pid);
+                        const data = await prepRsvpLinks(pid);
                         const links = data.links || {};
                         if (!Object.keys(links).length) throw new Error('未找到专家记录，请先确认专家组组建');
                         setRsvpLinks(links);
@@ -2938,7 +2938,7 @@ export function ExpertExtractPage({
                     <button onClick={async () => {
                       setAltNotifying(true);
                       try {
-                        const links = (await prersvpLinks(pid)).links || {};
+                        const links = (await prepRsvpLinks(pid)).links || {};
                         const res = await generateNotification({ projectName: sel?.name || pd?.name || '采购项目', expertName: '[[专家姓名]]', isLead: false, totalExperts: altSelected.length, extractMode: MODE_LABELS[extractMode], openTime: openTimeFormatted, projectId: pid });
                         if (res.generated && res.content) {
                           const m = new Map(notifyMessages);

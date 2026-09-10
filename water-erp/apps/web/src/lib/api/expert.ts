@@ -77,12 +77,6 @@ export interface ExtractionPreview {
   generatedAt: string;
 }
 
-export interface ExpertEvalStats {
-  levelCounts: { A: number; B: number; C: number; D: number; E: number };
-  excellentRatio: number;
-  total: number;
-}
-
 export interface NotifyResult {
   userId: string;
   results: Record<string, string>;
@@ -202,7 +196,7 @@ export function generateNotification(data: {
   return api.post<{ success: boolean; generated: boolean; content: string | null }>('/expert-admin/notification/generate', data);
 }
 
-export function prersvpLinks(projectId: string) {
+export function prepRsvpLinks(projectId: string) {
   return api.post<{ links: Record<string, string> }>(`/expert-admin/projects/${projectId}/rsvp-links`, {});
 }
 
@@ -229,16 +223,9 @@ export function getExtractionHistory(params?: { projectId?: string; page?: numbe
 export function createExpertEvaluation(data: {
   expertUserId: string; projectId?: string;
   attendanceGrade: string; qualityGrade: string; disciplineGrade: string; comment?: string;
+  evidence?: Record<string, string>;
 }) {
   return api.post<unknown>('/expert-admin/evaluations', data);
-}
-
-export function getExpertEvalStats() {
-  return api.get<ExpertEvalStats>('/expert-admin/evaluations/stats');
-}
-
-export function getExpertDimensionStats() {
-  return api.get<{ attendance: Record<string,number>; quality: Record<string,number>; discipline: Record<string,number>; total: number }>('/expert-admin/evaluations/dimensions');
 }
 
 /** AI 辅助评价建议（LLM 综合历史评价/偏离度/违规/负荷给出建议分数） */
@@ -394,7 +381,7 @@ export interface ExpertRiskBrief {
   signals: {
     meanDeviation: number | null;
     deviationRisk: 'high' | 'medium' | 'low';
-    recentDCount: number;
+    recentECount: number;
     violationCount: number;
   };
   ruleBrief: string;
@@ -406,4 +393,27 @@ export function getRiskBrief(id: string) {
 
 export function retrospectExtraction(projectId: string) {
   return api.get<{ summary: { projectName: string; total: number; regular: number; alternative: number; declined: number; avgProgress: number }; experts: { name: string; role: string; isLead: boolean; major: string; progress: number; status: string; latestEvalLevel: string | null }[]; aiSummary: string | null }>(`/expert-admin/extract/retrospect?projectId=${projectId}`);
+}
+
+/* ── 操作历史（审计，只读）── */
+
+export interface ExpertOperationHistoryItem {
+  id: string;
+  action: string;
+  resourceId: string | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+  user: { id: string; displayName: string; username: string } | null;
+}
+
+export function getExpertOperationHistory(params?: { expertId?: string; action?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) {
+  const q = new URLSearchParams();
+  if (params?.expertId) q.set('expertId', params.expertId);
+  if (params?.action) q.set('action', params.action);
+  if (params?.startDate) q.set('startDate', params.startDate);
+  if (params?.endDate) q.set('endDate', params.endDate);
+  if (params?.page) q.set('page', String(params.page ?? 1));
+  if (params?.pageSize) q.set('pageSize', String(params.pageSize ?? 20));
+  const qs = q.toString();
+  return api.get<{ total: number; page: number; pageSize: number; items: ExpertOperationHistoryItem[] }>(`/expert-admin/operation-history${qs ? '?' + qs : ''}`);
 }

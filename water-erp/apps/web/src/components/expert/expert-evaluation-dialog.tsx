@@ -90,9 +90,19 @@ export function ExpertEvaluationDialog({
 
   const submit = async () => {
     if (!projectId) { toast.error('请选择本次评价对应的评审项目'); return; }
+    // 三维评价依据：AI 分析或手动填写的文本，随评价一并入库（只收非空维度）
+    const evidencePayload = Object.fromEntries(
+      DIMENSIONS.map(d => [d.key, (evidence[d.key] || '').trim()]).filter(([, v]) => v !== ''),
+    );
     setSaving(true);
     try {
-      await createExpertEvaluation({ expertUserId: expert.id, projectId, ...grades, comment: comment || undefined });
+      await createExpertEvaluation({
+        expertUserId: expert.id,
+        projectId,
+        ...grades,
+        comment: comment || undefined,
+        evidence: Object.keys(evidencePayload).length > 0 ? evidencePayload : undefined,
+      });
       toast.success('评价已提交');
       onSubmitted?.();
       onClose();

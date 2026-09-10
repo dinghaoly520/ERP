@@ -174,10 +174,6 @@ export function getSelectionHistory() {
   return api.get<SupplierSelectionHistoryRecord[]>('/ai/selection-history');
 }
 
-export function getSelectionHistoryDetail(id: string) {
-  return api.get<SupplierSelectionHistoryRecord>(`/ai/selection-history/${id}`);
-}
-
 export function restoreShortlist(historyId: string) {
   return api.get<SupplierRecommendation[]>(`/ai/selection-history/${historyId}/shortlist`);
 }
@@ -229,16 +225,6 @@ export function getRsvpList(params: { projectId?: string; invitationId?: string 
   if (params.projectId) q.set('projectId', params.projectId);
   if (params.invitationId) q.set('invitationId', params.invitationId);
   return api.get<RsvpListResult>(`/supplier/rsvp/list?${q.toString()}`);
-}
-
-// ── 邀请供应商到招标项目 ──
-export function inviteSuppliers(projectId: string, supplierIds: string[]) {
-  return api.post<{ added: number; skipped: number }>(`/bid/projects/${projectId}/suppliers`, { supplierIds });
-}
-
-// ── 分享候选名单 ──
-export function shareShortlist(data: { requirement: string; shortlist: { name: string; matchScore: number; reason: string }[]; note?: string }) {
-  return api.post<{ success: boolean }>('/ai/share-shortlist', data);
 }
 
 // 供应商详情
@@ -377,18 +363,6 @@ export function deleteClassification(id: string) {
 }
 
 // ── 供应商画像 ──
-export interface SupplierPortrait {
-  supplierId: string; name: string;
-  participationCount: number; winCount: number; winRate: number;
-  gradeCounts: Record<string, number>; evalCount: number;
-  performanceTrend: 'improving' | 'stable' | 'declining';
-  levelCounts: { A: number; B: number; C: number; D: number; E: number };
-  priceDeviation: number | null;
-}
-export function getSupplierPortrait(id: string) {
-  return api.get<SupplierPortrait>(`/supplier/${id}/portrait`);
-}
-
 // ── 生命周期时间线 ──
 export interface TimelineEvent { type: string; label: string; detail: string; at: string; }
 export interface SupplierTimeline { supplierId: string; supplierName: string; events: TimelineEvent[]; }
@@ -433,7 +407,6 @@ export function getApprovalHistory(id: string) {
 export interface QualificationAlertItem {
   id: string; supplierId: string; supplierName: string;
   type: string; name: string; validTo: string | null; status: string; daysRemaining: number | null;
-  acked: boolean; // 当前用户是否已标记「已处理」（后端持久化）
 }
 export interface QualificationAlerts {
   items: QualificationAlertItem[];
@@ -442,8 +415,8 @@ export interface QualificationAlerts {
 export function getQualificationAlerts() {
   return api.get<QualificationAlerts>('/supplier/qualification-alerts');
 }
-export function acknowledgeQualificationAlert(qualificationId: string) {
-  return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/ack`, {});
+export function notifyQualificationAlert(qualificationId: string) {
+  return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/notify`, {});
 }
 
 // ── 淘汰候选 ──
@@ -460,9 +433,6 @@ export interface SupplierClassificationLink {
   supplierId: string; classificationId: string;
   classification: SupplierClassification;
   assignedAt: string;
-}
-export function getSupplierClassifications(supplierId: string) {
-  return api.get<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`);
 }
 export function setSupplierClassifications(supplierId: string, classificationIds: string[]) {
   return api.put<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`, { classificationIds });
@@ -486,6 +456,26 @@ export function getFavorites() {
 export interface ActivityItem { id: string; action: string; resourceId: string; details: any; actorName: string; at: string; }
 export function getRecentActivities(limit?: number) {
   return api.get<ActivityItem[]>(`/supplier/recent-activities?limit=${limit ?? 15}`);
+}
+
+// ── 操作历史（审计留痕） ──
+export interface SupplierAuditLogItem {
+  id: string; action: string; resourceId: string | null; resourceName: string | null;
+  details: Record<string, unknown> | null; actorName: string; createdAt: string;
+}
+export interface SupplierAuditLogs {
+  items: SupplierAuditLogItem[]; total: number; page: number; pageSize: number;
+}
+export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }) {
+  const params = new URLSearchParams();
+  if (opts?.page) params.set('page', String(opts.page));
+  if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
+  if (opts?.supplierId) params.set('supplierId', opts.supplierId);
+  if (opts?.action) params.set('action', opts.action);
+  if (opts?.dateFrom) params.set('dateFrom', opts.dateFrom);
+  if (opts?.dateTo) params.set('dateTo', opts.dateTo);
+  const q = params.toString();
+  return api.get<SupplierAuditLogs>(`/supplier/audit-logs${q ? `?${q}` : ''}`);
 }
 
 // ── AI 供应商综合画像分析 ──
