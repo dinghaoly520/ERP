@@ -1139,7 +1139,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       include: {
         classification: true,
         contacts: { where: { isPrimary: true }, take: 2 },
-        qualifications: { select: { name: true }, take: 3 },
+        qualifications: { select: { name: true }, take: 5 },
         evaluations: { select: { finalGrade: true } },
         bidSuppliers: { where: { project: { stage: { notIn: ['ARCHIVED'] } } }, select: { id: true } },
       },
@@ -1242,13 +1242,15 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const pool = [...core, ...sampled].sort((a, b) => b.composite - a.composite);
     const supplierMap = new Map(pool.map(({ supplier: s }) => [s.id, s]));
     // 评价 + 忙闲状态汇总
-    const evalMap = new Map<string, { finalGrade: string; count: number }>();
+    // level = 前端 SupplierRecommendation.evaluation.level 契约字段（2026-09-09 修正：
+    // 此前存 finalGrade，前端读 level → 对比面板评价等级恒「暂无」）
+    const evalMap = new Map<string, { level: string; count: number }>();
     const activeMap = new Map<string, number>();
     for (const { supplier: s } of pool) {
       const evals: { finalGrade: string }[] = (s as any).evaluations || [];
       if (evals.length > 0) {
         // 取最新一条评价的最终等级
-        evalMap.set(s.id, { finalGrade: evals[0].finalGrade || '', count: evals.length });
+        evalMap.set(s.id, { level: evals[0].finalGrade || '', count: evals.length });
       }
       activeMap.set(s.id, ((s as any).bidSuppliers || []).length);
     }
@@ -1263,7 +1265,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       enterpriseType: s.enterpriseType,
       legalPerson: s.legalPerson,
       // C3：把规则阶段已算出的履约/评价数据喂给 LLM，使排序真正体现「择优」而非仅语义匹配。
-      evalGrade: evalMap.get(s.id)?.finalGrade,
+      evalGrade: evalMap.get(s.id)?.level,
       evalCount: evalMap.get(s.id)?.count,
       activeProjects: activeMap.get(s.id) ?? 0,
     }));
@@ -1377,6 +1379,14 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       contacts: (s.contacts || []).map((c: any) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
       evaluation: enrichment?.evalMap.get(id),
       activeProjects: enrichment?.activeMap.get(id) ?? 0,
+      // 对比面板扩充（2026-09-09）
+      supplierNo: s.supplierNo,
+      businessScope: (s.businessScope || '').slice(0, 300) || undefined,
+      qualifications: ((s.qualifications || []) as { name: string }[]).map((q) => q.name).slice(0, 5),
+      registeredCapital: s.registeredCapital || undefined,
+      region: s.region || undefined,
+      industry: s.industry || undefined,
+      registeredAddress: (s.registeredAddress || '').slice(0, 80) || undefined,
     };
   }
 

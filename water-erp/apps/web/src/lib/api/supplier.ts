@@ -24,6 +24,14 @@ export interface SupplierRecommendation {
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
   evaluation?: { level: string; count: number };
   activeProjects: number;
+  // 对比面板扩充（2026-09-09）
+  supplierNo?: string;
+  businessScope?: string;
+  qualifications?: string[];
+  registeredCapital?: string;
+  region?: string;
+  industry?: string;
+  registeredAddress?: string;
 }
 
 export interface SupplierSelectionResult {

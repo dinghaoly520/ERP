@@ -57,8 +57,17 @@ export interface SupplierRecommendation {
   /** 业务标签（取自 Supplier.tags），供前端展示匹配维度 + 提升选取可解释性。 */
   tags?: string[];
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
-  evaluation?: { finalGrade: string; count: number };
+  /** 前端契约字段为 level（历史即 level；finalGrade 为 DB 列名，勿再错位） */
+  evaluation?: { level: string; count: number };
   activeProjects: number;
+  // ── 对比面板扩充（2026-09-09）：供应商资料已很丰富，推荐结果一并带回供横向对比 ──
+  supplierNo?: string; // 供应商编号
+  businessScope?: string; // 经营范围（截断）
+  qualifications?: string[]; // 资质证书名称（最多5项）
+  registeredCapital?: string; // 注册资本
+  region?: string; // 所属行政区域
+  industry?: string; // 所属行业
+  registeredAddress?: string; // 注册地址（截断）
 }
 
 export interface SupplierSelectionResult {
