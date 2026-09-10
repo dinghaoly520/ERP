@@ -52,7 +52,7 @@ export function ArchiveTemplateCard({ bidProjectId }: { bidProjectId: string }) 
       title="档案清单对标"
       action={rows ? (
         <span className={`text-xs font-semibold ${satisfiedCount === rows.length ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
-          {satisfiedCount}/{rows.length} 类齐备（GB/T 43711 4.1.5.1）
+          {satisfiedCount}/{rows.length} 类齐备
         </span>
       ) : undefined}
     >

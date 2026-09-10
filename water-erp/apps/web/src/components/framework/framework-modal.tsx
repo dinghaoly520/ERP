@@ -57,7 +57,7 @@ export function FrameworkModal({ open, onClose, projectManagementItemId }: { ope
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="框架协议采购（两阶段）" description="GB/T 43711 附录 D —— 一阶段入围（D.2.6 校验）→ 生效 → 二阶段订单（复用合同域）→ 变更/退出" size="xl">
+    <Modal open={open} onClose={onClose} title="框架协议采购（两阶段）" description="一阶段入围 → 生效 → 二阶段订单（复用合同域）→ 变更/退出" size="xl">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-[var(--muted-foreground)]">登记制：竞争/资格审查过程线下或既有流程完成，结果在此登记</span>
         {!creating ? (

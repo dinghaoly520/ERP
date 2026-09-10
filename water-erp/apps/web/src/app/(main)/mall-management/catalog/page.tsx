@@ -537,7 +537,7 @@ function DemandAggTab() {
     <div className="wb-panel">
       <div className="wb-panel-body">
         <div className="mb-3 text-xs text-[var(--muted-foreground)]">
-          按采购类别归集各需求人的在立项需求计划（GB/T 43711 4.1.3.2）——同品类需求 ≥2 项或预算超分级阈值的，建议统一制定集中采购方案。
+          按采购类别归集各需求人的在立项需求计划——同品类需求 ≥2 项或预算超分级阈值的，建议统一制定集中采购方案。
         </div>
         <div className="space-y-2.5">
           {rows.map(r => (

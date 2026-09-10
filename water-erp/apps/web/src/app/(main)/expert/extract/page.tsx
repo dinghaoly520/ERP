@@ -2176,7 +2176,7 @@ export function ExpertExtractPage({
                 .map(({ q, idx }) => (
                 <div key={idx} className="flex items-center gap-2 mb-2">
                   <select value={q.specialty} onChange={e => upQ(idx, 'specialty', e.target.value)} className="neu-input text-sm flex-1 min-w-0"><option value="">选择专业</option>{[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
-                  <input value={q.regionCode ?? ''} onChange={e => upQ(idx, 'regionCode', e.target.value)} placeholder="510000" maxLength={20} inputMode="numeric" title="行政区域代码（GB/T 2260 六位，可选过滤，留空不过滤）" className="neu-input text-sm !w-[76px]" />
+                  <input value={q.regionCode ?? ''} onChange={e => upQ(idx, 'regionCode', e.target.value)} placeholder="510000" maxLength={20} inputMode="numeric" title="行政区域代码（六位，可选过滤，留空不过滤）" className="neu-input text-sm !w-[76px]" />
                   <select value={q.expertLevel ?? ''} onChange={e => upQ(idx, 'expertLevel', e.target.value)} title="库内等级 A-E（可选过滤，留空不过滤）" className="neu-input text-sm !w-[76px]">
                     <option value="">等级</option>
                     {['A', 'B', 'C', 'D', 'E'].map(l => <option key={l} value={l}>{l}</option>)}

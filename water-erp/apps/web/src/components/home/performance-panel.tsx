@@ -68,7 +68,6 @@ export function PerformancePanel() {
             <Gauge size={14} className="text-[var(--accent)]" />
           </div>
           <span className="text-sm font-bold">采购质效</span>
-          <span className="text-[10px] text-[var(--muted-foreground)]">GB/T 43711 第 9 章{metrics ? ` · ${metrics.period.from} ~ ${metrics.period.to}` : ''}</span>
         </div>
         <div className="flex gap-1.5">
           <button onClick={() => setDialogOpen(true)} disabled={busy} className="neu-btn-xs !text-[10px]"><Plus size={10} /> 评分卡</button>
@@ -104,7 +103,7 @@ export function PerformancePanel() {
         </div>
       )}
 
-      <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title="项目质效评分卡" description="GB/T 43711 9.1/9.3——质量/效率/合规三维（0-100），服务端加权" size="md">
+      <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title="项目质效评分卡" description="质量/效率/合规三维（0-100），服务端加权" size="md">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="space-y-1">
             <span className="text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">项目编号</span>

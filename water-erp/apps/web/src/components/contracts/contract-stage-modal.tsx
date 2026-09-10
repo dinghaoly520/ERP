@@ -227,7 +227,7 @@ export function ContractStageModal({ open, onClose, item, onUpdated }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={closeModal} title="合同订立与履行" description="GB/T 43711 7.5.4/7.6 —— 订立（一致性校验→内审→签署→合同公告）· 履行台账 · 验收办结" size="xl">
+    <Modal open={open} onClose={closeModal} title="合同订立与履行" description="订立（一致性校验→内审→签署→合同公告）· 履行台账 · 验收办结" size="xl">
       {/* ── 新建入口 ── */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-[var(--muted-foreground)]">项目编号 {item.projectCode}</span>

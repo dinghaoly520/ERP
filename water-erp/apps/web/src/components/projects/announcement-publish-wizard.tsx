@@ -897,7 +897,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
             const lines = warnings.map(w => `· ${w.item}（${w.clause}）：${w.message}`).join('\n');
             const okToPublish = await confirmDialog({
               title: '公告要素缺失提醒',
-              message: `按 GB/T 43711 7.2.2.5 检出 ${warnings.length} 项公告要素缺失：\n${lines}\n\n确认仍要发布？`,
+              message: `检出 ${warnings.length} 项公告要素缺失：\n${lines}\n\n确认仍要发布？`,
               confirmText: '仍要发布',
               cancelText: '返回修改',
               danger: true,
