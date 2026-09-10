@@ -163,7 +163,7 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all (9 portals — includes bigscreen)
+# Start all (9 portals — includes bigscreen + ai-bid worker, 2026-09-10)
 pnpm dev
 
 # Start individual apps
@@ -343,7 +343,9 @@ pnpm --filter api dev:worker:ai-bid-analysis   # build + run the worker
 pnpm --filter api start:worker:ai-bid-analysis # run the pre-built worker
 ```
 
-> **Operational gotcha:** editing `ai-bid-analysis` source and letting `pnpm dev` (API `--watch`) restart the API does **not** restart the worker. Kill and re-run the worker command. Re-running analysis creates new jobs — don't rely on a stable `jobId`.
+**2026-09-10 起 `pnpm dev` 已自带 worker**：根 `dev` 脚本并发启动 `dev:ai-worker`（sleep 20 错峰后 `nest build && node`，避免与 API 首次编译同写 dist/）。单独启动命令仍可用。
+
+> **Operational gotcha:** worker 不带 watch——改 `ai-bid-analysis` 源码后，`pnpm dev` 里 API `--watch` 重启**不会**带动 worker，需杀掉 worker（`pkill -f ai-bid-analysis-worker`）后单独重跑上述命令（concurrently 不会自动拉起退出的命令）。Re-running analysis creates new jobs — don't rely on a stable `jobId`.
 
 ### ENV Configuration
 
