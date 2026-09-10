@@ -34,6 +34,31 @@ export interface SupplierRecommendation {
   registeredAddress?: string;
 }
 
+/** 对比面板库内实时资料（POST /supplier/compare-profiles，2026-09-09）：
+ *  对比数据以供应商库为准——不再依赖推荐负载快照（旧会话恢复的推荐无扩充字段）。 */
+export interface SupplierCompareProfile {
+  supplierId: string;
+  name: string;
+  supplierNo?: string;
+  classification?: string;
+  enterpriseType?: string;
+  legalPerson?: string;
+  registeredCapital?: string;
+  region?: string;
+  industry?: string;
+  businessScope?: string;
+  registeredAddress?: string;
+  tags?: string[];
+  qualifications?: { name: string; type?: string; status?: string; validTo?: string }[];
+  contacts?: { name: string; phone: string; isPrimary: boolean }[];
+  evaluation?: { level: string; count: number };
+  activeProjects: number;
+}
+
+export function fetchSupplierCompareProfiles(ids: string[]): Promise<Record<string, SupplierCompareProfile>> {
+  return api.post('/supplier/compare-profiles', { ids: [...new Set(ids)].slice(0, 12) });
+}
+
 export interface SupplierSelectionResult {
   requirement: string;
   engine: 'deepseek' | 'rules';

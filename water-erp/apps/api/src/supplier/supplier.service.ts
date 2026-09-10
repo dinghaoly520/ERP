@@ -568,6 +568,64 @@ export class SupplierService {
     return { user: safeUser, supplier, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays };
   }
 
+  /**
+   * 候选供应商对比面板：按 ID 批量取供应商库实时资料（2026-09-09）。
+   *
+   * 背景：对比维度扩到 13 项后，此前数据取自推荐负载（快照）——旧会话恢复的
+   * 推荐结果无扩充字段，对比页大面积「—」。改为面板打开时按 supplierId 实时
+   * 抓取库内资料（与 ai.service 推荐组装同源 include），对比数据永远以库为准。
+   */
+  async compareProfiles(ids: string[]): Promise<Record<string, unknown>> {
+    const cleaned = [...new Set((ids ?? []).map((i) => String(i).trim()).filter(Boolean))].slice(0, 12);
+    if (cleaned.length === 0) return {};
+
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: cleaned } },
+      include: {
+        classification: true,
+        contacts: { where: { isPrimary: true }, take: 2 },
+        qualifications: { select: { name: true, type: true, status: true, validTo: true }, take: 5, orderBy: { createdAt: 'asc' } },
+        evaluations: { select: { finalGrade: true }, orderBy: { createdAt: 'desc' } },
+        bidSuppliers: { where: { project: { stage: { notIn: ['ARCHIVED'] } } }, select: { id: true } },
+      },
+    });
+
+    const result: Record<string, unknown> = {};
+    for (const s of suppliers) {
+      const evals = (s as any).evaluations ?? [];
+      result[s.id] = {
+        supplierId: s.id,
+        name: s.name,
+        supplierNo: s.supplierNo,
+        classification: s.classification?.name ?? undefined,
+        enterpriseType: s.enterpriseType,
+        legalPerson: s.legalPerson,
+        registeredCapital: s.registeredCapital || undefined,
+        region: s.region || undefined,
+        industry: s.industry || undefined,
+        businessScope: s.businessScope || undefined,
+        registeredAddress: s.registeredAddress || undefined,
+        tags: (s.tags ?? []) as string[],
+        qualifications: ((s as any).qualifications ?? []).map(
+          (q: { name: string; type: string; status: string; validTo: Date | null }) => ({
+            name: q.name,
+            type: q.type,
+            status: q.status,
+            validTo: q.validTo ? q.validTo.toISOString().slice(0, 10) : undefined,
+          }),
+        ),
+        contacts: ((s as any).contacts ?? []).map((c: { name: string; phone: string; isPrimary: boolean }) => ({
+          name: c.name,
+          phone: c.phone,
+          isPrimary: c.isPrimary,
+        })),
+        evaluation: evals.length > 0 ? { level: evals[0].finalGrade || '', count: evals.length } : undefined,
+        activeProjects: ((s as any).bidSuppliers ?? []).length,
+      };
+    }
+    return result;
+  }
+
   async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; scopeUserId?: string }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;

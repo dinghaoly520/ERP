@@ -1,6 +1,6 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { Columns3, Check, X, Building2, Award, Star, TrendingUp, Phone, Shield, MapPin, Briefcase, FileBadge, User2 } from "lucide-react";
-import type { SupplierRecommendation } from "@/lib/api/supplier";
+import { fetchSupplierCompareProfiles, type SupplierCompareProfile, type SupplierRecommendation } from "@/lib/api/supplier";
 import { normalizeEnterpriseType } from "@/lib/utils/enterprise-type";
 
 type Props = {
@@ -17,6 +17,13 @@ const levelColor = (l?: string) => {
   const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
   return l ? colors[l] || 'var(--muted-foreground)' : 'var(--muted-foreground)';
 };
+
+/** 对比单元格视图：推荐结果 + 库内实时资料的合并形态（qualifications 双形态兼容） */
+type QualificationChip = { name: string; type?: string; status?: string; validTo?: string };
+type ComparedSupplier = Omit<SupplierRecommendation, 'qualifications'> &
+  Partial<Omit<SupplierCompareProfile, 'qualifications'>> & {
+    qualifications?: (string | QualificationChip)[];
+  };
 
 /** 单个对比维度：type 决定单元格渲染方式 */
 type DimType = "score" | "tags" | "text" | "long" | "eval" | "projects" | "contact" | "chips" | "scope" | "address";
@@ -60,7 +67,7 @@ const DIMENSION_GROUPS: { title: string; dims: Dimension[] }[] = [
   },
 ];
 
-const textOf = (c: SupplierRecommendation, key: string): string => {
+const textOf = (c: ComparedSupplier, key: string): string => {
   switch (key) {
     case "classification": return c.classification || "";
     case "enterpriseType": return normalizeEnterpriseType(c.enterpriseType);
@@ -84,9 +91,27 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
     });
   };
 
+  // 对比资料以供应商库为准（2026-09-09）：面板打开即按 ID 实时抓取库内完整资料，
+  // 旧会话恢复的推荐快照缺扩充字段时由库内数据补齐；抓取失败回落推荐负载
+  const [profiles, setProfiles] = useState<Record<string, SupplierCompareProfile>>({});
+  useEffect(() => {
+    if (!isOpen || candidates.length === 0) { setProfiles({}); return; }
+    let alive = true;
+    fetchSupplierCompareProfiles(candidates.map((c) => c.supplierId))
+      .then((map) => { if (alive) setProfiles(map); })
+      .catch(() => { if (alive) setProfiles({}); });
+    return () => { alive = false; };
+  }, [isOpen, candidates]);
+
+  /** 库内资料覆盖推荐快照（matchScore/reason 仍取推荐结果——库内无此二者） */
+  const enrichedCandidates = useMemo<ComparedSupplier[]>(
+    () => candidates.map((c) => ({ ...c, ...(profiles[c.supplierId] ?? {}) })),
+    [candidates, profiles],
+  );
+
   const compared = useMemo(
-    () => candidates.filter((c) => selected.has(c.supplierId)),
-    [candidates, selected]
+    () => enrichedCandidates.filter((c) => selected.has(c.supplierId)),
+    [enrichedCandidates, selected]
   );
 
   const bestScores = useMemo(() => {
@@ -121,7 +146,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
     }
   };
 
-  const renderCell = (c: SupplierRecommendation, dim: Dimension) => {
+  const renderCell = (c: ComparedSupplier, dim: Dimension) => {
     const contact = c.contacts?.find((ct) => ct.isPrimary) || c.contacts?.[0];
     switch (dim.type) {
       case "score": {
@@ -171,13 +196,14 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
         );
       }
       case "chips": {
-        const quals = c.qualifications ?? [];
+        const quals: { name: string; type?: string; status?: string; validTo?: string }[] = (c.qualifications ?? []).map((q) => (typeof q === "string" ? { name: q } : q));
         if (quals.length === 0) return <span className="text-xs text-[var(--muted-foreground)]/50">—</span>;
         return (
           <div className="flex flex-wrap justify-center gap-1 max-w-[240px] mx-auto">
             {quals.map((q) => (
-              <span key={q} className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold"
-                style={{ color: 'var(--accent-strong)', background: 'color-mix(in oklch, var(--accent-strong) 10%, transparent)' }}>{q}</span>
+              <span key={q.name} title={[q.type, q.status !== '有效' ? q.status : '', q.validTo ? `有效期至 ${q.validTo}` : ''].filter(Boolean).join(' · ')}
+                className="rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold"
+                style={{ color: 'var(--accent-strong)', background: 'color-mix(in oklch, var(--accent-strong) 10%, transparent)' }}>{q.name}</span>
             ))}
           </div>
         );

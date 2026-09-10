@@ -11,6 +11,7 @@ import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
+import { CompareProfilesDto } from './dto/compare-profiles.dto';
 import { UpdateContactPersonnelDto } from './dto/update-contact-personnel.dto';
 import { UpdateSupplierStatusDto } from './dto/update-supplier-status.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
@@ -67,6 +68,13 @@ export class SupplierController {
   @ApiOperation({ summary: '审核拒绝自创标签（不入池）' })
   async rejectTag(@Param('id') id: string, @Request() req: any, @Body('reason') _reason?: string) {
     return this.supplierService.rejectBusinessTag(id, req.user?.sub);
+  }
+
+  @Post('compare-profiles')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '候选供应商对比：按 ID 批量取库内实时资料（对比面板数据源）' })
+  compareProfiles(@Body() dto: CompareProfilesDto) {
+    return this.supplierService.compareProfiles(dto.ids);
   }
 
   @Post('register/temporary')
