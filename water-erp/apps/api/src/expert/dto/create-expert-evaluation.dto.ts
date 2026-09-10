@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsObject } from 'class-validator';
 import { ExpertLevel } from '@prisma/client';
 
 export class CreateExpertEvaluationDto {
@@ -19,4 +19,8 @@ export class CreateExpertEvaluationDto {
 
   @IsOptional() @IsString()
   comment?: string;
+
+  /** 三维评价依据（出勤/质量/廉洁），键为 attendanceGrade/qualityGrade/disciplineGrade，值为依据文本 */
+  @IsOptional() @IsObject()
+  evidence?: Record<string, string>;
 }

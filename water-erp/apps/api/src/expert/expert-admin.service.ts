@@ -1118,6 +1118,14 @@ export class ExpertAdminService {
       disciplineGrade: dto.disciplineGrade,
       overallGrade,
       comment: dto.comment,
+      // 三维评价依据：前端文本域内容原样持久化（可空）。只保留三键白名单，滤掉任意负载。
+      evidence: dto.evidence && Object.keys(dto.evidence).length > 0
+        ? {
+            attendanceGrade: dto.evidence.attendanceGrade ?? null,
+            qualityGrade: dto.evidence.qualityGrade ?? null,
+            disciplineGrade: dto.evidence.disciplineGrade ?? null,
+          }
+        : undefined,
     };
 
     // 去重/防刷（P2 幂等）：同一评价者对同一专家在同一项目仅保留一条评价（可改不可刷）。

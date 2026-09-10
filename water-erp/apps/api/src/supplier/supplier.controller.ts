@@ -66,7 +66,7 @@ export class SupplierController {
   @Post('admin/tags/:id/reject')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '审核拒绝自创标签（不入池）' })
-  async rejectTag(@Param('id') id: string, @Request() req: any, @Body('reason') _reason?: string) {
+  async rejectTag(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.rejectBusinessTag(id, req.user?.sub);
   }
 
@@ -625,7 +625,7 @@ export class SupplierController {
   @Delete(':id/documents/:docId')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '删除供应商文件' })
-  async deleteDocument(@Param('docId') docId: string) {
-    return this.supplierService.deleteDocument(docId);
+  async deleteDocument(@Param('id') id: string, @Param('docId') docId: string) {
+    return this.supplierService.deleteDocument(id, docId);
   }
 }

@@ -17,7 +17,7 @@ import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
 import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { isSupplierChangeAllowedField } from './supplier-change-fields';
-import { shouldAutoDisable, aggregatePerformance } from './supplier-performance';
+import { shouldAutoDisable } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
@@ -974,7 +974,7 @@ export class SupplierService {
   }
 
   /** 审核拒绝：PENDING → REJECTED（不入池；供应商资料中已使用的标签文本不受影响） */
-  async rejectBusinessTag(id: string, reviewerUserId?: string, reason?: string) {
+  async rejectBusinessTag(id: string, reviewerUserId?: string) {
     const tag = await this.prisma.businessTag.findUnique({ where: { id } });
     if (!tag) throw new BadRequestException({ error: '标签不存在', code: 'NOT_FOUND' });
     if (tag.status !== 'PENDING') throw new BadRequestException({ error: '该标签不在待审核状态', code: 'INVALID_STATUS' });
@@ -1628,45 +1628,6 @@ export class SupplierService {
     });
   }
 
-  async checkQualificationExpiry() {
-    const now = new Date();
-    const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-    // 查找即将过期的资质
-    const expiringQualifications = await this.prisma.supplierQualification.findMany({
-      where: {
-        validTo: { lte: thirtyDaysLater, gte: now },
-        status: '有效',
-      },
-      include: { supplier: true },
-    });
-
-    // 更新状态为即将过期
-    for (const q of expiringQualifications) {
-      await this.prisma.supplierQualification.update({
-        where: { id: q.id },
-        data: { status: '即将过期' },
-      });
-    }
-
-    // 查找已过期的资质
-    const expiredQualifications = await this.prisma.supplierQualification.findMany({
-      where: {
-        validTo: { lt: now },
-        status: { not: '已过期' },
-      },
-    });
-
-    for (const q of expiredQualifications) {
-      await this.prisma.supplierQualification.update({
-        where: { id: q.id },
-        data: { status: '已过期' },
-      });
-    }
-
-    return { expiring: expiringQualifications.length, expired: expiredQualifications.length };
-  }
-
   async listEvaluations(supplierId: string) {
     return this.prisma.supplierEvaluation.findMany({
       where: { supplierId },
@@ -2136,18 +2097,6 @@ export class SupplierService {
     return { supplierId, supplierName: supplier.name, events };
   }
 
-  /** 供应商绩效画像：等级分布、趋势。 */
-  async getSupplierPerformanceProfile(supplierId: string) {
-    const evals = await this.prisma.supplierEvaluation.findMany({
-      where: { supplierId },
-      orderBy: { createdAt: 'asc' },
-      select: { finalGrade: true, createdAt: true },
-    });
-    return aggregatePerformance(
-      evals.map(e => ({ finalGrade: e.finalGrade, createdAt: e.createdAt })),
-    );
-  }
-
   async getEvaluationStats() {
     const evaluations = await this.prisma.supplierEvaluation.findMany({
       select: { finalGrade: true },
@@ -2583,8 +2532,14 @@ export class SupplierService {
     });
   }
 
-  async deleteDocument(id: string) {
-    await this.prisma.supplierDocument.delete({ where: { id } }).catch(() => {});
+  async deleteDocument(supplierId: string, docId: string) {
+    // 归属校验：仅允许删除该供应商名下的文档，避免跨供应商越权删除。
+    const deleted = await this.prisma.supplierDocument.deleteMany({
+      where: { id: docId, supplierId },
+    });
+    if (deleted.count === 0) {
+      throw new NotFoundException('文档不存在或不属于该供应商');
+    }
     return { success: true };
   }
 
@@ -2743,7 +2698,7 @@ export class SupplierService {
 
   // ── Excel 批量导入 ──
   private SUPPLIER_IMPORT_COLUMNS = [
-    '企业名称*', '统一社会信用代码*', '企业类型', '法定代表人', '注册地址', '经营范围',
+    '企业名称*', '统一社会信用代码*', '企业类型', '法定代表人', '法定代表人身份证号', '注册地址', '经营范围',
     '联系人姓名', '联系人手机号', '联系人邮箱', '联系人职位',
   ];
 

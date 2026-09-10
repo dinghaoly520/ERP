@@ -591,7 +591,7 @@ export default function ExpertDetailPage() {
             {[
               ['评分偏离度', risk.signals.meanDeviation != null ? `${risk.signals.meanDeviation > 0 ? '+' : ''}${risk.signals.meanDeviation}` : '—'],
               ['偏离风险', risk.signals.deviationRisk === 'high' ? '高' : risk.signals.deviationRisk === 'medium' ? '中' : '低'],
-              ['近期D级评价', `${risk.signals.recentDCount} 次`],
+              ['近期E级评价', `${risk.signals.recentECount} 次`],
               ['违规记录', `${risk.signals.violationCount} 条`],
             ].map(([label, value]) => (
               <div key={label} className="kpi-card flex flex-col gap-1 p-3">
@@ -653,7 +653,16 @@ export default function ExpertDetailPage() {
                       <td className="text-center"><StatusBadge tone={levelTone[ev.overallGrade] || 'gray'}>{ev.overallGrade || '—'}</StatusBadge></td>
                       <td className="text-center"><StatusBadge tone={levelTone[ev.overallGrade] || 'gray'}>{LEVEL_LABEL[ev.overallGrade] || ev.overallGrade || '—'}</StatusBadge></td>
                       <td className="text-xs text-[var(--muted-foreground)]">{ev.evaluator?.displayName || '—'}</td>
-                      <td className="text-xs text-[var(--muted-foreground)] max-w-[160px] truncate">{ev.comment || '—'}</td>
+                      <td className="text-xs text-[var(--muted-foreground)] max-w-[220px]">
+                        {(() => {
+                          const evd = (ev.evidence ?? {}) as Record<string, string>;
+                          const evdText = ['attendanceGrade', 'qualityGrade', 'disciplineGrade']
+                            .map(k => { const v = (evd[k] || '').trim(); return v ? (k === 'attendanceGrade' ? '出勤' : k === 'qualityGrade' ? '质量' : '廉洁') + '：' + v : ''; })
+                            .filter(Boolean).join('；');
+                          const full = [ev.comment, evdText].filter(Boolean).join(' ｜ ');
+                          return <span className="block truncate" title={full || undefined}>{full || '—'}</span>;
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -174,10 +174,6 @@ export function getSelectionHistory() {
   return api.get<SupplierSelectionHistoryRecord[]>('/ai/selection-history');
 }
 
-export function getSelectionHistoryDetail(id: string) {
-  return api.get<SupplierSelectionHistoryRecord>(`/ai/selection-history/${id}`);
-}
-
 export function restoreShortlist(historyId: string) {
   return api.get<SupplierRecommendation[]>(`/ai/selection-history/${historyId}/shortlist`);
 }
@@ -229,16 +225,6 @@ export function getRsvpList(params: { projectId?: string; invitationId?: string 
   if (params.projectId) q.set('projectId', params.projectId);
   if (params.invitationId) q.set('invitationId', params.invitationId);
   return api.get<RsvpListResult>(`/supplier/rsvp/list?${q.toString()}`);
-}
-
-// ── 邀请供应商到招标项目 ──
-export function inviteSuppliers(projectId: string, supplierIds: string[]) {
-  return api.post<{ added: number; skipped: number }>(`/bid/projects/${projectId}/suppliers`, { supplierIds });
-}
-
-// ── 分享候选名单 ──
-export function shareShortlist(data: { requirement: string; shortlist: { name: string; matchScore: number; reason: string }[]; note?: string }) {
-  return api.post<{ success: boolean }>('/ai/share-shortlist', data);
 }
 
 // 供应商详情
@@ -377,18 +363,6 @@ export function deleteClassification(id: string) {
 }
 
 // ── 供应商画像 ──
-export interface SupplierPortrait {
-  supplierId: string; name: string;
-  participationCount: number; winCount: number; winRate: number;
-  gradeCounts: Record<string, number>; evalCount: number;
-  performanceTrend: 'improving' | 'stable' | 'declining';
-  levelCounts: { A: number; B: number; C: number; D: number; E: number };
-  priceDeviation: number | null;
-}
-export function getSupplierPortrait(id: string) {
-  return api.get<SupplierPortrait>(`/supplier/${id}/portrait`);
-}
-
 // ── 生命周期时间线 ──
 export interface TimelineEvent { type: string; label: string; detail: string; at: string; }
 export interface SupplierTimeline { supplierId: string; supplierName: string; events: TimelineEvent[]; }
@@ -460,9 +434,6 @@ export interface SupplierClassificationLink {
   supplierId: string; classificationId: string;
   classification: SupplierClassification;
   assignedAt: string;
-}
-export function getSupplierClassifications(supplierId: string) {
-  return api.get<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`);
 }
 export function setSupplierClassifications(supplierId: string, classificationIds: string[]) {
   return api.put<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`, { classificationIds });
