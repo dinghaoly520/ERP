@@ -407,7 +407,6 @@ export function getApprovalHistory(id: string) {
 export interface QualificationAlertItem {
   id: string; supplierId: string; supplierName: string;
   type: string; name: string; validTo: string | null; status: string; daysRemaining: number | null;
-  acked: boolean; // 当前用户是否已标记「已处理」（后端持久化）
 }
 export interface QualificationAlerts {
   items: QualificationAlertItem[];
@@ -416,8 +415,8 @@ export interface QualificationAlerts {
 export function getQualificationAlerts() {
   return api.get<QualificationAlerts>('/supplier/qualification-alerts');
 }
-export function acknowledgeQualificationAlert(qualificationId: string) {
-  return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/ack`, {});
+export function notifyQualificationAlert(qualificationId: string) {
+  return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/notify`, {});
 }
 
 // ── 淘汰候选 ──
@@ -457,6 +456,26 @@ export function getFavorites() {
 export interface ActivityItem { id: string; action: string; resourceId: string; details: any; actorName: string; at: string; }
 export function getRecentActivities(limit?: number) {
   return api.get<ActivityItem[]>(`/supplier/recent-activities?limit=${limit ?? 15}`);
+}
+
+// ── 操作历史（审计留痕） ──
+export interface SupplierAuditLogItem {
+  id: string; action: string; resourceId: string | null; resourceName: string | null;
+  details: Record<string, unknown> | null; actorName: string; createdAt: string;
+}
+export interface SupplierAuditLogs {
+  items: SupplierAuditLogItem[]; total: number; page: number; pageSize: number;
+}
+export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }) {
+  const params = new URLSearchParams();
+  if (opts?.page) params.set('page', String(opts.page));
+  if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
+  if (opts?.supplierId) params.set('supplierId', opts.supplierId);
+  if (opts?.action) params.set('action', opts.action);
+  if (opts?.dateFrom) params.set('dateFrom', opts.dateFrom);
+  if (opts?.dateTo) params.set('dateTo', opts.dateTo);
+  const q = params.toString();
+  return api.get<SupplierAuditLogs>(`/supplier/audit-logs${q ? `?${q}` : ''}`);
 }
 
 // ── AI 供应商综合画像分析 ──

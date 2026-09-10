@@ -2,21 +2,21 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, RefreshCw, CheckSquare } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Send } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getQualificationAlerts, acknowledgeQualificationAlert } from '@/lib/api/supplier';
-import type { QualificationAlerts, QualificationAlertItem } from '@/lib/api/supplier';
+import { getQualificationAlerts, notifyQualificationAlert } from '@/lib/api/supplier';
+import type { QualificationAlerts } from '@/lib/api/supplier';
 
 export default function QualificationAlertsPage() {
   const router = useRouter();
   const [data, setData] = useState<QualificationAlerts | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [acking, setAcking] = useState<string | null>(null);
-  const [batchAcking, setBatchAcking] = useState(false);
-  // 本次会话内「临时撤销已处理」的 id 集合（仅前端显示用，不改动后端确认记录）。
-  const [restoredIds, setRestoredIds] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState<string | null>(null);
+  const [batchSending, setBatchSending] = useState(false);
+  // 本次会话内「已发送通知」的 id 集合（仅前端标记，防重复提醒；不从列表消失）。
+  const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
   // 批量选择
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -26,41 +26,36 @@ export default function QualificationAlertsPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // 已处理 = 后端 acked 且本次未临时撤销。
-  const isDismissed = (i: QualificationAlertItem) => i.acked && !restoredIds.has(i.id);
-
-  const dismissItem = async (id: string) => {
-    setAcking(id);
+  const notifyItem = async (id: string, name: string) => {
+    setSending(id);
     try {
-      await acknowledgeQualificationAlert(id);
-      setRestoredIds(s => { if (!s.has(id)) return s; const n = new Set(s); n.delete(id); return n; });
-      toast.success('已标记为已处理');
-      load();
+      await notifyQualificationAlert(id);
+      setNotifiedIds(s => new Set(s).add(id));
+      toast.success(`已发送维护提醒「${name}」`);
     } catch (e: any) {
-      toast.error(e?.message || '标记失败');
+      toast.error(e?.message || '发送失败');
     } finally {
-      setAcking(null);
+      setSending(null);
     }
   };
 
-  const batchAcknowledge = async () => {
-    if (selectedIds.size === 0) { toast.error('请先选择需要处理的预警项'); return; }
-    setBatchAcking(true);
+  const batchNotify = async () => {
+    if (selectedIds.size === 0) { toast.error('请先选择需要提醒的预警项'); return; }
+    setBatchSending(true);
     let done = 0; const errors: string[] = [];
     for (const id of selectedIds) {
-      try { await acknowledgeQualificationAlert(id); done++; }
-      catch (e: any) { errors.push(e?.message || '未知错误'); }
+      try {
+        await notifyQualificationAlert(id);
+        done++;
+        setNotifiedIds(s => new Set(s).add(id));
+      } catch (e: any) {
+        errors.push(e?.message || '未知错误');
+      }
     }
     if (errors.length > 0) toast.error(`${done} 个成功，${errors.length} 个失败`);
-    else toast.success(`已批量标记 ${done} 项为已处理`);
+    else toast.success(`已发送 ${done} 条维护提醒`);
     setSelectedIds(new Set());
-    setBatchAcking(false);
-    load();
-  };
-
-  const unDismissAll = () => {
-    setRestoredIds(new Set((data?.items || []).filter(i => i.acked).map(i => i.id)));
-    toast.success('已在本会话内恢复显示（后端记录未清除）');
+    setBatchSending(false);
   };
 
   const toggleSelect = (id: string) => setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -69,12 +64,9 @@ export default function QualificationAlertsPage() {
     else setSelectedIds(new Set(filtered.map(i => i.id)));
   };
 
-  const filtered = (data?.items || [])
-    .filter(i => !statusFilter || i.status === statusFilter)
-    .filter(i => !isDismissed(i));
+  const filtered = (data?.items || []).filter(i => !statusFilter || i.status === statusFilter);
 
   const visibleCount = filtered.length;
-  const dismissedCount = (data?.items || []).filter(isDismissed).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -84,14 +76,11 @@ export default function QualificationAlertsPage() {
             <div className="page-hero__icon"><AlertTriangle size={17} /></div>
             <div>
               <div className="page-hero__title">资质到期预警</div>
-              <div className="page-hero__sub">监控供应商资质有效期，提前发现到期风险{dismissedCount > 0 ? `（已处理 ${dismissedCount} 项）` : ''}</div>
+              <div className="page-hero__sub">监控供应商资质有效期，发送提醒通知供应商维护；供应商更新后预警自动消失</div>
             </div>
           </div>
           <div className="page-hero__right">
             <button onClick={() => { load(); toast.success('已刷新'); }} disabled={loading} className="neu-btn-xs gap-1"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /></button>
-            {dismissedCount > 0 && (
-              <button onClick={unDismissAll} className="neu-btn-xs">恢复全部</button>
-            )}
             <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回供应商库
@@ -127,8 +116,8 @@ export default function QualificationAlertsPage() {
             ))}
             <div className="flex-1" />
             {visibleCount > 0 && selectedIds.size > 0 && (
-              <button onClick={batchAcknowledge} disabled={batchAcking} className="neu-btn-xs gap-1 is-success">
-                <CheckSquare size={12} />{batchAcking ? '处理中...' : `批量已处理 (${selectedIds.size})`}
+              <button onClick={batchNotify} disabled={batchSending} className="neu-btn-xs gap-1 is-success">
+                <Send size={12} />{batchSending ? '发送中...' : `批量发送通知 (${selectedIds.size})`}
               </button>
             )}
           </div>
@@ -145,22 +134,18 @@ export default function QualificationAlertsPage() {
                         onChange={toggleAll} />
                     )}
                   </th>
-                  <th>供应商</th><th>资质名称</th><th>类型</th><th>到期日</th><th>剩余</th><th>状态</th><th className="w-20">操作</th>
+                  <th>供应商</th><th>资质名称</th><th>类型</th><th>到期日</th><th>剩余</th><th>状态</th><th className="w-24">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 && !dismissedCount ? (
+                {filtered.length === 0 ? (
                   <tr><td colSpan={8} className="text-center text-[var(--muted-foreground)] py-8">暂无资质到期预警</td></tr>
-                ) : filtered.length === 0 && dismissedCount > 0 ? (
-                  <tr><td colSpan={8} className="text-center text-[var(--muted-foreground)] py-8">
-                    全部 {dismissedCount} 项预警已标记为已处理
-                    <button onClick={unDismissAll} className="ml-2 text-[var(--accent)] hover:underline text-xs">恢复全部</button>
-                  </td></tr>
                 ) : filtered.map(q => {
                   const isExpired = q.status === '已过期';
                   const isExpiring = q.status === '即将过期';
                   const dayColor = isExpired ? 'var(--danger)' : isExpiring ? 'var(--warning)' : 'var(--success)';
                   const urgency = q.daysRemaining === null ? 0 : Math.max(0, Math.min(100, 100 - (q.daysRemaining / 90) * 100));
+                  const notified = notifiedIds.has(q.id);
                   return (
                     <tr key={q.id}>
                       <td onClick={e => e.stopPropagation()}>
@@ -188,8 +173,9 @@ export default function QualificationAlertsPage() {
                         </span>
                       </td>
                       <td>
-                        <button onClick={() => dismissItem(q.id)} disabled={acking === q.id} className="neu-btn-xs gap-1" title="标记为已处理（入库，跨设备保留）">
-                          <Check size={11} />{acking === q.id ? '处理中' : '已处理'}
+                        <button onClick={() => notifyItem(q.id, q.name)} disabled={sending === q.id || notified}
+                          className="neu-btn-xs gap-1" title={notified ? '已发送维护提醒（供应商更新资质后自动从本列表消失）' : '发送维护提醒到供应商门户'}>
+                          <Send size={11} />{sending === q.id ? '发送中' : notified ? '已通知' : '发送通知'}
                         </button>
                       </td>
                     </tr>

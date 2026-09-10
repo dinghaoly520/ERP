@@ -40,6 +40,24 @@ function computeOverallGrade(
   return SCORE_GRADE[Math.round(w)];
 }
 
+/** 专家管理审计动作白名单——「操作历史」页仅展示这些动作，其余审计动作（抽取/确认等）不混入 */
+export const EXPERT_AUDIT_ACTIONS = [
+  'EXPERT_CREATE',        // 录入专家
+  'EXPERT_IMPORT',        // CSV 批量导入
+  'EXPERT_APPROVE',       // 审核入库（PENDING→ACTIVE）
+  'EXPERT_UPDATE',        // 更新资料
+  'EXPERT_ENABLE',        // 启用
+  'EXPERT_DISABLE',       // 停用
+  'EXPERT_BATCH_ENABLE',  // 批量启用
+  'EXPERT_BATCH_DISABLE', // 批量停用
+  'EXPERT_SUSPEND',       // 暂停
+  'EXPERT_RESUME',        // 恢复（暂停恢复 / 退库恢复）
+  'EXPERT_RETIRE',        // 退库
+  'EXPERT_RETIRE_IGNORE', // 忽略退库预警
+  'EXPERT_EVALUATE',      // 履职评价
+  'EXPERT_VIOLATION_RECORDED', // 违规记录
+] as const;
+
 @Injectable()
 export class ExpertAdminService {
   // N6 收尾：TTL 真单源——毫秒值复用 rsvpTtlHours()（含 "abc"/"0" 等非法值回退 2），
@@ -56,6 +74,18 @@ export class ExpertAdminService {
     private ocr: OcrService,
     private readonly extraction: ExpertExtractionService,
   ) {}
+
+  /** 专家管理审计留痕（AuditLog 仅追加、无改删端点，天然不可篡改）。操作人缺失（种子导入等系统动作）静默跳过；写失败不阻断主流程。 */
+  private async auditExpert(actorId: string | undefined, action: string, expertId: string, details?: Record<string, unknown>) {
+    if (!actorId) return;
+    try {
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action, resourceType: 'User', resourceId: expertId, details: (details ?? undefined) as any },
+      });
+    } catch (err) {
+      new Logger(ExpertAdminService.name).warn(`专家审计留痕失败 [${action}] ${expertId}: ${(err as Error)?.message ?? err}`);
+    }
+  }
 
   /* ── 专家库 ── */
 
@@ -192,7 +222,7 @@ export class ExpertAdminService {
 
   /* ── 专家录入 ── */
 
-  async createExpert(dto: CreateExpertDto) {
+  async createExpert(dto: CreateExpertDto, operatorId?: string) {
     const normalizedName = dto.displayName.trim();
     if (await this.prisma.user.findFirst({ where: { username: dto.username, role: 'bid_expert' } })) {
       throw new BadRequestException({ error: '账号已存在', code: 'DUPLICATE_USERNAME' });
@@ -240,6 +270,10 @@ export class ExpertAdminService {
       });
       // 剥离密码哈希，避免敏感字段外泄
       const { passwordHash, ...safeUser } = user;
+      // 审计留痕：单条录入（CSV 导入与种子导入不在此列，各自单独记账）
+      await this.auditExpert(operatorId, 'EXPERT_CREATE', user.id, {
+        expertName: normalizedName, specialty: dto.specialty, employer: dto.employer ?? null,
+      });
       return safeUser;
       });
     } catch (err) {
@@ -323,7 +357,7 @@ export class ExpertAdminService {
   }
 
   /** 启用/停用专家（停用 = isActive=false + availability 停用） */
-  async setAvailability(userId: string, available: boolean) {
+  async setAvailability(userId: string, available: boolean, operatorId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // 仅限专家角色，防止越权停用任意账户（含 admin/员工）
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
@@ -338,11 +372,12 @@ export class ExpertAdminService {
         },
       }),
     ]);
+    await this.auditExpert(operatorId, available ? 'EXPERT_ENABLE' : 'EXPERT_DISABLE', userId, { expertName: user.displayName });
     return { success: true };
   }
 
   /** 更新专家资料 */
-  async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
+  async updateProfile(userId: string, dto: UpdateExpertProfileDto, operatorId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
 
@@ -391,6 +426,7 @@ export class ExpertAdminService {
         create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, ethnicity: dto.ethnicity, education: dto.education, licenseNo: dto.licenseNo, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
       }),
     ]);
+    await this.auditExpert(operatorId, 'EXPERT_UPDATE', userId, { expertName: user.displayName });
     return { success: true };
   }
 
@@ -1149,6 +1185,10 @@ export class ExpertAdminService {
 
     // 决策 #3：不自动停用。连续 E 级由 reviewRetirementCandidates()（cron + 人工）产出预警，
     // 实际退库须经 admin 调 confirmRetire() 确认。此处仅返回评价结果。
+    // 审计留痕：评价（含更新）记一条，整体等级 + 关联项目入 details，评价人=操作人（evaluatorId）
+    await this.auditExpert(evaluatorId, 'EXPERT_EVALUATE', dto.expertUserId, {
+      expertName: expert.displayName, overallGrade, projectId: dto.projectId ?? null, updated: !!existing,
+    });
     return created;
   }
 
@@ -1357,15 +1397,16 @@ export class ExpertAdminService {
   }
 
   /** 忽略本轮退库预警：标记 retireIgnoredAt，90 天内 reviewRetirementCandidates 跳过此专家 */
-  async ignoreRetirementWarning(userId: string) {
+  async ignoreRetirementWarning(userId: string, operatorId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     await this.prisma.expertProfile.update({ where: { userId }, data: { retireIgnoredAt: new Date() } });
+    await this.auditExpert(operatorId, 'EXPERT_RETIRE_IGNORE', userId, { expertName: user.displayName });
     return { success: true };
   }
 
   /** 人工确认退库：写入停用 + retiredAt + retireReason，同步禁用登录（同一事务，避免半退库态）。 */
-  async confirmRetire(userId: string, reason: string) {
+  async confirmRetire(userId: string, reason: string, operatorId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // 仅限专家角色，防止越权停用任意账户
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
@@ -1380,6 +1421,7 @@ export class ExpertAdminService {
         data: { isActive: false },
       }),
     ]);
+    await this.auditExpert(operatorId, 'EXPERT_RETIRE', userId, { expertName: user.displayName, reason });
     return { success: true };
   }
 
@@ -1426,6 +1468,19 @@ export class ExpertAdminService {
       ops.push(this.prisma.user.update({ where: { id: userId }, data: { isActive: true } }));
     }
     await this.prisma.$transaction(ops);
+    // 审计留痕：按状态迁移归类动作（审核入库 / 暂停 / 退库 / 恢复），退库事由入 details
+    const prevStatus = profile.entryStatus ?? (profile.retiredAt ? 'RETIRED' : 'ACTIVE');
+    const auditAction =
+      dto.status === 'ACTIVE'
+        ? (prevStatus === 'PENDING' ? 'EXPERT_APPROVE' : 'EXPERT_RESUME')
+        : dto.status === 'SUSPENDED' ? 'EXPERT_SUSPEND'
+        : 'EXPERT_RETIRE';
+    const displayName = (await this.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } }))?.displayName;
+    await this.auditExpert(actor.sub, auditAction, userId, {
+      expertName: displayName,
+      from: prevStatus, to: dto.status,
+      ...(dto.status === 'RETIRED' ? { reason: dto.reason!.trim() } : {}),
+    });
     return this.prisma.expertProfile.findUnique({
       where: { userId },
       select: { userId: true, entryStatus: true, statusNote: true, verifiedById: true, verifiedAt: true, retiredAt: true },
@@ -1583,7 +1638,7 @@ export class ExpertAdminService {
   /* ── 批量操作 / 导入 / 导出 ── */
 
   /** 批量启用/停用专家 */
-  async batchOperation(dto: { action: 'enable' | 'disable'; ids: string[]; reason?: string }) {
+  async batchOperation(dto: { action: 'enable' | 'disable'; ids: string[]; reason?: string }, operatorId?: string) {
     if (!dto.ids?.length) throw new BadRequestException('未选择专家');
     const available = dto.action === 'enable';
     const result = await this.prisma.$transaction([
@@ -1596,6 +1651,10 @@ export class ExpertAdminService {
         data: { availability: available ? '可用' : '停用' },
       }),
     ]);
+    // 批量动作单独记账（一条记录，不逐专家刷屏）
+    await this.auditExpert(operatorId, available ? 'EXPERT_BATCH_ENABLE' : 'EXPERT_BATCH_DISABLE', 'batch', {
+      count: result[0].count, ids: dto.ids, ...(dto.reason?.trim() ? { reason: dto.reason.trim() } : {}),
+    });
     return { success: true, count: result[0].count };
   }
 
@@ -1621,7 +1680,7 @@ export class ExpertAdminService {
   }
 
   /** CSV 批量导入（表头灵活匹配） */
-  async importCsv(rows: Array<Record<string, string>>) {
+  async importCsv(rows: Array<Record<string, string>>, operatorId?: string) {
     const pick = (row: Record<string, string>, keys: string[]): string => {
       for (const k of Object.keys(row)) {
         const norm = k.trim();
@@ -1666,6 +1725,9 @@ export class ExpertAdminService {
         results.push({ 姓名: displayName, 状态: '失败', 原因: e?.message ?? '录入异常' });
         failed++;
       }
+    }
+    if (imported > 0) {
+      await this.auditExpert(operatorId, 'EXPERT_IMPORT', 'batch', { imported, skipped, failed, total: rows.length });
     }
     return { total: rows.length, imported, skipped, failed, results };
   }
@@ -2162,5 +2224,46 @@ ${combined}`,
       error: l.error,
       time: l.createdAt.toISOString(),
     }));
+  }
+
+  /* ── 操作历史（审计，只读）── */
+
+  /** 专家管理操作历史：仅白名单动作，附操作人/时间/事由，供审计追溯（无改删端点，不可篡改）。 */
+  async getExpertOperationHistory(params: { expertId?: string; action?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const pageSize = Math.min(params.pageSize && params.pageSize > 0 ? params.pageSize : 20, 100);
+
+    const where: Prisma.AuditLogWhereInput = {
+      action: { in: [...EXPERT_AUDIT_ACTIONS] },
+    };
+    if (params.expertId) where.resourceId = params.expertId;
+    if (params.action) where.action = params.action;
+    // 日期检索（以天为单位）：startDate ≤ createdAt < endDate 次日，均按 YYYY-MM-DD
+    if (params.startDate || params.endDate) {
+      const range: { gte?: Date; lt?: Date } = {};
+      if (params.startDate) range.gte = new Date(`${params.startDate}T00:00:00.000Z`);
+      if (params.endDate) {
+        const end = new Date(`${params.endDate}T00:00:00.000Z`);
+        end.setUTCDate(end.getUTCDate() + 1); // 含当天 → 次日零点之前
+        range.lt = end;
+      }
+      where.createdAt = range;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true, action: true, resourceId: true, details: true, createdAt: true,
+          user: { select: { id: true, displayName: true, username: true } },
+        },
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return { total, page, pageSize, items };
   }
 }

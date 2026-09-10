@@ -9,8 +9,9 @@ import type { ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
 import { ExpertEntryDialog } from '@/components/expert/expert-entry-dialog';
+import { ExpertOperationHistory } from '@/components/expert/expert-operation-history';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle, History } from 'lucide-react';
 import type { WorkbenchTone } from '@water-erp/shared';
 import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
@@ -51,6 +52,8 @@ export default function ExpertRepositoryPage() {
   const [evalTarget, setEvalTarget] = useState<ExpertListItem | null>(null);
   // 录入专家弹窗
   const [showEntryModal, setShowEntryModal] = useState(false);
+  // 操作历史抽屉（审计，只读）
+  const [showHistory, setShowHistory] = useState(false);
   // 批量操作二次确认
   const [confirmBatch, setConfirmBatch] = useState(false);
 
@@ -178,6 +181,7 @@ export default function ExpertRepositoryPage() {
             <div><div className="page-hero__title">专家库</div><div className="page-hero__sub">评审专家目录、专业分类与启停管理，支持按专业和姓名筛选</div></div>
           </div>
           <div className="page-hero__right">
+            <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
             <Link href="/expert/ranking" className="neu-btn-soft"><Trophy size={15} />排名</Link>
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
             <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>
@@ -449,6 +453,9 @@ export default function ExpertRepositoryPage() {
 
       {/* ══════ 录入专家弹窗 ══════ */}
       <ExpertEntryDialog open={showEntryModal} onClose={() => setShowEntryModal(false)} onSubmitted={load} />
+
+      {/* ══════ 操作历史（审计，只读） ══════ */}
+      <ExpertOperationHistory open={showHistory} onClose={() => setShowHistory(false)} />
     </div>
   );
 }

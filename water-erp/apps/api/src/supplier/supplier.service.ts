@@ -1736,6 +1736,7 @@ export class SupplierService {
         })
         .catch(() => undefined);
     }
+    await this.audit(user!.sub, 'SUPPLIER_BLACKLIST', supplierId, { name: supplier.name, reason: reason.trim() });
     return this.prisma.supplier.findUnique({
       where: { id: supplierId },
       select: { id: true, name: true, status: true, disableReason: true },
@@ -1770,6 +1771,7 @@ export class SupplierService {
         })
         .catch(() => undefined);
     }
+    await this.audit(user!.sub, 'SUPPLIER_UNBLACKLIST', supplierId, { name: supplier.name, reason: reason.trim() });
     return this.prisma.supplier.findUnique({
       where: { id: supplierId },
       select: { id: true, name: true, status: true, disableReason: true },
@@ -1929,11 +1931,11 @@ export class SupplierService {
     const now = Date.now();
     const in90 = new Date(now + 90 * 86400000);
     // 取「已过期 或 90 天内到期」的资质（覆盖过期+即将过期两态，避免 status 字段未同步导致漏报）。
+    // 预警是否展示完全由 validTo 决定：供应商维护更新资质后（validTo 移出 90 天窗口）自动从看板消失。
     const items = await this.prisma.supplierQualification.findMany({
       where: { validTo: { not: null, lte: in90 } },
       include: {
         supplier: { select: { id: true, name: true } },
-        acks: userId ? { where: { userId }, select: { id: true } } : false,
       },
       orderBy: { validTo: 'asc' },
     });
@@ -1950,7 +1952,6 @@ export class SupplierService {
         validTo: q.validTo,
         status: derivedStatus,
         daysRemaining,
-        acked: userId ? (q.acks?.length ?? 0) > 0 : false,
       };
     });
     return {
@@ -1961,15 +1962,32 @@ export class SupplierService {
     };
   }
 
-  /** 标记资质预警已处理（B11 入库）：upsert 当前用户对该资质的确认记录。 */
-  async acknowledgeQualificationAlert(qualificationId: string, userId: string) {
+  /** 发送资质维护提醒通知：站内信触达供应商门户（link 指向 /profile 资质与证照 tab）。 */
+  async notifyQualificationAlert(qualificationId: string, userId: string) {
     if (!userId) throw new ForbiddenException({ error: '未登录', code: 'UNAUTHORIZED' });
-    const qual = await this.prisma.supplierQualification.findUnique({ where: { id: qualificationId }, select: { id: true, supplierId: true } });
+    const qual = await this.prisma.supplierQualification.findUnique({
+      where: { id: qualificationId },
+      select: { id: true, name: true, validTo: true, supplier: { select: { userId: true } } },
+    });
     if (!qual) throw new NotFoundException('资质记录不存在');
-    await this.prisma.qualificationAlertAck.upsert({
-      where: { qualificationId_userId: { qualificationId, userId } },
-      create: { qualificationId, userId, supplierId: qual.supplierId },
-      update: {},
+    if (!qual.supplier?.userId) {
+      throw new BadRequestException({ error: '该供应商尚未关联登录账号，无法发送通知', code: 'NO_SUPPLIER_ACCOUNT' });
+    }
+
+    const now = new Date();
+    const date = qual.validTo ? new Date(qual.validTo).toISOString().slice(0, 10) : '';
+    const daysLeft = qual.validTo ? Math.ceil((new Date(qual.validTo).getTime() - now.getTime()) / 86400000) : null;
+    const expired = daysLeft !== null && daysLeft < 0;
+    const content = expired
+      ? `您的资质材料「${qual.name}」已于 ${date} 到期，请及时更新以免影响投标资格。`
+      : `您的资质材料「${qual.name}」将于 ${date} 到期（剩 ${daysLeft} 天），请及时更新以免影响投标资格。`;
+
+    await this.notificationService.create({
+      userId: qual.supplier.userId,
+      type: 'QUALIFICATION_EXPIRING',
+      title: '资质到期维护提醒',
+      content,
+      link: '/profile',
     });
     return { success: true };
   }
@@ -2425,6 +2443,58 @@ export class SupplierService {
       details: l.details, actorName: l.user?.displayName || '系统',
       at: l.createdAt.toISOString(),
     }));
+  }
+
+  /** 供应商操作历史（审计）：不可变留痕，供「操作历史」只读看板追溯。
+   *  覆盖入库/审核/停用/拉黑/恢复/变更/评价/淘汰/标签等全部 audit 落库动作。 */
+  async listSupplierAuditLogs(opts: { page: number; pageSize: number; supplierId?: string; action?: string; dateFrom?: string; dateTo?: string }) {
+    const page = Math.max(1, opts.page);
+    const pageSize = Math.min(100, Math.max(1, opts.pageSize));
+    const where: any = { resourceType: 'supplier' };
+    if (opts.supplierId) where.resourceId = opts.supplierId;
+    if (opts.action) where.action = opts.action;
+    // 日期范围（YYYY-MM-DD，按本地时区边界）：dateFrom 当日 00:00:00 起，dateTo 当日 23:59:59.999 止。
+    if (opts.dateFrom || opts.dateTo) {
+      where.createdAt = {};
+      if (opts.dateFrom) where.createdAt.gte = new Date(`${opts.dateFrom}T00:00:00`);
+      if (opts.dateTo) where.createdAt.lte = new Date(`${opts.dateTo}T23:59:59.999`);
+    }
+
+    const [total, logs] = await Promise.all([
+      this.prisma.auditLog.count({ where }),
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          user: { select: { displayName: true, username: true } },
+          // 解析 resourceId → 供应商名（操作历史展示用；供应商可能已删，故 left join）
+        },
+      }),
+    ]);
+
+    // 批量解析资源名：audit 的 resourceId 除批量回填外均为 supplierId，逐个查名。
+    const supplierIds = [...new Set(logs.map(l => l.resourceId).filter((id): id is string => !!id))];
+    const suppliers = supplierIds.length
+      ? await this.prisma.supplier.findMany({ where: { id: { in: supplierIds } }, select: { id: true, name: true } })
+      : [];
+    const nameMap = new Map(suppliers.map(s => [s.id, s.name]));
+
+    return {
+      items: logs.map(l => ({
+        id: l.id,
+        action: l.action,
+        resourceId: l.resourceId,
+        resourceName: l.resourceId ? (nameMap.get(l.resourceId) ?? null) : null,
+        details: l.details,
+        actorName: l.user?.displayName || l.user?.username || '系统',
+        createdAt: l.createdAt.toISOString(),
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   /* ━━━ 评价维度统计 ━━━ */

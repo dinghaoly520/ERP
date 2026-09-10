@@ -343,16 +343,16 @@ export class SupplierController {
 
   @Get('qualification-alerts')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '资质到期预警看板（含当前用户「已处理」标记）' })
+  @ApiOperation({ summary: '资质到期预警看板' })
   async getQualificationAlerts(@Request() req: any) {
     return this.supplierService.getQualificationAlerts(req.user?.sub);
   }
 
-  @Post('qualification-alerts/:qid/ack')
+  @Post('qualification-alerts/:qid/notify')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '标记资质预警为已处理（入库，替代 sessionStorage）' })
-  async acknowledgeQualificationAlert(@Param('qid') qid: string, @Request() req: any) {
-    return this.supplierService.acknowledgeQualificationAlert(qid, req.user?.sub);
+  @ApiOperation({ summary: '发送资质维护提醒通知到供应商门户' })
+  async notifyQualificationAlert(@Param('qid') qid: string, @Request() req: any) {
+    return this.supplierService.notifyQualificationAlert(qid, req.user?.sub);
   }
 
   @Get('favorites/list')
@@ -367,6 +367,27 @@ export class SupplierController {
   @ApiOperation({ summary: '近期动态' })
   async getRecentActivities(@Query('limit') limit?: number) {
     return this.supplierService.getRecentActivities(limit ?? 15);
+  }
+
+  @Get('audit-logs')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '供应商操作历史（审计留痕，只读）' })
+  async listSupplierAuditLogs(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('action') action?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.supplierService.listSupplierAuditLogs({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 20,
+      supplierId,
+      action,
+      dateFrom,
+      dateTo,
+    });
   }
 
   @Get('evaluations/dimension-stats')
