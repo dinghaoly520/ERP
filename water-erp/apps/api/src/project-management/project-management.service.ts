@@ -5172,14 +5172,24 @@ ${JSON.stringify(algorithmResult, null, 2)}
     try {
       const buffer = await readFile(filePath);
       const text = await this.documentParser.parse(buffer, mimeType, fileName);
+      // 乱码率（U+FFFD 替换符占比）：pdf-parse 对部分中文 PDF 产出「长但含替换符」
+      // 的文本——此前仅 <50 字符才走 OCR，这类文本长度可观被直接放行（实测
+      // 项目概况入库含 「调试��正常」）。≥0.5% 视为编码失败，走 OCR 兜底。
+      const garbled = (text.match(/\uFFFD/g) || []).length;
+      const garbledRatio = garbled / Math.max(1, text.length);
       // If text extraction yielded meaningful content, return it
-      if (text.trim().length > 50) {
+      if (text.trim().length > 50 && garbledRatio < 0.005) {
         return text.slice(0, 8000);
       }
-      // Text too sparse — likely a scanned document, fall back to OCR
-      this.logger.log(`Text too sparse from ${fileName} (${text.trim().length} chars), trying OCR fallback`);
+      // Text too sparse or garbled — fall back to OCR
+      if (garbledRatio >= 0.005) {
+        this.logger.log(`Text from ${fileName} garbled (${(garbledRatio * 100).toFixed(2)}% U+FFFD, ${garbled} chars), trying OCR fallback`);
+      } else {
+        this.logger.log(`Text too sparse from ${fileName} (${text.trim().length} chars), trying OCR fallback`);
+      }
       const ocrText = await this.documentParser.parseWithOcr(buffer, mimeType, fileName);
-      if (ocrText.trim().length > text.trim().length) {
+      const ocrGarbledRatio = (ocrText.match(/\uFFFD/g) || []).length / Math.max(1, ocrText.length);
+      if (ocrText.trim().length > text.trim().length && ocrGarbledRatio <= garbledRatio) {
         return ocrText.slice(0, 8000);
       }
       return text.slice(0, 8000);
