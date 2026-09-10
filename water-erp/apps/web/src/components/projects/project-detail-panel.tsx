@@ -164,7 +164,7 @@ function ExpertInfoField({
                 <tr key={i}>
                   <td className="text-center tabular-nums" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{i + 1}</td>
                   <td className="font-medium" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)' }}>
-                      <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <Crown size={12} className="text-[#7c3aed]" title="评审组长" aria-label="评审组长" /> : null}</span>
+                      <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <span title="评审组长"><Crown size={12} className="text-[#7c3aed]" aria-label="评审组长" /></span> : null}</span>
                     </td>
                   <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.department}</td>
                   <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.specialty}</td>
