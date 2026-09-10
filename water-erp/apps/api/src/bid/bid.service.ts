@@ -732,12 +732,17 @@ export class BidService {
       this.logger.warn(`国标采购编码分配失败（公告直建降级为无码，须回填）: ${(e as Error).message}`);
       return null;
     });
-    const openTime = parseFlexibleDate(metadata.openTime) ?? (announcement.publishDate || new Date());
-    // 截标↔开标 24h（P0-2）：metadata.deadline 缺省 → 派生（替换原 +7 天兜底）；提供 → align 校验
+    const parsedOpen = parseFlexibleDate(metadata.openTime);
+    const openTime = parsedOpen ?? (announcement.publishDate || new Date());
+    // 截标↔开标 24h（P0-2）：metadata.deadline 缺省 → 派生（替换原 +7 天兜底）；提供 → align 校验。
+    // 开标时间「另行通知」等不可解析时（parsedOpen 为空），截标作为独立值落库，不做 24h 相对校验——
+    // 否则兜底 openTime 与未来截标冲突抛异常，公告已发布但 BidProject 静默缺失（2026-09-10 实测）。
     const parsedDeadline = parseFlexibleDate(metadata.deadline);
     let deadline: Date;
     if (parsedDeadline) {
-      assertOpeningDeadlineRelation({ openTime, deadline: parsedDeadline, mode: 'align' });
+      if (parsedOpen) {
+        assertOpeningDeadlineRelation({ openTime: parsedOpen, deadline: parsedDeadline, mode: 'align' });
+      }
       deadline = parsedDeadline;
     } else {
       deadline = deriveDeadlineFromOpenTime(openTime);
