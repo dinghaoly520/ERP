@@ -46,7 +46,8 @@ export class SupplierQualificationMatchService {
     return text
       .split(/[；;\n]|(?<=。)/)
       .map((t) => t.replace(/^(?:\d+[.、．]|[（(]\d+[)）]|[一二三四五六七八九十]+[、.．])\s*/, '').trim())
-      .filter((t) => t.length >= 4)
+      // 过滤纯分类标题行（如「【资质要求】」）——此前被当独立条件产生噪音条目
+      .filter((t) => t.length >= 4 && !/^【[^】]{1,12}】$/.test(t))
       .slice(0, 12);
   }
 
@@ -115,7 +116,7 @@ export class SupplierQualificationMatchService {
     return risks;
   }
 
-  async analyze(supplierId: string, projectId: string): Promise<QualificationMatchResult & { supplierName: string; projectName: string }> {
+  async analyze(supplierId: string, projectId: string, requirementOverride?: string): Promise<QualificationMatchResult & { supplierName: string; projectName: string }> {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
       select: {
@@ -141,7 +142,10 @@ export class SupplierQualificationMatchService {
       where: { bidProjects: { some: { id: bp.id } } },
       select: { supplierRequirements: true },
     });
-    const requirementText = (bp.qualification || pmi?.supplierRequirements || '').trim();
+    // 优先级：调用方传入的步骤1「供应商要求」全文 > 项目资格条件 > 立项供方要求——
+    // 立项表常只有一句概述（实测「钻机采购要求见附件一。」拆出 1 条，分析单薄），
+    // 邀请页步骤 1 的多维度要求才是比对基准
+    const requirementText = (requirementOverride?.trim() || bp.qualification || pmi?.supplierRequirements || '').trim();
     if (!requirementText) {
       throw new BadRequestException({ error: '本项目未设置资格条件，无法进行符合性分析', code: 'NO_REQUIREMENT' });
     }
@@ -155,7 +159,7 @@ export class SupplierQualificationMatchService {
       registeredCapital: supplier.registeredCapital,
     };
 
-    let items: Array<{ requirement: string; status: QualificationMatchItem['status']; type: EvidenceType; refs: string[] }>;
+    let items: Array<{ requirement: string; status: QualificationMatchItem['status']; type: EvidenceType; refs: string[]; note: string }>;
     let source: 'ai' | 'fallback' = 'ai';
     try {
       // 资质/业绩带固定编号（Q1…/P1…），LLM 引用时逐字复制名称——杜绝改写漂移
@@ -176,8 +180,9 @@ export class SupplierQualificationMatchService {
         '- status：库内资料明确覆盖该要求=「符合」；有证据明确表明不满足（如资质已过期、注册资本低于门槛、经营范围明确不含）=「不符合」；仅是库内没有相关资料（未上传、未登记）=「待核实」，不得判「不符合」；',
         '- evidenceType：符合时选最主要依据类型——资质=qualification / 经营范围=scope / 业绩=performance / 注册资本=capital；不符合或待核实选 none；',
         '- refs：逐字复制上清单中的名称（不含 Q/P 编号），最多 2 个；evidenceType 为 none 时 refs 必须为空数组；严禁改写或编造清单中不存在的名称；',
-        '- 已过有效期的资质不得作为「符合」依据。',
-        '输出 json：{"items":[{"index":1,"status":"符合","evidenceType":"qualification","refs":["资质名称"]}]}，items 与资格条件清单一一对应、顺序一致、数量相等。',
+        '- 已过有效期的资质不得作为「符合」依据；',
+        '- note：一句话（15~40 字）说明该判定的比对逻辑（如「经营范围含钻探设备制造，覆盖第1条设备制造能力要求」），不得空泛复述状态；evidenceType 为 none 时说明缺什么材料。',
+        '输出 json：{"items":[{"index":1,"status":"符合","evidenceType":"qualification","refs":["资质名称"],"note":"比对逻辑说明"}]}，items 与资格条件清单一一对应、顺序一致、数量相等。',
       ].join('\n');
       const ai = await this.llm.chatJson<{ items?: Array<{ index?: number; status?: string; evidenceType?: string; refs?: unknown }> }>(
         '你是采购资格审查审查员，只做逐条对照判定，严格按指定 json 结构输出，不添加任何解释。',
@@ -190,13 +195,14 @@ export class SupplierQualificationMatchService {
           status: (['符合', '不符合', '待核实'].includes(String(it?.status)) ? it.status : '待核实') as QualificationMatchItem['status'],
           type: (EVIDENCE_TYPES.includes(String(it?.evidenceType) as EvidenceType) ? it.evidenceType : 'none') as EvidenceType,
           refs: Array.isArray(it?.refs) ? it.refs.map((r) => String(r)).filter(Boolean).slice(0, 2) : [],
+          note: typeof it?.note === 'string' ? it.note.trim().slice(0, 60) : '',
           index: Number(it?.index) || 0,
         }));
       // 按清单顺序回填；数量不齐 → 视为解析失败走兜底
       if (parsed.length === requirements.length && parsed.every((p) => p.index >= 1 && p.index <= requirements.length)) {
         items = requirements.map((_, i) => {
           const hit = parsed.find((p) => p.index === i + 1) ?? parsed[i];
-          return { requirement: requirements[i], status: hit.status, type: hit.type, refs: hit.refs };
+          return { requirement: requirements[i], status: hit.status, type: hit.type, refs: hit.refs, note: hit.note };
         });
       } else {
         throw new Error(`LLM 判定数量不齐（${parsed.length}/${requirements.length}）`);
@@ -209,17 +215,17 @@ export class SupplierQualificationMatchService {
         const key = r.replace(/[的之并须应需等（）()]/g, '').slice(0, 6);
         const hitQual = validQuals.find((q) => (q.name ?? '').includes(key));
         const hitPerf = supplier.performances.find((p) => (p.projectName ?? '').includes(key));
-        if (hitQual) return { requirement: r, status: '符合' as const, type: 'qualification' as const, refs: [hitQual.name] };
-        if (hitPerf) return { requirement: r, status: '符合' as const, type: 'performance' as const, refs: [hitPerf.projectName] };
-        if (supplier.businessScope.includes(key)) return { requirement: r, status: '符合' as const, type: 'scope' as const, refs: [] };
-        return { requirement: r, status: '待核实' as const, type: 'none' as const, refs: [] };
+        if (hitQual) return { requirement: r, status: '符合' as const, type: 'qualification' as const, refs: [hitQual.name], note: '' };
+        if (hitPerf) return { requirement: r, status: '符合' as const, type: 'performance' as const, refs: [hitPerf.projectName], note: '' };
+        if (supplier.businessScope.includes(key)) return { requirement: r, status: '符合' as const, type: 'scope' as const, refs: [], note: '' };
+        return { requirement: r, status: '待核实' as const, type: 'none' as const, refs: [], note: '' };
       });
     }
 
     const fullItems: QualificationMatchItem[] = items.map((it) => ({
       requirement: it.requirement,
       status: it.status,
-      evidence: this.evidenceText(it.type, it.refs, evidenceCtx),
+      evidence: [it.note, this.evidenceText(it.type, it.refs, evidenceCtx)].filter(Boolean).join('。'),
     }));
     const { conclusion, summary, confidence } = this.buildVerdict(fullItems);
     const risks = this.buildRisks(fullItems, expiredQuals);

@@ -3780,6 +3780,7 @@ export function SupplierSelectionPage({
                     supplierId={detailSupplier.supplierId}
                     supplierName={detailSupplier.name}
                     projectId={projectId || (project as any)?.id || ''}
+                    requirementText={buildRequirement() || undefined}
                   />
                 </div>
               </div>

@@ -39,10 +39,13 @@ export function QualificationAnalysisPanel({
   supplierId,
   supplierName,
   projectId,
+  requirementText,
 }: {
   supplierId: string;
   supplierName: string;
   projectId: string;
+  /** 邀请页步骤1「供应商要求」全文——优先作为比对基准（项目/立项登记常只有概述） */
+  requirementText?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MatchResult | null>(null);
@@ -54,7 +57,7 @@ export function QualificationAnalysisPanel({
     setLoading(true);
     setFailed(false);
     try {
-      const res = await api.post<MatchResult>('/ai/supplier-qualification-match', { supplierId, projectId });
+      const res = await api.post<MatchResult>('/ai/supplier-qualification-match', { supplierId, projectId, requirementText: requirementText?.trim() || undefined });
       setResult(res);
     } catch (e) {
       // 此前失败后 result 仍 null、loading 复位 → 自动触发效应条件再次成立 → 无限重试
@@ -64,7 +67,7 @@ export function QualificationAnalysisPanel({
     } finally {
       setLoading(false);
     }
-  }, [supplierId, projectId]);
+  }, [supplierId, projectId, requirementText]);
 
   // 换供应商/项目 → 缓存失效；详情页打开即自动分析（同供应商不重复调用）
   useEffect(() => {
@@ -112,7 +115,7 @@ export function QualificationAnalysisPanel({
               <div className="min-w-0 flex-1">
                 <div className={`text-[13px] font-bold ${CONCLUSION_META[result.conclusion].cls}`}>{CONCLUSION_META[result.conclusion].label}</div>
                 <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
-                  置信度 {Math.round(result.confidence * 100)}% · {result.source === 'ai' ? 'AI 逐条对照' : '库内资料粗判'}
+                  共 {result.items.length} 条要求逐条比对 · {result.source === 'ai' ? 'AI 对照库内资料' : '库内资料粗判'}
                 </div>
               </div>
             </div>

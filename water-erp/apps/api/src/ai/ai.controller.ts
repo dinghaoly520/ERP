@@ -290,9 +290,10 @@ export class AiController {
   @Post('supplier-qualification-match')
   @ApiOperation({ summary: '供应商资格符合性分析：对照本项目资格条件逐条判定（LLM 不可用回退结构化粗判）' })
   @Roles('admin', 'leader', 'staff')
-  async supplierQualificationMatch(@Body() body: { supplierId: string; projectId: string }) {
+  async supplierQualificationMatch(@Body() body: { supplierId: string; projectId: string; requirementText?: string }) {
     if (!body?.supplierId || !body?.projectId) throw new BadRequestException('supplierId 与 projectId 必填');
-    return this.qualificationMatch.analyze(body.supplierId, body.projectId);
+    // requirementText=邀请页步骤1「供应商要求」全文（优先于项目/立项登记的资格条件）
+    return this.qualificationMatch.analyze(body.supplierId, body.projectId, body.requirementText);
   }
 
   @Post('invitation-letter/generate')
