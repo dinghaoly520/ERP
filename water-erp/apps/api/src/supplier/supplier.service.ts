@@ -2591,14 +2591,19 @@ export class SupplierService {
   // ── 谈判采购配置下发 ──
   async sendNegotiationConfig(dto: NegotiationConfigDto) {
     const key = `negotiation-config:${dto.projectId}`;
+    // 先读旧配置（写入前）：是否曾下发过——固化判定的前提（2026-09-10 收紧）
+    const prevConfigRaw = await this.redis.get(key).catch(() => null);
+    const configDelivered = !!prevConfigRaw;
     const payload = {
       ...dto,
       deliveredAt: new Date().toISOString(),
     };
-    await this.redis.set(key, JSON.stringify(payload), 'EX', 86400 * 30); // 30 天过期
 
     // 配置写回 BidProject：openTime=开标时间，deadline=开标前24小时，downloadDeadline=获取截止
-    // backlog §1.1：截标已过（frozen 语义）禁改时间——谈判配置重发不得动已固化截标时间
+    // backlog §1.1：已下发过配置且截标已过（frozen 语义）→ 重发不得变更已固化截标时间。
+    // 2026-09-10 收紧前提为「曾下发过配置」：ensureBidProject 自动建的轮次可能带
+    // 项目旧字段推导的过期 deadline（无任何投标活动），首次下发配置必须放行，
+    // 否则新项目永远发不出配置（实录：新项目误挂旧轮 + 自动推导过期截标连环触发）
     const bidOpening = new Date(dto.bidOpeningTime);
     const acquireEnd = new Date(dto.acquireEndTime);
     if (!isNaN(bidOpening.getTime())) {
@@ -2607,10 +2612,10 @@ export class SupplierService {
         select: { deadline: true },
       });
       const newDeadline = new Date(bidOpening.getTime() - 24 * 60 * 60 * 1000);
-      if (prev?.deadline && prev.deadline.getTime() < Date.now()
+      if (configDelivered && prev?.deadline && prev.deadline.getTime() < Date.now()
           && prev.deadline.getTime() !== newDeadline.getTime()) {
         throw new ConflictException({
-          error: `截标时间已固化（${prev.deadline.toISOString()}），谈判配置不可变更投标截止时间`,
+          error: `截标时间已固化（${prev.deadline.toISOString()}），不可变更；如需调整请走再次采购开新轮`,
           code: 'DEADLINE_FROZEN',
         });
       }
@@ -2623,6 +2628,9 @@ export class SupplierService {
         },
       }).catch(() => { /* 项目可能不存在，忽略 */ });
     }
+
+    // 校验通过才落配置缓存（原实现先写后校验——409 时新配置仍被写入，状态失真）
+    await this.redis.set(key, JSON.stringify(payload), 'EX', 86400 * 30); // 30 天过期
 
     // 确保受邀供应商进入候选名单（决定其在供应商端「可投标项目」的可见性）
     if (dto.supplierIds.length > 0) {

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { recommendSuppliers, suggestBusinessTags, getTagVocabulary, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList, getRsvpList, sendNegotiationConfig, markRsvpManual } from '@/lib/api/supplier';
 import type { TagVocabularyItem, RsvpListResult, RsvpListItem } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
+import { getPmBidProject } from '@/lib/api/project-management';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
@@ -559,10 +560,17 @@ export function SupplierSelectionPage({
 
   // 从项目管理弹窗进入时，自动将 projectId 解析为 BidProject id（规范 id 空间），
   // 确保 rsvp 行的创建/读取与开标确认面板始终一致。
+  // 2026-09-10：严格匹配落空（新项目尚无开评标记录）时走 ensureBidProject 创建本轮，
+  // 不再静默留空——留空会让第四步配置把 PMI id 当 BidProject id 用（update 静默失败）。
   useEffect(() => {
-    if (!project?.id || projectId || projects.length === 0) return;
+    if (!project?.id || projectId) return;
     const match = projects.find(p => p.projectManagementItemId === project.id);
-    if (match) setProjectId(match.id);
+    if (match) { setProjectId(match.id); return; }
+    let alive = true;
+    getPmBidProject(project.id)
+      .then((bp) => { if (alive && bp?.id) setProjectId(bp.id); })
+      .catch(() => {});
+    return () => { alive = false; };
   }, [project?.id, projectId, projects]);
 
   // 恢复上次会话状态（从详情页返回时不丢失），按项目 ID 分桶
@@ -606,7 +614,16 @@ export function SupplierSelectionPage({
           setSelectedTags(state.selectedTags);
           if (state.selectedTags.length) markTagsEdited(); // 恢复的标签视为用户意图，避免 AI 覆盖
         }
-        if (state.projectId) setProjectId(state.projectId);
+        // 2026-09-10 防御：持久化的 projectId 可能是旧会话误挂的同名旧轮——
+        // 有关联项目且列表已加载时校验归属，不符则丢弃（交由解析 effect 重新 ensure 本轮）；
+        // 列表未加载（首帧竞态）不过滤，避免误杀正确值
+        if (state.projectId) {
+          const canVerify = !!project?.id && projects.length > 0;
+          const belongs = !canVerify
+            || projects.some((p) => p.id === state.projectId && p.projectManagementItemId === project.id)
+            || !projects.some((p) => p.id === state.projectId); // 恢复值不在列表（新轮未刷新）也放行
+          if (belongs) setProjectId(state.projectId);
+        }
         if (state.result) setResult(state.result);
         // 快照版本迁移：v2=合并「选择项目+描述需求」后的新步骤制；无版本标记的旧快照（6 步制）≥2 的步骤号 -1
         const isNewSnapshot = state.v === 2;
@@ -889,16 +906,28 @@ export function SupplierSelectionPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileContextLoaded, selectionMode, tagVocab.length, selectedProject?.id, project?.id]);
 
-  // 模态入口：自动匹配项目 ID；步骤由 session 恢复决定（首次进入=步骤 1，再次进入=上次步骤）
+  // 模态入口：自动解析项目 ID；步骤由 session 恢复决定（首次进入=步骤 1，再次进入=上次步骤）
+  // 2026-09-10 修复：不再按项目名模糊匹配 BidProject——多轮/同名场景会把新项目误挂到
+  // 旧轮记录（实录：新项目命中 9/7 旧测试轮，谈判配置被旧轮固化截标 409 拦截）。
+  // 项目 id 在手时走 ensureBidProject（无记录则创建本轮）；拿不到再兜底严格列表匹配。
   const autoMatchedRef = useRef(false);
   useEffect(() => {
     if (!defaultProjectTitle || !projects.length || autoMatchedRef.current) return;
-    const match = projects.find(p => p.name === defaultProjectTitle || p.name.includes(defaultProjectTitle) || defaultProjectTitle.includes(p.name));
-    if (!match) return;
-    autoMatchedRef.current = true;
-    setProjectId(match.id);
+    const strict = projects.find(p => p.name === defaultProjectTitle);
+    if (strict) {
+      autoMatchedRef.current = true;
+      setProjectId(strict.id);
+      return;
+    }
+    if (project?.id) {
+      autoMatchedRef.current = true;
+      getPmBidProject(project.id)
+        .then((bp) => { if (bp?.id) setProjectId(bp.id); })
+        .catch(() => { autoMatchedRef.current = false; }); // 失败允许下次重试
+      return;
+    }
     // 不强制跳步——首次进入停留在步骤 1，session 恢复由 restored effect 处理
-  }, [defaultProjectTitle, projects]);
+  }, [defaultProjectTitle, projects, project?.id]);
 
   // 构建项目上下文供 AI 深度理解采购需求（提升推荐匹配度）
   // requirementText 用于去重：已覆盖的内容不再重复传入
