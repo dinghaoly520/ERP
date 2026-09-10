@@ -184,7 +184,7 @@ export class SupplierQualificationMatchService {
         '- note：一句话（15~40 字）说明该判定的比对逻辑（如「经营范围含钻探设备制造，覆盖第1条设备制造能力要求」），不得空泛复述状态；evidenceType 为 none 时说明缺什么材料。',
         '输出 json：{"items":[{"index":1,"status":"符合","evidenceType":"qualification","refs":["资质名称"],"note":"比对逻辑说明"}]}，items 与资格条件清单一一对应、顺序一致、数量相等。',
       ].join('\n');
-      const ai = await this.llm.chatJson<{ items?: Array<{ index?: number; status?: string; evidenceType?: string; refs?: unknown }> }>(
+      const ai = await this.llm.chatJson<{ items?: Array<{ index?: number; status?: string; evidenceType?: string; refs?: unknown; note?: string }> }>(
         '你是采购资格审查审查员，只做逐条对照判定，严格按指定 json 结构输出，不添加任何解释。',
         userPrompt,
         0,

@@ -110,6 +110,11 @@ export class CreateProjectFromInitiationDto {
   @IsNotEmpty()
   requesterDepartment!: string;
 
+  /** 部门编号：人工传入尊重人工；缺省按 部门编码-年度-顺序号 自动发号（16a8ac1c） */
+  @IsString()
+  @IsOptional()
+  departmentNumber?: string;
+
   @IsString()
   @IsNotEmpty()
   procurementTitle!: string;
