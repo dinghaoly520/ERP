@@ -371,16 +371,10 @@ export class ExpertService {
     });
 
     // 招标文件元信息：通过 projectId 或公告链（OPEN 公告的 bidProjectId 为 null，但
-    // announcement.relatedProjectCode 匹配当前 projectCode）查找
-    const tenderDoc = await this.prisma.bidDocument.findFirst({
-      where: {
-        OR: [
-          { bidProjectId: projectId },
-          { announcement: { relatedProjectCode: project.projectCode } },
-        ],
-      },
-      include: { fileAsset: true },
-    });
+    // announcement.relatedProjectCode 匹配当前 projectCode）查找。
+    // 撞号安全（2026-09-10 实测）：relatedProjectCode 与 PMI 编码同空间，OR 分支可能命中
+    // 他方项目公告（专家侧招标文件显示成空调项目文件）——优先 bidProjectId 直连。
+    const tenderDoc = await this.findTenderDoc(projectId, project.projectCode);
     return {
       ...project,
       // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
@@ -694,16 +688,21 @@ export class ExpertService {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId }, select: { projectCode: true },
     });
+    const doc = await this.findTenderDoc(projectId, project?.projectCode ?? '');
+    return this.buildTenderDocumentMeta(doc, projectId);
+  }
+
+  /** 招标文件查找：优先 bidProjectId 直连，回退公告链（relatedProjectCode）——避免编码空间撞号误读他方文件。 */
+  private async findTenderDoc(projectId: string, projectCode: string) {
     const doc = await this.prisma.bidDocument.findFirst({
-      where: {
-        OR: [
-          { bidProjectId: projectId },
-          { announcement: { relatedProjectCode: project?.projectCode ?? '' } },
-        ],
-      },
+      where: { bidProjectId: projectId },
       include: { fileAsset: true },
     });
-    return this.buildTenderDocumentMeta(doc, projectId);
+    if (doc) return doc;
+    return this.prisma.bidDocument.findFirst({
+      where: { announcement: { relatedProjectCode: projectCode } },
+      include: { fileAsset: true },
+    });
   }
 
   /** 把 BidDocument 行塑形为前端「招标文件」卡片所需的元信息；doc 为空返回 null。 */
@@ -724,15 +723,7 @@ export class ExpertService {
   async downloadTenderDocument(userId: string, projectId: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
     const expert = await this.assertExpertActiveForProject(userId, projectId);
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { projectCode: true } });
-    const doc = await this.prisma.bidDocument.findFirst({
-      where: {
-        OR: [
-          { bidProjectId: projectId },
-          { announcement: { relatedProjectCode: project?.projectCode ?? '' } },
-        ],
-      },
-      include: { fileAsset: true },
-    });
+    const doc = await this.findTenderDoc(projectId, project?.projectCode ?? '');
     if (!doc?.fileAsset) throw new NotFoundException({ error: '招标文件不存在', code: 'NOT_FOUND' });
 
     // 与 BidDocumentService.downloadForSupplier 同款：全量 buffer 解密，兼容未被包裹的旧 key
