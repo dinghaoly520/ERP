@@ -1,4 +1,4 @@
-import { GB_ARCHIVE_CATEGORIES } from '@water-erp/shared';
+import { GB_ARCHIVE_CATEGORIES, applicableArchiveCategories } from '@water-erp/shared';
 import type { Prisma } from '@prisma/client';
 
 type Tx = Prisma.TransactionClient | PrismaServiceLike;
@@ -20,10 +20,12 @@ export interface ArchiveTemplateRow {
   name: string;
   hint: string;
   satisfied: boolean;
-  /** 满足来源说明（"已匹配归档项：开标记录表" / "系统数据：已签署合同 HT-…"） */
+  /** 满足来源说明（"已匹配归档项：开标记录表" / "系统数据：已签署合同 HT-…" / "已人工登记"） */
   detail?: string;
-  /** 人工登记入口（manual 或 data 缺失时可用） */
+  /** 人工登记入口（manual 或 data 缺失时可用；不适用类恒为 false） */
   manual: boolean;
+  /** 方案 X：该采购方式下是否适用（不适用=豁免对标，不计缺项、无登记入口） */
+  applicable: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ export interface ArchiveTemplateRow {
  */
 export async function buildArchiveTemplate(
   db: Tx,
-  project: { id: string; projectCode: string; projectManagementItemId: string | null },
+  project: { id: string; projectCode: string; projectManagementItemId: string | null; procurementMethod: string | null },
 ): Promise<ArchiveTemplateRow[]> {
   const [
     pmi, notice, preWin, win, bidDoc, submissions, letters, contracts, acceptances, objections, items,
@@ -72,15 +74,24 @@ export async function buildArchiveTemplate(
     dispute: { ok: gbMarked.has('dispute') || objections.length > 0, detail: objections.length > 0 ? '异议工单记录' : undefined },
   };
 
+  // 方案 X：按采购方式豁免不适用的类别（未知方式回退全量）
+  const applicable = applicableArchiveCategories(project.procurementMethod);
+
   return GB_ARCHIVE_CATEGORIES.map(cat => {
     const d = dataSatisfied[cat.key] ?? { ok: false };
+    // 人工登记项以 gbCategory 归属为准（POST archive-manual-item 显式落类别）——
+    // 任何类别存在人工登记即视为满足（2026-09-10 修复：opening/evaluation 仅按归档项名称
+    // 匹配、data 类仅按数据存在性判定，人工登记后对标不翻绿）
+    const manualReg = gbMarked.has(cat.key);
+    const isApplicable = applicable.has(cat.key);
     return {
       key: cat.key,
       name: cat.name,
       hint: cat.hint,
-      satisfied: !!d.ok,
-      detail: d.detail,
-      manual: cat.satisfy === 'manual' || !d.ok,
+      satisfied: isApplicable && (!!d.ok || manualReg),
+      detail: !isApplicable ? undefined : d.ok ? d.detail : manualReg ? '已人工登记' : undefined,
+      manual: isApplicable && (cat.satisfy === 'manual' || (!d.ok && !manualReg)),
+      applicable: isApplicable,
     };
   });
 }

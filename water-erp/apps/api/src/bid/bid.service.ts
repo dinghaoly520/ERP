@@ -3217,7 +3217,7 @@ export class BidService {
   async getArchiveTemplate(projectId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { id: true, projectCode: true, projectManagementItemId: true },
+      select: { id: true, projectCode: true, projectManagementItemId: true, procurementMethod: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     return buildArchiveTemplate(this.prisma as any, project);
