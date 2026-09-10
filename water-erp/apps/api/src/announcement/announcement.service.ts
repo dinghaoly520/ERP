@@ -682,7 +682,9 @@ export class AnnouncementService {
       ?? existing?.deadline
       ?? parseFlexibleDate(meta.deadline)
       ?? null;
-    const legalMandatory = existing?.legalMandatory ?? false;
+    // P1-4：直建发布（无关联项目）读 metadata.legalMandatory（向导勾选）；关联项目以项目列为准
+    // （列已随直建建项/项目管理录入持久化，metadata 不反向覆盖）
+    const legalMandatory = existing ? existing.legalMandatory === true : meta.legalMandatory === true;
     const r = assertBidNoticeTiming({ saleStart, openTime, saleEnd, legalMandatory });
     if (r.deviated) {
       // 非依法必招项目偏离放行——监督日志留痕（延续 24h 规则先例）
@@ -929,6 +931,9 @@ export class AnnouncementService {
     // E2：公告分类枚举——前端 AnnouncementCategory 三值（web/lib/types/announcement.ts）+ publicity（中标公示预留）。
     // 白名单化后 :650 流标分支经 meta.category 可达（此前恒 undefined 死分支）；非枚举值由 validateMetadata 剥落
     category: { type: 'string', values: ['procurement_document', 'failed_bid', 'winning_bid', 'publicity'] },
+    // P1-4（2026-09-09 补录入口）：依法必招标式——BID_NOTICE 直建发布时 W2 guard 的强制校验入口
+    // （发布向导勾选）；随 createFromAnnouncement 持久化到 BidProject.legalMandatory（后续以项目列为准）
+    legalMandatory: { type: 'boolean' },
   };
 
   private static validateMetadata(raw: any): Record<string, any> {

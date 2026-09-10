@@ -34,6 +34,7 @@ const META: Record<string, NotificationMeta> = {
   BID_DISPUTE_RESOLVED: { label: "异议处理", group: "project", tone: "info" },
   BID_DISPUTE_TIMEOUT: { label: "异议超时", group: "project", tone: "warning" },
   BID_ABORTED: { label: "项目终止", group: "project", tone: "danger" },
+  BID_AWARD_RESULT: { label: "定标结果", group: "project", tone: "info" }, // P1-6：法45条未中标人定向结果通知
   ANNOUNCEMENT_PUBLISHED: { label: "公告发布", group: "project", tone: "info" },
   PRE_WIN_NOTICE: { label: "中标公示", group: "project", tone: "accent" },
   WIN_NOTICE: { label: "成交公告", group: "project", tone: "success" },

@@ -27,6 +27,8 @@ function makePrismaMock() {
     bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
     // completeOpening 事务内 TOCTOU 复查：tx.bidSupplier.findMany（空列表 = 无未终局供应商）
     bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+    // P1-5b：事务内参标过滤也查 tx.supplierBidSubmission（默认空 → 全部按 submitStatus 兜底）
+    supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
     fileAsset: { create: jest.fn(), upsert: jest.fn() },
     bidSupervisionLog: { create: jest.fn() },
     auditLog: { create: jest.fn() },
@@ -82,8 +84,9 @@ describe('completeOpening / assertOpeningDone', () => {
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'C1', name: '测试项目', stage: 'OPENING', procurementMethod: '公开招标', openTime: new Date(), deadline: new Date(), projectManagementItemId: null });
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ projectId: 'p1', host: '主持', supervisor: '监督', status: '待开标' });
     prisma.bidSupplier.findMany.mockResolvedValue([
-      { supplierName: '甲公司', decryptStatus: 'PENDING', confirmStatus: 'PENDING', submitStatus: '已投递' },
+      { supplierName: '甲公司', supplierId: 's1', decryptStatus: 'PENDING', confirmStatus: 'PENDING', submitStatus: '已提交' },
     ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
     await expect(svc.completeOpening('p1', 'user1')).rejects.toMatchObject({
       status: 409,
       response: { code: 'OPENING_NOT_DONE' },

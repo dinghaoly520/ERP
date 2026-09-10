@@ -113,6 +113,15 @@ export class BidEvaluationResultsService {
     if (project.stage !== 'EVALUATING') {
       throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
     }
+    // P2-4（2026-09-09 审查）：评标超时未审批延期不得生成官方结果——专家侧已被
+    // EVALUATION_OVERDUE 拦截交分，此处放行会让主持人以既有分数绕过延期审批闸
+    // （expert.service.assertEvaluationNotOverdue 同口径）。出口=extendEvaluation 延期审批。
+    if (project.evaluationDeadline && new Date(project.evaluationDeadline).getTime() < Date.now()) {
+      throw new ConflictException({
+        error: `评标已超时（截止 ${new Date(project.evaluationDeadline).toISOString()}），请联系采购管理端审批延期后再生成结果`,
+        code: 'EVALUATION_OVERDUE',
+      });
+    }
     if (project.experts.filter(e => e.expertRole === '正选').some(e => !e.reportConfirmed)) {
       throw new BadRequestException({ error: '仍有正选专家未确认评审报告', code: 'EXPERT_REPORTS_NOT_CONFIRMED' });
     }
@@ -319,6 +328,23 @@ export class BidEvaluationResultsService {
         }
         const priceMaxTotal = priceItems.reduce((s, i) => s + Number(i.maxScore), 0);
         formulaPriceScores = this.priceFormula.calculate(config, bidPrices, ceilingPrice, priceMaxTotal);
+      }
+
+      // P2-5（2026-09-09 审查）：公式激活时唱标金额缺失/非数值的家，价格分静默按 0 计入
+      // （专家 PRICE 打分被跳过且无任何告警）——高风险监督日志提示评标委员会核对开标记录
+      // （不阻断生成：记录齐备性由归档闸门保证，此处是数据质量告警）。
+      if (priceItems.length > 0 && project.priceFormulaConfig) {
+        const missingPrice = activeSuppliers.filter(s => !bidPrices.has(s.id));
+        if (missingPrice.length > 0) {
+          await this.prisma.bidSupervisionLog.create({
+            data: {
+              projectId, time: new Date(), role: '系统', target: missingPrice.map(m => m.supplierName).join('、'),
+              action: '价格分缺失告警',
+              result: '价格分公式已激活但上述供应商唱标金额缺失或非数值，其价格分按 0 计入——请评标委员会核对开标记录',
+              riskFlag: '高风险',
+            },
+          }).catch(() => {});
+        }
       }
 
       // 超限价自动判废：公式引擎项目保持既有口径；谈判采购按最终报价判废

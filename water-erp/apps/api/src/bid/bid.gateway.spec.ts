@@ -23,7 +23,9 @@ describe('BidGateway 门控纯函数', () => {
 });
 
 describe('BidGateway 专家聚合进度房（§4.3 回归防护）', () => {
-  const prismaMock = { bidExpert: { findMany: jest.fn(), findFirst: jest.fn() } } as any;
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) }, bidExpert: { findMany: jest.fn(), findFirst: jest.fn() } } as any;
 
   function makeGateway() {
     return new BidGateway({} as any, prismaMock);
@@ -74,6 +76,9 @@ describe('BidGateway leave:project 清连接表 + 定向推送项目过滤（R8�
     supplier: { findFirst: jest.fn() },
     bidSupplier: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     bidExpert: { findFirst: jest.fn() },
+    // P2-1：host 域隔离查询（join 前置 setup 走 host 分支）
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
   } as any;
 
   function makeGateway() {
@@ -214,7 +219,7 @@ describe('BidGateway leave:project 清连接表 + 定向推送项目过滤（R8�
 
 describe('BidGateway 唱标事件公开广播（opening:record:updated 合规口径）', () => {
   function makeGateway() {
-    return new BidGateway({} as any, {} as any);
+    return new BidGateway({} as any, { bidProject: { findUnique: jest.fn().mockResolvedValue(null) }, user: { findUnique: jest.fn().mockResolvedValue(null) } } as any);
   }
   function captureServer(gw: BidGateway) {
     const emitted: Array<{ room: string; event: string; payload: any }> = [];
@@ -292,6 +297,9 @@ describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归�
     supplier: { findFirst: jest.fn() },
     bidSupplier: { findFirst: jest.fn(), update: jest.fn() },
     bidExpert: { findFirst: jest.fn() },
+    // P2-1：host 域隔离查询（项目缺省 null → 放行入房）
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
   } as any;
 
   function makeGateway() {
@@ -324,13 +332,6 @@ describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归�
     }
   });
 
-  it('S8 决策：procurement_staff 放行公开流（仅 project 房，不进 host 房）', async () => {
-    const gw = makeGateway();
-    const { client, joined } = makeClient({ role: 'procurement_staff', userId: 'u-staff' });
-    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
-    expect(joined).toEqual(['project:p1']); // host:p1 不在其中——监督日志/异常/专家进度对其屏蔽
-  });
-
   it('host 角色 join → project + host 房', async () => {
     const gw = makeGateway();
     const { client, joined } = makeClient({ role: 'bid_host', userId: 'u-host' });
@@ -360,5 +361,114 @@ describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归�
     const nonMember = makeClient({ role: 'supplier', userId: 'u-sup' });
     expect(await gw.handleJoinProject(nonMember.client, 'p1')).toEqual({ error: 'NOT_PROJECT_MEMBER' });
     expect(nonMember.joined).toEqual([]);
+  });
+});
+
+describe('BidGateway 澄清事件分级投递（P1-1：评标澄清不进 project 房，2026-09-09）', () => {
+  function makeGateway() {
+    return new BidGateway({} as any, { bidProject: { findUnique: jest.fn().mockResolvedValue(null) }, user: { findUnique: jest.fn().mockResolvedValue(null) } } as any);
+  }
+  function captureServer(gw: BidGateway) {
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = { to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }) } as any;
+    return emitted;
+  }
+  /** 两家供应商在线 p1：sup-1（当事）/ sup-2（竞争对手） */
+  function seedSuppliers(gw: BidGateway) {
+    (gw as any).supplierSockets.set('sup-1', new Set(['sock-sup1']));
+    (gw as any).supplierSockets.set('sup-2', new Set(['sock-sup2']));
+    (gw as any).socketProjects.set('sock-sup1', 'p1');
+    (gw as any).socketProjects.set('sock-sup2', 'p1');
+  }
+
+  it('type=clarification（评标澄清，保密）→ host 房 + experts 房 + 当事供应商定向；竞争对手与 project 房不收', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    seedSuppliers(gw);
+    gw.notifyClarificationCreated('p1', {
+      id: 'c1', issuer: '主持人', issuerRole: 'host',
+      supplierName: '甲公司', questionPreview: '请澄清技术参数偏离表第 3 项',
+      type: 'clarification', supplierId: 'sup-1',
+    });
+    const rooms = emitted.filter(e => e.event === BID_EVENT.CLARIFICATION_CREATED).map(e => e.room);
+    expect(rooms).toContain('host:p1');
+    expect(rooms).toContain('experts:p1');
+    expect(rooms).toContain('sock-sup1');       // 当事供应商定向（R8 同款 supplierSocketsIn）
+    expect(rooms).not.toContain('sock-sup2');   // 竞争对手不收
+    expect(rooms).not.toContain('project:p1');  // 全体投标人广播通道对保密澄清关闭
+  });
+
+  it('type=question（答疑，公开）→ project 房广播（既有公开口径回归）', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    seedSuppliers(gw);
+    gw.notifyClarificationCreated('p1', {
+      id: 'c2', issuer: '采购人', issuerRole: 'host',
+      supplierName: '乙公司', questionPreview: '关于资格要求的统一答复',
+      type: 'question', supplierId: 'sup-2',
+    });
+    const rooms = emitted.filter(e => e.event === BID_EVENT.CLARIFICATION_CREATED).map(e => e.room);
+    expect(rooms).toEqual(['project:p1']);
+  });
+
+  it('type=clarification 但供应商离线/寻址失败 → 仅 host+experts，仍不进 project 房', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    gw.notifyClarificationCreated('p1', {
+      id: 'c3', issuer: '主持人', issuerRole: 'host',
+      supplierName: '丙公司', questionPreview: '请澄清',
+      type: 'clarification', supplierId: 'sup-x',
+    });
+    const rooms = emitted.filter(e => e.event === BID_EVENT.CLARIFICATION_CREATED).map(e => e.room);
+    expect(rooms.sort()).toEqual(['experts:p1', 'host:p1']);
+  });
+});
+
+
+describe('BidGateway host 房公司隔离（P2-1，2026-09-09）——BidCompanyScopeGuard 的 WS 镜像', () => {
+  const makeGw = (proj: any, me: any) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue(proj) },
+      user: { findUnique: jest.fn().mockResolvedValue(me) },
+    };
+    const gw = new BidGateway({} as any, prisma);
+    return { gw, prisma };
+  };
+  const mkClient = (data: Record<string, unknown>, xPortal?: string) => {
+    const joined: string[] = [];
+    const client = {
+      id: 'sock-x', data,
+      join: (r: string) => joined.push(r),
+      handshake: { headers: xPortal ? { 'x-portal': xPortal } : {} },
+    } as any;
+    return { client, joined };
+  };
+
+  it('他司 staff（web 门户）→ COMPANY_SCOPE_FORBIDDEN，project/host 房均不进', async () => {
+    const { gw } = makeGw({ companyId: 'co-B', assignedHostUserId: 'host-B' }, { companyId: 'co-A' });
+    const { client, joined } = mkClient({ role: 'staff', userId: 'u-staff-A' }, 'web');
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ error: 'COMPANY_SCOPE_FORBIDDEN' });
+    expect(joined).toEqual([]);
+  });
+
+  it('admin → 放行进 project + host 房（全量口径）', async () => {
+    const { gw } = makeGw({ companyId: 'co-B', assignedHostUserId: null }, null);
+    const { client, joined } = mkClient({ role: 'admin', userId: 'u-admin' }, 'web');
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(expect.arrayContaining(['project:p1', 'host:p1']));
+  });
+
+  it(':3007 被指派主持人（bid 门户 + assignedHostUserId 命中）→ 放行（现场执行权来自指派，含跨公司）', async () => {
+    const { gw } = makeGw({ companyId: 'co-B', assignedHostUserId: 'u-host-X' }, { companyId: 'co-A' });
+    const { client, joined } = mkClient({ role: 'bid_host', userId: 'u-host-X' }, 'bid');
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(expect.arrayContaining(['host:p1']));
+  });
+
+  it('本公司项目 → 放行（公司一致）', async () => {
+    const { gw } = makeGw({ companyId: 'co-A', assignedHostUserId: null }, { companyId: 'co-A' });
+    const { client, joined } = mkClient({ role: 'leader', userId: 'u-leader-A' }, 'web');
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(expect.arrayContaining(['project:p1', 'host:p1']));
   });
 });

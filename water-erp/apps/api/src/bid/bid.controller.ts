@@ -474,6 +474,7 @@ export class BidController {
   ) { return this.bidService.nudgeExperts(id, dto?.reason ?? 'signin', userId); }
 
   @Post('projects/:id/notify-schedule-change')
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // P2-8：广播类端点节流，防滥用刷信
   @ApiOperation({ summary: '通知开标时间变更（向投标供应商 + 评标专家）' })
   notifyScheduleChange(
     @Param('id') id: string,

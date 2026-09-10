@@ -48,6 +48,7 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
   let annA1Id = ''; // BID_NOTICE（mock 全链用）
   let annA2Id = ''; // ADDENDUM→clarify（drift/stub/offline 用）
   let annB1Id = ''; // 无码项目公告（pending not-ready 行）
+  let annA3Id = ''; // PERFORMANCE_NOTICE→fulfillment（Phase 2 K2 e2e 用）
   let contractId = ''; // not-ready 合同（amount/signedAt 空）
   const itemAnnA1 = () => `announcement:${annA1Id}`;
   const itemAnnA2 = () => `announcement:${annA2Id}`;
@@ -147,6 +148,15 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
     annA1Id = annA1.id;
     annA2Id = annA2.id;
     annB1Id = annB1.id;
+
+    const annA3 = await prisma.announcement.create({
+      data: {
+        title: `${PREFIX}履约公告A3`, content: '<p>e2e fixture 履约结果</p>',
+        type: 'PERFORMANCE_NOTICE', status: 'PUBLISHED', publishDate: new Date(ts),
+        relatedProjectCode: codeA, authorId: null,
+      },
+    });
+    annA3Id = annA3.id;
 
     const contract = await prisma.contract.create({
       data: {
@@ -318,6 +328,53 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
     expect(log!.errorMessage).toContain('未连通');
   });
 
+  it('Phase 2 K1：STUB_REFUSED 不占坑——同载荷再 dispatch stub → 再 501（非 409）且台账两行 attemptNo 1/2', async () => {
+    const prev = await request(app.getHttpServer())
+      .post('/api/platform-push/preview')
+      .set('Cookie', staffCookie)
+      .set('X-Portal', 'web')
+      .send({ itemIds: [itemAnnA2()] })
+      .expect(201);
+    const hash = prev.body.items[0].payloadHash as string;
+
+    // 第二次 stub（同载荷）：应再次 501 而非 409——partial index 下 STUB_REFUSED 不占坑
+    await request(app.getHttpServer())
+      .post('/api/platform-push/dispatch')
+      .set('Cookie', staffCookie)
+      .set('X-Portal', 'web')
+      .send({ channel: 'sc_province', itemIds: [itemAnnA2()], payloadHashes: [{ itemId: itemAnnA2(), payloadHash: hash }] })
+      .expect(501)
+      .expect((res) => expect(res.body.code).toBe('CHANNEL_NOT_CONNECTED'));
+
+    const logs = await prisma.platformPushLog.findMany({
+      where: { channel: 'sc_province', itemId: itemAnnA2() },
+      orderBy: { attemptNo: 'asc' },
+    });
+    expect(logs.length).toBe(2);
+    expect(logs.every((l) => l.status === 'STUB_REFUSED')).toBe(true);
+    expect(logs.map((l) => l.attemptNo)).toEqual([1, 2]);
+  });
+
+  it('Phase 2 K2：PERFORMANCE_NOTICE 公告入 pending fulfillment 行 + 信封附履约事件', async () => {
+    const itemId = `announcement:${annA3Id}`;
+    const pending = await request(app.getHttpServer())
+      .get(`/api/platform-push/pending?projectId=${projAId}`)
+      .set('Cookie', staffCookie)
+      .set('X-Portal', 'web')
+      .expect(200);
+    const row = (pending.body.items as any[]).find((i) => i.itemId === itemId);
+    expect(row).toMatchObject({ itemType: 'fulfillment', ready: true });
+
+    const prev = await request(app.getHttpServer())
+      .post('/api/platform-push/preview')
+      .set('Cookie', staffCookie)
+      .set('X-Portal', 'web')
+      .send({ itemIds: [itemId] })
+      .expect(201);
+    // 合同无履约事件（fixture 未造 ContractFulfillment）→ fulfillments 为空数组（键在，不缺省）
+    expect(prev.body.items[0].envelope.fields.fulfillments).toEqual([]); // 键名=fulfillments（service :441）
+  });
+
   it('offline export：EXPORTED + FileAsset(platform_push_package) 三件套 + 可下载 + 台账聚合', async () => {
     const prev = await request(app.getHttpServer())
       .post('/api/platform-push/preview')
@@ -359,7 +416,7 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
       .set('Cookie', staffCookie)
       .set('X-Portal', 'web')
       .expect(200);
-    expect(status.body.summary).toMatchObject({ SUCCESS: 1, EXPORTED: 1, STUB_REFUSED: 1 });
+    expect(status.body.summary).toMatchObject({ SUCCESS: 1, EXPORTED: 1, STUB_REFUSED: 2 }); // K1 e2e 多落一行 stub 重试
     const itemIds = (status.body.logs as { itemId: string }[]).map((l) => l.itemId);
     expect(itemIds).toEqual(expect.arrayContaining([itemAnnA1(), itemAnnA2()]));
   });

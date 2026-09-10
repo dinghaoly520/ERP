@@ -300,10 +300,19 @@ export class BidDecryptService {
 
     // N15：只取 PENDING——已定性 DANGER（人工判定为异常）不重跑，避免一键解密把它们必然计 failed；
     // 恢复路径不变：补传通道 reuploadBidFile 会把 DANGER 重置为 PENDING 后再解密
-    const pendingSuppliers = await this.prisma.bidSupplier.findMany({
+    const pendingSuppliersRaw = await this.prisma.bidSupplier.findMany({
       where: { projectId, decryptStatus: 'PENDING', submitStatus: { not: '已撤回' } },
       select: { id: true, supplierName: true, supplierId: true },
     });
+    // P1-5b（2026-09-09 审查）：未投递家（无已投递提交记录）不进一键解密扫描——旧行为把
+    // 从未投标的家定 DANGER 并发「平台原因」误导通知；未投递家现由 H4 完成度口径排除，
+    // 无须任何处置。无 supplierId 的名册行不可能有提交记录，一并排除。
+    const submittedRows = await this.prisma.supplierBidSubmission.findMany({
+      where: { projectId, status: 'submitted' },
+      select: { supplierId: true },
+    });
+    const submittedIds = new Set(submittedRows.map(r => r.supplierId));
+    const pendingSuppliers = pendingSuppliersRaw.filter(s => s.supplierId && submittedIds.has(s.supplierId));
 
     // Task 16 旧轨收窄：待解名单预查 submissions，dual-v2 家 skip 不入解密循环
     // （新轨解密走 supplier-portal；旧轨端点对 dual-v2 会 400，预过滤避免把 400 计成 failed 噪音）
@@ -514,7 +523,11 @@ export class BidDecryptService {
     let finalState: any = null;
     await this.prisma.$transaction(async (tx) => {
       if (outcome === 'DANGER') {
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: dangerReason, dangerAttribution: 'PLATFORM' } });
+        // P1-5a（2026-09-09 审查）：归因改 UNKNOWN 待主持人裁决——旧实现预置 PLATFORM 属未经认定的
+        // 归因越位：①「平台原因」赔偿权利告知（办法第31条）在认定前发出，误导供应商且留痕失实；
+        // ②PLATFORM 家被 adjudicateDecryptFault 的 NOT_UNKNOWN 门锁死，永远无法再裁决。终局归因
+        // （BIDDER/PLATFORM）由裁决落定，notifySupplierDecryptAttribution 按归因分流权利告知。
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: dangerReason, dangerAttribution: 'UNKNOWN' } });
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${dangerReason}`, riskFlag: '高风险' },
         });
@@ -591,7 +604,9 @@ export class BidDecryptService {
         await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
           type: 'BID_DECRYPT_FAILED',
           title: `投标文件解密异常：${supplierName}`,
-          content: `您在项目中的投标文件解密失败：${reason}。因平台原因未完成解密，视为撤回投标文件，你有权要求责任方赔偿因此遭受的直接损失（《电子招标投标办法》第31条）。`,
+          // P1-5a：中性文案——归因认定前不预告知责任归属与赔偿权利（认定后由
+          // notifySupplierDecryptAttribution 按归因分流告知，办法第31条）
+          content: `您在项目中的投标文件解密失败：${reason}。将按《电子招标投标办法》第31条进行解密失败归因认定，认定结果将以站内信另行通知。`,
           link: `/my-bids/${projectId}/opening-hall`,
         });
       }

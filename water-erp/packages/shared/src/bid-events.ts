@@ -96,6 +96,11 @@ export interface ClarificationCreatedPayload {
   issuerRole: string;
   supplierName: string;
   questionPreview: string;
+  /** P1-4 同批（2026-09-09 P1-1）：clarification=评标澄清（保密，host/experts/当事供应商定向）；
+   *  question=答疑（公开，project 房广播）。缺省按旧口径=公开。 */
+  type?: 'question' | 'clarification';
+  /** 当事供应商 Supplier.id——type=clarification 时定向投递寻址用 */
+  supplierId?: string | null;
   timestamp: number;
 }
 

@@ -126,8 +126,10 @@ describe('BidDecryptService — 双信封解密域', () => {
   describe('decryptAllSuppliers — N15 一键解密只取 PENDING', () => {
     it('N15：一键解密只取 PENDING（DANGER 不再必然计 failed）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
-      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1', supplierName: 'A' }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1', supplierName: 'A', supplierId: 's1' }]);
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', supplierId: 's1', decryptStatus: 'PENDING' });
+      // P1-5b：一键解密扫描只含参标家（已投递）——补 submitted 提交记录使该家进入扫描
+      prisma.supplierBidSubmission.findMany = jest.fn().mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
       // 单供应商解密成功前置（复制自 decryptSupplier beforeEach，自包含）
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
       prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 1 });
@@ -160,7 +162,7 @@ describe('BidDecryptService — 双信封解密域', () => {
         { id: 'bs-1', supplierName: 'A', supplierId: 's1' },
       ]);
       prisma.supplierBidSubmission.findMany = jest.fn().mockResolvedValue([
-        { supplierId: 's1', envelopeVersion: 'dual-v2' },
+        { supplierId: 's1', status: 'submitted', envelopeVersion: 'dual-v2' },
       ]);
 
       const res = await service.decryptAllSuppliers('p1', 'u1');
@@ -308,6 +310,39 @@ describe('BidDecryptService — 双信封解密域', () => {
       expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ action: '投标无效' }),
       }));
+    });
+  });
+
+  describe('P1-5a（2026-09-09）：解密异常归因 UNKNOWN 待裁决 + 中性通知（不再预置 PLATFORM/赔偿告知）', () => {
+    beforeEach(() => {
+      prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierName: '未投递公司', supplierId: 's1', decryptStatus: 'PENDING' });
+      prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.supplierBidSubmission.findUnique = jest.fn().mockResolvedValue(undefined); // 无提交记录（未投递/记录缺失）
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue({ decryptWindowStart: new Date(Date.now() - 3600_000), decryptWindowEnd: new Date(Date.now() + 3600_000) });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.count.mockResolvedValue(3);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.supplier.findUnique = jest.fn().mockResolvedValue({ userId: 'u1' });
+      (service as any).notificationService = { sendToUser: jest.fn().mockResolvedValue({}) };
+    });
+
+    it('无提交记录家解密异常 → dangerAttribution=UNKNOWN（待主持人裁决），不再预置 PLATFORM', async () => {
+      await service.decryptSupplier('p1', 'bs-1');
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'DANGER', dangerAttribution: 'UNKNOWN' }) }),
+      );
+    });
+
+    it('通知文案中性（归因认定另行通知），不得预告知「平台原因/赔偿请求权」', async () => {
+      await service.decryptSupplier('p1', 'bs-1');
+      const send = (service as any).notificationService.sendToUser as jest.Mock;
+      expect(send).toHaveBeenCalled();
+      const content = send.mock.calls[0][2].content;
+      expect(content).toContain('归因');
+      expect(content).not.toContain('赔偿');
+      expect(content).not.toContain('平台原因');
     });
   });
 
@@ -1365,7 +1400,7 @@ describe('P1-2 — 旧轨解密失败归因（decryptSupplier 落 dangerAttribut
     svc = instance;
   });
 
-  it('P1-2：旧轨解密失败落 dangerAttribution=PLATFORM（主持人代解密失败=平台侧）', async () => {
+  it('P1-5a：旧轨解密失败落 dangerAttribution=UNKNOWN（P1-2 旧预置 PLATFORM 语义已废——归因待主持人裁决落定）', async () => {
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲', decryptStatus: 'PENDING' });
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
     prisma.bidOpeningSession.findUnique.mockResolvedValue({
@@ -1379,7 +1414,7 @@ describe('P1-2 — 旧轨解密失败归因（decryptSupplier 落 dangerAttribut
     const updateCalls = tx.bidSupplier.update.mock.calls;
     expect(updateCalls.length).toBeGreaterThan(0);
     expect(updateCalls[0][0].data).toEqual(expect.objectContaining({
-      decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', dangerAttribution: 'PLATFORM',
+      decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', dangerAttribution: 'UNKNOWN',
     }));
   });
 });

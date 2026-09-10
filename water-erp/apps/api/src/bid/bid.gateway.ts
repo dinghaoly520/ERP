@@ -66,6 +66,18 @@ export const SUPPLIER_BLOCKED_EVENTS = new Set<string>([
  * 会让残留 token_web 的供应商浏览器被识别为主持人角色——虽 join:project 房间隔离兜底，
  * 但纵深防御失效。各门户现严格只读对应命名空间的 cookie。
  */
+/** P2-1：握手门户判定（与 tokenFromHandshake 同链：X-Portal 头优先，回退 Origin 端口）——host 域隔离用。 */
+export function portalFromHandshake(socket: Socket): 'bid' | 'supplier' | 'expert' | 'web' | undefined {
+  const xPortal = (socket.handshake.headers['x-portal'] as string | undefined)?.toLowerCase();
+  if (xPortal === 'bid' || xPortal === 'supplier' || xPortal === 'expert' || xPortal === 'web') return xPortal;
+  const originPort = (socket.handshake.headers.origin ?? '').split(':')[2]?.split('/')[0];
+  if (originPort === String(PORTS.bid)) return 'bid';
+  if (originPort === String(PORTS.supplier) || originPort === String(PORTS.supplierNext)) return 'supplier';
+  if (originPort === String(PORTS.expert)) return 'expert';
+  if (originPort) return 'web';
+  return undefined;
+}
+
 export function tokenFromHandshake(socket: Socket): string | undefined {
   const raw = socket.handshake.headers.cookie;
   if (!raw) return undefined;
@@ -90,8 +102,8 @@ export function tokenFromHandshake(socket: Socket): string | undefined {
   if (xPortal === 'expert' || originPort === String(PORTS.expert)) {
     return map.get('token_expert');
   }
-  // 默认分支：web/bid-portal 共用 token_web 命名空间；保留 legacy `token` 兜底
-  // 仅用于直接访问 API（如 Swagger）的场景，与 HTTP 侧 portal-cookie.ts 一致。
+  // 默认分支：web（:3005）读 token_web；保留 legacy `token` 兜底仅用于直接访问
+  // API（如 Swagger）的场景，与 HTTP 侧 portal-cookie.ts 一致。
   return map.get('token_web') || map.get('token');
 }
 
@@ -233,17 +245,15 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { ok: true };
     }
 
-    if (role === 'procurement_staff') {
-      // 内部采购员工：放行公开流（project 房——解密进度/阶段/公聊等开标公开信息），
-      // 不进 host 房（监督日志/异常/专家个体进度仍屏蔽）；REST 敏感操作（私聊/交流控制）
-      // 由 opening-hall.service 的 assertHost 另行拒绝（S8 决策：公开流放行、敏感操作收紧）。
-      client.join(`project:${projectId}`);
-      return { ok: true };
-    }
-
     // 显式角色白名单（C1）：host 角色进 project + host 房；
-    // mall 等其余角色不进开标实时流。
+    // mall 等其余角色不进开标实时流（procurement_staff 分支已随角色删除，2026-08-20）。
     if (canJoinHostRoom(role)) {
+      // P2-1（2026-09-09 审查）：REST 侧 BidCompanyScopeGuard 的 WS 镜像——内部角色
+      // （leader/staff/bid_host）跨公司且未被指派时，不得进入他司项目的实时流（host 房含
+      // 监督日志/异常/专家个体进度，project 房含解密进度/唱标公开表）。admin 全量放行；
+      // :3007 现场执行权来自指派（含跨公司指派的运营决策）；其余按公司隔离。
+      const scope = await this.assertHostProjectScope(client, projectId);
+      if (!scope.ok) return { error: scope.error };
       client.join(`project:${projectId}`);
       client.join(`host:${projectId}`);
       return { ok: true };
@@ -278,6 +288,27 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.leave(`experts:${pid}`);
       this.broadcastHallPresence(pid).catch(() => {});
     }
+  }
+
+  /**
+   * P2-1：host 域项目隔离（BidCompanyScopeGuard 的 WS 镜像，join:project host 分支调用）。
+   * admin 放行；项目不存在放行（房间无事件可收，后续语义与 REST 一致）；
+   * :3007（portal=bid）被指派主持人放行；其余内部角色须本公司项目，否则拒绝入房。
+   */
+  private async assertHostProjectScope(socket: Socket, projectId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    const role = (socket.data as any).role as string;
+    const userId = (socket.data as any).userId as string;
+    if (role === 'admin') return { ok: true };
+    const proj = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { companyId: true, assignedHostUserId: true },
+    });
+    if (!proj) return { ok: true };
+    if (portalFromHandshake(socket) === 'bid' && proj.assignedHostUserId === userId) return { ok: true };
+    const me = await this.prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } });
+    if (me?.companyId && proj.companyId === me.companyId) return { ok: true };
+    this.logger.warn(`WS join 拒绝（公司隔离）：role=${role} userId=${userId} project=${projectId}`);
+    return { ok: false, error: 'COMPANY_SCOPE_FORBIDDEN' };
   }
 
   // ── Heartbeat ──
@@ -328,8 +359,22 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
   }
 
-  notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string }) {
+  notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string; type?: 'question' | 'clarification'; supplierId?: string | null }) {
     const payload: ClarificationCreatedPayload = { ...data, timestamp: Date.now() };
+    // P1-1（2026-09-09 审查）：评标澄清（type=clarification）法定保密——project 房含全体投标人，
+    // 广播 supplierName+questionPreview 会把被询供应商的澄清内容泄露给竞争对手（实施条例第52条）。
+    // 与 notifyClarificationReplied（2026-08-28 收口）同拓扑：host+experts 房 + 当事供应商定向；
+    // type=question（答疑）为公开信息，维持 project 房广播（缺省按旧口径公开，兼容存量调用方）。
+    if (data.type === 'clarification') {
+      this.server.to(`host:${projectId}`).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
+      this.server.to(`experts:${projectId}`).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
+      if (data.supplierId) {
+        for (const sid of this.supplierSocketsIn(data.supplierId, projectId)) {
+          this.server.to(sid).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
+        }
+      }
+      return;
+    }
     this.server.to(`project:${projectId}`).emit(BID_EVENT.CLARIFICATION_CREATED, payload);
   }
 

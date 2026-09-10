@@ -13,6 +13,8 @@ export class UpdateBidProjectDto {
   @IsString() @IsOptional() qualityRequirement?: string;
   @IsBoolean() @IsOptional() bondRequired?: boolean;
   @IsNumber() @IsOptional() bondAmount?: number;
+  /** P1-4：依法必招标示——仅 DOWNLOAD/SUBMIT 可改（service 层阶段闸 LEGAL_FLAG_LOCKED） */
+  @IsBoolean() @IsOptional() legalMandatory?: boolean;
   // CTS A-39/40 标段（包）标识
   @IsString() @IsOptional() sectionNo?: string;
   @IsString() @IsOptional() sectionName?: string;
