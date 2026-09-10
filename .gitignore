@@ -37,3 +37,10 @@ water-erp/outputs/
 water-erp/apps/api/prisma/dev.db
 water-erp/apps/supplier-portal-next/src/tsconfig.json
 *.bak*
+
+# 大体积本地资产——不入库（2026-09-10）：zhishiku=龙象知识库 Docker 栈（10G），patent-work=专利工作区（74M）
+water-erp/zhishiku/
+patent-work/
+
+# 软件著作权申请资料（本地留档，勿入库）
+软件著作权申请资料/
