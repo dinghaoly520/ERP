@@ -927,6 +927,36 @@ export class SupplierPortalService {
     return [...codes];
   }
 
+  /** 撞号安全的公告归属解析：BidProject 编码与 PMI 编码同空间，relatedProjectCode 可能命中他方项目
+   *  公告（2026-09-10 实测：BidProject JJ-2026091003 vs 空调项目 PMI JJ-2026091003——供应商详情页
+   *  拿到空调公告的 38 万预算/9-13 截止）。发布时公告 metadata.projectCode 存 PMI 业务编码，以其为准：
+   *  候选公告与 PMI 实际编码不符时，按 metadata.projectCode 精确重查。 */
+  private async resolveOwnAnnouncement<T extends { id: string; metadata?: unknown }>(
+    project: { projectManagementItemId?: string | null; projectCode: string },
+    select: Prisma.AnnouncementSelect,
+  ): Promise<T | null> {
+    const codes = await this.resolveAnnouncementCodes(project);
+    let announcement = (await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: { in: codes }, type: 'BID_NOTICE' },
+      orderBy: { createdAt: 'desc' },
+      select,
+    })) as T | null;
+    if (announcement && project.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({
+        where: { id: project.projectManagementItemId },
+        select: { projectCode: true },
+      });
+      const metaPc = (announcement.metadata as Record<string, unknown> | null | undefined)?.projectCode;
+      if (pm?.projectCode && metaPc && metaPc !== pm.projectCode) {
+        announcement = (await this.prisma.announcement.findFirst({
+          where: { type: 'BID_NOTICE', metadata: { path: ['projectCode'], equals: pm.projectCode } },
+          select,
+        })) as T | null;
+      }
+    }
+    return announcement;
+  }
+
   // 仅返回项目公开字段 + 投标方数量。绝不暴露其他投标方身份、开标记录、
   // 专家名单与评分等评审内部信息（这些是 BidController 受角色保护的原因）。
   // 仅返回截止时间未到的项目；公告项目=accessScope OPEN，受邀项目=INVITED/DESIGNATED。
@@ -1320,13 +1350,9 @@ export class SupplierPortalService {
       }));
 
       // 富化：查找关联的招标公告内容（relatedProjectCode + type=BID_NOTICE）。
-      // 公告存业务编号（ZJ-xxx）、项目内部是 BID-时间戳——两个编号都试。
-      const announcement = await this.prisma.announcement.findFirst({
-        where: {
-          relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) },
-          type: 'BID_NOTICE',
-        },
-        select: { title: true, content: true, summary: true, publishDate: true, metadata: true },
+      // 公告存业务编号（ZJ-xxx）、项目内部是 BID-时间戳——两个编号都试；撞号时按 metadata.projectCode 校正。
+      const announcement = await this.resolveOwnAnnouncement(project, {
+        title: true, content: true, summary: true, publishDate: true, metadata: true,
       });
       (project as any).announcement = announcement;
 
@@ -1460,14 +1486,8 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '临时供应商权限已过期，无法下载', code: 'TEMPORARY_EXPIRED' });
     }
 
-    // 查找关联的招标公告（BID_NOTICE）——公告存业务编号、项目内部是 BID-时间戳，两个编号都试
-    const announcement = await this.prisma.announcement.findFirst({
-      where: {
-        relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) },
-        type: 'BID_NOTICE',
-      },
-      select: { id: true },
-    });
+    // 查找关联的招标公告（BID_NOTICE）——公告存业务编号、项目内部是 BID-时间戳，两个编号都试；撞号时按 metadata.projectCode 校正
+    const announcement = await this.resolveOwnAnnouncement(project, { id: true });
     if (!announcement) return null;
 
     // 检查是否已上传招标文件

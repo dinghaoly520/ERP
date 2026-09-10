@@ -14,7 +14,7 @@ export async function proxy(request: NextRequest) {
 
     const headers = new Headers();
     request.headers.forEach((value, key) => {
-      if (!['host', 'connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer'].includes(key.toLowerCase())) {
+      if (!['host', 'connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer', 'expect', 'content-length'].includes(key.toLowerCase())) {
         headers.set(key, value);
       }
     });
