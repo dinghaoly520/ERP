@@ -79,11 +79,16 @@ export class ConcordanceVerifierService {
   private parsePeriodDays(value: unknown): number | null {
     if (typeof value === 'number') return value;
     if (typeof value !== 'string') return null;
-    const mDay = value.match(/(\d+(?:\.\d+)?)\s*(日历天|天|日|day|days)/i);
+    // 剥离完成期限类日期表述（如「2026年4月10日前完成」）——日期里的「日」不是工期单位，
+    // 误匹配会把截止日判成 10 天工期（2026-09-11 实测：docValue 10 vs 系统 150 恒冲突）。
+    const cleaned = value
+      .replace(/\d{4}年\d{1,2}月\d{1,2}日/g, '')
+      .replace(/\d{1,2}月\d{1,2}日/g, '');
+    const mDay = cleaned.match(/(\d+(?:\.\d+)?)\s*(日历天|天|日|day|days)/i);
     if (mDay) return parseFloat(mDay[1]);
-    const mMonth = value.match(/(\d+(?:\.\d+)?)\s*个?月/);
+    const mMonth = cleaned.match(/(\d+(?:\.\d+)?)\s*个?月/);
     if (mMonth) return Math.round(parseFloat(mMonth[1]) * 30);
-    const mYear = value.match(/(\d+(?:\.\d+)?)\s*年/);
+    const mYear = cleaned.match(/(\d+(?:\.\d+)?)\s*年/);
     if (mYear) return Math.round(parseFloat(mYear[1]) * 365);
     return null;
   }
