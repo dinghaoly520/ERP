@@ -6,7 +6,7 @@ import { apiOrigin } from "@water-erp/config";
  * 50MB 级标书上传 multipart 尾部丢失 → 502/multer "Unexpected end of form"，2026-09-10 实测），
  * 生产仍走同源 /api 代理（CORS/域名策略不变）。直连时 API CORS 允许 localhost 且凭据跨端口共享。
  */
-const UPLOAD_BASE =
+export const UPLOAD_BASE =
   process.env.NODE_ENV === "development" && !process.env.NEXT_PUBLIC_API_BASE
     ? `${apiOrigin()}/api`
     : process.env.NEXT_PUBLIC_API_BASE || "/api";

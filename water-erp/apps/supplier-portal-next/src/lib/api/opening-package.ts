@@ -1,4 +1,5 @@
 import { api } from "../api";
+import { UPLOAD_BASE } from "./upload";
 
 /* ═══ 双信封 v2 供应商解密包（T17，§5.3）═══
    - GET opening-package：C_inner 下载凭证 + kselfByRole + sealedFields + 窗口状态。
@@ -28,10 +29,16 @@ export function getOpeningPackage(projectId: string): Promise<any> {
 }
 
 /** 解密明文上传（四角色 multipart + fieldsJson/nonce）；返回 BidSupplier 终局行（decryptStatus 判定成败） */
-export function decryptUpload(projectId: string, form: FormData): Promise<any> {
-  // 勿手设 Content-Type：axios 对 FormData 会自动补 multipart/form-data; boundary=…
-  // 手动设置会丢掉 boundary，服务端 multer 报 "Multipart: Boundary not found"（迁移引入的回归）
-  return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/decrypt-upload`, form, {
-    timeout: 120000, // 明文 50MB×4 全量上传，沿用 upload 120s 口径
+export async function decryptUpload(projectId: string, form: FormData): Promise<any> {
+  // 勿手设 Content-Type：浏览器对 FormData 自动补 multipart/form-data; boundary=…，
+  // 手动设置会丢掉 boundary，服务端 multer 报 "Multipart: Boundary not found"（迁移引入的回归）。
+  // 开发环境直连 API origin（同 upload.ts 口径：Next dev 代理对 1.5MB+ 请求体截断）。
+  const base = UPLOAD_BASE === "/api" ? "" : UPLOAD_BASE;
+  const res = await fetch(`${base}/supplier-portal/bid-submissions/${projectId}/decrypt-upload`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-Portal": "supplier" },
+    body: form,
   });
+  return res.json();
 }

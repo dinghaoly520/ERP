@@ -146,7 +146,9 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
     try {
       const uk = (await openUkey(ukeyPassword)).adapter;
       const certs = await uk.listCertificates();
-      const cert = certs.find((c) => c.certSn === boundCertSn()) || certs.find((c) => c.publicKey === pubKeyRef.current);
+      // 共用浏览器下 supplier_ukey_bound 可能是前一供应商的缓存（cookie 单会话 + localStorage 全局）——
+      // 优先按平台绑定公钥匹配本企业证书（服务端 ACTIVE 绑定的防错签口径），缓存 certSn 仅作回退。
+      const cert = certs.find((c) => c.publicKey === pubKeyRef.current) || certs.find((c) => c.certSn === boundCertSn());
       if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定或导入备份");
       setUkeyAdapter(uk);
       setUkeyCertSn(cert.certSn);
