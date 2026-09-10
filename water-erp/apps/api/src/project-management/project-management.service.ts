@@ -759,6 +759,48 @@ export class ProjectManagementService {
     }
   }
 
+  /**
+   * 部门编号发号（2026-09-10）：{部门编码}-{年度}-{部门内顺序号 3 位}，如 GCKC-2026-003。
+   * - 部门编码取 Department.code（按 requesterDepartment 匹配；无 code 时生成并回写）
+   * - 顺序号 = 同部门编码 + 同年度已用最大号 +1；跨年自动从 001 重新起号
+   * - 防重：FOR UPDATE 锁部门行作为发号临界区（同部门并发立项排队），须在事务内调用
+   */
+  private async allocateDepartmentNumber(
+    tx: { department: { findFirst: Function; update: Function; create: Function }, projectManagementItem: { findFirst: Function }, $queryRaw: Function },
+    requesterDepartment: string,
+    year: number,
+  ): Promise<string | null> {
+    if (!requesterDepartment?.trim()) return null;
+    // 部门匹配（与既有 normalizeDepartment 语义一致：先精确后包含）
+    let dept = await tx.department.findFirst({ where: { name: requesterDepartment.trim() } });
+    if (!dept) {
+      dept = await tx.department.findFirst({
+        where: { OR: [{ name: { contains: requesterDepartment.trim() } }, { name: { contains: requesterDepartment.trim().split('/')[0] } }] },
+      });
+    }
+    if (!dept) {
+      // 无部门主数据 → 建行（code 自动生成：名称内 ASCII 字母提取，不足则 D + 行尾 4 位）
+      const ascii = (requesterDepartment.match(/[A-Za-z]{2,}/g) || []).join('').toUpperCase();
+      const code = ascii.length >= 2 ? ascii.slice(0, 6) : null;
+      dept = await tx.department.create({ data: { name: requesterDepartment.trim(), ...(code ? { code } : {}) } });
+    }
+    if (!dept.code) {
+      const code = 'D' + dept.id.slice(-5).toUpperCase();
+      await tx.department.update({ where: { id: dept.id }, data: { code } });
+      dept = { ...dept, code };
+    }
+    // 发号临界区：锁部门行（同部门并发立项在此排队）
+    await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${dept.id} FOR UPDATE`;
+    const prefix = `${dept.code}-${year}-`;
+    const last = await tx.projectManagementItem.findFirst({
+      where: { departmentNumber: { startsWith: prefix } },
+      orderBy: { departmentNumber: 'desc' },
+      select: { departmentNumber: true },
+    });
+    const lastSeq = last ? Number(last.departmentNumber.slice(prefix.length)) || 0 : 0;
+    return `${prefix}${String(lastSeq + 1).padStart(3, '0')}`;
+  }
+
   async createFromInitiation(
     dto: CreateProjectFromInitiationDto,
     companyStamp: { companyId?: string; companyName?: string } = {},
@@ -824,10 +866,15 @@ export class ProjectManagementService {
       const projectCode = `${procurementMethodPrefix(dto.procurementMethod)}-${ymd}${String(todayCount + 1).padStart(2, '0')}`;
       const gbProjectCode = await this.gbCode.allocateProjectCode().catch(() => null); // A1（B.4.3.2）
 
+      // 部门编号发号（人工传入尊重人工；否则按 部门编码-年度-顺序号 分配，锁部门行防并发重号）
+      const allocatedDeptNo = dto.departmentNumber?.trim()
+        ? undefined
+        : await this.allocateDepartmentNumber(tx, dto.requesterDepartment, now.getFullYear()).catch(() => null);
       const project = await tx.projectManagementItem.create({
         data: {
           projectCode,
           ...(gbProjectCode ? { gbProjectCode } : {}),
+          departmentNumber: dto.departmentNumber?.trim() || allocatedDeptNo || null,
           title: dto.procurementTitle,
           requesterName: dto.requesterName,
           requesterDepartment: dto.requesterDepartment,
