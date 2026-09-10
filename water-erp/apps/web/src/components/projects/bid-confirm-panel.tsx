@@ -45,6 +45,7 @@ import {
   type BidWorkspace,
   type AwardLetterStatus,
 } from '@/lib/api/bid';
+import { ApiError } from '@water-erp/client';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
 import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
 import { fetchCurrentUser } from '@/lib/api/auth';
@@ -109,6 +110,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   // 延时开标
   const [delayOpen, setDelayOpen] = useState(false);
   const [delayTime, setDelayTime] = useState('');
+
+  /** 开标准备清单未通过（OPENING_CHECKLIST_FAILED）：弹出缺失项明细（toast 之外的长反馈） */
+  const [openingChecklist, setOpeningChecklist] = useState<{ error: string; items: string[] } | null>(null);
 
   // 催促未投递供应商弹窗
   const [nudgeOpen, setNudgeOpen] = useState(false);
@@ -339,7 +343,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    // 错误提示停留更长（长文案清单类错误 2.6s 转瞬即逝，演示/实操易错过）
+    const t = setTimeout(() => setToast(null), toast.tone === 'err' ? 6000 : 2600);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -360,12 +365,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const isOpened = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
 
   /* ── 操作 ── */
-  async function withBusy(fn: () => Promise<void>, errMsg = '操作失败') {
+  async function withBusy(fn: () => Promise<void>, errMsg = '操作失败', onErr?: (e: unknown) => void) {
     setBusy(true);
     try {
       await fn();
     } catch (e) {
       showToast(e instanceof Error ? e.message : errMsg, 'err');
+      onErr?.(e);
     } finally {
       setBusy(false);
     }
@@ -385,7 +391,16 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       await startOpening(bpId);
       showToast('已确定开标，请主持人在「开标进度」区块进入开标大厅组建会话');
       await load();
-    }, '开标失败');
+    }, '开标失败', (e) => {
+      // 开标准备清单未通过：弹窗列出缺失项（toast 短提示易错过，清单明细须长反馈）
+      if (e instanceof ApiError && e.code === 'OPENING_CHECKLIST_FAILED') {
+        const data = e.data as { items?: unknown } | undefined;
+        setOpeningChecklist({
+          error: e.message,
+          items: Array.isArray(data?.items) ? data.items.filter((x): x is string => typeof x === 'string') : [],
+        });
+      }
+    });
   }
 
   async function handleDelaySave() {
@@ -1073,6 +1088,41 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         bidProjectId={bpId ?? ''}
         onChanged={() => void load()}
       />
+
+      {/* 开标准备清单未通过弹窗（OPENING_CHECKLIST_FAILED）：toast 短提示之外的长反馈，
+          逐项列出缺失项（法定硬性条件），提示流标或补齐后重试 */}
+      <Modal
+        open={!!openingChecklist}
+        onClose={() => setOpeningChecklist(null)}
+        size="sm"
+        className="!max-w-[520px]"
+        title="开标准备清单未通过"
+        description="「按时开标」已被系统拦截，以下法定/规则前置条件尚未满足："
+      >
+        {openingChecklist && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-[var(--warning)]/40 bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] p-3 text-sm text-[var(--foreground)]">
+              {openingChecklist.error}
+            </div>
+            {openingChecklist.items.length > 0 && (
+              <ul className="space-y-1.5">
+                {openingChecklist.items.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 rounded-lg bg-[var(--muted)]/60 px-3 py-2 text-xs text-[var(--foreground)]">
+                    <AlertTriangle size={13} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="pt-1 text-xs text-[var(--muted-foreground)]">
+              有效投标家数不足为法定硬性条件，不可强制开标——可等待供应商投递后重试，或流标后重新组织。
+            </div>
+          </div>
+        )}
+        <div className="neu-btn-group mt-4 justify-end">
+          <button type="button" onClick={() => setOpeningChecklist(null)} className="neu-btn-primary !h-[36px]">知道了</button>
+        </div>
+      </Modal>
 
       {/* ★ 流标确认对话框（底部"流标"按钮触发）——Modal 化，busy 防护保留
          （原版：背景点击/X 按钮以 failBidConfirming 设防，此处经 closeOnBackdrop/closeOnEsc
