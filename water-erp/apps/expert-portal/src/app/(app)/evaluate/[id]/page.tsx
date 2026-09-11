@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
-import { validateSupplierScores, type ScoreEntry } from '@/lib/score-validation';
+import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
 import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
 import { SigninCamera } from '@/components/signin-camera';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
@@ -268,6 +268,8 @@ export default function ExpertEvaluatePage() {
   // P0-3: draft autosave to localStorage.
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
   const [draftDismissed, setDraftDismissed] = useState(false);
+  // QA-2026-09-11 A1：草稿检查是否完成——完成前自动保存悬置，防止挂载期以空/旧 scores 覆写待恢复草稿
+  const [draftCheckDone, setDraftCheckDone] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Composite key helper — keeps the per-supplier invariant explicit at every call site.
@@ -364,45 +366,96 @@ export default function ExpertEvaluatePage() {
       if (raw) {
         const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt: number };
         const count = Object.keys(draft.scores || {}).length;
-        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); return; }
+        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); setDraftCheckDone(true); return; }
       }
     } catch { /* corrupt draft — ignore */ }
     // localStorage 无草稿，尝试从服务端恢复
     api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
       .then(d => {
+        // A1：无论服务端有无草稿都置位，解除自动保存悬置（与 setDraftAvailable 同批提交，React 18 自动批处理）
+        setDraftCheckDone(true);
         if (d && d.scores && Object.keys(d.scores).length > 0) {
           setDraftAvailable({ count: Object.keys(d.scores).length, savedAt: d.savedAt ?? Date.now() });
         }
       })
-      .catch(() => {});
+      .catch(() => { setDraftCheckDone(true); });
   }, [draftStorageKey, projectId]);
+
+  // QA-2026-09-11 P1-1：pending-only 草稿过滤——与已提交记录等价（三字段 + 有效得分点映射）的条目不入草稿。
+  const buildPendingDraft = useCallback((source: Record<string, ScoreEntry>): Record<string, ScoreEntry> => {
+    const pending: Record<string, ScoreEntry> = {};
+    for (const [k, v] of Object.entries(source)) {
+      const [sid, itemId] = k.split(':');
+      const rec = committedRecordFor(project?.myScores, sid, itemId);
+      const si = project?.scoreItems.find(s => s.id === itemId);
+      if (!rec || !si || !isCommittedEquivalent(v, rec, si)) pending[k] = v;
+    }
+    return pending;
+  }, [project]);
 
   // P0-3: debounced autosave whenever scores change (only while scoring).
   // E4/G3: 双写 localStorage（快速离线恢复）+ 服务端 scoreDraft API（跨设备持久化）
   useEffect(() => {
     if (!draftStorageKey || step !== 'scoring') return;
+    // QA-2026-09-11 P1-2/A1：草稿检查未完成或存在待处理草稿横幅时，自动保存一律悬置（防止进入
+    // 打分步以空/旧 scores 覆写待恢复草稿）；悬置期间清掉已排定的定时器（A3）
+    if (!draftCheckDone || draftAvailable !== null) {
+      if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
+      return;
+    }
     const entries = Object.keys(scores).length;
     if (entries === 0) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
+      const pending = buildPendingDraft(scores);
+      if (Object.keys(pending).length === 0) {
+        // 全部等价已提交：主动清理幽灵草稿（P1-1，本地 + 服务端槽），下次进入不再出现误导横幅
+        try { localStorage.removeItem(draftStorageKey); } catch { /* private mode — ignore */ }
+        api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: {}, savedAt: Date.now() }).catch(() => {});
+        return;
+      }
       try {
-        localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+        localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
       } catch { /* quota / private mode — ignore */ }
       // E4/G3: 同步到服务端（失败静默降级到 localStorage）
-      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores, savedAt: Date.now() }).catch(() => {});
+      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() }).catch(() => {});
     }, 2000);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
-  }, [scores, draftStorageKey, step, projectId]);
+  }, [scores, draftStorageKey, step, projectId, draftAvailable, draftCheckDone, buildPendingDraft]);
 
-  const restoreDraft = () => {
+  const restoreDraft = async () => {
     if (!draftStorageKey) return;
+    type DraftShape = { scores: Record<string, ScoreEntry>; savedAt: number };
+    let draft: DraftShape | null = null;
     try {
       const raw = localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt: number };
-      setScores(prev => ({ ...prev, ...draft.scores }));
-      toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分草稿`);
+      if (raw) draft = JSON.parse(raw) as DraftShape;
     } catch { toast.error('草稿已损坏，无法恢复'); }
+    // A5：localStorage 无草稿时回退服务端槽（此前桌面版对服务端草稿的恢复是 no-op，静默丢草稿）
+    if (!draft || Object.keys(draft.scores || {}).length === 0) {
+      try {
+        const d = await api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`);
+        if (d && d.scores && Object.keys(d.scores).length > 0) draft = { scores: d.scores, savedAt: d.savedAt ?? Date.now() };
+      } catch { /* ignore */ }
+    }
+    if (!draft || Object.keys(draft.scores || {}).length === 0) {
+      toast.info('没有可恢复的草稿');
+      setDraftAvailable(null);
+      setDraftDismissed(true);
+      return;
+    }
+    // P1-3 防御：存量部分映射草稿恢复时补全为完整映射（缺失点按 passed/提交分回退），
+    // 使「通过制卡死不通过」可经重新勾选恢复；无 points 的条目保持原样（渲染期再回退）。
+    const norm: Record<string, ScoreEntry> = {};
+    for (const [k, v] of Object.entries(draft.scores)) {
+      const [sid, itemId] = k.split(':');
+      const si = project?.scoreItems.find(s => s.id === itemId);
+      const committedScore = committedRecordFor(project?.myScores, sid, itemId)?.score ?? null;
+      const hasPartialPoints = v.points && Object.keys(v.points).length > 0;
+      norm[k] = si && hasPartialPoints ? { ...v, points: buildFullPoints(si, v, committedScore) } : v;
+    }
+    setScores(prev => ({ ...prev, ...norm }));
+    toast.success(`已恢复 ${Object.keys(norm).length} 项评分草稿`);
     setDraftAvailable(null);
     setDraftDismissed(true);
   };
@@ -414,11 +467,22 @@ export default function ExpertEvaluatePage() {
   };
   const saveDraftNow = (snapshot?: Record<string, ScoreEntry>) => {
     if (!draftStorageKey) return;
-    const payload = snapshot ?? scores;
+    // P1-2：有待处理草稿横幅时禁止保存——防止核对区就地打分/手写批注/手动保存覆写待恢复草稿
+    if (draftAvailable !== null) {
+      toast.warning('有未处理的评分草稿，请先恢复或丢弃');
+      return;
+    }
+    const pending = buildPendingDraft(snapshot ?? scores);
+    if (Object.keys(pending).length === 0) {
+      // 全部等价已提交：清空而非新写（P1-1）
+      try { localStorage.removeItem(draftStorageKey); } catch { /* quota — ignore */ }
+      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: {}, savedAt: Date.now() }).catch(() => {});
+      return;
+    }
     try {
-      localStorage.setItem(draftStorageKey, JSON.stringify({ scores: payload, savedAt: Date.now() }));
+      localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
     } catch { /* quota — ignore */ }
-    api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: payload, savedAt: Date.now() })
+    api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() })
       .then(() => toast.success('草稿已保存（已同步到服务端）'))
       .catch(() => toast.success('草稿已保存（本地）'));
   };
@@ -427,9 +491,11 @@ export default function ExpertEvaluatePage() {
   const handlePointChange = useCallback((scoreItemId: string, pointId: string, value: PointDecisionValue) => {
     if (!activeSupplier) return;
     const k = scoreKey(activeSupplier, scoreItemId);
-    const cur = scores[k] ?? { score: 0, reason: '' };
-    const points = { ...(cur.points ?? {}), [pointId]: value };
     const si = project?.scoreItems.find((s) => s.id === scoreItemId);
+    const committedScore = committedRecordFor(project?.myScores, activeSupplier, scoreItemId)?.score ?? null;
+    const cur = scores[k] ?? { score: 0, reason: '' };
+    // P1-3：完整映射种子（stored → passed 回退 → 数值单点提交分回退），杜绝部分映射卡死不通过
+    const points = { ...(si ? buildFullPoints(si, cur, committedScore) : cur.points ?? {}), [pointId]: value };
     const score = (si?.points ?? []).reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
     // 通过性项：从客观分点重算 passed（与评分 tab checkbox onChange 逻辑一致）
     let passed = cur.passed;
@@ -467,7 +533,7 @@ export default function ExpertEvaluatePage() {
     const next = { ...scores, [k]: { ...cur, points } };
     setScores(next);
     saveDraftNow(next);
-  }, [activeSupplier, scores]);
+  }, [activeSupplier, scores, project]); // A4：saveDraftNow 的 pending 过滤读 project.myScores
 
   // 得分点选中（联动备忘抽屉）：选中即打开抽屉，与条款核对面板/平板端行为一致
   const handlePointClickDesk = useCallback(
@@ -1704,18 +1770,14 @@ export default function ExpertEvaluatePage() {
                               // P1: 价格分公式引擎 — PRICE 项由系统自动算分
                               const isPriceFormula = item.category === 'PRICE' && !!(project as any)?.priceFormulaConfig;
                               const isLastItem = idx === items.length - 1;
+                              // P2-3：数值单点项无 pointDecisions 时按提交分回显得分点
+                              const committedScore = committedRecordFor(project?.myScores, activeSupplier, item.id)?.score ?? null;
                               if (passFail) {
                                 const verdict = val?.passed;
                                 const pfPoints = (item.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
                                 const hasPoints = pfPoints.length > 0;
-                                // effective value: stored points → passed fallback → default unchecked
-                                const pfValueMap: Record<string, PointDecisionValue> = {};
-                                for (const pt of pfPoints) {
-                                  const stored = val?.points?.[pt.id];
-                                  if (stored) pfValueMap[pt.id] = stored;
-                                  else if (verdict === true) pfValueMap[pt.id] = { checked: true, awardedScore: Number(pt.fullScore) };
-                                  else pfValueMap[pt.id] = { checked: false, awardedScore: 0 };
-                                }
+                                // effective value: stored points → passed fallback → default unchecked（共享回退规则）
+                                const pfValueMap: Record<string, PointDecisionValue> = buildFullPoints(item, val, committedScore);
                                 return (
                                   <div key={item.id} data-score-item={item.id} className={`neu-card-static !rounded-[14px] p-4 ${reasonMissing ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_6px_oklch(0.55_0.03_258/0.1),-2px_-2px_6px_oklch(1_0_0/0.8),inset_0_0_0_1.5px_color-mix(in_oklch,var(--danger)_55%,transparent)]' : ''}`}>
                                     <div className="mb-3 flex items-center justify-between">
@@ -1804,10 +1866,11 @@ export default function ExpertEvaluatePage() {
                                     </div>
                                     <PointChecklistScoring
                                       points={itemPoints}
-                                      value={val?.points ?? {}}
+                                      value={buildFullPoints(item, val, committedScore)}
                                       onChange={(pid, pv) => setScores(prev => {
                                         const cur = prev[k] ?? { score: 0, reason: '' };
-                                        const points = { ...(cur.points ?? {}), [pid]: pv };
+                                        // P2-3：onChange 同样以完整映射起种子——首次编辑不会从 0 起算覆盖提交分
+                                        const points = { ...buildFullPoints(item, cur, committedScore), [pid]: pv };
                                         // rollup: Σ awardedScore → item.score（类别小计 + submit payload 都读 score）
                                         const score = itemPoints.reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
                                         return { ...prev, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };

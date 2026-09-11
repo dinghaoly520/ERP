@@ -674,7 +674,12 @@ export function RequirementComparePanel({
                       })}
 
                       <button
-                        onClick={() => onGoScoring()}
+                        onClick={() => {
+                          // P2-1：全局按钮带上定位目标——第一个未提交评分项（无则第一个评分项），平板可闪烁定位
+                          const target = scoreItems.find(si => scoreStatus[si.id]?.state !== 'committed') ?? scoreItems[0];
+                          const firstPt = (target?.points ?? [])[0];
+                          onGoScoring(target ? { scoreItemId: target.id, pointId: firstPt?.id } : undefined);
+                        }}
                         className="neu-btn-soft mt-2 w-full !h-8 !text-[11px]"
                       >
                         <Edit3 size={12} strokeWidth={1.5} /> 去打分平板

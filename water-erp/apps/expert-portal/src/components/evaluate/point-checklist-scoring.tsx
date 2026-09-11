@@ -63,13 +63,18 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
                 <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
                 {p.evidenceHint && <div className="truncate text-xs text-[var(--muted-foreground)]">{p.evidenceHint}</div>}
               </div>
-              <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
-                onClick={e => e.stopPropagation()}
-                onKeyDown={e => e.stopPropagation()}
-                onChange={e => onChange(p.id, { ...v, awardedScore: Math.max(0, Math.min(Number(e.target.value) || 0, max)) })}
-                className="exp-score-input shrink-0 !h-[34px] !w-[64px] !text-[13px] disabled:opacity-60"
-                aria-label={`${p.name} 得分`} />
-              <span className="shrink-0 text-xs text-[var(--muted-foreground)]">/ {max}</span>
+              {/* P3-1：fullScore=0（通过制得分点）隐藏数字输入与「/ 0」噪声——勾选即满分 0 */}
+              {max > 0 && (
+                <>
+                  <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
+                    onClick={e => e.stopPropagation()}
+                    onKeyDown={e => e.stopPropagation()}
+                    onChange={e => onChange(p.id, { ...v, awardedScore: Math.max(0, Math.min(Number(e.target.value) || 0, max)) })}
+                    className="exp-score-input shrink-0 !h-[34px] !w-[64px] !text-[13px] disabled:opacity-60"
+                    aria-label={`${p.name} 得分`} />
+                  <span className="shrink-0 text-xs text-[var(--muted-foreground)]">/ {max}</span>
+                </>
+              )}
               {/* 批注角标（只读状态指示） */}
               {!hideNotes && (() => {
                 const count = pointMemoCounts?.[p.id] ?? 0;

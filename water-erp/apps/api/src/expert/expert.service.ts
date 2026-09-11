@@ -1965,9 +1965,10 @@ export class ExpertService {
       }
 
       // 先更新确认状态，再记监督日志（同事务，避免孤儿「已确认」日志）
+      // QA-2026-09-11 P2-2：确认时顺带清空草稿槽——锁定后不再有草稿写入，遗留草稿只会误导横幅。
       const upd = await tx.bidExpert.update({
         where: { id: expert.id },
-        data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
+        data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date(), scoreDraft: {} },
       });
       let reportResult = comment || '确认完成';
       try {
@@ -2004,7 +2005,13 @@ export class ExpertService {
   async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>, device?: 'tablet' | 'desktop') {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
-    if (expert.reportConfirmed) {
+    // QA-2026-09-11 P2-2：报告确认后评分锁定，但「丢弃草稿」的空清载荷（scores 缺失或空对象）
+    // 必须放行——否则确认前遗留的草稿永远无法清除（前端丢弃/自动清空均走本端点）。
+    const scoresObj = (draft as any)?.scores;
+    const isEmptyClear =
+      !scoresObj ||
+      (typeof scoresObj === 'object' && !Array.isArray(scoresObj) && Object.keys(scoresObj).length === 0);
+    if (expert.reportConfirmed && !isEmptyClear) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
     const deviceSlot = device === 'tablet' ? 'tablet' : 'desktop';

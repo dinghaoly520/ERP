@@ -9,7 +9,7 @@ import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
-import type { ScoreEntry } from '@/lib/score-validation';
+import { buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
@@ -62,6 +62,10 @@ export default function TabletEvaluatePage() {
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
   const [serverDraft, setServerDraft] = useState<Record<string, ScoreEntry> | null>(null); // Phase 1：服务端草稿 fallback（跨设备恢复）
   const [draftDismissed, setDraftDismissed] = useState(false);
+  // QA-2026-09-11 A1：草稿检查完成闸——完成前自动保存悬置（防挂载期覆写待恢复草稿）
+  const [draftCheckDone, setDraftCheckDone] = useState(false);
+  // A2：草稿检查一次性守卫——本 effect 的 deps 含 project 身份（WS 刷新会重跑），只允许检查一次
+  const draftCheckedRef = useRef(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftStorageKey = useMemo(() => {
     const expertId = project?.myExpertRecord?.id;
@@ -176,76 +180,108 @@ export default function TabletEvaluatePage() {
   // ── 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）──
   useEffect(() => {
     if (!draftStorageKey || !project) return;
+    // A2：deps 含 project 身份（WS 刷新会重跑），once-guard 保证只检查一次、不反复设闸
+    if (draftCheckedRef.current) return;
+    draftCheckedRef.current = true;
     try {
       const raw = localStorage.getItem(draftStorageKey);
       if (raw) {
         const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
         const count = Object.keys(draft.scores ?? {}).length;
-        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); return; }
+        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); setDraftCheckDone(true); return; }
       }
     } catch { /* 本地草稿损坏 → 继续 fallback 服务端 */ }
     api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
       .then((d) => {
+        // A1：无论服务端有无草稿都置位，解除自动保存悬置
+        setDraftCheckDone(true);
         if (!d || !d.scores) return;
         const count = Object.keys(d.scores).length;
         if (count > 0) { setServerDraft(d.scores); setDraftAvailable({ count, savedAt: d.savedAt ?? Date.now() }); }
       })
-      .catch(() => { /* 服务端草稿可选 — ignore */ });
+      .catch(() => { setDraftCheckDone(true); /* 服务端草稿可选 — ignore */ });
   }, [draftStorageKey, project, projectId]);
 
   // ── 草稿自动暂存（scores 变化后 2 秒防抖）──
   useEffect(() => {
     if (!draftStorageKey) return;
+    // QA-2026-09-11 P1-2/A1：草稿检查未完成或存在待处理草稿横幅时悬置（防覆写待恢复草稿）；
+    // 悬置期间清掉已排定的定时器（A3）
+    if (!draftCheckDone || draftAvailable !== null) {
+      if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
+      return;
+    }
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-try {
-        // P2：仅暂存相对服务端未提交的条目，避免把已提交分记为草稿（假「未提交草稿」横幅）
-        const committed = new Set((project?.myScores ?? []).map((r: { supplierId: string; scoreItemId: string }) => scoreKey(r.supplierId, r.scoreItemId)));
+      try {
+        // P1-1 对齐桌面：pending-only——与已提交记录等价（三字段+有效得分点映射）的条目不入草稿；
+        // 原按键成员过滤会静默丢弃「已提交项再修改」，改为值感知（隐藏缺陷一并修复）
         const draftScores: typeof scores = {};
-        let hasDraft = false;
         for (const [k, v] of Object.entries(scores)) {
-          if (!committed.has(k)) { draftScores[k] = v; hasDraft = true; }
+          const [sid, itemId] = k.split(':');
+          const rec = committedRecordFor(project?.myScores, sid, itemId);
+          const si = project?.scoreItems.find(s => s.id === itemId);
+          if (!rec || !si || !isCommittedEquivalent(v, rec, si)) draftScores[k] = v;
         }
-        if (hasDraft) {
+        if (Object.keys(draftScores).length > 0) {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
           // P2-5: 同步草稿到服务端（与桌面端一致，跨设备恢复）
           api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
         } else {
           localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
+          // P1-1：服务端 tablet 槽同步清空（此前只清 localStorage，槽内残留仍会触发恢复横幅）
+          api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: {}, savedAt: Date.now() }).catch(() => {});
         }
       } catch { /* quota exceeded — silent */ }
     }, 2000);
     return () => {
       if (draftTimer.current) clearTimeout(draftTimer.current);
     };
-  }, [scores, draftStorageKey, project]);
+  }, [scores, draftStorageKey, project, draftAvailable, draftCheckDone]);
 
   // ── 草稿操作 ──
+  // P1-3 防御：恢复时把存量部分映射草稿补全为完整映射（缺失点按 passed/提交分回退）
+  const normalizeDraftScores = useCallback((draftScores: Record<string, ScoreEntry>): Record<string, ScoreEntry> => {
+    const norm: Record<string, ScoreEntry> = {};
+    for (const [k, v] of Object.entries(draftScores)) {
+      const [sid, itemId] = k.split(':');
+      const si = project?.scoreItems.find(s => s.id === itemId);
+      const committedScore = committedRecordFor(project?.myScores, sid, itemId)?.score ?? null;
+      const hasPartialPoints = v.points && Object.keys(v.points).length > 0;
+      norm[k] = si && hasPartialPoints ? { ...v, points: buildFullPoints(si, v, committedScore) } : v;
+    }
+    return norm;
+  }, [project]);
+
   const restoreDraft = useCallback(() => {
     if (!draftStorageKey) return;
     try {
       const raw = localStorage.getItem(draftStorageKey);
       if (raw) {
         const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
-        setScores((prev) => ({ ...prev, ...draft.scores }));
-        toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分`);
+        const norm = normalizeDraftScores(draft.scores);
+        setScores((prev) => ({ ...prev, ...norm }));
+        toast.success(`已恢复 ${Object.keys(norm).length} 项评分`);
         setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
         return;
       }
     } catch { /* 本地损坏 → fallback 服务端 */ }
     if (serverDraft) {
-      setScores((prev) => ({ ...prev, ...serverDraft }));
-      toast.success(`已恢复 ${Object.keys(serverDraft).length} 项评分（来自服务端草稿）`);
+      const norm = normalizeDraftScores(serverDraft);
+      setScores((prev) => ({ ...prev, ...norm }));
+      toast.success(`已恢复 ${Object.keys(norm).length} 项评分（来自服务端草稿）`);
     }
     setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
-  }, [draftStorageKey, serverDraft]);
+  }, [draftStorageKey, serverDraft, normalizeDraftScores]);
 
   const discardDraft = useCallback(() => {
     if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+    // P2-2：报告确认后草稿端点对空清载荷豁免锁定——丢弃同时清服务端 tablet 槽
+    api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: {}, savedAt: Date.now() }).catch(() => {});
     setServerDraft(null);
     setDraftAvailable(null);
     setDraftDismissed(true);
-  }, [draftStorageKey]);
+  }, [draftStorageKey, projectId]);
 
   // 默认选中第一家供应商
   useEffect(() => {
@@ -390,11 +426,13 @@ try {
   }, []);
 
   // 平板修改拦截器：检测已有值的修改 → 弹确认
-  const makeTabletOnChange = (scoreItemId: string, itemPoints: any[], defaultApply: (pid: string, pv: PointDecisionValue) => void) => {
+  // P1-4：fallbackMap = 回退渲染值（buildFullPoints/pfValueMap）——无已存 points 时以回退值判旧值，
+  // 已提交点的第一次点击即弹确认（此前视为新增绕过确认）
+  const makeTabletOnChange = (scoreItemId: string, itemPoints: any[], fallbackMap: Record<string, PointDecisionValue> | undefined, defaultApply: (pid: string, pv: PointDecisionValue) => void) => {
     return (pid: string, pv: PointDecisionValue) => {
       const k = scoreKey(activeSupplier, scoreItemId);
       const cur = scores[k];
-      const oldPointVal = cur?.points?.[pid];
+      const oldPointVal = cur?.points?.[pid] ?? fallbackMap?.[pid];
       const pointName = itemPoints.find(p => p.id === pid)?.name ?? pid;
 
       // 检测是否为修改（已有值 + 值不同）
@@ -554,19 +592,15 @@ try {
                       }));
                       const passFail = isPassFailCategory(item.category);
                       const readOnly = !canScoreActiveSupplier || scoreLocked || !verificationComplete;
+                      // P2-3：数值单点项无 pointDecisions 时按提交分回显得分点
+                      const committedScore = committedRecordFor(project?.myScores, activeSupplier, item.id)?.score ?? null;
 
                       if (passFail) {
                         const verdict = val?.passed;
                         const pfPoints = (item.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
                         const hasPoints = pfPoints.length > 0;
-                        // effective value: stored points → passed fallback → default unchecked
-                        const pfValueMap: Record<string, PointDecisionValue> = {};
-                        for (const pt of pfPoints) {
-                          const stored = val?.points?.[pt.id];
-                          if (stored) pfValueMap[pt.id] = stored;
-                          else if (verdict === true) pfValueMap[pt.id] = { checked: true, awardedScore: Number(pt.fullScore) };
-                          else pfValueMap[pt.id] = { checked: false, awardedScore: 0 };
-                        }
+                        // effective value: stored points → passed fallback → default unchecked（共享回退规则）
+                        const pfValueMap: Record<string, PointDecisionValue> = buildFullPoints(item, val, committedScore);
                         return (
                           <div
                             key={item.id}
@@ -619,7 +653,7 @@ try {
                                   selectedPointId={activePointId}
                                   onPointClick={handlePointClick}
                                   pointMemoCounts={pointMemoCounts}
-                                  onChange={makeTabletOnChange(item.id, pfPoints, (pid, pv) =>
+                                  onChange={makeTabletOnChange(item.id, pfPoints, pfValueMap, (pid, pv) =>
                                     setScores(prev => {
                                       const cur = prev[k] ?? { score: 0, reason: '' };
                                       const points = { ...(cur.points ?? pfValueMap), [pid]: pv };
@@ -684,16 +718,17 @@ try {
                           {itemPoints.length > 0 ? (
                             <PointChecklistScoring
                               points={itemPoints}
-                              value={val?.points ?? {}}
+                              value={buildFullPoints(item, val, committedScore)}
                               readOnly={readOnly}
                               compact
                               selectedPointId={activePointId}
                               onPointClick={handlePointClick}
                               pointMemoCounts={pointMemoCounts}
-                              onChange={makeTabletOnChange(item.id, itemPoints, (pid, pv) =>
+                              onChange={makeTabletOnChange(item.id, itemPoints, buildFullPoints(item, val, committedScore), (pid, pv) =>
                                 setScores(prev => {
                                   const cur = prev[k] ?? { score: 0, reason: '' };
-                                  const points = { ...(cur.points ?? {}), [pid]: pv };
+                                  // P2-3：完整映射种子——首次编辑不会从 0 起算覆盖提交分
+                                  const points = { ...buildFullPoints(item, cur, committedScore), [pid]: pv };
                                   // rollup: Σ awardedScore → item.score
                                   const score = itemPoints.reduce(
                                     (s, p) => s + (points[p.id]?.awardedScore ?? 0),
@@ -789,7 +824,8 @@ try {
         open={pendingModify !== null}
         title="确认修改评分"
         message={pendingModify ? `确定将「${pendingModify.pointName}」${
-          pendingModify.oldVal.checked && !pendingModify.newVal.checked ? '取消勾选'
+          !pendingModify.oldVal.checked && pendingModify.newVal.checked ? '勾选该得分点'
+          : pendingModify.oldVal.checked && !pendingModify.newVal.checked ? '取消勾选'
           : `从 ${pendingModify.oldVal.awardedScore} 分改为 ${pendingModify.newVal.awardedScore} 分`
         }？` : ''}
         confirmText="确认修改"
