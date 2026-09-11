@@ -756,26 +756,6 @@ export function AnnouncementDialog({
         }
         if (sn) patch.supplierName = sn;
       }
-      if (!draftRecord.procurementTime?.trim() && project.bidOpeningTime?.trim()) {
-        // 中文日期时间 "2026年3月24日9:00" → ISO "2026-03-24T09:00"
-        const m = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
-        if (m) {
-          patch.procurementTime = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
-        } else {
-          const dm = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-          if (dm) patch.procurementTime = `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}T09:00`;
-        }
-      }
-      // 修正：procurementTime 已有值但不符合 datetime-local 格式（YYYY-MM-DDTHH:MM）→ 重新转换
-      if (draftRecord.procurementTime?.trim() && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.procurementTime)) {
-        const raw = draftRecord.procurementTime;
-        const m = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
-        if (m) {
-          patch.procurementTime = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
-        } else if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-          patch.procurementTime = `${raw}T09:00`;
-        }
-      }
       if (!draftRecord.maxPriceNumeric?.trim() && project.budgetAmount != null) patch.maxPriceNumeric = String(project.budgetAmount);
       if (!draftRecord.projectOverview?.trim() && project.projectOverview?.trim()) patch.projectOverview = project.projectOverview;
       if (!draftRecord.signatureDate?.trim()) {
@@ -838,6 +818,57 @@ export function AnnouncementDialog({
           patch.maxPriceChinese = numberToChineseAmount(price);
         }
       }
+    }
+
+    // ★ 采购时间（=开标时间）取值链（2026-09-11 修复：此前只认 project.bidOpeningTime——
+    // 项目信息未填时智能填入永远填不上，且 ANNOUNCEMENT_AUTO_FILL 的 procurementTime 映射
+    // 指向 tenderDraft 中不存在的键名（各方式开标时间字段为 submissionAndNegotiationTime/
+    // responseDeadline/bidOpeningTime/responseSubmissionTime），Pass 2 恒落空）。
+    // 顺序：项目 bidOpeningTime → tenderDraft 各方式开标时间 → 兜底推算（公示期限止或
+    // 今日往后推 3 个工作日 14:00，与采购文件侧开标时间推算规则同口径）
+    const cnOrIsoToISODatetime = (raw: string): string | null => {
+      const m = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+      if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
+      const dm = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+      if (dm) return `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}T09:00`;
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw}T09:00`;
+      return null;
+    };
+    const addWorkdays = (base: Date, n: number): Date => {
+      const d = new Date(base);
+      let added = 0;
+      while (added < n) {
+        d.setDate(d.getDate() + 1);
+        const dow = d.getDay();
+        if (dow !== 0 && dow !== 6) added++;
+      }
+      return d;
+    };
+    const fallbackOpeningIso = (() => {
+      const endRaw = (patch.announcementEnd || draftRecord.announcementEnd || '').trim();
+      const em = endRaw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const base = em ? new Date(Number(em[1]), Number(em[2]) - 1, Number(em[3])) : new Date();
+      const d = addWorkdays(base, 3);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T14:00`;
+    })();
+    if (!draftRecord.procurementTime?.trim() && !patch.procurementTime
+        && fields.some((f) => f.key === 'procurementTime')) {
+      const tenderOpeningRaw =
+        tenderRecord.submissionAndNegotiationTime?.trim()
+        || tenderRecord.responseDeadline?.trim()
+        || tenderRecord.bidOpeningTime?.trim()
+        || tenderRecord.responseSubmissionTime?.trim()
+        || '';
+      patch.procurementTime =
+        (project?.bidOpeningTime?.trim() ? cnOrIsoToISODatetime(project.bidOpeningTime) : null)
+        || (tenderOpeningRaw ? cnOrIsoToISODatetime(tenderOpeningRaw) : null)
+        || fallbackOpeningIso;
+    }
+    // 修正：已有值但不符合 datetime-local 格式（含 Pass 2 混入的中文值）→ 重新转换
+    if (draftRecord.procurementTime?.trim() && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.procurementTime)) {
+      const fixed = cnOrIsoToISODatetime(draftRecord.procurementTime);
+      if (fixed) patch.procurementTime = fixed;
     }
 
     // Pass 2: 从 tenderDraft 映射填入剩余空字段
