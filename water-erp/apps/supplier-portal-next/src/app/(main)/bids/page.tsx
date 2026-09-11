@@ -234,36 +234,53 @@ export default function BidListPage() {
                         <span className="meta-code">{p.projectCode}</span>
                         <span className="meta-sep">·</span>
                         <span>{p.procurementMethod}</span>
-                        <span className="meta-sep">·</span>
-                        <span>开标 {dayjs(p.openTime).format("MM-DD HH:mm")}</span>
                       </div>
-                      {/* 谈判配置信息：采购文件获取窗口 + 开标时间 + 文件下载 */}
-                      {p.negotiation && (
-                        <div className="row-nego">
-                          <span className="nego-item">
-                            <span className="nego-label">采购文件获取</span>
-                            <span className="nego-val">{dayjs(p.negotiation.acquireStartTime).format("MM-DD HH:mm")} ~ {dayjs(p.negotiation.acquireEndTime).format("MM-DD HH:mm")}</span>
-                          </span>
-                          <span className="nego-item">
-                            <span className="nego-label">开标时间</span>
-                            <span className="nego-val">{dayjs(p.negotiation.bidOpeningTime).format("YYYY-MM-DD HH:mm")}</span>
-                          </span>
-                          <button
-                            type="button"
-                            className={`neu-btn-xs nego-dl ${winState === "open" ? "is-open" : ""} ${winState === "before" ? "is-before" : ""}`}
-                            disabled={winState !== "open" || negoLoading === p.id}
-                            onClick={() => downloadNegotiationFiles(p)}
-                          >
-                            {negoLoading === p.id
-                              ? "下载中…"
-                              : winState === "before"
-                                ? `未开放（${p.negotiation.fileCount} 个文件）`
-                                : winState === "after"
-                                  ? "已截止"
-                                  : `下载采购文件（${p.negotiation.fileCount}）`}
-                          </button>
-                        </div>
-                      )}
+                      {/* 统一关键时间信息（所有项目）：采购文件获取 + 开标时间 + （谈判）文件下载。
+                          开标时间只在此处展示一次；非谈判项目用 downloadDeadline 作获取截止兜底 */}
+                      {(() => {
+                        const nego = p.negotiation;
+                        const acquireStart = nego?.acquireStartTime;
+                        const acquireEnd = nego?.acquireEndTime;
+                        const acquireText = (acquireStart && acquireEnd)
+                          ? `${dayjs(acquireStart).format("MM-DD HH:mm")} ~ ${dayjs(acquireEnd).format("MM-DD HH:mm")}`
+                          : p.downloadDeadline
+                            ? `至 ${dayjs(p.downloadDeadline).format("MM-DD HH:mm")}`
+                            : "";
+                        const openText = p.openTime ? dayjs(p.openTime).format("YYYY-MM-DD HH:mm") : "";
+                        if (!acquireText && !openText && !nego) return null;
+                        return (
+                          <div className="row-nego">
+                            {acquireText && (
+                              <span className="nego-item">
+                                <span className="nego-label">采购文件获取</span>
+                                <span className="nego-val">{acquireText}</span>
+                              </span>
+                            )}
+                            {openText && (
+                              <span className="nego-item">
+                                <span className="nego-label">开标时间</span>
+                                <span className="nego-val">{openText}</span>
+                              </span>
+                            )}
+                            {nego && (
+                              <button
+                                type="button"
+                                className={`neu-btn-xs nego-dl ${winState === "open" ? "is-open" : ""} ${winState === "before" ? "is-before" : ""}`}
+                                disabled={winState !== "open" || negoLoading === p.id}
+                                onClick={() => downloadNegotiationFiles(p)}
+                              >
+                                {negoLoading === p.id
+                                  ? "下载中…"
+                                  : winState === "before"
+                                    ? `未开放（${nego.fileCount} 个文件）`
+                                    : winState === "after"
+                                      ? "已截止"
+                                      : `下载采购文件（${nego.fileCount}）`}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className={`row-deadline ${isSubmitStage(p.stage) ? "submit-deadline" : ""}`}>
                       <small>投递截止</small>
