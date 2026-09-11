@@ -145,23 +145,33 @@ export default function NoticeDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
-            <StatusBadge tone={typeTone[ann.type]}>{ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}</StatusBadge>
-            {ann.isTop && <StatusBadge tone="red">置顶</StatusBadge>}
-            {ann.dataClass && (
-              <StatusBadge tone={ann.dataClass === 'confidential' ? 'red' : ann.dataClass === 'public_mandatory' ? 'green' : 'gray'}>
-                {DATA_CLASS_LABELS[ann.dataClass as keyof typeof DATA_CLASS_LABELS] ?? ann.dataClass}
-              </StatusBadge>
-            )}
-            {ann.type === 'PRE_WIN_NOTICE' && ann.status === 'PUBLISHED' && <ConfirmWinnerButton ann={ann} />}
-            {!editing ? (
-              <>
-                <button onClick={() => setEditing(true)} className="neu-btn-soft"><Pencil size={14} /> 编辑</button>
-                <button onClick={handleDelete} className="neu-btn-soft is-danger"><Trash2 size={14} /> 删除</button>
-              </>
-            ) : (
-              <button onClick={() => setEditing(false)} className="neu-btn-soft"><X size={14} /> 取消编辑</button>
-            )}
+            {/* ── 描述性徽章组（状态 → 采购方式 → 公开范围 → 置顶）── */}
+            <div className="flex items-center gap-1.5">
+              <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
+              <StatusBadge tone={typeTone[ann.type]}>{ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}</StatusBadge>
+              {ann.isTop && <StatusBadge tone="red">置顶</StatusBadge>}
+              {ann.dataClass && (
+                <StatusBadge tone={ann.dataClass === 'confidential' ? 'red' : 'gray'}>
+                  {DATA_CLASS_LABELS[ann.dataClass as keyof typeof DATA_CLASS_LABELS] ?? ann.dataClass}
+                </StatusBadge>
+              )}
+            </div>
+
+            {/* 垂直分隔：描述性元数据与操作区之间 */}
+            <div className="mx-1 h-6 w-px shrink-0" style={{ background: 'oklch(0.6 0.04 258 / 0.16)' }} />
+
+            {/* ── 操作组 ── */}
+            <div className="flex items-center gap-1.5">
+              {ann.type === 'PRE_WIN_NOTICE' && ann.status === 'PUBLISHED' && <ConfirmWinnerButton ann={ann} />}
+              {!editing ? (
+                <>
+                  <button onClick={() => setEditing(true)} className="neu-btn-soft"><Pencil size={14} /> 编辑</button>
+                  <button onClick={handleDelete} className="neu-btn-soft is-danger"><Trash2 size={14} /> 删除</button>
+                </>
+              ) : (
+                <button onClick={() => setEditing(false)} className="neu-btn-soft"><X size={14} /> 取消编辑</button>
+              )}
+            </div>
           </div>
         </div>
 
