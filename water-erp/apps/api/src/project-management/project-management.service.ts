@@ -38,6 +38,7 @@ import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
 import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
 import { getStageComplianceRules } from './stage-compliance-rules';
+import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -344,7 +345,8 @@ export class ProjectManagementService {
       data: {
         projectCode,
         ...(gbProjectCode ? { gbProjectCode } : {}),
-        title: dto.title,
+        // PMI 标题剥离公告类型前缀（与 BidProject.name 同口径，2026-09-11）
+        title: stripAnnouncementTitlePrefix(dto.title),
         requesterName,
         requesterDepartment,
         procurementMethod: dto.procurementMethod,
