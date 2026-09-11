@@ -517,8 +517,9 @@ function BidDetailInner() {
                   </div>
                 )}
 
-                {/* 招标条件（招标范围已融入上方项目概览，此处不再单独展示） */}
-                {(project.qualification || project.contact || project.qualityRequirement) && (
+                {/* 招标条件（招标范围已融入上方项目概览，此处不再单独展示）；
+                    联系方式已在上方结构化信息条展示，此处不再重复 */}
+                {(project.qualification || project.qualityRequirement) && (
                   <div className="cc-conds">
                     {project.qualification && (
                       <div className="cc-cond">
@@ -530,12 +531,6 @@ function BidDetailInner() {
                       <div className="cc-cond">
                         <span className="cc-cond-hd">质量要求</span>
                         <p className="cc-cond-bd">{project.qualityRequirement}</p>
-                      </div>
-                    )}
-                    {project.contact && (
-                      <div className="cc-cond">
-                        <span className="cc-cond-hd">联系方式</span>
-                        <p className="cc-cond-bd">{project.contact}</p>
                       </div>
                     )}
                   </div>
