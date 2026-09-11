@@ -38,6 +38,7 @@ import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
 import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
 import { getStageComplianceRules } from './stage-compliance-rules';
+import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -142,6 +143,7 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
   直接采购: [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
@@ -185,6 +187,7 @@ const REPROC_STAGE_SEGMENTS: Record<string, Array<{ key: string; label: string }
     { key: 'BID_EVALUATION', label: '开标评标' },
   ],
   直接采购: [
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
@@ -342,7 +345,8 @@ export class ProjectManagementService {
       data: {
         projectCode,
         ...(gbProjectCode ? { gbProjectCode } : {}),
-        title: dto.title,
+        // PMI 标题剥离公告类型前缀（与 BidProject.name 同口径，2026-09-11）
+        title: stripAnnouncementTitlePrefix(dto.title),
         requesterName,
         requesterDepartment,
         procurementMethod: dto.procurementMethod,
@@ -624,8 +628,7 @@ export class ProjectManagementService {
       if (!tenderFile) throw new BadRequestException({ error: '未找到采购文件，请先上传', code: 'NO_TENDER_FILE' });
 
       try {
-        const buffer = await this.storage.download(tenderFile.objectKey);
-        text = await this.documentParser.parse(buffer, tenderFile.mimeType, tenderFile.fileName);
+        text = await this.readAttachmentText(tenderFile.objectKey, tenderFile.mimeType, tenderFile.fileName);
         try { await writeFile(cachePath, text, 'utf8'); } catch {}
       } catch (e) {
         this.logger.warn(`[extractTenderFields] 文件读取失败，回退 DB: ${(e as Error)?.message}`);
@@ -656,7 +659,10 @@ export class ProjectManagementService {
       result.projectOverview = val;
     }
     if (wants('bidOpeningTime')) {
-      const raw = this.extractBidOpeningTimeFromText(text, procurementMethod);
+      // 规则提取落空时 AI 兜底（与 projectOverview/documentAcquireTime 同口径）——
+      // 旧版无兜底，直接采购模板改「开标时间」标签后正则不认 → 恒报「未能提取到该字段信息」
+      let raw = this.extractBidOpeningTimeFromText(text, procurementMethod);
+      if (!raw) raw = await this.aiExtractBidOpeningTime(text);
       const val = raw ? await this.aiNormalizeBidOpeningTime(raw) : null;
       if (val) updateData.bidOpeningTime = val;
       result.bidOpeningTime = val;
@@ -687,6 +693,56 @@ export class ProjectManagementService {
       await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
     }
     return field ? { [field]: result[field] ?? null } : result;
+  }
+
+  /**
+   * 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
+   * 与项目已存 awardedSupplier 比对——只读不写库，供公告「拟定供应商名称」字段
+   * 的核对按钮判断「供应商是否已更换」，更新由用户确认后走 updateProjectExtractedInfo。
+   */
+  async checkSupplierChange(itemId: string) {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: { awardedSupplier: true },
+    });
+    if (!item) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // 取采购文件文本（缓存优先，回退 MinIO 下载解析）
+    const cachePath = getTenderTextCachePath(itemId);
+    let text: string;
+    try {
+      text = await readFile(cachePath, 'utf8');
+      if (!text || text.length < 50) throw new Error('empty cache');
+    } catch {
+      const stage = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: itemId, stageKey: 'TENDER_DOCUMENT' },
+        include: { attachments: true },
+      });
+      const tenderFile = stage?.attachments.find(
+        (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
+      );
+      if (!tenderFile) {
+        return { current: item.awardedSupplier ?? '', extracted: null, changed: false, reason: '未找到采购文件' };
+      }
+      try {
+        text = await this.readAttachmentText(tenderFile.objectKey, tenderFile.mimeType, tenderFile.fileName);
+        try { await writeFile(cachePath, text, 'utf8'); } catch {}
+      } catch (e) {
+        this.logger.warn(`[checkSupplierChange] 采购文件解析失败: ${(e as Error).message}`);
+        return { current: item.awardedSupplier ?? '', extracted: null, changed: false, reason: '采购文件解析失败' };
+      }
+    }
+
+    const extracted = extractAwardedSupplierFromText(text) || null;
+    const normalize = (n: string) => n.replace(/\s+/g, '');
+    const current = item.awardedSupplier?.trim() ?? '';
+    const changed = !!extracted && !!current && normalize(extracted) !== normalize(current);
+    return {
+      current,
+      extracted,
+      changed,
+      reason: extracted ? null : '未能从采购文件中提取到供应商名称——若刚在采购文件编写中修改了供应商，请重新导出并上传采购文件后再核对',
+    };
   }
 
   /** 直接采购供应商抽选：读取立项/需求/采购文件内容，AI 推荐 3-5 家供应商 */
@@ -720,8 +776,7 @@ export class ProjectManagementService {
     for (const stage of stages) {
       for (const att of stage.attachments.slice(0, 3)) {
         try {
-          const buffer = await this.storage.download(att.objectKey);
-          const text = await this.documentParser.parse(buffer, att.mimeType, att.fileName);
+          const text = await this.readAttachmentText(att.objectKey, att.mimeType, att.fileName);
           if (text && text.length > 20) {
             contextParts.push(`【${stage.stageKey} - ${att.fileName}】${text.slice(0, 4000)}`);
           }
@@ -731,8 +786,51 @@ export class ProjectManagementService {
 
     const context = contextParts.join('\n\n');
 
-    // 调用 AI 推荐
-    const systemPrompt = `你是采购供应商智能推荐助手。根据项目的采购需求、立项事由、供方要求、采购内容、采购文件等信息，从供应商库中推荐3-5家最合适的供应商。
+    // ── 候选池：真实供应商库（2026-09-11 修复）──
+    // 旧实现只对 LLM 说「从供应商库中推荐」却不喂名单、不校验结果——LLM 凭行业常识
+    // 编造「四川诺克机械」等库外公司名，用户可选到库里不存在的供应商。现改为：
+    // 库内 APPROVED 供应商经关键词粗筛后作为候选名单喂给 AI，且返回结果强制校验命中名单。
+    const pool = await this.prisma.supplier.findMany({
+      where: { status: 'APPROVED' },
+      select: {
+        name: true,
+        tags: true,
+        businessScope: true,
+        classification: { select: { name: true } },
+      },
+      take: 600,
+    });
+    if (pool.length === 0) {
+      return { suppliers: [], contextSummary: '供应商库为空（无已入库供应商），无法推荐' };
+    }
+
+    // 关键词粗筛：项目标题/类别/事由与供应商 名称/标签/经营范围 匹配计分，取 top 60；
+    // 无命中时退化为库内前 60（按名称稳定排序），保证 AI 始终有真实候选可选。
+    const keywords = [project.title, project.procurementCategory, project.projectReason, project.supplierRequirements]
+      .filter(Boolean).join(' ')
+      .replace(/[（）()【】\[\]、，。：:;；/\\\-—_*]/g, ' ');
+    const kwSet = [...new Set(keywords.split(/\s+/).filter((k) => k.length >= 2))];
+    const scored = pool.map((s) => {
+      const hay = `${s.name} ${(s.tags || []).join(' ')} ${s.businessScope || ''} ${s.classification?.name || ''}`;
+      let score = 0;
+      for (const kw of kwSet) if (hay.includes(kw)) score++;
+      return { s, score };
+    });
+    const shortlist = scored
+      .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name, 'zh'))
+      .slice(0, 60)
+      .map(({ s }) => {
+        const tags = (s.tags || []).slice(0, 4).join('、');
+        const scope = (s.businessScope || '').slice(0, 60);
+        return `- ${s.name}${tags ? `（${tags}）` : ''}${scope ? `：${scope}` : ''}`;
+      })
+      .join('\n');
+
+    // 调用 AI 推荐（从给定名单中选择，不得编造）
+    const systemPrompt = `你是采购供应商智能推荐助手。根据项目采购信息，从下面给出的【候选供应商名单】中推荐 3-5 家最合适的供应商。
+【候选供应商名单】（只能从这个名单中选择，名单之外的公司一律不得输出）：
+${shortlist}
+
 请输出一个 JSON 对象，结构固定为：
 {
   "suppliers": [
@@ -740,17 +838,24 @@ export class ProjectManagementService {
   ]
 }
 要求：
-1. 供应商名称必须真实可查，不要编造虚构的公司名
+1. name 必须与候选名单中的名称逐字一致（可省略名单中括号内的补充说明），严禁编造名单之外的公司名
 2. 推荐理由基于项目的实际采购内容和要求
 3. matchScore 为 0-100 的匹配度评分
 4. 只输出 JSON，不要任何解释`;
 
+    const normalizeName = (n: string) => n.replace(/\s+/g, '').toLowerCase();
+    const poolNames = new Set(pool.map((s) => normalizeName(s.name)));
+
     try {
       const result = await this.aiService.chatJson<{
         suppliers: Array<{ name: string; reason: string; matchScore: number }>;
-      }>(systemPrompt, context.slice(0, 8000), 0.3);
+      }>(systemPrompt, context.slice(0, 4000), 0.3);
+      // 幻觉兜底：AI 输出的名称必须命中库内名单，未命中的直接丢弃
+      const validated = (result.suppliers || [])
+        .filter((s) => s?.name && poolNames.has(normalizeName(s.name)))
+        .slice(0, 5);
       return {
-        suppliers: (result.suppliers || []).slice(0, 5),
+        suppliers: validated,
         contextSummary: context.slice(0, 500),
       };
     } catch {
@@ -849,9 +954,19 @@ export class ProjectManagementService {
     if (hasDemand && !hasInitiation) {
       // Only demand form → land on INITIATION (or CONTRACT for small purchases)
       firstActiveStage = isSmallPurchase ? 'CONTRACT' : 'INITIATION';
+    } else if (isSmallPurchase) {
+      firstActiveStage = 'CONTRACT';
     } else {
-      // Only initiation form or both forms → land on TENDER_DOCUMENT (or CONTRACT for small purchases)
-      firstActiveStage = isSmallPurchase ? 'CONTRACT' : 'TENDER_DOCUMENT';
+      // Only initiation form or both forms → 第一个待办阶段按实际模板取「补记 COMPLETED 的
+      // 最后一个前置阶段之后的第一个非锁定阶段」，不能写死 TENDER_DOCUMENT——直接采购模板
+      // 没有「采购文件」步骤（立项后直接进公告公示），写死会使该方式项目建项后无任何
+      // 进行中阶段且 currentStage 指向不存在的阶段（实录 2026-09-11：01/02 已完成、03 待解锁）
+      const lastPrefillKey: StageKey = 'INITIATION';
+      const prefillIndex = stagesToCreate.findIndex((s) => s.key === lastPrefillKey);
+      const afterPrefill = stagesToCreate
+        .slice(prefillIndex + 1)
+        .find((s) => !LOCKED_STAGES.has(s.key));
+      firstActiveStage = afterPrefill?.key ?? stagesToCreate[0]!.key;
     }
 
     const createdProject = await this.prisma.$transaction(async (tx) => {
@@ -3766,8 +3881,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       const chunks: string[] = [];
       for (const a of stage.attachments.slice(0, 5)) {
         try {
-          const buffer = await this.storage.download(a.objectKey);
-          const txt = await this.documentParser.parse(buffer, a.mimeType, a.fileName);
+          const txt = await this.readAttachmentText(a.objectKey, a.mimeType, a.fileName);
           if (txt && txt.trim()) chunks.push(`【${a.fileName}】${txt.trim().slice(0, 4000)}`);
         } catch (e) {
           this.logger.warn(`[optimizeInitiation] 读取附件失败 ${a.fileName}: ${(e as Error)?.message}`);
@@ -5626,10 +5740,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const isDirect = procurementMethod === '直接采购';
     const isNegotiationOrInquiry = procurementMethod === '谈判采购' || procurementMethod === '询比采购';
 
-    // 直接采购：文档使用"递交和谈判时间"或"递交及谈判时间"
+    // 直接采购：2026-09-09 起模板标签统一为「开标时间」（原「递交和谈判时间」），正则须两者都认
     // 谈判/询比：文档使用"递交及谈判时间"、"响应截止及谈判时间"等
     const patterns: RegExp[] = isDirect
       ? [
+          /开标时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
           /递交[及和]谈判时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
           /谈判时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
           /递交时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
@@ -5652,9 +5767,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // Fallbacks: 适配不同采购方式的关键词
+    // Fallbacks: 适配不同采购方式的关键词（直接采购含 2026-09-09 起新标签「开标时间」）
     const timeKeywords = isDirect
-      ? '递交和谈判时间|递交及谈判时间|谈判时间|递交时间'
+      ? '开标时间|递交和谈判时间|递交及谈判时间|谈判时间|递交时间'
       : (isNegotiationOrInquiry ? '递交[及和]谈判|谈判时间|递交时间|开标时间|投标截止|响应文件提交截止' : '开标时间|投标截止时间|响应文件提交截止时间');
 
     // Fallback 1: standalone date pattern near time keyword
@@ -5713,6 +5828,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 规范化开标时间：统一为"YYYY年M月D日H:MM"格式（24小时制）。
    * 保留原文时分；若无时分，含"下午/午后"线索补 14:00，否则补 9:00。
    */
+  /** AI 从采购文件文本中提取「开标时间」（规则/关键词提取失败时的兜底）。
+   *  文档标签随采购方式各异（开标时间/递交和谈判时间/投标截止时间等），规则覆盖不全时由此兜底。 */
+  private async aiExtractBidOpeningTime(text: string): Promise<string | null> {
+    try {
+      const systemPrompt =
+        '从以下采购文件文本中提取"开标时间"（开标/递交响应文件/谈判开始的具体日期时间，字段名可能是"开标时间""递交和谈判时间""投标截止时间"等），' +
+        '必须保留日期与时分（如09:00、14:00）。只输出一个日期时间（如"2026年9月20日14:00"），不要其他说明。' +
+        '如果文本中没有该信息，输出"无"。';
+      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1);
+      const cleaned = result?.trim();
+      if (cleaned && cleaned !== '无' && /\d{4}年/.test(cleaned)) {
+        return cleaned;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   private async aiNormalizeBidOpeningTime(text: string): Promise<string> {
     if (!text) return text;
     try {
@@ -5810,6 +5944,26 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
 
+
+  /**
+   * 读取项目管理阶段附件文本（2026-09-11）：附件由 persistUploadedFile 落本地磁盘
+   * （uploads/project-management/<storedFileName>，objectKey 即该相对路径），不进 MinIO——
+   * 此前回退路径调 storage.download 必然 404（key does not exist），长期被 /tmp 文本缓存
+   * 掩盖。统一改为本地优先，本地缺失再试 MinIO（防御未来迁移对象存储）。
+   */
+  private async readAttachmentText(objectKey: string, mimeType?: string | null, fileName?: string): Promise<string> {
+    const storedName = objectKey.split('/').pop() ?? objectKey;
+    const localPath = resolve(getUploadDir(), storedName);
+    try {
+      const stat = await (await import('fs/promises')).stat(localPath).catch(() => null);
+      if (stat?.isFile()) {
+        const buffer = await (await import('fs/promises')).readFile(localPath);
+        return await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName);
+      }
+    } catch { /* 本地读取失败继续尝试 MinIO */ }
+    const buffer = await this.storage.download(objectKey);
+    return await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName);
+  }
 
   private async persistUploadedFile(
     file: Express.Multer.File,

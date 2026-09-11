@@ -21,7 +21,7 @@ const typeTagType: Record<string, string> = { BID_NOTICE: "primary", PRE_WIN_NOT
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 const ANNO_TYPE_META: Record<string, MetaField[]> = {
   BID_NOTICE: [
-    { key: "projectCode", label: "项目编号" }, { key: "method", label: "招标方式" }, { key: "budget", label: "预算金额" },
+    { key: "projectCode", label: "项目编号" }, { key: "method", label: "采购方式" }, { key: "budget", label: "预算金额" },
     { key: "downloadDeadline", label: "采购文件下载时间" },
     { key: "deadline", label: "报名/投标截止", date: true }, { key: "openTime", label: "开标时间", date: true }, { key: "contact", label: "联系方式" },
     { key: "scope", label: "采购内容/范围", area: true }, { key: "qualification", label: "投标人资格要求", area: true },

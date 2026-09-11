@@ -31,6 +31,7 @@ import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, s
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { openField } from '../common/crypto/field-crypto';
 import { parseFlexibleDate } from '../common/parse-date.util';
+import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { generateProjectCode } from '../common/project-code.util';
 import { GbCodeService } from '../common/gb-code.service';
 import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
@@ -752,7 +753,9 @@ export class BidService {
 
     const project = await this.prisma.bidProject.create({
       data: {
-        name: announcement.title,
+        // 项目名剥离公告标题的类型前缀（「直接采购公告 — X」→「X」）：供应商门户「采购项目」
+        // 列表/详情只应展示项目名（2026-09-11 拍板），前缀属公告展示语义
+        name: stripAnnouncementTitlePrefix(announcement.title),
         projectCode,
         procurementMethod,
         evaluationMethod: getEvaluationDefault(procurementMethod).evaluationMethod,

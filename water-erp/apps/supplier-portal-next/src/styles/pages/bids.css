@@ -249,18 +249,27 @@
 .ov-notif { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 .ov-notif summary { font-size: 12px; font-weight: 700; color: var(--brand); cursor: pointer; }
 .ov-notif-body { margin-top: 10px; font-size: 13px; line-height: 1.8; color: var(--muted-foreground); white-space: pre-line; }
-/* 公告结构化信息条 — 镜像信息发布中心，仅展示有值字段 */
+/* 公告结构化信息条 — 镜像信息发布中心 :3005：chip 瓷片 + 分类色（方向性双影，无外侧框线） */
 .cc-meta {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 10px 14px;
+  display: flex; flex-wrap: wrap;
+  gap: 8px 14px;
   padding-bottom: 18px; margin-bottom: 18px;
   box-shadow: inset 0 -1px 0 var(--hairline);
 }
-.cc-meta-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cc-meta-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 8px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.06), -1px -1px 1px oklch(1 0 0 / 0.7);
+}
 .cc-meta-label { font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.08em; }
-.cc-meta-value { font-size: 14px; color: var(--foreground); line-height: 1.5; word-break: break-word; }
-.cc-meta-value.mono { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--brand); font-weight: 700; }
-.cc-meta-value.strong { font-weight: 800; font-variant-numeric: tabular-nums; }
+.cc-meta-value { font-size: 12px; font-weight: 600; color: var(--foreground); line-height: 1.4; word-break: break-word; }
+/* 分类色（对齐 :3005 renderMeta）：编号=品牌蓝+等宽，金额=绿色加粗，日期=警示橙 */
+.cc-meta-chip--code .cc-meta-label { color: var(--accent-strong); }
+.cc-meta-chip--code .cc-meta-value { color: var(--accent-strong); font-family: 'SF Mono', 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: -0.02em; }
+.cc-meta-chip--money .cc-meta-label { color: var(--success); }
+.cc-meta-chip--money .cc-meta-value { color: var(--success); font-weight: 900; font-variant-numeric: tabular-nums; }
+.cc-meta-chip--date .cc-meta-label { color: var(--warning); }
 .cc-conds {
   display: flex; flex-direction: column; gap: 10px;
   padding-bottom: 18px; margin-bottom: 18px;

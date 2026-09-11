@@ -39,8 +39,11 @@ export class AnnouncementAiService {
         undefined,
         {
           model: this.config.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
-          maxTokens: 512,
-          timeoutMs: 60_000,
+          // 推理型模型：思维链（reasoning）与正文共享输出预算——512 时 reasoning 即可耗尽
+          // 预算导致 content 为空（实录 2026-09-11：reasoning_tokens 1383 + 正文 193）。
+          // 4096 给思维链波动留足余量；极端超限时 LlmService 按 finish_reason=length 重试
+          maxTokens: 4096,
+          timeoutMs: 90_000,
         },
       );
 
@@ -70,7 +73,17 @@ export class AnnouncementAiService {
       .replace(/\s+/g, ' ')
       .trim();
 
+    // 提示词泄漏防御（2026-09-11 实录）：LLM 偶发把任务指令当摘要输出
+    // （「我们需要生成归纳型摘要，160-240汉字…要点：…」）——命中指令元话语
+    // 特征即判无效，返回空串让上游走无摘要兜底，绝不让提示词冒充摘要入库
+    if (this.looksLikePromptLeak(cleaned)) return '';
+
     return this.truncateAtSentence(cleaned, 320);
+  }
+
+  /** 识别"模型复述任务指令"型输出：命中摘要要求元话语或任务规划措辞 */
+  private looksLikePromptLeak(text: string): boolean {
+    return /我们需要生成|归纳型摘要|不重复.{0,4}标题|不照抄|字数控制|160[-—到~\s]{1,3}240|个汉字|只使用原文已有信息|语气.{0,2}正式|公告类型：.{0,12}要点：/.test(text);
   }
 
   private truncateAtSentence(summary: string, maxLength: number) {

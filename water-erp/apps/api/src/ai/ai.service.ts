@@ -502,7 +502,8 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
         0.2,
         undefined,
         undefined,
-        { maxTokens: 500, timeoutMs: 30_000 },
+        // 推理型模型思维链与正文共享输出预算：500 会被 reasoning 耗尽导致正文为空
+        { maxTokens: 2048, timeoutMs: 60_000 },
       );
       return await this.sanitizeAiText((summary || '').replace(/```[^]*?```/g, '').trim().slice(0, 500));
     } catch {
@@ -1557,7 +1558,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       const text = (
         await this.llm.chat(systemPrompt, userPrompt, 0.3, undefined, undefined, {
           model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
-          maxTokens: 1600,
+          maxTokens: 3072, // 推理模型思维链预算（reasoning 单次可达 1400+，正文另需空间）
           timeoutMs: 15_000,
           retries: 0,
         })

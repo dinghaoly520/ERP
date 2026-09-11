@@ -244,16 +244,9 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
       {
         key: "projectDuration",
         label: "项目完成期限",
-        placeholder: "无",
+        // 2026-09-11 拍板：不再支持选择时间——纯文字填写，AI 一键生成随其他字段直接产出
+        placeholder: "例如 自合同签订之日起 60 日内完成",
         aiPrompt: "生成项目完成期限。规则：直接输出完成期限的内容本身（如“自合同签订之日起 60 日内完成”），严禁在开头重复“项目完成期限：”作为前缀，也不要输出任何其他说明文字。",
-        composite: {
-          typeKey: "projectDurationType",
-          typeLabel: "期限类型",
-          typeOptions: [
-            { value: "date", label: "选择时间" },
-            { value: "text", label: "填写文字" },
-          ],
-        },
       },
       { key: "documentAcquireTime", label: "采购文件获取时间", placeholder: "请输入采购文件获取时间", aiPrompt: "生成采购文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。" },
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元", aiPrompt: "生成采购文件售价。本公司电子采购文件免费提供，只输出数字 0，不要添加元、元/份等单位或任何说明。" },
@@ -338,7 +331,6 @@ export function createEmptySingleSourceDraft(): SingleSourceDraft {
     supplierName: "",
     projectBudget: "",
     projectDuration: "",
-    projectDurationType: "",
     documentAcquireTime: "",
     documentPrice: "0",
     submissionAndNegotiationTime: "",

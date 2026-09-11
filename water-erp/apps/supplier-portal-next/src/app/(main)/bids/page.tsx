@@ -14,6 +14,25 @@ import { ServerClock } from "@/components/server-clock";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
+/** 中文日期时间 → YYYY-MM-DD HH:mm（与开标时间展示格式一致）；解析失败返 null */
+function cnDatetimeToIso(s: string): string | null {
+  const m = s.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")} ${m[4].padStart(2, "0")}:${m[5]}`;
+}
+
+/** 采购文件获取区间统一为 YYYY-MM-DD HH:mm ~ YYYY-MM-DD HH:mm（与开标时间格式一致） */
+function formatAcquireWindow(raw: string): string {
+  const segs = raw.split(/至|-|~|～/).map((s) => s.trim()).filter(Boolean);
+  if (segs.length >= 2) {
+    const a = cnDatetimeToIso(segs[0]);
+    const b = cnDatetimeToIso(segs[1]);
+    if (a && b) return `${a} ~ ${b}`;
+  }
+  const single = cnDatetimeToIso(raw);
+  return single ? `至 ${single}` : raw;
+}
+
 const stageMap: Record<string, { label: string; color: string }> = {
   DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)" },
   SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)" },
@@ -234,36 +253,56 @@ export default function BidListPage() {
                         <span className="meta-code">{p.projectCode}</span>
                         <span className="meta-sep">·</span>
                         <span>{p.procurementMethod}</span>
-                        <span className="meta-sep">·</span>
-                        <span>开标 {dayjs(p.openTime).format("MM-DD HH:mm")}</span>
                       </div>
-                      {/* 谈判配置信息：采购文件获取窗口 + 开标时间 + 文件下载 */}
-                      {p.negotiation && (
-                        <div className="row-nego">
-                          <span className="nego-item">
-                            <span className="nego-label">采购文件获取</span>
-                            <span className="nego-val">{dayjs(p.negotiation.acquireStartTime).format("MM-DD HH:mm")} ~ {dayjs(p.negotiation.acquireEndTime).format("MM-DD HH:mm")}</span>
-                          </span>
-                          <span className="nego-item">
-                            <span className="nego-label">开标时间</span>
-                            <span className="nego-val">{dayjs(p.negotiation.bidOpeningTime).format("YYYY-MM-DD HH:mm")}</span>
-                          </span>
-                          <button
-                            type="button"
-                            className={`neu-btn-xs nego-dl ${winState === "open" ? "is-open" : ""} ${winState === "before" ? "is-before" : ""}`}
-                            disabled={winState !== "open" || negoLoading === p.id}
-                            onClick={() => downloadNegotiationFiles(p)}
-                          >
-                            {negoLoading === p.id
-                              ? "下载中…"
-                              : winState === "before"
-                                ? `未开放（${p.negotiation.fileCount} 个文件）`
-                                : winState === "after"
-                                  ? "已截止"
-                                  : `下载采购文件（${p.negotiation.fileCount}）`}
-                          </button>
-                        </div>
-                      )}
+                      {/* 统一关键时间信息（所有项目）：采购文件获取 + 开标时间 + （谈判）文件下载。
+                          开标时间只在此处展示一次；非谈判项目用 downloadDeadline 作获取截止兜底 */}
+                      {(() => {
+                        const nego = p.negotiation;
+                        const acquireStart = nego?.acquireStartTime;
+                        const acquireEnd = nego?.acquireEndTime;
+                        const acquireText = (acquireStart && acquireEnd)
+                          ? `${dayjs(acquireStart).format("YYYY-MM-DD HH:mm")} ~ ${dayjs(acquireEnd).format("YYYY-MM-DD HH:mm")}`
+                          : p.downloadDeadline
+                            ? `至 ${dayjs(p.downloadDeadline).format("YYYY-MM-DD HH:mm")}`
+                            // 非谈判项目：PMI 阶段提取的中文区间 → 统一格式
+                            : (typeof p.documentAcquireTime === 'string' && p.documentAcquireTime.trim())
+                              ? formatAcquireWindow(p.documentAcquireTime.trim())
+                              : "";
+                        const openText = p.openTime ? dayjs(p.openTime).format("YYYY-MM-DD HH:mm") : "";
+                        if (!acquireText && !openText && !nego) return null;
+                        return (
+                          <div className="row-nego">
+                            {acquireText && (
+                              <span className="nego-item">
+                                <span className="nego-label">采购文件获取</span>
+                                <span className="nego-val">{acquireText}</span>
+                              </span>
+                            )}
+                            {openText && (
+                              <span className="nego-item">
+                                <span className="nego-label">开标时间</span>
+                                <span className="nego-val">{openText}</span>
+                              </span>
+                            )}
+                            {nego && (
+                              <button
+                                type="button"
+                                className={`neu-btn-xs nego-dl ${winState === "open" ? "is-open" : ""} ${winState === "before" ? "is-before" : ""}`}
+                                disabled={winState !== "open" || negoLoading === p.id}
+                                onClick={() => downloadNegotiationFiles(p)}
+                              >
+                                {negoLoading === p.id
+                                  ? "下载中…"
+                                  : winState === "before"
+                                    ? `未开放（${nego.fileCount} 个文件）`
+                                    : winState === "after"
+                                      ? "已截止"
+                                      : `下载采购文件（${nego.fileCount}）`}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className={`row-deadline ${isSubmitStage(p.stage) ? "submit-deadline" : ""}`}>
                       <small>投递截止</small>

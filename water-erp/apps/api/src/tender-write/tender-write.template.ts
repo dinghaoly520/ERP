@@ -365,6 +365,37 @@ function defaultQuotationTable(): TableData {
   return { rows: cells.length, cols: headers.length, cells };
 }
 
+/** 报价函文本模式 → Word XML（2026-09-11）：含 Tab 的行是表格样内容，渲染为带边框真表格
+ *  （列数取各行最大列数，短行补空 tc——空单元格同样有边框，与表格模式同口径）；
+ *  其余行保持格式化段落。AI 生成的报价函即 Tab 分隔清单，此前导出为纯文本无边框。 */
+function quotationTextToXml(text: string): string {
+  const lines = (text ?? '').split('\n').filter((l) => l.trim());
+  if (lines.length === 0) return '';
+
+  const isTabLine = (l: string) => l.includes('\t');
+  const tabLines = lines.filter(isTabLine);
+  if (tabLines.length === 0) return textToFormattedParagraphs(text);
+
+  const cols = Math.max(...tabLines.map((l) => l.split('\t').length));
+  const cells = tabLines.map((l) => {
+    const parts = l.split('\t');
+    // 短行补空单元格：网格对齐，空格子输出空 tc 保边框
+    return Array.from({ length: cols }, (_, i) => ({
+      content: (parts[i] ?? '').trim(),
+      rowSpan: 1,
+      colSpan: 1,
+      align: 'center' as const,
+    }));
+  });
+  const tableXml = tableDataToWordXml({ rows: cells.length, cols, cells });
+
+  const plainLines = lines.filter((l) => !isTabLine(l));
+  const plainXml = plainLines.length > 0
+    ? textToFormattedParagraphs(plainLines.join('\n'))
+    : '';
+  return plainXml + tableXml;
+}
+
 function tableDataToWordXml(table: TableData): string {
   const rows: string[] = [];
 
@@ -566,7 +597,7 @@ export function buildCompetitiveNegotiationReplacementPlan(
       replacementText: '',
       highlight: false,
       isFormattedText: true,
-      formattedTextXml: textToFormattedParagraphs(answers.quotationLetter),
+      formattedTextXml: quotationTextToXml(answers.quotationLetter),
     };
   } else {
     quotationReplacement = {
@@ -723,7 +754,7 @@ export function buildSingleSourceReplacementPlan(
       replacementText: '',
       highlight: false,
       isFormattedText: true,
-      formattedTextXml: textToFormattedParagraphs(answers.quotationLetter),
+      formattedTextXml: quotationTextToXml(answers.quotationLetter),
     };
   } else {
     quotationReplacement = {
@@ -837,7 +868,7 @@ export function buildInquiryPurchaseReplacementPlan(
       replacementText: '',
       highlight: false,
       isFormattedText: true,
-      formattedTextXml: textToFormattedParagraphs(answers.quotationLetter),
+      formattedTextXml: quotationTextToXml(answers.quotationLetter),
     };
   } else {
     quotationReplacement = {
@@ -930,7 +961,7 @@ export function buildInternalBiddingReplacementPlan(
       replacementText: '',
       highlight: false,
       isFormattedText: true,
-      formattedTextXml: textToFormattedParagraphs(answers.quotationLetter),
+      formattedTextXml: quotationTextToXml(answers.quotationLetter),
     };
   } else {
     quotationReplacement = {

@@ -214,6 +214,12 @@ export class ProjectManagementController {
     return this.projectManagementService.recommendSuppliersForProject(id);
   }
 
+  /** 拟定供应商核对：重解析采购文件提取当前供应商名，与项目已存值比对（只读） */
+  @Post(':id/check-supplier-change')
+  checkSupplierChange(@Param('id') id: string) {
+    return this.projectManagementService.checkSupplierChange(id);
+  }
+
   @Post(':id/optimize-initiation')
   optimizeInitiation(@Param('id') id: string) {
     return this.projectManagementService.optimizeInitiationFields(id);

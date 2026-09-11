@@ -42,6 +42,9 @@ import { ContactPickerDialog } from "./contact-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
 import { findContactByName } from "@/lib/api/contacts";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
+import { checkSupplierChange, updateProjectExtractedInfo } from "@/lib/api/project-management";
+import { getSupplierList } from "@/lib/api/supplier";
+import { confirmDialog } from "@/components/catalog/confirm-dialog";
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -249,6 +252,8 @@ function AnnouncementFieldEditor({
   onSampleOpen,
   onAiGenerate,
   onContactOpen,
+  onSupplierCheck,
+  supplierChecking,
 }: {
   field: AnnouncementFieldConfig;
   value: string;
@@ -261,6 +266,9 @@ function AnnouncementFieldEditor({
   onSampleOpen: (fieldKey: AnnouncementFieldKey, fieldLabel: string) => void;
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
+  /** 拟定供应商名称专属：核对采购文件中供应商是否已更换（替代 AI 内容优化） */
+  onSupplierCheck?: () => void;
+  supplierChecking?: boolean;
 }) {
   const hasValue = announcementFieldHasValue(field, value);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
@@ -309,6 +317,12 @@ function AnnouncementFieldEditor({
               onFavoriteToggle={() => onFavoriteToggle(field.key, value)}
               onAiGenerate={() => onAiGenerate(field.key, field.label, value, field.aiPrompt)}
               onContactOpen={onContactOpen}
+              aiOverride={field.key === 'supplierName' && onSupplierCheck ? {
+                title: '核对供应商：重新解析采购文件，检查拟定供应商是否已更换',
+                label: '核对供应商',
+                onClick: onSupplierCheck,
+                busy: supplierChecking,
+              } : undefined}
             />
           )}
           <span
@@ -664,6 +678,26 @@ export function AnnouncementDialog({
     setAiError(null);
 
     try {
+      // 「拟定供应商地址」不走 AI 编造（2026-09-11）：地址必须真实——按拟定供应商名称查库同步
+      // 注册地址，库内没有则明确提示，绝不生成虚构地址
+      if (fieldKey === 'supplierAddress') {
+        const sn = (((draft ?? {}) as Record<string, string>).supplierName || '').trim();
+        if (!sn) {
+          setAiError('请先填写「拟定供应商名称」');
+          setTimeout(() => setAiError(null), 5000);
+          return;
+        }
+        const addr = await lookupSupplierAddress(sn);
+        if (addr) {
+          handleFieldChange(fieldKey, addr);
+          toast.success('已从供应商库同步注册地址');
+        } else {
+          setAiError('供应商库中未找到该供应商的注册地址，请手动填写');
+          setTimeout(() => setAiError(null), 5000);
+        }
+        return;
+      }
+
       const context: Record<string, string> = {};
 
       // Include announcement draft fields as context
@@ -754,26 +788,20 @@ export function AnnouncementDialog({
             if (raw) sn = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
           } catch {}
         }
-        if (sn) patch.supplierName = sn;
-      }
-      if (!draftRecord.procurementTime?.trim() && project.bidOpeningTime?.trim()) {
-        // 中文日期时间 "2026年3月24日9:00" → ISO "2026-03-24T09:00"
-        const m = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
-        if (m) {
-          patch.procurementTime = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
-        } else {
-          const dm = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-          if (dm) patch.procurementTime = `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}T09:00`;
-        }
-      }
-      // 修正：procurementTime 已有值但不符合 datetime-local 格式（YYYY-MM-DDTHH:MM）→ 重新转换
-      if (draftRecord.procurementTime?.trim() && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.procurementTime)) {
-        const raw = draftRecord.procurementTime;
-        const m = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
-        if (m) {
-          patch.procurementTime = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
-        } else if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-          patch.procurementTime = `${raw}T09:00`;
+        // 只填纯公司名（2026-09-11）：存量值可能是整段论证文字（"本项目拟定供应商为X公司，住所地…"），
+        // 从中截取公司名，避免「拟定供应商名称」字段被长文本占满
+        const extractCompanyName = (t: string): string => {
+          const m = t.match(/(?:为|是|系|：|:)\s*([^，。,;；、]{2,40}?(?:有限公司|有限责任公司|股份有限公司|集团公司|公司|集团|厂|中心|院|所))/);
+          if (m) return m[1].trim();
+          const m2 = t.match(/^([^，。,;；、]{2,40}?(?:有限公司|有限责任公司|股份有限公司|集团公司|公司|集团|厂|中心|院|所))/);
+          if (m2) return m2[1].trim();
+          return t;
+        };
+        if (sn) patch.supplierName = extractCompanyName(sn);
+        // 拟定供应商地址联动（2026-09-11）：名称确定后从供应商库同步注册地址（仅填空，不覆盖已有）
+        if (!draftRecord.supplierAddress?.trim() && patch.supplierName) {
+          const addr = await lookupSupplierAddress(patch.supplierName);
+          if (addr) patch.supplierAddress = addr;
         }
       }
       if (!draftRecord.maxPriceNumeric?.trim() && project.budgetAmount != null) patch.maxPriceNumeric = String(project.budgetAmount);
@@ -840,6 +868,57 @@ export function AnnouncementDialog({
       }
     }
 
+    // ★ 采购时间（=开标时间）取值链（2026-09-11 修复：此前只认 project.bidOpeningTime——
+    // 项目信息未填时智能填入永远填不上，且 ANNOUNCEMENT_AUTO_FILL 的 procurementTime 映射
+    // 指向 tenderDraft 中不存在的键名（各方式开标时间字段为 submissionAndNegotiationTime/
+    // responseDeadline/bidOpeningTime/responseSubmissionTime），Pass 2 恒落空）。
+    // 顺序：项目 bidOpeningTime → tenderDraft 各方式开标时间 → 兜底推算（公示期限止或
+    // 今日往后推 3 个工作日 14:00，与采购文件侧开标时间推算规则同口径）
+    const cnOrIsoToISODatetime = (raw: string): string | null => {
+      const m = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+      if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
+      const dm = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+      if (dm) return `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}T09:00`;
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw}T09:00`;
+      return null;
+    };
+    const addWorkdays = (base: Date, n: number): Date => {
+      const d = new Date(base);
+      let added = 0;
+      while (added < n) {
+        d.setDate(d.getDate() + 1);
+        const dow = d.getDay();
+        if (dow !== 0 && dow !== 6) added++;
+      }
+      return d;
+    };
+    const fallbackOpeningIso = (() => {
+      const endRaw = (patch.announcementEnd || draftRecord.announcementEnd || '').trim();
+      const em = endRaw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const base = em ? new Date(Number(em[1]), Number(em[2]) - 1, Number(em[3])) : new Date();
+      const d = addWorkdays(base, 3);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T14:00`;
+    })();
+    if (!draftRecord.procurementTime?.trim() && !patch.procurementTime
+        && fields.some((f) => f.key === 'procurementTime')) {
+      const tenderOpeningRaw =
+        tenderRecord.submissionAndNegotiationTime?.trim()
+        || tenderRecord.responseDeadline?.trim()
+        || tenderRecord.bidOpeningTime?.trim()
+        || tenderRecord.responseSubmissionTime?.trim()
+        || '';
+      patch.procurementTime =
+        (project?.bidOpeningTime?.trim() ? cnOrIsoToISODatetime(project.bidOpeningTime) : null)
+        || (tenderOpeningRaw ? cnOrIsoToISODatetime(tenderOpeningRaw) : null)
+        || fallbackOpeningIso;
+    }
+    // 修正：已有值但不符合 datetime-local 格式（含 Pass 2 混入的中文值）→ 重新转换
+    if (draftRecord.procurementTime?.trim() && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.procurementTime)) {
+      const fixed = cnOrIsoToISODatetime(draftRecord.procurementTime);
+      if (fixed) patch.procurementTime = fixed;
+    }
+
     // Pass 2: 从 tenderDraft 映射填入剩余空字段
     for (const field of fields) {
       if (hiddenFields.includes(field.key)) continue;
@@ -893,6 +972,79 @@ export function AnnouncementDialog({
     handleFieldChange("contactEmail", contact.email);
     handleFieldChange("contactPhone", contact.phone);
   };
+
+  // ★ 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
+  // 与字段值比对——相同则确认未更换（顺带把误填的长文本截成纯名字），不同则提示并确认更新。
+  const [supplierChecking, setSupplierChecking] = useState(false);
+  /** 按名称查供应商库取注册地址（精确名匹配）——「拟定供应商地址」随供应商联动（2026-09-11） */
+  const lookupSupplierAddress = useCallback(async (name: string): Promise<string | null> => {
+    try {
+      const r = await getSupplierList({ search: name, pageSize: 10, status: 'APPROVED' });
+      const hit = (r.items || []).find((s: { name: string }) => s.name.replace(/\s+/g, '') === name.replace(/\s+/g, ''));
+      const addr = (hit as { registeredAddress?: string | null } | undefined)?.registeredAddress?.trim();
+      return addr || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const handleSupplierCheck = useCallback(async () => {
+    if (!project?.id) {
+      toast.error('缺少项目上下文，无法核对');
+      return;
+    }
+    setSupplierChecking(true);
+    try {
+      const r = await checkSupplierChange(project.id);
+      if (!r.extracted) {
+        setAiError(r.reason || '未能从采购文件中提取到供应商名称');
+        setTimeout(() => setAiError(null), 5000);
+        return;
+      }
+      const draftRecord = (draft ?? {}) as Record<string, string>;
+      const currentField = draftRecord.supplierName?.trim() ?? '';
+      const normalize = (n: string) => n.replace(/\s+/g, '');
+      // 供应商变更后地址联动（2026-09-11）：库内有注册地址→同步；库内无→清空旧供应商地址防误导
+      const syncAddressFor = async (supplierName: string, force: boolean) => {
+        const addr = await lookupSupplierAddress(supplierName);
+        if (addr) {
+          handleFieldChange('supplierAddress', addr);
+        } else if (force || draftRecord.supplierAddress?.trim()) {
+          handleFieldChange('supplierAddress', '');
+        }
+        return addr;
+      };
+      if (currentField && normalize(currentField) === normalize(r.extracted)) {
+        // 未更换：字段值若为长文本（如论证段落），截成纯公司名；地址为空时顺带从库内补
+        if (currentField !== r.extracted) handleFieldChange('supplierName', r.extracted);
+        if (!draftRecord.supplierAddress?.trim()) await syncAddressFor(r.extracted, false);
+        toast.success(`拟定供应商未更换：${r.extracted}`);
+        return;
+      }
+      const ok = await confirmDialog({
+        title: '拟定供应商已更换',
+        message: currentField
+          ? `采购文件中的拟定供应商与当前填写不一致，是否更新？\n当前：${currentField.slice(0, 40)}${currentField.length > 40 ? '…' : ''}\n采购文件：${r.extracted}`
+          : `采购文件中的拟定供应商：${r.extracted}\n是否填入？`,
+        confirmText: '更新为新供应商',
+        cancelText: '保持不变',
+      });
+      if (ok) {
+        handleFieldChange('supplierName', r.extracted);
+        await updateProjectExtractedInfo(project.id, { awardedSupplier: r.extracted });
+        const addr = await syncAddressFor(r.extracted, true);
+        toast.success(
+          addr
+            ? `拟定供应商已更新：${r.extracted}（地址已同步）`
+            : `拟定供应商已更新：${r.extracted}（供应商库中未找到注册地址，请补充「拟定供应商地址」）`,
+        );
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '核对失败');
+    } finally {
+      setSupplierChecking(false);
+    }
+  }, [project?.id, draft, handleFieldChange, lookupSupplierAddress]);
 
   const handleContactNameChange = async (value: string) => {
     handleFieldChange("contactName", value);
@@ -1171,6 +1323,8 @@ export function AnnouncementDialog({
                       onSampleOpen={handleSampleOpen}
                       onAiGenerate={handleAiGenerate}
                       onContactOpen={() => setContactPickerOpen(true)}
+                      onSupplierCheck={handleSupplierCheck}
+                      supplierChecking={supplierChecking}
                     />
                         </Fragment>
                       );

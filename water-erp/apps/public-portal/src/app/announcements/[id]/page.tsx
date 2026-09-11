@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { PhoneCall } from 'lucide-react';
 import { fetchPublicAnnouncement, ANNOUNCEMENTS, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
@@ -136,6 +137,27 @@ export default function AnnouncementDetailPage() {
             className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
             dangerouslySetInnerHTML={{ __html: item.content }}
           />
+
+          {/* 异议联系方式（2026-09-11）：发布时自澄清说明快照写入，公告阅读后单独展示 */}
+          {(() => {
+            const oc = String(item.metadata?.objectionContact ?? '').trim();
+            if (!oc) return null;
+            const isHtml = /<[a-z][\s\S]*>/i.test(oc);
+            return (
+              <div className="mt-8 rounded-2xl px-5 py-4"
+                style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), inset -1px -1px 3px oklch(0.55 0.03 258 / 0.05)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <PhoneCall size={14} style={{ color: '#064ea2' }} />
+                  <span className="text-sm font-bold" style={{ color: '#064ea2' }}>异议联系方式</span>
+                </div>
+                {isHtml ? (
+                  <div className="text-[14px] leading-relaxed text-[#26364e] announcement-detail-content" dangerouslySetInnerHTML={{ __html: oc }} />
+                ) : (
+                  <p className="text-[14px] leading-relaxed whitespace-pre-wrap text-[#26364e]">{oc}</p>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

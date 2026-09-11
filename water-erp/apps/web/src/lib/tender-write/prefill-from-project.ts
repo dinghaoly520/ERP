@@ -57,10 +57,8 @@ export function buildPrefillFromProject(
         projectBudget: budgetStr,
         supplierName: project.awardedSupplier || '',
         contactName: project.requesterName || draft.contactName,
-        // 语义字段兜底（2026-09-08：直接采购文档此前仅预填 4 个基础字段，采购要求/内容恒空）：
-        // 采购要求 ← 立项「供方要求」；采购内容 ← 需求表采购标题或立项事由；获取时间 ← 阶段提取值
-        procurementRequirements: project.supplierRequirements || '',
-        procurementContent: project.demandProcurementTitle || project.projectReason || '',
+        // 采购内容/采购要求不再直塞立项原文（2026-09-11 拍板）：保持为空，由 AI 基于立项事由/
+        // 供方要求等上下文生成（buildAiGenerationContext 已携带两者作素材）；获取时间 ← 阶段提取值
         documentAcquireTime: project.documentAcquireTime || '',
       };
     }

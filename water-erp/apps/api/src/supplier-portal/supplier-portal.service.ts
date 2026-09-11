@@ -907,9 +907,17 @@ export class SupplierPortalService {
     if (!project.projectManagementItemId) return project;
     const pm = await this.prisma.projectManagementItem.findUnique({
       where: { id: project.projectManagementItemId },
-      select: { projectCode: true },
+      select: { projectCode: true, documentAcquireTime: true },
     });
-    return pm?.projectCode ? { ...project, projectCode: pm.projectCode } : project;
+    if (!pm) return project;
+    const out: Record<string, unknown> = { ...project, projectCode: pm.projectCode ?? project.projectCode };
+    // 采购文件获取时间（非谈判项目）：PMI 阶段提取的中文区间「YYYY年MM月DD日HH:MM至…」，
+    // BidProject.downloadDeadline 对直接采购等常为空，此字段是唯一权威来源（2026-09-11）
+    const downloadDeadline = (project as { downloadDeadline?: Date | null }).downloadDeadline;
+    if (downloadDeadline == null && pm.documentAcquireTime) {
+      out.documentAcquireTime = pm.documentAcquireTime;
+    }
+    return out as T;
   }
 
   /** 公告 relatedProjectCode 的候选编号集合：业务编号（PMI.projectCode，公告实际存储值）∪ 内部编号（历史数据兜底）。
@@ -1212,11 +1220,41 @@ export class SupplierPortalService {
     // 无缓存（未下发谈判配置）：回退基础信息
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { name: true, procurementMethod: true, scope: true, riskNote: true },
+      select: {
+        id: true, name: true, procurementMethod: true, scope: true, riskNote: true,
+        projectCode: true, projectManagementItemId: true,
+      },
     });
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // 概览首选公告 AI 摘要（2026-09-11 拍板）：供应商门户「项目概览」应复用信息门户
+    // 已生成的归纳型摘要，而不是再拼一段「招标范围/风险提示」的基础文本。撞号安全解析
+    // 所属采购公告，命中即取 aiSummary；无摘要再回退基础拼接。
+    const ownAnnouncement = await this.resolveOwnAnnouncement<{ id: string; aiSummary: string | null }>(
+      project,
+      { aiSummary: true },
+    );
+    if (ownAnnouncement?.aiSummary?.trim()) {
+      return {
+        overview: ownAnnouncement.aiSummary.trim(),
+        notification: null,
+        acquireStartTime: null,
+        acquireEndTime: null,
+        bidOpeningTime: null,
+        downloadMode: null,
+      };
+    }
+
+    // 概览清洗（2026-09-11）：①风险注解剥离发布联动的运维标记（「（来自公告自动创建）」「PMI ZJ-xxx」
+    // 不对供应商展示，清洗后为空则整段省略）；②scope 自带句号与模板句号叠加出现「。。」，统一去尾再拼
+    const cleanRiskNote = (project.riskNote || '')
+      .replace(/（来自公告自动创建）/g, '')
+      .replace(/PMI\s+[A-Z]{2}-\d+/gi, '')
+      .replace(/^[；;、\s]+|[；;，。\s]+$/g, '')
+      .trim();
+    const scopeText = (project.scope || '').replace(/[。\s]+$/, '');
     return {
-      overview: `${project.name}（${project.procurementMethod}）。招标范围：${project.scope || '详见采购文件'}。${project.riskNote ? `风险提示：${project.riskNote}。` : ''}`,
+      overview: `${project.name}（${project.procurementMethod}）。招标范围：${scopeText || '详见采购文件'}。${cleanRiskNote ? `风险提示：${cleanRiskNote}。` : ''}`,
       notification: null,
       acquireStartTime: null,
       acquireEndTime: null,

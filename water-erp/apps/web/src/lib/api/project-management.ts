@@ -558,6 +558,20 @@ export type ExtractedInfoPayload = {
   supplierRequirements?: string;
 };
 
+/** 拟定供应商核对：重解析采购文件提取当前供应商名，与项目已存值比对（只读） */
+export async function checkSupplierChange(projectId: string): Promise<{
+  current: string;
+  extracted: string | null;
+  changed: boolean;
+  reason?: string | null;
+}> {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/check-supplier-change`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJsonResponse(response);
+}
+
 export async function updateProjectExtractedInfo(
   projectId: string,
   payload: ExtractedInfoPayload,

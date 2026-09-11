@@ -7,12 +7,12 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, ShieldCheck, ListChecks,
+  CircleX, CircleCheck, Info, KeyRound, ShieldCheck,
 } from "lucide-react";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import type { UKeyAdapter } from "@water-erp/ukey";
-import { bidApi, type TenderRequirementsSummary } from "@/lib/api/bid";
+import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
@@ -55,7 +55,7 @@ function boundCertSn(): string {
 
 const STAGES = ["DOWNLOAD", "SUBMIT", "OPENING", "EVALUATING", "ARCHIVED"] as const;
 const stageMap: Record<string, { label: string; color: string; guide: string }> = {
-  DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)", guide: "可下载招标文件、查看项目范围与资质要求，提前准备投标材料。" },
+  DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)", guide: "可下载采购文件、查看项目范围与资质要求，提前准备投标材料。" },
   SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)", guide: "标书已开放投递，请在截止时间前完成标书文件加密上传与提交。" },
   OPENING: { label: "在线开标", color: "var(--bid-stage-opening)", guide: "项目已进入开标流程，届时可在线参与开标确认，核实开标信息。" },
   EVALUATING: { label: "专家评标", color: "var(--bid-stage-evaluating)", guide: "评标委员会正在对标书进行综合评审，请耐心等候评标结果公示。" },
@@ -110,6 +110,8 @@ function BidDetailInner() {
   const [project, setProject] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [notice, setNotice] = useState("");
+  // 异议联系方式（2026-09-11 互通）：与澄清说明同源，采购端在澄清说明页维护
+  const [objectionContact, setObjectionContact] = useState("");
 
   // ── 招标文件 ──
   const [bidDoc, setBidDoc] = useState<any>(null);
@@ -125,10 +127,7 @@ function BidDetailInner() {
   const [overview, setOverview] = useState<any>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
 
-  // ── 招标文件要点（A-87，P1 波4）：发布即前移提取的结构化清单（挂载拉一次，不轮询）──
-  const [tenderReq, setTenderReq] = useState<{ status: string; requirements: TenderRequirementsSummary | null } | null>(null);
-  const [tenderReqLoading, setTenderReqLoading] = useState(false);
-  const [trError, setTrError] = useState(false);
+  // ── 招标文件要点（A-87）板块已按 2026-09-11 拍板移除（解析不可用造成长期空态）──
 
   // ── 投标回执（A-101）：已递交后查看 + U盾补签 ──
   const [submission, setSubmission] = useState<any>(null);
@@ -166,16 +165,16 @@ function BidDetailInner() {
   // ── 公告结构化信息（来自 announcement.metadata，仅展示有值字段）──
   const metaFields = (() => {
     const m = project?.announcement?.metadata || null;
-    if (!m) return [] as { label: string; value: string; mono?: boolean; strong?: boolean }[];
-    const fields: { label: string; value: string; mono?: boolean; strong?: boolean }[] = [];
-    if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, mono: true });
-    if (m.method) fields.push({ label: "招标方式", value: m.method });
-    if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), strong: true });
-    if (m.deadline) fields.push({ label: "投标截止", value: fmtMetaDate(m.deadline), strong: true });
-    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), strong: true });
-    if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载" });
-    if (m.openTime) fields.push({ label: "开标时间", value: fmtMetaDate(m.openTime), strong: true });
-    if (m.contact) fields.push({ label: "联系方式", value: m.contact });
+    if (!m) return [] as { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain' }[];
+    const fields: { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain' }[] = [];
+    if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, kind: 'code' });
+    if (m.method) fields.push({ label: "采购方式", value: m.method, kind: 'plain' });
+    if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), kind: 'money' });
+    if (m.deadline) fields.push({ label: "投标截止", value: fmtMetaDate(m.deadline), kind: 'date' });
+    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: String(m.downloadDeadline), kind: 'plain' });
+    if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
+    if (m.openTime) fields.push({ label: "开标时间", value: fmtMetaDate(m.openTime), kind: 'date' });
+    if (m.contact) fields.push({ label: "联系方式", value: m.contact, kind: 'plain' });
     return fields;
   })();
 
@@ -205,6 +204,12 @@ function BidDetailInner() {
     } catch {
       setNotice("");
     }
+    try {
+      const oc = await bidApi.getObjectionContact();
+      setObjectionContact(oc?.value || "");
+    } catch {
+      setObjectionContact("");
+    }
   }
 
   async function loadOverview() {
@@ -217,20 +222,6 @@ function BidDetailInner() {
       setOverviewLoading(false);
     }
   }
-
-  /** A-87：招标文件要点（READY/PENDING）——失败落空态，空态内「重新获取」可重拉 */
-  const loadTenderReq = useCallback(async () => {
-    setTenderReqLoading(true);
-    try {
-      setTenderReq(await bidApi.getTenderRequirements(projectId));
-      setTrError(false);
-    } catch {
-      setTenderReq(null); // 拦截器已全局 toast
-      setTrError(true);
-    } finally {
-      setTenderReqLoading(false);
-    }
-  }, [projectId]);
 
   const loadAll = useCallback(async () => {
     setError(false);
@@ -245,7 +236,6 @@ function BidDetailInner() {
       setProfile(prof);
       loadBidDoc();
       loadOverview();
-      loadTenderReq();
       // A-101 回执卡：仅已入库供应商拉本人递交记录（临时供应商无 Supplier 行，跳过避免噪音）
       if (prof?.status === "APPROVED") void reloadSubmission();
     } catch {
@@ -253,7 +243,7 @@ function BidDetailInner() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, loadBidDoc, reloadSubmission, loadTenderReq]);
+  }, [projectId, loadBidDoc, reloadSubmission]);
 
   useEffect(() => {
     loadAll();
@@ -399,49 +389,6 @@ function BidDetailInner() {
     return t ? dayjs(t).format("YYYY-MM-DD HH:mm") : "—";
   }
 
-  // ══ A-87 招标文件要点：摘要行四段（各值空则略去该段）+ 三分组折叠列表 ══
-  const trReady = tenderReq?.status === "READY" && !!tenderReq.requirements;
-  const trSummary = (() => {
-    const r = tenderReq?.requirements;
-    if (!r) return [] as { label: string; value: string }[];
-    const segs: { label: string; value: string }[] = [];
-    if (r.projectType) segs.push({ label: "项目类型", value: r.projectType });
-    if (r.priceEvaluationMethod) segs.push({ label: "评标办法", value: r.priceEvaluationMethod });
-    if (r.maxPrice != null) segs.push({ label: "最高限价", value: fmtBudget(r.maxPrice) });
-    if (r.bidDeadline) segs.push({ label: "截止", value: fmtMetaDate(r.bidDeadline) });
-    return segs;
-  })();
-
-  /** 折叠分组：标题+条数；条目=★徽标（isStarred，仅技术组）+ category 小标签 + content */
-  function renderTrGroup(
-    title: string,
-    items: Array<{ category: string; content: string; isStarred?: boolean }>,
-    starred: boolean,
-  ) {
-    return (
-      <details className="ov-notif">
-        <summary>{title}（{items.length} 条）</summary>
-        {items.length > 0 ? (
-          <div className="cq-list mt-2">
-            {items.map((it, i) => (
-              <div key={`${i}-${it.category}`} className="cq-item">
-                {(it.category || (starred && it.isStarred)) && (
-                  <div className="cq-head">
-                    {starred && it.isStarred && <span className="b-tag b-tag--warning">★</span>}
-                    {it.category && <span className="b-tag b-tag--info">{it.category}</span>}
-                  </div>
-                )}
-                <div className="cq-text">{it.content}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bc-empty">本组暂无条目</div>
-        )}
-      </details>
-    );
-  }
-
   return (
     <div className="page-container">
       {loading ? (
@@ -556,59 +503,23 @@ function BidDetailInner() {
                 ) : null}
               </div>
 
-              {/* ═══ 招标文件要点（A-87，P1 波4）：系统解析的结构化清单；挂载拉一次不轮询 ═══ */}
-              <div className="content-card neu-card">
-                <div className="ov-head">
-                  <span className="ov-head-icon"><ListChecks size={16} strokeWidth={1.75} /></span>
-                  <h3>招标文件要点（系统解析）</h3>
-                </div>
-                {tenderReqLoading ? (
-                  <div className="ov-loading"><Loader2 size={18} className="is-loading" /><span>正在获取招标文件要点…</span></div>
-                ) : trReady && tenderReq?.requirements ? (
-                  <>
-                    {/* 摘要行：项目类型 · 评标办法 · 最高限价 · 截止（空值段略去） */}
-                    {trSummary.length > 0 && (
-                      <p className="mb-1.5 text-[12.5px] text-muted-foreground">
-                        {trSummary.map((s, i) => (
-                          <span key={s.label}>
-                            {i > 0 && <span className="mx-2 text-[var(--hairline)]">·</span>}
-                            {s.label}{" "}<strong className="font-bold text-foreground">{s.value}</strong>
-                          </span>
-                        ))}
-                      </p>
-                    )}
-                    <div className="mt-1.5">
-                      {renderTrGroup("资格要求", tenderReq.requirements.qualification, false)}
-                      {renderTrGroup("技术要求", tenderReq.requirements.technical, true)}
-                      {renderTrGroup("商务要求", tenderReq.requirements.commercial, false)}
-                    </div>
-                    <p className="cq-desc !mt-3 !mb-0">解析由系统自动生成，以招标文件原文为准</p>
-                  </>
-                ) : (
-                  /* PENDING/无数据显解析空态；拉取失败显错误文案（真零条款项目后端也返 PENDING） */
-                  <div className="bc-empty !py-4.5">
-                    <p>{trError ? "获取失败，请点击重新获取重试" : "解析中或尚未生成——可先下载招标文件查阅原文"}</p>
-                    <SpButton variant="soft" onClick={loadTenderReq}>重新获取</SpButton>
-                  </div>
-                )}
-              </div>
-
               {/* ═══ 公告正文 ═══ */}
               <div className="content-card neu-card">
-                {/* 公告结构化信息（镜像信息发布中心） */}
+                {/* 公告结构化信息（镜像信息发布中心 :3005——chip 瓷片 + 分类色） */}
                 {metaFields.length > 0 && (
                   <div className="cc-meta">
                     {metaFields.map((f) => (
-                      <div key={f.label} className="cc-meta-item">
+                      <span key={f.label} className={`cc-meta-chip ${f.kind === 'code' ? 'cc-meta-chip--code' : f.kind === 'money' ? 'cc-meta-chip--money' : f.kind === 'date' ? 'cc-meta-chip--date' : ''}`}>
                         <span className="cc-meta-label">{f.label}</span>
-                        <span className={`cc-meta-value ${f.mono ? "mono" : ""} ${f.strong ? "strong" : ""}`}>{f.value}</span>
-                      </div>
+                        <span className="cc-meta-value">{f.value}</span>
+                      </span>
                     ))}
                   </div>
                 )}
 
-                {/* 招标条件（招标范围已融入上方项目概览，此处不再单独展示） */}
-                {(project.qualification || project.contact || project.qualityRequirement) && (
+                {/* 招标条件（招标范围已融入上方项目概览，此处不再单独展示）；
+                    联系方式已在上方结构化信息条展示，此处不再重复 */}
+                {(project.qualification || project.qualityRequirement) && (
                   <div className="cc-conds">
                     {project.qualification && (
                       <div className="cc-cond">
@@ -620,12 +531,6 @@ function BidDetailInner() {
                       <div className="cc-cond">
                         <span className="cc-cond-hd">质量要求</span>
                         <p className="cc-cond-bd">{project.qualityRequirement}</p>
-                      </div>
-                    )}
-                    {project.contact && (
-                      <div className="cc-cond">
-                        <span className="cc-cond-hd">联系方式</span>
-                        <p className="cc-cond-bd">{project.contact}</p>
                       </div>
                     )}
                   </div>
@@ -678,7 +583,7 @@ function BidDetailInner() {
                 <div className="bottom-grid">
                   {/* 招标文件 */}
                   <div className="neu-card bottom-card">
-                    <div className="bc-hd">招标文件</div>
+                    <div className="bc-hd">采购文件</div>
                     {bidDoc ? (
                       <>
                         <div className="bdoc">
@@ -696,7 +601,7 @@ function BidDetailInner() {
                               {bidDoc.needPassword && <BAlert type="warning" title="需输入下载密码" />}
                               {bidDoc.needPassword && <SpButton variant="soft" onClick={() => setPwdDialog(true)}>输入下载密码</SpButton>}
                               {bidDoc.canDownload && (
-                                <SpButton variant="primary" disabled={downloading} icon={Download} onClick={doDownload}>下载招标文件</SpButton>
+                                <SpButton variant="primary" disabled={downloading} icon={Download} onClick={doDownload}>下载采购文件</SpButton>
                               )}
                             </>
                           )}
@@ -705,7 +610,7 @@ function BidDetailInner() {
                     ) : bidDocLoading ? (
                       <LoadingBlock />
                     ) : (
-                      <div className="bc-empty">暂无招标文件</div>
+                      <div className="bc-empty">暂无采购文件</div>
                     )}
                   </div>
 
@@ -722,7 +627,13 @@ function BidDetailInner() {
                     {notice ? (
                       <div className="cq-notice" dangerouslySetInnerHTML={{ __html: notice }} />
                     ) : (
-                      <p className="cq-desc">如需获取信息，请按招标文件载明的方式，拨打招标联系人电话或以书面来函提交。</p>
+                      <p className="cq-desc">如需获取信息，请按采购文件载明的方式，拨打招标联系人电话或以书面来函提交。</p>
+                    )}
+                    {objectionContact && (
+                      <div className="cq-notice mt-2 rounded-[12px] px-3 py-2.5" style={{ background: 'color-mix(in oklch, var(--accent, #064ea2) 6%, transparent)' }}>
+                        <span className="mr-1.5 text-[12px] font-bold" style={{ color: 'var(--accent, #064ea2)' }}>异议联系方式</span>
+                        <div className="mt-1 text-[13px] leading-relaxed text-[var(--foreground)]" dangerouslySetInnerHTML={{ __html: objectionContact }} />
+                      </div>
                     )}
                     {project.clarifications?.length ? (
                       <div className="cq-list">

@@ -111,4 +111,21 @@ export class SystemConfigController {
   async updateClarificationNotice(@Body() dto: UpdateConfigDto, @Request() req: any) {
     return this.configService.set('supplier_clarification_notice', dto.value, req.user?.sub);
   }
+
+  // 异议联系方式（2026-09-11，源自澄清说明页）：公告发布向导带入、公告详情页单独展示；公开读取
+  @Get('objection-contact')
+  @Public()
+  @ApiOperation({ summary: '异议联系方式（公开）' })
+  async getObjectionContact() {
+    const row = await this.configService.get('objection_contact');
+    return { value: row?.value ?? '' };
+  }
+
+  // 编辑异议联系方式：仅采购管理方
+  @Put('objection-contact')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '编辑异议联系方式' })
+  async updateObjectionContact(@Body() dto: UpdateConfigDto, @Request() req: any) {
+    return this.configService.set('objection_contact', dto.value, req.user?.sub);
+  }
 }

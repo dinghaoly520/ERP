@@ -63,6 +63,10 @@ export const bidApi = {
   getClarificationNotice() {
     return api.get<any>("/system-config/clarification-notice");
   },
+  // 异议联系方式（2026-09-11 互通，只读，与澄清说明同源）
+  getObjectionContact() {
+    return api.get<any>("/system-config/objection-contact");
+  },
   // P2c: 多轮报价
   getMyBidSupplier(projectId: string) {
     return api.get<any>(`/supplier-portal/projects/${projectId}/my-bid-supplier`);
