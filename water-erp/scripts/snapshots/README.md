@@ -5,7 +5,10 @@
 ## 恢复脚本
 
 ```bash
-# 在 water-erp/ 目录下执行
+# 方式一（推荐）：一键脚本
+scripts/snapshots/restore-demo.sh
+
+# 方式二：原始 node 脚本
 node scripts/demo-snapshot.js restore scripts/snapshots/JJ-2026091003-demo.json
 ```
 
@@ -14,6 +17,10 @@ node scripts/demo-snapshot.js restore scripts/snapshots/JJ-2026091003-demo.json
 ## 生成新快照
 
 ```bash
+# 方式一（推荐）：一键脚本（默认编号 JJ-2026091003、快照名 demo）
+scripts/snapshots/snapshot-demo.sh [快照名] [编号]
+
+# 方式二：原始 node 脚本
 node scripts/demo-snapshot.js snapshot <BidProject 编号> <快照名>
 # 例：node scripts/demo-snapshot.js snapshot JJ-2026091003 demo
 # 输出：scripts/snapshots/<编号>-<快照名>.json
