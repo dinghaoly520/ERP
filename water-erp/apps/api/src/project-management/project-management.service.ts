@@ -658,7 +658,10 @@ export class ProjectManagementService {
       result.projectOverview = val;
     }
     if (wants('bidOpeningTime')) {
-      const raw = this.extractBidOpeningTimeFromText(text, procurementMethod);
+      // 规则提取落空时 AI 兜底（与 projectOverview/documentAcquireTime 同口径）——
+      // 旧版无兜底，直接采购模板改「开标时间」标签后正则不认 → 恒报「未能提取到该字段信息」
+      let raw = this.extractBidOpeningTimeFromText(text, procurementMethod);
+      if (!raw) raw = await this.aiExtractBidOpeningTime(text);
       const val = raw ? await this.aiNormalizeBidOpeningTime(raw) : null;
       if (val) updateData.bidOpeningTime = val;
       result.bidOpeningTime = val;
@@ -5688,10 +5691,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const isDirect = procurementMethod === '直接采购';
     const isNegotiationOrInquiry = procurementMethod === '谈判采购' || procurementMethod === '询比采购';
 
-    // 直接采购：文档使用"递交和谈判时间"或"递交及谈判时间"
+    // 直接采购：2026-09-09 起模板标签统一为「开标时间」（原「递交和谈判时间」），正则须两者都认
     // 谈判/询比：文档使用"递交及谈判时间"、"响应截止及谈判时间"等
     const patterns: RegExp[] = isDirect
       ? [
+          /开标时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
           /递交[及和]谈判时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
           /谈判时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
           /递交时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
@@ -5714,9 +5718,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // Fallbacks: 适配不同采购方式的关键词
+    // Fallbacks: 适配不同采购方式的关键词（直接采购含 2026-09-09 起新标签「开标时间」）
     const timeKeywords = isDirect
-      ? '递交和谈判时间|递交及谈判时间|谈判时间|递交时间'
+      ? '开标时间|递交和谈判时间|递交及谈判时间|谈判时间|递交时间'
       : (isNegotiationOrInquiry ? '递交[及和]谈判|谈判时间|递交时间|开标时间|投标截止|响应文件提交截止' : '开标时间|投标截止时间|响应文件提交截止时间');
 
     // Fallback 1: standalone date pattern near time keyword
@@ -5775,6 +5779,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 规范化开标时间：统一为"YYYY年M月D日H:MM"格式（24小时制）。
    * 保留原文时分；若无时分，含"下午/午后"线索补 14:00，否则补 9:00。
    */
+  /** AI 从采购文件文本中提取「开标时间」（规则/关键词提取失败时的兜底）。
+   *  文档标签随采购方式各异（开标时间/递交和谈判时间/投标截止时间等），规则覆盖不全时由此兜底。 */
+  private async aiExtractBidOpeningTime(text: string): Promise<string | null> {
+    try {
+      const systemPrompt =
+        '从以下采购文件文本中提取"开标时间"（开标/递交响应文件/谈判开始的具体日期时间，字段名可能是"开标时间""递交和谈判时间""投标截止时间"等），' +
+        '必须保留日期与时分（如09:00、14:00）。只输出一个日期时间（如"2026年9月20日14:00"），不要其他说明。' +
+        '如果文本中没有该信息，输出"无"。';
+      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1);
+      const cleaned = result?.trim();
+      if (cleaned && cleaned !== '无' && /\d{4}年/.test(cleaned)) {
+        return cleaned;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   private async aiNormalizeBidOpeningTime(text: string): Promise<string> {
     if (!text) return text;
     try {
