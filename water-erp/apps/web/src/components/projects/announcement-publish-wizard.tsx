@@ -21,6 +21,7 @@ import { uploadProjectStageAttachment, reprocProject, getPmBidProject, type Uplo
 import { getBidProjectDetail } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { getSupplierList } from '@/lib/api/supplier';
+import { getObjectionContact } from '@/lib/api/system-config';
 import { listBidProjects, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
@@ -265,9 +266,19 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // 多份采购文件时，公告引用哪一份（objectKey 唯一标识）；单份默认选它
   const [selectedTenderObjectKey, setSelectedTenderObjectKey] = useState<string>('');
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
-  // P1-4（2026-09-09 补录入口）：依法必招标式——勾选后发布闸门强制 B-004（售标→开标≥20 日）/B-009（发售期≥5 日）；
-  // 集团内部采购惯例（24h 截标↔开标）不勾选即维持非强制 + 偏离留痕。仅采购公告类目展示。
-  const [legalMandatory, setLegalMandatory] = useState(false);
+  // 异议联系方式（2026-09-11，取代原「法定时限」勾选——集团采购基本非依法必招，勾选无实际意义）：
+  // 打开向导时从澄清说明配置读取，发布时快照写入公告 metadata，信息门户详情页单独展示
+  const [objectionContact, setObjectionContact] = useState('');
+  const [objectionContactHtml, setObjectionContactHtml] = useState(false);
+  useEffect(() => {
+    getObjectionContact()
+      .then((r) => {
+        const v = r.value || '';
+        setObjectionContact(v);
+        setObjectionContactHtml(/<[a-z][\s\S]*>/i.test(v));
+      })
+      .catch(() => {});
+  }, []);
   const [annId, setAnnId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
   const [busy, setBusy] = useState(false);
@@ -813,8 +824,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
       meta.notifyOnPublish = notifyOnPublish;
-      // P1-4：依法必招标式随 metadata 下发（直建发布 guard 读取；建项后持久化为 BidProject.legalMandatory）
-      if (legalMandatory) meta.legalMandatory = true;
+      // 异议联系方式快照（2026-09-11）：随公告冻结在 metadata，详情页单独展示（澄清说明后续修改不影响已发公告）
+      if (objectionContact.trim()) meta.objectionContact = objectionContact;
       if (tenderOn && selectedTenderObjectKey) {
         meta.selectedTenderObjectKey = selectedTenderObjectKey;
         const tenderFile = tenderFiles.find((f) => f.objectKey === selectedTenderObjectKey) ?? tenderFiles[0];
@@ -1156,26 +1167,35 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               </div>
               )}
 
-              {/* ★ P1-4（2026-09-09）：依法必招标式——B-004/B-009 法定时限强制入口（仅采购公告） */}
-              {category === 'procurement_document' && (
-                <div className="rounded-[20px] p-5" style={{ background: legalMandatory ? 'color-mix(in oklch, var(--warning, #d97706) 6%, oklch(1 0 0 / 0.48))' : 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">法定时限</div>
-                  <label className="mt-3 flex items-start gap-2.5 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={legalMandatory}
-                      onChange={(e) => setLegalMandatory(e.target.checked)}
-                      className="mt-0.5 accent-[var(--accent)]"
-                    />
-                    <span>
-                      <span className="font-semibold text-[var(--foreground)]">本项目属于依法必须进行招标的项目</span>
-                      <span className="mt-1 block text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                        勾选后发布时强制校验：招标文件出售开始至开标不少于 20 日、发售期不少于 5 日（法定节假日顺延）；不满足将无法发布。集团内部采购惯例（截标↔开标 24 小时）请勿勾选——不勾选仅偏离留痕不拦截。
-                      </span>
-                    </span>
-                  </label>
+              {/* ★ 异议联系方式（2026-09-11，取代原「法定时限」勾选）：源自澄清说明配置，
+                  发布时快照写入 metadata.objectionContact，信息门户公告详情页单独展示 */}
+              <div className="rounded-[20px] p-5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">异议联系方式</div>
+                  <a
+                    href="/clar-notice"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-[var(--accent)] hover:underline"
+                  >
+                    在澄清说明中修改
+                  </a>
                 </div>
-              )}
+                {objectionContact.trim() ? (
+                  <div className="mt-3 text-sm leading-relaxed text-[var(--foreground)]">
+                    {objectionContactHtml ? (
+                      <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: objectionContact }} />
+                    ) : (
+                      <p className="whitespace-pre-wrap">{objectionContact}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                    尚未配置。请在「澄清说明」页面填写异议联系方式（如：对本公告内容有异议或疑问，请致电联系我们），
+                    保存后重新打开本向导即可随公告发布并在公告详情页展示。
+                  </p>
+                )}
+              </div>
 
               {/* ★ 中标公告公示期（2026-09-04）：发布后顺延 3 天异议期，与 BidProject A1 口径一致 */}
               {category === 'winning_bid' && (() => {

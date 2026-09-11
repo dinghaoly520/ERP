@@ -110,6 +110,8 @@ function BidDetailInner() {
   const [project, setProject] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [notice, setNotice] = useState("");
+  // 异议联系方式（2026-09-11 互通）：与澄清说明同源，采购端在澄清说明页维护
+  const [objectionContact, setObjectionContact] = useState("");
 
   // ── 招标文件 ──
   const [bidDoc, setBidDoc] = useState<any>(null);
@@ -204,6 +206,12 @@ function BidDetailInner() {
       setNotice(r?.value || "");
     } catch {
       setNotice("");
+    }
+    try {
+      const oc = await bidApi.getObjectionContact();
+      setObjectionContact(oc?.value || "");
+    } catch {
+      setObjectionContact("");
     }
   }
 
@@ -723,6 +731,12 @@ function BidDetailInner() {
                       <div className="cq-notice" dangerouslySetInnerHTML={{ __html: notice }} />
                     ) : (
                       <p className="cq-desc">如需获取信息，请按招标文件载明的方式，拨打招标联系人电话或以书面来函提交。</p>
+                    )}
+                    {objectionContact && (
+                      <div className="cq-notice mt-2 rounded-[12px] px-3 py-2.5" style={{ background: 'color-mix(in oklch, var(--accent, #064ea2) 6%, transparent)' }}>
+                        <span className="mr-1.5 text-[12px] font-bold" style={{ color: 'var(--accent, #064ea2)' }}>异议联系方式</span>
+                        <div className="mt-1 text-[13px] leading-relaxed text-[var(--foreground)]" dangerouslySetInnerHTML={{ __html: objectionContact }} />
+                      </div>
                     )}
                     {project.clarifications?.length ? (
                       <div className="cq-list">
