@@ -811,10 +811,24 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 2. 正文 = 公告全文 → HTML 段落（escape 防注入，空行分段，段内换行转 <br/>）
       const esc = (s: string) =>
         s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
-      const content = textContent.trim()
-        ? textContent
-            .split(/\n\s*\n/)
-            .map((p) => `<p>${esc(p).replace(/\n/g, '<br/>')}</p>`)
+      const paragraphs = textContent.trim()
+        ? textContent.split(/\n\s*\n/).map((p) => p.replace(/\s+$/, ''))
+        : [];
+      // 落款右对齐（2026-09-11）：正文落款块 = 采购人名称 + 落款日期两段。docx 靠前导空格
+      // 模拟右对齐，HTML 会折叠空格 → 识别最后一个「纯日期」段，其与前一采购人段统一右对齐
+      let sigDateIdx = -1;
+      for (let i = paragraphs.length - 1; i >= 0; i--) {
+        if (/^\s*\d{4}年\d{1,2}月\d{1,2}日\s*$/.test(paragraphs[i])) { sigDateIdx = i; break; }
+      }
+      const content = paragraphs.length
+        ? paragraphs
+            .map((p, i) => {
+              const isSignature = i === sigDateIdx || i === sigDateIdx - 1;
+              const inner = esc(p.replace(/^\s+/, '').replace(/\n/g, '<br/>'));
+              return isSignature
+                ? `<p style="text-align:right">${inner}</p>`
+                : `<p>${inner}</p>`;
+            })
             .join('')
         : `<p>${esc(title)}</p>`;
 
