@@ -25,7 +25,7 @@ const prisma = new PrismaClient();
 
 const SNAP_DIR = path.join(__dirname, 'snapshots');
 const MODE = process.argv[2];
-const PROJECT_CODE = process.argv[3] || 'BID-1786934256839';
+const PROJECT_CODE = process.argv[3] || 'JJ-2026091005';
 const SNAP_NAME = process.argv[4] || 'demo';
 
 // 快照表清单：[表名, 主键列, 查询条件列]（条件列用 projectId 或经 BidProject/PMI 关联）
@@ -48,13 +48,20 @@ const TABLES = [
   ['BidEvaluationResult', 'id', 'projectId'],
   ['ai_bid_analysis_tasks', 'id', 'projectId'],
   ['ai_bidder_results', 'id', 'bidProjectId'],
+  ['ai_concordance_results', 'id', 'taskId'],   // 一致性核验（2026-09-11 补）
+  ['ai_bid_reports', 'id', 'taskId'],           // AI 评审报告（2026-09-11 补）
 ];
 
 async function collectProjectRefs(project) {
   const pmi = project.projectManagementItemId
     ? await prisma.projectManagementItem.findUnique({ where: { id: project.projectManagementItemId } })
     : null;
-  const anns = await prisma.announcement.findMany({ where: { relatedProjectCode: project.projectCode } });
+  let anns = await prisma.announcement.findMany({ where: { relatedProjectCode: project.projectCode } });
+  // 撞号防护（2026-09-11）：relatedProjectCode 与 PMI 编码同空间，可能命中他方项目公告——
+  // 以公告 metadata.projectCode（发布时 PMI 业务编码）为准过滤归属。
+  if (pmi?.projectCode) {
+    anns = anns.filter((a) => (a.metadata?.projectCode ?? null) === pmi.projectCode);
+  }
   const annIds = anns.map(a => a.id);
   const bidDocs = annIds.length ? await prisma.bidDocument.findMany({ where: { announcementId: { in: annIds } } }) : [];
   const experts = await prisma.bidExpert.findMany({ where: { projectId: project.id } });
@@ -77,7 +84,9 @@ async function snapshot() {
     else if (table === 'ProjectManagementStage') rows = refs.pmi
       ? await prisma.$queryRawUnsafe(`SELECT * FROM "ProjectManagementStage" WHERE "projectManagementItemId"=$1`, refs.pmi.id)
       : [];
-    else if (table === 'Announcement') rows = await prisma.$queryRawUnsafe(`SELECT * FROM "Announcement" WHERE "relatedProjectCode"=$1`, PROJECT_CODE);
+    else if (table === 'Announcement') rows = refs.annIds.length
+      ? await prisma.$queryRawUnsafe(`SELECT * FROM "Announcement" WHERE "id" = ANY($1::text[])`, refs.annIds)
+      : [];
     else if (table === 'BidDocument') rows = refs.annIds.length
       ? await prisma.$queryRawUnsafe(`SELECT * FROM "BidDocument" WHERE "announcementId" = ANY($1::text[])`, refs.annIds)
       : [];
@@ -98,6 +107,11 @@ async function snapshot() {
       const supplierIds = await prisma.bidSupplier.findMany({ where: { projectId: project.id }, select: { id: true } });
       rows = supplierIds.length
         ? await prisma.$queryRawUnsafe(`SELECT * FROM ai_bidder_results WHERE "bidSupplierId" = ANY($1::text[])`, supplierIds.map(s => s.id))
+        : [];
+    } else if (table === 'ai_concordance_results' || table === 'ai_bid_reports') {
+      const taskIds = (data['ai_bid_analysis_tasks'] || []).map((t) => t.id);
+      rows = taskIds.length
+        ? await prisma.$queryRawUnsafe(`SELECT * FROM "${table}" WHERE "taskId" = ANY($1::text[])`, taskIds)
         : [];
     }
     // 原始行含 Date/BigInt——归一化为 JSON 安全值
@@ -127,17 +141,34 @@ async function restore() {
     'ai_bidder_results', 'ai_bid_analysis_tasks',
   ];
   if (project) {
+    // 先取当前项目的 AI 任务 id（审查子表无 projectId 列，按 taskId 清）
+    const curTaskIds = await prisma.$queryRawUnsafe(
+      `SELECT id FROM ai_bid_analysis_tasks WHERE "projectId"=$1`, project.id,
+    ).catch(() => []);
     for (const t of clear) {
       await prisma.$executeRawUnsafe(`DELETE FROM "${t}" WHERE "projectId"=$1`, project.id).catch(() => {});
     }
+    if (curTaskIds.length) {
+      for (const t of ['ai_concordance_results', 'ai_bid_reports']) {
+        await prisma.$executeRawUnsafe(
+          `DELETE FROM "${t}" WHERE "taskId" = ANY($1::text[])`, curTaskIds.map((x) => x.id),
+        ).catch(() => {});
+      }
+    }
     const supIds = await prisma.bidSupplier.findMany({ where: { projectId: project.id }, select: { id: true } });
     if (supIds.length) await prisma.$executeRawUnsafe(`DELETE FROM ai_bidder_results WHERE "bidSupplierId" = ANY($1::text[])`, supIds.map(s => s.id)).catch(() => {});
-    const anns = await prisma.announcement.findMany({ where: { relatedProjectCode: projectCode }, select: { id: true } });
+    const pmiCode = project.projectManagementItemId
+      ? (await prisma.projectManagementItem.findUnique({ where: { id: project.projectManagementItemId }, select: { projectCode: true } }).catch(() => null))?.projectCode ?? null
+      : null;
+    const anns = (await prisma.announcement.findMany({ where: { relatedProjectCode: projectCode }, select: { id: true, metadata: true } }))
+      .filter((a) => (pmiCode ? ((a.metadata?.projectCode ?? null) === pmiCode) : true));
     for (const a of anns) {
       await prisma.$executeRawUnsafe(`DELETE FROM "BidDocument" WHERE "announcementId"=$1`, a.id).catch(() => {});
       await prisma.$executeRawUnsafe(`DELETE FROM "AnnouncementAttachment" WHERE "announcementId"=$1`, a.id).catch(() => {});
     }
-    await prisma.$executeRawUnsafe(`DELETE FROM "Announcement" WHERE "relatedProjectCode"=$1`, projectCode);
+    if (anns.length) {
+      await prisma.$executeRawUnsafe(`DELETE FROM "Announcement" WHERE "id" = ANY($1::text[])`, anns.map((a) => a.id)).catch(() => {});
+    }
     if (project.projectManagementItemId) {
       await prisma.$executeRawUnsafe(`DELETE FROM "ProjectManagementStage" WHERE "projectManagementItemId"=$1`, project.projectManagementItemId);
       await prisma.$executeRawUnsafe(`DELETE FROM "ProjectManagementItem" WHERE "id"=$1`, project.projectManagementItemId);
@@ -165,6 +196,8 @@ async function restore() {
     BidEvaluationResult: prisma.bidEvaluationResult,
     ai_bid_analysis_tasks: prisma.aiBidAnalysisTask,
     ai_bidder_results: prisma.aiBidderResult,
+    ai_concordance_results: prisma.aiConcordanceResult,
+    ai_bid_reports: prisma.aiBidReport,
   };
   // CI/异 KMS 环境适配（SNAPSHOT_RESEAL_CRYPTO=1 时生效，dev 默认关闭保持原值）：
   // 快照内 SupplierBidSubmission 的 sealedKey/bidPrice 是 dev KMS_SECRET 包裹的——
