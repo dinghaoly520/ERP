@@ -121,10 +121,14 @@ export function fetchAnnouncementHistory(id: string) {
   return api.get<AnnouncementHistoryItem[]>(`/announcements/${id}/history`);
 }
 
-export function fetchAllAnnouncementHistories(params?: { page?: number; pageSize?: number }) {
+export function fetchAllAnnouncementHistories(params?: { page?: number; pageSize?: number; dateFrom?: string; dateTo?: string; action?: string; search?: string }) {
   const q = new URLSearchParams();
   if (params?.page) q.set('page', String(params.page));
   if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+  if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
+  if (params?.dateTo) q.set('dateTo', params.dateTo);
+  if (params?.action) q.set('action', params.action);
+  if (params?.search) q.set('search', params.search);
   return api.get<{ items: AnnouncementHistoryItem[]; total: number; page: number; pageSize: number }>(`/announcements/histories/all?${q.toString()}`);
 }
 

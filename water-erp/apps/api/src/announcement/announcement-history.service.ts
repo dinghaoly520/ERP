@@ -66,11 +66,19 @@ export class AnnouncementHistoryService {
     });
   }
 
-  /** 全局公告操作历史（新→旧，公告管理页总览） */
-  async listAll(params?: { page?: number; pageSize?: number }) {
+  /** 全局公告操作历史（新→旧，公告管理页总览）；支持按日期/操作类型/标题关键词过滤。 */
+  async listAll(params?: { page?: number; pageSize?: number; dateFrom?: string; dateTo?: string; action?: string; search?: string }) {
     const page = params?.page ?? 1;
     const pageSize = Math.min(params?.pageSize ?? 50, 200);
-    const where = {};
+    const where: any = {};
+    if (params?.action) where.action = params.action;
+    if (params?.search) where.title = { contains: params.search };
+    // 日期范围（YYYY-MM-DD，按本地时区边界）
+    if (params?.dateFrom || params?.dateTo) {
+      where.createdAt = {};
+      if (params?.dateFrom) where.createdAt.gte = new Date(`${params.dateFrom}T00:00:00`);
+      if (params?.dateTo) where.createdAt.lte = new Date(`${params.dateTo}T23:59:59.999`);
+    }
     const [items, total] = await Promise.all([
       this.prisma.announcementHistory.findMany({
         where,

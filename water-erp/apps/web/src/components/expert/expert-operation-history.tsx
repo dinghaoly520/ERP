@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { toast } from 'sonner';
+import { Modal } from '@/components/workbench';
 import { getExpertOperationHistory, type ExpertOperationHistoryItem } from '@/lib/api/expert';
-import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
-import { History, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, ShieldCheck, Search, X, CalendarDays } from 'lucide-react';
+import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays } from 'lucide-react';
+import { LEVEL_LABEL } from '@water-erp/shared';
 
-/** 审计动作 → 中文标签 */
-const ACTION_LABEL: Record<string, string> = {
+// 专家操作类型 → 中文标签（对齐供应商操作历史的设计口径）。
+const ACTION_LABELS: Record<string, string> = {
   EXPERT_CREATE: '录入专家',
   EXPERT_IMPORT: '批量导入',
   EXPERT_APPROVE: '审核入库',
@@ -24,270 +24,280 @@ const ACTION_LABEL: Record<string, string> = {
   EXPERT_VIOLATION_RECORDED: '违规记录',
 };
 
-/** 操作类型下拉选项（按生命周期顺序） */
-const ACTION_OPTIONS: { value: string; label: string }[] = [
-  { value: 'EXPERT_CREATE', label: '录入专家' },
-  { value: 'EXPERT_IMPORT', label: '批量导入' },
-  { value: 'EXPERT_APPROVE', label: '审核入库' },
-  { value: 'EXPERT_UPDATE', label: '更新资料' },
-  { value: 'EXPERT_ENABLE', label: '启用' },
-  { value: 'EXPERT_DISABLE', label: '停用' },
-  { value: 'EXPERT_BATCH_ENABLE', label: '批量启用' },
-  { value: 'EXPERT_BATCH_DISABLE', label: '批量停用' },
-  { value: 'EXPERT_SUSPEND', label: '暂停' },
-  { value: 'EXPERT_RESUME', label: '恢复' },
-  { value: 'EXPERT_RETIRE', label: '退库' },
-  { value: 'EXPERT_RETIRE_IGNORE', label: '忽略退库预警' },
-  { value: 'EXPERT_EVALUATE', label: '履职评价' },
-  { value: 'EXPERT_VIOLATION_RECORDED', label: '违规记录' },
-];
-
-/** 动作 → 徽章色 */
-const ACTION_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray' | 'purple'> = {
-  EXPERT_CREATE: 'green',
-  EXPERT_IMPORT: 'blue',
-  EXPERT_APPROVE: 'green',
-  EXPERT_UPDATE: 'blue',
-  EXPERT_ENABLE: 'green',
-  EXPERT_DISABLE: 'gray',
-  EXPERT_BATCH_ENABLE: 'green',
-  EXPERT_BATCH_DISABLE: 'gray',
-  EXPERT_SUSPEND: 'orange',
-  EXPERT_RESUME: 'blue',
-  EXPERT_RETIRE: 'red',
-  EXPERT_RETIRE_IGNORE: 'gray',
-  EXPERT_EVALUATE: 'purple',
-  EXPERT_VIOLATION_RECORDED: 'red',
+const ACTION_TONE: Record<string, string> = {
+  EXPERT_CREATE: 'var(--success)',
+  EXPERT_IMPORT: 'var(--accent)',
+  EXPERT_APPROVE: 'var(--success)',
+  EXPERT_UPDATE: 'var(--accent)',
+  EXPERT_ENABLE: 'var(--success)',
+  EXPERT_DISABLE: 'var(--warning)',
+  EXPERT_BATCH_ENABLE: 'var(--success)',
+  EXPERT_BATCH_DISABLE: 'var(--warning)',
+  EXPERT_SUSPEND: 'var(--warning)',
+  EXPERT_RESUME: 'var(--accent)',
+  EXPERT_RETIRE: 'var(--danger)',
+  EXPERT_RETIRE_IGNORE: 'var(--muted-foreground)',
+  EXPERT_EVALUATE: 'var(--accent)',
+  EXPERT_VIOLATION_RECORDED: 'var(--danger)',
 };
 
-/** 从 details 提取事由文本（按动作定制，避免冗长 JSON） */
-function detailText(action: string, d: Record<string, unknown> | null): string {
-  if (!d) return '';
-  const name = typeof d.expertName === 'string' ? d.expertName : '';
-  const reason = typeof d.reason === 'string' ? d.reason : '';
-  switch (action) {
-    case 'EXPERT_CREATE':
-      return [name, typeof d.specialty === 'string' ? d.specialty : ''].filter(Boolean).join(' · ');
-    case 'EXPERT_IMPORT':
-    case 'EXPERT_BATCH_ENABLE':
-    case 'EXPERT_BATCH_DISABLE':
-      return `共 ${d.count ?? d.imported ?? '?'} 位专家${reason ? ` · 事由：${reason}` : ''}`;
-    case 'EXPERT_EVALUATE':
-      return `${name ? name + ' ' : ''}综合 ${d.overallGrade ?? '—'}${d.updated ? ' · 更新' : ''}`;
-    case 'EXPERT_APPROVE':
-    case 'EXPERT_RESUME':
-    case 'EXPERT_SUSPEND':
-    case 'EXPERT_RETIRE': {
-      const segs = [name];
-      if (d.from && d.to) segs.push(`${d.from} → ${d.to}`);
-      if (reason) segs.push(`事由：${reason}`);
-      return segs.filter(Boolean).join(' · ');
-    }
-    case 'EXPERT_RETIRE_IGNORE':
-      return name ? `${name} · 90 天内不再扫描` : '90 天内不再扫描';
-    case 'EXPERT_VIOLATION_RECORDED':
-      return [typeof d.type === 'string' ? d.type : '', typeof d.detail === 'string' ? d.detail : ''].filter(Boolean).join('：');
-    default:
-      return [name, reason].filter(Boolean).join(' · ');
-  }
+/** 审计详情字段 → 中文标签（expertName 冗余——专家列已展示，故不在此列示）。 */
+const FIELD_LABELS: Record<string, string> = {
+  reason: '事由',
+  from: '原状态',
+  to: '新状态',
+  overallGrade: '评价等级',
+  projectId: '关联项目',
+  specialty: '专业',
+  type: '违规类型',
+  detail: '违规详情',
+  severity: '严重程度',
+  count: '处理数',
+  imported: '导入数',
+  skipped: '跳过数',
+  failed: '失败数',
+  updated: '更新',
+};
+
+/** 专家库状态枚举 → 中文 */
+const ENTRY_STATUS_LABEL: Record<string, string> = {
+  PENDING: '待审核',
+  ACTIVE: '在库',
+  SUSPENDED: '暂停',
+  RETIRED: '已退库',
+};
+
+/** 字段值中文化：状态/等级枚举转中文，数组逗号分隔，布尔转是/否。 */
+function formatValue(k: string, v: unknown): string {
+  if (v == null || v === '') return '—';
+  if (Array.isArray(v)) return v.join('、') || '—';
+  if (k === 'from' || k === 'to') return ENTRY_STATUS_LABEL[String(v)] ?? String(v);
+  if (k === 'overallGrade') return LEVEL_LABEL[String(v)] ?? String(v);
+  if (k === 'severity') return String(v) === 'danger' ? '严重' : String(v) === 'warning' ? '警告' : String(v);
+  if (k === 'updated') return v ? '是' : '否';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
 }
 
-/** 本地时区取 YYYY-MM-DD（用于按天分组与展示） */
-function dayKey(iso: string): string {
+/** 详情展示：优先展示事由/评价等级等关键字段，其余以只读键值列示（键值均中文）。 */
+function DetailLines({ item }: { item: ExpertOperationHistoryItem }) {
+  const d = (item.details ?? {}) as Record<string, unknown>;
+  // expertName 是资源名，与「专家」列重复，故剔除；仅展示有意义的补充字段。
+  const keys = Object.keys(d).filter(k => k !== 'expertName');
+  if (keys.length === 0) return <span className="text-xs text-[var(--muted-foreground)]">—</span>;
+
+  const prefer = ['reason', 'overallGrade', 'from', 'to', 'type', 'detail'];
+  const ordered = [...prefer.filter(k => keys.includes(k)), ...keys.filter(k => !prefer.includes(k))];
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1">
+      {ordered.map(k => (
+        <span key={k} className="text-xs text-[var(--muted-foreground)]">
+          <span className="text-[var(--foreground)]/60">{FIELD_LABELS[k] ?? k}</span>：
+          <span className="text-[var(--foreground)]">{formatValue(k, d[k])}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** 从 ISO 时间提取本地日期 YYYY-MM-DD（以天为单位的记录维度）。 */
+function localDay(iso: string): string {
   const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** 专家管理操作历史抽屉（审计只读，无任何修改/删除入口） */
+/** 从 ISO 时间提取本地时分 HH:mm（日期已在分组头，行内仅显示时分）。 */
+function localTime(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** YYYY-MM-DD → 中文日期（如 2026-09-10 → 2026年9月10日）。 */
+function dayLabel(day: string): string {
+  const d = new Date(`${day}T00:00:00`);
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
 export function ExpertOperationHistory({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [items, setItems] = useState<ExpertOperationHistoryItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [errored, setErrored] = useState(false);
-  // 检索条件
-  const [action, setAction] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  // 已提交的检索条件（点击「查询」才生效，避免每次输入都触发请求）
-  const [applied, setApplied] = useState<{ action: string; startDate: string; endDate: string }>({ action: '', startDate: '', endDate: '' });
+  const [loading, setLoading] = useState(true);
+  const [actionFilter, setActionFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const pageSize = 20;
 
-  const PAGE_SIZE = 20;
-
-  const load = useCallback(async (p: number) => {
-    setLoading(true); setErrored(false);
+  // 注意：doLoad 显式接收 filter 参数，依赖数组仅为 pageSize → 函数引用稳定，避免对象身份导致的 useEffect 死循环
+  const doLoad = useCallback(async (p: number, action: string, df: string, dt: string) => {
+    setLoading(true);
     try {
       const res = await getExpertOperationHistory({
-        page: p,
-        pageSize: PAGE_SIZE,
-        action: applied.action || undefined,
-        startDate: applied.startDate || undefined,
-        endDate: applied.endDate || undefined,
+        page: p, pageSize,
+        action: action || undefined,
+        startDate: df || undefined,
+        endDate: dt || undefined,
       });
       setItems(res.items);
       setTotal(res.total);
-    } catch (e: any) {
-      setErrored(true); toast.error(e?.message || '加载操作历史失败');
+      setPage(res.page);
+    } catch {
+      setItems([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [applied]);
+  }, [pageSize]);
 
   useEffect(() => {
     if (open) {
-      setPage(1); setAction(''); setStartDate(''); setEndDate('');
-      setApplied({ action: '', startDate: '', endDate: '' });
-      load(1);
+      setPage(1);
+      setActionFilter(''); setDateFrom(''); setDateTo('');
+      doLoad(1, '', '', '');
     }
-  }, [open, load]);
+  }, [open, doLoad]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasFilter = applied.action !== '' || applied.startDate !== '' || applied.endDate !== '';
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  /** 按天分组（同一天记录归组，展示日期标题） */
-  const grouped = useMemo(() => {
+  // 按天分组（后端已按 createdAt desc 排序，Map 保持日期从新到旧）。
+  const groups = useMemo(() => {
     const map = new Map<string, ExpertOperationHistoryItem[]>();
     for (const it of items) {
-      const k = dayKey(it.createdAt);
-      const arr = map.get(k);
-      if (arr) arr.push(it);
-      else map.set(k, [it]);
+      const day = localDay(it.createdAt);
+      if (!map.has(day)) map.set(day, []);
+      map.get(day)!.push(it);
     }
-    return Array.from(map.entries()).map(([date, rows]) => ({ date, rows }));
+    return [...map.entries()];
   }, [items]);
-
-  const doSearch = () => {
-    setPage(1);
-    setApplied({ action, startDate, endDate });
-    load(1);
-  };
-
-  const doReset = () => {
-    setAction(''); setStartDate(''); setEndDate('');
-    setPage(1);
-    setApplied({ action: '', startDate: '', endDate: '' });
-    load(1);
-  };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      size="xl"
-      title="操作历史"
-      description="专家入库、评价、停用、暂停、退库等操作的审计记录 · 仅追加、不可修改，为系统审计留痕"
+      title={
+        <span className="flex items-center gap-2">
+          <History size={16} className="text-[var(--accent)]" />
+          专家操作历史
+        </span>
+      }
+      description="入库、评价、停用、暂停、退库等全部操作的不可变留痕，供审计追溯，不支持修改"
+      size="2xl"
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">
+            <Lock size={11} />只读记录 · 共 {total} 条
+          </span>
+          <button onClick={onClose} className="neu-btn-soft">关闭</button>
+        </div>
+      }
     >
       <div className="space-y-3">
-        {/* 只读提示条 */}
-        <div className="flex items-center gap-2 rounded-xl bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
-          <ShieldCheck size={14} className="text-[var(--accent)] shrink-0" />
-          <span className="text-xs text-[var(--muted-foreground)]">记录不可编辑、不可删除，仅用于合规审计与追溯。</span>
-        </div>
+        {/* 筛选：操作类型 + 日期范围 */}
+        <div className="wb-toolbar !px-3 !py-2 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">操作类型</span>
+          <select
+            value={actionFilter}
+            onChange={e => { const v = e.target.value; setActionFilter(v); doLoad(1, v, dateFrom, dateTo); }}
+            className="workbench-input !w-auto !h-7 !text-[11px] min-w-[130px]"
+          >
+            <option value="">全部</option>
+            {Object.entries(ACTION_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
 
-        {/* 检索区：操作类型 + 日期范围 */}
-        <div className="flex flex-wrap items-end gap-2 rounded-xl bg-[color-mix(in_oklch,var(--muted-foreground)_3%,transparent)] p-3">
-          <label className="space-y-1">
-            <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">操作类型</span>
-            <select value={action} onChange={e => setAction(e.target.value)} className="workbench-input !h-[32px] !w-[130px] text-xs">
-              <option value="">全部类型</option>
-              {ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">起始日期</span>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="workbench-input !h-[32px] !w-[150px] text-xs" />
-          </label>
-          <span className="pb-[6px] text-[var(--muted-foreground)]/60 text-xs">至</span>
-          <label className="space-y-1">
-            <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">结束日期</span>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="workbench-input !h-[32px] !w-[150px] text-xs" />
-          </label>
-          <button onClick={doSearch} className="neu-btn-xs is-info !h-[32px]"><Search size={12} />查询</button>
-          {hasFilter && <button onClick={doReset} className="neu-btn-xs !h-[32px]"><X size={12} />重置</button>}
-          <button onClick={() => load(page)} disabled={loading} className="neu-btn-xs !h-[32px] ml-auto" aria-label="刷新">
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+          <span className="text-[11px] font-semibold text-[var(--muted-foreground)] flex items-center gap-1">
+            <CalendarDays size={12} />日期
+          </span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => { const v = e.target.value; setDateFrom(v); doLoad(1, actionFilter, v, dateTo); }}
+            className="workbench-input !w-auto !h-7 !text-[11px]"
+          />
+          <span className="text-[11px] text-[var(--muted-foreground)]">至</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => { const v = e.target.value; setDateTo(v); doLoad(1, actionFilter, dateFrom, v); }}
+            className="workbench-input !w-auto !h-7 !text-[11px]"
+          />
+
+          <div className="flex-1" />
+          <button onClick={() => doLoad(page, actionFilter, dateFrom, dateTo)} disabled={loading} className="neu-btn-xs gap-1" aria-label="刷新">
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
 
+        {/* 列表（按天分组） */}
         {loading ? (
-          <div className="neu-table-card"><table className="neu-table w-full min-w-[640px]"><tbody><TableSkeleton cols={4} rows={6} /></tbody></table></div>
-        ) : errored ? (
-          <div className="neu-table-card py-14 text-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
-              <p className="text-sm font-semibold text-[var(--danger)]">操作历史加载失败</p>
-              <button onClick={() => load(page)} className="neu-btn-soft"><RefreshCw size={15} />重试</button>
-            </div>
-          </div>
+          <div className="py-12 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>
         ) : items.length === 0 ? (
-          <div className="neu-table-card py-16 text-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><History size={22} className="text-[var(--muted-foreground)]" /></div>
-              <p className="text-sm text-[var(--muted-foreground)]">{hasFilter ? '无符合条件的操作记录' : '暂无操作记录'}</p>
-              {hasFilter && <button onClick={doReset} className="neu-btn-xs">清除筛选</button>}
-            </div>
-          </div>
+          <div className="py-12 text-center text-sm text-[var(--muted-foreground)]">暂无操作历史</div>
         ) : (
-          <>
-            {/* 按天分组展示 */}
-            <div className="space-y-3">
-              {grouped.map(({ date, rows }) => (
-                <div key={date} className="neu-table-card overflow-hidden">
-                  <div className="flex items-center gap-2 border-b border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] bg-[color-mix(in_oklch,var(--muted-foreground)_3%,transparent)] px-4 py-2">
-                    <CalendarDays size={13} className="text-[var(--accent)]" />
-                    <span className="text-xs font-bold text-[var(--foreground)]">{date}</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)] tabular-nums">{rows.length} 条</span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="neu-table w-full min-w-[680px]">
-                      <thead>
-                        <tr>
-                          <th style={{ width: 110 }}>操作</th>
-                          <th>对象</th>
-                          <th style={{ width: 120 }}>操作人</th>
-                          <th className="text-center" style={{ width: 80 }}>时间</th>
-                          <th>事由 / 详情</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map(it => {
-                          const d = (it.details ?? {}) as Record<string, unknown>;
-                          const name = typeof d.expertName === 'string' ? d.expertName : '';
-                          return (
-                            <tr key={it.id}>
-                              <td><StatusBadge tone={ACTION_TONE[it.action] ?? 'gray'}>{ACTION_LABEL[it.action] ?? it.action}</StatusBadge></td>
-                              <td className="text-sm font-semibold text-[var(--foreground)]">{name || (it.resourceId === 'batch' ? '批量' : '—')}</td>
-                              <td className="text-xs text-[var(--muted-foreground)]">
-                                {it.user?.displayName || it.user?.username || '系统'}
-                              </td>
-                              <td className="text-center text-xs tabular-nums text-[var(--muted-foreground)]">
-                                {new Date(it.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                              </td>
-                              <td className="text-xs text-[var(--muted-foreground)] max-w-[280px] truncate" title={detailText(it.action, d) || undefined}>
-                                {detailText(it.action, d) || '—'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="neu-table-card overflow-hidden">
+            <table className="workbench-table">
+              <thead>
+                <tr>
+                  <th>操作</th><th>专家</th><th>操作人</th><th>时间</th><th>详情</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map(([day, list]) => (
+                  <GroupRows key={day} day={day} list={list} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{total}</strong> 条 · 第 {page}/{totalPages} 页</span>
-              <div className="flex gap-1.5">
-                <button disabled={page <= 1} onClick={() => { const p = page - 1; setPage(p); load(p); }} className="neu-btn-xs disabled:opacity-30"><ChevronLeft size={14} /></button>
-                <button disabled={page >= totalPages} onClick={() => { const p = page + 1; setPage(p); load(p); }} className="neu-btn-xs disabled:opacity-30"><ChevronRight size={14} /></button>
-              </div>
-            </div>
-          </>
+        {/* 分页 */}
+        {total > pageSize && (
+          <div className="flex items-center justify-end gap-2">
+            <button onClick={() => doLoad(page - 1, actionFilter, dateFrom, dateTo)} disabled={page <= 1 || loading} className="neu-btn-xs gap-1">
+              <ChevronLeft size={12} />上一页
+            </button>
+            <span className="text-xs tabular-nums text-[var(--muted-foreground)]">{page} / {totalPages}</span>
+            <button onClick={() => doLoad(page + 1, actionFilter, dateFrom, dateTo)} disabled={page >= totalPages || loading} className="neu-btn-xs gap-1">
+              下一页<ChevronRight size={12} />
+            </button>
+          </div>
         )}
       </div>
     </Modal>
+  );
+}
+
+/** 某一天的分组：日期头行（跨列）+ 该天记录行。 */
+function GroupRows({ day, list }: { day: string; list: ExpertOperationHistoryItem[] }) {
+  return (
+    <>
+      <tr>
+        <td colSpan={5} className="!py-2 !px-3" style={{ background: 'color-mix(in oklch, var(--accent) 4%, transparent)' }}>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.06em] text-[var(--foreground)]">{dayLabel(day)}</span>
+            <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">{list.length} 条</span>
+          </div>
+        </td>
+      </tr>
+      {list.map(it => {
+        const tone = ACTION_TONE[it.action] || 'var(--foreground)';
+        const name = typeof (it.details as any)?.expertName === 'string' ? (it.details as any).expertName : '';
+        return (
+          <tr key={it.id}>
+            <td>
+              <span className="rounded px-2 py-0.5 text-[10px] font-bold whitespace-nowrap"
+                style={{ color: tone, backgroundColor: `color-mix(in_oklch,${tone}_12%,transparent)` }}>
+                {ACTION_LABELS[it.action] || it.action}
+              </span>
+            </td>
+            <td className="text-sm">{name || (it.resourceId === 'batch' ? '批量' : '—')}</td>
+            <td className="text-sm">{it.user?.displayName || it.user?.username || '系统'}</td>
+            <td className="text-xs tabular-nums text-[var(--muted-foreground)] whitespace-nowrap">{localTime(it.createdAt)}</td>
+            <td><DetailLines item={it} /></td>
+          </tr>
+        );
+      })}
+    </>
   );
 }

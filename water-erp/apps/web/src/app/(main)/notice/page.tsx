@@ -197,14 +197,14 @@ export default function NoticePage() {
 
           <div className="page-hero__right">
             <CompanySelect value={companyId} onChange={setCompanyId} />
-            <button onClick={load} disabled={loading} className="neu-btn-xs">
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
-            <button onClick={() => setShowAllHistories(true)} className="neu-btn-xs">
-              <HistoryIcon size={13} /> 公告历史
+            <button onClick={() => setShowAllHistories(true)} className="neu-btn-soft">
+              <HistoryIcon size={15} /> 公告历史
             </button>
             <button onClick={() => router.push('/notice/new')} className="neu-btn-soft">
               <PlusCircle size={15} /> 新建信息
+            </button>
+            <button onClick={load} disabled={loading} className="neu-btn-xs">
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             </button>
           </div>
         </div>
