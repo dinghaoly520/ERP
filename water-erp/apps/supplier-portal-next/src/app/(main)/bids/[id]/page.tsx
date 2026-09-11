@@ -165,16 +165,16 @@ function BidDetailInner() {
   // ── 公告结构化信息（来自 announcement.metadata，仅展示有值字段）──
   const metaFields = (() => {
     const m = project?.announcement?.metadata || null;
-    if (!m) return [] as { label: string; value: string; mono?: boolean; strong?: boolean }[];
-    const fields: { label: string; value: string; mono?: boolean; strong?: boolean }[] = [];
-    if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, mono: true });
-    if (m.method) fields.push({ label: "采购方式", value: m.method });
-    if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), strong: true });
-    if (m.deadline) fields.push({ label: "投标截止", value: fmtMetaDate(m.deadline), strong: true });
-    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), strong: true });
-    if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载" });
-    if (m.openTime) fields.push({ label: "开标时间", value: fmtMetaDate(m.openTime), strong: true });
-    if (m.contact) fields.push({ label: "联系方式", value: m.contact });
+    if (!m) return [] as { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain' }[];
+    const fields: { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain' }[] = [];
+    if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, kind: 'code' });
+    if (m.method) fields.push({ label: "采购方式", value: m.method, kind: 'plain' });
+    if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), kind: 'money' });
+    if (m.deadline) fields.push({ label: "投标截止", value: fmtMetaDate(m.deadline), kind: 'date' });
+    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: String(m.downloadDeadline), kind: 'plain' });
+    if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
+    if (m.openTime) fields.push({ label: "开标时间", value: fmtMetaDate(m.openTime), kind: 'date' });
+    if (m.contact) fields.push({ label: "联系方式", value: m.contact, kind: 'plain' });
     return fields;
   })();
 
@@ -505,14 +505,14 @@ function BidDetailInner() {
 
               {/* ═══ 公告正文 ═══ */}
               <div className="content-card neu-card">
-                {/* 公告结构化信息（镜像信息发布中心） */}
+                {/* 公告结构化信息（镜像信息发布中心 :3005——chip 瓷片 + 分类色） */}
                 {metaFields.length > 0 && (
                   <div className="cc-meta">
                     {metaFields.map((f) => (
-                      <div key={f.label} className="cc-meta-item">
+                      <span key={f.label} className={`cc-meta-chip ${f.kind === 'code' ? 'cc-meta-chip--code' : f.kind === 'money' ? 'cc-meta-chip--money' : f.kind === 'date' ? 'cc-meta-chip--date' : ''}`}>
                         <span className="cc-meta-label">{f.label}</span>
-                        <span className={`cc-meta-value ${f.mono ? "mono" : ""} ${f.strong ? "strong" : ""}`}>{f.value}</span>
-                      </div>
+                        <span className="cc-meta-value">{f.value}</span>
+                      </span>
                     ))}
                   </div>
                 )}
