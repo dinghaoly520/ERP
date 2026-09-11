@@ -115,9 +115,14 @@ export class PlaintextFetcherService {
     if (!announcement) return null;
 
     // 3. BidDocument（1:1 Announcement）→ decryptKey + fileAssetId
-    const bidDocument = await this.prisma.bidDocument.findUnique({
+    // 优先按 bidProjectId 直连：relatedProjectCode 与 PMI 编码同空间，公告直建回写后可能撞号
+    // （2026-09-10 实测：BidProject JJ-2026091003 vs 空调项目 PMI JJ-2026091003，findFirst
+    // 命中他人公告 → 提取到错误招标文件），直连 BidDocument.bidProjectId 不受编码空间影响。
+    const bidDocument = (await this.prisma.bidDocument.findFirst({
+      where: { bidProjectId: projectId },
+    })) ?? (await this.prisma.bidDocument.findUnique({
       where: { announcementId: announcement.id },
-    });
+    }));
     if (!bidDocument) return null;
 
     // 4. FileAsset

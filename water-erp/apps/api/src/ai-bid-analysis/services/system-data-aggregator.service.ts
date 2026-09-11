@@ -41,12 +41,20 @@ export class SystemDataAggregatorService {
 
     const supplier = bs.supplier;
 
+    // 双信封新轨（dual-v2）报价/唱标金额以「万元」为单位入库；旧轨以「元」入库。
+    // ConcordanceVerifier.normalizePriceYuan 对裸数字一律 ÷10000 按元处理——
+    // dual-v2 的万元数值会被误除一万倍（148.65 → 0.014865 万元），报价一致性恒判冲突、
+    // PRICE 项被方案 7.3 置 0（2026-09-10 实测 3 家 AI 投标分析全部 0 分）。带「万元」后缀走原值分支。
+    const isDualV2 = submission?.envelopeVersion === 'dual-v2';
+    const fmtAmount = (v: string | number | null | undefined): string | null =>
+      v == null ? null : (isDualV2 ? `${v}万元` : String(v));
+
     return {
       // 报价：开标唱标（权威）> 表单提交
       // 本服务仅由 ai-bid-analysis worker 在评标阶段（已开标解密后）调用 → post-decrypt，安全拆封。
       // bidPrice 入库已密封，openField 还原；旧明文行经 legacy 兼容。
-      openingAmount: openingRecord?.amount ?? null,
-      submissionPrice: submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null,
+      openingAmount: fmtAmount(openingRecord?.amount ?? null),
+      submissionPrice: submission?.bidPrice ? fmtAmount(openField(submission.bidPrice, process.env.KMS_SECRET!)) : null,
       // 工期：开标唱标 > 表单提交
       openingPeriod: openingRecord?.period ?? null,
       submissionPeriod: submission?.deliveryPeriod ?? null,

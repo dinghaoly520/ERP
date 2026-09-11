@@ -349,8 +349,9 @@ export default function OpeningHallPage() {
                 </tr>
                 <tr>
                   <th>唱标金额</th>
-                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出（修「1080万元 元」双单位） */}
-                  <td>{formatOpeningAmount(record?.amount)}</td>
+                  {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出（修「1080万元 元」双单位）；
+                      dual-v2 报价以万元入库，按 amountUnit 直出，避免「152.89 元」误标（2026-09-11） */}
+                  <td>{record?.amountUnit === '万元' && record?.amount ? `${record.amount} 万元` : formatOpeningAmount(record?.amount)}</td>
                 </tr>
                 <tr>
                   <th>投递报价</th>

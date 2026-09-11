@@ -212,7 +212,7 @@ export function CreateProjectDialog({
     const finalFields: Record<string, string | number> = {};
 
     for (const comparison of fieldComparisons) {
-      if (comparison.selectedValue !== undefined) {
+      if (comparison.selectedValue !== undefined && comparison.selectedValue !== '') {
         if (comparison.fieldName === 'budgetAmount') {
           finalFields[comparison.fieldName] = Number(comparison.selectedValue) || 0;
         } else {
@@ -221,9 +221,11 @@ export function CreateProjectDialog({
       }
     }
 
+    // 优先级：显式选择（finalFields）> 评审表单手填（initiationFields）> 文档解析（demandFields）。
+    // 解析结果含空串键，若后展开会把评审表单的手填值覆盖为空（400 VALIDATION_ERROR）。
     return {
-      ...initiationFields,
       ...demandFields,
+      ...initiationFields,
       ...finalFields,
     };
   };
@@ -799,7 +801,14 @@ export function CreateProjectDialog({
             <input
               type="number"
               value={getSelectedFieldValue('budgetAmount', initiationFields.budgetAmount || demandFields.budgetAmount || 0)}
-              onChange={(e) => setInitiationFields((prev) => ({ ...prev, budgetAmount: Number(e.target.value) }))}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setInitiationFields((prev) => ({ ...prev, budgetAmount: v }));
+                // 同步覆盖 compare 步骤的 selectedValue，避免解析模式预置值（如 0）锁死手工修正
+                setFieldComparisons((prev) =>
+                  prev.map((c) => (c.fieldName === 'budgetAmount' ? { ...c, selectedValue: String(v) } : c)),
+                );
+              }}
               className="workbench-input w-full"
             />
           </div>

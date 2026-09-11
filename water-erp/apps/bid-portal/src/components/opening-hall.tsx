@@ -68,11 +68,12 @@ function resolveOpeningFields(cfg?: { fields?: unknown } | null): OpeningFieldDe
 /** A-113：开标记录表单元格——法定四键沿用既有渲染（金额等宽加粗/保证金配色），动态列取 customFields。 */
 function renderRecordCell(
   f: OpeningFieldDef,
-  r: { amount: string; period: string; qualityTarget: string; bondStatus: string; customFields?: Record<string, string> | null },
+  r: { amount: string; period: string; qualityTarget: string; bondStatus: string; customFields?: Record<string, string> | null; amountUnit?: string | null },
 ) {
   switch (f.key) {
     case 'amount':
-      return <td key={f.key} className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amount}</td>;
+      // dual-v2 报价以万元入库：带单位标记时直出「万元」，避免裸数字被读成「元」（2026-09-11）
+      return <td key={f.key} className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amountUnit === '万元' && r.amount ? `${r.amount} 万元` : r.amount}</td>;
     case 'period':
       return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.period}</td>;
     case 'qualityTarget':

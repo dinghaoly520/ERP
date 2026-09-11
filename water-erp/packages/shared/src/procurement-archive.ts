@@ -24,3 +24,34 @@ export const GB_ARCHIVE_CATEGORIES = [
 ] as const;
 
 export type GbArchiveCategory = (typeof GB_ARCHIVE_CATEGORIES)[number];
+
+/**
+ * 方案 X（2026-09-10）：按采购方式的档案类别适用性——不适用的类在对标中豁免
+ * （不计缺项、无登记入口），依据该方式下项目档案的实际构成（系统在线产生 + 集团惯例）。
+ * 全线上流程下豁免类无需人工登记即可达成「适用类齐备」。
+ */
+const ALL_KEYS = GB_ARCHIVE_CATEGORIES.map(c => c.key);
+const KEYS_WITHOUT = (...omit: string[]) => ALL_KEYS.filter(k => !omit.includes(k));
+/** 直接采购族：无公告/响应/开标/评审/预公示（无 BidProject 链路） */
+const DIRECT_KEYS = ['plan', 'prequal', 'document', 'win', 'award_letter', 'contract', 'acceptance', 'dispute'];
+
+export const GB_ARCHIVE_METHOD_APPLICABILITY: Record<string, readonly string[]> = {
+  // 邀请/公开招标：全量 13 类
+  '邀请招标': ALL_KEYS,
+  '公开招标': ALL_KEYS,
+  // 询比/谈判：无预成交公示（结果直接成交公告）
+  '询比采购': KEYS_WITHOUT('pre_win'),
+  '谈判采购': KEYS_WITHOUT('pre_win'),
+  // 竞价：无专家评审报告、无预成交公示
+  '竞价采购': KEYS_WITHOUT('pre_win', 'evaluation'),
+  // 直接采购族（含 legacy 别名）
+  '直接采购': DIRECT_KEYS,
+  '直接委托': DIRECT_KEYS,
+  '续约': DIRECT_KEYS,
+};
+
+/** 某采购方式适用的档案类别键集；未知方式回退全量（保持既有行为） */
+export function applicableArchiveCategories(procurementMethod?: string | null): Set<string> {
+  const keys = procurementMethod ? GB_ARCHIVE_METHOD_APPLICABILITY[procurementMethod] : undefined;
+  return new Set(keys ?? ALL_KEYS);
+}

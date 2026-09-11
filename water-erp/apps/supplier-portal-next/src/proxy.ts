@@ -15,7 +15,9 @@ export async function proxy(request: NextRequest) {
 
     const headers = new Headers();
     request.headers.forEach((value, key) => {
-      if (!['host', 'connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer'].includes(key.toLowerCase())) {
+      // expect（100-continue）大文件上传时浏览器/curl 会带，undici 不支持导致上游 fetch 直接失败
+      // （"expect header not supported"）→ 502——剥离后再转发（2026-09-10 实测 20MB+ 标书上传全挂）。
+      if (!['host', 'connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer', 'expect', 'content-length'].includes(key.toLowerCase())) {
         headers.set(key, value);
       }
     });
@@ -30,7 +32,15 @@ export async function proxy(request: NextRequest) {
 
     const init: RequestInit = { method: request.method, headers };
     if (!['GET', 'HEAD'].includes(request.method)) {
-      init.body = await request.arrayBuffer();
+      // 流式转发：request.arrayBuffer() 在 dev server 对 ~1.5MB+ 请求体截断（2026-09-10 实测
+      // 50MB 标书上传 multipart 尾部丢失 → multer "Unexpected end of form"），直接透传
+      // request.body 流 + duplex:'half'，不缓冲、无大小上限。
+      if (request.body) {
+        init.body = request.body as unknown as BodyInit;
+        (init as RequestInit & { duplex?: string }).duplex = 'half';
+      } else {
+        init.body = await request.arrayBuffer();
+      }
     }
 
     try {
@@ -46,9 +56,10 @@ export async function proxy(request: NextRequest) {
         statusText: upstream.statusText,
         headers: resHeaders,
       });
-    } catch {
+    } catch (e) {
+      const err = e as Error & { cause?: Error };
       return new NextResponse(
-        JSON.stringify({ statusCode: 502, code: 'PROXY_ERROR', error: '服务暂时不可用，请稍后重试' }),
+        JSON.stringify({ statusCode: 502, code: 'PROXY_ERROR', error: `服务暂时不可用（${err?.message ?? String(e)}${err?.cause?.message ? ' / cause: ' + err.cause.message : ''}）` }),
         { status: 502, headers: { 'Content-Type': 'application/json' } },
       );
     }

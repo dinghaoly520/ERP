@@ -7,6 +7,8 @@ export interface OpeningRecordRow {
   bidSupplierId: string;
   supplierName: string;
   amount: string | null;
+  /** dual-v2 报价单位（万元）——裸数字勿按「元」渲染 */
+  amountUnit?: string | null;
   period: string | null;
   qualityTarget: string | null;
   bondStatus: string | null;

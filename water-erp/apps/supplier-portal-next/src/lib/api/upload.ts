@@ -1,4 +1,15 @@
 import { toast } from "sonner";
+import { apiOrigin } from "@water-erp/config";
+
+/**
+ * 上传端点 base：开发环境直连 API origin（Next dev 代理对 ~1.5MB+ 请求体截断，
+ * 50MB 级标书上传 multipart 尾部丢失 → 502/multer "Unexpected end of form"，2026-09-10 实测），
+ * 生产仍走同源 /api 代理（CORS/域名策略不变）。直连时 API CORS 允许 localhost 且凭据跨端口共享。
+ */
+export const UPLOAD_BASE =
+  process.env.NODE_ENV === "development" && !process.env.NEXT_PUBLIC_API_BASE
+    ? `${apiOrigin()}/api`
+    : process.env.NEXT_PUBLIC_API_BASE || "/api";
 
 /** 后端 /api/upload 返回的文件资产 */
 export interface FileAssetResponse {
@@ -47,7 +58,7 @@ export function uploadFile(
     }
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", registration ? "/api/upload/registration" : `/api/upload?${params.toString()}`);
+    xhr.open("POST", registration ? `${UPLOAD_BASE}/upload/registration` : `${UPLOAD_BASE}/upload?${params.toString()}`);
     xhr.withCredentials = true;
     xhr.setRequestHeader("X-Portal", "supplier");
     xhr.timeout = 120000;
