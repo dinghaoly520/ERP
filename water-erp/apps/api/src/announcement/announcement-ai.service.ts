@@ -39,8 +39,11 @@ export class AnnouncementAiService {
         undefined,
         {
           model: this.config.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
-          maxTokens: 512,
-          timeoutMs: 60_000,
+          // 推理型模型：思维链（reasoning）与正文共享输出预算——512 时 reasoning 即可耗尽
+          // 预算导致 content 为空（实录 2026-09-11：reasoning_tokens 1383 + 正文 193）。
+          // 4096 给思维链波动留足余量；极端超限时 LlmService 按 finish_reason=length 重试
+          maxTokens: 4096,
+          timeoutMs: 90_000,
         },
       );
 

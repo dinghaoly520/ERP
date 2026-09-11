@@ -484,6 +484,18 @@ export class LlmService {
         );
       }
 
+      // 推理型模型预算截断（2026-09-11）：思维链与正文共享 max_tokens——reasoning 波动超预算时
+      // finish_reason=length 且 content 为空。此时回退 reasoning_content 只会拿到思维链文本
+      // （上层摘要场景即此前「指令复述」入库的来源），正确处置是视为可重试：重试常能赶上
+      // 较短思维链产出完整正文。
+      if (!response.content.trim() && response.finishReason === 'length') {
+        const e = new ServiceUnavailableException(
+          'LLM 输出被 max_tokens 截断（思维链耗尽预算，content 为空），将重试',
+        ) as ServiceUnavailableException & { retryable: boolean };
+        e.retryable = true;
+        throw e;
+      }
+
       // 思考模式兜底：content 为空但 reasoning_content 有内容时取后者（官方文档：
       // 思考模式下仅读 message.content；偶发空 content 属已知问题）
       if (!response.content.trim() && response.reasoningContent.trim()) {
