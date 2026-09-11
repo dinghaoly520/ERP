@@ -1212,9 +1212,31 @@ export class SupplierPortalService {
     // 无缓存（未下发谈判配置）：回退基础信息
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { name: true, procurementMethod: true, scope: true, riskNote: true },
+      select: {
+        id: true, name: true, procurementMethod: true, scope: true, riskNote: true,
+        projectCode: true, projectManagementItemId: true,
+      },
     });
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // 概览首选公告 AI 摘要（2026-09-11 拍板）：供应商门户「项目概览」应复用信息门户
+    // 已生成的归纳型摘要，而不是再拼一段「招标范围/风险提示」的基础文本。撞号安全解析
+    // 所属采购公告，命中即取 aiSummary；无摘要再回退基础拼接。
+    const ownAnnouncement = await this.resolveOwnAnnouncement<{ id: string; aiSummary: string | null }>(
+      project,
+      { aiSummary: true },
+    );
+    if (ownAnnouncement?.aiSummary?.trim()) {
+      return {
+        overview: ownAnnouncement.aiSummary.trim(),
+        notification: null,
+        acquireStartTime: null,
+        acquireEndTime: null,
+        bidOpeningTime: null,
+        downloadMode: null,
+      };
+    }
+
     // 概览清洗（2026-09-11）：①风险注解剥离发布联动的运维标记（「（来自公告自动创建）」「PMI ZJ-xxx」
     // 不对供应商展示，清洗后为空则整段省略）；②scope 自带句号与模板句号叠加出现「。。」，统一去尾再拼
     const cleanRiskNote = (project.riskNote || '')
