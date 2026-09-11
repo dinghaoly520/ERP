@@ -849,9 +849,19 @@ export class ProjectManagementService {
     if (hasDemand && !hasInitiation) {
       // Only demand form → land on INITIATION (or CONTRACT for small purchases)
       firstActiveStage = isSmallPurchase ? 'CONTRACT' : 'INITIATION';
+    } else if (isSmallPurchase) {
+      firstActiveStage = 'CONTRACT';
     } else {
-      // Only initiation form or both forms → land on TENDER_DOCUMENT (or CONTRACT for small purchases)
-      firstActiveStage = isSmallPurchase ? 'CONTRACT' : 'TENDER_DOCUMENT';
+      // Only initiation form or both forms → 第一个待办阶段按实际模板取「补记 COMPLETED 的
+      // 最后一个前置阶段之后的第一个非锁定阶段」，不能写死 TENDER_DOCUMENT——直接采购模板
+      // 没有「采购文件」步骤（立项后直接进公告公示），写死会使该方式项目建项后无任何
+      // 进行中阶段且 currentStage 指向不存在的阶段（实录 2026-09-11：01/02 已完成、03 待解锁）
+      const lastPrefillKey: StageKey = 'INITIATION';
+      const prefillIndex = stagesToCreate.findIndex((s) => s.key === lastPrefillKey);
+      const afterPrefill = stagesToCreate
+        .slice(prefillIndex + 1)
+        .find((s) => !LOCKED_STAGES.has(s.key));
+      firstActiveStage = afterPrefill?.key ?? stagesToCreate[0]!.key;
     }
 
     const createdProject = await this.prisma.$transaction(async (tx) => {
