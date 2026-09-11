@@ -828,6 +828,38 @@ export class AnnouncementService {
           this.logger.warn(`招标要点提取入队失败 (project=${linkedProjectId}): ${(e as Error).message}`),
         );
       }
+
+      // ── 拟定供应商入参与名单（2026-09-11）：直接采购公告发布后，公告「拟定供应商名称」
+      // （metadata.supplierName，向导发布时随草稿快照写入）自动纳入 BidSupplier——
+      // 项目基本信息「供应商参与」区块（getParticipants ∪ bidSuppliers）即可见；
+      // 同时回填 PMI.awardedSupplier（仅当其为空，不覆盖已确认值）。供应商在库时按名关联 id。
+      const proposedSupplier = String((announcement.metadata as Record<string, any> | null | undefined)?.supplierName ?? '').trim();
+      if (linkedProjectId && proposedSupplier && rawCategory !== 'failed_bid') {
+        try {
+          const supplier = await this.prisma.supplier.findFirst({
+            where: { OR: [{ name: proposedSupplier }, { normalizedName: proposedSupplier.toLowerCase() }] },
+            select: { id: true },
+          });
+          await this.prisma.bidSupplier.upsert({
+            where: { projectId_supplierName: { projectId: linkedProjectId, supplierName: proposedSupplier } },
+            create: {
+              projectId: linkedProjectId,
+              supplierName: proposedSupplier,
+              ...(supplier ? { supplierId: supplier.id } : {}),
+            },
+            update: supplier ? { supplierId: supplier.id } : {},
+          });
+          if (linkedPmi) {
+            await this.prisma.projectManagementItem.updateMany({
+              where: { id: linkedPmi.id, OR: [{ awardedSupplier: null }, { awardedSupplier: '' }] },
+              data: { awardedSupplier: proposedSupplier },
+            });
+          }
+          this.logger.log(`拟定供应商已纳入参与名单: ${proposedSupplier} → 项目 ${linkedProjectId}`);
+        } catch (e) {
+          this.logger.warn(`拟定供应商入参与名单失败: ${(e as Error).message}`);
+        }
+      }
     } catch (e) {
       this.logger.error(`公告发布联动创建项目失败 (announcementId=${annId}): ${(e as Error).message}`, (e as Error).stack);
     }

@@ -626,8 +626,7 @@ export class ProjectManagementService {
       if (!tenderFile) throw new BadRequestException({ error: '未找到采购文件，请先上传', code: 'NO_TENDER_FILE' });
 
       try {
-        const buffer = await this.storage.download(tenderFile.objectKey);
-        text = await this.documentParser.parse(buffer, tenderFile.mimeType, tenderFile.fileName);
+        text = await this.readAttachmentText(tenderFile.objectKey, tenderFile.mimeType, tenderFile.fileName);
         try { await writeFile(cachePath, text, 'utf8'); } catch {}
       } catch (e) {
         this.logger.warn(`[extractTenderFields] 文件读取失败，回退 DB: ${(e as Error)?.message}`);
@@ -724,10 +723,10 @@ export class ProjectManagementService {
         return { current: item.awardedSupplier ?? '', extracted: null, changed: false, reason: '未找到采购文件' };
       }
       try {
-        const buffer = await this.storage.download(tenderFile.objectKey);
-        text = await this.documentParser.parse(buffer, tenderFile.mimeType, tenderFile.fileName);
+        text = await this.readAttachmentText(tenderFile.objectKey, tenderFile.mimeType, tenderFile.fileName);
         try { await writeFile(cachePath, text, 'utf8'); } catch {}
-      } catch {
+      } catch (e) {
+        this.logger.warn(`[checkSupplierChange] 采购文件解析失败: ${(e as Error).message}`);
         return { current: item.awardedSupplier ?? '', extracted: null, changed: false, reason: '采购文件解析失败' };
       }
     }
@@ -775,8 +774,7 @@ export class ProjectManagementService {
     for (const stage of stages) {
       for (const att of stage.attachments.slice(0, 3)) {
         try {
-          const buffer = await this.storage.download(att.objectKey);
-          const text = await this.documentParser.parse(buffer, att.mimeType, att.fileName);
+          const text = await this.readAttachmentText(att.objectKey, att.mimeType, att.fileName);
           if (text && text.length > 20) {
             contextParts.push(`【${stage.stageKey} - ${att.fileName}】${text.slice(0, 4000)}`);
           }
@@ -3881,8 +3879,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       const chunks: string[] = [];
       for (const a of stage.attachments.slice(0, 5)) {
         try {
-          const buffer = await this.storage.download(a.objectKey);
-          const txt = await this.documentParser.parse(buffer, a.mimeType, a.fileName);
+          const txt = await this.readAttachmentText(a.objectKey, a.mimeType, a.fileName);
           if (txt && txt.trim()) chunks.push(`【${a.fileName}】${txt.trim().slice(0, 4000)}`);
         } catch (e) {
           this.logger.warn(`[optimizeInitiation] 读取附件失败 ${a.fileName}: ${(e as Error)?.message}`);
@@ -5945,6 +5942,26 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
 
+
+  /**
+   * 读取项目管理阶段附件文本（2026-09-11）：附件由 persistUploadedFile 落本地磁盘
+   * （uploads/project-management/<storedFileName>，objectKey 即该相对路径），不进 MinIO——
+   * 此前回退路径调 storage.download 必然 404（key does not exist），长期被 /tmp 文本缓存
+   * 掩盖。统一改为本地优先，本地缺失再试 MinIO（防御未来迁移对象存储）。
+   */
+  private async readAttachmentText(objectKey: string, mimeType?: string | null, fileName?: string): Promise<string> {
+    const storedName = objectKey.split('/').pop() ?? objectKey;
+    const localPath = resolve(getUploadDir(), storedName);
+    try {
+      const stat = await (await import('fs/promises')).stat(localPath).catch(() => null);
+      if (stat?.isFile()) {
+        const buffer = await (await import('fs/promises')).readFile(localPath);
+        return await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName);
+      }
+    } catch { /* 本地读取失败继续尝试 MinIO */ }
+    const buffer = await this.storage.download(objectKey);
+    return await this.documentParser.parse(buffer, mimeType ?? '', fileName ?? storedName);
+  }
 
   private async persistUploadedFile(
     file: Express.Multer.File,
