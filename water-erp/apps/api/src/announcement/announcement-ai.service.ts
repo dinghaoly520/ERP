@@ -70,7 +70,17 @@ export class AnnouncementAiService {
       .replace(/\s+/g, ' ')
       .trim();
 
+    // 提示词泄漏防御（2026-09-11 实录）：LLM 偶发把任务指令当摘要输出
+    // （「我们需要生成归纳型摘要，160-240汉字…要点：…」）——命中指令元话语
+    // 特征即判无效，返回空串让上游走无摘要兜底，绝不让提示词冒充摘要入库
+    if (this.looksLikePromptLeak(cleaned)) return '';
+
     return this.truncateAtSentence(cleaned, 320);
+  }
+
+  /** 识别"模型复述任务指令"型输出：命中摘要要求元话语或任务规划措辞 */
+  private looksLikePromptLeak(text: string): boolean {
+    return /我们需要生成|归纳型摘要|不重复.{0,4}标题|不照抄|字数控制|160[-—到~\s]{1,3}240|个汉字|只使用原文已有信息|语气.{0,2}正式|公告类型：.{0,12}要点：/.test(text);
   }
 
   private truncateAtSentence(summary: string, maxLength: number) {

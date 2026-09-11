@@ -1215,8 +1215,16 @@ export class SupplierPortalService {
       select: { name: true, procurementMethod: true, scope: true, riskNote: true },
     });
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // 概览清洗（2026-09-11）：①风险注解剥离发布联动的运维标记（「（来自公告自动创建）」「PMI ZJ-xxx」
+    // 不对供应商展示，清洗后为空则整段省略）；②scope 自带句号与模板句号叠加出现「。。」，统一去尾再拼
+    const cleanRiskNote = (project.riskNote || '')
+      .replace(/（来自公告自动创建）/g, '')
+      .replace(/PMI\s+[A-Z]{2}-\d+/gi, '')
+      .replace(/^[；;、\s]+|[；;，。\s]+$/g, '')
+      .trim();
+    const scopeText = (project.scope || '').replace(/[。\s]+$/, '');
     return {
-      overview: `${project.name}（${project.procurementMethod}）。招标范围：${project.scope || '详见采购文件'}。${project.riskNote ? `风险提示：${project.riskNote}。` : ''}`,
+      overview: `${project.name}（${project.procurementMethod}）。招标范围：${scopeText || '详见采购文件'}。${cleanRiskNote ? `风险提示：${cleanRiskNote}。` : ''}`,
       notification: null,
       acquireStartTime: null,
       acquireEndTime: null,
