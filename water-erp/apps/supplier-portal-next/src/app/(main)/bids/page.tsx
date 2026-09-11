@@ -14,6 +14,25 @@ import { ServerClock } from "@/components/server-clock";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
+/** 中文日期时间 → YYYY-MM-DD HH:mm（与开标时间展示格式一致）；解析失败返 null */
+function cnDatetimeToIso(s: string): string | null {
+  const m = s.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")} ${m[4].padStart(2, "0")}:${m[5]}`;
+}
+
+/** 采购文件获取区间统一为 YYYY-MM-DD HH:mm ~ YYYY-MM-DD HH:mm（与开标时间格式一致） */
+function formatAcquireWindow(raw: string): string {
+  const segs = raw.split(/至|-|~|～/).map((s) => s.trim()).filter(Boolean);
+  if (segs.length >= 2) {
+    const a = cnDatetimeToIso(segs[0]);
+    const b = cnDatetimeToIso(segs[1]);
+    if (a && b) return `${a} ~ ${b}`;
+  }
+  const single = cnDatetimeToIso(raw);
+  return single ? `至 ${single}` : raw;
+}
+
 const stageMap: Record<string, { label: string; color: string }> = {
   DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)" },
   SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)" },
@@ -242,12 +261,12 @@ export default function BidListPage() {
                         const acquireStart = nego?.acquireStartTime;
                         const acquireEnd = nego?.acquireEndTime;
                         const acquireText = (acquireStart && acquireEnd)
-                          ? `${dayjs(acquireStart).format("MM-DD HH:mm")} ~ ${dayjs(acquireEnd).format("MM-DD HH:mm")}`
+                          ? `${dayjs(acquireStart).format("YYYY-MM-DD HH:mm")} ~ ${dayjs(acquireEnd).format("YYYY-MM-DD HH:mm")}`
                           : p.downloadDeadline
-                            ? `至 ${dayjs(p.downloadDeadline).format("MM-DD HH:mm")}`
-                            // 非谈判项目：PMI 阶段提取的中文区间原文（「2026年03月20日09:00至…」）
+                            ? `至 ${dayjs(p.downloadDeadline).format("YYYY-MM-DD HH:mm")}`
+                            // 非谈判项目：PMI 阶段提取的中文区间 → 统一格式
                             : (typeof p.documentAcquireTime === 'string' && p.documentAcquireTime.trim())
-                              ? p.documentAcquireTime.trim()
+                              ? formatAcquireWindow(p.documentAcquireTime.trim())
                               : "";
                         const openText = p.openTime ? dayjs(p.openTime).format("YYYY-MM-DD HH:mm") : "";
                         if (!acquireText && !openText && !nego) return null;
