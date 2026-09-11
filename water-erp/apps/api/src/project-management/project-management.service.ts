@@ -142,6 +142,7 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
   直接采购: [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
@@ -185,6 +186,7 @@ const REPROC_STAGE_SEGMENTS: Record<string, Array<{ key: string; label: string }
     { key: 'BID_EVALUATION', label: '开标评标' },
   ],
   直接采购: [
+    { key: 'TENDER_DOCUMENT', label: '采购文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
