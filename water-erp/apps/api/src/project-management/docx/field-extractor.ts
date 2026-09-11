@@ -186,13 +186,23 @@ function isSelfCompany(name: string): boolean {
       const idx = lines.findIndex((l) => l.includes(anchor));
       if (idx < 0) continue;
 
+      // 名称清洗：捕获组可能是整句（"名称：本项目拟定供应商为X公司"）——剥标签前缀、
+      // 按「为/是/系」引导词截取，最终只留纯公司名
+      const cleanName = (n: string) => {
+        let s = n.trim();
+        s = s.replace(/^[^，。,;；]{0,6}?名称[：:]\s*/, '');
+        const lead = s.match(/[为是系]\s*([^，。,;；、]{2,40}?(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))/);
+        if (lead) s = lead[1];
+        return s.replace(/^[的为是系即]\s*/, '').replace(/[：:]\s*$/, '').replace(/\s+/g, '').trim();
+      };
+
       // 同行锚点后紧跟公司名
       const inline = lines[idx];
       const inlineM = inline.match(
         new RegExp(anchor + '\\s*(?::|：)?\\s*(.+?(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))')
       );
       if (inlineM) {
-        const name = inlineM[1].trim().replace(/[：:]*$/, '').trim();
+        const name = cleanName(inlineM[1]);
         if (!isSelfCompany(name)) return name;
       }
 
@@ -201,11 +211,11 @@ function isSelfCompany(name: string): boolean {
         const line = lines[i];
         const m = line.match(/^(.+(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))[：:]?$/);
         if (m) {
-          const name = m[1].replace(/[：:]*$/, '').trim();
+          const name = cleanName(m[1]);
           if (!isSelfCompany(name)) return name;
         }
         const mid = line.match(/([^\s。，,;；：:]{2,}(?:公司|企业|单位))/);
-        if (mid && !isSelfCompany(mid[1].trim())) return mid[1].trim();
+        if (mid && !isSelfCompany(cleanName(mid[1]))) return cleanName(mid[1]);
       }
     }
 

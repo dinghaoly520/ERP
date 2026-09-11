@@ -694,6 +694,56 @@ export class ProjectManagementService {
     return field ? { [field]: result[field] ?? null } : result;
   }
 
+  /**
+   * 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
+   * 与项目已存 awardedSupplier 比对——只读不写库，供公告「拟定供应商名称」字段
+   * 的核对按钮判断「供应商是否已更换」，更新由用户确认后走 updateProjectExtractedInfo。
+   */
+  async checkSupplierChange(itemId: string) {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: { awardedSupplier: true },
+    });
+    if (!item) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // 取采购文件文本（缓存优先，回退 MinIO 下载解析）
+    const cachePath = getTenderTextCachePath(itemId);
+    let text: string;
+    try {
+      text = await readFile(cachePath, 'utf8');
+      if (!text || text.length < 50) throw new Error('empty cache');
+    } catch {
+      const stage = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: itemId, stageKey: 'TENDER_DOCUMENT' },
+        include: { attachments: true },
+      });
+      const tenderFile = stage?.attachments.find(
+        (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
+      );
+      if (!tenderFile) {
+        return { current: item.awardedSupplier ?? '', extracted: null, changed: false, reason: '未找到采购文件' };
+      }
+      try {
+        const buffer = await this.storage.download(tenderFile.objectKey);
+        text = await this.documentParser.parse(buffer, tenderFile.mimeType, tenderFile.fileName);
+        try { await writeFile(cachePath, text, 'utf8'); } catch {}
+      } catch {
+        return { current: item.awardedSupplier ?? '', extracted: null, changed: false, reason: '采购文件解析失败' };
+      }
+    }
+
+    const extracted = extractAwardedSupplierFromText(text) || null;
+    const normalize = (n: string) => n.replace(/\s+/g, '');
+    const current = item.awardedSupplier?.trim() ?? '';
+    const changed = !!extracted && !!current && normalize(extracted) !== normalize(current);
+    return {
+      current,
+      extracted,
+      changed,
+      reason: extracted ? null : '未能从采购文件中提取到供应商名称——若刚在采购文件编写中修改了供应商，请重新导出并上传采购文件后再核对',
+    };
+  }
+
   /** 直接采购供应商抽选：读取立项/需求/采购文件内容，AI 推荐 3-5 家供应商 */
   async recommendSuppliersForProject(itemId: string) {
     const project = await this.prisma.projectManagementItem.findUnique({

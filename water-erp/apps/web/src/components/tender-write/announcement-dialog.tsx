@@ -42,6 +42,8 @@ import { ContactPickerDialog } from "./contact-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
 import { findContactByName } from "@/lib/api/contacts";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
+import { checkSupplierChange, updateProjectExtractedInfo } from "@/lib/api/project-management";
+import { confirmDialog } from "@/components/catalog/confirm-dialog";
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -249,6 +251,8 @@ function AnnouncementFieldEditor({
   onSampleOpen,
   onAiGenerate,
   onContactOpen,
+  onSupplierCheck,
+  supplierChecking,
 }: {
   field: AnnouncementFieldConfig;
   value: string;
@@ -261,6 +265,9 @@ function AnnouncementFieldEditor({
   onSampleOpen: (fieldKey: AnnouncementFieldKey, fieldLabel: string) => void;
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
+  /** 拟定供应商名称专属：核对采购文件中供应商是否已更换（替代 AI 内容优化） */
+  onSupplierCheck?: () => void;
+  supplierChecking?: boolean;
 }) {
   const hasValue = announcementFieldHasValue(field, value);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
@@ -309,6 +316,12 @@ function AnnouncementFieldEditor({
               onFavoriteToggle={() => onFavoriteToggle(field.key, value)}
               onAiGenerate={() => onAiGenerate(field.key, field.label, value, field.aiPrompt)}
               onContactOpen={onContactOpen}
+              aiOverride={field.key === 'supplierName' && onSupplierCheck ? {
+                title: '核对供应商：重新解析采购文件，检查拟定供应商是否已更换',
+                label: '核对供应商',
+                onClick: onSupplierCheck,
+                busy: supplierChecking,
+              } : undefined}
             />
           )}
           <span
@@ -754,7 +767,16 @@ export function AnnouncementDialog({
             if (raw) sn = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
           } catch {}
         }
-        if (sn) patch.supplierName = sn;
+        // 只填纯公司名（2026-09-11）：存量值可能是整段论证文字（"本项目拟定供应商为X公司，住所地…"），
+        // 从中截取公司名，避免「拟定供应商名称」字段被长文本占满
+        const extractCompanyName = (t: string): string => {
+          const m = t.match(/(?:为|是|系|：|:)\s*([^，。,;；、]{2,40}?(?:有限公司|有限责任公司|股份有限公司|集团公司|公司|集团|厂|中心|院|所))/);
+          if (m) return m[1].trim();
+          const m2 = t.match(/^([^，。,;；、]{2,40}?(?:有限公司|有限责任公司|股份有限公司|集团公司|公司|集团|厂|中心|院|所))/);
+          if (m2) return m2[1].trim();
+          return t;
+        };
+        if (sn) patch.supplierName = extractCompanyName(sn);
       }
       if (!draftRecord.maxPriceNumeric?.trim() && project.budgetAmount != null) patch.maxPriceNumeric = String(project.budgetAmount);
       if (!draftRecord.projectOverview?.trim() && project.projectOverview?.trim()) patch.projectOverview = project.projectOverview;
@@ -924,6 +946,51 @@ export function AnnouncementDialog({
     handleFieldChange("contactEmail", contact.email);
     handleFieldChange("contactPhone", contact.phone);
   };
+
+  // ★ 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
+  // 与字段值比对——相同则确认未更换（顺带把误填的长文本截成纯名字），不同则提示并确认更新。
+  const [supplierChecking, setSupplierChecking] = useState(false);
+  const handleSupplierCheck = useCallback(async () => {
+    if (!project?.id) {
+      toast.error('缺少项目上下文，无法核对');
+      return;
+    }
+    setSupplierChecking(true);
+    try {
+      const r = await checkSupplierChange(project.id);
+      if (!r.extracted) {
+        setAiError(r.reason || '未能从采购文件中提取到供应商名称');
+        setTimeout(() => setAiError(null), 5000);
+        return;
+      }
+      const draftRecord = (draft ?? {}) as Record<string, string>;
+      const currentField = draftRecord.supplierName?.trim() ?? '';
+      const normalize = (n: string) => n.replace(/\s+/g, '');
+      if (currentField && normalize(currentField) === normalize(r.extracted)) {
+        // 未更换：字段值若为长文本（如论证段落），截成纯公司名
+        if (currentField !== r.extracted) handleFieldChange('supplierName', r.extracted);
+        toast.success(`拟定供应商未更换：${r.extracted}`);
+        return;
+      }
+      const ok = await confirmDialog({
+        title: '拟定供应商已更换',
+        message: currentField
+          ? `采购文件中的拟定供应商与当前填写不一致，是否更新？\n当前：${currentField.slice(0, 40)}${currentField.length > 40 ? '…' : ''}\n采购文件：${r.extracted}`
+          : `采购文件中的拟定供应商：${r.extracted}\n是否填入？`,
+        confirmText: '更新为新供应商',
+        cancelText: '保持不变',
+      });
+      if (ok) {
+        handleFieldChange('supplierName', r.extracted);
+        await updateProjectExtractedInfo(project.id, { awardedSupplier: r.extracted });
+        toast.success(`拟定供应商已更新：${r.extracted}`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '核对失败');
+    } finally {
+      setSupplierChecking(false);
+    }
+  }, [project?.id, draft, handleFieldChange]);
 
   const handleContactNameChange = async (value: string) => {
     handleFieldChange("contactName", value);
@@ -1202,6 +1269,8 @@ export function AnnouncementDialog({
                       onSampleOpen={handleSampleOpen}
                       onAiGenerate={handleAiGenerate}
                       onContactOpen={() => setContactPickerOpen(true)}
+                      onSupplierCheck={handleSupplierCheck}
+                      supplierChecking={supplierChecking}
                     />
                         </Fragment>
                       );

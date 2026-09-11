@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Search, Sparkles, Star, Users } from 'lucide-react';
+import { BookOpen, Search, ShieldCheck, Sparkles, Star, Users } from 'lucide-react';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
 
 // Fields that should not show favorite/sample/AI actions
@@ -38,6 +38,7 @@ export function TenderFieldActions({
   onAiGenerate,
   onContactOpen,
   onSupplierSelect,
+  aiOverride,
 }: {
   fieldKey: TenderFieldKey;
   currentValue: string;
@@ -50,6 +51,8 @@ export function TenderFieldActions({
   onAiGenerate: () => void;
   onContactOpen?: () => void;
   onSupplierSelect?: () => void;
+  /** AI 按钮语义覆写（如「拟定供应商名称」的核对供应商——不做内容优化） */
+  aiOverride?: { title: string; label: string; onClick: () => void; busy?: boolean };
 }) {
   const [showTooltip, setShowTooltip] = useState<string | null>(null);
 
@@ -132,6 +135,23 @@ export function TenderFieldActions({
             {showTooltip === 'sample' && <ActionTooltip>样本库</ActionTooltip>}
           </button>
 
+          {aiOverride ? (
+            <button
+              type="button"
+              onClick={aiOverride.onClick}
+              disabled={aiOverride.busy}
+              aria-label={aiOverride.title}
+              title={aiOverride.title}
+              {...bindTooltip('ai')}
+              className={`tender-action-chip tender-action-chip--primary ${aiOverride.busy ? 'tender-status-badge--pulse' : ''} !text-[11px] !px-2 !py-1`}
+            >
+              <ShieldCheck
+                size={14}
+                className={aiOverride.busy ? 'text-[rgba(96,139,239,1)]' : 'text-[rgba(76,111,189,1)]'}
+              />
+              {showTooltip === 'ai' && <ActionTooltip>{aiOverride.label}</ActionTooltip>}
+            </button>
+          ) : (
           <button
             type="button"
             onClick={onAiGenerate}
@@ -160,6 +180,7 @@ export function TenderFieldActions({
               </ActionTooltip>
             )}
           </button>
+          )}
         </>
       )}
     </div>
