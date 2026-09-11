@@ -145,10 +145,11 @@ export default function NoticeDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            {/* ── 描述性徽章组（状态 → 采购方式 → 公开范围 → 置顶）── */}
+            {/* ── 描述性徽章组（采购方式 → 状态类[发布状态/置顶/公开范围]）──
+                「已发布」「应公开」同属状态/级别，不再被采购方式隔开 */}
             <div className="flex items-center gap-1.5">
-              <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
               <StatusBadge tone={typeTone[ann.type]}>{ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}</StatusBadge>
+              <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
               {ann.isTop && <StatusBadge tone="red">置顶</StatusBadge>}
               {ann.dataClass && (
                 <StatusBadge tone={ann.dataClass === 'confidential' ? 'red' : 'gray'}>

@@ -168,7 +168,7 @@ function BidDetailInner() {
     if (!m) return [] as { label: string; value: string; mono?: boolean; strong?: boolean }[];
     const fields: { label: string; value: string; mono?: boolean; strong?: boolean }[] = [];
     if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, mono: true });
-    if (m.method) fields.push({ label: "招标方式", value: m.method });
+    if (m.method) fields.push({ label: "采购方式", value: m.method });
     if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), strong: true });
     if (m.deadline) fields.push({ label: "投标截止", value: fmtMetaDate(m.deadline), strong: true });
     if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), strong: true });
