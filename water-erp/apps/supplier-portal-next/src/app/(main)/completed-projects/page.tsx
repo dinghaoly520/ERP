@@ -49,6 +49,7 @@ export default function CompletedProjectsPage() {
         sub="合作过的采购项目档案：中标结果、投递报价与项目全量信息"
       />
 
+      <div className="mt-4">
       {loading ? (
         <LoadingBlock text="加载已完成项目…" />
       ) : error ? (
@@ -108,6 +109,7 @@ export default function CompletedProjectsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

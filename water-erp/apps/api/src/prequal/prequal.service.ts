@@ -183,7 +183,7 @@ export class PrequalService {
           type: 'SYSTEM',
           title: r.passed ? '资格预审合格通知' : '资格预审结果通知',
           content: r.passed
-            ? `贵公司已通过「${prequal.title}」资格预审，合格通知书已生成，可在供应商门户查看。`
+            ? `贵公司已通过「${prequal.title}」资格预审，合格通知书已生成，可在资格预审页查看。`
             : `很遗憾，贵公司未通过「${prequal.title}」资格预审。如有异议可按公告约定提出。`,
           link: '/prequal',
         },

@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "供应商门户-智慧水发·蜀水云采",
@@ -19,7 +16,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
-      className={`h-full antialiased font-sans ${geist.variable}`}
+      className="h-full antialiased font-sans"
     >
       <body className="h-full overflow-hidden">
         <Providers>

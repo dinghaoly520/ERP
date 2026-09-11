@@ -55,6 +55,7 @@ export default function PrequalPage() {
     <>
       <SpPageHero icon={BadgeCheck} title="资格预审" sub="提交资格预审申请，审查结果将站内通知" />
 
+      <div className="mt-4">
       {loading ? (
         <LoadingBlock text="正在加载预审…" />
       ) : items.length === 0 ? (
@@ -85,6 +86,7 @@ export default function PrequalPage() {
           })}
         </div>
       )}
+      </div>
 
       {applicationTarget && (
         <PrequalApplicationDialog

@@ -142,7 +142,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
 
   if (canAccessRegularSupplierWorkspaces(isTemporary)) {
     items.push(
-      { divider: true, label: "物资管理" },
+      { divider: true, label: "信息维护" },
       {
         path: "/catalog",
         title: "供货管理",

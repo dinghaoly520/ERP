@@ -4962,7 +4962,7 @@ export class BidService {
     await this.notifyParticipants(userIds, {
       type: 'BID_NUDGE_SUPPLIER',
       title: `投标提醒：${project.name}`,
-      content: `项目 ${project.projectCode}（${project.name}）正在进行中，请尽快登录供应商门户完成投标提交。`,
+      content: `项目 ${project.projectCode}（${project.name}）正在进行中，请尽快完成投标提交。`,
       link: `/dashboard`,
     });
 
@@ -5310,7 +5310,7 @@ export class BidService {
       {
         type: 'BID_INVITED',
         title: `新采购项目邀请：${project.name}`,
-        content: `您已被邀请参与采购项目 ${project.projectCode}（${project.name}），请尽快登录供应商门户查看采购文件并投标。`,
+        content: `您已被邀请参与采购项目 ${project.projectCode}（${project.name}），请尽快查看采购文件并投标。`,
         link: '/dashboard',
       },
     );

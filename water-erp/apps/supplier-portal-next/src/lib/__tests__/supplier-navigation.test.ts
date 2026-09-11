@@ -89,7 +89,7 @@ test("workspace menus retain section dividers", () => {
   const dividerLabels = (items: readonly MenuItem[]) =>
     items.filter((item) => "divider" in item).map((item) => item.label);
 
-  assert.deepEqual(dividerLabels(buildMenuItems(false)), ["采购业务", "物资管理", "信息服务"]);
+  assert.deepEqual(dividerLabels(buildMenuItems(false)), ["采购业务", "信息维护", "信息服务"]);
   assert.deepEqual(dividerLabels(buildMenuItems(true)), ["采购业务", "信息服务"]);
 });
 

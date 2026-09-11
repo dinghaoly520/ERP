@@ -80,8 +80,7 @@ export default function ChangeRecordsPage() {
     <>
       <SpPageHero
         icon={FilePenLine}
-        eyebrow="申请记录"
-        title="资料变更"
+        title="变更记录"
         sub="查看企业资料变更申请的处理进度与历史记录。"
       />
 

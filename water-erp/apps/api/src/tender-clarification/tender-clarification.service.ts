@@ -195,7 +195,7 @@ export class TenderClarificationService {
           userId: uid,
           type: 'CLARIFICATION',
           title: `【第${doc.version}次澄清】${project.name}`,
-          content: `${doc.title}——请登录供应商门户「澄清与修改」及时查看下载。`,
+          content: `${doc.title}——请前往项目「澄清与修改」及时查看下载。`,
         })
         .catch((err) => this.logger.warn(`通知发送失败 u=${uid}: ${err.message}`));
       notified += 1;

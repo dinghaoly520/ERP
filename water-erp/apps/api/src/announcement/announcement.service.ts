@@ -655,7 +655,7 @@ export class AnnouncementService {
             userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
             title: `新${label}：${title}`,
-            content: `${label}「${title}」已发布，请前往供应商门户查看详情。`,
+            content: `${label}「${title}」已发布，请前往公告中心查看详情。`,
             link: `/announcements/${annId}`,
           },
         });

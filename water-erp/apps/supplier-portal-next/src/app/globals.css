@@ -10556,6 +10556,12 @@ select.workbench-input {
   color: var(--sp-gray-500);
   margin-bottom: 4px;
 }
+.sp-empty-desc {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--sp-gray-400);
+}
 /* 模块框空态（EmptyState card）：去掉表内行残留的下缘 hairline，模块卡内不再有线 */
 .sp-empty-module .sp-empty-panel {
   border-bottom: 0;
@@ -10845,7 +10851,11 @@ select.workbench-input {
 
   --hairline: oklch(0.6 0.04 258 / 0.16);
 
-  --font-display: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  /* 统一系统 CJK 字体栈（不引入 webfont；数字等宽由 tabular-nums 局部处理）。
+     曾用 "Plus Jakarta Sans"/"Manrope" 幽灵字体（无 @font-face 加载 → 静默回退系统字体，
+     且 macOS 与 Windows 回退结果不一致）——收敛为单一系统栈，跨平台渲染一致。 */
+  --font-display: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-body: var(--font-display);
 
   /* re-point legacy --sp-* brand/semantic vars to oklch so existing templates align */
   --sp-primary: var(--brand);
@@ -10865,7 +10875,7 @@ select.workbench-input {
 /* ── Page background ──
    body 只承载 oklch(0.975 0.012 258) 不透明冷白底色；色彩由 .flow-glow 提供。
    去掉旧的超浅椭圆，使 .flow-glow 成为唯一色彩源（与 web :3005 策略一致）。 */
-html, body { background: var(--bg) !important; }
+html, body { background: var(--bg) !important; font-family: var(--font-display); }
 body {
   color: var(--fg);
   font-family: var(--font-display);
@@ -11396,8 +11406,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 
 .sp-brand-title {
-  animation: none !important;
-  background: linear-gradient(to right, var(--brand-deep), var(--water)) !important;
+  animation: spBrandShift 8s ease-in-out infinite !important;
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2) !important;
+  background-size: 300% auto !important;
   -webkit-background-clip: text !important; background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
 }
@@ -11470,9 +11481,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-brand-title {
   display: block; font-size: 18px; font-weight: 900; letter-spacing: 0.10em;
   font-family: "SimHei", "黑体", sans-serif;
-  background: linear-gradient(to right, #1a2332, #2563EB, #0891b2, #18a56c);
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  background-size: 200% auto; animation: spBrandShift 6s ease infinite;
+  background-size: 300% auto; animation: spBrandShift 8s ease-in-out infinite;
 }
 @keyframes spBrandShift { 0% { background-position: 0% center; } 50% { background-position: 100% center; } 100% { background-position: 0% center; } }
 .sp-header-icon {
@@ -11549,7 +11560,9 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .sp-nav-active-bar {
   position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 24px; border-radius: 0 3px 3px 0; background: #67e8f9;
+  width: 3px; height: 24px; border-radius: 0 3px 3px 0;
+  /* 收敛散落 hex → oklch token（--water 提亮，作深蓝 active 渐变上的亮色点缀） */
+  background: color-mix(in oklch, var(--water) 62%, white);
 }
 .sp-nav-icon { flex-shrink: 0; font-size: 18px; display: inline-flex; }
 .sp-sidebar.collapsed .sp-nav-icon { font-size: 20px; }
@@ -11775,7 +11788,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   min-height: 100vh;
   isolation: isolate;
   overflow: hidden;
-  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   color: var(--ink);
   background: var(--tint);
 }
@@ -11811,7 +11824,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4);
 }
 .lp-brand-name {
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 22px; font-weight: 800; letter-spacing: 0.05em; color: #fff;
   text-shadow: 0 6px 22px rgba(0, 0, 0, 0.32);
 }
@@ -11845,12 +11858,15 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-head { margin-bottom: 26px; text-align: center; }
 .lp-brand-word {
   display: block;
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 34px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em;
-  color: var(--brand-deep, oklch(0.42 0.13 252));
   text-align: center; margin: 0 -34px; padding: 6px 34px;
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2);
+  background-size: 300% auto;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: spBrandShift 8s ease-in-out infinite;
 }
-.lp-brand-word .lp-dot { font-size: 26px; line-height: 1; margin: 0 8px; opacity: 0.5; color: var(--brand, oklch(0.55 0.16 252)); }
+.lp-brand-word .lp-dot { font-size: 26px; line-height: 1; margin: 0 8px; opacity: 1; }
 .lp-divider {
   display: flex; align-items: center; justify-content: center;
   width: 168px; margin: 18px auto 4px; color: oklch(0.55 0.12 var(--hue)); font-size: 9px; line-height: 1;
@@ -12014,7 +12030,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   min-height: 100vh;
   isolation: isolate;
   overflow-x: hidden;
-  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   color: var(--reg-ink);
   background: var(--reg-tint);
 }
@@ -12074,7 +12090,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4);
 }
 .reg-brand-name {
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -12126,22 +12142,24 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .reg-brand-word {
   display: block;
-  font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 34px;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.01em;
-  color: var(--brand-deep, oklch(0.42 0.13 252));
   text-align: center;
   margin: 0 -40px;
   padding: 6px 40px;
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2);
+  background-size: 300% auto;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: spBrandShift 8s ease-in-out infinite;
 }
 .reg-brand-word .reg-dot {
   font-size: 26px;
   line-height: 1;
   margin: 0 8px;
-  opacity: 0.5;
-  color: var(--brand, oklch(0.55 0.16 252));
+  opacity: 1;
 }
 
 .reg-divider {
@@ -12300,7 +12318,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 
 .reg-step-num {
-  font-family: 'Plus Jakarta Sans', 'Manrope', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 15px;
   font-weight: 700;
   color: oklch(0.45 0.03 var(--hue));
@@ -12403,7 +12421,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   color: oklch(0.5 0.04 var(--hue));
   background: var(--reg-surface);
   box-shadow: inset 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.12), inset -1.5px -1.5px 3px oklch(1 0 0 / 0.8);
-  font-family: 'Plus Jakarta Sans', 'Manrope', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 .reg-row-fields {
   flex: 1;
@@ -12983,7 +13001,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   isolation: isolate;
   box-sizing: border-box;
   padding: 96px 16px 48px; /* 顶部固定品牌栏留白 */
-  font-family: 'Manrope', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   color: var(--ink);
   background: var(--tint);
 }
@@ -13006,7 +13024,7 @@ main.rv { overflow: hidden; }
 }
 .rv-brand { position: fixed; top: 26px; left: 6vw; z-index: 3; display: inline-flex; align-items: center; gap: 12px; }
 .rv-brand-mark { width: 50px; height: 50px; border-radius: 14px; object-fit: cover; background: #fff; padding: 5px; box-sizing: border-box; box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4); }
-.rv-brand-name { font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: 0.05em; color: #fff; text-shadow: 0 6px 22px rgba(0,0,0,0.32); }
+.rv-brand-name { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 20px; font-weight: 800; letter-spacing: 0.05em; color: #fff; text-shadow: 0 6px 22px rgba(0,0,0,0.32); }
 .rv-panel { width: 100%; max-width: 680px; }
 .rv-card {
   position: relative; width: 100%; padding: 44px 34px 38px; border-radius: 24px;
@@ -13016,8 +13034,8 @@ main.rv { overflow: hidden; }
 }
 @keyframes rv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 .rv-head { margin-bottom: 22px; text-align: center; }
-.rv-brand-word { display: block; font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; color: var(--brand-deep); }
-.rv-brand-word .rv-dot { font-size: 20px; margin: 0 6px; opacity: 0.5; color: var(--brand); }
+.rv-brand-word { display: block; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: spBrandShift 8s ease-in-out infinite; }
+.rv-brand-word .rv-dot { font-size: 20px; margin: 0 6px; opacity: 1; }
 .rv-divider { display: flex; align-items: center; justify-content: center; width: 150px; margin: 14px auto 4px; color: oklch(0.55 0.12 var(--hue)); font-size: 9px; }
 .rv-divider::before, .rv-divider::after { content: ''; flex: 1; height: 1px; }
 .rv-divider::before { background: linear-gradient(90deg, transparent, oklch(0.6 0.1 var(--hue))); margin-right: 10px; }

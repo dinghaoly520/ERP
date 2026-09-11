@@ -118,6 +118,7 @@
 .dense-workspace-tabs {
   min-width: 0;
   max-width: 100%;
+  margin-top: 16px;
   margin-bottom: 12px;
   background: transparent;
   border: 0;

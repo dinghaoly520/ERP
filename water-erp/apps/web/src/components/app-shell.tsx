@@ -256,7 +256,7 @@ export function AppShell({
             </div>
 
             <div className="w-full text-center">
-              <div className="truncate text-[1rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+              <div className="sidebar-brand-title truncate text-[1rem] font-semibold tracking-[0.07em]">
                 智慧水发·采购中心
               </div>
             </div>

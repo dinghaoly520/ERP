@@ -10,7 +10,8 @@
  *  - 其余（已准入）→ 「已准入」标签
  */
 import { useEffect, useState } from "react";
-import { AlertTriangle, CircleX, Loader2, Search, ShoppingBag } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowRight, CircleX, Loader2, Search, ShoppingBag } from "lucide-react";
 import { SpButton, SpInput } from "@/components/ui";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { catalogApi } from "@/lib/api/catalog";
@@ -217,66 +218,46 @@ export default function CatalogListPage() {
                 <span className="cat-result-count">共 {items.length} 项</span>
               </div>
 
-              <div className="neu-table-card cat-table-shell">
-                <table className="cat-table">
-                  <colgroup>
-                    <col />
-                    <col />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 70 }} />
-                    <col style={{ width: 80 }} />
-                    <col style={{ width: 130 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>编码 / 物资</th>
-                      <th>规格型号</th>
-                      <th>分类</th>
-                      <th>单位</th>
-                      <th>区域</th>
-                      <th>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((row) => {
-                      const st = itemStatus(row);
-                      return (
-                        <tr key={row.id}>
-                          <td>
-                            <div className="cat-cell">
-                              <div className="cell-code">{row.code}</div>
-                              <div className="cell-name">{row.name}</div>
-                            </div>
-                          </td>
-                          <td><div className="cat-cell cat-cell--ellipsis">{row.specification}</div></td>
-                          <td>
-                            <div className="cat-cell">
-                              <span className="cat-tag cat-tag--small cat-tag--plain cat-tag--primary">{row.category}</span>
-                            </div>
-                          </td>
-                          <td><div className="cat-cell">{row.unit}</div></td>
-                          <td><div className="cat-cell">{row.region}</div></td>
-                          <td>
-                            <div className="cat-cell">
-                              {st.canApplyJoin ? (
-                                <button type="button" className="cat-btn cat-btn--primary" onClick={() => openJoin(row)}>申请供货</button>
-                              ) : st.canUpdateQuote ? (
-                                <button type="button" className="cat-btn cat-btn--default" onClick={() => openUpdate(row)}>改报价</button>
-                              ) : st.inProgress ? (
-                                <span className="cat-tag cat-tag--small cat-tag--plain cat-tag--warning">审核中</span>
-                              ) : (
-                                <span className="cat-tag cat-tag--small cat-tag--plain cat-tag--info">已准入</span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {items.length === 0 && (
-                      <tr><td colSpan={6}><div className="cat-empty">暂无匹配的目录条目</div></td></tr>
-                    )}
-                  </tbody>
-                </table>
+              <div className="cat-grid">
+                {items.map((row) => {
+                  const st = itemStatus(row);
+                  const badge = st.inProgress
+                    ? { label: "审核中", cls: "pending" }
+                    : st.hasActiveSupply
+                      ? { label: "已准入", cls: "approved" }
+                      : { label: "未准入", cls: "disabled" };
+                  return (
+                    <article key={row.id} className="cat-card">
+                      <div className="cat-card-top">
+                        <div className="cat-card-code">{row.code}</div>
+                        <span className={`sp-status ${badge.cls}`}>{badge.label}</span>
+                      </div>
+                      <div className="cat-card-name">{row.name}</div>
+                      {row.specification && <div className="cat-card-spec">{row.specification}</div>}
+                      <div className="cat-card-chips">
+                        {row.category && <span className="cat-chip">{row.category}</span>}
+                        {row.unit && <span className="cat-chip">{row.unit}</span>}
+                        {row.region && <span className="cat-chip">{row.region}</span>}
+                      </div>
+                      <div className="cat-card-foot">
+                        {st.canApplyJoin ? (
+                          <button type="button" className="cat-btn cat-btn--primary" onClick={() => openJoin(row)}>申请供货</button>
+                        ) : st.canUpdateQuote ? (
+                          <button type="button" className="cat-btn cat-btn--default" onClick={() => openUpdate(row)}>改报价</button>
+                        ) : st.inProgress ? (
+                          <Link href="/catalog-applications" className="cat-card-link">
+                            查看进度<ArrowRight size={13} strokeWidth={1.75} />
+                          </Link>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+                {items.length === 0 && (
+                  <div className="cat-grid-empty">
+                    <div className="cat-empty">暂无匹配的目录条目</div>
+                  </div>
+                )}
               </div>
             </section>
           </div>

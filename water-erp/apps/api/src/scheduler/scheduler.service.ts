@@ -456,7 +456,7 @@ export class SchedulerService {
           userId,
           type: 'BID_DEADLINE_NUDGE',
           title: `投标即将截止：${projectName}`,
-          content: `项目「${projectName}」投标将于 ${fmt} 截止，请尽快前往供应商门户提交投标文件。`,
+          content: `项目「${projectName}」投标将于 ${fmt} 截止，请尽快提交投标文件。`,
           link: '/dashboard',
         });
         sent += 1;

@@ -116,6 +116,7 @@ export default function ObjectionsPage() {
         actions={<SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>}
       />
 
+      <div className="mt-4">
       {loading ? (
         <LoadingBlock text="正在加载异议记录…" />
       ) : items.length === 0 ? (
@@ -148,6 +149,7 @@ export default function ObjectionsPage() {
           ))}
         </div>
       )}
+      </div>
 
       <SpDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="提出异议" width={520}>
         <div className="obj-form">

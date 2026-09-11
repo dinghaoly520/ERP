@@ -75,7 +75,7 @@ function AwardLetterListContent() {
     <>
       <SpPageHero icon={Trophy} title="中标通知书" sub="查收并签收中标通知书" />
 
-      <div className="space-y-4" aria-busy={loading}>
+      <div className="mt-4 space-y-4" aria-busy={loading}>
         {!loading && letters.length === 0 ? (
           <EmptyState card icon={FileText} title="暂无中标通知书" />
         ) : (
