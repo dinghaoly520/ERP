@@ -907,9 +907,17 @@ export class SupplierPortalService {
     if (!project.projectManagementItemId) return project;
     const pm = await this.prisma.projectManagementItem.findUnique({
       where: { id: project.projectManagementItemId },
-      select: { projectCode: true },
+      select: { projectCode: true, documentAcquireTime: true },
     });
-    return pm?.projectCode ? { ...project, projectCode: pm.projectCode } : project;
+    if (!pm) return project;
+    const out: Record<string, unknown> = { ...project, projectCode: pm.projectCode ?? project.projectCode };
+    // 采购文件获取时间（非谈判项目）：PMI 阶段提取的中文区间「YYYY年MM月DD日HH:MM至…」，
+    // BidProject.downloadDeadline 对直接采购等常为空，此字段是唯一权威来源（2026-09-11）
+    const downloadDeadline = (project as { downloadDeadline?: Date | null }).downloadDeadline;
+    if (downloadDeadline == null && pm.documentAcquireTime) {
+      out.documentAcquireTime = pm.documentAcquireTime;
+    }
+    return out as T;
   }
 
   /** 公告 relatedProjectCode 的候选编号集合：业务编号（PMI.projectCode，公告实际存储值）∪ 内部编号（历史数据兜底）。

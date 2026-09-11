@@ -245,7 +245,10 @@ export default function BidListPage() {
                           ? `${dayjs(acquireStart).format("MM-DD HH:mm")} ~ ${dayjs(acquireEnd).format("MM-DD HH:mm")}`
                           : p.downloadDeadline
                             ? `至 ${dayjs(p.downloadDeadline).format("MM-DD HH:mm")}`
-                            : "";
+                            // 非谈判项目：PMI 阶段提取的中文区间原文（「2026年03月20日09:00至…」）
+                            : (typeof p.documentAcquireTime === 'string' && p.documentAcquireTime.trim())
+                              ? p.documentAcquireTime.trim()
+                              : "";
                         const openText = p.openTime ? dayjs(p.openTime).format("YYYY-MM-DD HH:mm") : "";
                         if (!acquireText && !openText && !nego) return null;
                         return (
