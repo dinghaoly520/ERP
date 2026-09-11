@@ -27,12 +27,17 @@ export class BidOpeningRecordService {
 
   // A-114：唱标总表（主持端）——确认签名剥壳为摘要（完整证据走本人视图与文件包）
   async listOpeningRecords(projectId: string) {
-    const records = await this.prisma.bidOpeningRecord.findMany({
-      where: { projectId },
-      include: { bidSupplier: { select: { supplierId: true } } },
-    });
+    const records = await this.prisma.bidOpeningRecord.findMany({ where: { projectId } });
     // dual-v2 报价以万元入库——下发单位标记，主持端/供应商端展示按「万元」渲染而非裸数字（2026-09-11）
-    const subIds = records.map((r) => r.bidSupplier?.supplierId).filter((x): x is string => !!x);
+    const bsIds = records.map((r) => r.bidSupplierId).filter((x): x is string => !!x);
+    const bidSuppliers = bsIds.length > 0
+      ? await this.prisma.bidSupplier.findMany({
+          where: { id: { in: bsIds } },
+          select: { id: true, supplierId: true },
+        })
+      : [];
+    const supplierIdByBs = new Map(bidSuppliers.map((b) => [b.id, b.supplierId]));
+    const subIds = [...supplierIdByBs.values()].filter((x): x is string => !!x);
     const subs = subIds.length > 0
       ? await this.prisma.supplierBidSubmission.findMany({
           where: { projectId, supplierId: { in: subIds } },
@@ -41,10 +46,10 @@ export class BidOpeningRecordService {
       : [];
     const dualSet = new Set(subs.filter((s) => s.envelopeVersion === 'dual-v2').map((s) => s.supplierId));
     return records.map((r) => {
-      const { bidSupplier, ...rest } = r;
+      const supplierId = r.bidSupplierId ? supplierIdByBs.get(r.bidSupplierId) : null;
       return {
-        ...rest,
-        amountUnit: bidSupplier?.supplierId && dualSet.has(bidSupplier.supplierId) ? '万元' : null,
+        ...r,
+        amountUnit: supplierId && dualSet.has(supplierId) ? '万元' : null,
         confirmSignature: stripOpeningConfirmSignature(r),
       };
     });
