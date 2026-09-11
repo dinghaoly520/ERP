@@ -43,6 +43,7 @@ import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample
 import { findContactByName } from "@/lib/api/contacts";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
 import { checkSupplierChange, updateProjectExtractedInfo } from "@/lib/api/project-management";
+import { getSupplierList } from "@/lib/api/supplier";
 import { confirmDialog } from "@/components/catalog/confirm-dialog";
 
 function downloadBlobFile(blob: Blob, fileName: string) {
@@ -677,6 +678,26 @@ export function AnnouncementDialog({
     setAiError(null);
 
     try {
+      // 「拟定供应商地址」不走 AI 编造（2026-09-11）：地址必须真实——按拟定供应商名称查库同步
+      // 注册地址，库内没有则明确提示，绝不生成虚构地址
+      if (fieldKey === 'supplierAddress') {
+        const sn = (((draft ?? {}) as Record<string, string>).supplierName || '').trim();
+        if (!sn) {
+          setAiError('请先填写「拟定供应商名称」');
+          setTimeout(() => setAiError(null), 5000);
+          return;
+        }
+        const addr = await lookupSupplierAddress(sn);
+        if (addr) {
+          handleFieldChange(fieldKey, addr);
+          toast.success('已从供应商库同步注册地址');
+        } else {
+          setAiError('供应商库中未找到该供应商的注册地址，请手动填写');
+          setTimeout(() => setAiError(null), 5000);
+        }
+        return;
+      }
+
       const context: Record<string, string> = {};
 
       // Include announcement draft fields as context
@@ -777,6 +798,11 @@ export function AnnouncementDialog({
           return t;
         };
         if (sn) patch.supplierName = extractCompanyName(sn);
+        // 拟定供应商地址联动（2026-09-11）：名称确定后从供应商库同步注册地址（仅填空，不覆盖已有）
+        if (!draftRecord.supplierAddress?.trim() && patch.supplierName) {
+          const addr = await lookupSupplierAddress(patch.supplierName);
+          if (addr) patch.supplierAddress = addr;
+        }
       }
       if (!draftRecord.maxPriceNumeric?.trim() && project.budgetAmount != null) patch.maxPriceNumeric = String(project.budgetAmount);
       if (!draftRecord.projectOverview?.trim() && project.projectOverview?.trim()) patch.projectOverview = project.projectOverview;
@@ -950,6 +976,18 @@ export function AnnouncementDialog({
   // ★ 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
   // 与字段值比对——相同则确认未更换（顺带把误填的长文本截成纯名字），不同则提示并确认更新。
   const [supplierChecking, setSupplierChecking] = useState(false);
+  /** 按名称查供应商库取注册地址（精确名匹配）——「拟定供应商地址」随供应商联动（2026-09-11） */
+  const lookupSupplierAddress = useCallback(async (name: string): Promise<string | null> => {
+    try {
+      const r = await getSupplierList({ search: name, pageSize: 10, status: 'APPROVED' });
+      const hit = (r.items || []).find((s: { name: string }) => s.name.replace(/\s+/g, '') === name.replace(/\s+/g, ''));
+      const addr = (hit as { registeredAddress?: string | null } | undefined)?.registeredAddress?.trim();
+      return addr || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const handleSupplierCheck = useCallback(async () => {
     if (!project?.id) {
       toast.error('缺少项目上下文，无法核对');
@@ -966,9 +1004,20 @@ export function AnnouncementDialog({
       const draftRecord = (draft ?? {}) as Record<string, string>;
       const currentField = draftRecord.supplierName?.trim() ?? '';
       const normalize = (n: string) => n.replace(/\s+/g, '');
+      // 供应商变更后地址联动（2026-09-11）：库内有注册地址→同步；库内无→清空旧供应商地址防误导
+      const syncAddressFor = async (supplierName: string, force: boolean) => {
+        const addr = await lookupSupplierAddress(supplierName);
+        if (addr) {
+          handleFieldChange('supplierAddress', addr);
+        } else if (force || draftRecord.supplierAddress?.trim()) {
+          handleFieldChange('supplierAddress', '');
+        }
+        return addr;
+      };
       if (currentField && normalize(currentField) === normalize(r.extracted)) {
-        // 未更换：字段值若为长文本（如论证段落），截成纯公司名
+        // 未更换：字段值若为长文本（如论证段落），截成纯公司名；地址为空时顺带从库内补
         if (currentField !== r.extracted) handleFieldChange('supplierName', r.extracted);
+        if (!draftRecord.supplierAddress?.trim()) await syncAddressFor(r.extracted, false);
         toast.success(`拟定供应商未更换：${r.extracted}`);
         return;
       }
@@ -983,14 +1032,19 @@ export function AnnouncementDialog({
       if (ok) {
         handleFieldChange('supplierName', r.extracted);
         await updateProjectExtractedInfo(project.id, { awardedSupplier: r.extracted });
-        toast.success(`拟定供应商已更新：${r.extracted}`);
+        const addr = await syncAddressFor(r.extracted, true);
+        toast.success(
+          addr
+            ? `拟定供应商已更新：${r.extracted}（地址已同步）`
+            : `拟定供应商已更新：${r.extracted}（供应商库中未找到注册地址，请补充「拟定供应商地址」）`,
+        );
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '核对失败');
     } finally {
       setSupplierChecking(false);
     }
-  }, [project?.id, draft, handleFieldChange]);
+  }, [project?.id, draft, handleFieldChange, lookupSupplierAddress]);
 
   const handleContactNameChange = async (value: string) => {
     handleFieldChange("contactName", value);
