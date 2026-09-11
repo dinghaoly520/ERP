@@ -13,8 +13,8 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
 ]);
 
 // Fields that should hide actions when type is "date"
+// （projectDuration 已改纯文字填写，2026-09-11 移除）
 const FIELDS_HIDE_WHEN_DATE: Set<string> = new Set([
-  'projectDuration',
   'submissionAndNegotiationTime',
 ]);
 

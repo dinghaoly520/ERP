@@ -607,7 +607,7 @@ export function TenderSectionEditor({
             const commonClassName =
               'tender-field-input';
 
-            // Handle composite field (like projectDuration with type selector)
+            // Handle composite field (like quotationLetter with type selector)
             if (field.composite) {
               const typeValue = draft[field.composite.typeKey as keyof ReadyTenderDraft] as string;
               // "datetime" = explicit datetime-type field (datetime-local input)

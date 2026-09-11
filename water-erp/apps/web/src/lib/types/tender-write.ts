@@ -112,7 +112,6 @@ export type SingleSourceFieldKey =
   | "supplierName"
   | "projectBudget"
   | "projectDuration"
-  | "projectDurationType"
   | "documentAcquireTime"
   | "documentPrice"
   | "submissionAndNegotiationTime"
