@@ -733,8 +733,51 @@ export class ProjectManagementService {
 
     const context = contextParts.join('\n\n');
 
-    // 调用 AI 推荐
-    const systemPrompt = `你是采购供应商智能推荐助手。根据项目的采购需求、立项事由、供方要求、采购内容、采购文件等信息，从供应商库中推荐3-5家最合适的供应商。
+    // ── 候选池：真实供应商库（2026-09-11 修复）──
+    // 旧实现只对 LLM 说「从供应商库中推荐」却不喂名单、不校验结果——LLM 凭行业常识
+    // 编造「四川诺克机械」等库外公司名，用户可选到库里不存在的供应商。现改为：
+    // 库内 APPROVED 供应商经关键词粗筛后作为候选名单喂给 AI，且返回结果强制校验命中名单。
+    const pool = await this.prisma.supplier.findMany({
+      where: { status: 'APPROVED' },
+      select: {
+        name: true,
+        tags: true,
+        businessScope: true,
+        classification: { select: { name: true } },
+      },
+      take: 600,
+    });
+    if (pool.length === 0) {
+      return { suppliers: [], contextSummary: '供应商库为空（无已入库供应商），无法推荐' };
+    }
+
+    // 关键词粗筛：项目标题/类别/事由与供应商 名称/标签/经营范围 匹配计分，取 top 60；
+    // 无命中时退化为库内前 60（按名称稳定排序），保证 AI 始终有真实候选可选。
+    const keywords = [project.title, project.procurementCategory, project.projectReason, project.supplierRequirements]
+      .filter(Boolean).join(' ')
+      .replace(/[（）()【】\[\]、，。：:;；/\\\-—_*]/g, ' ');
+    const kwSet = [...new Set(keywords.split(/\s+/).filter((k) => k.length >= 2))];
+    const scored = pool.map((s) => {
+      const hay = `${s.name} ${(s.tags || []).join(' ')} ${s.businessScope || ''} ${s.classification?.name || ''}`;
+      let score = 0;
+      for (const kw of kwSet) if (hay.includes(kw)) score++;
+      return { s, score };
+    });
+    const shortlist = scored
+      .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name, 'zh'))
+      .slice(0, 60)
+      .map(({ s }) => {
+        const tags = (s.tags || []).slice(0, 4).join('、');
+        const scope = (s.businessScope || '').slice(0, 60);
+        return `- ${s.name}${tags ? `（${tags}）` : ''}${scope ? `：${scope}` : ''}`;
+      })
+      .join('\n');
+
+    // 调用 AI 推荐（从给定名单中选择，不得编造）
+    const systemPrompt = `你是采购供应商智能推荐助手。根据项目采购信息，从下面给出的【候选供应商名单】中推荐 3-5 家最合适的供应商。
+【候选供应商名单】（只能从这个名单中选择，名单之外的公司一律不得输出）：
+${shortlist}
+
 请输出一个 JSON 对象，结构固定为：
 {
   "suppliers": [
@@ -742,17 +785,24 @@ export class ProjectManagementService {
   ]
 }
 要求：
-1. 供应商名称必须真实可查，不要编造虚构的公司名
+1. name 必须与候选名单中的名称逐字一致（可省略名单中括号内的补充说明），严禁编造名单之外的公司名
 2. 推荐理由基于项目的实际采购内容和要求
 3. matchScore 为 0-100 的匹配度评分
 4. 只输出 JSON，不要任何解释`;
 
+    const normalizeName = (n: string) => n.replace(/\s+/g, '').toLowerCase();
+    const poolNames = new Set(pool.map((s) => normalizeName(s.name)));
+
     try {
       const result = await this.aiService.chatJson<{
         suppliers: Array<{ name: string; reason: string; matchScore: number }>;
-      }>(systemPrompt, context.slice(0, 8000), 0.3);
+      }>(systemPrompt, context.slice(0, 4000), 0.3);
+      // 幻觉兜底：AI 输出的名称必须命中库内名单，未命中的直接丢弃
+      const validated = (result.suppliers || [])
+        .filter((s) => s?.name && poolNames.has(normalizeName(s.name)))
+        .slice(0, 5);
       return {
-        suppliers: (result.suppliers || []).slice(0, 5),
+        suppliers: validated,
         contextSummary: context.slice(0, 500),
       };
     } catch {
