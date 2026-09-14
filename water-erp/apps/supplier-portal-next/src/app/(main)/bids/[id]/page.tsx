@@ -170,7 +170,10 @@ function BidDetailInner() {
     if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, kind: 'code' });
     if (m.method) fields.push({ label: "采购方式", value: m.method, kind: 'plain' });
     if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), kind: 'money' });
-    if (m.deadline) fields.push({ label: "投标截止", value: fmtMetaDate(m.deadline), kind: 'date' });
+    // 口径修正（2026-09-14）：投标截止以项目截标时间（BidProject.deadline）为准；
+    // 公告 metadata.deadline 实为公示期止，仅项目无截标时间时兜底展示
+    const bidDeadline = project?.deadline || m.deadline;
+    if (bidDeadline) fields.push({ label: "投标截止", value: fmtMetaDate(bidDeadline), kind: 'date' });
     if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: String(m.downloadDeadline), kind: 'plain' });
     if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
     if (m.openTime) fields.push({ label: "开标时间", value: fmtMetaDate(m.openTime), kind: 'date' });
