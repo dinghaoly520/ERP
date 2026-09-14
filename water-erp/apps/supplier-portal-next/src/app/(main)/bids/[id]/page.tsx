@@ -430,6 +430,13 @@ function BidDetailInner() {
   const receivedAtLocal = displayedReceiptPayload?.receivedAt
     ? dayjs(String(displayedReceiptPayload.receivedAt)).format("YYYY-MM-DD HH:mm:ss")
     : "";
+  // 时区显式标注（2026-09-14）：查看设备时区不同则对照时刻不同，标注偏移消除歧义
+  const tzOffsetLabel = (() => {
+    const minutes = -new Date().getTimezoneOffset();
+    const sign = minutes >= 0 ? "+" : "-";
+    const abs = Math.abs(minutes);
+    return `UTC${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+  })();
 
   return (
     <div className="page-container">
@@ -725,10 +732,10 @@ function BidDetailInner() {
                       {submission.receiptSignature ? (
                         <div className="cq-sig">
                           <Lock size={12} strokeWidth={1.75} />
-                          已电子签名（{submission.receiptSignature.algorithm ?? "SM2/SM3"}
+                          签名算法 {submission.receiptSignature.algorithm ?? "SM2/SM3"}
                           {submission.receiptSignature.verifiedAt
-                            ? ` · 验签 ${dayjs(submission.receiptSignature.verifiedAt).format("YYYY-MM-DD HH:mm")}`
-                            : ""}）
+                            ? ` · 存档时已验签 ${dayjs(submission.receiptSignature.verifiedAt).format("YYYY-MM-DD HH:mm")}`
+                            : ""}
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -759,9 +766,6 @@ function BidDetailInner() {
                                     ? "以下为投递回执的存档原文（已由贵司 U盾 SM2/SM3 签名存档，任何字段改动都会导致验签失败），供完整性核验："
                                     : "以下为按服务端记录重建的待签回执负载原文（尚未签署），供核对："}
                                 </span>
-                                <SpButton variant="xs" icon={receiptCopied ? Check : Copy} onClick={copyReceiptText}>
-                                  {receiptCopied ? "已复制" : "复制原文"}
-                                </SpButton>
                               </div>
                               <div className="mb-1.5 flex flex-wrap items-center gap-2 !whitespace-normal">
                                 {submission.receiptSignature && (
@@ -780,7 +784,7 @@ function BidDetailInner() {
                                   ) : null
                                 )}
                                 {receivedAtLocal && (
-                                  <span className="opacity-[0.72]">receivedAt（本地时区）：{receivedAtLocal}</span>
+                                  <span className="opacity-[0.72]">receivedAt（本地时区 {tzOffsetLabel}）：{receivedAtLocal}</span>
                                 )}
                               </div>
                             </>
@@ -800,6 +804,18 @@ function BidDetailInner() {
                             )
                             : payloadFailed === "retry" ? "回执获取失败，请重新展开重试"
                             : "展开后获取投递回执的存档信息"}
+                          {displayedReceiptPayload && (
+                            <>
+                              <div className="mt-1.5 flex justify-end !whitespace-normal">
+                                <SpButton variant="xs" icon={receiptCopied ? Check : Copy} onClick={copyReceiptText}>
+                                  {receiptCopied ? "已复制" : "复制原文"}
+                                </SpButton>
+                              </div>
+                              <div className="mt-1 !whitespace-normal opacity-[0.62]">
+                                字段对照：projectId＝本项目 · supplierId＝贵司平台标识 · filesCommit＝投标文件集承诺哈希（SHA-256）· submissionId＝对应回执编号 {submission.receiptNo || "—"}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </details>
                     </div>
