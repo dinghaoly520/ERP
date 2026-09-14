@@ -36,6 +36,7 @@ Run workspace commands from `water-erp/`.
 | `packages/shared` | Domain types, status labels/maps, stage colors, brand constants — `@water-erp/shared` |
 | `packages/ui` | Shared React workbench components (`MetricCard`, `PageHero`, `SectionCard`, `StatusBadge`, `DataToolbar`) + `cn` helper — `@water-erp/ui` |
 | `packages/ukey` | 供应商 CA U盾适配层（SM2/SM4/SM3 封装、`MockUKeyAdapter`、`DualEnvelope`/`SealedFields` 类型与 `canonicalEnvelopeHash`）——双信封投标加密与开标解密前后端共用，浏览器与 Node 同源可跑 — `@water-erp/ukey` |
+| `packages/client` | 前端 API 客户端（`createApiClient`/`api`/`ApiError`——按 portal 的鉴权头与错误归一，五门户 `lib/api/*` 底座）——**dist 消费且 dist 不入库**：改 src 后必须 `--filter @water-erp/client build`（CI validate 构建链已含） — `@water-erp/client` |
 
 Infrastructure in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380→6379`), MinIO (`localhost:9000`, console `localhost:9001`).
 
@@ -156,6 +157,7 @@ pnpm infra:logs      # View logs
 pnpm --filter @water-erp/shared build
 pnpm --filter @water-erp/config build
 pnpm --filter @water-erp/ukey build
+pnpm --filter @water-erp/client build   # dist 消费且不入库，漏建则门户 tsc 全线隐式 any（2026-09-14 CI 12 连红实录）
 
 # Database
 pnpm db:generate     # Generate Prisma client

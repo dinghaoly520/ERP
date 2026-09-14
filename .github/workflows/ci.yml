@@ -48,6 +48,8 @@ jobs:
           pnpm --filter @water-erp/shared build
           pnpm --filter @water-erp/config build
           pnpm --filter @water-erp/ukey build
+          # client 也是 dist 消费（dist 不入库）——漏建则八门户 tsc 全线隐式 any（2026-09-10~14 CI 12 连红根因）
+          pnpm --filter @water-erp/client build
 
       - name: Generate Prisma client
         run: pnpm db:generate
@@ -141,14 +143,26 @@ jobs:
 
       - name: Start MinIO
         run: |
+          # Docker Hub 匿名限流会间歇性 pull denied（2026-09-14 实录）——重试 + quay.io 官方镜像兜底
+          IMG=minio/minio
+          for i in 1 2 3; do
+            docker pull "$IMG" && break
+            echo "pull $IMG failed, retry #$i"; sleep 5
+          done
+          if ! docker image inspect "$IMG" >/dev/null 2>&1; then
+            echo "Docker Hub 不可用，回退 quay.io/minio/minio"
+            IMG=quay.io/minio/minio
+            docker pull "$IMG"
+          fi
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=$MINIO_ROOT_USER \
             -e MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD \
-            minio/minio server /data
+            "$IMG" server /data
           for i in $(seq 1 30); do
             curl -sf http://localhost:9000/minio/health/live && echo "minio up" && break
             sleep 2
           done
+          curl -sf http://localhost:9000/minio/health/live || { echo "minio 未就绪"; docker logs minio | tail -20; exit 1; }
 
       - name: Write CI .env
         working-directory: water-erp/apps/api
