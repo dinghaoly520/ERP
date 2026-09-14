@@ -25,6 +25,7 @@ function makePrismaMock() {
     workTemplate: { findFirst: jest.fn().mockResolvedValue(null) },
     aiBidAnalysisTask: { findUnique: jest.fn().mockResolvedValue(null) },
     bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+    bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) }, // 唱标金额单位戳列（2026-09-14 util 查询）
   } as any;
 }
 

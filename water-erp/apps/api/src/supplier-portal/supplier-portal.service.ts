@@ -2605,10 +2605,12 @@ export class SupplierPortalService {
           },
         });
         // 唱标预填（旧轨 decryptSupplier 同款 recordData 形状——唱标表/供应商确认流无感衔接；
-        // bondStatus 留空由主持人判定）
+        // bondStatus 留空由主持人判定）。amount=fields.price（万元，fieldsCommit 承诺验证口径）。
         const recordData = {
           supplierName: bidSupplier.supplierName,
           amount: fields.price,
+          // 单位戳（2026-09-14）：dual-v2 轨金额=万元裸数字——落列自描述（读端优先取本列）
+          amountUnit: '万元',
           period: fields.deliveryPeriod,
           qualityTarget: fields.qualityCommitment,
           bondStatus: '',

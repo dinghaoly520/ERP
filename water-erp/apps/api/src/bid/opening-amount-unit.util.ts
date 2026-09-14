@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -28,23 +29,71 @@ export function formatAmountWithUnit(amount: string | null | undefined, unit: st
 
 /**
  * 解析项目内各投标记录（BidSupplier.id）的唱标金额单位：
- * 投递为 dual-v2 → '万元'；旧轨/无投递 → null（裸数字按旧语义「元」、带单位文本原文直出）。
+ * ① 记录自带单位戳（BidOpeningRecord.amountUnit，写入时落）优先；
+ * ② 无戳回退按投递轨道推导：dual-v2 → '万元'；旧轨/无投递 → null（裸数字按旧语义「元」、带单位文本原文直出）。
  */
 export async function resolveOpeningAmountUnitMap(
   prisma: PrismaService,
   projectId: string,
 ): Promise<Map<string, string | null>> {
-  const bidSuppliers = await prisma.bidSupplier.findMany({
-    where: { projectId },
-    select: { id: true, supplierId: true },
-  });
-  const supplierIds = bidSuppliers.map((b) => b.supplierId).filter((x): x is string => !!x);
-  const subs = supplierIds.length > 0
-    ? await prisma.supplierBidSubmission.findMany({
-        where: { projectId, supplierId: { in: supplierIds } },
-        select: { supplierId: true, envelopeVersion: true },
-      })
-    : [];
-  const dualSet = new Set(subs.filter((s) => s.envelopeVersion === 'dual-v2').map((s) => s.supplierId));
-  return new Map(bidSuppliers.map((b) => [b.id, b.supplierId && dualSet.has(b.supplierId) ? DUAL_V2_AMOUNT_UNIT : null]));
+  const [bidSuppliers, subs, stampedRows] = await Promise.all([
+    prisma.bidSupplier.findMany({
+      where: { projectId },
+      select: { id: true, supplierId: true },
+    }),
+    prisma.supplierBidSubmission.findMany({
+      where: { projectId },
+      select: { supplierId: true, envelopeVersion: true },
+    }),
+    prisma.bidOpeningRecord.findMany({
+      where: { projectId },
+      select: { bidSupplierId: true, amountUnit: true },
+    }),
+  ]);
+  // 防御：jest mock 缺省（undefined）不炸——回退推导路径
+  const suppliers = Array.isArray(bidSuppliers) ? bidSuppliers : [];
+  const submissions = Array.isArray(subs) ? subs : [];
+  const stamped = Array.isArray(stampedRows) ? stampedRows : [];
+  const dualSet = new Set(
+    submissions.filter((s) => s.envelopeVersion === 'dual-v2').map((s) => s.supplierId),
+  );
+  const stampedByBs = new Map(
+    stamped
+      .filter((r) => r.amountUnit && r.bidSupplierId)
+      .map((r) => [r.bidSupplierId as string, r.amountUnit as string]),
+  );
+  return new Map(
+    suppliers.map((b) => [
+      b.id,
+      stampedByBs.get(b.id) ?? (b.supplierId && dualSet.has(b.supplierId) ? DUAL_V2_AMOUNT_UNIT : null),
+    ]),
+  );
+}
+
+const BARE_NUM_RE = /^[\d,]+(?:\.\d+)?$/;
+
+/**
+ * dual-v2 唱标录入单位闸（2026-09-14）：密封价（万元裸数字）与录入值同为裸数字、且录入值呈
+ * 密封价×10000 形态 → 硬拦 400 PRICE_UNIT_SUSPECT。交叉容差（resolveExpectedInYuan）
+ * 本会把这种录入当「同一报价」静默放行，落库后读端按万元解读再差一万倍——单位错录不是
+ * 「主持人掌握更准信息」的判断题（轨道口径已知），不给确认绕行通道。
+ * 仅拦 ×10000（主持人把万元换算成元录入——唯一无歧义的真实错误方向）；
+ * ÷10000 方向存在合法歧义（供应商把元打进万元表单、主持人按万元正确录入），不拦，交 P1-4 正常比对。
+ * 带单位文本（「153.95万元」）自描述、不拦；不可解析/缺密封价不拦（与 P1-4 语义对齐）。
+ */
+export function assertNoCrossUnitEntry(sealed: string | null | undefined, entered: string | number): void {
+  const s = sealed == null ? '' : String(sealed).trim();
+  const e = entered == null ? '' : String(entered).trim();
+  if (!s || !e) return;
+  if (!BARE_NUM_RE.test(s) || !BARE_NUM_RE.test(e)) return;
+  const sn = Number(s.replace(/,/g, ''));
+  const en = Number(e.replace(/,/g, ''));
+  if (!Number.isFinite(sn) || !Number.isFinite(en) || sn <= 0) return;
+  const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(a, b) * 0.005;
+  if (en > sn * 100 && near(en, sn * 10000)) {
+    throw new BadRequestException({
+      error: `录入报价 ${e} 与密封报价 ${s}（万元口径）相差一万倍——本项目唱标请按「万元」录入（如 ${s}），勿自行换算为元`,
+      code: 'PRICE_UNIT_SUSPECT',
+    });
+  }
 }

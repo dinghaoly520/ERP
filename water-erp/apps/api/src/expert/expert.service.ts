@@ -979,12 +979,12 @@ export class ExpertService {
       const [openingRec, unitMap] = await Promise.all([
         this.prisma.bidOpeningRecord.findFirst({
           where: { projectId, bidSupplierId: supplierId },
-          select: { amount: true },
+          select: { amount: true, amountUnit: true },
         }),
-        // 唱标金额单位（2026-09-14）：dual-v2 万元值补单位后缀——裸数字会被专家/LLM 读成元
+        // 唱标金额单位（2026-09-14）：单位戳优先，回退轨道推导——裸数字会被专家/LLM 读成元
         resolveOpeningAmountUnitMap(this.prisma, projectId),
       ]);
-      const unit = unitMap.get(supplierId) ?? null;
+      const unit = openingRec?.amountUnit ?? (unitMap.get(supplierId) ?? null);
       finalQuotePrice = openingRec?.amount
         ? formatAmountWithUnit(openingRec.amount, unit) || null
         : null;

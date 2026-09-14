@@ -16,6 +16,7 @@ import { Prisma } from '@prisma/client';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { sha256Hex } from '@water-erp/ukey';
+import { DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
 import type { DualEnvelope, EnvelopeFileEntry, EnvelopeRole } from '@water-erp/ukey';
 
 /** 双信封 v2 角色 → 提交记录资产引用列（与 supplier-portal reupload-dual 的 ROLE_ASSET_KEYS 同构，勿漂移） */
@@ -546,6 +547,8 @@ export class BidDecryptService {
           const recordData = {
             supplierName: bidSupplier.supplierName,
             amount: dto.amount,
+            // 单位戳（2026-09-14）：dual-v2 轨金额=万元裸数字——落列自描述（与 enterOpeningRecord 同口径）
+            amountUnit: submission?.envelopeVersion === 'dual-v2' ? DUAL_V2_AMOUNT_UNIT : null,
             period: dto.period,
             qualityTarget: dto.qualityTarget,
             bondStatus: dto.bondStatus,

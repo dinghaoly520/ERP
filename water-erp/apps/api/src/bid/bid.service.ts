@@ -1183,7 +1183,7 @@ export class BidService {
         where: { projectId: project.id },
         // A-114（SHOULD-FIX-1）：开标文件包为带 SHA-256 指纹的证据件——确认电子签名两列完整入包（spec §一.4），
         // 不做 getProject/listOpeningRecords 式剥壳（主持端视图才剥摘要）。
-        select: { bidSupplierId: true, supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, confirmSignature: true, confirmSignedAt: true, objectionReason: true, handleResult: true },
+        select: { bidSupplierId: true, supplierName: true, amount: true, amountUnit: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, confirmSignature: true, confirmSignedAt: true, objectionReason: true, handleResult: true },
       }),
       this.prisma.bidSupervisionLog.findMany({
         where: { projectId: project.id },
@@ -1211,7 +1211,8 @@ export class BidService {
       ]),
     );
     const recordsWithUnit = records.map((r: any) => {
-      const unit = (r.bidSupplierId ? amountUnitByBsId.get(r.bidSupplierId) : null) ?? null;
+      // 单位戳优先（amountUnit 列），回退轨道推导
+      const unit = r.amountUnit ?? ((r.bidSupplierId ? amountUnitByBsId.get(r.bidSupplierId) : null) ?? null);
       return { ...r, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit };
     });
     const decryptedAssetIds = Array.from(new Set(
@@ -4509,16 +4510,18 @@ export class BidService {
         // 与 decryptSupplier 同款 upsert（:1985）——update 只改价格，create 为缺 record 时补建（C1 fix）
         const sup = await tx.bidSupplier.findUnique({ where: { id: q.bidSupplierId }, select: { supplierName: true } });
         const amount = toRecordAmount(q.bidSupplierId, q.quotePrice);
+        const amountUnit = amountUnitMap.get(q.bidSupplierId) ?? null;
         await tx.bidOpeningRecord.upsert({
           where: { projectId_bidSupplierId: { projectId, bidSupplierId: q.bidSupplierId } },
           create: {
             projectId, bidSupplierId: q.bidSupplierId,
             supplierName: sup?.supplierName ?? '—',
             amount,
+            amountUnit,
             period: '', qualityTarget: '', bondStatus: '',
             confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
           },
-          update: { amount },
+          update: { amount, amountUnit },
         });
       }
 
@@ -4719,7 +4722,7 @@ export class BidService {
       const csvAmountUnitMap = await resolveOpeningAmountUnitMap(this.prisma, project.id);
       const csvOpeningRecords = project.openingRecords.map(r => ({
         ...r,
-        amount: formatAmountWithUnit(r.amount, (r.bidSupplierId ? csvAmountUnitMap.get(r.bidSupplierId) : null) ?? null),
+        amount: formatAmountWithUnit(r.amount, r.amountUnit ?? ((r.bidSupplierId ? csvAmountUnitMap.get(r.bidSupplierId) : null) ?? null)),
       }));
       // W8（A-115）：有 active 开标记录模板则按模板列导出，否则回退内置列
       const openingTpl = await this.prisma.workTemplate.findFirst({ where: { kind: 'opening_record', isActive: true }, orderBy: { updatedAt: 'desc' } }).catch(() => null);

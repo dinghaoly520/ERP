@@ -432,6 +432,16 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **BID_DUAL_ENVELOPE=false 应急语义**：flag 关时新轨投递（envelope.version='dual-v2'）被显式 400 `DUAL_DISABLED` 拒收——供应商须按旧流程（clientDeks）重新投递；回退前应公告通知投标人。
 - **管理方密钥轮转**：`POST /api/bid/admin-cert/generate` 置旧证 inactive；历史信封按 `envelope.adminCertId` 定位旧私钥（keystore 目录每证一文件，保留至其覆盖提交全部归档）。
 
+## 唱标金额单位铁律（2026-09-14 定案）
+
+**dual-v2（双信封新轨）投标/唱标金额以「万元」入库（裸数字，投标表单口径）；旧轨为元/带单位自由文本。** 单位隐式化是 2026-09-14 全线事故根因（供应商大厅「153.95 元」误标、价格公式与限价差一万倍、中标通知书 ¥153.95 等四波同根修复）。
+
+- **`BidOpeningRecord.amountUnit` 落列**（迁移 `20260914120000_bid_opening_record_amount_unit`，存量已回填）：'万元'=dual-v2 裸数字口径；null=旧轨。**全部四处写入点必须落戳**（enterOpeningRecord / bid-decrypt 解密即唱标 / supplier-portal dual-v2 解密预填 / syncMultiRoundPrices）。
+- **读端唯一入口** `apps/api/src/bid/opening-amount-unit.util.ts`：`resolveOpeningAmountUnitMap`（戳优先、envelopeVersion 回退推导）取单位；`parseAmountToYuan(raw,{unitHint})` 换算；`formatAmountWithUnit` 纸面证据渲染（签名/签字包/文件包/CSV 一律自含单位）；`assertNoCrossUnitEntry` 录入闸（主持人把万元换算成元录入 → 400 `PRICE_UNIT_SUSPECT`，不给确认绕行）。**禁止新代码裸读裸算 `amount`/`decryptedPrice`。**
+- **新增金额字段禁止再造隐式单位列**（单位必须显式落库或字段名/后缀自带）；前端渲染走 `formatOpeningAmount/formatBidSubmissionPrice` 的 unitHint 形参（供应商端）与 `amountUnit` 分支（主持端）。
+- 测试锁定：`opening-amount-unit.util.spec.ts`（单位戳优先/闸门方向）+ 两端 spec 的 dual-v2 回显/比对用例。
+
+
 ## 并行会话协作约定（2026-08-26 起生效）
 
 两个 Claude 会话并行实施不同规范计划，**分工与避让规则如下（双方必须遵守）**：

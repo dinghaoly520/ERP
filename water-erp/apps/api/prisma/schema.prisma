@@ -537,7 +537,12 @@ model BidOpeningRecord {
   id               String     @id @default(cuid())
   projectId        String
   supplierName     String
+  // 唱标金额（主持人自由文本）。单位口径：dual-v2 轨=万元裸数字（投标表单口径），旧轨=元/带单位自由文本。
+  // 读取/换算/渲染单一来源：apps/api/src/bid/opening-amount-unit.util.ts——禁止绕过 util 裸读裸算（2026-09-14）。
   amount           String
+  // 金额单位戳（写入时落）：'万元'=dual-v2 裸数字口径；null=旧轨（裸数字按元、带单位文本原文）。
+  // 读端经 resolveOpeningAmountUnitMap 优先取本列（envelopeVersion 推导为回退）。
+  amountUnit       String?
   period           String
   qualityTarget    String
   bondStatus       String

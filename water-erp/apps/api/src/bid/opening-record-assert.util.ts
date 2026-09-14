@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { openField } from '../common/crypto/field-crypto';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from './opening-compare.util';
+import { assertNoCrossUnitEntry } from './opening-amount-unit.util';
 
 /**
  * 唱标录入校验（F1c 抽取）——自 bid.service.ts 私有方法提为纯函数（仅 this.prisma → 首参 prisma，其余逐字）。
@@ -36,6 +37,9 @@ export async function assertPriceMatchesSealed(
         : (sub.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null))
     : null;
   if (sealed == null) return null;
+  // dual-v2 单位闸（2026-09-14）：录值呈密封价×10000/÷10000 形态（主持人自行万元↔元换算）硬拦——
+  // 下方交叉容差会把它当「同一报价」静默放行，落库后读端按万元解读再差一万倍。
+  if (sub?.envelopeVersion === 'dual-v2') assertNoCrossUnitEntry(sealed, amount);
   // P1-13 归一 + 容差比对统一走 opening-compare.util（供应商端回显同源）
   const expectedInYuan = resolveExpectedInYuan(sealed, amount);
   if (isPriceMismatch(expectedInYuan, amount)) {

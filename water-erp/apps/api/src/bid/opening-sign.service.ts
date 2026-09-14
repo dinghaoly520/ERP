@@ -51,10 +51,10 @@ export class OpeningSignService {
       }),
       this.prisma.bidOpeningRecord.findMany({
         where: { projectId },
-        select: { bidSupplierId: true, supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, objectionReason: true, handleResult: true },
+        select: { bidSupplierId: true, supplierName: true, amount: true, amountUnit: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, objectionReason: true, handleResult: true },
         orderBy: { createdAt: 'asc' },
       }),
-      // 唱标金额单位（2026-09-14）：dual-v2 万元值——纸面证据必须自含单位
+      // 唱标金额单位（2026-09-14）：单位戳优先（amountUnit 列），无戳回退轨道推导——纸面证据必须自含单位
       resolveOpeningAmountUnitMap(this.prisma, projectId),
     ]);
     const disputes = records
@@ -70,9 +70,9 @@ export class OpeningSignService {
       supervisor: session.supervisor,
       window: { start: session.decryptWindowStart.toISOString(), end: session.decryptWindowEnd.toISOString() },
       suppliers: suppliers.map(s => ({ supplierName: s.supplierName, decryptStatus: s.decryptStatus, confirmStatus: s.confirmStatus, dangerAttribution: s.dangerAttribution })),
-      // 纸面证据金额带单位（dual-v2 万元后缀）；amountUnit 字段供机器消费
+      // 纸面证据金额带单位（单位戳优先，回退轨道推导）；amountUnit 字段供机器消费
       records: records.map(r => {
-        const unit = (r.bidSupplierId ? amountUnitMap.get(r.bidSupplierId) : null) ?? null;
+        const unit = r.amountUnit ?? ((r.bidSupplierId ? amountUnitMap.get(r.bidSupplierId) : null) ?? null);
         return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus };
       }),
       disputes,

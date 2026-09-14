@@ -2487,8 +2487,9 @@ describe('SupplierPortalService', () => {
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith({ where: { id: 'bs-1' }, data: { decryptStatus: 'SUCCESS', decryptedAt: expect.any(Date) } });
 
       // 唱标预填（旧轨 decryptSupplier 同款 recordData 形状；bondStatus 留空由主持人判定）
+      // 2026-09-14：dual-v2 预填附单位戳 amountUnit='万元'（金额自描述列）
       const recordData = {
-        supplierName: '四川水发建设有限公司', amount: '980000.00', period: '540',
+        supplierName: '四川水发建设有限公司', amount: '980000.00', amountUnit: '万元', period: '540',
         qualityTarget: '合格', bondStatus: '', decryptResult: '解密成功', confirmStatus: '待供应商确认',
       };
       expect(prisma.bidOpeningRecord.upsert).toHaveBeenCalledWith({

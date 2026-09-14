@@ -9,7 +9,7 @@ import { openField } from '../common/crypto/field-crypto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { assertPriceMatchesSealed, assertPeriodMatchesSubmitted } from './opening-record-assert.util';
-import { resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
+import { resolveOpeningAmountUnitMap, DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
 import { OpeningFieldDef, STATUTORY_OPENING_KEYS, resolveOpeningFieldConfig, assertValidOpeningFieldConfig } from './opening-field-config.util';
 
 /** A-113：唱标字段配置锁定阶段——开标已开始后改配置会造成既有唱标记录历史列漂移 */
@@ -160,12 +160,22 @@ export class BidOpeningRecordService {
     // P1-4 同构：与投递工期比对（误录工期一路进评标/公示的防线）
     const periodNote = await assertPeriodMatchesSubmitted(this.prisma, projectId, bidSupplier.id, dto.period, dto.confirmSealedPeriod);
 
+    // 单位戳（2026-09-14）：dual-v2 轨金额=万元裸数字——落列自描述，读端（util）优先取本列
+    const submission = bidSupplier.supplierId
+      ? await this.prisma.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
+          select: { envelopeVersion: true },
+        })
+      : null;
+    const amountUnit = submission?.envelopeVersion === 'dual-v2' ? DUAL_V2_AMOUNT_UNIT : null;
+
     // A-113：动态字段录入校验与净化——config 中非法定键逐项校验，未定义键剥除（只落配置内键）。
     // 法定四字段路径零改动（密封比对在上方、专属列写入在 payload 下方，均不触碰）。
     const customFields = this.sanitizeCustomFields(resolveOpeningFieldConfig(project).fields, dto.customFields);
 
     const payload = {
       amount: dto.amount,
+      amountUnit,
       period: dto.period,
       qualityTarget: dto.qualityTarget,
       bondStatus: dto.bondStatus,

@@ -548,9 +548,9 @@ export class BidSignPacketService {
       })),
       leaderCoSignedAt: project.leaderCoSignedAt ? project.leaderCoSignedAt.toISOString() : null,
       reportNotes: (project.reportNotes as Array<{ section: string; content: string }>) ?? undefined,
-      // 唱标金额单位（2026-09-14）：dual-v2 万元值——签字包纸面/JSON 证据金额自含单位
+      // 唱标金额单位（2026-09-14）：单位戳优先（amountUnit 列），回退轨道推导——签字包纸面/JSON 证据金额自含单位
       openingRecords: openingRecords.map(r => {
-        const unit = (r.bidSupplierId ? amountUnitMapForRecords.get(r.bidSupplierId) : null) ?? null;
+        const unit = r.amountUnit ?? ((r.bidSupplierId ? amountUnitMapForRecords.get(r.bidSupplierId) : null) ?? null);
         return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus };
       }),
       bids: suppliers.map(s => ({ supplierName: s.supplierName, amount: '（见开标记录）', period: '（见开标记录）', submittedAt: s.createdAt.toISOString() })),

@@ -17,6 +17,7 @@ const prisma = {
   // buildSnapshot 的 12 个 delegate：findMany 必须回数组（快照代码直接 .map/断言）
   bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
   bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+  supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) }, // 唱标金额单位解析（opening-amount-unit.util）
   bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
   bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
   bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]) },
