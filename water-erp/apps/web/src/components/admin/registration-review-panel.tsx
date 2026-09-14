@@ -158,7 +158,7 @@ export function RegistrationReviewPanel({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<
-    | { type: "approve"; id: string }
+    | { type: "approve"; id: string; user: PendingRegistration; role: "management" | "office" }
     | { type: "reject"; id: string }
     | null
   >(null);
@@ -189,11 +189,11 @@ export function RegistrationReviewPanel({
     });
   };
 
-  const handleApprove = (id: string) => {
+  const handleApprove = (id: string, role: "management" | "office") => {
     setActionMessage(null);
     startTransition(async () => {
       try {
-        await approveRegistration(id);
+        await approveRegistration(id, role);
         setActionMessage("已通过注册申请");
         await load();
         onAccountsChanged?.();
@@ -244,14 +244,7 @@ export function RegistrationReviewPanel({
 
   const confirmConfig = confirm
     ? confirm.type === "approve"
-      ? {
-          title: "确认通过注册申请",
-          description: "通过后该用户将被激活并按其申请权限分配角色。",
-          confirmLabel: "确认通过",
-          variant: "primary" as const,
-          showReason: false,
-          onConfirm: () => handleApprove(confirm.id),
-        }
+      ? null // approve 用带「权限选择项」的自定义弹窗（下方单独渲染）
       : {
           title: "拒绝注册申请",
           description: "拒绝后该用户账号将被删除。请填写拒绝理由。",
@@ -264,7 +257,7 @@ export function RegistrationReviewPanel({
 
   return (
     <div className="space-y-4">
-      {confirmConfig && (
+      {confirmConfig && confirm?.type === "reject" && (
         <ConfirmDialog
           open
           title={confirmConfig.title}
@@ -276,6 +269,56 @@ export function RegistrationReviewPanel({
           onConfirm={confirmConfig.onConfirm}
           onCancel={() => setConfirm(null)}
         />
+      )}
+
+      {/* 通过注册：管理员复核申请人 + 重新选择权限（覆盖申请人自报） */}
+      {confirm?.type === "approve" && (
+        <Modal
+          open
+          onClose={() => setConfirm(null)}
+          title="确认通过注册申请"
+          size="sm"
+          footer={
+            <>
+              <button type="button" onClick={() => setConfirm(null)} disabled={isPending} className="neu-btn-soft">
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => handleApprove(confirm.id, confirm.role)}
+                className="neu-btn-primary"
+              >
+                {isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                确认通过
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-xs leading-6 text-[var(--muted-foreground)]">
+              申请人 <span className="font-medium text-[var(--foreground)]">{confirm.user.displayName}</span>
+              {confirm.user.requestedRole ? (
+                <> 自报 <span className="font-medium text-[var(--foreground)]">{ROLE_LABEL[confirm.user.requestedRole]}</span></>
+              ) : null}
+              。通过后该用户将被激活，你可重新选择其最终权限（覆盖自报）。
+            </p>
+            <div
+              className="neu-segment"
+              role="group"
+              aria-label="分配权限"
+              data-index={confirm.role === "office" ? "1" : "0"}
+            >
+              <span aria-hidden className="neu-segment-thumb" />
+              <button type="button" aria-pressed={confirm.role === "management"} onClick={() => setConfirm({ ...confirm, role: "management" })} className="neu-segment-btn">
+                管理权限
+              </button>
+              <button type="button" aria-pressed={confirm.role === "office"} onClick={() => setConfirm({ ...confirm, role: "office" })} className="neu-segment-btn">
+                办公权限
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* 工具条：统计 + 内层 tab + 刷新 */}
@@ -358,7 +401,7 @@ export function RegistrationReviewPanel({
                           <button
                             type="button"
                             disabled={isPending}
-                            onClick={() => setConfirm({ type: "approve", id: u.id })}
+                            onClick={() => setConfirm({ type: "approve", id: u.id, user: u, role: (u.requestedRole as "management" | "office") || "office" })}
                             className="neu-btn-xs is-success"
                           >
                             <Check size={12} strokeWidth={2.2} />

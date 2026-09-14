@@ -539,10 +539,12 @@ export async function fetchRegistrationReviews(): Promise<RegistrationReview[]> 
   });
 }
 
-export async function approveRegistration(userId: string) {
+export async function approveRegistration(userId: string, role?: "management" | "office") {
   return requestJson<{ ok: boolean }>(`${API_BASE}/auth/users/${userId}/approve`, {
     method: "POST",
     credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(role ? { role } : {}),
   });
 }
 

@@ -77,9 +77,13 @@ export class AuthController {
 
   @Post('users/:id/approve')
   @Roles('admin', 'leader')
-  @ApiOperation({ summary: '审核通过注册用户' })
-  async approveUser(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.authService.approveUser(id, { id: user.sub, name: user.username });
+  @ApiOperation({ summary: '审核通过注册用户（可覆盖申请权限）' })
+  async approveUser(
+    @Param('id') id: string,
+    @Body() dto: { role?: 'management' | 'office' },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.authService.approveUser(id, { id: user.sub, name: user.username }, dto?.role);
   }
 
   @Post('users/:id/reject')

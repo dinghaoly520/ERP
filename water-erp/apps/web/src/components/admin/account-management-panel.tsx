@@ -315,37 +315,7 @@ export function AccountManagementPanel() {
               安全审批
             </button>
           </div>
-          {/* 列表 tab：分区切换（工作人员=审批管理；供应商=只读+密码查看）+ 搜索框；其他 tab 等高占位 */}
-          {tab === "list" ? (
-            <div
-              className="neu-segment mb-1.5 w-full max-w-[320px]"
-              role="group"
-              aria-label="账号分区"
-              data-index={listView === "supplier" ? "1" : "0"}
-            >
-              <span aria-hidden className="neu-segment-thumb" />
-              <button
-                type="button"
-                aria-pressed={listView === "staff"}
-                onClick={() => setListView("staff")}
-                className="neu-segment-btn"
-              >
-                <UserCog size={13} strokeWidth={1.9} />
-                工作人员账号
-                <span className="neu-segment-count">{accounts.length}</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={listView === "supplier"}
-                onClick={() => setListView("supplier")}
-                className="neu-segment-btn"
-              >
-                <Building2 size={13} strokeWidth={1.9} />
-                供应商账号
-                <span className="neu-segment-count">{suppliers.length}</span>
-              </button>
-            </div>
-          ) : null}
+          {/* 列表 tab 显示搜索框；其他 tab 等高占位（二级分区切换已下移到列表上方独立一层） */}
           {tab === "list" ? (
             <div className="relative mb-1.5 w-full max-w-[220px] min-w-[160px]">
               <Search size={14} className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[var(--muted-foreground)]" />
@@ -383,6 +353,43 @@ export function AccountManagementPanel() {
           {actionMessage}
         </div>
       ) : null}
+
+      {/* 二级分区层（仅「账号列表」tab）：工作人员=审批管理 / 供应商=只读+密码查看 —— 与页面级 tab 分层 */}
+      {tab === "list" && (
+        <div className="flex items-center justify-between gap-3">
+          <div
+            className="neu-segment w-full max-w-[320px]"
+            role="group"
+            aria-label="账号分区"
+            data-index={listView === "supplier" ? "1" : "0"}
+          >
+            <span aria-hidden className="neu-segment-thumb" />
+            <button
+              type="button"
+              aria-pressed={listView === "staff"}
+              onClick={() => setListView("staff")}
+              className="neu-segment-btn"
+            >
+              <UserCog size={13} strokeWidth={1.9} />
+              工作人员账号
+              <span className="neu-segment-count">{accounts.length}</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={listView === "supplier"}
+              onClick={() => setListView("supplier")}
+              className="neu-segment-btn"
+            >
+              <Building2 size={13} strokeWidth={1.9} />
+              供应商账号
+              <span className="neu-segment-count">{suppliers.length}</span>
+            </button>
+          </div>
+          <p className="text-xs text-[color:var(--muted-foreground)]">
+            {listView === "staff" ? "采购中心工作人员账号 · 审批管理" : "各公司供应商账号 · 只读视图"}
+          </p>
+        </div>
+      )}
 
       {/* 列表（工作人员：审批管理，保留现状；供应商：只读视图） */}
       {listView === "staff" ? (

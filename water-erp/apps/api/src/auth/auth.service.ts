@@ -223,14 +223,20 @@ export class AuthService {
     } catch { /* 清理失败不阻塞审核 */ }
   }
 
-  /** 管理员审核：通过注册 —— 按申请权限映射正式角色（leader/staff），公司为唯一组织归属，并写入不可变审核记录 */
-  async approveUser(userId: string, reviewer?: { id: string; name?: string }) {
+  /** 管理员审核：通过注册 —— 按申请权限映射正式角色（leader/staff），公司为唯一组织归属，并写入不可变审核记录。
+   *  2026-09-14：可覆盖申请人自报权限（审核时管理员重新选择），缺省沿用 requestedRole。 */
+  async approveUser(
+    userId: string,
+    reviewer?: { id: string; name?: string },
+    overrideRole?: 'management' | 'office',
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException({ error: '用户不存在', code: 'NOT_FOUND' });
     if (user.isActive) throw new BadRequestException({ error: '用户已激活', code: 'ALREADY_ACTIVE' });
 
     // 权限→角色：管理权限→leader，办公权限→staff（:3005 PORTAL_ROLE_PRIORITY.web 的两个角色）
-    const finalRole = user.requestedRole === 'management' ? 'leader' : 'staff';
+    const finalPermission = overrideRole ?? user.requestedRole ?? 'office';
+    const finalRole = finalPermission === 'management' ? 'leader' : 'staff';
 
     // 写库：激活 + 定角色。[username, role] 复合唯一，撞名抛 P2002 → 409
     let updated;
