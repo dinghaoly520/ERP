@@ -1,19 +1,39 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dayjs from "dayjs";
 import { toast } from "sonner";
 import { FileQuestion, RefreshCw } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
+import { CLARIFY_ASK_MIN_DAYS_BEFORE_DEADLINE } from "@water-erp/shared";
 
 /**
  * W1 澄清与修改（CTS A-80~A-86，供应商侧）：
  * 就招标文件提问（A-80，截止前 10 日）+ 澄清/修改文件下载（A-85，下载即回执 A-86）。
  * 问答全体供应商可见（澄清不涉密）；文件仅已获取招标文件者可下载。
+ * 提问表单仅在可提交时呈现（阶段 ∈ {DOWNLOAD, SUBMIT} 且未过 10 日窗口），出窗后留提示行；
+ * 后端 askQuestion 三重闸（阶段/已下载/时间窗）仍是权威兜底（2026-09-14）。
  */
-export function TenderClarificationCard({ projectId }: { projectId: string }) {
+export function TenderClarificationCard({
+  projectId,
+  stage,
+  deadline,
+}: {
+  projectId: string;
+  /** 项目阶段；缺省视为开放，交由后端闸门兜底 */
+  stage?: string | null;
+  /** 投标截止时间；缺省视为窗口未判，交由后端闸门兜底 */
+  deadline?: string | Date | null;
+}) {
   const [data, setData] = useState<Awaited<ReturnType<typeof bidApi.listTenderClarifications>> | null>(null);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // A-80/B-011 同口径：最迟投标截止前 10 日（边界含等值）；stage/deadline 未知时不在前端拦
+  const askDays = CLARIFY_ASK_MIN_DAYS_BEFORE_DEADLINE;
+  const stageClosed = stage != null && stage !== "DOWNLOAD" && stage !== "SUBMIT";
+  const windowClosed = !!deadline && dayjs().isAfter(dayjs(deadline).subtract(askDays, "day"));
+  const canAsk = !stageClosed && !windowClosed;
 
   const reload = useCallback(async () => {
     try {
@@ -67,25 +87,33 @@ export function TenderClarificationCard({ projectId }: { projectId: string }) {
         </button>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <textarea
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          rows={3}
-          maxLength={2000}
-          placeholder="就招标文件提出澄清问题（最迟投标截止前 10 日；须已获取招标文件）"
-          className="w-full resize-none rounded-[14px] border border-[color-mix(in_oklch,var(--foreground)_10%,transparent)] bg-[var(--surface)] p-3 text-[13px] outline-none focus:border-[var(--accent)]"
-        />
-        <div className="flex justify-end">
-          <button
-            onClick={() => void ask()}
-            disabled={busy || question.trim().length < 5}
-            className="rounded-[10px] bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-white disabled:opacity-50"
-          >
-            提交提问
-          </button>
+      {canAsk ? (
+        <div className="flex flex-col gap-2">
+          <textarea
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="就招标文件提出澄清问题（最迟投标截止前 10 日；须已获取招标文件）"
+            className="w-full resize-none rounded-[14px] border border-[color-mix(in_oklch,var(--foreground)_10%,transparent)] bg-[var(--surface)] p-3 text-[13px] outline-none focus:border-[var(--accent)]"
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={() => void ask()}
+              disabled={busy || question.trim().length < 5}
+              className="rounded-[10px] bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-white disabled:opacity-50"
+            >
+              提交提问
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="cq-desc">
+          {stageClosed
+            ? "当前阶段不受理澄清提问（仅招标文件获取/投标阶段可提问）；既有问答与澄清文件仍可在下方查看。"
+            : "澄清提问窗口已过（最迟须于投标截止前 10 日提出）；既有问答与澄清文件仍可在下方查看。"}
+        </p>
+      )}
 
       {data && data.questions.length > 0 && (
         <div className="cq-list mt-3">

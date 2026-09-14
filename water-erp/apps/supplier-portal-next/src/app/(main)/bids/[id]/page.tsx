@@ -660,7 +660,7 @@ function BidDetailInner() {
                   </div>
 
                   {/* W1（A-80~86）：澄清与修改——提问 + 澄清文件下载（区别于上方评标澄清答疑只读区） */}
-                  <TenderClarificationCard projectId={projectId} />
+                  <TenderClarificationCard projectId={projectId} stage={project?.stage} deadline={project?.deadline} />
 
                   {/* ═══ 投标回执（A-101）：已递交后查看编号/递交时间/签名状态，未签署 U盾补签 ═══ */}
                   {submission?.status === "submitted" && (
