@@ -871,7 +871,7 @@ ${shortlist}
    * - 防重：FOR UPDATE 锁部门行作为发号临界区（同部门并发立项排队），须在事务内调用
    */
   private async allocateDepartmentNumber(
-    tx: { department: { findFirst: Function; update: Function; create: Function }, projectManagementItem: { findFirst: Function }, $queryRaw: Function },
+    tx: Prisma.TransactionClient,
     requesterDepartment: string,
     year: number,
   ): Promise<string | null> {
@@ -902,7 +902,8 @@ ${shortlist}
       orderBy: { departmentNumber: 'desc' },
       select: { departmentNumber: true },
     });
-    const lastSeq = last ? Number(last.departmentNumber.slice(prefix.length)) || 0 : 0;
+    // where startsWith 保证命中行非空，但列为 nullable——空值/解析失败按 0 起号
+    const lastSeq = last?.departmentNumber ? Number(last.departmentNumber.slice(prefix.length)) || 0 : 0;
     return `${prefix}${String(lastSeq + 1).padStart(3, '0')}`;
   }
 

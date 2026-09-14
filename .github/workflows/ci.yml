@@ -179,7 +179,6 @@ jobs:
           MINIO_PORT=9000
           MINIO_ACCESS_KEY=water_erp_minio
           MINIO_SECRET_KEY=water_erp_minio_dev
-          OPERATION_LOG_ENABLED=false
           EOF
 
       - run: pnpm install --frozen-lockfile
