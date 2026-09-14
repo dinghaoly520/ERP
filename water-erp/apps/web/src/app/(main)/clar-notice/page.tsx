@@ -8,8 +8,10 @@ import { getClarificationNotice, updateClarificationNotice, getObjectionContact,
 
 /**
  * 澄清说明文案编辑发布页。
- * 供应商门户「澄清答疑」区块只读展示这段文案（系统内不接收供应商提交，
- * 仅引导其通过电话/书面来函获取信息），由采购管理人员在此编辑并发布。
+ * 供应商门户「澄清答疑」区块只读展示这段文案，由采购管理人员在此编辑并发布。
+ * 措辞口径（2026-09-14）：只按阶段说明渠道（投标期「澄清与修改」在线提问／评标期「评标澄清答复」
+ * 在线答复／线下按招标文件载明方式），不作系统能力断言——能力断言会随功能演进失真
+ * （实录：旧文案「不接收在线提交」与 W1 在线提问表单矛盾）。
  * 2026-09-11 新增「异议联系方式」：公告发布向导自动带入，随公告在信息门户详情页单独展示。
  */
 export default function ClarificationNoticePage() {
@@ -75,8 +77,8 @@ export default function ClarificationNoticePage() {
       {/* ══════ 编辑区 ══════ */}
       <div className="neu-card p-5">
         <p className="mb-3 text-xs leading-5 text-[var(--muted-foreground)]">
-          此文案展示在供应商投标详情页的「澄清答疑」卡片顶部，用于告知供应商：本系统不接收在线澄清/答疑提交，
-          请通过招标文件载明的电话或书面来函方式获取信息。
+          此文案展示在供应商投标详情页的「澄清答疑」卡片顶部。措辞请按阶段说明渠道：
+          投标期间对招标文件的疑问经「澄清与修改」在线提问（截止前 10 日）；评标阶段经「评标澄清答复」在线答复；线下请按招标文件载明方式提交。勿作「系统不提供/不接收某功能」类断言。
         </p>
         {loading ? (
           <div className="py-10 text-center text-xs text-[var(--muted-foreground)]">加载中…</div>
@@ -84,7 +86,7 @@ export default function ClarificationNoticePage() {
           <RichTextEditor
             value={content}
             onChange={setContent}
-            placeholder="请输入澄清说明文案，例如：如需就本项目提出疑问，请拨打联系电话或以书面来函方式提交…"
+            placeholder="请输入澄清说明文案，例如：投标期间可通过「澄清与修改」在线提问（截止前 10 日）；评标期间经「评标澄清答复」答复；线下请按招标文件载明方式提交…"
             minHeight="240px"
           />
         )}
