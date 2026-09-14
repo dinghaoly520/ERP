@@ -42,12 +42,24 @@ export class AnnouncementService {
     }
   }
 
+  /**
+   * 客户端直供 aiSummary 过滤：命中提示词泄漏特征一律拒收（undefined = 不采用，转服务端生成）。
+   * 背景：2026-09-10 实录三条公告的 aiSummary 被写入「归纳型摘要…」任务指令文本；
+   * e2e 直供短文本跳过 LLM 是既有约定（test/bid.e2e-spec.ts），故不做一刀切封禁。
+   */
+  private sanitizeClientAiSummary(raw: string | undefined): string | undefined {
+    const v = raw?.trim();
+    if (!v) return undefined;
+    return this.announcementAi.looksLikePromptLeak(v) ? undefined : v;
+  }
+
   async create(
     dto: CreateAnnouncementDto,
     authorId?: string,
     companyStamp: { companyId?: string; companyName?: string } = {},
   ) {
-    const aiSummary = dto.aiSummary ?? await this.announcementAi.summarize({
+    const suppliedAi = this.sanitizeClientAiSummary(dto.aiSummary);
+    const aiSummary = suppliedAi ?? await this.announcementAi.summarize({
       title: dto.title,
       type: AnnouncementService.TYPE_LABELS[dto.type] ?? dto.type,
       content: dto.content,
@@ -303,10 +315,11 @@ export class AnnouncementService {
     const title = dto.title ?? announcement.title;
     const type = dto.type ?? announcement.type;
     const content = dto.content ?? announcement.content;
-    const shouldRegenerateSummary = dto.aiSummary === undefined && (
+    const suppliedAi = this.sanitizeClientAiSummary(dto.aiSummary);
+    const shouldRegenerateSummary = suppliedAi === undefined && (
       dto.title !== undefined || dto.content !== undefined || dto.type !== undefined
     );
-    const aiSummary = dto.aiSummary ?? (shouldRegenerateSummary
+    const aiSummary = suppliedAi ?? (shouldRegenerateSummary
       ? await this.announcementAi.summarize({ title, type: AnnouncementService.TYPE_LABELS[type] ?? type, content })
       : undefined);
 
