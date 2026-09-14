@@ -174,7 +174,7 @@ function BidDetailInner() {
     // 公告 metadata.deadline 实为公示期止，仅项目无截标时间时兜底展示
     const bidDeadline = project?.deadline || m.deadline;
     if (bidDeadline) fields.push({ label: "投标截止", value: fmtMetaDate(bidDeadline), kind: 'date' });
-    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: String(m.downloadDeadline), kind: 'plain' });
+    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), kind: 'date' });
     if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
     if (m.openTime) fields.push({ label: "开标时间", value: fmtMetaDate(m.openTime), kind: 'date' });
     if (m.contact) fields.push({ label: "联系方式", value: m.contact, kind: 'plain' });
