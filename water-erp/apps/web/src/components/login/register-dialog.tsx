@@ -1,9 +1,14 @@
 "use client";
 
-import { CheckCircle2, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
+import { Check, CheckCircle2, Eye, EyeOff, Loader2, ShieldCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/workbench";
-import { sendRegistrationCode, registerUser, fetchRegistrationCompanies } from "@/lib/api/auth";
+import {
+  sendRegistrationCode,
+  registerUser,
+  fetchRegistrationCompanies,
+  checkRegistrationCode,
+} from "@/lib/api/auth";
 import { REGISTER_AGREEMENT_TITLE, REGISTER_AGREEMENT } from "./register-agreement";
 
 type RegisterDialogProps = {
@@ -46,6 +51,7 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
   const [success, setSuccess] = useState(false);
   const [codeSending, setCodeSending] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
+  const [codeCheck, setCodeCheck] = useState<"idle" | "checking" | "ok" | "bad">("idle");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [companies, setCompanies] = useState<string[]>([]);
@@ -63,6 +69,19 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
   const set = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  // 验证码输满 6 位 → 400ms 防抖预检（不消费验证码），即时反馈 ✓/✗
+  useEffect(() => {
+    setCodeCheck("idle");
+    if (form.verificationCode.length !== 6 || !/^1\d{10}$/.test(form.phone)) return;
+    setCodeCheck("checking");
+    const timer = setTimeout(() => {
+      checkRegistrationCode(form.phone, form.verificationCode)
+        .then(() => setCodeCheck("ok"))
+        .catch(() => setCodeCheck("bad"));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.verificationCode, form.phone]);
+
   const handleClose = () => {
     setForm(EMPTY_FORM);
     setErrorMessage(null);
@@ -79,7 +98,7 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
     setErrorMessage(null);
     setCodeSending(true);
     try {
-      await sendRegistrationCode(form.phone);
+      await sendRegistrationCode(form.phone, "management_registration");
       setCodeCooldown(60);
       const timer = setInterval(() => {
         setCodeCooldown((prev) => {
@@ -365,26 +384,26 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
               <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">
                 申请权限 <span className="text-[var(--danger)]">*</span>
               </span>
-              <div className="grid grid-cols-2 gap-2">
+              <div
+                className="neu-segment"
+                role="group"
+                aria-label="申请权限"
+                data-index={form.requestedRole === "office" ? "1" : "0"}
+              >
+                <span aria-hidden className="neu-segment-thumb" />
                 <button
                   type="button"
+                  aria-pressed={form.requestedRole === "management"}
                   onClick={() => set("requestedRole", "management")}
-                  className={`rounded-[8px] px-3 py-2.5 text-xs font-medium transition-all ${
-                    form.requestedRole === "management"
-                      ? "bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--accent)_40%,transparent)]"
-                      : "bg-[var(--surface)] text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5),1px_1px_2px_oklch(0.55_0.03_258/0.06),-1px_-1px_1px_oklch(1_0_0/0.6)]"
-                  }`}
+                  className="neu-segment-btn"
                 >
                   管理权限
                 </button>
                 <button
                   type="button"
+                  aria-pressed={form.requestedRole === "office"}
                   onClick={() => set("requestedRole", "office")}
-                  className={`rounded-[8px] px-3 py-2.5 text-xs font-medium transition-all ${
-                    form.requestedRole === "office"
-                      ? "bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--accent)_40%,transparent)]"
-                      : "bg-[var(--surface)] text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5),1px_1px_2px_oklch(0.55_0.03_258/0.06),-1px_-1px_1px_oklch(1_0_0/0.6)]"
-                  }`}
+                  className="neu-segment-btn"
                 >
                   办公权限
                 </button>
@@ -400,7 +419,7 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
                   type="tel"
                   value={form.phone}
                   onChange={(e) => set("phone", e.target.value)}
-                  placeholder="请输入手机号"
+                  placeholder="请输入本人手机号"
                   className={`${inputCls} flex-1`}
                   autoComplete="tel"
                 />
@@ -425,14 +444,31 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
               <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">
                 验证码 <span className="text-[var(--danger)]">*</span>
               </span>
-              <input
-                type="text"
-                value={form.verificationCode}
-                onChange={(e) => set("verificationCode", e.target.value)}
-                placeholder="6 位手机验证码"
-                className={inputCls}
-                maxLength={6}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={form.verificationCode}
+                  onChange={(e) => set("verificationCode", e.target.value)}
+                  placeholder="6 位手机验证码"
+                  className={`${inputCls} flex-1`}
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                />
+                {codeCheck === "checking" && (
+                  <Loader2 size={14} className="shrink-0 animate-spin text-[var(--muted-foreground)]" />
+                )}
+                {codeCheck === "ok" && (
+                  <Check size={16} strokeWidth={2.5} className="shrink-0 text-[var(--success)]" />
+                )}
+                {codeCheck === "bad" && (
+                  <X size={16} strokeWidth={2.5} className="shrink-0 text-[var(--danger)]" />
+                )}
+              </div>
+              {codeCheck === "bad" && (
+                <span className="mt-1 block text-[11px] text-[var(--danger)]">
+                  验证码不正确，请核对后重新输入
+                </span>
+              )}
             </label>
 
             <div className="flex items-start gap-2 pt-1">

@@ -261,7 +261,11 @@ export class VerificationService {
     return `verification:cooldown:registration:${phone}`;
   }
 
-  async sendRegistrationCode(phone: string, clientIp: string) {
+  async sendRegistrationCode(
+    phone: string,
+    clientIp: string,
+    scene: 'supplier_registration' | 'management_registration' | 'management_password_reset' | 'supplier_password_reset' = 'supplier_registration',
+  ) {
     // IP rate limit
     const ipCount = await this.redis.incr(this.ipKey(clientIp));
     if (ipCount === 1) await this.redis.expire(this.ipKey(clientIp), 60);
@@ -283,7 +287,7 @@ export class VerificationService {
 
     // P1-13：真实发送通道（provider 失败回滚 Redis 记录，不再静默死链）
     try {
-      await this.sms.send(phone, code, 'supplier_registration');
+      await this.sms.send(phone, code, scene);
     } catch (err) {
       try { await this.redis.del(this.regCodeKey(phone)); } catch { /* 回滚尽力而为 */ }
       this.logger.error(`SMS 发送失败（scene=supplier_registration）：${(err as Error).message}`);
@@ -348,5 +352,10 @@ export class VerificationService {
 
   verifyRegistrationCode(phone: string, code: string) {
     return this.validateRegistrationCode(phone, code, true);
+  }
+
+  /** 注册验证码预检（不消费）：前端输满 6 位即时反馈 ✓/✗ 用；沿用 attempts≤5 防爆破。 */
+  checkRegistrationCode(phone: string, code: string) {
+    return this.validateRegistrationCode(phone, code, false);
   }
 }

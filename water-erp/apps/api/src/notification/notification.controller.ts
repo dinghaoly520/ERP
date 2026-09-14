@@ -19,14 +19,20 @@ export class NotificationController {
     @Query('pageSize') pageSize?: number,
     @Query('tab') tab?: 'all' | 'todo',
     @Query('types') rawTypes?: string,
+    @Query('countTypes') rawCountTypes?: string,
   ) {
-    const types = rawTypes
-      ? Array.from(new Set(rawTypes.split(',').map((value) => value.trim()).filter(Boolean)))
-      : [];
-    if (types.length > 40 || types.some((value) => !/^[A-Z][A-Z0-9_]{0,63}$/.test(value))) {
-      throw new BadRequestException({ error: '消息类型筛选参数无效', code: 'BAD_NOTIFICATION_TYPES' });
-    }
-    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20, tab ?? 'all', types);
+    const parseTypes = (raw?: string) => {
+      const list = raw
+        ? Array.from(new Set(raw.split(',').map((value) => value.trim()).filter(Boolean)))
+        : [];
+      if (list.length > 40 || list.some((value) => !/^[A-Z][A-Z0-9_]{0,63}$/.test(value))) {
+        throw new BadRequestException({ error: '消息类型筛选参数无效', code: 'BAD_NOTIFICATION_TYPES' });
+      }
+      return list;
+    };
+    const types = parseTypes(rawTypes);
+    const countTypes = parseTypes(rawCountTypes);
+    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20, tab ?? 'all', types, countTypes);
   }
 
   @Get('unread-count')

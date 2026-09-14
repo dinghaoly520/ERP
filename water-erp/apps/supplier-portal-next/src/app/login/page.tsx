@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Clock3, Eye, EyeOff, KeyRound, Lock, SearchCheck, ShieldCheck, User } from "lucide-react";
+import { ArrowRight, BellRing, Clock3, Eye, EyeOff, KeyRound, Lock, SearchCheck, ShieldCheck, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, type LoginResult } from "@/lib/auth-context";
 import { authApi } from "@/lib/api/auth";
@@ -43,7 +43,9 @@ function LoginForm() {
   const [showQuery, setShowQuery] = useState(() => params.get("registered") === "1");
   const [queryCode, setQueryCode] = useState("");
   const [querying, setQuerying] = useState(false);
-  const [queryResult, setQueryResult] = useState<{ found: boolean; name?: string | null; status?: string | null; reason?: string | null } | null>(null);
+  const [queryResult, setQueryResult] = useState<{ found: boolean; name?: string | null; status?: string | null; reason?: string | null; reviewedAt?: string | null; reviewedAction?: string | null; urgedAt?: string | null } | null>(null);
+  const [urging, setUrging] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   // 临时供应商过期续期
   const [showReactivate, setShowReactivate] = useState(false);
@@ -108,10 +110,27 @@ function LoginForm() {
     setQueryResult(null);
     try {
       setQueryResult(await authApi.getRegisterStatusPublic(code));
+      setNowMs(Date.now());
     } catch {
       toast.error("查询失败，请稍后重试");
     } finally {
       setQuerying(false);
+    }
+  }
+
+  async function handleUrgeReview() {
+    const code = queryCode.trim();
+    if (!code) { toast.warning("请输入统一社会信用代码后再催促"); return; }
+    setUrging(true);
+    try {
+      await authApi.urgeReview(code);
+      toast.success("已催促审核，采购中心工作人员将收到通知");
+      // 本地即时回填 urgedAt，禁用再次点击
+      setQueryResult((r) => (r ? { ...r, urgedAt: new Date().toISOString() } : r));
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "催促失败，请稍后重试"));
+    } finally {
+      setUrging(false);
     }
   }
 
@@ -221,7 +240,24 @@ function LoginForm() {
                     <>
                       <strong>{queryResult.name}</strong>
                       <span>，{STATUS_TEXT[queryResult.status as string] || queryResult.status}</span>
+                      {queryResult.reviewedAt && (
+                        <span className="lp-query__reviewed">
+                          审核时间：{new Date(queryResult.reviewedAt).toLocaleString("zh-CN", { hour12: false })}
+                        </span>
+                      )}
                       {queryResult.reason && <span className="lp-query__reason">原因：{queryResult.reason}</span>}
+                      {/* 仍可催促的状态：未审核/退回/拒绝（APPROVED/DISABLED 无需催促） */}
+                      {["PENDING", "RETURNED", "REJECTED"].includes(queryResult.status as string) && (
+                        <button
+                          type="button"
+                          className="lp-query__urge"
+                          disabled={urging || !!queryResult.urgedAt}
+                          onClick={handleUrgeReview}
+                        >
+                          <BellRing size={13} strokeWidth={2} aria-hidden="true" />
+                          {urging ? "催促中…" : queryResult.urgedAt ? "已催促" : "催促审核"}
+                        </button>
+                      )}
                     </>
                   ) : (
                     <>未查询到该信用代码对应的注册记录，请核对后重试，或先完成注册。</>

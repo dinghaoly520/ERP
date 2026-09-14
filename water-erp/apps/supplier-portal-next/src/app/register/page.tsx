@@ -149,6 +149,10 @@ export default function RegisterPage() {
   const [registrationCode, setRegistrationCode] = useState("");
   const [codeSending, setCodeSending] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
+  const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "ok" | "bad">("idle");
+  // 归属公司（账号管理按公司分组）：注册时选择
+  const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
+  const [belongCompanyId, setBelongCompanyId] = useState("");
 
   /* ── 第 2-5 部分 ── */
   const [contacts, setContacts] = useState<ContactRow[]>([{ name: "", gender: "", phone: "", idCard: "", email: "", position: "", isPrimary: true }]);
@@ -189,6 +193,12 @@ export default function RegisterPage() {
     revokeObjectUrlPreview(logoPreviewUrlRef.current);
     logoPreviewUrlRef.current = "";
   }, []);
+  // 归属公司选项（拉取失败不阻塞注册——留空即未归属，admin 可后补）
+  useEffect(() => {
+    authApi.companyOptions()
+      .then(setCompanyOptions)
+      .catch(() => setCompanyOptions([]));
+  }, []);
   useEffect(() => {
     if (!recoverableDraftKey) return;
     const timer = window.setTimeout(() => {
@@ -224,6 +234,20 @@ export default function RegisterPage() {
     authApi.listBusinessTags().then(setTagOptions).catch(() => setTagOptions([]));
   }, []);
   const inTagPool = useCallback((t: string) => tagOptions.some((o) => o.name === t), [tagOptions]);
+
+  /* ── 验证码输满 6 位 → 400ms 防抖预检（不消费），即时反馈 ✓/✗ ── */
+  useEffect(() => {
+    setCodeStatus("idle");
+    const code = registrationCode.trim();
+    if (code.length !== 6 || !/^1[3-9]\d{9}$/.test(registrationPhone.trim())) return;
+    setCodeStatus("checking");
+    const timer = setTimeout(() => {
+      authApi.checkRegistrationCode(registrationPhone.trim(), code)
+        .then(() => setCodeStatus("ok"))
+        .catch(() => setCodeStatus("bad"));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [registrationCode, registrationPhone]);
 
   /* ── 注册短信验证码 ── */
   async function sendRegCode() {
@@ -284,6 +308,7 @@ export default function RegisterPage() {
       else if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) e.registrationPhone = "注册手机号格式不正确";
       if (!registrationCode.trim()) e.registrationCode = "请输入短信验证码";
       else if (!/^\d{6}$/.test(registrationCode.trim())) e.registrationCode = "请输入 6 位短信验证码";
+      if (!belongCompanyId) e.belongCompany = "请选择归属公司：须正确选择，否则将影响投标";
     }
     if (targetStep === 1) {
       if (!basic.name.trim()) e.name = "请输入企业名称";
@@ -396,6 +421,7 @@ export default function RegisterPage() {
     try {
       await authApi.register({
         username: basic.creditCode.trim(), // 用户名 = 统一社会信用代码（机构代码）
+        companyId: belongCompanyId || undefined,
         registrationPhone: registrationPhone.trim(),
         registrationCode: registrationCode.trim(),
         // 账号展示名取主要联系人（第二步），邮箱同
@@ -541,14 +567,22 @@ export default function RegisterPage() {
         <div className="reg-form">
           <RegistrationSection icon={KeyRound} title="身份与账号" hint="手机号验证后设置登录密码">
             <div className="reg-form-grid">
-              {item("registrationPhone", "注册手机号", inp(registrationPhone, setRegistrationPhone, "用于接收注册验证码", { maxLength: 11, inputMode: "numeric", autoComplete: "tel" }), true)}
+              {item("registrationPhone", "注册手机号", (
+                <div className="reg-code-row">
+                  <input id="register-registrationPhone" className="reg-inp" value={registrationPhone} placeholder="本人手机号，用于接收注册验证码" maxLength={11} inputMode="numeric" autoComplete="tel"
+                    onChange={(e) => setRegistrationPhone(e.target.value.replace(/\D/g, ""))} />
+                  <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
+                    {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
+                  </button>
+                </div>
+              ), true)}
               {item("registrationCode", "短信验证码", (
                 <div className="reg-code-row">
                   <input id="register-registrationCode" className="reg-inp" value={registrationCode} placeholder="6 位验证码" maxLength={6} inputMode="numeric" autoComplete="one-time-code"
                     onChange={(e) => setRegistrationCode(e.target.value.replace(/\D/g, ""))} />
-                  <button type="button" className="reg-btn reg-btn--ghost-sm reg-code-btn" disabled={codeSending || codeCooldown > 0} onClick={sendRegCode}>
-                    {codeSending ? "发送中…" : codeCooldown > 0 ? `${codeCooldown}s` : "获取验证码"}
-                  </button>
+                  <span className="reg-code-check" data-status={codeStatus} aria-hidden="true">
+                    {codeStatus === "checking" ? "…" : codeStatus === "ok" ? <CheckCircle2 size={16} strokeWidth={2.25} /> : codeStatus === "bad" ? <X size={16} strokeWidth={2.25} /> : null}
+                  </span>
                 </div>
               ), true)}
               <PasswordField
@@ -568,6 +602,20 @@ export default function RegisterPage() {
                 required
               />
             </div>
+            {/* 归属公司：步骤 1 底部整行（网格外块级，独占一行） */}
+            {item("belongCompany", "归属公司", (
+              <select
+                id="register-belongCompany"
+                className="reg-inp"
+                value={belongCompanyId}
+                onChange={(e) => setBelongCompanyId(e.target.value)}
+              >
+                <option value="">请选择归属公司（须正确选择，否则影响投标）</option>
+                {companyOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            ), true)}
           </RegistrationSection>
         </div>
       </div>

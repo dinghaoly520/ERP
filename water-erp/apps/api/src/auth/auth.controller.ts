@@ -65,6 +65,16 @@ export class AuthController {
     return rows.map(r => r.name);
   }
 
+  @Get('companies/options')
+  @Public()
+  @ApiOperation({ summary: '公司选项（id+name，供应商注册选择归属公司用）' })
+  async companyOptions() {
+    return this.prisma.company.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   @Post('users/:id/approve')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: '审核通过注册用户' })

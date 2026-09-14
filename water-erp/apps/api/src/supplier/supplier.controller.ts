@@ -148,6 +148,16 @@ export class SupplierController {
     return this.supplierService.getRegisterStatusByCreditCode(code);
   }
 
+  @Post('register/urge-review')
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 催促审核：5 分钟 3 次，防骚扰刷屏
+  @ApiOperation({ summary: '供应商催促审核（公开，凭信用代码）' })
+  async urgeReview(@Body('creditCode') creditCode?: string) {
+    const code = (creditCode ?? '').trim();
+    if (!code) throw new BadRequestException({ error: '请提供统一社会信用代码', code: 'MISSING_CREDIT_CODE' });
+    return this.supplierService.urgeReview(code);
+  }
+
   // 注册前查重（公开）：统一社会信用代码重复=硬拦截；法人/联系人身份证号重复=软提示。
   @Get('register/check-duplicate')
   @Public()

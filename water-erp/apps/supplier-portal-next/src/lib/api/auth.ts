@@ -8,6 +8,8 @@ export interface LoginParams {
 export interface RegisterParams {
   /** 注册手机验证码（新必填：registrationPhone + registrationCode） */
   registrationPhone: string;
+  /** 归属公司（Company 主数据 id；账号管理按公司分组） */
+  companyId?: string;
   registrationCode: string;
   username?: string;
   displayName: string;
@@ -47,11 +49,17 @@ export interface PasswordResetRequestParams {
 
 export interface RegisterTemporaryParams {
   invitationCode: string;
+  /** 归属公司（Company 主数据 id；可选，留空即未归属，admin 可后补） */
+  companyId?: string;
   name: string;
   creditCode: string;
+  legalPerson: string;
+  legalPersonIdCard: string;
   displayName: string;
   password: string;
   phone: string;
+  registrationCode: string;
+  tags: string[];
 }
 
 export const authApi = {
@@ -61,8 +69,18 @@ export const authApi = {
   },
 
   /** 发送注册短信验证码（公开，3次/分钟限流） */
-  sendRegistrationCode(phone: string) {
-    return api.post<any>("/verification/send-registration-code", { phone }, { silent: true });
+  sendRegistrationCode(phone: string, scene?: "supplier_registration" | "supplier_password_reset") {
+    return api.post<any>("/verification/send-registration-code", { phone, scene }, { silent: true });
+  },
+
+  /** 注册验证码预检（不消费；输满 6 位即时反馈 ✓/✗）*/
+  checkRegistrationCode(phone: string, code: string) {
+    return api.post<any>("/verification/check-registration-code", { phone, code }, { silent: true });
+  },
+
+  /** 公司选项（id+name）：注册选择归属公司用 */
+  companyOptions() {
+    return api.get<{ id: string; name: string }[]>("/auth/companies/options");
   },
 
   /** 登录错误由登录页自行处理（ACCOUNT_PENDING/TEMPORARY_EXPIRED 分支），silent 跳过全局 toast */
@@ -86,6 +104,11 @@ export const authApi = {
   /** 公开：凭统一社会信用代码查询注册审核进度（无需登录）。 */
   getRegisterStatusPublic(creditCode: string) {
     return api.get<any>(`/supplier/register/status/public${qs({ creditCode })}`, { silent: true });
+  },
+
+  /** 公开：催促审核（凭信用代码，向归属公司工作人员发站内通知）。 */
+  urgeReview(creditCode: string) {
+    return api.post<any>("/supplier/register/urge-review", { creditCode }, { silent: true });
   },
 
   /** 注册前查重（公开）：统一社会信用代码硬拦截 / 法人身份证·联系人身份证软提示。 */

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ForbiddenException, ConflictException,
 import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { encryptPasswordVault } from '../auth/password-vault.util';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { BidService } from '../bid/bid.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -3711,7 +3712,7 @@ export class SupplierPortalService {
     }
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: hashSync(newPassword, 10) },
+      data: { passwordHash: hashSync(newPassword, 10), passwordVault: encryptPasswordVault(newPassword) ?? null },
     })
     return { success: true }
   }

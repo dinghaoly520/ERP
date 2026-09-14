@@ -58,3 +58,44 @@ export function unfreezeAccount(id: string) {
 export function deleteAccount(id: string) {
   return api.delete<{ ok: true }>(`/auth/admin/accounts/${id}`);
 }
+
+// ── 2026-09-14 供应商账号视图（账号管理按公司分组 + 密码查看）──
+
+export type SupplierAccount = {
+  id: string;
+  username: string;
+  displayName: string;
+  phone: string | null;
+  email: string | null;
+  isActive: boolean;
+  isFrozen: boolean;
+  createdAt: string;
+  passwordVault: string | null; // 仅判存在，明文走 revealAccountPassword
+  supplier: {
+    name: string;
+    creditCode: string;
+    isTemporary: boolean;
+    companyId: string | null;
+    companyName: string | null;
+  } | null;
+};
+
+export type CompanyOption = { id: string; name: string };
+
+export function fetchSupplierAccounts() {
+  return api.get<SupplierAccount[]>("/auth/admin/accounts/suppliers");
+}
+
+export function fetchCompanyOptions() {
+  return api.get<CompanyOption[]>("/auth/companies/options");
+}
+
+export function revealAccountPassword(id: string) {
+  return api.get<{ password: string | null; hasVault: boolean }>(
+    `/auth/admin/accounts/${id}/password`,
+  );
+}
+
+export function updateSupplierCompany(id: string, companyId: string) {
+  return api.patch(`/auth/admin/accounts/${id}/supplier-company`, { companyId });
+}

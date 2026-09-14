@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
+import { encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { VerificationService } from '../verification/verification.service';
 import { LoginDto } from './dto/login.dto';
@@ -95,6 +96,7 @@ export class AuthService {
         companyId: companyRecord.id,
         officeLocation: dto.officeLocation,
         passwordHash: hashSync(dto.password, 10),
+        passwordVault: encryptPasswordVault(dto.password) ?? null,
         role: 'internal_user',
         isActive: false,
         requestedRole: dto.requestedRole,

@@ -34,12 +34,18 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey | null>('createdAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [typeCounts, setTypeCounts] = useState<{ type: string; count: number }[]>([]);
+
+  // 当前业务域的类型集合（全部/待办 域为 [] = 不限定类型）
+  const domainBaseTypes = useMemo(
+    () => DOMAIN_TABS.find(t => t.key === domain)?.types ?? [],
+    [domain],
+  );
 
   const activeTypes = useMemo(() => {
     if (typeFilter) return [typeFilter];
-    const tab = DOMAIN_TABS.find(t => t.key === domain);
-    return tab?.types ?? [];
-  }, [domain, typeFilter]);
+    return domainBaseTypes;
+  }, [domainBaseTypes, typeFilter]);
 
   // 竞态守卫：切标签时旧请求的响应不得覆盖新标签的列表（快速切换时旧响应晚到
   // 会把内容换回上一个域——即「点每个标签内容都一样/卡顿」的根源）
@@ -50,7 +56,9 @@ export default function NotificationsPage() {
     // todo 域 = 服务端待办 tab + 可叠加类型筛选；其余域 = all + types
     const tab = domain === 'todo' ? 'todo' : 'all';
     const types = activeTypes.length ? activeTypes : undefined;
-    listNotifications(tab, page, 20, types)
+    // countTypes = 域基底（不含单类型筛选），保证类型 chip 选中后不消失
+    const countTypes = domainBaseTypes.length ? domainBaseTypes : undefined;
+    listNotifications(tab, page, 20, types, countTypes)
       .then((r) => {
         if (seq !== loadSeq.current) return; // 已切走，丢弃过期响应
         setItems(r.items);
@@ -58,10 +66,11 @@ export default function NotificationsPage() {
         setUnreadCount(r.unreadCount ?? 0);
         setTodoCount(r.todoCount ?? 0);
         if (tab === 'all') setTotalAll(r.total);
+        setTypeCounts(r.typeCounts ?? []);
       })
-      .catch(() => { if (seq === loadSeq.current) setItems([]); })
+      .catch(() => { if (seq === loadSeq.current) { setItems([]); setTypeCounts([]); } })
       .finally(() => { if (seq === loadSeq.current) setLoading(false); });
-  }, [domain, page, activeTypes]);
+  }, [domain, page, activeTypes, domainBaseTypes]);
 
   useEffect(() => { load(); }, [load]);
   // 注：page/typeFilter 的重置已并入各点击 handler（与 setDomain 同批渲染），
@@ -125,12 +134,8 @@ export default function NotificationsPage() {
   const actionable = todoCount;
   const resolved = Math.max(0, totalAll - unreadCount); // 已知晓 ≈ 全部 - 未读（含已处理/已读）
 
-  /* ── 当前域下出现的类型（供类型筛选条） ── */
-  const presentTypes = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const n of items) counts.set(n.type, (counts.get(n.type) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t, c]) => ({ type: t, count: c }));
-  }, [items]);
+  /* ── 当前域下出现的类型（供类型筛选条，服务端 typeCounts 口径） ── */
+  const presentTypes = typeCounts;
 
   return (
     <div className="flex flex-col gap-5">

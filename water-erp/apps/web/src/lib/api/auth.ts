@@ -467,11 +467,25 @@ export type RegisterPayload = {
   requestedRole: string;
 };
 
-export async function sendRegistrationCode(phone: string): Promise<{ maskedPhone: string }> {
+export type RegistrationSmsScene = "supplier_registration" | "management_registration" | "management_password_reset";
+
+export async function sendRegistrationCode(
+  phone: string,
+  scene: RegistrationSmsScene = "supplier_registration",
+): Promise<{ maskedPhone: string }> {
   return requestJson<{ maskedPhone: string }>(`${API_BASE}/verification/send-registration-code`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phone }),
+    body: JSON.stringify({ phone, scene }),
+  });
+}
+
+/** 注册验证码预检（不消费，输满 6 位即时反馈）*/
+export async function checkRegistrationCode(phone: string, code: string): Promise<{ ok: true }> {
+  return requestJson<{ ok: true }>(`${API_BASE}/verification/check-registration-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, code }),
   });
 }
 

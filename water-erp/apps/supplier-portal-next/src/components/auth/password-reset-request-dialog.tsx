@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { CheckCircle2, LifeBuoy, TriangleAlert } from "lucide-react";
+import { CheckCircle2, LifeBuoy, TriangleAlert, X } from "lucide-react";
 import { authApi } from "@/lib/api/auth";
 import {
   normalizePasswordResetRequest,
@@ -33,10 +33,25 @@ export function PasswordResetRequestDialog({ open, onClose, initialUsername = ""
   const [submitted, setSubmitted] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
+  const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "ok" | "bad">("idle");
   const timerRef = useRef<number | NodeJS.Timeout | null>(null);
 
   const applicantContact = form.applicantContact.trim();
   const isSendCodeDisabled = sendingCode || codeCooldown > 0;
+
+  // 验证码输满 6 位 → 400ms 防抖预检（不消费验证码），即时反馈 ✓/✗
+  useEffect(() => {
+    setCodeStatus("idle");
+    const code = form.verificationCode.trim();
+    if (code.length !== 6 || !/^1[3-9]\d{9}$/.test(applicantContact)) return;
+    setCodeStatus("checking");
+    const timer = setTimeout(() => {
+      authApi.checkRegistrationCode(applicantContact, code)
+        .then(() => setCodeStatus("ok"))
+        .catch(() => setCodeStatus("bad"));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.verificationCode, applicantContact]);
   useEffect(() => {
     if (open) {
       setForm({ ...EMPTY_FORM, username: initialUsername });
@@ -85,7 +100,7 @@ export function PasswordResetRequestDialog({ open, onClose, initialUsername = ""
     setError(null);
     setSendingCode(true);
     try {
-      await authApi.sendRegistrationCode(applicantContact);
+      await authApi.sendRegistrationCode(applicantContact, "supplier_password_reset");
       setError("验证码已发送到该手机号，请查收");
       startCooldown();
     } catch (reason) {
@@ -170,19 +185,29 @@ export function PasswordResetRequestDialog({ open, onClose, initialUsername = ""
           </label>
           <label className="block text-sm font-medium">
             联系方式（11位手机号）
-            <SpInput
-              className="mt-1 w-full"
-              value={form.applicantContact}
-              onChange={(event) => update("applicantContact", event.target.value)}
-              autoComplete="tel"
-              placeholder="手机号码或办公联系方式"
-            />
-          </label>
-          <div className="flex items-start gap-2">
-            <label className="block min-w-0 flex-1 text-sm font-medium">
-              短信验证码
+            <div className="mt-1 flex gap-2">
               <SpInput
-                className="mt-1 w-full"
+                className="w-full flex-1"
+                value={form.applicantContact}
+                onChange={(event) => update("applicantContact", event.target.value)}
+                autoComplete="tel"
+                placeholder="请输入本人手机号码或办公联系方式"
+              />
+              <button
+                type="button"
+                className="neu-btn-soft shrink-0 disabled:cursor-not-allowed"
+                onClick={sendCode}
+                disabled={isSendCodeDisabled}
+              >
+                {sendingCode ? "发送中..." : codeCooldown ? `${codeCooldown}s` : "获取验证码"}
+              </button>
+            </div>
+          </label>
+          <label className="block text-sm font-medium">
+            短信验证码
+            <div className="mt-1 flex items-center gap-2">
+              <SpInput
+                className="w-full flex-1"
                 value={form.verificationCode}
                 onChange={(event) => update("verificationCode", event.target.value)}
                 autoComplete="one-time-code"
@@ -190,19 +215,17 @@ export function PasswordResetRequestDialog({ open, onClose, initialUsername = ""
                 inputMode="numeric"
                 placeholder="6 位验证码"
               />
-            </label>
-            <button
-              type="button"
-              className="neu-btn-soft mt-6 shrink-0 disabled:cursor-not-allowed"
-              onClick={sendCode}
-              disabled={isSendCodeDisabled}
-            >
-              {sendingCode ? "发送中..." : codeCooldown ? `${codeCooldown}s 后重试` : "获取验证码"}
-            </button>
-          </div>
+              <span className="w-[18px] shrink-0 text-center" aria-hidden="true">
+                {codeStatus === "checking" ? "…"
+                  : codeStatus === "ok" ? <CheckCircle2 size={16} strokeWidth={2.25} className="text-emerald-600" />
+                  : codeStatus === "bad" ? <X size={16} strokeWidth={2.25} className="text-red-600" />
+                  : null}
+              </span>
+            </div>
+          </label>
           <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             申请前须先通过电话核验身份，请致电采购中心 <a className="underline" href="tel:02866666666">028-66666666</a>。
-            页面将对手机号码进行短信验证码校验，申请提交后经采购管理人员审核，通过后生效。
+            验证码将发送至该手机号，须为申请人本人号码；申请提交后经采购管理人员审核，通过后生效。
           </p>
           <label className="block text-sm font-medium">
             新密码

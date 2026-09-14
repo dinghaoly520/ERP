@@ -408,8 +408,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   {announceData.map((tab, i) => (
                     <button key={tab.items[0].tag} onClick={() => setAnnounceTab(i)}
                       className={`announce-tab ${i === announceTab ? 'is-active' : ''}`}
-                      style={i === announceTab ? { '--tab-color': tab.color, color: '#fff', backgroundColor: tab.color } as React.CSSProperties : undefined}>
-                      <span className="announce-tab-dot" style={i === announceTab ? { backgroundColor: '#fff' } : { backgroundColor: tab.color }} />
+                      style={{ '--tab-color': tab.color } as React.CSSProperties}>
+                      <span className="announce-tab-dot" style={{ backgroundColor: tab.color }} />
                       {tab.items[0].tag}
                     </button>
                   ))}

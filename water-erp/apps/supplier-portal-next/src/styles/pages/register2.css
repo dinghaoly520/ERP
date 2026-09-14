@@ -131,6 +131,9 @@
 .reg-code-row { display: flex; gap: 8px; align-items: center; }
 .reg-code-row .reg-inp { flex: 1; }
 .reg-code-btn { height: 44px; flex-shrink: 0; white-space: nowrap; }
+.reg-code-check { flex-shrink: 0; width: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--sp-gray-400); }
+.reg-code-check[data-status="ok"] { color: var(--sp-green); }
+.reg-code-check[data-status="bad"] { color: var(--sp-red); }
 
 /* ═══ 契约测试锚点恢复（2026-09-07，自 HEAD~1 原样回填）═════════════════
    遗留 WIP 重写本文件时移除了 accessibility-markup 契约测试锚定的
@@ -474,3 +477,51 @@
     -1px -1px 3px oklch(1 0 0 / 0.85);
 }
 .reg-actions-spacer { flex: 1 1 auto; }
+/* ── 临时注册（reg-page--temp）：与正式注册同款设计，单页表单——
+   页面锁高不整体滚动（reg-brand 为 fixed 不受影响），panel 窗口内部滚动；卡宽略收于正式页 ── */
+.reg-page--temp { height: 100vh; min-height: 0; align-items: flex-start; overflow: hidden; }
+.reg-page--temp .reg-panel { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 84px 24px 40px; }
+.reg-page--temp .reg-card { width: min(820px, 100%); }
+
+/* 邀请码校验反馈行（reg-module 内，输入框下方） */
+.reg-invite-note {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 7px; font-size: 12px; font-weight: 600;
+}
+.reg-invite-note.is-ok { color: oklch(0.5 0.14 152); }
+.reg-invite-note.is-err { color: oklch(0.55 0.18 27); }
+
+/* 页脚附加导航分隔（footExtra，如临时注册「改为正式注册」） */
+.reg-foot-sep { color: oklch(0.78 0.02 258); font-size: 13px; }
+
+/* ── 页脚导航：单行居中排布（nowrap），胶囊按钮三态 ── */
+.reg-page .reg-foot {
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: nowrap; gap: 10px;
+  margin-top: 18px; color: var(--reg-muted); font-size: 12.5px;
+}
+.reg-page .reg-foot .reg-foot-text,
+.reg-page .reg-foot .reg-foot-sep { white-space: nowrap; }
+.reg-page .reg-foot-sep { color: oklch(0.78 0.02 258); font-size: 12px; }
+.reg-foot-link {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 44px; padding: 0 15px;
+  border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
+  color: oklch(0.36 0.09 258); text-decoration: none; white-space: nowrap;
+  background: oklch(0.955 0.01 258);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 2px 5px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: transform 0.25s var(--reg-ease), box-shadow 0.25s var(--reg-ease), background 0.25s var(--reg-ease), color 0.25s var(--reg-ease);
+}
+.reg-foot-link:hover {
+  transform: translateY(-1px);
+  color: oklch(0.31 0.1 258);
+  background: oklch(0.968 0.012 258);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 3px 3px 7px oklch(0.5 0.05 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.reg-foot-link:active {
+  transform: none;
+  background: oklch(0.945 0.012 258);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
+.reg-foot-link:focus-visible { outline: 3px solid color-mix(in oklab, var(--brand) 24%, transparent); outline-offset: 2px; }

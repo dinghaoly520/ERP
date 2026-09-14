@@ -115,13 +115,22 @@ export function RegistrationStepper({
   );
 }
 
-type RegistrationShellProps = RegistrationStepperProps & {
+type RegistrationShellProps = {
   title: string;
   subtitle: string;
   notice?: ReactNode;
   children: ReactNode;
   actions: ReactNode;
   formLabel?: string;
+  /** main 上的附加类（如临时注册的 reg-page--temp 内滚变体） */
+  className?: string;
+  /** 页脚「返回登录」之后的附加导航（如临时注册的「改为正式注册」） */
+  footExtra?: ReactNode;
+  /** 步骤条：多步向导传入；单页表单（临时注册）不传则不渲染 */
+  steps?: RegistrationStep[];
+  currentStep?: number;
+  maxVisitedStep?: number;
+  onStepChange?: (step: number) => void;
 };
 
 export function RegistrationShell({
@@ -131,10 +140,15 @@ export function RegistrationShell({
   children,
   actions,
   formLabel = title,
-  ...stepperProps
+  className = "",
+  footExtra,
+  steps,
+  currentStep = 0,
+  maxVisitedStep = 0,
+  onStepChange,
 }: RegistrationShellProps) {
   return (
-    <main className="reg reg-page reg--supplier">
+    <main className={`reg reg-page reg--supplier${className ? ` ${className}` : ""}`}>
       <div className="reg-bg" aria-hidden="true" />
 
       <Link className="reg-brand" href="/login" aria-label="返回供应商门户登录页">
@@ -152,7 +166,14 @@ export function RegistrationShell({
           </header>
 
           {notice}
-          <RegistrationStepper {...stepperProps} />
+          {steps && steps.length > 0 && (
+            <RegistrationStepper
+              steps={steps}
+              currentStep={currentStep}
+              maxVisitedStep={maxVisitedStep}
+              onStepChange={onStepChange ?? (() => undefined)}
+            />
+          )}
           <div className="reg-body">{children}</div>
           <div className="reg-actions">{actions}</div>
           <div className="reg-foot">
@@ -161,6 +182,12 @@ export function RegistrationShell({
               <LogIn size={14} strokeWidth={1.9} aria-hidden="true" />
               返回登录
             </Link>
+            {footExtra && (
+              <>
+                <span className="reg-foot-sep" aria-hidden="true">|</span>
+                {footExtra}
+              </>
+            )}
           </div>
         </div>
       </section>

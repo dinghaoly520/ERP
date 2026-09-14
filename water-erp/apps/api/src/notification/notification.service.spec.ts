@@ -15,6 +15,7 @@ describe('NotificationService', () => {
       create: jest.fn(),
       update: jest.fn(),
       findUnique: jest.fn(),
+      groupBy: jest.fn().mockResolvedValue([]),
     },
     notificationDeliveryLog: { create: jest.fn().mockResolvedValue({}) },
     user: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -69,6 +70,31 @@ describe('NotificationService', () => {
     };
     expect(prisma.notification.count).toHaveBeenCalledWith({ where });
     expect(prisma.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({ where, skip: 15, take: 15 }));
+  });
+
+  it('list typeCounts 按 countTypes 基底分组（不受单类型筛选影响）', async () => {
+    prisma.notification.count.mockResolvedValue(3);
+    prisma.notification.findMany.mockResolvedValue([]);
+    prisma.notification.groupBy.mockResolvedValue([
+      { type: 'ARCHIVE_READY', _count: { type: 10 } },
+      { type: 'EXPERT_RETIRE_CANDIDATE', _count: { type: 5 } },
+    ]);
+
+    const res = await service.list('u1', 1, 20, 'todo', ['ARCHIVE_READY'], ['ARCHIVE_READY', 'EXPERT_RETIRE_CANDIDATE']);
+
+    // 列表 where 按单类型筛选
+    expect(prisma.notification.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ type: { in: ['ARCHIVE_READY'] } }),
+    }));
+    // 计数 where 用域基底，且不与列表 where 串扰
+    expect(prisma.notification.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ type: { in: ['ARCHIVE_READY', 'EXPERT_RETIRE_CANDIDATE'] } }),
+    }));
+    // 输出按计数降序、扁平化
+    expect(res.typeCounts).toEqual([
+      { type: 'ARCHIVE_READY', count: 10 },
+      { type: 'EXPERT_RETIRE_CANDIDATE', count: 5 },
+    ]);
   });
 
   it('resolveActionable 按 type+link 写 resolvedAt', async () => {

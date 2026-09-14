@@ -11969,6 +11969,19 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-secondary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .lp-query__result { margin-top: 10px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.5; }
 .lp-query__reason { color: var(--muted); }
+.lp-query__reviewed { color: oklch(0.5 0.03 258); font-variant-numeric: tabular-nums; }
+.lp-query__urge {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  margin-top: 6px; min-height: 32px; padding: 0 14px;
+  border: none; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 700; color: #fff;
+  background: oklch(0.55 0.16 27); /* 暖橙——催促语义，与品牌蓝区分 */
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), 2px 2px 5px oklch(0.4 0.08 27 / 0.25), -1px -1px 3px oklch(1 0 0 / 0.5);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.lp-query__urge:hover:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), 3px 3px 8px oklch(0.4 0.08 27 / 0.3), -2px -2px 5px oklch(1 0 0 / 0.55); }
+.lp-query__urge:active:not(:disabled) { transform: none; box-shadow: inset 2px 2px 5px oklch(0.35 0.08 27 / 0.4), inset -1px -1px 3px oklch(1 0 0 / 0.25); }
+.lp-query__urge:disabled { cursor: not-allowed; opacity: 0.55; }
 
 @media (prefers-reduced-motion: reduce) {
   .lp-card, .lp-head, .lp-field, .lp-primary, .lp-foot { animation: none; }
@@ -12900,7 +12913,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .reg-agree { display: flex; align-items: flex-start; margin: 4px 0 2px; }
 .reg-agree-text {
   font-size: 12.5px;
-  color: var(--muted, #64748b);
+  color: color-mix(in oklch, var(--reg-ink) 82%, #000); /* 深色（与字段标签同墨色），不再用弱化灰 */
 }
 .reg-agree-link {
   border: none;
@@ -12973,10 +12986,16 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 
-/* ── 临时注册页差异类（lp--reg 系列移植自 RegisterTemporary.vue，lp 基础类复用登录页）── */
-.lp--reg { grid-template-columns: 1fr; }
-.lp-panel--reg { grid-column: 1; align-items: center; justify-content: flex-start; padding: 80px 24px 40px; }
-.lp-card--reg { width: 460px; }
+/* ── 临时注册页差异类（lp--reg 系列移植自 RegisterTemporary.vue，lp 基础类复用登录页）──
+   页面锁高不整体滚动（lp-brand 为 fixed 不受影响），表单窗口（panel）内部滚动 */
+.lp--reg { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); height: 100vh; overflow: hidden; }
+.lp-panel--reg { grid-column: 1; grid-row: 1; align-items: center; justify-content: flex-start; padding: 84px 24px 40px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.lp-card--reg { width: min(640px, 100%); }
+/* 归属公司下拉：与输入框同款内凹行 */
+.lp-input-wrap select {
+  flex: 1; height: 100%; border: none; outline: none; background: transparent; padding: 0 16px 0 4px;
+  color: var(--ink); font-family: inherit; font-size: 16px; cursor: pointer;
+}
 .lp-sub { margin: 8px 0 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
 .lp-invite-ok { margin-top: 6px; font-size: 12px; font-weight: 600; color: oklch(0.5 0.14 152); }
 .lp-invite-err { margin-top: 6px; font-size: 12px; font-weight: 600; color: oklch(0.55 0.18 27); }

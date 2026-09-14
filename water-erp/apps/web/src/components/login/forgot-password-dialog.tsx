@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, LifeBuoy } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, LifeBuoy, Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/workbench";
-import { requestPasswordReset, sendRegistrationCode } from "@/lib/api/auth";
+import { checkRegistrationCode, requestPasswordReset, sendRegistrationCode } from "@/lib/api/auth";
 import {
   normalizePasswordResetRequest,
   validatePasswordResetRequest,
@@ -26,6 +26,7 @@ export function ForgotPasswordDialog({
   const [verificationCode, setVerificationCode] = useState("");
   const [codeSending, setCodeSending] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
+  const [codeCheck, setCodeCheck] = useState<"idle" | "checking" | "ok" | "bad">("idle");
   const codeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -83,7 +84,7 @@ export function ForgotPasswordDialog({
     setErrorMessage(null);
     setCodeSending(true);
     try {
-      await sendRegistrationCode(phone);
+      await sendRegistrationCode(phone, "management_password_reset");
       setErrorMessage("验证码已发送，请查收");
       startCooldown();
     } catch (error) {
@@ -97,6 +98,20 @@ export function ForgotPasswordDialog({
     resetState();
     onClose();
   };
+
+  // 验证码输满 6 位 → 400ms 防抖预检（不消费验证码），即时反馈 ✓/✗
+  useEffect(() => {
+    setCodeCheck("idle");
+    const phone = applicantContact.trim();
+    if (verificationCode.length !== 6 || !/^1\d{10}$/.test(phone)) return;
+    setCodeCheck("checking");
+    const timer = setTimeout(() => {
+      checkRegistrationCode(phone, verificationCode)
+        .then(() => setCodeCheck("ok"))
+        .catch(() => setCodeCheck("bad"));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [verificationCode, applicantContact]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -204,25 +219,14 @@ export function ForgotPasswordDialog({
 
         <label className="block">
           <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">申请人联系方式</span>
-          <input
-            type="text"
-            value={applicantContact}
-            onChange={(event) => setApplicantContact(event.target.value)}
-            placeholder="请输入手机号码或办公联系方式"
-            className="neu-input w-full text-sm"
-            autoComplete="tel"
-          />
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">验证码</span>
           <div className="flex gap-2">
             <input
               type="text"
-              value={verificationCode}
-              onChange={(event) => setVerificationCode(event.target.value)}
-              placeholder="6 位验证码"
-              className="neu-input w-full text-sm"
-              maxLength={6}
+              value={applicantContact}
+              onChange={(event) => setApplicantContact(event.target.value)}
+              placeholder="请输入本人手机号码或办公联系方式"
+              className="neu-input w-full flex-1 text-sm"
+              autoComplete="tel"
             />
             <button
               type="button"
@@ -234,10 +238,36 @@ export function ForgotPasswordDialog({
             </button>
           </div>
         </label>
+        <label className="block">
+          <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">验证码</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={verificationCode}
+              onChange={(event) => setVerificationCode(event.target.value)}
+              placeholder="6 位验证码"
+              className="neu-input w-full flex-1 text-sm"
+              maxLength={6}
+              autoComplete="one-time-code"
+            />
+            {codeCheck === "checking" && (
+              <Loader2 size={14} className="shrink-0 animate-spin text-[var(--muted-foreground)]" />
+            )}
+            {codeCheck === "ok" && (
+              <Check size={16} strokeWidth={2.5} className="shrink-0 text-[var(--success)]" />
+            )}
+            {codeCheck === "bad" && (
+              <X size={16} strokeWidth={2.5} className="shrink-0 text-[var(--danger)]" />
+            )}
+          </div>
+          {codeCheck === "bad" && (
+            <span className="mt-1 block text-[11px] text-[var(--danger)]">验证码不正确，请核对后重新输入</span>
+          )}
+        </label>
 
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           如需人工核验身份，请先联系采购中心 <a className="underline" href="tel:02866666666">028-66666666</a>。
-          页面会对手机号码进行短信验证码校验，提交申请后由采购管理人员审核并通过后生效。
+          验证码将发送至该手机号，须为申请人本人号码；提交申请后由采购管理人员审核并通过后生效。
         </p>
 
         {errorMessage ? (

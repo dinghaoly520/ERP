@@ -18,6 +18,7 @@ const dtoPayload = {
   displayName: '李四',
   password: 'supplier2026',
   phone: '13800138000',
+  registrationCode: '123456',
   tags: ['水利工程', '泵站设备'],
 };
 
@@ -102,7 +103,7 @@ describe('SupplierService.registerTemporary business tags', () => {
         },
         { provide: 'REDIS_CLIENT', useValue: {} },
         { provide: LlmService, useValue: {} },
-        { provide: VerificationService, useValue: {} },
+        { provide: VerificationService, useValue: { verifyRegistrationCode: jest.fn().mockResolvedValue({ ok: true }) } },
       ],
     }).compile();
 
@@ -127,6 +128,21 @@ describe('SupplierService.registerTemporary business tags', () => {
         createdBySupplierId: 'supplier-1',
       },
       update: {},
+    });
+  });
+
+  it('requires companyId at the DTO level (归属公司必选)', async () => {
+    const errors = await validate(plainToInstance(RegisterTemporarySupplierDto, dtoPayload));
+    expect(errors.some((error) => error.property === 'companyId')).toBe(true);
+  });
+
+  it('rejects unknown company id with COMPANY_NOT_FOUND (须正确选择)', async () => {
+    prisma.company = { findUnique: jest.fn().mockResolvedValue(null) };
+    await expect(service.registerTemporary({
+      ...dtoPayload,
+      companyId: 'FAKE-ID',
+    } as RegisterTemporarySupplierDto)).rejects.toMatchObject({
+      response: { code: 'COMPANY_NOT_FOUND' },
     });
   });
 

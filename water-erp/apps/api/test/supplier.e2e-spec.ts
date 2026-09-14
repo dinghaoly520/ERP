@@ -103,6 +103,7 @@ describe('Supplier (e2e)', () => {
       .post('/api/supplier/register')
       .set('X-Portal', 'public')
       .send({
+        companyId: (await prisma.company.findFirst({ where: {}, select: { id: true } }))?.id,
         name: 'E2E重复信用代码公司',
         creditCode: dupCreditCode,
         enterpriseType: '有限责任公司',

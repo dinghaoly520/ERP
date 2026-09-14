@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { compareSync, hashSync } from 'bcryptjs';
+import { encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { PASSWORD_PATTERN } from '../common/validators/password-strength';
 import { VerificationService } from '../verification/verification.service';
@@ -40,7 +41,7 @@ export class PasswordRequestsService {
       data: { status: 'REJECTED', decisionNote: '已提交新的改密申请，本条自动关闭', reviewedAt: new Date() },
     });
     return this.prisma.passwordChangeRequest.create({
-      data: { userId, requestedPasswordHash: hashSync(newPassword, 10) },
+      data: { userId, requestedPasswordHash: hashSync(newPassword, 10), requestedPasswordVault: encryptPasswordVault(newPassword) ?? null },
       select: { id: true, status: true, requestedAt: true },
     });
   }
@@ -60,6 +61,7 @@ export class PasswordRequestsService {
         applicantContact,
         matchedUserId: matched?.id ?? null,
         requestedPasswordHash: normalized,
+        requestedPasswordVault: encryptPasswordVault(newPassword) ?? null,
       },
       // 匿名响应不返回 matchedUserId，避免用接口枚举真实账号。
       select: { id: true, status: true, requestedAt: true },
@@ -120,7 +122,12 @@ export class PasswordRequestsService {
     if (req.status !== 'PENDING') throw new BadRequestException({ error: '该申请已处理', code: 'ALREADY_REVIEWED' });
     await this.prisma.user.update({
       where: { id: req.userId },
-      data: { passwordHash: req.requestedPasswordHash, webSessionId: null },
+      data: {
+        passwordHash: req.requestedPasswordHash,
+        // 旧申请（无副本字段）不清空已有 vault；审批通过后保持「最新版可查看」
+        ...(req.requestedPasswordVault ? { passwordVault: req.requestedPasswordVault } : {}),
+        webSessionId: null,
+      },
     });
     // 通知申请人审批结果（与资料变更审批对齐；通知失败不阻塞审批）
     try {
@@ -192,7 +199,11 @@ export class PasswordRequestsService {
     }
     await this.prisma.user.update({
       where: { id: req.matchedUserId },
-      data: { passwordHash: req.requestedPasswordHash, webSessionId: null },
+      data: {
+        passwordHash: req.requestedPasswordHash,
+        ...(req.requestedPasswordVault ? { passwordVault: req.requestedPasswordVault } : {}),
+        webSessionId: null,
+      },
     });
     try {
       await this.prisma.notification.create({

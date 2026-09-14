@@ -3,6 +3,7 @@ import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildSubjectCode } from '@water-erp/shared';
+import { encryptPasswordVault } from '../auth/password-vault.util';
 import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { VerificationService } from '../verification/verification.service';
@@ -67,6 +68,14 @@ export class SupplierService {
    * 使用 PG 序列 supplier_no_seq 原子递增，并发注册安全。
    * 序列在迁移 20260807000000_supplier_no 中创建。
    */
+  /** 供应商公司归属解析（账号管理分组）：companyId 无效时静默未归属，不阻断注册。 */
+  private async resolveSupplierCompany(companyId?: string): Promise<{ id: string | null; name: string | null }> {
+    if (!companyId) return { id: null, name: null };
+    const c = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, name: true } });
+    if (!c) throw new BadRequestException({ error: '归属公司不存在，请重新选择', code: 'COMPANY_NOT_FOUND' });
+    return { id: c.id, name: c.name };
+  }
+
   private async generateSupplierNo(tx: Prisma.TransactionClient): Promise<string> {
     const [row] = await tx.$queryRaw<Array<{ supplier_no: string }>>`
       SELECT 'SUP-' || lpad(nextval('supplier_no_seq')::text, 6, '0') AS supplier_no
@@ -210,6 +219,8 @@ export class SupplierService {
       await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
     }
 
+    const companyRef = await this.resolveSupplierCompany(dto.companyId);
+
     // 创建用户和供应商 — 事务保证原子性
     const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -218,6 +229,7 @@ export class SupplierService {
           displayName: dto.displayName,
           email: dto.email,
           passwordHash: hashSync(dto.password, 10),
+          passwordVault: encryptPasswordVault(dto.password) ?? null,
           role: 'supplier',
           isActive: false, // 待审核后激活
         },
@@ -258,6 +270,8 @@ export class SupplierService {
           companyEmail: dto.companyEmail || null,
           companyWebsite: dto.companyWebsite || null,
           tags: dto.tags,
+          companyId: companyRef.id,
+          companyName: companyRef.name,
           contacts: {
             create: dto.contacts.map(c => ({
               name: c.name,
@@ -480,6 +494,11 @@ export class SupplierService {
     const existingUser = await this.prisma.user.findFirst({ where: { username, role: 'supplier' } });
     if (existingUser) throw new BadRequestException({ error: '该机构代码已被注册为登录账号，请更换', code: 'DUPLICATE_USERNAME' });
 
+    // 手机验证（2026-09-14）：字段校验通过后一次性消费短信码——与正式注册同款时序
+    await this.verificationService.verifyRegistrationCode(dto.phone, dto.registrationCode);
+
+    const companyRef = await this.resolveSupplierCompany(dto.companyId);
+
     const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -487,6 +506,7 @@ export class SupplierService {
           displayName: dto.displayName,
           phone: dto.phone,
           passwordHash: hashSync(dto.password, 10),
+          passwordVault: encryptPasswordVault(dto.password) ?? null,
           role: 'supplier',
           isActive: false, // 仍需审核
         },
@@ -511,6 +531,8 @@ export class SupplierService {
           tags: submittedTags,
           isTemporary: true,
           temporaryExpiresAt: inv.expiresAt,
+          companyId: companyRef.id,
+          companyName: companyRef.name,
           invitation: { connect: { id: inv.id } },
           contacts: { create: [{ name: dto.displayName, phone: dto.phone, email: dto.email || null, isPrimary: true, position: '联系人' }] },
         },
@@ -867,16 +889,95 @@ export class SupplierService {
   async getRegisterStatusByCreditCode(creditCode: string) {
     const supplier = await this.prisma.supplier.findFirst({
       where: { creditCode },
-      select: { name: true, status: true, rejectReason: true, returnReason: true },
+      select: { id: true, name: true, status: true, rejectReason: true, returnReason: true, urgedAt: true },
     });
     if (!supplier) {
       // 不区分「不存在」与「无记录」，避免被用于枚举信用代码是否注册。
-      return { found: false as const, name: null, status: null, reason: null };
+      return { found: false as const, name: null, status: null, reason: null, reviewedAt: null, urgedAt: null };
     }
+    // 审核时间 = 最近一次审核动作（approve/reject/return）的留痕时间；无留痕则回退 updatedAt（如退回补正）。
+    const latest = await this.prisma.supplierApprovalRecord.findFirst({
+      where: { supplierId: supplier.id, action: { in: ['APPROVED', 'REJECTED', 'RETURNED'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true, action: true },
+    });
     // P1-28：公开查询仅对 RETURNED 状态返回补正说明（供应商需知如何修改）；REJECTED 等原因可能含
     // 审核员内部备注，不对未登录公开，避免信息泄露与信用代码枚举爬取。
     const reason = supplier.status === 'RETURNED' ? (supplier.returnReason || null) : null;
-    return { found: true as const, name: supplier.name, status: supplier.status, reason };
+    const reviewed = latest && supplier.status !== 'PENDING' ? { at: latest.createdAt, action: latest.action } : null;
+    return {
+      found: true as const,
+      name: supplier.name,
+      status: supplier.status,
+      reason,
+      reviewedAt: reviewed?.at ?? null,
+      reviewedAction: reviewed?.action ?? null,
+      urgedAt: supplier.urgedAt ?? null,
+    };
+  }
+
+  /** 供应商催促审核：向归属公司（Company）的采购工作人员（staff/leader/admin）发站内通知。
+   *  公开接口（无需登录，凭信用代码定位），P1-28 防刷限流已由 controller @Throttle 承担。
+   *  业务约束（2026-09-14）：仅允许催促一次——urgedAt 非空即已催过；再次调用须距上次 ≥4 小时。 */
+  async urgeReview(creditCode: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { creditCode },
+      select: { id: true, name: true, status: true, companyId: true, companyName: true, urgedAt: true },
+    });
+    if (!supplier) {
+      throw new BadRequestException({ error: '未找到该信用代码对应的注册记录', code: 'SUPPLIER_NOT_FOUND' });
+    }
+    if (supplier.status === 'APPROVED') {
+      throw new BadRequestException({ error: '该申请已审核通过，无需催促', code: 'ALREADY_APPROVED' });
+    }
+
+    // 催促频控：已催过且距上次 < 4 小时 → 拒绝（前端可据此禁用按钮）
+    const UGE_COOLDOWN_MS = 4 * 3600 * 1000;
+    if (supplier.urgedAt) {
+      const elapsed = Date.now() - supplier.urgedAt.getTime();
+      if (elapsed < UGE_COOLDOWN_MS) {
+        const minutesLeft = Math.ceil((UGE_COOLDOWN_MS - elapsed) / 60000);
+        throw new BadRequestException({
+          error: `已催促过审核，请等待 ${Math.max(1, Math.ceil(minutesLeft / 60))} 小时后再试`,
+          code: 'URGE_TOO_FREQUENT',
+        });
+      }
+    }
+
+    // 收件人：归属公司下的工作人员；无归属或该公司无工作人员时回退全体 staff/leader/admin
+    const recipients = supplier.companyId
+      ? await this.prisma.user.findMany({
+          where: { role: { in: ['staff', 'leader', 'admin'] }, isActive: true, companyId: supplier.companyId },
+          select: { id: true },
+        })
+      : [];
+    const targets = recipients.length > 0
+      ? recipients
+      : await this.prisma.user.findMany({
+          where: { role: { in: ['staff', 'leader', 'admin'] }, isActive: true },
+          select: { id: true },
+        });
+
+    // 先记 urgedAt（幂等：并发下 updateMany 只成功一次，避免重复发通知）
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id: supplier.id, urgedAt: supplier.urgedAt ?? null },
+      data: { urgedAt: new Date() },
+    });
+
+    if (targets.length > 0) {
+      const companyLabel = supplier.companyName ?? '未归属';
+      await Promise.all(targets.map((u) =>
+        this.notificationService.create({
+          userId: u.id,
+          type: 'SUPPLIER_REVIEW_URGE',
+          title: '供应商催促审核',
+          content: `供应商「${supplier.name}」（${creditCode}）催促审核，请尽快处理。所属公司：${companyLabel}`,
+          link: `/supplier/repository?id=${supplier.id}`,
+        }),
+      ));
+    }
+
+    return { success: true, notified: targets.length, urgedAt: supplier.urgedAt ? null : new Date() };
   }
 
   /** 查询供应商审核历史（不可变留痕，按时间倒序）。 */
@@ -2820,6 +2921,7 @@ export class SupplierService {
           businessScope: (row[headers.indexOf('经营范围')] || '').trim() || '未知',
           displayName,
           organizationCode: creditCode, // 机构代码 = 统一社会信用代码
+          companyId: '', // 内部批量导入不选归属（DTO 必选仅约束注册端点；直调服务无校验，空串=未归属）
           password,
           tags: [],
           contacts: [],

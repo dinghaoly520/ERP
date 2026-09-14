@@ -26,6 +26,7 @@ import { PrismaClient } from '@prisma/client';
 import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
+import { encryptPasswordVault } from '../src/auth/password-vault.util';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';

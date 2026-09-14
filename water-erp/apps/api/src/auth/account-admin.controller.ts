@@ -1,7 +1,8 @@
 import { Body, BadRequestException, ConflictException, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { hashSync } from 'bcryptjs';
+import { decryptPasswordVault, encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from './current-user.decorator';
@@ -14,8 +15,10 @@ import { AUTHENTICATED_ROLES, INTERNAL_ROLES } from './auth-scope';
  * 冻结账号登录提示「账号已被冻结」，存量会话被 AuthGuard 即时 401。
  *
  * 范围（2026-08-24 收紧）：仅 :3005 采购中心人员账号（INTERNAL_ROLES =
- * admin/leader/staff/bid_host）。供应商/专家/商城等其他门户账号不在此管理
- * （供应商归供应商管理中心、专家归专家管理中心）。
+ * admin/leader/staff/bid_host）。专家/商城等其他门户账号不在此管理（专家归专家管理中心）。
+ *
+ * 2026-09-14 扩展：供应商账号纳入只读视图（按公司分组）——列表 / 密码查看
+ * （passwordVault AES 解密+审计留痕）/ 归属公司调整；密码修改仍归供应商门户自助。
  */
 
 class CreateAccountDto {
@@ -41,6 +44,11 @@ class UpdateAccountDto {
 
 class ResetPasswordDto {
   @IsString() @MinLength(6) password: string;
+}
+
+class SupplierCompanyDto {
+  @IsString() @IsNotEmpty() // Company 主数据 id 为自定义短 id（co-swhi-*），非 UUID；存在性由 findUnique 兜底
+  companyId: string;
 }
 
 const ACCOUNT_SELECT = {
@@ -74,6 +82,81 @@ export class AccountAdminController {
     });
   }
 
+  @Get('suppliers')
+  @ApiOperation({ summary: '供应商账号列表（只读视图，账号管理按公司分组用）' })
+  listSuppliers() {
+    return this.prisma.user.findMany({
+      where: { role: 'supplier' },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        phone: true,
+        email: true,
+        isActive: true,
+        isFrozen: true,
+        createdAt: true,
+        passwordVault: true, // 仅判存在（hasVault），明文绝不随列表下发
+        supplier: {
+          select: {
+            name: true,
+            creditCode: true,
+            isTemporary: true,
+            companyId: true,
+            companyName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  @Get(':id/password')
+  @ApiOperation({ summary: '查看账号密码（passwordVault 解密；工作人员账号无副本返回 null）' })
+  async revealPassword(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const account = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, username: true, role: true, passwordVault: true },
+    });
+    if (!account) throw new BadRequestException({ error: '账号不存在', code: 'NOT_FOUND' });
+    const password = decryptPasswordVault(account.passwordVault);
+    // 敏感操作留痕（审计失败不阻断，但不静默——日志兜底）
+    this.prisma.auditLog
+      .create({
+        data: {
+          userId: user.sub,
+          action: '查看账号密码',
+          resourceType: 'User',
+          resourceId: account.id,
+          details: { target: account.username, role: account.role, hit: password !== null },
+        },
+      })
+      .catch(() => undefined);
+    return { password, hasVault: password !== null };
+  }
+
+  @Patch(':id/supplier-company')
+  @ApiOperation({ summary: '调整供应商账号的归属公司（账号管理分组）' })
+  async updateSupplierCompany(@Param('id') id: string, @Body() dto: SupplierCompanyDto) {
+    const account = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, supplier: { select: { id: true } } },
+    });
+    if (!account?.supplier) {
+      throw new BadRequestException({ error: '该账号不是供应商账号', code: 'NOT_SUPPLIER' });
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: dto.companyId },
+      select: { id: true, name: true },
+    });
+    if (!company) throw new BadRequestException({ error: '公司不存在', code: 'COMPANY_NOT_FOUND' });
+    return this.prisma.supplier.update({
+      where: { id: account.supplier.id },
+      data: { companyId: company.id, companyName: company.name },
+      select: { companyId: true, companyName: true },
+    });
+  }
+
   @Post()
   @ApiOperation({ summary: '新增账号（直接激活；用户名全局唯一）' })
   async create(@Body() dto: CreateAccountDto) {
@@ -90,6 +173,7 @@ export class AccountAdminController {
         username: dto.username,
         displayName: dto.displayName,
         passwordHash: hashSync(dto.password, 10),
+        passwordVault: encryptPasswordVault(dto.password) ?? null,
         role: dto.role,
         company: dto.company ?? null,
         departmentName: dto.departmentName ?? null,

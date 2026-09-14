@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
 } from 'class-validator';
@@ -15,6 +16,10 @@ import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validato
 export class RegisterTemporarySupplierDto {
   @IsString() @IsNotEmpty() @MaxLength(20)
   invitationCode: string;
+
+  /** 归属公司（Company 主数据 id，自定义短 id 非 UUID；必选——影响投标归属，账号管理按公司分组，admin 可改） */
+  @IsString() @IsNotEmpty({ message: '归属公司为必选项，须正确选择，否则将影响投标' })
+  companyId: string;
 
   @IsString() @IsNotEmpty() @MaxLength(100)
   name: string; // 企业名称
@@ -47,6 +52,10 @@ export class RegisterTemporarySupplierDto {
 
   @IsString() @IsNotEmpty() @Matches(/^1\d{10}$/, { message: '手机号格式不正确' })
   phone: string;
+
+  /** 短信验证码（发送至 phone；注册前一次性消费） */
+  @IsString() @IsNotEmpty() @Matches(/^\d{6}$/, { message: '验证码须为 6 位数字' })
+  registrationCode: string;
 
   @IsEmail() @IsOptional()
   email?: string; // 联系人邮箱

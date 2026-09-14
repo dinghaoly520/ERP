@@ -165,6 +165,7 @@ export class NotificationService {
     pageSize: number = 20,
     tab: 'all' | 'todo' = 'all',
     types: string[] = [],
+    countTypes: string[] = [],
   ) {
     const skip = (page - 1) * pageSize;
 
@@ -177,7 +178,16 @@ export class NotificationService {
     }
     if (types.length > 0) where.type = { in: types };
 
-    const [total, items, unreadCount, todoCount] = await Promise.all([
+    // 类型计数基底：与列表同 tab，但不受单类型筛选影响——
+    // 使筛选条的类型 chip 在选中任意一个后保持稳定（不随过滤结果消失）
+    const countWhere: any = { userId };
+    if (tab === 'todo') {
+      countWhere.resolvedAt = null;
+      countWhere.isRead = false;
+    }
+    if (countTypes.length > 0) countWhere.type = { in: countTypes };
+
+    const [total, items, unreadCount, todoCount, typeGroups] = await Promise.all([
       this.prisma.notification.count({ where }),
       this.prisma.notification.findMany({
         where,
@@ -188,9 +198,18 @@ export class NotificationService {
       // KPI 元信息（2026-09-09）：服务端口径，前端不再用当前页 items 估算
       this.prisma.notification.count({ where: { userId, isRead: false } }),
       this.prisma.notification.count({ where: { userId, isRead: false, resolvedAt: null } }),
+      this.prisma.notification.groupBy({
+        by: ['type'],
+        where: countWhere,
+        _count: { type: true },
+      }),
     ]);
 
-    return { total, page, pageSize, items, unreadCount, todoCount };
+    const typeCounts = typeGroups
+      .map((g) => ({ type: g.type, count: g._count.type }))
+      .sort((a, b) => b.count - a.count);
+
+    return { total, page, pageSize, items, unreadCount, todoCount, typeCounts };
   }
 
   /** 将某 type+link 对应的未 resolve 通知标记为已处理（待办清零）。 */

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength, Length } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength, Length, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 import { RegisterContactDto } from './register-contact.dto';
@@ -78,6 +78,10 @@ export class RegisterSupplierDto {
   /** P1-13：注册手机验证——主联系人手机号（须与短信验证码目标一致） */
   @IsString() @IsNotEmpty() @Matches(/^1\d{10}$/)
   registrationPhone: string;
+
+  /** 归属公司（Company 主数据 id，自定义短 id 非 UUID；必选——影响投标归属，账号管理按公司分组，admin 可改） */
+  @IsString() @IsNotEmpty({ message: '归属公司为必选项，须正确选择，否则将影响投标' })
+  companyId: string;
 
   @IsString() @IsNotEmpty() @Length(6, 6)
   registrationCode: string;
