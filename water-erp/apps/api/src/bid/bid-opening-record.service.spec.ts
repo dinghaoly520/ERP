@@ -580,6 +580,7 @@ describe('BidOpeningRecordService — getOpeningRecordDraft', () => {
     expect(draft).toEqual({
       canView: true,
       amount: '980000',
+      amountUnit: null, // 9888ca78 唱标单位口径：仅 dual-v2 为「万元」，旧轨为 null
       period: '180天',
       qualityTarget: '合格',
       bondStatus: '已缴纳',
