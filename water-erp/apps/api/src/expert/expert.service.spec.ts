@@ -1353,8 +1353,10 @@ describe('ExpertService', () => {
         fileSize: 4979,
         downloadUrl: '/api/expert/projects/proj-1/tender-document/download',
       });
+      // 7f1c56a7 撞号防御后的契约：bidProjectId 直连优先（非 OR 混查）；直连命中即止，不落公告链回退
+      expect(prisma.bidDocument.findFirst).toHaveBeenCalledTimes(1);
       expect(prisma.bidDocument.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { OR: expect.arrayContaining([{ bidProjectId: 'proj-1' }]) }, include: { fileAsset: true } }),
+        expect.objectContaining({ where: { bidProjectId: 'proj-1' }, include: { fileAsset: true } }),
       );
     });
 
