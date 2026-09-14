@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { GB_ARCHIVE_CATEGORIES } from '@water-erp/shared';
+import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan } from '@water-erp/shared';
+import { resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 import { buildArchiveTemplate } from './archive-template';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
 import { PrismaService } from '../prisma/prisma.service';
@@ -2511,14 +2512,20 @@ export class BidService {
       select: { id: true, maxScore: true },
     });
     const priceItemIds = new Set(priceItems.map(pi => pi.id));
-    const openingRecs = await this.prisma.bidOpeningRecord.findMany({
-      where: { projectId, bidSupplierId: { in: activeSuppliers.map(s => s.id) } },
-      select: { bidSupplierId: true, amount: true },
-    });
+    const [openingRecs, amountUnitMap] = await Promise.all([
+      this.prisma.bidOpeningRecord.findMany({
+        where: { projectId, bidSupplierId: { in: activeSuppliers.map(s => s.id) } },
+        select: { bidSupplierId: true, amount: true },
+      }),
+      // 唱标金额单位（2026-09-14）：dual-v2 万元换算为元，与 ceilingPrice/公式元口径对齐（同 generateEvaluationResults）
+      resolveOpeningAmountUnitMap(this.prisma, projectId),
+    ]);
     const bidPrices = new Map<string, number>();
     for (const r of openingRecs) {
       if (r.amount) {
-        const price = parseFloat(String(r.amount).replace(/,/g, ''));
+        const unit = (r.bidSupplierId ? amountUnitMap.get(r.bidSupplierId) : null) ?? null;
+        const price = parseAmountToYuan(r.amount, { unitHint: unit })
+          ?? parseFloat(String(r.amount).replace(/,/g, ''));
         if (!isNaN(price) && price >= 0) bidPrices.set(r.bidSupplierId!, price);
       }
     }
@@ -2705,14 +2712,20 @@ export class BidService {
    * 触发条件：有效报价 >= 3 家；阈值：报价低于均值 70%（与 generateEvaluationResults 一致）。
    */
   private async checkAbnormalLowPrices(projectId: string, activeSupplierIds: string[]): Promise<void> {
-    const openingRecs = await this.prisma.bidOpeningRecord.findMany({
-      where: { projectId, bidSupplierId: { in: activeSupplierIds } },
-      select: { bidSupplierId: true, amount: true },
-    });
+    const [openingRecs, amountUnitMap] = await Promise.all([
+      this.prisma.bidOpeningRecord.findMany({
+        where: { projectId, bidSupplierId: { in: activeSupplierIds } },
+        select: { bidSupplierId: true, amount: true },
+      }),
+      // 唱标金额单位（2026-09-14）：dual-v2 万元统一换算为元后求均值（混合轨道均值失真会误报/漏报异常低价）
+      resolveOpeningAmountUnitMap(this.prisma, projectId),
+    ]);
     const prices: { supplierId: string; price: number }[] = [];
     for (const r of openingRecs) {
       if (r.amount) {
-        const price = parseFloat(String(r.amount).replace(/,/g, ''));
+        const unit = (r.bidSupplierId ? amountUnitMap.get(r.bidSupplierId) : null) ?? null;
+        const price = parseAmountToYuan(r.amount, { unitHint: unit })
+          ?? parseFloat(String(r.amount).replace(/,/g, ''));
         if (!isNaN(price) && price >= 0 && r.bidSupplierId) {
           prices.push({ supplierId: r.bidSupplierId, price });
         }
@@ -4469,21 +4482,31 @@ export class BidService {
     const quotes = await this.prisma.bidQuote.findMany({ where: { roundId: lastRound.id } });
     if (quotes.length === 0) return;
 
+    // 唱标金额单位（2026-09-14）：dual-v2 轨开标记录以万元入库（读端按 envelopeVersion 判单位），
+    // 最终轮报价（元，主持端轮次面板口径）写入前换算回万元——直存元裸数字会被读端×10000 误读。
+    const amountUnitMap = await resolveOpeningAmountUnitMap(this.prisma, projectId);
+    const toRecordAmount = (bidSupplierId: string, quotePriceYuan: Prisma.Decimal | number | string): string => {
+      if (amountUnitMap.get(bidSupplierId) !== '万元') return String(quotePriceYuan);
+      // toFixed(6) 截浮点噪声再 Number 去尾零（1539500 → 153.95）
+      return String(Number((Number(quotePriceYuan) / 10000).toFixed(6)));
+    };
+
     await this.prisma.$transaction(async (tx) => {
       for (const q of quotes) {
         // N1b 收尾：check-then-act 在唯一索引 (projectId, bidSupplierId) 下并发补建会裸抛 P2002，
         // 与 decryptSupplier 同款 upsert（:1985）——update 只改价格，create 为缺 record 时补建（C1 fix）
         const sup = await tx.bidSupplier.findUnique({ where: { id: q.bidSupplierId }, select: { supplierName: true } });
+        const amount = toRecordAmount(q.bidSupplierId, q.quotePrice);
         await tx.bidOpeningRecord.upsert({
           where: { projectId_bidSupplierId: { projectId, bidSupplierId: q.bidSupplierId } },
           create: {
             projectId, bidSupplierId: q.bidSupplierId,
             supplierName: sup?.supplierName ?? '—',
-            amount: String(q.quotePrice),
+            amount,
             period: '', qualityTarget: '', bondStatus: '',
             confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
           },
-          update: { amount: String(q.quotePrice) },
+          update: { amount },
         });
       }
 

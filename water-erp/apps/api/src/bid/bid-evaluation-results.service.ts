@@ -1,7 +1,8 @@
 import { Injectable, BadRequestException, ConflictException, Optional, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { evaluateBondCompliance } from '@water-erp/shared';
+import { evaluateBondCompliance, parseAmountToYuan } from '@water-erp/shared';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
+import { resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidGateway } from './bid.gateway';
 import { BidService } from './bid.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
@@ -299,13 +300,22 @@ export class BidEvaluationResultsService {
       for (const pi of priceItems) priceItemIds.add(pi.id);
 
       // 读取唱标报价（无论是否有公式引擎，报价都写入评标结果供定标使用）
-      const openingRecs = await this.prisma.bidOpeningRecord.findMany({
-        where: { projectId, bidSupplierId: { in: activeSupplierIds } },
-        select: { bidSupplierId: true, amount: true },
-      });
+      const [openingRecs, unitMap] = await Promise.all([
+        this.prisma.bidOpeningRecord.findMany({
+          where: { projectId, bidSupplierId: { in: activeSupplierIds } },
+          select: { bidSupplierId: true, amount: true },
+        }),
+        // 唱标金额单位（2026-09-14）：dual-v2 轨以万元入库，须换算为元——否则公式与
+        // ceilingPrice 元口径相差一万倍，且 BidEvaluationResult.bidPrice 万元值会以
+        // 「¥153.95」流入中标通知书/公示（报价一致性 10000 倍失真）
+        resolveOpeningAmountUnitMap(this.prisma, projectId),
+      ]);
       for (const r of openingRecs) {
         if (r.amount) {
-          const price = parseFloat(String(r.amount).replace(/,/g, ''));
+          const unit = (r.bidSupplierId ? unitMap.get(r.bidSupplierId) : null) ?? null;
+          // parse 优先（带单位文本/万元提示），回退 parseFloat（旧自由文本容错，如「980000元」）
+          const price = parseAmountToYuan(r.amount, { unitHint: unit })
+            ?? parseFloat(String(r.amount).replace(/,/g, ''));
           if (!isNaN(price) && price >= 0) bidPrices.set(r.bidSupplierId!, price);
         }
       }

@@ -28,6 +28,7 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
       bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) }, // 唱标金额单位解析（opening-amount-unit.util）
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn().mockResolvedValue({ generatedAt: new Date(Date.now() - 3600_000) }) },
       // 签字闸门默认放行（闭环+回流齐）：full 归档用例不逐个 mock；单测闸门本身见 bid-sign-packet.service.spec
@@ -306,6 +307,40 @@ describe('BidEvaluationResultsService — evaluation results', () => {
         null, // ceilingPrice
         30,
       );
+    });
+
+    it('dual-v2（2026-09-14）：唱标金额万元入库 → 公式与结果 bidPrice 归一为元（153.95 万元 → 1539500）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        priceFormulaConfig: { formulaType: 'lowest_price' }, ceilingPrice: '2000000',
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreItem.findMany.mockImplementation((args: any) =>
+        Promise.resolve(args?.where?.category === 'PRICE' ? [{ id: 'pi1', category: 'PRICE', maxScore: 30 }] : []));
+      // dual-v2 轨：唱标 amount 为万元裸数字
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 's1', supplierId: 'sup-1' }]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 'sup-1', envelopeVersion: 'dual-v2' }]);
+      prisma.bidOpeningRecord.findMany.mockResolvedValueOnce([
+        { bidSupplierId: 's1', amount: '153.95' },
+      ]);
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 1 });
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([
+        { supplierName: '甲', rank: 1, recommended: true, averageScore: 85 },
+      ]);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.generateEvaluationResults('p1');
+
+      // 公式入参：s1 → 1539500 元（而非 153.95）
+      const calcArgs = (service as any).priceFormula.calculate.mock.calls[0];
+      expect(calcArgs[1].get('s1')).toBe(1_539_500);
+      // 落库 bidPrice 同为元（下游中标通知书/公示 ¥ 渲染的口径）
+      const createData = prisma.bidEvaluationResult.createMany.mock.calls[0][0].data;
+      expect(createData.find((d: any) => d.supplierName === '甲' || d.bidSupplierId === 's1').bidPrice).toBe(1_539_500);
     });
   });
 
@@ -717,6 +752,8 @@ describe('BidEvaluationResultsService — generateEvaluationResults 保证金软
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       bidBondLedger: { findMany: jest.fn().mockResolvedValue([]) }, // A-104：软标记台账比对（默认无台账行）
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) }, // 唱标金额单位解析（opening-amount-unit.util）
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
@@ -860,6 +897,8 @@ describe('generateEvaluationResults expertRole filter', () => {
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       bidBondLedger: { findMany: jest.fn().mockResolvedValue([]) }, // A-104：软标记台账比对（默认无台账行）
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) }, // 唱标金额单位解析（opening-amount-unit.util）
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
@@ -923,6 +962,8 @@ describe('generateEvaluationResults expertRole filter', () => {
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       bidBondLedger: { findMany: jest.fn().mockResolvedValue([]) }, // A-104：软标记台账比对（默认无台账行）
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) }, // 唱标金额单位解析（opening-amount-unit.util）
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
