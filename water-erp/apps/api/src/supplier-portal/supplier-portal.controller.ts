@@ -67,6 +67,13 @@ export class SupplierPortalController {
     return this.portalService.signSubmissionReceipt(submissionId, supplierId, body?.signature ?? '');
   }
 
+  /** W11-①（A-101）：回执重验签——对存档签名负载只读复验，供核验面板显示结论徽标 */
+  @Get('bid-submissions/:submissionId/receipt-verify')
+  async verifyReceipt(@Param('submissionId') submissionId: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.verifySubmissionReceipt(submissionId, supplierId);
+  }
+
   @Post('projects/:id/clarifications')
   async askClarification(
     @Param('id') id: string,

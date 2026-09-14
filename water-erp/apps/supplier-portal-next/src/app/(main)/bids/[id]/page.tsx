@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
-  CircleX, CircleCheck, Info, KeyRound, ShieldCheck,
+  CircleX, CircleCheck, Info, KeyRound, ShieldCheck, Copy, Check,
 } from "lucide-react";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
@@ -136,6 +136,11 @@ function BidDetailInner() {
   // P1-6：失败分类——unbound=未绑定 U盾证书（确定性失败，不可重试，面板给去绑定入口）；retry=网络/服务端瞬时故障
   const [payloadFailed, setPayloadFailed] = useState<"unbound" | "retry" | null>(null);
   const [signing, setSigning] = useState(false);
+  // 核验面板：已签署时服务端重验签结论（A-101）+ 复制原文反馈
+  const [receiptVerify, setReceiptVerify] = useState<{ signed: boolean; verified?: boolean; reason?: string } | null>(null);
+  const [receiptVerifyFailed, setReceiptVerifyFailed] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [receiptCopied, setReceiptCopied] = useState(false);
 
   // ── U盾会话（克隆 clarifications 页：口令仅内存持有，解锁一次覆盖本页回执补签）──
   const [ukeyAdapter, setUkeyAdapter] = useState<UKeyAdapter | null>(null);
@@ -388,9 +393,43 @@ function BidDetailInner() {
     finally { setPayloadLoading(false); }
   }
 
+  /** 已签署时展开「投递回执核验」→ 服务端对存档签名只读复验（A-101），面板内显示结论徽标；
+   *  复验失败不弹 toast、不阻塞原文展示——徽标缺省为「暂不可用」 */
+  async function loadReceiptVerify() {
+    if (!submission || receiptVerify || verifying) return;
+    setVerifying(true);
+    try {
+      const r = await supplierApi.verifyReceiptSignature(submission.id, { silent: true });
+      setReceiptVerify(r);
+    } catch {
+      setReceiptVerifyFailed(true);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function copyReceiptText() {
+    const payload = submission?.receiptSignature?.payload ?? receiptPayload;
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setReceiptCopied(true);
+      window.setTimeout(() => setReceiptCopied(false), 2000);
+    } catch {
+      toast.error("复制失败，请手动选择文本复制");
+    }
+  }
+
   function fmtTime(t: string) {
     return t ? dayjs(t).format("YYYY-MM-DD HH:mm") : "—";
   }
+
+  // 核验面板展示的负载（已签署=签名存档原文；未签署=服务端按 DB 重建）+ UTC 原文的本地时区对照
+  const displayedReceiptPayload: Record<string, unknown> | null =
+    submission?.receiptSignature?.payload ?? receiptPayload;
+  const receivedAtLocal = displayedReceiptPayload?.receivedAt
+    ? dayjs(String(displayedReceiptPayload.receivedAt)).format("YYYY-MM-DD HH:mm:ss")
+    : "";
 
   return (
     <div className="page-container">
@@ -701,22 +740,53 @@ function BidDetailInner() {
                           )}
                         </div>
                       )}
-                      {/* 回执负载核验：已签署看签署存档 payload，未签署展开时向服务端取（以 DB 为准重建） */}
+                      {/* 回执负载核验：已签署看签署存档 payload + 服务端重验签徽标；未签署展开时向服务端取（以 DB 为准重建） */}
                       <details
                         className="ov-notif"
                         onToggle={(e) => {
-                          if (e.currentTarget.open && !submission.receiptSignature) void loadReceiptPayload();
+                          if (!e.currentTarget.open) return;
+                          if (submission.receiptSignature) void loadReceiptVerify();
+                          else void loadReceiptPayload();
                         }}
                       >
                         <summary>投递回执核验</summary>
                         <div className="ov-notif-body font-mono !text-xs !whitespace-pre-wrap">
-                          {(submission.receiptSignature?.payload || receiptPayload) && (
-                            <div className="mb-1.5 opacity-[0.72]">以下为投递回执的存档原文，供完整性核验：</div>
+                          {displayedReceiptPayload && (
+                            <>
+                              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 !whitespace-normal">
+                                <span className="opacity-[0.72]">
+                                  {submission.receiptSignature
+                                    ? "以下为投递回执的存档原文（已由贵司 U盾 SM2/SM3 签名存档，任何字段改动都会导致验签失败），供完整性核验："
+                                    : "以下为按服务端记录重建的待签回执负载原文（尚未签署），供核对："}
+                                </span>
+                                <SpButton variant="xs" icon={receiptCopied ? Check : Copy} onClick={copyReceiptText}>
+                                  {receiptCopied ? "已复制" : "复制原文"}
+                                </SpButton>
+                              </div>
+                              <div className="mb-1.5 flex flex-wrap items-center gap-2 !whitespace-normal">
+                                {submission.receiptSignature && (
+                                  verifying ? (
+                                    <span className="b-tag b-tag--info">重验签中…</span>
+                                  ) : receiptVerify ? (
+                                    receiptVerify.verified ? (
+                                      <span className="b-tag b-tag--success">重验签通过</span>
+                                    ) : receiptVerify.reason === "SM2_PUBLIC_KEY_MISSING" ? (
+                                      <span className="b-tag b-tag--warning">当前证书与签署时不一致，无法复验</span>
+                                    ) : (
+                                      <span className="b-tag b-tag--danger">重验签未通过（存档与签名不符）</span>
+                                    )
+                                  ) : receiptVerifyFailed ? (
+                                    <span className="b-tag b-tag--info">重验签暂不可用（原文展示不受影响）</span>
+                                  ) : null
+                                )}
+                                {receivedAtLocal && (
+                                  <span className="opacity-[0.72]">receivedAt（本地时区）：{receivedAtLocal}</span>
+                                )}
+                              </div>
+                            </>
                           )}
-                          {submission.receiptSignature?.payload
-                            ? JSON.stringify(submission.receiptSignature.payload, null, 2)
-                            : receiptPayload
-                              ? JSON.stringify(receiptPayload, null, 2)
+                          {displayedReceiptPayload
+                            ? JSON.stringify(displayedReceiptPayload, null, 2)
                               : payloadLoading ? "正在获取回执信息…"
                             : payloadFailed === "unbound" ? (
                               <div className="!whitespace-normal">

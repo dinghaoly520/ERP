@@ -582,6 +582,27 @@ export class SupplierPortalService {
     });
   }
 
+  /** 回执重验签（核验面板）：以存档 payload 重建 canonical → 复验 SM2 签名（只读，不落库）。 */
+  async verifySubmissionReceipt(submissionId: string, supplierId: string) {
+    const sub = await this.prisma.supplierBidSubmission.findUnique({ where: { id: submissionId } });
+    if (!sub || sub.supplierId !== supplierId) {
+      throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
+    }
+    const sig = sub.receiptSignature as
+      | { payload?: Record<string, unknown>; signature?: string; algorithm?: string; verifiedAt?: string }
+      | null;
+    if (!sig?.payload || !sig.signature) return { signed: false as const };
+    const algorithm = sig.algorithm ?? 'SM2/SM3';
+    const archivedVerifiedAt = sig.verifiedAt ?? null;
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
+    if (!supplier?.sm2PublicKey) {
+      // 签署后换绑/解绑证书 → 无法复验：确定性状态交前端解释，不按异常处理
+      return { signed: true as const, verified: false as const, reason: 'SM2_PUBLIC_KEY_MISSING', algorithm, archivedVerifiedAt };
+    }
+    const verified = this.signatureService.verify(this.canonicalReceiptPayload(sig.payload), sig.signature, supplier.sm2PublicKey);
+    return { signed: true as const, verified, algorithm, archivedVerifiedAt };
+  }
+
   /**
    * 校验投标文件归属：引用的 FileAsset 必须存在、由当前用户上传、且分类为 bid_document。
    * 防止供应商盗用他人/其他分类文件作为投标文件。

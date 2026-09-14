@@ -2811,6 +2811,51 @@ describe('投标回执签名（A-101）', () => {
       response: { code: 'RECEIPT_SIGNATURE_INVALID' },
     });
   });
+
+  // ── 核验面板重验签（verifySubmissionReceipt：对存档签名只读复验，不落库）──
+  const mkSvc = (prisma: any) =>
+    new SupplierPortalService(prisma as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
+
+  it('重验签：未签署 → { signed: false }', async () => {
+    await expect(mkSvc(mkReceipt()).verifySubmissionReceipt('sb-1', 'sup-1')).resolves.toMatchObject({ signed: false });
+  });
+
+  it('重验签：非本人提交 → 403', async () => {
+    await expect(mkSvc(mkReceipt()).verifySubmissionReceipt('sb-1', 'sup-other')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('重验签闭环：存档 payload+签名 → verified: true；payload 被篡改 → verified: false', async () => {
+    const kp = sm2.generateKeyPairHex();
+    const pubKey = '04' + kp.publicKey.replace(/^04/, '');
+    // 取真实 canonical 并签名（与签署通道同一口径）
+    const { payload, canonical } = await mkSvc(mkReceipt({ supplier: { sm2PublicKey: pubKey } })).getReceiptPayloadFor('sb-1', 'sup-1');
+    const signature = sm2.doSignature(canonical, kp.privateKey, { hash: true, pubKey });
+    const mkSigned = (storedPayload: Record<string, unknown>) =>
+      mkSvc(mkReceipt({
+        supplier: { sm2PublicKey: pubKey },
+        sub: { receiptSignature: { payload: storedPayload, signature, algorithm: 'SM2/SM3', verifiedAt: '2026-09-14T00:00:00.000Z' } },
+      }));
+    await expect(mkSigned(payload).verifySubmissionReceipt('sb-1', 'sup-1')).resolves.toMatchObject({
+      signed: true, verified: true, algorithm: 'SM2/SM3', archivedVerifiedAt: '2026-09-14T00:00:00.000Z',
+    });
+    await expect(mkSigned({ ...payload, filesCommit: 'tampered' }).verifySubmissionReceipt('sb-1', 'sup-1')).resolves.toMatchObject({
+      signed: true, verified: false,
+    });
+  });
+
+  it('重验签：签署后证书已解绑/换绑（无公钥）→ verified: false + reason，不抛错', async () => {
+    const kp = sm2.generateKeyPairHex();
+    const pubKey = '04' + kp.publicKey.replace(/^04/, '');
+    const { payload, canonical } = await mkSvc(mkReceipt({ supplier: { sm2PublicKey: pubKey } })).getReceiptPayloadFor('sb-1', 'sup-1');
+    const signature = sm2.doSignature(canonical, kp.privateKey, { hash: true, pubKey });
+    const svc = mkSvc(mkReceipt({
+      supplier: { sm2PublicKey: null },
+      sub: { receiptSignature: { payload, signature, algorithm: 'SM2/SM3' } },
+    }));
+    await expect(svc.verifySubmissionReceipt('sb-1', 'sup-1')).resolves.toMatchObject({
+      signed: true, verified: false, reason: 'SM2_PUBLIC_KEY_MISSING',
+    });
+  });
 });
 
 describe('SupplierPortalService — 合同履约证明归属校验', () => {

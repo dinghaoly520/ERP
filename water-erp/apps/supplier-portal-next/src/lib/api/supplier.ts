@@ -112,6 +112,16 @@ export const supplierApi = {
   signReceiptSignature(submissionId: string, signature: string) {
     return api.post(`/supplier-portal/bid-submissions/${submissionId}/receipt-signature`, { signature });
   },
+  /** W11-①（A-101）：回执重验签——服务端对存档签名负载只读复验，供核验面板显示结论 */
+  verifyReceiptSignature(submissionId: string, opts?: ReqOpts) {
+    return api.get<{
+      signed: boolean;
+      verified?: boolean;
+      reason?: string;
+      algorithm?: string;
+      archivedVerifiedAt?: string | null;
+    }>(`/supplier-portal/bid-submissions/${submissionId}/receipt-verify`, opts);
+  },
 
   withdrawSubmission(submissionId: string) {
     return api.post<any>(`/supplier-portal/bid-submissions/${submissionId}/withdraw`);

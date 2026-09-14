@@ -729,6 +729,7 @@
 .b-tag--info    { color: #909399; background: #f4f4f5; border-color: #e9e9eb; }
 .b-tag--warning { color: #e6a23c; background: #fdf6ec; border-color: #faecd8; }
 .b-tag--success { color: #67c23a; background: #f0f9eb; border-color: #e1f3d8; }
+.b-tag--danger  { color: #f56c6c; background: #fef0f0; border-color: #fde2e2; }
 
 /* ── el-form（label-width 120px · size large）→ 原生网格 ── */
 .b-form { display: flex; flex-direction: column; gap: 22px; }
