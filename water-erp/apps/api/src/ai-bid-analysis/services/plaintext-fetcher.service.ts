@@ -47,14 +47,21 @@ export class PlaintextFetcherService {
     });
     if (!submission) throw new Error('供应商未提交投标文件');
 
-    const assetId =
-      which === 'technical'
+    // 双信封新轨（dual-v2）：开标解密后 decryptedAssets[role] 存明文 FileAsset id，直接读明文——
+    // 旧轨 sealedKey（iv:tag:data AES 包）与新轨 kself（SM2 密文 hex）格式不同，
+    // 误走旧轨解密会抛「decryptKey 格式错误」（2026-09-10 实测 AI 投标分析 3 家全挂）。
+    const decryptedMap = (submission.decryptedAssets ?? {}) as Record<string, unknown>;
+    const decryptedAssetId = decryptedMap[which];
+    const assetId = submission.envelopeVersion === 'dual-v2' && typeof decryptedAssetId === 'string'
+      ? decryptedAssetId
+      : which === 'technical'
         ? submission.technicalFileAssetId
         : which === 'business'
           ? submission.businessFileAssetId
           : submission.coverLetterAssetId;
-    const sealedKey =
-      which === 'technical'
+    const sealedKey = submission.envelopeVersion === 'dual-v2'
+      ? null
+      : which === 'technical'
         ? submission.technicalSealedKey
         : which === 'business'
           ? submission.businessSealedKey
