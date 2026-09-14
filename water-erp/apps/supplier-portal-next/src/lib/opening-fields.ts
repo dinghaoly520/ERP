@@ -102,21 +102,32 @@ export function otherOpeningRows(
  * BidOpeningRecord.amount 为主持人自由文本：parseAmountToYuan 对「万元」形态亦可解析出元值，
  * 但该形态已自带单位（归一即「10,800,000 元」改写主持人原话），连同不可解析自由文本
  * （如「面议」）一律原文直出——杜绝本司区「1080万元 元」双单位拼接。
+ * unitHint（2026-09-14）：dual-v2 轨道金额以万元入库（裸数字自带隐含单位），按提示渲染
+ * 「153.95 万元」——不提示时维持旧语义（裸数字=元），杜绝「153.95 元」误标。
  */
-export function formatOpeningAmount(raw: string | null | undefined): string {
+export function formatOpeningAmount(raw: string | null | undefined, unitHint?: string | null): string {
   const s = raw?.trim();
   if (!s) return "—";
+  if (unitHint === "万元" && /^[\d,]+(?:\.\d+)?$/.test(s)) return `${s} 万元`;
   const yuan = parseAmountToYuan(s);
   if (yuan == null || s.includes("万")) return s;
   return `${yuan.toLocaleString("zh-CN")} 元`;
 }
 
 /** P1-C（二轮 UI 审查）：投递报价显示文本。bidPriceInYuan（后端已折算的元数字）→千分位+元；
-    仅有自由文本 bidPrice（如「1080万元」/「1485000」）→ 走 formatOpeningAmount 同口径（原文直出或归一）。 */
+    仅有自由文本 bidPrice（如「1080万元」/「1485000」）→ 走 formatOpeningAmount 同口径（原文直出或归一）。
+    unitHint（2026-09-14）：dual-v2 投递报价以万元入库——按提示直出「153.95 万元」（与唱标金额同口径），
+    不再被 bidPriceInYuan（元）抢占渲染成「1,539,500 元」。 */
 export function formatBidSubmissionPrice(
   raw: string | null | undefined,
   yuan: number | null | undefined,
+  unitHint?: string | null,
 ): string {
+  if (unitHint === "万元" && raw?.trim()) {
+    // dual-v2：raw 为表单口径权威值（万元裸数字/带单位文本/自由文本）——与唱标金额同口径直出，
+    // 元归一值（yuan）不抢占渲染（「153.95 万元」而非「1,539,500 元」）
+    return formatOpeningAmount(raw, unitHint);
+  }
   if (yuan != null && Number.isFinite(yuan)) return `${yuan.toLocaleString("zh-CN")} 元`;
   return formatOpeningAmount(raw ?? null);
 }

@@ -104,10 +104,12 @@ export default function OpeningHallPage() {
   const stage: string = project?.stage ?? "";
   const isOpening = stage === "OPENING";
 
-  /** 投递报价显示文本（P1-C：与唱标总表同口径——千分位+元 / 带单位原文直出） */
+  /** 投递报价显示文本（P1-C：与唱标总表同口径——千分位+元 / 带单位原文直出；
+      dual-v2 单位提示 → 「153.95 万元」，2026-09-14） */
   const submittedPriceText = formatBidSubmissionPrice(
     record?.submitted?.bidPrice,
     record?.submitted?.bidPriceInYuan,
+    record?.submitted?.bidPriceUnit,
   );
 
   async function refresh() {
@@ -350,8 +352,8 @@ export default function OpeningHallPage() {
                 <tr>
                   <th>唱标金额</th>
                   {/* P1-1：金额归一——裸数字千分位+元、带单位原文直出（修「1080万元 元」双单位）；
-                      dual-v2 报价以万元入库，按 amountUnit 直出，避免「152.89 元」误标（2026-09-11） */}
-                  <td>{record?.amountUnit === '万元' && record?.amount ? `${record.amount} 万元` : formatOpeningAmount(record?.amount)}</td>
+                      dual-v2 报价以万元入库，按 amountUnit 直出「153.95 万元」（2026-09-11 标记 / 2026-09-14 供应商端接通） */}
+                  <td>{formatOpeningAmount(record?.amount, record?.amountUnit)}</td>
                 </tr>
                 <tr>
                   <th>投递报价</th>
@@ -514,9 +516,10 @@ export default function OpeningHallPage() {
                     </td>
                     {tableFields.map((f) => (
                       <td key={f.key} className={openingColumnWidth(f)}>
-                        {/* P1-1：法定金额列归一展示（裸数字千分位+元、带单位原文直出）；其余列取值口径不变 */}
+                        {/* P1-1：法定金额列归一展示（裸数字千分位+元、带单位原文直出）；
+                            dual-v2 行按 amountUnit 直出「153.95 万元」——公开表与本司区同口径（2026-09-14）；其余列取值口径不变 */}
                         {f.key === "amount"
-                          ? formatOpeningAmount(openingRecordCell(f, row))
+                          ? formatOpeningAmount(openingRecordCell(f, row), row.amountUnit)
                           : openingRecordCell(f, row)}
                       </td>
                     ))}

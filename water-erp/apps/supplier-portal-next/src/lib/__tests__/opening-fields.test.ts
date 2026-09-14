@@ -79,11 +79,33 @@ test("P1-1：开标记录金额展示——裸数字千分位+元，带单位原
   assert.equal(formatOpeningAmount(""), "—");
 });
 
+test("2026-09-14：unitHint=万元（dual-v2 轨）——裸数字直出「N 万元」，不换算不改写主持人原话", () => {
+  assert.equal(formatOpeningAmount("153.95", "万元"), "153.95 万元");
+  assert.equal(formatOpeningAmount("153.8998", "万元"), "153.8998 万元");
+  // 文本自带单位 → 原文直出（提示不冲突）；不可解析自由文本同原文
+  assert.equal(formatOpeningAmount("1150万元", "万元"), "1150万元");
+  assert.equal(formatOpeningAmount("面议", "万元"), "面议");
+  // 无提示维持旧语义（裸数字=元）——旧轨零漂移
+  assert.equal(formatOpeningAmount("153.95"), "153.95 元");
+  assert.equal(formatOpeningAmount("153.95", null), "153.95 元");
+});
+
 test("P1-C：投递报价格式化——bidPriceInYuan 千分位+元、带单位原文直出、空占位", () => {
   assert.equal(formatBidSubmissionPrice(null, 10800000), "10,800,000 元");
   assert.equal(formatBidSubmissionPrice("1080万元", null), "1080万元");
   assert.equal(formatBidSubmissionPrice("1485000", null), "1,485,000 元");
   assert.equal(formatBidSubmissionPrice("", null), "—");
+});
+
+test("2026-09-14：投递报价 unitHint=万元——优先直出「N 万元」，元归一值不抢占渲染", () => {
+  // dual-v2：raw=万元裸数字 + yuan=后端换算的元——按表单口径直出（与唱标金额同单位）
+  assert.equal(formatBidSubmissionPrice("153.95", 1539500, "万元"), "153.95 万元");
+  // raw 缺失但有单位提示+yuan → 无万元裸数字可直出，回落元渲染（兜底）
+  assert.equal(formatBidSubmissionPrice(null, 1539500, "万元"), "1,539,500 元");
+  // 带单位文本 + 提示 → 原文直出
+  assert.equal(formatBidSubmissionPrice("1150万元", 11500000, "万元"), "1150万元");
+  // 无提示零漂移
+  assert.equal(formatBidSubmissionPrice("153.95", 1539500), "1,539,500 元");
 });
 
 test("A-113 otherOpeningRows：仅取 config 动态键且有值者（法定键/空值排除；无 customFields 不渲染）", () => {
