@@ -22,7 +22,7 @@ export interface SignPacketSnapshot {
   leaderCoSignedAt: string | null;
   /** A-151：评标报告章节附注（一~九节末「附注：」段；十节正文续写）——未设置时字段缺省 */
   reportNotes?: Array<{ section: string; content: string }>;
-  openingRecords: Array<{ supplierName: string; amount: string; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string }>;
+  openingRecords: Array<{ supplierName: string; amount: string; amountUnit?: string | null; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string }>;
   bids: Array<{ supplierName: string; amount: string; period: string; submittedAt: string | null }>;
   invalidBids: Array<{ supplierName: string; reason: string | null }>;
   scoreStandard: Array<{ category: string; name: string; maxScore: number; points: string[] }>;

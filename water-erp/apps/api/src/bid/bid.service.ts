@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan } from '@water-erp/shared';
-import { resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
+import { resolveOpeningAmountUnitMap, formatAmountWithUnit, DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
 import { buildArchiveTemplate } from './archive-template';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1171,7 +1171,7 @@ export class BidService {
       this.prisma.bidSupplier.findMany({
         where: { projectId: project.id },
         // §5.5：dangerAttribution 归因写入开标文件包（法定留痕）；A-111：decryptedAt 解密成功时间入包
-        select: { supplierId: true, supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true, dangerAttribution: true, decryptedAt: true },
+        select: { id: true, supplierId: true, supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true, dangerAttribution: true, decryptedAt: true },
         orderBy: { createdAt: 'asc' },
       }),
       // §5.5b（Task 18）：dual-v2 解密明文资产指纹入包（decryptedAssets → FileAsset.sha256）
@@ -1183,7 +1183,7 @@ export class BidService {
         where: { projectId: project.id },
         // A-114（SHOULD-FIX-1）：开标文件包为带 SHA-256 指纹的证据件——确认电子签名两列完整入包（spec §一.4），
         // 不做 getProject/listOpeningRecords 式剥壳（主持端视图才剥摘要）。
-        select: { supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, confirmSignature: true, confirmSignedAt: true, objectionReason: true, handleResult: true },
+        select: { bidSupplierId: true, supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, confirmSignature: true, confirmSignedAt: true, objectionReason: true, handleResult: true },
       }),
       this.prisma.bidSupervisionLog.findMany({
         where: { projectId: project.id },
@@ -1202,6 +1202,18 @@ export class BidService {
     // §5.5b（Task 18）：dual-v2 解密明文资产指纹——submission.decryptedAssets 为 {role: assetId}，
     // 取各 FileAsset.sha256 输出角色→sha256 映射；未解密/旧轨家为 null。
     const submissionBySupplierId = new Map(submissions.map((s: any) => [s.supplierId, s]));
+
+    // 唱标金额单位（2026-09-14）：dual-v2 投递以万元入库——文件包证据金额自含单位（纸面/下载件不再裸数字）
+    const amountUnitByBsId = new Map(
+      suppliers.map((s: any) => [
+        s.id as string,
+        submissionBySupplierId.get(s.supplierId)?.envelopeVersion === 'dual-v2' ? DUAL_V2_AMOUNT_UNIT : null,
+      ]),
+    );
+    const recordsWithUnit = records.map((r: any) => {
+      const unit = (r.bidSupplierId ? amountUnitByBsId.get(r.bidSupplierId) : null) ?? null;
+      return { ...r, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit };
+    });
     const decryptedAssetIds = Array.from(new Set(
       submissions
         .filter((s: any) => s.envelopeVersion === 'dual-v2' && s.decryptedAssets && typeof s.decryptedAssets === 'object')
@@ -1266,7 +1278,7 @@ export class BidService {
         decryptWindowEnd: session.decryptWindowEnd.toISOString(),
       },
       suppliers: orderedSuppliers,
-      openingRecords: records,
+      openingRecords: recordsWithUnit,
       supervisionLogs: logs,
       bidRounds: bidRounds.length > 0 ? bidRounds.map(r => ({
         roundNo: r.roundNo, roundType: r.roundType, status: r.status,
@@ -4703,16 +4715,22 @@ export class BidService {
       project.suppliers.forEach(s => lines.push([s.supplierName, s.downloadStatus, s.submitStatus, s.encryptStatus, s.decryptStatus, s.confirmStatus].map(esc).join(',')));
       lines.push('');
       lines.push('=== 开标记录表 ===');
+      // 唱标金额单位（2026-09-14）：dual-v2 万元值——CSV 证据金额自含单位（双分支同口径）
+      const csvAmountUnitMap = await resolveOpeningAmountUnitMap(this.prisma, project.id);
+      const csvOpeningRecords = project.openingRecords.map(r => ({
+        ...r,
+        amount: formatAmountWithUnit(r.amount, (r.bidSupplierId ? csvAmountUnitMap.get(r.bidSupplierId) : null) ?? null),
+      }));
       // W8（A-115）：有 active 开标记录模板则按模板列导出，否则回退内置列
       const openingTpl = await this.prisma.workTemplate.findFirst({ where: { kind: 'opening_record', isActive: true }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
       const openingCols = (openingTpl?.content as { columns?: Array<{ key: string; label: string }> } | null)?.columns;
       if (openingCols && openingCols.length > 0) {
         lines.push(openingCols.map(c => c.label).map(esc).join(','));
         // A-113：模板列不在法定专属列时回退 customFields 动态字段仓（仍无则空串）
-        project.openingRecords.forEach(r => lines.push(openingCols.map(c => String((r as unknown as Record<string, unknown>)[c.key] ?? (r.customFields as Record<string, string> | undefined)?.[c.key] ?? '')).map(esc).join(',')));
+        csvOpeningRecords.forEach(r => lines.push(openingCols.map(c => String((r as unknown as Record<string, unknown>)[c.key] ?? (r.customFields as Record<string, string> | undefined)?.[c.key] ?? '')).map(esc).join(',')));
       } else {
         lines.push(['供应商', '报价', '工期', '质量目标', '保证金', '解密结果', '确认状态'].map(esc).join(','));
-        project.openingRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));
+        csvOpeningRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));
       }
       lines.push('');
       lines.push('=== 供应商确认/异议记录 ===');

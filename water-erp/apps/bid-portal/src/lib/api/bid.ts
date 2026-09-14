@@ -195,6 +195,8 @@ export function enterOpeningRecord(projectId: string, body: {
 export type OpeningDraftResult = {
   canView: boolean;
   amount: string | null;
+  /** dual-v2 报价单位（万元）——预填值为万元裸数字，录入表单 label/占位符随此口径（2026-09-14） */
+  amountUnit?: string | null;
   period: string | null;
   qualityTarget: string | null;
   bondStatus: string | null;

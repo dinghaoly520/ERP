@@ -16,6 +16,17 @@ import { PrismaService } from '../prisma/prisma.service';
 export const DUAL_V2_AMOUNT_UNIT = '万元';
 
 /**
+ * 证据/纸面渲染（2026-09-14）：dual-v2 万元裸数字补单位后缀直出（「153.95 万元」）；
+ * 带单位文本（「1150万元」）与不可解析自由文本（「面议」）原文直出。
+ * 签字包 PDF / 开标文件包 / 归档 CSV 等法定证据件一律经此渲染——纸面金额必须自含单位。
+ */
+export function formatAmountWithUnit(amount: string | null | undefined, unit: string | null | undefined): string {
+  const s = amount == null ? '' : String(amount).trim();
+  if (unit === DUAL_V2_AMOUNT_UNIT && /^[\d,]+(?:\.\d+)?$/.test(s)) return `${s} ${DUAL_V2_AMOUNT_UNIT}`;
+  return s;
+}
+
+/**
  * 解析项目内各投标记录（BidSupplier.id）的唱标金额单位：
  * 投递为 dual-v2 → '万元'；旧轨/无投递 → null（裸数字按旧语义「元」、带单位文本原文直出）。
  */

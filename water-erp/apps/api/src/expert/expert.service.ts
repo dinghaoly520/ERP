@@ -27,6 +27,7 @@ import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { SignatureService } from '../common/crypto/signature.service';
 import { ERR_PUBLIC_KEY_INVALID } from '../common/error-codes';
 import { lockAndReassertStage } from '../bid/bid-state';
+import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { closeSignLoopIfDone } from '../bid/sign-loop.util';
 import { buildExpertEsignCanonical } from './expert-esign.util';
 import type { ExpertEsignatureRecord } from './expert-esign.util';
@@ -975,11 +976,18 @@ export class ExpertService {
     // C3+M11: 多轮报价项目——从 BidOpeningRecord 注入最终轮报价供专家参考
     let finalQuotePrice: string | null = null;
     if (project.roundMode) {
-      const openingRec = await this.prisma.bidOpeningRecord.findFirst({
-        where: { projectId, bidSupplierId: supplierId },
-        select: { amount: true },
-      });
-      finalQuotePrice = openingRec?.amount ?? null;
+      const [openingRec, unitMap] = await Promise.all([
+        this.prisma.bidOpeningRecord.findFirst({
+          where: { projectId, bidSupplierId: supplierId },
+          select: { amount: true },
+        }),
+        // 唱标金额单位（2026-09-14）：dual-v2 万元值补单位后缀——裸数字会被专家/LLM 读成元
+        resolveOpeningAmountUnitMap(this.prisma, projectId),
+      ]);
+      const unit = unitMap.get(supplierId) ?? null;
+      finalQuotePrice = openingRec?.amount
+        ? formatAmountWithUnit(openingRec.amount, unit) || null
+        : null;
     }
 
     // 4.5: 优先读 AiBidderResult（per-item LLM 结果），降级用规则引擎

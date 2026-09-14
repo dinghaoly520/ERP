@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import { buildStandardFileName } from '@water-erp/shared';
+import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 
 /** P1-3①A：开标记录纸面签字（办法第32条——开标记录经电子签名）。
  * 主持人/监督人打印签字页 → 手写签字 → 扫描回传 → 登记闭环 → 重建开标文件包（signatures 段入哈希链）。
@@ -16,7 +17,7 @@ interface OpeningSignSnapshot {
   supervisor: string | null;
   window: { start: string; end: string };
   suppliers: Array<{ supplierName: string; decryptStatus: string; confirmStatus: string; dangerAttribution: string | null }>;
-  records: Array<{ supplierName: string; amount: string; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string }>;
+  records: Array<{ supplierName: string; amount: string; amountUnit?: string | null; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string }>;
   disputes: Array<{ supplierName: string; reason: string | null; handleResult: string | null }>;
 }
 
@@ -42,7 +43,7 @@ export class OpeningSignService {
     const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
     if (!session) throw new BadRequestException({ error: '开标会话不存在', code: 'OPENING_NOT_STARTED' });
 
-    const [suppliers, records] = await Promise.all([
+    const [suppliers, records, amountUnitMap] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId, submitStatus: { not: '已撤回' } },
         select: { supplierName: true, decryptStatus: true, confirmStatus: true, dangerAttribution: true },
@@ -50,9 +51,11 @@ export class OpeningSignService {
       }),
       this.prisma.bidOpeningRecord.findMany({
         where: { projectId },
-        select: { supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, objectionReason: true, handleResult: true },
+        select: { bidSupplierId: true, supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, objectionReason: true, handleResult: true },
         orderBy: { createdAt: 'asc' },
       }),
+      // 唱标金额单位（2026-09-14）：dual-v2 万元值——纸面证据必须自含单位
+      resolveOpeningAmountUnitMap(this.prisma, projectId),
     ]);
     const disputes = records
       .filter(r => r.objectionReason)
@@ -67,7 +70,11 @@ export class OpeningSignService {
       supervisor: session.supervisor,
       window: { start: session.decryptWindowStart.toISOString(), end: session.decryptWindowEnd.toISOString() },
       suppliers: suppliers.map(s => ({ supplierName: s.supplierName, decryptStatus: s.decryptStatus, confirmStatus: s.confirmStatus, dangerAttribution: s.dangerAttribution })),
-      records: records.map(r => ({ supplierName: r.supplierName, amount: r.amount, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus })),
+      // 纸面证据金额带单位（dual-v2 万元后缀）；amountUnit 字段供机器消费
+      records: records.map(r => {
+        const unit = (r.bidSupplierId ? amountUnitMap.get(r.bidSupplierId) : null) ?? null;
+        return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus };
+      }),
       disputes,
     };
   }

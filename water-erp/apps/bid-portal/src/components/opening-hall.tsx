@@ -164,13 +164,15 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string; reentry?: boolean } | null>(null);
   const [recordDraft, setRecordDraft] = useState<{
     amount: string; period: string; qualityTarget: string; bondStatus: string;
+    /** dual-v2 预填报价单位（万元）——录入表单 label/占位符随轨道口径，杜绝「表单标元、预填万元」错位 */
+    amountUnit: string | null;
     /** A-104：到账台账比对结论（null=项目不要求保证金/早期守卫，不渲染提示） */
     bondCompliance: { issues: { field: string; message: string }[] } | null;
     /** A-113：本项目唱标字段配置（draft 拉取前为空 → 消费处 FALLBACK_FIELDS 兜底） */
     fieldConfig: OpeningFieldDef[];
     /** A-113：动态字段值（非法定键；重录时预填既有记录回读值） */
     customFields: Record<string, string>;
-  }>({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null, fieldConfig: [], customFields: {} });
+  }>({ amount: '', period: '', qualityTarget: '', bondStatus: '', amountUnit: null, bondCompliance: null, fieldConfig: [], customFields: {} });
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
@@ -528,7 +530,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const openRecordEntry = async (s: { id: string; supplierName: string }, reentry = false) => {
     if (!projectId) return;
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry });
-    setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', bondCompliance: null, fieldConfig: [], customFields: {} });
+    setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', amountUnit: null, bondCompliance: null, fieldConfig: [], customFields: {} });
     setBidBondAssetId(null);
     setRecordEntryLoading(true);
     try {
@@ -541,6 +543,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           period: draft.period ?? '',
           qualityTarget: draft.qualityTarget ?? '',
           bondStatus: draft.bondStatus ?? (draft.bondNotApplicable ? '不适用' : ''),
+          amountUnit: draft.amountUnit ?? null,
           bondCompliance: draft.bondCompliance ?? null,
           fieldConfig,
           customFields: draft.customFields ?? {},
@@ -1462,8 +1465,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <div className="mt-4 grid grid-cols-2 gap-3">
               {entryFields.map(f => {
                 if (isStatutoryKey(f.key)) {
-                  // 法定四键：label 用配置（amount 恒为金额，补（元）后缀对齐既有文案）
-                  const labelText = f.key === 'amount' ? `${f.label}（元）` : f.label;
+                  // 法定四键：label 用配置（amount 恒为金额，单位后缀随轨道口径——dual-v2 预填为万元，
+                  // 旧轨为元；表单标错单位是主持人录入歧义的源头，2026-09-14）
+                  const labelText = f.key === 'amount' ? `${f.label}（${recordDraft.amountUnit ?? '元'}）` : f.label;
                   if (f.key === 'bondStatus') {
                     return (
                       <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">
@@ -1495,7 +1499,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   }
                   const statutoryValue = f.key === 'amount' ? recordDraft.amount
                     : f.key === 'period' ? recordDraft.period : recordDraft.qualityTarget;
-                  const statutoryPlaceholder = f.key === 'amount' ? '如 980000'
+                  const statutoryPlaceholder = f.key === 'amount' ? (recordDraft.amountUnit === '万元' ? '如 153.95（万元）' : '如 980000')
                     : f.key === 'period' ? '如 180天' : '如 满足招标文件要求（按投标承诺）';
                   return (
                     <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">

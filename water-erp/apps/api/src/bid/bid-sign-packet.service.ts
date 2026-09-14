@@ -13,6 +13,7 @@ import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
 import { buildStandardFileName } from '@water-erp/shared';
+import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 
 export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
 
@@ -469,6 +470,8 @@ export class BidSignPacketService {
       ]);
 
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // 唱标金额单位解析（2026-09-14）：开标记录 amount 的单位标记（dual-v2=万元）
+    const amountUnitMapForRecords = await resolveOpeningAmountUnitMap(this.prisma, projectId);
     // 得分点取自 scoreItems 的 include（BidScorePoint 无 projectId 列，经 scoreItem 关联）
     const points = scoreItems.flatMap((i) => i.points);
     const expertIds = committee.map(e => e.id);
@@ -545,7 +548,11 @@ export class BidSignPacketService {
       })),
       leaderCoSignedAt: project.leaderCoSignedAt ? project.leaderCoSignedAt.toISOString() : null,
       reportNotes: (project.reportNotes as Array<{ section: string; content: string }>) ?? undefined,
-      openingRecords: openingRecords.map(r => ({ supplierName: r.supplierName, amount: r.amount, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus })),
+      // 唱标金额单位（2026-09-14）：dual-v2 万元值——签字包纸面/JSON 证据金额自含单位
+      openingRecords: openingRecords.map(r => {
+        const unit = (r.bidSupplierId ? amountUnitMapForRecords.get(r.bidSupplierId) : null) ?? null;
+        return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus };
+      }),
       bids: suppliers.map(s => ({ supplierName: s.supplierName, amount: '（见开标记录）', period: '（见开标记录）', submittedAt: s.createdAt.toISOString() })),
       invalidBids: invalidBids.map(b => ({ supplierName: suppliers.find(s => s.id === b.supplierId)?.supplierName ?? '（未知供应商）', reason: b.reason })),
       scoreStandard: scoreItems.map(i => ({ category: i.category, name: i.name, maxScore: Number(i.maxScore), points: i.points.map(p => p.name) })),
