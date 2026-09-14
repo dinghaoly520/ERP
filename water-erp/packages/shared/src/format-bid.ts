@@ -5,8 +5,15 @@
  * 各端自行 Number() 必产 NaN。这里统一：能解析→元为单位的千分位；不能→原文直出（宁原样不出错）。
  */
 const WAN_RE = /^\s*([\d,]+(?:\.\d+)?)\s*万元?\s*$/;
+const BARE_NUM_RE = /^[\d,]+(?:\.\d+)?$/;
 
-export function parseAmountToYuan(raw: string | number | null | undefined): number | null {
+/** parseAmountToYuan 选项。unitHint：数据源声明的金额单位（dual-v2 唱标/投递口径为「万元」）——
+ *  裸数字按该单位换算为元；文本自带单位（如「1150万元」）时文本优先（同源不冲突）。 */
+export interface ParseAmountOpts {
+  unitHint?: string | null;
+}
+
+export function parseAmountToYuan(raw: string | number | null | undefined, opts?: ParseAmountOpts): number | null {
   if (raw == null) return null;
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
   const s = raw.trim();
@@ -16,9 +23,12 @@ export function parseAmountToYuan(raw: string | number | null | undefined): numb
     const n = Number(wan[1].replace(/,/g, ''));
     return Number.isFinite(n) ? n * 10_000 : null;
   }
-  if (/^[\d,]+(?:\.\d+)?$/.test(s)) {
+  if (BARE_NUM_RE.test(s)) {
     const n = Number(s.replace(/,/g, ''));
-    return Number.isFinite(n) ? n : null;
+    if (!Number.isFinite(n)) return null;
+    // dual-v2 投递/唱标以万元入库（投标表单口径），裸数字按 unitHint 声明的单位换算——
+    // 无提示时维持旧语义（裸数字=元），向后兼容。
+    return opts?.unitHint === '万元' ? n * 10_000 : n;
   }
   return null;
 }
