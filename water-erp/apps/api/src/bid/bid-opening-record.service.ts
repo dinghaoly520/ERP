@@ -9,6 +9,7 @@ import { openField } from '../common/crypto/field-crypto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { assertPriceMatchesSealed, assertPeriodMatchesSubmitted } from './opening-record-assert.util';
+import { resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 import { OpeningFieldDef, STATUTORY_OPENING_KEYS, resolveOpeningFieldConfig, assertValidOpeningFieldConfig } from './opening-field-config.util';
 
 /** A-113：唱标字段配置锁定阶段——开标已开始后改配置会造成既有唱标记录历史列漂移 */
@@ -27,32 +28,16 @@ export class BidOpeningRecordService {
 
   // A-114：唱标总表（主持端）——确认签名剥壳为摘要（完整证据走本人视图与文件包）
   async listOpeningRecords(projectId: string) {
-    const records = await this.prisma.bidOpeningRecord.findMany({ where: { projectId } });
-    // dual-v2 报价以万元入库——下发单位标记，主持端/供应商端展示按「万元」渲染而非裸数字（2026-09-11）
-    const bsIds = records.map((r) => r.bidSupplierId).filter((x): x is string => !!x);
-    const bidSuppliers = bsIds.length > 0
-      ? await this.prisma.bidSupplier.findMany({
-          where: { id: { in: bsIds } },
-          select: { id: true, supplierId: true },
-        })
-      : [];
-    const supplierIdByBs = new Map(bidSuppliers.map((b) => [b.id, b.supplierId]));
-    const subIds = [...supplierIdByBs.values()].filter((x): x is string => !!x);
-    const subs = subIds.length > 0
-      ? await this.prisma.supplierBidSubmission.findMany({
-          where: { projectId, supplierId: { in: subIds } },
-          select: { supplierId: true, envelopeVersion: true },
-        })
-      : [];
-    const dualSet = new Set(subs.filter((s) => s.envelopeVersion === 'dual-v2').map((s) => s.supplierId));
-    return records.map((r) => {
-      const supplierId = r.bidSupplierId ? supplierIdByBs.get(r.bidSupplierId) : null;
-      return {
-        ...r,
-        amountUnit: supplierId && dualSet.has(supplierId) ? '万元' : null,
-        confirmSignature: stripOpeningConfirmSignature(r),
-      };
-    });
+    const [records, unitMap] = await Promise.all([
+      this.prisma.bidOpeningRecord.findMany({ where: { projectId } }),
+      // dual-v2 报价以万元入库——单位标记经单一来源解析（2026-09-14 起主持端/供应商端共用）
+      resolveOpeningAmountUnitMap(this.prisma, projectId),
+    ]);
+    return records.map((r) => ({
+      ...r,
+      amountUnit: (r.bidSupplierId ? unitMap.get(r.bidSupplierId) : null) ?? null,
+      confirmSignature: stripOpeningConfirmSignature(r),
+    }));
   }
 
   /**

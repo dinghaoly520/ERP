@@ -56,6 +56,30 @@ describe('resolveOpeningDispute', () => {
 
     service = module.get<BidOpeningRecordService>(BidOpeningRecordService);
   });
+
+  describe('listOpeningRecords（主持端总表）', () => {
+    it('dual-v2 投递 → amountUnit=万元；旧轨 → null（经单一来源 util 解析）', async () => {
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { id: 'r-1', bidSupplierId: 'bs-1', supplierName: '甲', amount: '153.95' },
+        { id: 'r-2', bidSupplierId: 'bs-2', supplierName: '乙', amount: '3980000' },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs-1', supplierId: 'sup-1' },
+        { id: 'bs-2', supplierId: 'sup-2' },
+      ]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([
+        { supplierId: 'sup-1', envelopeVersion: 'dual-v2' },
+        { supplierId: 'sup-2', envelopeVersion: 'legacy' },
+      ]);
+
+      const result = await service.listOpeningRecords('p1');
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({ supplierName: '甲', amount: '153.95', amountUnit: '万元' });
+      expect(result[1]).toMatchObject({ supplierName: '乙', amount: '3980000', amountUnit: null });
+    });
+  });
+
   it('updates record handle result and BidSupplier status on confirm', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
     prisma.bidOpeningRecord.findFirst.mockResolvedValue({

@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional, Inject, Logger } from '@nestjs/common';
+import { parseAmountToYuan } from '@water-erp/shared';
 import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,6 +14,7 @@ import { buildClarificationReplyCanonical } from './clarification-reply.util';
 import { buildOpeningConfirmCanonical } from './opening-confirm-signature.util';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
+import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
@@ -2897,23 +2899,41 @@ export class SupplierPortalService {
       this.prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bidSupplier.id } }),
       this.prisma.supplierBidSubmission.findUnique({
         where: { supplierId_projectId: { supplierId, projectId } },
-        select: { bidPrice: true, deliveryPeriod: true, qualityCommitment: true },
+        select: { bidPrice: true, decryptedPrice: true, envelopeVersion: true, deliveryPeriod: true, qualityCommitment: true },
       }),
     ]);
-    const submittedBidPrice = submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null;
-    // 投递报价显示归一为元（与唱标总表「报价（元）」单位统一；P1-13 投递表单万元/元口径）。
-    // 未唱标无锚点 → null，前端回落显示原值 + 投递表单单位。
-    const submittedBidPriceInYuan = resolveDisplayInYuan(submittedBidPrice, record?.amount ?? undefined);
+    // dual-v2（与主持端 draft 同口径）：报价指 decryptedPrice（新轨 bidPrice 列恒 null，
+    // 读旧列会显示 null 价），单位为「万元」；旧轨读密封 bidPrice 解封，单位隐含在自由文本。
+    const isDualV2 = submission?.envelopeVersion === 'dual-v2';
+    const submittedBidPrice = isDualV2
+      ? (submission?.decryptedPrice ?? null)
+      : (submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null);
+    const submittedUnit = isDualV2 ? '万元' : null;
+    // 投递报价显示归一为元（与唱标总表「报价」单位统一；P1-13 投递表单万元/元口径）。
+    // dual-v2：以单位标记换算（153.95 万元 → 1539500），不再走旧轨锚点启发式（锚点同为
+    // 万元裸数字会误判）；旧轨维持锚点归一（零漂移）。未唱标无锚点 → null，前端回落原值 + 表单单位。
+    const submittedBidPriceInYuan = submittedUnit
+      ? parseAmountToYuan(submittedBidPrice, { unitHint: submittedUnit })
+      : resolveDisplayInYuan(submittedBidPrice, record?.amount ?? undefined);
+    // 唱标金额单位标记（2026-09-14）：dual-v2 裸数字按「万元」渲染，杜绝「153.95 元」误标
+    const amountUnit = (await resolveOpeningAmountUnitMap(this.prisma, projectId)).get(bidSupplier.id) ?? null;
+    // 一致性比对：dual-v2 双侧同按万元换算到元后比（否则 1539500 vs 153.95 恒误报 mismatch）
+    const enteredInYuan = submittedUnit ? parseAmountToYuan(record?.amount, { unitHint: submittedUnit }) : null;
     return {
       ...(record ?? {}),
+      amountUnit,
       submitted: submission
         ? {
             bidPrice: submittedBidPrice,
+            bidPriceUnit: submittedUnit,
             bidPriceInYuan: submittedBidPriceInYuan,
             deliveryPeriod: submission.deliveryPeriod ?? null,
             qualityCommitment: submission.qualityCommitment ?? null,
             priceMismatch: record?.amount != null
-              && isPriceMismatch(submittedBidPriceInYuan, record.amount),
+              && (submittedUnit
+                ? (submittedBidPriceInYuan != null && enteredInYuan != null
+                    && Math.abs(submittedBidPriceInYuan - enteredInYuan) > Math.max(submittedBidPriceInYuan, enteredInYuan) * 0.005)
+                : isPriceMismatch(submittedBidPriceInYuan, record.amount)),
             periodMismatch: isPeriodMismatch(submission.deliveryPeriod, record?.period),
           }
         : null,
@@ -2946,26 +2966,30 @@ export class SupplierPortalService {
     if (!['OPENING', 'EVALUATING', 'ARCHIVED'].includes(project.stage)) {
       throw new BadRequestException({ error: '开标尚未开始，唱标记录暂不可见', code: 'OPENING_NOT_STARTED' });
     }
-    const records = await this.prisma.bidOpeningRecord.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        bidSupplierId: true,
-        supplierName: true,
-        amount: true,
-        period: true,
-        qualityTarget: true,
-        bondStatus: true,
-        customFields: true, // A-113：动态唱标字段值（公开表动态列渲染；法定四列仍在上方专属列）
-        decryptResult: true,
-        confirmStatus: true,
-        confirmedAt: true,
-      },
-    });
+    const [records, unitMap] = await Promise.all([
+      this.prisma.bidOpeningRecord.findMany({
+        where: { projectId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          bidSupplierId: true,
+          supplierName: true,
+          amount: true,
+          period: true,
+          qualityTarget: true,
+          bondStatus: true,
+          customFields: true, // A-113：动态唱标字段值（公开表动态列渲染；法定四列仍在上方专属列）
+          decryptResult: true,
+          confirmStatus: true,
+          confirmedAt: true,
+        },
+      }),
+      // 唱标金额单位标记（2026-09-14）：dual-v2 裸数字按「万元」渲染——与主持端总表同一解析来源
+      resolveOpeningAmountUnitMap(this.prisma, projectId),
+    ]);
     return {
       fieldConfig: resolveOpeningFieldConfig(project),
-      records,
+      records: records.map((r) => ({ ...r, amountUnit: (r.bidSupplierId ? unitMap.get(r.bidSupplierId) : null) ?? null })),
     };
   }
 

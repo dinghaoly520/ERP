@@ -884,6 +884,47 @@ describe('SupplierPortalService', () => {
       expect(result!.submitted!.bidPriceInYuan).toBeNull();
     });
 
+    it('dual-v2：decryptedPrice 回显投递原值 + amountUnit=万元（bidPrice 旧列恒 null 勿读）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r-1', bidSupplierId: 'bs-1', amount: '153.95', period: '150 日历天', qualityTarget: '合格', confirmStatus: '待供应商确认',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        bidPrice: null, decryptedPrice: '153.95', envelopeVersion: 'dual-v2',
+        deliveryPeriod: '150 日历天', qualityCommitment: '合格',
+      });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1', supplierId: 'supplier-1' }]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 'supplier-1', envelopeVersion: 'dual-v2' }]);
+
+      const result = await service.getMyOpeningRecord('supplier-1', 'project-1');
+
+      // 唱标金额单位标记（前端「153.95 万元」而非「153.95 元」）
+      expect(result!.amountUnit).toBe('万元');
+      // 投递原值取 dual-v2 decryptedPrice（新轨 bidPrice 列恒 null）
+      expect(result!.submitted).toMatchObject({
+        bidPrice: '153.95', bidPriceUnit: '万元', bidPriceInYuan: 1_539_500,
+        priceMismatch: false, periodMismatch: false,
+      });
+    });
+
+    it('dual-v2：唱标与投递同为万元口径比对（153.95 vs 154 ≠ 误报 mismatch）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r-1', bidSupplierId: 'bs-1', amount: '153.95', period: '150 日历天', qualityTarget: '合格', confirmStatus: '待供应商确认',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        bidPrice: null, decryptedPrice: '148.5', envelopeVersion: 'dual-v2',
+        deliveryPeriod: '150 日历天', qualityCommitment: null,
+      });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1', supplierId: 'supplier-1' }]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 'supplier-1', envelopeVersion: 'dual-v2' }]);
+
+      const result = await service.getMyOpeningRecord('supplier-1', 'project-1');
+
+      // 同为万元换算到元后比对：153.95 万元 vs 148.5 万元 → 真实不一致
+      expect(result!.submitted!.priceMismatch).toBe(true);
+    });
+
     it('非本项目投标人 → null（与现状一致）', async () => {
       prisma.bidSupplier.findFirst.mockResolvedValue(null);
       await expect(service.getMyOpeningRecord('supplier-1', 'project-1')).resolves.toBeNull();
@@ -1332,6 +1373,28 @@ describe('SupplierPortalService', () => {
 
       const result = await service.listOpeningRecords('supplier-1', 'project-1');
       expect(result.records).toHaveLength(2);
+    });
+
+    it('dual-v2：记录附带 amountUnit=万元标记（裸数字勿按元渲染）；旧轨 → null', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { ...mockRecords[0], amount: '153.95' },
+        { ...mockRecords[1], amount: '3980000' },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs-1', supplierId: 'supplier-1' },
+        { id: 'bs-2', supplierId: 'supplier-2' },
+      ]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([
+        { supplierId: 'supplier-1', envelopeVersion: 'dual-v2' },
+        { supplierId: 'supplier-2', envelopeVersion: 'legacy' },
+      ]);
+
+      const result = await service.listOpeningRecords('supplier-1', 'project-1');
+
+      expect(result.records[0]).toMatchObject({ amount: '153.95', amountUnit: '万元' });
+      expect(result.records[1]).toMatchObject({ amount: '3980000', amountUnit: null });
     });
 
     it('开标前（SUBMIT）→ 400 OPENING_NOT_STARTED', async () => {
