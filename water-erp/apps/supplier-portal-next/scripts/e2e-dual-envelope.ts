@@ -37,6 +37,7 @@ import {
   hexToUtf8,
   bytesToHex,
 } from '../src/utils/dual-envelope-core'
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared'
 
 // ── 环境：加载 apps/api/.env（Prisma 专家注入需要 DATABASE_URL）──
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -160,6 +161,21 @@ async function main() {
   let seq = 0
   for (const who of parties) {
     const credit = String(90 + (++seq % 9)).padStart(1, '9') + (Date.now() + seq).toString().padStart(16, '0').slice(-16)
+    // P1-13 注册闸（SMS_DEBUG_BYPASS=true 下万能码 123456 通过）：主要联系人手机号
+    // 须与短信验证手机号一致（REGISTRATION_PHONE_CONTACT_MISMATCH）——两处共用同一号码
+    const registrationPhone = '138' + String(Date.now()).slice(-8)
+    // 注册闸：资质附件必须先经本页短信门控上传（外链 400 REGISTRATION_ASSET_URL_INVALID），
+    // 上传命名空间绑定 registrationPhone，最终注册按 id 反查归属
+    const qualFd = new FormData()
+    qualFd.append('file', new Blob(
+      [Buffer.from(`%PDF-1.4\n% e2e dual-envelope smoke qualification ${who.name}\n%%EOF\n`, 'utf8')],
+      { type: 'application/pdf' },
+    ), 'license.pdf')
+    qualFd.append('phone', registrationPhone)
+    qualFd.append('code', '123456')
+    qualFd.append('category', 'qualification')
+    const qualUp = await call('POST', '/api/upload/registration', { form: qualFd })
+    assert.ok(qualUp.status < 300, `注册附件上传（${who.name}）→ HTTP ${qualUp.status} ${JSON.stringify(qualUp.data)}`)
     regBodies[who.username] = {
       name: who.name,
       creditCode: credit,
@@ -171,11 +187,12 @@ async function main() {
       username: who.username,
       displayName: '冒烟联系人',
       password: who.password,
-      // P1-13：注册手机验证（SMS_DEBUG_BYPASS=true 下万能码 123456 通过）
-      registrationPhone: '138' + String(Date.now()).slice(-8),
+      // P1-13 注册闸（SMS_DEBUG_BYPASS=true 下万能码 123456 通过）：主要联系人手机号
+      // 须与短信验证手机号一致（REGISTRATION_PHONE_CONTACT_MISMATCH）——两处共用同一号码
+      registrationPhone,
       registrationCode: '123456',
-      contacts: [{ name: '冒烟联系人', phone: '139' + String(Date.now()).slice(-8), idCard: '51010419800101' + String(Date.now()).slice(-3) + String(seq), isPrimary: true, position: '联系人' }],
-      qualifications: [{ type: '营业执照', name: '营业执照', fileUrl: 'https://example.com/license.pdf' }],
+      contacts: [{ name: '冒烟联系人', phone: registrationPhone, idCard: '51010419800101' + String(Date.now()).slice(-3) + String(seq), isPrimary: true, position: '联系人' }],
+      qualifications: [{ type: '营业执照', name: '营业执照', fileUrl: qualUp.data?.url }],
       tags: ['岩土工程', '勘察设计'],
     }
   }
@@ -300,9 +317,19 @@ async function main() {
   await submitDual(C, [{ role: 'technical', content: '技术标：ZK10 钻孔施工组织设计', name: '技术标.pdf' }])
   await submitDual(D, [{ role: 'technical', content: '技术标：ZK12 钻孔施工组织设计', name: '技术标.pdf' }])
 
-  // 回拨截标时间到已过（提交闸门要求未来，开标闸门要求已过——演示时间压缩）
-  const patch = await call('PATCH', `/api/bid/projects/${projectId}`, { portal: 'web', session: staffWeb, json: { deadline: iso(new Date(Date.now() - 60 * 1000)) } })
-  record('回拨截标时间（演示时间压缩）', patch.status < 300, `HTTP ${patch.status}`)
+  // 回拨时间到已过（提交闸门要求未来，开标闸门要求已过——演示时间压缩）。
+  // P0-2 24h 规则下必须**成对回拨**：先单改 deadline 会把项目推入 frozen 模式
+  // （截标已过禁改 deadline、openTime 须≥deadline+24h），openTime 永远追不回来；
+  // 成对回拨并保持 24h 间距 → align 校验 diff=0 通过，且解密窗口可从当下起算
+  const openTimePast = new Date(Date.now() - 2 * 60 * 1000)
+  const patch = await call('PATCH', `/api/bid/projects/${projectId}`, {
+    portal: 'web', session: staffWeb,
+    json: {
+      openTime: iso(openTimePast),
+      deadline: iso(new Date(openTimePast.getTime() - BID_DEADLINE_BEFORE_OPENING_MS)),
+    },
+  })
+  record('回拨开标/截标时间（演示时间压缩，24h 间距保持）', patch.status < 300, `HTTP ${patch.status}`)
 
   // 评分标准编制（既有 :3005 评标前准备流程，须在开标前完成——开标后标准锁定）：
   // 应用标准模板（幂等）→ 发布
@@ -343,6 +370,12 @@ async function main() {
   for (const who of parties) {
     bsBy[who.username] = suppliers.data.find((s: any) => s.supplierName === who.name)
     assert.ok(bsBy[who.username], `BidSupplier 行缺失: ${who.name}`)
+  }
+
+  // A-109a 解密 quorum 闸：全体签到（「已签到且已递交」≥3 家方可取包/解外层，无 force 绕过）
+  for (const who of parties) {
+    const ci = await call('POST', `/api/opening-hall/${projectId}/check-in`, { portal: 'supplier', session: sessions[who.username] })
+    record(`开标大厅签到（${who.name}）`, ci.status < 300, `HTTP ${ci.status} already=${String(ci.data?.already)}`)
   }
 
   /** 供应商解密流程：解外层（主持端单家）→ 取包 → 密封核验 → 解内层 → 揭示字段 → 解密上传 → 唱标核对 → 确认 */
