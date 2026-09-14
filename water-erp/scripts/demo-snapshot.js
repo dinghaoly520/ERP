@@ -265,7 +265,14 @@ async function restore() {
   try {
     for (const table of Object.keys(MODELS)) {
       const model = MODELS[table];
-      for (const row of data[table] || []) {
+      const rows = data[table] || [];
+      // 回灌前按快照自身 id 集精确清位（幂等）：① clear 段的关系过滤对老快照可能失配
+      // （如 2026-08 fixture 早于公告编号体系，Announcement.relatedProjectCode/metadata.projectCode
+      // 双双不匹配 → restore-back 撞 id 唯一键，2026-09-14 CI 实录）；② 同快照连续 restore 两次。
+      if (rows.length) {
+        await model.deleteMany({ where: { id: { in: rows.map((r) => r.id).filter(Boolean) } } }).catch(() => {});
+      }
+      for (const row of rows) {
         await model.create({ data: row }).catch((e) => {
           console.error(`  回灌 ${table} 行失败（id=${row.id}）：${e.message?.slice(0, 140)}`);
           throw e;
