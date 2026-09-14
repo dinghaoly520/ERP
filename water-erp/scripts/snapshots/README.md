@@ -55,5 +55,6 @@ node scripts/demo-snapshot.js restore snapshots/JJ-2026091003-demo-0914.json
 ## 备注
 
 - `BID-DEMO-20260817150148-pre-open.json`：**CI 旧轨回归专用 fixture**（`.github/workflows/ci.yml` e2e job 引用），2026-09-14 自 `cd1f1b3e^` 找回——09-11 快照替换时误删致 CI 旧轨步骤必挂。其 FileAsset 引用已随 2026-09-10 清库失效，**仅 SNAPSHOT_RESEAL_CRYPTO=1（CI 重封模式）可恢复，勿删、勿用于 dev 恢复**。
+- `backups/keep_water_erp_20260914_141321.sql.gz`：demo-0914 同时刻的**全库备份**（含快照不覆盖的 FileAsset 元数据行），`keep_` 前缀使其脱离 `water_erp_*.sql.gz` 剪枝匹配、不随 14 天保留期清除；整库回滚用它（`db-restore.sh` 传该路径），单项目回滚用快照。
 - 公告/招标文件按 `metadata.projectCode` 过滤归属（BidProject 与 PMI 编码同空间，防止误吞/误删同号他方项目数据）。
 - 快照不含 OperationLog/监督日志（审计留痕设计如此）。
