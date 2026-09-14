@@ -164,6 +164,9 @@ async function main() {
     // P1-13 注册闸（SMS_DEBUG_BYPASS=true 下万能码 123456 通过）：主要联系人手机号
     // 须与短信验证手机号一致（REGISTRATION_PHONE_CONTACT_MISMATCH）——两处共用同一号码
     const registrationPhone = '138' + String(Date.now()).slice(-8)
+    // 归属公司（83205cf0 注册链路迭代新增必填）：resolveSupplierCompany 对未知 id 静默未归属、
+    // 不阻断注册——占位值即可，避免对 seed Company 主数据的硬依赖
+    const companyId = `ci-smoke-${String(Date.now()).slice(-8)}`
     // 注册闸：资质附件必须先经本页短信门控上传（外链 400 REGISTRATION_ASSET_URL_INVALID），
     // 上传命名空间绑定 registrationPhone，最终注册按 id 反查归属
     const qualFd = new FormData()
@@ -191,6 +194,7 @@ async function main() {
       // 须与短信验证手机号一致（REGISTRATION_PHONE_CONTACT_MISMATCH）——两处共用同一号码
       registrationPhone,
       registrationCode: '123456',
+      companyId,
       contacts: [{ name: '冒烟联系人', phone: registrationPhone, idCard: '51010419800101' + String(Date.now()).slice(-3) + String(seq), isPrimary: true, position: '联系人' }],
       qualifications: [{ type: '营业执照', name: '营业执照', fileUrl: qualUp.data?.url }],
       tags: ['岩土工程', '勘察设计'],
