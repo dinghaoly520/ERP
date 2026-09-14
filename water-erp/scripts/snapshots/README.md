@@ -30,6 +30,14 @@ node scripts/demo-snapshot.js snapshot <BidProject 编号> <快照名>
 
 ## 当前快照
 
+### `JJ-2026091003-demo-0914.json`（2026-09-14 捕获，最新）
+
+与 `demo.json` 同项目同停止点（组长末签前），差异：3 家投标回执**全部已电子签名**（payload+signature 存档）。恢复脚本如需回到「已签回执」演示态用这份：
+
+```bash
+node scripts/demo-snapshot.js restore snapshots/JJ-2026091003-demo-0914.json
+```
+
 ### `JJ-2026091003-demo.json`（2026-09-11 捕获）
 
 引大济岷工程千隧ZK10/千隧ZK12钻孔施工技术服务（竞价采购，最高限价 153.99 万）。
@@ -46,6 +54,6 @@ node scripts/demo-snapshot.js snapshot <BidProject 编号> <快照名>
 
 ## 备注
 
-- 旧快照（`BID-1786934256839-demo.json` 等）已删除：其引用的 FileAsset 随 2026-09-10 业务数据清库失效，恢复必挂。
+- `BID-DEMO-20260817150148-pre-open.json`：**CI 旧轨回归专用 fixture**（`.github/workflows/ci.yml` e2e job 引用），2026-09-14 自 `cd1f1b3e^` 找回——09-11 快照替换时误删致 CI 旧轨步骤必挂。其 FileAsset 引用已随 2026-09-10 清库失效，**仅 SNAPSHOT_RESEAL_CRYPTO=1（CI 重封模式）可恢复，勿删、勿用于 dev 恢复**。
 - 公告/招标文件按 `metadata.projectCode` 过滤归属（BidProject 与 PMI 编码同空间，防止误吞/误删同号他方项目数据）。
 - 快照不含 OperationLog/监督日志（审计留痕设计如此）。

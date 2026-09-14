@@ -15,5 +15,15 @@ DB_PASS="${DB_PASS:-water_erp_dev}"
 echo "[db-restore] $FILE → db=$TARGET_DB （5 秒后开始，Ctrl-C 可中止）"
 sleep 5
 
-gunzip -c "$FILE" | docker exec -i -e PGPASSWORD="$DB_PASS" "$CONTAINER" psql -U "$DB_USER" -d "$TARGET_DB" -v ON_ERROR_STOP=1 -q
+# 分区表 dump 的已知良性错误：子分区继承约束不允许单独 DROP（随父表/父约束级联消失，
+# dump 里那条 ALTER ... DROP CONSTRAINT IF EXISTS 恒失败）。去掉 ON_ERROR_STOP 放行这一类，
+# 其余任何 ERROR 仍按失败处理，保持 fail-fast 语义（2026-09-14 实录：OperationLog_default_pkey）。
+ERR_LOG="$(mktemp)"
+gunzip -c "$FILE" | docker exec -i -e PGPASSWORD="$DB_PASS" "$CONTAINER" psql -U "$DB_USER" -d "$TARGET_DB" -q 2> "$ERR_LOG" || true
+UNEXPECTED=$(grep 'ERROR' "$ERR_LOG" | grep -v 'cannot drop inherited constraint' || true)
+if [ -n "$UNEXPECTED" ]; then
+  echo "[db-restore] ERROR: 恢复出现非预期错误："; echo "$UNEXPECTED" | head -10 >&2; rm -f "$ERR_LOG"; exit 1
+fi
+echo "[db-restore] 良性跳过（分区继承约束 DROP）$(grep -c 'cannot drop inherited constraint' "$ERR_LOG" || true) 处"
+rm -f "$ERR_LOG"
 echo "[db-restore] OK"
