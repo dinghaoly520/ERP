@@ -158,15 +158,20 @@ async function main() {
   const parties = [A, B, C, D]
   const regBodies: Record<string, any> = {}
   const supplierIds: Record<string, string> = {}
+  // 归属公司（83205cf0 注册链路必填 + COMPANY_NOT_FOUND 强校验）：seed 重建 Company 时
+  // id 每次新生成、不可硬编码——运行时从公开端点取真实 id（注册页 companyOptions 同款）
+  const companyOptions = await call('GET', '/api/auth/companies/options')
+  assert.ok(
+    companyOptions.status < 300 && Array.isArray(companyOptions.data) && companyOptions.data.length > 0,
+    `公司选项拉取失败 → HTTP ${companyOptions.status} ${JSON.stringify(companyOptions.data)}`,
+  )
+  const companyId = companyOptions.data[0].id as string
   let seq = 0
   for (const who of parties) {
     const credit = String(90 + (++seq % 9)).padStart(1, '9') + (Date.now() + seq).toString().padStart(16, '0').slice(-16)
     // P1-13 注册闸（SMS_DEBUG_BYPASS=true 下万能码 123456 通过）：主要联系人手机号
     // 须与短信验证手机号一致（REGISTRATION_PHONE_CONTACT_MISMATCH）——两处共用同一号码
     const registrationPhone = '138' + String(Date.now()).slice(-8)
-    // 归属公司（83205cf0 注册链路迭代新增必填）：resolveSupplierCompany 对未知 id 静默未归属、
-    // 不阻断注册——占位值即可，避免对 seed Company 主数据的硬依赖
-    const companyId = `ci-smoke-${String(Date.now()).slice(-8)}`
     // 注册闸：资质附件必须先经本页短信门控上传（外链 400 REGISTRATION_ASSET_URL_INVALID），
     // 上传命名空间绑定 registrationPhone，最终注册按 id 反查归属
     const qualFd = new FormData()
