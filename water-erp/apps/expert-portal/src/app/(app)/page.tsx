@@ -199,7 +199,8 @@ export default function ExpertDashboardPage() {
                   const sc = STAGE_COLOR[p.project.stage as keyof typeof STAGE_COLOR] ?? '#7c3aed';
                   const done = p.progress >= 100;
                   return (
-                    <div key={p.id} className="neu-card-static rounded-xl p-4">
+                    <button key={p.id} type="button" onClick={() => router.push(`/evaluate/${p.project.id}`)}
+                      className="neu-card neu-card-clickable rounded-xl p-4">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
@@ -207,10 +208,7 @@ export default function ExpertDashboardPage() {
                             {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
                           </span>
                         </div>
-                        <button onClick={() => router.push(`/evaluate/${p.project.id}`)}
-                          className="neu-btn-soft !h-[28px] !text-xs shrink-0">
-                          {done ? '查看' : '继续评审'} <ChevronRight size={12} />
-                        </button>
+                        <ChevronRight size={14} strokeWidth={1.8} className="shrink-0 text-[var(--muted-foreground)]" />
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="exp-bar flex-1">
@@ -220,7 +218,7 @@ export default function ExpertDashboardPage() {
                           {p.progress}%
                         </span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
