@@ -19,6 +19,7 @@ export class VllmMonitorService implements OnModuleInit {
   private readonly llmModel: string;
   private readonly embeddingUrl: string;
   private readonly embeddingModel: string;
+  private readonly embeddingApiKey: string;
 
   private llmStatus: ServiceStatus;
   private embeddingStatus: ServiceStatus;
@@ -34,6 +35,8 @@ export class VllmMonitorService implements OnModuleInit {
       'EMBEDDING_MODEL',
       'BAAI/bge-m3',
     );
+    // 在线 embedding API（如 SiliconFlow）的 /v1/models 需要鉴权——与 EmbeddingService 共用同一 env
+    this.embeddingApiKey = this.config.get<string>('EMBEDDING_API_KEY', '');
 
     this.probeTimeoutMs = this.config.get<number>('VLLM_PROBE_TIMEOUT', 30_000);
     this.offlineThreshold = this.config.get<number>(
@@ -152,6 +155,7 @@ export class VllmMonitorService implements OnModuleInit {
       this.embeddingUrl,
       this.embeddingModel,
       timeoutMs,
+      this.embeddingApiKey,
     );
 
     this.embeddingStatus.lastCheck = new Date();
@@ -187,6 +191,7 @@ export class VllmMonitorService implements OnModuleInit {
     baseUrl: string,
     expectedModel: string,
     timeoutMs: number,
+    apiKey?: string,
   ): Promise<{ ok: boolean; error?: string }> {
     const modelsUrl = baseUrl.replace(/\/v1$/, '') + '/v1/models';
 
@@ -197,6 +202,7 @@ export class VllmMonitorService implements OnModuleInit {
       const response = await fetch(modelsUrl, {
         method: 'GET',
         signal: controller.signal,
+        ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
       });
 
       clearTimeout(timeout);
