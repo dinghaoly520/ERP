@@ -1833,6 +1833,9 @@ export class ExpertService {
       if (r.bidSupplierId && r.amount) openingRecMap.set(r.bidSupplierId, r.amount);
     }
 
+    // 2026-09-15 P1-1：报价单位口径（铁律：读端唯一入口 resolveOpeningAmountUnitMap——戳优先、envelopeVersion 回退推导）
+    const openingUnitMap = await resolveOpeningAmountUnitMap(this.prisma, projectId);
+
     // 查询该专家在本项目所有供应商的评分核对状态（供 report-step 核对徽章 + canConfirm 判定）
     const reviewRecords = await this.prisma.bidScoreReview.findMany({
       where: { expertId: expert.id, projectId },
@@ -1897,6 +1900,7 @@ export class ExpertService {
         totalScore,
         invalid: supplier.bidValidity === 'invalid', // P1-9（UI审计）：报告页废标标记——与评分页 bidValidity 同口径
         bidPrice: openingRecMap.get(supplier.id) ?? undefined, // C3+M9: 最终报价
+        bidPriceUnit: openingUnitMap.get(supplier.id) ?? null, // 2026-09-15 P1-1：dual-v2 万元口径戳，前端按 unitHint 渲染
         categoryScores,
         perSupplierComplete: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
         scoreReview: reviewBySupplier.has(supplier.id)

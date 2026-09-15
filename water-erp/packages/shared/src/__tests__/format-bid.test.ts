@@ -44,3 +44,15 @@ test('formatBidPrice：可解析格式化、不可解析回原文、空值占位
   assert.equal(formatBidPrice('面议'), '面议');
   assert.equal(formatBidPrice(null), '—');
 });
+
+// 2026-09-15 P1-1：unitHint='万元'（dual-v2 报告口径）——裸数字直出「N 万元」；无提示零漂移
+test('formatBidPrice：unitHint=万元——dual-v2 裸数字直出「N 万元」，无提示维持旧语义', () => {
+  assert.equal(formatBidPrice('153.8998', { unitHint: '万元' }), '153.8998 万元');
+  assert.equal(formatBidPrice('1,539,000', { unitHint: '万元' }), '1,539,000 万元');
+  // 自带单位文本/自由文本行为不变（自描述）
+  assert.equal(formatBidPrice('1150万元', { unitHint: '万元' }), '¥11,500,000');
+  assert.equal(formatBidPrice('面议', { unitHint: '万元' }), '面议');
+  // 无提示维持旧语义（裸数字=元，2 位小数截断——正是 P1-1 修复前报告页的误显形态）
+  assert.equal(formatBidPrice('153.8998'), '¥153.9');
+  assert.equal(formatBidPrice('153.8998', { unitHint: null }), '¥153.9');
+});

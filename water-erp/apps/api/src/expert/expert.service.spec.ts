@@ -50,7 +50,7 @@ describe('ExpertService', () => {
       bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}), create: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0) },
-      supplierBidSubmission: { findUnique: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() }, // findMany：getReport→resolveOpeningAmountUnitMap（P1-1 单位口径）
       fileAsset: { findMany: jest.fn(), findUnique: jest.fn() },
       bidScoreRecord: {
         findMany: jest.fn(),
@@ -452,6 +452,42 @@ describe('ExpertService', () => {
       const result = await service.getReport('user-1', 'proj-1');
 
       expect(result.supplierScores.map(s => s.invalid)).toEqual([false, true, false]);
+    });
+
+    it('P1-1：supplierScores 带 bidPriceUnit——唱标单位戳优先，无戳回退 envelopeVersion 推导 dual-v2=万元', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, signedIn: true, avoidanceConfirmed: true,
+        aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', displayName: '王建国' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', name: '测试项目', projectCode: 'SC-TEST-01',
+        suppliers: [
+          { id: 'sup-1', supplierName: '带戳供应商', bidValidity: 'valid', supplierId: 'real-1' },
+          { id: 'sup-2', supplierName: '回退推导供应商', bidValidity: 'valid', supplierId: 'real-2' },
+          { id: 'sup-3', supplierName: '旧轨供应商', bidValidity: 'valid', supplierId: 'real-3' },
+        ],
+        scoreItems: [],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      // resolveOpeningAmountUnitMap 单独查 bidSupplier（含 supplierId 供回退推导）
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup-1', supplierId: 'real-1' },
+        { id: 'sup-2', supplierId: 'real-2' },
+        { id: 'sup-3', supplierId: 'real-3' },
+      ]);
+      // 唱标记录：sup-1 带万元戳；sup-2/3 无戳（sup-2 靠 dual-v2 提交回退推导为万元）
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 'sup-1', amount: '153.8998', amountUnit: '万元' },
+        { bidSupplierId: 'sup-2', amount: '152.9', amountUnit: null },
+        { bidSupplierId: 'sup-3', amount: '1485000', amountUnit: null },
+      ]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([
+        { supplierId: 'real-2', envelopeVersion: 'dual-v2' },
+      ]);
+      const result = await service.getReport('user-1', 'proj-1');
+      expect(result.supplierScores.map(s => s.bidPrice)).toEqual(['153.8998', '152.9', '1485000']);
+      expect(result.supplierScores.map(s => s.bidPriceUnit)).toEqual(['万元', '万元', null]);
     });
   });
 
@@ -2377,7 +2413,7 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
     prisma = {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'proj-1', stage: 'EVALUATING' }) },
       bidExpert: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}) },
-      supplierBidSubmission: { findUnique: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() }, // findMany：getReport→resolveOpeningAmountUnitMap（P1-1 单位口径）
       supplier: { findUnique: jest.fn().mockResolvedValue(null) },
       bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },

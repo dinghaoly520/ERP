@@ -196,7 +196,7 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
                     )}
                     {ss.bidPrice && (
                       <span className="text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
-                        报价：{formatBidPrice(ss.bidPrice)}
+                        报价：{formatBidPrice(ss.bidPrice, { unitHint: ss.bidPriceUnit })}
                       </span>
                     )}
                     {ss.perSupplierComplete && (

@@ -35,10 +35,15 @@ export function parseAmountToYuan(raw: string | number | null | undefined, opts?
 
 export function formatBidPrice(
   raw: string | number | null | undefined,
-  opts?: { prefix?: string },
+  opts?: { prefix?: string; unitHint?: string | null },
 ): string {
   const prefix = opts?.prefix ?? '¥';
   if (raw == null || (typeof raw === 'string' && !raw.trim())) return '—';
+  // 2026-09-15 P1-1：dual-v2 万元口径（unitHint='万元'）裸数字直出「N 万元」——
+  // 与供应商端 formatOpeningAmount / 主持端 amountUnit 分支同口径；无提示维持旧语义（裸数字=元）。
+  if (typeof raw === 'string' && opts?.unitHint === '万元' && BARE_NUM_RE.test(raw.trim())) {
+    return `${raw.trim()} 万元`;
+  }
   const yuan = parseAmountToYuan(raw);
   if (yuan == null) return typeof raw === 'string' ? raw.trim() : String(raw);
   // 整数不带小数尾零；小数保留原精度（去尾零）

@@ -331,6 +331,8 @@ export interface EvaluationReport {
     supplierName: string;
     totalScore: number;
     bidPrice?: string;
+    /** 报价单位（2026-09-15 P1-1）：dual-v2 万元口径='万元'（服务端 resolveOpeningAmountUnitMap 派生），null=旧轨元/自由文本 */
+    bidPriceUnit?: string | null;
     /** P1-9（UI审计）：废标标记——服务端按供应商 bidValidity === 'invalid' 派生 */
     invalid?: boolean;
     perSupplierComplete: boolean;
