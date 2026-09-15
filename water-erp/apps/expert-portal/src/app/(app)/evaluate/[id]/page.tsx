@@ -70,6 +70,9 @@ export default function ExpertEvaluatePage() {
   const [clarSupplierId, setClarSupplierId] = useState('');
   const [clarPosting, setClarPosting] = useState(false);
   const [clarDrafting, setClarDrafting] = useState(false);
+  // P2-4（2026-09-15）：AI 起草候选集——多条候选可切换，basis 供悬浮提示
+  const [clarDrafts, setClarDrafts] = useState<string[]>([]);
+  const [clarDraftBasis, setClarDraftBasis] = useState<string[]>([]);
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
@@ -657,6 +660,10 @@ export default function ExpertEvaluatePage() {
     setAvoiding(true);
     try {
       await api.post(`/expert/projects/${projectId}/avoidance`, { conflictedSupplierIds: [...conflictedSupplierIds] });
+      // P3-8：空确认/申报确认均无反馈——统一成功 toast（含 0 冲突申报口径）
+      toast.success(conflictedSupplierIds.size > 0
+        ? `回避声明已确认（${conflictedSupplierIds.size} 家冲突申报）`
+        : '回避声明已确认：与全部投标单位无利益冲突');
       loadProject();
     }
     catch (e: any) { toast.error(e.message || '操作失败'); }
@@ -721,7 +728,7 @@ export default function ExpertEvaluatePage() {
     if (!clarQuestion.trim()) { toast.error('请输入问题'); return; }
     if (!clarSupplier) { toast.error('请选择目标供应商'); return; }
     setClarPosting(true);
-    try { await api.post(`/expert/projects/${projectId}/clarifications`, { question: clarQuestion, supplierName: clarSupplier, supplierId: clarSupplierId || undefined }); toast.success('澄清已发起'); setClarQuestion(''); loadClarifications(); }
+    try { await api.post(`/expert/projects/${projectId}/clarifications`, { question: clarQuestion, supplierName: clarSupplier, supplierId: clarSupplierId || undefined }); toast.success('澄清已发起'); setClarQuestion(''); setClarDrafts([]); setClarDraftBasis([]); loadClarifications(); }
     catch (e: any) { toast.error(e.message || '发起失败'); }
     setClarPosting(false);
   };
@@ -734,9 +741,17 @@ export default function ExpertEvaluatePage() {
     try {
       const res: any = await api.post(`/expert/projects/${projectId}/clarifications/draft`, { supplierId: clarSupplierId });
       const drafts: string[] = res?.drafts ?? res?.data?.drafts ?? [];
+      const basis: string[] = res?.basis ?? res?.data?.basis ?? [];
       if (drafts.length) {
+        // P3-5：覆盖已有输入前留撤销通道（window.confirm 已全站禁用——toast action 一键还原）
+        const prev = clarQuestion;
+        setClarDrafts(drafts);
+        setClarDraftBasis(basis);
         setClarQuestion(drafts[0]);
-        toast.success(`AI 已起草 ${drafts.length} 条候选，已填入第一条，请审阅修改`);
+        toast.success(
+          drafts.length > 1 ? `AI 已起草 ${drafts.length} 条候选——点击候选序号可切换` : 'AI 已起草 1 条候选，请审阅修改',
+          prev.trim() ? { duration: 10000, action: { label: '撤销覆盖', onClick: () => setClarQuestion(prev) } } : undefined,
+        );
       } else {
         toast.info('AI 暂无起草建议（该供应商可能无 AI 分析弱点）');
       }
@@ -1184,6 +1199,8 @@ export default function ExpertEvaluatePage() {
                 const sel = project.suppliers.find(s => s.id === e.target.value);
                 setClarSupplierId(e.target.value);
                 setClarSupplier(sel?.supplierName ?? '');
+                setClarDrafts([]);
+                setClarDraftBasis([]);
               }}
               className="neu-select w-full !h-8 !text-xs">
               <option value="">选择供应商（必选）</option>
@@ -1204,6 +1221,17 @@ export default function ExpertEvaluatePage() {
                   rows={4}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
                   className="neu-input resize-y !text-xs" />
+                {clarDrafts.length > 1 && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">AI 候选：</span>
+                    {clarDrafts.map((d, i) => (
+                      <button key={i} type="button" onClick={() => setClarQuestion(d)} title={clarDraftBasis[i] || d.slice(0, 60)}
+                        className={`neu-btn-xs !h-[22px] !px-2 !text-[10px] ${clarQuestion === d ? 'is-info' : ''}`}>
+                        候选 {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <button onClick={postClarification} disabled={clarPosting} className="neu-btn-primary !h-[38px]">
                 {clarPosting ? '…' : '发送'}
@@ -1715,8 +1743,8 @@ export default function ExpertEvaluatePage() {
                   他人表决倾向会引导独立评分（「供评分参考」表述本身即违背独立评审）。
                   动议/表决的查看与操作归「评审待办」页与报告步（ReportStep）。 */}
 
-              {/* P0-3: draft recovery banner */}
-              {draftAvailable && !draftDismissed && (
+              {/* P0-3: draft recovery banner（P3-6：报告已确认=评分锁定，恢复草稿无意义且矛盾——隐藏） */}
+              {draftAvailable && !draftDismissed && !expert?.reportConfirmed && (
                 <div className="exp-alert exp-alert--warn mb-6 flex items-center gap-3 !p-4">
                   <ClipboardList size={20} strokeWidth={1.5} className="shrink-0" />
                   <div className="flex-1">

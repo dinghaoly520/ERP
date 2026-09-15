@@ -29,7 +29,14 @@ export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public assets without auth (images, css, js chunks)
-  if (pathname.startsWith('/assets') || /\.(png|jpg|jpeg|gif|svg|ico|webp|css)$/i.test(pathname)) {
+  if (
+    pathname.startsWith('/assets') ||
+    /\.(png|jpg|jpeg|gif|svg|ico|webp|css)$/i.test(pathname) ||
+    // P3-9（2026-09-15）：PWA 静态件放行——被 307 到登录页时 Chrome 拿登录页 HTML 当
+    // manifest 解析（console「Manifest: Syntax error」），Service Worker 注册同理失效
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/sw.js'
+  ) {
     return NextResponse.next();
   }
 

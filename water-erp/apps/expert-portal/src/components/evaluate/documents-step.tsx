@@ -279,9 +279,9 @@ export function DocumentsStep({ project, documents, onRefresh, refreshing }: Doc
                           </div>
                           <div className="min-w-0 flex-1">
                             <h4 className="truncate text-xs font-semibold text-[var(--foreground)]" title={d.originalName}>{d.originalName}</h4>
+                            {/* P3-7b：d.status 与卡片头解密徽章恒同值（canView 才渲染本列表）——去重复读 */}
                             <div className="mt-0.5 flex items-center gap-2">
                               <span className="text-[10px] text-[var(--muted-foreground)]">{formatBytes(d.size)}</span>
-                              <span className="text-[10px] font-semibold text-[var(--success)]">{d.status}</span>
                             </div>
                           </div>
                           {d.downloadUrl ? (
