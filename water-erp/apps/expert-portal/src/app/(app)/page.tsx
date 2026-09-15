@@ -13,9 +13,6 @@ import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
-// 进行中评审卡片阶段口径：EVALUATING 显示进行时态「评标中」（共享 STAGE_LABEL 的「专家评标」为阶段名词）
-const CARD_STAGE_LABEL: Record<string, string> = { EVALUATING: '评标中' };
-
 // /expert/tasks 返回的表决/异议（与 /tasks 页共享类型结构）
 interface MotionItem {
   id: string; projectId: string; projectName: string; projectStage: string;
@@ -205,12 +202,7 @@ export default function ExpertDashboardPage() {
                     <button key={p.id} type="button" onClick={() => router.push(`/evaluate/${p.project.id}`)}
                       className="neu-card neu-card-clickable rounded-xl p-4">
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
-                          <span className="exp-pill shrink-0" style={{ '--c': sc } as React.CSSProperties}>
-                            {CARD_STAGE_LABEL[p.project.stage] ?? STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
-                          </span>
-                        </div>
+                        <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
                         <ChevronRight size={14} strokeWidth={1.8} className="shrink-0 text-[var(--muted-foreground)]" />
                       </div>
                       <div className="flex items-center gap-3">
