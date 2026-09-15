@@ -455,6 +455,11 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
   分界：**开标记录侧=万元**（读端必须 unitHint 渲染，直出「N 万元」）；**报价轮 BidQuote、评标结果、中标通知侧=元**（¥/元直显）。跨侧桥接仅两处：`syncMultiRoundPrices`（元→万元回写）与 `generateEvaluationResults`（万元→元换算），除此之外不得出现裸换算。审查结论（2026-09-15）：bid-portal evaluation-view（元侧，裸 formatBidPrice 恰好正确）与专家 quote-history 面板（元侧）均无恙；专家门户 report-step 曾漏网（¥153.9 误显万元值，0a4514cc 修复）——教训：09-14 修复波只覆盖供应商端/主持端，**新增读端一律先查本图**。
 
 
+## 评标时限与澄清闸门口径（2026-09-15 合规定案）
+
+**`evaluationDeadline` 是启动评标时设定的内部时限（now+hours），非法定投标有效期。** 超时闸门只拦结果链：`submitScores`/`confirmReport`/`generateEvaluationResults` → 409 `EVALUATION_OVERDUE`；**澄清/回避/异议/动议等过程性写操作不拦——这是法定要求而非疏漏**（招标投标法 39 条/实施条例 52 条：澄清限范围不限时刻；电子招标投标办法 33 条：澄清必须经平台交换数据电文；实施条例 51 条：不得接受投标人主动澄清——评标澄清答复通道只允许应邀回复，勿加"供应商主动发起澄清"入口）。延期走 `POST /bid/projects/:id/extend-evaluation`（监督+审计留痕）。**勿给澄清端点加 overdue 闸门。** 详查 `water-erp/docs/合规审查-评标超时澄清写操作放行-P3-10-2026-09-15.md`。Backlog（依法必招场景再启用）：extend-evaluation 未联动「通知所有投标人延长投标有效期」（评标委暂行规定 40 条/30 号令 29 条）。
+
+
 ## 并行会话协作约定（2026-08-26 起生效）
 
 两个 Claude 会话并行实施不同规范计划，**分工与避让规则如下（双方必须遵守）**：
