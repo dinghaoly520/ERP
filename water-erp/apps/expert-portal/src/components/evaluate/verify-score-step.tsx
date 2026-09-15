@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ShieldCheck, StickyNote } from 'lucide-react';
+import { Lock, Check, ShieldCheck, StickyNote } from 'lucide-react';
 import { verifyScoreReview } from '@/lib/api';
 import { toast } from 'sonner';
 import {
@@ -23,6 +23,8 @@ interface Props {
   reviewStatus?: 'draft' | 'verified';
   /** 核对成功后 reload */
   onVerified: () => void;
+  /** P2-3（2026-09-15）：评审报告已确认（评分锁定）——历史数据 scoreReviews 缺失时按钮渲染锁定态，杜绝点击必 400 SCORE_LOCKED 的死循环 */
+  locked?: boolean;
   /** P5 Task 7: 打开桌面端备忘抽屉 */
   onOpenMemo?: () => void;
 }
@@ -37,6 +39,7 @@ export function VerifyScoreStep({
   scores,
   reviewStatus,
   onVerified,
+  locked,
   onOpenMemo,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -180,15 +183,23 @@ export function VerifyScoreStep({
         })}
       </div>
 
+      {/* P2-3：报告已确认（评分锁定）——无核对记录的历史数据渲染锁定说明，不给可点死循环按钮 */}
+      {locked && !verified && (
+        <div className="mt-5 flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-2.5 text-xs text-[var(--muted-foreground)]">
+          <Lock size={13} strokeWidth={1.7} className="shrink-0" />
+          评审报告已确认，评分已锁定——本供应商无需再核对
+        </div>
+      )}
+
       {/* 确认核对按钮 */}
       <button
         type="button"
         onClick={handleVerify}
-        disabled={busy || verified}
+        disabled={busy || verified || !!locked}
         className="neu-btn-primary is-success mt-6 w-full"
       >
         <Check size={16} strokeWidth={2.5} />
-        {verified ? '已核对' : busy ? '核对中…' : '确认核对'}
+        {verified ? '已核对' : locked ? '评分已锁定' : busy ? '核对中…' : '确认核对'}
       </button>
     </div>
   );

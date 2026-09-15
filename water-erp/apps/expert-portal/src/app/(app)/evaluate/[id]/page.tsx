@@ -9,7 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
 import { SigninCamera } from '@/components/signin-camera';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
@@ -48,6 +48,12 @@ export default function ExpertEvaluatePage() {
   const projectId = params.id as string;
 
   const [project, setProject] = useState<ExpertProjectDetail | null>(null);
+  // P2-2：分钟级时钟——评标截止横幅的剩余时间/过期态随它刷新（无需秒级）
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
   const [step, setStep] = useState<Step>('verify');
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -1083,6 +1089,29 @@ export default function ExpertEvaluatePage() {
         </div>
       )}
 
+      {/* P2-2：评标截止预警——后端 submitScores/confirmReport 过期即 409 EVALUATION_OVERDUE，前端提前告知避免专家白填后才被拒 */}
+      {project?.stage === 'EVALUATING' && project.evaluationDeadline && (() => {
+        const end = new Date(project.evaluationDeadline).getTime();
+        const remaining = end - nowTick;
+        const fmtEnd = new Date(end).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        if (remaining <= 0) return (
+          <div className="exp-alert mb-3 flex shrink-0 items-center gap-2 !px-4">
+            <AlertTriangle size={13} strokeWidth={1.5} />
+            <span>评标截止时间已过（{fmtEnd}）——评分提交与报告确认已被锁定，如需继续评审请联系采购管理端审批延期</span>
+          </div>
+        );
+        const days = Math.floor(remaining / 86_400_000);
+        const hours = Math.floor((remaining % 86_400_000) / 3_600_000);
+        const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+        const urgent = remaining < 86_400_000;
+        return (
+          <div className={`exp-alert mb-3 flex shrink-0 items-center gap-2 !px-4 ${urgent ? 'exp-alert--warn' : 'exp-alert--info'}`}>
+            <Clock size={13} strokeWidth={1.5} />
+            <span>评标截止：{fmtEnd}（剩余 {days > 0 ? `${days} 天 ` : ''}{hours} 小时 {minutes} 分钟）{urgent ? '——即将截止，请尽快完成评审' : ''}</span>
+          </div>
+        );
+      })()}
+
       {/* 顶部导航 */}
       <div className="mb-4 flex shrink-0 items-center justify-between">
         <div className="flex min-w-0 items-center gap-3">
@@ -2009,6 +2038,7 @@ export default function ExpertEvaluatePage() {
                   (r: { supplierId: string; status: string }) => r.supplierId === activeSupplier,
                 )?.status as 'draft' | 'verified' | undefined
               }
+              locked={!!expert?.reportConfirmed}
               onVerified={loadProject}
               onOpenMemo={() => setMemoOpen(true)}
             />

@@ -270,6 +270,8 @@ export interface ExpertProject {
 }
 
 export interface ExpertProjectDetail extends BidProjectDetail {
+  /** 评标截止时间（BidProject.evaluationDeadline）——EVALUATING 阶段提交闸门：过期后 submitScores/confirmReport 409 EVALUATION_OVERDUE（P2-2 前端据此出预警横幅） */
+  evaluationDeadline?: string | null;
   myExpertRecord: BidExpert & { id: string };
   myScores: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string; scoreItem: BidScoreItem }[];
   /** 招标文件元信息（仅 OPENING/EVALUATING active 项目附带，否则 null）；供专家独立核对原文 */
