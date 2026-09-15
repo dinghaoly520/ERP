@@ -440,6 +440,19 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **读端唯一入口** `apps/api/src/bid/opening-amount-unit.util.ts`：`resolveOpeningAmountUnitMap`（戳优先、envelopeVersion 回退推导）取单位；`parseAmountToYuan(raw,{unitHint})` 换算；`formatAmountWithUnit` 纸面证据渲染（签名/签字包/文件包/CSV 一律自含单位）；`assertNoCrossUnitEntry` 录入闸（主持人把万元换算成元录入 → 400 `PRICE_UNIT_SUSPECT`，不给确认绕行）。**禁止新代码裸读裸算 `amount`/`decryptedPrice`。**
 - **新增金额字段禁止再造隐式单位列**（单位必须显式落库或字段名/后缀自带）；前端渲染走 `formatOpeningAmount/formatBidSubmissionPrice` 的 unitHint 形参（供应商端）与 `amountUnit` 分支（主持端）。
 - 测试锁定：`opening-amount-unit.util.spec.ts`（单位戳优先/闸门方向）+ 两端 spec 的 dual-v2 回显/比对用例。
+- **金额链单位口径地图（2026-09-15 全链审查定稿）**——新读端先对号入座再取数，禁止凭裸数字猜单位：
+
+  ```
+  dual-v2 投标表单(万元) ──密封解密──▶ BidOpeningRecord.amount(万元，amountUnit 戳)
+                                        │
+        syncMultiRoundPrices(元 ÷10000 回写万元) ◀── BidQuote(元) ◀── 供应商报价轮表单(label「报价(元)」，元)
+                                        │
+        generateEvaluationResults：parseAmountToYuan(unitHint) 换算
+                                        ▼
+        BidEvaluationResult.bidPrice(元) ──▶ 中标通知书/公示/评标结果(元)
+  ```
+
+  分界：**开标记录侧=万元**（读端必须 unitHint 渲染，直出「N 万元」）；**报价轮 BidQuote、评标结果、中标通知侧=元**（¥/元直显）。跨侧桥接仅两处：`syncMultiRoundPrices`（元→万元回写）与 `generateEvaluationResults`（万元→元换算），除此之外不得出现裸换算。审查结论（2026-09-15）：bid-portal evaluation-view（元侧，裸 formatBidPrice 恰好正确）与专家 quote-history 面板（元侧）均无恙；专家门户 report-step 曾漏网（¥153.9 误显万元值，0a4514cc 修复）——教训：09-14 修复波只覆盖供应商端/主持端，**新增读端一律先查本图**。
 
 
 ## 并行会话协作约定（2026-08-26 起生效）
