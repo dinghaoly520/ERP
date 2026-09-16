@@ -27,6 +27,14 @@ describe('shouldExclude', () => {
     expect(shouldExclude('GET', '/api/bid/projects/dashboard', DEFAULT_EXCLUDE_PATHS)).toBe(true);
   });
 
+  it('操作日志页自查询 GET 排除（2026-09-16：翻页/筛选浏览不入日志防审计噪音）', () => {
+    // 拦截器传 req.path（不含 query 串）
+    expect(shouldExclude('GET', '/api/operation-log', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+    expect(shouldExclude('GET', '/api/operation-log/my', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+    expect(shouldExclude('GET', '/api/operation-log/archive', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+    expect(shouldExclude('GET', '/api/operation-log/archive/verify/2026_08', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+  });
+
   it('高频轮询 GET 排除（通知角标/驾驶舱统计/审查任务轮询）', () => {
     expect(shouldExclude('GET', '/api/notifications/unread-count', DEFAULT_EXCLUDE_PATHS)).toBe(true);
     expect(shouldExclude('GET', '/api/supplier/stats', DEFAULT_EXCLUDE_PATHS)).toBe(true);
