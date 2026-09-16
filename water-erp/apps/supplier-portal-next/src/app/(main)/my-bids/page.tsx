@@ -307,14 +307,16 @@ export default function MyBidsPage() {
                       ) : overdueUnconfirmed(row) ? (
                         <span className="mb-overdue">{overdueLabel(row)}</span>
                       ) : null}
-                      <button
-                        type="button"
-                        className="neu-btn-xs is-warning"
-                        style={{ visibility: canWithdraw(row) ? "visible" : "hidden" }}
-                        onClick={() => handleWithdraw(row.id)}
-                      >
-                        撤回
-                      </button>
+                      {/* 条件渲染而非 visibility:hidden——幽灵占位会让 justify-content:center 把可视组顶高 18px（撤回不可用时其余按钮全部偏上不居中） */}
+                      {canWithdraw(row) && (
+                        <button
+                          type="button"
+                          className="neu-btn-xs is-warning"
+                          onClick={() => handleWithdraw(row.id)}
+                        >
+                          撤回
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
