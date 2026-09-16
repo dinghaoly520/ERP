@@ -297,7 +297,7 @@ export default function MyBidsPage() {
                     <div className="mb-card-actions">
                       {row.project?.stage === "OPENING" && (
                         <button type="button" className="neu-btn-xs" onClick={() => router.push(`/my-bids/${row.projectId}/opening-hall`)}>
-                          进入开标大厅
+                          开标大厅
                         </button>
                       )}
                       {row.confirmStatus === "CONFIRMED" ? (

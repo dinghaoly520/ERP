@@ -633,7 +633,8 @@
   gap: 6px;
   padding: 16px 10px;
   flex-shrink: 0;
-  width: 96px;
+  /* 112px：按钮内容宽 92px——按最长文案「唱标已确认」（60px@12px/600）两侧各留 16px 呼吸位（原 96px 下六字大厅文案仅 1.5px/边拥挤，文案已同步缩短为「开标大厅」） */
+  width: 112px;
   border-left: 1px solid var(--hairline);
   justify-content: center;
   align-items: stretch;
@@ -667,7 +668,9 @@
 @media (max-width: 1100px) {
   .mb-card { flex-direction: column; }
   .mb-card-accent { width: 100%; height: 3px; border-radius: 16px 16px 0 0; }
-  .mb-card-actions { flex-direction: row; border-left: none; border-top: 1px solid var(--hairline); padding: 10px 18px; }
+  /* 纵排卡片：actions 变横行工具条——解除桌面侧 width 钳制（原 96/112px 固定宽在行布局下内容溢出），按钮恢复自适应宽 + 默认内边距 */
+  .mb-card-actions { flex-direction: row; width: auto; justify-content: flex-start; border-left: none; border-top: 1px solid var(--hairline); padding: 10px 18px; }
+  .mb-card-actions .neu-btn-xs { width: auto; padding: 0 12px; }
   .mb-stage-nodes { overflow-x: auto; }
   .mb-stage-label { font-size: 9px; }
 }
