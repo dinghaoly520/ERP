@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
 import { api, listMemos } from '@/lib/api';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
@@ -41,6 +41,12 @@ export default function TabletEvaluatePage() {
   const projectId = params.id as string;
 
   const [project, setProject] = useState<ExpertProjectDetail | null>(null);
+  // P2-2 平板跟进：分钟级时钟——评标截止横幅的剩余时间/过期态随它刷新（与桌面端同口径）
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [loading, setLoading] = useState(true);
@@ -517,6 +523,29 @@ export default function TabletEvaluatePage() {
             className="neu-btn-xs !h-9 !px-3">处理</button>
         </div>
       )}
+
+      {/* P2-2 平板跟进：评标截止预警——与桌面端同口径三态（过期红 / <24h warn / 正常 info 剩余时间） */}
+      {project.stage === 'EVALUATING' && project.evaluationDeadline && (() => {
+        const end = new Date(project.evaluationDeadline).getTime();
+        const remaining = end - nowTick;
+        const fmtEnd = new Date(end).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        if (remaining <= 0) return (
+          <div className="exp-alert flex flex-shrink-0 items-center gap-2 !px-4">
+            <AlertTriangle size={14} strokeWidth={1.5} />
+            <span className="text-xs font-semibold">评标截止时间已过（{fmtEnd}）——评分提交已被锁定，如需继续评审请联系采购管理端审批延期</span>
+          </div>
+        );
+        const days = Math.floor(remaining / 86_400_000);
+        const hours = Math.floor((remaining % 86_400_000) / 3_600_000);
+        const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+        const urgent = remaining < 86_400_000;
+        return (
+          <div className={`exp-alert flex flex-shrink-0 items-center gap-2 !px-4 ${urgent ? 'exp-alert--warn' : 'exp-alert--info'}`}>
+            <Clock size={14} strokeWidth={1.5} />
+            <span className="text-xs font-semibold">评标截止：{fmtEnd}（剩余 {days > 0 ? `${days} 天 ` : ''}{hours} 小时 {minutes} 分钟）{urgent ? '——即将截止，请尽快完成评审' : ''}</span>
+          </div>
+        );
+      })()}
 
       {/* 供应商选择条（横滑磁贴，复用 SupplierTabBar） */}
       <SupplierTabBar
