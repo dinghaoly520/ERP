@@ -296,7 +296,7 @@ export default function MyBidsPage() {
                     {/* Right actions — cgzxui 原生按钮，统一居中 */}
                     <div className="mb-card-actions">
                       {row.project?.stage === "OPENING" && (
-                        <button type="button" className="b-link-btn" onClick={() => router.push(`/my-bids/${row.projectId}/opening-hall`)}>
+                        <button type="button" className="neu-btn-xs" onClick={() => router.push(`/my-bids/${row.projectId}/opening-hall`)}>
                           进入开标大厅
                         </button>
                       )}
