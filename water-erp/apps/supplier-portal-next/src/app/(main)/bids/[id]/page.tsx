@@ -728,6 +728,13 @@ function BidDetailInner() {
                           <span className="cc-meta-label">递交时间</span>
                           <span className="cc-meta-value strong">{fmtTime(submission.submittedAt)}</span>
                         </div>
+                        {/* 服务端权威提交时间（审计信任锚点）：与递交时间同源同刻，显性化防争议——争议时以本列为准 */}
+                        <div className="cc-meta-item">
+                          <span className="cc-meta-label">平台确认时间</span>
+                          <span className="cc-meta-value mono">
+                            {submission.serverSubmittedAt ? fmtTime(submission.serverSubmittedAt) : "—"}
+                          </span>
+                        </div>
                       </div>
                       {submission.receiptSignature ? (
                         <div className="cq-sig">
