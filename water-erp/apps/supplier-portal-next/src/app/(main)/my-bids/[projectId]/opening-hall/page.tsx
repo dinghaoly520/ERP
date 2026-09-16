@@ -629,12 +629,12 @@ export default function OpeningHallPage() {
         title="提出开标异议"
         icon={MessageSquareOff}
         footer={
-          <>
+          <div className="neu-btn-group">
             <SpButton onClick={() => setDisputeOpen(false)}>取消</SpButton>
             <SpButton variant="primary" loading={disputeSubmitting} disabled={!disputeReason.trim()} onClick={submitDispute}>
               提交
             </SpButton>
-          </>
+          </div>
         }
       >
         <SpTextarea
@@ -655,10 +655,10 @@ export default function OpeningHallPage() {
         icon={KeyRound}
         width={420}
         footer={
-          <>
+          <div className="neu-btn-group">
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
             <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并签名</SpButton>
-          </>
+          </div>
         }
       >
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)] mb-2.5">
