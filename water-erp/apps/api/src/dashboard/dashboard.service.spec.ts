@@ -15,7 +15,7 @@ describe('DashboardService', () => {
         resultText: '已成交',
         awardedSupplierId: 'supplier-1',
         department: { name: '采购中心' },
-        project: { name: '项目 A' },
+        project: { name: '项目 A', createdAt: new Date('2026-03-01T00:00:00.000Z') }, // b7674eb1 时间轴聚合读 createdAt（DB 列永非空，mock 漂移补齐）
         participants: [
           {
             supplierId: 'supplier-1',
@@ -34,7 +34,7 @@ describe('DashboardService', () => {
         resultText: '已成交',
         awardedSupplierId: 'supplier-2',
         department: { name: '采购中心' },
-        project: { name: '项目 B' },
+        project: { name: '项目 B', createdAt: new Date('2026-03-01T00:00:00.000Z') }, // b7674eb1 时间轴聚合读 createdAt（DB 列永非空，mock 漂移补齐）
         participants: [
           {
             supplierId: 'supplier-2',
@@ -53,7 +53,7 @@ describe('DashboardService', () => {
         resultText: '待开评标',
         awardedSupplierId: null,
         department: { name: '采购中心' },
-        project: { name: '项目 C' },
+        project: { name: '项目 C', createdAt: new Date('2026-03-01T00:00:00.000Z') }, // b7674eb1 时间轴聚合读 createdAt（DB 列永非空，mock 漂移补齐）
         participants: [],
       },
       {
@@ -67,7 +67,7 @@ describe('DashboardService', () => {
         resultText: '未成交',
         awardedSupplierId: null,
         department: { name: '采购中心' },
-        project: { name: '项目 D' },
+        project: { name: '项目 D', createdAt: new Date('2026-03-01T00:00:00.000Z') }, // b7674eb1 时间轴聚合读 createdAt（DB 列永非空，mock 漂移补齐）
         participants: [],
       },
     ];
