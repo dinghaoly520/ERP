@@ -12,8 +12,20 @@
    ────────────────────────────────────────────────────────────────── */
 
 /* —— 布局（原 <style scoped> 直迁）—— */
-/* 左重右轻 1.4:1（原 1:1.2 聊天列反超左侧）——唱标记录总表多列需要宽度，聊天窄列即可 */
-.hall { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+/* 左重右轻 + 把手轨道：默认 1fr : 0.72fr（≈原 1.4:1 视觉），拖拽后 --chat-w（px，页面写入）接管 */
+.hall { display: grid; grid-template-columns: minmax(0, 1fr) 6px var(--chat-w, minmax(0, 0.72fr)); gap: 12px; }
+/* —— 聊天栏拖拽把手：6px 命中区 + 居中药丸抓手（双击重置 / ←→ 键盘微调在页面侧）—— */
+.hall-resizer { position: relative; cursor: col-resize; touch-action: none; }
+.hall-resizer__grip {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 4px; height: 40px; border-radius: 999px;
+  background: oklch(0.72 0.02 258 / 0.35);
+  transition: background .15s ease, height .15s ease;
+}
+.hall-resizer:hover .hall-resizer__grip,
+.hall-resizer:focus-visible .hall-resizer__grip { background: oklch(0.5 0.16 258); height: 56px; }
+.hall-resizer:focus-visible { outline: none; } /* 焦点可达性由抓手显色/加长表达 */
+body.hall-resizing { user-select: none; cursor: col-resize; }
 .hall-error { grid-column: 1 / -1; }
 .left { display: flex; flex-direction: column; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -94,7 +106,10 @@
 /* type="warning" effect="plain"：透明底 + 同色 hairline 边 + 深一档文字 */
 .hall-tag--warning-plain { background: transparent; color: #b88230; border-color: #e6a23c; }
 
-@media (max-width: 960px) { .hall { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 960px) {
+  .hall { grid-template-columns: minmax(0, 1fr); }
+  .hall-resizer { display: none; } /* 纵排单列无左右之分，把手无意义 */
+}
 /* 桌面端：网格撑满内容区高度，左右两列同高——右列聊天面板与左列唱标总表卡均延伸至页面底部（底边对齐） */
 @media (min-width: 961px) {
   .hall { height: 100%; }

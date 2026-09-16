@@ -96,6 +96,56 @@ export default function OpeningHallPage() {
   /** 平台 ACTIVE 绑定证书 SN（U盾内证书的兜底匹配；空 = 未绑定，签名时给出引导） */
   const [activeServerCertSn, setActiveServerCertSn] = useState("");
 
+  // ── 聊天栏拖拽调宽：null = 默认比例（未拖过/已重置）；数值 = 用户拖定的像素宽（localStorage 持久化）──
+  const [chatW, setChatW] = useState<number | null>(null);
+  const hallRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const chatWRef = useRef<number | null>(null); // 落盘镜像：pointerup 与最后一次 move 可能同批，闭包读 state 会滞后
+  const CHAT_W_KEY = "opening-hall-chat-w";
+  const CHAT_W_MIN = 300;
+  // 挂载后恢复上次宽度（放 effect 避免 SSR 水合不一致）
+  useEffect(() => {
+    const v = Number(localStorage.getItem(CHAT_W_KEY));
+    if (Number.isFinite(v) && v >= CHAT_W_MIN) setChatW(v);
+  }, []);
+  function clampChatW(w: number, hallRect: DOMRect): number {
+    return Math.min(Math.round(hallRect.width * 0.6), Math.max(CHAT_W_MIN, Math.round(w)));
+  }
+  function onResizeStart(e: React.PointerEvent<HTMLDivElement>) {
+    draggingRef.current = true;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 合成事件无捕获也不影响：move 仍派发至把手 */ }
+    document.body.classList.add("hall-resizing");
+  }
+  function onResizeMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!draggingRef.current || !hallRef.current) return;
+    const rect = hallRef.current.getBoundingClientRect();
+    const w = clampChatW(rect.right - e.clientX, rect);
+    chatWRef.current = w;
+    setChatW(w);
+  }
+  function onResizeEnd() {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    document.body.classList.remove("hall-resizing");
+    if (chatWRef.current != null) localStorage.setItem(CHAT_W_KEY, String(chatWRef.current));
+  }
+  function resetChatW() {
+    chatWRef.current = null;
+    setChatW(null);
+    localStorage.removeItem(CHAT_W_KEY);
+  }
+  function onResizeKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    // 键盘可达：← 右列加宽（把手左移）、→ 右列收窄；±24px。默认态基值取右列实测宽（而非视口一半，避免首按跳变）
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const hall = hallRef.current;
+    if (!hall) return;
+    const rect = hall.getBoundingClientRect();
+    const rightEl = hall.querySelector<HTMLElement>(":scope > .right");
+    const cur = chatW ?? (rightEl ? Math.round(rightEl.getBoundingClientRect().width) : Math.round(rect.width / 2));
+    setChatW(clampChatW(cur + (e.key === "ArrowLeft" ? 24 : -24), rect));
+  }
+
   // bootstrap 在 await 后要读最新 loadError/project——React 状态异步，用 ref 镜像
   const loadErrorRef = useRef(false);
   const projectRef = useRef<any>(null);
@@ -326,7 +376,7 @@ export default function OpeningHallPage() {
   const myOtherRows = useMemo(() => otherOpeningRows(tableFields, record), [tableFields, record]);
 
   return (
-    <div className="hall">
+    <div className="hall" ref={hallRef} style={chatW != null ? ({ "--chat-w": `${chatW}px` } as React.CSSProperties) : undefined}>
       <div className="left">
         <section className="hall-card">
           <header className="hall-card__header">
@@ -531,6 +581,23 @@ export default function OpeningHallPage() {
             {records.length === 0 && <div className="hall-table-empty">暂无唱标记录（开标后实时展示）</div>}
           </div>
         </section>
+      </div>
+
+      {/* 拖拽把手：左右拖调聊天栏宽，双击重置，←/→ 键盘微调（≤960px 纵排隐藏） */}
+      <div
+        className="hall-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="拖动调整聊天栏宽度（双击重置）"
+        tabIndex={0}
+        onPointerDown={onResizeStart}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        onPointerCancel={onResizeEnd}
+        onDoubleClick={resetChatW}
+        onKeyDown={onResizeKey}
+      >
+        <span className="hall-resizer__grip" />
       </div>
 
       <div className="right">
