@@ -48,12 +48,8 @@ function formatBidPrice(raw: string | number | null | undefined): string {
 function canWithdraw(row: any) {
   return row.status === "submitted" && ["DOWNLOAD", "SUBMIT"].includes(row.project?.stage);
 }
-// U4：开标确认入口仅开标阶段开放——EVALUATING/ARCHIVED 再进大厅只有灰字（死胡同）
-function canConfirmOpening(row: any) {
-  return row.status === "submitted"
-    && row.project?.stage === "OPENING"
-    && row.confirmStatus !== "CONFIRMED";
-}
+// 开标确认入口已删（与「开标大厅」同页——opening-confirm 旧路由只剩 replace 重定向，卡片双按钮重复）；
+// OPENING 阶段未确认一律走「开标大厅」入内确认（大厅页含确认/异议 + U盾签名）
 // U4：stage 已过 OPENING 且仍未确认（confirmStatus 为 BidSupplier 枚举 PENDING/DISPUTED/EXCEPTION 之一）→ 只读提示
 function overdueUnconfirmed(row: any) {
   if (row.status !== "submitted" || !row.confirmStatus) return false;
@@ -302,8 +298,6 @@ export default function MyBidsPage() {
                       )}
                       {row.confirmStatus === "CONFIRMED" ? (
                         <button type="button" className="neu-btn-xs is-success" disabled title="开标记录确认状态：已确认">唱标已确认</button>
-                      ) : canConfirmOpening(row) ? (
-                        <button type="button" className="neu-btn-xs is-success" onClick={() => router.push(`/my-bids/${row.projectId}/opening-confirm`)}>开标确认</button>
                       ) : overdueUnconfirmed(row) ? (
                         <span className="mb-overdue">{overdueLabel(row)}</span>
                       ) : null}
