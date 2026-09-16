@@ -25,6 +25,12 @@ export type DashboardData = {
     label: string;
     count: number;
     amount: number;
+    /** 立项节点数（按项目立项日落桶） */
+    initiated: number;
+    /** 归档节点数（已成交轮次按完成时点落桶） */
+    archived: number;
+    /** 在执行净值（累计立项 − 累计归档） */
+    active: number;
     projects: Array<{
       name: string;
       date: string;

@@ -126,6 +126,7 @@ export type ProjectManagementStage = {
   stageName: string;
   stageOrder: number;
   round?: number | null;
+  stageCode?: string | null; // 阶段唯一编号（<项目编号>-<阶段缩写>-R<轮次>，如 SWHI-TP-2026090901-GG-R1）
   status: ProjectStageStatus;
   note?: string | null;
   completedAt?: string | null;

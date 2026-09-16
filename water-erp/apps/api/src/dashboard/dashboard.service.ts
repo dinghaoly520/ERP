@@ -116,12 +116,16 @@ export class DashboardService {
       return sum;
     }, 0);
 
+    // 2026-09-16 双节点趋势：X 轴桶 = 采购日 ?? 项目立项时间（消灭「未填」桶）；
+    // initiated=立项节点计数（按项目立项日入桶），archived=归档节点计数（AWARDED 轮次按完成时点入桶）。
     const trendMap = new Map<
       string,
       {
         label: string;
         count: number;
         amount: number;
+        initiated: number;
+        archived: number;
         projects: Array<{
           name: string;
           date: string;
@@ -211,20 +215,32 @@ export class DashboardService {
       }
     >();
 
+    const trendBucketOf = (d: Date) =>
+      `${d.getUTCMonth() + 1}/${String(d.getUTCDate()).padStart(2, '0')}`;
+    // 桶 key 统一走「采购日 ?? 立项日」；立项/归档两个节点分别落各自日期的桶（缺失时落到主桶，保证计数不丢）
+    const ensureBucket = (dateKey: string) => {
+      let item = trendMap.get(dateKey);
+      if (!item) {
+        item = { label: dateKey, count: 0, amount: 0, initiated: 0, archived: 0, projects: [] };
+        trendMap.set(dateKey, item);
+      }
+      return item;
+    };
     for (const round of rounds) {
-      const dateKey = round.procurementDate
-        ? round.procurementDate.toISOString().slice(0, 10)
-        : 'unknown';
-      const trendItem = trendMap.get(dateKey) ?? {
-        label: round.procurementDate
-          ? `${round.procurementDate.getUTCMonth() + 1}/${String(
-              round.procurementDate.getUTCDate(),
-            ).padStart(2, '0')}`
-          : '未填',
-        count: 0,
-        amount: 0,
-        projects: [],
-      };
+      // 归档节点：已成交轮次的完成时点（updatedAt 作为台账归档时点；未成交=无归档节点）
+      const archivedAt =
+        round.resultStatus === ResultStatus.AWARDED ? round.updatedAt : null;
+      // 主桶：采购日缺省回退立项日（项目立项时间兜底，消灭「未填」）
+      const fallbackDate = round.procurementDate ?? round.project.createdAt;
+      const dateKey = fallbackDate.toISOString().slice(0, 10);
+      const trendItem = ensureBucket(dateKey);
+      trendItem.label = trendBucketOf(fallbackDate);
+      // 立项节点：按项目立项日落桶（同桶合并计数）
+      const initDate = round.project.createdAt;
+      ensureBucket(initDate.toISOString().slice(0, 10)).initiated += 1;
+      if (archivedAt) {
+        ensureBucket(archivedAt.toISOString().slice(0, 10)).archived += 1;
+      }
       trendItem.count += 1;
       // Only count award amount for awarded projects
       if (round.resultStatus === ResultStatus.AWARDED) {
@@ -550,15 +566,22 @@ export class DashboardService {
       }
     }
 
+    let activeRun = 0;
     const trendSeries = [...trendMap.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, item]) => ({
-        date,
-        label: item.label,
-        count: item.count,
-        amount: Number((item.amount / 10000).toFixed(1)),
-        projects: item.projects,
-      }));
+      .map(([date, item]) => {
+        activeRun += item.initiated - item.archived;
+        return {
+          date,
+          label: item.label,
+          count: item.count,
+          amount: Number((item.amount / 10000).toFixed(1)),
+          initiated: item.initiated,
+          archived: item.archived,
+          active: activeRun,
+          projects: item.projects,
+        };
+      });
 
     const departmentStats = [...departmentMap.entries()]
       .map(([name, item]) => {

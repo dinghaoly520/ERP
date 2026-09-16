@@ -1662,7 +1662,7 @@ export class ExpertAdminService {
   async exportExperts(ids?: string[]) {
     const users = await this.prisma.user.findMany({
       where: { role: 'bid_expert', ...(ids?.length && { id: { in: ids } }) },
-      include: { expertProfile: true },
+      include: { expertProfile: true, department: { select: { name: true } } },
       orderBy: { displayName: 'asc' },
     });
     return users.map(u => ({
@@ -1671,6 +1671,7 @@ export class ExpertAdminService {
       专业: u.expertProfile?.specialty ?? '',
       职称: u.expertProfile?.title ?? '',
       工作单位: u.expertProfile?.employer ?? '',
+      部门: u.department?.name ?? '',
       手机号: u.expertProfile?.phone ?? '',
       身份证号: u.expertProfile?.idNumber ?? '',
       邮箱: u.email ?? '',

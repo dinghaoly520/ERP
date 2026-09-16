@@ -293,8 +293,13 @@ function SupplierCards({ suppliers, index, reducedMotion }: { suppliers: Supplie
 
 // ── Trend Chart ──────────────────────────────────────────────────────────
 
-type TrendDetail = { date:string;label:string;count:number;amount:number;projects:Array<{name:string;date:string;department:string;method:string;budgetLabel:string;awardLabel:string;status:string}> };
+type TrendDetail = { date:string;label:string;count:number;amount:number;initiated?:number;archived?:number;active?:number;projects:Array<{name:string;date:string;department:string;method:string;budgetLabel:string;awardLabel:string;status:string}> };
 
+/**
+ * 采购执行趋势（2026-09-16 双节点版）：
+ * 主区 = 成交金额发光曲线 + 渐变面积；副带 = 立项↑ / 归档↓ 镜像柱 + 在执行净值阶梯线。
+ * X 轴桶 = 采购日 ?? 项目立项时间（后端兜底），立项/归档两个节点分别落各自日期的桶。
+ */
 function TrendChartPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const [hoveredIdx, setHoveredIdx] = useState<number|null>(null);
@@ -303,46 +308,101 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
   const [cw, setCW] = useState(1400);
   useEffect(()=>{const u=()=>{if(cr.current) setCW(cr.current.offsetWidth)};u();window.addEventListener("resize",u);return ()=>window.removeEventListener("resize",u);},[]);
 
-  const tc = profile.trendSeries.reduce((s,i)=>s+i.count,0);
-  const ta = profile.trendSeries.reduce((s,i)=>s+i.amount,0);
-  const mc = Math.max(...profile.trendSeries.map(i=>i.count),1);
-  const ma = Math.max(...profile.trendSeries.map(i=>i.amount),1);
-  const pc = profile.trendSeries.reduce((b,v,i,a)=>v.count>a[b].count?i:b,0);
-  const pa = profile.trendSeries.reduce((b,v,i,a)=>v.amount>a[b].amount?i:b,0);
+  const S = profile.trendSeries;
+  const tc = S.reduce((s,i)=>s+i.count,0);
+  const ta = S.reduce((s,i)=>s+i.amount,0);
+  const ma = Math.max(...S.map(i=>i.amount),1);
+  const mi = Math.max(...S.map(i=>Math.max(i.initiated??0,i.archived??0)),1);
+  const mAct = Math.max(...S.map(i=>i.active??0),1);
 
-  const ch=220,lp=50,rp=50,tp=30,bp=50;
-  const caw=cw-lp-rp,cah=ch-tp-bp;
-  const dc=profile.trendSeries.length||1;
-  const bw=Math.max(16,Math.min(48,(caw/dc)*0.6));
-  const gap=Math.max(4,Math.min(12,bw*0.3));
+  const ch=268,lp=52,rp=52,tp=26;
+  const mh=118;                      // 主区高（金额曲线）
+  const bandHalf=50;                 // 镜像带半高（立项↑/归档↓）
+  const cy=tp+mh+bandHalf+14;        // 镜像带中轴 y
+  const bp=ch-cy-bandHalf;           // 底部留白（日期标签）
+  const caw=cw-lp-rp;
+  const dc=S.length||1;
+  const bw=Math.max(14,Math.min(44,(caw/dc)*0.5));
+  const gap=Math.max(6,Math.min(16,bw*0.4));
   const tw=dc*(bw+gap)-gap;
   const sx=lp+Math.max(0,(caw-tw)/2);
+  const xc=(i:number)=>sx+i*(bw+gap)+bw/2;
+  const amtY=(v:number)=>tp+(1-v/ma)*mh;
+  const initH=(v:number)=>Math.max(v>0?3:0,(v/mi)*bandHalf);
+  const actY=(v:number)=>cy-(v/mAct)*(bandHalf-8)-4;
   const sc=(s:string)=>s==="已成交"?"text-[var(--success)]":s==="待定"?"text-[var(--warning)]":"text-[var(--danger)]";
+
+  // 金额平滑曲线（Catmull-Rom 近似）
+  const pts=S.map((item,i)=>({x:xc(i),y:amtY(item.amount)}));
+  const lineD=pts.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`C ${pts[i-1].x+(p.x-pts[i-1].x)*0.4} ${pts[i-1].y}, ${p.x-(p.x-pts[i-1].x)*0.4} ${p.y}, ${p.x} ${p.y}`).join(" ");
+  const areaD=pts.length?`${lineD} L ${pts[pts.length-1].x} ${tp+mh} L ${pts[0].x} ${tp+mh} Z`:"";
+  // 在执行净值阶梯线
+  const stepD=S.map((item,i)=>{const x0=xc(i)-(bw+gap)/2,x1=xc(i)+(bw+gap)/2,y=actY(item.active??0);return `${i===0?"M":"L"} ${x0} ${y} L ${x1} ${y}`;}).join(" ");
+
+  const hover = hoveredIdx!==null ? S[hoveredIdx] : null;
 
   return (
     <>
       <motion.div {...{ initial, animate, transition }} className="h-full">
         <section className="wb-panel h-full">
-          <div className="wb-panel-header"><div className="flex items-center gap-2.5"><BarChart3 size={15} className="text-[var(--accent)]"/><div><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购执行趋势</h2><div className="text-xs text-[var(--muted-foreground)]">按日期统计采购项目数量与成交金额</div></div></div><div className="flex items-center gap-3"><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--accent)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--accent)]"/>{tc}项</span><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--success)_15%,transparent)] bg-[color-mix(in_oklch,var(--success)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--success)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--success)]"/>{ta.toFixed(1)}万</span></div></div>
+          <div className="wb-panel-header"><div className="flex items-center gap-2.5"><BarChart3 size={15} className="text-[var(--accent)]"/><div><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购执行趋势</h2><div className="text-xs text-[var(--muted-foreground)]">立项 → 归档 双节点 · 采购数量与成交金额</div></div></div><div className="flex items-center gap-3"><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--accent)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--accent)]"/>{tc}项</span><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--success)_15%,transparent)] bg-[color-mix(in_oklch,var(--success)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--success)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--success)]"/>{ta.toFixed(1)}万</span></div></div>
           <div ref={cr} className="wb-panel-body"><div className="neu-card-static rounded-[14px] p-3 overflow-hidden">
             <svg width="100%" height={ch} viewBox={`0 0 ${cw} ${ch}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible" onMouseLeave={()=>setHoveredIdx(null)}>
               <defs>
-                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="oklch(0.63 0.128 247)"/><stop offset="100%" stopColor="oklch(0.7 0.12 247 / 0.8)"/></linearGradient>
-                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="oklch(0.55 0.14 164)"/><stop offset="100%" stopColor="oklch(0.6 0.13 164)"/></linearGradient>
-                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="oklch(0.55 0.14 164 / 0.2)"/><stop offset="100%" stopColor="oklch(0.55 0.14 164 / 0.02)"/></linearGradient>
+                <linearGradient id="amtLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="oklch(0.63 0.128 247)"/><stop offset="55%" stopColor="oklch(0.58 0.14 164)"/><stop offset="100%" stopColor="oklch(0.6 0.13 175)"/></linearGradient>
+                <linearGradient id="amtArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="oklch(0.58 0.14 164 / 0.22)"/><stop offset="100%" stopColor="oklch(0.58 0.14 164 / 0.02)"/></linearGradient>
+                <linearGradient id="barUp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="oklch(0.63 0.128 247)"/><stop offset="100%" stopColor="oklch(0.63 0.128 247 / 0.3)"/></linearGradient>
+                <linearGradient id="barDown" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="oklch(0.6 0.13 175 / 0.3)"/><stop offset="100%" stopColor="oklch(0.6 0.13 175)"/></linearGradient>
+                <filter id="glowSoft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
               </defs>
-              {[0,0.5,1].map((t,i)=>{const y=tp+(1-t)*cah;return <line key={i} x1={lp} y1={y} x2={cw-rp} y2={y} stroke="oklch(0.65 0.03 250 / 0.25)" strokeWidth="1" strokeDasharray={t===0?"none":"4 3"}/>;})}
-              {[0,0.5,1].map((t,i)=>{const y=tp+(1-t)*cah;return <text key={`c-${i}`} x={lp-6} y={y+3} textAnchor="end" style={{fontSize:"9px",fill:"oklch(0.6 0.06 250)",fontWeight:"500"}}>{Math.round(t*mc)}</text>;})}
-              {[0,0.5,1].map((t,i)=>{const y=tp+(1-t)*cah;return <text key={`a-${i}`} x={cw-rp+6} y={y+3} textAnchor="start" style={{fontSize:"9px",fill:"oklch(0.5 0.12 164 / 0.7)",fontWeight:"500"}}>{(t*ma).toFixed(0)}万</text>;})}
-              {profile.trendSeries.map((item,i)=>{const bh=Math.max(2,(item.count/mc)*cah);const x=sx+i*(bw+gap),y=tp+cah-bh;return <g key={`bar-${i}`}><rect x={x} y={y} width={bw} height={bh} rx={4} fill={i===pc?"url(#barGrad)":"oklch(0.63 0.128 247 / 0.5)"} opacity={hoveredIdx===i?1:0.85} className="cursor-pointer transition-all duration-200" onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(item as TrendDetail)}/><text x={x+bw/2} y={ch-bp+14} textAnchor="middle" style={{fontSize:"9px",fill:"oklch(0.5 0.04 250 / 0.6)",fontWeight:"500"}}>{item.label}</text></g>;})}
-              {(()=>{const pts=profile.trendSeries.map((item,i)=>({x:sx+i*(bw+gap)+bw/2,y:tp+(1-item.amount/ma)*cah}));if(pts.length===0)return null;const d=pts.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`C ${pts[i-1].x+(p.x-pts[i-1].x)*0.4} ${pts[i-1].y}, ${p.x-(p.x-pts[i-1].x)*0.4} ${p.y}, ${p.x} ${p.y}`).join(" ");const ad=`${d} L ${pts[pts.length-1].x} ${tp+cah} L ${pts[0].x} ${tp+cah} Z`;return <><path d={ad} fill="url(#areaGrad)"/><path d={d} fill="none" stroke="url(#lineGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>{pts.map((p,i)=><circle key={`dot-${i}`} cx={p.x} cy={p.y} r={i===pa?5:hoveredIdx===i?4:3} fill="oklch(0.55 0.14 164)" stroke="oklch(1 0 0 / 0.95)" strokeWidth="2" className="cursor-pointer" onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(profile.trendSeries[i] as TrendDetail)}/>)}</>;})()}
-              {hoveredIdx!==null&&profile.trendSeries[hoveredIdx]&&<line x1={sx+hoveredIdx*(bw+gap)+bw/2} y1={tp} x2={sx+hoveredIdx*(bw+gap)+bw/2} y2={tp+cah} stroke="oklch(0.63 0.128 247 / 0.2)" strokeWidth="1" strokeDasharray="3 2"/>}
+
+              {/* 主区网格 + 金额刻度（左）/数量刻度（右） */}
+              {[0,0.5,1].map((t,i)=>{const y=tp+(1-t)*mh;return <line key={`g-${i}`} x1={lp} y1={y} x2={cw-rp} y2={y} stroke="oklch(0.65 0.03 250 / 0.22)" strokeWidth="1" strokeDasharray={t===0?"none":"3 4"}/>;})}
+              {[0,0.5,1].map((t,i)=>{const y=tp+(1-t)*mh;return <text key={`la-${i}`} x={lp-7} y={y+3} textAnchor="end" style={{fontSize:"9px",fill:"oklch(0.6 0.06 250)",fontWeight:"500"}}>{(t*ma).toFixed(0)}万</text>;})}
+              {[0,0.5,1].map((t,i)=>{const y=cy-(t*mi/1)*(bandHalf);return <text key={`ra-${i}`} x={cw-rp+7} y={y+3} textAnchor="start" style={{fontSize:"9px",fill:"oklch(0.55 0.1 247 / 0.75)",fontWeight:"500"}}>{Math.round(t*mi)}</text>;})}
+
+              {/* 镜像带中轴（时间轴） */}
+              <line x1={lp} y1={cy} x2={cw-rp} y2={cy} stroke="oklch(0.6 0.05 250 / 0.4)" strokeWidth="1"/>
+
+              {/* 立项↑ / 归档↓ 镜像柱（双节点） */}
+              {S.map((item,i)=>{const x=sx+i*(bw+gap);const ih=initH(item.initiated??0);const ah=initH(item.archived??0);const hot=hoveredIdx===i;return (
+                <g key={`node-${i}`} className="cursor-pointer" onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(item as TrendDetail)}>
+                  {ih>0&&<rect x={x} y={cy-ih} width={bw} height={ih} rx={3} fill="url(#barUp)" opacity={hot?1:0.8} filter={hot?"url(#glowSoft)":undefined} style={{transition:"opacity .2s"}}/>}
+                  {ah>0&&<rect x={x} y={cy} width={bw} height={ah} rx={3} fill="url(#barDown)" opacity={hot?1:0.75} filter={hot?"url(#glowSoft)":undefined} style={{transition:"opacity .2s"}}/>}
+                  <text x={x+bw/2} y={ch-10} textAnchor="middle" style={{fontSize:"9px",fill:hot?"oklch(0.5 0.12 247)":"oklch(0.5 0.04 250 / 0.65)",fontWeight:hot?"700":"500"}}>{item.label}</text>
+                </g>
+              );})}
+
+              {/* 在执行净值阶梯线（累计立项 − 累计归档） */}
+              {stepD&&<path d={stepD} fill="none" stroke="oklch(0.55 0.14 280 / 0.85)" strokeWidth="1.5" strokeDasharray="4 2.5" strokeLinecap="round"/>}
+
+              {/* 成交金额：发光曲线 + 渐变面积 + 光晕数据点 */}
+              {areaD&&<path d={areaD} fill="url(#amtArea)"/>}
+              {lineD&&<><path d={lineD} fill="none" stroke="url(#amtLine)" strokeWidth="5" opacity="0.16" strokeLinecap="round" filter="url(#glowSoft)"/><path d={lineD} fill="none" stroke="url(#amtLine)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></>}
+              {pts.map((p,i)=><circle key={`dot-${i}`} cx={p.x} cy={p.y} r={hoveredIdx===i?5:3} fill="oklch(0.58 0.14 164)" stroke="oklch(1 0 0 / 0.95)" strokeWidth="2" className="cursor-pointer" filter={hoveredIdx===i?"url(#glowSoft)":undefined} onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(S[i] as TrendDetail)}/>)}
+
+              {/* hover 十字线 + 毛玻璃数据卡 */}
+              {hoveredIdx!==null&&hover&&<line x1={xc(hoveredIdx)} y1={tp} x2={xc(hoveredIdx)} y2={cy+bandHalf} stroke="oklch(0.63 0.128 247 / 0.28)" strokeWidth="1" strokeDasharray="3 2"/>}
+              {hoveredIdx!==null&&hover&&(()=>{const w=128,h=86;const x=Math.min(Math.max(xc(hoveredIdx)-w/2,lp),cw-rp-w);const y=tp+4;return (
+                <g pointerEvents="none">
+                  <rect x={x} y={y} width={w} height={h} rx="10" fill="oklch(1 0 0 / 0.92)" stroke="oklch(0.63 0.128 247 / 0.25)" strokeWidth="1"/>
+                  <text x={x+11} y={y+19} style={{fontSize:"10px",fontWeight:"700",fill:"oklch(0.35 0.05 258)"}}>{hover.label}</text>
+                  <text x={x+11} y={y+37} style={{fontSize:"9.5px",fill:"oklch(0.5 0.04 250)"}}>金额 <tspan style={{fontWeight:"700",fill:"oklch(0.55 0.14 164)"}}>{hover.amount.toFixed(1)}万</tspan></text>
+                  <text x={x+11} y={y+52} style={{fontSize:"9.5px",fill:"oklch(0.5 0.04 250)"}}>立项 <tspan style={{fontWeight:"700",fill:"oklch(0.55 0.13 247)"}}>{hover.initiated??0}</tspan>　归档 <tspan style={{fontWeight:"700",fill:"oklch(0.6 0.13 175)"}}>{hover.archived??0}</tspan></text>
+                  <text x={x+11} y={y+67} style={{fontSize:"9.5px",fill:"oklch(0.5 0.04 250)"}}>采购 <tspan style={{fontWeight:"700",fill:"oklch(0.4 0.05 258)"}}>{hover.count}</tspan>　在执行 <tspan style={{fontWeight:"700",fill:"oklch(0.55 0.14 280)"}}>{hover.active??0}</tspan></text>
+                </g>
+              );})()}
             </svg>
-            <div className="flex items-center justify-center gap-4 mt-2"><span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><span className="h-2.5 w-2.5 rounded-[3px] bg-[var(--accent)]"/> 采购数量</span><span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><span className="h-0.5 w-4 rounded-full bg-[var(--success)]"/> 成交金额</span></div>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-1.5">
+              <span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><span className="h-0.5 w-4 rounded-full" style={{background:"linear-gradient(90deg,oklch(0.63 0.128 247),oklch(0.6 0.13 175))"}}/> 成交金额</span>
+              <span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><span className="h-2.5 w-2.5 rounded-[3px] bg-[color-mix(in_oklch,var(--accent)_75%,transparent)]"/> 立项</span>
+              <span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><span className="h-2.5 w-2.5 rounded-[3px]" style={{background:"oklch(0.6 0.13 175)"}}/> 归档</span>
+              <span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><span className="inline-block h-0 w-4 border-t-2 border-dashed" style={{borderColor:"oklch(0.55 0.14 280 / 0.85)"}}/> 在执行</span>
+            </div>
           </div></div>
         </section>
       </motion.div>
-      {activeTrend && <Modal open onClose={()=>setActiveTrend(null)} size="md" title={<span className="flex items-center gap-3"><CalendarRange size={20} className="text-[var(--accent)]"/><span className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">{activeTrend.label}</span></span>} description={<span className="flex items-center gap-2"><span className="text-[11px] font-bold text-[var(--accent)]">{activeTrend.count} 项</span><span className="text-xs text-[var(--muted-foreground)]">成交金额 {activeTrend.amount.toFixed(1)}万</span></span>}><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><FolderKanban size={12}/> 当日项目</div><div className="space-y-1.5">{(activeTrend.projects??[]).map((p,idx)=><div key={idx} className="neu-card-static rounded-[10px] flex items-center gap-3 px-3 py-2"><div className="flex-1 min-w-0"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{p.name}</div><div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><span>{p.department}</span><span>·</span><span>{p.method}</span></div></div><div className="text-right shrink-0"><div className="text-xs font-bold text-[var(--foreground)]">{p.awardLabel||p.budgetLabel}</div><div className={`text-xs ${sc(p.status)}`}>{p.status}</div></div></div>)}</div></Modal>}
+      {activeTrend && <Modal open onClose={()=>setActiveTrend(null)} size="md" title={<span className="flex items-center gap-3"><CalendarRange size={20} className="text-[var(--accent)]"/><span className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">{activeTrend.label}</span></span>} description={<span className="flex items-center gap-2 flex-wrap"><span className="text-[11px] font-bold text-[var(--accent)]">采购 {activeTrend.count} 项</span><span className="text-[11px] font-bold text-[color-mix(in_oklch,var(--accent)_80%,black)]">立项 {activeTrend.initiated??0}</span><span className="text-[11px] font-bold" style={{color:"oklch(0.6 0.13 175)"}}>归档 {activeTrend.archived??0}</span><span className="text-[11px] font-bold" style={{color:"oklch(0.55 0.14 280)"}}>在执行 {activeTrend.active??0}</span><span className="text-xs text-[var(--muted-foreground)]">成交金额 {activeTrend.amount.toFixed(1)}万</span></span>}><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><FolderKanban size={12}/> 当日项目</div><div className="space-y-1.5">{(activeTrend.projects??[]).map((p,idx)=><div key={idx} className="neu-card-static rounded-[10px] flex items-center gap-3 px-3 py-2"><div className="flex-1 min-w-0"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{p.name}</div><div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><span>{p.department}</span><span>·</span><span>{p.method}</span></div></div><div className="text-right shrink-0"><div className="text-xs font-bold text-[var(--foreground)]">{p.awardLabel||p.budgetLabel}</div><div className={`text-xs ${sc(p.status)}`}>{p.status}</div></div></div>)}</div></Modal>}
     </>
   );
 }

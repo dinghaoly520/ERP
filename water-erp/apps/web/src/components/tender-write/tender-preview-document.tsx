@@ -11,6 +11,7 @@ import type {
 } from '../../lib/types/tender-write';
 import type { TableData, TableCell } from './quotation-table-editor';
 import { createDefaultQuotationTable } from './quotation-table-editor';
+import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 
 const CHINESE_NUMBERS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const CHINESE_TENS = ['', '十', '二十', '三十'];
@@ -447,7 +448,7 @@ function CompetitiveNegotiationPreview({
               三、采购文件获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>1.时　　间：<PreviewValue value={draft.documentAcquireTime} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
+              <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
               <p>2.方　　式：采购人以电子邮件的方式将采购文件发放给所有供应商。</p>
             </div>
           </div>
@@ -800,7 +801,7 @@ function SingleSourcePreview({
                       采购文件获取时间
                     </td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
-                      <PreviewValue value={draft.documentAcquireTime} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
+                      <PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
                     </td>
                   </tr>
                   <tr>
@@ -1164,7 +1165,7 @@ function InquiryPurchasePreview({
           <div className="mt-4 pt-3">
             <div className="text-sm leading-7 text-[color:var(--foreground)]">
               <span className="font-semibold">一、采购文件获取时间：</span>
-              <PreviewValue value={draft.documentAcquireTime} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
+              <PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
               ；
             </div>
             <div className="pl-8 text-sm leading-7 text-[color:var(--foreground)]">
@@ -1359,7 +1360,7 @@ function InternalBiddingPreview({
               三、{T.file}获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>1.时　　间：<PreviewValue value={draft.documentAcquireTime} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
+              <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
               <p>2.地　　点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋</p>
               <p>3.方　　式：邮箱发送/现场获取。</p>
               <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>

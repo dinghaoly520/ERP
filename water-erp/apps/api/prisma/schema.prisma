@@ -16,6 +16,7 @@ model Company {
   id        String   @id @default(cuid())
   name      String   @unique // 规范全称，主数据唯一，杜绝分叉
   shortName String? // 如「建设/投资/设计院」
+  code      String?  @unique // 公司编码（项目编号前缀段，如 四川水发勘测设计研究有限公司=SWHI）
   createdAt DateTime @default(now())
 
   users               User[]
@@ -3156,6 +3157,7 @@ model ProjectManagementStage {
   stageName               String
   stageOrder              Int
   round                   Int                   @default(1)
+  stageCode               String?               @unique // 阶段唯一编号：<项目编号>-<阶段缩写>-R<轮次>，如 SWHI-TP-2026090901-GG-R1
   status                  ProjectStageStatus    @default(NOT_STARTED)
   note                    String?
   completedAt             DateTime?

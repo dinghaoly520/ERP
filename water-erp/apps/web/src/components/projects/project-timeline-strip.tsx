@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CalendarClock } from 'lucide-react';
+import { fmtAcquireRangeISO } from '@/lib/utils/format-acquire-time';
 
 /**
  * B3 项目时间信息轴（CTS-EBS01 A-204）：六类节点横向条（立项/获取文件/截标/开标/签约/归档）。
@@ -36,16 +37,11 @@ export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
     const hm = hasTime ? ` ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
     return `${omitYear ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}${hm}`;
   };
-  // 节点展示：区间节点（采购文件获取）显起止时段——同日省略终点日期、同年省略终点年份
+  // 节点展示：区间节点（采购文件获取）按拍板固定中文格式「2026年9月7日9:00-2026年9月8日15:00」
   const fmtNode = (n: TimelineNode) => {
     if (!n.time) return '未登记';
     if (!n.timeEnd) return fmt(n.time);
-    const s = new Date(n.time);
-    const e = new Date(n.timeEnd);
-    if (s.toDateString() === e.toDateString()) {
-      return `${fmt(n.time)}–${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`;
-    }
-    return `${fmt(n.time)}–${fmt(n.timeEnd, s.getFullYear() === e.getFullYear())}`;
+    return fmtAcquireRangeISO(n.time, n.timeEnd);
   };
 
   return (

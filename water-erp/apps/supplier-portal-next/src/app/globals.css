@@ -11407,7 +11407,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 
 .sp-brand-title {
   animation: spBrandShift 8s ease-in-out infinite !important;
-  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2) !important;
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2) !important;
   background-size: 300% auto !important;
   -webkit-background-clip: text !important; background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
@@ -11481,7 +11481,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-brand-title {
   display: block; font-size: 18px; font-weight: 900; letter-spacing: 0.10em;
   font-family: "SimHei", "黑体", sans-serif;
-  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2);
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   background-size: 300% auto; animation: spBrandShift 8s ease-in-out infinite;
 }
@@ -11861,7 +11861,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 34px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em;
   text-align: center; margin: 0 -34px; padding: 6px 34px;
-  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2);
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2);
   background-size: 300% auto;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   animation: spBrandShift 8s ease-in-out infinite;
@@ -12163,7 +12163,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   text-align: center;
   margin: 0 -40px;
   padding: 6px 40px;
-  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2);
+  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2);
   background-size: 300% auto;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   animation: spBrandShift 8s ease-in-out infinite;
@@ -13053,7 +13053,7 @@ main.rv { overflow: hidden; }
 }
 @keyframes rv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 .rv-head { margin-bottom: 22px; text-align: center; }
-.rv-brand-word { display: block; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #064ea2); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: spBrandShift 8s ease-in-out infinite; }
+.rv-brand-word { display: block; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: spBrandShift 8s ease-in-out infinite; }
 .rv-brand-word .rv-dot { font-size: 20px; margin: 0 6px; opacity: 1; }
 .rv-divider { display: flex; align-items: center; justify-content: center; width: 150px; margin: 14px auto 4px; color: oklch(0.55 0.12 var(--hue)); font-size: 9px; }
 .rv-divider::before, .rv-divider::after { content: ''; flex: 1; height: 1px; }

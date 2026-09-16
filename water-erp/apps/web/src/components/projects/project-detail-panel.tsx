@@ -24,6 +24,7 @@ import {
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
 import { getProjectParticipants } from '@/lib/api/announcement';
+import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 import {
   PROCUREMENT_METHODS,
   PROCUREMENT_CATEGORY_OPTIONS,
@@ -1589,7 +1590,7 @@ export function ProjectDetailPanel({
                       </div>
                     ) : (
                       <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
-                        <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>
+                        <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{fmtAcquireTime(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
                       </button>
                     )}

@@ -9,7 +9,7 @@ import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
-import { generateProjectCode } from '../common/project-code.util';
+import { generateProjectCode, generatePmiProjectCode, stageCodeFor } from '../common/project-code.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
@@ -322,15 +322,12 @@ export class ProjectManagementService {
       if (author?.department?.name) requesterDepartment = author.department.name;
     }
 
-    // 编号：与 create 流程同规则（勿另造格式）
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    const todayCount = await tx.projectManagementItem.count({
-      where: { createdAt: { gte: startOfDay, lte: endOfDay } },
+    // 编号：与 create 流程同规则（勿另造格式）—— 公司编码-方式前缀-YYYYMMDD##
+    const projectCode = await generatePmiProjectCode(tx, {
+      companyId: companyStamp.companyId ?? null,
+      procurementMethod: dto.procurementMethod,
     });
-    const projectCode = `${procurementMethodPrefix(dto.procurementMethod)}-${ymd}${String(todayCount + 1).padStart(2, '0')}`;
+    const now = new Date();
       const gbProjectCode = await this.gbCode.allocateProjectCode().catch(() => null); // A1（B.4.3.2）
 
     // 阶段集：全套 + 方法过滤（与 create 流程同口径）
@@ -372,6 +369,7 @@ export class ProjectManagementService {
         stageName: stage.label,
         stageOrder: index + 1,
         round: 1,
+        stageCode: stageCodeFor(projectCode, stage.key, 1),
         // P1-B：currentStage 指向的开标评标阶段置 IN_PROGRESS——:3005 流程卡动作按钮按
         // isInProgress 渲染，NOT_STARTED 会让开标确认面板在 DOWNLOAD/SUBMIT 期（开标前准备窗口）不可达
         status: stage.key === 'BID_EVALUATION'
@@ -528,7 +526,7 @@ export class ProjectManagementService {
   async reproc(itemId: string) {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: itemId },
-      select: { id: true, procurementMethod: true, stages: { orderBy: { stageOrder: 'asc' } } },
+      select: { id: true, projectCode: true, procurementMethod: true, stages: { orderBy: { stageOrder: 'asc' } } },
     });
     if (!item) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
 
@@ -583,6 +581,7 @@ export class ProjectManagementService {
           stageName: s.label,
           stageOrder: insertAt + i,
           round: newRound,
+          stageCode: item.projectCode ? stageCodeFor(item.projectCode, s.key, newRound) : null,
           status: 'NOT_STARTED',
         })),
       });
@@ -971,15 +970,12 @@ ${shortlist}
     }
 
     const createdProject = await this.prisma.$transaction(async (tx) => {
-      // 自动生成项目编号：采购方式前两字拼音首字母 + 当日 YYYYMMDD + 当日全局顺序号
+      // 自动生成项目编号：公司编码-采购方式拼音首字母-当日 YYYYMMDD-当日全局顺序号（2026-09-16 三段式）
       const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-      const todayCount = await tx.projectManagementItem.count({
-        where: { createdAt: { gte: startOfDay, lte: endOfDay } },
+      const projectCode = await generatePmiProjectCode(tx, {
+        companyId: companyStamp.companyId ?? null,
+        procurementMethod: dto.procurementMethod,
       });
-      const projectCode = `${procurementMethodPrefix(dto.procurementMethod)}-${ymd}${String(todayCount + 1).padStart(2, '0')}`;
       const gbProjectCode = await this.gbCode.allocateProjectCode().catch(() => null); // A1（B.4.3.2）
 
       // 部门编号发号（人工传入尊重人工；否则按 部门编码-年度-顺序号 分配，锁部门行防并发重号）
@@ -1067,6 +1063,7 @@ ${shortlist}
             stageKey: stage.key,
             stageName: stage.label,
             stageOrder: index + 1,
+            stageCode: stageCodeFor(projectCode, stage.key, 1),
             status,
           };
         }),

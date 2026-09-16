@@ -604,12 +604,13 @@ async function main() {
   // 有主数据按创建人回填；种子演示数据（公告等无作者）统一归设计院本部，保证演示门户不空。
   {
     const SEED_COMPANIES = [
-      { id: 'co-swhi-sjy', name: '四川水发勘测设计研究有限公司', shortName: '设计院' },
-      { id: 'co-swhi-js', name: '四川水发建设有限公司', shortName: '建设' },
-      { id: 'co-swhi-tz', name: '四川水发投资有限公司', shortName: '投资' },
+      { id: 'co-swhi-sjy', name: '四川水发勘测设计研究有限公司', shortName: '设计院', code: 'SWHI' },
+      { id: 'co-swhi-js', name: '四川水发建设有限公司', shortName: '建设', code: 'SFJS' },
+      { id: 'co-swhi-tz', name: '四川水发投资有限公司', shortName: '投资', code: 'SFTZ' },
+      { id: 'co-swdg-jt', name: '四川省水利发展集团有限公司', shortName: '集团本部', code: 'SWDG' },
     ] as const;
     for (const c of SEED_COMPANIES) {
-      await prisma.company.upsert({ where: { name: c.name }, update: { shortName: c.shortName }, create: { ...c } });
+      await prisma.company.upsert({ where: { name: c.name }, update: { shortName: c.shortName, code: c.code }, create: { ...c } });
     }
     const sjy = await prisma.company.findUniqueOrThrow({ where: { id: 'co-swhi-sjy' } });
 

@@ -38,6 +38,8 @@ type SelectableTimelineEntry = TimelineEntryBase & {
   selectable: true;
   stageKey: ProjectWorkflowStageKey;
   round: number;
+  /** 阶段唯一编号（<项目编号>-<阶段缩写>-R<轮次>）；存量旧阶段可能为空 */
+  stageCode?: string | null;
   isInProgress: boolean;
   isCompleted: boolean;
 };
@@ -139,6 +141,7 @@ export function ProjectStageTimeline({
       selectable: true,
       stageKey: stage.stageKey,
       round: stage.round ?? 1,
+      stageCode: stage.stageCode ?? null,
       isInProgress,
       isCompleted,
       progressLabel: isCompleted ? '已完成' : isInProgress ? '进行中' : '待解锁',
@@ -323,6 +326,11 @@ export function ProjectStageTimeline({
                           <div className={['pm-stage-card__title text-[13px] font-medium leading-5', entry.accentClassName].join(' ')}>
                             {entry.title}
                           </div>
+                          {entry.stageCode && (
+                            <div className="mt-0.5 font-mono text-[9px] tabular-nums text-[color:var(--muted-foreground)] opacity-80" title="阶段唯一编号">
+                              {entry.stageCode}
+                            </div>
+                          )}
                           <div className="mt-1.5 text-[10px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] opacity-70">
                             {entry.statusLabel}
                           </div>

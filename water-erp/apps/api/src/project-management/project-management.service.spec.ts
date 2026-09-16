@@ -525,6 +525,8 @@ describe('ProjectManagementService', () => {
         stageKey: stage.key,
         stageName: stage.label,
         stageOrder: index + 1,
+        // 三段式编号（2026-09-16）：mock 无公司主数据 → 公司段回退 SW
+        stageCode: expect.stringMatching(new RegExp(`^SW-GK-\\d{10}-${'\\w+'}-R1$`)),
         status: stage.status,
       })),
     });
@@ -1332,13 +1334,13 @@ describe('ProjectManagementService', () => {
       // 编号含当天日期（服务按日流水生成），断言与 mock 均动态计算，避免跨天跑挂
       const d = new Date();
       const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-      prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-16', projectCode: `JJ-${ymd}01` });
+      prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-16', projectCode: `SW-JJ-${ymd}01` });
 
       const res = await service.createItemFromAnnouncement({} as any, prisma as any, {
         title: '公告直建测试项目', procurementMethod: '竞价采购', budget: 900000, authorId: 'u-1',
       });
 
-      expect(res).toEqual({ id: 'pm-16', projectCode: `JJ-${ymd}01` });
+      expect(res).toEqual({ id: 'pm-16', projectCode: `SW-JJ-${ymd}01` });
       const createArg = prisma.projectManagementItem.create.mock.calls[0][0].data;
       expect(createArg.title).toBe('公告直建测试项目');
       expect(createArg.procurementMethod).toBe('竞价采购');
@@ -1347,7 +1349,7 @@ describe('ProjectManagementService', () => {
       expect(createArg.requesterName).toBe('陈晓峰');
       expect(createArg.requesterDepartment).toBe('信息技术部');
       expect(createArg.procurementCategory).toBe('其他');
-      expect(String(createArg.projectCode)).toMatch(/^JJ-\d{10}$/);
+      expect(String(createArg.projectCode)).toMatch(/^SW-JJ-\d{10}$/);
 
       const stages = prisma.projectManagementStage.createMany.mock.calls[0][0].data as any[];
       const keys = stages.map((x) => x.stageKey);
@@ -1393,7 +1395,7 @@ describe('ProjectManagementService', () => {
       const createArg = prisma.projectManagementItem.create.mock.calls[0][0].data;
       expect(createArg.requesterName).toBe('采购中心');
       expect(createArg.requesterDepartment).toBe('采购中心');
-      expect(String(createArg.projectCode)).toMatch(/^TP-\d{10}$/);
+      expect(String(createArg.projectCode)).toMatch(/^SW-TP-\d{10}$/);
       const stages = prisma.projectManagementStage.createMany.mock.calls[0][0].data as any[];
       const keys = stages.map((x) => x.stageKey);
       expect(keys).not.toContain('PUBLIC_ANNOUNCEMENT');
