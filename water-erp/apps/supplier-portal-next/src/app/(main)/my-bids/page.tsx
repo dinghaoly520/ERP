@@ -291,11 +291,21 @@ export default function MyBidsPage() {
 
                     {/* Right actions — cgzxui 原生按钮，统一居中 */}
                     <div className="mb-card-actions">
-                      {row.project?.stage === "OPENING" && (
+                      {/* OPENING → 开标大厅（互动+确认）；过 OPENING → 开标记录（只读回看：大厅页唱标记录总表无条件渲染，办法第30条自开标起向全体投标人公开——U4「死胡同」注释已过时） */}
+                      {row.project?.stage === "OPENING" ? (
                         <button type="button" className="neu-btn-xs" onClick={() => router.push(`/my-bids/${row.projectId}/opening-hall`)}>
                           开标大厅
                         </button>
-                      )}
+                      ) : row.status === "submitted" && stageIdx(row.project?.stage ?? "") > stageIdx("OPENING") ? (
+                        <button
+                          type="button"
+                          className="neu-btn-xs"
+                          title="唱标记录回看（只读）"
+                          onClick={() => router.push(`/my-bids/${row.projectId}/opening-hall`)}
+                        >
+                          开标记录
+                        </button>
+                      ) : null}
                       {row.confirmStatus === "CONFIRMED" ? (
                         <button type="button" className="neu-btn-xs is-success" disabled title="开标记录确认状态：已确认">唱标已确认</button>
                       ) : overdueUnconfirmed(row) ? (
