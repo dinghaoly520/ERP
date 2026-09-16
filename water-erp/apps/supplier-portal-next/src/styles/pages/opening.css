@@ -12,7 +12,8 @@
    ────────────────────────────────────────────────────────────────── */
 
 /* —— 布局（原 <style scoped> 直迁）—— */
-.hall { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; }
+/* 左重右轻 1.4:1（原 1:1.2 聊天列反超左侧）——唱标记录总表多列需要宽度，聊天窄列即可 */
+.hall { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
 .hall-error { grid-column: 1 / -1; }
 .left { display: flex; flex-direction: column; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
