@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, getNotificationLabel, NOTIFICATION_LABEL } from '@water-erp/shared';
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from '@/lib/api/notification';
 import { handleNotificationClick } from '@/lib/notification-click';
-import { Check, Bell, RefreshCw, CheckCheck, X, ChevronUp, ChevronDown, ChevronsUpDown, ArrowRight, Inbox, Users, Gavel, FileArchive, Megaphone, ClipboardList } from 'lucide-react';
+import { Check, Bell, RefreshCw, CheckCheck, X, ChevronUp, ChevronDown, ChevronsUpDown, ArrowRight, CornerDownRight, Inbox, Users, Gavel, FileArchive, Megaphone, ClipboardList } from 'lucide-react';
 
 type SortKey = 'createdAt' | 'type' | 'isRead';
 type SortDir = 'asc' | 'desc';
@@ -98,6 +98,46 @@ export default function NotificationsPage() {
     else { setSortKey(null); setSortDir('desc'); }
   };
 
+  /* ── 同类聚合（2026-09-16）：type+title 相同折叠为一组，展开看逐条记录 ──
+     定时任务/批量场景会让同内容通知反复生成（如归档待办一天 8 条），逐条平铺刷屏 */
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  type NotifGroup = { key: string; list: NotificationItem[]; latest: NotificationItem; unread: number };
+
+  const groups = useMemo<NotifGroup[]>(() => {
+    const map = new Map<string, NotificationItem[]>();
+    for (const n of sortedItems) {
+      const k = `${n.type}::${n.title}`;
+      const arr = map.get(k);
+      if (arr) arr.push(n);
+      else map.set(k, [n]);
+    }
+    const gs = [...map.values()].map((list) => {
+      const byTime = [...list].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      return {
+        key: `${byTime[0].type}::${byTime[0].title}`,
+        list: byTime,
+        latest: byTime[0],
+        unread: list.filter((x) => !x.isRead).length,
+      };
+    });
+    // 组级排序沿用表头排序键：时间→组最新时间；类型→组类型；状态→组内是否有未读
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return gs.sort((a, b) => {
+      if (sortKey === 'type') return (a.latest.type < b.latest.type ? -1 : a.latest.type > b.latest.type ? 1 : 0) * dir;
+      if (sortKey === 'isRead') return ((a.unread > 0 ? 0 : 1) - (b.unread > 0 ? 0 : 1)) * dir;
+      return (a.latest.createdAt < b.latest.createdAt ? -1 : a.latest.createdAt > b.latest.createdAt ? 1 : 0) * dir;
+    });
+  }, [sortedItems, sortKey, sortDir]);
+
   // 待办域：已读即从列表移除（待办=未读+未处理，标记已读后不应继续显示）
   const onRead = async (id: string) => {
     await markNotificationRead(id);
@@ -184,7 +224,9 @@ export default function NotificationsPage() {
               </button>
             ))}
           </div>
-          <span className="text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{total} 条</span>
+          <span className="text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">
+            {total} 条{!loading && sortedItems.length > 0 ? ` · 聚合 ${groups.length} 组` : ''}
+          </span>
         </div>
 
         {/* 类型筛选条（当前域实际出现的类型） */}
@@ -235,55 +277,106 @@ export default function NotificationsPage() {
                     </p>
                   </div>
                 </td></tr>
-              ) : sortedItems.map(n => {
-                const meta = getNotificationMeta(n.type);
-                const canAct = meta.actionable && !n.resolvedAt && !!n.link;
+              ) : groups.map(g => {
+                const meta = getNotificationMeta(g.latest.type);
+                const canAct = meta.actionable && !g.latest.resolvedAt && !!g.latest.link;
+                const expanded = expandedGroups.has(g.key);
                 return (
-                  <tr key={n.id} className={`row-clickable ${n.resolvedAt ? 'opacity-45' : ''}`}
-                    data-selected={!n.isRead ? 'true' : 'false'}
-                    onClick={() => !n.isRead && onRead(n.id)}>
-                    <td>
-                      <time className="text-[0.8rem] tabular-nums text-[var(--muted-foreground)] whitespace-nowrap">
-                        {new Date(n.createdAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
-                        <span className="ml-1.5 text-[var(--muted-foreground)]/60">
-                          {new Date(n.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </time>
-                    </td>
-                    <td><NotifTypeBadge type={n.type} meta={meta} /></td>
-                    <td onClick={e => { e.stopPropagation(); if (n.link) router.push(n.link); }}>
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-[0.85rem] font-bold text-[var(--foreground)] truncate">{n.title}</span>
-                        <span className="text-[0.75rem] text-[var(--muted-foreground)] line-clamp-2 leading-relaxed">{n.content}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center justify-center">
-                        {n.resolvedAt ? (
-                          <span className="rounded-[5px] bg-[var(--muted)]/60 px-2 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]">已处理</span>
-                        ) : !n.isRead ? (
-                          <span className="inline-flex items-center gap-1 rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />未读
-                          </span>
-                        ) : (
-                          <span className="rounded-[5px] bg-[var(--muted)]/50 px-2 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]">已读</span>
-                        )}
-                      </div>
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-center">
-                        {canAct ? (
-                          <button onClick={() => handleAction(n)} className="neu-btn-xs is-info">
-                            <ArrowRight size={12} /> 处理
-                          </button>
-                        ) : n.link ? (
-                          <button onClick={() => n.link && router.push(n.link)} className="neu-btn-xs">查看</button>
-                        ) : (
-                          <span className="text-[var(--muted-foreground)]/40">—</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                  <Fragment key={g.key}>
+                    {/* ── 组主行：最新一条 + 条数徽标；单条组行为与旧版一致 ── */}
+                    <tr className={`row-clickable cursor-pointer ${g.latest.resolvedAt ? 'opacity-45' : ''}`}
+                      data-selected={g.unread > 0 ? 'true' : 'false'}
+                      onClick={() => {
+                        if (g.list.length > 1) toggleGroup(g.key);
+                        else if (!g.latest.isRead) onRead(g.latest.id);
+                      }}>
+                      <td>
+                        <div className="flex flex-col items-start gap-1 whitespace-nowrap">
+                          <time className="text-[0.8rem] tabular-nums text-[var(--muted-foreground)]">
+                            {fmtTime(g.latest.createdAt)}
+                          </time>
+                          {g.list.length > 1 && (
+                            <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--muted-foreground)]" title={`同类通知 ${g.list.length} 条`}>
+                              ×{g.list.length}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td><NotifTypeBadge type={g.latest.type} meta={meta} /></td>
+                      <td style={{ textAlign: 'left' }} onClick={e => { e.stopPropagation(); if (g.latest.link) router.push(g.latest.link); }}>
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-[0.82rem] text-[var(--foreground)] line-clamp-2 leading-relaxed" title={g.latest.content}>{g.latest.content}</span>
+                          {g.list.length > 1 && (
+                            <button onClick={e => { e.stopPropagation(); toggleGroup(g.key); }}
+                              className="neu-btn-xs !h-5 !px-1.5 !text-[10px] mt-0.5 w-fit">
+                              {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                              {g.list.length} 条记录
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center justify-center">
+                          <StatusChip item={g.latest} unreadCount={g.unread} grouped={g.list.length > 1} />
+                        </div>
+                      </td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-center">
+                          {canAct ? (
+                            <button onClick={() => handleAction(g.latest)} className="neu-btn-xs is-info">
+                              <ArrowRight size={12} /> 处理
+                            </button>
+                          ) : g.latest.link ? (
+                            <button onClick={() => g.latest.link && router.push(g.latest.link)} className="neu-btn-xs">查看</button>
+                          ) : (
+                            <span className="text-[var(--muted-foreground)]/40">—</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* ── 展开子行：该组每条记录（时间/内容/状态/操作独立） ── */}
+                    {expanded && g.list.map(n => {
+                      const nMeta = getNotificationMeta(n.type);
+                      const nCanAct = nMeta.actionable && !n.resolvedAt && !!n.link;
+                      return (
+                        <tr key={n.id}
+                          className={`row-clickable cursor-pointer bg-[color-mix(in_oklch,var(--muted-foreground)_4%,transparent)] [&>td]:!py-1.5 ${n.resolvedAt ? 'opacity-45' : ''}`}
+                          data-selected={!n.isRead ? 'true' : 'false'}
+                          onClick={() => !n.isRead && onRead(n.id)}>
+                          <td>
+                            <time className="text-[0.72rem] tabular-nums text-[var(--muted-foreground)]/80 whitespace-nowrap">
+                              {fmtTime(n.createdAt)}
+                            </time>
+                          </td>
+                          <td className="text-center">
+                            <CornerDownRight size={13} className="mx-auto text-[var(--muted-foreground)]/50" aria-hidden />
+                          </td>
+                          <td style={{ textAlign: 'left' }} onClick={e => { e.stopPropagation(); if (n.link) router.push(n.link); }}>
+                            <span className="text-[0.72rem] text-[var(--muted-foreground)] line-clamp-1 leading-relaxed" title={n.content}>{n.content}</span>
+                          </td>
+                          <td>
+                            <div className="flex items-center justify-center">
+                              <StatusChip item={n} />
+                            </div>
+                          </td>
+                          <td onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-center">
+                              {nCanAct ? (
+                                <button onClick={() => handleAction(n)} className="neu-btn-xs is-info !h-6">
+                                  <ArrowRight size={11} /> 处理
+                                </button>
+                              ) : n.link ? (
+                                <button onClick={() => n.link && router.push(n.link)} className="neu-btn-xs !h-6">查看</button>
+                              ) : (
+                                <span className="text-[var(--muted-foreground)]/40">—</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -315,6 +408,39 @@ const TONE_VAR: Record<string, string> = {
   green: 'var(--success)', blue: 'var(--accent)', orange: 'var(--warning)',
   red: 'var(--danger)', purple: 'var(--accent-strong)', gray: 'var(--muted-foreground)',
 };
+
+/** 通知时间紧凑格式：MM/DD + HH:mm（弱化时分） */
+function fmtTime(createdAt: string) {
+  const d = new Date(createdAt);
+  return (
+    <>
+      {d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
+      <span className="ml-1.5 text-[var(--muted-foreground)]/60">
+        {d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+      </span>
+    </>
+  );
+}
+
+/** 状态 chip：单条=已处理/未读/已读；聚合组=带未读条数（如「未读 ×8」） */
+function StatusChip({ item, unreadCount, grouped = false }: {
+  item: Pick<NotificationItem, 'isRead' | 'resolvedAt'>;
+  unreadCount?: number;
+  grouped?: boolean;
+}) {
+  if (item.resolvedAt) {
+    return <span className="rounded-[5px] bg-[var(--muted)]/60 px-2 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]">已处理</span>;
+  }
+  if (!item.isRead) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+        未读{grouped && unreadCount ? ` ×${unreadCount}` : ''}
+      </span>
+    );
+  }
+  return <span className="rounded-[5px] bg-[var(--muted)]/50 px-2 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]">已读</span>;
+}
 
 function NotifTypeBadge({ type, meta }: { type: string; meta: ReturnType<typeof getNotificationMeta> }) {
   const Icon = (LucideIcons as any)[meta.icon] ?? LucideIcons.Bell;

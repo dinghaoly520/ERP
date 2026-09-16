@@ -433,14 +433,21 @@ a {
   transform: perspective(700px) rotateY(360deg) scale(1.08);
 }
 
-/* ── 侧栏品牌字「智慧水发·采购中心」—— 流动渐变（与 :3002 动态颜色同语言）
-   蓝 → 青 → 绿 循环，浅色玻璃底上保持深饱和可读；reduced-motion 静态回退 */
+/* ── 侧栏品牌字「智慧水发·采购中心」—— 彩色流转（与 :3002/:3004 品牌字同语言）
+   品牌蓝基色（非黑）+ 蓝/绿/青/紫/粉彩色高光带 12s 线性匀速扫过；
+   首尾同色 + background-repeat → 无缝循环；reduced-motion 静态回退 */
 .sidebar-brand-title {
   background: linear-gradient(
     90deg,
     #064ea2 0%,
-    #0891b2 30%,
-    #18a56c 60%,
+    #2f6fd0 8%,
+    #18a56c 18%,
+    #1e7fc4 30%,
+    #7a5bd0 42%,
+    #d0588f 54%,
+    #1e7fc4 66%,
+    #18a56c 78%,
+    #2f6fd0 88%,
     #064ea2 100%
   );
   background-size: 300% 100%;
@@ -448,12 +455,11 @@ a {
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: sidebar-brand-flow 8s ease-in-out infinite;
+  animation: sidebar-brand-flow 12s linear infinite;
 }
 @keyframes sidebar-brand-flow {
   0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar-brand-title { animation: none; }
@@ -803,34 +809,39 @@ a {
   font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
 }
 
-/* 渐变流光标题（移植自 :3002 GradientText，适配浅色背景）*/
+/* 彩色流转标题（与 :3002 品牌字/:3004 登录页同语言）：品牌蓝基色（非黑）+
+   蓝/绿/青/紫/粉彩色高光带 12s 线性匀速扫过；首尾同色 + repeat → 无缝循环 */
 .login-title--gradient {
   background: linear-gradient(
     90deg,
-    #0b3d7a 0%,
-    #064ea2 22%,
-    #0891a0 48%,
-    #18a56c 70%,
-    #064ea2 88%,
-    #0b3d7a 100%
+    #064ea2 0%,
+    #2f6fd0 8%,
+    #18a56c 18%,
+    #1e7fc4 30%,
+    #7a5bd0 42%,
+    #d0588f 54%,
+    #1e7fc4 66%,
+    #18a56c 78%,
+    #2f6fd0 88%,
+    #064ea2 100%
   );
-  background-size: 200% 100%;
+  background-size: 300% 100%;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: loginTitleFlow 8s ease-in-out infinite alternate;
+  animation: loginTitleFlow 12s linear infinite;
 }
 
 @keyframes loginTitleFlow {
   0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
+  100% { background-position: 300% 50%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .login-title--gradient {
     animation: none;
-    background-position: 22% 50%;
+    background-position: 0% 50%;
   }
 }
 

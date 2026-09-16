@@ -99,8 +99,21 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   };
 
   // 从后端 API 按公告类型分别获取，避免全局分页导致各类型数量不均
-  // 公告分组与公告页 tab 口径一致（2026-09-09 拍板删中标公示/成交/合同/履行结果四类入口）
-  const typeGroups = useMemo(() => ['BID_NOTICE', 'CLARIFY_NOTICE', 'POLICY', 'PLATFORM'], []);
+  // 公告分组与公告页 tab 口径一致（2026-09-16 拍板：首页放全部分类——全部/采购/流标/
+  // 中标(中标公告+预成交公示合并)/补遗/资格预审/政策/平台，空类型也显示 tab 呈空态）
+  const typeGroups = useMemo(() =>
+    ['BID_NOTICE', 'FAILED_BID_NOTICE', 'WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'ADDENDUM', 'PREQUAL_NOTICE', 'POLICY', 'PLATFORM'], []);
+  /** 首页公告 tab 固定顺序（与 /announcements 页 ANNOUNCEMENT_TABS 同口径） */
+  const HOME_ANNOUNCE_TABS = useMemo(() => [
+    { key: 'all', label: '全部', color: '#064ea2', types: null as string[] | null },
+    { key: 'BID_NOTICE', label: '采购公告', color: '#064ea2', types: ['BID_NOTICE'] },
+    { key: 'FAILED_BID_NOTICE', label: '流标公告', color: '#e08a00', types: ['FAILED_BID_NOTICE'] },
+    { key: 'win', label: '中标公告', color: '#18a56c', types: ['WIN_BID_NOTICE', 'PRE_WIN_NOTICE'] },
+    { key: 'ADDENDUM', label: '补遗公告', color: '#e08a00', types: ['ADDENDUM'] },
+    { key: 'PREQUAL_NOTICE', label: '资格预审', color: '#0b63ce', types: ['PREQUAL_NOTICE'] },
+    { key: 'POLICY', label: '政策法规', color: '#d43030', types: ['POLICY'] },
+    { key: 'PLATFORM', label: '平台通知', color: '#f5a623', types: ['PLATFORM'] },
+  ], []);
   const [fetchedAnnouncements, setFetchedAnnouncements] = useState<AnnouncementItem[]>(initialAnnouncements);
   const hasInitialData = useRef(initialAnnouncements.length > 0);
   const [announcementsLoading, setAnnouncementsLoading] = useState(initialAnnouncements.length === 0);
@@ -155,16 +168,20 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     };
   }, [loadAnnouncements, typeGroups]);
 
-  // 从数据按类型分组（仅展示数据库中的真实数据，不使用本地兜底）
-  const announceData = useMemo(() => typeGroups.map(type => {
-    const items = fetchedAnnouncements.filter(a => a.type === type);
-    if (items.length === 0) return null;
+  // 按固定 tab 分组：全部=合并全部类型按日期倒序；中标=中标公告+预成交公示合并；
+  // 空类型保留 tab（items 为空时内容区显示空态）——只展示数据库真实数据，不使用本地兜底
+  const announceData = useMemo(() => HOME_ANNOUNCE_TABS.map(tab => {
+    const src = tab.types ? fetchedAnnouncements.filter(a => tab.types!.includes(a.type)) : fetchedAnnouncements;
+    const items = [...src].sort((a, b) => (a.date < b.date ? 1 : -1))
+      .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel }));
     return {
-      color: items[0].color,
-      deadlineLabel: items[0].deadlineLabel,
-      items: items.map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id })),
+      key: tab.key,
+      label: tab.label,
+      color: tab.color,
+      deadlineLabel: items[0]?.deadlineLabel ?? '报名截止',
+      items,
     };
-  }).filter(Boolean) as { color: string; deadlineLabel: string; items: { tag: string; date: string; urgent: boolean; title: string; desc: string; content: string; aiSummary?: string; code: string; deadline: string; id: string }[] }[], [fetchedAnnouncements, typeGroups]);
+  }), [fetchedAnnouncements, HOME_ANNOUNCE_TABS]);
 
   // 当前选中类型（安全访问：加载中或数据为空时为 undefined）
   const currentAnnounce = announceData.length > 0
@@ -406,11 +423,12 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                 </div>
                 <div className="announce-tabs">
                   {announceData.map((tab, i) => (
-                    <button key={tab.items[0].tag} onClick={() => setAnnounceTab(i)}
+                    <button key={tab.key} onClick={() => setAnnounceTab(i)}
                       className={`announce-tab ${i === announceTab ? 'is-active' : ''}`}
                       style={{ '--tab-color': tab.color } as React.CSSProperties}>
                       <span className="announce-tab-dot" style={{ backgroundColor: tab.color }} />
-                      {tab.items[0].tag}
+                      {tab.label}
+                      {tab.items.length > 0 && <span className="ml-1.5 text-[10px] tabular-nums opacity-60">{tab.items.length}</span>}
                     </button>
                   ))}
                 </div>
@@ -422,7 +440,20 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             </div>
 
             {/* ── 内容网格 ── */}
-            {currentAnnounce && featuredItem ? (
+            {currentAnnounce && !featuredItem && !announcementsLoading ? (
+              /* 空类型 tab：固定 8 分类后，无数据的类型呈空态卡片而非隐藏 */
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                <div className="lg:col-span-2 h-[300px] rounded-xl flex flex-col items-center justify-center gap-3 text-[#9aa6b8] text-sm"
+                  style={{ background: 'linear-gradient(135deg, rgba(238,243,251,.9), rgba(230,238,250,.6))' }}>
+                  <span>「{currentAnnounce.label}」暂无公告</span>
+                  <span className="text-xs opacity-70">该分类下没有已发布的公告，发布后将在此展示</span>
+                </div>
+                <div className="h-[300px] rounded-xl flex items-center justify-center text-[#b6c0cf] text-xs"
+                  style={{ background: 'linear-gradient(135deg, rgba(238,243,251,.9), rgba(230,238,250,.6))' }}>
+                  共 0 项
+                </div>
+              </div>
+            ) : currentAnnounce && featuredItem ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
               {/* Featured card — spans 2 cols (div + onClick 导航，标题内嵌 <a> 保证 SEO/右键) */}
               <div
@@ -489,7 +520,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   <span className="announce-side-count">共 {currentAnnounce.items.length} 项</span>
                 </div>
                 <div className="announce-side-list">
-                  {currentAnnounce.items.filter((_, i) => i !== featuredIndex).map((item, idx) => (
+                  {/* 侧栏只列最新 3 条（featured 轮播展示其余；完整清单走「全部公告」页） */}
+                  {currentAnnounce.items.filter((_, i) => i !== featuredIndex).slice(0, 3).map((item, idx) => (
                     <a key={item.id} href={`/announcements/${item.id}?from=home`}
                       className="announce-side-item group"
                       onClick={saveHomeScroll}

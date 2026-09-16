@@ -11406,9 +11406,25 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 
 .sp-brand-title {
-  animation: spBrandShift 8s ease-in-out infinite !important;
-  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2) !important;
-  background-size: 300% auto !important;
+  /* 彩色流转（与登录页 .lp-brand-word 同语言）：品牌蓝基色 + 彩色高光带连续扫过，
+     首尾同色 + repeat → 无缝循环，全程无近黑停顿。
+     注意：这里必须用 background-image 长属性而非 background 简写——简写会展开出
+     background-position: 0% 0% !important，级联上压过关键帧动画（实测踩坑） */
+  animation: lp-brand-flow 12s linear infinite !important;
+  background-image: linear-gradient(
+    90deg,
+    #064ea2 0%,
+    #2f6fd0 8%,
+    #18a56c 18%,
+    #1e7fc4 30%,
+    #7a5bd0 42%,
+    #d0588f 54%,
+    #1e7fc4 66%,
+    #18a56c 78%,
+    #2f6fd0 88%,
+    #064ea2 100%
+  ) !important;
+  background-size: 300% 100% !important;
   -webkit-background-clip: text !important; background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
 }
@@ -11481,10 +11497,24 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-brand-title {
   display: block; font-size: 18px; font-weight: 900; letter-spacing: 0.10em;
   font-family: "SimHei", "黑体", sans-serif;
-  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2);
+  /* 彩色流转基底定义（颜色档位见上方 !important 覆盖块，两处保持同步） */
+  background: linear-gradient(
+    90deg,
+    #064ea2 0%,
+    #2f6fd0 8%,
+    #18a56c 18%,
+    #1e7fc4 30%,
+    #7a5bd0 42%,
+    #d0588f 54%,
+    #1e7fc4 66%,
+    #18a56c 78%,
+    #2f6fd0 88%,
+    #064ea2 100%
+  );
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  background-size: 300% auto; animation: spBrandShift 8s ease-in-out infinite;
+  background-size: 300% 100%; animation: lp-brand-flow 12s linear infinite;
 }
+/* lp-brand-flow 定义在 .lp-brand-word 处（登录页块）；spBrandShift 仍被 reg-/rv- 品牌字使用 */
 @keyframes spBrandShift { 0% { background-position: 0% center; } 50% { background-position: 100% center; } 100% { background-position: 0% center; } }
 .sp-header-icon {
   width: 44px; min-width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
@@ -11861,10 +11891,32 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 34px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em;
   text-align: center; margin: 0 -34px; padding: 6px 34px;
-  background: linear-gradient(to right, #064ea2, #0891b2, #18a56c, #5b3e8f, #064ea2);
-  background-size: 300% auto;
+  /* 彩色流转（与 :3002 品牌字同语言，浅底适配）：品牌蓝为基色（非黑），
+     蓝/绿/紫/粉彩色高光带 12s 线性匀速扫过；色带首尾同为基色 + background-repeat
+     → 循环无缝。基色只收在两端极窄段，全程不出现近黑停顿 */
+  background: linear-gradient(
+    90deg,
+    #064ea2 0%,
+    #2f6fd0 8%,
+    #18a56c 18%,
+    #1e7fc4 30%,
+    #7a5bd0 42%,
+    #d0588f 54%,
+    #1e7fc4 66%,
+    #18a56c 78%,
+    #2f6fd0 88%,
+    #064ea2 100%
+  );
+  background-size: 300% 100%;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  animation: spBrandShift 8s ease-in-out infinite;
+  animation: lp-brand-flow 12s linear infinite;
+}
+@keyframes lp-brand-flow {
+  0%   { background-position: 0% center; }
+  100% { background-position: 300% center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-brand-word, .sp-brand-title { animation: none; }
 }
 .lp-brand-word .lp-dot { font-size: 26px; line-height: 1; margin: 0 8px; opacity: 1; }
 .lp-divider {
