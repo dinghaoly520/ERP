@@ -341,16 +341,14 @@ export function AppShell({
               onClick={() => setSidebarRail((v) => !v)}
               aria-label={sidebarRail ? "展开菜单栏" : "收起菜单栏"}
               aria-expanded={!sidebarRail}
-              className="sidebar-nav-item"
+              title={sidebarRail ? "展开菜单栏" : "收起菜单栏"}
+              className="sidebar-nav-item justify-center"
             >
               {sidebarRail ? (
                 <ChevronsRight size={16} className="shrink-0" />
               ) : (
                 <ChevronsLeft size={16} className="shrink-0" />
               )}
-              <span className="sidebar-item-label min-w-0 flex-1 truncate text-left text-sm font-medium">
-                {sidebarRail ? "展开菜单栏" : "收起菜单栏"}
-              </span>
             </button>
           </div>
         </aside>
