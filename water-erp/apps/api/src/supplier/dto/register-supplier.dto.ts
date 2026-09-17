@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength, Length, IsUUID } from 'class-validator';
+import { IsDateString, IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength, Length, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 import { RegisterContactDto } from './register-contact.dto';
@@ -50,6 +50,14 @@ export class RegisterSupplierDto {
 
   @IsString() @IsOptional() @MaxLength(100)
   industry?: string;
+
+  /** 企业注册成立日期（营业执照登记日期，ISO 日期字符串） */
+  @IsDateString() @IsOptional()
+  establishedDate?: string;
+
+  /** 企业简介（≤1000 字） */
+  @IsString() @IsOptional() @MaxLength(1000)
+  companyProfile?: string;
 
   @IsString() @IsOptional() @Matches(/^1[3-9]\d{9}$/, { message: '法人联系电话须为 11 位手机号' })
   legalPersonPhone?: string;

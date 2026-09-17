@@ -525,3 +525,9 @@
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.55);
 }
 .reg-foot-link:focus-visible { outline: 3px solid color-mix(in oklab, var(--brand) 24%, transparent); outline-offset: 2px; }
+
+/* 企业简介字数计数（注册页/资料变更共用） */
+.reg-char-count {
+  display: block; margin-top: 4px; text-align: right;
+  font-size: 11px; color: var(--reg-muted, #64748b); font-variant-numeric: tabular-nums;
+}

@@ -10,7 +10,7 @@ import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -536,10 +536,11 @@ export default function SupplierDetailPage() {
                 <InfoField icon={Phone} label="法人联系电话" value={supplier.legalPersonPhone} mono />
                 <InfoField icon={Hash} label="统一社会信用代码" value={supplier.creditCode} mono />
                 <InfoField icon={IdCard} label="机构代码" value={supplier.organizationCode} mono />
-                <InfoField icon={HandCoins} label="注册资本" value={supplier.registeredCapital} />
+                <InfoField icon={HandCoins} label="注册资金" value={supplier.registeredCapital} />
+                <InfoField icon={CalendarDays} label="企业注册成立日期" value={supplier.establishedDate ? new Date(supplier.establishedDate).toLocaleDateString('zh-CN') : null} />
                 <InfoField icon={Globe} label="国别" value={supplier.country} />
                 <InfoField icon={Map} label="行政区域" value={supplier.region} />
-                <InfoField icon={Factory} label="所属行业" value={supplier.industry} />
+                <InfoField icon={Factory} label="所属的国民经济行业" value={supplier.industry} />
                 <InfoField icon={AtSign} label="公司邮箱" value={supplier.companyEmail} />
                 <InfoField icon={Link2} label="公司官网" value={supplier.companyWebsite} />
               </div>
@@ -547,7 +548,8 @@ export default function SupplierDetailPage() {
               <div className="mt-4 space-y-4 border-t border-[var(--border)] pt-4">
                 <InfoField icon={MapPin} label="注册地址" value={supplier.registeredAddress} full />
                 <InfoField icon={MapPin} label="详细地址" value={supplier.detailedAddress} full />
-                <InfoField icon={Briefcase} label="经营范围" value={supplier.businessScope} full />
+                <InfoField icon={Briefcase} label="主要经营业务范围" value={supplier.businessScope} full />
+                <InfoField icon={FileText} label="企业简介" value={supplier.companyProfile} full />
               </div>
             </section>
 

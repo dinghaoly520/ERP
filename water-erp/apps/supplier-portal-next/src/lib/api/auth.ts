@@ -29,6 +29,10 @@ export interface RegisterParams {
   detailedAddress?: string;
   registeredCapital?: string;
   industry?: string;
+  /** 企业注册成立日期（ISO 日期字符串 YYYY-MM-DD） */
+  establishedDate?: string;
+  /** 企业简介（≤1000 字） */
+  companyProfile?: string;
   legalPersonPhone?: string;
   companyEmail?: string;
   companyWebsite?: string;

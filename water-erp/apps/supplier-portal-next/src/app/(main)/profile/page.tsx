@@ -28,7 +28,8 @@ import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { QualAddPanel, QualCompactCard, QualsTab } from "@/components/profile/qualifications";
 import { ContactPanel, ContactsTab } from "@/components/profile/contacts";
-import { INDUSTRY_OPTIONS } from "@/constants/supplier";
+import { INDUSTRY_GROUPS, COMPANY_PROFILE_MAX } from "@/constants/supplier";
+import "@/styles/pages/register2.css";
 import "@/styles/pages/profile.css";
 
 /* ═══ 常量（与 CompanyInfo.vue 一致）═══ */
@@ -40,14 +41,17 @@ const CR_FIELDS = [
   // ── 注册 2.0 扩展字段 ──
   "logoUrl", "country", "region", "detailedAddress",
   "registeredCapital", "industry", "legalPersonPhone", "companyEmail", "companyWebsite",
+  // ── 2026-09-16 国资监管指标扩展 ──
+  "establishedDate", "companyProfile",
 ] as const;
 const CR_FIELD_LABELS: Record<string, string> = {
-  name: "企业名称", enterpriseType: "企业类型", legalPerson: "法定代表人", registeredAddress: "注册地址", businessScope: "经营范围", tags: "业务标签",
+  name: "企业名称", enterpriseType: "企业类型", legalPerson: "法定代表人", registeredAddress: "注册地址", businessScope: "主要经营业务范围", tags: "业务标签",
   logoUrl: "公司logo", country: "国别", region: "所属行政区域", detailedAddress: "详细地址",
-  registeredCapital: "注册资本", industry: "所属行业", legalPersonPhone: "法人联系电话", companyEmail: "公司邮箱", companyWebsite: "公司官网",
+  registeredCapital: "注册资金", industry: "所属的国民经济行业", legalPersonPhone: "法人联系电话", companyEmail: "公司邮箱", companyWebsite: "公司官网",
+  establishedDate: "企业注册成立日期", companyProfile: "企业简介",
 };
 /** 基本资料弹窗中以多行文本呈现的字段 */
-const CR_TEXTAREA_FIELDS = new Set(["registeredAddress", "businessScope", "detailedAddress"]);
+const CR_TEXTAREA_FIELDS = new Set(["registeredAddress", "businessScope", "detailedAddress", "companyProfile"]);
 /** logoUrl 走「上传后取 url」的专用控件，不走通用文本输入 */
 const CR_BASIC_INPUT_FIELDS = CR_FIELDS.filter((k) => k !== "logoUrl");
 
@@ -169,14 +173,16 @@ export default function ProfilePage() {
       { label: "机构代码（统一社会信用代码）", value: p.creditCode ?? p.organizationCode },
       { label: "国别", value: p.country },
       { label: "所属行政区域", value: p.region },
-      { label: "注册资本", value: p.registeredCapital },
-      { label: "所属行业", value: p.industry },
+      { label: "注册资金", value: p.registeredCapital },
+      { label: "所属的国民经济行业", value: p.industry },
+      { label: "企业注册成立日期", value: p.establishedDate ? dayjs(p.establishedDate).format("YYYY-MM-DD") : null },
       { label: "法人联系电话", value: p.legalPersonPhone },
       { label: "公司邮箱", value: p.companyEmail },
       { label: "公司官网", value: p.companyWebsite },
       { label: "注册地址", value: p.registeredAddress, wide: true },
       { label: "详细地址", value: p.detailedAddress, wide: true },
-      { label: "经营范围", value: p.businessScope, wide: true },
+      { label: "主要经营业务范围", value: p.businessScope, wide: true },
+      { label: "企业简介", value: p.companyProfile, wide: true },
       { label: "更新时间", value: dayjs(p.updatedAt).format("YYYY-MM-DD HH:mm") },
     ];
   }, [profile]);
@@ -251,7 +257,13 @@ export default function ProfilePage() {
     if (!p) return;
     const form: Record<string, string> = {};
     const orig: Record<string, string> = {};
-    CR_FIELDS.forEach((k) => { const v = (p[k] as string) ?? ""; form[k] = v; orig[k] = v; });
+    CR_FIELDS.forEach((k) => {
+      const raw = p[k];
+      const v = k === "establishedDate"
+        ? (raw ? dayjs(raw).format("YYYY-MM-DD") : "")
+        : (raw as string) ?? "";
+      form[k] = v; orig[k] = v;
+    });
     setCrForm(form);
     setCrOrig(orig);
     setCrReason("");
@@ -715,26 +727,45 @@ export default function ProfilePage() {
                           </div>
                         )}
                         {CR_TEXTAREA_FIELDS.has(k) ? (
-                          <textarea
-                            className="neu-input"
-                            rows={k === "businessScope" ? 3 : 2}
-                            value={crForm[k]}
-                            onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
-                          />
-                        ) : (
                           <>
-                            <input
+                            <textarea
                               className="neu-input"
-                              list={k === "industry" ? "crp-industry-list" : undefined}
+                              rows={k === "companyProfile" ? 4 : k === "businessScope" ? 3 : 2}
+                              maxLength={k === "companyProfile" ? COMPANY_PROFILE_MAX : undefined}
                               value={crForm[k]}
                               onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
                             />
-                            {k === "industry" && (
-                              <datalist id="crp-industry-list">
-                                {INDUSTRY_OPTIONS.map((o) => <option key={o} value={o} />)}
-                              </datalist>
+                            {k === "companyProfile" && (
+                              <span className="reg-char-count">{crForm[k].length}/{COMPANY_PROFILE_MAX}</span>
                             )}
                           </>
+                        ) : k === "establishedDate" ? (
+                          <input
+                            type="date"
+                            className="workbench-input"
+                            max={new Date().toISOString().slice(0, 10)}
+                            value={crForm[k]}
+                            onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
+                          />
+                        ) : k === "industry" ? (
+                          <select
+                            className="workbench-input"
+                            value={crForm[k]}
+                            onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
+                          >
+                            <option value="">请选择国民经济行业大类（GB/T 4754）</option>
+                            {INDUSTRY_GROUPS.map((g) => (
+                              <optgroup key={g.category} label={g.category}>
+                                {g.items.map((it) => <option key={it} value={it}>{it}</option>)}
+                              </optgroup>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            className="neu-input"
+                            value={crForm[k]}
+                            onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
+                          />
                         )}
                       </div>
                     ))}

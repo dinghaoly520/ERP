@@ -122,3 +122,38 @@ export async function analyzeProcurementLedger(payload: {
 }): Promise<{ overview: string; highlights: string[]; concerns: string[]; suggestions: string[] }> {
   return api.post('/ai/procurement-analysis', payload);
 }
+
+// ── 国资监管九大领域业务数据指标库·采购领域提取（2026-09-16）──
+
+export interface SasacProjectRow {
+  id: string;
+  /** 分组依据：已归档（台账已成交）/ 进行中 */
+  archived: boolean;
+  /** 结构化步骤（过程信息）：order=模板序号、code=阶段编码、completed=是否完成 */
+  steps?: Array<{ order: number; name: string; code: string | null; completed: boolean }>;
+  name: string; purchaserName: string; contact: string; category: string; method: string;
+  publishForm: string; budgetAmount: number | null; awardAmount: number | null;
+  procurementDate: string; awardDate: string; centralized: string; salePeriodOk: string;
+  salePeriodNote: string; publicityPeriodOk: string; publicityPeriodNote: string;
+  wonSupplierName: string; wonSupplierCode: string; stage: string;
+}
+
+export interface SasacSupplierRow {
+  id: string;
+  name: string; creditCode: string; mainBusiness: string; foundingDate: string;
+  industry: string; profile: string;
+  /** 注册资金（万元，数值） */
+  registeredCapital: number | null;
+  isTemporary: boolean;
+}
+
+export interface SasacExtract {
+  projects: SasacProjectRow[];
+  suppliers: SasacSupplierRow[];
+  orgTree: { fields: string[]; items: unknown[] };
+}
+
+export async function fetchSasacExtract(companyId?: string): Promise<SasacExtract> {
+  const q = companyId && companyId !== "all" ? `?companyId=${companyId}` : "";
+  return api.get<SasacExtract>(`/procurements/sasac-extract${q}`);
+}
