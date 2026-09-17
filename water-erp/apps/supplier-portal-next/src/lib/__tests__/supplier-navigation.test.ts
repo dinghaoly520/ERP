@@ -31,15 +31,15 @@ const LEGACY_ROUTE_CASES = [
   { path: "/award-letters", workspaceTitle: "成交履约" },
   { path: "/contracts", workspaceTitle: "成交履约" },
   { path: "/frameworks", workspaceTitle: "成交履约" },
-  { path: "/catalog", workspaceTitle: "供货管理" },
-  { path: "/catalog-applications", workspaceTitle: "供货管理" },
-  { path: "/supply", workspaceTitle: "供货管理" },
   { path: "/profile", workspaceTitle: "企业资料" },
-  { path: "/profile/ukey", workspaceTitle: "企业资料" },
+  { path: "/profile/ukey", workspaceTitle: "证书与U盾" },
   { path: "/change-records", workspaceTitle: "企业资料" },
   { path: "/announcements", workspaceTitle: "公告中心" },
   { path: "/objections", workspaceTitle: "异议投诉" },
 ] as const;
+
+/** 供货管理工作区已侧栏隐藏（2026-09-17，页面/路由保留）——菜单解析应为 null */
+const HIDDEN_SUPPLY_ROUTES = ["/catalog", "/catalog-applications", "/supply"] as const;
 
 const REGULAR_ONLY_ROUTES = [
   "/catalog",
@@ -74,7 +74,7 @@ test("menu construction stays fail-closed while supplier status is unknown", () 
 test("regular suppliers see the nine task-oriented workspaces in order", () => {
   assert.deepEqual(
     workspaces(buildMenuItems(false)).map((item) => item.title),
-    ["工作台", "项目机会", "我的投标", "成交履约", "供货管理", "企业资料", "消息中心", "公告中心", "异议投诉"],
+    ["工作台", "项目机会", "我的投标", "成交履约", "企业资料", "证书与U盾", "消息中心", "公告中心", "异议投诉"],
   );
 });
 
@@ -106,8 +106,8 @@ test("only multi-route workspaces define tabs", () => {
     项目机会: ["/bids", "/prequal"],
     我的投标: ["/my-bids", "/completed-projects"],
     成交履约: ["/award-letters", "/contracts", "/frameworks"],
-    供货管理: ["/catalog", "/catalog-applications", "/supply"],
-    企业资料: ["/profile", "/profile/ukey", "/change-records"],
+    企业资料: ["/profile", "/change-records"],
+    证书与U盾: [],
     消息中心: [],
     公告中心: [],
     异议投诉: [],
@@ -128,8 +128,7 @@ test("multi-route workspaces use concise task-oriented tab labels", () => {
     项目机会: ["可参与项目", "资格预审"],
     我的投标: ["进行中", "已完成"],
     成交履约: ["成交通知", "合同履约", "框架协议"],
-    供货管理: ["品类目录", "申请进度", "供货关系"],
-    企业资料: ["基本资料", "证书与U盾", "变更记录"],
+    企业资料: ["基本资料", "变更记录"],
   });
 });
 
@@ -162,7 +161,7 @@ test("a detail route resolves both its owning workspace and current tab", () => 
   const items = buildMenuItems(false);
   const workspace = findWorkspaceForPath("/profile/ukey/detail", items);
 
-  assert.equal(workspace?.title, "企业资料");
+  assert.equal(workspace?.title, "证书与U盾");
   assert.equal(
     findWorkspaceTabForPath("/profile/ukey/detail", workspace)?.path,
     "/profile/ukey",
@@ -202,5 +201,11 @@ for (const path of REGULAR_ONLY_ROUTES) {
 
     assert.equal(workspace, null);
     assert.equal(findWorkspaceTabForPath(path, workspace), null);
+  });
+}
+
+for (const path of HIDDEN_SUPPLY_ROUTES) {
+  test(`hidden supply workspace does not surface ${path} in menus`, () => {
+    assert.equal(findWorkspaceForPath(path, buildMenuItems(false)), null);
   });
 }

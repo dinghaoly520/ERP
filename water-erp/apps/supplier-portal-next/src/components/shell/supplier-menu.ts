@@ -98,6 +98,24 @@ export function findWorkspaceTabForPath(
   return workspaceMatches ? { path: workspace.path, title: workspace.title } : null;
 }
 
+/** 供货管理工作区（品类目录/申请进度/供货关系）— 2026-09-17 用户裁定侧栏隐藏：
+ *  仅从菜单摘除，页面/路由原样保留（直链与任务跳转仍可达）；恢复时置回 false 即可。 */
+const SUPPLY_WORKSPACE_HIDDEN = true;
+
+function supplyWorkspaceEntry(): MenuEntry {
+  return {
+    path: "/catalog",
+    title: "供货管理",
+    icon: Package,
+    desc: "目录、供货申请与报价",
+    tabs: [
+      { path: "/catalog", title: "品类目录", icon: LayoutGrid },
+      { path: "/catalog-applications", title: "申请进度", icon: ClipboardCheck },
+      { path: "/supply", title: "供货关系", icon: Boxes },
+    ],
+  };
+}
+
 export function buildMenuItems(isTemporary: boolean | null | undefined): MenuItem[] {
   const items: MenuItem[] = [
     {
@@ -141,29 +159,24 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
   ];
 
   if (canAccessRegularSupplierWorkspaces(isTemporary)) {
+    items.push({ divider: true, label: "信息维护" });
+    if (!SUPPLY_WORKSPACE_HIDDEN) items.push(supplyWorkspaceEntry());
     items.push(
-      { divider: true, label: "信息维护" },
-      {
-        path: "/catalog",
-        title: "供货管理",
-        icon: Package,
-        desc: "目录、供货申请与报价",
-        tabs: [
-          { path: "/catalog", title: "品类目录", icon: LayoutGrid },
-          { path: "/catalog-applications", title: "申请进度", icon: ClipboardCheck },
-          { path: "/supply", title: "供货关系", icon: Boxes },
-        ],
-      },
       {
         path: "/profile",
         title: "企业资料",
         icon: Building2,
-        desc: "主体资料、U盾与变更记录",
+        desc: "主体资料与变更记录",
         tabs: [
           { path: "/profile", title: "基本资料", icon: IdCard },
-          { path: "/profile/ukey", title: "证书与U盾", icon: KeyRound },
           { path: "/change-records", title: "变更记录", icon: History },
         ],
+      },
+      {
+        path: "/profile/ukey",
+        title: "证书与U盾",
+        icon: KeyRound,
+        desc: "投标加密证书与U盾管理",
       },
     );
   }
@@ -193,3 +206,4 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
 
   return items;
 }
+

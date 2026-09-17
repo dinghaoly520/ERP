@@ -250,24 +250,23 @@ test("hero workspace tabs render native links and mark the most specific current
   const workspace = findWorkspaceForPath("/profile", buildMenuItems(false));
   assert.ok(workspace?.tabs);
   const markup = renderToStaticMarkup(
-    <HeroWorkspaceTabs tabs={workspace.tabs} currentPath="/profile/ukey/detail" ariaLabel="企业资料子导航" />,
+    <HeroWorkspaceTabs tabs={workspace.tabs} currentPath="/change-records/detail" ariaLabel="企业资料子导航" />,
   );
 
   assert.match(markup, /^<nav[^>]*aria-label="企业资料子导航"/);
   assert.match(pageHeroSource, /import Link from "next\/link"/);
-  assert.equal((markup.match(/<a\b/g) ?? []).length, 3);
+  assert.equal((markup.match(/<a\b/g) ?? []).length, 2);
   assert.equal((markup.match(/aria-current="page"/g) ?? []).length, 1);
   assert.doesNotMatch(markup, /<button\b/);
 
   for (const [path, title] of [
     ["/profile", "基本资料"],
-    ["/profile/ukey", "证书与U盾"],
     ["/change-records", "变更记录"],
   ] as const) {
     assert.match(markup, new RegExp(`<a\\b[^>]*href="${path}"[^>]*>[\\s\\S]*?${title}<\\/a>`));
   }
 
-  const activeLink = markup.match(/<a\b[^>]*href="\/profile\/ukey"[^>]*>/)?.[0];
+  const activeLink = markup.match(/<a\b[^>]*href="\/change-records"[^>]*>/)?.[0];
   assert.ok(activeLink);
   assert.match(activeLink, /aria-current="page"/);
 });
