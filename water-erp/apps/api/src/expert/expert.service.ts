@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { ExpertConflictService } from './expert-conflict.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
@@ -76,6 +77,7 @@ export class ExpertService {
     private plaintextFetcher: PlaintextFetcherService,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
+    @Optional() private readonly notificationService?: NotificationService,
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
   ) {}
 
@@ -1775,7 +1777,7 @@ export class ExpertService {
       if (rowByName) clarSupplierId = rowByName.supplierId;
     }
 
-    return this.prisma.bidClarification.create({
+    const created = await this.prisma.bidClarification.create({
       data: {
         projectId,
         question: dto.question,
@@ -1785,6 +1787,42 @@ export class ExpertService {
         status: '待回复',
       },
     });
+    // 对齐主持端 createClarification 语义（2026-09-17 补缺）：此前专家端发澄清仅裸落库，
+    // 供应商收不到任何提醒，只能自行刷新澄清答复页——评标澄清多由评委发起，恰是最需要
+    // 提醒的路。三件套与 bid.service 逐一对齐：
+    this.gateway?.notifyClarificationCreated(projectId, {
+      id: created.id, issuer: expert.expertName, issuerRole: 'expert',
+      supplierName: dto.supplierName ?? '', questionPreview: dto.question.slice(0, 60),
+      type: 'clarification', // 网关按 clarification 走法定保密拓扑（host+experts 房+当事供应商定向）
+      supplierId: clarSupplierId,
+    });
+    // F18 对齐：澄清发起是现场关键动作，补 AuditLog 留痕（try/catch 兜底不阻塞）
+    this.prisma.auditLog?.create({
+      data: {
+        userId,
+        action: 'BID_CLARIFICATION_CREATE',
+        resourceType: `BidProject:${projectId}`,
+        details: { clarificationId: created.id, type: 'clarification', supplierName: dto.supplierName, issuerRole: 'expert' },
+      },
+    }).catch(() => {});
+    // 定向提醒被寻址供应商（寻址不到保持 null 则跳过——该澄清对供应商端本就不可见）
+    if (clarSupplierId) {
+      try {
+        const supplier = await this.prisma.supplier.findUnique({
+          where: { id: clarSupplierId },
+          select: { userId: true },
+        });
+        if (supplier?.userId) {
+          await this.notificationService?.sendToUser(supplier.userId, ['in_app'], {
+            type: 'BID_CLARIFICATION_CREATED',
+            title: `收到澄清要求：${project.name}`,
+            content: '评标委员会已发起澄清，请在规定时间内查看并提交答复。',
+            link: `/bids/${projectId}/clarifications`,
+          });
+        }
+      } catch { /* 通知失败不阻塞澄清发起 */ }
+    }
+    return created;
   }
 
   /* ── 评审报告 ── */

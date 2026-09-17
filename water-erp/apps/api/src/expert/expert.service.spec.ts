@@ -8,6 +8,7 @@ import { encryptBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { NotificationService } from '../notification/notification.service';
 import { minioClient } from '../upload/minio.client';
 import { PlaintextFetcherService } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { SignatureService } from '../common/crypto/signature.service';
@@ -18,6 +19,7 @@ describe('ExpertService', () => {
   let ai: any;
   let gateway: any;
   let signature: any;
+  let notification: any;
 
   const mockExpert = {
     id: 'exp-1',
@@ -51,6 +53,7 @@ describe('ExpertService', () => {
       bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}), create: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0) },
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() }, // findMany：getReport→resolveOpeningAmountUnitMap（P1-1 单位口径）
+      supplier: { findUnique: jest.fn() },
       fileAsset: { findMany: jest.fn(), findUnique: jest.fn() },
       bidScoreRecord: {
         findMany: jest.fn(),
@@ -86,8 +89,10 @@ describe('ExpertService', () => {
       broadcastAggregatePresence: jest.fn(),
       notifyBidValidity: jest.fn(),
       notifyAnomaly: jest.fn(),
+      notifyClarificationCreated: jest.fn(),
     };
     signature = { verify: jest.fn(), isValidPublicKey: jest.fn() };
+    notification = { sendToUser: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -99,6 +104,7 @@ describe('ExpertService', () => {
         { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
         { provide: BidGateway, useValue: gateway },
         { provide: SignatureService, useValue: signature },
+        { provide: NotificationService, useValue: notification },
       ],
     }).compile();
 
@@ -2392,6 +2398,56 @@ describe('ExpertService', () => {
         .rejects.toMatchObject({ response: { code: 'NOT_SIGNABLE' } });
       expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
       expect(prisma.bidSignPacket.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createClarification（专家端发起澄清）— 对齐主持端语义（2026-09-17 补缺）', () => {
+    it('发起后三件套齐发：WS 定向广播 + AuditLog 留痕 + 被寻址供应商站内提醒', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', name: '某引水工程', stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', supplierId: 'sup-1', supplierName: '四川水发建设有限公司' });
+      prisma.bidClarification.create.mockResolvedValue({ id: 'clar-1', status: '待回复' });
+      prisma.supplier.findUnique.mockResolvedValue({ userId: 'supplier-user-1' });
+
+      const created = await service.createClarification('user-1', 'proj-1', {
+        question: '请澄清项目经理业绩材料第 3 页的社保单位',
+        supplierId: 'bs-1',
+        supplierName: '四川水发建设有限公司',
+      });
+
+      expect(created).toMatchObject({ id: 'clar-1' });
+      expect(prisma.bidClarification.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ projectId: 'proj-1', supplierId: 'sup-1', status: '待回复' }),
+      }));
+      // WS：评标澄清法定保密拓扑（网关按 type=clarification 定向 host+experts+当事供应商）
+      expect(gateway.notifyClarificationCreated).toHaveBeenCalledWith('proj-1', expect.objectContaining({
+        id: 'clar-1', issuerRole: 'expert', type: 'clarification', supplierId: 'sup-1',
+      }));
+      // 审计留痕（F18 对齐）
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: 'BID_CLARIFICATION_CREATE', resourceType: 'BidProject:proj-1' }),
+      }));
+      // 站内提醒直达澄清答复页
+      expect(notification.sendToUser).toHaveBeenCalledWith('supplier-user-1', ['in_app'], expect.objectContaining({
+        type: 'BID_CLARIFICATION_CREATED', link: '/bids/proj-1/clarifications',
+      }));
+    });
+
+    it('寻址不到供应商（按名回填失败）→ 不发站内提醒，WS 仍广播（supplierId=null）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', name: '某引水工程', stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue(null); // 按名回填失败
+      prisma.bidClarification.create.mockResolvedValue({ id: 'clar-2', status: '待回复' });
+
+      await service.createClarification('user-1', 'proj-1', {
+        question: '通用澄清问题',
+        supplierName: '不存在的公司',
+      });
+
+      expect(gateway.notifyClarificationCreated).toHaveBeenCalledWith('proj-1', expect.objectContaining({
+        supplierId: null,
+      }));
+      expect(notification.sendToUser).not.toHaveBeenCalled();
     });
   });
 });
