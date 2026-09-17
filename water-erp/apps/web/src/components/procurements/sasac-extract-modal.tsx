@@ -1,14 +1,15 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  BookOpen, ClipboardCheck, FileSpreadsheet, Loader2, Network, PencilLine,
+  BookOpen, Check, ChevronDown, ClipboardCheck, FileSpreadsheet, Loader2, Network, PencilLine,
 } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import { fetchSasacExtract, type SasacProjectRow, type SasacSupplierRow } from "@/lib/api/procurements";
 import { SASAC_INDICATORS } from "@/lib/data/sasac-indicators";
-import { fetchCompanyOptions } from "@/lib/api/accounts";
 import { PROCUREMENT_METHODS, PROCUREMENT_CATEGORY_OPTIONS } from "@/lib/types/project-management";
+import { SASAC_UNITS } from "@/lib/data/sasac-units";
 import * as XLSX from "xlsx-js-style";
 
 /**
@@ -31,6 +32,7 @@ interface FieldDef<T> {
 const PROJECT_FIELDS: FieldDef<SasacProjectRow>[] = [
   { key: "name", label: "采购项目名称", group: "基础信息", width: 230 },
   { key: "purchaserName", label: "采购单位名称", group: "基础信息", width: 240 },
+  { key: "purchaserCode", label: "统一身份代码", group: "基础信息", width: 190 },
   { key: "contact", label: "采购联系人", group: "基础信息", width: 110 },
   { key: "category", label: "采购类别", group: "基础信息", width: 160 },
   { key: "method", label: "采购方式", group: "基础信息", width: 140 },
@@ -84,25 +86,107 @@ const METHOD_OPTIONS = [...PROCUREMENT_METHODS];
 const CATEGORY_OPTIONS = PROCUREMENT_CATEGORY_OPTIONS;
 const PUBLISH_FORM_OPTIONS = ["公告公示", "供应商邀请"];
 
-/** 通用下拉单元格：空值红底待补录；当前值不在选项中时附加保留（存量数据不丢） */
+/** 通用下拉单元格（支持搜索）：点击展开面板，首行搜索框实时过滤选项；
+ *  选项少（≤8）时不显示搜索框。空值红底待补录；当前值不在选项中附加保留。 */
 function SelectCell({
   value, options, onChange,
 }: { value: string; options: string[]; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const empty = !value;
-  const opts = value && !options.includes(value) ? [value, ...options] : options;
+  const keep = value && !options.includes(value) ? [value] : [];
+  const filtered = [...keep, ...options].filter((o) => !q.trim() || o.toLowerCase().includes(q.trim().toLowerCase()));
+  const showSearch = options.length > 8;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!popRef.current?.contains(t) && !anchorRef.current?.contains(t)) { setOpen(false); setQ(""); }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); setQ(""); } };
+    const away = () => { setOpen(false); setQ(""); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    // 面板内部滚动不关闭（capture 捕获自身滚动曾致"无法滚动查看"）；仅外部滚动关闭
+    const onScrollAway = (e: Event) => {
+      if (popRef.current?.contains(e.target as Node)) return;
+      away();
+    };
+    window.addEventListener("scroll", onScrollAway, true);
+    window.addEventListener("resize", away);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScrollAway, true);
+      window.removeEventListener("resize", away);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) searchRef.current?.focus();
+  }, [open]);
+
+  const pick = (v: string) => { setOpen(false); setQ(""); onChange(v); };
+
   return (
-    <div className={`relative flex items-center justify-center rounded-[7px] px-1 py-1 transition-colors ${empty ? "bg-[color-mix(in_oklch,var(--danger)_9%,transparent)]" : "hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)]"}`}>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full min-w-0 bg-transparent text-center text-[11px] font-medium outline-none ${empty ? "font-bold text-[color:var(--danger)]" : "text-[color:var(--foreground)]"}`}
+    <div
+      ref={anchorRef}
+      className={`relative flex items-center justify-center rounded-[7px] px-1 py-1 transition-colors ${empty ? "bg-[color-mix(in_oklch,var(--danger)_9%,transparent)]" : open ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]" : "hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)]"}`}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          if (!open) { const r = anchorRef.current?.getBoundingClientRect(); if (r) setRect({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 200) }); }
+          setOpen((o) => !o);
+        }}
+        className={`flex w-full items-center justify-center gap-1 truncate text-[11px] font-medium outline-none ${empty ? "font-bold text-[color:var(--danger)]" : "text-[color:var(--foreground)]"}`}
         aria-label="选择指标值"
+        aria-haspopup="listbox"
+        aria-expanded={open}
       >
-        <option value="" disabled>待补录</option>
-        {opts.map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
-      </select>
+        <span className="truncate">{value || "待补录"}</span>
+        <ChevronDown size={10} strokeWidth={2} className={`shrink-0 text-[color:var(--muted-foreground)] transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && rect && createPortal(
+        <div
+          ref={popRef}
+          role="listbox"
+          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width }}
+          className="z-[700] max-h-[220px] overflow-y-auto rounded-[12px] bg-[var(--background)]/97 px-1 pb-1 shadow-[0_14px_36px_rgba(24,40,70,0.18),inset_0_1px_0_oklch(1_0_0/0.8)] backdrop-blur-md"
+        >
+          {showSearch && (
+            <div className="sticky top-0 z-10 mb-1 rounded-t-[11px] bg-[var(--background)] px-1 pb-1 pt-1 shadow-[0_1px_0_oklch(0.6_0.04_258/0.14)]">
+              <input
+                ref={searchRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={`搜索 ${options.length} 项…`}
+                className="neu-input w-full !h-8 !min-h-0 text-[11px]"
+              />
+            </div>
+          )}
+          {value ? (
+            <button type="button" role="option" aria-selected onClick={() => pick(value)} className="flex w-full items-center justify-between rounded-[8px] px-2 py-1.5 text-center text-[11px] font-semibold text-[var(--accent)] bg-white shadow-[inset_0_1px_0_oklch(1_0_0/0.95),1px_1px_3px_oklch(0.55_0.03_258/0.12)]">
+              <span className="truncate">{value}</span>
+              <Check size={11} strokeWidth={2.4} className="shrink-0" />
+            </button>
+          ) : (
+            <div className="px-2 py-1 text-center text-[10px] font-bold text-[color:var(--danger)]">待补录</div>
+          )}
+          {filtered.filter((o) => o !== value).map((o) => (
+            <button key={o} type="button" role="option" aria-selected={false} onClick={() => pick(o)} className="w-full truncate rounded-[8px] px-2 py-1.5 text-center text-[11px] text-[color:var(--foreground)] transition-colors hover:bg-white/60">
+              {o}
+            </button>
+          ))}
+          {filtered.length === 0 && <div className="px-2 py-2 text-center text-[10px] text-[color:var(--muted-foreground)]">无匹配项</div>}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
@@ -211,9 +295,7 @@ export function SasacExtractModal({ open, onClose, companyId }: { open: boolean;
   }, [open, load]);
   const [companyNames, setCompanyNames] = useState<string[]>([]);
   useEffect(() => {
-    fetchCompanyOptions()
-      .then((cs) => setCompanyNames(cs.map((c) => c.name)))
-      .catch(() => setCompanyNames([]));
+    setCompanyNames(SASAC_UNITS.map((u) => u.name)); // 集团全级次企业名单（62 家，含 18 位代码）
   }, []);
 
   const markDirty = (id: string) => setDirtyIds((prev) => new Set(prev).add(id));
@@ -292,7 +374,17 @@ export function SasacExtractModal({ open, onClose, companyId }: { open: boolean;
   };
 
   const patchProject = (id: string, key: keyof SasacProjectRow, v: string) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? ({ ...p, [key]: key.includes("Amount") && v !== "" ? Number(v) : v } as SasacProjectRow) : p)));
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const next = { ...p, [key]: key.includes("Amount") && v !== "" ? Number(v) : v } as SasacProjectRow;
+        // 采购单位名称联动：选名单内单位自动带出统一身份代码
+        if (key === "purchaserName") {
+          next.purchaserCode = SASAC_UNITS.find((u) => u.name === v)?.code ?? "";
+        }
+        return next;
+      }),
+    );
     markDirty(id);
   };
   const patchSupplier = (id: string, key: keyof SasacSupplierRow, v: string) => {

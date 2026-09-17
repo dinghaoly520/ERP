@@ -169,10 +169,11 @@ export class TimelineService {
     const nodes: TimelineNode[] = [
       // initiationDate 未登记（直建/AI 提取缺失）→ 建档时刻兜底，避免「采购立项 未登记」
       { key: 'initiation', label: '采购立项', time: toIsoFromBare(item.initiationDate) ?? toIsoFromBare(item.createdAt), source: item.initiationDate ? '项目管理' : '项目建档' },
-      { key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' },
+      // 2026-09-17 拍板：公告发布/供应商邀请前置于文件获取（业务时序：先发布公告再获取文件）
       hasPublicAnnouncementStage
         ? { key: 'bidNoticePublish', label: '采购公告发布', time: bidNoticeIso, source: '公告' }
         : { key: 'supplierInvitation', label: '供应商邀请', time: supplierInviteIso, source: '邀请通知' },
+      { key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' },
       { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
       { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
       { key: 'winNoticePublish', label: '中标公告发布', time: winNoticeIso, source: '公告' },

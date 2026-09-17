@@ -131,7 +131,7 @@ export interface SasacProjectRow {
   archived: boolean;
   /** 结构化步骤（过程信息）：order=模板序号、code=阶段编码、completed=是否完成 */
   steps?: Array<{ order: number; name: string; code: string | null; completed: boolean }>;
-  name: string; purchaserName: string; contact: string; category: string; method: string;
+  name: string; purchaserName: string; purchaserCode: string; contact: string; category: string; method: string;
   publishForm: string; budgetAmount: number | null; awardAmount: number | null;
   procurementDate: string; awardDate: string; centralized: string; salePeriodOk: string;
   salePeriodNote: string; publicityPeriodOk: string; publicityPeriodNote: string;
