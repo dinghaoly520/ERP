@@ -431,6 +431,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **clean-legacy-plaintext --execute 前**：先 dry-run 审阅清单；旧轨服务端密封资产的回看下载已支持 sealedPath 流式解密（streamFile，2026-08-21），执行后供应商回看/staff/专家下载不受影响。
 - **BID_DUAL_ENVELOPE=false 应急语义**：flag 关时新轨投递（envelope.version='dual-v2'）被显式 400 `DUAL_DISABLED` 拒收——供应商须按旧流程（clientDeks）重新投递；回退前应公告通知投标人。
 - **管理方密钥轮转**：`POST /api/bid/admin-cert/generate` 置旧证 inactive；历史信封按 `envelope.adminCertId` 定位旧私钥（keystore 目录每证一文件，保留至其覆盖提交全部归档）。
+- **供应商证书有效期与验签口径（2026-09-17）**：`SupplierCert.notBefore/expiresAt`（null=长期——mock 存量介质/旧中间件实例证书）；mock 新证书发行即带 60 天有效期（D1v2 用户裁定）。时点闸门=绑定（`BIND_CERT_EXPIRED`）与投递/补传验签（`CERT_EXPIRED`，`findActiveUnexpiredCert`），**历史签名复验不因嗣后过期/撤销失效**——复验走签时快照（`receiptSignature`/`confirmSignature` 增 `certSn/certPublicKey`，存量无快照回退 `Supplier.sm2PublicKey` 旧列，旧列已 @deprecated 仅回填+回退读）。回执/开标确认验签公钥已统一 ACTIVE SupplierCert（`findActiveCertForSigning`，不再读旧列——revoke 不清旧列的抵赖窗口就此关闭）。A-13 到期提醒=Scheduler `scanSupplierCertExpiry`（每日 08:15，30/7 天两档+过期补发，`expiryNotifyStage` 0/1/2 幂等）。运行中的 :17999 mock 中间件实例须重启后才会对**新生成**证书带有效期（存量盾文件向后兼容=长期）。
 
 ## 唱标金额单位铁律（2026-09-14 定案）
 
