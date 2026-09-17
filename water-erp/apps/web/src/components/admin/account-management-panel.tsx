@@ -22,6 +22,7 @@ import { Modal } from "@/components/workbench";
 import { ApiError } from "@/lib/api";
 import { fetchCurrentUser, type AuthRole } from "@/lib/api/auth";
 import { RegistrationReviewPanel } from "@/components/admin/registration-review-panel";
+import { UnitSearchSelect } from "@/components/login/unit-search-select";
 import { PasswordRequestsPanel } from "@/components/admin/password-requests-panel";
 import { ROLE_LABELS } from "@/lib/role-labels";
 import {
@@ -820,15 +821,11 @@ function AccountFormModal({
             <span className="mb-1 block text-xs font-medium text-[color:var(--muted-foreground)]">
               公司 <span className="text-[color:var(--danger)]">*</span>
             </span>
-            <select value={company} onChange={(e) => setCompany(e.target.value)} className={inputCls} aria-label="选择公司">
-              <option value="">请选择公司</option>
-              {(companies.some((c) => c.name === company) || !company
-                ? companies
-                : [{ id: "__legacy", name: company }, ...companies]
-              ).map((c) => (
-                <option key={c.id} value={c.name}>{c.name}</option>
-              ))}
-            </select>
+            <UnitSearchSelect
+              value={company}
+              onChange={setCompany}
+              placeholder="请选择公司"
+            />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-[color:var(--muted-foreground)]">部门</span>

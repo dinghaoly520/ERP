@@ -241,7 +241,7 @@ export default function OperationLogPage() {
                       </td>
                       <td><span className="font-mono text-[0.72rem] font-bold">{r.method}</span></td>
                       <td>
-                        <span className="block max-w-[420px] truncate font-mono text-[0.72rem]" title={`${r.path}${r.query ? `?${r.query}` : ''}`}>
+                        <span className="inline-block max-w-full truncate align-baseline font-mono text-[0.72rem]" title={`${r.path}${r.query ? `?${r.query}` : ''}`}>
                           {r.path}
                         </span>
                       </td>
@@ -262,7 +262,7 @@ export default function OperationLogPage() {
                     {expanded && (
                       <tr>
                         <td colSpan={10}>
-                          <div className="grid gap-2 px-1 py-2 sm:grid-cols-2">
+                          <div className="grid gap-2 px-1 py-2 text-left sm:grid-cols-2">
                             <div className="space-y-2">
                               <DetailItem label="查询串" value={r.query || '—'} mono />
                               <DetailItem label="Referer" value={r.referer || '—'} mono />
