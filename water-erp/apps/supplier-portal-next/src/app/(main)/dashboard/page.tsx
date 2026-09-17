@@ -397,7 +397,6 @@ export default function DashboardPage() {
             <div className="sp-module-header">
               <div>
                 <h2 id="supplier-task-title" className="sp-module-title">当前待办</h2>
-                <p className="db-task-subtitle">按服务器标准时间和紧急程度排序</p>
               </div>
               <span className="db-task-count" aria-label={`共 ${currentTasks.length} 项待办`}>{currentTasks.length}</span>
             </div>

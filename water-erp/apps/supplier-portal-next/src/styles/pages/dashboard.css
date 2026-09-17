@@ -31,7 +31,6 @@
 
 /* ═══════════════ Unified supplier tasks ═══════════════ */
 .db-task-panel { margin-bottom: 20px; }
-.db-task-subtitle { margin: 3px 0 0; color: var(--muted-foreground); font-size: 11px; }
 .db-task-count {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 30px; height: 30px; padding: 0 8px; border-radius: 999px;
