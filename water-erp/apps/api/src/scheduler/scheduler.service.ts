@@ -20,6 +20,24 @@ export function buildExpiryNotification(input: { qualificationName: string; vali
   };
 }
 
+/** A-13（CTS）：供应商 CA 证书到期提醒文案——两态（即将到期/已过期），certSn 与剩余天数入文。 */
+export function buildCertExpiryNotification(input: { certSn: string; expiresAt: Date; daysLeft: number; expired: boolean }) {
+  const date = input.expiresAt.toISOString().slice(0, 10);
+  return input.expired
+    ? {
+        type: 'CERT_EXPIRY_REMINDER',
+        title: 'CA 证书已过期',
+        content: `您的 CA 证书（${input.certSn}）已于 ${date} 过期，投标签名不可用——请换发新证书并在「U盾管理」页重新绑定。`,
+        link: '/profile/ukey',
+      }
+    : {
+        type: 'CERT_EXPIRY_REMINDER',
+        title: 'CA 证书即将到期提醒',
+        content: `您的 CA 证书（${input.certSn}）将于 ${date} 到期（剩 ${input.daysLeft} 天），逾期将无法投标签名，请及时换发并在「U盾管理」页重新绑定。`,
+        link: '/profile/ukey',
+      };
+}
+
 @Injectable()
 export class SchedulerService {
   private readonly logger = new Logger(SchedulerService.name);
@@ -150,6 +168,49 @@ export class SchedulerService {
     }
 
     this.logger.log(`资质到期扫描完成：通知 ${expiring.length} 条`);
+  }
+
+  /** A-13（CTS）：供应商 CA 证书到期提醒——每日 08:15（避开 08:00/09:00 既有槽）。
+   *  30 天/7 天两档 + 已过期补发；expiryNotifyStage 幂等推进（每证书最多 2 条通知）。
+   *  expiresAt null（长期——存量介质/旧中间件实例证书）不入候选。
+   *  换证重绑时 bindCert 会重置 expiryNotifyStage=0，新绑定生命周期重新起算。 */
+  @Cron('15 8 * * *')
+  async scanSupplierCertExpiry() {
+    const DAY_MS = 24 * 3600 * 1000;
+    const now = Date.now();
+    const certs = await this.prisma.supplierCert.findMany({
+      where: { bindingStatus: 'ACTIVE', expiresAt: { not: null } },
+      select: { id: true, supplierId: true, certSn: true, expiresAt: true, expiryNotifyStage: true },
+      take: 500,
+    });
+
+    let sent = 0;
+    for (const cert of certs) {
+      const expiresAt = cert.expiresAt!.getTime();
+      const daysLeft = Math.ceil((expiresAt - now) / DAY_MS);
+      const targetStage = expiresAt <= now || daysLeft <= 7 ? 2 : daysLeft <= 30 ? 1 : 0;
+      if (targetStage === 0 || targetStage <= cert.expiryNotifyStage) continue; // 幂等：档位只进不退
+
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { id: cert.supplierId },
+        select: { userId: true },
+      });
+      if (!supplier) continue; // 供应商行缺失（残留兜底）——不推档位，下轮重试
+
+      const dto = buildCertExpiryNotification({
+        certSn: cert.certSn,
+        expiresAt: cert.expiresAt!,
+        daysLeft: Math.max(daysLeft, 0),
+        expired: expiresAt <= now,
+      });
+      await this.notification.create({ userId: supplier.userId, ...dto });
+      await this.prisma.supplierCert.update({
+        where: { id: cert.id },
+        data: { expiryNotifyStage: targetStage },
+      });
+      sent += 1;
+    }
+    this.logger.log(`CA 证书到期扫描完成：本轮通知 ${sent} 条`);
   }
 
   /** C1（GB/T 43711 7.5.2.5）：每日 08:00 扫描公示期已满、尚未发布成交公告的预成交公示，

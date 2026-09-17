@@ -1,4 +1,4 @@
-import { buildExpiryNotification, SchedulerService } from './scheduler.service';
+import { buildExpiryNotification, buildCertExpiryNotification, SchedulerService } from './scheduler.service';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
 
 describe('buildExpiryNotification', () => {
@@ -202,5 +202,79 @@ describe('publishScheduledAnnouncements — P0-2 走 announcementService.update 
     ]);
     await scheduler.publishScheduledAnnouncements();
     expect(announcementService.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildCertExpiryNotification（A-13）', () => {
+  it('即将到期：30 天档文案含证书序列号与剩余天数', () => {
+    const n = buildCertExpiryNotification({ certSn: 'MOCK-AB12CD34', expiresAt: new Date('2026-11-16T00:00:00Z'), daysLeft: 60, expired: false });
+    expect(n.type).toBe('CERT_EXPIRY_REMINDER');
+    expect(n.title).toContain('即将到期');
+    expect(n.content).toContain('MOCK-AB12CD34');
+    expect(n.content).toContain('60');
+    expect(n.link).toBe('/profile/ukey');
+  });
+
+  it('已过期：文案为「已过期」且不含剩余天数话术', () => {
+    const n = buildCertExpiryNotification({ certSn: 'SHD-B14EF038', expiresAt: new Date('2026-09-01T00:00:00Z'), daysLeft: 0, expired: true });
+    expect(n.title).toBe('CA 证书已过期');
+    expect(n.content).toContain('已于');
+    expect(n.content).not.toContain('剩 ');
+  });
+});
+
+describe('scanSupplierCertExpiry — 档位幂等推进', () => {
+  const makeScheduler = () => {
+    const prisma: any = {
+      supplierCert: { findMany: jest.fn(), update: jest.fn() },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier' }) },
+    };
+    const notification: any = { create: jest.fn() };
+    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any, {} as any);
+    return { scheduler, prisma, notification };
+  };
+  const DAY = 24 * 3600 * 1000;
+
+  it('剩 20 天 stage=0 → 发 30 天档并推 stage=1', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.supplierCert.findMany.mockResolvedValue([
+      { id: 'c1', supplierId: 's1', certSn: 'MOCK-A', expiresAt: new Date(Date.now() + 20 * DAY), expiryNotifyStage: 0 },
+    ]);
+    await scheduler.scanSupplierCertExpiry();
+    expect(notification.create).toHaveBeenCalledTimes(1);
+    expect(notification.create.mock.calls[0][0].title).toContain('即将到期');
+    expect(prisma.supplierCert.update).toHaveBeenCalledWith({ where: { id: 'c1' }, data: { expiryNotifyStage: 1 } });
+  });
+
+  it('剩 5 天 stage=1 → 升级 7 天档推 stage=2；stage 已达 2 不再发（幂等）', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.supplierCert.findMany.mockResolvedValue([
+      { id: 'c2', supplierId: 's2', certSn: 'MOCK-B', expiresAt: new Date(Date.now() + 5 * DAY), expiryNotifyStage: 1 },
+      { id: 'c3', supplierId: 's3', certSn: 'MOCK-C', expiresAt: new Date(Date.now() + 5 * DAY), expiryNotifyStage: 2 },
+    ]);
+    await scheduler.scanSupplierCertExpiry();
+    expect(notification.create).toHaveBeenCalledTimes(1); // 仅 c2 升级；c3 幂等跳过
+    expect(prisma.supplierCert.update).toHaveBeenCalledTimes(1);
+    expect(prisma.supplierCert.update).toHaveBeenCalledWith({ where: { id: 'c2' }, data: { expiryNotifyStage: 2 } });
+  });
+
+  it('已过期 stage=0 → 直接发「已过期」并推 stage=2（最多 2 条语义的终点档）', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.supplierCert.findMany.mockResolvedValue([
+      { id: 'c4', supplierId: 's4', certSn: 'MOCK-D', expiresAt: new Date(Date.now() - DAY), expiryNotifyStage: 0 },
+    ]);
+    await scheduler.scanSupplierCertExpiry();
+    expect(notification.create.mock.calls[0][0].title).toBe('CA 证书已过期');
+    expect(prisma.supplierCert.update).toHaveBeenCalledWith({ where: { id: 'c4' }, data: { expiryNotifyStage: 2 } });
+  });
+
+  it('剩 45 天（未入 30 天窗）→ 不发不推', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.supplierCert.findMany.mockResolvedValue([
+      { id: 'c5', supplierId: 's5', certSn: 'MOCK-E', expiresAt: new Date(Date.now() + 45 * DAY), expiryNotifyStage: 0 },
+    ]);
+    await scheduler.scanSupplierCertExpiry();
+    expect(notification.create).not.toHaveBeenCalled();
+    expect(prisma.supplierCert.update).not.toHaveBeenCalled();
   });
 });
