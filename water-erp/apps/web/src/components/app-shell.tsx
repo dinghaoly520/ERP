@@ -277,11 +277,12 @@ export function AppShell({
                     /* rail 窄栏 — 分组退化为细分隔线 */
                     <div aria-hidden className="mx-auto my-2 h-px w-7 bg-[oklch(0.55_0.03_258/0.18)]" />
                   ) : (
-                    /* 分组标题 — 可点击折叠 */
+                    /* 分组标题 — 可点击折叠；含激活项的组标签染品牌蓝标记「当前组」 */
                     <button
                       type="button"
                       onClick={() => toggleGroup(group.key)}
                       aria-expanded={!isCollapsed}
+                      data-has-active={group.items.some((item) => item.key === activeKey) ? "true" : "false"}
                       className="sidebar-group-header flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-colors duration-200"
                     >
                       <GroupIcon size={13} className="shrink-0 text-[color:var(--muted-foreground)]" />
@@ -298,12 +299,7 @@ export function AppShell({
                   )}
 
                   {/* 分组子项 */}
-                  <div
-                    data-has-active={group.items.some((item) => item.key === activeKey) ? "true" : "false"}
-                    className={`sidebar-group-panel sidebar-group-rail ${!isCollapsed ? "is-open" : ""} ${
-                      sidebarRail ? "" : "ml-1 border-l pl-1.5"
-                    }`}
-                  >
+                  <div className={`sidebar-group-panel ${!isCollapsed ? "is-open" : ""}`}>
                       <div className="space-y-0.5">
                       {group.items.map((item) => {
                         const Icon = item.icon;
