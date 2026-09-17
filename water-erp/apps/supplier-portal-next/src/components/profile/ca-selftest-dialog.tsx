@@ -13,7 +13,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, CircleDashed, Loader2, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, Loader2, RotateCw, ShieldCheck, XCircle } from "lucide-react";
 import {
   runCaSelfTest,
   type CaSelfTestItemKey,
@@ -204,12 +204,13 @@ export function CaSelftestDialog({
       title="CA及签章测试"
       width={620}
       footer={
-        <>
-          <SpButton disabled={!adapter || !selectedCert || running} onClick={() => void startTest()}>重新检测</SpButton>
-          <SpButton variant="primary" icon={ShieldCheck} loading={running} disabled={!adapter || !selectedCert} onClick={() => void startTest()}>
-            开始检测
-          </SpButton>
-        </>
+        /* 单按钮形变：初始「开始检测」，跑完一轮后变为「重新检测」（图标随之换）；
+           切换CA类型/重开弹窗复位回「开始检测」 */
+        finished ? (
+          <SpButton variant="primary" icon={RotateCw} disabled={!adapter || !selectedCert || running} onClick={() => void startTest()}>重新检测</SpButton>
+        ) : (
+          <SpButton variant="primary" icon={ShieldCheck} loading={running} disabled={!adapter || !selectedCert} onClick={() => void startTest()}>开始检测</SpButton>
+        )
       }
     >
       <div className="ca-form">
