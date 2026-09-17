@@ -33,6 +33,16 @@ interface BoundInfo { certSn: string; certDn: string; publicKey: string; certId:
 interface ServerCertRow {
   id: string; certSn: string; certDn: string; publicKey: string; alg: string;
   bindingStatus: "ACTIVE" | "REVOKED"; boundAt: string; revokedAt: string | null;
+  /** D1v2（2026-09-17）：证书有效期；null=长期（存量介质/旧中间件实例生成） */
+  notBefore: string | null; expiresAt: string | null;
+}
+
+/** 有效期展示文案（A-13）：未携带 → null（由调用方决定是否显示「长期」） */
+function certValidityText(expiresAt?: string | null): string | null {
+  if (!expiresAt) return null;
+  const daysLeft = Math.ceil((dayjs(expiresAt).valueOf() - Date.now()) / 86400000);
+  if (daysLeft < 0) return `已于 ${dayjs(expiresAt).format("YYYY-MM-DD")} 过期`;
+  return `有效期至 ${dayjs(expiresAt).format("YYYY-MM-DD")}（剩 ${daysLeft} 天）`;
 }
 
 function readBound(): BoundInfo | null {
@@ -246,7 +256,11 @@ export default function UkeyManagePage() {
     if (!cert.publicKey) { toast.error("证书缺少公钥，无法绑定"); return; }
     setBinding(true);
     try {
-      const res: any = await supplierApi.bindCert({ certSn: cert.certSn, certDn: cert.certDn, publicKey: cert.publicKey, alg: cert.alg ?? "SM2" });
+      const res: any = await supplierApi.bindCert({
+        certSn: cert.certSn, certDn: cert.certDn, publicKey: cert.publicKey, alg: cert.alg ?? "SM2",
+        ...(cert.notBefore ? { notBefore: cert.notBefore } : {}),
+        ...(cert.notAfter ? { expiresAt: cert.notAfter } : {}),
+      });
       // 换证语义：绑定新证时服务端自动把旧 ACTIVE 置 REVOKED——对旧证做幂等 revoke 查询
       // 依赖旧 certSn 的未开标提交数，警示保留旧介质
       const prevActive = serverCerts.find((c) => c.bindingStatus === "ACTIVE" && c.certSn !== cert.certSn);
@@ -488,6 +502,7 @@ export default function UkeyManagePage() {
                       <div className="cert-main">
                         <span className="cert-sn">{cert.certSn}</span>
                         <span className="cert-dn">{cert.certDn}</span>
+                        {cert.notAfter && <span className="cert-time">{certValidityText(cert.notAfter)}</span>}
                       </div>
                       <div className="cert-actions">
                         {certServerRow(cert.certSn)?.bindingStatus === "ACTIVE" && (
@@ -552,6 +567,7 @@ export default function UkeyManagePage() {
                         ? `绑定于 ${dayjs(row.boundAt).format("YYYY-MM-DD HH:mm")}`
                         : `撤销于 ${row.revokedAt ? dayjs(row.revokedAt).format("YYYY-MM-DD HH:mm") : "--"}`}
                     </span>
+                    <span className="cert-time">{certValidityText(row.expiresAt) ?? "有效期：长期（证书未携带）"}</span>
                   </div>
                   <div className="cert-actions">
                     <span className={`ukey-tag ${row.bindingStatus === "ACTIVE" ? "ukey-tag--success" : "ukey-tag--info"}`}>
