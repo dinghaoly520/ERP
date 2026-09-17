@@ -23,6 +23,7 @@ import { Bell,
   Megaphone,
   MessageSquare,
   ShoppingBag,
+  House,
   ChevronDown,
   ChevronsLeft,
   ChevronsRight,
@@ -57,7 +58,7 @@ const navGroups: NavGroup[] = [
     label: "个人中心",
     icon: UserRound,
     items: [
-      { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: UserRound, meta: "工作安排" },
+      { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: House, meta: "工作安排" },
       { key: "personal-center", label: "个人中心", href: "/profile", icon: UserRound, meta: "管理个人资料与偏好" },
       { key: "assistant", label: "水叮当助手", href: "/assistant", icon: Sparkles, meta: "AI智能助手" },
     ],
@@ -272,7 +273,7 @@ export function AppShell({
               const isCollapsed = collapsedGroups.has(group.key);
 
               return (
-                <div key={group.key} className="mb-0.5">
+                <div key={group.key} className="mb-0.5" data-current={group.items.some((item) => item.key === activeKey) ? "true" : "false"}>
                   {sidebarRail ? (
                     /* rail 窄栏 — 分组退化为细分隔线 */
                     <div aria-hidden className="mx-auto my-2 h-px w-7 bg-[oklch(0.55_0.03_258/0.18)]" />

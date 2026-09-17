@@ -581,6 +581,14 @@ a {
   color: var(--accent-strong);
 }
 
+/* 方案C —— 当前组子项图标点蓝（「你在哪一片」）；文字色不变，切换 0.25s 过渡 */
+.sidebar-nav .sidebar-nav-item > svg {
+  transition: color 0.25s ease;
+}
+.sidebar-nav div[data-current="true"] .sidebar-nav-item > svg {
+  color: var(--accent-strong);
+}
+
 /* Edge tabs — 点击不位移，仅颜色交互 */
 
 /* Group header — hover 轻蓝染（与子项同语言，质感留给容器） */
