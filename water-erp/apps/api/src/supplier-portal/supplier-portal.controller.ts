@@ -171,7 +171,7 @@ export class SupplierPortalController {
   @Post('profile/cert')
   async bindCert(
     @Request() req: any,
-    @Body() body: { certSn: string; certDn: string; publicKey: string; alg?: string },
+    @Body() body: { certSn: string; certDn: string; publicKey: string; alg?: string; notBefore?: string; expiresAt?: string },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.bindCert(supplierId, body);

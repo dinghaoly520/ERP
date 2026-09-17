@@ -663,11 +663,14 @@ export class SupplierPortalService {
 
   /**
    * 绑定供应商 CA 证书（U盾枚举后由前端 POST 证书信息）。
-   * 校验链：公钥格式（04+128hex）→ DN 的 CN 归一化后须包含注册企业名归一化串 → certSn 全局占用。
+   * 校验链：公钥格式（04+128hex）→ DN 的 CN 归一化后须包含注册企业名归一化串 → certSn 全局占用 → 有效期（可选：ISO 可解析/未过期/区间合法）。
    * 成功事务：本供应商旧 ACTIVE 证书转 REVOKED（一证一 ACTIVE，换证/挂失语义）→ 建/复用证书行 →
    * 回填 Supplier.sm2PublicKey（存量列，激活 SM2 验签）。
    */
-  async bindCert(supplierId: string, input: { certSn: string; certDn: string; publicKey: string; alg?: string }) {
+  async bindCert(
+    supplierId: string,
+    input: { certSn: string; certDn: string; publicKey: string; alg?: string; notBefore?: string; expiresAt?: string },
+  ) {
     const { certSn, certDn, publicKey, alg } = input;
     if (!certSn || !certDn || !publicKey) {
       throw new BadRequestException({ error: '请填写完整证书信息', code: 'MISSING_FIELDS' });
@@ -675,6 +678,28 @@ export class SupplierPortalService {
     // 公钥格式校验：复用注入的 SignatureService.isValidPublicKey（与验签同一口径，杜绝正则复制漂移）
     if (!this.signatureService.isValidPublicKey(publicKey)) {
       throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: ERR_PUBLIC_KEY_INVALID_SUPPLIER });
+    }
+
+    // D1v2/D2：证书有效期（可选——mock 新证书带 60 天，存量介质/旧中间件实例不带=长期）。
+    // 时点闸门①（绑定）：已过期证书拒绑；区间非法（非 ISO / notBefore>expiresAt）拒收。
+    const parseValidityDate = (v: string | undefined): Date | undefined => {
+      if (v === undefined || v === null || v === '') return undefined;
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) {
+        throw new BadRequestException({ error: '证书有效期格式非法（须为 ISO 8601）', code: 'INVALID_VALIDITY' });
+      }
+      return d;
+    };
+    const validityNotBefore = parseValidityDate(input.notBefore);
+    const validityExpiresAt = parseValidityDate(input.expiresAt);
+    if (validityExpiresAt && validityExpiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException({
+        error: '该证书已过期，无法绑定——请换发新证书后在「U盾管理」页重新绑定',
+        code: 'BIND_CERT_EXPIRED',
+      });
+    }
+    if (validityNotBefore && validityExpiresAt && validityNotBefore.getTime() > validityExpiresAt.getTime()) {
+      throw new BadRequestException({ error: '证书有效期区间非法（起晚于止）', code: 'INVALID_VALIDITY' });
     }
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
@@ -701,13 +726,32 @@ export class SupplierPortalService {
           data: { bindingStatus: 'REVOKED', revokedAt: now },
         });
         // certSn 列全局唯一：本供应商已撤销的同号证书复用原行置回 ACTIVE，否则新建
+        // 同号复用置回 ACTIVE：有效期以本次绑定为准（未携带即清空=长期），提醒档位重置（新绑定生命周期）
         const row = existing
           ? await tx.supplierCert.update({
               where: { id: existing.id },
-              data: { certDn, publicKey, alg: alg ?? 'SM2', bindingStatus: 'ACTIVE', boundAt: now, revokedAt: null },
+              data: {
+                certDn,
+                publicKey,
+                alg: alg ?? 'SM2',
+                bindingStatus: 'ACTIVE',
+                boundAt: now,
+                revokedAt: null,
+                notBefore: validityNotBefore ?? null,
+                expiresAt: validityExpiresAt ?? null,
+                expiryNotifyStage: 0,
+              },
             })
           : await tx.supplierCert.create({
-              data: { supplierId, certSn, certDn, publicKey, alg: alg ?? 'SM2' },
+              data: {
+                supplierId,
+                certSn,
+                certDn,
+                publicKey,
+                alg: alg ?? 'SM2',
+                notBefore: validityNotBefore,
+                expiresAt: validityExpiresAt,
+              },
             });
         // 绑定即激活验签公钥（存量列）
         await tx.supplier.update({ where: { id: supplierId }, data: { sm2PublicKey: publicKey } });
