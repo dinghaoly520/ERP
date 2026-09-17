@@ -218,7 +218,7 @@ export default function BidClarificationsPage() {
           <SpButton variant="primary" onClick={retryLoad}>重新加载</SpButton>
         </div>
       ) : items.length === 0 ? (
-        <div className="bc-empty !py-12">暂无寻址贵司的评标澄清</div>
+        <div className="bc-empty !py-12">暂无向贵司发出的评标澄清</div>
       ) : (
         <div className="neu-card mt-5">
           <div className="cq-list">

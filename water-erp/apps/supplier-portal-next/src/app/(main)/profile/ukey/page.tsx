@@ -49,7 +49,7 @@ function certValidityText(expiresAt?: string | null): string | null {
 const UKEY_GUIDE: Array<{ icon: ComponentType<{ size?: number | string; className?: string; strokeWidth?: number }>; title: string; desc: string }> = [
   { icon: FileLock, title: "投标递交加密", desc: "双信封加密投递：技术与商务文件、报价分别密封，私钥全程不出 U盾。" },
   { icon: Unlock, title: "开标在线解密", desc: "开标大厅在线解密唱标；已投递标书依赖绑定时证书解密，请妥善保管介质。" },
-  { icon: PenLine, title: "评标澄清签名", desc: "评标委员会寻址澄清时，答复须经 U盾 电子签名后在线提交。" },
+  { icon: PenLine, title: "评标澄清签名", desc: "评标委员会发出澄清要求时，答复须经 U盾 电子签名后在线提交。" },
   { icon: CalendarClock, title: "证书到期提醒", desc: "到期前 30/7 天站内两档提醒；换证绑定自动撤销旧证，旧证解密依赖请留介质。" },
 ];
 
