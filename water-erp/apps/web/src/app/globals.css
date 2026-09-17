@@ -377,13 +377,13 @@ a {
    Sidebar card — 半透明毛玻璃 + 凸起边缘 + 光晕
    ============================================================ */
 .sidebar-card {
-  /* 基底 — 半透明玻璃面板，让页面 flow-glow 水彩光晕透出 */
+  /* 基底 — 近实心亮白（底部微透保留玻璃语言）；透太多会把灰蓝底色/光晕透出来显黯淡 */
   background:
     linear-gradient(
       175deg,
-      oklch(0.99 0.006 252 / 0.88) 0%,
-      oklch(0.992 0.004 252 / 0.78) 45%,
-      oklch(0.982 0.008 250 / 0.68) 100%
+      oklch(1 0 0 / 0.97) 0%,
+      oklch(0.998 0.003 250 / 0.93) 45%,
+      oklch(0.995 0.005 248 / 0.87) 100%
     );
   backdrop-filter: blur(26px) saturate(130%);
   -webkit-backdrop-filter: blur(26px) saturate(130%);
