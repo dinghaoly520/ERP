@@ -6,8 +6,9 @@
  * apps/api ukey-ca-selftest.spec.ts 锁定）：私钥侧（签名/解密）必须经介质
  * adapter——页面已解锁则复用同一会话（检测运算顺带给厂商会话续活），
  * 未解锁时弹窗内联 key密码 走 openUkey 初始化（mock 重开同库无冲突、
- * vendor 重新 unlock 幂等）。Tab2「CA签章测试」（可视化签章）待 CA 签章
- * 专项接入后补，tab 位先行占位禁用。
+ * vendor 重新 unlock 幂等）。「选择CA类型」下拉读 CA_PROVIDERS 注册表
+ * （接新厂家只动注册表，本弹窗零改动）；切换类型须重新初始化。
+ * Tab2「CA签章测试」（可视化签章）待 CA 签章专项接入后补，tab 位先行占位禁用。
  */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -19,7 +20,7 @@ import {
   type MockUKeyAdapter,
   type VendorUKeyAdapter,
 } from "@water-erp/ukey";
-import { detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
+import { CA_PROVIDERS, openUkey, type CaProvider, type UkeyKind } from "@/utils/ukey-factory";
 import { extractCn, isOwnCert } from "@/utils/ukey-cert-match";
 import { SpButton, SpDialog, SpInput, SpSelect } from "@/components/ui";
 
@@ -66,7 +67,7 @@ export function CaSelftestDialog({
   ukeyKind: UkeyKind;
   companyName: string;
 }) {
-  const [kind, setKind] = useState<UkeyKind>(pageKind);
+  const [providerId, setProviderId] = useState<string>(CA_PROVIDERS[0].id);
   const [adapter, setAdapter] = useState<MockUKeyAdapter | VendorUKeyAdapter | null>(null);
   const [certs, setCerts] = useState<CertInfo[]>([]);
   const [certSn, setCertSn] = useState("");
@@ -77,8 +78,23 @@ export function CaSelftestDialog({
   const [finished, setFinished] = useState(false);
 
   const selectedCert = useMemo(() => certs.find((c) => c.certSn === certSn) ?? null, [certs, certSn]);
+  const provider: CaProvider = useMemo(
+    () => CA_PROVIDERS.find((p) => p.id === providerId) ?? CA_PROVIDERS[0],
+    [providerId],
+  );
 
-  /* 开弹窗即复位；页面已解锁则直接枚举证书，否则先探测介质轨别 */
+  /* 介质类别 → 注册表 id（共享页面会话时定位默认选中项） */
+  const kindToProviderId = (k: UkeyKind) => (k === "vendor" ? "local-sm2" : "mock");
+
+  /* 默认选中：按注册表顺序探测首个在线轨；全不在线取首项（初始化时如实报错） */
+  async function defaultProviderId(): Promise<string> {
+    for (const p of CA_PROVIDERS) {
+      if (await p.probe()) return p.id;
+    }
+    return CA_PROVIDERS[0].id;
+  }
+
+  /* 开弹窗即复位；页面已解锁则直接枚举证书，否则探测默认 CA 类型 */
   useEffect(() => {
     if (!open) return;
     setItems(PENDING_ALL);
@@ -89,14 +105,26 @@ export function CaSelftestDialog({
     setCerts([]);
     if (ukey) {
       setAdapter(ukey);
-      setKind(pageKind);
+      setProviderId(kindToProviderId(pageKind));
       void enumerate(ukey);
     } else {
       setAdapter(null);
-      void detectUkey().then(setKind);
+      void defaultProviderId().then(setProviderId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  /* 切换 CA 类型：介质/会话按轨隔离，须重新初始化（口令一并清空） */
+  function handleProviderChange(id: string) {
+    if (id === providerId) return;
+    setProviderId(id);
+    setAdapter(null);
+    setCerts([]);
+    setCertSn("");
+    setPin("");
+    setItems(PENDING_ALL);
+    setFinished(false);
+  }
 
   async function enumerate(target: MockUKeyAdapter | VendorUKeyAdapter) {
     const list = await target.listCertificates();
@@ -116,8 +144,7 @@ export function CaSelftestDialog({
         return;
       }
       if (!pin) { toast.warning("请输入证书口令（key密码）"); return; }
-      const opened = await openUkey(pin);
-      setKind(opened.kind);
+      const opened = await openUkey(pin, providerId);
       setAdapter(opened.adapter);
       setPin(""); // 口令用完即清，不残留
       const list = await enumerate(opened.adapter);
@@ -193,9 +220,10 @@ export function CaSelftestDialog({
       <div className="ca-form">
         <div className="ca-form-row">
           <label>选择CA类型</label>
-          <SpSelect value={kind} disabled>
-            <option value="vendor">国密 SM2 · 本机CA驱动</option>
-            <option value="mock">国密 SM2 · 浏览器模拟介质</option>
+          <SpSelect value={provider.id} onChange={(e) => handleProviderChange(e.target.value)} disabled={running}>
+            {CA_PROVIDERS.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
           </SpSelect>
           <span className="ca-hint">SM2 / SM3 / SM4</span>
         </div>
@@ -224,7 +252,7 @@ export function CaSelftestDialog({
             <label>key密码</label>
             <SpInput
               type="password"
-              placeholder={kind === "vendor" ? "输入证书口令（PIN）" : "输入 U盾口令（首次使用将自动创建）"}
+              placeholder={provider.kind === "vendor" ? "输入证书口令（PIN）" : "输入 U盾口令（首次使用将自动创建）"}
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void handleInit(); }}
