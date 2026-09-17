@@ -298,8 +298,8 @@ export function AppShell({
                     </button>
                   )}
 
-                  {/* 分组子项 */}
-                  <div className={`sidebar-group-panel ${!isCollapsed ? "is-open" : ""}`}>
+                  {/* 分组子项 — 缩进偏移拉开与组头的层级（rail 态不加，避免图标列偏心） */}
+                  <div className={`sidebar-group-panel ${!isCollapsed ? "is-open" : ""} ${sidebarRail ? "" : "ml-1 pl-1.5"}`}>
                       <div className="space-y-0.5">
                       {group.items.map((item) => {
                         const Icon = item.icon;
