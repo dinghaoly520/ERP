@@ -415,6 +415,10 @@ export interface Supplier {
   companyEmail?: string | null;
   /** 公司官网地址 */
   companyWebsite?: string | null;
+  /** 企业注册成立日期（营业执照登记日期，2026-09-16 国资监管指标扩展） */
+  establishedDate?: string | null;
+  /** 企业简介（≤1000 字，2026-09-16 国资监管指标扩展） */
+  companyProfile?: string | null;
   /** 银行账户（注册第 3 部分，可多项） */
   bankAccounts?: SupplierBankAccount[];
   /** 主体业绩（注册第 5 部分，可多项） */

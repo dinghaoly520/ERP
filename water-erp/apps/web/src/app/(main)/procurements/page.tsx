@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { SasacExtractModal } from "@/components/procurements/sasac-extract-modal";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import {
@@ -36,6 +37,7 @@ import {
   FolderKanban,
   Trash2,
   RotateCcw,
+  ClipboardCheck,
 } from "lucide-react";
 import type { ProcurementRoundItem, ResultStatusKey, LedgerFilterState } from "@/lib/types/procurement";
 import { RESULT_STATUS_CONFIG, type LedgerSummary } from "@/lib/types/procurement";
@@ -121,6 +123,8 @@ function PageHero({
   onSortChange,
   companyId,
   onCompanyChange,
+  onOpenExtract,
+  isAdmin,
 }: {
   filters: LedgerFilterState;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
@@ -134,6 +138,8 @@ function PageHero({
   onSortChange: (value: string) => void;
   companyId: string;
   onCompanyChange: (value: string) => void;
+  onOpenExtract: () => void;
+  isAdmin: boolean;
 }) {
   const abnormalCount = data.filter(i =>
     ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE", "CANCELLED"].includes(i.resultStatus)
@@ -159,6 +165,17 @@ function PageHero({
 
         <div className="page-hero__right">
           <CompanySelect value={companyId} onChange={onCompanyChange} />
+          {isAdmin && (
+          <button
+            type="button"
+            onClick={onOpenExtract}
+            className="neu-btn-soft !h-9 !px-3 gap-1.5 text-xs"
+            title="按国资监管九大领域业务数据指标库提取采购领域数据"
+          >
+            <ClipboardCheck size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
+            国资监管数据生成
+          </button>
+          )}
           <span className="page-hero__stat page-hero__stat--info">
             共 {pagination.total} 条
           </span>
@@ -1031,6 +1048,7 @@ export default function ProcurementsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [companyId, setCompanyId] = useState('all');
+  const [extractOpen, setExtractOpen] = useState(false);
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
@@ -1352,6 +1370,8 @@ export default function ProcurementsPage() {
             sortBy={sortBy}
             onSortChange={(v) => setSortBy(v as typeof sortBy)}
             companyId={companyId}
+          onOpenExtract={() => setExtractOpen(true)}
+          isAdmin={isAdmin}
             onCompanyChange={setCompanyId}
           />
         </div>
@@ -1457,6 +1477,7 @@ export default function ProcurementsPage() {
           />
         )}
         {dialog}
+        <SasacExtractModal open={extractOpen} onClose={() => setExtractOpen(false)} companyId={companyId} />
       </div>
   );
 }

@@ -267,6 +267,8 @@ export class SupplierService {
           region: dto.region || null,
           registeredCapital: dto.registeredCapital || null,
           industry: dto.industry || null,
+          establishedDate: dto.establishedDate ? new Date(dto.establishedDate) : null,
+          companyProfile: dto.companyProfile || null,
           companyEmail: dto.companyEmail || null,
           companyWebsite: dto.companyWebsite || null,
           tags: dto.tags,
@@ -1457,6 +1459,10 @@ export class SupplierService {
       }
 
       const data: Record<string, any> = { [change.fieldName]: change.newValue };
+      // establishedDate 为 Date 列：newValue（ISO 字符串或空）须转换
+      if (change.fieldName === 'establishedDate') {
+        data.establishedDate = change.newValue ? new Date(change.newValue) : null;
+      }
       if (change.fieldName === 'name') {
         // 公司名允许重复，不再按 normalizedName 查重；仅同步 normalizedName 与用户名（用户名仍须唯一，见下）
         const normalizedName = String(change.newValue).trim().toLowerCase();

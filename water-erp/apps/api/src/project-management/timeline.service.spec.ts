@@ -3,11 +3,17 @@ import { TimelineService } from './timeline.service';
 
 /** B3 项目时间信息轴（CTS-EBS01 A-204）：聚合各域时间节点，有值升序、缺值垫底 */
 describe('TimelineService（B3 A-204）', () => {
-  const mk = (pmi: any, bp: any = null, contract: any = null, stage: any = null) => ({
+  const mk = (pmi: any, bp: any = null, contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; firstRsvp?: any } = {}) => ({
     projectManagementItem: { findUnique: jest.fn().mockResolvedValue(pmi) },
-    bidProject: { findFirst: jest.fn().mockResolvedValue(bp) },
+    bidProject: { findFirst: jest.fn().mockResolvedValue(bp), findMany: jest.fn().mockResolvedValue([]) },
     contract: { findFirst: jest.fn().mockResolvedValue(contract) },
-    projectManagementStage: { findFirst: jest.fn().mockResolvedValue(stage) },
+    // findFirst 两用：PUBLIC_ANNOUNCEMENT 存在性（默认有→走公告分支）与 CONTRACT 兜底（stage）
+    projectManagementStage: { findFirst: jest.fn().mockImplementation((args: any) =>
+      args?.where?.stageKey === 'PUBLIC_ANNOUNCEMENT'
+        ? (opts.hasPublicStage === false ? null : { id: 'pub-stage' })
+        : stage) },
+    announcement: { findMany: jest.fn().mockResolvedValue(published) },
+    invitationRsvp: { findFirst: jest.fn().mockResolvedValue(opts.firstRsvp ?? null) },
   });
 
   it('固定业务顺序（2026-09-08）：时间乱序（归档早于文件获取/开标）也不重排', async () => {
@@ -26,7 +32,8 @@ describe('TimelineService（B3 A-204）', () => {
     );
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
     expect(nodes.map(n => n.key)).toEqual([
-      'initiation', 'documentAcquire', 'bidDeadline', 'bidOpening', 'contractSign', 'archived',
+      'initiation', 'documentAcquire', 'bidNoticePublish', 'bidDeadline', 'bidOpening',
+      'winNoticePublish', 'contractSign', 'archived',
     ]);
     expect(nodes.every(n => n.label && n.source)).toBe(true);
   });
@@ -51,7 +58,7 @@ describe('TimelineService（B3 A-204）', () => {
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe('按开标时间推算（前24小时）');
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - 24 * 3600 * 1000).getTime());
-    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['documentAcquire', 'contractSign', 'archived']);
+    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['documentAcquire', 'bidNoticePublish', 'winNoticePublish', 'contractSign', 'archived']);
   });
 
   it('兜底：立项缺 initiationDate → 建档时刻；合同缺 Contract 记录 → CONTRACT 阶段完成时刻', async () => {
@@ -68,6 +75,44 @@ describe('TimelineService（B3 A-204）', () => {
     const sign = nodes.find(n => n.key === 'contractSign')!;
     expect(sign.time).toBeTruthy();
     expect(sign.source).toBe('合同阶段完成');
+  });
+
+  it('公告发布时间（2026-09-16）：采购/中标公告取关联公告的最早 publishDate', async () => {
+    const prisma = mk(
+      { id: 'pmi-1', projectCode: 'SWHI-TP-2026090901', initiationDate: new Date('2026-09-01T00:00:00Z'), documentAcquireTime: null, bidOpeningTime: null, archivedAt: null },
+      null, null, null,
+      [
+        { type: 'BID_NOTICE', publishDate: new Date('2026-09-10T10:00:00Z'), createdAt: new Date('2026-09-10T10:00:00Z') },
+        { type: 'BID_NOTICE', publishDate: new Date('2026-09-12T10:00:00Z'), createdAt: new Date('2026-09-12T10:00:00Z') },
+        { type: 'PRE_WIN_NOTICE', publishDate: new Date('2026-09-20T10:00:00Z'), createdAt: new Date('2026-09-20T10:00:00Z') },
+        { type: 'WIN_NOTICE', publishDate: new Date('2026-09-25T10:00:00Z'), createdAt: new Date('2026-09-25T10:00:00Z') },
+      ],
+    );
+    const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
+    const bid = nodes.find(n => n.key === 'bidNoticePublish')!;
+    const win = nodes.find(n => n.key === 'winNoticePublish')!;
+    expect(bid.time).toMatch(/^2026-09-10/);
+    expect(bid.source).toBe('公告');
+    expect(win.time).toMatch(/^2026-09-20/); // 预成交(9/20)早于成交(9/25)
+    expect(prisma.announcement.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'PUBLISHED' }),
+    }));
+  });
+
+  it('无公告步骤（谈判/直接采购）→ 第三节点为「供应商邀请」，取最早邀请通知批次时刻', async () => {
+    const prisma = mk(
+      { id: 'pmi-9', projectCode: 'SWHI-TP-2026091601', initiationDate: new Date('2026-09-16T00:00:00Z'), documentAcquireTime: null, bidOpeningTime: null, archivedAt: null },
+      null, null, null, [],
+      { hasPublicStage: false, firstRsvp: { createdAt: new Date('2026-09-16T10:00:00Z') } },
+    );
+    const nodes = await new TimelineService(prisma as any).getTimeline('pmi-9');
+    const invite = nodes.find(n => n.key === 'supplierInvitation')!;
+    expect(invite.label).toBe('供应商邀请');
+    expect(invite.source).toBe('邀请通知');
+    expect(invite.time).toMatch(/^2026-09-16/);
+    expect(prisma.invitationRsvp.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectId: { in: expect.arrayContaining(['pmi-9']) } }),
+    }));
   });
 
   it('项目不存在 → 404', async () => {

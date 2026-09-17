@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TimelineService, type TimelineNode } from '../project-management/timeline.service';
 import { ResultStatus, SourceType } from '@prisma/client';
 import { CreateProcurementRoundDto } from './dto/create-procurement-round.dto';
 import { UpdateProcurementRoundDto } from './dto/update-procurement-round.dto';
@@ -42,7 +43,182 @@ export class ProcurementsService {
     };
   }
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly timeline: TimelineService;
+
+  constructor(private readonly prisma: PrismaService) {
+    this.timeline = new TimelineService(prisma);
+  }
+
+  /** PMI 采购日期（时间轴口径）：公告发布节点优先，无公告流程取供应商邀请节点；均无则 null。 */
+  private async procurementDateOfPmi(pmiId: string): Promise<string | null> {
+    const nodes: TimelineNode[] = await this.timeline
+      .getTimeline(pmiId)
+      .catch(() => [] as TimelineNode[]);
+    const node = nodes.find((n) => n.key === 'bidNoticePublish' || n.key === 'supplierInvitation');
+    return node?.time ? node.time.slice(0, 10) : null;
+  }
+
+  /**
+   * 国资监管九大领域业务数据指标库（采购领域）提取，2026-09-16。
+   * 指标口径：采购项目基础信息 17 项 + 采购项目过程信息 1 项；采购供应商 7 项。
+   * 系统无对应字段的指标留空（前端可人工补录）；采购组织结构树 4 项待确认写入逻辑。
+   */
+  async sasacExtract(companyWhere?: { companyId?: string | null }) {
+    const roundWhere: Record<string, unknown> = {};
+    if (companyWhere?.companyId !== undefined) roundWhere.companyId = companyWhere.companyId;
+
+    const rounds = await this.prisma.procurementRound.findMany({
+      where: roundWhere,
+      include: { project: true, awardedSupplier: true, createdBy: { select: { username: true, displayName: true, company: true } } },
+      orderBy: [{ procurementDate: 'asc' }, { createdAt: 'asc' }],
+    });
+    const STAGE: Record<string, string> = {
+      PENDING: '评审中',
+      AWARDED: '已成交',
+      FAILED_REVIEW: '未成交（审查未通过）',
+      FILE_REVISION_REQUIRED: '未成交（文件需修正）',
+      INVALID_RESPONSE: '未成交（无效响应）',
+      CANCELLED: '已取消',
+    };
+    const d = (x: Date | null | undefined) => (x ? x.toISOString().slice(0, 10) : '');
+    const n = (x: unknown) => (x === null || x === undefined ? null : Number(x));
+
+    // 已成交轮次的过程步骤：经 PMI 归档链（archivedProcurementRoundId）取阶段模板，全步骤带编号
+    const stageSel = { stageName: true, stageOrder: true, completedAt: true, stageCode: true } as const;
+    const stepsOf = (stages: Array<{ stageName: string; stageOrder: number; completedAt: Date | null; stageCode: string | null }>) =>
+      stages.length > 0
+        ? stages
+            .map((s) => `${s.stageOrder}.${s.stageName}${s.stageCode ? `[${s.stageCode}]` : ''}${s.completedAt ? '' : '…'}`)
+            .join(' ')
+        : '';
+    const stepsRaw = (stages: Array<{ stageName: string; stageOrder: number; completedAt: Date | null; stageCode: string | null }>) =>
+      stages.map((s) => ({ order: s.stageOrder, name: s.stageName, code: s.stageCode ?? null, completed: s.completedAt !== null }));
+    const pmiByRound = new Map(
+      (
+        await this.prisma.projectManagementItem.findMany({
+          where: { archivedProcurementRoundId: { in: rounds.map((r) => r.id) } },
+          include: { stages: { orderBy: { stageOrder: 'asc' }, select: stageSel } },
+        })
+      ).map((m) => [m.archivedProcurementRoundId as string, m]),
+    );
+
+    // 中标供应商代码解析索引：名称精确匹配优先，回退双向包含（库里全称 vs 记录简称）
+    const supplierDir = await this.prisma.supplier.findMany({ select: { name: true, creditCode: true } });
+    const exactCode = new Map(supplierDir.map((s) => [s.name.trim(), s.creditCode]));
+    const codeByName = (nameRaw?: string | null): string => {
+      const name = (nameRaw ?? '').trim();
+      if (!name) return '';
+      if (exactCode.has(name)) return exactCode.get(name)!;
+      const hit = supplierDir.find((s) => s.name.includes(name) || name.includes(s.name));
+      return hit?.creditCode ?? '';
+    };
+
+    const roundProjects = rounds.map((r) => ({
+      id: r.id,
+      name: r.project.name, // 采购项目名称
+      purchaserName: r.createdBy?.company ?? r.companyName ?? '', // 采购单位名称 = 创建人所属单位
+      contact: r.createdBy?.displayName ?? r.createdBy?.username ?? '', // 采购联系人 = 项目创建人（用户名称）
+      category: r.project.businessCategory ?? '', // 采购类别
+      method: r.procurementMethod ?? '', // 采购方式
+      publishForm: r.procurementMethod === '谈判采购' ? '供应商邀请' : '公告公示', // 发布形式：谈判采购=邀请，其余=公告
+      budgetAmount: n(r.budgetAmount), // 采购预算金额（元）
+      awardAmount: n(r.awardAmount), // 采购中标（成交）金额（元）
+      procurementDate: d(r.procurementDate), // 采购日期（采购公告日期）
+      awardDate: r.resultStatus === 'AWARDED' ? d(r.updatedAt) : '', // 中标日期（成交完成时点）
+      centralized: '是', // 是否集中采购（集团统一招采平台，可改）
+      salePeriodOk: '是', // 文件发售期是否满足要求
+      salePeriodNote: '无', // 发售期不满足要求详情（默认无）
+      publicityPeriodOk: '是', // 候选人公示期是否满足要求
+      publicityPeriodNote: '无', // 公示期不满足要求详情（默认无）
+      wonSupplierName: r.awardedSupplierName ?? r.awardedSupplier?.name ?? '', // 中标供应商名称
+      wonSupplierCode: r.awardedSupplier?.creditCode ?? codeByName(r.awardedSupplierName), // 中标供应商代码：ID 关联优先，名称回查供应商库
+      archived: r.resultStatus === 'AWARDED', // 分组依据（已归档/进行中）
+      steps: stepsRaw(pmiByRound.get(r.id)?.stages ?? []), // 结构化步骤（前端逐个着色）
+      stage: stepsOf(pmiByRound.get(r.id)?.stages ?? []) || STAGE[r.resultStatus] || '已成交', // 过程信息：全步骤带编号
+    }));
+
+    // ── 进行中项目：项目管理（PMI）未归档项——台账只落已完成轮次，进行中的在 PMI ──
+    const pmiWhere: Record<string, unknown> = { status: 'ACTIVE', archivedAt: null };
+    if (companyWhere?.companyId !== undefined) pmiWhere.companyId = companyWhere.companyId;
+    const pmiStage: Record<string, string> = {
+      PROCUREMENT_DEMAND: '采购需求',
+      INITIATION: '采购立项',
+      TENDER_DOCUMENT: '采购文件',
+      SUPPLIER_INVITATION: '供应商邀请',
+      PUBLIC_ANNOUNCEMENT: '采购公告公示',
+      EXPERT_SELECTION: '专家抽取',
+      BID_EVALUATION: '开标评标',
+      AWARD_DECISION: '定标',
+      CONTRACT: '合同',
+    };
+    const pmiItems = await this.prisma.projectManagementItem.findMany({
+      where: pmiWhere,
+      include: {
+        createdBy: { select: { username: true, displayName: true, company: true } },
+        stages: { orderBy: { stageOrder: 'asc' }, select: stageSel },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    const ongoingProjects = await Promise.all(pmiItems.map(async (m) => ({
+      id: `pmi-${m.id}`,
+      name: m.title, // 采购项目名称
+      purchaserName: m.createdBy?.company ?? m.companyName ?? '', // 采购单位名称 = 创建人所属单位
+      contact: m.createdBy?.displayName ?? m.createdBy?.username ?? m.requesterName ?? '', // 采购联系人 = 创建人
+      category: m.procurementCategory ?? '', // 采购类别
+      method: m.procurementMethod ?? '', // 采购方式
+      publishForm: m.procurementMethod === '谈判采购' ? '供应商邀请' : '公告公示', // 发布形式：谈判采购=邀请，其余=公告
+      budgetAmount: m.budgetAmount === null ? null : Number(m.budgetAmount),
+      awardAmount: m.contractAmount === null || m.contractAmount === undefined ? null : Number(m.contractAmount),
+      // 采购日期 = 时间轴第三节点：有公告流程→「采购公告发布」；谈判/直接采购→「供应商邀请」
+      procurementDate: (await this.procurementDateOfPmi(m.id)) ?? d(m.initiationDate),
+      awardDate: '', // 进行中：无中标日期
+      centralized: (m.procurementOrganizationForm ?? '').includes('集中') ? '是' : '否', // 组织形式→是否集中采购
+      salePeriodOk: '是',
+      salePeriodNote: '无', // 发售期不满足要求详情（默认无）
+      publicityPeriodOk: '是',
+      publicityPeriodNote: '无', // 公示期不满足要求详情（默认无）
+      wonSupplierName: m.awardedSupplier ?? '',
+      wonSupplierCode: codeByName(m.awardedSupplier), // 中标供应商代码：名称回查供应商库
+      archived: false,
+      steps: stepsRaw(m.stages), // 结构化步骤（前端逐个着色）
+      // 过程信息：全步骤带编号 + 阶段编码；未完成步骤加「…」标记
+      stage: stepsOf(m.stages) || pmiStage[m.currentStage] || m.currentStage || '进行中',
+    })));
+    const projects = [...roundProjects, ...ongoingProjects];
+
+    const suppliers = await this.prisma.supplier.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true, name: true, creditCode: true, businessScope: true,
+        registeredCapital: true, industry: true, isTemporary: true, status: true,
+      },
+    });
+    const supplierRows = suppliers.map((s) => ({
+      id: s.id,
+      name: s.name, // 供应商名
+      creditCode: s.creditCode, // 供应商统一信用代码
+      mainBusiness: s.businessScope ?? '', // 主营业务
+      foundingDate: '', // 成立日期（系统无对应字段，待补录）
+      industry: s.industry ?? '', // 所属行业
+      profile: '', // 企业简介（待补录）
+      // 注册资金（万元，数值型 N16,4）：库存为杂文本（如「5,000万元人民币」），解析出纯数字
+      registeredCapital: (() => {
+        const m = (s.registeredCapital ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/);
+        return m ? Number(m[0]) : null;
+      })(),
+      isTemporary: s.isTemporary,
+    }));
+
+    return {
+      projects,
+      suppliers: supplierRows,
+      // 采购组织结构树（4 项指标）：待确认写入逻辑，暂留空
+      orgTree: {
+        fields: ['单位统一社会信用代码', '采购单位ID', '上级单位ID', '所属集团ID'],
+        items: [],
+      },
+    };
+  }
 
   /** 按公司名查找供应商，不存在则创建（normalizedName 已非唯一，不能用 upsert where normalizedName） */
   private async findOrCreateSupplierByName(name: string) {

@@ -1373,6 +1373,8 @@ model Supplier {
   isTemporary        Boolean        @default(false)
   temporaryExpiresAt DateTime?
   urgedAt            DateTime? // 催促审核时间（非空=已催过，仅允许一次）
+  establishedDate    DateTime? // 企业注册成立日期（营业执照登记日期）
+  companyProfile     String? // 企业简介（≤1000 字）
   tags               String[]       @default([])
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt

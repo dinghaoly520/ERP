@@ -23,7 +23,7 @@ import { BusinessTagField } from "@/components/registration/business-tag-field";
 import { PasswordField } from "@/components/registration/password-field";
 import { RegistrationField, RegistrationSection, RegistrationShell, type RegistrationStep } from "@/components/registration/registration-shell";
 import { SpSwitch } from "@/components/ui";
-import { ENTERPRISE_TYPES, INDUSTRY_OPTIONS } from "@/constants/supplier";
+import { ENTERPRISE_TYPES, INDUSTRY_GROUPS, COMPANY_PROFILE_MAX } from "@/constants/supplier";
 import "@/styles/pages/register2.css";
 
 interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
@@ -137,6 +137,7 @@ export default function RegisterPage() {
   const [basic, setBasic] = useState({
     logoUrl: "", name: "", creditCode: "", country: "中国", region: "",
     detailedAddress: "", registeredAddress: "", registeredCapital: "", enterpriseType: "", industry: "",
+    establishedDate: "", companyProfile: "",
     businessScope: "", legalPerson: "", legalPersonIdCard: "", legalPersonPhone: "", companyEmail: "", companyWebsite: "",
   });
   const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
@@ -316,7 +317,11 @@ export default function RegisterPage() {
       else if (!/^[0-9A-Z]{18}$/.test(basic.creditCode.trim())) e.creditCode = "请输入18位统一社会信用代码";
       if (!basic.enterpriseType) e.enterpriseType = "请选择公司体制类型";
       if (!basic.registeredAddress.trim()) e.registeredAddress = "请输入注册地址";
-      if (!basic.businessScope.trim()) e.businessScope = "请输入经营范围";
+      if (!basic.establishedDate) e.establishedDate = "请选择企业注册成立日期";
+      if (!basic.industry) e.industry = "请选择所属的国民经济行业";
+      if (!basic.registeredCapital.trim()) e.registeredCapital = "请输入注册资金";
+      if (basic.companyProfile.length > COMPANY_PROFILE_MAX) e.companyProfile = `企业简介不能超过 ${COMPANY_PROFILE_MAX} 字`;
+      if (!basic.businessScope.trim()) e.businessScope = "请输入主要经营业务范围";
       if (!basic.legalPerson.trim()) e.legalPerson = "请输入法定代表人姓名";
       if (!basic.legalPersonIdCard.trim()) e.legalPersonIdCard = "请输入法定代表人身份证号";
       else if (!/^\d{17}[\dXx]$/.test(basic.legalPersonIdCard.trim())) e.legalPersonIdCard = "请输入18位身份证号";
@@ -441,6 +446,8 @@ export default function RegisterPage() {
         detailedAddress: basic.detailedAddress.trim() || undefined,
         registeredCapital: basic.registeredCapital.trim() || undefined,
         industry: basic.industry.trim() || undefined,
+        establishedDate: basic.establishedDate || undefined,
+        companyProfile: basic.companyProfile.trim() || undefined,
         legalPersonPhone: basic.legalPersonPhone.trim() || undefined,
         companyEmail: basic.companyEmail.trim() || undefined,
         companyWebsite: basic.companyWebsite.trim() || undefined,
@@ -647,28 +654,42 @@ export default function RegisterPage() {
                   {item("creditCode", "统一社会信用代码（登录账号）", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s.toUpperCase() })), "18 位代码，注册后作为登录账号", { maxLength: 18, onBlur: checkCreditCode }), true)}
                   {item("country", "国别", inp(basic.country, (s) => setBasic((b) => ({ ...b, country: s })), "中国"))}
                   {item("region", "所属行政区域", inp(basic.region, (s) => setBasic((b) => ({ ...b, region: s })), "如：四川省/成都市/双流区"))}
-                  {item("registeredCapital", "注册资本", inp(basic.registeredCapital, (s) => setBasic((b) => ({ ...b, registeredCapital: s })), "如：5000 万元"))}
                   {item("enterpriseType", "公司体制类型", (
                     <select className="reg-sel" value={basic.enterpriseType} onChange={(e) => setBasic((b) => ({ ...b, enterpriseType: e.target.value }))}>
                       <option value="" disabled>请选择</option>
                       {ENTERPRISE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   ), true)}
-                  {item("industry", "所属行业", (
-                    <>
-                      <input className="reg-inp" list="reg-industry-list" value={basic.industry} placeholder="下拉选择或自行输入"
-                        onChange={(e) => setBasic((b) => ({ ...b, industry: e.target.value }))} />
-                      <datalist id="reg-industry-list">
-                        {INDUSTRY_OPTIONS.map((o) => <option key={o} value={o} />)}
-                      </datalist>
-                    </>
-                  ))}
+                  {item("industry", "所属的国民经济行业", (
+                    <select className="reg-sel" value={basic.industry} onChange={(e) => setBasic((b) => ({ ...b, industry: e.target.value }))}>
+                      <option value="" disabled>请选择国民经济行业大类（GB/T 4754）</option>
+                      {INDUSTRY_GROUPS.map((g) => (
+                        <optgroup key={g.category} label={g.category}>
+                          {g.items.map((it) => <option key={it} value={it}>{it}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                  ), true)}
                   {item("registeredAddress", "注册地址", inp(basic.registeredAddress, (s) => setBasic((b) => ({ ...b, registeredAddress: s })), "营业执照登记地址"), true)}
+                  {item("establishedDate", "企业注册成立日期", (
+                    <input type="date" className="reg-date" value={basic.establishedDate}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setBasic((b) => ({ ...b, establishedDate: e.target.value }))} />
+                  ), true)}
+                  {item("registeredCapital", "注册资金", inp(basic.registeredCapital, (s) => setBasic((b) => ({ ...b, registeredCapital: s })), "如：5000 万元"), true)}
                 </div>
                 {item("detailedAddress", "详细地址", inp(basic.detailedAddress, (s) => setBasic((b) => ({ ...b, detailedAddress: s })), "实际办公/经营详细地址"))}
-                {item("businessScope", "经营范围", (
-                  <textarea className="reg-inp" rows={3} value={basic.businessScope} placeholder="请输入经营范围" onChange={(e) => setBasic((b) => ({ ...b, businessScope: e.target.value }))} />
+                {item("businessScope", "主要经营业务范围", (
+                  <textarea className="reg-inp" rows={3} value={basic.businessScope} placeholder="请按营业执照填写主要经营业务范围" onChange={(e) => setBasic((b) => ({ ...b, businessScope: e.target.value }))} />
                 ), true)}
+                {item("companyProfile", "企业简介", (
+                  <>
+                    <textarea className="reg-inp" rows={4} maxLength={COMPANY_PROFILE_MAX} value={basic.companyProfile}
+                      placeholder="简介企业基本情况、主营业务、生产能力、资质荣誉等（1000 字以内，选填）"
+                      onChange={(e) => setBasic((b) => ({ ...b, companyProfile: e.target.value }))} />
+                    <span className="reg-char-count">{basic.companyProfile.length}/{COMPANY_PROFILE_MAX}</span>
+                  </>
+                ))}
           </RegistrationSection>
 
           <RegistrationSection icon={ShieldCheck} title="法人信息" hint="须与营业执照登记一致">
@@ -906,7 +927,7 @@ export default function RegisterPage() {
                   <div className="reg-ov-item"><dt>统一社会信用代码</dt><dd className="reg-mono">{basic.creditCode || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>国别 / 行政区域</dt><dd>{basic.country || "未填写"} / {basic.region || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>注册地址</dt><dd>{basic.registeredAddress || "未填写"}{basic.detailedAddress ? `（${basic.detailedAddress}）` : ""}</dd></div>
-                  <div className="reg-ov-item"><dt>注册资本 / 行业</dt><dd>{basic.registeredCapital || "未填写"} / {basic.industry || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>注册资金 / 国民经济行业</dt><dd>{basic.registeredCapital || "未填写"} / {basic.industry || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>体制类型</dt><dd>{basic.enterpriseType || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>法人</dt><dd>{basic.legalPerson || "未填写"}{basic.legalPersonPhone ? ` · ${basic.legalPersonPhone}` : ""}</dd></div>
                   <div className="reg-ov-item"><dt>公司邮箱 / 官网</dt><dd>{basic.companyEmail || "未填写"} / {basic.companyWebsite || "未填写"}</dd></div>

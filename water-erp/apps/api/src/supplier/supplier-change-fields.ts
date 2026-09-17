@@ -25,6 +25,9 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
   'legalPersonPhone',
   'companyEmail',
   'companyWebsite',
+  // ── 2026-09-16 国资监管指标扩展 ──
+  'establishedDate',
+  'companyProfile',
   // ── 聚合字段（JSON 整体替换）──
   'bankAccounts',
   'performances',
