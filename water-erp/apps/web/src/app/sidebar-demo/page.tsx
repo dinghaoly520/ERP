@@ -94,7 +94,7 @@ const demoGroups: DemoGroup[] = [
   },
 ];
 
-type Variant = "current" | "dim" | "well";
+type Variant = "current" | "icon" | "chip" | "density";
 
 function SidebarMock({
   variant,
@@ -131,11 +131,13 @@ function SidebarMock({
               </button>
 
               <div className="sidebar-group-panel is-open ml-1 pl-1.5">
-                <div className={`space-y-0.5 ${variant === "well" && isCurrent ? styles.well : ""}`}>
+                <div className="space-y-0.5">
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const active = item.key === activeKey;
-                    const dimmed = variant === "dim" && !isCurrent;
+                    const iconAccented = variant === "icon" && isCurrent;
+                    const wellChipped = variant === "chip" && isCurrent;
+                    const compacted = variant === "density" && !isCurrent;
 
                     return (
                       <button
@@ -143,7 +145,9 @@ function SidebarMock({
                         type="button"
                         data-active={active}
                         onClick={() => onSelect(item.key)}
-                        className={`sidebar-nav-item group relative ${dimmed ? styles.dimItem : ""}`}
+                        className={`sidebar-nav-item group relative ${iconAccented ? styles.iconAccent : ""} ${
+                          wellChipped ? styles.iconChip : ""
+                        } ${compacted ? styles.compactRow : ""}`}
                       >
                         {active ? (
                           <span className="nav-active-skew absolute bottom-2 left-[2px] top-2 w-[2.5px]" />
@@ -178,18 +182,23 @@ function SidebarMock({
 const panels: { variant: Variant; title: string; desc: string }[] = [
   {
     variant: "current",
-    title: "现状",
-    desc: "蓝组头 + 10px 缩进 + 激活项蓝染；组间无明度差",
+    title: "现状（对照）",
+    desc: "蓝组头 + 10px 缩进 + 激活项蓝染；组间无其他差异",
   },
   {
-    variant: "dim",
-    title: "方案A · 非当前组降权",
-    desc: "非当前组子项 0.42→0.52（减法）；当前组兄弟项全场最深，0.25s 过渡抹平切换闪动",
+    variant: "icon",
+    title: "方案C · 图标点蓝",
+    desc: "当前组子项图标染品牌蓝，文字不变——蓝色图标列即「你在哪一片」，零线条零底板",
   },
   {
-    variant: "well",
-    title: "方案B · 当前组浅井",
-    desc: "当前组子项区加 accent 5% 底板（加法）；结构感更强，但把「面」加了回来",
+    variant: "chip",
+    title: "方案D · 图标井",
+    desc: "当前组子项图标套 26px accent 微井（10% 染 + 顶缘高光），微容器只占图标位不占整行",
+  },
+  {
+    variant: "density",
+    title: "方案E · 密度聚焦",
+    desc: "当前组保持 36px 行高，非当前组压缩到 27px/13px——当前组物理上占据更大版面，纯密度无装饰",
   },
 ];
 

@@ -1,21 +1,27 @@
 /* 侧栏方案演示页专用样式 —— 仅作用于 /sidebar-demo，不影响线上侧栏。
-   用 :global(.sidebar-nav-item) 组合提升特异性，压过全局 hover/active 默认色。 */
+   用 :global(.sidebar-nav-item) 组合提升特异性，压过全局默认样式。 */
 
-/* 方案A：非当前组子项降权（oklch 0.42 → 0.52，0.25s 色彩过渡抹平切换闪动） */
-.dimItem:global(.sidebar-nav-item) {
-  color: oklch(0.52 0.028 244);
-  transition: color 0.25s ease, background-color 0.2s ease;
-}
-.dimItem:global(.sidebar-nav-item):hover {
-  color: var(--foreground);
-}
-.dimItem:global(.sidebar-nav-item)[data-active="true"] {
+/* 方案C · 图标点蓝 —— 当前组子项图标染品牌蓝（文字色不变），蓝色图标列即「当前组」标记 */
+.iconAccent:global(.sidebar-nav-item) > svg:first-of-type {
   color: var(--accent-strong);
+  transition: color 0.25s ease;
 }
 
-/* 方案B：当前组子项区加 accent 浅井底板（5% 染、圆角承载兄弟项） */
-.well {
-  background: oklch(0.63 0.128 247 / 0.05);
-  border-radius: 12px;
-  padding: 3px;
+/* 方案D · 图标井 —— 当前组子项图标套 accent 微井（border-box 下需显式 26px 盒尺寸容纳 5px 内衬） */
+.iconChip:global(.sidebar-nav-item) > svg:first-of-type {
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  background: oklch(0.63 0.128 247 / 0.1);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.55);
+  transition: width 0.25s ease, height 0.25s ease, background-color 0.25s ease;
+}
+
+/* 方案E · 密度聚焦 —— 非当前组行距压缩（36px→27px、14px→13px），当前组物理占幅更大 */
+.compactRow:global(.sidebar-nav-item) {
+  padding-top: 3.5px;
+  padding-bottom: 3.5px;
+  font-size: 13px;
+  transition: padding 0.25s ease, font-size 0.25s ease;
 }
