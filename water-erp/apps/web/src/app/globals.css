@@ -576,6 +576,15 @@ a {
   min-height: 0;
 }
 
+/* Group rail — 组归属导轨线（原 border-white/60 是半透明玻璃底时代的颜色，
+   近实心白底上不可见；改可见灰蓝，激活组导轨变品牌蓝以区分「当前组」） */
+.sidebar-group-rail {
+  border-left-color: oklch(0.55 0.03 258 / 0.22);
+}
+.sidebar-group-rail[data-has-active="true"] {
+  border-left-color: oklch(0.63 0.128 247 / 0.50);
+}
+
 /* Edge tabs — 点击不位移，仅颜色交互 */
 
 /* Group header — hover 轻蓝染（与子项同语言，质感留给容器） */

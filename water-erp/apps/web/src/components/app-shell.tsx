@@ -299,8 +299,9 @@ export function AppShell({
 
                   {/* 分组子项 */}
                   <div
-                    className={`sidebar-group-panel ${!isCollapsed ? "is-open" : ""} ${
-                      sidebarRail ? "" : "ml-1 border-l border-white/60 pl-1.5"
+                    data-has-active={group.items.some((item) => item.key === activeKey) ? "true" : "false"}
+                    className={`sidebar-group-panel sidebar-group-rail ${!isCollapsed ? "is-open" : ""} ${
+                      sidebarRail ? "" : "ml-1 border-l pl-1.5"
                     }`}
                   >
                       <div className="space-y-0.5">
