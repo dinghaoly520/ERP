@@ -39,6 +39,8 @@
   color: var(--brand); font-size: 12px; font-weight: 800;
 }
 .db-task-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+/* 末张孤卡横跨两列：奇数张时最后一张占满整行，右侧不留空（≤720px 单列时该规则无副作用） */
+.db-task-list > .db-task-item:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .db-task-item {
   position: relative;
   width: 100%; min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 14px;
