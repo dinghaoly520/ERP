@@ -186,7 +186,7 @@ export default function OperationLogPage() {
         {/* ═══ 数据表 ═══ */}
         <div className="neu-table-card mt-4">
           <div className="overflow-x-auto">
-            <table className="neu-table w-full min-w-[1080px]">
+            <table className="neu-table w-full min-w-[960px]">
               <thead>
                 <tr>
                   <th style={{ width: 36 }} />
