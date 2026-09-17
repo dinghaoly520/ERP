@@ -156,27 +156,27 @@ export default function NotificationListPage() {
 
   return (
     <>
-      <SpPageHero
-        srTitle="消息中心"
-        actions={(
-          <button type="button" className="nd-btn nd-btn--sm nd-btn--soft" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
-            <Check size={14} strokeWidth={2.5} aria-hidden="true" />全部标为已读
-          </button>
-        )}
-      />
+      <SpPageHero srTitle="消息中心" />
 
-      <div className="neu-tab-bar notif-tabs" role="group" aria-label="消息分类">
-        {GROUPS.map((group) => (
-          <button
-            key={group.value}
-            type="button"
-            className={`neu-tab${groupFilter === group.value ? " active" : ""}`}
-            aria-pressed={groupFilter === group.value}
-            onClick={() => setGroupFilter(group.value)}
-          >
-            {group.label}
-          </button>
-        ))}
+      {/* 工具栏卡：分类 tabs + 全部已读（未读计数直显） */}
+      <div className="sp-toolbar-card">
+        <div className="neu-tab-bar notif-tabs" role="group" aria-label="消息分类">
+          {GROUPS.map((group) => (
+            <button
+              key={group.value}
+              type="button"
+              className={`neu-tab${groupFilter === group.value ? " active" : ""}`}
+              aria-pressed={groupFilter === group.value}
+              onClick={() => setGroupFilter(group.value)}
+            >
+              {group.label}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="neu-btn-xs" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
+          <Check size={13} strokeWidth={2.2} aria-hidden="true" />
+          全部标为已读{unreadCount > 0 ? `（${unreadCount}）` : ""}
+        </button>
       </div>
 
       {loading ? (

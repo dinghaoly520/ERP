@@ -28,6 +28,13 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   complaint: { label: "已转投诉", cls: "st-complaint" },
   closed: { label: "已办结", cls: "st-closed" },
 };
+const STATUS_TABS: Array<{ value: "all" | string; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "open", label: "待答复" },
+  { value: "answered", label: "已答复" },
+  { value: "complaint", label: "已转投诉" },
+  { value: "closed", label: "已办结" },
+];
 
 export default function ObjectionsPage() {
   const [loading, setLoading] = useState(true);
@@ -35,6 +42,7 @@ export default function ObjectionsPage() {
   const [items, setItems] = useState<SupplierObjection[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | string>("all");
   const [form, setForm] = useState({ phase: "document", projectCode: "", title: "", content: "" });
   // 项目编号下拉选项：与本供应商相关的项目（可投标 + 受邀），业务编号
   const [projectCodeOptions, setProjectCodeOptions] = useState<string[]>([]);
@@ -75,6 +83,8 @@ export default function ObjectionsPage() {
     try { await fetchList(); } catch { setError(true); } finally { setLoading(false); }
   };
 
+  const visibleItems = statusFilter === "all" ? items : items.filter((o) => o.status === statusFilter);
+
   const submit = async () => {
     if (!form.title.trim() || !form.content.trim()) { toast.error("请填写异议标题与具体内容"); return; }
     if (!form.projectCode.trim() && ["document", "prequalification", "result", "procedure", "evaluation"].includes(form.phase)) {
@@ -109,19 +119,33 @@ export default function ObjectionsPage() {
 
   return (
     <>
-      <SpPageHero
-        srTitle="异议与投诉"
-        actions={<SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>}
-      />
+      <SpPageHero srTitle="异议与投诉" />
 
-      <div className="mt-4">
+      {/* 工具栏卡：状态筛选 tabs + 提出异议主操作 */}
+      <div className="sp-toolbar-card">
+        <div className="neu-tab-bar" role="group" aria-label="异议状态筛选">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              className={`neu-tab${statusFilter === tab.value ? " active" : ""}`}
+              aria-pressed={statusFilter === tab.value}
+              onClick={() => setStatusFilter(tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>
+      </div>
+
       {loading ? (
         <LoadingBlock text="正在加载异议记录…" />
-      ) : items.length === 0 ? (
-        <EmptyState card icon={Inbox} title="暂无异议记录" desc="如对采购文件、资格预审结果或采购结果有异议，可点击右上角「提出异议」在线提交" />
+      ) : visibleItems.length === 0 ? (
+        <EmptyState card icon={Inbox} title={statusFilter === "all" ? "暂无异议记录" : "该状态暂无记录"} desc={statusFilter === "all" ? "如对采购文件、资格预审结果或采购结果有异议，可点击右上角「提出异议」在线提交" : "切换其他状态或「全部」查看完整记录"} />
       ) : (
         <div className="obj-list">
-          {items.map(o => (
+          {visibleItems.map(o => (
             <div key={o.id} className="obj-card">
               <div className="obj-head">
                 <span className={`obj-status ${STATUS_LABEL[o.status]?.cls ?? ""}`}>{STATUS_LABEL[o.status]?.label ?? o.status}</span>
@@ -147,7 +171,6 @@ export default function ObjectionsPage() {
           ))}
         </div>
       )}
-      </div>
 
       <SpDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="提出异议" width={520}>
         <div className="obj-form">

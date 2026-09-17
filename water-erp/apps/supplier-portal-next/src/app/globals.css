@@ -11115,6 +11115,16 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
+/* ── 页面工具栏卡（cgzxui 数据页标准工具条）：状态/分类 tabs 居左 + 页面级操作居右 ──
+   105° 渐变底 + 方向性双影，与 obj-card/notif-list 同配方 */
+.sp-toolbar-card {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  margin-bottom: 16px; padding: 9px 11px; border: none; border-radius: 16px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 55%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+.sp-toolbar-card .neu-tab-bar { margin: 0; flex-wrap: wrap; }
+
 /* ═══════════════════════════════════════════════════════════
    KPI TILE
    ═══════════════════════════════════════════════════════════ */

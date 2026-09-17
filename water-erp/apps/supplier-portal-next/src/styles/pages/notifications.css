@@ -7,7 +7,7 @@
 
 /* Type filter — tab 基础按 Vue cgzxui 归一（同 AnnouncementList） */
 .neu-tab-bar.notif-tabs {
-  display: flex; flex-wrap: wrap; gap: 4px; margin: 16px 0; max-width: 100%; overflow-x: auto;
+  display: flex; flex-wrap: wrap; gap: 4px; margin: 0; max-width: 100%; overflow-x: auto; /* 居于 .sp-toolbar-card 内，外距由工具栏卡统一 */
   padding: 4px; border-radius: 14px; background: oklch(0.96 0.008 258);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.7);
 }
