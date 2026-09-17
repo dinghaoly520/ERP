@@ -50,8 +50,8 @@ afterAll(async () => {
 beforeEach(() => { mode = 'ok'; });
 
 describe('VendorUKeyAdapter', () => {
-  it('probe:中间件在线 → 计数;离线/非 200 → null', async () => {
-    expect(await VendorUKeyAdapter.probe(500, base)).toEqual({ shields: 2, unlocked: 1 });
+  it('probe:中间件在线 → 计数+版本;离线/非 200 → null', async () => {
+    expect(await VendorUKeyAdapter.probe(500, base)).toEqual({ shields: 2, unlocked: 1, version: '1.0.0' });
     mode = 'unreachable';
     expect(await VendorUKeyAdapter.probe(500, base)).toBeNull();
     expect(await VendorUKeyAdapter.probe(200, 'http://127.0.0.1:9')).toBeNull(); // 无人监听端口

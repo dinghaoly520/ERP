@@ -20,7 +20,7 @@ const CODE_MSG: Record<string, string> = {
   BAD_REQUEST: 'U盾中间件请求参数错误',
 };
 
-interface HealthInfo { shields: number; unlocked: number; }
+interface HealthInfo { shields: number; unlocked: number; /** 中间件版本（/health 携带才有；旧版无此字段） */ version?: string; }
 
 async function requestJson(
   url: string,
@@ -81,7 +81,11 @@ export class VendorUKeyAdapter implements UKeyAdapter {
     try {
       const { status, body } = await requestJson(`${baseUrl}/health`, { method: 'GET' }, timeoutMs);
       if (status !== 200 || body?.ok !== true) return null;
-      return { shields: Number(body.shields) || 0, unlocked: Number(body.unlocked) || 0 };
+      return {
+        shields: Number(body.shields) || 0,
+        unlocked: Number(body.unlocked) || 0,
+        version: typeof body.version === 'string' ? body.version : undefined,
+      };
     } catch {
       return null;
     }

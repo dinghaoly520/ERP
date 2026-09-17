@@ -15,6 +15,7 @@
   color: var(--muted-foreground); background: color-mix(in oklab, var(--hairline) 40%, transparent);
 }
 .ukey-state.open { color: var(--success); background: color-mix(in oklab, var(--success) 12%, transparent); }
+.ukey-state.bad { color: var(--warning); background: color-mix(in oklab, var(--warning) 12%, transparent); }
 
 .open-row { display: flex; gap: 10px; margin-bottom: 14px; }
 .import-row { display: flex; gap: 10px; margin-top: 8px; }

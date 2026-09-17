@@ -16,7 +16,7 @@ import {
 import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
 import { UKEY_STRICT, detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
 import { isOwnCert } from "@/utils/ukey-cert-match";
-import { useUkeyPresence } from "@/utils/use-ukey-presence";
+import { useUkeyHealth } from "@/utils/use-ukey-health";
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
@@ -66,8 +66,12 @@ export default function UkeyManagePage() {
   const [opening, setOpening] = useState(false);
   const [ukey, setUkey] = useState<MockUKeyAdapter | VendorUKeyAdapter | null>(null);
   const [ukeyKind, setUkeyKind] = useState<UkeyKind>("mock");
-  const [mwOffline, setMwOffline] = useState(false); // vendor 探测不到 → 顶部提示条
-  const ukeyPresent = useUkeyPresence(true); // 严格模式:轮询中间件在线且有盾(插回 ≤2s 自动恢复)
+  // ── 中间件常驻监护（2026-09-17）：在线/版本/盾数/已解锁实时轮询 ──
+  const health = useUkeyHealth(2000);
+  // presence 派生（原 useUkeyPresence 语义；离线经去抖防闪跳，插回 ≤2s 即时恢复）
+  const ukeyPresent = health === null ? null : health.online && health.shields > 0;
+  // dev 横幅/轨别由轮询驱动（替代进页一次性快照——中间件后启动/退出都即时反映）
+  const mwOffline = health !== null && !health.online;
   const [ukeyCerts, setUkeyCerts] = useState<CertInfo[]>([]);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -113,8 +117,7 @@ export default function UkeyManagePage() {
         await Promise.all([fetchProfile(), refreshServerCerts()]);
         setBoundInfo(readBound());
         const kind = await detectUkey();
-        setUkeyKind(kind);
-        setMwOffline(kind === "mock");
+        setUkeyKind(kind); // 初值；此后由 health 轮询联动（见下方 effect）
       } catch { setError(true); }
       finally { setLoading(false); }
     })();
@@ -127,6 +130,47 @@ export default function UkeyManagePage() {
       console.warn("[dev] 未检测到 U盾中间件——启动：pnpm dev:ukey-mw（发行：ukeymw issue --cn 企业名）");
     }
   }, [mwOffline]);
+
+  /* 未解锁时中间件在线状态变化 → 轨别联动刷新（解锁口令占位/卡片标签随之正确）。
+     已解锁不动：解锁态属于既开介质，轨别不因探测翻转。 */
+  useEffect(() => {
+    if (ukey || health === null) return;
+    setUkeyKind(health.online ? "vendor" : UKEY_STRICT ? "vendor" : "mock");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [health?.online, ukey]);
+
+  /* ═══ 解锁后中间件监护（2026-09-17 拍板：离线自动锁）═══
+     拔盾(shields=0)/会话失效(unlocked=0)/离线(去抖后) → 与 TTL 到期同款清理 + 告知原因。
+     仅 vendor 会话——mock 轨不依赖中间件，离线不得误锁；unlocked=0 是粗粒度信号
+     （全体盾会话皆灭），本盾单独过期由既有 TTL 倒计时兜底。
+     坏观测须连续 2 次才锁：解锁成功那一刻 health 可能还是解锁前的陈旧快照
+     （unlocked=0/shields=0/离线），单次观测即锁会在解锁后 ~2s 内误杀（2026-09-17 实测）。 */
+  const badHealthPollRef = useRef(0);
+  useEffect(() => {
+    if (!ukey || !(ukey instanceof VendorUKeyAdapter) || !health) return;
+    if (!health.online) { badHealthPollRef.current = 0; return; } // 离线已在 hook 内 3 次去抖，到达即真
+    if (health.shields > 0 && health.unlocked > 0) { badHealthPollRef.current = 0; return; }
+    if (++badHealthPollRef.current < 2) return;
+    badHealthPollRef.current = 0;
+    const reason = health.shields === 0 ? "U盾已拔出" : "U盾会话已失效";
+    setUkey(null);
+    setUkeyCerts([]);
+    setPassword("");
+    setLockCountdown(null);
+    toast.warning(`${reason}，已自动锁定`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [health, ukey]);
+
+  /* 离线监护单独一路：health.online=false 经 hook 3 次去抖，到达即真离线 → 立即锁 */
+  useEffect(() => {
+    if (!ukey || !(ukey instanceof VendorUKeyAdapter) || !health || health.online) return;
+    setUkey(null);
+    setUkeyCerts([]);
+    setPassword("");
+    setLockCountdown(null);
+    toast.warning("U盾驱动服务离线，已自动锁定");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [health?.online, ukey]);
 
   /* ═══ 会话倒计时（厂商中间件空闲 TTL 镜像）：秒级刷新，到期自动翻回锁定态 ═══ */
   useEffect(() => {
@@ -163,7 +207,6 @@ export default function UkeyManagePage() {
     try {
       const { kind, adapter } = await openUkey(password);
       setUkeyKind(kind);
-      setMwOffline(kind === "mock");
       setUkey(adapter);
       const certs = await adapter.listCertificates();
       setUkeyCerts(certs);
@@ -365,6 +408,16 @@ export default function UkeyManagePage() {
               <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
                 {UKEY_STRICT || ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
               </span>
+              {health && (
+                <span
+                  className={`ukey-state${health.online ? " open" : " bad"}`}
+                  title="本机 CA 驱动服务（中间件）实时状态，2s 轮询"
+                >
+                  {health.online
+                    ? `驱动在线${health.version ? ` · v${health.version}` : ""} · ${health.shields} 盾 · ${health.unlocked} 已解锁`
+                    : "驱动离线"}
+                </span>
+              )}
               <span className={`ukey-state${ukey ? " open" : ""}`}>
                 {ukey
                   ? `已解锁 · ${ownCerts.length} 张本企业证书${lockCountdown !== null ? ` · 剩余 ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")} 自动锁定` : ""}`
