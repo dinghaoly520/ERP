@@ -128,7 +128,15 @@ export class VendorUKeyAdapter implements UKeyAdapter {
     const { status, body } = await requestJson(`${this.baseUrl}/certs`, { method: 'GET' }, OP_TIMEOUT_MS);
     if (status !== 200) raise(status, body);
     return (Array.isArray(body?.certs) ? body.certs : []).map(
-      (c: any): CertInfo => ({ certSn: c.certSn, certDn: c.certDn, publicKey: c.publicKey, alg: c.alg ?? 'SM2' }),
+      (c: any): CertInfo => ({
+        certSn: c.certSn,
+        certDn: c.certDn,
+        publicKey: c.publicKey,
+        alg: c.alg ?? 'SM2',
+        // D1v2（2026-09-17）：证书有效期可选透传（mock 中间件新证书带 60 天；旧实例/存量盾缺省=长期）
+        ...(c.notBefore ? { notBefore: c.notBefore } : {}),
+        ...(c.notAfter ? { notAfter: c.notAfter } : {}),
+      }),
     );
   }
 

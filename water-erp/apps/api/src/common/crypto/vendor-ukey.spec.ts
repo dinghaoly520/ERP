@@ -20,7 +20,11 @@ const stub = http.createServer((req, res) => {
   req.on('end', () => {
     const body = JSON.parse(raw || '{}');
     if (req.url === '/certs') {
-      return send(200, { certs: [{ certSn: 'SHD-AAAABBBB', certDn: 'CN=甲公司', publicKey: '04' + 'a'.repeat(128), alg: 'SM2', shieldId: 'SHD-AAAABBBB' }] });
+      // D1v2：新证书带 60 天有效期（notBefore/notAfter）；另加一张旧盾证书（无有效期=长期）验证缺省透传
+      return send(200, { certs: [
+        { certSn: 'SHD-AAAABBBB', certDn: 'CN=甲公司', publicKey: '04' + 'a'.repeat(128), alg: 'SM2', shieldId: 'SHD-AAAABBBB', notBefore: '2026-09-17T00:00:00.000Z', notAfter: '2026-11-16T00:00:00.000Z' },
+        { certSn: 'SHD-OLDOLD01', certDn: 'CN=乙公司', publicKey: '04' + 'b'.repeat(128), alg: 'SM2', shieldId: 'SHD-OLDOLD01' },
+      ] });
     }
     if (req.url === '/session/unlock') {
       if (mode === 'wrongPin') return send(200, { ok: true, unlocked: [], failed: [{ shieldId: 'SHD-X', retryLeft: 2 }] });
@@ -68,7 +72,10 @@ describe('VendorUKeyAdapter', () => {
 
   it('listCertificates:透传并剥 shieldId', async () => {
     const certs = await (await VendorUKeyAdapter.open({ password: '1', baseUrl: base })).listCertificates();
-    expect(certs).toEqual([{ certSn: 'SHD-AAAABBBB', certDn: 'CN=甲公司', publicKey: '04' + 'a'.repeat(128), alg: 'SM2' }]);
+    expect(certs).toEqual([
+      { certSn: 'SHD-AAAABBBB', certDn: 'CN=甲公司', publicKey: '04' + 'a'.repeat(128), alg: 'SM2', notBefore: '2026-09-17T00:00:00.000Z', notAfter: '2026-11-16T00:00:00.000Z' },
+      { certSn: 'SHD-OLDOLD01', certDn: 'CN=乙公司', publicKey: '04' + 'b'.repeat(128), alg: 'SM2' }, // 旧盾无有效期 → 字段缺省（长期）
+    ]);
   });
 
   it('sign/decrypt:结果透传;错误码转中文 Error', async () => {
