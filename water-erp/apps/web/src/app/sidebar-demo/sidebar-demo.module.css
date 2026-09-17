@@ -1,0 +1,21 @@
+/* 侧栏方案演示页专用样式 —— 仅作用于 /sidebar-demo，不影响线上侧栏。
+   用 :global(.sidebar-nav-item) 组合提升特异性，压过全局 hover/active 默认色。 */
+
+/* 方案A：非当前组子项降权（oklch 0.42 → 0.52，0.25s 色彩过渡抹平切换闪动） */
+.dimItem:global(.sidebar-nav-item) {
+  color: oklch(0.52 0.028 244);
+  transition: color 0.25s ease, background-color 0.2s ease;
+}
+.dimItem:global(.sidebar-nav-item):hover {
+  color: var(--foreground);
+}
+.dimItem:global(.sidebar-nav-item)[data-active="true"] {
+  color: var(--accent-strong);
+}
+
+/* 方案B：当前组子项区加 accent 浅井底板（5% 染、圆角承载兄弟项） */
+.well {
+  background: oklch(0.63 0.128 247 / 0.05);
+  border-radius: 12px;
+  padding: 3px;
+}
