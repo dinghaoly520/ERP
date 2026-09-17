@@ -780,6 +780,26 @@ export class SupplierPortalService {
   }
 
   /**
+   * D2 时点闸门②③（投递/补传验签）：ACTIVE 且未过期（expiresAt null=长期）才可信为本次签名主体。
+   * - ACTIVE 但已过期 → 400 CERT_EXPIRED（换证+重绑指引）
+   * - 不存在/非 ACTIVE → 返回 null（调用方走既有 SM2_SIGNATURE_INVALID 收紧口径，不回退旧列）
+   * 历史签名复验不走此闸——签名有效性以签署时点为准（复验由 D4 签时快照承担）。
+   */
+  private async findActiveUnexpiredCert(supplierId: string, certSn: string) {
+    const cert = await this.prisma.supplierCert.findFirst({
+      where: { supplierId, certSn, bindingStatus: 'ACTIVE' },
+    });
+    if (!cert) return null;
+    if (cert.expiresAt && cert.expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException({
+        error: '绑定的 CA 证书已过期，请换发新证书并在「U盾管理」页重新绑定后再投递',
+        code: 'CERT_EXPIRED',
+      });
+    }
+    return cert;
+  }
+
+  /**
    * 解绑/换证：证书置 REVOKED + revokedAt。
    * 响应附 pendingSubmissions = 依赖该 certSn 的未开标提交数（envelope 存 certSn 快照，
    * 旧标书仍需旧证书解密——UI 据此警示「须保留旧 U盾证书」）。
@@ -1820,9 +1840,7 @@ export class SupplierPortalService {
       this.dualEnvelope.assertEnvelopeIntact(env, declared);
       // ③ 验签（收紧口径）：envelope.certSn 必须命中本供应商 ACTIVE SupplierCert；
       //    不回退 supplier.sm2PublicKey 列——revokeCert 不清该列，回退会让已撤销证书的旧公钥继续有效。
-      const cert = await this.prisma.supplierCert.findFirst({
-        where: { supplierId, certSn: env.certSn, bindingStatus: 'ACTIVE' },
-      });
+      const cert = await this.findActiveUnexpiredCert(supplierId, env.certSn); // D2：ACTIVE 且未过期（CERT_EXPIRED 闸）
       const verified = cert
         ? await this.dualEnvelope.verifySignature(env, data.signature ?? '', cert.publicKey)
         : false;
@@ -2220,9 +2238,7 @@ export class SupplierPortalService {
     if (!activeCert || envelope.adminCertId !== activeCert.id) {
       throw new BadRequestException({ error: '管理方加密证书已变更，请重新加密上传', code: 'ADMIN_CERT_CHANGED' });
     }
-    const cert = await this.prisma.supplierCert.findFirst({
-      where: { supplierId, certSn: envelope.certSn, bindingStatus: 'ACTIVE' },
-    });
+    const cert = await this.findActiveUnexpiredCert(supplierId, envelope.certSn); // D2：ACTIVE 且未过期（CERT_EXPIRED 闸）
     const verified = cert
       ? await this.dualEnvelope.verifySignature(envelope, input.signature, cert.publicKey)
       : false;
