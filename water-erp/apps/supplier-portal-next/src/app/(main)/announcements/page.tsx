@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import dayjs from "dayjs";
-import { ArrowRight, Bell, Megaphone, Search, TriangleAlert, X } from "lucide-react";
+import { ArrowRight, Bell, Search, TriangleAlert, X } from "lucide-react";
 import { serverNowMs } from "@water-erp/shared";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -140,7 +140,7 @@ export default function AnnouncementListPage() {
 
   return (
     <>
-      <SpPageHero icon={Megaphone} title="公告公示" sub="集中查看采购公告、中标公告、政策法规和平台通知。" />
+      <SpPageHero srTitle="公告公示" />
 
       <div className="neu-card ann-filter">
         <div className="ann-tabs">

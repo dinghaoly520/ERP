@@ -7,7 +7,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
-  FilePenLine,
   Inbox,
   Info,
   MessageSquare,
@@ -78,11 +77,7 @@ export default function ChangeRecordsPage() {
 
   return (
     <>
-      <SpPageHero
-        icon={FilePenLine}
-        title="变更记录"
-        sub="查看企业资料变更申请的处理进度与历史记录。"
-      />
+      <SpPageHero srTitle="变更记录" />
 
       {/* ═══ 变更记录时间线 ═══ */}
       {records.length > 0 ? (

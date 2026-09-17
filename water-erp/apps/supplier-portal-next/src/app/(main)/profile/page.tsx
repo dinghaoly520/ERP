@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
   Briefcase,
-  Building2,
   Copy,
   Folder,
   ImageUp,
@@ -429,9 +428,7 @@ export default function ProfilePage() {
   return (
     <>
       <SpPageHero
-        icon={Building2}
-        title="企业信息"
-        sub="基本信息、联系人、银行账户、资质与主体业绩管理。"
+        srTitle="企业信息"
         actions={<SpButton variant="primary" icon={PenLine} onClick={openCrDlg} disabled={changeLocked}>申请资料变更</SpButton>}
       />
 

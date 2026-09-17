@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { BadgeCheck, Inbox, TriangleAlert, Send } from "lucide-react";
+import { Inbox, TriangleAlert, Send } from "lucide-react";
 import { prequalApi, type PrequalListItem } from "@/lib/api/prequal";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton } from "@/components/ui";
@@ -40,7 +40,7 @@ export default function PrequalPage() {
   if (error && !loading) {
     return (
       <>
-        <SpPageHero icon={BadgeCheck} title="资格预审" sub="参与采购项目竞争的基本资格" />
+        <SpPageHero srTitle="资格预审" />
         <div className="sp-error-block">
           <div className="sp-error-icon"><TriangleAlert size={22} strokeWidth={1.75} /></div>
           <div className="sp-error-text">数据加载失败</div>
@@ -53,7 +53,7 @@ export default function PrequalPage() {
 
   return (
     <>
-      <SpPageHero icon={BadgeCheck} title="资格预审" sub="提交资格预审申请，审查结果将站内通知" />
+      <SpPageHero srTitle="资格预审" />
 
       <div className="mt-4">
       {loading ? (

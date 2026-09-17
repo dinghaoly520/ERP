@@ -145,12 +145,10 @@ export default function MyBidsPage() {
           <SpButton variant="primary" onClick={retryLoad}>重新加载</SpButton>
         </div>
       ) : loading && firstLoad ? (
-        /* ═══ Skeleton ═══ */
+        /* ═══ Skeleton（hero 已降为单行工具条，骨架同步收窄）═══ */
         <>
           <div className="mb-skel-hero">
-            <span className="sp-skel h-[13px] w-[100px]" />
-            <span className="sp-skel mt-3 h-6 w-[200px]" />
-            <span className="sp-skel mt-2.5 h-3.5 w-[280px]" />
+            <span className="sp-skel h-9 w-[150px]" />
           </div>
           <div className="mb-skel-list">
             {[1, 2, 3].map((i) => (
@@ -163,11 +161,9 @@ export default function MyBidsPage() {
         </>
       ) : (
         <div style={loading ? { opacity: 0.6, pointerEvents: "none", transition: "opacity .2s" } : undefined}>
-          {/* ═══ HERO ═══ */}
+          {/* ═══ HERO（精简工具条：无装饰标题，保留操作入口）═══ */}
           <SpPageHero
-            icon={ClipboardList}
-            title="投标进展"
-            sub="跟踪已提交的投标记录与各项目所处阶段，及时关注开标进展。"
+            srTitle="投标进展"
             actions={
               <SpButton variant="primary" icon={Plus} onClick={() => router.push("/bids")}>浏览投标机会</SpButton>
             }

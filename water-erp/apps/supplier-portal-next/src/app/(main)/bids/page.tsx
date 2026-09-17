@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import { Gavel, ClipboardList, Search, X, ArrowRight, TriangleAlert } from "lucide-react";
+import { ClipboardList, Search, X, ArrowRight, TriangleAlert } from "lucide-react";
 import { serverNowMs } from "@water-erp/shared";
 import { bidApi } from "@/lib/api/bid";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -196,9 +196,7 @@ export default function BidListPage() {
       ) : (
         <div style={loading ? { opacity: 0.6, pointerEvents: "none", transition: "opacity .2s" } : undefined}>
           <SpPageHero
-            icon={Gavel}
-            title="可投标项目"
-            sub="按项目类别快速筛选与进入详情，持续关注最新招标公告。"
+            srTitle="可投标项目"
             actions={<span className="page-hero__stat page-hero__stat--info">共 {total} 个</span>}
           />
 

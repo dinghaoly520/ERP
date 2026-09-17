@@ -34,33 +34,33 @@ function cssRule(source: string, selector: string) {
   assert.fail(`Unclosed CSS rule: ${selector}`);
 }
 
-test("SpPageHeroView renders the cgzxui page-hero card and keeps controls in one compact aside", () => {
+test("SpPageHeroView renders the slim toolbar bar and keeps an sr-only page heading for a11y", () => {
   const defaultMarkup = renderToStaticMarkup(
     <SpPageHeroView
-      icon={TestIcon}
-      title="项目大厅"
-      eyebrow="项目机会"
-      sub="查看当前可参与项目"
+      srTitle="项目大厅"
       actions={<button type="button">刷新项目</button>}
     >
       <span>12 个项目</span>
     </SpPageHeroView>,
   );
-  const nestedMarkup = renderToStaticMarkup(
-    <SpPageHeroView icon={TestIcon} title="项目详情" headingLevel={3} />,
+  const detailMarkup = renderToStaticMarkup(
+    <SpPageHeroView title="某引水工程采购项目" headingLevel={1} />,
   );
+  const bareMarkup = renderToStaticMarkup(<SpPageHeroView srTitle="公告公示" />);
 
-  assert.match(defaultMarkup, /^<header class="page-hero sp-hero">/);
-  assert.match(defaultMarkup, /class="page-hero__left"/);
-  assert.match(defaultMarkup, /class="page-hero__icon" aria-hidden="true"/);
-  assert.match(defaultMarkup, /<h1 class="page-hero__title">项目大厅<\/h1>/);
-  assert.match(defaultMarkup, /<p class="page-hero__sub">查看当前可参与项目<\/p>/);
-  assert.match(defaultMarkup, /<div class="page-hero__eyebrow">项目机会<\/div>/);
+  // 精简工具条：渐变 hero 卡降为单行条，tabs/统计居左、操作居右；无装饰性图标/标题/描述句
+  assert.match(defaultMarkup, /^<header class="page-hero sp-hero sp-hero--bar">/);
+  assert.doesNotMatch(defaultMarkup, /page-hero__left|page-hero__icon|page-hero__sub|page-hero__eyebrow/);
+  // sr-only h1 锚点仍在卡片内（读屏可获取页面名）
+  assert.match(defaultMarkup, /<h1 class="sp-sr-only">项目大厅<\/h1>/);
   assert.match(
     defaultMarkup,
     /<div class="page-hero__right sp-hero__aside">[\s\S]*12 个项目[\s\S]*刷新项目[\s\S]*<\/div><\/div><\/header>$/,
   );
-  assert.match(nestedMarkup, /<h3 class="page-hero__title">项目详情<\/h3>/);
+  // 详情页实体名仍作可见标题
+  assert.match(detailMarkup, /<h1 class="page-hero__title">某引水工程采购项目<\/h1>/);
+  // 无 tabs/统计/操作时不渲染卡片，仅留 sr-only 标题
+  assert.equal(bareMarkup, '<h1 class="sp-sr-only">公告公示</h1>');
 });
 
 test("EmptyState groups copy and actions in a compact status region", () => {

@@ -43,11 +43,7 @@ export default function CompletedProjectsPage() {
 
   return (
     <div className="page-container">
-      <SpPageHero
-        icon={Archive}
-        title="已完成项目"
-        sub="合作过的采购项目档案：中标结果、投递报价与项目全量信息"
-      />
+      <SpPageHero srTitle="已完成项目" />
 
       <div className="mt-4">
       {loading ? (

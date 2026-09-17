@@ -4,8 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import {
-  Send, TriangleAlert, Check, X, Upload, Plus, Trash2, FolderPlus, CircleCheck,
+import { TriangleAlert, Check, X, Upload, Plus, Trash2, FolderPlus, CircleCheck,
   ArrowLeft, CircleX, Info, KeyRound,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -276,10 +275,6 @@ function BidSubmitInner() {
   const draftKey = `bidsubmit:${projectId}:${profile?.userId || ''}`;
   const draft = useAutoSave(draftKey, form, { enabled: autoSaveReady });
   useLeaveGuard(draft.dirty);
-
-  const heroSub = project
-    ? `${project.projectCode} · ${project.procurementMethod} · 截止 ${project.deadline ? dayjs(project.deadline).format("MM-DD HH:mm") : "--"}`
-    : "";
 
   // E2EE: localStorage key for DEK persistence (separate from form draft)
   const dekStorageKey = `supplier_dek:bidsubmit:${projectId}:${profile?.userId || ''}`;
@@ -837,7 +832,7 @@ function BidSubmitInner() {
                 </BAlert>
               )}
 
-              <SpPageHero icon={Send} title={project.name} sub={heroSub} />
+              <SpPageHero title={project.name} />
 
               {/* ═══ A-90 方案a：未绑盾——旧轨上传/投递 UI 退役，仅显示绑盾引导卡（API/应急 flag 原样保留）═══ */}
               {legacyRetired && (

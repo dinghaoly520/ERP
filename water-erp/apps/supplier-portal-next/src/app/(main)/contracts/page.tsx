@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { FileDown, FileSignature, Inbox, MessageSquareHeart, RefreshCcw, TriangleAlert, Upload } from "lucide-react";
+import { FileDown, Inbox, MessageSquareHeart, RefreshCcw, TriangleAlert, Upload } from "lucide-react";
 import { contractApi, contractAssetUrl, type SpContract, type SpContractFulfillment } from "@/lib/api/contract";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpTabPanel, SpTabs } from "@/components/ui";
@@ -53,7 +53,7 @@ export default function ContractsPage() {
 
   return (
     <>
-      <SpPageHero icon={FileSignature} title="合同履约" sub="查看平台合同履约进展，或管理企业自行留存的合同档案" />
+      <SpPageHero srTitle="合同履约" />
 
       <div className="dense-workspace-tabs">
         <SpTabs

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { Bell, Inbox, MessageSquareWarning, Plus, TriangleAlert } from "lucide-react";
+import { Inbox, Plus, TriangleAlert } from "lucide-react";
 import { objectionApi, type SupplierObjection } from "@/lib/api/objection";
 import { bidApi } from "@/lib/api/bid";
 import { announcementApi } from "@/lib/api/announcement";
@@ -96,7 +96,7 @@ export default function ObjectionsPage() {
   if (error && !loading) {
     return (
       <>
-        <SpPageHero icon={MessageSquareWarning} title="异议与投诉" sub="对采购文件、资格预审、采购结果、开标评标程序、合同履约等提出异议与投诉" />
+        <SpPageHero srTitle="异议与投诉" />
         <div className="sp-error-block">
           <div className="sp-error-icon"><TriangleAlert size={22} strokeWidth={1.75} /></div>
           <div className="sp-error-text">数据加载失败</div>
@@ -110,9 +110,7 @@ export default function ObjectionsPage() {
   return (
     <>
       <SpPageHero
-        icon={MessageSquareWarning}
-        title="异议与投诉"
-        sub="对采购文件、资格预审结果、采购结果有异议的，按公告约定在线提出"
+        srTitle="异议与投诉"
         actions={<SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>}
       />
 

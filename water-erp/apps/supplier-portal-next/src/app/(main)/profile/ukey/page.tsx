@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
-  Download, KeyRound, Lock, Plus, ShieldCheck, TriangleAlert, Unlock, Upload,
+  Download, Lock, Plus, ShieldCheck, TriangleAlert, Unlock, Upload,
 } from "lucide-react";
 import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
 import { UKEY_STRICT, detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
@@ -397,9 +397,7 @@ export default function UkeyManagePage() {
   return (
     <>
       <SpPageHero
-        icon={KeyRound}
-        title="U盾管理"
-        sub="管理投标加密证书与 U盾。证书绑定后，标书将以双层加密信封投递，报价密封至开标时揭示。"
+        srTitle="U盾管理"
         actions={ukey ? (
           <SpButton icon={Lock} onClick={lockUkey}>锁定</SpButton>
         ) : undefined}

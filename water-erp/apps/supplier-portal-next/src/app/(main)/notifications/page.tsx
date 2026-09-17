@@ -157,9 +157,7 @@ export default function NotificationListPage() {
   return (
     <>
       <SpPageHero
-        icon={Bell}
-        title="消息中心"
-        sub="按待办、项目、审批和合同分类查看业务消息。"
+        srTitle="消息中心"
         actions={(
           <button type="button" className="nd-btn nd-btn--sm nd-btn--soft" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
             <Check size={14} strokeWidth={2.5} aria-hidden="true" />全部标为已读

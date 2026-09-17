@@ -11102,6 +11102,19 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 .page-hero__rule { border-top: 1px solid var(--hairline); }
 
+/* ── 精简标题条（sp-hero--bar）：「图标+页面标题+描述句」装饰组合删除后的单行工具条 ──
+   工作区 tabs 居左 / 统计与操作居右；渐变底 + 方向性双影等 page-hero 质感原样继承 */
+.sp-hero--bar { padding: 0.65rem 0.9rem; gap: 0.75rem; }
+.sp-hero--bar .sp-hero__aside { margin-left: auto; }
+.sp-hero--bar .sp-hero-tabs { margin-top: 0; }
+.sp-hero--bar .page-hero__title { font-size: 1.05rem; }
+
+/* 视觉隐藏（仅供读屏的 h1 锚点等） */
+.sp-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
 /* ═══════════════════════════════════════════════════════════
    KPI TILE
    ═══════════════════════════════════════════════════════════ */

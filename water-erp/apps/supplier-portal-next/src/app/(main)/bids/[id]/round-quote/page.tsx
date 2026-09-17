@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CircleCheck, Coins, Inbox, Lock } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CircleCheck, Inbox, Lock } from "lucide-react";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
@@ -203,8 +203,8 @@ export default function RoundQuotePage() {
 
   return (
     <div>
-      {/* 注：Vue 版传的是未声明的 subtitle prop（实际不渲染）；此处按组件契约传 sub 以呈现设计意图 */}
-      <SpPageHero icon={Coins} title="多轮报价" sub="密封报价 · 谈判/竞价采购" />
+      {/* 注：Vue 版传的是未声明的 subtitle prop（实际不渲染）；装饰组合已删，页面名仅存 sr-only */}
+      <SpPageHero srTitle="多轮报价" />
 
       <div className="mx-auto max-w-3xl p-6">
         <div className="mb-4">

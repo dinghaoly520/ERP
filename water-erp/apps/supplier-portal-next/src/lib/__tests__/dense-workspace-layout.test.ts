@@ -64,7 +64,7 @@ test("contract and framework workspaces use line tabs with linked exclusive pane
       archiveNoun: "框架协议",
     }],
   ] as const) {
-    assert.match(source, new RegExp(`title="${contract.title}"`));
+    assert.match(source, new RegExp(`srTitle="${contract.title}"`));
     assert.match(source, /useState<LocalRecordsView>\("platform"\)/);
     assert.match(source, /variant="line"/);
     assert.match(source, new RegExp(`ariaLabel="${contract.ariaLabel}"`));

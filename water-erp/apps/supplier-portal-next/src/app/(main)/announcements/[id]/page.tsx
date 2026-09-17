@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { toast } from "sonner";
-import { CircleX, Download, FileText, Info, Link as LinkIcon, Lock, ScrollText, TriangleAlert } from "lucide-react";
+import { CircleX, Download, FileText, Info, Link as LinkIcon, Lock, TriangleAlert } from "lucide-react";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
@@ -170,7 +170,7 @@ export default function AnnouncementDetailPage() {
 
   return (
     <>
-      <SpPageHero icon={ScrollText} title="公告详情" sub="阅读公告全文，采购公告可在此查阅并下载招标文件。" headingLevel={2} />
+      <SpPageHero srTitle="公告详情" headingLevel={2} />
 
       <button type="button" className="flow-back ann-back" onClick={() => router.push("/announcements")}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6" /></svg>

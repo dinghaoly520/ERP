@@ -73,7 +73,7 @@ function AwardLetterListContent() {
 
   return (
     <>
-      <SpPageHero icon={Trophy} title="中标通知书" sub="查收并签收中标通知书" />
+      <SpPageHero srTitle="中标通知书" />
 
       <div className="mt-4 space-y-4" aria-busy={loading}>
         {!loading && letters.length === 0 ? (

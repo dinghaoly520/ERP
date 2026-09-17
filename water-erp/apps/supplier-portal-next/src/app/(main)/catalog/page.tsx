@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CircleX, Loader2, Search, ShoppingBag } from "lucide-react";
+import { AlertTriangle, ArrowRight, CircleX, Loader2, Search } from "lucide-react";
 import { SpButton, SpInput } from "@/components/ui";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { catalogApi } from "@/lib/api/catalog";
@@ -140,7 +140,7 @@ export default function CatalogListPage() {
           {loading && (
             <div className="cat-loading-mask"><Loader2 size={22} strokeWidth={1.75} /></div>
           )}
-          <SpPageHero icon={ShoppingBag} title="集中采购目录" sub="浏览集团集中采购目录品类，申请加入供货或调整报价。">
+          <SpPageHero srTitle="集中采购目录">
             <div className="page-hero__stat"><strong>{items.length}</strong><span>目录条目</span></div>
             <div className="page-hero__stat"><strong>{categoryTree.length}</strong><span>品类大组</span></div>
           </SpPageHero>

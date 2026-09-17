@@ -62,63 +62,64 @@ function useHeroWorkspaceTabs(pathname: string) {
 }
 
 type SpPageHeroViewProps = {
-  icon: IconType;
-  title: string;
-  sub?: string;
-  eyebrow?: string;
+  /** 可见标题——仅详情页实体名等真实数据使用（如项目名）；列表页装饰性标题已删，改用 srTitle */
+  title?: string;
+  /** 视觉隐藏的页面级标题（a11y 锚点）：装饰组合删除后仍为读屏提供页面名 */
+  srTitle?: string;
   actions?: React.ReactNode;
   children?: React.ReactNode;
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
-  /** 标题行下方的子导航插槽（SpPageHero 默认注入工作区 tabs） */
+  /** 行内子导航插槽（SpPageHero 默认注入工作区 tabs） */
   nav?: React.ReactNode;
 };
 
-/** 纯渲染标题卡（无 hooks，可 SSR 直测）— cgzxui page-hero 规格（105° 渐变 + 方向性双影 + ::after 彩晕），
- *  与工作台 Dashboard 的 hero 完全同款，全门户标题栏统一。 */
+/** 精简标题条（2026-09-17 删除「图标+页面标题+描述句」装饰组合后）：
+ *  cgzxui page-hero 卡片降为单行工具条——工作区 tabs 居左、统计与操作按钮居右；
+ *  无任何可见内容时不渲染卡片，仅留 sr-only 标题。cgzxui 渐变 + 方向性双影保留。 */
 export function SpPageHeroView({
-  icon: Icon, title, sub, eyebrow, actions, children, headingLevel = 1, nav,
+  title, srTitle, actions, children, headingLevel = 1, nav,
 }: SpPageHeroViewProps) {
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+  const hiddenHeading = !title && srTitle ? (
+    <Heading className="sp-sr-only">{srTitle}</Heading>
+  ) : null;
+  const hasAside = !!(children || actions);
+
+  if (!title && !hasAside && !nav) return hiddenHeading;
 
   return (
-    <header className="page-hero sp-hero">
+    <header className="page-hero sp-hero sp-hero--bar">
+      {hiddenHeading}
       <div className="page-hero__row">
-        <div className="page-hero__left">
-          <div className="page-hero__icon" aria-hidden="true">
-            <Icon size={20} strokeWidth={1.75} />
-          </div>
-          <div className="page-hero__copy">
-            {eyebrow && <div className="page-hero__eyebrow">{eyebrow}</div>}
-            <Heading className="page-hero__title">{title}</Heading>
-            {sub && <p className="page-hero__sub">{sub}</p>}
-          </div>
-        </div>
-        {(children || actions) && (
+        {title ? (
+          <Heading className="page-hero__title">{title}</Heading>
+        ) : nav}
+        {hasAside && (
           <div className="page-hero__right sp-hero__aside">
             {children && <div className="sp-hero__meta">{children}</div>}
             {actions && <div className="sp-hero__actions">{actions}</div>}
           </div>
         )}
       </div>
-      {nav}
+      {title ? nav : null}
     </header>
   );
 }
 
-/** 页面用入口：在标题卡内挂载工作区子导航（依赖 Next 路由与供应商状态上下文）。 */
+/** 页面用入口：在标题条内挂载工作区子导航（依赖 Next 路由与供应商状态上下文）。 */
 export function SpPageHero(props: Omit<SpPageHeroViewProps, "nav">) {
   const pathname = usePathname();
   const { tabs, label, currentTab } = useHeroWorkspaceTabs(pathname);
   return (
     <SpPageHeroView
       {...props}
-      nav={
+      nav={tabs && tabs.length >= 2 ? (
         <HeroWorkspaceTabs
           tabs={tabs}
           currentPath={currentTab?.path ?? pathname}
           ariaLabel={label ? `${label}子导航` : undefined}
         />
-      }
+      ) : undefined}
     />
   );
 }

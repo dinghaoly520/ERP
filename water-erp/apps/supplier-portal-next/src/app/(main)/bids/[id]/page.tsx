@@ -164,8 +164,6 @@ function BidDetailInner() {
   const showSupplierCount = ["OPENING", "EVALUATING", "ARCHIVED"].includes(project?.stage || "");
   const supplierCount = project?._count?.suppliers || 0;
 
-  const pub = project?.announcement?.publishDate ? ` · ${dayjs(project.announcement.publishDate).format("YYYY-MM-DD")} 公告` : "";
-  const heroSub = project ? `${project.projectCode} · ${project.procurementMethod}${pub}` : "";
 
   // ── 公告结构化信息（来自 announcement.metadata，仅展示有值字段）──
   const metaFields = (() => {
@@ -457,8 +455,8 @@ function BidDetailInner() {
             </div>
           ) : project ? (
             <>
-              {/* ═══ Hero ═══ */}
-              <SpPageHero icon={FileText} title={project.name} sub={heroSub}
+              {/* ═══ Hero（详情页保留真实项目名为可见标题；图标+描述句装饰已删）═══ */}
+              <SpPageHero title={project.name}
                 actions={
                   <>
                     <button

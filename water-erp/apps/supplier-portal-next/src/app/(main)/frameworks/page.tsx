@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { Layers, Inbox, TriangleAlert } from "lucide-react";
+import { Inbox, TriangleAlert } from "lucide-react";
 import { frameworkApi, type MyFaEntry } from "@/lib/api/framework";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpTabPanel, SpTabs } from "@/components/ui";
@@ -46,7 +46,7 @@ export default function FrameworksPage() {
 
   return (
     <>
-      <SpPageHero icon={Layers} title="框架协议" sub="查看平台入围协议，或管理企业自行留存的框架协议档案" />
+      <SpPageHero srTitle="框架协议" />
 
       <div className="dense-workspace-tabs">
         <SpTabs
