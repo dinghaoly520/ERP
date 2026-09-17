@@ -124,6 +124,7 @@ function PageHero({
   companyId,
   onCompanyChange,
   onOpenExtract,
+  isAdmin,
 }: {
   filters: LedgerFilterState;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
@@ -138,6 +139,7 @@ function PageHero({
   companyId: string;
   onCompanyChange: (value: string) => void;
   onOpenExtract: () => void;
+  isAdmin: boolean;
 }) {
   const abnormalCount = data.filter(i =>
     ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE", "CANCELLED"].includes(i.resultStatus)
@@ -163,6 +165,7 @@ function PageHero({
 
         <div className="page-hero__right">
           <CompanySelect value={companyId} onChange={onCompanyChange} />
+          {isAdmin && (
           <button
             type="button"
             onClick={onOpenExtract}
@@ -172,6 +175,7 @@ function PageHero({
             <ClipboardCheck size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
             国资监管数据生成
           </button>
+          )}
           <span className="page-hero__stat page-hero__stat--info">
             共 {pagination.total} 条
           </span>
@@ -1367,6 +1371,7 @@ export default function ProcurementsPage() {
             onSortChange={(v) => setSortBy(v as typeof sortBy)}
             companyId={companyId}
           onOpenExtract={() => setExtractOpen(true)}
+          isAdmin={isAdmin}
             onCompanyChange={setCompanyId}
           />
         </div>

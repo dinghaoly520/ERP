@@ -61,9 +61,10 @@ export class ProcurementsController {
     return this.procurementsService.getProcurementMethods();
   }
 
-  /** 国资监管九大领域业务数据指标库·采购领域提取（2026-09-16）：项目 18 项 / 供应商 7 项 / 组织结构树待确认 */
+  /** 国资监管九大领域业务数据指标库·采购领域提取（2026-09-16）：项目 18 项 / 供应商 7 项 / 组织结构树待确认。
+   *  2026-09-17 收紧为 admin-only（用户拍板）；canViewGlobalBusinessData 对 leader 的放行在此端点不适用。 */
   @Get('sasac-extract')
-  @Roles('leader', 'admin')
+  @Roles('admin')
   async sasacExtract(@Query('companyId') companyId: string | undefined, @CurrentUser() user: AuthenticatedUser) {
     if (!canViewGlobalBusinessData(user.role)) {
       throw new ForbiddenException('普通账号无法查看采购台账。');
