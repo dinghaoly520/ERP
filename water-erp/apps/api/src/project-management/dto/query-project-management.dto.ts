@@ -16,4 +16,9 @@ export class QueryProjectManagementDto {
   @IsOptional()
   @IsString()
   currentStage?: string;
+
+  /** admin 专用公司过滤（公司级数据隔离）：不传/'all' = 全部公司；非 admin 一律忽略（保持个人隔离） */
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }

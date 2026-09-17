@@ -151,16 +151,16 @@ export default function TaskReportInline({ task: initialTask, onBack }: TaskRepo
       {/* Summary */}
       <div className="flex items-center gap-3 p-2.5 rounded-[12px] bg-white/[0.02]">
         <div className="flex items-center gap-1.5 text-xs">
-          <CheckCircle2 className="h-3.5 w-3.5 text-[rgba(92,181,150,1)]" />
-          <span className="text-[rgba(92,181,150,1)]">{report.summary.passed}</span>
+          <CheckCircle2 className="h-3.5 w-3.5 text-[var(--success)]" />
+          <span className="text-[var(--success)]">{report.summary.passed}</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs">
-          <XCircle className="h-3.5 w-3.5 text-[rgba(230,129,102,1)]" />
-          <span className="text-[rgba(230,129,102,1)]">{report.summary.failed}</span>
+          <XCircle className="h-3.5 w-3.5 text-[var(--danger)]" />
+          <span className="text-[var(--danger)]">{report.summary.failed}</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs">
-          <AlertTriangle className="h-3.5 w-3.5 text-[rgba(234,188,110,1)]" />
-          <span className="text-[rgba(234,188,110,1)]">{report.summary.warnings}</span>
+          <AlertTriangle className="h-3.5 w-3.5 text-[var(--warning)]" />
+          <span className="text-[var(--warning)]">{report.summary.warnings}</span>
         </div>
         {totalIssues > 0 && (
           <div className="ml-auto text-xs text-[var(--muted-foreground)]">
@@ -205,8 +205,8 @@ export default function TaskReportInline({ task: initialTask, onBack }: TaskRepo
                 {SEVERITY_LABELS[selectedIssue.severity]}
               </span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                selectedIssue.status === 'accepted' ? 'bg-[rgba(92,181,150,0.12)] text-[rgba(92,181,150,1)]' :
-                selectedIssue.status === 'rejected' ? 'bg-[rgba(230,129,102,0.12)] text-[rgba(230,129,102,1)]' :
+                selectedIssue.status === 'accepted' ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]' :
+                selectedIssue.status === 'rejected' ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]' :
                 'bg-gray-400/10 text-gray-400'
               }`}>
                 {selectedIssue.status === 'accepted' ? '已采纳' :
@@ -245,13 +245,13 @@ export default function TaskReportInline({ task: initialTask, onBack }: TaskRepo
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => handleResolve('accept')}
-                  className="flex-1 py-1.5 rounded-[10px] text-xs font-medium bg-[rgba(92,181,150,0.12)] text-[rgba(92,181,150,1)] hover:bg-[rgba(92,181,150,0.2)] transition-colors"
+                  className="flex-1 py-1.5 rounded-[10px] text-xs font-medium bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)] hover:bg-[color-mix(in_oklch,var(--success)_20%,transparent)] transition-colors"
                 >
                   采纳
                 </button>
                 <button
                   onClick={() => handleResolve('reject')}
-                  className="flex-1 py-1.5 rounded-[10px] text-xs font-medium bg-[rgba(230,129,102,0.12)] text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.2)] transition-colors"
+                  className="flex-1 py-1.5 rounded-[10px] text-xs font-medium bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] transition-colors"
                 >
                   拒绝
                 </button>

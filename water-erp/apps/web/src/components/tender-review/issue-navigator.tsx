@@ -150,20 +150,20 @@ export default function IssueNavigator({
                   className={`w-full text-left flex items-start gap-2.5 px-4 py-2.5 border-b border-white/[0.03] transition-colors ${
                     selectedIndex === originalIndex
                       ? 'bg-indigo-500/[0.08] border-l-[3px] border-l-indigo-400'
-                      : 'hover:bg-white/[0.02]'
+                      : 'hover:bg-[oklch(0.55_0.03_258/0.04)]'
                   }`}
                 >
                   <div
                     className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
                       issue.passed
-                        ? 'bg-[rgba(92,181,150,1)]'
+                        ? 'bg-[var(--success)]'
                         : issue.dataMissing
-                        ? 'bg-[rgba(234,188,110,1)]'
+                        ? 'bg-[var(--warning)]'
                         : issue.severity === 'critical'
-                        ? 'bg-[rgba(230,129,102,1)]'
+                        ? 'bg-[var(--danger)]'
                         : issue.severity === 'warning'
-                        ? 'bg-[rgba(234,188,110,0.8)]'
-                        : 'bg-[rgba(96,139,239,1)]'
+                        ? 'bg-[color-mix(in_oklch,var(--warning)_80%,transparent)]'
+                        : 'bg-[var(--accent)]'
                     }`}
                   />
                   <div className="min-w-0 flex-1">
@@ -175,7 +175,7 @@ export default function IssueNavigator({
                     </div>
                   </div>
                   {issue.status === 'accepted' && (
-                    <span className="text-[rgba(92,181,150,1)] shrink-0 mt-0.5">
+                    <span className="text-[var(--success)] shrink-0 mt-0.5">
                       <Check className="h-3.5 w-3.5" />
                     </span>
                   )}

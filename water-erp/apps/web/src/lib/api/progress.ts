@@ -4,6 +4,9 @@ export interface ProjectProgress {
   id: string;
   title: string;
   projectName: string;
+  /** 公司归属（写时快照）：创建人所属公司；null=未归属 */
+  companyId?: string | null;
+  companyName?: string | null;
   requesterName: string;
   requesterDepartment: string;
   procurementMethod: string;

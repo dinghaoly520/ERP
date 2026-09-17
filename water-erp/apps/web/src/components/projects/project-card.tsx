@@ -40,7 +40,7 @@ export function ProjectCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-base font-semibold tracking-[-0.03em] text-[color:var(--foreground)] transition-colors duration-200 group-hover:text-[color:var(--accent)]">
               {item.title}
             </span>
@@ -49,6 +49,16 @@ export function ProjectCard({
                 {item.projectCode}
               </span>
             )}
+            {item.createdByName && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-[6px] bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-2 py-0.5 font-mono text-[10px] tracking-tight"
+                title={`经办人：${item.createdByName}`}
+              >
+                <span className="text-[color:var(--muted-foreground)]">经办人</span>
+                <span className="font-bold text-[color:var(--foreground)]">{item.createdByName}</span>
+              </span>
+            )}
+
           </div>
           <div className="mt-2 text-sm text-[color:var(--muted-foreground)]">
             {item.requesterDepartment} · {item.requesterName}
@@ -71,11 +81,6 @@ export function ProjectCard({
           {item.reviewStatus === 'REJECTED' && (
             <span className="rounded-full bg-[color-mix(in_oklch,oklch(0.65_0.17_25)_16%,transparent)] px-3 py-1 text-[11px] font-semibold text-[oklch(0.5_0.16_25)]">
               已驳回
-            </span>
-          )}
-          {item.createdByName && (
-            <span className="text-[11px] text-[color:var(--muted-foreground)] bg-[oklch(1_0_0_/_0.4)] rounded-full px-2 py-0.5">
-              经办人：{item.createdByName}
             </span>
           )}
         </div>

@@ -11,6 +11,7 @@ import { RegisterAgreement } from "@/components/register-agreement";
 import { RegistrationField, RegistrationSection, RegistrationShell } from "@/components/registration/registration-shell";
 import { PasswordField } from "@/components/registration/password-field";
 import { BusinessTagField } from "@/components/registration/business-tag-field";
+import { UnitSearchSelect } from "@/components/registration/unit-search-select";
 import "@/styles/pages/register2.css";
 
 /** 临时供应商注册（凭邀请码，输满 8 位自动校验 + 协议勾选 + 信用代码查重）— 与正式注册同款设计 */
@@ -37,7 +38,7 @@ export default function RegisterTemporaryPage() {
 
   // 归属公司选项（拉取失败不阻塞注册——留空即未归属，admin 可后补）
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
-  const [belongCompanyId, setBelongCompanyId] = useState("");
+  const [belongCompany, setBelongCompany] = useState(""); // 归属公司名称（62 家名单）
   useEffect(() => {
     authApi.companyOptions()
       .then(setCompanyOptions)
@@ -150,7 +151,7 @@ export default function RegisterTemporaryPage() {
     else if (tags.length > 8) e.tags = "最多选择 8 个业务标签";
     if (!form.password) e.password = "请输入密码";
     else if (form.password.length < 6) e.password = "密码不少于 6 位";
-    if (!belongCompanyId) e.belongCompanyId = "请选择归属公司：须正确选择，否则将影响投标";
+    if (!belongCompany) e.belongCompanyId = "请选择归属公司：须正确选择，否则将影响投标";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -164,7 +165,8 @@ export default function RegisterTemporaryPage() {
     try {
       await authApi.registerTemporary({
         invitationCode: form.invitationCode.trim(),
-        companyId: belongCompanyId || undefined,
+        companyId: companyOptions.find((c) => c.name === belongCompany)?.id,
+        companyName: belongCompany || undefined,
         name: form.name.trim(),
         creditCode: form.creditCode.trim(),
         legalPerson: form.legalPerson.trim(),
@@ -264,17 +266,7 @@ export default function RegisterTemporaryPage() {
           </div>
           {/* 归属公司：模块底部整行（与正式注册步骤 1 同款） */}
           {item("belongCompanyId", "归属公司", (
-            <select
-              id="reg-temp-belongCompanyId"
-              className="reg-sel"
-              value={belongCompanyId}
-              onChange={(e) => setBelongCompanyId(e.target.value)}
-            >
-              <option value="">请选择归属公司（须正确选择，否则影响投标）</option>
-              {companyOptions.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <UnitSearchSelect value={belongCompany} onChange={setBelongCompany} />
           ))}
           <BusinessTagField value={tags} options={tagOptions} onChange={setTags} error={errors.tags} />
         </RegistrationSection>

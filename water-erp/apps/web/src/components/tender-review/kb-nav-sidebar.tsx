@@ -91,7 +91,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
       <div className="wb-panel h-full flex flex-col overflow-hidden"
         style={{ width: `${width}px` }}>
         {/* Header */}
-        <div className="p-3 shrink-0" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+        <div className="p-3 shrink-0 border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">今日统计</h3>
         </div>
 
@@ -181,7 +181,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
         </div>
 
         {/* Footer: KB button */}
-        <div className="p-3 shrink-0" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+        <div className="p-3 shrink-0 border-t border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
           <button
             onClick={() => setPanelState('kb-list')}
             className="neu-btn-soft w-full flex items-center justify-center gap-2 !rounded-[14px] !h-[36px]"
@@ -199,7 +199,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
     <div className="wb-panel h-full flex flex-col overflow-hidden"
       style={{ width: `${width}px` }}>
       {/* Header */}
-      <div className="p-3 shrink-0" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+      <div className="p-3 shrink-0 border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setPanelState('stats')}
@@ -210,7 +210,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
           </button>
           <button
             onClick={() => setShowCreate(!showCreate)}
-            className="p-1.5 rounded-lg text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors"
+            className="p-1.5 rounded-lg text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] transition-colors"
             title="新建知识库"
           >
             <Plus className="h-4 w-4" />
@@ -338,7 +338,7 @@ function KbNavItem({
   onCancelDelete
 }: KbNavItemProps) {
   return (
-    <div className={`rounded-[10px] overflow-hidden ${isSelected ? 'bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]/30' : ''}`}>
+    <div className={`rounded-[10px] overflow-hidden ${isSelected ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] ring-1 ring-[color-mix(in_oklch,var(--accent)_28%,transparent)]' : ''}`}>
       {/* KB header */}
       <button
         onClick={onToggleExpand}
@@ -379,7 +379,7 @@ function KbNavItem({
                 <button
                   onClick={onViewFiles}
                   className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                    bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
+                    bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_18%,transparent)] transition-colors"
                 >
                   <FileText className="h-3 w-3" />
                   文件管理
@@ -395,7 +395,7 @@ function KbNavItem({
                 <button
                   onClick={onDelete}
                   className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                    bg-[rgba(230,129,102,0.12)] text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.2)] transition-colors"
+                    bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] transition-colors"
                 >
                   <Trash2 className="h-3 w-3" />
                   删除知识库
@@ -408,9 +408,9 @@ function KbNavItem({
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex flex-col gap-2 p-3 rounded-[10px] bg-[rgba(230,129,102,0.12)] border border-[rgba(230,129,102,0.2)] mt-2"
+                className="flex flex-col gap-2 p-3 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] mt-2"
               >
-                <span className="text-sm font-medium text-[rgba(230,129,102,1)] text-center">确定删除？</span>
+                <span className="text-sm font-medium text-[var(--danger)] text-center">确定删除？</span>
                 <div className="flex gap-2">
                   <button onClick={onConfirmDelete} className="neu-btn-soft is-danger flex-1 !rounded-[8px] !h-[32px] !text-xs">确认</button>
                   <button onClick={onCancelDelete} className="neu-btn-soft flex-1 !rounded-[8px] !h-[32px] !text-xs">取消</button>

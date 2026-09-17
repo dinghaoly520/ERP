@@ -327,7 +327,7 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
                   </button>
                   <button
                     onClick={() => handleDelete(rule.id)}
-                    className="p-1 text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] transition-colors"
+                    className="p-1 text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>

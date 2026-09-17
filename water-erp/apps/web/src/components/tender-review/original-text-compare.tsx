@@ -50,8 +50,8 @@ export default function OriginalTextCompare({
       </div>
       <div className="flex flex-col gap-3">
         {docText && (
-          <div className="rounded-xl bg-[rgba(96,139,239,0.04)] border-l-[3px] border-[rgba(96,139,239,1)] p-3">
-            <div className="text-[11px] font-semibold text-[rgba(96,139,239,1)] mb-1.5">
+          <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] border-l-[3px] border-[var(--accent)] p-3">
+            <div className="text-[11px] font-semibold text-[var(--accent)] mb-1.5">
               📍 被审文件 · {docSource}
             </div>
             <div className="text-xs text-[var(--muted-foreground)] leading-relaxed">
@@ -68,8 +68,8 @@ export default function OriginalTextCompare({
           </div>
         )}
         {kbText && (
-          <div className="rounded-xl bg-[rgba(92,181,150,0.04)] border-l-[3px] border-[rgba(92,181,150,1)] p-3">
-            <div className="text-[11px] font-semibold text-[rgba(92,181,150,1)] mb-1.5">
+          <div className="rounded-xl bg-[color-mix(in_oklch,var(--success)_4%,transparent)] border-l-[3px] border-[var(--success)] p-3">
+            <div className="text-[11px] font-semibold text-[var(--success)] mb-1.5">
               📖 对应条款 · {kbSource}
             </div>
             <div className="text-xs text-[var(--muted-foreground)] leading-relaxed">

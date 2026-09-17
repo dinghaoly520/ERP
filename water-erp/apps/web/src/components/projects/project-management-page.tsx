@@ -18,6 +18,8 @@ import { ProjectCard } from './project-card';
 import { ProjectDetailPanel } from './project-detail-panel';
 import { RecycleBinDrawer } from './recycle-bin-drawer';
 import { useAssistant } from "@/components/assistant/assistant-provider";
+import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 
 export function ProjectManagementPage() {
   const [items, setItems] = useState<ProjectManagementItem[]>([]);
@@ -40,15 +42,18 @@ export function ProjectManagementPage() {
   const [recycleActionId, setRecycleActionId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [autoBidConfirm, setAutoBidConfirm] = useState(false);
+  // admin 公司视图（公司级数据隔离）：右上选择器（URL ?companyId= + localStorage 记忆）；
+  // 全部=按公司分组展示（CompanySectionHeader 主标题 + 组内条目），单公司=该公司标题
+  const [companyId, setCompanyId] = useState('all');
 
   const loadItems = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
       const [activeItems, archived, recycled] = await Promise.all([
-        fetchProjectManagementList('ACTIVE'),
-        fetchProjectManagementList('ARCHIVED'),
-        fetchProjectManagementList('RECYCLED'),
+        fetchProjectManagementList('ACTIVE', companyId),
+        fetchProjectManagementList('ARCHIVED', companyId),
+        fetchProjectManagementList('RECYCLED', companyId),
       ]);
       setItems(activeItems);
       setArchivedItems(archived);
@@ -61,9 +66,15 @@ export function ProjectManagementPage() {
   };
 
   useEffect(() => {
-    void loadItems();
+    const initial = readInitialCompanyId();
+    if (initial !== 'all') setCompanyId(initial);
     fetchCurrentUser().then(setCurrentUser).catch(() => {/* ignore */});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    void loadItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   // 深链：?projectId= 来自工作台招标类任务通知（种子/运行时通知 link 带 projectId），
   // 列表就绪后自动打开该项目详情面板，使"通知所指项目"与"点进去看到的"一致。
@@ -173,6 +184,18 @@ export function ProjectManagementPage() {
     return result;
   }, [activeTab, items, archivedItems, keyword, sortBy, filterType, filterValue]);
 
+  // admin 全部公司视图：按公司分组（计数降序、未归属沉底）；单公司视图用选择器公司名
+  const companyViewAll = currentUser?.role === 'admin' && companyId === 'all';
+  const selectedCompanyName = useCompanyName(companyId);
+  const companyGroups = useMemo(() => {
+    if (!companyViewAll) return [];
+    return buildCompanyCounts(filteredItems.map((i) => ({ company: i.companyName }))).map((g) => ({
+      ...g,
+      items: filteredItems.filter((i) => ((i.companyName ?? '').trim() || '未归属') === g.name),
+    }));
+  }, [companyViewAll, filteredItems]);
+  const displayItems = filteredItems;
+
   // 已完成（归档）项目同样可打开详情（只读）——selectedItem 须在 active+archived 两个集合中查找
   const selectedItem = items.find((item) => item.id === selectedItemId)
     ?? archivedItems.find((item) => item.id === selectedItemId)
@@ -258,6 +281,7 @@ export function ProjectManagementPage() {
                 </div>
               </div>
               <div className="page-hero__right">
+                <CompanySelect value={companyId} onChange={setCompanyId} />
                 {/* 归档记录入口已收敛至「采购台账」（2026-09-02 拍板）；/archive 页保留供归档待办通知直达 */}
                 <button
                   type="button"
@@ -367,13 +391,49 @@ export function ProjectManagementPage() {
                 <span className="text-sm text-[color:var(--muted-foreground)]">正在加载项目...</span>
               </div>
             </div>
-          ) : filteredItems.length === 0 ? (
+          ) : null}
+          {companyViewAll ? (
+            <div className="space-y-5">
+              {companyGroups.map((g) => (
+                <section key={g.name}>
+                  <CompanySectionHeader name={g.name} count={g.items.length} />
+                  <div className="mt-3 grid gap-4 xl:grid-cols-2">
+                    {g.items.map((item) => (
+                      <ProjectCard
+                        key={item.id}
+                        item={item}
+                        variant={activeTab === 'archived' ? 'archived' : 'active'}
+                        onOpen={() => {
+                          setSelectedItemId(item.id);
+                          setPageContext({
+                            selectedItemId: item.id,
+                            selectedItemType: 'project',
+                            selectedItemData: {
+                              title: item.title,
+                              currentStage: item.currentStage,
+                              status: item.status,
+                              requesterDepartment: item.requesterDepartment,
+                            },
+                          });
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {currentUser?.role === 'admin' && selectedCompanyName && (
+                <CompanySectionHeader name={selectedCompanyName} count={filteredItems.length} />
+              )}
+              {displayItems.length === 0 ? (
             <div className="wb-panel p-10 flex items-center justify-center">
               <span className="text-sm text-[color:var(--muted-foreground)]">{activeTab === 'active' ? '当前没有进行中的项目。' : '当前没有已完成的项目。'}</span>
             </div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">
-              {filteredItems.map((item) => (
+              {displayItems.map((item) => (
                 <ProjectCard
                   key={item.id}
                   item={item}
@@ -393,6 +453,8 @@ export function ProjectManagementPage() {
                   }}
                 />
               ))}
+            </div>
+          )}
             </div>
           )}
         </div>

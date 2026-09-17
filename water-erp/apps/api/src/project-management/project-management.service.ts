@@ -229,6 +229,10 @@ export class ProjectManagementService {
     // 隔离是硬性要求，不做全员可见。user=undefined 属鉴权异常，返回空集不泄露数据。
     if (user?.role !== 'admin') {
       where.createdById = user?.sub ?? '__no_user__';
+    } else if (query.companyId && query.companyId !== 'all') {
+      // admin 公司视图（公司级数据隔离，2026-09-17）：?companyId= 切换单公司；不传/'all' = 全部。
+      // 非法 id 自然得到空集，与 resolveScope 语义一致，无需前置存在性校验。
+      where.companyId = query.companyId;
     }
 
     if (query.keyword) {
@@ -3604,6 +3608,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
           resultText: '项目已完成并归档',
           sourceType: SourceType.PROJECT_MANAGEMENT,
           createdById: userId,
+          // 公司归属承继 PMI 快照（2026-09-17 补盖）：此前漏盖章 → 台账/数据库单公司视图空
+          companyId: project.companyId ?? null,
+          companyName: project.companyName ?? null,
           awardedSupplierName: project.awardedSupplier || null,
           expertInfo: project.expertInfo || null,
           biddingUnits: project.biddingUnits || null,

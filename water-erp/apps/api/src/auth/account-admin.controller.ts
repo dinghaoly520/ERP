@@ -57,6 +57,7 @@ const ACCOUNT_SELECT = {
   displayName: true,
   role: true,
   company: true,
+  companyId: true,
   departmentName: true,
   phone: true,
   email: true,
@@ -168,6 +169,9 @@ export class AccountAdminController {
     if (taken) {
       throw new ConflictException({ error: `用户名「${dto.username}」已被使用`, code: 'USERNAME_EXISTS' });
     }
+    // 公司名 → Company 记录并联动 companyId（2026-09-17）：此前只写 company 文本、
+    // companyId 恒空 → 账号管理建的账号在公司隔离引擎里全部「未归属」（resolveScope 读 companyId）
+    const companyRec = dto.company ? await this.resolveCompanyRecord(dto.company) : null;
     return this.prisma.user.create({
       data: {
         username: dto.username,
@@ -175,7 +179,8 @@ export class AccountAdminController {
         passwordHash: hashSync(dto.password, 10),
         passwordVault: encryptPasswordVault(dto.password) ?? null,
         role: dto.role,
-        company: dto.company ?? null,
+        company: companyRec?.name ?? null,
+        companyId: companyRec?.id ?? null,
         departmentName: dto.departmentName ?? null,
         phone: dto.phone ?? null,
         email: dto.email ?? null,
@@ -196,13 +201,17 @@ export class AccountAdminController {
     if (id === user.sub && dto.role && dto.role !== 'admin') {
       throw new BadRequestException({ error: '不能修改自己的管理员角色', code: 'SELF_ROLE_LOCK' });
     }
+    // 公司名 → Company 记录（联动 companyId，口径同 create；空串=清除归属）
+    const companyRec = dto.company ? await this.resolveCompanyRecord(dto.company) : null;
     try {
       return await this.prisma.user.update({
         where: { id },
         data: {
           ...(dto.displayName !== undefined && { displayName: dto.displayName }),
           ...(dto.role !== undefined && { role: dto.role }),
-          ...(dto.company !== undefined && { company: dto.company || null }),
+          ...(dto.company !== undefined && (dto.company
+            ? { company: companyRec!.name, companyId: companyRec!.id }
+            : { company: null, companyId: null })),
           ...(dto.departmentName !== undefined && { departmentName: dto.departmentName || null }),
           ...(dto.phone !== undefined && { phone: dto.phone || null }),
           ...(dto.email !== undefined && { email: dto.email || null }),
@@ -216,6 +225,18 @@ export class AccountAdminController {
       }
       throw e;
     }
+  }
+
+  /** 公司名归一化 → Company upsert（与注册链路同款：精确/去后缀匹配，未知公司即建档） */
+  private async resolveCompanyRecord(companyName: string) {
+    const known = (await this.prisma.company.findMany({ select: { name: true } })).map(c => c.name);
+    const trimmed = companyName.trim().replace(/\s+/g, '');
+    let name = known.find(c => c.toLowerCase() === trimmed.toLowerCase());
+    if (!name) {
+      const stripSuffix = (s: string) => s.replace(/(股份有限公司|有限公司|有限责任公司|集团)$/, '');
+      name = known.find(c => stripSuffix(c) === stripSuffix(trimmed)) ?? trimmed;
+    }
+    return this.prisma.company.upsert({ where: { name }, update: {}, create: { name } });
   }
 
   @Post(':id/reset-password')

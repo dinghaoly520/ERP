@@ -35,6 +35,24 @@ export async function fetchProcurementById(id: string) {
   return api.get(`/procurements/${id}`);
 }
 
+/** 按采购单位（创建人所属公司）全量分组计数——「按采购单位规整」chip 的全量口径（与列表同 where，免分页失真） */
+export async function fetchLedgerCompanyCounts(params: {
+  startDate?: string; endDate?: string; procurementMethod?: string;
+  departmentId?: string; resultStatus?: ResultStatusKey; searchKeyword?: string;
+  recycleStatus?: 'ACTIVE' | 'RECYCLED' | 'ALL'; companyId?: string;
+}): Promise<Array<{ name: string; count: number }>> {
+  const query = new URLSearchParams();
+  if (params.startDate) query.set('startDate', params.startDate);
+  if (params.endDate) query.set('endDate', params.endDate);
+  if (params.procurementMethod) query.set('procurementMethod', params.procurementMethod);
+  if (params.departmentId) query.set('departmentId', params.departmentId);
+  if (params.resultStatus) query.set('resultStatus', params.resultStatus);
+  if (params.searchKeyword) query.set('searchKeyword', params.searchKeyword);
+  if (params.recycleStatus) query.set('recycleStatus', params.recycleStatus);
+  if (params.companyId && params.companyId !== 'all') query.set('companyId', params.companyId);
+  return api.get<Array<{ name: string; count: number }>>(`/procurements/company-counts?${query.toString()}`);
+}
+
 export async function fetchLedgerStats(
   startDate?: string,
   endDate?: string,

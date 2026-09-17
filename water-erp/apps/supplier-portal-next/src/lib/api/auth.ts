@@ -10,6 +10,8 @@ export interface RegisterParams {
   registrationPhone: string;
   /** 归属公司（Company 主数据 id；账号管理按公司分组） */
   companyId?: string;
+  /** 归属公司名称（62 家名单；未命中主数据时后端建档） */
+  companyName?: string;
   registrationCode: string;
   username?: string;
   displayName: string;
@@ -55,6 +57,8 @@ export interface RegisterTemporaryParams {
   invitationCode: string;
   /** 归属公司（Company 主数据 id；可选，留空即未归属，admin 可后补） */
   companyId?: string;
+  /** 归属公司名称（62 家名单选择；companyId 未命中时后端按名称建档） */
+  companyName?: string;
   name: string;
   creditCode: string;
   legalPerson: string;

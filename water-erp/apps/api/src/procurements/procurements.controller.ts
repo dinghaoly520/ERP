@@ -40,6 +40,21 @@ export class ProcurementsController {
     return this.procurementsService.findAll(query, user, this.companyScope.filter(scope));
   }
 
+  /** 按采购单位（创建人所属公司）全量分组计数——「按采购单位规整」chip 的全量口径（与列表同 where） */
+  @Get('company-counts')
+  @Roles('leader', 'admin')
+  async getCompanyCounts(
+    @Query() query: QueryProcurementsDto,
+    @Query('companyId') companyId: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!canViewGlobalBusinessData(user.role)) {
+      throw new ForbiddenException('普通账号无法查看采购台账。');
+    }
+    const scope = await this.companyScope.resolveScope(user, companyId);
+    return this.procurementsService.companyCounts(query, this.companyScope.filter(scope));
+  }
+
   @Get('stats')
   @Roles('leader', 'admin')
   async getStats(

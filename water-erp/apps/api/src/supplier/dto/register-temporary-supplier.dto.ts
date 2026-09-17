@@ -18,6 +18,9 @@ export class RegisterTemporarySupplierDto {
   invitationCode: string;
 
   /** 归属公司（Company 主数据 id，自定义短 id 非 UUID；必选——影响投标归属，账号管理按公司分组，admin 可改） */
+  /** 归属公司名称（62 家名单选择；companyId 未命中主数据时按此名称自动建档） */
+  @IsOptional() @IsString() @MaxLength(128)
+  companyName?: string;
   @IsString() @IsNotEmpty({ message: '归属公司为必选项，须正确选择，否则将影响投标' })
   companyId: string;
 

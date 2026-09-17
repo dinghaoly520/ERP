@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import { type AuthRole } from "@/lib/api/auth";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
+import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import {
   fetchProgressStats,
   fetchProgressAiInsights,
@@ -405,6 +406,8 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
   const [aiInsights, setAiInsights] = useState<ProgressAiInsights | null>(null);
   const [companyId, setCompanyId] = useState("all");
+  // admin 公司视图：全部=按公司分组（CompanySectionHeader），单公司=该公司标题
+  const selectedCompanyName = useCompanyName(companyId);
   const [aiLoading, setAiLoading] = useState(false);
 
   const applyInsightFilter = (insight: ProgressAiInsight) => {
@@ -507,6 +510,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
   const clearAll = () => { setKeyword(""); setSelectedStage(null); setSelectedProject(""); setSelectedRequester(""); setSelectedProjectIds(new Set()); };
   useEffect(() => { setCurrentPage(1); }, [keyword, selectedStage, selectedProject, selectedRequester, sortBy, selectedProjectIds]);
 
+  const companyViewAll = currentUserRole === "admin" && companyId === "all";
   const filteredProjects = useMemo(() => {
     let list = derivedProjects.filter((p) => {
       if (selectedProjectIds.size > 0 && !selectedProjectIds.has(p.id)) return false;
@@ -522,6 +526,15 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
     };
     return sorters[sortBy] ? list.sort(sorters[sortBy]) : list;
   }, [derivedProjects, keyword, selectedProject, selectedRequester, selectedStage, selectedProjectIds, sortBy]);
+
+  // admin 全部公司视图：按公司分组（计数降序、未归属沉底）
+  const companyGroups = useMemo(() => {
+    if (!companyViewAll) return [];
+    return buildCompanyCounts(filteredProjects.map((p) => ({ company: p.companyName }))).map((g) => ({
+      ...g,
+      items: filteredProjects.filter((p) => ((p.companyName ?? "").trim() || "未归属") === g.name),
+    }));
+  }, [companyViewAll, filteredProjects]);
 
   // ════════════════════════════════════════════════════════════
   // Loading / Error
@@ -712,6 +725,10 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
             </div>
           </div>
           <div className="wb-panel-body space-y-3">
+            {/* 单公司视图（admin）：该公司主标题 */}
+            {!companyViewAll && currentUserRole === "admin" && selectedCompanyName && (
+              <CompanySectionHeader name={selectedCompanyName} count={filteredProjects.length} />
+            )}
             {/* Filter bar */}
             <div className="flex flex-wrap items-center gap-2">
               <select value={selectedStage ?? ""} onChange={(e) => setSelectedStage(e.target.value || null)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
@@ -747,11 +764,30 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
               </div>
             ) : (
               <>
+                {companyViewAll ? (
+                  <div className="space-y-4">
+                    {companyGroups.map((g) => {
+                      const pageItems = g.items.slice(0, currentPage * PAGE_SIZE);
+                      if (pageItems.length === 0) return null;
+                      return (
+                        <section key={g.name}>
+                          <CompanySectionHeader name={g.name} count={g.items.length} />
+                          <div className="mt-2 space-y-2.5">
+                            {pageItems.map((project) => (
+                              <ProjectCard key={project.id} project={project} index={0} reducedMotion={reducedMotion} />
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                ) : (
                 <div className="space-y-2.5">
                   {filteredProjects.slice(0, currentPage * PAGE_SIZE).map((project, idx) => (
                     <ProjectCard key={project.id} project={project} index={idx} reducedMotion={reducedMotion} />
                   ))}
                 </div>
+                )}
                 {filteredProjects.length > currentPage * PAGE_SIZE && (
                   <div className="flex items-center justify-between pt-3">
                     <span className="text-xs text-[color:var(--muted-foreground)]">已显示 {Math.min(currentPage * PAGE_SIZE, filteredProjects.length)} / {filteredProjects.length}</span>

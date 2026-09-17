@@ -7,6 +7,8 @@ export type AdminAccount = {
   displayName: string;
   role: AuthRole;
   company: string | null;
+  /** 公司归属 id（隔离引擎读此字段；null=未归属——巡检警示用，2026-09-17 起建/改号均联动写入） */
+  companyId: string | null;
   departmentName: string | null;
   phone: string | null;
   email: string | null;

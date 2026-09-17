@@ -308,25 +308,12 @@ export class ProcurementsService {
     }
   }
 
-  async findAll(
-    query: QueryProcurementsDto,
-    user: AuthenticatedUser,
+  /** 台账列表 where 构建（findAll 与 company-counts 共用，保证 chip 计数与列表同口径） */
+  private buildListWhere(
+    query: Partial<QueryProcurementsDto>,
     companyFilter: { companyId?: string } = {},
   ) {
-    const {
-      page,
-      pageSize,
-      startDate,
-      endDate,
-      procurementMethod,
-      departmentId,
-      resultStatus,
-      searchKeyword,
-      sortBy,
-      sortOrder,
-      recycleStatus,
-    } = query;
-
+    const { startDate, endDate, procurementMethod, departmentId, resultStatus, searchKeyword, recycleStatus } = query;
     const where: any = {};
 
     if (recycleStatus === 'RECYCLED') {
@@ -367,6 +354,52 @@ export class ProcurementsService {
         { supplierText: { contains: searchKeyword, mode: 'insensitive' } },
       ];
     }
+    return where;
+  }
+
+  /**
+   * 按采购单位（创建人所属公司）的全量分组计数（2026-09-17）：
+   * 与 findAll 同一 where（免分页），供台账「按采购单位规整」chip 显示全量口径——
+   * 分页视图下前端从当前页数据统计会失真，此处一次扫描补齐。
+   */
+  async companyCounts(query: Partial<QueryProcurementsDto>, companyFilter: { companyId?: string } = {}) {
+    const rounds = await this.prisma.procurementRound.findMany({
+      where: this.buildListWhere(query, companyFilter),
+      select: { companyName: true, createdBy: { select: { company: true } } },
+    });
+    const map = new Map<string, number>();
+    for (const r of rounds) {
+      const name = (r.createdBy?.company ?? r.companyName ?? '').trim() || '未归属';
+      map.set(name, (map.get(name) ?? 0) + 1);
+    }
+    const NO_COMPANY = '未归属';
+    return [...map.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) =>
+        a.name === NO_COMPANY ? 1 : b.name === NO_COMPANY ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh'),
+      );
+  }
+
+  async findAll(
+    query: QueryProcurementsDto,
+    user: AuthenticatedUser,
+    companyFilter: { companyId?: string } = {},
+  ) {
+    const {
+      page,
+      pageSize,
+      startDate,
+      endDate,
+      procurementMethod,
+      departmentId,
+      resultStatus,
+      searchKeyword,
+      sortBy,
+      sortOrder,
+      recycleStatus,
+    } = query;
+
+    const where = this.buildListWhere(query, companyFilter);
 
     const orderBy: any = {};
     orderBy[sortBy ?? 'procurementDate'] = sortOrder ?? 'desc';
@@ -801,6 +834,10 @@ export class ProcurementsService {
       projectManagementId: pmInfo?.id || null,
       createdById: round.createdById || null,
       createdByName: round.createdBy?.displayName || null,
+      // 采购单位名称 = 创建人所属公司（admin 全部公司视图的规整/打标签依据，与 sasacExtract 同口径）。
+      // 口径拍板（2026-09-17 保持现状）：台账优先「创建人现名」（现势监管口径）；
+      // 项目管理侧用 companyName 写时快照（历史留痕口径）——两处差异系设计决策，勿"统一"。
+      purchaserName: round.createdBy?.company ?? round.companyName ?? '',
       createdAt: round.createdAt.toISOString(),
       updatedAt: round.updatedAt.toISOString(),
       isRecycled: Boolean(round.isRecycled),
