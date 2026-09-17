@@ -133,7 +133,7 @@ export default function ReportPanel() {
                       <div className="text-sm font-medium text-[var(--foreground)] flex items-center gap-2">
                         {task.documentName}
                         {allResolved && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgba(92,181,150,0.12)] text-[rgba(92,181,150,1)] font-semibold">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)] font-semibold">
                             已完成
                           </span>
                         )}
@@ -149,15 +149,15 @@ export default function ReportPanel() {
                     {task.status === 'completed' && (
                       <>
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-[rgba(92,181,150,1)]">{task.passedCount} 通过</span>
-                          <span className="text-[rgba(230,129,102,1)]">{task.failedCount} 违规</span>
-                          <span className="text-[rgba(234,188,110,1)]">{task.warningCount} 警告</span>
+                          <span className="text-[var(--success)]">{task.passedCount} 通过</span>
+                          <span className="text-[var(--danger)]">{task.failedCount} 违规</span>
+                          <span className="text-[var(--warning)]">{task.warningCount} 警告</span>
                         </div>
                         {totalIssues > 0 && (
                           <div className="flex items-center gap-2 ml-2">
                             <div className="w-16 h-1 rounded-full bg-white/5 overflow-hidden">
                               <div
-                                className="h-full rounded-full bg-[rgba(92,181,150,1)]"
+                                className="h-full rounded-full bg-[var(--success)]"
                                 style={{ width: `${progress}%` }}
                               />
                             </div>
@@ -183,7 +183,7 @@ export default function ReportPanel() {
                             toast.error('停止失败');
                           }
                         }}
-                        className="p-1 rounded-md text-[var(--muted-foreground)]/40 hover:text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.12)] transition-colors"
+                        className="p-1 rounded-md text-[var(--muted-foreground)]/40 hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
                       >
                         <span className="relative inline-flex items-center justify-center">
                           <span className="absolute w-2.5 h-2.5 rounded-full bg-white" />
@@ -203,7 +203,7 @@ export default function ReportPanel() {
                             toast.error('删除失败');
                           }
                         }}
-                        className="p-1 rounded-md text-[var(--muted-foreground)]/40 hover:text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.12)] transition-colors"
+                        className="p-1 rounded-md text-[var(--muted-foreground)]/40 hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

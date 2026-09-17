@@ -146,7 +146,7 @@ export default function TaskReportView({ task: initialTask, onClose }: TaskRepor
             <button
               type="button"
               onClick={() => onReviewComplete(task)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 bg-[rgba(92,181,150,0.15)] text-[rgba(62,145,115,1)] hover:bg-[rgba(92,181,150,0.28)] active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[var(--success)] hover:bg-[color-mix(in_oklch,var(--success)_28%,transparent)] active:scale-95"
             >
               <CheckCircle className="h-3.5 w-3.5" />
               审查结束，提交采购文件

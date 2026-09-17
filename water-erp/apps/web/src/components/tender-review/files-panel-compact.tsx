@@ -154,10 +154,10 @@ export default function FilesPanelCompact() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-3 p-3 rounded-[12px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)]"
         >
-          <Shield className="h-5 w-5 text-[rgba(234,188,110,1)] shrink-0" />
+          <Shield className="h-5 w-5 text-[var(--warning)] shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-[rgba(234,188,110,1)]">尚未配置审查规则</div>
-            <div className="text-xs text-[rgba(234,188,110,1)]/70">上传文件后可使用 AI 自动提取规则</div>
+            <div className="text-sm font-medium text-[var(--warning)]">尚未配置审查规则</div>
+            <div className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,transparent)]">上传文件后可使用 AI 自动提取规则</div>
           </div>
           <button
             onClick={() => {
@@ -165,7 +165,7 @@ export default function FilesPanelCompact() {
               setActiveTab('rules');
             }}
             className="flex items-center gap-1 px-3 py-1.5 rounded-[8px] text-xs font-medium
-              bg-[rgba(234,188,110,0.2)] text-[rgba(234,188,110,1)] hover:bg-[rgba(234,188,110,0.3)] transition-colors shrink-0"
+              bg-[color-mix(in_oklch,var(--warning)_20%,transparent)] text-[var(--warning)] hover:bg-[color-mix(in_oklch,var(--warning)_28%,transparent)] transition-colors shrink-0"
           >
             前往提取
             <ArrowRight className="h-3 w-3" />
@@ -200,7 +200,7 @@ export default function FilesPanelCompact() {
                 </div>
                 <button
                   onClick={() => handleDeleteFile(file.id)}
-                  className="p-2 rounded-lg text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.12)] transition-colors shrink-0"
+                  className="p-2 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors shrink-0"
                   title="删除文件"
                 >
                   <Trash2 className="h-4 w-4" />

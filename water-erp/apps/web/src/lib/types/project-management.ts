@@ -208,6 +208,9 @@ export type ProjectManagementItem = {
   reviewComment?: string | null;
   createdById?: string | null;
   createdByName?: string | null;
+  /** 公司归属（写时快照）：创建人所属公司；null=未归属（admin 公司视图「未归属」桶） */
+  companyId?: string | null;
+  companyName?: string | null;
   createdAt?: string;
   updatedAt?: string;
   stages: ProjectManagementStage[];

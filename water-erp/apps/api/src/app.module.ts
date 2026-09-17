@@ -46,7 +46,6 @@ import { DraftModule } from './draft/draft.module';
 import { TenderSampleModule } from './tender-sample/tender-sample.module';
 import { TenderHistoryModule } from './tender-history/tender-history.module';
 import { ProgressModule } from './progress/progress.module';
-import { ImportsModule } from './imports/imports.module';
 import { WorkArrangementsModule } from './work-arrangements/work-arrangements.module';
 import { ProjectManagementModule } from './project-management/project-management.module';
 import { ProjectPlanModule } from './project-plan/project-plan.module';
@@ -113,7 +112,6 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     TenderSampleModule,
     TenderHistoryModule,
     ProgressModule,
-    ImportsModule,
     WorkArrangementsModule,
     ProjectManagementModule,
     ProjectPlanModule,

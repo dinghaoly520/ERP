@@ -296,7 +296,7 @@ export default function RulesPanel() {
         value={selectedKb}
         onChange={(e) => setSelectedKb(e.target.value)}
         className="w-full rounded-[12px] border border-white/45 bg-white/80 px-4 py-2.5 text-sm
-          text-[color:var(--foreground)] outline-none focus:border-[rgba(96,139,239,0.5)] focus:ring-2 focus:ring-[rgba(96,139,239,0.1)] appearance-none"
+          text-[color:var(--foreground)] outline-none focus:border-[color-mix(in_oklch,var(--accent)_50%,transparent)] focus:ring-2 focus:ring-[color-mix(in_oklch,var(--accent)_10%,transparent)] appearance-none"
       >
         <option value="">选择知识库...</option>
         {kbs.map((kb) => (
@@ -423,7 +423,7 @@ export default function RulesPanel() {
                   </button>
                   <button
                     onClick={() => handleDelete(rule.id)}
-                    className="text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] transition-colors"
+                    className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

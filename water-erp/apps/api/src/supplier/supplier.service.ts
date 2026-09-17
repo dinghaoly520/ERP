@@ -69,11 +69,22 @@ export class SupplierService {
    * 序列在迁移 20260807000000_supplier_no 中创建。
    */
   /** 供应商公司归属解析（账号管理分组）：companyId 无效时静默未归属，不阻断注册。 */
-  private async resolveSupplierCompany(companyId?: string): Promise<{ id: string | null; name: string | null }> {
-    if (!companyId) return { id: null, name: null };
-    const c = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, name: true } });
-    if (!c) throw new BadRequestException({ error: '归属公司不存在，请重新选择', code: 'COMPANY_NOT_FOUND' });
-    return { id: c.id, name: c.name };
+  /** 归属公司解析（2026-09-17）：companyId 命中主数据 → 用之；否则按 companyName
+   *  归一化 upsert 建档（注册页改用集团 62 家名单选择，多数不在既有主数据；与工作人员注册的自动建档同型）。 */
+  private async resolveSupplierCompany(companyId?: string, companyName?: string): Promise<{ id: string | null; name: string | null }> {
+    if (companyId) {
+      const c = await this.prisma.company.findUnique({ where: { id: companyId }, select: { id: true, name: true } });
+      if (c) return { id: c.id, name: c.name };
+    }
+    const name = (companyName ?? '').trim();
+    if (!name) throw new BadRequestException({ error: '归属公司不存在，请重新选择', code: 'COMPANY_NOT_FOUND' });
+    const up = await this.prisma.company.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+      select: { id: true, name: true },
+    });
+    return { id: up.id, name: up.name };
   }
 
   private async generateSupplierNo(tx: Prisma.TransactionClient): Promise<string> {
@@ -219,7 +230,7 @@ export class SupplierService {
       await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
     }
 
-    const companyRef = await this.resolveSupplierCompany(dto.companyId);
+    const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);
 
     // 创建用户和供应商 — 事务保证原子性
     const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
@@ -499,7 +510,7 @@ export class SupplierService {
     // 手机验证（2026-09-14）：字段校验通过后一次性消费短信码——与正式注册同款时序
     await this.verificationService.verifyRegistrationCode(dto.phone, dto.registrationCode);
 
-    const companyRef = await this.resolveSupplierCompany(dto.companyId);
+    const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);
 
     const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({

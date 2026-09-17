@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  BookOpen, Check, ChevronDown, ClipboardCheck, FileSpreadsheet, Loader2, Network, PencilLine,
+  BookOpen, Check, ChevronDown, ClipboardCheck, FileSpreadsheet, Loader2, Network, PencilLine, Search,
 } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import { fetchSasacExtract, type SasacProjectRow, type SasacSupplierRow } from "@/lib/api/procurements";
@@ -98,6 +98,7 @@ function SelectCell({
   const searchRef = useRef<HTMLInputElement>(null);
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const empty = !value;
+  const POP_H = 220;
   const keep = value && !options.includes(value) ? [value] : [];
   const filtered = [...keep, ...options].filter((o) => !q.trim() || o.toLowerCase().includes(q.trim().toLowerCase()));
   const showSearch = options.length > 8;
@@ -141,7 +142,13 @@ function SelectCell({
       <button
         type="button"
         onClick={() => {
-          if (!open) { const r = anchorRef.current?.getBoundingClientRect(); if (r) setRect({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 200) }); }
+          if (!open) {
+            const r = anchorRef.current?.getBoundingClientRect();
+            if (r) {
+              const flip = r.bottom + POP_H + 8 > window.innerHeight && r.top > POP_H + 16;
+              setRect({ top: flip ? r.top - POP_H - 8 : r.bottom + 8, left: r.left, width: Math.max(r.width, 200) });
+            }
+          }
           setOpen((o) => !o);
         }}
         className={`flex w-full items-center justify-center gap-1 truncate text-[11px] font-medium outline-none ${empty ? "font-bold text-[color:var(--danger)]" : "text-[color:var(--foreground)]"}`}
@@ -156,22 +163,25 @@ function SelectCell({
         <div
           ref={popRef}
           role="listbox"
-          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width }}
-          className="z-[700] max-h-[220px] overflow-y-auto rounded-[12px] bg-[var(--background)]/97 px-1 pb-1 shadow-[0_14px_36px_rgba(24,40,70,0.18),inset_0_1px_0_oklch(1_0_0/0.8)] backdrop-blur-md"
+          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width, zIndex: 700, maxHeight: POP_H, overflowY: "auto", borderRadius: 16, padding: "0 6px 6px", background: "linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)", boxShadow: "6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)" }}
         >
           {showSearch && (
-            <div className="sticky top-0 z-10 mb-1 rounded-t-[11px] bg-[var(--background)] px-1 pb-1 pt-1 shadow-[0_1px_0_oklch(0.6_0.04_258/0.14)]">
-              <input
-                ref={searchRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={`搜索 ${options.length} 项…`}
-                className="neu-input w-full !h-8 !min-h-0 text-[11px]"
-              />
+            <div className="sticky top-0 z-10 mb-1 px-1 pb-1.5 pt-1.5" style={{ background: "linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)", borderRadius: "16px 16px 0 0", boxShadow: "0 2px 4px -2px oklch(0.55 0.03 258 / 0.18)" }}>
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+                <input
+                  ref={searchRef}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={`搜索 ${options.length} 项…`}
+                  className="h-[30px] w-full rounded-[8px] pl-[26px] pr-2 text-[11px] text-[var(--foreground)] outline-none"
+                  style={{ background: "var(--surface)", border: "none", boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85)" }}
+                />
+              </div>
             </div>
           )}
           {value ? (
-            <button type="button" role="option" aria-selected onClick={() => pick(value)} className="flex w-full items-center justify-between rounded-[8px] px-2 py-1.5 text-center text-[11px] font-semibold text-[var(--accent)] bg-white shadow-[inset_0_1px_0_oklch(1_0_0/0.95),1px_1px_3px_oklch(0.55_0.03_258/0.12)]">
+            <button type="button" role="option" aria-selected onClick={() => pick(value)} className="mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2.5 py-[7px] text-center text-[11px] font-bold text-[var(--accent)]" style={{ background: "oklch(1 0 0)", boxShadow: "inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9)" }}>
               <span className="truncate">{value}</span>
               <Check size={11} strokeWidth={2.4} className="shrink-0" />
             </button>
@@ -179,7 +189,7 @@ function SelectCell({
             <div className="px-2 py-1 text-center text-[10px] font-bold text-[color:var(--danger)]">待补录</div>
           )}
           {filtered.filter((o) => o !== value).map((o) => (
-            <button key={o} type="button" role="option" aria-selected={false} onClick={() => pick(o)} className="w-full truncate rounded-[8px] px-2 py-1.5 text-center text-[11px] text-[color:var(--foreground)] transition-colors hover:bg-white/60">
+            <button key={o} type="button" role="option" aria-selected={false} onClick={() => pick(o)} className="w-full truncate rounded-[8px] px-2 py-1.5 text-center text-[11px] text-[color:var(--foreground)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
               {o}
             </button>
           ))}

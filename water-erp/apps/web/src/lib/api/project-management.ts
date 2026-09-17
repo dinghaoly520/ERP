@@ -112,8 +112,14 @@ export function buildProjectManagementCreatePayload(fields: InitiationFields) {
   };
 }
 
-export async function fetchProjectManagementList(status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED') {
-  const query = status ? `?status=${status}` : '';
+export async function fetchProjectManagementList(
+  status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED',
+  companyId?: string,
+) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (companyId && companyId !== 'all') params.set('companyId', companyId);
+  const query = params.toString() ? `?${params.toString()}` : '';
   const response = await fetch(`${API_BASE}/project-management${query}`, {
     credentials: 'include',
     cache: 'no-store',

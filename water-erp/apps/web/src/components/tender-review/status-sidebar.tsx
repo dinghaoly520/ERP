@@ -35,19 +35,19 @@ export default function StatusSidebar() {
             icon={<CheckCircle2 className="h-3.5 w-3.5" />}
             label="通过"
             value={stats.passedCount}
-            color="text-[rgba(92,181,150,1)]"
+            color="text-[var(--success)]"
           />
           <StatCard
             icon={<XCircle className="h-3.5 w-3.5" />}
             label="违规"
             value={stats.failedCount}
-            color="text-[rgba(230,129,102,1)]"
+            color="text-[var(--danger)]"
           />
           <StatCard
             icon={<AlertTriangle className="h-3.5 w-3.5" />}
             label="警告"
             value={stats.warningCount}
-            color="text-[rgba(234,188,110,1)]"
+            color="text-[var(--warning)]"
           />
         </div>
       </div>
@@ -101,11 +101,11 @@ export default function StatusSidebar() {
                 </div>
                 {task.status === 'completed' && (
                   <div className="flex items-center gap-1.5 mt-1 text-[10px] text-[var(--muted-foreground)]">
-                    <span className="text-[rgba(92,181,150,1)]">{task.passedCount}</span>
+                    <span className="text-[var(--success)]">{task.passedCount}</span>
                     <span>/</span>
-                    <span className="text-[rgba(230,129,102,1)]">{task.failedCount}</span>
+                    <span className="text-[var(--danger)]">{task.failedCount}</span>
                     <span>/</span>
-                    <span className="text-[rgba(234,188,110,1)]">{task.warningCount}</span>
+                    <span className="text-[var(--warning)]">{task.warningCount}</span>
                   </div>
                 )}
                 <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">

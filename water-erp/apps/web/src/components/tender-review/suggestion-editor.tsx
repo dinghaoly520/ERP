@@ -28,8 +28,8 @@ function DiffPreview({ suggestion, accepted = false }: { suggestion: StructuredS
   return (
     <div className="space-y-2">
       {suggestion.originalText && (
-        <div className={`rounded-lg p-2.5 ${accepted ? 'bg-gray-100/50 border border-gray-200/50' : 'bg-[rgba(230,129,102,0.06)] border border-[rgba(230,129,102,0.2)]'}`}>
-          <div className={`text-[10px] font-semibold mb-1 ${accepted ? 'text-gray-400' : 'text-[rgba(230,129,102,1)]'}`}>
+        <div className={`rounded-lg p-2.5 ${accepted ? 'bg-gray-100/50 border border-gray-200/50' : 'bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] border border-[color-mix(in_oklch,var(--danger)_20%,transparent)]'}`}>
+          <div className={`text-[10px] font-semibold mb-1 ${accepted ? 'text-gray-400' : 'text-[var(--danger)]'}`}>
             {suggestion.operation === 'replace' ? '替换原文' : '删除'}
           </div>
           <div className={`${textSize} line-through leading-relaxed whitespace-pre-wrap ${accepted ? 'text-gray-400' : 'text-[var(--foreground)]'}`}>
@@ -38,11 +38,11 @@ function DiffPreview({ suggestion, accepted = false }: { suggestion: StructuredS
         </div>
       )}
       {suggestion.replacementText && (
-        <div className={`rounded-lg p-2.5 ${accepted ? 'bg-red-50/50 border border-red-200/40' : 'bg-[rgba(92,181,150,0.06)] border border-[rgba(92,181,150,0.2)]'}`}>
-          <div className={`text-[10px] font-semibold mb-1 ${accepted ? 'text-[rgba(230,129,102,1)]' : 'text-[rgba(92,181,150,1)]'}`}>
+        <div className={`rounded-lg p-2.5 ${accepted ? 'bg-red-50/50 border border-red-200/40' : 'bg-[color-mix(in_oklch,var(--success)_6%,transparent)] border border-[color-mix(in_oklch,var(--success)_20%,transparent)]'}`}>
+          <div className={`text-[10px] font-semibold mb-1 ${accepted ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
             {suggestion.operation === 'insert' ? '插入内容' : '替换为'}
           </div>
-          <div className={`${textSize} leading-relaxed whitespace-pre-wrap ${accepted ? 'text-[rgba(230,129,102,1)]' : 'text-[var(--foreground)]'}`}>
+          <div className={`${textSize} leading-relaxed whitespace-pre-wrap ${accepted ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'}`}>
             {suggestion.replacementText}
           </div>
         </div>
@@ -124,15 +124,15 @@ export default function SuggestionEditor({
         <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-2">
           ✏️ 修改意见
         </div>
-        <div className="rounded-xl border border-[rgba(92,181,150,0.3)] overflow-hidden">
-          <div className="px-3.5 py-2.5 bg-[rgba(92,181,150,0.08)] flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-[rgba(92,181,150,1)]">
+        <div className="rounded-xl border border-[color-mix(in_oklch,var(--success)_30%,transparent)] overflow-hidden">
+          <div className="px-3.5 py-2.5 bg-[color-mix(in_oklch,var(--success)_8%,transparent)] flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-[var(--success)]">
               ✅ 已修改
             </span>
             <button
               onClick={handleUndo}
               disabled={loading}
-              className="px-2.5 py-1 rounded-[10px] bg-[rgba(230,129,102,0.12)] text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.2)] transition-colors"
+              className="px-2.5 py-1 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] transition-colors"
               style={{ fontSize: 12 }}
             >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : '放弃修改'}
@@ -202,7 +202,7 @@ export default function SuggestionEditor({
           <button
             onClick={handleAccept}
             disabled={loading}
-            className="px-3 py-1 rounded-[14px] bg-[rgba(92,181,150,0.9)] text-white font-semibold hover:bg-[rgba(92,181,150,1)] transition-colors disabled:opacity-50"
+            className="px-3 py-1 rounded-[14px] bg-[color-mix(in_oklch,var(--success)_90%,transparent)] text-white font-semibold hover:bg-[var(--success)] transition-colors disabled:opacity-50"
             style={{ fontSize: 12 }}
           >
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ 接受修改'}

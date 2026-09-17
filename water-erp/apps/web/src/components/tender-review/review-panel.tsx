@@ -200,12 +200,12 @@ export default function ReviewPanel() {
             </div>
           )}
           {taskStatus === 'completed' && (
-            <div className="text-[rgba(92,181,150,1)] text-sm font-medium">
+            <div className="text-[var(--success)] text-sm font-medium">
               审查完成，请切换到"审查报告"查看结果
             </div>
           )}
           {taskStatus === 'failed' && (
-            <div className="text-[rgba(230,129,102,1)] text-sm">审查失败，请重试</div>
+            <div className="text-[var(--danger)] text-sm">审查失败，请重试</div>
           )}
         </motion.div>
       )}

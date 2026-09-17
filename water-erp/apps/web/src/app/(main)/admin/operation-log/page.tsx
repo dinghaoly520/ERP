@@ -276,7 +276,7 @@ export default function OperationLogPage() {
                                 <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                                   请求体（服务端脱敏后，≤4KB 截断）
                                 </div>
-                                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-[12px] bg-[oklch(0.55_0.03_258/0.05)] p-3 font-mono text-[0.68rem] leading-relaxed text-[var(--foreground)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.12),inset_-2px_-2px_5px_oklch(1_0_0/0.7)]">
+                                <pre className="neu-pre max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-[12px] p-3 font-mono text-[0.68rem] leading-relaxed text-[var(--foreground)]">
 {r.body == null ? '—' : JSON.stringify(r.body, null, 2)}
                                 </pre>
                               </div>

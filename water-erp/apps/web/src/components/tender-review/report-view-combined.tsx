@@ -115,11 +115,11 @@ interface IssueGroup {
 
 const FILTER_OPTIONS: Array<{ key: FilterKey; label: string; icon: React.ReactNode; colorClass: string }> = [
   { key: 'all', label: '全部', icon: null, colorClass: '' },
-  { key: 'critical', label: '严重', icon: <XCircle className="h-4 w-4" />, colorClass: 'text-[rgba(230,129,102,1)]' },
-  { key: 'warning', label: '警告', icon: <AlertTriangle className="h-4 w-4" />, colorClass: 'text-[rgba(234,188,110,1)]' },
-  { key: 'info', label: '提示', icon: <Circle className="h-4 w-4" />, colorClass: 'text-[rgba(96,139,239,1)]' },
+  { key: 'critical', label: '严重', icon: <XCircle className="h-4 w-4" />, colorClass: 'text-[var(--danger)]' },
+  { key: 'warning', label: '警告', icon: <AlertTriangle className="h-4 w-4" />, colorClass: 'text-[var(--warning)]' },
+  { key: 'info', label: '提示', icon: <Circle className="h-4 w-4" />, colorClass: 'text-[var(--accent)]' },
   { key: 'dataMissing', label: '忽略', icon: <Circle className="h-4 w-4" />, colorClass: 'text-orange-400' },
-  { key: 'passed', label: '通过', icon: <CheckCircle2 className="h-4 w-4" />, colorClass: 'text-[rgba(92,181,150,1)]' },
+  { key: 'passed', label: '通过', icon: <CheckCircle2 className="h-4 w-4" />, colorClass: 'text-[var(--success)]' },
   { key: 'skipped', label: '跳过', icon: <CircleSlash className="h-4 w-4" />, colorClass: 'text-gray-400' },
 ];
 
@@ -149,11 +149,11 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
   // 分组
   const groups: IssueGroup[] = useMemo(() => {
     const g: IssueGroup[] = [
-      { key: 'critical', label: '严重违规', icon: <XCircle className="h-3.5 w-3.5" />, iconColor: 'text-[rgba(230,129,102,1)]', dotColor: 'bg-[rgba(230,129,102,1)]', issues: [] },
-      { key: 'warning', label: '警告', icon: <AlertTriangle className="h-3.5 w-3.5" />, iconColor: 'text-[rgba(234,188,110,1)]', dotColor: 'bg-[rgba(234,188,110,1)]', issues: [] },
-      { key: 'info', label: '提示', icon: <Circle className="h-3.5 w-3.5" />, iconColor: 'text-[rgba(96,139,239,1)]', dotColor: 'bg-[rgba(96,139,239,1)]', issues: [] },
+      { key: 'critical', label: '严重违规', icon: <XCircle className="h-3.5 w-3.5" />, iconColor: 'text-[var(--danger)]', dotColor: 'bg-[var(--danger)]', issues: [] },
+      { key: 'warning', label: '警告', icon: <AlertTriangle className="h-3.5 w-3.5" />, iconColor: 'text-[var(--warning)]', dotColor: 'bg-[var(--warning)]', issues: [] },
+      { key: 'info', label: '提示', icon: <Circle className="h-3.5 w-3.5" />, iconColor: 'text-[var(--accent)]', dotColor: 'bg-[var(--accent)]', issues: [] },
       { key: 'dataMissing', label: '忽略项', icon: <Circle className="h-3.5 w-3.5" />, iconColor: 'text-orange-400', dotColor: 'bg-orange-400', issues: [] },
-      { key: 'passed', label: '通过', icon: <CheckCircle2 className="h-3.5 w-3.5" />, iconColor: 'text-[rgba(92,181,150,1)]', dotColor: 'bg-[rgba(92,181,150,1)]', issues: [] },
+      { key: 'passed', label: '通过', icon: <CheckCircle2 className="h-3.5 w-3.5" />, iconColor: 'text-[var(--success)]', dotColor: 'bg-[var(--success)]', issues: [] },
       { key: 'skipped', label: '不适用', icon: <CircleSlash className="h-3.5 w-3.5" />, iconColor: 'text-gray-400', dotColor: 'bg-gray-400', issues: [] },
     ];
 
@@ -301,7 +301,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
             <button
               type="button"
               onClick={() => onReviewComplete(task)}
-              className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold transition-all duration-200 bg-[rgba(92,181,150,0.15)] text-[rgba(62,145,115,1)] hover:bg-[rgba(92,181,150,0.28)] active:scale-95"
+              className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold transition-all duration-200 bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[var(--success)] hover:bg-[color-mix(in_oklch,var(--success)_28%,transparent)] active:scale-95"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               审查结束，提交采购文件
@@ -338,7 +338,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
 
         {/* Progress */}
         {totalIssues > 0 && (
-          <div className="ml-auto flex items-center gap-2 pl-4" style={{borderLeft:"1px solid oklch(0.6 0.04 258 / 0.16)"}}>
+          <div className="ml-auto flex items-center gap-2 pl-4 border-l border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
             <span className="text-xs text-[var(--muted-foreground)]">
               {resolvedCount}/{totalIssues} 已处理
             </span>
@@ -397,7 +397,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                             <div className="text-xs text-[var(--foreground)] leading-snug truncate flex items-center gap-1">
                               <span className="truncate">{issue.title}</span>
                               {issue.source === 'llm-free' && (
-                                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded-full bg-[rgba(96,139,239,0.12)] text-[rgba(96,139,239,1)] font-medium">
+                                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)] font-medium">
                                   AI
                                 </span>
                               )}
@@ -409,7 +409,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                             )}
                           </div>
                           {issue.status === 'accepted' && (
-                            <Check className="h-3.5 w-3.5 text-[rgba(92,181,150,1)] shrink-0" />
+                            <Check className="h-3.5 w-3.5 text-[var(--success)] shrink-0" />
                           )}
                           {issue.status === 'rejected' && (
                             <X className="h-3.5 w-3.5 text-[var(--muted-foreground)]/40 shrink-0" />

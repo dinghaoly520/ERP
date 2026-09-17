@@ -20,6 +20,7 @@ import { getErrorMessage, getRegistrationDraftKey } from "@/lib/registration-val
 import { replaceObjectUrlPreview, revokeObjectUrlPreview } from "@/lib/object-url-preview";
 import { RegisterAgreement } from "@/components/register-agreement";
 import { BusinessTagField } from "@/components/registration/business-tag-field";
+import { UnitSearchSelect } from "@/components/registration/unit-search-select";
 import { PasswordField } from "@/components/registration/password-field";
 import { RegistrationField, RegistrationSection, RegistrationShell, type RegistrationStep } from "@/components/registration/registration-shell";
 import { SpSwitch } from "@/components/ui";
@@ -153,7 +154,7 @@ export default function RegisterPage() {
   const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "ok" | "bad">("idle");
   // 归属公司（账号管理按公司分组）：注册时选择
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
-  const [belongCompanyId, setBelongCompanyId] = useState("");
+  const [belongCompany, setBelongCompany] = useState(""); // 归属公司名称（62 家名单选择；提交时随 companyId 传后端自动建档）
 
   /* ── 第 2-5 部分 ── */
   const [contacts, setContacts] = useState<ContactRow[]>([{ name: "", gender: "", phone: "", idCard: "", email: "", position: "", isPrimary: true }]);
@@ -309,7 +310,7 @@ export default function RegisterPage() {
       else if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) e.registrationPhone = "注册手机号格式不正确";
       if (!registrationCode.trim()) e.registrationCode = "请输入短信验证码";
       else if (!/^\d{6}$/.test(registrationCode.trim())) e.registrationCode = "请输入 6 位短信验证码";
-      if (!belongCompanyId) e.belongCompany = "请选择归属公司：须正确选择，否则将影响投标";
+      if (!belongCompany) e.belongCompany = "请选择归属公司：须正确选择，否则将影响投标";
     }
     if (targetStep === 1) {
       if (!basic.name.trim()) e.name = "请输入企业名称";
@@ -426,7 +427,8 @@ export default function RegisterPage() {
     try {
       await authApi.register({
         username: basic.creditCode.trim(), // 用户名 = 统一社会信用代码（机构代码）
-        companyId: belongCompanyId || undefined,
+        companyId: companyOptions.find((c) => c.name === belongCompany)?.id, // 主数据已有则传 id
+        companyName: belongCompany || undefined, // 未命中主数据 → 后端按名称建档
         registrationPhone: registrationPhone.trim(),
         registrationCode: registrationCode.trim(),
         // 账号展示名取主要联系人（第二步），邮箱同
@@ -611,17 +613,7 @@ export default function RegisterPage() {
             </div>
             {/* 归属公司：步骤 1 底部整行（网格外块级，独占一行） */}
             {item("belongCompany", "归属公司", (
-              <select
-                id="register-belongCompany"
-                className="reg-inp"
-                value={belongCompanyId}
-                onChange={(e) => setBelongCompanyId(e.target.value)}
-              >
-                <option value="">请选择归属公司（须正确选择，否则影响投标）</option>
-                {companyOptions.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <UnitSearchSelect value={belongCompany} onChange={setBelongCompany} />
             ), true)}
           </RegistrationSection>
         </div>

@@ -15,6 +15,8 @@ export type ProcurementRoundItem = {
   id: string;
   projectId: string;
   projectName: string;
+  /** 采购单位名称 = 创建人所属公司（admin 全部公司视图的规整/打标签依据） */
+  purchaserName?: string | null;
   projectCode: string;
   roundNo: number;
   procurementDate: string | null;

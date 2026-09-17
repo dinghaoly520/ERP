@@ -133,9 +133,9 @@ export default function ReportsPanelCompact() {
                 <div className="flex items-center gap-1 shrink-0">
                   {task.status === 'completed' && (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-[rgba(92,181,150,1)]">{task.passedCount}</span>
-                      <span className="text-[rgba(230,129,102,1)]">{task.failedCount}</span>
-                      <span className="text-[rgba(234,188,110,1)]">{task.warningCount}</span>
+                      <span className="text-[var(--success)]">{task.passedCount}</span>
+                      <span className="text-[var(--danger)]">{task.failedCount}</span>
+                      <span className="text-[var(--warning)]">{task.warningCount}</span>
                     </div>
                   )}
                   {task.status === 'running' || task.status === 'pending' ? (
@@ -155,7 +155,7 @@ export default function ReportsPanelCompact() {
                         e.stopPropagation();
                         handleDelete(task);
                       }}
-                      className="p-1 rounded-md text-[var(--muted-foreground)]/40 hover:text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.12)] transition-colors"
+                      className="p-1 rounded-md text-[var(--muted-foreground)]/40 hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
                       title="删除记录"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

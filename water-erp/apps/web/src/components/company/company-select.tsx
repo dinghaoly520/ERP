@@ -149,8 +149,8 @@ export function CompanySelect({
         <span className={`inline-flex h-6 w-6 items-center justify-center rounded-[8px] ${isAll ? "bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] text-[color:var(--muted-foreground)]" : "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]"}`}>
           <Building2 size={13} strokeWidth={1.9} />
         </span>
-        <span className={`max-w-[150px] truncate text-xs ${isAll ? "font-medium text-[color:var(--foreground)]" : "font-semibold text-[var(--accent)]"}`}>
-          {loading ? "加载中…" : isAll ? "全部公司" : selected?.shortName ?? selected?.name ?? "已选公司"}
+        <span className={`max-w-[210px] truncate text-xs ${isAll ? "font-medium text-[color:var(--foreground)]" : "font-semibold text-[var(--accent)]"}`}>
+          {loading ? "加载中…" : isAll ? "全部公司" : selected?.name ?? "已选公司"}
         </span>
         {!isAll && !loading && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" title={`筛选中：${selected?.name ?? ""}`} />}
         <ChevronDown size={13} strokeWidth={2} className={`text-[color:var(--muted-foreground)] transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -165,7 +165,7 @@ export function CompanySelect({
           className="z-[90] max-h-[320px] overflow-y-auto rounded-[14px] bg-[var(--background)]/96 p-1.5 shadow-[0_18px_44px_rgba(24,40,70,0.18),inset_0_1px_0_oklch(1_0_0/0.8)] backdrop-blur-md"
         >
           <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">
-            公司视图{options ? ` · ${options.length} 家` : ""}
+            已入驻{options ? ` · ${options.length} 家` : ""}
           </div>
           {loading ? (
             <div className="flex items-center gap-2 px-3 py-3 text-xs text-[color:var(--muted-foreground)]">
@@ -173,9 +173,15 @@ export function CompanySelect({
             </div>
           ) : (
             <>
-              {optionRow("all", isAll, "全部公司", "汇总视图 · 不限公司", () => pick("all"))}
+              {optionRow(
+                "all",
+                isAll,
+                "全部公司",
+                `不限公司 · 共 ${options!.reduce((sum, c) => sum + (c._count?.users ?? 0), 0)} 账号`,
+                () => pick("all"),
+              )}
               {options!.map((c) =>
-                optionRow(c.id, value === c.id, c.shortName ?? c.name, `${c.name} · ${c._count?.users ?? 0} 账号`, () => pick(c.id)),
+                optionRow(c.id, value === c.id, c.name, `${c._count?.users ?? 0} 账号`, () => pick(c.id)),
               )}
             </>
           )}

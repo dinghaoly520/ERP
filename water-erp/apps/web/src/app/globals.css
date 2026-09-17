@@ -9376,6 +9376,24 @@ textarea.neu-input {
     inset -2px -2px 5px oklch(1 0 0 / 0.7);
 }
 
+/* ── 浮出弹层 — .neu-pop（下拉/浮层：无外框线，方向性抬升 + 内高光，oklch）── */
+.neu-pop {
+  background: oklch(0.99 0.004 258 / 0.97);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 16px oklch(0.5 0.06 258 / 0.22),
+    -2px -2px 6px oklch(1 0 0 / 0.5),
+    0 12px 32px oklch(0.48 0.07 258 / 0.12);
+}
+
+/* ── 内凹等宽代码块 — .neu-pre（请求体/JSON 展示：carved 内凹双影）── */
+.neu-pre {
+  background: oklch(0.55 0.03 258 / 0.05);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -2px -2px 5px oklch(1 0 0 / 0.7);
+}
+
 /* ── 分区标题 — .neu-section-heading ── */
 .neu-section-heading {
   display: inline-flex;

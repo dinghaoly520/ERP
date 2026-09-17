@@ -213,7 +213,7 @@ export default function KnowledgePanel() {
                           </div>
                           <button
                             onClick={() => handleDeleteFile(kb.id, file.id)}
-                            className="text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] transition-colors shrink-0"
+                            className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -330,7 +330,7 @@ export default function KnowledgePanel() {
                       <button
                         onClick={() => setDeleteConfirmId(kb.id)}
                         className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium
-                          bg-[rgba(230,129,102,0.1)] text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.2)] transition-colors ml-auto"
+                          bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] transition-colors ml-auto"
                       >
                         <Trash2 className="h-3 w-3" />
                         删除知识库
@@ -339,11 +339,11 @@ export default function KnowledgePanel() {
 
                     {/* Delete Confirmation */}
                     {deleteConfirmId === kb.id && (
-                      <div className="flex items-center gap-2 p-3 rounded-[14px] bg-[rgba(230,129,102,0.1)] border border-[rgba(230,129,102,0.2)]">
-                        <span className="text-sm text-[rgba(230,129,102,1)]">确定删除？所有文件和规则将被删除。</span>
+                      <div className="flex items-center gap-2 p-3 rounded-[14px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] border border-[color-mix(in_oklch,var(--danger)_20%,transparent)]">
+                        <span className="text-sm text-[var(--danger)]">确定删除？所有文件和规则将被删除。</span>
                         <button
                           onClick={() => handleDelete(kb.id)}
-                          className="px-3 py-1 text-xs font-medium bg-[rgba(230,129,102,1)] text-white rounded-[8px] hover:bg-[rgba(210,110,90,1)]"
+                          className="px-3 py-1 text-xs font-medium bg-[var(--danger)] text-white rounded-[8px] hover:bg-[var(--danger)]"
                         >
                           确认删除
                         </button>
@@ -375,7 +375,7 @@ export default function KnowledgePanel() {
                             </div>
                             <button
                               onClick={() => handleDeleteFile(kb.id, file.id)}
-                              className="text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] transition-colors"
+                              className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

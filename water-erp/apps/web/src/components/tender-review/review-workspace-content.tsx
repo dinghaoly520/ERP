@@ -73,20 +73,17 @@ export default function ReviewWorkspaceContent() {
 
   return (
     <div className="wb-panel rounded-[20px] h-full flex flex-col overflow-hidden">
-      {/* Tab header */}
-      <div className="flex items-center gap-1 p-3 shrink-0 overflow-x-auto" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+      {/* Tab header — page-tab 下划线体系（与账号管理等同款） */}
+      <div className="flex items-end gap-1 px-3 pt-2 shrink-0 overflow-x-auto border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'bg-[color-mix(in_oklch,var(--accent-soft)_55%,transparent)] text-[color:var(--accent)]'
-                : 'text-[color:var(--muted-foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_30%,transparent)]'
-            }`}
-            style={activeTab === tab.id ? {boxShadow:"inset 1px 2px 3px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 2px oklch(1 0 0 / 0.4)"} : undefined}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`page-tab !text-xs !py-2 whitespace-nowrap ${activeTab === tab.id ? 'is-active' : ''}`}
           >
-            <tab.icon className="h-3.5 w-3.5" />
+            <tab.icon className="h-3.5 w-3.5" strokeWidth={1.9} />
             {tab.label}
             {(tab.id === 'files' || tab.id === 'rules') && selectedKb && (
               <span className="text-[10px] text-[var(--muted-foreground)]">({selectedKb.name})</span>
@@ -176,8 +173,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="absolute top-full left-0 right-0 mt-1 z-10 rounded-[14px] overflow-hidden border border-[color-mix(in_oklch,var(--border)_50%,transparent)]"
-              style={{background: "oklch(1 0 0 / 0.94)", boxShadow: "0 12px 32px oklch(0.48 0.07 258 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.8)"}}
+              className="neu-pop absolute top-full left-0 right-0 mt-1.5 z-10 rounded-[14px] overflow-hidden"
             >
               {knowledgeBases.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[var(--muted-foreground)]">
@@ -194,8 +190,8 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
                       }}
                       className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
                         selectedKbId === kb.id
-                          ? 'bg-[var(--accent)]/10'
-                          : 'hover:bg-[var(--accent)]/5'
+                          ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]'
+                          : 'hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]'
                       }`}
                     >
                       <Database className={`h-4 w-4 ${selectedKbId === kb.id ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)]'}`} />

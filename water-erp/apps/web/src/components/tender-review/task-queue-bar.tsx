@@ -48,13 +48,13 @@ export default function TaskQueueBar() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/10"
+            className="border-t border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]"
           >
             <div className="p-2 space-y-1">
               {runningTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="flex items-center justify-between gap-3 p-2 rounded-[12px] bg-white/[0.02]"
+                  className="flex items-center justify-between gap-3 p-2 rounded-[12px] bg-[oklch(0.55_0.03_258/0.04)]"
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <FileText className="h-4 w-4 text-[var(--muted-foreground)] shrink-0" />
@@ -69,14 +69,14 @@ export default function TaskQueueBar() {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => stopTask(task.id)}
-                      className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors"
+                      className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] transition-colors"
                       title="停止任务"
                     >
                       <CircleStop className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.12)] transition-colors"
+                      className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
                       title="删除任务"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

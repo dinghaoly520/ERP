@@ -39,6 +39,7 @@ import {
   RotateCcw,
   ClipboardCheck,
 } from "lucide-react";
+import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import type { ProcurementRoundItem, ResultStatusKey, LedgerFilterState } from "@/lib/types/procurement";
 import { RESULT_STATUS_CONFIG, type LedgerSummary } from "@/lib/types/procurement";
 import {
@@ -49,6 +50,7 @@ import {
   moveProcurementToRecycleBin,
   restoreProcurementFromRecycleBin,
   deleteProcurementPermanently,
+  fetchLedgerCompanyCounts,
 } from "@/lib/api/procurements";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { canAccessCockpit } from "@/lib/login/login-routing";
@@ -271,6 +273,7 @@ function LedgerRow({
   onRestore,
   onDeletePermanently,
   isAdmin,
+  showCompany = false,
 }: {
   item: ProcurementRoundItem;
   onExpand: () => void;
@@ -282,6 +285,8 @@ function LedgerRow({
   onRestore?: () => void;
   onDeletePermanently?: () => void;
   isAdmin: boolean;
+  /** admin 全部公司视图：展示采购单位（创建人所属公司）标签 */
+  showCompany?: boolean;
 }) {
   const formatDate = (date: string | null) => {
     if (!date) return "-";
@@ -377,7 +382,9 @@ function LedgerRow({
         </div>
 
         {/* Name */}
-        <div className="mt-2 text-[0.9rem] font-semibold text-[color:var(--foreground)] line-clamp-1">{item.projectName}</div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="min-w-0 flex-1 text-[0.9rem] font-semibold text-[color:var(--foreground)] line-clamp-1">{item.projectName}</span>
+        </div>
 
         {/* Info: 部门 + 中标单位 */}
         <div className="mt-1.5 flex items-center gap-4 text-xs text-[color:var(--muted-foreground)]">
@@ -1048,6 +1055,20 @@ export default function ProcurementsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [companyId, setCompanyId] = useState('all');
+  // 按采购单位全量计数（后端聚合，与列表同 where）——分组标题显示全量口径，分页不失真
+  const [companyCounts, setCompanyCounts] = useState<Array<{ name: string; count: number }> | null>(null);
+  const selectedCompanyName = useCompanyName(companyId);
+  // admin 全部公司视图：当前页行按采购单位（创建人所属公司）分组；
+  // 标题计数用后端全量口径（company-counts，与列表同 where），分页不失真
+  const ledgerGroups = useMemo(() => {
+    if (!isAdmin || companyId !== "all") return [];
+    return buildCompanyCounts(data.map((i) => ({ company: i.purchaserName }))).map((g) => ({
+      name: g.name,
+      fullCount: companyCounts?.find((c) => c.name === g.name)?.count ?? g.count,
+      items: data.filter((i) => ((i.purchaserName ?? "").trim() || "未归属") === g.name),
+    }));
+  }, [isAdmin, companyId, data, companyCounts]);
+
   const [extractOpen, setExtractOpen] = useState(false);
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -1192,7 +1213,7 @@ export default function ProcurementsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [listRes, methodsRes, statsRes] = await Promise.all([
+      const [listRes, methodsRes, statsRes, countsRes] = await Promise.all([
         fetchProcurements({
           page: pagination.page,
           pageSize: pagination.pageSize,
@@ -1209,11 +1230,23 @@ export default function ProcurementsPage() {
         }),
         fetchProcurementMethods(),
         fetchLedgerStats(undefined, undefined, companyId).catch(() => null),
+        (isAdmin && companyId === 'all')
+          ? fetchLedgerCompanyCounts({
+              startDate: filters.startDate || undefined,
+              endDate: filters.endDate || undefined,
+              procurementMethod: filters.procurementMethod || undefined,
+              departmentId: filters.departmentId || undefined,
+              resultStatus: filters.resultStatus || undefined,
+              searchKeyword: filters.searchKeyword || undefined,
+              recycleStatus: filters.recycleStatus || 'ACTIVE',
+            }).catch(() => null)
+          : Promise.resolve(null),
       ]);
       setData(listRes.data);
       setPagination(listRes.pagination);
       setMethods(methodsRes);
       if (statsRes) setLedgerStats(statsRes);
+      setCompanyCounts(countsRes);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : '加载采购台账失败，请稍后重试');
     } finally {
@@ -1384,6 +1417,13 @@ export default function ProcurementsPage() {
           </div>
         )}
 
+        {/* 单公司视图（admin）：该公司主标题（全量条数） */}
+        {isAdmin && companyId !== "all" && selectedCompanyName && (
+          <div className="mb-4">
+            <CompanySectionHeader name={selectedCompanyName} count={pagination.total} />
+          </div>
+        )}
+
         {/* Data Grid */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="wb-panel p-4">
           {loading ? (
@@ -1396,6 +1436,36 @@ export default function ProcurementsPage() {
             </div>
           ) : (
             <>
+              {isAdmin && companyId === "all" ? (
+                <div className="space-y-5">
+                  {ledgerGroups.map((g) => (
+                    <section key={g.name}>
+                      <CompanySectionHeader
+                        name={g.name}
+                        count={g.fullCount}
+                        suffix={g.items.length < g.fullCount ? `本页 ${g.items.length}` : undefined}
+                      />
+                      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                        {g.items.map((item) => (
+                          <LedgerRow
+                            key={item.id}
+                            item={item}
+                            onExpand={() => handleExpandToggle(item)}
+                            isExpanded={expandedItemIds.has(item.id)}
+                            projectSummary={itemSummaries[item.id] || null}
+                            summaryLoading={loadingSummaries.has(item.id)}
+                            onViewArchive={() => handleViewArchive(item)}
+                            onMoveToRecycleBin={() => handleMoveToRecycleBin(item)}
+                            onRestore={() => handleRestoreFromRecycleBin(item)}
+                            onDeletePermanently={() => handleDeletePermanently(item)}
+                            isAdmin={isAdmin}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
                 {data.map((item) => (
                   <LedgerRow
@@ -1413,6 +1483,7 @@ export default function ProcurementsPage() {
                   />
                 ))}
               </div>
+              )}
 
               {/* Pagination */}
               <hr className="wb-section-rule !mt-0 !mb-4" />

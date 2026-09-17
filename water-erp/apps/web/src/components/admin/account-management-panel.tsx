@@ -17,6 +17,7 @@ import {
   Trash2,
   UserCog,
   Search,
+  AlertTriangle,
 } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import { ApiError } from "@/lib/api";
@@ -159,6 +160,10 @@ export function AccountManagementPanel() {
       (a.company ?? "").toLowerCase().includes(q)
     );
   });
+
+  // 未归属巡检（2026-09-17）：公司隔离引擎读 User.companyId，按 company 文本分组会漏掉
+  // 「有公司名但无 companyId」的坏数据——此处按 id 计数，>0 时在工作人员分区头亮警示。
+  const unassignedCount = accounts.filter((a) => !a.companyId).length;
 
   // 按公司分组（工作人员：User.company；供应商：Supplier.companyName；未归属沉底）
   const groupBy = <T,>(rows: T[], keyOf: (row: T) => string) =>
@@ -386,9 +391,21 @@ export function AccountManagementPanel() {
               <span className="neu-segment-count">{suppliers.length}</span>
             </button>
           </div>
-          <p className="text-xs text-[color:var(--muted-foreground)]">
-            {listView === "staff" ? "采购中心工作人员账号 · 审批管理" : "各公司供应商账号 · 只读视图"}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-[color:var(--muted-foreground)]">
+              {listView === "staff" ? "采购中心工作人员账号 · 审批管理" : "各公司供应商账号 · 只读视图"}
+            </p>
+            {listView === "staff" && unassignedCount > 0 && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
+                style={{ backgroundColor: "color-mix(in oklch, var(--warning) 10%, transparent)" }}
+                title="这些账号缺少 companyId，公司级数据隔离下其数据默认不可见——请在「修改」中补填公司以归位"
+              >
+                <AlertTriangle size={10} strokeWidth={2.2} />
+                {unassignedCount} 个账号未归属公司
+              </span>
+            )}
+          </div>
         </div>
       )}
 
