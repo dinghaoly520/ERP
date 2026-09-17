@@ -24,8 +24,8 @@ import { Bell,
   MessageSquare,
   ShoppingBag,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { AppUserActions } from "@/components/app-user-actions";
 import { UnifiedHeader } from "@/components/workbench/unified-header";
@@ -151,7 +151,7 @@ export function AppShell({
   const hasPageHeader = Boolean(title || description);
   const [resolvedUser, setResolvedUser] = useState<AuthUser | null | undefined>(undefined);
   const [headerVisible, setHeaderVisible] = useState(true);
-  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [sidebarRail, setSidebarRail] = useState(false);
   const effectiveRole = currentUserRole ?? resolvedUser?.role;
   const isUserLoading = currentUserRole === undefined && resolvedUser === undefined;
   const effectiveUsername = resolvedUser?.username;
@@ -192,15 +192,15 @@ export function AppShell({
     return () => window.clearTimeout(timer);
   }, [autoHideHeader]);
 
-  // 菜单栏折叠状态持久化（localStorage）
+  // 菜单栏 rail 折叠状态持久化（localStorage；沿用旧 key，旧「隐藏」偏好映射为窄栏）
   useEffect(() => {
     const stored = window.localStorage.getItem("app-shell:sidebar-hidden");
-    if (stored === "1") setSidebarHidden(true);
+    if (stored === "1") setSidebarRail(true);
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem("app-shell:sidebar-hidden", sidebarHidden ? "1" : "0");
-  }, [sidebarHidden]);
+    window.localStorage.setItem("app-shell:sidebar-hidden", sidebarRail ? "1" : "0");
+  }, [sidebarRail]);
 
 
   // 过滤+展开分组为扁平列表（带 group key 标记），含角色过滤 + 特殊用户过滤
@@ -224,7 +224,7 @@ export function AppShell({
         })
         .filter((group) => group.items.length > 0);
 
-  // 默认展开含有当前 activeKey 的分组
+  // 分组折叠状态（空集 = 全部默认展开）
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = (groupKey: string) => {
@@ -240,10 +240,10 @@ export function AppShell({
     <div className="flow-page ambient-grid h-full overflow-hidden px-2.5 pb-2.5 sm:px-3.5 lg:pr-4 lg:pl-0">
       {/* cgzxui 水彩光晕 —— 五角 oklch 浅彩 bloom，作为玻璃面板背后漂移的色彩层 */}
       <div className="flow-glow" aria-hidden />
-      <div className="mx-auto flex h-full w-full overflow-hidden [perspective:1500px]">
+      <div className="mx-auto flex h-full w-full overflow-hidden">
         <aside
-          data-hidden={sidebarHidden ? "true" : "false"}
-          className="sidebar-sheen sidebar-3d sidebar-card mr-4 hidden h-full w-[268px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex"
+          data-mode={sidebarRail ? "rail" : "full"}
+          className="sidebar-sheen sidebar-card mr-4 hidden h-full w-[240px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex"
         >
           <header className="flex flex-col items-center gap-2 px-3.5 pb-3.5 pt-4">
             <div className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center">
@@ -270,30 +270,39 @@ export function AppShell({
             {visibleGroups.map((group) => {
               const GroupIcon = group.icon;
               const isCollapsed = collapsedGroups.has(group.key);
-              const hasActiveItem = group.items.some((item) => item.key === activeKey);
 
               return (
                 <div key={group.key} className="mb-0.5">
-                  {/* 分组标题 — 可点击折叠 */}
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.key)}
-                    className="sidebar-group-header flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-all duration-300"
-                  >
-                    <GroupIcon size={14} className="shrink-0 text-[color:var(--muted-foreground)]" />
-                    <span className="flex-1 text-sm font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
-                      {group.label}
-                    </span>
-                    <ChevronDown
-                      size={12}
-                      className={`shrink-0 text-[color:var(--muted-foreground)] transition-transform duration-200 ${
-                        isCollapsed ? "-rotate-90" : ""
-                      }`}
-                    />
-                  </button>
+                  {sidebarRail ? (
+                    /* rail 窄栏 — 分组退化为细分隔线 */
+                    <div aria-hidden className="mx-auto my-2 h-px w-7 bg-[oklch(0.55_0.03_258/0.18)]" />
+                  ) : (
+                    /* 分组标题 — 可点击折叠 */
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.key)}
+                      aria-expanded={!isCollapsed}
+                      className="sidebar-group-header flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-colors duration-200"
+                    >
+                      <GroupIcon size={13} className="shrink-0 text-[color:var(--muted-foreground)]" />
+                      <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">
+                        {group.label}
+                      </span>
+                      <ChevronDown
+                        size={12}
+                        className={`shrink-0 text-[color:var(--muted-foreground)] transition-transform duration-200 ${
+                          isCollapsed ? "-rotate-90" : ""
+                        }`}
+                      />
+                    </button>
+                  )}
 
                   {/* 分组子项 */}
-                  <div className={`sidebar-group-panel ml-1 border-l border-white/60 pl-1.5 ${!isCollapsed ? "is-open" : ""}`}>
+                  <div
+                    className={`sidebar-group-panel ${!isCollapsed ? "is-open" : ""} ${
+                      sidebarRail ? "" : "ml-1 border-l border-white/60 pl-1.5"
+                    }`}
+                  >
                       <div className="space-y-0.5">
                       {group.items.map((item) => {
                         const Icon = item.icon;
@@ -304,6 +313,7 @@ export function AppShell({
                             key={item.key}
                             href={item.href!}
                             data-active={active}
+                            title={item.label}
                             className="sidebar-nav-item group relative"
                           >
                             {active ? (
@@ -312,38 +322,38 @@ export function AppShell({
 
                             <Icon size={16} className="shrink-0" />
 
-                            <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
+                            <span className="sidebar-item-label min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
                           </Link>
                         );
                       })}
                     </div>
-                    </div>
+                  </div>
                 </div>
               );
             })}
           </nav>
 
-          {/* 右边缘折叠手柄 —— 点击向左折叠 */}
-          <button
-            type="button"
-            onClick={() => setSidebarHidden(true)}
-            aria-label="收起菜单栏"
-            className="sidebar-edge-tab group absolute right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px] border border-r-0 border-white/85 bg-[linear-gradient(90deg,rgba(241,245,251,0.62),rgba(255,255,255,0.95))] text-[color:var(--muted-foreground)] shadow-[-4px_0_7px_-3px_rgba(69,99,158,0.22)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)]"
-          >
-            <ChevronLeft size={12} />
-          </button>
+          {/* 底部固定折叠区 —— 宽态/窄栏两态切换 */}
+          <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,transparent,rgba(160,178,210,0.70),transparent)]" />
+          <div className="shrink-0 px-2 pb-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setSidebarRail((v) => !v)}
+              aria-label={sidebarRail ? "展开菜单栏" : "收起菜单栏"}
+              aria-expanded={!sidebarRail}
+              className="sidebar-nav-item"
+            >
+              {sidebarRail ? (
+                <ChevronsRight size={16} className="shrink-0" />
+              ) : (
+                <ChevronsLeft size={16} className="shrink-0" />
+              )}
+              <span className="sidebar-item-label min-w-0 flex-1 truncate text-left text-sm font-medium">
+                {sidebarRail ? "展开菜单栏" : "收起菜单栏"}
+              </span>
+            </button>
+          </div>
         </aside>
-
-        {sidebarHidden ? (
-          <button
-            type="button"
-            onClick={() => setSidebarHidden(false)}
-            aria-label="展开菜单栏"
-            className="sidebar-edge-tab interactive-surface group fixed left-0 top-1/2 z-30 hidden h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] border border-l-0 border-white/85 bg-[linear-gradient(270deg,rgba(241,245,251,0.62),rgba(255,255,255,0.95))] text-[color:var(--muted-foreground)] shadow-[4px_0_7px_-3px_rgba(69,99,158,0.22)] transition-colors duration-200 hover:bg-white hover:text-[color:var(--accent)] lg:flex"
-          >
-            <ChevronRight size={12} />
-          </button>
-        ) : null}
 
         <section className="min-h-0 min-w-0 flex flex-1 overflow-visible px-1 h-full">
           <main id="app-main" className="relative z-10 h-full min-h-0 min-w-0 flex flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">

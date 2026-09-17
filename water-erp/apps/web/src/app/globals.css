@@ -398,30 +398,35 @@ a {
     -3px -3px 8px oklch(1 0 0 / 0.94),
     /* 边缘光晕 — 柔和的蓝色氛围光包裹面板 */
     0 0 30px oklch(0.58 0.14 258 / 0.16);
-  transition: box-shadow 0.4s ease;
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s ease;
 }
 
 /* ============================================================
-   AppShell sidebar — collapse (3D fold) + angle / perspective
+   AppShell sidebar — icon rail 折叠（240px 宽态 ⇄ 64px 窄栏）
    ============================================================ */
 
-/* 3D fold: sidebar swings shut around its left edge like a hinged door */
-.sidebar-3d {
-  transform-origin: left center;
-  transform-style: preserve-3d;
-  will-change: transform, width, margin, opacity;
-  transition:
-    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
-    margin 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
-    opacity 0.36s ease 0.08s;
+/* rail 窄栏 — 图标列居中，文字淡出收拢 */
+.sidebar-card[data-mode="rail"] {
+  width: 64px;
 }
-.sidebar-3d[data-hidden="true"] {
-  transform: perspective(1500px) rotateY(-95deg) translateX(-6px);
-  width: 0;
-  margin-right: 0;
+.sidebar-card[data-mode="rail"] .sidebar-brand-title {
+  display: none;
+}
+.sidebar-card[data-mode="rail"] .sidebar-nav-item {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar-item-label {
+  max-width: 160px;
+  transition:
+    opacity 0.18s ease,
+    max-width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-card[data-mode="rail"] .sidebar-item-label {
+  max-width: 0;
   opacity: 0;
-  pointer-events: none;
 }
 
 /* Brand orb — 悬停时 360° 旋转 */
@@ -503,7 +508,7 @@ a {
   border-radius: 999px;
 }
 
-/* Sidebar nav item — 未选中白色凸起 / 选中灰色凹陷 */
+/* Sidebar nav item — 未选中透明融入容器 / hover 轻底色 / 选中灰色凹陷 */
 .sidebar-nav-item {
   display: flex;
   align-items: center;
@@ -517,21 +522,19 @@ a {
   cursor: pointer;
   text-decoration: none;
   color: var(--muted-foreground);
-  background: #fff;
+  background: transparent;
   border: none;
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.78),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
-    -1px -1px 3px oklch(1 0 0 / 0.92);
-  transition: all 0.3s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease,
+    gap 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .sidebar-nav-item:hover {
   color: var(--foreground);
-  background: #f5f6f8;
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    2px 2px 6px oklch(0.55 0.03 258 / 0.18),
-    -1px -1px 4px oklch(1 0 0 / 0.94);
+  background: oklch(0.55 0.03 258 / 0.07);
 }
 /* Active — 灰色底色 + 凹陷内阴影 */
 .sidebar-nav-item[data-active="true"] {
@@ -575,13 +578,9 @@ a {
 
 /* Edge tabs — 点击不位移，仅颜色交互 */
 
-/* Group header — neumorphic hover raise, deeper with increased opacity */
+/* Group header — hover 轻底色（与子项同语言，质感留给容器） */
 .sidebar-nav .sidebar-group-header:hover {
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.78),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
-    -1px -1px 3px oklch(1 0 0 / 0.92);
-  background: var(--neu-raised-bg);
+  background: oklch(0.55 0.03 258 / 0.06);
 }
 
 /* Angled corner bevel (clip-path) for small chips / toggle buttons */
@@ -607,10 +606,8 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar-3d {
-    transition: width 0.2s ease, margin 0.2s ease, opacity 0.15s ease;
-  }
-  .sidebar-3d[data-hidden="true"] { transform: none; }
+  .sidebar-card { transition: none; }
+  .sidebar-item-label { transition: none; }
   .angle-sweep-band::before { animation: none; opacity: 0; }
   .brand-orb-3d:hover { transform: none; }
   .nav-active-skew { animation: none; }
