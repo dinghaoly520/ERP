@@ -7,11 +7,11 @@
  *  - 绑定公开信息缓存键 `supplier_ukey_bound`（供投标提交页恢复 certSn 参考）
  * 差异仅为框架等价替换：ElMessage→sonner toast、ElMessageBox→useConfirm/window.alert。
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
-  Download, Lock, Plus, ShieldCheck, TriangleAlert, Unlock, Upload,
+  CalendarClock, Download, FileLock, Lock, PenLine, Plus, ShieldCheck, TriangleAlert, Unlock, Upload,
 } from "lucide-react";
 import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
 import { UKEY_STRICT, detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
@@ -44,6 +44,14 @@ function certValidityText(expiresAt?: string | null): string | null {
   if (daysLeft < 0) return `已于 ${dayjs(expiresAt).format("YYYY-MM-DD")} 过期`;
   return `有效期至 ${dayjs(expiresAt).format("YYYY-MM-DD")}（剩 ${daysLeft} 天）`;
 }
+
+/** U盾在投标中的应用 — 静态指引（与系统实际行为对齐：双信封/开标解密/澄清签名/A-13 提醒） */
+const UKEY_GUIDE: Array<{ icon: ComponentType<{ size?: number | string; className?: string; strokeWidth?: number }>; title: string; desc: string }> = [
+  { icon: FileLock, title: "投标递交加密", desc: "双信封加密投递：技术与商务文件、报价分别密封，私钥全程不出 U盾。" },
+  { icon: Unlock, title: "开标在线解密", desc: "开标大厅在线解密唱标；已投递标书依赖绑定时证书解密，请妥善保管介质。" },
+  { icon: PenLine, title: "评标澄清签名", desc: "评标委员会寻址澄清时，答复须经 U盾 电子签名后在线提交。" },
+  { icon: CalendarClock, title: "证书到期提醒", desc: "到期前 30/7 天站内两档提醒；换证绑定自动撤销旧证，旧证解密依赖请留介质。" },
+];
 
 function readBound(): BoundInfo | null {
   try {
@@ -396,13 +404,7 @@ export default function UkeyManagePage() {
 
   return (
     <>
-      <SpPageHero
-        srTitle="U盾管理"
-        actions={ukey ? (
-          <SpButton icon={Lock} onClick={lockUkey}>锁定</SpButton>
-        ) : undefined}
-      >
-      </SpPageHero>
+      <SpPageHero srTitle="U盾管理" />
 
       {!UKEY_STRICT && mwOffline && (
         <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_oklch,var(--warning)_26%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-warning">
@@ -410,6 +412,35 @@ export default function UkeyManagePage() {
           <span>未检测到 U盾驱动服务——当前使用浏览器内置模拟 U盾（仅供系统联调演示，正式投标请安装 U盾驱动）</span>
         </div>
       )}
+
+      {/* ═══ KPI 概览行：介质 / 驱动 / 生效证书 / 绑定记录 ═══ */}
+      <div className="ukey-kpi-row">
+        <div className="kpi-card">
+          <span className="kpi-card__label">介质状态</span>
+          <span className="kpi-card__value" style={ukey ? { "--kpi-tone": "var(--success)" } as React.CSSProperties : undefined}>{ukey ? "已解锁" : "未解锁"}</span>
+          <span className="kpi-card__sub">{ukey ? `${ownCerts.length} 张本企业证书` : ukeyKind === "vendor" ? "CA 签发 U盾介质" : "浏览器模拟介质（联调用）"}</span>
+        </div>
+        <div className="kpi-card">
+          <span className="kpi-card__label">驱动服务</span>
+          <span
+            className="kpi-card__value"
+            style={health ? ({ "--kpi-tone": health.online ? "var(--success)" : "var(--warning)" } as React.CSSProperties) : undefined}
+          >
+            {health === null ? "检测中" : health.online ? "在线" : "离线"}
+          </span>
+          <span className="kpi-card__sub">{health?.online ? `v${health.version || "—"} · ${health.shields} 盾 · ${health.unlocked} 已解锁` : "未检测到 U盾驱动服务"}</span>
+        </div>
+        <div className="kpi-card">
+          <span className="kpi-card__label">生效证书</span>
+          <span className="kpi-card__value" style={activeServerCert ? { "--kpi-tone": "var(--success)" } as React.CSSProperties : undefined}>{activeServerCert ? "已绑定" : "未绑定"}</span>
+          <span className="kpi-card__sub">{activeServerCert ? `${activeServerCert.certSn} · ${certValidityText(activeServerCert.expiresAt) ?? "长期有效"}` : "解锁 U盾 后绑定证书用于投标签名"}</span>
+        </div>
+        <div className="kpi-card">
+          <span className="kpi-card__label">平台绑定</span>
+          <span className="kpi-card__value">{serverCerts.length}<small> 条</small></span>
+          <span className="kpi-card__sub">{serverCerts.length > 0 ? `生效 ${serverCerts.filter((c) => c.bindingStatus === "ACTIVE").length} · 已撤销 ${serverCerts.filter((c) => c.bindingStatus === "REVOKED").length}` : "暂无绑定记录"}</span>
+        </div>
+      </div>
 
       <div className="ukey-grid">
         {/* ═══ 口令介质 ═══ */}
@@ -436,6 +467,7 @@ export default function UkeyManagePage() {
                   : "未解锁"}
               </span>
               <SpButton variant="xs" icon={ShieldCheck} onClick={() => setCaTestVisible(true)}>CA及签章测试</SpButton>
+              {ukey && <SpButton variant="xs" icon={Lock} onClick={lockUkey}>锁定</SpButton>}
             </span>
           </div>
 
@@ -579,6 +611,24 @@ export default function UkeyManagePage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ═══ U盾在投标中的应用 — 全宽指引卡（填实页面下段）═══ */}
+      <div className="neu-card ukey-card ukey-guide">
+        <div className="card-header">
+          <span className="card-title">U盾在投标中的应用</span>
+        </div>
+        <div className="ukey-guide-grid">
+          {UKEY_GUIDE.map((item) => (
+            <div key={item.title} className="ukey-guide-item">
+              <div className="ukey-guide-head">
+                <span className="ukey-guide-ic"><item.icon size={14} strokeWidth={1.9} aria-hidden="true" /></span>
+                <span className="ukey-guide-title">{item.title}</span>
+              </div>
+              <p className="ukey-guide-desc">{item.desc}</p>
+            </div>
+          ))}
         </div>
       </div>
 

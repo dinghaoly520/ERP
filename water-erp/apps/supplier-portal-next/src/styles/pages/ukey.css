@@ -8,6 +8,27 @@
 .ukey-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 @media (max-width: 1100px) { .ukey-grid { grid-template-columns: 1fr; } }
 
+/* ═══ KPI 概览行（2026-09-17 重组：介质/驱动/证书/绑定四瓷片）═══ */
+.ukey-kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+@media (max-width: 1100px) { .ukey-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ═══ U盾在投标中的应用 — 全宽指引卡（静态说明，占位页面下段）═══ */
+.ukey-guide { margin-top: 16px; }
+.ukey-guide-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 4px; }
+@media (max-width: 1100px) { .ukey-guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ukey-guide-item {
+  display: flex; flex-direction: column; gap: 7px; padding: 14px; border-radius: 12px; background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 3px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+.ukey-guide-head { display: flex; align-items: center; gap: 8px; }
+.ukey-guide-ic {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 8px; color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 8%, transparent);
+}
+.ukey-guide-title { font-size: 12.5px; font-weight: 700; color: var(--foreground); }
+.ukey-guide-desc { font-size: 11.5px; line-height: 1.55; color: var(--muted-foreground); }
+
 /* 原 .detail-card（Vue UkeyManage 逐字迁移）——改独有名避免与 bids.css 同名裸类互相泄漏（见 profile.css .prof-card 注） */
 .ukey-card { padding: 24px; }
 .ukey-state {
