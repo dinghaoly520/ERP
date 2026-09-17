@@ -15,10 +15,12 @@ import {
 } from "lucide-react";
 import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
 import { UKEY_STRICT, detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
+import { isOwnCert } from "@/utils/ukey-cert-match";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
+import { CaSelftestDialog } from "@/components/profile/ca-selftest-dialog";
 import { SpPageHero } from "@/components/sp-page-hero";
 import "@/styles/pages/ukey.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
@@ -91,12 +93,8 @@ export default function UkeyManagePage() {
   // 本企业证书过滤（2026-08-31）：演示中间件是全盾模型——槽内所有已发制盾都随解锁枚举，
   // 真实场景一台机器只插本企业盾。按后端 bindCert 的 DN↔企业名校验同口径过滤，他企盾
   // 不显示绑定入口（后端本就会 400 DN_MISMATCH，此处把防线前移到 UI，消除演示困惑）。
-  const ownCerts = ukeyCerts.filter((c) => {
-    if (!companyName) return false;
-    const cn = /(?:^|,)\s*cn\s*=\s*([^,]*)/i.exec(c.certDn || "")?.[1] ?? "";
-    const norm = (s: string) => (s || "").replace(/[\s（）()·]/g, "").replace(/(有限责任公司|股份有限公司|有限公司|集团)/g, "");
-    return norm(cn).includes(norm(companyName));
-  });
+  // 口径实现抽 utils/ukey-cert-match（CA自检弹窗共用同一默认选证逻辑）。
+  const ownCerts = ukeyCerts.filter((c) => isOwnCert(c.certDn, companyName));
   const otherCertCount = ukeyCerts.length - ownCerts.length;
 
   async function refreshServerCerts() {
@@ -252,6 +250,8 @@ export default function UkeyManagePage() {
 
   // ── 导出介质文件 ──
   const [exportVisible, setExportVisible] = useState(false);
+  // ── CA及签章测试（Tab1 加解密自检）──
+  const [caTestVisible, setCaTestVisible] = useState(false);
   const [exportPassword, setExportPassword] = useState("");
   const [exportPassword2, setExportPassword2] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -370,6 +370,7 @@ export default function UkeyManagePage() {
                   ? `已解锁 · ${ownCerts.length} 张本企业证书${lockCountdown !== null ? ` · 剩余 ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")} 自动锁定` : ""}`
                   : "未解锁"}
               </span>
+              <SpButton variant="xs" icon={ShieldCheck} onClick={() => setCaTestVisible(true)}>CA及签章测试</SpButton>
             </span>
           </div>
 
@@ -550,6 +551,15 @@ export default function UkeyManagePage() {
         </div>
       </SpDialog>
       {dialog}
+
+      {/* ═══ CA及签章测试（共享页面解锁会话；未解锁时弹窗内自行初始化）═══ */}
+      <CaSelftestDialog
+        open={caTestVisible}
+        onClose={() => setCaTestVisible(false)}
+        ukey={ukey}
+        ukeyKind={ukeyKind}
+        companyName={companyName}
+      />
     </>
   );
 }
