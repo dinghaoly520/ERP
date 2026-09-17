@@ -44,7 +44,7 @@ export const supplierApi = {
   listMyCerts() {
     return api.get<any[]>("/supplier-portal/profile/cert");
   },
-  bindCert(data: { certSn: string; certDn: string; publicKey: string; alg?: string }) {
+  bindCert(data: { certSn: string; certDn: string; publicKey: string; alg?: string; notBefore?: string; expiresAt?: string }) {
     return api.post<any>("/supplier-portal/profile/cert", data);
   },
   revokeCert(certId: string) {
