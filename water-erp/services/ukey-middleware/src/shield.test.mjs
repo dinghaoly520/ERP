@@ -15,6 +15,9 @@ test('issueShield:文件形状与持久化(0600,私钥仅密文)', async () => {
   assert.equal(shield.certSn, shield.shieldId);
   assert.equal(shield.certDn, 'CN=四川水发建设有限公司,O=蜀水云采模拟CA,C=CN');
   assert.match(shield.publicKey, /^04[0-9a-fA-F]{128}$/);
+  assert.ok(!Number.isNaN(Date.parse(shield.notBefore)), 'notBefore 为合法 ISO');
+  const days = (Date.parse(shield.notAfter) - Date.parse(shield.notBefore)) / 86400000;
+  assert.ok(days > 59.9 && days < 60.1, `notAfter=notBefore+60d(实测 ${days.toFixed(2)}d)`);
   assert.match(puk, /^[A-Z2-9]{12}$/);
   assert.equal(shield.pinPolicy.retryLeft, 6);
   assert.ok(shield.encPrivKey.ct && shield.encPrivKeyPuk.ct);

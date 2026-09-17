@@ -92,10 +92,14 @@ export function randomPUK(len = 12) {
   return Array.from(buf, (b) => PUK_ALPHABET[b % PUK_ALPHABET.length]).join('');
 }
 
+/** mock 证书有效期(天)——D1v2(2026-09-17 裁定):发行即带 60 天有效期,bind 时随公开信息上送 */
+export const MOCK_CERT_VALIDITY_DAYS = 60;
+
 /** 发行(=模拟 CA 柜台办证):CN 由发行方传参,须与平台注册企业名一致否则 bindCert 拒收 */
 export async function issueShield({ cn, pin, slotDir }) {
   if (!cn || !pin) throw new Error('--cn 与 --pin 必填');
   const kp = sm2.generateKeyPairHex();
+  const issuedAt = new Date().toISOString();
   const shieldId = `SHD-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
   const puk = randomPUK();
   const pinSalt = crypto.randomBytes(16);
@@ -107,7 +111,9 @@ export async function issueShield({ cn, pin, slotDir }) {
     certDn: `CN=${cn},O=蜀水云采模拟CA,C=CN`,
     publicKey: kp.publicKey,
     alg: 'SM2',
-    issuedAt: new Date().toISOString(),
+    issuedAt,
+    notBefore: issuedAt,
+    notAfter: new Date(Date.now() + MOCK_CERT_VALIDITY_DAYS * 86400000).toISOString(),
     kdf: { algo: 'PBKDF2-SHA256', iterations: PBKDF2_ITERATIONS, salt: toB64(pinSalt), pukSalt: toB64(pukSalt) },
     encPrivKey: await aesWrap(kp.privateKey, pin, pinSalt),
     encPrivKeyPuk: await aesWrap(kp.privateKey, puk, pukSalt),

@@ -10,7 +10,15 @@ export interface DualEnvelope {
   sealedFields: { cipher: string; kself: string; fieldsSha256: string };
   fieldsCommit: string;
 }
-export interface CertInfo { certSn: string; certDn: string; publicKey: string; alg: 'SM2'; }
+export interface CertInfo {
+  certSn: string;
+  certDn: string;
+  publicKey: string;
+  alg: 'SM2';
+  /** 证书有效期（ISO 8601）：mock 生成时 notAfter=+60d（D1v2）；存量介质/旧中间件实例无此字段=长期 */
+  notBefore?: string;
+  notAfter?: string;
+}
 export interface UKeyAdapter {
   name: string;
   listCertificates(): Promise<CertInfo[]>;

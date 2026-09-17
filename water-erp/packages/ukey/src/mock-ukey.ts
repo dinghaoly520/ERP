@@ -5,7 +5,7 @@
    - storage 键 `mock-ukey-keystore` 只存
      { version: 1, salt, nonce, ciphertext }，其中
      ciphertext = AES-256-GCM(PBKDF2-SHA256(password, salt, 210k), certsJson)，
-     certsJson = [{ certSn, certDn, publicKey, alg, encPrivKey }] ——
+     certsJson = [{ certSn, certDn, publicKey, alg, notBefore, notAfter, encPrivKey }] ——
      **storage 里永无明文私钥**（encPrivKey 仅以密文信封整体加密的形态存在）。
    - 导出文件 = `UK1 || base64("saltB64:nonceB64:ctB64")`，同结构换口令重加密，
      可跨浏览器/跨实例导入；importFile 全量解密+解析成功后才写 storage，
@@ -44,6 +44,9 @@ const EXPORT_MAGIC = 'UK1';
 const PBKDF2_ITERATIONS = 210_000;
 const SALT_BYTES = 16;
 const NONCE_BYTES = 12;
+
+/** mock 证书有效期（天）——D1v2 用户裁定 2026-09-17：生成即带 60 天有效期，bind 时随公开信息上送 */
+export const MOCK_CERT_VALIDITY_DAYS = 60;
 
 // ── Web 标准编解码（无 Buffer 依赖，浏览器可用）──
 const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -192,11 +195,14 @@ export class MockUKeyAdapter implements UKeyAdapter {
 
   async createCertificate(label: string): Promise<CertInfo> {
     const kp = sm2.generateKeyPairHex();
+    const notBefore = new Date().toISOString(); // D1v2：生成即带 60 天有效期
     const record: CertRecord = {
       certSn: `MOCK-${randomHex(8).toUpperCase()}`,
       certDn: `CN=${label}`,
       publicKey: kp.publicKey,
       alg: 'SM2',
+      notBefore,
+      notAfter: new Date(Date.now() + MOCK_CERT_VALIDITY_DAYS * 86_400_000).toISOString(),
       encPrivKey: kp.privateKey,
     };
     this.certs.push(record);
@@ -231,8 +237,12 @@ export class MockUKeyAdapter implements UKeyAdapter {
     return EXPORT_MAGIC + toB64(utf8(`${toB64(salt)}:${toB64(nonce)}:${toB64(ct)}`));
   }
 
-  private publicView({ certSn, certDn, publicKey, alg }: CertRecord): CertInfo {
-    return { certSn, certDn, publicKey, alg };
+  private publicView({ certSn, certDn, publicKey, alg, notBefore, notAfter }: CertRecord): CertInfo {
+    // 有效期可选透传：旧介质无该字段 → undefined → bind 时不送=长期（不造假日程）
+    const cert: CertInfo = { certSn, certDn, publicKey, alg };
+    if (notBefore !== undefined) cert.notBefore = notBefore;
+    if (notAfter !== undefined) cert.notAfter = notAfter;
+    return cert;
   }
 
   private bySn(certSn: string): CertRecord {

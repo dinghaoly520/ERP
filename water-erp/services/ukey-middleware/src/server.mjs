@@ -69,7 +69,7 @@ export function startServer({ port = parseEnvInt('UKEY_MW_PORT', 17999), host = 
         return send(200, { ok: true, version: VERSION, shields: shields.length, unlocked: unlockedCount, ttlSeconds: Math.round(sessions.ttlMs / 1000) });
       }
       if (req.method === 'GET' && url.pathname === '/certs') {
-        const certs = listShields(slotDir).map((s) => ({ certSn: s.certSn, certDn: s.certDn, publicKey: s.publicKey, alg: s.alg, shieldId: s.shieldId }));
+        const certs = listShields(slotDir).map((s) => ({ certSn: s.certSn, certDn: s.certDn, publicKey: s.publicKey, alg: s.alg, shieldId: s.shieldId, ...(s.notBefore ? { notBefore: s.notBefore } : {}), ...(s.notAfter ? { notAfter: s.notAfter } : {}) }));
         return send(200, { certs });
       }
       if (req.method === 'POST' && url.pathname === '/session/unlock') {
