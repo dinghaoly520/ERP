@@ -530,18 +530,21 @@ export class SupplierPortalService {
     return JSON.stringify(keys.reduce((acc, k) => { acc[k] = payload[k]; return acc; }, {} as Record<string, unknown>));
   }
 
-  /** 回执核验/签署共用的 SM2 公钥守卫（P1-6）：两入口按上下文区分文案——核验给绑定指引，签署保留签署语义。 */
-  private async assertReceiptSm2PublicKey(supplierId: string, context: 'verify' | 'sign') {
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
-    if (!supplier?.sm2PublicKey) {
+  /** 回执/开标确认共用签署守卫（D5 口径统一，2026-09-17）：本供应商唯一 ACTIVE SupplierCert
+   *  （一证一 ACTIVE 由 bindCert 保证）。错误码保持 SM2_PUBLIC_KEY_MISSING（前端分支依赖）。
+   *  不再读 Supplier.sm2PublicKey 旧列——revokeCert 不清旧列，旧列放行会让已撤销证书继续可签
+   *  （与主链 2026-08 收紧口径对齐）。历史签名复验不受此收紧影响（走 D4 签时快照/旧列回退）。 */
+  private async findActiveCertForSigning(supplierId: string, context: 'verify' | 'sign') {
+    const cert = await this.prisma.supplierCert.findFirst({ where: { supplierId, bindingStatus: 'ACTIVE' } });
+    if (!cert) {
       throw new BadRequestException({
         error: context === 'verify'
-          ? '回执核验失败：供应商未绑定 SM2 公钥，请先在 企业资料→证书与U盾 绑定'
-          : '供应商未绑定 SM2 公钥（U盾证书），无法签署回执',
+          ? '核验失败：未找到有效绑定证书，请先在「U盾管理」页绑定'
+          : '未找到有效绑定证书（U盾），请先在「U盾管理」页绑定',
         code: 'SM2_PUBLIC_KEY_MISSING',
       });
     }
-    return supplier.sm2PublicKey;
+    return cert;
   }
 
   /** 取回执待签负载（供应商本人；负载以 DB 为准重建，不信任客户端传入）。 */
@@ -550,7 +553,7 @@ export class SupplierPortalService {
     if (!sub || sub.supplierId !== supplierId) {
       throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
     }
-    await this.assertReceiptSm2PublicKey(supplierId, 'verify');
+    await this.findActiveCertForSigning(supplierId, 'verify');
     const envelope = sub.envelope as { fieldsCommit?: string } | null;
     const payload = {
       v: 1,
@@ -570,16 +573,24 @@ export class SupplierPortalService {
       throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
     }
     if (sub.receiptSignature) return sub; // 幂等：已签署直接返回
-    const sm2PublicKey = await this.assertReceiptSm2PublicKey(supplierId, 'sign');
+    const cert = await this.findActiveCertForSigning(supplierId, 'sign');
     const { payload, canonical } = await this.getReceiptPayloadFor(submissionId, supplierId);
-    const valid = this.signatureService.verify(canonical, signature, sm2PublicKey);
+    const valid = this.signatureService.verify(canonical, signature, cert.publicKey);
     if (!valid) {
       throw new BadRequestException({ error: '回执签名验证失败（SM2）', code: 'RECEIPT_SIGNATURE_INVALID' });
     }
     return this.prisma.supplierBidSubmission.update({
       where: { id: submissionId },
       data: {
-        receiptSignature: { payload, signature, algorithm: 'SM2/SM3', verifiedAt: new Date().toISOString() },
+        // D4 签时快照：certSn+certPublicKey 随证据存档——换绑/撤销/过期均不影响事后复验
+        receiptSignature: {
+          payload,
+          signature,
+          algorithm: 'SM2/SM3',
+          verifiedAt: new Date().toISOString(),
+          certSn: cert.certSn,
+          certPublicKey: cert.publicKey,
+        },
         receiptSignedAt: new Date(),
       },
     });
@@ -592,18 +603,23 @@ export class SupplierPortalService {
       throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
     }
     const sig = sub.receiptSignature as
-      | { payload?: Record<string, unknown>; signature?: string; algorithm?: string; verifiedAt?: string }
+      | { payload?: Record<string, unknown>; signature?: string; algorithm?: string; verifiedAt?: string; certSn?: string; certPublicKey?: string }
       | null;
     if (!sig?.payload || !sig.signature) return { signed: false as const };
     const algorithm = sig.algorithm ?? 'SM2/SM3';
     const archivedVerifiedAt = sig.verifiedAt ?? null;
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
-    if (!supplier?.sm2PublicKey) {
-      // 签署后换绑/解绑证书 → 无法复验：确定性状态交前端解释，不按异常处理
+    // D4 复验口径：优先签时快照公钥（换绑/撤销/过期后仍可复验）；存量记录（2026-09-17 前签署，
+    // 无快照）回退 Supplier.sm2PublicKey 旧列——两者皆缺才报确定性状态（不按异常处理）。
+    const snapshotKey = typeof sig.certPublicKey === 'string' ? sig.certPublicKey : null;
+    const legacyKey = snapshotKey
+      ? null
+      : ((await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } }))?.sm2PublicKey ?? null);
+    const verifyKey = snapshotKey ?? legacyKey;
+    if (!verifyKey || !this.signatureService.isValidPublicKey(verifyKey)) {
       return { signed: true as const, verified: false as const, reason: 'SM2_PUBLIC_KEY_MISSING', algorithm, archivedVerifiedAt };
     }
-    const verified = this.signatureService.verify(this.canonicalReceiptPayload(sig.payload), sig.signature, supplier.sm2PublicKey);
-    return { signed: true as const, verified, algorithm, archivedVerifiedAt };
+    const verified = this.signatureService.verify(this.canonicalReceiptPayload(sig.payload), sig.signature, verifyKey);
+    return { signed: true as const, verified, algorithm, archivedVerifiedAt, certSn: sig.certSn ?? null };
   }
 
   /**
@@ -3082,11 +3098,9 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '当前开标记录不可确认（仅待供应商确认状态可操作）', code: 'RECORD_NOT_CONFIRMABLE' });
     }
 
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
-    if (!supplier?.sm2PublicKey) {
-      throw new BadRequestException({ error: '供应商未绑定 SM2 公钥（U盾证书），无法签署开标确认', code: 'SM2_PUBLIC_KEY_MISSING' });
-    }
-    return { project, bidSupplier, record, sm2PublicKey: supplier.sm2PublicKey };
+    // D5 口径统一（2026-09-17）：验签公钥=本供应商唯一 ACTIVE SupplierCert（与回执/主链同口径，不读旧列）
+    const cert = await this.findActiveCertForSigning(supplierId, 'verify');
+    return { project, bidSupplier, record, cert };
   }
 
   /**
@@ -3122,7 +3136,7 @@ export class SupplierPortalService {
    * Wave 5-1 状态门不变：仅待确认态可确认（异议已处理-退回/已异议态不得翻回确认）。
    */
   async confirmOpening(supplierId: string, projectId: string, signature: string) {
-    const { bidSupplier, record, sm2PublicKey } = await this.loadOpeningConfirmContext(supplierId, projectId);
+    const { bidSupplier, record, cert } = await this.loadOpeningConfirmContext(supplierId, projectId);
     let purpose: 'confirm' | 'resign';
     if (SupplierPortalService.OPENING_PENDING_CONFIRM.includes(record.confirmStatus)) {
       purpose = 'confirm';
@@ -3145,10 +3159,18 @@ export class SupplierPortalService {
       amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
       bondStatus: record.bondStatus, decryptResult: record.decryptResult,
     });
-    if (!this.signatureService.verify(canonical, signature, sm2PublicKey)) {
+    if (!this.signatureService.verify(canonical, signature, cert.publicKey)) {
       throw new BadRequestException({ error: '开标确认电子签名验证失败（SM2）', code: 'OPENING_CONFIRM_SIGNATURE_INVALID' });
     }
-    const confirmSignature = { payload: JSON.parse(canonical), signature, algorithm: 'SM2/SM3', verifiedAt: new Date().toISOString() };
+    // D4 签时快照：certSn+certPublicKey 随证据存档（换绑/撤销/过期不影响事后复验）
+    const confirmSignature = {
+      payload: JSON.parse(canonical),
+      signature,
+      algorithm: 'SM2/SM3',
+      verifiedAt: new Date().toISOString(),
+      certSn: cert.certSn,
+      certPublicKey: cert.publicKey,
+    };
 
     if (purpose === 'confirm') {
       await this.prisma.$transaction(async (tx) => {

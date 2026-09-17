@@ -567,13 +567,15 @@ describe('SupplierPortalService', () => {
       bondStatus: '已缴纳', decryptResult: 'SUCCESS',
       confirmStatus: '待供应商确认', confirmSignature: null, confirmSignedAt: null,
     };
-    const boundSupplierKey = { sm2PublicKey: '04' + 'ab'.repeat(64) };
+    const boundSupplierKey = { sm2PublicKey: '04' + 'ab'.repeat(64) }; // 旧列口径（存量回执复验回退用）
+    // D5 口径统一（2026-09-17）：confirmOpening 验签公钥=本供应商唯一 ACTIVE SupplierCert
+    const activeCert = { id: 'cert-1', supplierId: 'supplier-1', certSn: 'SN-ACTIVE', publicKey: '04' + 'ab'.repeat(64), bindingStatus: 'ACTIVE' };
 
     it('confirmOpening marks record and BidSupplier as confirmed', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
@@ -602,7 +604,7 @@ describe('SupplierPortalService', () => {
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ action: '确认唱标信息（电子签名）' }) }),
       );
-      expect(signature.verify).toHaveBeenCalledWith(expect.any(String), 'sig-hex', boundSupplierKey.sm2PublicKey);
+      expect(signature.verify).toHaveBeenCalledWith(expect.any(String), 'sig-hex', activeCert.publicKey);
     });
 
     it('confirmOpening rejects when supplier not decrypted', async () => {
@@ -645,7 +647,7 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus: '待确认' });
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
@@ -660,7 +662,7 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
       signature.verify.mockReturnValueOnce(false);
 
       await expect(service.confirmOpening('supplier-1', 'project-1', 'bad-sig'))
@@ -674,7 +676,7 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
-      prisma.supplier.findUnique.mockResolvedValue({ sm2PublicKey: null });
+      prisma.supplierCert.findFirst.mockResolvedValue(null); // 无 ACTIVE 绑定证书（D5：不再读旧列）
 
       await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
         .rejects.toMatchObject({ response: { code: 'SM2_PUBLIC_KEY_MISSING' } });
@@ -684,7 +686,7 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus: '供应商已确认', confirmedAt: new Date() });
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
       prisma.bidOpeningRecord.update.mockResolvedValue({ id: 'r-1' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
@@ -720,7 +722,7 @@ describe('SupplierPortalService', () => {
         confirmSignature: { payload: {}, signature: 'old', algorithm: 'SM2/SM3', verifiedAt: 'x' },
         confirmSignedAt: new Date(),
       });
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
 
       const result = await service.confirmOpening('supplier-1', 'project-1', 'any-sig');
 
@@ -740,7 +742,7 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus });
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
 
       await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
         .rejects.toMatchObject({ response: { code: 'RECORD_NOT_CONFIRMABLE' } });
@@ -755,7 +757,7 @@ describe('SupplierPortalService', () => {
         ...pendingRecord, confirmStatus: '供应商已确认',
         confirmSignature: { payload: {}, signature: 'old', algorithm: 'SM2/SM3', verifiedAt: 'x' },
       });
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
 
       // 已签名 → 补签幂等短路（对应 payload 端点该态 400，POST 侧幂等返回）
       await expect(service.confirmOpening('supplier-1', 'project-1', 'sig-hex'))
@@ -780,7 +782,7 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue(pendingRecord);
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
 
       const result = await service.getOpeningConfirmPayload('supplier-1', 'project-1');
 
@@ -796,7 +798,7 @@ describe('SupplierPortalService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...pendingRecord, confirmStatus: '供应商已确认' });
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
 
       const result = await service.getOpeningConfirmPayload('supplier-1', 'project-1');
 
@@ -810,7 +812,7 @@ describe('SupplierPortalService', () => {
         ...pendingRecord, confirmStatus: '供应商已确认',
         confirmSignature: { payload: {}, signature: 'old', algorithm: 'SM2/SM3', verifiedAt: 'x' },
       });
-      prisma.supplier.findUnique.mockResolvedValue(boundSupplierKey);
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
 
       await expect(service.getOpeningConfirmPayload('supplier-1', 'project-1'))
         .rejects.toMatchObject({ response: { code: 'RECORD_NOT_CONFIRMABLE' } });
@@ -1420,6 +1422,122 @@ describe('SupplierPortalService', () => {
 
       await expect(service.listOpeningRecords('supplier-1', 'project-1'))
         .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    });
+  });
+
+  describe('证书有效期时点闸门（D2，T3/T4）', () => {
+    const VALID_PUBKEY = `04${'ef'.repeat(64)}`;
+    const BIND_INPUT = { certSn: 'SN-V', certDn: 'CN=四川水发建设有限公司,O=测试', publicKey: VALID_PUBKEY };
+
+    it('bindCert 携带已过期 expiresAt → 400 BIND_CERT_EXPIRED（时点闸门①）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      await expect(service.bindCert('supplier-1', {
+        ...BIND_INPUT, expiresAt: new Date(Date.now() - 86_400_000).toISOString(),
+      })).rejects.toMatchObject({ response: { code: 'BIND_CERT_EXPIRED' } });
+      expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+    });
+
+    it('bindCert 有效期区间非法（notBefore>expiresAt）→ 400 INVALID_VALIDITY', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      await expect(service.bindCert('supplier-1', {
+        ...BIND_INPUT,
+        notBefore: new Date(Date.now() + 10 * 86_400_000).toISOString(),
+        expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
+      })).rejects.toMatchObject({ response: { code: 'INVALID_VALIDITY' } });
+    });
+
+    it('bindCert 非 ISO 有效期 → 400 INVALID_VALIDITY', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      await expect(service.bindCert('supplier-1', { ...BIND_INPUT, expiresAt: 'not-a-date' }))
+        .rejects.toMatchObject({ response: { code: 'INVALID_VALIDITY' } });
+    });
+
+    it('bindCert 带 60 天有效期（D1v2 mock 口径）→ create data 携带 notBefore/expiresAt', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      prisma.supplierCert.findUnique.mockResolvedValue(null);
+      prisma.supplierCert.updateMany.mockResolvedValue({ count: 0 });
+      prisma.supplierCert.create.mockResolvedValue({ id: 'cert-v' });
+      prisma.supplier.update.mockResolvedValue({});
+      const expiresAt = new Date(Date.now() + 60 * 86_400_000).toISOString();
+      const notBefore = new Date().toISOString();
+      await service.bindCert('supplier-1', { ...BIND_INPUT, notBefore, expiresAt });
+      expect(prisma.supplierCert.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ notBefore: new Date(notBefore), expiresAt: new Date(expiresAt) }),
+      }));
+    });
+
+    it('findActiveUnexpiredCert（时点闸门②③）：过期→CERT_EXPIRED；null=长期放行；无证书→null', async () => {
+      prisma.supplierCert.findFirst.mockResolvedValueOnce({ id: 'c1', bindingStatus: 'ACTIVE', expiresAt: new Date(Date.now() - 1) });
+      await expect((service as any).findActiveUnexpiredCert('supplier-1', 'SN-1'))
+        .rejects.toMatchObject({ response: { code: 'CERT_EXPIRED' } });
+      prisma.supplierCert.findFirst.mockResolvedValueOnce({ id: 'c2', bindingStatus: 'ACTIVE', expiresAt: null });
+      await expect((service as any).findActiveUnexpiredCert('supplier-1', 'SN-1')).resolves.toMatchObject({ id: 'c2' });
+      prisma.supplierCert.findFirst.mockResolvedValueOnce(null);
+      await expect((service as any).findActiveUnexpiredCert('supplier-1', 'SN-1')).resolves.toBeNull();
+    });
+  });
+
+  describe('投标回执签名口径统一 + 签时快照（D5/D4，T7）', () => {
+    const PUB = `04${'cd'.repeat(64)}`;
+    const activeCert = { id: 'cert-r', supplierId: 'supplier-1', certSn: 'SN-R', publicKey: PUB, bindingStatus: 'ACTIVE' };
+
+    it('无 ACTIVE 证书 → 签署 400 SM2_PUBLIC_KEY_MISSING（不回退旧列）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', supplierId: 'supplier-1', createdAt: new Date() });
+      prisma.supplierCert.findFirst.mockResolvedValue(null);
+      prisma.supplier.findUnique.mockResolvedValue({ sm2PublicKey: PUB }); // 旧列即使有值也不放行
+      await expect(service.signSubmissionReceipt('sub-1', 'supplier-1', 'sig'))
+        .rejects.toMatchObject({ response: { code: 'SM2_PUBLIC_KEY_MISSING' } });
+    });
+
+    it('签署：ACTIVE 证书公钥验签 + 快照（certSn/certPublicKey）随证据落库', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'p1', createdAt: new Date(),
+        envelope: null, fileHash: 'fh', receiptSignature: null,
+      });
+      prisma.supplierCert.findFirst.mockResolvedValue(activeCert);
+      signature.verify.mockReturnValue(true);
+      prisma.supplierBidSubmission.update.mockResolvedValue({ id: 'sub-1' });
+      await service.signSubmissionReceipt('sub-1', 'supplier-1', 'sig-hex');
+      expect(signature.verify).toHaveBeenCalledWith(expect.any(String), 'sig-hex', PUB);
+      expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          receiptSignature: expect.objectContaining({ signature: 'sig-hex', certSn: 'SN-R', certPublicKey: PUB }),
+        }),
+      }));
+    });
+
+    it('复验：快照公钥优先——签署后撤销证书（无 ACTIVE）复验仍 verified=true', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1',
+        receiptSignature: { payload: { v: 1 }, signature: 'sig-old', algorithm: 'SM2/SM3', verifiedAt: '2026-09-17T00:00:00Z', certSn: 'SN-R', certPublicKey: PUB },
+      });
+      prisma.supplierCert.findFirst.mockResolvedValue(null);
+      signature.verify.mockReturnValue(true);
+      const r = await service.verifySubmissionReceipt('sub-1', 'supplier-1');
+      expect(r).toMatchObject({ signed: true, verified: true });
+      expect(signature.verify).toHaveBeenCalledWith(expect.any(String), 'sig-old', PUB);
+      expect(prisma.supplier.findUnique).not.toHaveBeenCalled(); // 有快照即不查旧列
+    });
+
+    it('复验：存量记录无快照 → 回退 Supplier.sm2PublicKey 旧列（零迁移兼容）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1',
+        receiptSignature: { payload: { v: 1 }, signature: 'sig-old', algorithm: 'SM2/SM3', verifiedAt: '2026-08-01T00:00:00Z' },
+      });
+      prisma.supplier.findUnique.mockResolvedValue({ sm2PublicKey: PUB });
+      signature.verify.mockReturnValue(true);
+      const r = await service.verifySubmissionReceipt('sub-1', 'supplier-1');
+      expect(r).toMatchObject({ signed: true, verified: true, certSn: null });
+    });
+
+    it('复验：快照与旧列皆缺 → signed/verified=false + reason SM2_PUBLIC_KEY_MISSING（确定性状态）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1',
+        receiptSignature: { payload: { v: 1 }, signature: 'sig-old', algorithm: 'SM2/SM3', verifiedAt: '2026-08-01T00:00:00Z' },
+      });
+      prisma.supplier.findUnique.mockResolvedValue({ sm2PublicKey: null });
+      const r = await service.verifySubmissionReceipt('sub-1', 'supplier-1');
+      expect(r).toMatchObject({ signed: true, verified: false, reason: 'SM2_PUBLIC_KEY_MISSING' });
     });
   });
 
@@ -2821,6 +2939,16 @@ describe('投标回执签名（A-101）', () => {
       update: jest.fn().mockResolvedValue({ id: 'sb-1' }),
     },
     supplier: { findUnique: jest.fn().mockResolvedValue(over.supplier ?? { sm2PublicKey: null }) },
+    // D5 口径统一（2026-09-17）：签署守卫读 ACTIVE SupplierCert——未显式给 cert 时由 supplier.sm2PublicKey 派生，
+    // 既有用例（给 supplier.sm2PublicKey 的）零改动即在新口径下工作
+    supplierCert: {
+      findFirst: jest.fn().mockResolvedValue(
+        over.cert ??
+          (over.supplier?.sm2PublicKey
+            ? { id: 'cert-a101', supplierId: 'sup-1', certSn: 'SN-A101', publicKey: over.supplier.sm2PublicKey, bindingStatus: 'ACTIVE' }
+            : null),
+      ),
+    },
     ...over.prisma,
   });
 
@@ -2833,12 +2961,13 @@ describe('投标回执签名（A-101）', () => {
   it('未绑定 SM2 公钥：核验路径文案含「回执核验失败」且不含「签署」，签署路径保留「无法签署回执」', async () => {
     const mk = () => new SupplierPortalService(mkReceipt() as any, ({} as any), new SignatureService(), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), ({} as any), undefined);
     const verifyErr: any = await mk().getReceiptPayloadFor('sb-1', 'sup-1').catch((e) => e);
-    expect(verifyErr.response).toMatchObject({ code: 'SM2_PUBLIC_KEY_MISSING', error: expect.stringContaining('回执核验失败') });
+    // D5（2026-09-17）：守卫与开标确认共用，措辞通用化——核验路径仍不得出现「签署」（P1-6 意图不变）
+    expect(verifyErr.response).toMatchObject({ code: 'SM2_PUBLIC_KEY_MISSING', error: expect.stringContaining('核验失败') });
     expect(verifyErr.response.error).toContain('绑定');
     expect(verifyErr.response.error).not.toContain('签署');
 
     const signErr: any = await mk().signSubmissionReceipt('sb-1', 'sup-1', 'sig-hex').catch((e) => e);
-    expect(signErr.response).toMatchObject({ code: 'SM2_PUBLIC_KEY_MISSING', error: expect.stringContaining('无法签署回执') });
+    expect(signErr.response).toMatchObject({ code: 'SM2_PUBLIC_KEY_MISSING', error: expect.stringContaining('绑定') });
   });
 
   it('非本人提交 → 403', async () => {

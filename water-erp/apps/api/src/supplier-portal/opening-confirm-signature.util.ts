@@ -37,6 +37,6 @@ export function buildOpeningConfirmCanonical(input: OpeningConfirmCanonicalInput
 
 /** 主持端/唱标总表视图剥壳：完整签名 → 摘要（本人视图与开标文件包保留完整证据）。 */
 export function stripOpeningConfirmSignature(record: { confirmSignature: unknown }) {
-  const sig = record.confirmSignature as { algorithm?: string; verifiedAt?: string } | null;
-  return sig ? { algorithm: sig.algorithm ?? 'SM2/SM3', verifiedAt: sig.verifiedAt ?? null } : null;
+  const sig = record.confirmSignature as { algorithm?: string; verifiedAt?: string; certSn?: string } | null;
+  return sig ? { algorithm: sig.algorithm ?? 'SM2/SM3', verifiedAt: sig.verifiedAt ?? null, certSn: sig.certSn ?? null } : null;
 }
