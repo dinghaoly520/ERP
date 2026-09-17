@@ -8,7 +8,8 @@
  * 未解锁时弹窗内联 key密码 走 openUkey 初始化（mock 重开同库无冲突、
  * vendor 重新 unlock 幂等）。「选择CA类型」下拉读 CA_PROVIDERS 注册表
  * （接新厂家只动注册表，本弹窗零改动）；切换类型须重新初始化。
- * Tab2「CA签章测试」（可视化签章）待 CA 签章专项接入后补，tab 位先行占位禁用。
+ * 「CA签章测试」（可视化签章）2026-09-17 裁定暂不做，tab 占位已撤
+ * （重启该专项时加回 tab 位即可，路线图要点见 memory ca-seal-shelved）。
  */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -211,12 +212,6 @@ export function CaSelftestDialog({
         </>
       }
     >
-      {/* tab 位：Tab2 可视化签章待专项接入，占位禁用 */}
-      <div className="neu-tab-bar mb-4">
-        <button type="button" className="neu-tab is-active">CA加解密测试</button>
-        <button type="button" className="neu-tab" disabled title="CA签章测试待签章控件专项接入后开放">CA签章测试</button>
-      </div>
-
       <div className="ca-form">
         <div className="ca-form-row">
           <label>选择CA类型</label>
