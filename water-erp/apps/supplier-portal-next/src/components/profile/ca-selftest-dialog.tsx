@@ -5,8 +5,7 @@
  * 六项自检走 @water-erp/ukey runCaSelfTest（纯逻辑层，契约由
  * apps/api ukey-ca-selftest.spec.ts 锁定）：私钥侧（签名/解密）必须经介质
  * adapter——页面已解锁则复用同一会话（检测运算顺带给厂商会话续活），
- * 未解锁时弹窗内联 key密码 走 openUkey 初始化（mock 重开同库无冲突、
- * vendor 重新 unlock 幂等）。「选择CA类型」下拉读 CA_PROVIDERS 注册表
+ * 未解锁时弹窗内联 key密码 走 openUkey 初始化（vendor 重新 unlock 幂等）。「选择CA类型」下拉读 CA_PROVIDERS 注册表
  * （接新厂家只动注册表，本弹窗零改动）；切换类型须重新初始化。
  * 「CA签章测试」（可视化签章）2026-09-17 裁定暂不做，tab 占位已撤
  * （重启该专项时加回 tab 位即可，路线图要点见 memory ca-seal-shelved）。
