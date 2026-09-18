@@ -15,6 +15,14 @@ import { ApprovalTrailExporter } from './approval-trail.exporter';
  * 说明文件.TXT + 项目管理/（卷内按阶段组合）+ 其他/（移交清单、元数据、固化验证、审批留痕、登记表）。
  * 双源取件：PMI 附件（本地 uploads/）+ 开评标回流件（MinIO）。一卷一包，重导覆盖同 key 前缀。
  */
+/** 2026-09-18：归档取件类目——key 含项目 ID 的开评标留痕件按类目+key 前缀取；
+ * key 不含项目 ID 的（uploads/{date}/{random}、reports/{taskId}/…）走引用 id 取件，不得混入此清单 */
+export const ARCHIVE_PICKUP_CATEGORIES = [
+  'bid_opening_handover', 'bid_sign_packet', 'bid_decrypted',
+  'bid_evaluation_sign_handover', 'sign_packet_signature_page', 'expert_sign_scan',
+  'opening_sign_page', 'opening_sign_scan', // 2026-09-18 补：P1-3①A 开标记录签字页/开标签字扫描（key=opening-sign-*/${projectId}.*）
+] as const;
+
 @Injectable()
 export class ArchiveExportService {
   private readonly logger = new Logger(ArchiveExportService.name);
@@ -129,7 +137,7 @@ export class ArchiveExportService {
             OR: [
               { key: `bid-evaluation-handover/${bp.id}.json` },
               // 2026-09-18：+回流包本体/签字页与专家签字扫描（key 含项目 ID，按类目取）；引用件按 id 取
-              { key: { contains: bp.id }, category: { in: ['bid_opening_handover', 'bid_sign_packet', 'bid_decrypted', 'bid_evaluation_sign_handover', 'sign_packet_signature_page', 'expert_sign_scan'] } },
+              { key: { contains: bp.id }, category: { in: [...ARCHIVE_PICKUP_CATEGORIES] } },
               { id: { in: [...refIds] } },
             ],
           },
