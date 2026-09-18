@@ -59,7 +59,7 @@ export default function ExpertEvaluatePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
   const [busy, setBusy] = useState(false);
-  // 签到拍照留痕（无摄像头时 photoBlob=null，跳过拍照直接签到）
+  // 必拍留档照 + 遮挡检测（无照片仅应急模式可过——服务端 PHOTO_REQUIRED 闸门）
   const [faceVerified, setFaceVerified] = useState(false);
   const [faceVerifying, setFaceVerifying] = useState(false);
   // P2: clarifications panel
@@ -629,8 +629,8 @@ export default function ExpertEvaluatePage() {
     }
   }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
 
-  // 拍照留痕 → 上传照片（expert_signin_photo）→ 携带 photoAssetId 签到
-  const handleFaceSuccess = async (photoBlob: Blob | null) => {
+  // 必拍留档照（R3 2026-09-18 身份核验设计）：上传照片（expert_signin_photo）→ 携带 photoAssetId + 遮挡检测结论签到
+  const handleFaceSuccess = async (photoBlob: Blob | null, occlusion: 'passed' | 'unchecked') => {
     setFaceVerified(true);
     setFaceVerifying(true);
     try {
@@ -642,11 +642,14 @@ export default function ExpertEvaluatePage() {
           const asset = await api.post<{ id: string }>('/upload?category=expert_signin_photo', fd);
           photoAssetId = asset.id;
         } catch {
-          // 照片上传失败不阻塞签到——留痕缺失，但真实闸门（手机验证 + 服务端 sign-in）不受影响
-          toast.warning('签到照片上传失败，本次签到将不带照片');
+          // R3：留档照是签到硬闸（服务端 PHOTO_REQUIRED）——上传失败必须重试，不再静默跳过
+          toast.error('签到照片上传失败，无法完成签到，请重试');
+          setFaceVerifying(false);
+          setFaceVerified(false);
+          return;
         }
       }
-      await api.post(`/expert/projects/${projectId}/sign-in`, photoAssetId ? { photoAssetId } : {});
+      await api.post(`/expert/projects/${projectId}/sign-in`, { ...(photoAssetId ? { photoAssetId } : {}), occlusion });
       setFaceVerifying(false);
       loadProject();
     } catch (e: any) {
@@ -1363,7 +1366,7 @@ export default function ExpertEvaluatePage() {
                         <div className="exp-alert exp-alert--success flex items-center gap-3">
                           <CheckCircle size={20} strokeWidth={1.5} className="shrink-0" />
                           <div>
-                            <p className="text-sm font-semibold">照片留痕已提交</p>
+                            <p className="text-sm font-semibold">留档照已提交</p>
                             <p className="text-xs opacity-80">
                               {faceVerifying ? '正在签到…' : '签到完成'}
                             </p>
