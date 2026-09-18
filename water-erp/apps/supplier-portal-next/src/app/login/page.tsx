@@ -90,6 +90,9 @@ function LoginForm() {
         router.push("/dashboard");
       } else if (result === "invalid") {
         toast.error("用户名或密码错误");
+      } else if (result === "frozen") {
+        // 密码正确但账号被管理员冻结：明示原因，不误报「密码错误」
+        toast.error("该账号已被冻结，请联系管理员处理");
       } else if (result === "expired") {
         // 临时权限过期：展开续期面板（凭新邀请码），而非仅弹错让用户死锁
         setShowReactivate(true);

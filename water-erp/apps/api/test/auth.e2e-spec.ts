@@ -225,6 +225,7 @@ describe('Auth (e2e)', () => {
         .set('X-Portal', 'supplier');
       expect(kicked.status).toBe(401);
       expect(kicked.body.code).toBe('SESSION_REPLACED');
+      expect(kicked.body.error).toBe('该账号已在其他设备登录，请重新登录');
 
       // 新 token 正常使用
       await request(app.getHttpServer())
@@ -275,6 +276,26 @@ describe('Auth (e2e)', () => {
     it('mall 登录不轮换（token 无 sid，其他命名空间不受影响）', async () => {
       const res = await loginWith('e2e-single-mall', 'mall').expect(200);
       expect(decodeJwt(res.body.access_token).sid).toBeUndefined();
+    });
+
+    it('登出即吊销：logout 后旧 token 立即 401（不等 JWT 自然过期）', async () => {
+      const res = await loginWith('e2e-single-supplier', 'supplier').expect(200);
+      const token = res.body.access_token as string;
+
+      await request(app.getHttpServer())
+        .post('/api/auth/logout')
+        .set('Cookie', `token_supplier=${token}`)
+        .set('X-Portal', 'supplier')
+        .expect(200);
+
+      const after = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_supplier=${token}`)
+        .set('X-Portal', 'supplier');
+      expect(after.status).toBe(401);
+      // 登出吊销（webSessionId 已清空）≠ 被顶（他处重新登录），文案区分
+      expect(after.body.code).toBe('SESSION_REPLACED');
+      expect(after.body.error).toBe('登录已失效，请重新登录');
     });
   });
 });

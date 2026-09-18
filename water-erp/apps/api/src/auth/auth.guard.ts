@@ -50,7 +50,11 @@ export class AuthGuard implements CanActivate {
       // 门户或本功能上线前的存量 web/supplier 会话——后者（来自对应门户 cookie）统一失效重登。
       if (payload.sid) {
         if (payload.sid !== user.webSessionId) {
-          throw new UnauthorizedException({ error: '该账号已在其他设备登录，请重新登录', code: 'SESSION_REPLACED' });
+          // 会话 ID 已轮换（他处重新登录）→「其他设备登录」；已清空（登出/改密吊销）→「已失效」
+          const error = user.webSessionId
+            ? '该账号已在其他设备登录，请重新登录'
+            : '登录已失效，请重新登录';
+          throw new UnauthorizedException({ error, code: 'SESSION_REPLACED' });
         }
       } else if (fromWebCookie || fromSupplierCookie) {
         throw new UnauthorizedException({ error: '登录已失效，请重新登录', code: 'SESSION_REPLACED' });
