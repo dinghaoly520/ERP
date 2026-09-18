@@ -206,6 +206,18 @@ box-shadow:
 | `.flow-particles` / `.flow-particle` | 浮动粒子 |
 | `.flow-rise-1` ~ `.flow-rise-4` | 入场淡入升起（递增延迟） |
 
+### 侧边栏（AppShell，2026-09-18 定版）
+
+| 类名 / 属性 | 用途 |
+|------|------|
+| `.sidebar-card` | 侧栏容器——近实心亮白渐变 + 亮蓝调描边 + 方向性双影；`[data-mode="rail"]` 切 64px 图标窄栏 |
+| `.sidebar-nav-item` | 导航子项——透明融入容器（无凸起无白底），hover 轻蓝染，选中蓝染+凹陷+斜切指示条 |
+| `.sidebar-item-label` | 子项文字——rail 态 `max-width:0 + opacity:0` 淡出收拢 |
+| `.sidebar-group-header` | 组头——11px uppercase 小标题；`[data-has-active="true"]` 标签染品牌蓝 |
+| `.sidebar-group-panel` | 组子项区——grid-rows 平滑展开/收起；宽态 `ml-1 pl-1.5` 缩进偏移 |
+| `.nav-active-skew` | 激活项左侧斜切指示条（skewY -14°） |
+| 组容器 `div[data-current="true"]` | 「当前组」子项图标染品牌蓝（方案C 标记链，见定版章节） |
+
 ### 标签 / 装饰
 
 | 类名 | 用途 |
@@ -286,7 +298,8 @@ box-shadow:
 | 文件 | 内容 |
 |------|------|
 | `apps/public-portal/src/app/globals.css` | public-portal 类名源（搜 `/* ──` 跳章节） |
-| `apps/web/src/app/globals.css` | web 类名源（wb-alert/wb-icon-well 等新类在末尾段落） |
+| `apps/web/src/app/globals.css` | web 类名源（wb-alert/wb-icon-well 等新类在末尾段落；**sidebar-* 侧栏定版类名源**） |
+| `apps/web/src/components/app-shell.tsx` | AppShell 侧栏结构源（`data-mode`/`data-current`/`data-has-active` 用法范本） |
 | `apps/bid-portal/src/app/globals.css` | bid-portal 类名源（bid-dialog/bid-overlay/data-* 选择器组） |
 | `apps/expert-portal/src/app/globals.css` | expert-portal 类名源（cgzxui 段 L212-851 + exp-*） |
 | `apps/supplier-portal-next/src/app/globals.css` | supplier 类名源（注意三层叠写结构，见台账） |
@@ -563,6 +576,67 @@ background:
 | `<tr className="bg-blue-50">` 标记选中 | `<tr data-selected="true">` |
 | `border-b border-gray-200` 行分割 | td 自带 `border-top: 1px solid oklch(.../0.06)` |
 | 内联 `style={{ background: ... }}` 行高亮 | 使用 `data-selected` 属性 + CSS 选择器 |
+
+## 侧边栏（AppShell Sidebar，2026-09-18 定版）
+
+门户左侧导航栏的统一规范，**此后侧栏设计以此为准**。类名源 `apps/web/src/app/globals.css`（搜 `sidebar-card`），结构源 `apps/web/src/components/app-shell.tsx`；其他门户需要侧栏时照此实现。
+
+### 设计原则
+
+1. **质感归容器**：凸起/阴影/毛玻璃只属于 `.sidebar-card` 一层；子项是平面列表（透明底 + 文字）。不做逐项白色凸起胶囊——胶囊阴影墙会毁掉列表的扫描性。
+2. **「当前组」用排版与色彩标记，不用几何线条**：蓝组头标签 → 蓝图标列 → 蓝染激活项，三层递进。竖向导轨线、组底板等方案已评审否决（见下方反模式）。
+3. **折叠 = icon-rail 二态**（240px 宽态 ⇄ 64px 图标窄栏），不是折叠到 0 消失。
+
+### 容器与折叠
+
+```tsx
+<aside data-mode={rail ? "rail" : "full"} className="sidebar-card ... w-[240px] ... rounded-[24px]">
+  {/* 品牌区（orb + 品牌字）→ hairline → nav（flex-1 滚动）→ hairline → 底部固定折叠区 */}
+</aside>
+```
+
+- **容器**：近实心亮白渐变 `oklch(1 0 0/0.97) → oklch(0.998 0.003 250/0.93) → oklch(0.995 0.005 248/0.87)` + 亮蓝调描边 `oklch(0.78 0.05 250/0.5)` + 方向性双影 + 顶缘内高光。**透明度低于 ~0.85 会把灰蓝底色/水彩光晕透出来显黯淡**（2026-09-18 两轮提亮定稿）。
+- **rail 态**（`data-mode="rail"`）：宽 64px；品牌字 `display:none`；分组退化为细分隔线；子项 `justify-content:center; gap:0; padding:0`；label `max-width:0 + opacity:0` 淡出；`title` 属性兜底提示。
+- **底部固定折叠区**：hairline + 图标居中按钮（复用 `.sidebar-nav-item justify-center`，仅图标 + `aria-label`/`title`，≥24px 目标）。禁止 13px 边缘手柄。
+- **状态持久化**：localStorage `app-shell:sidebar-hidden`（`"1"`=rail，沿用旧 key）。
+- **reduced-motion**：宽度/label 过渡降级为瞬时。
+
+### 子项三态与「当前组」标记链
+
+```css
+/* 默认 — 透明融入容器，深灰蓝文字（对比度 ≈8:1） */
+.sidebar-nav-item { color: oklch(0.42 0.032 248); background: transparent; }
+/* hover — 轻蓝染 */
+.sidebar-nav-item:hover { color: var(--foreground); background: var(--accent-tint); }
+/* 选中 — 蓝染底 + 品牌蓝字 + 内凹 + 斜切指示条 */
+.sidebar-nav-item[data-active="true"] {
+  color: var(--accent-strong);
+  background: var(--accent-tint-strong);
+  box-shadow: inset 2px 2px 6px oklch(0.55 0.08 250 / 0.16), inset -2px -2px 5px oklch(1 0 0 / 0.65);
+}
+```
+
+「当前组」（含激活项的分组）标记链——**方案C，用户定版**：
+
+| 层 | 标记 |
+|----|------|
+| 组头标签 | `.sidebar-group-header[data-has-active="true"] span` → `--accent-strong` |
+| 组内全部子项**图标** | 组容器 `div[data-current="true"] .sidebar-nav-item > svg` → `--accent-strong`（文字色不变，`transition: color 0.25s`；rail 态同样分档） |
+| 激活项 | 蓝染底 + 品牌蓝字 + 凹陷 + `.nav-active-skew` |
+
+组头 11px semibold uppercase tracking 0.08em（与 14px 子项拉开层级）；子项区 `ml-1 pl-1.5` 缩进偏移（rail 态不加，避免图标列偏心）。
+
+### 反模式（侧栏专项，均已评审否决，勿回潮）
+
+| 反模式 | 否决原因 |
+|--------|---------|
+| 子项白底凸起胶囊（逐项 `background:#fff` + 双影） | 阴影墙，列表失去列表感；质感应留给容器（2026-09-17 定版去凸起） |
+| 竖向导轨线（组面板 `border-l`） | 观感不佳（2026-09-17 用户否决）；`border-white/60` 在近实心白底上也不可见 |
+| 组底板/浅井（当前组整块 accent 染底） | 把「面」加了回来，与扁平语言回摆 |
+| 非当前组文字降权（0.42→0.52） | 整栏默认观感变黯淡，与提亮方向冲突 |
+| 图标井 / 密度聚焦 | 演示页可行但未选用；定版为纯色彩点蓝 |
+| 折叠到 0（宽态↔消失）+ 13px 边缘手柄 | 导航完全消失；手柄低于 WCAG 2.2 AA 24×24 最小目标 |
+| 组头与子项图标重复（UserRound×3 之类） | 图标失去区分信息（工作台 = `House`，不与组头重复） |
 
 ## 模态弹窗 / 抽屉
 
