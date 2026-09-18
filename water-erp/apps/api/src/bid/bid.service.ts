@@ -3514,6 +3514,9 @@ export class BidService {
           })));
           signFileHashes = [
             signPacket.sha256,
+            // 2026-09-18：回流包指纹入链——sign-packet.service.ts「回流包指纹已并入归档哈希链」注释此前与实现不符
+            // （链不含 handoverSha256，回流包内容篡改不进链）。归档闸门已保证 full 时回流包非空，此处防御性判空。
+            ...(signPacket.handoverSha256 ? [signPacket.handoverSha256] : []),
             ...scanAssets.map(a => a.sha256),
             crypto.createHash('sha256').update(statusJson, 'utf8').digest('hex'),
           ];
