@@ -452,9 +452,12 @@ export default function UkeyManagePage() {
           <div className="card-header">
             <span className="card-title">U盾</span>
             <span className="inline-flex items-center gap-2">
-              <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
-                {UKEY_STRICT || ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
-              </span>
+              {/* 轨别徽章仅 dev/演示显示：严格模式（生产恒开）下 mock 轨不可达，恒为「U盾」零信息量 */}
+              {!UKEY_STRICT && (
+                <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
+                  {ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
+                </span>
+              )}
               <SpButton variant="xs" icon={ShieldCheck} onClick={() => setCaTestVisible(true)}>CA及签章测试</SpButton>
               {ukey && <SpButton variant="xs" icon={Lock} onClick={lockUkey}>锁定</SpButton>}
             </span>
