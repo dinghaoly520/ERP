@@ -8,6 +8,8 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Fingerprint,
+  LogOut,
   Loader2,
   Pencil,
   Plus,
@@ -882,6 +884,7 @@ function ResetPasswordModal({
   const [currentPassword, setCurrentPassword] = useState<string | null>(null);
   const [currentLoading, setCurrentLoading] = useState(true);
   const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
   useEffect(() => {
     let alive = true;
     revealAccountPassword(account.id)
@@ -906,7 +909,20 @@ function ResetPasswordModal({
     <Modal
       open
       onClose={onClose}
-      title={`修改密码「${account.username}」`}
+      title={
+        <span className="flex items-center gap-2">
+          <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]">
+            <KeyRound size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
+          </span>
+          修改密码
+        </span>
+      }
+      description={
+        <span>
+          账号 <span className="font-mono font-semibold text-[color:var(--foreground)]">{account.username}</span>
+          {account.displayName ? ` · ${account.displayName}` : ""}
+        </span>
+      }
       size="sm"
       footer={
         <>
@@ -920,18 +936,21 @@ function ResetPasswordModal({
         </>
       }
     >
-      <div className="space-y-3">
-        <p className="text-xs leading-6 text-[color:var(--muted-foreground)]">
-          修改后该账号所有已登录会话将立即失效，需用新密码重新登录。
-        </p>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-[color:var(--muted-foreground)]">原密码</span>
-          <div className="flex items-center gap-2">
+      <div className="space-y-4">
+        {/* 原密码：内凹展示盒（carved，与代码块同语言）+ 显隐切换 */}
+        <div>
+          <span className="mb-1.5 block text-xs font-medium text-[color:var(--muted-foreground)]">
+            原密码（密码副本解密）
+          </span>
+          <div className="neu-pre flex items-center gap-2.5 rounded-[10px] px-3 py-2.5">
+            <Fingerprint size={14} strokeWidth={1.9} className="shrink-0 text-[color:var(--muted-foreground)]" />
             {currentLoading ? (
-              <span className="text-xs text-[color:var(--muted-foreground)]">读取中…</span>
+              <span className="flex flex-1 items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
+                <Loader2 size={12} className="animate-spin" /> 正在读取密码副本…
+              </span>
             ) : currentPassword ? (
               <>
-                <span className="font-mono text-sm tracking-wide text-[color:var(--foreground)]">
+                <span className="flex-1 truncate font-mono text-sm tracking-wider text-[color:var(--foreground)]">
                   {showCurrent ? currentPassword : "••••••••"}
                 </span>
                 <button
@@ -944,22 +963,43 @@ function ResetPasswordModal({
                 </button>
               </>
             ) : (
-              <span className="text-xs text-[color:var(--muted-foreground)]">（无副本——该密码设置于本功能上线前，不可查看）</span>
+              <span className="flex-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+                无密码副本——该密码经旧审批流程修改或设置于本功能上线前，无法回显；重置一次后即可查看。
+              </span>
             )}
           </div>
-        </label>
+        </div>
+        {/* 新密码：neu-input + 显隐切换 */}
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-[color:var(--muted-foreground)]">
+          <span className="mb-1.5 block text-xs font-medium text-[color:var(--muted-foreground)]">
             新密码 <span className="text-[color:var(--danger)]">*</span>
           </span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="至少 6 位"
-            className={inputCls}
-          />
+          <div className="relative">
+            <input
+              type={showNew ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="至少 6 位"
+              className={`${inputCls} pr-10 font-mono`}
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew((v) => !v)}
+              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-md p-1.5 text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"
+              title={showNew ? "隐藏新密码" : "显示新密码"}
+            >
+              {showNew ? <EyeOff size={13} strokeWidth={1.9} /> : <Eye size={13} strokeWidth={1.9} />}
+            </button>
+          </div>
         </label>
+        {/* 影响面警示条（warning 淡底，与会话吊销语义一致） */}
+        <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5">
+          <LogOut size={13} strokeWidth={1.9} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+          <span className="text-xs leading-5 text-[color:var(--muted-foreground)]">
+            确认修改后，该账号<strong className="text-[color:var(--foreground)]">所有已登录会话立即失效</strong>，需用新密码重新登录。
+          </span>
+        </div>
         {error ? <p className="text-xs text-[color:var(--danger)]">{error}</p> : null}
       </div>
     </Modal>
