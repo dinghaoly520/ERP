@@ -343,10 +343,12 @@ export class UploadService implements OnModuleInit {
 
     // A-143：澄清答复附件——上传人（供应商）之外，开评标现场/管理角色可见（答复本就在主持端展示）
     // A-153：监督推送信封/凭证——管理角色可见
+    // 2026-09-18 身份核验设计 §4.5：签到留档照——:3007 核验矩阵展示给现场/管理角色（本人之外首次对管理端可见）
     if (
       asset.category === 'clarification_reply' ||
       asset.category === 'supervision_push_packet' ||
       asset.category === 'supervision_push_voucher' ||
+      asset.category === 'expert_signin_photo' ||
       // 对接专项 Phase 2 K3：上级平台推送离线文件包——管理角色可见（原走兜底分支，收口为显式白名单）
       asset.category === 'platform_push_package'
     ) {

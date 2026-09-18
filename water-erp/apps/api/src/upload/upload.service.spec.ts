@@ -97,6 +97,15 @@ describe('UploadService — download permission', () => {
     expect(minioClient.getObject).toHaveBeenCalled();
   });
 
+  it('签到留档照：bid_host 可见（:3007 核验矩阵展示），非上传人供应商不可见', async () => {
+    prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'expert_signin_photo', uploaderId: 'u-expert' });
+    await service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res);
+    expect(minioClient.getObject).toHaveBeenCalled();
+
+    await expect(service.streamFile('fa-1', { sub: 'u-other', role: 'supplier' }, res))
+      .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+  });
+
   describe('合同文档内部用户公司隔离', () => {
     const contractAsset = {
       ...asset,

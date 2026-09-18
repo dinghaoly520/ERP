@@ -158,6 +158,11 @@ export class BidController {
   @ApiOperation({ summary: 'A-105: 保证金逐家退还清单（花名册行 × 唱标 bondStatus × 退还态 × 中标标识）' })
   listBondReturns(@Param('id') id: string) { return this.bond.listBondReturns(id); }
 
+  @Get('projects/:id/expert-verification')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '2026-09-18 身份核验 §4.5：核验矩阵（签到状态/留档照/遮挡检测结论/IP；host 态含核验人）——:3007 被动展示' })
+  getExpertVerification(@Param('id') id: string) { return this.bidService.getExpertVerification(id); }
+
   @Post('projects/:id/bond-return-supplier')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'A-105: 逐家登记保证金退还/不予退还（同步开标记录 bondStatus，记监督日志；不予退还必填理由）' })

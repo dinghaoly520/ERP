@@ -9,6 +9,7 @@ import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
 import { BidOpeningRecordService } from './bid-opening-record.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
 import { notifySupplierDecryptAttribution } from './decrypt-notify.util';
+import { resolveIdentityVerifyMode } from '../expert/identity-verify-mode';
 import { BidScoreStandardService } from './bid-score-standard.service';
 import { sanitizeForBidHost } from './bid-sanitizer';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
@@ -2983,6 +2984,38 @@ export class BidService {
   }
 
   /** 获取评标完整性快照信息（指纹 + 下载链接），供验证端点使用 */
+  /** 核验矩阵（2026-09-18 身份核验设计 §4.5）：专家签到状态/留档照/遮挡检测结论/IP——:3007 被动展示 */
+  async getExpertVerification(projectId: string) {
+    const experts = await this.prisma.bidExpert.findMany({
+      where: { projectId },
+      orderBy: [{ signedIn: 'desc' }, { expertRole: 'asc' }, { expertName: 'asc' }],
+      select: {
+        id: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
+        signedIn: true, signInIp: true, signInMeta: true,
+        identityVerified: true, identityVerifiedByName: true, identityDocType: true,
+      },
+    });
+    return {
+      projectId,
+      mode: resolveIdentityVerifyMode(),
+      experts: experts.map((e) => {
+        const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string };
+        return {
+          id: e.id, expertName: e.expertName, major: e.major, expertRole: e.expertRole,
+          isLead: e.isLead, isPurchaserRepresentative: e.isPurchaserRepresentative,
+          signedIn: e.signedIn, signInIp: e.signInIp,
+          signedInAt: meta.timestamp ?? null,
+          method: meta.method ?? null,
+          occlusion: meta.occlusion ?? null, // passed | unchecked | null（旧数据/off 态未携带）
+          photoAssetId: meta.photoAssetId ?? null,
+          identityVerified: e.identityVerified, // host 态字段（P3 启用，self 态恒 false）
+          identityVerifiedByName: e.identityVerifiedByName,
+          identityDocType: e.identityDocType,
+        };
+      }),
+    };
+  }
+
   async getEvaluationHandover(projectId: string) {
     const asset = await this.prisma.fileAsset.findFirst({
       where: { category: 'bid_evaluation_handover',
