@@ -39,7 +39,7 @@ export class BidEvaluationResultsService {
     });
     const expertIdSet = new Set(expertIds.map(e => e.id));
 
-    const [records, allHistory, pointDecisions, experts] = await Promise.all([
+    const [records, allHistory, pointDecisions, experts, scoreItems] = await Promise.all([
       this.prisma.bidScoreRecord.findMany({
         where: { expertId: { in: [...expertIdSet] } },
         select: { expertId: true, supplierId: true, scoreItemId: true, score: true, passed: true, reason: true },
@@ -57,10 +57,17 @@ export class BidEvaluationResultsService {
         where: { projectId },
         select: { expertName: true, expertRole: true, reportConfirmed: true, reportConfirmedAt: true, progress: true, totalScore: true },
       }),
+      this.prisma.bidScoreItem.findMany({
+        where: { projectId },
+        // 稳定排序保证指纹确定性（@@unique([projectId, name])，name 唯一可作序键）
+        orderBy: [{ category: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, category: true, maxScore: true, points: { select: { id: true, name: true } } },
+      }),
     ]);
     const body = {
       packageType: 'BID_EVALUATION_HANDOVER',
       packageVersion: 2, // 2026-09-18 完整性扩展：pointDecisions 增 note（得分点裁定备注）
+      // 2026-09-18 二次扩展：+scoreItemDefinitions（v2 当日未推送，原位并版不留 3）
       generatedAt: new Date().toISOString(),
       projectId,
       expertConfirmations: experts.map(e => ({
@@ -71,6 +78,13 @@ export class BidEvaluationResultsService {
       scoreRecords: records.map(r => ({ ...r, score: Number(r.score) })),
       scoreHistory: allHistory.map(h => ({ ...h, score: Number(h.score), createdAt: h.createdAt.toISOString() })),
       pointDecisions: pointDecisions.map(d => ({ ...d, awardedScore: Number(d.awardedScore) })),
+      // 2026-09-18 自描述补全：评分项/得分点定义——scoreRecords.scoreItemId 与 pointDecisions.pointId
+      // 的解析源（此前 JSON 离线读包需回库反查；纸面签字包 PDF §六有名称但机器不可读）
+      scoreItemDefinitions: scoreItems.map(i => ({
+        id: i.id, name: i.name, category: i.category,
+        maxScore: Number(i.maxScore),
+        points: i.points.map(p => ({ id: p.id, name: p.name })),
+      })),
     };
     const fingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
     return { ...body, fingerprint };
