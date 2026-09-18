@@ -372,8 +372,20 @@ export default function NoticePage() {
 
         <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-[var(--muted-foreground)]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-40">上一页</button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.max(0, page - 3) + 5).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  aria-current={p === page ? "page" : undefined}
+                  className={p === page ? "h-7 w-7 rounded-[8px] text-xs font-bold text-[var(--accent)] bg-white shadow-[inset_0_1px_0_oklch(1_0_0/0.95),1px_1px_4px_oklch(0.55_0.03_258/0.14),-1px_-1px_2px_oklch(1_0_0/0.9)]" : "h-7 w-7 rounded-[8px] text-xs text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)] transition-colors"}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
             <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-40">下一页</button>
           </div>
         </div>

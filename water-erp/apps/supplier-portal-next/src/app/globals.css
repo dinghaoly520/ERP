@@ -13810,3 +13810,30 @@ main.reg { align-items: flex-start; }
   animation: reg-seg-sheen 2.6s var(--reg-ease) infinite;
 }
 .reg-foot-text { color: var(--reg-muted); font-size: 12.5px; letter-spacing: 0.02em; }
+/* ── 侧栏子页面导航（2026-09-18：自标题卡迁入；父项归属同一功能模块）── */
+.sp-nav-sub {
+  display: flex; flex-direction: column; gap: 1px;
+  margin: -2px 0 6px 22px;
+  padding-left: 8px;
+  border-left: 1px solid var(--hairline, oklch(0.9 0.02 258));
+}
+.sp-nav-sub-item {
+  display: flex; align-items: center; gap: 7px;
+  min-height: 34px; padding: 4px 10px;
+  border: none; border-radius: 9px;
+  background: transparent; color: var(--sp-nav-fg, #5a6d8a);
+  font-size: 12.5px; font-weight: 500; text-decoration: none; cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sp-nav-sub-item:hover { background: #eff6ff; color: var(--sp-primary); }
+.sp-nav-sub-item.is-current {
+  color: var(--sp-primary); font-weight: 700;
+  background: color-mix(in oklab, var(--sp-primary) 9%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.sp-nav-sub-item:focus-visible { outline: 3px solid color-mix(in oklab, var(--brand) 35%, transparent); outline-offset: 1px; }
+.sp-nav-sub-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.55; }
+.sp-nav-sub .sp-nav-sub-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .sp-nav-sub-item { transition: none; }
+}

@@ -29,32 +29,43 @@ interface ExpertDetail {
 const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
 const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'orange', E: 'red' };
 
-/** 基本信息字段行：图标 + 标签 + 值（支持等宽与 ReactNode 如徽章） */
+/** 字段瓷片（2026-09-18 v3，与供应商详情同款）：kpi-card 承载，label/value + 空值淡化 + copyable；
+ *  value 支持 ReactNode（徽章）。去逐字段图标（图标堆砌是噪点）。 */
 function InfoField({
-  icon: Icon,
   label,
   value,
   mono = false,
   full = false,
+  copyable = false,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   value?: React.ReactNode;
   mono?: boolean;
   full?: boolean;
+  copyable?: boolean;
 }) {
   const empty = value == null || (typeof value === 'string' && !value.trim());
   return (
-    <div className={`flex items-start gap-2.5 ${full ? 'col-span-full' : ''}`}>
-      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]">
-        <Icon size={13} />
-      </span>
-      <div className="min-w-0 flex-1 pt-px">
-        <p className="mb-0.5 text-[10px] font-medium leading-none text-[var(--muted-foreground)]">{label}</p>
-        <div className={`text-[13px] font-semibold leading-snug text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'text-[var(--muted-foreground)]' : ''}`}>
-          {empty ? '—' : value}
-        </div>
+    <div className={`kpi-card group flex min-w-0 flex-col gap-1 px-3.5 py-3 ${full ? 'col-span-full' : ''}`}>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
+      <div
+        className={`break-words text-[13px] font-bold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
+        title={copyable && !empty ? '点击复制' : undefined}
+        onClick={copyable && !empty && typeof value === 'string' ? () => { navigator.clipboard?.writeText(value); toast.success(`${label} 已复制`); } : undefined}
+      >
+        {empty ? '—' : value}
       </div>
+    </div>
+  );
+}
+
+/** 分组标题（v3）：accent 竖点 + 粗标签 + hairline */
+function FieldGroup({ label }: { label: string }) {
+  return (
+    <div className="col-span-full mt-2 flex items-center gap-2 first:mt-0">
+      <span className="h-3 w-1 rounded-full bg-[var(--accent)]/70" />
+      <span className="text-[11px] font-extrabold tracking-[0.1em] text-[color:var(--muted-foreground)]">{label}</span>
+      <span className="flex-1 border-t" style={{ borderTopColor: "oklch(0.6 0.04 258 / 0.16)" }} />
     </div>
   );
 }
@@ -360,52 +371,46 @@ export default function ExpertDetailPage() {
             {/* ══ 职业信息 ══ */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={Briefcase}>职业信息</SectionTitle>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-                <InfoField icon={Briefcase} label="专业领域" value={p.specialty} />
-                <InfoField icon={Award} label="职称" value={p.title} />
-                <InfoField icon={GraduationCap} label="学历" value={p.education} />
-                <InfoField icon={Award} label="执业资格编号" value={p.licenseNo} mono />
-                <InfoField icon={MapPin} label="行政区域代码" value={p.regionCode} mono />
-                <InfoField icon={Award} label="库内等级" value={p.expertLevel ? `${p.expertLevel} 级` : undefined} />
+              <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                <InfoField label="专业领域" value={p.specialty} />
+                <InfoField label="职称" value={p.title} />
+                <InfoField label="学历" value={p.education} />
+                <InfoField label="执业资格编号" value={p.licenseNo} mono copyable />
+                <InfoField label="行政区域代码" value={p.regionCode} mono />
+                <InfoField label="库内等级" value={p.expertLevel ? `${p.expertLevel} 级` : undefined} />
               </div>
               {/* 工作单位 + 所属部门 成对相邻 */}
               <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-[var(--border)] pt-4 md:grid-cols-2">
-                <InfoField icon={Building2} label="工作单位" value={p.employer} />
-                <InfoField icon={Building2} label="所属部门" value={expert.department?.name} />
+                <InfoField label="工作单位" value={p.employer} />
+                <InfoField label="所属部门" value={expert.department?.name} />
               </div>
             </section>
 
-            {/* ══ 身份信息 + 联系方式（双列）══ */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <section className="neu-card-static !rounded-2xl p-5">
-                <SectionTitle icon={IdCard}>身份信息</SectionTitle>
-                <div className="grid grid-cols-1 gap-y-4">
-                  <InfoField icon={User} label="姓名" value={expert.displayName} />
-                  <InfoField icon={Hash} label="身份证号" value={p.idNumber} mono />
-                  <InfoField icon={Users} label="民族" value={p.ethnicity} />
-                </div>
-              </section>
-
-              <section className="neu-card-static !rounded-2xl p-5">
-                <SectionTitle icon={Phone}>联系方式</SectionTitle>
-                <div className="grid grid-cols-1 gap-y-4">
-                  <InfoField icon={Phone} label="手机号码" value={p.phone} mono />
-                  <InfoField icon={Mail} label="邮箱" value={expert.email} />
-                  <InfoField icon={User} label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
-                </div>
-              </section>
-            </div>
+            {/* ══ 身份与联系（2026-09-18 v3 合并为单卡分组瓷片）══ */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={IdCard}>身份与联系</SectionTitle>
+              <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+                <FieldGroup label="身份" />
+                <InfoField label="姓名" value={expert.displayName} />
+                <InfoField label="身份证号" value={p.idNumber} mono copyable />
+                <InfoField label="民族" value={p.ethnicity} />
+                <FieldGroup label="联系" />
+                <InfoField label="手机号码" value={p.phone} mono copyable />
+                <InfoField label="邮箱" value={expert.email} copyable />
+                <InfoField label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
+              </div>
+            </section>
 
             {/* ══ 账户与归属 ══ */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={Building2}>账户与归属</SectionTitle>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-                <InfoField icon={Hash} label="登录用户名" value={expert.username} mono />
-                <InfoField icon={User} label="账户状态" value={<StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '正常' : '已停用'}</StatusBadge>} />
+              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                <InfoField label="登录用户名" value={expert.username} mono copyable />
+                <InfoField label="账户状态" value={<StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '正常' : '已停用'}</StatusBadge>} />
               </div>
               {p.notes && (
                 <div className="mt-4 border-t border-[var(--border)] pt-4">
-                  <InfoField icon={FileText} label="履职备注" value={p.notes} full />
+                  <InfoField label="履职备注" value={p.notes} full />
                 </div>
               )}
             </section>

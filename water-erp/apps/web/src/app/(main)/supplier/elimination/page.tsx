@@ -106,7 +106,7 @@ export default function EliminationPage() {
           </div>
         </div>
       ) : loading ? (
-        <div className="neu-table-card"><table className="workbench-table"><tbody><TableSkeleton cols={3} rows={5} /></tbody></table></div>
+        <div className="neu-table-card"><table className="neu-table"><tbody><TableSkeleton cols={3} rows={5} /></tbody></table></div>
       ) : candidates.length === 0 ? (
         <div className="neu-table-card py-12 text-center">
           <AlertTriangle size={32} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
@@ -115,7 +115,7 @@ export default function EliminationPage() {
         </div>
       ) : (
         <div className="neu-table-card overflow-hidden">
-          <table className="workbench-table">
+          <table className="neu-table">
             <thead>
               <tr><th>供应商名称</th><th>触发原因</th><th className="w-24">操作</th></tr>
             </thead>

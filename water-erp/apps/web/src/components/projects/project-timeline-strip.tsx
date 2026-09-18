@@ -55,7 +55,7 @@ export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
           <span
             className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
               n.time
-                ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[color:var(--foreground)]'
+                ? 'bg-white text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.9),1px_1px_3px_oklch(0.55_0.03_258/0.12),-1px_-1px_2px_oklch(1_0_0/0.85)]'
                 : 'text-[color:var(--muted-foreground)]/60'
             }`}
             title={`${n.label}（来源：${n.source}）`}

@@ -28,32 +28,43 @@ const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> 
 const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
-/** 基本信息字段行：图标 + 标签 + 值，支持等宽（信用代码/电话）与跨列（长文本） */
+/** 字段瓷片（2026-09-18 v3）：kpi-card 组件承载单字段——label(10px muted) / value(13px 深)；
+ *  空值淡化；copyable 点击复制（hover 变品牌蓝）。复用设计系统组件而非手搓 div。 */
 function InfoField({
-  icon: Icon,
   label,
   value,
   mono = false,
   full = false,
+  copyable = false,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   value?: string | null;
   mono?: boolean;
   full?: boolean;
+  copyable?: boolean;
 }) {
   const empty = !value || !value.trim();
   return (
-    <div className={`flex items-start gap-2.5 ${full ? 'col-span-full' : ''}`}>
-      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]">
-        <Icon size={13} />
+    <div className={`kpi-card group flex min-w-0 flex-col gap-1 px-3.5 py-3 ${full ? 'col-span-full' : ''}`}>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-none text-[var(--muted-foreground)]">{label}</span>
+      <span
+        className={`break-words text-[13px] font-bold leading-snug tabular-nums text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'font-normal text-[var(--muted-foreground)]/55' : ''} ${copyable && !empty ? 'cursor-pointer transition-colors group-hover:text-[var(--accent)]' : ''}`}
+        title={copyable && !empty ? '点击复制' : undefined}
+        onClick={copyable && !empty ? () => { navigator.clipboard?.writeText(value!); toast.success(`${label} 已复制`); } : undefined}
+      >
+        {empty ? '—' : value}
       </span>
-      <div className="min-w-0 flex-1 pt-px">
-        <p className="mb-0.5 text-[10px] font-medium leading-none text-[var(--muted-foreground)]">{label}</p>
-        <p className={`text-[13px] font-semibold leading-snug text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'text-[var(--muted-foreground)]' : ''}`}>
-          {empty ? '—' : value}
-        </p>
-      </div>
+    </div>
+  );
+}
+
+/** 分组标题（v3）：左侧 accent 竖点 + 粗标签——比 hairline 更醒目的分区 */
+function FieldGroup({ label }: { label: string }) {
+  return (
+    <div className="col-span-full mt-2 flex items-center gap-2 first:mt-0">
+      <span className="h-3 w-1 rounded-full bg-[var(--accent)]/70" />
+      <span className="text-[11px] font-extrabold tracking-[0.1em] text-[color:var(--muted-foreground)]">{label}</span>
+      <span className="flex-1 border-t" style={{ borderTopColor: "oklch(0.6 0.04 258 / 0.16)" }} />
     </div>
   );
 }
@@ -520,36 +531,60 @@ export default function SupplierDetailPage() {
       {/* ── 基本信息 ── */}
       {activeTab === 'info' && (
           <div className="space-y-5">
-            {/* ══ 企业工商信息 ══ */}
+            {/* ══ 企业工商信息（2026-09-18 v2：Hero 身份头 + 分组字段 + 长文本）══ */}
             <section className="neu-card-static !rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-4">
-                <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
-                {supplier.logoUrl && (
-                  <img src={supplier.logoUrl} alt={`${supplier.name} logo`} className="h-12 w-12 flex-shrink-0 rounded-lg bg-[var(--muted)]/20 object-cover" />
+              <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
+
+              {/* Hero：logo + 企业名 + 代码徽章（可复制）+ 身份 chip */}
+              <div className="mb-5 flex items-start gap-4">
+                {supplier.logoUrl ? (
+                  <img src={supplier.logoUrl} alt={`${supplier.name} logo`} className="h-14 w-14 flex-shrink-0 rounded-[14px] bg-[var(--muted)]/20 object-cover shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_4px_oklch(0.55_0.03_258/0.12)]" />
+                ) : (
+                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-lg font-black text-[var(--accent)]">{supplier.name.charAt(0)}</span>
                 )}
+                <div className="min-w-0 flex-1">
+                  <h4 className="mb-1.5 break-words text-[17px] font-black leading-tight tracking-tight text-[var(--foreground)]">{supplier.name}</h4>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold text-[var(--accent)]" style={{ background: "color-mix(in oklch, var(--accent) 7%, transparent)", cursor: 'pointer' }} title="点击复制" onClick={() => { navigator.clipboard?.writeText(supplier.creditCode ?? ''); toast.success('统一社会信用代码已复制'); }}>
+                      {supplier.creditCode}
+                      <span className="text-[9px] font-sans font-bold opacity-60">复制</span>
+                    </span>
+                    {normalizeEnterpriseType(supplier.enterpriseType) && (
+                      <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">{normalizeEnterpriseType(supplier.enterpriseType)}</span>
+                    )}
+                    {supplier.industry && (
+                      <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_7%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">{supplier.industry}</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-                <InfoField icon={Building2} label="企业名称" value={supplier.name} />
-                <InfoField icon={Building2} label="企业类型" value={normalizeEnterpriseType(supplier.enterpriseType)} />
-                <InfoField icon={ShieldCheck} label="法定代表人" value={supplier.legalPerson} />
-                <InfoField icon={Hash} label="法定代表人身份证号" value={supplier.legalPersonIdCard} mono />
-                <InfoField icon={Phone} label="法人联系电话" value={supplier.legalPersonPhone} mono />
-                <InfoField icon={Hash} label="统一社会信用代码" value={supplier.creditCode} mono />
-                <InfoField icon={IdCard} label="机构代码" value={supplier.organizationCode} mono />
-                <InfoField icon={HandCoins} label="注册资金" value={supplier.registeredCapital} />
-                <InfoField icon={CalendarDays} label="企业注册成立日期" value={supplier.establishedDate ? new Date(supplier.establishedDate).toLocaleDateString('zh-CN') : null} />
-                <InfoField icon={Globe} label="国别" value={supplier.country} />
-                <InfoField icon={Map} label="行政区域" value={supplier.region} />
-                <InfoField icon={Factory} label="所属的国民经济行业" value={supplier.industry} />
-                <InfoField icon={AtSign} label="公司邮箱" value={supplier.companyEmail} />
-                <InfoField icon={Link2} label="公司官网" value={supplier.companyWebsite} />
+
+              {/* 字段瓷片网格（kpi-card 复用）：分组竖点标题 + 4 列紧凑 */}
+              <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                <FieldGroup label="法定代表人" />
+                <InfoField label="姓名" value={supplier.legalPerson} />
+                <InfoField label="身份证号" value={supplier.legalPersonIdCard} mono />
+                <InfoField label="联系电话" value={supplier.legalPersonPhone} mono copyable />
+                <InfoField label="国别" value={supplier.country} />
+
+                <FieldGroup label="注册与资质" />
+                <InfoField label="注册资金" value={supplier.registeredCapital} />
+                <InfoField label="成立日期" value={supplier.establishedDate ? new Date(supplier.establishedDate).toLocaleDateString('zh-CN') : null} />
+                <InfoField label="机构代码" value={supplier.organizationCode} mono copyable />
+                <InfoField label="行政区域" value={supplier.region} />
+
+                <FieldGroup label="联系方式" />
+                <InfoField label="公司邮箱" value={supplier.companyEmail} copyable />
+                <InfoField label="公司官网" value={supplier.companyWebsite} copyable />
               </div>
-              {/* 长文本字段跨整行 */}
-              <div className="mt-4 space-y-4 border-t border-[var(--border)] pt-4">
-                <InfoField icon={MapPin} label="注册地址" value={supplier.registeredAddress} full />
-                <InfoField icon={MapPin} label="详细地址" value={supplier.detailedAddress} full />
-                <InfoField icon={Briefcase} label="主要经营业务范围" value={supplier.businessScope} full />
-                <InfoField icon={FileText} label="企业简介" value={supplier.companyProfile} full />
+
+              {/* 长文本（全宽瓷片） */}
+              <div className="mt-2.5 grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                <FieldGroup label="地址与业务" />
+                <InfoField label="注册地址" value={supplier.registeredAddress} />
+                <InfoField label="详细地址" value={supplier.detailedAddress} />
+                <InfoField label="主要经营业务范围" value={supplier.businessScope} full />
+                <InfoField label="企业简介" value={supplier.companyProfile} full />
               </div>
             </section>
 
@@ -581,9 +616,9 @@ export default function SupplierDetailPage() {
                         {primaryContact.position && <span className="text-[11px] text-[var(--muted-foreground)]">{primaryContact.position}</span>}
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2.5 border-t border-[var(--border)] pt-3">
-                      <InfoField icon={Phone} label="联系电话" value={primaryContact.phone} mono />
-                      {primaryContact.email && <InfoField icon={Mail} label="邮箱" value={primaryContact.email} />}
+                    <div className="mt-3 grid grid-cols-1 gap-2.5">
+                      <InfoField label="联系电话" value={primaryContact.phone} mono copyable />
+                      {primaryContact.email && <InfoField label="邮箱" value={primaryContact.email} copyable />}
                     </div>
                   </div>
                 ) : (
@@ -598,7 +633,7 @@ export default function SupplierDetailPage() {
               {supplier.bankAccounts && supplier.bankAccounts.length > 0 ? (
                 <div className="neu-table-card overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="workbench-table w-full min-w-[680px]">
+                    <table className="neu-table w-full min-w-[680px]">
                       <thead>
                         <tr><th>户名</th><th>开户行</th><th>支行</th><th>账号</th><th>默认</th></tr>
                       </thead>
@@ -630,7 +665,7 @@ export default function SupplierDetailPage() {
               {supplier.performances && supplier.performances.length > 0 ? (
                 <div className="neu-table-card overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="workbench-table w-full min-w-[760px]">
+                    <table className="neu-table w-full min-w-[760px]">
                       <thead>
                         <tr><th>项目</th><th>客户</th><th>合同金额</th><th>签订日期</th><th>证明材料</th></tr>
                       </thead>
@@ -773,7 +808,7 @@ export default function SupplierDetailPage() {
               <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无联系人信息</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="workbench-table">
+                <table className="neu-table">
                   <thead>
                     <tr><th>姓名</th><th>性别</th><th>手机号</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>人员类别</th><th>执业证书</th><th>类型</th></tr>
                   </thead>
@@ -822,7 +857,7 @@ export default function SupplierDetailPage() {
                 <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无奖惩记录</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="workbench-table">
+                  <table className="neu-table">
                     <thead>
                       <tr><th>类型</th><th>关联项目/事项</th><th>事由/文号</th><th>生效日期</th><th>录入时间</th></tr>
                     </thead>
@@ -985,7 +1020,7 @@ export default function SupplierDetailPage() {
                 })()}
                 <div className="neu-table-card overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="workbench-table w-full min-w-[850px]">
+                    <table className="neu-table w-full min-w-[850px]">
                       <thead>
                         <tr>
                           <th>综合等级</th>
@@ -1037,7 +1072,7 @@ export default function SupplierDetailPage() {
             ) : (
               <div className="neu-table-card overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="workbench-table w-full min-w-[680px]">
+                  <table className="neu-table w-full min-w-[680px]">
                     <thead>
                       <tr>
                         <th>变更字段</th><th>原值</th>
@@ -1183,7 +1218,7 @@ export default function SupplierDetailPage() {
               ) : (
                 <div className="neu-table-card overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="workbench-table w-full">
+                    <table className="neu-table w-full">
                       <thead>
                         <tr><th>文件名称</th><th>类型</th><th>上传人</th><th>上传时间</th><th className="w-20">操作</th></tr>
                       </thead>
