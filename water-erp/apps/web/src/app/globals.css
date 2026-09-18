@@ -10143,11 +10143,12 @@ select.workbench-input {
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 .tender-nav-tile.is-active {
+  /* 选中 = 近实心白（比 hover 的 0.6 透玻璃更实更亮；蓝色识别交给序号芯片与状态 pill） */
   background: linear-gradient(105deg,
-    color-mix(in oklch, var(--accent) 14%, oklch(1 0 0 / 0.6)) 0%,
-    color-mix(in oklch, var(--accent-soft) 30%, oklch(0.99 0.003 258 / 0.5)) 50%,
-    color-mix(in oklch, var(--accent) 5%, oklch(1 0 0 / 0.3)) 88%);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65);
+    oklch(1 0 0 / 0.95) 0%,
+    oklch(0.995 0.002 258 / 0.88) 55%,
+    oklch(1 0 0 / 0.72) 88%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8);
 }
 
 .wb-panel-header {
