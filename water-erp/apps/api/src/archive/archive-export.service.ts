@@ -99,15 +99,42 @@ export class ArchiveExportService {
     if (bpIds.length > 0) {
       const dir = pmDir.folder('09_开评标接收件')!;
       for (const bp of bpIds) {
+        // 2026-09-18 完整性扩展 v2 配套：回流包按 FileAsset 引用携带笔迹图/签到照/澄清附件/AI 报告等，
+        // 这些资产 key 不含项目 ID（uploads/{date}/{random}、reports/{taskId}/…），按 key 前缀取不到件——
+        // 改按引用 ID 反查收集，保证「包内引用 ↔ 案卷文件」一一对应（防引用悬空）。
+        const [memoInks, expertRows, packetRow, clarRows, aiTaskRow] = await Promise.all([
+          this.prisma.expertMemo.findMany({ where: { projectId: bp.id }, select: { inkFileId: true } }),
+          this.prisma.bidExpert.findMany({ where: { projectId: bp.id }, select: { signScanFileId: true, signInMeta: true } }),
+          this.prisma.bidSignPacket.findUnique({ where: { projectId: bp.id }, select: { fileAssetId: true, signPageScanFileId: true, handoverFileAssetId: true } }),
+          this.prisma.bidClarification.findMany({ where: { projectId: bp.id }, select: { fileAssetId: true, replyAttachmentIds: true } }),
+          this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId: bp.id }, select: { report: { select: { docxFileId: true, pdfFileId: true } } } }),
+        ]);
+        const refIds = new Set<string>();
+        memoInks.forEach(m => m.inkFileId && refIds.add(m.inkFileId));
+        expertRows.forEach(e => {
+          if (e.signScanFileId) refIds.add(e.signScanFileId);
+          const photoId = (e.signInMeta as { photoAssetId?: unknown } | null)?.photoAssetId; // 签到拍照留痕引用藏在 signInMeta 内
+          if (typeof photoId === 'string') refIds.add(photoId);
+        });
+        if (packetRow) [packetRow.fileAssetId, packetRow.signPageScanFileId, packetRow.handoverFileAssetId].forEach((x: string | null) => x && refIds.add(x));
+        clarRows.forEach(c => {
+          if (c.fileAssetId) refIds.add(c.fileAssetId);
+          for (const a of ((c.replyAttachmentIds as Array<{ fileAssetId?: unknown }> | null) ?? [])) {
+            if (a && typeof a.fileAssetId === 'string') refIds.add(a.fileAssetId);
+          }
+        });
+        if (aiTaskRow?.report) [aiTaskRow.report.docxFileId, aiTaskRow.report.pdfFileId].forEach((x: string | null) => x && refIds.add(x));
         const assets = await this.prisma.fileAsset.findMany({
           where: {
             OR: [
               { key: `bid-evaluation-handover/${bp.id}.json` },
-              { key: { contains: bp.id }, category: { in: ['bid_opening_handover', 'bid_sign_packet', 'bid_decrypted'] } },
+              // 2026-09-18：+回流包本体/签字页与专家签字扫描（key 含项目 ID，按类目取）；引用件按 id 取
+              { key: { contains: bp.id }, category: { in: ['bid_opening_handover', 'bid_sign_packet', 'bid_decrypted', 'bid_evaluation_sign_handover', 'sign_packet_signature_page', 'expert_sign_scan'] } },
+              { id: { in: [...refIds] } },
             ],
           },
           select: { key: true, originalName: true, category: true },
-          take: 50,
+          take: 200, // 引用件并入后件数上限放宽（原 50）
         });
         for (const fa of assets) {
           try {

@@ -300,19 +300,96 @@ export class BidSignPacketService {
 
     // 基础快照复用评标完整性包（结果生成时的同一数据来源），扩展签字/异议/动议信息
     const base = await this.evalResults.buildEvaluationPackage(projectId);
-    const [disputes, motions, clarifications, experts, evalResults] = await Promise.all([
+    // 2026-09-18 完整性扩展 v2（「专家的一切归档」原则）：
+    //  - 身份核验域整组（签到/AI 声明/回避——此前仅保密承诺与纪律经签字包 PDF 留痕，JSON 包不携带）
+    //  - 专家备忘（ExpertMemo 文本 + 笔迹图 FileAsset 引用）
+    //  - 条款裁定（BidRequirementReview，requirement-compare 产物）
+    //  - AI 分析产物（task + bidderResults 核心结论 + AiBidReport；报告 docx/pdf 走 FileAsset 引用）
+    //  - 评标段监督日志（与开标文件包 supervisionLogs 同口径）
+    //  - 补齐字段：得分点 note / 动议投票理由+专家姓名 / 异议裁决留痕 / 澄清 A-143 签名证据链
+    const [disputes, motions, clarifications, experts, evalResults, memos, requirementReviews, aiTask, supervisionLogs, scoreItemsForNames] = await Promise.all([
       this.prisma.expertDispute.findMany({ where: { projectId } }),
       this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true } }),
       this.prisma.bidClarification.findMany({ where: { projectId } }),
       this.prisma.bidExpert.findMany({
         where: { projectId },
-        select: { expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true, dissentingOpinion: true, dissentingReason: true, esignature: true, esignatureAt: true },
+        select: {
+          id: true, expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true,
+          dissentingOpinion: true, dissentingReason: true, esignature: true, esignatureAt: true,
+          signedIn: true, signInIp: true, signInMeta: true,
+          confidentialityAgreed: true, confidentialityAgreedAt: true,
+          disciplineAgreed: true, disciplineAgreedAt: true,
+          aiConsentConfirmed: true, aiConsentAt: true,
+          avoidanceConfirmed: true, conflictedSupplierIds: true,
+        },
       }),
       this.prisma.bidEvaluationResult.findMany({ where: { projectId }, orderBy: { rank: 'asc' } }),
+      this.prisma.expertMemo.findMany({
+        where: { projectId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          contentText: true, sourceDevice: true, createdAt: true, scoreItemId: true, scorePointId: true,
+          expert: { select: { expertName: true } },
+          supplier: { select: { supplierName: true } },
+          inkFile: { select: { id: true, key: true, originalName: true, size: true, sha256: true } },
+        },
+      }),
+      this.prisma.bidRequirementReview.findMany({
+        where: { projectId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          requirementId: true, category: true, verdict: true, note: true, createdAt: true,
+          expert: { select: { expertName: true } },
+          bidderResult: { select: { bidSupplier: { select: { supplierName: true } } } },
+        },
+      }),
+      this.prisma.aiBidAnalysisTask.findUnique({
+        where: { projectId },
+        select: {
+          status: true, aiProvenance: true, requirements: true,
+          bidderResults: {
+            select: {
+              qualificationStatus: true, riskLevel: true, totalScore: true, starredResponse: true,
+              scoreItems: true, categoryTotals: true, strengths: true, weaknesses: true,
+              overallComment: true, deviationAnalysis: true, processedAt: true,
+              bidSupplier: { select: { supplierName: true } },
+            },
+          },
+          report: {
+            select: {
+              summary: true, ranking: true, keyInfoComparison: true, priceAnalysis: true, concordanceSummary: true,
+              strengthsWeaknesses: true, scoreItemsDetail: true, riskStats: true, highRiskDetails: true,
+              fraudIndicators: true, reviewSuggestions: true, conclusion: true, recommendation: true,
+              generatedAt: true, docxFileId: true, pdfFileId: true,
+            },
+          },
+        },
+      }),
+      this.prisma.bidSupervisionLog.findMany({
+        where: { projectId },
+        select: { time: true, role: true, action: true, target: true, result: true, riskFlag: true },
+        orderBy: { time: 'asc' },
+      }),
+      // 备忘挂靠评分项/得分点名称解析（包自描述：归档离线可读，不靠回库反查 id）
+      this.prisma.bidScoreItem.findMany({ where: { projectId }, select: { id: true, name: true, points: { select: { id: true, name: true } } } }),
     ]);
+    const expertNameById = new Map(experts.map(e => [e.id, e.expertName]));
+    const itemNameById = new Map(scoreItemsForNames.flatMap(i => [[i.id, i.name] as const, ...i.points.map(p => [p.id, p.name] as const)]));
+    // AI 报告 docx/pdf 引用（category=general，key 不含项目 ID）——按 id 反查 FileAsset 拿 key/sha256 供归档校验
+    const aiFileIds = [aiTask?.report?.docxFileId, aiTask?.report?.pdfFileId].filter((x): x is string => !!x);
+    const aiFileById = new Map(
+      (aiFileIds.length > 0
+        ? await this.prisma.fileAsset.findMany({ where: { id: { in: aiFileIds } }, select: { id: true, key: true, originalName: true, size: true, sha256: true } })
+        : []
+      ).map(f => [f.id, f]),
+    );
+    const aiFileRef = (id: string | null) => {
+      const f = id ? aiFileById.get(id) : null;
+      return f ? { fileAssetId: f.id, key: f.key, originalName: f.originalName, size: f.size, sha256: f.sha256 } : null;
+    };
     const body = {
       packageType: 'BID_EVALUATION_SIGN_HANDOVER',
-      packageVersion: 1,
+      packageVersion: 2, // 2026-09-18 完整性扩展（身份核验域/备忘/条款裁定/AI 分析/监督日志/证据链补全）
       generatedAt: new Date().toISOString(),
       projectId,
       evaluationSnapshot: base, // 评标完整性快照（含 fingerprint）
@@ -336,10 +413,83 @@ export class BidSignPacketService {
         // A-152：电子签名剥壳摘要（完整证据在 BidExpert.esignature，payload/签名值不入回流包）
         esignature: stripExpertEsignature(e.esignature),
         esignatureAt: e.esignatureAt?.toISOString() ?? null,
+        // ── 身份核验域（2026-09-18）：勾选/承诺的机器可读证据，与签字包 PDF 留痕表互补 ──
+        signedIn: e.signedIn, signInIp: e.signInIp, signInMeta: e.signInMeta, // signInMeta 含 photoAssetId（签到照片引用）
+        confidentialityAgreed: e.confidentialityAgreed, confidentialityAgreedAt: e.confidentialityAgreedAt?.toISOString() ?? null,
+        disciplineAgreed: e.disciplineAgreed, disciplineAgreedAt: e.disciplineAgreedAt?.toISOString() ?? null,
+        aiConsentConfirmed: e.aiConsentConfirmed, aiConsentAt: e.aiConsentAt?.toISOString() ?? null,
+        avoidanceConfirmed: e.avoidanceConfirmed, conflictedSupplierIds: (e.conflictedSupplierIds as string[] | null) ?? [],
       })),
-      disputes: disputes.map(d => ({ id: d.id, expertName: d.expertName, type: d.type, title: d.title, content: d.content, status: d.status, response: d.response, createdAt: d.createdAt.toISOString() })),
-      motions: motions.map(m => ({ id: m.id, title: m.title, description: m.description, status: m.status, result: m.result, votes: m.votes.map(v => ({ expertId: v.expertId, vote: v.vote })) })),
-      clarifications: clarifications.map(c => ({ id: c.id, supplierName: c.supplierName, question: c.question, reply: c.reply, status: c.status })),
+      // ── 专家备忘（手写/键盘，含笔迹图 FileAsset 引用——不内嵌字节，归档校验靠 sha256）──
+      expertMemos: memos.map(m => ({
+        expertName: m.expert?.expertName ?? '（专家）',
+        supplierName: m.supplier?.supplierName ?? null,
+        scoreItemId: m.scoreItemId, scoreItemName: m.scoreItemId ? itemNameById.get(m.scoreItemId) ?? null : null,
+        scorePointId: m.scorePointId, scorePointName: m.scorePointId ? itemNameById.get(m.scorePointId) ?? null : null,
+        contentText: m.contentText, sourceDevice: m.sourceDevice,
+        createdAt: m.createdAt.toISOString(),
+        ink: m.inkFile ? { fileAssetId: m.inkFile.id, key: m.inkFile.key, originalName: m.inkFile.originalName, size: m.inkFile.size, sha256: m.inkFile.sha256 } : null,
+      })),
+      // ── 条款裁定（requirement-compare 产物；requirementId 的解析源在下方 aiAnalysis.requirements）──
+      requirementReviews: requirementReviews.map(r => ({
+        expertName: r.expert?.expertName ?? '（专家）',
+        supplierName: r.bidderResult?.bidSupplier?.supplierName ?? null,
+        requirementId: r.requirementId, category: r.category, verdict: r.verdict, note: r.note,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      // ── AI 分析产物：provenance（用了什么模型/prompt 的证据）+ 每家核心结论 + 汇总报告 ──
+      // 边界：原始 OCR 文本（tenderText/technicalText/businessText）与逐家审计快照（extractedInfo/systemInfo/
+      // requirementResponses/competitiveAnalysis）不入包——体积大且 DB 常驻；投标明文本体走 bid_decrypted 归档。
+      aiAnalysis: aiTask ? {
+        status: aiTask.status,
+        aiProvenance: aiTask.aiProvenance,
+        requirements: aiTask.requirements, // 招标要求提取（requirementReviews.requirementId 的原文解析源）
+        bidders: aiTask.bidderResults.map(b => ({
+          supplierName: b.bidSupplier?.supplierName ?? null,
+          qualificationStatus: b.qualificationStatus, riskLevel: b.riskLevel,
+          totalScore: b.totalScore != null ? Number(b.totalScore) : null,
+          starredResponse: b.starredResponse, scoreItems: b.scoreItems, categoryTotals: b.categoryTotals,
+          strengths: b.strengths, weaknesses: b.weaknesses, overallComment: b.overallComment,
+          deviationAnalysis: b.deviationAnalysis, processedAt: b.processedAt?.toISOString() ?? null,
+        })),
+        report: aiTask.report ? {
+          summary: aiTask.report.summary, ranking: aiTask.report.ranking, keyInfoComparison: aiTask.report.keyInfoComparison,
+          priceAnalysis: aiTask.report.priceAnalysis, concordanceSummary: aiTask.report.concordanceSummary,
+          strengthsWeaknesses: aiTask.report.strengthsWeaknesses, scoreItemsDetail: aiTask.report.scoreItemsDetail,
+          riskStats: aiTask.report.riskStats, highRiskDetails: aiTask.report.highRiskDetails,
+          fraudIndicators: aiTask.report.fraudIndicators, reviewSuggestions: aiTask.report.reviewSuggestions,
+          conclusion: aiTask.report.conclusion, recommendation: aiTask.report.recommendation,
+          generatedAt: aiTask.report.generatedAt?.toISOString() ?? null,
+          docx: aiFileRef(aiTask.report.docxFileId), pdf: aiFileRef(aiTask.report.pdfFileId),
+        } : null,
+      } : null,
+      // ── 评标段监督日志（开评标全周期动作留痕；与开标文件包 supervisionLogs 同 select 口径）──
+      supervisionLogs: supervisionLogs.map(l => ({
+        time: l.time.toISOString(), role: l.role, action: l.action, target: l.target, result: l.result, riskFlag: l.riskFlag,
+      })),
+      disputes: disputes.map(d => ({
+        id: d.id, expertName: d.expertName, type: d.type, title: d.title, content: d.content,
+        status: d.status, response: d.response,
+        resolvedBy: d.resolvedBy, resolvedAt: d.resolvedAt?.toISOString() ?? null, // 裁决留痕
+        createdAt: d.createdAt.toISOString(),
+      })),
+      motions: motions.map(m => ({
+        id: m.id, type: m.type, title: m.title, description: m.description, status: m.status, result: m.result,
+        createdBy: m.createdBy, closedAt: m.closedAt?.toISOString() ?? null,
+        // 投票带专家姓名与理由（包自描述，离线读包无需回库反查 expertId）
+        votes: m.votes.map(v => ({
+          expertId: v.expertId, expertName: expertNameById.get(v.expertId) ?? '（专家）',
+          vote: v.vote, reason: v.reason, createdAt: v.createdAt.toISOString(),
+        })),
+      })),
+      clarifications: clarifications.map(c => ({
+        id: c.id, type: c.type, supplierName: c.supplierName, question: c.question, issuer: c.issuer,
+        reply: c.reply, status: c.status, aiSummary: c.aiSummary,
+        // A-143 供应商答复证据链：渠道 + SM2 签名摘要 + 附件引用 + 操作人/离线缘由
+        replyChannel: c.replyChannel, replySignature: c.replySignature, replyAttachmentIds: c.replyAttachmentIds,
+        replyByName: c.replyByName, replyOfflineReason: c.replyOfflineReason,
+        fileAssetId: c.fileAssetId, createdAt: c.createdAt.toISOString(),
+      })),
     };
 
     const buffer = Buffer.from(JSON.stringify(body, null, 2), 'utf8');
@@ -456,7 +606,7 @@ export class BidSignPacketService {
         this.prisma.bidExpert.findMany({
           where: { projectId, expertRole: '正选' },
           orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
-          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true },
+          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true, signedIn: true, aiConsentConfirmed: true, aiConsentAt: true, avoidanceConfirmed: true },
         }),
         this.prisma.bidOpeningRecord.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.bidSupplier.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' }, select: { id: true, supplierName: true, createdAt: true } }),
@@ -500,6 +650,7 @@ export class BidSignPacketService {
         identityVerified: { ip: e.signInIp, meta: e.signInMeta, at: null },
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,
+        aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null, // 2026-09-18：留痕表加「AI 辅助声明确认」行
         scoreSubmittedAt: firstScoreAt.get(e.id) ?? null,
         scoreVerifiedAt: verifiedAt.get(e.id) ?? null,
         reportConfirmedAt: e.reportConfirmedAt ? e.reportConfirmedAt.toISOString() : null,
@@ -545,6 +696,10 @@ export class BidSignPacketService {
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,
         reportConfirmedAt: e.reportConfirmedAt ? e.reportConfirmedAt.toISOString() : null,
+        // 2026-09-18：身份核验域入签字包 JSON 快照（PDF 留痕表仅 aiConsentAt 一行，回避明细见回流包）
+        signedIn: e.signedIn, aiConsentConfirmed: e.aiConsentConfirmed,
+        aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null,
+        avoidanceConfirmed: e.avoidanceConfirmed,
       })),
       leaderCoSignedAt: project.leaderCoSignedAt ? project.leaderCoSignedAt.toISOString() : null,
       reportNotes: (project.reportNotes as Array<{ section: string; content: string }>) ?? undefined,

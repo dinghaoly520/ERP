@@ -7,6 +7,8 @@ export interface OperationTrace {
   identityVerified: { ip: string | null; meta: unknown; at: string | null };
   confidentialityAgreedAt: string | null;
   disciplineAgreedAt: string | null;
+  /** 2026-09-18 完整性扩展：AI 辅助评标声明确认时间（BidExpert.aiConsentAt） */
+  aiConsentAt: string | null;
   scoreSubmittedAt: string | null; // BidScoreRecordHistory 最早 createdAt
   scoreVerifiedAt: string | null;  // BidScoreReview.verifiedAt
   reportConfirmedAt: string | null;
@@ -18,7 +20,7 @@ export interface SignPacketSnapshot {
   packageVersion: number;
   generatedAt: string;
   project: { name: string; projectCode: string; procurementMethod: string; openTime: string | null; deadline: string | null; scope: string | null; qualification: string | null; budget: number | null };
-  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null }>;
+  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null; signedIn: boolean; aiConsentConfirmed: boolean; aiConsentAt: string | null; avoidanceConfirmed: boolean }>;
   leaderCoSignedAt: string | null;
   /** A-151：评标报告章节附注（一~九节末「附注：」段；十节正文续写）——未设置时字段缺省 */
   reportNotes?: Array<{ section: string; content: string }>;
@@ -52,6 +54,7 @@ const TRACE_LABELS: Array<[keyof OperationTrace, string]> = [
   ['identityVerified', '身份核验/签到'],
   ['confidentialityAgreedAt', '保密承诺签署'],
   ['disciplineAgreedAt', '评标纪律确认'],
+  ['aiConsentAt', 'AI 辅助声明确认'],
   ['scoreSubmittedAt', '评分提交'],
   ['scoreVerifiedAt', '评分核对'],
   ['reportConfirmedAt', '报告确认'],

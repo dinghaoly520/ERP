@@ -6,7 +6,7 @@ const baseSnapshot: SignPacketSnapshot = {
   generatedAt: '2026-08-13T00:00:00.000Z',
   project: { name: '智慧水务大数据平台建设', projectCode: 'BID-1785051154799', procurementMethod: '公开招标', openTime: '2026-08-10T09:00:00.000Z', deadline: '2026-08-11T09:00:00.000Z', scope: '大数据平台建设', qualification: '无', budget: 5000000 },
   committee: [
-    { expertId: 'e1', name: '周祥志', major: '综合', role: '正选', isLead: true, isPurchaserRepresentative: false, signInIp: '10.0.0.1', signInMeta: { userAgent: 'Chrome' }, confidentialityAgreedAt: '2026-08-12T01:00:00.000Z', disciplineAgreedAt: '2026-08-12T01:01:00.000Z', reportConfirmedAt: '2026-08-12T03:00:00.000Z' },
+    { expertId: 'e1', name: '周祥志', major: '综合', role: '正选', isLead: true, isPurchaserRepresentative: false, signInIp: '10.0.0.1', signInMeta: { userAgent: 'Chrome' }, confidentialityAgreedAt: '2026-08-12T01:00:00.000Z', disciplineAgreedAt: '2026-08-12T01:01:00.000Z', reportConfirmedAt: '2026-08-12T03:00:00.000Z', signedIn: true, aiConsentConfirmed: true, aiConsentAt: '2026-08-12T01:02:00.000Z', avoidanceConfirmed: false },
   ],
   leaderCoSignedAt: '2026-08-12T04:00:00.000Z',
   openingRecords: [{ supplierName: '重庆蜀通岩土工程有限公司', amount: '4800000', period: '90日历天', qualityTarget: '合格', bondStatus: '已缴纳', confirmStatus: 'CONFIRMED' }],
@@ -18,7 +18,7 @@ const baseSnapshot: SignPacketSnapshot = {
     expertId: 'e1', name: '周祥志', major: '综合', role: '正选',
     rows: [{ supplierName: '重庆蜀通岩土工程有限公司', scoreItemName: '商务评分', category: 'BUSINESS', score: 18, passed: true, reason: null }],
     pointDecisions: [{ pointName: '商务要点1', supplierName: '重庆蜀通岩土工程有限公司', checked: true, awardedScore: 18 }],
-    trace: { identityVerified: { ip: '10.0.0.1', meta: { userAgent: 'Chrome' }, at: '2026-08-12T00:00:00.000Z' }, confidentialityAgreedAt: '2026-08-12T01:00:00.000Z', disciplineAgreedAt: '2026-08-12T01:01:00.000Z', scoreSubmittedAt: '2026-08-12T02:00:00.000Z', scoreVerifiedAt: '2026-08-12T02:30:00.000Z', reportConfirmedAt: '2026-08-12T03:00:00.000Z', leaderCoSignedAt: '2026-08-12T04:00:00.000Z' },
+    trace: { identityVerified: { ip: '10.0.0.1', meta: { userAgent: 'Chrome' }, at: '2026-08-12T00:00:00.000Z' }, confidentialityAgreedAt: '2026-08-12T01:00:00.000Z', disciplineAgreedAt: '2026-08-12T01:01:00.000Z', aiConsentAt: '2026-08-12T01:02:00.000Z', scoreSubmittedAt: '2026-08-12T02:00:00.000Z', scoreVerifiedAt: '2026-08-12T02:30:00.000Z', reportConfirmedAt: '2026-08-12T03:00:00.000Z', leaderCoSignedAt: '2026-08-12T04:00:00.000Z' },
   }],
   disputes: [],
   clarifications: [],
@@ -58,6 +58,8 @@ describe('BidSignPacketDocxService', () => {
       '评标报告', '基本情况和数据表', '评标委员会成员名单', '开标记录', '投标一览表', '废标情况说明',
       '评标标准', '评分比较一览表', '推荐中标候选人', '澄清', '评标过程其他说明',
       '评标专家声明', '本人对投标人的独立评分', '周祥志', '商务评分', '在线操作留痕', '签字',
+      // 2026-09-18 完整性扩展：留痕表加「AI 辅助声明确认」行（aiConsentAt）
+      'AI 辅助声明确认：2026-08-12T01:02:00.000Z',
       // 《不同意见书》模板页（办法第43条）：拒签专家当场手写的规范载体
       '不同意见书（模板）', '以书面方式阐述其不同意见并签名', '拒绝签字又不陈述书面不同意见的，视为同意评标结论', '由专家本人书写',
     ]) {

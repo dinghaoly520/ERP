@@ -51,7 +51,7 @@ export class BidEvaluationResultsService {
       }),
       this.prisma.bidScorePointDecision.findMany({
         where: { expertId: { in: [...expertIdSet] } },
-        select: { expertId: true, pointId: true, supplierId: true, checked: true, awardedScore: true },
+        select: { expertId: true, pointId: true, supplierId: true, checked: true, awardedScore: true, note: true }, // note：得分点裁定备注（2026-09-18 完整性扩展）
       }),
       this.prisma.bidExpert.findMany({
         where: { projectId },
@@ -60,7 +60,7 @@ export class BidEvaluationResultsService {
     ]);
     const body = {
       packageType: 'BID_EVALUATION_HANDOVER',
-      packageVersion: 1,
+      packageVersion: 2, // 2026-09-18 完整性扩展：pointDecisions 增 note（得分点裁定备注）
       generatedAt: new Date().toISOString(),
       projectId,
       expertConfirmations: experts.map(e => ({

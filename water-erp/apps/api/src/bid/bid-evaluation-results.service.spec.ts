@@ -1062,13 +1062,13 @@ describe('evaluation integrity package', () => {
   it('buildEvaluationPackage 应包含全部评分记录 + 指纹', () => {
     const body = {
       packageType: 'BID_EVALUATION_HANDOVER',
-      packageVersion: 1,
+      packageVersion: 2, // 2026-09-18 完整性扩展：pointDecisions 增 note
       generatedAt: expect.any(String) as string,
       projectId: 'proj-1',
       expertConfirmations: [{ expertName: '张三', expertRole: '正选', reportConfirmed: true, reportConfirmedAt: null, progress: 100, totalScore: 88.5 }],
       scoreRecords: [{ expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: 80, passed: true, reason: null }],
       scoreHistory: [{ expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: 70, passed: true, action: 'create', createdAt: '2026-01-01T00:00:00.000Z' }],
-      pointDecisions: [{ expertId: 'e1', pointId: 'p1', supplierId: 's1', checked: true, awardedScore: 5 }],
+      pointDecisions: [{ expertId: 'e1', pointId: 'p1', supplierId: 's1', checked: true, awardedScore: 5, note: '要点说明' }],
     };
     const crypto = require('crypto');
     const fingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
