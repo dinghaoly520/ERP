@@ -584,7 +584,7 @@ background:
 ### 设计原则
 
 1. **质感归容器**：凸起/阴影/毛玻璃只属于 `.sidebar-card` 一层；子项是平面列表（透明底 + 文字）。不做逐项白色凸起胶囊——胶囊阴影墙会毁掉列表的扫描性。
-2. **「当前组」用排版与色彩标记，不用几何线条**：蓝组头标签 → 蓝图标列 → 蓝染激活项，三层递进。竖向导轨线、组底板等方案已评审否决（见下方反模式）。
+2. **「当前组」用排版与色彩标记，不用几何线条**：蓝组头标签 → 蓝图标列 → 白底激活项，三层递进。竖向导轨线、组底板等方案已评审否决（见下方反模式）。
 3. **折叠 = icon-rail 二态**（240px 宽态 ⇄ 64px 图标窄栏），不是折叠到 0 消失。
 
 ### 容器与折叠
@@ -608,11 +608,11 @@ background:
 .sidebar-nav-item { color: oklch(0.42 0.032 248); background: transparent; }
 /* hover — 轻蓝染 */
 .sidebar-nav-item:hover { color: var(--foreground); background: var(--accent-tint); }
-/* 选中 — 蓝染底 + 品牌蓝字 + 内凹 + 斜切指示条 */
+/* 选中 — 实白底 + 品牌蓝字 + 内凹 + 斜切指示条（2026-09-18 改版：蓝染底→实白） */
 .sidebar-nav-item[data-active="true"] {
   color: var(--accent-strong);
-  background: var(--accent-tint-strong);
-  box-shadow: inset 2px 2px 6px oklch(0.55 0.08 250 / 0.16), inset -2px -2px 5px oklch(1 0 0 / 0.65);
+  background: oklch(1 0 0);
+  box-shadow: inset 2px 2px 6px oklch(0.55 0.08 250 / 0.18), inset -2px -2px 5px oklch(1 0 0 / 0.6);
 }
 ```
 
@@ -622,7 +622,7 @@ background:
 |----|------|
 | 组头标签 | `.sidebar-group-header[data-has-active="true"] span` → `--accent-strong` |
 | 组内全部子项**图标** | 组容器 `div[data-current="true"] .sidebar-nav-item > svg` → `--accent-strong`（文字色不变，`transition: color 0.25s`；rail 态同样分档） |
-| 激活项 | 蓝染底 + 品牌蓝字 + 凹陷 + `.nav-active-skew` |
+| 激活项 | 实白底（`oklch(1 0 0)`）+ 品牌蓝字 + 凹陷 + `.nav-active-skew` |
 
 组头 11px semibold uppercase tracking 0.08em（与 14px 子项拉开层级）；子项区 `ml-1 pl-1.5` 缩进偏移（rail 态不加，避免图标列偏心）。
 
