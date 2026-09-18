@@ -1,24 +1,22 @@
 "use client";
 
 /**
- * U盾管理 — 移植自 Vue supplier-portal profile/UkeyManage.vue（100% 功能忠实）。
- * 介质与口令逻辑走 @water-erp/ukey 的 MockUKeyAdapter：
- *  - storage 适配 localStorage，与 Vue 版同键同逻辑（keystore 键 `mock-ukey-keystore`）
+ * U盾管理 — vendor（U盘 CA 驱动中间件）唯一轨（2026-09-18 移除浏览器 mock 介质轨）。
+ *  - 介质经 openUkey 走 VendorUKeyAdapter（:17999 中间件；自制 U盘自带驱动）
  *  - 绑定公开信息缓存键 `supplier_ukey_bound`（供投标提交页恢复 certSn 参考）
- * 差异仅为框架等价替换：ElMessage→sonner toast、ElMessageBox→useConfirm/window.alert。
  */
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
-  CalendarClock, Download, FileLock, Lock, PenLine, Plus, ShieldCheck, TriangleAlert, Unlock, Upload,
+  CalendarClock, FileLock, Lock, PenLine, ShieldCheck, TriangleAlert, Unlock,
 } from "lucide-react";
-import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo, type StorageLike } from "@water-erp/ukey";
-import { UKEY_STRICT, detectUkey, openUkey, type UkeyKind } from "@/utils/ukey-factory";
+import { VendorUKeyAdapter, type CertInfo } from "@water-erp/ukey";
+import { openUkey } from "@/utils/ukey-factory";
 import { isOwnCert } from "@/utils/ukey-cert-match";
 import { useUkeyHealth } from "@/utils/use-ukey-health";
 import { supplierApi } from "@/lib/api/supplier";
-import { LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
+import { LoadingBlock, SpButton, SpInput } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import { CaSelftestDialog } from "@/components/profile/ca-selftest-dialog";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -66,13 +64,6 @@ function clearBound() {
   try { localStorage.removeItem(BOUND_KEY); } catch { /* 忽略 */ }
 }
 
-/** MockUKeyAdapter 的 storage 适配（仅口令加密后的 keystore 落 localStorage） */
-const ukeyStorage: StorageLike = {
-  getItem: (k) => localStorage.getItem(k),
-  setItem: (k, v) => localStorage.setItem(k, v),
-  removeItem: (k) => localStorage.removeItem(k),
-};
-
 export default function UkeyManagePage() {
   const { confirm, dialog } = useConfirm();
   const [loading, setLoading] = useState(true);
@@ -82,21 +73,14 @@ export default function UkeyManagePage() {
   // ── U盾介质状态 ──
   const [password, setPassword] = useState("");
   const [opening, setOpening] = useState(false);
-  const [ukey, setUkey] = useState<MockUKeyAdapter | VendorUKeyAdapter | null>(null);
-  const [ukeyKind, setUkeyKind] = useState<UkeyKind>("mock");
+  const [ukey, setUkey] = useState<VendorUKeyAdapter | null>(null);
   // ── 中间件常驻监护（2026-09-17）：在线/版本/盾数/已解锁实时轮询 ──
   const health = useUkeyHealth(2000);
   // presence 派生（原 useUkeyPresence 语义；离线经去抖防闪跳，插回 ≤2s 即时恢复）
   const ukeyPresent = health === null ? null : health.online && health.shields > 0;
-  // dev 横幅/轨别由轮询驱动（替代进页一次性快照——中间件后启动/退出都即时反映）
-  const mwOffline = health !== null && !health.online;
   const [ukeyCerts, setUkeyCerts] = useState<CertInfo[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [importing, setImporting] = useState(false);
   // 厂商中间件会话倒计时（秒）：服务端空闲 TTL 的镜像，到期自动翻回锁定态
   const [lockCountdown, setLockCountdown] = useState<number | null>(null);
-  const [importPassword, setImportPassword] = useState("");
-  const importFileRef = useRef<HTMLInputElement | null>(null);
 
   // ── 服务端绑定记录 ──
   const [serverCerts, setServerCerts] = useState<ServerCertRow[]>([]);
@@ -134,38 +118,19 @@ export default function UkeyManagePage() {
       try {
         await Promise.all([fetchProfile(), refreshServerCerts()]);
         setBoundInfo(readBound());
-        const kind = await detectUkey();
-        setUkeyKind(kind); // 初值；此后由 health 轮询联动（见下方 effect）
       } catch { setError(true); }
       finally { setLoading(false); }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  /* dev 提示：模拟 U盾轨道的启动命令只进控制台，不上 UI（正式环境 UKEY_STRICT 下本轨道不可达） */
-  useEffect(() => {
-    if (mwOffline && !UKEY_STRICT) {
-      console.warn("[dev] 未检测到 U盾中间件——启动：pnpm dev:ukey-mw（发行：ukeymw issue --cn 企业名）");
-    }
-  }, [mwOffline]);
-
-  /* 未解锁时中间件在线状态变化 → 轨别联动刷新（解锁口令占位/卡片标签随之正确）。
-     已解锁不动：解锁态属于既开介质，轨别不因探测翻转。 */
-  useEffect(() => {
-    if (ukey || health === null) return;
-    setUkeyKind(health.online ? "vendor" : UKEY_STRICT ? "vendor" : "mock");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [health?.online, ukey]);
 
   /* ═══ 解锁后中间件监护（2026-09-17 拍板：离线自动锁）═══
      拔盾(shields=0)/会话失效(unlocked=0)/离线(去抖后) → 与 TTL 到期同款清理 + 告知原因。
-     仅 vendor 会话——mock 轨不依赖中间件，离线不得误锁；unlocked=0 是粗粒度信号
-     （全体盾会话皆灭），本盾单独过期由既有 TTL 倒计时兜底。
+     unlocked=0 是粗粒度信号（全体盾会话皆灭），本盾单独过期由 TTL 倒计时兜底。
      坏观测须连续 2 次才锁：解锁成功那一刻 health 可能还是解锁前的陈旧快照
      （unlocked=0/shields=0/离线），单次观测即锁会在解锁后 ~2s 内误杀（2026-09-17 实测）。 */
   const badHealthPollRef = useRef(0);
   useEffect(() => {
-    if (!ukey || !(ukey instanceof VendorUKeyAdapter) || !health) return;
+    if (!ukey || !health) return;
     if (!health.online) { badHealthPollRef.current = 0; return; } // 离线已在 hook 内 3 次去抖，到达即真
     if (health.shields > 0 && health.unlocked > 0) { badHealthPollRef.current = 0; return; }
     if (++badHealthPollRef.current < 2) return;
@@ -176,12 +141,11 @@ export default function UkeyManagePage() {
     setPassword("");
     setLockCountdown(null);
     toast.warning(`${reason}，已自动锁定`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [health, ukey]);
 
   /* 离线监护单独一路：health.online=false 经 hook 3 次去抖，到达即真离线 → 立即锁 */
   useEffect(() => {
-    if (!ukey || !(ukey instanceof VendorUKeyAdapter) || !health || health.online) return;
+    if (!ukey || !health || health.online) return;
     setUkey(null);
     setUkeyCerts([]);
     setPassword("");
@@ -223,13 +187,11 @@ export default function UkeyManagePage() {
     if (!password) { toast.warning("请输入证书口令"); return; }
     setOpening(true);
     try {
-      const { kind, adapter } = await openUkey(password);
-      setUkeyKind(kind);
+      const { adapter } = await openUkey(password);
       setUkey(adapter);
       const certs = await adapter.listCertificates();
       setUkeyCerts(certs);
       if (certs.length > 0) toast.success("U盾已解锁");
-      else if (kind === "mock") toast.success("已创建空 U盾（尚未生成证书）");
       else toast.warning("U盾内未检测到证书，请联系 CA 服务机构办理");
     } catch (e: any) {
       toast.error(e?.message || "解锁失败：证书口令不符或 U盾损坏");
@@ -240,23 +202,6 @@ export default function UkeyManagePage() {
     setUkey(null);
     setUkeyCerts([]);
     setPassword("");
-  }
-
-  // ── 新建证书 ──
-  async function handleCreateCert() {
-    if (!ukey) { toast.warning("请先解锁 U盾"); return; }
-    if (!(ukey instanceof MockUKeyAdapter)) {
-      toast.warning("请在 CA 服务机构办理证书");
-      return;
-    }
-    if (!companyName) { toast.warning("未能获取企业名称，请稍后重试"); return; }
-    setCreating(true);
-    try {
-      const cert = await ukey.createCertificate(companyName);
-      setUkeyCerts(await ukey.listCertificates());
-      toast.success(`已生成证书 ${cert.certSn}`);
-    } catch (e: any) { toast.error(e?.message || "生成证书失败"); }
-    finally { setCreating(false); }
   }
 
   // ── 绑定 ──
@@ -294,7 +239,7 @@ export default function UkeyManagePage() {
 
   // ── 解绑 ──
   async function handleRevoke(row: ServerCertRow) {
-    if (UKEY_STRICT && !ukey) { toast.warning("请先解锁 U盾，再进行证书解绑"); return; }
+    if (!ukey) { toast.warning("请先解锁 U盾，再进行证书解绑"); return; }
     // 已迁移 useConfirm（取消直接返回，不再走 catch 的 error 分支）
     if (!(await confirm({ message: `确定解绑证书 ${row.certSn} 吗？解绑后该证书将无法再用于投标签名。`, danger: true }))) return;
     setRevoking(true);
@@ -313,75 +258,8 @@ export default function UkeyManagePage() {
     } finally { setRevoking(false); }
   }
 
-  // ── 导出介质文件 ──
-  const [exportVisible, setExportVisible] = useState(false);
   // ── CA及签章测试（Tab1 加解密自检）──
   const [caTestVisible, setCaTestVisible] = useState(false);
-  const [exportPassword, setExportPassword] = useState("");
-  const [exportPassword2, setExportPassword2] = useState("");
-  const [exporting, setExporting] = useState(false);
-
-  function closeExport() {
-    // fix round 1 ⑦：关闭后清空口令，口令不残留
-    setExportVisible(false);
-    setExportPassword("");
-    setExportPassword2("");
-  }
-
-  async function handleExport() {
-    if (!ukey) { toast.warning("请先解锁 U盾"); return; }
-    if (!(ukey instanceof MockUKeyAdapter)) {
-      toast.warning("请在 CA 服务机构办理证书");
-      return;
-    }
-    if (exportPassword.length < 6) { toast.warning("导出口令至少 6 位"); return; }
-    if (exportPassword !== exportPassword2) { toast.warning("两次输入的口令不一致"); return; }
-    setExporting(true);
-    try {
-      const content = await ukey.exportFile(exportPassword);
-      const blob = new Blob([content], { type: "application/octet-stream" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safe = (companyName || "supplier").replace(/[\\/:*?"<>|]/g, "_");
-      a.download = `U盾备份-${safe}-${dayjs().format("YYYYMMDD")}.ukey`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setExportVisible(false);
-      toast.success("备份文件已导出，请妥善保管（私钥仅以口令加密形态包含其中）");
-    } catch (e: any) { toast.error(e?.message || "导出失败"); }
-    finally { setExporting(false); }
-  }
-
-  // ── 导入介质文件 ──
-  async function handleImportFile(ev: React.ChangeEvent<HTMLInputElement>) {
-    const input = ev.target;
-    const file = input.files?.[0];
-    if (!file) return;
-    // vendor 模式下导入区块已隐藏；此处按介质种类再拦一道（导入时介质必未开锁，不能走 instanceof）
-    if (ukeyKind !== "mock") {
-      toast.warning("请在 CA 服务机构办理证书");
-      input.value = "";
-      return;
-    }
-    if (!importPassword) { toast.warning("请输入该备份文件的导出口令"); input.value = ""; return; }
-    setImporting(true);
-    try {
-      const text = await file.text();
-      const uk = await MockUKeyAdapter.importFile(text, importPassword, ukeyStorage);
-      setUkey(uk);
-      setPassword(importPassword);
-      setUkeyCerts(await uk.listCertificates());
-      toast.success(`备份导入成功（${ukeyCerts.length || (await uk.listCertificates()).length} 张证书）`);
-    } catch (e: any) { toast.error(e?.message || "导入失败：口令不符或文件损坏"); }
-    finally {
-      setImporting(false);
-      input.value = "";
-      setImportPassword(""); // fix round 1 ⑦：口令用完即清
-    }
-  }
 
   function certServerRow(certSn: string): ServerCertRow | undefined {
     return serverCerts.find((c) => c.certSn === certSn);
@@ -406,13 +284,6 @@ export default function UkeyManagePage() {
     <>
       <SpPageHero srTitle="U盾管理" />
 
-      {!UKEY_STRICT && mwOffline && (
-        <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_oklch,var(--warning)_26%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-warning">
-          <TriangleAlert size={14} strokeWidth={1.75} className="shrink-0" />
-          <span>未检测到 U盾驱动服务——当前使用浏览器内置模拟 U盾（仅供系统联调演示，正式投标请安装 U盾驱动）</span>
-        </div>
-      )}
-
       {/* ═══ KPI 概览行：介质 / 驱动 / 生效证书 / 绑定记录 ═══ */}
       <div className="ukey-kpi-row">
         <div className="kpi-card">
@@ -421,7 +292,7 @@ export default function UkeyManagePage() {
           <span className="kpi-card__sub">
             {ukey
               ? `${ownCerts.length} 张本企业证书${lockCountdown !== null ? ` · 剩 ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")} 自动锁定` : ""}`
-              : ukeyKind === "vendor" ? "CA 签发 U盾介质" : "浏览器模拟介质（联调用）"}
+              : "CA 签发 U盾介质"}
           </span>
         </div>
         <div className="kpi-card" title="本机 CA 驱动服务（中间件）实时状态，2s 轮询">
@@ -452,25 +323,19 @@ export default function UkeyManagePage() {
           <div className="card-header">
             <span className="card-title">U盾</span>
             <span className="inline-flex items-center gap-2">
-              {/* 轨别徽章仅 dev/演示显示：严格模式（生产恒开）下 mock 轨不可达，恒为「U盾」零信息量 */}
-              {!UKEY_STRICT && (
-                <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
-                  {ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
-                </span>
-              )}
               <SpButton variant="xs" icon={ShieldCheck} onClick={() => setCaTestVisible(true)}>CA及签章测试</SpButton>
               {ukey && <SpButton variant="xs" icon={Lock} onClick={lockUkey}>锁定</SpButton>}
             </span>
           </div>
 
-          {UKEY_STRICT && ukeyPresent === false ? (
+          {ukeyPresent === false ? (
             <div className="ukey-empty">未检测到 U盾——请插入 U盾（插回后自动恢复）</div>
           ) : !ukey ? (
             <>
               <div className="open-row">
                 <SpInput
                   type="password"
-                  placeholder={ukeyKind === "vendor" ? "输入证书口令（PIN）" : "输入 U盾口令（首次使用将自动创建）"}
+                  placeholder="输入证书口令（PIN）"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") void handleOpen(); }}
@@ -478,44 +343,18 @@ export default function UkeyManagePage() {
                 />
                 <SpButton variant="primary" icon={Unlock} loading={opening} onClick={() => void handleOpen()}>解锁</SpButton>
               </div>
-              {ukeyKind === "mock" && (
-                <>
-                  <div className="file-hint">已有导出文件？</div>
-                  <div className="import-row">
-                    <SpInput
-                      type="password"
-                      placeholder="备份文件口令"
-                      value={importPassword}
-                      onChange={(e) => setImportPassword(e.target.value)}
-                      className="flex-1"
-                    />
-                    <SpButton icon={Upload} loading={importing} onClick={() => importFileRef.current?.click()}>导入备份</SpButton>
-                    <input ref={importFileRef} type="file" accept=".ukey" style={{ display: "none" }} onChange={(e) => void handleImportFile(e)} />
-                  </div>
-                </>
-              )}
             </>
           ) : (
             <>
               <div className="cert-toolbar">
-                {ukeyKind === "mock" ? (
-                  <>
-                    <SpButton icon={Plus} loading={creating} onClick={() => void handleCreateCert()}>生成演示证书</SpButton>
-                    <SpButton icon={Download} onClick={() => setExportVisible(true)}>导出备份</SpButton>
-                    <span className="file-hint">证书主体名称自动使用注册企业名称，并校验与企业名一致</span>
-                  </>
-                ) : (
-                  <span className="file-hint">证书由 CA 服务机构制发，此处枚举本企业 U盾内证书并绑定</span>
-                )}
+                <span className="file-hint">证书由 CA 服务机构制发，此处枚举本企业 U盾内证书并绑定</span>
               </div>
 
               {ownCerts.length === 0 ? (
                 <div className="ukey-empty">
-                  {ukeyKind === "vendor"
-                    ? otherCertCount > 0
-                      ? `U盾内未检测到本企业证书（已隐藏 ${otherCertCount} 张其他单位盾），请联系 CA 服务机构办理`
-                      : "U盾内未检测到证书，请联系 CA 服务机构办理"
-                    : `U盾内暂无证书，点击「生成演示证书」创建`}
+                  {otherCertCount > 0
+                    ? `U盾内未检测到本企业证书（已隐藏 ${otherCertCount} 张其他单位盾），请联系 CA 服务机构办理`
+                    : "U盾内未检测到证书，请联系 CA 服务机构办理"}
                 </div>
               ) : (
                 <div className="cert-list">
@@ -560,9 +399,7 @@ export default function UkeyManagePage() {
 
           <div className="ukey-security-note">
             <ShieldCheck size={14} strokeWidth={1.75} />
-            {ukeyKind === "vendor"
-              ? "私钥由 U盾持有，浏览器不接触私钥材料；请妥善保管 U盾与管理码（PUK）。"
-              : "私钥仅以口令加密形态存储于浏览器，永不明文落盘；请导出备份并妥善保管，否则将无法解密已投递标书。"}
+            私钥由 U盾持有，浏览器不接触私钥材料；请妥善保管 U盾与管理码（PUK）。
           </div>
         </div>
 
@@ -596,7 +433,7 @@ export default function UkeyManagePage() {
                       {row.bindingStatus === "ACTIVE" ? "生效中" : "已撤销"}
                     </span>
                     {row.bindingStatus === "ACTIVE" && (
-                      <SpButton danger loading={revoking} disabled={UKEY_STRICT && !ukey} onClick={() => void handleRevoke(row)}>解绑</SpButton>
+                      <SpButton danger loading={revoking} disabled={!ukey} onClick={() => void handleRevoke(row)}>解绑</SpButton>
                     )}
                   </div>
                 </div>
@@ -624,41 +461,6 @@ export default function UkeyManagePage() {
         </div>
       </div>
 
-      {/* ═══ 导出口令对话框（关闭即销毁并清空口令，口令不残留）═══ */}
-      <SpDialog
-        open={exportVisible}
-        onClose={closeExport}
-        title="导出备份"
-        width={420}
-        footer={
-          <>
-            <SpButton onClick={closeExport}>取消</SpButton>
-            <SpButton variant="primary" loading={exporting} onClick={() => void handleExport()}>导出下载</SpButton>
-          </>
-        }
-      >
-        <p className="export-desc">导出备份包含全部证书（私钥经口令加密）。可跨浏览器/跨设备导入，请妥善保管。</p>
-        <div className="export-form">
-          <div className="export-form-row">
-            <label>新口令</label>
-            <SpInput
-              type="password"
-              placeholder="至少 6 位"
-              value={exportPassword}
-              onChange={(e) => setExportPassword(e.target.value)}
-            />
-          </div>
-          <div className="export-form-row">
-            <label>确认口令</label>
-            <SpInput
-              type="password"
-              placeholder="再次输入"
-              value={exportPassword2}
-              onChange={(e) => setExportPassword2(e.target.value)}
-            />
-          </div>
-        </div>
-      </SpDialog>
       {dialog}
 
       {/* ═══ CA及签章测试（共享页面解锁会话；未解锁时弹窗内自行初始化）═══ */}
@@ -666,7 +468,6 @@ export default function UkeyManagePage() {
         open={caTestVisible}
         onClose={() => setCaTestVisible(false)}
         ukey={ukey}
-        ukeyKind={ukeyKind}
         companyName={companyName}
       />
     </>

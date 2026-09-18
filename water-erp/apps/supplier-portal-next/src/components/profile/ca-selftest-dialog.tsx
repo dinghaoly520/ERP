@@ -18,10 +18,9 @@ import {
   runCaSelfTest,
   type CaSelfTestItemKey,
   type CertInfo,
-  type MockUKeyAdapter,
   type VendorUKeyAdapter,
 } from "@water-erp/ukey";
-import { CA_PROVIDERS, openUkey, type CaProvider, type UkeyKind } from "@/utils/ukey-factory";
+import { CA_PROVIDERS, openUkey, type CaProvider } from "@/utils/ukey-factory";
 import { extractCn, isOwnCert } from "@/utils/ukey-cert-match";
 import { SpButton, SpDialog, SpInput, SpSelect } from "@/components/ui";
 
@@ -58,18 +57,16 @@ export function CaSelftestDialog({
   open,
   onClose,
   ukey,
-  ukeyKind: pageKind,
   companyName,
 }: {
   open: boolean;
   onClose: () => void;
   /** 页面已解锁的介质（可空——空则弹窗内自行初始化） */
-  ukey: MockUKeyAdapter | VendorUKeyAdapter | null;
-  ukeyKind: UkeyKind;
+  ukey: VendorUKeyAdapter | null;
   companyName: string;
 }) {
   const [providerId, setProviderId] = useState<string>(CA_PROVIDERS[0].id);
-  const [adapter, setAdapter] = useState<MockUKeyAdapter | VendorUKeyAdapter | null>(null);
+  const [adapter, setAdapter] = useState<VendorUKeyAdapter | null>(null);
   const [certs, setCerts] = useState<CertInfo[]>([]);
   const [certSn, setCertSn] = useState("");
   const [pin, setPin] = useState("");
@@ -83,9 +80,6 @@ export function CaSelftestDialog({
     () => CA_PROVIDERS.find((p) => p.id === providerId) ?? CA_PROVIDERS[0],
     [providerId],
   );
-
-  /* 介质类别 → 注册表 id（共享页面会话时定位默认选中项） */
-  const kindToProviderId = (k: UkeyKind) => (k === "vendor" ? "local-sm2" : "mock");
 
   /* 默认选中：按注册表顺序探测首个在线轨；全不在线取首项（初始化时如实报错） */
   async function defaultProviderId(): Promise<string> {
@@ -106,7 +100,7 @@ export function CaSelftestDialog({
     setCerts([]);
     if (ukey) {
       setAdapter(ukey);
-      setProviderId(kindToProviderId(pageKind));
+      setProviderId("local-sm2");
       void enumerate(ukey);
     } else {
       setAdapter(null);
@@ -127,7 +121,7 @@ export function CaSelftestDialog({
     setFinished(false);
   }
 
-  async function enumerate(target: MockUKeyAdapter | VendorUKeyAdapter) {
+  async function enumerate(target: VendorUKeyAdapter) {
     const list = await target.listCertificates();
     setCerts(list);
     // 默认选本企业证书（与 U盾 卡片同口径），无本企业证则选首张
@@ -248,7 +242,7 @@ export function CaSelftestDialog({
             <label>key密码</label>
             <SpInput
               type="password"
-              placeholder={provider.kind === "vendor" ? "输入证书口令（PIN）" : "输入 U盾口令（首次使用将自动创建）"}
+              placeholder="输入证书口令（PIN）"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void handleInit(); }}
