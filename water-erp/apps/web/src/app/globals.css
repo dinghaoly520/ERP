@@ -536,13 +536,14 @@ a {
   color: var(--foreground);
   background: var(--accent-tint);
 }
-/* Active — 实白底 + 品牌蓝字 + 凹陷 + 斜切指示条（2026-09-18 改版：蓝染底→实白） */
+/* Active — 实白凸起：顶缘内高光 + 方向性外影（右下暗/左上亮），白块浮于面板 */
 .sidebar-nav-item[data-active="true"] {
   color: var(--accent-strong);
   background: oklch(1 0 0);
   box-shadow:
-    inset 2px 2px 6px oklch(0.55 0.08 250 / 0.18),
-    inset -2px -2px 5px oklch(1 0 0 / 0.6);
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    2px 2px 5px oklch(0.55 0.08 250 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.95);
 }
 
 /* Press feedback — 像真实按钮被按下 */
