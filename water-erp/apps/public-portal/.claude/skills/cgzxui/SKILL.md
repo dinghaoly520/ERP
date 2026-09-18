@@ -281,6 +281,19 @@ box-shadow:
 | bid-portal | `.bid-pill--*` + `data-invite/data-status/data-anomaly/data-rank…` | 状态徽章与状态色选择器组（7 个属性选择器先例） |
 | expert-portal | `.exp-icon-well` / `.exp-bubble` / `.exp-pill--solid` | 图标井 / 聊天气泡 / 实底徽章 |
 
+## 表单/确认弹窗内容范式（web :3005，2026-09-18 定稿）
+
+Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admin/account-management-panel.tsx` 的 `ResetPasswordModal`——账号管理改密弹窗）：
+
+1. **标题 = 动词短语 + 28px 图标井**：`neu-icon-well`（`inline-flex h-7 w-7 rounded-[9px]`）内 14px Lucide 图标（accent 色，strokeWidth 1.9）+「修改密码」式动词；**对象参数不进标题**，下沉到 description。
+2. **description = 对象标识**：`账号 <span class="font-mono font-semibold">{username}</span> · 姓名`——mono 承载编号/账号类标识。
+3. **只读凭据/关键值 = carved 内凹展示盒**：`neu-pre flex items-center gap-2.5 rounded-[10px] px-3 py-2.5` + 前导语境图标 + mono 值 + 右侧操作钮（显隐等）；空态/无数据文案写进盒内，不裸奔。
+4. **输入 = `neu-input` + 右内嵌图标钮**：`relative` 包裹，钮 `absolute right-2 top-1/2 -translate-y-1/2`；密码类加 `font-mono` 与语义 `autoComplete`（如 `new-password`，防浏览器回填旧密码）。
+5. **影响面提示 = warning 淡底警示条**：`flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5` + 语境图标 + 关键词 `<strong>`；不用裸灰字（易被忽略）、不塞 footer。
+6. **footer = 同级软按钮**：并排 `neu-btn-soft !h-9 !text-xs`（等高等字号）；危险动作用 `is-danger` 变体。主操作**不强制 primary**——同权重选择用双 soft（用户拍板 2026-09-18）。
+
+**违例黑名单**（新代码禁止）：`fixed inset-0` 手搓壳 + `rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]` 遗产模板——扁平全向 rgba 投影（反模式 #2）+ 无 focus trap/Esc/滚动锁/aria 全套。2026-09-18 盘点命中并**同日全数改造完毕**（→Modal+本范式）：expert/repository×2、expert/retirement、expert/[id]（编辑资料）、archive（质检）、supplier/selection（补选 + 供应商详情，内联 boxShadow 一并清除）。剩余手搓壳（global-search / dashboard-home / chat / tender-write 五对话框）为 z 层/交互特例，未列入本批。
+
 ## 弹窗「Modal 化」决策规则（web :3005）
 
 - **默认用 workbench `Modal` 组件**（`src/components/workbench/modal.tsx`）：token 蒙层 + oklch 阴影 + focus trap + Esc + 滚动锁 + aria 全套；宽度用 `size` 或 `className="!max-w-[480px]"` 覆写；busy 防护映射 `closeOnBackdrop/closeOnEsc`。

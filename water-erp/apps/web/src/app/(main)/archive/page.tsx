@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   Archive, ClipboardCheck, Download, FileArchive, History, PlayCircle, RefreshCw, ShieldCheck, Upload,
 } from 'lucide-react';
+import { Modal } from '@/components/workbench';
 
 /* ═══════════════════════════════════════════════════════════════
    归档管理（DA/T 103-2024）— 卷台账 / 四性检测 / ASIP 导出
@@ -298,30 +299,38 @@ function ArchivePageInner() {
         </div>
       </div>
 
-      {/* ═══ 质检弹窗 ═══ */}
+      {/* ═══ 质检弹窗（Modal 化，2026-09-18 cgzxui 表单弹窗范式） ═══ */}
       {inspect && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setInspect(null)} />
-          <div className="relative flex max-h-[88vh] w-full max-w-[min(980px,94vw)] flex-col overflow-hidden rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog">
-            <div className="flex items-start justify-between gap-4 p-6 pb-4">
-              <div>
-                <h2 className="text-lg font-semibold">归档质检 · {inspect.row.title}</h2>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                  {inspect.row.projectCode ?? '—'} · 卷内按阶段整理（DA/T 103-2024 §9.2）
-                  {inspect.check && (
-                    <span className={`ml-2 font-semibold ${inspect.check.overall === 'PASSED' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-                      最近检测：{inspect.check.overall === 'PASSED' ? '通过' : `${inspect.check.failedCount} 项不合格`}（{new Date(inspect.check.ranAt).toLocaleString()}）
-                    </span>
-                  )}
-                </p>
-              </div>
-              <div className="flex gap-1.5">
-                <button className="neu-btn-xs" disabled={!!busy} onClick={() => void runCheck(inspect.row.id)}><ShieldCheck size={13} /> 运行检测</button>
-                <button className="neu-btn-xs" onClick={() => setInspect(null)}>关闭</button>
-              </div>
-            </div>
-            <hr className="wb-section-rule" />
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+        <Modal
+          open
+          onClose={() => setInspect(null)}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><ShieldCheck size={14} strokeWidth={1.9} className="text-[var(--accent)]" /></span>
+              归档质检
+            </span>
+          }
+          description={
+            <span>
+              <span className="font-semibold text-[color:var(--foreground)]">{inspect.row.title}</span>
+              {' '}· <span className="font-mono">{inspect.row.projectCode ?? '—'}</span> · 卷内按阶段整理（DA/T 103-2024 §9.2）
+              {inspect.check && (
+                <span className={`ml-2 font-semibold ${inspect.check.overall === 'PASSED' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+                  最近检测：{inspect.check.overall === 'PASSED' ? '通过' : `${inspect.check.failedCount} 项不合格`}（{new Date(inspect.check.ranAt).toLocaleString()}）
+                </span>
+              )}
+            </span>
+          }
+          size="2xl"
+          className="!max-w-[980px]"
+          footer={
+            <>
+              <button type="button" className="neu-btn-soft !h-9 !text-xs" disabled={!!busy} onClick={() => void runCheck(inspect.row.id)}><ShieldCheck size={13} strokeWidth={1.9} /> 运行检测</button>
+              <button type="button" className="neu-btn-soft !h-9 !text-xs" onClick={() => setInspect(null)}>关闭</button>
+            </>
+          }
+        >
+          <div>
               <table className="neu-table w-full min-w-[720px]">
                 <thead>
                   <tr><th style={{ width: 60 }}>序号</th><th style={{ width: 70 }}>阶段</th><th>归档材料</th><th style={{ width: 80 }}>来源</th><th style={{ width: 90 }}>状态</th><th>命中</th></tr>
@@ -416,9 +425,8 @@ function ArchivePageInner() {
                   </ul>
                 </>
               )}
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {toast && (

@@ -926,11 +926,11 @@ function ResetPasswordModal({
       size="sm"
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={pending} className="neu-btn-soft">
+          <button type="button" onClick={onClose} disabled={pending} className="neu-btn-soft !h-9 !text-xs">
             取消
           </button>
-          <button type="button" onClick={submit} disabled={pending} className="neu-btn-primary">
-            {pending ? <Loader2 size={14} className="animate-spin" /> : null}
+          <button type="button" onClick={submit} disabled={pending} className="neu-btn-soft !h-9 !text-xs">
+            {pending ? <Loader2 size={13} className="animate-spin" /> : null}
             确认修改
           </button>
         </>

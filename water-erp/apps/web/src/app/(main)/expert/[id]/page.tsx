@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem } from '@/lib/api/expert';
-import { AlertBanner, StatusBadge } from '@/components/workbench';
+import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
@@ -827,23 +827,29 @@ export default function ExpertDetailPage() {
       )}
 
 
-      {/* ════ 编辑资料弹窗 ════ */}
+      {/* ════ 编辑资料弹窗（Modal 表单范式） ════ */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowEditModal(false)} />
-          <div className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
-            <div className="flex items-start justify-between gap-3 mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="neu-icon-well flex h-9 w-9 items-center justify-center rounded-[10px]"><Pencil size={15} className="text-[var(--accent)]" /></div>
-                <div>
-                  <h2 className="text-sm font-extrabold text-[var(--foreground)]">编辑专家资料</h2>
-                  <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">基础信息用于评审抽取匹配与通知触达</p>
-                </div>
-              </div>
-              <button onClick={() => setShowEditModal(false)} className="neu-btn-xs" aria-label="关闭"><X size={14} /></button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Modal
+          open
+          onClose={() => setShowEditModal(false)}
+          closeOnBackdrop={!editSaving}
+          closeOnEsc={!editSaving}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><Pencil size={14} strokeWidth={1.9} className="text-[var(--accent)]" /></span>
+              编辑专家资料
+            </span>
+          }
+          description={<span>基础信息用于评审抽取匹配与通知触达</span>}
+          size="lg"
+          footer={
+            <>
+              <button type="button" onClick={() => setShowEditModal(false)} disabled={editSaving} className="neu-btn-soft !h-9 !text-xs">取消</button>
+              <button type="button" onClick={saveProfile} disabled={editSaving} className="neu-btn-soft is-info !h-9 !text-xs">{editSaving ? '保存中…' : '保存'}</button>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {PROFILE_FIELDS.map(f => (
                 <label key={f.key} className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
@@ -879,14 +885,7 @@ export default function ExpertDetailPage() {
               </label>
             </div>
 
-            <hr className="wb-section-rule" />
-
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowEditModal(false)} disabled={editSaving} className="neu-btn-soft h-[38px]">取消</button>
-              <button onClick={saveProfile} disabled={editSaving} className="neu-btn-primary !h-[38px]">{editSaving ? '保存中...' : '保存'}</button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

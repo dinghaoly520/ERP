@@ -3491,61 +3491,58 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ═══ 补选弹窗 ═══ */}
+      {/* ═══ 补选弹窗（Modal 表单范式，2026-09-18） ═══ */}
       {showRerunDialog && (
-        <div className="fixed inset-0 z-[750] flex items-center justify-center">
-          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }} onClick={() => setShowRerunDialog(false)} />
-          <div className="relative z-10 mx-4 w-full max-w-[400px] rounded-[22px] p-6" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.95), oklch(0.985 0.005 258 / 0.65))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)' }}>
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">补选</h2>
-              <button type="button" onClick={() => setShowRerunDialog(false)} className="neu-btn-xs"><X size={16} /></button>
-            </div>
-            <p className="text-sm leading-[1.6] text-[color:var(--muted-foreground)] mb-4">
-              当前已选 {shortlist.size} 家供应商（含 {confirmedCount} 家已确认），补选不会清除已有名单。
-            </p>
-            <div className="space-y-2.5">
-              <button type="button" onClick={() => confirmRerun('ai')} className="neu-card group flex w-full items-center gap-3 rounded-[16px] px-4 py-3.5 text-left">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]" style={{ background: 'color-mix(in oklch, var(--accent) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
-                  <Sparkles size={17} className="text-[var(--accent)]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">智能选取</div>
-                  <div className="mt-0.5 text-[11px] leading-4 text-[var(--muted-foreground)]">沿用当前业务标签和采购需求，重新推荐</div>
-                </div>
-              </button>
-              <button type="button" onClick={() => confirmRerun('manual')} className="neu-card group flex w-full items-center gap-3 rounded-[16px] px-4 py-3.5 text-left">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]" style={{ background: 'color-mix(in oklch, var(--accent) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
-                  <Search size={17} className="text-[var(--accent)]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">人工选取</div>
-                  <div className="mt-0.5 text-[11px] leading-4 text-[var(--muted-foreground)]">直接搜索供应商名称，逐家加入候选名单</div>
-                </div>
-              </button>
-            </div>
+        <Modal
+          open
+          onClose={() => setShowRerunDialog(false)}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><ListPlus size={14} strokeWidth={1.9} className="text-[var(--accent)]" /></span>
+              补选
+            </span>
+          }
+          description={<span>当前已选 <span className="font-mono font-semibold text-[color:var(--foreground)]">{shortlist.size}</span> 家供应商（含 {confirmedCount} 家已确认），补选不会清除已有名单。</span>}
+          size="sm"
+        >
+          <div className="space-y-2.5">
+            <button type="button" onClick={() => confirmRerun('ai')} className="neu-card group flex w-full items-center gap-3 rounded-[16px] px-4 py-3.5 text-left">
+              <span className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]">
+                <Sparkles size={17} strokeWidth={1.9} className="text-[var(--accent)]" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">智能选取</span>
+                <span className="mt-0.5 block text-[11px] leading-4 text-[var(--muted-foreground)]">沿用当前业务标签和采购需求，重新推荐</span>
+              </span>
+            </button>
+            <button type="button" onClick={() => confirmRerun('manual')} className="neu-card group flex w-full items-center gap-3 rounded-[16px] px-4 py-3.5 text-left">
+              <span className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]">
+                <Search size={17} strokeWidth={1.9} className="text-[var(--accent)]" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">人工选取</span>
+                <span className="mt-0.5 block text-[11px] leading-4 text-[var(--muted-foreground)]">直接搜索供应商名称，逐家加入候选名单</span>
+              </span>
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
       {detailSupplier && (
-        <div className="fixed inset-0 z-[750] flex items-center justify-center" onClick={() => setDetailSupplier(null)}>
-          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.45)', backdropFilter: 'blur(4px)' }} />
-          <div className="relative z-10 mx-4 w-full max-w-[min(1100px,94vw)] max-h-[90vh] rounded-[24px] p-6 flex flex-col"
-            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.96), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 16px oklch(0.46 0.07 258 / 0.2), -3px -3px 10px oklch(1 0 0 / 0.92)' }}
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4 gap-3 shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: 'color-mix(in oklch, var(--accent-soft) 45%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)' }}>
-                  <Building2 size={16} className="text-[var(--accent)]" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-bold text-[var(--foreground)] truncate">{detailSupplier.name}</div>
-                  <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">供应商详情 · 左侧档案 / 右侧资格符合性分析</div>
-                </div>
-              </div>
-              <button onClick={() => setDetailSupplier(null)} className="neu-btn-soft !p-2 shrink-0"><X size={16} /></button>
-            </div>
-
-            {detailLoading ? (
+        <Modal
+          open
+          onClose={() => setDetailSupplier(null)}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><Building2 size={14} strokeWidth={1.9} className="text-[var(--accent)]" /></span>
+              供应商详情
+            </span>
+          }
+          description={<span>左侧档案 / 右侧资格符合性分析</span>}
+          size="2xl"
+          className="!max-w-[1100px]"
+        >
+          <div className="mb-4 truncate text-sm font-bold text-[var(--foreground)]">{detailSupplier.name}</div>
+          {detailLoading ? (
               <div className="py-12 flex items-center justify-center"><RefreshCw size={22} className="animate-spin text-[var(--accent)]" /></div>
             ) : detailData ? (
               <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,400px)] gap-5 overflow-hidden">
@@ -3782,11 +3779,10 @@ export function SupplierSelectionPage({
                   />
                 </div>
               </div>
-            ) : (
-              <div className="py-10 text-center text-sm text-[var(--muted-foreground)]">无法加载供应商详情</div>
-            )}
-          </div>
-        </div>
+          ) : (
+            <div className="py-10 text-center text-sm text-[var(--muted-foreground)]">无法加载供应商详情</div>
+          )}
+        </Modal>
       )}
 
       <SelectionHistoryDialog

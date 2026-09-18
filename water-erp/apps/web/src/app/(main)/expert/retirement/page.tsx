@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getRetireCandidates, confirmRetire, ignoreRetirementWarning } from '@/lib/api/expert';
-import { StatusBadge } from '@/components/workbench';
-import { AlertTriangle, Check, RefreshCw, UserX } from 'lucide-react';
+import { Modal, StatusBadge } from '@/components/workbench';
+import { AlertTriangle, Check, RefreshCw, UserX, FileText } from 'lucide-react';
 import type { WorkbenchTone } from '@water-erp/shared';
 
 const SPECIALTY_TONES: WorkbenchTone[] = ['blue', 'cyan', 'green', 'orange', 'red', 'purple'];
@@ -159,36 +159,44 @@ export default function RetirementPage() {
         </div>
       )}
 
-      {/* ══════ 退库二次确认 ══════ */}
+      {/* ══════ 退库二次确认（Modal 表单范式） ══════ */}
       {pendingRetire && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => !retiring && setPendingRetire(null)} />
-          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
-            <div className="flex items-center gap-3">
-              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><UserX size={18} className="text-[var(--danger)]" /></div>
-              <div className="min-w-0">
-                <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认退库</h3>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">停用后该专家将不再参与新的评审抽取，退库状态保留；如需恢复可重新启用</p>
+        <Modal
+          open
+          onClose={() => setPendingRetire(null)}
+          closeOnBackdrop={!retiring}
+          closeOnEsc={!retiring}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><UserX size={14} strokeWidth={1.9} className="text-[var(--danger)]" /></span>
+              确认退库
+            </span>
+          }
+          description={<span>专家 <span className="font-semibold text-[color:var(--foreground)]">{pendingRetire.name}</span></span>}
+          size="sm"
+          footer={
+            <>
+              <button type="button" onClick={() => setPendingRetire(null)} disabled={retiring} className="neu-btn-soft !h-9 !text-xs">取消</button>
+              <button type="button" onClick={doRetire} disabled={retiring} className="neu-btn-soft is-danger !h-9 !text-xs">{retiring ? '处理中…' : '确认退库'}</button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-[color:var(--muted-foreground)]">退库原因</span>
+              <div className="neu-pre flex items-center gap-2.5 rounded-[10px] px-3 py-2.5">
+                <FileText size={13} strokeWidth={1.9} className="shrink-0 text-[color:var(--muted-foreground)]" />
+                <span className="flex-1 text-xs leading-5 text-[color:var(--foreground)]">{pendingRetire.reason}</span>
               </div>
             </div>
-            <hr className="wb-section-rule my-4" />
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-[var(--muted-foreground)]">专家姓名</span>
-                <span className="text-sm font-semibold text-[var(--foreground)]">{pendingRetire.name}</span>
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-[var(--muted-foreground)]">退库原因</span>
-                <p className="rounded-lg bg-[var(--muted)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground)]">{pendingRetire.reason}</p>
-              </div>
-            </div>
-            <hr className="wb-section-rule my-4" />
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setPendingRetire(null)} disabled={retiring} className="neu-btn-soft h-[38px]">取消</button>
-              <button onClick={doRetire} disabled={retiring} className="neu-btn-primary !h-[38px] is-danger">{retiring ? '处理中...' : '确认退库'}</button>
+            <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5">
+              <AlertTriangle size={13} strokeWidth={1.9} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+              <span className="text-xs leading-5 text-[color:var(--muted-foreground)]">
+                退库后该专家将<strong className="text-[color:var(--foreground)]">不再参与新的评审抽取</strong>，退库状态保留；如需恢复可重新启用。
+              </span>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
