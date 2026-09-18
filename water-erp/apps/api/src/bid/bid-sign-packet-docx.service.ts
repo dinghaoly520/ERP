@@ -96,7 +96,15 @@ export class BidSignPacketDocxService {
       let value = '—';
       if (key === 'identityVerified') {
         const iv = trace.identityVerified;
-        value = iv.at ? `${label}：${iv.at}（IP ${iv.ip ?? '未知'}）` : '—';
+        if (iv.at) {
+          // 2026-09-18 身份核验 §4.5：留档照 + 遮挡检测结论随留痕表披露（纸面证据自含）
+          const meta = (iv.meta ?? {}) as { occlusion?: string; photoAssetId?: string };
+          const photo = meta.photoAssetId ? '留档照 ✓' : '无留档照（应急）';
+          const oc = meta.occlusion === 'passed' ? '遮挡检测通过' : meta.occlusion === 'unchecked' ? '遮挡检测未运行' : '';
+          value = `${label}：${iv.at.replace('T', ' ').slice(0, 16)} · ${photo}${oc ? ` · ${oc}` : ''}（IP ${iv.ip ?? '未知'}）`;
+        } else {
+          value = iv.at ? `${label}：${iv.at}（IP ${iv.ip ?? '未知'}）` : '—';
+        }
         return new TableRow({ children: [new TableCell({ children: [this.para(value)] })] });
       }
       const v = trace[key] as string | null;
@@ -305,6 +313,38 @@ export class BidSignPacketDocxService {
     ];
   }
 
+  /** 核验记录表（2026-09-18 身份核验 §4.5 签字包监督附件）：全专家 × 登录方式 × 留档照 × 检测结论 × 时间/IP */
+  private buildVerificationRecords(s: SignPacketSnapshot): (Paragraph | Table)[] {
+    const methodLabel = (m: string | null | undefined) =>
+      m === 'off_mode' ? '应急（无照片）' : m ? '身份证号登录 + 留档照' : '未记录';
+    const header = ['专家姓名', '角色', '签到状态', '签到时间', '登录/核验方式', '遮挡检测', '留档照', '签到 IP'];
+    const rows = s.committee.map(e => {
+      const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string };
+      const oc = meta.occlusion === 'passed' ? '通过' : meta.occlusion === 'unchecked' ? '未运行（降级）' : '—';
+      return new TableRow({
+        children: header.map((_, i) => {
+          let text = '—';
+          switch (i) {
+            case 0: text = e.name; break;
+            case 1: text = e.role; break;
+            case 2: text = e.signedIn ? '已签到' : '未签到'; break;
+            case 3: text = meta.timestamp ? meta.timestamp.replace('T', ' ').slice(0, 16) : '—'; break;
+            case 4: text = methodLabel(meta.method); break;
+            case 5: text = oc; break;
+            case 6: text = meta.photoAssetId ? '有（存档）' : e.signedIn && meta.timestamp ? '无（应急）' : '—'; break;
+            case 7: text = e.signInIp ?? '—'; break;
+          }
+          return new TableCell({ children: [this.para(text)] });
+        }),
+      });
+    });
+    return [
+      new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '评标专家身份核验记录表', bold: true, size: 30 })] }),
+      this.para('本表为签到证据汇总：留档照原图以 FileAsset（expert_signin_photo）存档并随评标档案归档；「遮挡检测」为拍摄时的画面完整性判定（检测非识别，不进行人脸比对）。'),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [this.headerRow(header), ...rows] }),
+    ];
+  }
+
   /** 组装全部子块（公开以便测试直接断言内容；generateDocument 内部消费） */
   buildChildren(s: SignPacketSnapshot): (Paragraph | Table)[] {
     return [
@@ -313,6 +353,7 @@ export class BidSignPacketDocxService {
       ...this.buildExpertSheets(s),
       ...this.buildDisputesAndMotions(s),
       ...this.buildDissentTemplate(s),
+      ...this.buildVerificationRecords(s),
     ];
   }
 

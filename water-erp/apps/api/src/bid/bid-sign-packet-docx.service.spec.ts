@@ -73,6 +73,48 @@ describe('BidSignPacketDocxService', () => {
     expect(buf.subarray(0, 2).toString('ascii')).toBe('PK');
   });
 
+  /* ── 2026-09-18 身份核验 §4.5：留痕行增强 + 核验记录表 ── */
+  it('身份核验留痕行：at 有值时披露 时间·留档照·遮挡检测（纸面证据自含）', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      expertSheets: [{
+        ...baseSnapshot.expertSheets[0],
+        trace: {
+          ...baseSnapshot.expertSheets[0].trace,
+          identityVerified: {
+            ip: '10.0.0.8',
+            meta: { timestamp: '2026-09-18T09:12:00.000Z', method: 'self_password_photo', occlusion: 'passed', photoAssetId: 'fa-1' },
+            at: '2026-09-18T09:12:00.000Z',
+          },
+        },
+      }],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    expect(text).toContain('身份核验/签到：2026-09-18 09:12 · 留档照 ✓ · 遮挡检测通过（IP 10.0.0.8）');
+  });
+
+  it('核验记录表：标题与全专家行（方式/检测/留档照/时间/IP）', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      committee: [{
+        ...baseSnapshot.committee[0],
+        signInMeta: { timestamp: '2026-09-18T09:12:00.000Z', method: 'self_password_photo', occlusion: 'passed', photoAssetId: 'fa-1' },
+      }],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    expect(text).toContain('评标专家身份核验记录表');
+    expect(text).toContain('身份证号登录 + 留档照');
+    expect(text).toContain('有（存档）');
+    expect(text).toContain('2026-09-18 09:12');
+    expect(text).toContain('检测非识别，不进行人脸比对');
+  });
+
+  it('核验记录表：旧数据（无 meta 时间戳）渲染 未记录/—，不误标应急', () => {
+    const text = textOf(svc.buildChildren(baseSnapshot));
+    expect(text).toContain('评标专家身份核验记录表');
+    expect(text).toContain('未记录');
+  });
+
   /* ── A-151（P1 波4）：报告章节附注渲染 ── */
   it('A-151：一~九节附注以「附注：」段插入节末；十节正文续写（首句保留+用户句+生效句接续）', () => {
     const snap: SignPacketSnapshot = {

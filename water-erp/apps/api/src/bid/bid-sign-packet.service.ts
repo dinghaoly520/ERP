@@ -646,8 +646,10 @@ export class BidSignPacketService {
     }
 
     const expertSheets = committee.map(e => {
+      // 2026-09-18 身份核验 §4.5：签到时间取自 signInMeta.timestamp（旧数据无 → at 保持 null）
+      const signInMeta = (e.signInMeta ?? {}) as { timestamp?: string };
       const trace: OperationTrace = {
-        identityVerified: { ip: e.signInIp, meta: e.signInMeta, at: null },
+        identityVerified: { ip: e.signInIp, meta: e.signInMeta, at: signInMeta.timestamp ?? null },
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,
         aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null, // 2026-09-18：留痕表加「AI 辅助声明确认」行
