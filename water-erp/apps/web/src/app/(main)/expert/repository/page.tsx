@@ -318,15 +318,13 @@ export default function ExpertRepositoryPage() {
                 return (
                   <tr key={e.id} className="row-clickable" onClick={() => !batchMode && router.push(`/expert/${e.id}`)}>
                     {batchMode && (
-                      <td onClick={ev => ev.stopPropagation()}>
-                        <button onClick={() => toggleSelect(e.id)} className="neu-btn-xs">
-                          {selectedIds.has(e.id) ? <CheckSquare size={15} /> : <Square size={15} />}
-                        </button>
+                      <td onClick={ev => ev.stopPropagation()} className="pl-3">
+                        <input type="checkbox" className="neu-checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} aria-label={`选择 ${e.displayName}`} />
                       </td>
                     )}
                     <td>
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{e.displayName[0]}</div>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{e.displayName[0]}</div>
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{e.displayName}</span>
                       </div>
                     </td>

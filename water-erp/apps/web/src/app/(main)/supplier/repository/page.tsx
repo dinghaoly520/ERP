@@ -437,7 +437,7 @@ export default function SupplierRepositoryPage() {
                     </td>
                     <td>
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{s.name[0]}</div>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{s.name[0]}</div>
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors" title={s.name}>{s.name}</span>
                         <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'} aria-label={favIds.has(s.id) ? '取消收藏' : '收藏'}>
                           <Star size={13} fill={favIds.has(s.id) ? 'var(--warning)' : 'none'} stroke={favIds.has(s.id) ? 'var(--warning)' : 'currentColor'} />
@@ -446,7 +446,7 @@ export default function SupplierRepositoryPage() {
                     </td>
                     <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
                     <td className="text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
-                    <td className="text-center"><span className="neu-tab-count">{s._count?.evaluations ?? 0}</span></td>
+                    <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{s._count?.evaluations ?? 0}</td>
                     <td className="text-center">
                       {s._avgGrade ? (
                         <div className="flex items-center justify-center gap-1.5" title={`平均评价等级 ${s._avgGrade}（${LEVEL_LABEL[s._avgGrade] ?? ''}）`}>

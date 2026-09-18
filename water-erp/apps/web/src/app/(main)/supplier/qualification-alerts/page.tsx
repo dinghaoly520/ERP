@@ -124,7 +124,7 @@ export default function QualificationAlertsPage() {
 
           {/* Table */}
           <div className="neu-table-card overflow-hidden">
-            <table className="workbench-table">
+            <table className="neu-table">
               <thead>
                 <tr>
                   <th style={{ width: 36 }}>
