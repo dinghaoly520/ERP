@@ -7,8 +7,11 @@
  * 被删即引用悬空。Task 1 起新报告落 'ai_bid_report'；本脚本把存量对齐。
  *
  * 用法：
- *   npx tsx apps/api/scripts/migrate-ai-report-category.ts            # dry-run（默认，零副作用）
- *   npx tsx apps/api/scripts/migrate-ai-report-category.ts --execute  # 真实更新 category
+ *   # apps/api/ 目录下（pnpm bin 隔离，从根跑 npx tsx 会 not found）：
+ *   npx tsx scripts/migrate-ai-report-category.ts            # dry-run（默认，零副作用）
+ *   npx tsx scripts/migrate-ai-report-category.ts --execute  # 真实更新 category
+ *   # 或从 water-erp/ 根：
+ *   pnpm --filter api exec tsx scripts/migrate-ai-report-category.ts [--execute]
  *
  * 环境：脚本自行加载 apps/api/.env（DATABASE_URL），从 water-erp/ 根或 apps/api/ 目录运行均可。
  *
