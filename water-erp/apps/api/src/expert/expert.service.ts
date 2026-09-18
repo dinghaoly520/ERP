@@ -7,7 +7,6 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
-import { ExpertConflictService } from './expert-conflict.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from '../bid/clarification-ai.service';
@@ -73,7 +72,6 @@ export class ExpertService {
     private prisma: PrismaService,
     private readonly signatureService: SignatureService,
     private aiService: AiService,
-    private conflictService: ExpertConflictService,
     private plaintextFetcher: PlaintextFetcherService,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
@@ -469,34 +467,28 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
-    // 自动利益冲突检测：工作单位 vs 投标供应商名称（归一化匹配）
-    const autoConflicts = await this.conflictService.detectForProject(projectId, userId);
-
-    // P2: 合并手动声明的冲突 + 自动检测的冲突（去重），持久化到 expert 记录。
-    // D4: 若调用方显式传入 conflictedSupplierIds（含空数组），以传入值为准（替换手动部分）；
-    // 未传入则保留既有手动声明（向后兼容，旧前端可能不传）。
+    // 2026-09-18 用户裁定：回避只认专家手动申报——系统不自动检测/合并冲突（原 P2/D4「自动检测合并且
+    // 不可清除」设计废止）。依据：招标投标法第37条回避系专家主动申报义务，系统不得代为申报；
+    // 名称归一化自动匹配误判时会强制误回避（不可撤销），侵害评审独立与供应商权益。
+    // conflictedSupplierIds 自此全量为专家手动勾选；存量含自动合并项的历史数据保持原样（申报时点证据）。
     const existingConflicts = parseConflictedIds(expert.conflictedSupplierIds);
-    const manualConflicts = conflictedSupplierIds !== undefined ? conflictedSupplierIds : existingConflicts;
-    const allConflictIds = [...new Set([
-      ...manualConflicts,
-      ...autoConflicts.map(c => c.supplierId),
-    ])];
-    if (!conflictedSupplierIds?.length && autoConflicts.length > 0) {
-      // 仅自动检测出冲突时，仍允许确认（前端会提示），但阻止对冲突供应商评分。
-    }
+    const resolvedConflicts = conflictedSupplierIds !== undefined
+      ? conflictedSupplierIds.filter((id): id is string => !!id)
+      : existingConflicts;
 
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { avoidanceConfirmed: true, conflictedSupplierIds: allConflictIds.length > 0 ? (allConflictIds as any) : undefined },
+      // 显式传入（含空数组）→ 整体替换（可清空）；未传入 → 保留既有（向后兼容）
+      data: { avoidanceConfirmed: true, conflictedSupplierIds: resolvedConflicts as any },
     });
     // P1-5: 回避确认监督日志
-    const conflictNames = allConflictIds.length > 0
-      ? (await this.prisma.bidSupplier.findMany({ where: { id: { in: allConflictIds.filter((id): id is string => !!id) } }, select: { supplierName: true } }))
+    const conflictNames = resolvedConflicts.length > 0
+      ? (await this.prisma.bidSupplier.findMany({ where: { id: { in: resolvedConflicts } }, select: { supplierName: true } }))
           .map(s => s.supplierName).join('、')
       : '无';
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
-        action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: allConflictIds.length > 0 ? '中' : '无' },
+        action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: resolvedConflicts.length > 0 ? '中' : '无' },
     }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'avoidance_confirmed', progressPercent: updated.progress ?? 0,

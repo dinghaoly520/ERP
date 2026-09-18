@@ -1566,7 +1566,7 @@ export default function ExpertEvaluatePage() {
                   <p className="mb-4 text-sm text-[var(--muted-foreground)]">
                     请逐项核对：若您与以下任一投标单位存在利益关系（如曾受雇、近亲属供职、持有股份等），请勾选声明回避。
                     被回避的供应商将不会出现在您的评分列表中。
-                    <br/><span className="font-semibold text-[var(--warning)]">评审过程中可在任何时候补充或调整回避声明（系统自动检测的冲突不会被清除）。</span>
+                    <br/><span className="font-semibold text-[var(--warning)]">回避申报以专家本人勾选为准，评审过程中可随时补充或调整。</span>
                   </p>
                   <div className="mb-4 space-y-1.5">
                     {project.suppliers.map(sup => {

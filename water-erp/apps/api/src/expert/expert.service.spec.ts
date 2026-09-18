@@ -3,7 +3,6 @@ import { ForbiddenException, BadRequestException, ConflictException } from '@nes
 import { ExpertService } from './expert.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
-import { ExpertConflictService } from './expert-conflict.service';
 import { encryptBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { ClarificationAiService } from '../bid/clarification-ai.service';
@@ -99,7 +98,6 @@ describe('ExpertService', () => {
         ExpertService,
         { provide: PrismaService, useValue: prisma },
         { provide: AiService, useValue: ai },
-        { provide: ExpertConflictService, useValue: { detectForProject: jest.fn().mockResolvedValue([]) } },
         { provide: PlaintextFetcherService, useValue: { fetchBidderPlaintext: jest.fn() } },
         { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
         { provide: BidGateway, useValue: gateway },
@@ -209,6 +207,34 @@ describe('ExpertService', () => {
     });
   });
 
+  describe('confirmAvoidance（2026-09-18 用户裁定：只认专家手动申报，系统不自动合并冲突）', () => {
+    it('显式传入（含空数组）→ 以传入值整体替换（可清空既有申报）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: ['s-old'] });
+      prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, avoidanceConfirmed: true, conflictedSupplierIds: [] });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+
+      await service.confirmAvoidance('user-1', 'proj-1', []);
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { avoidanceConfirmed: true, conflictedSupplierIds: [] } }),
+      );
+    });
+
+    it('未传入 → 保留既有手动申报（向后兼容）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: ['s-1'] });
+      prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, avoidanceConfirmed: true, conflictedSupplierIds: ['s-1'] });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '甲公司' }]);
+
+      await service.confirmAvoidance('user-1', 'proj-1');
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { avoidanceConfirmed: true, conflictedSupplierIds: ['s-1'] } }),
+      );
+    });
+  });
+
   describe('signIn', () => {
     it('签到成功应更新专家状态', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
@@ -216,6 +242,7 @@ describe('ExpertService', () => {
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
 
       const result = await service.signIn('user-1', 'proj-1');
+
 
       expect(prisma.bidExpert.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
