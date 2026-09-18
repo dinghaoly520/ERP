@@ -18,6 +18,7 @@ import {
 import { SpPageHero } from "@/components/sp-page-hero";
 import { LoadingBlock, SpDialog, SpPagination } from "@/components/ui";
 import "@/styles/pages/notifications.css"; // nd-*/notif-* 通知样式（原寄居 announcements.css，2026-09-02 归位）
+import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
 const NEW_WINDOW_MS = 48 * 3600 * 1000;
 const PAGE_SIZE = 15;
@@ -156,27 +157,43 @@ export default function NotificationListPage() {
 
   return (
     <>
-      <SpPageHero srTitle="消息中心" />
+      <SpPageHero
+        icon={Bell}
+        title="消息中心"
+        sub="按待办、项目、审批和合同分类查看业务消息。"
+        actions={(
+          <button type="button" className="neu-btn-xs" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
+            <Check size={13} strokeWidth={2.2} aria-hidden="true" />
+            全部标为已读{unreadCount > 0 ? `（${unreadCount}）` : ""}
+          </button>
+        )}
+      />
 
-      {/* 工具栏卡：分类 tabs + 全部已读（未读计数直显） */}
-      <div className="sp-toolbar-card">
-        <div className="neu-tab-bar notif-tabs" role="group" aria-label="消息分类">
-          {GROUPS.map((group) => (
-            <button
-              key={group.value}
-              type="button"
-              className={`neu-tab${groupFilter === group.value ? " active" : ""}`}
-              aria-pressed={groupFilter === group.value}
-              onClick={() => setGroupFilter(group.value)}
-            >
-              {group.label}
-            </button>
-          ))}
+      {/* ═══ 分类分段切换（cgzxui .neu-segment：与「成交履约」同款——hero 下独立一行）═══ */}
+      <div className="mb-view-seg">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="消息分类"
+          data-count="6"
+          data-index={String(GROUPS.findIndex((g) => g.value === groupFilter))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {GROUPS.map((group) => {
+            const Icon = group.value === "all" ? Inbox : GROUP_ICONS[group.value as NotificationGroup];
+            return (
+              <button
+                key={group.value}
+                type="button"
+                className="neu-segment-btn"
+                aria-pressed={groupFilter === group.value}
+                onClick={() => setGroupFilter(group.value)}
+              >
+                <Icon size={13} strokeWidth={1.9} aria-hidden="true" />{group.label}
+              </button>
+            );
+          })}
         </div>
-        <button type="button" className="neu-btn-xs" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
-          <Check size={13} strokeWidth={2.2} aria-hidden="true" />
-          全部标为已读{unreadCount > 0 ? `（${unreadCount}）` : ""}
-        </button>
       </div>
 
       {loading ? (

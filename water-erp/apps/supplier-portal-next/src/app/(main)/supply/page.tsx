@@ -10,7 +10,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
-import { AlertTriangle, CircleX, Loader2, PackageSearch, PackageX, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  Boxes,
+  CircleX,
+  Loader2,
+  PackageSearch,
+  PackageX,
+  Search,
+} from "lucide-react";;
 import { SpButton, SpInput, SpPagination } from "@/components/ui";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { catalogApi } from "@/lib/api/catalog";
@@ -84,7 +92,7 @@ export default function MySupplyPage() {
           {loading && (
             <div className="cat-loading-mask"><Loader2 size={22} strokeWidth={1.75} /></div>
           )}
-          <SpPageHero srTitle="我的供货关系">
+          <SpPageHero icon={Boxes} title="我的供货关系" sub="已入围的供货关系与价格信息">
             <div className="page-hero__stat"><strong>{supply.length}</strong><span>供货关系</span></div>
             <div className="page-hero__stat"><strong>{activeCount}</strong><span>供货中</span></div>
           </SpPageHero>

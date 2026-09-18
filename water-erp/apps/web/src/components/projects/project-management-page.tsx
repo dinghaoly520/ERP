@@ -307,13 +307,13 @@ export function ProjectManagementPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-              <div className="relative flex-1 min-w-[200px]">
+              <div className="relative w-[280px] shrink-0">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
                 <input
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder="按项目名 / 申请人 / 部门搜索"
-                  className="neu-input !pl-9"
+                  className="neu-input neu-input-sm !pl-9"
                 />
                 {keyword && (
                   <button onClick={() => setKeyword('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[color:var(--muted-foreground)] z-10">
@@ -321,31 +321,34 @@ export function ProjectManagementPage() {
                   </button>
                 )}
               </div>
-              <div className="ml-auto flex items-center gap-2">
-                <div className="neu-tab-bar">
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <div className="neu-segment" role="group" aria-label="项目状态" data-index={activeTab === 'active' ? '0' : '1'}>
+                  <span className="neu-segment-thumb" aria-hidden="true" />
                   <button
                     type="button"
                     onClick={() => setActiveTab('active')}
-                    className={`neu-tab ${activeTab === 'active' ? 'is-active' : ''}`}
+                    className="neu-segment-btn"
+                    aria-pressed={activeTab === 'active'}
                   >
                     进行中
-                    {items.length > 0 && <span className="ml-1 text-[10px] font-bold tabular-nums opacity-70">{items.length}</span>}
+                    {items.length > 0 && <span className="neu-segment-count">{items.length}</span>}
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTab('archived')}
-                    className={`neu-tab ${activeTab === 'archived' ? 'is-active' : ''}`}
+                    className="neu-segment-btn"
+                    aria-pressed={activeTab === 'archived'}
                   >
                     <CheckCircle2 size={13} className="inline mr-1" />
                     已完成
-                    {archivedItems.length > 0 && <span className="ml-1 text-[10px] font-bold tabular-nums opacity-70">{archivedItems.length}</span>}
+                    {archivedItems.length > 0 && <span className="neu-segment-count">{archivedItems.length}</span>}
                   </button>
                 </div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                  className="workbench-input !w-auto min-w-[110px]"
+                  className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
                 >
                   <option value="updatedAt">最近更新</option>
                   <option value="createdAt">最近创建</option>
@@ -357,7 +360,7 @@ export function ProjectManagementPage() {
                 <select
                   value={filterType}
                   onChange={(e) => { setFilterType(e.target.value as typeof filterType); setFilterValue(''); }}
-                  className="workbench-input !w-auto min-w-[100px]"
+                  className="workbench-input workbench-input-sm !w-auto min-w-[100px]"
                 >
                   <option value="method">采购方式</option>
                   <option value="department">申请部门</option>
@@ -366,7 +369,7 @@ export function ProjectManagementPage() {
                 <select
                   value={filterValue}
                   onChange={(e) => setFilterValue(e.target.value)}
-                  className="workbench-input !w-auto min-w-[130px]"
+                  className="workbench-input workbench-input-sm !w-auto min-w-[130px]"
                 >
                   <option value="">全部</option>
                   {filterOptions.map((v) => <option key={v} value={v ?? ''}>{v}</option>)}

@@ -12,7 +12,13 @@
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { toast } from "sonner";
-import { AlertTriangle, Handshake, Inbox, Loader2 } from "lucide-react";
+import {
+  AlertTriangle,
+  FileSpreadsheet,
+  Handshake,
+  Inbox,
+  Loader2,
+} from "lucide-react";;
 import { SpButton } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -120,7 +126,7 @@ export default function MyApplicationsPage() {
           {loading && (
             <div className="cat-loading-mask"><Loader2 size={22} strokeWidth={1.75} /></div>
           )}
-          <SpPageHero srTitle="我的供货申请" />
+          <SpPageHero icon={FileSpreadsheet} title="我的供货申请" sub="查看新增品类、加入供货、改报价申请的审核进度与议价记录" />
 
           <div className="neu-tab-bar app-tabs">
             <button

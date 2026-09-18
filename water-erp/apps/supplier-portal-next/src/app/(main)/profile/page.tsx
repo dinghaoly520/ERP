@@ -1,15 +1,25 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
+  ArrowRight,
+  Award,
   Briefcase,
+  Building2,
+  CheckCircle2,
+  Clock,
   Copy,
   Folder,
+  History,
   ImageUp,
+  Info,
   Landmark,
+  MessageSquare,
   Paperclip,
   PenLine,
   Phone,
@@ -17,12 +27,15 @@ import {
   Star,
   Trash2,
   TriangleAlert,
+  Users,
   X,
+  XCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { supplierApi } from "@/lib/api/supplier";
 import { uploadFile } from "@/lib/api/upload";
 import { cn } from "@/lib/utils";
-import { LoadingBlock, SpButton } from "@/components/ui";
+import { EmptyState, LoadingBlock, SpButton, SpDialog } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { QualAddPanel, QualCompactCard, QualsTab } from "@/components/profile/qualifications";
@@ -30,6 +43,7 @@ import { ContactPanel, ContactsTab } from "@/components/profile/contacts";
 import { INDUSTRY_GROUPS, COMPANY_PROFILE_MAX } from "@/constants/supplier";
 import "@/styles/pages/register2.css";
 import "@/styles/pages/profile.css";
+import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
 /* ═══ 常量（与 CompanyInfo.vue 一致）═══ */
 const STATUS_TEXT: Record<string, string> = {
@@ -76,6 +90,13 @@ const normBank = (b: BankDraft) => ({ accountName: b.accountName.trim(), bankNam
 const normPerf = (p: PerfDraft) => ({ projectName: p.projectName.trim(), clientName: p.clientName.trim(), contractAmount: p.contractAmount.trim(), signDate: p.signDate, description: p.description.trim(), proofFiles: p.proofFiles });
 
 /** 企业信息（CompanyInfo.vue 移植 — 三 tab：企业信息 / 资质与证照 / 联系人 + 变更申请弹窗） */
+/* 变更申请状态 → 徽标色/图标（与 /change-records 页同源） */
+const RECORD_STATUS: Record<string, { label: string; color: string; icon: LucideIcon }> = {
+  PENDING: { label: "已申请", color: "var(--warning)", icon: Clock },
+  APPROVED: { label: "已同意", color: "var(--success)", icon: CheckCircle2 },
+  REJECTED: { label: "已拒绝", color: "var(--danger)", icon: XCircle },
+};
+
 export default function ProfilePage() {
   const { confirm, dialog } = useConfirm();
   const [loading, setLoading] = useState(true);
@@ -425,11 +446,28 @@ export default function ProfilePage() {
   /** 非 APPROVED（含 PENDING/RETURNED）禁止发起资料变更——banner 提示 + 按钮禁用 + openCrDlg toast 兜底 */
   const changeLocked = !!st && st !== "APPROVED";
 
+  /* ── 变更记录窗口（2026-09-18 自独立页收为弹窗展示）── */
+  const [recordsOpen, setRecordsOpen] = useState(false);
+  const [records, setRecords] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (!recordsOpen || records !== null) return;
+    supplierApi.listChangeRecords()
+      .then(setRecords)
+      .catch(() => { toast.error("变更记录加载失败"); setRecords([]); });
+  }, [recordsOpen, records]);
+
   return (
     <>
       <SpPageHero
-        srTitle="企业信息"
-        actions={<SpButton variant="primary" icon={PenLine} onClick={openCrDlg} disabled={changeLocked}>申请资料变更</SpButton>}
+        icon={Building2}
+        title="企业信息"
+        sub="基本信息、联系人、银行账户、资质与主体业绩管理"
+        actions={(
+          <span className="neu-btn-group">
+            <SpButton variant="primary" className="!h-[38px]" icon={PenLine} onClick={openCrDlg} disabled={changeLocked}>申请资料变更</SpButton>
+            <SpButton className="!h-[38px]" icon={History} onClick={() => setRecordsOpen(true)}>变更记录</SpButton>
+          </span>
+        )}
       />
 
       {/* ═══ 禁改 banner（PENDING/RETURNED 等状态沿用 reason-card 警示样式）═══ */}
@@ -440,13 +478,32 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ═══ Tab bar ═══ */}
-      <div className="neu-tab-bar profile-tabs">
-        <button type="button" className={cn("neu-tab", activeTab === "info" && "active", activeTab === "info" && "is-active")} onClick={() => setActiveTab("info")}>基本信息</button>
-        <button type="button" className={cn("neu-tab", activeTab === "quals" && "active", activeTab === "quals" && "is-active")} onClick={() => { setActiveTab("quals"); void loadQualifications(); }}>资质信息</button>
-        <button type="button" className={cn("neu-tab", activeTab === "contacts" && "active", activeTab === "contacts" && "is-active")} onClick={() => { setActiveTab("contacts"); void loadContacts(); }}>联系人信息</button>
-        <button type="button" className={cn("neu-tab", activeTab === "bank" && "active", activeTab === "bank" && "is-active")} onClick={() => setActiveTab("bank")}>银行账户</button>
-        <button type="button" className={cn("neu-tab", activeTab === "perf" && "active", activeTab === "perf" && "is-active")} onClick={() => setActiveTab("perf")}>主体业绩</button>
+      {/* ═══ 五段切换（cgzxui .neu-segment：内凹轨道+滑动白拇指，与「我的投标」状态切换同款）═══ */}
+      <div className="mb-view-seg">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="企业信息分区"
+          data-count="5"
+          data-index={{ info: "0", quals: "1", contacts: "2", bank: "3", perf: "4" }[activeTab]}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          <button type="button" className="neu-segment-btn" aria-pressed={activeTab === "info"} onClick={() => setActiveTab("info")}>
+            <Building2 size={13} strokeWidth={1.9} aria-hidden="true" />基本信息
+          </button>
+          <button type="button" className="neu-segment-btn" aria-pressed={activeTab === "quals"} onClick={() => { setActiveTab("quals"); void loadQualifications(); }}>
+            <Award size={13} strokeWidth={1.9} aria-hidden="true" />资质信息
+          </button>
+          <button type="button" className="neu-segment-btn" aria-pressed={activeTab === "contacts"} onClick={() => { setActiveTab("contacts"); void loadContacts(); }}>
+            <Users size={13} strokeWidth={1.9} aria-hidden="true" />联系人信息
+          </button>
+          <button type="button" className="neu-segment-btn" aria-pressed={activeTab === "bank"} onClick={() => setActiveTab("bank")}>
+            <Landmark size={13} strokeWidth={1.9} aria-hidden="true" />银行账户
+          </button>
+          <button type="button" className="neu-segment-btn" aria-pressed={activeTab === "perf"} onClick={() => setActiveTab("perf")}>
+            <Briefcase size={13} strokeWidth={1.9} aria-hidden="true" />主体业绩
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -1099,6 +1156,51 @@ export default function ProfilePage() {
         </div>,
         document.body,
       )}
+      {/* ═══ 变更记录窗口（独立时间线，随开懒加载）═══ */}
+      <SpDialog
+        open={recordsOpen}
+        onClose={() => setRecordsOpen(false)}
+        icon={History}
+        title="变更记录"
+        subtitle="资料变更申请与审批记录"
+        width={640}
+      >
+        {records === null ? (
+          <LoadingBlock text="正在加载变更记录…" />
+        ) : records.length === 0 ? (
+          <EmptyState icon={History} title="暂无变更记录" desc="提交资料变更申请后将在此展示审批进度" />
+        ) : (
+          <div className="cr-list" style={{ gap: 12 }}>
+            {records.map((r) => {
+              const stMeta = RECORD_STATUS[r.status] ?? { label: r.status, color: "var(--muted-foreground)", icon: Info };
+              const PillIcon = stMeta.icon;
+              return (
+                <div key={r.id} className="cr-card" style={{ "--st": stMeta.color } as React.CSSProperties}>
+                  <div className="cr-rail" />
+                  <div className="cr-body">
+                    <div className="cr-top">
+                      <span className="cr-badge">{r.fieldLabel}</span>
+                      <span className="cr-pill"><PillIcon size={13} />{stMeta.label}</span>
+                    </div>
+                    <div className="cr-diff">
+                      <div className="cr-diff-o"><span className="cr-diff-lbl">原值</span><span className="cr-diff-v">{r.oldValue || "—"}</span></div>
+                      <div className="cr-diff-ar"><ArrowRight size={16} /></div>
+                      <div className="cr-diff-n"><span className="cr-diff-lbl">新值</span><span className="cr-diff-v">{r.newValue}</span></div>
+                    </div>
+                    {r.reason && (
+                      <div className="cr-why"><MessageSquare size={13} className="cr-why-icon" /><span>{r.reason}</span></div>
+                    )}
+                    <div className="cr-foot">
+                      <span className="cr-ft">{dayjs(r.createdAt).format("YYYY-MM-DD HH:mm")}</span>
+                      {r.reviewedAt && <span className="cr-rv">审核于 {dayjs(r.reviewedAt).format("MM-DD HH:mm")}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SpDialog>
       {dialog}
     </>
   );

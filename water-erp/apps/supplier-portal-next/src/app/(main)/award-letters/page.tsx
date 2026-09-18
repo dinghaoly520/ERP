@@ -1,10 +1,20 @@
 "use client";
 
+
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import { toast } from "sonner";
-import { Check, Clock, Download, Eye, FileText, Trophy } from "lucide-react";
+import {
+  Boxes,
+  Check,
+  Clock,
+  Download,
+  Eye,
+  FileSignature,
+  FileText,
+  Trophy,
+} from "lucide-react";;;
 import {
   awardLetterApi,
   awardLetterFileUrl,
@@ -14,8 +24,11 @@ import {
   type AwardLetterDelivery,
 } from "@/lib/api/award-letter";
 import { SpPageHero } from "@/components/sp-page-hero";
+import ContractsPage from "../contracts/page";
+import FrameworksPage from "../frameworks/page";
 import { EmptyState, SpButton } from "@/components/ui";
 import "@/styles/pages/announcements.css";
+import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
 function formatTime(iso: string | null): string {
   return iso ? dayjs(iso).format("YYYY-MM-DD HH:mm") : "—";
@@ -24,6 +37,8 @@ function formatTime(iso: string | null): string {
 function AwardLetterListContent() {
   const searchParams = useSearchParams();
   const deliveryId = searchParams.get("deliveryId");
+  // 成交履约三态：中标通知书 / 合同履约 / 框架协议（cgzxui .neu-segment 分段切换）
+  const [view, setView] = useState<"notices" | "contract" | "framework">("notices");
   const [letters, setLetters] = useState<AwardLetterDelivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [signing, setSigning] = useState<string | null>(null);
@@ -73,8 +88,35 @@ function AwardLetterListContent() {
 
   return (
     <>
-      <SpPageHero srTitle="中标通知书" />
+      <SpPageHero
+        icon={Trophy}
+        title="成交履约"
+        sub="中标通知书签收、合同履约进展与框架协议管理"
+      />
 
+      {/* ═══ 三态切换（cgzxui .neu-segment：内凹轨道+滑动白拇指，与「我的投标」进行中/已完成同款）═══ */}
+      <div className="mb-view-seg">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="成交履约内容"
+          data-count="3"
+          data-index={view === "notices" ? "0" : view === "contract" ? "1" : "2"}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          <button type="button" className="neu-segment-btn" aria-pressed={view === "notices"} onClick={() => setView("notices")}>
+            <Trophy size={13} strokeWidth={1.9} aria-hidden="true" />中标通知书
+          </button>
+          <button type="button" className="neu-segment-btn" aria-pressed={view === "contract"} onClick={() => setView("contract")}>
+            <FileSignature size={13} strokeWidth={1.9} aria-hidden="true" />合同履约
+          </button>
+          <button type="button" className="neu-segment-btn" aria-pressed={view === "framework"} onClick={() => setView("framework")}>
+            <Boxes size={13} strokeWidth={1.9} aria-hidden="true" />框架协议
+          </button>
+        </div>
+      </div>
+
+      {view === "notices" && (
       <div className="mt-4 space-y-4" aria-busy={loading}>
         {!loading && letters.length === 0 ? (
           <EmptyState card icon={FileText} title="暂无中标通知书" />
@@ -175,6 +217,10 @@ function AwardLetterListContent() {
           </div>
         )}
       </div>
+      )}
+
+      {view === "contract" && <ContractsPage />}
+      {view === "framework" && <FrameworksPage />}
     </>
   );
 }

@@ -64,7 +64,7 @@ test("contract and framework workspaces use line tabs with linked exclusive pane
       archiveNoun: "框架协议",
     }],
   ] as const) {
-    assert.match(source, new RegExp(`srTitle="${contract.title}"`));
+    assert.doesNotMatch(source, /SpPageHero/); // 标题由成交履约主页统一承载
     assert.match(source, /useState<LocalRecordsView>\("platform"\)/);
     assert.match(source, /variant="line"/);
     assert.match(source, new RegExp(`ariaLabel="${contract.ariaLabel}"`));
@@ -228,4 +228,18 @@ test("embedded archive layout stays flat and reflows without losing controls", (
   assert.match(workspaceStyles, /@media \(max-width:\s*680px\)[\s\S]*?\.oa-file-link\s*\{[^}]*min-height:\s*44px/);
   assert.match(globalStyles, /@media \(max-width:\s*768px\)[\s\S]*?\.gdlg-x\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px/);
   assert.match(globalStyles, /@media \(max-width:\s*768px\)[\s\S]*?\.gdlg-ft \.neu-btn-primary,[\s\S]{0,120}?\.gdlg-ft \.neu-btn-soft\s*\{[^}]*min-height:\s*44px/);
+});
+
+test("award-letters hub carries the fulfillment title and three-part tabs", () => {
+  const hub = readFileSync(
+    new URL("../../app/(main)/award-letters/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(hub, /title="成交履约"/);
+  for (const label of ["中标通知书", "合同履约", "框架协议"]) {
+    assert.match(hub, new RegExp(`${label}[\\s\\S]*?</button>`), `hub tab missing: ${label}`);
+  }
+  assert.match(hub, /neu-segment/);
+  assert.match(hub, /import ContractsPage/);
+  assert.match(hub, /import FrameworksPage/);
 });

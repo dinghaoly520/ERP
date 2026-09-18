@@ -11,8 +11,7 @@
 ═════════════════════════════════════════════════════════════════ */
 
 /* ═══ ① CompanyInfo.vue scoped ═══ */
-/* ═══ Tabs ═══ */
-.profile-tabs { margin-top: 16px; }
+/* Tabs 已改 .neu-segment 分段切换（shared.css，2026-09-18），旧 .profile-tabs 废弃删除 */
 
 /* ═══ Detail surface ═══ */
 /* 原 .detail-card（Vue CompanyInfo 逐字迁移）——2026-09-02 改独有名：与 bids.css/ukey.css 的 .detail-card 裸类撞车，

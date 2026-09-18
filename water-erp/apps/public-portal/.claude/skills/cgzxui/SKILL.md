@@ -281,6 +281,29 @@ box-shadow:
 | bid-portal | `.bid-pill--*` + `data-invite/data-status/data-anomaly/data-rank…` | 状态徽章与状态色选择器组（7 个属性选择器先例） |
 | expert-portal | `.exp-icon-well` / `.exp-bubble` / `.exp-pill--solid` | 图标井 / 聊天气泡 / 实底徽章 |
 
+## 左侧导航栏 / AppShell 侧栏（web :3005，2026-09-18 收录）
+
+实现源：`apps/web/src/components/app-shell.tsx`（唯一落点，**侧栏结构冻结**——新功能只增导航项，不改壳）+ `globals.css` 搜 `sidebar-`。范本即 :3005 实物。
+
+**骨架**：`<aside data-mode={rail?'rail':'full'} class="sidebar-sheen sidebar-card mr-4 hidden w-[240px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex">` —— 仅桌面（≥lg）；右下角无圆角（贴视口左缘）。竖向三段：品牌区 → `nav.sidebar-scroll.sidebar-nav`（flex-1 滚动）→ 底部折叠钮；段间用横向渐隐 hairline（`mx-3.5 h-px bg-[linear-gradient(90deg,transparent,rgba(160,178,210,.7),transparent)]`）。
+
+**容器质感 `.sidebar-card`**：175° 近实白玻璃渐变（oklch(1 0 0/.97)→(0.995 .005 248/.87)，透太多会显黯淡）+ `backdrop-filter: blur(26px) saturate(130%)` + **1.5px 亮蓝调描边** `oklch(0.78 0.05 250/.5)` + 四层影（内高光 `inset 0 1px 0 oklch(1 0 0/.88)` / 右下暗 `3px 3px 10px oklch(0.52 .04 258/.22)` / 左上亮 `-3px -3px 8px oklch(1 0 0/.94)` / 边缘蓝晕 `0 0 30px oklch(0.58 .14 258/.16)`）。
+
+**品牌区**：`command-orb brand-orb-3d` 48px 徽标球（hover `perspective(700px) rotateY(360deg) scale(1.08)` 0.75s）+ `.sidebar-brand-title` 品牌字「智慧水发·采购中心」彩色流转（品牌蓝基色 + 蓝绿青紫粉高光带 12s 无缝循环；`prefers-reduced-motion` 静态）。
+
+**导航两级 = 组 + 项（无更深嵌套）**：
+- 组头 `.sidebar-group-header`：13px Lucide 图标 + 11px `uppercase tracking-[.08em]` 标签 + `ChevronDown`（折叠 `-rotate-90`，0.2s）；hover 轻蓝染 `var(--accent-tint)`。折叠面板 `.sidebar-group-panel` 用 `grid-template-rows 0fr→1fr` 0.35s 展开（内容 `overflow:hidden; min-height:0`）。
+- 「当前组」双标记：组头 `data-has-active` → 标签染 `var(--accent-strong)`；组容器 `data-current` → 子项图标染 `var(--accent-strong)`（文字不变色）。
+- 导航项 `.sidebar-nav-item`（Link）：透明融入 → hover `accent-tint` → **active = 实白内凹**（`background: oklch(1 0 0)` + 内凹双影顶左暗/底右亮 + 柔和外影，文字 `accent-strong`）；激活书签 `.nav-active-skew`：左侧 2.5px 胶囊条 `skewY(-14deg)` + 蓝渐变 + 6px 蓝投影——**签名元素，勿改形态**。子项相对组头缩进 `ml-1 pl-1.5` 拉层级。
+
+**rail 窄栏**：`data-mode="rail"` → 64px；`.sidebar-item-label` max-width 160px→0 淡出（opacity+width 0.3s）、图标居中、品牌字隐藏、分组退化为 `w-7` 短分隔线；底部固定 `.sidebar-nav-item` 折叠钮（ChevronsLeft/Right，aria-expanded）。宽/窄切换动画 `width .3s cubic-bezier(.22,1,.36,1)`。
+
+**滚动**：`.sidebar-scroll` —— 6px 细滚动条、蓝渐变 thumb、`overscroll-behavior: contain`、smooth。
+
+**移动端（<lg）**：侧栏隐藏，由 `lg:hidden` 水平胶囊条替代（`interactive-surface` 圆片 + `overflow-x-auto`）。
+
+**反模式**：导航项不得加外框线/emoji/非 Lucide 图标；不引入第三级菜单；不把激活态做成描边或底色填充（实白内凹+斜切书签是既定语言）；不在壳内叠加大面积装饰。
+
 ## 表单/确认弹窗内容范式（web :3005，2026-09-18 定稿）
 
 Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admin/account-management-panel.tsx` 的 `ResetPasswordModal`——账号管理改密弹窗）：

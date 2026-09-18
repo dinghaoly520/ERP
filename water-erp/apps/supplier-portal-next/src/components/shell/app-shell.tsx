@@ -9,13 +9,14 @@ import dayjs from "dayjs";
 import {
   ArrowDown,
   Bell,
+  ChevronDown,
   Lock,
   LogOut,
   Menu as MenuIcon,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronsLeft,
+  ChevronsRight,
   X,
-} from "lucide-react";
+} from "lucide-react";;
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notification-context";
 import { useSupplierStatus } from "@/lib/supplier-status-context";
@@ -131,6 +132,7 @@ export function SupplierSidebarNavItem({
         <Link
           ref={linkRef}
           href={item.path}
+          data-active={active ? "true" : undefined}
           className={cn("sp-nav-item", active && "active")}
           aria-current={ownsCurrentPage ? "page" : undefined}
           aria-label={item.badge && unreadCount > 0 ? `${item.title}，${unreadCount} 条未读` : item.title}
@@ -151,8 +153,8 @@ export function SupplierSidebarNavItem({
             onNavigate(item.path);
           }}
         >
-          {active && <span className="sp-nav-active-bar" aria-hidden="true" />}
-          <span className="sp-nav-icon" aria-hidden="true"><Icon size={18} /></span>
+          {active && <span className="nav-active-skew" aria-hidden="true" />}
+          <span className="sp-nav-icon" aria-hidden="true"><Icon size={16} /></span>
           <span className={cn("sp-nav-text", showTooltip && "hidden")}>
             <span className="sp-nav-title">{item.title}</span>
           </span>
@@ -201,6 +203,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { status, statusError, fetchStatus } = useSupplierStatus();
 
   const [collapsed, setCollapsed] = useState(false);
+  // 分组折叠（对齐 :3005 sidebar-group-header 可点击折叠）
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [mobileDrawer, setMobileDrawer] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [pwdOpen, setPwdOpen] = useState(false);
@@ -349,25 +353,73 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const navList = (mobile = false) => (
-    <nav
-      id={mobile ? "supplier-mobile-navigation" : "supplier-desktop-navigation"}
-      className="sp-nav"
-      aria-label={mobile ? "移动端主导航" : "供应商主导航"}
-    >
-      {menuItems.map((item, idx) =>
-        "divider" in item ? (
-          collapsed && !mobile ? (
-            <div key={idx} className="sp-nav-section-dot" aria-hidden="true" />
+  const navList = (mobile = false) => {
+    // 连续的工作区项归入其前导分组（对齐 :3005：组头可点击折叠 + 含激活项染蓝 + 组图标点蓝）
+    const rows: React.ReactNode[] = [];
+    const leadingItems: Extract<MenuItem, { path: string }>[] = []; // 首个分组之前的散项（工作台）
+    let currentGroup: { label: string; items: Extract<MenuItem, { path: string }>[] } | null = null;
+    const flushGroup = (key: string) => {
+      if (!currentGroup) return;
+      const { label, items } = currentGroup;
+      const isCollapsed = collapsedGroups.has(label);
+      const hasActive = items.some((it) => it.path === activeWorkspace?.path);
+      rows.push(
+        <div key={`grp-${key}`} data-current={hasActive ? "true" : "false"}>
+          {collapsed && !mobile ? (
+            <div aria-hidden className="sp-nav-section-dot" />
           ) : (
-            <div key={idx} className="sp-nav-section"><span>{item.label}</span></div>
-          )
-        ) : (
-          navItem(item, mobile)
-        ),
-      )}
-    </nav>
-  );
+            <button
+              type="button"
+              className="sidebar-group-header"
+              aria-expanded={!isCollapsed}
+              data-has-active={hasActive ? "true" : "false"}
+              onClick={() => setCollapsedGroups((prev) => {
+                const next = new Set(prev);
+                if (next.has(label)) next.delete(label); else next.add(label);
+                return next;
+              })}
+            >
+              <span className="sidebar-group-label">{label}</span>
+              <ChevronDown size={12} aria-hidden="true" className={isCollapsed ? "is-collapsed" : ""} />
+            </button>
+          )}
+          <div className={`sidebar-group-panel${isCollapsed ? "" : " is-open"}`}>
+            <div className="sidebar-group-body">{items.map((it) => navItem(it, mobile))}</div>
+          </div>
+        </div>,
+      );
+      currentGroup = null;
+    };
+
+    menuItems.forEach((item, idx) => {
+      if ("divider" in item) {
+        flushGroup(`d${idx}`);
+        currentGroup = { label: item.label, items: [] };
+      } else if (currentGroup) {
+        currentGroup.items.push(item);
+      } else {
+        leadingItems.push(item); // 第一个分组前（如「工作台」）：无组头平铺
+      }
+    });
+    flushGroup("tail");
+    if (leadingItems.length > 0) {
+      rows.unshift(
+        <div key="grp-leading" className="sidebar-group-flat">
+          {leadingItems.map((it) => navItem(it, mobile))}
+        </div>,
+      );
+    }
+
+    return (
+      <nav
+        id={mobile ? "supplier-mobile-navigation" : "supplier-desktop-navigation"}
+        className="sp-nav"
+        aria-label={mobile ? "移动端主导航" : "供应商主导航"}
+      >
+        {rows}
+      </nav>
+    );
+  };
 
   return (
     <div className="sp-layout">
@@ -486,16 +538,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="sp-body" inert={mobileDrawer || undefined}>
         <aside className={cn("sp-sidebar", collapsed && "collapsed")} aria-label="侧栏导航">
           {navList()}
+          {/* 底部固定折叠区（对齐 :3005：渐隐发丝线 + 导航项同款按钮）*/}
+          <div aria-hidden className="sp-sidebar-hairline" />
+          <div className="sp-collapse-zone">
           <button
             type="button"
-            className="sp-collapse-toggle"
+            className="sp-nav-item sp-collapse-btn justify-center"
             aria-label={collapsed ? "展开侧栏" : "收起侧栏"}
             aria-controls="supplier-desktop-navigation"
             aria-expanded={!collapsed}
+            title={collapsed ? "展开侧栏" : "收起侧栏"}
             onClick={() => setCollapsed((value) => !value)}
           >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {collapsed ? <ChevronsRight size={16} aria-hidden="true" /> : <ChevronsLeft size={16} aria-hidden="true" />}
           </button>
+          </div>
         </aside>
 
         <main id="supplier-main-content" className="sp-content">

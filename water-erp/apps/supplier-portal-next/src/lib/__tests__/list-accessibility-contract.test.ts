@@ -20,7 +20,7 @@ test("project and announcement rows expose native navigation links", () => {
   assert.doesNotMatch(announcements, /className="announcement-row" onClick=/);
   assert.match(announcements, /<Link[\s\S]*?className="announcement-row"/);
   assert.match(announcements, /aria-label=\{`查看公告：\$\{a\.title\}`\}/);
-  assert.match(announcements, /<SpTabs[\s\S]*?ariaLabel="公告类型"/);
+  assert.match(announcements, /neu-segment[\s\S]*?aria-label="公告类型"/);
   assert.match(announcements, /aria-label="搜索公告标题"/);
   assert.match(announcements, /import \{ serverNowMs \} from "@water-erp\/shared"/);
   assert.doesNotMatch(announcements, /Date\.now\(\)/);

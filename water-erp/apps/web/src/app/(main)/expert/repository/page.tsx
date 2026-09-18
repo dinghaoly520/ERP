@@ -221,23 +221,25 @@ export default function ExpertRepositoryPage() {
         </div>
       </div>
 
-      {/* ══════ 工具栏 ══════ */}
-      <div className="wb-toolbar flex-wrap gap-2">
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
+      {/* ══════ 工具行：搜索（左，固定 280px）+ 筛选与操作（右）——2026-09-18 对齐供应商库同款 ══════ */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input !pl-9" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input neu-input-sm !pl-9" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
         </div>
-        <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
-        <button onClick={() => setShowAdvanced(v => !v)} className={`neu-btn-xs ${showAdvanced ? 'is-active' : ''}`}>高级筛选</button>
-        {!batchMode ? (
-          <button onClick={() => setBatchMode(true)} className="neu-btn-xs">批量操作</button>
-        ) : (
-          <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
-        )}
-        <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>
-        <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家` : '导出全部专家'}><Download size={12} />导出CSV{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
+        <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input workbench-input-sm !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
         {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+          <button onClick={() => setShowAdvanced(v => !v)} className={`neu-btn-xs ${showAdvanced ? 'is-active' : ''}`}>高级筛选</button>
+          {!batchMode ? (
+            <button onClick={() => setBatchMode(true)} className="neu-btn-xs">批量操作</button>
+          ) : (
+            <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
+          )}
+          <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>
+          <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家` : '导出全部专家'}><Download size={12} />导出CSV{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
+        </div>
       </div>
 
       {/* 高级筛选 */}

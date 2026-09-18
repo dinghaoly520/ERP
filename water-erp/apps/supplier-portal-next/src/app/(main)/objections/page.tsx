@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { Inbox, Plus, TriangleAlert } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  Inbox,
+  MessageSquareReply,
+  MessageSquareWarning,
+  Plus,
+  ShieldAlert,
+  TriangleAlert,
+} from "lucide-react";
 import { objectionApi, type SupplierObjection } from "@/lib/api/objection";
 import { bidApi } from "@/lib/api/bid";
 import { announcementApi } from "@/lib/api/announcement";
@@ -10,6 +19,7 @@ import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpSelect, SpTextarea } from "@/components/ui";
 import { toast } from "sonner";
 import "@/styles/pages/objections.css";
+import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
 /** C6（GB/T 43711 4.2.2）：供应商对采购文件、资格预审结果、采购结果的异议在线提交与答复查看。 */
 const PHASE_LABEL: Record<string, string> = {
@@ -28,12 +38,12 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   complaint: { label: "已转投诉", cls: "st-complaint" },
   closed: { label: "已办结", cls: "st-closed" },
 };
-const STATUS_TABS: Array<{ value: "all" | string; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "open", label: "待答复" },
-  { value: "answered", label: "已答复" },
-  { value: "complaint", label: "已转投诉" },
-  { value: "closed", label: "已办结" },
+const STATUS_TABS: Array<{ value: "all" | string; label: string; icon: typeof Inbox }> = [
+  { value: "all", label: "全部", icon: Inbox },
+  { value: "open", label: "待答复", icon: Clock },
+  { value: "answered", label: "已答复", icon: MessageSquareReply },
+  { value: "complaint", label: "已转投诉", icon: ShieldAlert },
+  { value: "closed", label: "已办结", icon: CheckCircle2 },
 ];
 
 export default function ObjectionsPage() {
@@ -106,7 +116,7 @@ export default function ObjectionsPage() {
   if (error && !loading) {
     return (
       <>
-        <SpPageHero srTitle="异议与投诉" />
+        <SpPageHero icon={MessageSquareWarning} title="异议与投诉" sub="对采购文件、资格预审结果、采购结果有异议的，按公告约定在线提出" />
         <div className="sp-error-block">
           <div className="sp-error-icon"><TriangleAlert size={22} strokeWidth={1.75} /></div>
           <div className="sp-error-text">数据加载失败</div>
@@ -119,24 +129,35 @@ export default function ObjectionsPage() {
 
   return (
     <>
-      <SpPageHero srTitle="异议与投诉" />
+      <SpPageHero
+        icon={MessageSquareWarning}
+        title="异议与投诉"
+        sub="对采购文件、资格预审结果、采购结果有异议的，按公告约定在线提出"
+        actions={<SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>}
+      />
 
-      {/* 工具栏卡：状态筛选 tabs + 提出异议主操作 */}
-      <div className="sp-toolbar-card">
-        <div className="neu-tab-bar" role="group" aria-label="异议状态筛选">
+      {/* ═══ 状态分段切换（cgzxui .neu-segment：与「成交履约」同款——hero 下独立一行）═══ */}
+      <div className="mb-view-seg">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="异议状态筛选"
+          data-count="5"
+          data-index={String(STATUS_TABS.findIndex((t) => t.value === statusFilter))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
               type="button"
-              className={`neu-tab${statusFilter === tab.value ? " active" : ""}`}
+              className="neu-segment-btn"
               aria-pressed={statusFilter === tab.value}
               onClick={() => setStatusFilter(tab.value)}
             >
-              {tab.label}
+              <tab.icon size={13} strokeWidth={1.9} aria-hidden="true" />{tab.label}
             </button>
           ))}
         </div>
-        <SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>
       </div>
 
       {loading ? (

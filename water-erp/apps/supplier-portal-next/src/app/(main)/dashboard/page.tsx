@@ -390,6 +390,8 @@ export default function DashboardPage() {
                 </div>
               ) : null}
             </div>
+            {/* 下横线收底（2026-09-18 对齐 :3005 账号管理 page-hero__divider 与 SpPageHero） */}
+            <div className="page-hero__divider" />
           </div>
 
           {/* 供应商侧统一待办：由资料、项目、通知书与合同履约状态聚合 */}

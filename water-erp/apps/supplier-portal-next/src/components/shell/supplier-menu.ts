@@ -39,6 +39,9 @@ export interface MenuEntry {
   desc: string;
   tabs?: WorkspaceTab[];
   badge?: boolean;
+  /** 归属附加路由：命中的 pathname 归属本工作区（父项高亮），但侧栏不渲染子项。
+   *  用于子页面不占侧栏、仍需保持模块归属的场景（2026-09-18：可参与项目/资格预审收起）。 */
+  extraPaths?: string[];
 }
 
 export interface MenuDivider {
@@ -94,7 +97,10 @@ export function findWorkspaceTabForPath(
   const tab = findLongestPathMatch(pathname, workspace.tabs ?? []);
   if (tab) return tab;
 
-  const workspaceMatches = pathname === workspace.path || pathname.startsWith(`${workspace.path}/`);
+  const workspaceMatches = pathname === workspace.path || pathname.startsWith(`${workspace.path}/`)
+    || (workspace.extraPaths ?? []).some(
+      (extra) => pathname === extra || pathname.startsWith(`${extra}/`),
+    );
   return workspaceMatches ? { path: workspace.path, title: workspace.title } : null;
 }
 
@@ -130,31 +136,24 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
       title: "项目机会",
       icon: FileText,
       desc: "发现项目与资格预审",
-      tabs: [
-        { path: "/bids", title: "可参与项目", icon: FileText },
-        { path: "/prequal", title: "资格预审", icon: ListChecks },
-      ],
+      // 2026-09-18 用户裁定：可参与项目/资格预审不进侧栏（单入口），资格预审经页面内入口进入
+      extraPaths: ["/prequal"],
     },
     {
       path: "/my-bids",
       title: "我的投标",
       icon: FileCheck,
       desc: "跟踪投标与合作历史",
-      tabs: [
-        { path: "/my-bids", title: "进行中", icon: FileCheck },
-        { path: "/completed-projects", title: "已完成", icon: ScrollText },
-      ],
+      // 2026-09-18 用户裁定：进行中/已完成不进侧栏（单入口），已完成经页面内入口进入
+      extraPaths: ["/completed-projects"],
     },
     {
       path: "/award-letters",
       title: "成交履约",
       icon: Trophy,
       desc: "通知书、合同与框架协议",
-      tabs: [
-        { path: "/award-letters", title: "成交通知", icon: Trophy },
-        { path: "/contracts", title: "合同履约", icon: FileCheck },
-        { path: "/frameworks", title: "框架协议", icon: Boxes },
-      ],
+      // 2026-09-18 用户裁定：成交通知/合同履约/框架协议不进侧栏（单入口），经页面内入口进入
+      extraPaths: ["/contracts", "/frameworks"],
     },
   ];
 
@@ -164,13 +163,11 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
     items.push(
       {
         path: "/profile",
-        title: "企业资料",
+        title: "企业信息",
         icon: Building2,
         desc: "主体资料与变更记录",
-        tabs: [
-          { path: "/profile", title: "基本资料", icon: IdCard },
-          { path: "/change-records", title: "变更记录", icon: History },
-        ],
+        // 2026-09-18 用户裁定：基本资料/变更记录不进侧栏（单入口），变更记录经页面内入口进入
+        extraPaths: ["/change-records"],
       },
       {
         path: "/profile/ukey",

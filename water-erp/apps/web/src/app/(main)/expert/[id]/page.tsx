@@ -849,44 +849,88 @@ export default function ExpertDetailPage() {
             </>
           }
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {PROFILE_FIELDS.map(f => (
-                <label key={f.key} className="space-y-1 block">
-                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
-                  <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
+          {/* 分区表单：身份联系 / 专业资格 / 所属状态 / 档案备注（信息密度用排版层级分而非堆间隔） */}
+          <div className="space-y-5">
+            <section className="space-y-3">
+              <GroupHead>身份与联系 · 通知触达</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {PROFILE_FIELDS.filter(f => ['displayName', 'idNumber', 'phone', 'email', 'ethnicity', 'education'].includes(f.key)).map(f => (
+                  <label key={f.key} className="space-y-1 block">
+                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
+                    <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <GroupHead>专业资格 · 抽取匹配</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {PROFILE_FIELDS.filter(f => ['specialty', 'title', 'licenseNo'].includes(f.key)).map(f => (
+                  <label key={f.key} className="space-y-1 block">
+                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
+                    <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
+                  </label>
+                ))}
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
+                  <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（A-129，区别于履职评价等级），抽取配额可按此过滤">
+                    <option value="">未设置</option>
+                    {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
+                  </select>
                 </label>
-              ))}
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span>
-                <input value={editForm.departmentName} onChange={e => setEditForm(prev => ({ ...prev, departmentName: e.target.value }))} placeholder="如 工程勘察院" className="workbench-input" />
-              </label>
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">可用状态</span>
-                <select value={editForm.availability} onChange={e => setEditForm(prev => ({ ...prev, availability: e.target.value as '可用' | '占用' | '停用' }))} className="workbench-input">
-                  <option value="可用">可用</option>
-                  <option value="占用">占用</option>
-                  <option value="停用">停用</option>
-                </select>
-              </label>
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
-                <input value={editForm.regionCode} onChange={e => setEditForm(prev => ({ ...prev, regionCode: e.target.value }))} maxLength={6} placeholder="六位行政区划代码如 510000" className="workbench-input" />
-              </label>
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
-                <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（A-129，区别于履职评价等级），抽取配额可按此过滤">
-                  <option value="">未设置</option>
-                  {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
-                </select>
-              </label>
-              <label className="space-y-1 block sm:col-span-2">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span>
-                <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="履职备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />
-              </label>
-            </div>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <GroupHead>所属与状态</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1 block sm:col-span-2">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位</span>
+                  <input value={editForm.employer} onChange={e => setEditForm(prev => ({ ...prev, employer: e.target.value }))} placeholder="所在单位全称" className="workbench-input" />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span>
+                  <input value={editForm.departmentName} onChange={e => setEditForm(prev => ({ ...prev, departmentName: e.target.value }))} placeholder="如 工程勘察院" className="workbench-input" />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">可用状态</span>
+                  <select value={editForm.availability} onChange={e => setEditForm(prev => ({ ...prev, availability: e.target.value as '可用' | '占用' | '停用' }))} className="workbench-input">
+                    <option value="可用">可用</option>
+                    <option value="占用">占用</option>
+                    <option value="停用">停用</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <GroupHead>档案维度（A-129）与备注</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
+                  <input value={editForm.regionCode} onChange={e => setEditForm(prev => ({ ...prev, regionCode: e.target.value }))} maxLength={6} placeholder="六位行政区划代码如 510000" className="workbench-input font-mono" />
+                </label>
+                <label className="space-y-1 block sm:col-span-2">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span>
+                  <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="履职备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />
+                </label>
+              </div>
+            </section>
+          </div>
 
         </Modal>
       )}
+    </div>
+  );
+}
+
+/** 弹窗内分区标题：小号大写字距 + 右延 hairline（与公司分组标题同语言） */
+function GroupHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">{children}</span>
+      <span className="h-px min-w-4 flex-1 bg-[color-mix(in_oklch,var(--muted-foreground)_14%,transparent)]" />
     </div>
   );
 }

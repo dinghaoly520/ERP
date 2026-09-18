@@ -5,10 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import { ClipboardList, TriangleAlert, Plus } from "lucide-react";
-import { supplierApi } from "@/lib/api/supplier";
+import {
+  Archive,
+  ChevronRight,
+  ClipboardList,
+  FileCheck,
+  TriangleAlert,
+} from "lucide-react";
+import { completedProjectsApi, supplierApi, type CompletedProjectRow } from "@/lib/api/supplier";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { SpButton } from "@/components/ui";
+import { EmptyState, SpButton } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
@@ -27,6 +33,21 @@ function stageIdx(stage: string): number {
 
 function stageColor(stage: string): string {
   return STAGES.find((s) => s.key === stage)?.color || "var(--stage-default)";
+}
+
+// 已完成合作历史的结果徽标（与 /completed-projects 同源）
+const OUTCOME_META: Record<string, { label: string; cls: string }> = {
+  AWARDED: { label: "中标", cls: "approved" },
+  PARTICIPATED: { label: "已投递 · 未中标", cls: "submitted" },
+  INVITED: { label: "受邀 · 未投递", cls: "draft" },
+  ABORTED: { label: "项目流标", cls: "disabled" },
+};
+
+function fmtAmount(v: unknown): string {
+  if (v == null || v === "") return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return n >= 10000 ? `${(n / 10000).toFixed(2)} 万元` : `${n} 元`;
 }
 
 // ── Status helpers ──
@@ -81,6 +102,11 @@ export default function MyBidsPage() {
   const [firstLoad, setFirstLoad] = useState(true);
   const [error, setError] = useState(false);
   const [submissions, setSubmissions] = useState<any[]>([]);
+  // 状态视图：进行中（投标记录）/ 已完成（合作历史）
+  const [view, setView] = useState<"active" | "completed">("active");
+  const [completed, setCompleted] = useState<CompletedProjectRow[]>([]);
+  const [completedLoading, setCompletedLoading] = useState(false);
+  const [completedLoaded, setCompletedLoaded] = useState(false);
 
   const loadingRef = useRef(loading);
   const firstLoadRef = useRef(firstLoad);
@@ -109,6 +135,24 @@ export default function MyBidsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadCompleted = useCallback(async () => {
+    setCompletedLoading(true);
+    try {
+      setCompleted(await completedProjectsApi.list());
+      setCompletedLoaded(true);
+    } catch {
+      toast.error("已完成项目加载失败");
+    } finally {
+      setCompletedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === "completed" && !completedLoaded && !completedLoading) {
+      loadCompleted();
+    }
+  }, [view, completedLoaded, completedLoading, loadCompleted]);
 
   // 实时兜底：回到页面（焦点/可见）自动重载——阶段流转（在线开标/专家评标/已归档）即时反映
   useEffect(() => {
@@ -163,14 +207,26 @@ export default function MyBidsPage() {
         <div style={loading ? { opacity: 0.6, pointerEvents: "none", transition: "opacity .2s" } : undefined}>
           {/* ═══ HERO（精简工具条：无装饰标题，保留操作入口）═══ */}
           <SpPageHero
-            srTitle="投标进展"
-            actions={
-              <SpButton variant="primary" icon={Plus} onClick={() => router.push("/bids")}>浏览投标机会</SpButton>
-            }
+            icon={FileCheck}
+            title="我的投标"
+            sub="跟踪进行中的投标与已完成的合作历史"
           />
 
-          {/* ═══ SUBMISSION LIST — neumorphic plates ═══ */}
-          {submissions.length > 0 ? (
+          {/* ═══ 状态切换：进行中 / 已完成（cgzxui .neu-segment 二选一分段切换）═══ */}
+          <div className="mb-view-seg">
+            <div className="neu-segment" role="group" aria-label="投标状态" data-index={view === "active" ? "0" : "1"}>
+              <span className="neu-segment-thumb" aria-hidden="true" />
+              <button type="button" className="neu-segment-btn" aria-pressed={view === "active"} onClick={() => setView("active")}>
+                <FileCheck size={13} strokeWidth={1.9} aria-hidden="true" />进行中
+              </button>
+              <button type="button" className="neu-segment-btn" aria-pressed={view === "completed"} onClick={() => setView("completed")}>
+                <Archive size={13} strokeWidth={1.9} aria-hidden="true" />已完成
+              </button>
+            </div>
+          </div>
+
+          {/* ═══ 进行中：投标记录列表 ═══ */}
+          {view === "active" && (submissions.length > 0 ? (
             <div className="mb-list">
               {submissions.map((row, idx) => {
                 const hasStage = row.status === "submitted" && row.project?.stage;
@@ -328,8 +384,57 @@ export default function MyBidsPage() {
               <div className="sp-empty-icon"><ClipboardList size={22} strokeWidth={1.75} /></div>
               <p className="sp-empty-text">暂无投标记录</p>
               <p className="sp-empty-desc">浏览招标项目并提交您的标书</p>
-              <SpButton variant="primary" className="mt-4" onClick={() => router.push("/bids")}>浏览投标机会</SpButton>
             </div>
+          ))}
+
+          {/* ═══ 已完成：合作历史（归档/流标项目全量信息）═══ */}
+          {view === "completed" && (
+            completedLoading && !completedLoaded ? (
+              <div className="neu-card mb-empty"><p className="sp-empty-text">加载已完成项目…</p></div>
+            ) : completed.length === 0 ? (
+              <EmptyState card icon={Archive} title="暂无已完成项目" desc="合作项目完结（归档）后将在此记录" />
+            ) : (
+              <div className="neu-table-card">
+                <div className="completed-projects-table-wrap">
+                  <table className="sp-table completed-projects-table">
+                    <caption className="sr-only">已完成项目列表</caption>
+                    <thead>
+                      <tr>
+                        <th>项目名称</th>
+                        <th>项目编号</th>
+                        <th>采购方式</th>
+                        <th>我的结果</th>
+                        <th>中标金额</th>
+                        <th>我的报价</th>
+                        <th>完结时间</th>
+                        <th style={{ width: 110 }}>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {completed.map((r) => {
+                        const meta = OUTCOME_META[r.outcome] || { label: r.outcome, cls: "draft" };
+                        return (
+                          <tr key={r.projectId}>
+                            <td data-label="项目名称" className="font-semibold">{r.name}</td>
+                            <td data-label="项目编号" className="font-mono text-xs">{r.projectCode}</td>
+                            <td data-label="采购方式">{r.procurementMethod}</td>
+                            <td data-label="我的结果"><span className={`sp-status ${meta.cls}`}>{meta.label}</span></td>
+                            <td data-label="中标金额">{r.outcome === "AWARDED" ? fmtAmount(r.awardAmount) : "—"}</td>
+                            <td data-label="我的报价">{r.myBidPrice ? fmtAmount(r.myBidPrice) : "—"}</td>
+                            <td data-label="完结时间" className="text-xs">{r.completedAt ? dayjs(r.completedAt).format("YYYY-MM-DD") : "—"}</td>
+                            <td data-label="操作" className="completed-project-action-cell">
+                              <Link href={`/bids/${encodeURIComponent(r.projectId)}`} className="completed-project-link" aria-label={`查看项目 ${r.name}详情`}>
+                                查看详情<ChevronRight size={12} />
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
           )}
         </div>
       )}

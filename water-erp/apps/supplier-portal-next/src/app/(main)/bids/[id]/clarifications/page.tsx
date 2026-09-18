@@ -13,8 +13,16 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
-  ArrowLeft, FileText, KeyRound, Lock, ShieldCheck, Trash2, TriangleAlert, UploadCloud,
-} from "lucide-react";
+  ArrowLeft,
+  FileText,
+  KeyRound,
+  Lock,
+  MessageSquare,
+  ShieldCheck,
+  Trash2,
+  TriangleAlert,
+  UploadCloud,
+} from "lucide-react";;
 import { bidApi, type SupplierBidClarification } from "@/lib/api/bid";
 import { supplierApi } from "@/lib/api/supplier";
 import { uploadFile } from "@/lib/api/upload";
@@ -204,7 +212,9 @@ export default function BidClarificationsPage() {
       </button>
 
       <SpPageHero
-        srTitle="评标澄清答复"
+        icon={MessageSquare}
+        title="评标澄清答复"
+        sub="查看评标澄清问题并提交答复"
         actions={pendingCount > 0 ? <span className="b-tag b-tag--warning">{pendingCount} 条待答复</span> : undefined}
       />
 

@@ -325,7 +325,7 @@ export function AccountManagementPanel() {
           </div>
           {/* 列表 tab 显示搜索框；其他 tab 等高占位（二级分区切换已下移到列表上方独立一层） */}
           {tab === "list" ? (
-            <div className="relative mb-1.5 w-full max-w-[220px] min-w-[160px]">
+            <div className="relative mb-1.5 w-[280px] shrink-0">
               <Search size={14} className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[var(--muted-foreground)]" />
               <input
                 type="text"
@@ -333,11 +333,11 @@ export function AccountManagementPanel() {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="搜索用户名 / 姓名 / 公司"
                 aria-label="搜索账号"
-                className="neu-input !pl-9 w-full text-sm"
+                className="neu-input neu-input-sm !pl-9 w-full text-sm"
               />
             </div>
           ) : (
-            <div aria-hidden className="mb-1.5 h-[44px] w-full max-w-[220px] min-w-[160px]" />
+            <div aria-hidden className="mb-1.5 h-9 w-[280px] shrink-0" />
           )}
         </div>
       </div>
