@@ -57,7 +57,7 @@ model User {
   passwordVault  String? // 2026-09-14 admin 密码查看：AES-256-GCM 加密副本（仅供应商账号，改密同步更新；工作人员密码仍仅 bcrypt 哈希）
   role           String      @default("internal_user")
   isActive       Boolean     @default(true)
-  webSessionId   String? // :3005 单设备登录：每次 web 登录轮换；JWT 里的 sid 与之不符即拒绝（旧设备被顶下线）
+  webSessionId   String? // 单设备登录（web 2026-08 / supplier 2026-09）：每次登录轮换；JWT 里的 sid 与之不符即拒绝（旧设备被顶下线）。角色↔门户互斥，两门户共用一列
   isFrozen       Boolean     @default(false) // 管理员冻结：登录拦截（ACCOUNT_FROZEN）+ 守卫即时 401，区别于未激活 isActive=false
   requestedRole  String?     @map("requested_role") // 注册申请权限：management | office（审批时映射为正式角色）
   drafts         UserDraft[]

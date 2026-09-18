@@ -1,10 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { hashSync } from 'bcryptjs';
+
+/** 解出 JWT 载荷（不验签），供断言 sid 是否随 token 下发 */
+function decodeJwt(token: string): Record<string, any> {
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
+}
 
 /**
  * 登录指定用户并返回 cookie。
@@ -54,10 +60,31 @@ describe('Auth (e2e)', () => {
         isActive: false,
       },
     });
+
+    // 单设备登录测试用户（自建，不依赖 seed 账号）
+    for (const [username, role] of [
+      ['e2e-single-supplier', 'supplier'],
+      ['e2e-single-staff', 'staff'],
+      ['e2e-single-mall', 'mall'],
+    ] as const) {
+      await prisma.user.upsert({
+        where: { username_role: { username, role } },
+        update: { isActive: true, passwordHash: hashSync('Single@2026', 10) },
+        create: {
+          username,
+          displayName: `单设备登录测试-${role}`,
+          passwordHash: hashSync('Single@2026', 10),
+          role,
+          isActive: true,
+        },
+      });
+    }
   });
 
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { username: 'e2e-disabled-user' } });
+    await prisma.user.deleteMany({
+      where: { username: { in: ['e2e-disabled-user', 'e2e-single-supplier', 'e2e-single-staff', 'e2e-single-mall'] } },
+    });
     await app.close();
   });
 
@@ -170,6 +197,84 @@ describe('Auth (e2e)', () => {
         .set('Cookie', cookie)
         .set('X-Portal', 'expert')
         .expect(403);
+    });
+  });
+
+  /* ── 单设备登录（2026-09-18：supplier 扩展 + web 回归）── */
+
+  describe('单设备登录', () => {
+    const loginWith = (username: string, portal: string) =>
+      request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('X-Portal', portal)
+        .send({ username, password: 'Single@2026' });
+
+    it('supplier 重复登录：后登者顶掉先登者（旧 token 401 SESSION_REPLACED，新 token 200）', async () => {
+      const first = await loginWith('e2e-single-supplier', 'supplier').expect(200);
+      const second = await loginWith('e2e-single-supplier', 'supplier').expect(200);
+      const oldToken = first.body.access_token as string;
+      const newToken = second.body.access_token as string;
+
+      // supplier 登录签发的 token 应带 sid（会话轮换）
+      expect(decodeJwt(newToken).sid).toBeTruthy();
+
+      // 旧 token 被顶下线
+      const kicked = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_supplier=${oldToken}`)
+        .set('X-Portal', 'supplier');
+      expect(kicked.status).toBe(401);
+      expect(kicked.body.code).toBe('SESSION_REPLACED');
+
+      // 新 token 正常使用
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_supplier=${newToken}`)
+        .set('X-Portal', 'supplier')
+        .expect(200);
+    });
+
+    it('supplier 无 sid 存量 token（token_supplier cookie）应 401 强制重登', async () => {
+      // 模拟本功能上线前的存量会话：同密钥手工签发不带 sid 的 token
+      const user = await prisma.user.findUnique({
+        where: { username_role: { username: 'e2e-single-supplier', role: 'supplier' } },
+        select: { id: true },
+      });
+      const legacyToken = app.get(JwtService).sign({
+        sub: user!.id,
+        username: 'e2e-single-supplier',
+        role: 'supplier',
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_supplier=${legacyToken}`)
+        .set('X-Portal', 'supplier');
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('SESSION_REPLACED');
+    });
+
+    it('web 回归：staff 重复登录旧 token 401（:3005 既有行为不受 supplier 扩展影响）', async () => {
+      const first = await loginWith('e2e-single-staff', 'web').expect(200);
+      const second = await loginWith('e2e-single-staff', 'web').expect(200);
+
+      const kicked = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_web=${first.body.access_token}`)
+        .set('X-Portal', 'web');
+      expect(kicked.status).toBe(401);
+      expect(kicked.body.code).toBe('SESSION_REPLACED');
+
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_web=${second.body.access_token}`)
+        .set('X-Portal', 'web')
+        .expect(200);
+    });
+
+    it('mall 登录不轮换（token 无 sid，其他命名空间不受影响）', async () => {
+      const res = await loginWith('e2e-single-mall', 'mall').expect(200);
+      expect(decodeJwt(res.body.access_token).sid).toBeUndefined();
     });
   });
 });
