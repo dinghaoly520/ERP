@@ -61,7 +61,7 @@ export class BidEvaluationResultsService {
         where: { projectId },
         // 稳定排序保证指纹确定性（@@unique([projectId, name])，name 唯一可作序键）
         orderBy: [{ category: 'asc' }, { name: 'asc' }],
-        select: { id: true, name: true, category: true, maxScore: true, points: { select: { id: true, name: true } } },
+        select: { id: true, name: true, category: true, maxScore: true, points: { select: { id: true, name: true }, orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
       }),
     ]);
     const body = {
