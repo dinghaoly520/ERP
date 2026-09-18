@@ -629,6 +629,8 @@ background:
 
 组头 11px semibold uppercase tracking 0.08em（与 14px 子项拉开层级）；子项区 `ml-1 pl-1.5` 缩进偏移（rail 态不加，避免图标列偏心）。
 
+> 同款选中态（实白 + 凹陷双影 + 外投影）亦用于 tender-write 章节导航 `.tender-nav-tile.is-active`——两处侧栏选中语言统一，改一处须同步另一处。
+
 ### 反模式（侧栏专项，均已评审否决，勿回潮）
 
 | 反模式 | 否决原因 |
