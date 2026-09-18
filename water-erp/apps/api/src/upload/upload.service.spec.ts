@@ -481,7 +481,7 @@ describe('UploadService — download permission', () => {
     const EVIDENCE_CATEGORIES = [
       'bid_opening_handover', 'bid_evaluation_handover', 'bid_evaluation_sign_handover',
       'bid_sign_packet', 'sign_packet_signature_page', 'expert_sign_scan',
-      'expert_memo_ink', 'expert_signin_photo',
+      'expert_memo_ink', 'expert_signin_photo', 'ai_bid_report',
     ];
 
     beforeEach(() => {

@@ -27,7 +27,7 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 /** P0-5：开评标留痕资产类目——删除一律 409 FILE_PROTECTED（办法第49条不得损毁；审计 P0-5 剩余面，2026-08-24） */
-const EVIDENCE_PROTECTED_CATEGORIES = [
+export const EVIDENCE_PROTECTED_CATEGORIES: readonly string[] = [
   'bid_opening_handover',       // 开标文件包（完成开标·资料移交）
   'bid_evaluation_handover',    // 评标完整性包
   'bid_evaluation_sign_handover', // 评标回流包
@@ -41,6 +41,7 @@ const EVIDENCE_PROTECTED_CATEGORIES = [
   'clarification_reply',        // A-143：澄清答复附件（证据件，不得损毁）
   'supervision_push_packet',    // A-153：推送信封物证
   'supervision_push_voucher',   // A-153：离线凭证物证
+  'ai_bid_report',              // AI 投标分析报告（worker 生成；回流包 aiAnalysis 引用件，防删致引用悬空）
 ];
 
 @Injectable()

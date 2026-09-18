@@ -464,7 +464,7 @@ export class BidderProcessor extends WorkerHost {
             mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             size: docxBuffer.length,
             sha256,
-            category: 'general',
+            category: 'ai_bid_report', // 2026-09-18：专用类目（原 general 无删除保护，回流包/归档引用该报告）
           },
         });
 
