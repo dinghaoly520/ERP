@@ -13810,30 +13810,47 @@ main.reg { align-items: flex-start; }
   animation: reg-seg-sheen 2.6s var(--reg-ease) infinite;
 }
 .reg-foot-text { color: var(--reg-muted); font-size: 12.5px; letter-spacing: 0.02em; }
-/* ── 侧栏子页面导航（2026-09-18：自标题卡迁入；父项归属同一功能模块）── */
+/* ── 侧栏子页面导航（2026-09-18：自标题卡迁入；父项归属同一功能模块）──
+   从属轨道：激活分组的轨道线品牌色淡染（灰线=未激活分组）；当前子项=水青色标 + 品牌tint（与父项
+   sp-nav-active-bar 同语言）；完整三态（默认 → hover 抬亮 → active 按压内凹）。 */
 .sp-nav-sub {
-  display: flex; flex-direction: column; gap: 1px;
-  margin: -2px 0 6px 22px;
-  padding-left: 8px;
-  border-left: 1px solid var(--hairline, oklch(0.9 0.02 258));
+  display: flex; flex-direction: column; gap: 2px;
+  margin: -1px 0 6px 22px;
+  padding-left: 9px;
+  border-left: 1px solid oklch(0.88 0.015 258 / 0.8);
+}
+.sp-nav-sub[data-open="true"] {
+  border-left-color: color-mix(in oklab, var(--sp-primary) 26%, transparent);
 }
 .sp-nav-sub-item {
-  display: flex; align-items: center; gap: 7px;
-  min-height: 34px; padding: 4px 10px;
+  position: relative; display: flex; align-items: center; gap: 7px;
+  min-height: 32px; padding: 4px 9px;
   border: none; border-radius: 9px;
   background: transparent; color: var(--sp-nav-fg, #5a6d8a);
   font-size: 12.5px; font-weight: 500; text-decoration: none; cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
-.sp-nav-sub-item:hover { background: #eff6ff; color: var(--sp-primary); }
+.sp-nav-sub-item svg { opacity: 0.78; transition: opacity 0.15s ease; }
+.sp-nav-sub-item:hover { background: oklch(0.955 0.02 258); color: var(--sp-primary); }
+.sp-nav-sub-item:hover svg { opacity: 1; }
+.sp-nav-sub-item:active {
+  box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.7);
+}
 .sp-nav-sub-item.is-current {
   color: var(--sp-primary); font-weight: 700;
-  background: color-mix(in oklab, var(--sp-primary) 9%, transparent);
+  background: color-mix(in oklab, var(--sp-primary) 8%, transparent);
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.sp-nav-sub-item.is-current svg { opacity: 1; }
+.sp-nav-sub-item.is-current::before {
+  content: ""; position: absolute; left: -10px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 16px; border-radius: 0 3px 3px 0;
+  /* 水青点缀——与父项 active 左标（.sp-nav-active-bar）同一设计语言 */
+  background: color-mix(in oklch, var(--water) 62%, white);
 }
 .sp-nav-sub-item:focus-visible { outline: 3px solid color-mix(in oklab, var(--brand) 35%, transparent); outline-offset: 1px; }
 .sp-nav-sub-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.55; }
 .sp-nav-sub .sp-nav-sub-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
-  .sp-nav-sub-item { transition: none; }
+  .sp-nav-sub-item, .sp-nav-sub-item svg { transition: none; }
 }

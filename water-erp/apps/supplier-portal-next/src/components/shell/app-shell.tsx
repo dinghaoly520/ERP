@@ -161,6 +161,33 @@ export function SupplierSidebarNavItem({
           )}
         </Link>
       </div>
+      {/* 子页面直入侧栏（2026-09-18：移出标题条）——展开态常显，折叠态由父项 tooltip 兜底。
+          current 判定=最长前缀唯一命中（/profile/ukey/detail → 只亮 /profile/ukey，不连带 /profile）。 */}
+      {!collapsed && item.tabs && item.tabs.length >= 2 && (
+        <div className="sp-nav-sub" data-open={active ? "true" : "false"}>
+          {(() => {
+            const matchesTab = (tabPath: string) => pathname === tabPath || pathname.startsWith(tabPath + "/");
+            const currentTab = item.tabs!.filter((t) => matchesTab(t.path))
+              .sort((a, b) => b.path.length - a.path.length)[0];
+            return item.tabs!.map((tab) => {
+              const isCurrent = currentTab?.path === tab.path;
+              const TabIcon = tab.icon;
+              return (
+                <Link
+                  key={tab.path}
+                  href={tab.path}
+                  className={cn("sp-nav-sub-item", isCurrent && "is-current")}
+                  aria-current={isCurrent ? "page" : undefined}
+                  onClick={() => onNavigate(tab.path)}
+                >
+                  {TabIcon ? <TabIcon size={13} strokeWidth={1.9} aria-hidden="true" /> : <span className="sp-nav-sub-dot" aria-hidden="true" />}
+                  <span className="sp-nav-sub-title">{tab.title}</span>
+                </Link>
+              );
+            });
+          })()}
+        </div>
+      )}
       {tooltip}
     </>
   );

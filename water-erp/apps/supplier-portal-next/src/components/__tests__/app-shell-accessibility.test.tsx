@@ -4,7 +4,6 @@ import { test } from "node:test";
 import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as shellModule from "../shell/app-shell";
-import { HeroWorkspaceTabs } from "../sp-page-hero";
 import {
   buildMenuItems,
   findWorkspaceForPath,
@@ -56,20 +55,13 @@ test("shell navigation exposes current-page state and labelled toggle controls",
   assert.match(shellSource, /aria-controls="supplier-mobile-navigation"/);
 });
 
-test("multi-route workspaces delegate current-page state to the concrete context link", () => {
+test("multi-route workspaces render sub-page links in the sidebar with one current page", () => {
   assert.equal(typeof SidebarNavItem, "function");
   if (!SidebarNavItem) return;
 
   const menuItems = buildMenuItems(false);
 
-  for (const {
-    pathname,
-    sidebarCurrentPages,
-    contextCurrent,
-  } of [
-    { pathname: "/bids", sidebarCurrentPages: 0, contextCurrent: "page" },
-    { pathname: "/prequal", sidebarCurrentPages: 0, contextCurrent: "page" },
-  ] as const) {
+  for (const pathname of ["/bids", "/prequal"] as const) {
     const workspace = findWorkspaceForPath(pathname, menuItems);
     assert.ok(workspace);
 
@@ -81,25 +73,35 @@ test("multi-route workspaces delegate current-page state to the concrete context
       unreadCount: 0,
       onNavigate: () => undefined,
     }));
-    const contextMarkup = renderToStaticMarkup(
-      <HeroWorkspaceTabs tabs={workspace.tabs} currentPath={pathname} />,
-    );
 
-    assert.match(sidebarMarkup, /class="[^"]*sp-nav-item[^"]*active[^"]*"/);
+    assert.match(sidebarMarkup, /class="sp-nav-item[^"]*active[^"]*"/);
+    // 子项常显于侧栏，且仅当前子项标记 page
+    assert.match(sidebarMarkup, /class="sp-nav-sub"/);
+    const subLinks = sidebarMarkup.match(/sp-nav-sub-item[^>]*aria-current="page"/g) ?? [];
+    assert.equal(subLinks.length, 1);
     assert.equal(
       (sidebarMarkup.match(/aria-current="page"/g) ?? []).length,
-      sidebarCurrentPages,
-    );
-    assert.equal(
-      (contextMarkup.match(new RegExp(`aria-current="${contextCurrent}"`, "g")) ?? []).length,
       1,
     );
-    assert.equal(
-      ((sidebarMarkup + contextMarkup).match(/aria-current="page"/g) ?? []).length,
-      1,
-    );
-    assert.doesNotMatch(sidebarMarkup + contextMarkup, /aria-current="location"/);
+    assert.doesNotMatch(sidebarMarkup, /aria-current="location"/);
   }
+});
+
+test("collapsed sidebars omit sub-page links (tooltip carries the module identity)", () => {
+  assert.equal(typeof SidebarNavItem, "function");
+  if (!SidebarNavItem) return;
+
+  const workspace = findWorkspaceForPath("/contracts", buildMenuItems(false));
+  assert.ok(workspace);
+  const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
+    item: workspace,
+    pathname: "/contracts",
+    active: true,
+    collapsed: true,
+    unreadCount: 0,
+    onNavigate: () => undefined,
+  }));
+  assert.doesNotMatch(markup, /sp-nav-sub/);
 });
 
 test("a single-route sidebar workspace owns the current-page state", () => {
@@ -120,12 +122,7 @@ test("a single-route sidebar workspace owns the current-page state", () => {
   }));
 
   assert.equal((sidebarMarkup.match(/aria-current="page"/g) ?? []).length, 1);
-  assert.equal(
-    renderToStaticMarkup(
-      <HeroWorkspaceTabs tabs={workspace.tabs ?? null} currentPath="/dashboard" />,
-    ),
-    "",
-  );
+  assert.doesNotMatch(sidebarMarkup, /sp-nav-sub/);
 });
 
 test("sidebar workspaces use native links so browser navigation affordances remain available", () => {
@@ -153,11 +150,12 @@ test("sidebar workspaces use native links so browser navigation affordances rema
 
 test("shell no longer renders the context navigation; SpPageHero renders it inside the hero card", () => {
   assert.doesNotMatch(shellSource, /SupplierContextNav/);
+  assert.match(shellSource, /sp-nav-sub/);
   assert.match(shellSource, /findWorkspaceForPath\(pathname, menuItems\)/);
   assert.match(shellSource, /path === activeWorkspace\?\.path/);
   assert.doesNotMatch(shellSource, /const activePath\b/);
-  assert.match(pageHeroSource, /findWorkspaceForPath\(pathname, buildMenuItems/);
-  assert.match(pageHeroSource, /<HeroWorkspaceTabs/);
+  assert.doesNotMatch(pageHeroSource, /HeroWorkspaceTabs/);
+  assert.doesNotMatch(pageHeroSource, /findWorkspaceForPath/);
 });
 
 test("shell passes unresolved supplier status to the fail-closed menu builder", () => {
@@ -246,49 +244,53 @@ test("tooltip geometry follows its trigger and remains inside a short viewport",
   );
 });
 
-test("hero workspace tabs render native links and mark the most specific current route", () => {
+test("sidebar sub-page links render native links and mark the most specific current route", () => {
   const workspace = findWorkspaceForPath("/profile", buildMenuItems(false));
   assert.ok(workspace?.tabs);
-  const markup = renderToStaticMarkup(
-    <HeroWorkspaceTabs tabs={workspace.tabs} currentPath="/change-records/detail" ariaLabel="企业资料子导航" />,
-  );
+  const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
+    item: workspace,
+    pathname: "/change-records/detail",
+    active: true,
+    collapsed: false,
+    unreadCount: 0,
+    onNavigate: () => undefined,
+  }));
 
-  assert.match(markup, /^<nav[^>]*aria-label="企业资料子导航"/);
-  assert.match(pageHeroSource, /import Link from "next\/link"/);
-  assert.equal((markup.match(/<a\b/g) ?? []).length, 2);
-  assert.equal((markup.match(/aria-current="page"/g) ?? []).length, 1);
+  assert.match(markup, /class="sp-nav-sub"/);
   assert.doesNotMatch(markup, /<button\b/);
 
   for (const [path, title] of [
     ["/profile", "基本资料"],
     ["/change-records", "变更记录"],
   ] as const) {
-    assert.match(markup, new RegExp(`<a\\b[^>]*href="${path}"[^>]*>[\\s\\S]*?${title}<\\/a>`));
+    const anchor = `href="${path}"`;
+    assert.ok(markup.includes(anchor), `sub link missing: ${path}`);
+    assert.ok(markup.includes(`${title}</span>`), `sub label missing: ${title}`);
   }
 
-  const activeLink = markup.match(/<a\b[^>]*href="\/change-records"[^>]*>/)?.[0];
-  assert.ok(activeLink);
-  assert.match(activeLink, /aria-current="page"/);
+  // 最具体的子路由（/change-records）标记 page，其余子项与父项不标记
+  const currentLinks = markup.match(/<a class="sp-nav-sub-item[^"]*is-current"[^>]*aria-current="page"[^>]*href="[^"]*"/g) ?? [];
+  assert.equal(currentLinks.length, 1);
+  assert.match(currentLinks[0], /href="\/change-records"/);
+  assert.equal((markup.match(/aria-current="page"/g) ?? []).length, 1);
 });
 
-test("the default route of a multi-route workspace marks its concrete context link as the page", () => {
+test("the default route of a multi-route workspace marks its own sidebar sub link as the page", () => {
   const workspace = findWorkspaceForPath("/bids", buildMenuItems(false));
-  const markup = renderToStaticMarkup(
-    <HeroWorkspaceTabs tabs={workspace?.tabs} currentPath="/bids" />,
-  );
+  assert.ok(workspace);
+  const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
+    item: workspace,
+    pathname: "/bids",
+    active: true,
+    collapsed: false,
+    unreadCount: 0,
+    onNavigate: () => undefined,
+  }));
 
-  const activeLink = markup.match(/<a\b[^>]*href="\/bids"[^>]*>/)?.[0];
-  assert.ok(activeLink);
-  assert.match(activeLink, /aria-current="page"/);
-  assert.doesNotMatch(markup, /aria-current="location"/);
-});
-
-test("hero workspace tabs do not render for a single-route workspace", () => {
-  const markup = renderToStaticMarkup(
-    <HeroWorkspaceTabs tabs={null} currentPath="/dashboard" />,
-  );
-
-  assert.equal(markup, "");
+  const currentLinks = markup.match(/<a class="sp-nav-sub-item[^"]*is-current"[^>]*aria-current="page"[^>]*href="[^"]*"/g) ?? [];
+  assert.equal(currentLinks.length, 1);
+  assert.match(currentLinks[0], /href="\/bids"/);
+  assert.equal((markup.match(/aria-current="page"/g) ?? []).length, 1);
 });
 
 test("notification rows and the mobile backdrop use native buttons", () => {

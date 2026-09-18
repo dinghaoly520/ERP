@@ -244,7 +244,13 @@ export class AccountAdminController {
   async resetPassword(@Param('id') id: string, @Body() dto: ResetPasswordDto) {
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { passwordHash: hashSync(dto.password, 10), webSessionId: null },
+      data: {
+        passwordHash: hashSync(dto.password, 10),
+        // 密码副本同步（2026-09-18 根因修复）：改密弹窗「原密码」读 vault 解密，
+        // 此前重置只写 hash → 弹窗回显的是重置前的旧密码
+        passwordVault: encryptPasswordVault(dto.password) ?? null,
+        webSessionId: null,
+      },
       select: ACCOUNT_SELECT,
     });
     // 重置密码 = 对「异地登录反馈」采取了实质安全处置 → 相关提醒自动消（无需逐条点击）
