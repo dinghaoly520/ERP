@@ -42,6 +42,7 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   meta?: string;
   roles?: AuthRole[];
+  hidden?: boolean;
 };
 
 type NavGroup = {
@@ -109,8 +110,9 @@ const navGroups: NavGroup[] = [
     label: "集中目录管理",
     icon: ShoppingBag,
     items: [
-      { key: "mall-central-catalog", label: "集中采购目录", href: "/mall-management/central-catalog", icon: ShoppingBag, meta: "浏览目录" },
-      { key: "mall-catalog", label: "目录管理", href: "/mall-management/catalog", icon: ShoppingBag, meta: "管理中心" },
+      // 2026-09-18 隐藏不删除：路由与功能保留，去掉 hidden 即恢复展示
+      { key: "mall-central-catalog", label: "集中采购目录", href: "/mall-management/central-catalog", icon: ShoppingBag, meta: "浏览目录", hidden: true },
+      { key: "mall-catalog", label: "目录管理", href: "/mall-management/catalog", icon: ShoppingBag, meta: "管理中心", hidden: true },
     ],
   },
   {
@@ -217,6 +219,7 @@ export function AppShell({
           return {
             ...group,
             items: group.items.filter((item) => {
+              if (item.hidden) return false;
               if (profile?.navKeys && !profile.navKeys.includes(item.key)) return false;
               if (!item.roles) return true;
               return !!effectiveRole && item.roles.includes(effectiveRole);
