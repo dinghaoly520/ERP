@@ -418,9 +418,13 @@ export default function UkeyManagePage() {
         <div className="kpi-card">
           <span className="kpi-card__label">介质状态</span>
           <span className="kpi-card__value" style={ukey ? { "--kpi-tone": "var(--success)" } as React.CSSProperties : undefined}>{ukey ? "已解锁" : "未解锁"}</span>
-          <span className="kpi-card__sub">{ukey ? `${ownCerts.length} 张本企业证书` : ukeyKind === "vendor" ? "CA 签发 U盾介质" : "浏览器模拟介质（联调用）"}</span>
+          <span className="kpi-card__sub">
+            {ukey
+              ? `${ownCerts.length} 张本企业证书${lockCountdown !== null ? ` · 剩 ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")} 自动锁定` : ""}`
+              : ukeyKind === "vendor" ? "CA 签发 U盾介质" : "浏览器模拟介质（联调用）"}
+          </span>
         </div>
-        <div className="kpi-card">
+        <div className="kpi-card" title="本机 CA 驱动服务（中间件）实时状态，2s 轮询">
           <span className="kpi-card__label">驱动服务</span>
           <span
             className="kpi-card__value"
@@ -450,21 +454,6 @@ export default function UkeyManagePage() {
             <span className="inline-flex items-center gap-2">
               <span className={`ukey-tag ${ukeyKind === "vendor" ? "ukey-tag--success" : "ukey-tag--info"}`}>
                 {UKEY_STRICT || ukeyKind === "vendor" ? "U盾" : "模拟 U盾"}
-              </span>
-              {health && (
-                <span
-                  className={`ukey-state${health.online ? " open" : " bad"}`}
-                  title="本机 CA 驱动服务（中间件）实时状态，2s 轮询"
-                >
-                  {health.online
-                    ? `驱动在线${health.version ? ` · v${health.version}` : ""} · ${health.shields} 盾 · ${health.unlocked} 已解锁`
-                    : "驱动离线"}
-                </span>
-              )}
-              <span className={`ukey-state${ukey ? " open" : ""}`}>
-                {ukey
-                  ? `已解锁 · ${ownCerts.length} 张本企业证书${lockCountdown !== null ? ` · 剩余 ${Math.floor(lockCountdown / 60)}:${String(lockCountdown % 60).padStart(2, "0")} 自动锁定` : ""}`
-                  : "未解锁"}
               </span>
               <SpButton variant="xs" icon={ShieldCheck} onClick={() => setCaTestVisible(true)}>CA及签章测试</SpButton>
               {ukey && <SpButton variant="xs" icon={Lock} onClick={lockUkey}>锁定</SpButton>}
