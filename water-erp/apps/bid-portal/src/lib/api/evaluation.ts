@@ -205,3 +205,32 @@ export function getExpertMemoInkUrlForAdmin(
 ): Promise<{ url: string }> {
   return api.get(`/expert-admin/projects/${projectId}/memos/${memoId}/ink`);
 }
+
+/** 核验矩阵行（2026-09-18 身份核验设计 §4.5——后端 GET /bid/projects/:id/expert-verification 平铺） */
+export interface ExpertVerificationRow {
+  id: string;
+  expertName: string;
+  major: string;
+  expertRole: string;
+  isLead: boolean;
+  isPurchaserRepresentative: boolean;
+  signedIn: boolean;
+  signInIp: string | null;
+  signedInAt: string | null;
+  method: string | null;
+  occlusion: 'passed' | 'unchecked' | null;
+  photoAssetId: string | null;
+  identityVerified: boolean;
+  identityVerifiedByName: string | null;
+  identityDocType: string | null;
+}
+
+export interface ExpertVerificationMatrix {
+  projectId: string;
+  mode: 'self' | 'host' | 'off';
+  experts: ExpertVerificationRow[];
+}
+
+export function getExpertVerification(projectId: string): Promise<ExpertVerificationMatrix> {
+  return api.get(`/bid/projects/${projectId}/expert-verification`);
+}

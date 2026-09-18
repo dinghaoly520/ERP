@@ -17,6 +17,7 @@ import {
   extendEvaluation,
   generateEvaluationResults,
   getExpertMemoInkUrlForAdmin,
+  getExpertVerification,
   getLiveOfficialScores,
   listEvaluationResults,
   listExpertMemosForAdmin,
@@ -25,6 +26,7 @@ import {
   type ExcludedSupplierInfo,
   type LiveOfficialScoresResponse,
   type ExpertMemoForAdmin,
+  type ExpertVerificationMatrix,
   type ScoreCategory,
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
@@ -163,6 +165,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [annotationLoading, setAnnotationLoading] = useState(false);
   const [annotationCounts, setAnnotationCounts] = useState<Record<string, number>>({});
   const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
+  // 身份核验矩阵（2026-09-18 身份核验设计 §4.5）：签到状态/留档照/遮挡检测结论/IP
+  const [verification, setVerification] = useState<ExpertVerificationMatrix | null>(null);
   // E2: 「自定义评标时长」（启动评标弹窗）与「评标延期审批」（弹窗）
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [durationHours, setDurationHours] = useState(DEFAULT_EVALUATION_HOURS);
@@ -238,6 +242,20 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     loadResults();
     setExcludedSuppliers([]);
   }, [refreshSignal, loadResults]);
+
+  // 身份核验矩阵：挂载拉取 + 30s 轮询保持现场新鲜（仿任务板 30s 先例，GET 已被操作日志排除表覆盖）
+  useEffect(() => {
+    if (!projectId) return;
+    let alive = true;
+    const load = () => {
+      getExpertVerification(projectId)
+        .then(v => { if (alive) setVerification(v); })
+        .catch(() => { /* 静默——矩阵为被动展示，失败保上次数据 */ });
+    };
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [projectId, refreshSignal]);
 
   /* ── 派生数据 ── */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
@@ -582,6 +600,70 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           pct={results.length > 0 || canGenerate ? 100 : 0} color={results.length > 0 || canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
       </div>
+
+      {/* ── 身份核验矩阵（2026-09-18 身份核验设计 §4.5）——被动展示，异常处置见 P2 ── */}
+      {verification && verification.experts.length > 0 && (
+        <div className="mb-3 rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
+            <span className="text-[11px] font-bold text-[var(--foreground)]">身份核验</span>
+            <span className="text-[10px] text-[var(--muted-foreground)]">
+              签到留档照 · 遮挡检测 · 时间/IP · 模式：
+              {verification.mode === 'host' ? '强化（主持人核验）' : verification.mode === 'off' ? '应急（无照片放行）' : '自助拍照'}
+            </span>
+          </div>
+          <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
+            {verification.experts.map(row => (
+              <div key={row.id} className="flex flex-wrap items-center gap-3 px-3.5 py-2">
+                <div className="flex min-w-[120px] items-center gap-2">
+                  <span className="text-xs font-semibold text-[var(--foreground)]">{row.expertName}</span>
+                  {row.expertRole !== EXPERT_ROLE.REGULAR && (
+                    <span className="bid-pill bid-pill--muted shrink-0 text-[9px]">候补</span>
+                  )}
+                </div>
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${row.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
+                  <UserCheck size={11} /> {row.signedIn ? '已签到' : '未签到'}
+                </span>
+                {row.signedInAt && (
+                  <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+                    {new Date(row.signedInAt).toLocaleString('zh-CN', { hour12: false })}
+                  </span>
+                )}
+                <span
+                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                    row.occlusion === 'passed'
+                      ? 'bg-[oklch(0.94_0.05_152/0.5)] text-[var(--success)]'
+                      : row.occlusion === 'unchecked'
+                        ? 'bg-[oklch(0.96_0.015_27/0.35)] text-[var(--warning)]'
+                        : 'bg-[oklch(0.95_0.01_258)] text-[var(--muted-foreground)]'
+                  }`}
+                >
+                  {row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : '无检测记录'}
+                </span>
+                {row.photoAssetId ? (
+                  <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/upload/files/${row.photoAssetId}`}
+                      alt={`${row.expertName} 签到留档照`}
+                      className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
+                    />
+                  </a>
+                ) : (
+                  <span className="text-[10px] text-[var(--muted-foreground)]">{row.signedIn ? '无照片（应急）' : '—'}</span>
+                )}
+                {row.signInIp && <span className="font-mono text-[9px] text-[var(--muted-foreground)]">{row.signInIp}</span>}
+                <div className="ml-auto flex items-center gap-2">
+                  {row.identityVerified ? (
+                    <span className="text-[10px] font-semibold text-[var(--success)]">主持人核验 · {row.identityVerifiedByName ?? '—'}</span>
+                  ) : verification.mode === 'host' && (
+                    <span className="text-[10px] font-semibold text-[var(--warning)]">待主持人核验</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         {/* ── 专家状态卡 ── */}
