@@ -211,7 +211,7 @@ box-shadow:
 | 类名 / 属性 | 用途 |
 |------|------|
 | `.sidebar-card` | 侧栏容器——近实心亮白渐变 + 亮蓝调描边 + 方向性双影；`[data-mode="rail"]` 切 64px 图标窄栏 |
-| `.sidebar-nav-item` | 导航子项——透明融入容器（无凸起无白底），hover 轻蓝染，选中实白凸起+斜切指示条 |
+| `.sidebar-nav-item` | 导航子项——透明融入容器（无凸起无白底），hover 轻蓝染，选中实白凹槽+外投影+斜切指示条 |
 | `.sidebar-item-label` | 子项文字——rail 态 `max-width:0 + opacity:0` 淡出收拢 |
 | `.sidebar-group-header` | 组头——11px uppercase 小标题；`[data-has-active="true"]` 标签染品牌蓝 |
 | `.sidebar-group-panel` | 组子项区——grid-rows 平滑展开/收起；宽态 `ml-1 pl-1.5` 缩进偏移 |
@@ -608,14 +608,14 @@ background:
 .sidebar-nav-item { color: oklch(0.42 0.032 248); background: transparent; }
 /* hover — 轻蓝染 */
 .sidebar-nav-item:hover { color: var(--foreground); background: var(--accent-tint); }
-/* 选中 — 实白凸起：顶缘内高光 + 方向性外影（右下暗/左上亮），白块浮于面板 */
+/* 选中 — 实白凹陷 + 外投影：内凹双影（顶左暗 0.22/底右亮 0.7）+ 柔和外影 0.12 分离白块与面板 */
 .sidebar-nav-item[data-active="true"] {
   color: var(--accent-strong);
   background: oklch(1 0 0);
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.9),
-    2px 2px 5px oklch(0.55 0.08 250 / 0.14),
-    -1px -1px 3px oklch(1 0 0 / 0.95);
+    inset 2px 2px 6px oklch(0.55 0.08 250 / 0.22),
+    inset -2px -2px 5px oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.08 250 / 0.12);
 }
 ```
 
@@ -625,7 +625,7 @@ background:
 |----|------|
 | 组头标签 | `.sidebar-group-header[data-has-active="true"] span` → `--accent-strong` |
 | 组内全部子项**图标** | 组容器 `div[data-current="true"] .sidebar-nav-item > svg` → `--accent-strong`（文字色不变，`transition: color 0.25s`；rail 态同样分档） |
-| 激活项 | 实白底（`oklch(1 0 0)`）+ 品牌蓝字 + 方向性外影凸起 + `.nav-active-skew` |
+| 激活项 | 实白底（`oklch(1 0 0)`）+ 品牌蓝字 + 内凹双影 + 柔和外投影 + `.nav-active-skew` |
 
 组头 11px semibold uppercase tracking 0.08em（与 14px 子项拉开层级）；子项区 `ml-1 pl-1.5` 缩进偏移（rail 态不加，避免图标列偏心）。
 
