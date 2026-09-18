@@ -32,7 +32,6 @@ describe('ExpertService', () => {
     aiConsentConfirmed: true,
     progress: 0,
     totalScore: 0,
-    phoneVerified: true,
     reportConfirmed: false,
   };
 
@@ -236,22 +235,57 @@ describe('ExpertService', () => {
   });
 
   describe('signIn', () => {
-    it('签到成功应更新专家状态', async () => {
+    it('self 默认态无留档照 → 400 PHOTO_REQUIRED（R3 必拍），不写签到状态', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+
+      await expect(service.signIn('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'PHOTO_REQUIRED' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+
+    it('签到成功应更新专家状态（带留档照；meta 含 method/timestamp）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
 
-      const result = await service.signIn('user-1', 'proj-1');
+      const result = await service.signIn('user-1', 'proj-1', undefined, 'photo-1');
 
-
+      expect(result.signedIn).toBe(true);
       expect(prisma.bidExpert.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { userId: 'user-1', projectId: 'proj-1' },
         }),
       );
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { signedIn: true, signInIp: null, signInMeta: undefined } }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            signedIn: true, signInIp: null,
+            signInMeta: expect.objectContaining({ method: 'self_password_photo', photoAssetId: 'photo-1' }),
+          }),
+        }),
       );
+    });
+
+    it('off 应急态 → 无照片放行，meta.method=off_mode', async () => {
+      process.env.EXPERT_IDENTITY_VERIFY = 'off';
+      try {
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+        prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+        prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
+
+        await service.signIn('user-1', 'proj-1');
+        expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              signInMeta: expect.objectContaining({ method: 'off_mode' }),
+            }),
+          }),
+        );
+      } finally {
+        delete process.env.EXPERT_IDENTITY_VERIFY;
+      }
     });
 
     it('带合法拍照留痕 → photoAssetId 并入 signInMeta', async () => {
@@ -260,13 +294,13 @@ describe('ExpertService', () => {
       prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
 
-      await service.signIn('user-1', 'proj-1', { ip: '10.0.0.1', userAgent: 'ua' }, 'photo-1');
+      await service.signIn('user-1', 'proj-1', { ip: '10.0.0.1', userAgent: 'ua' }, 'photo-1', 'passed');
 
       expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith({ where: { id: 'photo-1' } });
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            signInMeta: expect.objectContaining({ photoAssetId: 'photo-1', ip: '10.0.0.1' }),
+            signInMeta: expect.objectContaining({ photoAssetId: 'photo-1', ip: '10.0.0.1', occlusion: 'passed' }),
           }),
         }),
       );
@@ -2487,7 +2521,6 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
     id: 'exp-sub', userId: 'user-sub', expertName: '候补专家', projectId: 'proj-1',
     expertRole: '候补', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
     confidentialityAgreed: true, disciplineAgreed: true, reportConfirmed: false,
-    phoneVerified: true,
     conflictedSupplierIds: null as string | null,
   };
   const REGULAR = { ...SUB, id: 'exp-reg', userId: 'user-reg', expertName: '正选专家', expertRole: '正选' };
@@ -2500,7 +2533,7 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
       supplier: { findUnique: jest.fn().mockResolvedValue(null) },
       bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
-      fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
+      fileAsset: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-reg' }) },
       bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn().mockResolvedValue({ count: 0 }) },
     };
     const { ExpertService } = await import('./expert.service');
@@ -2549,7 +2582,7 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
   it('正选专家 → 门控不拦（signIn 正常推进到环境校验/更新）', async () => {
     prisma.bidExpert.findFirst.mockResolvedValue(REGULAR);
     prisma.bidExpert.update.mockResolvedValue({ ...REGULAR, signedIn: true });
-    const res = await svc.signIn('user-reg', 'proj-1', { ip: '127.0.0.1', userAgent: 'test' });
+    const res = await svc.signIn('user-reg', 'proj-1', { ip: '127.0.0.1', userAgent: 'test' }, 'photo-1', 'passed');
     expect(res.signedIn).toBe(true);
     expect(prisma.bidExpert.update).toHaveBeenCalled();
   });
@@ -2558,7 +2591,8 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
     const promoted = { ...SUB, expertRole: '正选' };
     prisma.bidExpert.findFirst.mockResolvedValue(promoted);
     prisma.bidExpert.update.mockResolvedValue({ ...promoted, signedIn: true });
-    const res = await svc.signIn('user-sub', 'proj-1', { ip: '127.0.0.1', userAgent: 'test' });
+    prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-sub' });
+    const res = await svc.signIn('user-sub', 'proj-1', { ip: '127.0.0.1', userAgent: 'test' }, 'photo-1');
     expect(res.signedIn).toBe(true);
   });
 });

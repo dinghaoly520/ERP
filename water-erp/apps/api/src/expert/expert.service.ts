@@ -13,6 +13,7 @@ import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
+import { resolveIdentityVerifyMode } from './identity-verify-mode';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -408,7 +409,13 @@ export class ExpertService {
   }
 
 
-  async signIn(userId: string, projectId: string, env?: { ip: string; userAgent: string | null }, photoAssetId?: string) {
+  async signIn(
+    userId: string,
+    projectId: string,
+    env?: { ip: string; userAgent: string | null },
+    photoAssetId?: string,
+    occlusion?: 'passed' | 'unchecked',
+  ) {
     // P1: 阶段门控 — 仅开标/评标阶段可签到
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -421,7 +428,13 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '签到');
 
-    // 拍照留痕（可选）：校验照片资产归属当前专家本人，防止冒用他人上传
+    // R3 必拍留档照：self/host 态无照片拒签；off 应急态豁免（模式闸 spec §4.3）
+    const mode = resolveIdentityVerifyMode();
+    if (mode !== 'off' && !photoAssetId) {
+      throw new BadRequestException({ error: '签到需拍摄留档照（人脸遮挡检测），应急模式除外', code: 'PHOTO_REQUIRED' });
+    }
+
+    // 拍照留痕：校验照片资产归属当前专家本人，防止冒用他人上传
     if (photoAssetId) {
       const asset = await this.prisma.fileAsset.findUnique({ where: { id: photoAssetId } });
       if (!asset || asset.category !== 'expert_signin_photo' || asset.uploaderId !== userId) {
@@ -429,14 +442,20 @@ export class ExpertService {
       }
     }
 
+    const signInMeta: Prisma.InputJsonValue = {
+      method: mode === 'off' ? 'off_mode' : 'self_password_photo', // 核验方式（签字包/矩阵读端用）
+      timestamp: new Date().toISOString(),
+      ...(occlusion ? { occlusion } : {}), // 遮挡检测结论：passed | unchecked（缺失=off 态或旧客户端）
+      ...(photoAssetId ? { photoAssetId } : {}),
+      ...(env ? { ip: env.ip, userAgent: env.userAgent } : {}),
+    };
+
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: {
         signedIn: true,
         signInIp: env?.ip ?? null,
-        signInMeta: env
-          ? { ip: env.ip, userAgent: env.userAgent, timestamp: new Date().toISOString(), ...(photoAssetId ? { photoAssetId } : {}) }
-          : (photoAssetId ? { photoAssetId } : undefined),
+        signInMeta,
       },
     });
     // P1-5: 签到监督日志
