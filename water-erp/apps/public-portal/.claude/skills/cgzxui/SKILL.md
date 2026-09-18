@@ -217,6 +217,7 @@ box-shadow:
 | `.sidebar-group-panel` | 组子项区——grid-rows 平滑展开/收起；宽态 `ml-1 pl-1.5` 缩进偏移 |
 | `.nav-active-skew` | 激活项左侧斜切指示条（skewY -14°） |
 | 组容器 `div[data-current="true"]` | 「当前组」子项图标染品牌蓝（方案C 标记链，见定版章节） |
+| `.tender-nav-tile` | tender-write 章节导航瓷砖——透玻璃三态，**选中与侧栏同款绑定**（见定版章节） |
 
 ### 标签 / 装饰
 
@@ -629,7 +630,29 @@ background:
 
 组头 11px semibold uppercase tracking 0.08em（与 14px 子项拉开层级）；子项区 `ml-1 pl-1.5` 缩进偏移（rail 态不加，避免图标列偏心）。
 
-> 同款选中态（实白 + 凹陷双影 + 外投影）亦用于 tender-write 章节导航 `.tender-nav-tile.is-active`——两处侧栏选中语言统一，改一处须同步另一处。
+### 章节导航瓷砖（.tender-nav-tile，tender-write）——与侧栏选中态同源
+
+文档工作区左侧章节导航的列表瓷砖，三态：
+
+```css
+/* 默认 — 105° 透玻璃小卡片（wb-panel 语言减半透明度），顶缘内高光 */
+.tender-nav-tile {
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.42) 0%, oklch(0.99 0.003 258 / 0.28) 55%, oklch(1 0 0 / 0.14) 88%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.45);
+}
+/* hover — 透明度上调（0.6/0.42/0.22）+ 高光加深 */
+/* 选中 — 与 AppShell 侧栏选中项同款，两处绑定改一处须同步另一处 */
+.tender-nav-tile.is-active {
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 2px 2px 6px oklch(0.55 0.08 250 / 0.22),
+    inset -2px -2px 5px oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.08 250 / 0.12);
+}
+```
+
+- 结构（`tender-section-nav.tsx`）：序号芯片（选中染 `--accent` 16% + accent 字）+ 标题 + 进度 `n/m` + 状态 pill（`sectionStateTone` 五态：idle 灰 / completed 绿 / active-complete 蓝 / active-missing 橙 / missing 红）。
+- 选中态的白色由瓷砖承担，蓝色识别交给序号芯片与状态 pill——与侧栏「白底蓝字蓝图标」同一分工原则。
 
 ### 反模式（侧栏专项，均已评审否决，勿回潮）
 
