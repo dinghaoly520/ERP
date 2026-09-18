@@ -326,7 +326,6 @@ export class ExpertService {
 
     const myExpertRecord = {
       ...expertRecord,
-      phoneVerified: expertRecord.phoneVerified,
       phoneMasked,
       // Exclude nested user object from response
       user: undefined,
@@ -423,13 +422,6 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '签到');
-
-    if (!expert.phoneVerified) {
-      throw new ForbiddenException({
-        code: 'PHONE_NOT_VERIFIED',
-        error: '请先完成手机验证',
-      });
-    }
 
     // 拍照留痕（可选）：校验照片资产归属当前专家本人，防止冒用他人上传
     if (photoAssetId) {

@@ -321,7 +321,7 @@ The NestJS API (`apps/api`, :4001):
 | `Audit` | Operation audit logs (`AuditLog` model) |
 | `Assistant` | AI chatbot conversations & messages (DeepSeek LLM); action logs |
 | `Scheduler` | Cron-only scheduled tasks |
-| `Verification` | SMS/phone verification for expert identity check (step 1 of expert wizard) |
+| `Verification` | 注册场景短信验证码（@Public：send/verify/check-registration-code，供应商注册/管理端注册/密码重置；Redis 限流/冷却/原子消费）。专家端短信验证已删（2026-09-18，expert_sign_in 链路前端从未接线；BidExpert.phoneVerified 列暂留 schema 待人脸核验一并处理） |
 | `Alerts` | Alert/notification aggregation for dashboards |
 | `Redis` | Infrastructure: Redis caching via ioredis |
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
