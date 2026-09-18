@@ -184,6 +184,7 @@ pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bi
 
 # Mock U盾中间件（Node，:17999，全仿真 CA 盾：插拔/PIN/锁死）
 pnpm dev:ukey-mw            # :17999
+pnpm dev:ukey-mw-guard      # 哨兵式（pnpm dev 已含）：:17999 已被 systemd/便携盘常驻占用则让位，空闲才拉起 U盘模式（2026-09-18 起随 pnpm dev 自动接入）
 
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr

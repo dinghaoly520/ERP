@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev:kill": "fuser -k 3002/tcp 3003/tcp 3004/tcp 3005/tcp 3006/tcp 3007/tcp 3008/tcp 3010/tcp 4001/tcp 2>/dev/null; sleep 0.5",
-    "dev": "pnpm dev:kill && concurrently -n mall,supplier,web,expert,public,bid,api,assistant,bigscreen,ai-worker -c magenta,green,blue,purple,cyan,red,yellow,white,gray,#ff8f00 \"pnpm dev:mall\" \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\" \"pnpm dev:ai-worker\"",
+    "dev": "pnpm dev:kill && concurrently -n mall,supplier,web,expert,public,bid,api,assistant,bigscreen,ai-worker,ukey-mw -c magenta,green,blue,purple,cyan,red,yellow,white,gray,#ff8f00,#41b883 \"pnpm dev:mall\" \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\" \"pnpm dev:ai-worker\" \"pnpm dev:ukey-mw-guard\"",
     "dev:api": "pnpm --filter api start:dev",
     "dev:ai-worker": "sleep 20 && pnpm --filter api dev:worker:ai-bid-analysis",
     "dev:assistant": "pnpm --filter assistant dev",
@@ -18,6 +18,7 @@
     "dev:supplier": "pnpm --filter supplier-portal-next dev",
     "dev:ocr": "cd services/ocr && bash start.sh",
     "dev:ukey-mw": "cd services/ukey-middleware && bash start.sh",
+    "dev:ukey-mw-guard": "cd services/ukey-middleware && bash start-guard.sh",
     "dev:ukey-mw-usb": "cd services/ukey-middleware && bash start-usb.sh",
     "build": "pnpm -r build",
     "build:api": "pnpm --filter api build",
