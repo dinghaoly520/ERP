@@ -45,7 +45,7 @@ export function PublicAssistantWelcome({ context, onAsk }: PublicAssistantWelcom
       <PublicAssistantAvatar size="lg" expression="normal" animated />
       <h3 className="mt-5 text-xl font-black text-[#123a6e]">你好，我是水叮当</h3>
       <p className="mt-2 max-w-md text-sm leading-7 text-[#5a6d8a]">
-        我是智慧水发·蜀水云采的智能助手，可以解答招投标流程、政策法规、公告解读等问题。
+        我是蜀水云采·智慧水发的智能助手，可以解答招投标流程、政策法规、公告解读等问题。
       </p>
       {contextHint && (
         <p className="mt-3 max-w-lg rounded-full bg-[#eef6ff] px-4 py-2 text-xs font-semibold text-[#064ea2]">

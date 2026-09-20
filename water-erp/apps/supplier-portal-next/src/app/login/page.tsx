@@ -157,16 +157,16 @@ function LoginForm() {
     <main className="lp lp--supplier">
       <div className="lp-bg" aria-hidden="true" />
 
-      <div className="lp-brand" aria-label="智慧水发 · 蜀水云采">
+      <div className="lp-brand" aria-label="蜀水云采 · 智慧水发">
         <Image src="/logo.png" alt="" width={54} height={54} className="lp-brand-mark" priority />
-        <span className="lp-brand-name">智慧水发 · 蜀水云采</span>
+        <span className="lp-brand-name">蜀水云采 · 智慧水发</span>
       </div>
 
       {!showPasswordReset ? (
         <section className="lp-panel" aria-label="登录表单">
         <div className="lp-card">
           <div className="lp-head">
-            <div className="lp-brand-word">智慧水发<span className="lp-dot">·</span>蜀水云采</div>
+            <div className="lp-brand-word">蜀水云采<span className="lp-dot">·</span>智慧水发</div>
             <div className="lp-divider" aria-hidden="true">◆</div>
             <h1 className="lp-title">供应商门户</h1>
             <p className="lp-subtitle">使用统一社会信用代码登录</p>

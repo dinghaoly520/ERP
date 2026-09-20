@@ -13,7 +13,7 @@ import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   智慧水发·蜀水云采 — Landing Page
+   蜀水云采·智慧水发 — Landing Page
    复刻自 water_erp_web/index.html 设计稿
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -360,7 +360,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               yoyo={true}
               className="mb-5"
             >
-              <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] m-0">智慧水发·蜀水云采</h1>
+              <h1 className="text-[clamp(40px,3.6vw,62px)] font-black leading-[1.15] tracking-[0.10em] m-0">蜀水云采·智慧水发</h1>
             </GradientText>
             <p className="text-[clamp(16px,1.2vw,20px)] text-white/80 font-medium mb-12 max-w-xl">四川省水利发展集团有限公司统一招采门户 —— 阳光透明、合规高效的电子化招标采购平台</p>
             <div className="flex gap-4">
@@ -599,7 +599,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
             {/* ── 底部信息带 ── */}
             <div className="border-t border-[#e5ecf4] py-3 flex items-center justify-between text-[11px] text-[#8a96aa] max-sm:flex-col max-sm:gap-1">
-              <span>© 2026 智慧水发·蜀水云采</span>
+              <span>© 2026 蜀水云采·智慧水发</span>
               <span>蜀ICP备XXXXXXXX号</span>
             </div>
           </div>
@@ -621,7 +621,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             {modal === 'login' ? (
               <>
                 <h3 className="text-2xl font-bold text-[#063f82] mb-2.5">登录平台</h3>
-                <p className="text-[#526075] leading-relaxed mb-4">智慧水发·蜀水云采</p>
+                <p className="text-[#526075] leading-relaxed mb-4">蜀水云采·智慧水发</p>
                 <div className="grid gap-3.5">
                   <label className="grid gap-[7px] text-[13px] font-extrabold text-[#26364e]">
                     用户名

@@ -4,8 +4,8 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "供应商门户-智慧水发·蜀水云采",
-  description: "智慧水发·蜀水云采 供应商门户 — 注册入驻、投标、企业档案管理",
+  title: "供应商门户-蜀水云采·智慧水发",
+  description: "蜀水云采·智慧水发 供应商门户 — 注册入驻、投标、企业档案管理",
 };
 
 export default function RootLayout({
