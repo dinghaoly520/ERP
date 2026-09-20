@@ -59,3 +59,77 @@ describe('BidService.getExpertVerification（核验矩阵）', () => {
     }
   });
 });
+
+// R9 主持人手动确认（2026-09-20 spec §4.6）——摄像头故障等现场降级
+describe('BidService.manualConfirmExpertVerification（R9）', () => {
+  let svc: any;
+  let prisma: any;
+  const ACTOR = { id: 'host-1', username: '陈源远' };
+
+  const REGULAR_UNSIGNED = { id: 'e1', expertName: '刘苡池', expertRole: '正选', signedIn: false };
+
+  beforeEach(() => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
+      bidExpert: {
+        findFirst: jest.fn().mockResolvedValue(REGULAR_UNSIGNED),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '陈源远' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    svc = instance;
+  });
+
+  it('未签到正选 → 确认成功：signedIn + meta.method=manual_confirm + 监督日志（身份核验降级·关注）', async () => {
+    const r = await svc.manualConfirmExpertVerification('proj-1', 'e1', ACTOR, { reason: '摄像头故障', docType: '身份证' });
+
+    expect(r.ok).toBe(true);
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: expect.objectContaining({
+        signedIn: true,
+        signInIp: null,
+        signInMeta: expect.objectContaining({
+          method: 'manual_confirm', confirmedByName: '陈源远', reason: '摄像头故障', docType: '身份证',
+        }),
+      }),
+    });
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: 'proj-1', role: '评审专家', target: '刘苡池',
+        action: '身份核验降级',
+        result: expect.stringContaining('摄像头故障'),
+        riskFlag: '关注',
+      }),
+    });
+  });
+
+  it('已签到 → 幂等（不重复写、不重复记监督日志）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ ...REGULAR_UNSIGNED, signedIn: true });
+    const r = await svc.manualConfirmExpertVerification('proj-1', 'e1', ACTOR, { reason: '摄像头故障' });
+    expect(r.already).toBe(true);
+    expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('候补 → 403 SUBSTITUTE_EXPERT', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ ...REGULAR_UNSIGNED, expertRole: '候补' });
+    await expect(svc.manualConfirmExpertVerification('proj-1', 'e1', ACTOR, { reason: 'x' }))
+      .rejects.toMatchObject({ response: { code: 'SUBSTITUTE_EXPERT' } });
+  });
+
+  it('阶段不符 → 403 PROJECT_NOT_ACTIVE', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
+    await expect(svc.manualConfirmExpertVerification('proj-1', 'e1', ACTOR, { reason: 'x' }))
+      .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+  });
+
+  it('专家不在项目 → 403 NOT_PROJECT_EXPERT', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue(null);
+    await expect(svc.manualConfirmExpertVerification('proj-1', 'e9', ACTOR, { reason: 'x' }))
+      .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
+  });
+});

@@ -220,6 +220,8 @@ export interface ExpertVerificationRow {
   method: string | null;
   occlusion: 'passed' | 'unchecked' | null;
   photoAssetId: string | null;
+  manualReason: string | null;
+  confirmedByName: string | null;
   identityVerified: boolean;
   identityVerifiedByName: string | null;
   identityDocType: string | null;
@@ -233,4 +235,13 @@ export interface ExpertVerificationMatrix {
 
 export function getExpertVerification(projectId: string): Promise<ExpertVerificationMatrix> {
   return api.get(`/bid/projects/${projectId}/expert-verification`);
+}
+
+/** R9（2026-09-20 spec §4.6）：主持人手动确认专家签到（摄像头故障等现场降级） */
+export function manualConfirmExpertVerification(
+  projectId: string,
+  expertId: string,
+  body: { reason: string; docType?: string },
+): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string; signedInAt?: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/manual-confirm`, body);
 }

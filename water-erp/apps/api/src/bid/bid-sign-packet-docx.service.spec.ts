@@ -115,6 +115,31 @@ describe('BidSignPacketDocxService', () => {
     expect(text).toContain('未记录');
   });
 
+  it('R9 手动确认：核验记录表方式列含理由、留档照列「无（主持人确认）」；留痕行渲染主持人现场确认', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      committee: [{
+        ...baseSnapshot.committee[0],
+        signInMeta: { timestamp: '2026-09-20T10:00:00.000Z', method: 'manual_confirm', reason: '摄像头故障', confirmedByName: '陈源远' },
+      }],
+      expertSheets: [{
+        ...baseSnapshot.expertSheets[0],
+        trace: {
+          ...baseSnapshot.expertSheets[0].trace,
+          identityVerified: {
+            ip: null,
+            meta: { timestamp: '2026-09-20T10:00:00.000Z', method: 'manual_confirm', reason: '摄像头故障' },
+            at: '2026-09-20T10:00:00.000Z',
+          },
+        },
+      }],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    expect(text).toContain('主持人现场确认（摄像头故障）');
+    expect(text).toContain('无（主持人确认）');
+    expect(text).toContain('无留档照（主持人现场确认）');
+  });
+
   /* ── A-151（P1 波4）：报告章节附注渲染 ── */
   it('A-151：一~九节附注以「附注：」段插入节末；十节正文续写（首句保留+用户句+生效句接续）', () => {
     const snap: SignPacketSnapshot = {

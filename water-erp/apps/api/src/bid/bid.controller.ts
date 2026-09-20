@@ -18,6 +18,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { portalFromRequest } from '../auth/portal-cookie';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
+import { ManualConfirmDto } from './dto/manual-confirm.dto';
 import { CreateClarificationDto, DraftClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
@@ -162,6 +163,23 @@ export class BidController {
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '2026-09-18 身份核验 §4.5：核验矩阵（签到状态/留档照/遮挡检测结论/IP；host 态含核验人）——:3007 被动展示' })
   getExpertVerification(@Param('id') id: string) { return this.bidService.getExpertVerification(id); }
+
+  @Post('projects/:id/expert-verification/:expertId/manual-confirm')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: 'R9（2026-09-20 spec §4.6）：主持人手动确认专家签到（摄像头故障等现场降级）——逐人+监督日志留痕' })
+  manualConfirmExpertVerification(
+    @Param('id') id: string,
+    @Param('expertId') expertId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: any,
+    @Body() dto: ManualConfirmDto,
+  ) {
+    return this.bidService.manualConfirmExpertVerification(
+      id, expertId,
+      { id: userId, username: req?.user?.username ?? '未知' },
+      dto,
+    );
+  }
 
   @Post('projects/:id/bond-return-supplier')
   @Roles('admin', 'bid_host', 'leader', 'staff')

@@ -21,6 +21,7 @@ import {
   getLiveOfficialScores,
   listEvaluationResults,
   listExpertMemosForAdmin,
+  manualConfirmExpertVerification,
   startEvaluation,
   type BidEvaluationResultInfo,
   type ExcludedSupplierInfo,
@@ -167,6 +168,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
   // 身份核验矩阵（2026-09-18 身份核验设计 §4.5）：签到状态/留档照/遮挡检测结论/IP
   const [verification, setVerification] = useState<ExpertVerificationMatrix | null>(null);
+  // R9（2026-09-20 §4.6）：主持人手动确认弹窗
+  const [manualFor, setManualFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [manualReason, setManualReason] = useState('');
+  const [manualDocType, setManualDocType] = useState('');
+  const [manualBusy, setManualBusy] = useState(false);
   // E2: 「自定义评标时长」（启动评标弹窗）与「评标延期审批」（弹窗）
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [durationHours, setDurationHours] = useState(DEFAULT_EVALUATION_HOURS);
@@ -256,6 +262,28 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     const timer = setInterval(load, 30_000);
     return () => { alive = false; clearInterval(timer); };
   }, [projectId, refreshSignal]);
+
+  // R9：主持人手动确认（理由必填——防无脑放行）
+  const handleManualConfirm = async () => {
+    if (!manualFor || !manualReason.trim()) return;
+    setManualBusy(true);
+    try {
+      await manualConfirmExpertVerification(projectId, manualFor.id, {
+        reason: manualReason.trim(),
+        ...(manualDocType ? { docType: manualDocType } : {}),
+      });
+      showToast(`已确认 ${manualFor.expertName} 签到（主持人现场确认，已留痕）`, 'ok');
+      setManualFor(null);
+      setManualReason('');
+      setManualDocType('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '确认失败，请重试', 'err');
+    } finally {
+      setManualBusy(false);
+    }
+  };
 
   /* ── 派生数据 ── */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
@@ -630,14 +658,19 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 )}
                 <span
                   className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                    row.occlusion === 'passed'
-                      ? 'bg-[oklch(0.94_0.05_152/0.5)] text-[var(--success)]'
-                      : row.occlusion === 'unchecked'
-                        ? 'bg-[oklch(0.96_0.015_27/0.35)] text-[var(--warning)]'
-                        : 'bg-[oklch(0.95_0.01_258)] text-[var(--muted-foreground)]'
+                    row.method === 'manual_confirm'
+                      ? 'bg-[oklch(0.94_0.09_83/0.45)] text-[var(--warning)]'
+                      : row.occlusion === 'passed'
+                        ? 'bg-[oklch(0.94_0.05_152/0.5)] text-[var(--success)]'
+                        : row.occlusion === 'unchecked'
+                          ? 'bg-[oklch(0.96_0.015_27/0.35)] text-[var(--warning)]'
+                          : 'bg-[oklch(0.95_0.01_258)] text-[var(--muted-foreground)]'
                   }`}
+                  title={row.method === 'manual_confirm' ? `主持人现场确认：${row.manualReason ?? '—'}（确认人：${row.confirmedByName ?? '—'}）` : undefined}
                 >
-                  {row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : '无检测记录'}
+                  {row.method === 'manual_confirm'
+                    ? '主持人确认'
+                    : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : '无检测记录'}
                 </span>
                 {row.photoAssetId ? (
                   <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
@@ -649,10 +682,22 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     />
                   </a>
                 ) : (
-                  <span className="text-[10px] text-[var(--muted-foreground)]">{row.signedIn ? '无照片（应急）' : '—'}</span>
+                  <span className="text-[10px] text-[var(--muted-foreground)]">
+                    {row.method === 'manual_confirm' ? '无照片（主持人确认）' : row.signedIn ? '无照片（应急）' : '—'}
+                  </span>
                 )}
                 {row.signInIp && <span className="font-mono text-[9px] text-[var(--muted-foreground)]">{row.signInIp}</span>}
                 <div className="ml-auto flex items-center gap-2">
+                  {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && (
+                    <button
+                      type="button"
+                      onClick={() => setManualFor({ id: row.id, expertName: row.expertName })}
+                      className="neu-btn-xs"
+                      title="摄像头故障等现场降级——主持人现场确认签到（理由必填，留痕）"
+                    >
+                      手动确认
+                    </button>
+                  )}
                   {row.identityVerified ? (
                     <span className="text-[10px] font-semibold text-[var(--success)]">主持人核验 · {row.identityVerifiedByName ?? '—'}</span>
                   ) : verification.mode === 'host' && (
@@ -1169,6 +1214,54 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <button type="button" onClick={() => setStartDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleStartEvaluation(durationHours)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
                 <Play size={13} /> {busy ? '启动中…' : '启动评标'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── R9（2026-09-20 §4.6）：主持人手动确认签到（摄像头故障等现场降级）── */}
+      {manualFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">主持人手动确认签到</h2>
+              <button type="button" onClick={() => setManualFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                专家「{manualFor.expertName}」未能拍摄留档照（如摄像头故障）。请现场核对其身份证件后确认签到——
+                <span className="font-semibold text-[var(--warning)]">确认将写入监督日志并在签字包披露</span>。
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">降级理由（必填）</label>
+              <textarea
+                value={manualReason}
+                onChange={(e) => setManualReason(e.target.value)}
+                maxLength={200}
+                rows={2}
+                placeholder="如：摄像头故障 / 驱动异常……"
+                className="workbench-input w-full resize-none"
+              />
+              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验证件类型（可选）</label>
+              <select value={manualDocType} onChange={(e) => setManualDocType(e.target.value)} className="workbench-input w-full">
+                <option value="">—</option>
+                <option value="身份证">身份证</option>
+                <option value="护照">护照</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setManualFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button
+                type="button"
+                onClick={() => void handleManualConfirm()}
+                disabled={manualBusy || !manualReason.trim()}
+                className="neu-btn-primary !h-[36px] !text-xs"
+              >
+                {manualBusy ? '确认中…' : '确认签到'}
               </button>
             </div>
           </div>

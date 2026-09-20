@@ -2999,7 +2999,7 @@ export class BidService {
       projectId,
       mode: resolveIdentityVerifyMode(),
       experts: experts.map((e) => {
-        const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string };
+        const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string; reason?: string; confirmedByName?: string };
         return {
           id: e.id, expertName: e.expertName, major: e.major, expertRole: e.expertRole,
           isLead: e.isLead, isPurchaserRepresentative: e.isPurchaserRepresentative,
@@ -3008,12 +3008,62 @@ export class BidService {
           method: meta.method ?? null,
           occlusion: meta.occlusion ?? null, // passed | unchecked | null（旧数据/off 态未携带）
           photoAssetId: meta.photoAssetId ?? null,
+          manualReason: meta.reason ?? null, // R9：主持人手动确认理由（tooltip/披露）
+          confirmedByName: meta.confirmedByName ?? null, // R9：确认人姓名快照
           identityVerified: e.identityVerified, // host 态字段（P3 启用，self 态恒 false）
           identityVerifiedByName: e.identityVerifiedByName,
           identityDocType: e.identityDocType,
         };
       }),
     };
+  }
+
+  /** R9 主持人手动确认签到（2026-09-20 spec §4.6）：摄像头故障等现场降级——逐人、留痕、监督日志 */
+  async manualConfirmExpertVerification(
+    projectId: string,
+    expertId: string,
+    actor: { id: string; username: string },
+    dto: { reason: string; docType?: string },
+  ) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可确认签到阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+      select: { id: true, expertName: true, expertRole: true, signedIn: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    if (expert.expertRole !== '正选') {
+      throw new ForbiddenException({ error: '候补专家需递补后方可确认签到', code: 'SUBSTITUTE_EXPERT' });
+    }
+    if (expert.signedIn) {
+      // 幂等：已签到不重复写（重复确认不产生第二条监督日志）
+      return { ok: true, already: true, expertId: expert.id, expertName: expert.expertName };
+    }
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    const signInMeta = {
+      method: 'manual_confirm',
+      timestamp: new Date().toISOString(),
+      confirmedByName: actorName,
+      reason: dto.reason,
+      ...(dto.docType ? { docType: dto.docType } : {}),
+    };
+    await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: { signedIn: true, signInIp: null, signInMeta },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '身份核验降级',
+        result: `主持人手动确认签到（理由：${dto.reason}；确认人：${actorName}${dto.docType ? `；证件：${dto.docType}` : ''}）`,
+        riskFlag: '关注',
+      },
+    }).catch(() => {});
+    return { ok: true, expertId: expert.id, expertName: expert.expertName, signedInAt: signInMeta.timestamp };
   }
 
   async getEvaluationHandover(projectId: string) {
