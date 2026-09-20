@@ -642,33 +642,42 @@ export default function ExpertEvaluatePage() {
     }
   }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
 
-  // 必拍留档照（R3 2026-09-18 身份核验设计）：上传照片（expert_signin_photo）→ 携带 photoAssetId + 遮挡检测结论签到
+  // 必拍留档照（R3 2026-09-18 身份核验设计）：上传照片（expert_signin_photo）→ 携带 photoAssetId + 遮挡检测结论签到。
+  // 失败就地重试（2026-09-20 修复）：faceVerified 仅在签到成功时置位——上传/签到失败不卸载 SigninCamera，
+  // captured 态照片与检测结论保留，专家再点「确认签到」即原地重试，不必重开摄像头重拍。
+  // 同一张照片（blob 引用不变）上传成功后缓存 assetId 复用，避免重试反复传新照片攒孤儿资产；
+  // INVALID_SIGNIN_PHOTO 说明缓存资产已被判无效，弃缓存后下次重试重新上传。
+  const lastSigninPhotoRef = useRef<{ blob: Blob; assetId: string } | null>(null);
   const handleFaceSuccess = async (photoBlob: Blob | null, occlusion: 'passed' | 'unchecked') => {
-    setFaceVerified(true);
     setFaceVerifying(true);
     try {
       let photoAssetId: string | undefined;
       if (photoBlob) {
-        try {
-          const fd = new FormData();
-          fd.append('file', photoBlob, `expert-signin-${Date.now()}.jpg`);
-          const asset = await api.post<{ id: string }>('/upload?category=expert_signin_photo', fd);
-          photoAssetId = asset.id;
-        } catch {
-          // R3：留档照是签到硬闸（服务端 PHOTO_REQUIRED）——上传失败必须重试，不再静默跳过
-          toast.error('签到照片上传失败，无法完成签到，请重试');
-          setFaceVerifying(false);
-          setFaceVerified(false);
-          return;
+        const cached = lastSigninPhotoRef.current;
+        if (cached && cached.blob === photoBlob) {
+          photoAssetId = cached.assetId;
+        } else {
+          try {
+            const fd = new FormData();
+            fd.append('file', photoBlob, `expert-signin-${Date.now()}.jpg`);
+            const asset = await api.post<{ id: string }>('/upload?category=expert_signin_photo', fd);
+            lastSigninPhotoRef.current = { blob: photoBlob, assetId: asset.id };
+            photoAssetId = asset.id;
+          } catch {
+            // R3：留档照是签到硬闸（服务端 PHOTO_REQUIRED）——不上传无法签到；照片已保留，就地重试
+            toast.error('签到照片上传失败，请点击「确认签到」重试，或「重拍」');
+            return;
+          }
         }
       }
       await api.post(`/expert/projects/${projectId}/sign-in`, { ...(photoAssetId ? { photoAssetId } : {}), occlusion });
-      setFaceVerifying(false);
+      setFaceVerified(true);
       loadProject();
     } catch (e: any) {
+      if (e?.code === 'INVALID_SIGNIN_PHOTO') lastSigninPhotoRef.current = null;
+      toast.error(e.message || '签到失败，请点击「确认签到」重试');
+    } finally {
       setFaceVerifying(false);
-      setFaceVerified(false);
-      toast.error(e.message || '签到失败，请重试');
     }
   };
 
