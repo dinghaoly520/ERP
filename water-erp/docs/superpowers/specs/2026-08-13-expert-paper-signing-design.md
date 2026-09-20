@@ -246,3 +246,43 @@ PENDING ──登记──▶ SIGNED（附扫描件）
 - 归档 7 项材料 + 哈希链（bid.service.ts:3718-3992）；审计 #55 归档不校验确认；
 - 可复用设施：ExpertMemo 墨迹链路（expert-memo.service.ts:27-111）、开标文件包模式（bid.service.ts:649-837）、`convertOfficeToPdf`、RSVP 签名 token（rsvp-token.util.ts）、`createIntegrityStamp`、OperationLog 全局拦截器；
 - 前端：:3005 面板三区块 bid-confirm-panel.tsx:811-813；:3007 evaluation-view.tsx 只读；全仓无打印组件（supplier-portal 有 @media print CSS 可参考）。
+
+## 增补：回流包完整性扩展 v2（2026-09-18）
+
+**背景**：用户裁定「专家的一切都应该进入归档」。审计发现回流包 v1 存在三类缺口——字段残缺（澄清丢 A-143 签名证据链、动议丢投票理由、得分点丢 note、异议丢裁决留痕）、整域缺失（ExpertMemo 备忘、BidRequirementReview 条款裁定、身份核验域勾选、评标段监督日志、AI 分析产物）、归档导出取不到引用件（笔迹图/签到照/澄清附件/AI 报告 key 不含项目 ID，且回流包本体 category 不在取件清单）。
+
+**回流包（`bid_evaluation_sign_handover`）packageVersion 1→2，新增/补全：**
+
+| 段 | 内容 | 形态 |
+|---|---|---|
+| `expertSignStatuses` 扩展 | 身份核验域整组：`signedIn/signInIp/signInMeta`（含 photoAssetId 签到照引用）、`confidentialityAgreed(+At)/disciplineAgreed(+At)/aiConsentConfirmed(+At)/avoidanceConfirmed/conflictedSupplierIds` | 内联 |
+| `expertMemos`（新增） | 专家手写/键盘备忘：contentText、挂靠供应商/评分项/得分点（含名称解析）、笔迹图 | 笔迹图走 FileAsset 引用（`{fileAssetId, key, originalName, size, sha256}`），不内嵌字节 |
+| `requirementReviews`（新增） | 条款裁定 verdict/note（requirement-compare 产物）；requirementId 解析源在 `aiAnalysis.requirements` | 内联 |
+| `aiAnalysis`（新增） | `status/aiProvenance/requirements` + 每家核心结论（qualificationStatus/riskLevel/totalScore/starredResponse/scoreItems/strengths/weaknesses/overallComment 等）+ AiBidReport 全部汇总字段 | 报告 docx/pdf 走 FileAsset 引用；**边界：原始 OCR 文本与逐家审计快照（extractedInfo/systemInfo/requirementResponses/competitiveAnalysis）不入包**（体积大且 DB 常驻，投标明文本体走 bid_decrypted 归档）；用户裁定 `scoreDraft` 草稿不入包 |
+| `supervisionLogs`（新增） | 评标段监督日志全量（与开标文件包 supervisionLogs 同 select 口径） | 内联 |
+| `disputes` 补全 | `resolvedBy/resolvedAt` | 内联 |
+| `motions` 补全 | `type/createdBy/closedAt` + votes 带 `expertName/reason/createdAt`（包自描述） | 内联 |
+| `clarifications` 补全 | A-143 证据链：`replyChannel/replySignature/replyAttachmentIds/replyByName/replyOfflineReason` + `type/issuer/aiSummary/fileAssetId/createdAt` | 签名摘要剥壳同 receiptSignature 口径原样（signature 为公开验签值） |
+
+**评标完整性包（`bid_evaluation_handover`）packageVersion 1→2**：pointDecisions 增 `note`。
+
+**签字包 PDF 留痕表**：新增「AI 辅助声明确认」行（`aiConsentAt`）；committee JSON 快照补 `signedIn/aiConsentConfirmed/aiConsentAt/avoidanceConfirmed`（回避明细只进回流包 JSON，PDF 留痕表无时间戳可渲染）。
+
+**归档导出取件（archive-export.service.ts）配套**：① category 清单 +`bid_evaluation_sign_handover`（回流包本体，v1 时漏取）/`sign_packet_signature_page`/`expert_sign_scan`；② 新增按引用 ID 取件——从 `ExpertMemo.inkFileId`、`BidExpert.signScanFileId + signInMeta.photoAssetId`、`BidSignPacket{fileAssetId,signPageScanFileId,handoverFileAssetId}`、`BidClarification{fileAssetId,replyAttachmentIds}`、`AiBidReport{docxFileId,pdfFileId}` 反查收集 FileAsset id；③ take 50→200。
+
+**注意事项**：
+- 回流包闭环锁定语义不变——已生成项目不可重生成，扩展仅对之后新生成的包生效；旧包（v1）仍是有效证据件。
+- AI 报告 FileAsset category=`general`，**不在删除保护清单**——被删则归档取件失败（导出整体拒绝，防缺件残包）。若需硬保护，后续可给 worker 上传改专用类目并迁移存量。
+- 测试锁定：`bid-sign-packet.service.spec.ts`「2026-09-18 完整性扩展 v2」用例 + docx spec 留痕行断言 + evaluation-results spec 字面量。
+
+### 增补（同日）：回避申报只认专家手动（2026-09-18 用户裁定）
+
+**裁定**：利益冲突回避**只认专家手动勾选申报**，系统不做自动检测/合并。原 P2/D4「工作单位 vs 供应商名称归一化自动匹配、合并入 conflictedSupplierIds 且不可清除」设计废止。
+
+**依据**：招标投标法第 37 条回避系专家主动申报义务，系统不得代为申报；名称归一化误匹配会强制误回避且不可撤销，侵害评审独立与供应商权益。附带消解了「回流包内冲突清单不区分自动/手动来源」的 P3——`conflictedSupplierIds` 自此全量为手动勾选，包内自明。
+
+**落地**：`confirmAvoidance` 改为显式传入（含空数组）整体替换、未传入保留既有（向后兼容）；删除 `ExpertConflictService`（含 spec，全仓唯一调用点即此）；专家门户回避区文案改为「回避申报以专家本人勾选为准」。存量数据中已合并的自动项保持原样（申报时点证据）。
+
+### 增补（2026-09-20）：归档导出取件三守卫（审查修复 ba32ed61）
+
+2026-09-20 多路代码审查发现 v2 扩展取件面后 exportAsip 的三个证据链缺口，已修复：①引用件缺行对账（`assertNoMissingRefs`——FileAsset 行缺失 → `ARCHIVE_HANDOVER_FETCH_FAILED` 整体拒绝，此前「被删则归档取件失败」只在 MinIO 对象缺失时成立）；②ZIP 同名消歧（`uniqueEntryName`——JSZip file() 覆盖语义，多专家同名扫描/笔迹图会静默丢证据）；③`fetchAllPaged` 分页全取（原 take:200 无截断检测）。三守卫有纯函数 spec（8 用例）+ `exportAsip` 集成 spec（3 用例，共 11 例）锁定，含曾误删 `dir.file` 一行的集成点回归（manifest↔卷内容对应亦在用例 1 断言）。skip 分页在翻页间删行的 TOCTOU 残余已知：取件类目几乎全在删除硬保护+导出前四性检测缓解，cursor 分页可彻底闭合（暂不做）。

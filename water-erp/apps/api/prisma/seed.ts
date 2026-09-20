@@ -12,7 +12,7 @@
  *
  * 账号说明
  *   seed 直接写回库中真实的 bcrypt 口令哈希；常用演示账号口令沿用 `<用户名>@2026`（见下方输出）。
- *   评审专家例外：seed 末尾会把用户名重置为专家姓名、口令统一为 `expert@2026`，便于演示登录。
+ *   评审专家例外：seed 末尾会把用户名重置为专家姓名、口令置为身份证号（R2 2026-09-18；档案缺 idNumber 回退 `expert@2026`）。
  *
  * 注意
  *   `ProcurementProject.json` 为空——导出快照前该表数据已被一次失败的 seed 清空且未能恢复，
@@ -399,35 +399,52 @@ async function main() {
 
   // ═══ 评审专家凭据规整 ═══
   // 真实库导出的专家用户名是编号（如 a000912）、口令为真实库哈希（本地不知明文）。
-  // 统一重置为：用户名 = 专家姓名（displayName），口令 = expert@2026，便于演示登录。
+  // 统一重置为：用户名 = 专家姓名（displayName），口令 = 身份证号（R2，2026-09-18 身份核验设计）；
+  // 档案无身份证号时回退 expert@2026（存量 ExpertProfile 导出暂无 idNumber，回退为主）。
   // 幂等：每次 seed 后专家凭据恒为此状态，即便从真实库重新 dump 也能自动修复。
-  console.log('▶ 规整评审专家凭据（用户名=姓名，口令 expert@2026）');
-  const expertHash = hashSync('expert@2026', 10);
-  const experts = await prisma.user.findMany({ where: { role: 'bid_expert' } });
+  console.log('▶ 规整评审专家凭据（用户名=姓名，口令=身份证号；缺失回退 expert@2026）');
+  const FALLBACK_EXPERT_PW = 'expert@2026';
+  const pwHashCache = new Map<string, string>();
+  const hashOf = (pw: string) => {
+    let h = pwHashCache.get(pw);
+    if (!h) { h = hashSync(pw, 10); pwHashCache.set(pw, h); }
+    return h;
+  };
+  const experts = await prisma.user.findMany({
+    where: { role: 'bid_expert' },
+    include: { expertProfile: { select: { idNumber: true } } },
+  });
   let renamed = 0;
   let passwordOnly = 0;
   let conflictSkipped = 0;
+  let idNumberPw = 0;
+  let fallbackPw = 0;
   for (const u of experts) {
+    const idNumber = (u.expertProfile?.idNumber ?? '').trim();
+    const password = idNumber || FALLBACK_EXPERT_PW;
+    if (idNumber) idNumberPw++; else fallbackPw++;
+    const pwHash = hashOf(password);
     const targetUsername = (u.displayName ?? '').trim() || u.username;
     if (targetUsername === u.username) {
-      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: expertHash } });
+      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: pwHash } });
       passwordOnly++;
       continue;
     }
     const occupied = await prisma.user.findFirst({ where: { username: targetUsername } });
     if (occupied && occupied.id !== u.id) {
       console.warn(`  ⚠ 「${targetUsername}」已被占用，专家 ${u.username} 保留原用户名，仅重置口令`);
-      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: expertHash } });
+      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: pwHash } });
       conflictSkipped++;
       continue;
     }
     await prisma.user.update({
       where: { id: u.id },
-      data: { username: targetUsername, passwordHash: expertHash },
+      data: { username: targetUsername, passwordHash: pwHash },
     });
     renamed++;
   }
   console.log(`    专家 ${experts.length} 名：重命名 ${renamed}、仅改口令 ${passwordOnly}、冲突跳过 ${conflictSkipped}`);
+  console.log(`    口令来源：身份证号 ${idNumberPw} 名、回退 ${FALLBACK_EXPERT_PW} ${fallbackPw} 名（档案缺 idNumber——:3005 专家库待补录）`);
 
   // ═══ 供应商凭据规整 ═══
   // 与专家规整同理：供应商用户名原始为统一社会信用代码/短码（如 s9151…、supplier1、huaxi），不便演示。
@@ -676,7 +693,7 @@ async function main() {
   console.log('    [电子商城   :3003]  陈源远 / 陈源远@2026');
   console.log('    [供应商端   :3004]  公司名登录 / 口令 supplier@2026（例：四川水发建设有限公司 / supplier@2026）');
   console.log('    [采购管理端 :3005]  陈源远 / 陈源远@2026');
-  console.log('    [专家评标   :3006]  专家库任意专家（用户名=专家姓名）/ 口令 expert@2026');
+  console.log('    [专家评标   :3006]  专家库任意专家（用户名=专家姓名）/ 口令=身份证号（档案缺失者 expert@2026）');
   console.log('    [开评标管理端 :3007]  陈源远 / 陈源远@2026');
   console.log('    [开评标管理端 :3007]  开标主持人 / 开标主持人@2026（演示硬分流）');
 }

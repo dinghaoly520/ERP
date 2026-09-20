@@ -1,12 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
 import { VerificationService } from '../../src/verification/verification.service';
-import { PrismaService } from '../../src/prisma/prisma.service';
 
 describe('VerificationService', () => {
   let service: VerificationService;
   let redisMock: any;
-  let prismaMock: any;
 
   const OLD_DEBUG = process.env.SMS_DEBUG_BYPASS;
 
@@ -26,18 +23,10 @@ describe('VerificationService', () => {
       ttl: jest.fn(),
     };
 
-    prismaMock = {
-      bidExpert: {
-        findFirst: jest.fn(),
-        update: jest.fn(),
-      },
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VerificationService,
         { provide: 'REDIS_CLIENT', useValue: redisMock },
-        { provide: PrismaService, useValue: prismaMock },
       ],
     }).compile();
 
@@ -50,44 +39,6 @@ describe('VerificationService', () => {
       process.env.SMS_DEBUG_BYPASS = OLD_DEBUG;
     }
     delete process.env.SMS_PROVIDER;
-  });
-
-  describe('verifyCode', () => {
-    it('should throw CODE_EXPIRED when no code in Redis', async () => {
-      redisMock.get.mockResolvedValue(null);
-
-      await expect(
-        service.verifyCode('expert_sign_in', 'user1', 'proj1', '123456'),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw CODE_INVALID when code does not match', async () => {
-      redisMock.get.mockResolvedValue(JSON.stringify({ code: '999999', phone: '138****5678', attempts: 0 }));
-      redisMock.ttl.mockResolvedValue(300);
-      redisMock.set.mockResolvedValue('OK');
-
-      await expect(
-        service.verifyCode('expert_sign_in', 'user1', 'proj1', '123456'),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should return ok when code matches', async () => {
-      redisMock.get.mockResolvedValue(JSON.stringify({ code: '123456', phone: '13800000001', attempts: 0 }));
-      redisMock.del.mockResolvedValue(1);
-      prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'expert1' });
-      prismaMock.bidExpert.update.mockResolvedValue({});
-
-      const result = await service.verifyCode('expert_sign_in', 'user1', 'proj1', '123456');
-      expect(result.ok).toBe(true);
-    });
-
-    it('should throw ATTEMPTS_EXCEEDED after 5 failed attempts', async () => {
-      redisMock.get.mockResolvedValue(JSON.stringify({ code: '999999', phone: '13800000001', attempts: 5 }));
-
-      await expect(
-        service.verifyCode('expert_sign_in', 'user1', 'proj1', '123456'),
-      ).rejects.toThrow(BadRequestException);
-    });
   });
 
   describe('registration upload code', () => {
@@ -118,41 +69,13 @@ describe('VerificationService', () => {
       });
     });
   });
-
-  describe('sendCode', () => {
-    it('should throw when cooldown is active', async () => {
-      redisMock.incr.mockResolvedValue(1);
-      redisMock.expire.mockResolvedValue(1);
-      redisMock.get.mockResolvedValue('1');  // cooldown active
-      redisMock.ttl.mockResolvedValue(45);
-
-      await expect(
-        service.sendCode('expert_sign_in', 'user1', 'proj1', '127.0.0.1'),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should succeed when expert has phone', async () => {
-      redisMock.incr.mockResolvedValue(1);
-      redisMock.expire.mockResolvedValue(1);
-      redisMock.get.mockResolvedValue(null);  // no cooldown
-      redisMock.set.mockResolvedValue('OK');
-      prismaMock.bidExpert.findFirst.mockResolvedValue({
-        user: { expertProfile: { phone: '13800000001' } },
-      });
-
-      const result = await service.sendCode('expert_sign_in', 'user1', 'proj1', '127.0.0.1');
-      expect(result.maskedPhone).toBe('138****0001');
-    });
-  });
 });
 
 describe('VerificationService P1-13 — SMS 真实通道与失败回滚', () => {
   let svc: any;
-  let prisma: any;
   let redis: any;
 
   beforeEach(async () => {
-    prisma = { user: { findFirst: jest.fn() } };
     redis = {
       incr: jest.fn().mockResolvedValue(1),
       expire: jest.fn().mockResolvedValue(1),
@@ -164,7 +87,6 @@ describe('VerificationService P1-13 — SMS 真实通道与失败回滚', () => 
     const { resolveSmsProvider } = await import('./sms-provider');
     const instance: any = Object.create(VerificationService.prototype);
     instance.redis = redis;
-    instance.prisma = prisma;
     instance.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
     instance.sms = resolveSmsProvider(); // 每个 it 按当轮 env 重新解析 provider
     svc = instance;

@@ -7,6 +7,8 @@ export interface OperationTrace {
   identityVerified: { ip: string | null; meta: unknown; at: string | null };
   confidentialityAgreedAt: string | null;
   disciplineAgreedAt: string | null;
+  /** 2026-09-18 完整性扩展：AI 辅助评标声明确认时间（BidExpert.aiConsentAt） */
+  aiConsentAt: string | null;
   scoreSubmittedAt: string | null; // BidScoreRecordHistory 最早 createdAt
   scoreVerifiedAt: string | null;  // BidScoreReview.verifiedAt
   reportConfirmedAt: string | null;
@@ -18,7 +20,7 @@ export interface SignPacketSnapshot {
   packageVersion: number;
   generatedAt: string;
   project: { name: string; projectCode: string; procurementMethod: string; openTime: string | null; deadline: string | null; scope: string | null; qualification: string | null; budget: number | null };
-  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null }>;
+  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null; signedIn: boolean; aiConsentConfirmed: boolean; aiConsentAt: string | null; avoidanceConfirmed: boolean }>;
   leaderCoSignedAt: string | null;
   /** A-151：评标报告章节附注（一~九节末「附注：」段；十节正文续写）——未设置时字段缺省 */
   reportNotes?: Array<{ section: string; content: string }>;
@@ -36,6 +38,8 @@ export interface SignPacketSnapshot {
   disputes: Array<{ expertName: string; type: string; title: string; content: string; status: string; response: string | null; createdAt: string }>;
   clarifications: Array<{ supplierName: string; question: string; reply: string | null; createdAt: string }>;
   motions: Array<{ title: string; description: string | null; status: string; result: string | null; votes: Array<{ expertName: string; vote: string }> }>;
+  /** R5（2026-09-20 §4.4）：核验事件（身份核验降级/核验异常/专家替换）——核验记录表附注，证据自含 */
+  verifyEvents?: Array<{ time: string; action: string; target: string; result: string }>;
 }
 
 const DECLARATION_LINES = [
@@ -52,6 +56,7 @@ const TRACE_LABELS: Array<[keyof OperationTrace, string]> = [
   ['identityVerified', '身份核验/签到'],
   ['confidentialityAgreedAt', '保密承诺签署'],
   ['disciplineAgreedAt', '评标纪律确认'],
+  ['aiConsentAt', 'AI 辅助声明确认'],
   ['scoreSubmittedAt', '评分提交'],
   ['scoreVerifiedAt', '评分核对'],
   ['reportConfirmedAt', '报告确认'],
@@ -93,7 +98,15 @@ export class BidSignPacketDocxService {
       let value = '—';
       if (key === 'identityVerified') {
         const iv = trace.identityVerified;
-        value = iv.at ? `${label}：${iv.at}（IP ${iv.ip ?? '未知'}）` : '—';
+        if (iv.at) {
+          // 2026-09-18 身份核验 §4.5：留档照 + 遮挡检测结论随留痕表披露（纸面证据自含）
+          const meta = (iv.meta ?? {}) as { occlusion?: string; photoAssetId?: string; method?: string };
+          const photo = meta.photoAssetId ? '留档照 ✓' : meta.method === 'manual_confirm' ? '无留档照（主持人现场确认）' : '无留档照（应急）';
+          const oc = meta.occlusion === 'passed' ? '遮挡检测通过' : meta.occlusion === 'unchecked' ? '遮挡检测未运行' : '';
+          value = `${label}：${iv.at.replace('T', ' ').slice(0, 16)} · ${photo}${oc ? ` · ${oc}` : ''}（IP ${iv.ip ?? '未知'}）`;
+        } else {
+          value = iv.at ? `${label}：${iv.at}（IP ${iv.ip ?? '未知'}）` : '—';
+        }
         return new TableRow({ children: [new TableCell({ children: [this.para(value)] })] });
       }
       const v = trace[key] as string | null;
@@ -302,6 +315,47 @@ export class BidSignPacketDocxService {
     ];
   }
 
+  /** 核验记录表（2026-09-18 身份核验 §4.5 签字包监督附件）：全专家 × 登录方式 × 留档照 × 检测结论 × 时间/IP */
+  private buildVerificationRecords(s: SignPacketSnapshot): (Paragraph | Table)[] {
+    const methodLabel = (m: string | null | undefined, reason?: string) =>
+      m === 'off_mode' ? '应急（无照片）'
+        : m === 'manual_confirm' ? `主持人现场确认${reason ? `（${reason}）` : ''}`
+          : m ? '身份证号登录 + 留档照' : '未记录';
+    const header = ['专家姓名', '角色', '签到状态', '签到时间', '登录/核验方式', '遮挡检测', '留档照', '签到 IP'];
+    const rows = s.committee.map(e => {
+      const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string; reason?: string };
+      const oc = meta.occlusion === 'passed' ? '通过' : meta.occlusion === 'unchecked' ? '未运行（降级）' : '—';
+      return new TableRow({
+        children: header.map((_, i) => {
+          let text = '—';
+          switch (i) {
+            case 0: text = e.name; break;
+            case 1: text = e.role; break;
+            case 2: text = e.signedIn ? '已签到' : '未签到'; break;
+            case 3: text = meta.timestamp ? meta.timestamp.replace('T', ' ').slice(0, 16) : '—'; break;
+            case 4: text = methodLabel(meta.method, meta.reason); break;
+            case 5: text = oc; break;
+            case 6: text = meta.photoAssetId ? '有（存档）' : meta.method === 'manual_confirm' ? '无（主持人确认）' : e.signedIn && meta.timestamp ? '无（应急）' : '—'; break;
+            case 7: text = e.signInIp ?? '—'; break;
+          }
+          return new TableCell({ children: [this.para(text)] });
+        }),
+      });
+    });
+    return [
+      new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '评标专家身份核验记录表', bold: true, size: 30 })] }),
+      this.para('本表为签到证据汇总：留档照原图以 FileAsset（expert_signin_photo）存档并随评标档案归档；「遮挡检测」为拍摄时的画面完整性判定（检测非识别，不进行人脸比对）。'),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [this.headerRow(header), ...rows] }),
+      ...(s.verifyEvents && s.verifyEvents.length > 0
+        ? [
+          this.h2('核验事件（异常/降级/替换留痕）'),
+          ...s.verifyEvents.map(ev =>
+            this.para(`${ev.time.replace('T', ' ').slice(0, 16)} · ${ev.action} · ${ev.target} · ${ev.result}`)),
+        ]
+        : []),
+    ];
+  }
+
   /** 组装全部子块（公开以便测试直接断言内容；generateDocument 内部消费） */
   buildChildren(s: SignPacketSnapshot): (Paragraph | Table)[] {
     return [
@@ -310,6 +364,7 @@ export class BidSignPacketDocxService {
       ...this.buildExpertSheets(s),
       ...this.buildDisputesAndMotions(s),
       ...this.buildDissentTemplate(s),
+      ...this.buildVerificationRecords(s),
     ];
   }
 

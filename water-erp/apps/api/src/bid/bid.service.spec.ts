@@ -4395,7 +4395,7 @@ describe('P1-14 — 签字包指纹链持久化', () => {
   it('完整归档签字包项持久化 fileHashes（与算链同值）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'GK-1', name: 'P', stage: 'EVALUATING' });
     tx.bidSignPacket = { findUnique: jest.fn().mockResolvedValue({
-      closedAt: new Date(), handoverFileAssetId: 'fa-h', sha256: 'sha-packet',
+      closedAt: new Date(), handoverFileAssetId: 'fa-h', handoverSha256: 'sha-handover', sha256: 'sha-packet',
     }) };
     tx.bidExpert = { findMany: jest.fn().mockResolvedValue([
       { expertName: '甲', signStatus: 'SIGNED', signScanFileId: 'fa-scan' },
@@ -4413,7 +4413,8 @@ describe('P1-14 — 签字包指纹链持久化', () => {
       .find((c: any[]) => c[0].where.id === 'i2');
     expect(signUpdate).toBeTruthy();
     expect(signUpdate[0].data.fileHashes).toBeTruthy();
-    expect(signUpdate[0].data.fileHashes).toHaveLength(3); // packet.sha256 + scan.sha256 + 状态 JSON 哈希
+    expect(signUpdate[0].data.fileHashes).toHaveLength(4); // packet.sha256 + handover.sha256（2026-09-18 入链）+ scan.sha256 + 状态 JSON 哈希
+    expect(signUpdate[0].data.fileHashes).toContain('sha-handover');
   });
 
   it('verifyArchiveIntegrity 对持久化 fileHashes 的行重算 valid:true（修复恒 mismatch）', async () => {

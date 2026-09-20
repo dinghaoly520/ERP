@@ -7,8 +7,10 @@ export class CreateExpertDto {
   @IsString() @IsNotEmpty()
   displayName!: string;
 
+  @IsOptional()
   @IsString() @MinLength(6)
-  password!: string;
+  /** 登录口令；缺省时依次回退：身份证号 → expert@2026（R2 2026-09-18 身份核验设计） */
+  password?: string;
 
   @IsString() @IsNotEmpty()
   specialty!: string;

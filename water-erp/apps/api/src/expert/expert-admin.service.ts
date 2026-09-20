@@ -246,7 +246,7 @@ export class ExpertAdminService {
           username: dto.username,
           displayName: normalizedName,
           email: dto.email,
-          passwordHash: hashSync(dto.password, 10),
+          passwordHash: hashSync(dto.password?.trim() || dto.idNumber?.trim() || 'expert@2026', 10), // R2：缺省口令=身份证号
           role: 'bid_expert',
           isActive: true,
           departmentId,
@@ -289,7 +289,13 @@ export class ExpertAdminService {
   async importFromSeed() {
     const logger = new Logger(ExpertAdminService.name);
     const seedDir = join(__dirname, '..', '..', '..', 'prisma', 'seed-data');
-    const expertHash = hashSync('expert@2026', 10);
+    // R2（2026-09-18 身份核验设计）：批量导入口令=各自档案身份证号，缺失回退 expert@2026（按口令去重哈希）
+    const pwHashCache = new Map<string, string>();
+    const hashOf = (pw: string) => {
+      let h = pwHashCache.get(pw);
+      if (!h) { h = hashSync(pw, 10); pwHashCache.set(pw, h); }
+      return h;
+    };
 
     // 读取种子数据
     let users: any[] = [];
@@ -328,7 +334,7 @@ export class ExpertAdminService {
           data: {
             username: targetUsername,
             displayName: targetUsername,
-            passwordHash: expertHash,
+            passwordHash: hashOf((profile?.idNumber ?? '').toString().trim() || 'expert@2026'),
             role: 'bid_expert',
             isActive: true,
             expertProfile: {

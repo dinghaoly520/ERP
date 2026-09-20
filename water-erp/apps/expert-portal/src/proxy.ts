@@ -31,6 +31,7 @@ export default async function proxy(request: NextRequest) {
   // Allow public assets without auth (images, css, js chunks)
   if (
     pathname.startsWith('/assets') ||
+    pathname.startsWith('/models') || // 2026-09-18 身份核验 R3：MediaPipe 模型/wasm 自托管静态件（Apache-2.0 无敏感信息）
     /\.(png|jpg|jpeg|gif|svg|ico|webp|css)$/i.test(pathname) ||
     // P3-9（2026-09-15）：PWA 静态件放行——被 307 到登录页时 Chrome 拿登录页 HTML 当
     // manifest 解析（console「Manifest: Syntax error」），Service Worker 注册同理失效

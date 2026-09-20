@@ -8,7 +8,7 @@ describe('upload category role policy', () => {
   });
 
   it('prevents suppliers from forging system evidence categories', () => {
-    for (const category of ['bid_sign_packet', 'supervision_push_packet', 'bid_decrypted', 'performance_report']) {
+    for (const category of ['bid_sign_packet', 'supervision_push_packet', 'bid_decrypted', 'performance_report', 'ai_bid_report']) {
       expect(isUploadCategoryAllowedForRole(category, 'supplier')).toBe(false);
     }
   });

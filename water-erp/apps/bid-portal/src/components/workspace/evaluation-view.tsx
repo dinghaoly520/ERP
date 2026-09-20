@@ -17,14 +17,21 @@ import {
   extendEvaluation,
   generateEvaluationResults,
   getExpertMemoInkUrlForAdmin,
+  getExpertVerification,
   getLiveOfficialScores,
   listEvaluationResults,
   listExpertMemosForAdmin,
+  manualConfirmExpertVerification,
+  rejectExpertVerification,
+  replaceExpertDuringEvaluation,
+  unverifyExpertIdentity,
+  verifyExpertIdentity,
   startEvaluation,
   type BidEvaluationResultInfo,
   type ExcludedSupplierInfo,
   type LiveOfficialScoresResponse,
   type ExpertMemoForAdmin,
+  type ExpertVerificationMatrix,
   type ScoreCategory,
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
@@ -163,6 +170,30 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [annotationLoading, setAnnotationLoading] = useState(false);
   const [annotationCounts, setAnnotationCounts] = useState<Record<string, number>>({});
   const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
+  // 身份核验矩阵（2026-09-18 身份核验设计 §4.5）：签到状态/留档照/遮挡检测结论/IP
+  const [verification, setVerification] = useState<ExpertVerificationMatrix | null>(null);
+  // R9（2026-09-20 §4.6）：主持人手动确认弹窗
+  const [manualFor, setManualFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [manualReason, setManualReason] = useState('');
+  const [manualDocType, setManualDocType] = useState('');
+  const [manualBusy, setManualBusy] = useState(false);
+  // R5（2026-09-20 §4.4）：核验异常登记 + 评标中替换弹窗
+  const [rejectFor, setRejectFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [rejectType, setRejectType] = useState<'人证不符' | '照片异常' | '到场异常'>('人证不符');
+  const [rejectNote, setRejectNote] = useState('');
+  const [rejectBusy, setRejectBusy] = useState(false);
+  const [replaceFor, setReplaceFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [replaceToId, setReplaceToId] = useState('');
+  const [replaceReason, setReplaceReason] = useState('');
+  const [replaceBusy, setReplaceBusy] = useState(false);
+  // P3 host 态（2026-09-20 §4.2）：核验登记/撤销弹窗
+  const [verifyFor, setVerifyFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [verifyDocType, setVerifyDocType] = useState<'身份证' | '护照' | '其他'>('身份证');
+  const [verifyNote, setVerifyNote] = useState('');
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [unverifyFor, setUnverifyFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [unverifyReason, setUnverifyReason] = useState('');
+  const [unverifyBusy, setUnverifyBusy] = useState(false);
   // E2: 「自定义评标时长」（启动评标弹窗）与「评标延期审批」（弹窗）
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [durationHours, setDurationHours] = useState(DEFAULT_EVALUATION_HOURS);
@@ -238,6 +269,115 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     loadResults();
     setExcludedSuppliers([]);
   }, [refreshSignal, loadResults]);
+
+  // 身份核验矩阵：挂载拉取 + 30s 轮询保持现场新鲜（仿任务板 30s 先例，GET 已被操作日志排除表覆盖）
+  useEffect(() => {
+    if (!projectId) return;
+    let alive = true;
+    const load = () => {
+      getExpertVerification(projectId)
+        .then(v => { if (alive) setVerification(v); })
+        .catch(() => { /* 静默——矩阵为被动展示，失败保上次数据 */ });
+    };
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [projectId, refreshSignal]);
+
+  // P3 host 态：主持人核验登记（人↔证件↔名单三对照）
+  const handleVerifyIdentity = async () => {
+    if (!verifyFor) return;
+    setVerifyBusy(true);
+    try {
+      await verifyExpertIdentity(projectId, verifyFor.id, { docType: verifyDocType, ...(verifyNote.trim() ? { note: verifyNote.trim() } : {}) });
+      showToast(`已登记 ${verifyFor.expertName} 核验（${verifyDocType}）`, 'ok');
+      setVerifyFor(null);
+      setVerifyNote('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '登记失败，请重试', 'err');
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
+
+  // P3 host 态：撤销误登记（已签到会被 409 拦——防证据回退）
+  const handleUnverifyIdentity = async () => {
+    if (!unverifyFor || !unverifyReason.trim()) return;
+    setUnverifyBusy(true);
+    try {
+      await unverifyExpertIdentity(projectId, unverifyFor.id, { reason: unverifyReason.trim() });
+      showToast(`已撤销 ${unverifyFor.expertName} 核验登记`, 'ok');
+      setUnverifyFor(null);
+      setUnverifyReason('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '撤销失败，请重试', 'err');
+    } finally {
+      setUnverifyBusy(false);
+    }
+  };
+
+  // R9：主持人手动确认（理由必填——防无脑放行）
+  const handleManualConfirm = async () => {
+    if (!manualFor || !manualReason.trim()) return;
+    setManualBusy(true);
+    try {
+      await manualConfirmExpertVerification(projectId, manualFor.id, {
+        reason: manualReason.trim(),
+        ...(manualDocType ? { docType: manualDocType } : {}),
+      });
+      showToast(`已确认 ${manualFor.expertName} 签到（主持人现场确认，已留痕）`, 'ok');
+      setManualFor(null);
+      setManualReason('');
+      setManualDocType('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '确认失败，请重试', 'err');
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  // R5：核验异常登记 → 监督日志异常事件（高风险）
+  const handleRejectVerification = async () => {
+    if (!rejectFor) return;
+    setRejectBusy(true);
+    try {
+      await rejectExpertVerification(projectId, rejectFor.id, { type: rejectType, ...(rejectNote.trim() ? { note: rejectNote.trim() } : {}) });
+      showToast(`已登记 ${rejectFor.expertName} 核验异常（${rejectType}，高风险留痕）`, 'ok');
+      setRejectFor(null);
+      setRejectNote('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '登记失败，请重试', 'err');
+    } finally {
+      setRejectBusy(false);
+    }
+  };
+
+  // R5：评标中替换（正选→候补；被换者已评分会 409 EXPERT_SWAP_LOCKED）
+  const handleReplaceExpert = async () => {
+    if (!replaceFor || !replaceToId || !replaceReason.trim()) return;
+    setReplaceBusy(true);
+    try {
+      const r = await replaceExpertDuringEvaluation(projectId, replaceFor.id, { toExpertId: replaceToId, reason: replaceReason.trim() });
+      showToast(`已替换：${r.replaced}→${r.promoted}（已留痕）`, 'ok');
+      setReplaceFor(null);
+      setReplaceToId('');
+      setReplaceReason('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '替换失败，请重试', 'err');
+    } finally {
+      setReplaceBusy(false);
+    }
+  };
 
   /* ── 派生数据 ── */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
@@ -582,6 +722,125 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           pct={results.length > 0 || canGenerate ? 100 : 0} color={results.length > 0 || canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
       </div>
+
+      {/* ── 身份核验矩阵（2026-09-18 身份核验设计 §4.5）——被动展示，异常处置见 P2 ── */}
+      {verification && verification.experts.length > 0 && (
+        <div className="mb-3 rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
+            <span className="text-[11px] font-bold text-[var(--foreground)]">身份核验</span>
+            <span className="text-[10px] text-[var(--muted-foreground)]">
+              签到留档照 · 遮挡检测 · 时间/IP · 模式：
+              {verification.mode === 'host' ? '强化（主持人核验）' : verification.mode === 'off' ? '应急（无照片放行）' : '自助拍照'}
+            </span>
+          </div>
+          <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
+            {verification.experts.map(row => (
+              <div key={row.id} className="flex flex-wrap items-center gap-3 px-3.5 py-2">
+                <div className="flex min-w-[120px] items-center gap-2">
+                  <span className="text-xs font-semibold text-[var(--foreground)]">{row.expertName}</span>
+                  {row.expertRole !== EXPERT_ROLE.REGULAR && (
+                    <span className="bid-pill bid-pill--muted shrink-0 text-[9px]">候补</span>
+                  )}
+                </div>
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${row.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
+                  <UserCheck size={11} /> {row.signedIn ? '已签到' : '未签到'}
+                </span>
+                {row.signedInAt && (
+                  <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+                    {new Date(row.signedInAt).toLocaleString('zh-CN', { hour12: false })}
+                  </span>
+                )}
+                <span
+                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                    row.method === 'manual_confirm'
+                      ? 'bg-[oklch(0.94_0.09_83/0.45)] text-[var(--warning)]'
+                      : row.occlusion === 'passed'
+                        ? 'bg-[oklch(0.94_0.05_152/0.5)] text-[var(--success)]'
+                        : row.occlusion === 'unchecked'
+                          ? 'bg-[oklch(0.96_0.015_27/0.35)] text-[var(--warning)]'
+                          : 'bg-[oklch(0.95_0.01_258)] text-[var(--muted-foreground)]'
+                  }`}
+                  title={row.method === 'manual_confirm' ? `主持人现场确认：${row.manualReason ?? '—'}（确认人：${row.confirmedByName ?? '—'}）` : undefined}
+                >
+                  {row.method === 'manual_confirm'
+                    ? '主持人确认'
+                    : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : '无检测记录'}
+                </span>
+                {row.photoAssetId ? (
+                  <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/upload/files/${row.photoAssetId}`}
+                      alt={`${row.expertName} 签到留档照`}
+                      className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
+                    />
+                  </a>
+                ) : (
+                  <span className="text-[10px] text-[var(--muted-foreground)]">
+                    {row.method === 'manual_confirm' ? '无照片（主持人确认）' : row.signedIn ? '无照片（应急）' : '—'}
+                  </span>
+                )}
+                {row.signInIp && <span className="font-mono text-[9px] text-[var(--muted-foreground)]">{row.signInIp}</span>}
+                <div className="ml-auto flex items-center gap-2">
+                  {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && (
+                    <button
+                      type="button"
+                      onClick={() => setManualFor({ id: row.id, expertName: row.expertName })}
+                      className="neu-btn-xs"
+                      title="摄像头故障等现场降级——主持人现场确认签到（理由必填，留痕）"
+                    >
+                      手动确认
+                    </button>
+                  )}
+                  {row.expertRole === EXPERT_ROLE.REGULAR && verification.experts.some(e => e.expertRole !== EXPERT_ROLE.REGULAR) && (
+                    <button
+                      type="button"
+                      onClick={() => { setReplaceFor({ id: row.id, expertName: row.expertName }); setReplaceToId(''); setReplaceReason(''); }}
+                      className="neu-btn-xs"
+                      title="评标中替换（正选→候补；被换者已提交评分将拒绝——须走异议裁决/流标）"
+                    >
+                      替换
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setRejectFor({ id: row.id, expertName: row.expertName }); setRejectType('人证不符'); setRejectNote(''); }}
+                    className="neu-btn-xs"
+                    title="核验异常登记（人证不符/照片异常/到场异常）——监督日志高风险事件"
+                  >
+                    异常
+                  </button>
+                  {verification.mode === 'host' && !row.identityVerified && (
+                    <button
+                      type="button"
+                      onClick={() => { setVerifyFor({ id: row.id, expertName: row.expertName }); setVerifyDocType('身份证'); setVerifyNote(''); }}
+                      className="neu-btn-xs"
+                      title="P3 host 态：主持人核验登记（人↔证件↔名单三对照，登记后专家方可签到）"
+                    >
+                      核验
+                    </button>
+                  )}
+                  {verification.mode === 'host' && row.identityVerified && (
+                    <button
+                      type="button"
+                      onClick={() => { setUnverifyFor({ id: row.id, expertName: row.expertName }); setUnverifyReason(''); }}
+                      className="neu-btn-xs"
+                      title="撤销误登记（原因必填；已签到专家将拒绝撤销——防证据回退）"
+                    >
+                      撤销核验
+                    </button>
+                  )}
+                  {row.identityVerified ? (
+                    <span className="text-[10px] font-semibold text-[var(--success)]">主持人核验 · {row.identityVerifiedByName ?? '—'}</span>
+                  ) : verification.mode === 'host' && (
+                    <span className="text-[10px] font-semibold text-[var(--warning)]">待主持人核验</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         {/* ── 专家状态卡 ── */}
@@ -1087,6 +1346,187 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <button type="button" onClick={() => setStartDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleStartEvaluation(durationHours)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
                 <Play size={13} /> {busy ? '启动中…' : '启动评标'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── R9（2026-09-20 §4.6）：主持人手动确认签到（摄像头故障等现场降级）── */}
+      {manualFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">主持人手动确认签到</h2>
+              <button type="button" onClick={() => setManualFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                专家「{manualFor.expertName}」未能拍摄留档照（如摄像头故障）。请现场核对其身份证件后确认签到——
+                <span className="font-semibold text-[var(--warning)]">确认将写入监督日志并在签字包披露</span>。
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">降级理由（必填）</label>
+              <textarea
+                value={manualReason}
+                onChange={(e) => setManualReason(e.target.value)}
+                maxLength={200}
+                rows={2}
+                placeholder="如：摄像头故障 / 驱动异常……"
+                className="workbench-input w-full resize-none"
+              />
+              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验证件类型（可选）</label>
+              <select value={manualDocType} onChange={(e) => setManualDocType(e.target.value)} className="workbench-input w-full">
+                <option value="">—</option>
+                <option value="身份证">身份证</option>
+                <option value="护照">护照</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setManualFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button
+                type="button"
+                onClick={() => void handleManualConfirm()}
+                disabled={manualBusy || !manualReason.trim()}
+                className="neu-btn-primary !h-[36px] !text-xs"
+              >
+                {manualBusy ? '确认中…' : '确认签到'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── R5（2026-09-20 §4.4）：核验异常登记 ── */}
+      {rejectFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">核验异常登记</h2>
+              <button type="button" onClick={() => setRejectFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                专家「{rejectFor.expertName}」存在核验异常——登记后写入<span className="font-semibold text-[var(--danger)]">监督日志高风险事件</span>并进入监督视图时间线，随后可走替换或异议裁决。
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">异常类型</label>
+              <select value={rejectType} onChange={(e) => setRejectType(e.target.value as typeof rejectType)} className="workbench-input w-full">
+                <option value="人证不符">人证不符</option>
+                <option value="照片异常">照片异常</option>
+                <option value="到场异常">到场异常</option>
+              </select>
+              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">说明（可选）</label>
+              <textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} maxLength={200} rows={2} placeholder="补充异常情况说明……" className="workbench-input w-full resize-none" />
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setRejectFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleRejectVerification()} disabled={rejectBusy} className="neu-btn-primary !h-[36px] !text-xs">
+                {rejectBusy ? '登记中…' : '登记异常'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── R5（2026-09-20 §4.4）：评标中替换 ── */}
+      {replaceFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[460px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标中替换</h2>
+              <button type="button" onClick={() => setReplaceFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                将「{replaceFor.expertName}」替换为候补专家（正选↔候补互换，写入监督日志）。
+                <span className="font-semibold text-[var(--warning)]">被替换专家若已提交评分将被拒绝——改变委员会组成须走异议裁决/重新评标流程。</span>
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">递补候补</label>
+              <select value={replaceToId} onChange={(e) => setReplaceToId(e.target.value)} className="workbench-input w-full">
+                <option value="">请选择候补专家…</option>
+                {verification?.experts.filter(e => e.expertRole !== EXPERT_ROLE.REGULAR).map(e => (
+                  <option key={e.id} value={e.id}>{e.expertName}（{e.major}）</option>
+                ))}
+              </select>
+              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">替换理由（必填）</label>
+              <textarea value={replaceReason} onChange={(e) => setReplaceReason(e.target.value)} maxLength={200} rows={2} placeholder="如：人证不符 / 核验异常……" className="workbench-input w-full resize-none" />
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setReplaceFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleReplaceExpert()} disabled={replaceBusy || !replaceToId || !replaceReason.trim()} className="neu-btn-primary !h-[36px] !text-xs">
+                {replaceBusy ? '替换中…' : '确认替换'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── P3 host 态（2026-09-20 §4.2）：主持人核验登记 ── */}
+      {verifyFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">主持人核验登记</h2>
+              <button type="button" onClick={() => setVerifyFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                请现场核对专家「{verifyFor.expertName}」的<span className="font-semibold text-[var(--foreground)]">本人 ↔ 身份证件 ↔ 抽取名单</span>三对照后登记；登记后该专家方可签到（host 态闸门）。
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">证件类型（不存号码）</label>
+              <select value={verifyDocType} onChange={(e) => setVerifyDocType(e.target.value as typeof verifyDocType)} className="workbench-input w-full">
+                <option value="身份证">身份证</option>
+                <option value="护照">护照</option>
+                <option value="其他">其他</option>
+              </select>
+              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">备注（可选）</label>
+              <textarea value={verifyNote} onChange={(e) => setVerifyNote(e.target.value)} maxLength={200} rows={2} placeholder="现场核验情况备注……" className="workbench-input w-full resize-none" />
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setVerifyFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleVerifyIdentity()} disabled={verifyBusy} className="neu-btn-primary !h-[36px] !text-xs">
+                {verifyBusy ? '登记中…' : '登记核验'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── P3 host 态（2026-09-20 §4.2）：撤销误登记 ── */}
+      {unverifyFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">撤销核验登记</h2>
+              <button type="button" onClick={() => setUnverifyFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                撤销专家「{unverifyFor.expertName}」的核验登记——撤销后其签到重新上锁，须重新核验。
+                <span className="font-semibold text-[var(--warning)]">已签到的专家将拒绝撤销（防证据回退）。</span>
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">撤销原因（必填）</label>
+              <textarea value={unverifyReason} onChange={(e) => setUnverifyReason(e.target.value)} maxLength={200} rows={2} placeholder="如：登记错人……" className="workbench-input w-full resize-none" />
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setUnverifyFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleUnverifyIdentity()} disabled={unverifyBusy || !unverifyReason.trim()} className="neu-btn-primary !h-[36px] !text-xs">
+                {unverifyBusy ? '撤销中…' : '确认撤销'}
               </button>
             </div>
           </div>

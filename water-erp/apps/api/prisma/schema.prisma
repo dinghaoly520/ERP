@@ -577,7 +577,14 @@ model BidExpert {
   expertRole                String                  @default("正选") // 正选 | 候补
   invitationStatus          String                  @default("pending") // pending | confirmed | declined
   signedIn                  Boolean                 @default(false)
-  phoneVerified             Boolean                 @default(false)
+  // ── 身份核验（2026-09-18 身份核验设计 P1 预置；host 态使用，默认 self 态恒为 null）──
+  // spec: docs/superpowers/specs/2026-09-18-expert-identity-verification-design.md §5
+  identityVerified       Boolean   @default(false) // host 态：主持人人证登记结果
+  identityVerifiedAt     DateTime?
+  identityVerifiedBy     String?   // 核验人 userId（主持人/admin）
+  identityVerifiedByName String?   // 核验人姓名快照（签字包证据自含）
+  identityDocType        String?   // 身份证 | 护照 | 其他（不存号码——最小化）
+  identityNote           String?   // 核验备注 / 撤销原因
   avoidanceConfirmed        Boolean                 @default(false)
   aiConsentConfirmed        Boolean                 @default(false)
   aiConsentAt               DateTime?

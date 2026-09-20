@@ -146,7 +146,7 @@ function normalizeBidFileAssets(data: BidSubmissionData) {
 }
 
 /**
- * 企业名/CN 归一化（与 expert-conflict 同口径）：去空白与全/半角括号、间隔符·，去公司形态后缀。
+ * 企业名/CN 归一化（原 expert-conflict.service.ts 同口径——该服务已于 2026-09-18 回避手动化时删除，本实现为唯一留存）：去空白与全/半角括号、间隔符·，去公司形态后缀。
  * 用于 CA 证书 DN 的 CN 段与注册企业名的包含比对（「四川水发建设（集团）有限责任公司」≡「四川水发建设」）。
  */
 function normalizeCn(s: string): string {

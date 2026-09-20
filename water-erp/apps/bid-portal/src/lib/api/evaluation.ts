@@ -205,3 +205,79 @@ export function getExpertMemoInkUrlForAdmin(
 ): Promise<{ url: string }> {
   return api.get(`/expert-admin/projects/${projectId}/memos/${memoId}/ink`);
 }
+
+/** 核验矩阵行（2026-09-18 身份核验设计 §4.5——后端 GET /bid/projects/:id/expert-verification 平铺） */
+export interface ExpertVerificationRow {
+  id: string;
+  expertName: string;
+  major: string;
+  expertRole: string;
+  isLead: boolean;
+  isPurchaserRepresentative: boolean;
+  signedIn: boolean;
+  signInIp: string | null;
+  signedInAt: string | null;
+  method: string | null;
+  occlusion: 'passed' | 'unchecked' | null;
+  photoAssetId: string | null;
+  manualReason: string | null;
+  confirmedByName: string | null;
+  identityVerified: boolean;
+  identityVerifiedByName: string | null;
+  identityDocType: string | null;
+}
+
+export interface ExpertVerificationMatrix {
+  projectId: string;
+  mode: 'self' | 'host' | 'off';
+  experts: ExpertVerificationRow[];
+}
+
+export function getExpertVerification(projectId: string): Promise<ExpertVerificationMatrix> {
+  return api.get(`/bid/projects/${projectId}/expert-verification`);
+}
+
+/** R9（2026-09-20 spec §4.6）：主持人手动确认专家签到（摄像头故障等现场降级） */
+export function manualConfirmExpertVerification(
+  projectId: string,
+  expertId: string,
+  body: { reason: string; docType?: string },
+): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string; signedInAt?: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/manual-confirm`, body);
+}
+
+/** R5（2026-09-20 spec §4.4）：核验异常登记 */
+export function rejectExpertVerification(
+  projectId: string,
+  expertId: string,
+  body: { type: '人证不符' | '照片异常' | '到场异常'; note?: string },
+): Promise<{ ok: boolean; expertId: string; expertName: string; action: string; riskFlag: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/reject`, body);
+}
+
+/** R5（2026-09-20 spec §4.4）：评标中替换（仅 :3007；被换正选未评分方可换） */
+export function replaceExpertDuringEvaluation(
+  projectId: string,
+  expertId: string,
+  body: { toExpertId: string; reason: string },
+): Promise<{ ok: boolean; replaced: string; promoted: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/replace`, body);
+}
+
+/** P3 host 态（2026-09-20 spec §4.2）：主持人核验登记 */
+export function verifyExpertIdentity(
+  projectId: string,
+  expertId: string,
+  body: { docType: '身份证' | '护照' | '其他'; note?: string },
+): Promise<{ ok: boolean; expertId: string; expertName: string; verifiedByName: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/verify`, body);
+}
+
+/** P3 host 态（2026-09-20 spec §4.2）：撤销误登记（已签到 409 VERIFY_LOCKED） */
+export function unverifyExpertIdentity(
+  projectId: string,
+  expertId: string,
+  body: { reason: string },
+): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/unverify`, body);
+}

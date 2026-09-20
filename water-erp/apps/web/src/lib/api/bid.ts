@@ -795,3 +795,15 @@ export function activateWorkTemplate(id: string) {
 export function deleteWorkTemplate(id: string) {
   return api.delete<{ deleted: boolean }>(`/work-templates/${id}`);
 }
+
+/** 核验矩阵（2026-09-18 身份核验设计 §4.5 / R5 2026-09-20）——:3005 归档面板只读核验完成度 */
+export interface ExpertVerificationRow {
+  id: string; expertName: string; expertRole: string;
+  signedIn: boolean; method: string | null; occlusion: string | null;
+  photoAssetId: string | null; signedInAt: string | null;
+  manualReason: string | null; confirmedByName: string | null;
+}
+export interface ExpertVerificationMatrix { projectId: string; mode: string; experts: ExpertVerificationRow[] }
+export function getExpertVerification(projectId: string) {
+  return api.get<ExpertVerificationMatrix>(`/bid/projects/${projectId}/expert-verification`);
+}

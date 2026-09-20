@@ -11,9 +11,13 @@ const prisma = {
   bidSignPacket: { findUnique: jest.fn(), update: jest.fn(), upsert: jest.fn() },
   bidExpert: { findFirst: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
   bidEvaluationResult: { count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-  bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+  bidSupervisionLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
   auditLog: { create: jest.fn().mockResolvedValue({}) },
-  fileAsset: { create: jest.fn(), upsert: jest.fn() },
+  fileAsset: { create: jest.fn(), upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+  // 2026-09-18 完整性扩展 v2：回流包新增 delegate（备忘/条款裁定/AI 分析），findUnique/findMany 必须回值
+  expertMemo: { findMany: jest.fn().mockResolvedValue([]) },
+  bidRequirementReview: { findMany: jest.fn().mockResolvedValue([]) },
+  aiBidAnalysisTask: { findUnique: jest.fn().mockResolvedValue(null) },
   // buildSnapshot 的 12 个 delegate：findMany 必须回数组（快照代码直接 .map/断言）
   bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
   bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
@@ -421,6 +425,110 @@ describe('BidSignPacketService.generateHandover', () => {
       totalScore: 288, averageScore: 96, bidPrice: 1485000, // Number 归一（非字符串）
     });
     expect(body.evaluationResults[1]).toMatchObject({ supplierName: '乙公司', rank: 2, bidPrice: null });
+  });
+
+  it('2026-09-18 完整性扩展 v2：身份核验域/备忘/条款裁定/AI 分析/监督日志/澄清证据链/动议投票理由入包', async () => {
+    baseArrange();
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { id: 'e9', expertName: '刘苡池', expertRole: '正选', signStatus: 'SIGNED', signStatusAt: new Date('2026-09-17T10:00:00Z'), signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null, esignature: null, esignatureAt: null,
+        signedIn: true, signInIp: '10.1.1.5', signInMeta: { ip: '10.1.1.5', userAgent: 'iPad', timestamp: '2026-09-17T09:00:00.000Z', photoAssetId: 'fa-photo' },
+        confidentialityAgreed: true, confidentialityAgreedAt: new Date('2026-09-17T09:05:00Z'),
+        disciplineAgreed: true, disciplineAgreedAt: new Date('2026-09-17T09:06:00Z'),
+        aiConsentConfirmed: true, aiConsentAt: new Date('2026-09-17T09:07:00Z'),
+        avoidanceConfirmed: true, conflictedSupplierIds: ['s9'] },
+    ]);
+    (prisma.bidScoreItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'si1', name: '商务评分', points: [{ id: 'sp1', name: '商务要点1' }] },
+    ]);
+    (prisma.expertMemo.findMany as jest.Mock).mockResolvedValue([
+      { contentText: '工期承诺存疑', sourceDevice: 'tablet', createdAt: new Date('2026-09-17T11:00:00Z'),
+        expert: { expertName: '刘苡池' }, supplier: { supplierName: '乙公司' }, scoreItemId: 'si1', scorePointId: 'sp1',
+        inkFile: { id: 'fa-ink', key: 'uploads/2026-09-17/a.png', originalName: '批注.png', size: 1024, sha256: 'ink-sha' } },
+    ]);
+    (prisma.bidRequirementReview.findMany as jest.Mock).mockResolvedValue([
+      { requirementId: 'req-7', category: 'technical', verdict: 'dispute', note: '响应与原文不符',
+        createdAt: new Date('2026-09-17T11:30:00Z'), updatedAt: new Date('2026-09-17T11:30:00Z'),
+        expert: { expertName: '刘苡池' }, bidderResult: { bidSupplier: { supplierName: '乙公司' } } },
+    ]);
+    (prisma.aiBidAnalysisTask.findUnique as jest.Mock).mockResolvedValue({
+      status: 'COMPLETED', aiProvenance: { model: 'deepseek-v4-flash' },
+      requirements: { qualificationRequirements: [{ id: 'req-7', content: '资质等级' }] },
+      bidderResults: [
+        { qualificationStatus: '通过', riskLevel: 'low', totalScore: new Prisma.Decimal('91.5'), starredResponse: { allMet: true },
+          scoreItems: [{ scoreItemId: 'si1', score: 18 }], categoryTotals: null, strengths: ['实力强'], weaknesses: null,
+          overallComment: '总体合规', deviationAnalysis: null, processedAt: new Date('2026-09-16T18:00:00Z'),
+          bidSupplier: { supplierName: '乙公司' } },
+      ],
+      report: { summary: { total: 1 }, ranking: null, keyInfoComparison: null, priceAnalysis: null, concordanceSummary: null,
+        strengthsWeaknesses: null, scoreItemsDetail: null, riskStats: { high: 0 }, highRiskDetails: null, fraudIndicators: null,
+        reviewSuggestions: null, conclusion: '无重大风险', recommendation: null,
+        generatedAt: new Date('2026-09-16T18:05:00Z'), docxFileId: 'fa-docx', pdfFileId: null },
+    });
+    (prisma.fileAsset.findMany as jest.Mock).mockResolvedValue([
+      { id: 'fa-docx', key: 'reports/t1/ai-bid-analysis-report.docx', originalName: '投标文件分析报告.docx', size: 999, sha256: 'docx-sha' },
+    ]);
+    (prisma.bidSupervisionLog.findMany as jest.Mock).mockResolvedValue([
+      { time: new Date('2026-09-17T09:05:00Z'), role: '评审专家', action: '签署协议', target: '刘苡池', result: '已签署：保密承诺', riskFlag: '无' },
+    ]);
+    (prisma.expertDispute.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', expertName: '刘苡池', type: 'scoring', title: '评分异议', content: '…', status: 'resolved', response: '…',
+        resolvedBy: 'u2', resolvedAt: new Date('2026-09-17T12:00:00Z'), createdAt: new Date('2026-09-17T11:45:00Z') },
+    ]);
+    (prisma.bidMotion.findMany as jest.Mock).mockResolvedValue([
+      { id: 'm1', type: 'dispute_resolution', title: '动议', description: '…', status: 'closed', result: 'approved',
+        createdBy: 'u2', createdAt: new Date('2026-09-17T11:50:00Z'), closedAt: new Date('2026-09-17T12:00:00Z'),
+        votes: [{ expertId: 'e9', vote: 'approve', reason: '同意', createdAt: new Date('2026-09-17T11:55:00Z') }] },
+    ]);
+    (prisma.bidClarification.findMany as jest.Mock).mockResolvedValue([
+      { id: 'c1', type: 'clarification', question: '工期?', issuer: 'u2', supplierName: '乙公司', supplierId: 's9', status: '已回复', reply: '90天',
+        replyChannel: 'online', replySignature: { v: 1, algorithm: 'SM2/SM3', certSn: 'SN-9' },
+        replyAttachmentIds: [{ fileAssetId: 'fa-att', name: '复函.pdf', sha256: 'att-sha' }],
+        replyByName: '乙公司', replyOfflineReason: null, aiSummary: '要点：90 天', fileAssetId: null, createdAt: new Date('2026-09-17T10:30:00Z') },
+    ]);
+    const svc = makeService();
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa96' });
+
+    await svc.generateHandover(projectId, 'u1');
+
+    const body = JSON.parse(((svc as any).storage.upload.mock.calls[0][1] as Buffer).toString('utf8'));
+    // 结构版本升 2（2026-09-18 完整性扩展）
+    expect(body.packageVersion).toBe(2);
+    // 身份核验域整组入包（专家「一切」归档原则）
+    expect(body.expertSignStatuses[0]).toMatchObject({
+      expertName: '刘苡池', signedIn: true, signInIp: '10.1.1.5',
+      confidentialityAgreed: true, disciplineAgreed: true,
+      aiConsentConfirmed: true, avoidanceConfirmed: true, conflictedSupplierIds: ['s9'],
+    });
+    // 专家备忘：文本 + 笔迹图 FileAsset 引用（不内嵌字节）
+    expect(body.expertMemos[0]).toMatchObject({
+      expertName: '刘苡池', supplierName: '乙公司', contentText: '工期承诺存疑',
+      scoreItemName: '商务评分', scorePointName: '商务要点1',
+      ink: { fileAssetId: 'fa-ink', sha256: 'ink-sha' },
+    });
+    // 条款裁定（requirement-compare 产物）
+    expect(body.requirementReviews[0]).toMatchObject({
+      expertName: '刘苡池', supplierName: '乙公司', requirementId: 'req-7', verdict: 'dispute', note: '响应与原文不符',
+    });
+    // AI 分析：provenance + 每家核心结论 + 报告（docx 走 FileAsset 引用）
+    expect(body.aiAnalysis).toMatchObject({ status: 'COMPLETED' });
+    expect(body.aiAnalysis.aiProvenance).toEqual({ model: 'deepseek-v4-flash' });
+    expect(body.aiAnalysis.bidders[0]).toMatchObject({ supplierName: '乙公司', qualificationStatus: '通过', totalScore: 91.5 });
+    expect(body.aiAnalysis.report).toMatchObject({ conclusion: '无重大风险', docx: { fileAssetId: 'fa-docx', sha256: 'docx-sha' }, pdf: null });
+    // 评标段监督日志（与开标文件包 supervisionLogs 同口径）
+    expect(body.supervisionLogs[0]).toMatchObject({ action: '签署协议', target: '刘苡池' });
+    // 补齐字段：异议裁决留痕 / 动议类型与投票理由（含专家姓名，包自描述）
+    expect(body.disputes[0]).toMatchObject({ resolvedBy: 'u2', resolvedAt: '2026-09-17T12:00:00.000Z' });
+    expect(body.motions[0]).toMatchObject({ type: 'dispute_resolution', createdBy: 'u2' });
+    expect(body.motions[0].votes[0]).toMatchObject({ expertName: '刘苡池', vote: 'approve', reason: '同意' });
+    // 澄清 A-143 证据链（签名摘要 + 附件引用 + aiSummary）
+    expect(body.clarifications[0]).toMatchObject({ replyChannel: 'online', replyByName: '乙公司', aiSummary: '要点：90 天' });
+    expect(body.clarifications[0].replySignature).toMatchObject({ algorithm: 'SM2/SM3', certSn: 'SN-9' });
+    expect(body.clarifications[0].replyAttachmentIds).toEqual([{ fileAssetId: 'fa-att', name: '复函.pdf', sha256: 'att-sha' }]);
   });
 });
 
