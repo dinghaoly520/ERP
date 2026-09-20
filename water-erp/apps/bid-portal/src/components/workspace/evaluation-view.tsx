@@ -733,34 +733,32 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </span>
           </div>
           <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
-            {/* 列表头——与行同构对齐（专家/签到/时间/核验方式/留档照/IP/操作） */}
-            <div className="flex flex-wrap items-center gap-3 bg-[oklch(0.98_0.008_258/0.6)] px-3.5 py-1.5">
-              <span className="min-w-[120px] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">专家</span>
-              <span className="w-[56px] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
-              <span className="w-[118px] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
-              <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
-              <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
-              <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
-              <span className="ml-auto text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">现场操作</span>
+            {/* 列表头——与行同宽同对齐（专家/签到/时间/核验方式/留档照/IP/操作） */}
+            <div className="flex items-center gap-2 border-b border-[oklch(0.6_0.04_258/0.06)] bg-[oklch(0.98_0.008_258/0.6)] px-3.5 py-1.5">
+              <span className="w-[120px] shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">专家</span>
+              <span className="w-[56px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
+              <span className="w-[128px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
+              <span className="w-[84px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
+              <span className="w-[56px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
+              <span className="w-[100px] shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
+              <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">现场操作</span>
             </div>
             {verification.experts.map(row => (
-              <div key={row.id} className="flex flex-wrap items-center gap-3 px-3.5 py-2">
-                <div className="flex min-w-[120px] items-center gap-2">
-                  <span className="text-xs font-semibold text-[var(--foreground)]">{row.expertName}</span>
+              <div key={row.id} className="flex items-center gap-2 px-3.5 py-2">
+                <div className="flex w-[120px] shrink-0 items-center gap-1.5">
+                  <span className="truncate text-xs font-semibold text-[var(--foreground)]">{row.expertName}</span>
                   {row.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span className="bid-pill bid-pill--muted shrink-0 text-[9px]">候补</span>
                   )}
                 </div>
-                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${row.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
+                <span className={`flex w-[56px] shrink-0 items-center justify-center gap-1 text-[10px] font-semibold ${row.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
                   <UserCheck size={11} /> {row.signedIn ? '已签到' : '未签到'}
                 </span>
-                {row.signedInAt && (
-                  <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
-                    {new Date(row.signedInAt).toLocaleString('zh-CN', { hour12: false })}
-                  </span>
-                )}
+                <span className="w-[128px] shrink-0 text-center font-mono text-[10px] text-[var(--muted-foreground)]">
+                  {row.signedInAt ? new Date(row.signedInAt).toLocaleString('zh-CN', { hour12: false }) : '—'}
+                </span>
                 <span
-                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                  className={`flex w-[84px] shrink-0 items-center justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
                     row.method === 'manual_confirm'
                       ? 'bg-[oklch(0.94_0.09_83/0.45)] text-[var(--warning)]'
                       : row.occlusion === 'passed'
@@ -777,30 +775,34 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     ? '主持人确认'
                     : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : row.method === 'off_mode' ? '应急放行' : '未记录'}
                 </span>
-                {row.photoAssetId ? (
-                  <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/upload/files/${row.photoAssetId}`}
-                      alt={`${row.expertName} 签到留档照`}
-                      className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
-                    />
-                  </a>
-                ) : (
-                  <span className="text-[10px] text-[var(--muted-foreground)]">
-                    {row.method === 'manual_confirm' ? '无照片（主持人确认）' : row.method === 'off_mode' ? '无照片（应急）' : row.signedIn ? '未记录' : '—'}
-                  </span>
-                )}
-                {row.anomaly && (
-                  <span
-                    className="rounded-md bg-[oklch(0.94_0.07_27/0.35)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]"
-                    title={`${new Date(row.anomaly.at).toLocaleString('zh-CN', { hour12: false })} · ${row.anomaly.result}`}
-                  >
-                    已登记异常
-                  </span>
-                )}
-                {row.signInIp && <span className="font-mono text-[9px] text-[var(--muted-foreground)]">{row.signInIp}</span>}
-                <div className="ml-auto flex items-center gap-2">
+                <span className="flex w-[56px] shrink-0 items-center justify-center">
+                  {row.photoAssetId ? (
+                    <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/upload/files/${row.photoAssetId}`}
+                        alt={`${row.expertName} 签到留档照`}
+                        className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
+                      />
+                    </a>
+                  ) : (
+                    <span className="text-center text-[10px] leading-tight text-[var(--muted-foreground)]">
+                      {row.method === 'manual_confirm' ? '无照片（主持人确认）' : row.method === 'off_mode' ? '无照片（应急）' : row.signedIn ? '未记录' : '—'}
+                    </span>
+                  )}
+                </span>
+                <span className="w-[100px] shrink-0 truncate font-mono text-[9px] text-[var(--muted-foreground)]" title={row.signInIp ?? undefined}>
+                  {row.signInIp ?? '—'}
+                </span>
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  {row.anomaly && (
+                    <span
+                      className="rounded-md bg-[oklch(0.94_0.07_27/0.35)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]"
+                      title={`${new Date(row.anomaly.at).toLocaleString('zh-CN', { hour12: false })} · ${row.anomaly.result}`}
+                    >
+                      已登记异常
+                    </span>
+                  )}
                   {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && (
                     <button
                       type="button"
