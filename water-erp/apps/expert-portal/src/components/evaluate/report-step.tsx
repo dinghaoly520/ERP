@@ -78,7 +78,7 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
   const hasDisputes = disputes.length > 0;
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="p-6">
       {/* ── ① 操作栏 ── */}
       <div className="mb-6 flex items-center justify-between">
         <div>

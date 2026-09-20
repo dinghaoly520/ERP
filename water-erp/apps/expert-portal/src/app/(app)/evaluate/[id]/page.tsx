@@ -1350,7 +1350,7 @@ export default function ExpertEvaluatePage() {
           <div className="h-full overflow-y-auto">
           {/* ====== 身份核验 ====== */}
           {step === 'verify' && (
-            <div className="mx-auto max-w-3xl p-6">
+            <div className="p-6">
               <h2 className="mb-6 text-xl font-bold text-[var(--foreground)]">身份核验与承诺确认</h2>
 
               <div className="mb-6 space-y-4">
