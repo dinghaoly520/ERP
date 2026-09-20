@@ -733,6 +733,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </span>
           </div>
           <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
+            {/* 列表头——与行同构对齐（专家/签到/时间/核验方式/留档照/IP/操作） */}
+            <div className="flex flex-wrap items-center gap-3 bg-[oklch(0.98_0.008_258/0.6)] px-3.5 py-1.5">
+              <span className="min-w-[120px] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">专家</span>
+              <span className="w-[56px] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
+              <span className="w-[118px] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
+              <span className="ml-auto text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">现场操作</span>
+            </div>
             {verification.experts.map(row => (
               <div key={row.id} className="flex flex-wrap items-center gap-3 px-3.5 py-2">
                 <div className="flex min-w-[120px] items-center gap-2">
