@@ -41,6 +41,7 @@
 | **R6** | 模式闸 | `EXPERT_IDENTITY_VERIFY=self`（默认：必拍+检测）/ `host`（强化：另需主持人登记）/ `off`（应急：留档照降为可选，签到不阻塞——摄像头故障场景）；admin 切换留审计痕 |
 | **R7** | 工位绑定 | **否决**（2026-09-18 用户裁定「不用分配」）。曾设计工位点选免密登录（含评标室码防幽灵工位），机制整体移除；「误开页面干扰」问题随之消失——登录页无物可注册、无列表可污染 |
 | **R8** | 设备约束 | 评标室内专家无手机、主持人无平板——方案零移动设备、零扫码、零服务端摄像头依赖（工位摄像头仅用于拍照留档） |
+| **R9** | 摄像头故障降级 | **主持人手动确认签到（2026-09-20 用户裁定）**：单工位摄像头故障由主持人（:3007，admin 兜底）**逐人**确认放行——理由必填 + 监督日志 + 签字包披露；对比后否决「admin 全局 off 开关」为主通道（粒度粗：一个摄像头坏全场免照片；决策者不在现场；证据为零），全局 off 仅留作大面积故障的最后手段（env 级，暂不做运行时开关） |
 
 ## 4. 核心流程
 
@@ -85,7 +86,21 @@
 - :3007 核验矩阵（新，被动展示）：专家 × 签到状态 × 留档照（缩略可放大）× 拍照时间 × 检测结论 × IP/UA；host 态另示核验人/证件类型；
 - 个人评分确认表「身份核验」行：`身份证号登录 + 留档照（遮挡检测通过）· 2026-09-18 09:12`（host 态追加 `主持人核验 · 核验人`）；历史数据 null 渲染「未记录」；
 - 签字包监督附件「核验记录表」：全专家 × 登录方式 × 留档照 × 时间 × 检测结论 × 异常/替换事件；
+- 签字包监督附件「核验记录表」：全专家 × 登录方式 × 留档照 × 时间 × 检测结论 × 异常/替换事件；**手动确认行**：方式列「主持人现场确认（理由）」、留档照列「无（主持人确认）」；
 - 回流包 JSON 同步核验摘要；归档闸门**不变**（核验完成度只读展示，不设新闸门）。
+
+### 4.6 摄像头故障降级：主持人手动确认（R9，2026-09-20 裁定）
+
+**背景**：单工位摄像头损坏时，self 态拍照硬闸（400 PHOTO_REQUIRED）会阻塞该专家签到。现场出路按优先级：① 换有摄像头设备登录签到（签到态在 DB，换设备不阻塞评标）；② 插 USB 摄像头重试；③ 本节的手动确认通道。
+
+**通道设计**：
+- 端点 `POST /bid/projects/:id/expert-verification/:expertId/manual-confirm`（:3007，`@Roles('bid_host','admin')`——主持人 primary、admin 兜底；leader/staff 不给）；
+- 入参：`reason` 必填（≤200 字，如「摄像头故障」）+ 可选 `docType`（身份证/护照/其他，不存号码）；
+- 校验：阶段 OPENING/EVALUATING；仅正选（对齐 signIn 门控）；已签到幂等返回（不重复写）；
+- 落库：`BidExpert.signedIn=true` + `signInMeta={method:'manual_confirm', timestamp, confirmedByName, reason, docType?}`（signInIp=null，确认人信息入 meta）+ `BidSupervisionLog`（action=`身份核验降级`，含确认人/理由，`riskFlag='关注'`）——监督视图时间线可见；
+- 矩阵/签字包渲染：矩阵徽章「主持人确认」+理由 tooltip；核验记录表方式列「主持人现场确认（理由）」；留痕行「无留档照（主持人现场确认）」——证据自含；
+- 专家端：签到态在 DB，刷新即走「已签到」分支继续评审，前端零改动；
+- **为什么不是 admin 全局 off**：粒度粗（一人坏全场免照片）、决策者不在现场、证据为零；全局 off 仅作大面积故障的最后手段（env + 重启，暂不做运行时开关，详见 R9）。
 
 ## 5. 数据模型（Prisma 增量）
 
@@ -117,6 +132,7 @@ model BidExpert {
 | `POST .../expert-verification/:expertId/verify` | :3007 | 主持人/admin | host 态核验登记（docType + note? + photoAssetId?）|
 | `POST .../expert-verification/:expertId/unverify` | :3007 | 主持人/admin | 撤销误登记（原因必填，签到重锁）|
 | `POST .../expert-verification/:expertId/reject` | :3007 | 主持人/admin | 核验异常登记 → 异常事件 + 处置联动 |
+| `POST .../expert-verification/:expertId/manual-confirm` | :3007 | 主持人/admin | **R9**：摄像头故障等降级——主持人手动确认签到（reason 必填 + docType?；监督日志；逐人） |
 | `POST .../expert-verification/:expertId/replace` | :3007 | 主持人/admin | 评标中替换（R5）|
 
 - 登录链路**零改动**（账密登录既有）；无设备注册/轮询/凭证端点（R7 移除后不复存在）；
@@ -144,8 +160,8 @@ model BidExpert {
 
 ## 10. 测试与验收
 
-- **单测**：模式闸三分支（self/host/off）；sign-in photoAssetId 必填（400）与 off 态放行；host 态 403 `IDENTITY_NOT_VERIFIED`；unverify 后签到重锁；reject/replace 状态机与通知；photoAssetId 归属校验；phoneVerified 列删除迁移回归（`expert-extraction.service.ts` 直写 true 残留清理——历史坑注释在案）；种子口令=身份证号（含缺失回退）；
-- **e2e**（套件 `identity`）：登录→拍照→签到→回避→承诺→矩阵可见照片→异常→替换→签字包含核验行与留档照（历史项目 null 渲染）；
+- **单测**：模式闸三分支（self/host/off）；sign-in photoAssetId 必填（400）与 off 态放行；host 态 403 `IDENTITY_NOT_VERIFIED`；unverify 后签到重锁；reject/replace 状态机与通知；photoAssetId 归属校验；phoneVerified 列删除迁移回归（`expert-extraction.service.ts` 直写 true 残留清理——历史坑注释在案）；种子口令=身份证号（含缺失回退）；**manual-confirm：未签到正选确认成功/已签到幂等/候补 403/阶段不符 403/理由必填**；
+- **e2e**（套件 `identity`）：登录→拍照→签到→回避→承诺→矩阵可见照片→**手动确认（含矩阵徽章+签字包方式列）**→异常→替换→签字包含核验行与留档照（历史项目 null 渲染）；
 - **浏览器 QA**：拍照引导交互（遮挡提示文案/重试/降级态）、:3007 矩阵缩略图（chrome-devtools，参照 expert-portal-visual-qa）；
 - **验收对标**：§21 防请托措施 ✓ / §7 偏离留痕 ✓ / 动线「登录→拍照→开评」实测 ✓。
 
@@ -154,7 +170,7 @@ model BidExpert {
 | 批次 | 内容 | 规模 |
 |---|---|---|
 | **P1 主轨** | **专家口令=身份证号**（种子/抽取/入库完整性校验，R2；DEMO 提示更新）；**SigninCamera 必拍+遮挡检测**（MediaPipe tasks-vision 自托管，R3；删「直接签到」跳过入口）；sign-in photoAssetId 必填；phoneVerified 列删除迁移；:3007 核验矩阵被动展示（照片/时间/结论/IP）；签字包核验行+记录表；L0 残余（删 face-scan-line 死动画、签到照片入签字包） | 1~2d |
-| **P2 处置** | 核验异常登记 + 评标中替换（R5）+ 回流包核验摘要 + 归档面板只读计数 | ~1d |
+| **P2 处置** | **主持人手动确认（R9，2026-09-20 并入）**：后端端点+监督日志+矩阵按钮/理由弹窗+签字包渲染；核验异常登记 + 评标中替换（R5）+ 回流包核验摘要 + 归档面板只读计数 | ~1.5d |
 | **P3 可选强化** | host 态：主持人核验登记/撤销 + 签到闸门 + WS（字段与端点已预置，纯启用） | ~0.5d |
 | **backlog** | 登录异常告警、异地/非评标时段登录提醒、远程异地评标上线前附录 A 证书评估 | 按需 |
 
