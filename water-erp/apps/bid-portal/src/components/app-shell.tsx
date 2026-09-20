@@ -82,8 +82,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             className="sp-brand"
             aria-label="返回开标任务板"
           >
-            <img src="/assets/logo.png" alt="蜀水云采·智慧水发" className="sp-brand-logo" />
-            <strong className="sp-brand-title">蜀水云采 · 智慧水发</strong>
+            <img src="/assets/logo.png" alt="蜀水云采·开评标系统" className="sp-brand-logo" />
+            <strong className="sp-brand-title">蜀水云采 · 开评标系统</strong>
           </button>
         </div>
 
@@ -101,14 +101,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-0 w-full flex-1 gap-3 overflow-hidden px-3 pb-3 pt-3 [perspective:1500px]">
+      <div className="mx-auto flex min-h-0 w-full flex-1 gap-0 overflow-hidden px-3 pb-3 pt-3 [perspective:1500px]">
         {/* ── 3D 玻璃侧栏 ── */}
         <aside
           data-hidden={collapsed ? 'true' : 'false'}
-          className="sidebar-sheen sidebar-3d sidebar-card hidden h-full w-[268px] shrink-0 flex-col rounded-[24px] pr-2 lg:flex"
+          className="sidebar-sheen sidebar-3d sidebar-card hidden h-full shrink-0 flex-col lg:flex"
         >
-          {/* 品牌块已上移至顶栏 sp-brand；侧栏顶部仅留呼吸 padding */}
-          <nav className="sidebar-scroll sidebar-nav mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pt-3 pb-1">
+          {/* nav — 与 :3004 sp-nav 同款节奏（mt-1.5 / px-2 py-1 / gap 2px / 顶部 16px 呼吸） */}
+          <nav className="sidebar-scroll sidebar-nav min-h-0 flex-1 overflow-y-auto" style={{ marginTop: 6, padding: '16px 8px 4px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {navItems.map(item => {
               const active = isActive(item.path);
               const Icon = item.icon;
