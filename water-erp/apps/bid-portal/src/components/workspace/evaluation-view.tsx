@@ -738,9 +738,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <span className="w-[120px] shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">专家</span>
               <span className="w-[56px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
               <span className="w-[128px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
-              <span className="w-[84px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
-              <span className="w-[56px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
-              <span className="w-[100px] shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
+              <span className="w-[96px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
+              <span className="w-[72px] shrink-0 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
+              <span className="w-[120px] shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
               <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">现场操作</span>
             </div>
             {verification.experts.map(row => (
@@ -758,7 +758,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   {row.signedInAt ? new Date(row.signedInAt).toLocaleString('zh-CN', { hour12: false }) : '—'}
                 </span>
                 <span
-                  className={`flex w-[84px] shrink-0 items-center justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
+                  className={`flex w-[96px] shrink-0 items-center justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
                     row.method === 'manual_confirm'
                       ? 'bg-[oklch(0.94_0.09_83/0.45)] text-[var(--warning)]'
                       : row.occlusion === 'passed'
@@ -775,7 +775,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     ? '主持人确认'
                     : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : row.method === 'off_mode' ? '应急放行' : '未记录'}
                 </span>
-                <span className="flex w-[56px] shrink-0 items-center justify-center">
+                <span className="flex w-[72px] shrink-0 items-center justify-center">
                   {row.photoAssetId ? (
                     <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -791,7 +791,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                   )}
                 </span>
-                <span className="w-[100px] shrink-0 truncate font-mono text-[9px] text-[var(--muted-foreground)]" title={row.signInIp ?? undefined}>
+                <span className="w-[120px] shrink-0 truncate font-mono text-[9px] text-[var(--muted-foreground)]" title={row.signInIp ?? undefined}>
                   {row.signInIp ?? '—'}
                 </span>
                 <div className="ml-auto flex shrink-0 items-center gap-2">
