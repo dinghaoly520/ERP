@@ -132,6 +132,9 @@ export type DashboardData = {
     savingsLabel: string;
     method: string;
     date: string;
+    projectCode: string | null;
+    awardedSupplierName: string | null;
+    participantCount: number;
   }>;
   riskProjects: Array<{
     project: string;

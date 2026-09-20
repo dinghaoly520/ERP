@@ -7,7 +7,7 @@ import {
   AlertCircle, ArrowDown, ArrowRight, ArrowUp,
   BarChart3, CalendarRange, ChevronRight, Eye,
   FolderKanban, Layers, Lightbulb, PieChart,
-  RefreshCw, Sparkles, Target, TrendingUp, X,
+  RefreshCw, Sparkles, Target, TrendingUp,
 } from "lucide-react";
 import { type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
@@ -95,20 +95,14 @@ function IntelligencePanel({ analysis, loading, error, onRefresh, index, reduced
 
 // ── Savings Ranking ──────────────────────────────────────────────────────
 
-type SavingsRankingItem = { project: string; department: string; controlAmount: number; awardAmount: number; savings: number; savingsRate: number; controlAmountLabel: string; awardAmountLabel: string; savingsLabel: string; method: string; date: string };
+type SavingsRankingItem = { project: string; department: string; controlAmount: number; awardAmount: number; savings: number; savingsRate: number; controlAmountLabel: string; awardAmountLabel: string; savingsLabel: string; method: string; date: string; projectCode: string | null; awardedSupplierName: string | null; participantCount: number };
 
 function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRankingItem[]; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
-  const [flipUp, setFlipUp] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const handleExpand = (idx: number, btnEl: HTMLButtonElement) => {
-    const next = expandedIdx === idx ? null : idx;
-    setExpandedIdx(next);
-    if (next === null) return;
-    requestAnimationFrame(() => { const c = containerRef.current; if (!c) return; const cr = c.getBoundingClientRect(); const br = btnEl.getBoundingClientRect(); setFlipUp(cr.bottom - br.bottom < 140); });
+  const handleExpand = (idx: number) => {
+    setExpandedIdx(expandedIdx === idx ? null : idx);
   };
 
   const rateColor = (r: number) => r >= 15 ? "var(--success)" : r >= 8 ? "var(--accent)" : "var(--warning)";
@@ -122,11 +116,11 @@ function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRa
     <motion.div {...{ initial, animate, transition }} className="h-full">
       <section className="wb-panel h-full">
         <div className="wb-panel-header"><div className="flex items-center gap-2"><TrendingUp size={15} className="text-[var(--success)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">节资率项目排行</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--success)_25%,transparent)] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]"><Target size={10} /> Top 5</div></div>
-        <div ref={containerRef} className="wb-panel-body relative space-y-2">
+        <div className="wb-panel-body relative space-y-2">
           {display.map((item, idx) => {
             const rc = rateColor(item.savingsRate);
             return (
-              <button key={idx} ref={el => { rowRefs.current[idx] = el; }} onClick={() => handleExpand(idx, rowRefs.current[idx]!)} className="wb-list-item group !rounded-[12px] !px-3 !py-2.5" style={{"--item-accent":"var(--success)"} as React.CSSProperties}>
+              <button key={idx} onClick={() => handleExpand(idx)} className="wb-list-item group !rounded-[12px] !px-3 !py-2.5" style={{"--item-accent":"var(--success)"} as React.CSSProperties}>
                 <div className="flex items-center gap-2.5 text-left w-full">
                   <div className="flex shrink-0 flex-col items-center gap-1"><div className={`flex h-6 w-6 items-center justify-center rounded-[7px] text-[10px] font-bold ${rateBg(item.savingsRate)}`} style={{color:rc}}>{idx+1}</div><div className="text-xs font-semibold" style={{color:rc}}>{item.savingsRate}%</div></div>
                   <div className="min-w-0 flex-1"><div className="text-[11px] font-semibold leading-snug text-[var(--foreground)] line-clamp-2">{item.project}</div><div className="mt-1 flex items-center gap-2"><span className="inline-flex items-center gap-1 rounded-full border border-[color-mix(in_oklch,var(--accent)_20%,transparent)] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">{item.department}</span><span className="text-xs text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span></div></div>
@@ -135,17 +129,55 @@ function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRa
               </button>
             );
           })}
-          {active && expandedIdx !== null && (
-            <motion.div initial={{opacity:0,scale:0.96,filter:"blur(4px)"}} animate={{opacity:1,scale:1,filter:"blur(0px)"}} exit={{opacity:0,scale:0.96,filter:"blur(4px)"}} transition={{duration:0.2,ease:easeOutQuint}} className="absolute left-4 right-4 z-10 rounded-[14px] p-3.5 neu-card" style={{top: flipUp ? `${Math.max(0,(rowRefs.current[expandedIdx]?.offsetTop??0)-(containerRef.current?.scrollTop??0)-160)}px` : `${(rowRefs.current[expandedIdx]?.offsetTop??0)-(containerRef.current?.scrollTop??0)+(rowRefs.current[expandedIdx]?.offsetHeight??0)+4}px`}} onClick={e=>e.stopPropagation()}>
-              <div className="flex items-start justify-between mb-2"><div className="text-[11px] font-semibold text-[var(--foreground)] line-clamp-2 flex-1 pr-2">{active.project}</div><button onClick={()=>setExpandedIdx(null)} className="neu-btn-xs"><X size={11}/></button></div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2"><div className="neu-card-static rounded-[8px] px-2.5 py-1.5"><div className="text-xs text-[var(--muted-foreground)]">预算金额</div><div className="mt-0.5 text-[11px] font-semibold text-[var(--foreground)]">{active.controlAmountLabel}</div></div><div className="neu-card-static rounded-[8px] px-2.5 py-1.5"><div className="text-xs text-[var(--muted-foreground)]">成交金额</div><div className="mt-0.5 text-[11px] font-semibold text-[var(--success)]">{active.awardAmountLabel}</div></div><div className="neu-card-static rounded-[8px] px-2.5 py-1.5"><div className="text-xs text-[var(--muted-foreground)]">节资率</div><div className="mt-0.5 text-[11px] font-bold" style={{color:rateColor(active.savingsRate)}}>{active.savingsRate}%</div></div></div>
-              <div className="mb-1"><div className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--success)]">节资额对比</div><div className="mt-1 h-3 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]"><div className="h-full rounded-full transition-all duration-700" style={{width:`${(active.savings/maxSavings)*100}%`,backgroundColor:rateColor(active.savingsRate)}}/></div><div className="mt-0.5 text-xs font-semibold" style={{color:rateColor(active.savingsRate)}}>节约 {active.savingsLabel}</div></div>
-              <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]"><span>采购方式: {active.method}</span><span>日期: {active.date}</span></div>
-            </motion.div>
-          )}
           {display.length === 0 && <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--muted-foreground)]">暂无已成交项目数据</div>}
         </div>
       </section>
+
+      {active && (
+        <Modal
+          open
+          onClose={() => setExpandedIdx(null)}
+          size="md"
+          title={
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[color-mix(in_oklch,var(--success)_25%,transparent)] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]"><Target size={18} /></span>
+              <span className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">{active.project}</span>
+            </span>
+          }
+          description={
+            <span className="flex flex-wrap items-center gap-2">
+              {active.department && <span className="inline-flex items-center rounded-full border border-[color-mix(in_oklch,var(--accent)_20%,transparent)] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">{active.department}</span>}
+              <span className="text-xs text-[var(--muted-foreground)]">采购方式：{active.method}</span>
+              <span className="text-xs text-[var(--muted-foreground)]">日期：{active.date || "未填"}</span>
+            </span>
+          }
+        >
+          <div className="grid grid-cols-3 gap-2">
+            <div className="neu-card-static rounded-[12px] px-3 py-2 text-center">
+              <div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">预算金额</div>
+              <div className="mt-1 text-[14px] font-bold tabular-nums text-[var(--foreground)]">{active.controlAmountLabel}</div>
+            </div>
+            <div className="neu-card-static rounded-[12px] px-3 py-2 text-center">
+              <div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">成交金额</div>
+              <div className="mt-1 text-[14px] font-bold tabular-nums text-[var(--success)]">{active.awardAmountLabel}</div>
+            </div>
+            <div className="neu-card-static rounded-[12px] px-3 py-2 text-center">
+              <div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">节资率</div>
+              <div className="mt-1 text-[14px] font-bold tabular-nums" style={{ color: rateColor(active.savingsRate) }}>{active.savingsRate}%</div>
+            </div>
+          </div>
+
+          <div className="neu-card-static rounded-[12px] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--success)]">节资额对比</span>
+              <span className="text-xs font-bold tabular-nums" style={{ color: rateColor(active.savingsRate) }}>节约 {active.savingsLabel}</span>
+            </div>
+            <div className="mt-2.5 h-3 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(active.savings / maxSavings) * 100}%`, backgroundColor: rateColor(active.savingsRate) }} />
+            </div>
+          </div>
+        </Modal>
+      )}
     </motion.div>
   );
 }
@@ -286,7 +318,7 @@ function SupplierCards({ suppliers, index, reducedMotion }: { suppliers: Supplie
           </div></div>
         </section>
       </motion.div>
-      {as && <Modal open onClose={()=>setAs(null)} size="md" title={<span className="flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-[color-mix(in_oklch,var(--accent)_25%,transparent)] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[14px] font-bold text-[var(--accent)]">{as.name.slice(0,2)}</span><span className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">{as.name}</span></span>} description={<span className="flex items-center gap-2"><span className="text-[11px] font-bold text-[var(--success)]">{as.winCount}/{as.participatedCount}</span><span className="text-xs text-[var(--muted-foreground)]">中标</span><span className="text-[11px] font-bold text-[var(--foreground)]">{as.awardAmountLabel}</span></span>}><div className="flex flex-wrap gap-1.5 mb-4">{as.tags.map(t=><span key={t} className="inline-flex items-center rounded-full border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2 py-0.5 text-[10px] text-[var(--accent)]">{t}</span>)}</div><div className="grid grid-cols-3 gap-2 mb-4">{[{l:"中标率",v:`${as.hitRate}%`,c:"var(--success)"},{l:"中标数",v:as.winCount,c:"var(--success)"},{l:"参与数",v:as.participatedCount,c:"var(--warning)"}].map((s,i)=><div key={i} className="neu-card-static rounded-[12px] px-3 py-2 text-center"><div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">{s.l}</div><div className="mt-1 text-[14px] font-bold" style={{color:s.c}}>{s.v}</div></div>)}</div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><BarChart3 size={12}/> 活跃特征</div><div className="grid grid-cols-2 gap-1.5 mb-3">{[{l:"主要方式",v:as.topMethod},{l:"活跃部门",v:as.topDepartment}].map((f,i)=><div key={i} className="neu-card-static rounded-[10px] px-3 py-2"><div className="text-xs text-[var(--muted-foreground)]">{f.l}</div><div className="text-[11px] font-medium text-[var(--foreground)]">{f.v}</div></div>)}</div>{as.recentProcurements.length>0&&<div className="mb-3"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><FolderKanban size={12}/> 近期参与项目</div><div className="space-y-1.5">{as.recentProcurements.slice(0,4).map((p,i)=><div key={i} className="neu-card-static rounded-[10px] px-3 py-2"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{p.project}</div><div className="mt-0.5 flex items-center justify-between text-xs"><span className="text-[var(--muted-foreground)]">{p.date}</span><span className={`font-bold ${p.result.includes("未")||p.result.includes("审查")?"text-[var(--danger)]":"text-[var(--success)]"}`}>{p.result}</span></div></div>)}</div></div>}{as.winProjects.length>0&&<div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><FolderKanban size={12}/> 中标项目</div><div className="space-y-1.5">{as.winProjects.slice(0,3).map(wp=><div key={wp.project} className="neu-card-static rounded-[10px] px-3 py-2"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{wp.project}</div><div className="mt-0.5 text-xs font-bold text-[var(--success)]">{wp.awardAmountLabel}</div></div>)}</div></div>}</Modal>}
+      {as && <Modal open onClose={()=>setAs(null)} size="md" title={<span className="flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-[color-mix(in_oklch,var(--accent)_25%,transparent)] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[14px] font-bold text-[var(--accent)]">{as.name.slice(0,2)}</span><span className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">{as.name}</span></span>} description={<span className="flex items-center gap-2"><span className="text-[11px] font-bold text-[var(--success)]">{as.winCount}/{as.participatedCount}</span><span className="text-xs text-[var(--muted-foreground)]">中标</span><span className="text-[11px] font-bold text-[var(--foreground)]">{as.awardAmountLabel}</span></span>}><div className="flex flex-wrap gap-1.5 mb-4">{as.tags.map(t=><span key={t} className="inline-flex items-center rounded-full border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2 py-0.5 text-[10px] text-[var(--accent)]">{t}</span>)}</div><div className="grid grid-cols-3 gap-2 mb-4">{[{l:"中标率",v:`${as.hitRate}%`,c:"var(--success)"},{l:"中标数",v:as.winCount,c:"var(--success)"},{l:"参与数",v:as.participatedCount,c:"var(--warning)"}].map((s,i)=><div key={i} className="neu-card-static rounded-[12px] px-3 py-2 text-center"><div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">{s.l}</div><div className="mt-1 text-[14px] font-bold" style={{color:s.c}}>{s.v}</div></div>)}</div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><BarChart3 size={12}/> 活跃特征</div><div className="grid grid-cols-2 gap-1.5 mb-3">{[{l:"主要方式",v:as.topMethod},{l:"活跃部门",v:as.topDepartment}].map((f,i)=><div key={i} className="neu-card-static rounded-[10px] px-3 py-2"><div className="text-xs text-[var(--muted-foreground)]">{f.l}</div><div className="text-[11px] font-medium text-[var(--foreground)]">{f.v}</div></div>)}</div>{as.recentProcurements.length>0&&<div className="mb-3"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><FolderKanban size={12}/> 近期参与项目</div><div className="space-y-1.5">{as.recentProcurements.slice(0,4).map((p,i)=><div key={i} className="neu-card-static rounded-[10px] px-3 py-2"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{p.project}</div><div className="mt-0.5 flex items-center justify-between text-xs"><span className="text-[var(--muted-foreground)]">{p.date}</span><span className={`font-bold ${p.result.includes("未")||p.result.includes("审查")?"text-[var(--danger)]":"text-[var(--success)]"}`}>{p.result}</span></div></div>)}</div></div>}{as.winProjects.length>0&&<div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><FolderKanban size={12}/> 中标项目</div><div className="space-y-1.5">{as.winProjects.slice(0,3).map((wp,i)=><div key={`${wp.project}-${i}`} className="neu-card-static rounded-[10px] px-3 py-2"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{wp.project}</div><div className="mt-0.5 text-xs font-bold text-[var(--success)]">{wp.awardAmountLabel}</div></div>)}</div></div>}</Modal>}
     </>
   );
 }

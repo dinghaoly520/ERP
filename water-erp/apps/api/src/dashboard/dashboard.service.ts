@@ -704,6 +704,9 @@ export class DashboardService {
           date: item.procurementDate
             ? `${item.procurementDate.getUTCMonth() + 1}月${item.procurementDate.getUTCDate()}日`
             : '未填',
+          projectCode: item.project.projectCode ?? null,
+          awardedSupplierName: item.awardedSupplier?.name ?? item.awardedSupplierName ?? null,
+          participantCount: item.participants.length,
         };
       })
       .sort((a, b) => {
