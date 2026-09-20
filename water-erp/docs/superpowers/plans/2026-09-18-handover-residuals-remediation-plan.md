@@ -8,7 +8,7 @@
 
 **Tech Stack:** NestJS 11 + Prisma（无迁移）、Jest（ts-jest）、tsx 脚本（dry-run 默认 + `--execute`，仓库既有惯例见 `scripts/align-opening-deadline-24h.ts`）。
 
-**Spec:** `docs/superpowers/specs/2026-08-13-expert-paper-signing-design.md`（末两节：2026-09-18 完整性扩展 v2 增补 + 回避手动裁定增补）
+**Spec:** `docs/superpowers/specs/2026-08-13-expert-paper-signing-design.md`（末三节：2026-09-18 完整性扩展 v2 增补 + 回避手动裁定增补 + 2026-09-20 归档取件三守卫修复增补）
 
 ## Global Constraints
 

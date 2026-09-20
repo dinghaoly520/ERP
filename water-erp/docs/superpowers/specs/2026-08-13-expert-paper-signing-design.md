@@ -285,4 +285,4 @@ PENDING ──登记──▶ SIGNED（附扫描件）
 
 ### 增补（2026-09-20）：归档导出取件三守卫（审查修复 ba32ed61）
 
-2026-09-20 多路代码审查发现 v2 扩展取件面后 exportAsip 的三个证据链缺口，已修复：①引用件缺行对账（`assertNoMissingRefs`——FileAsset 行缺失 → `ARCHIVE_HANDOVER_FETCH_FAILED` 整体拒绝，此前「被删则归档取件失败」只在 MinIO 对象缺失时成立）；②ZIP 同名消歧（`uniqueEntryName`——JSZip file() 覆盖语义，多专家同名扫描/笔迹图会静默丢证据）；③`fetchAllPaged` 分页全取（原 take:200 无截断检测）。三守卫有纯函数 spec + `exportAsip` 集成 spec（13 用例）锁定，含曾误删 `dir.file` 一行的集成点回归。
+2026-09-20 多路代码审查发现 v2 扩展取件面后 exportAsip 的三个证据链缺口，已修复：①引用件缺行对账（`assertNoMissingRefs`——FileAsset 行缺失 → `ARCHIVE_HANDOVER_FETCH_FAILED` 整体拒绝，此前「被删则归档取件失败」只在 MinIO 对象缺失时成立）；②ZIP 同名消歧（`uniqueEntryName`——JSZip file() 覆盖语义，多专家同名扫描/笔迹图会静默丢证据）；③`fetchAllPaged` 分页全取（原 take:200 无截断检测）。三守卫有纯函数 spec（8 用例）+ `exportAsip` 集成 spec（3 用例，共 11 例）锁定，含曾误删 `dir.file` 一行的集成点回归（manifest↔卷内容对应亦在用例 1 断言）。skip 分页在翻页间删行的 TOCTOU 残余已知：取件类目几乎全在删除硬保护+导出前四性检测缓解，cursor 分页可彻底闭合（暂不做）。
