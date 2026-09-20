@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { ServiceWorkerRegister } from '@/components/sw-register';
@@ -9,6 +10,12 @@ import './globals.css';
  * 客户端先行分流脚本（正则源取自 @/lib/device，与 proxy.ts / login 共用一份定义）。
  * 逐项等价：uaTablet || androidTablet || touchTablet（maxTouchPoints 兜底 iPadOS 13+ 伪装 Mac UA）。
  */
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: '--font-body',
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+});
+
 const TABLET_DETECT_SCRIPT = `(function(){
   if (document.cookie.indexOf('device_mode=') !== -1) return;
   var ua = navigator.userAgent;
@@ -50,7 +57,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" className={plusJakartaSans.variable}>
       <body>
         {/* iPadOS 13+ 伪装 Mac UA，中间件无法识别 → 客户端检测先行分流。
             beforeInteractive 确保 React hydrate 之前执行，避免桌面仪表盘闪烁。 */}

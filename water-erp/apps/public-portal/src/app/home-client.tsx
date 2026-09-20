@@ -421,14 +421,20 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   <div className="announce-title-accent" />
                   <h2 className="text-[26px] font-black text-[#18243a]">公告</h2>
                 </div>
-                <div className="announce-tabs">
+                <div
+                  className="neu-segment"
+                  role="group"
+                  aria-label="公告类型"
+                  data-count={String(announceData.length)}
+                  data-index={String(announceTab)}
+                >
+                  <span className="neu-segment-thumb" aria-hidden="true" />
                   {announceData.map((tab, i) => (
                     <button key={tab.key} onClick={() => setAnnounceTab(i)}
-                      className={`announce-tab ${i === announceTab ? 'is-active' : ''}`}
-                      style={{ '--tab-color': tab.color } as React.CSSProperties}>
-                      <span className="announce-tab-dot" style={{ backgroundColor: tab.color }} />
+                      className="neu-segment-btn"
+                      aria-pressed={i === announceTab}>
                       {tab.label}
-                      {tab.items.length > 0 && <span className="ml-1.5 text-[10px] tabular-nums opacity-60">{tab.items.length}</span>}
+                      {tab.items.length > 0 && <span className="neu-segment-count">{tab.items.length}</span>}
                     </button>
                   ))}
                 </div>

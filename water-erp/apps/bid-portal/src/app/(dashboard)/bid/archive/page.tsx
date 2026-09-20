@@ -8,7 +8,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Search, ChevronRight, ExternalLink, Ban, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Search, ChevronRight, ExternalLink, Ban, AlertTriangle, Archive } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 import DateRangeFilter from '@/components/date-range-filter';
@@ -99,6 +99,23 @@ export default function BidArchivePage() {
 
   return (
     <div className="space-y-5">
+      {/* ═══ 顶部标题栏（cgzxui page-hero）═══ */}
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon"><Archive size={17} strokeWidth={1.9} /></div>
+            <div>
+              <div className="page-hero__title">归档端</div>
+              <div className="page-hero__sub">已归档 / 流标项目的查阅、归档材料回看与开评标数据追溯</div>
+            </div>
+          </div>
+          <div className="page-hero__right">
+            <span className="page-hero__stat page-hero__stat--info">共 {filtered.length} 个项目</span>
+          </div>
+        </div>
+        <div className="page-hero__divider" />
+      </div>
+
       {/* ── 筛选工具栏 ── */}
       <div className="neu-card-static flex flex-wrap items-center gap-3 px-4 py-2.5">
         {/* 搜索 */}

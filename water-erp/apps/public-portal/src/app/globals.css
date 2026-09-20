@@ -1849,62 +1849,115 @@ a.group:hover::after {
 }
 
 /* ── Tab 标签 ── */
-.announce-tabs {
-  display: flex;
-  gap: 6px;
-  background: oklch(0.96 0.012 258 / 0.75);
-  padding: 5px;
-  border-radius: 12px;
-  box-shadow:
-    inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.1),
-    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.65);
-}
+/* ══════════════════════════════════════════════════════════════════
+   公告工作台类层（2026-09-20 自 :3005 移植，同名同义；变量映射
+   --accent→--brand / --foreground→--ink·--fg / --muted-foreground→--fg-2）
+   消费方：/announcements 信息公告页（page-hero + KPI 瓷片 + neu-segment）、
+   首页公告区类型切换（neu-segment）。旧 .announce-tab 轨道/瓷片系列随之废弃删除。
+   ══════════════════════════════════════════════════════════════════ */
 
-.announce-tab {
+/* ── 页面标题卡 page-hero（105° 渐变 + 方向性双影）── */
+.page-hero {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #5a6d8a;
-  background: transparent; /* v2：平伏轨道内 */
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow: hidden;
+  border-radius: 20px;
   border: none;
-  border-radius: 9px;
-  cursor: pointer;
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  white-space: nowrap;
-  min-height: 36px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.78) 50%, oklch(1 0 0 / 0.32) 88%);
+  padding: 1.25rem;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+.page-hero__row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.page-hero__left { display: flex; align-items: center; gap: 0.875rem; min-width: 0; }
+.page-hero__icon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 11px;
+  background: oklch(0.985 0.005 258); color: var(--brand);
+  box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.75);
+}
+.page-hero__title { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; color: var(--ink); }
+.page-hero__sub { margin-top: 0.2rem; font-size: 0.75rem; font-weight: 400; letter-spacing: 0.01em; line-height: 1.3; color: var(--fg-2); }
+.page-hero__divider { border-top: 1px solid color-mix(in oklch, var(--fg-2) 16%, transparent); padding-top: 1rem; }
+.page-hero__right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+
+/* ── KPI 指标瓷片（凸起浅底 + 顶缘内高光）── */
+.kpi-card {
+  background: oklch(0.985 0.005 258);
+  border: none;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.9);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 4px 8px oklch(0.55 0.03 258 / 0.15), -2.5px -2.5px 7px oklch(1 0 0 / 0.95);
 }
 
-.announce-tab:hover:not(.is-active) {
-  color: #064ea2;
+/* ── 分段切换 neu-segment（内凹轨道 + 滑动纯白拇指；容器 data-count 声明段数、
+      data-index 驱动拇指位置，translate 为拇指自身宽度百分比天然按段数缩放）── */
+.neu-segment {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid oklch(1 0 0 / 0.6);
   background: oklch(1 0 0 / 0.45);
+  box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7);
 }
-
-/* v2（2026-09-14）：激活 = 凸起纯白瓷片 + 分类色文字（--tab-color，缺省品牌蓝）——轨道上唯一凸起物 */
-.announce-tab.is-active {
-  color: var(--tab-color, #064ea2);
+.neu-segment-thumb {
+  position: absolute;
+  top: 4px; bottom: 4px; left: 4px;
+  width: calc(50% - 8px);
+  border-radius: 9px;
+  background: oklch(1 0 0); /* 纯白拇指——选中态禁改其他底色 */
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.95);
+  transition: translate 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.neu-segment[data-index="1"] .neu-segment-thumb { translate: 100% 0; }
+.neu-segment[data-count="3"] .neu-segment-thumb { width: calc((100% - 8px) / 3); }
+.neu-segment[data-count="5"] .neu-segment-thumb { width: calc((100% - 8px) / 5); }
+.neu-segment[data-count="6"] .neu-segment-thumb { width: calc((100% - 8px) / 6); }
+.neu-segment[data-count="7"] .neu-segment-thumb { width: calc((100% - 8px) / 7); }
+.neu-segment[data-count="8"] .neu-segment-thumb { width: calc((100% - 8px) / 8); }
+.neu-segment[data-index="2"] .neu-segment-thumb { translate: 200% 0; }
+.neu-segment[data-index="3"] .neu-segment-thumb { translate: 300% 0; }
+.neu-segment[data-index="4"] .neu-segment-thumb { translate: 400% 0; }
+.neu-segment[data-index="5"] .neu-segment-thumb { translate: 500% 0; }
+.neu-segment[data-index="6"] .neu-segment-thumb { translate: 600% 0; }
+.neu-segment[data-index="7"] .neu-segment-thumb { translate: 700% 0; }
+.neu-segment-btn {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 12px;
+  font: inherit; font-size: 12.5px; font-weight: 500;
+  color: var(--fg-2);
+  background: transparent; border: none; border-radius: 9px; cursor: pointer;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  white-space: nowrap;
+}
+.neu-segment-btn[aria-pressed="true"] { color: var(--brand); font-weight: 600; }
+.neu-segment-btn[aria-pressed="false"]:hover { color: var(--fg); background: oklch(1 0 0 / 0.4); }
+.neu-segment-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.neu-segment-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
   font-weight: 600;
-  background: oklch(1 0 0);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.95),
-    2px 2px 6px oklch(0.55 0.03 258 / 0.16),
-    -1px -1px 2px oklch(1 0 0 / 0.95);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: oklch(0.55 0.03 258 / 0.12);
+  color: var(--fg-2);
 }
-
-.announce-tab-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  transition: all 0.3s ease;
+.neu-segment-btn[aria-pressed="true"] .neu-segment-count {
+  background: color-mix(in oklch, var(--brand) 12%, transparent);
+  color: var(--brand);
 }
-
-.announce-tab.is-active .announce-tab-dot {
-  box-shadow: 0 0 6px color-mix(in srgb, var(--tab-color, #064ea2) 45%, transparent);
-}
+@media (prefers-reduced-motion: reduce) { .neu-segment-thumb { transition: none; } }
 
 /* ── 全部公告链接 ── */
 .announce-view-all {
@@ -2370,7 +2423,6 @@ a.group:hover::after {
   .announce-tag-urgent-dot { animation: none; }
   .announce-featured,
   .announce-side-item,
-  .announce-tab,
   .announce-side-item-rank {
     transition: none;
   }

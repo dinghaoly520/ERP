@@ -8,7 +8,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ChevronRight } from 'lucide-react';
+import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 
 function fmt(iso: string): string {
@@ -76,6 +76,27 @@ export default function BidTaskBoard() {
 
   return (
     <div className="space-y-5">
+      {/* ═══ 顶部标题栏（cgzxui page-hero）═══ */}
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon"><LayoutDashboard size={17} strokeWidth={1.9} /></div>
+            <div>
+              <div className="page-hero__title">开标任务板</div>
+              <div className="page-hero__sub">开评标现场执行终端 · 解密 / 唱标 / 异议实时计数，30 秒自动刷新</div>
+            </div>
+          </div>
+          <div className="page-hero__right">
+            <span className="page-hero__stat page-hero__stat--info">开标中 {opening.length}</span>
+            <span className="page-hero__stat page-hero__stat--success">评标中 {evaluating.length}</span>
+            <button type="button" onClick={load} disabled={loading} className="neu-btn-xs" aria-label="刷新">
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+        </div>
+        <div className="page-hero__divider" />
+      </div>
+
       {error && !loading && !projects && (
         <div className="neu-card-static flex flex-wrap items-center gap-3 px-5 py-4 text-[13px] text-[var(--danger)]">
           <AlertTriangle size={16} /> 开标任务加载失败：{error}

@@ -8,6 +8,7 @@ import type { ComponentType } from "react";
 import {
   Bell,
   Boxes,
+  Briefcase,
   Building2,
   ClipboardCheck,
   FileCheck,
@@ -21,9 +22,11 @@ import {
   ListChecks,
   MessageSquareWarning,
   Package,
+  Rss,
   ScrollText,
   Trophy,
-} from "lucide-react";
+  Wrench,
+} from "lucide-react";;
 
 export interface WorkspaceTab {
   path: string;
@@ -47,6 +50,8 @@ export interface MenuEntry {
 export interface MenuDivider {
   divider: true;
   label: string;
+  /** 分组头图标（对齐 :3005 sidebar-group-header 的 GroupIcon） */
+  icon?: ComponentType<{ size?: number | string; className?: string; strokeWidth?: number }>;
 }
 
 export type MenuItem = MenuEntry | MenuDivider;
@@ -130,7 +135,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
       icon: Home,
       desc: "状态与待办总览",
     },
-    { divider: true, label: "采购业务" },
+    { divider: true, label: "采购业务", icon: Briefcase },
     {
       path: "/bids",
       title: "项目机会",
@@ -158,7 +163,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
   ];
 
   if (canAccessRegularSupplierWorkspaces(isTemporary)) {
-    items.push({ divider: true, label: "信息维护" });
+    items.push({ divider: true, label: "信息维护", icon: Wrench });
     if (!SUPPLY_WORKSPACE_HIDDEN) items.push(supplyWorkspaceEntry());
     items.push(
       {
@@ -179,7 +184,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
   }
 
   items.push(
-    { divider: true, label: "信息服务" },
+    { divider: true, label: "信息服务", icon: Rss },
     {
       path: "/notifications",
       title: "消息中心",
