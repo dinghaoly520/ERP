@@ -11571,6 +11571,17 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-body { display: flex; gap: 0; flex: 1; overflow: hidden; }
 /* ══ 侧栏容器 — 对齐 :3005 .sidebar-card（2026-09-18 cgzxui 统一）：
    175° 近实白渐变 + 26px 毛玻璃 + 1.5px 蓝调描边 + 四层影（顶内高光/方向双影/蓝色氛围光晕）══ */
+.sp-sidebar,
+.sp-mobile-drawer {
+  /* 侧栏 accent token 钉 :3005 定版口径——下方 cgzxui 移植层把 --accent-strong re-point 成
+     --brand-deep（深一档），--accent re-point 成 --brand（tint 偏饱和），与 :3005 并排时激活蓝/
+     hover 蓝染肉眼可辨不一致；侧栏内钉回定版四值，不动门户其余组件（2026-09-20 用户裁定统一） */
+  --accent: oklch(0.63 0.128 247);
+  --accent-strong: oklch(0.56 0.153 251);
+  --accent-tint: color-mix(in oklch, var(--accent) 7%, transparent);
+  --foreground: oklch(0.29 0.03 248);
+  --muted-foreground: oklch(0.55 0.028 244);
+}
 .sp-sidebar {
   display: flex; flex-direction: column; flex-shrink: 0; width: 240px; margin: 0 16px 0 0; padding-right: 8px; overflow: hidden;
   border-radius: 24px 24px 24px 0; /* 左缘贴屏（:3005 sidebar-card 同款） */
@@ -11599,7 +11610,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   cursor: pointer; text-align: left; font: inherit;
   transition: background-color 0.2s ease;
 }
-.sidebar-group-header:hover { background: color-mix(in oklab, var(--brand) 7%, transparent); }
+.sidebar-group-header:hover { background: var(--accent-tint); }
 .sidebar-group-label {
   flex: 1; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--muted-foreground);
@@ -11627,12 +11638,12 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   font-size: 14px; font-weight: 500; white-space: nowrap;
   transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
 }
-.sp-nav-item:hover { color: var(--foreground, oklch(0.24 0.03 258)); background: color-mix(in oklab, var(--brand) 8%, transparent); }
+.sp-nav-item:hover { color: var(--foreground); background: var(--accent-tint); }
 @media (pointer: coarse) { .sp-nav-item { min-height: 44px; } } /* 触屏触控目标（桌面鼠标 36px 对齐 :3005）*/
 /* Active — 纯白凹陷 + 外投影（:3005 同款：内凹双影 + 柔和外影分离白块与面板） */
 .sp-nav-item.active,
 .sp-nav-item[data-active="true"] {
-  color: var(--accent-strong, var(--brand)); font-weight: 600; background: oklch(1 0 0);
+  color: var(--accent-strong, var(--brand)); background: oklch(1 0 0);
   box-shadow:
     inset 2px 2px 6px oklch(0.55 0.08 250 / 0.22),
     inset -2px -2px 5px oklch(1 0 0 / 0.7),
@@ -11657,7 +11668,8 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-nav-icon { flex-shrink: 0; font-size: 18px; display: inline-flex; }
 .sp-sidebar.collapsed .sp-nav-icon { font-size: 20px; }
 .sp-nav-text { flex: 1; min-width: 0; }
-.sp-nav-title { display: block; font-size: 13px; font-weight: 900; letter-spacing: -0.01em; line-height: 1.3; }
+/* 字号/字重/行高继承 .sp-nav-item（14px/500）——:3005 定版口径，勿再叠 900 黑体字重 */
+.sp-nav-title { display: block; }
 .sp-nav-desc { display: block; margin-top: 1px; font-size: 11px; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-nav-item.active .sp-nav-desc { opacity: 0.75; }
 .sp-nav-badge {
@@ -13851,8 +13863,9 @@ main.reg { align-items: flex-start; }
 }
 .reg-foot-text { color: var(--reg-muted); font-size: 12.5px; letter-spacing: 0.02em; }
 /* ── 侧栏子页面导航（2026-09-18：自标题卡迁入；父项归属同一功能模块）──
-   从属轨道：激活分组的轨道线品牌色淡染（灰线=未激活分组）；当前子项=水青色标 + 品牌tint（与父项
-   sp-nav-active-bar 同语言）；完整三态（默认 → hover 抬亮 → active 按压内凹）。 */
+   从属轨道：激活分组的轨道线 accent-strong 淡染（灰线=未激活分组）；当前子项=品牌蓝色标 +
+   accent-tint 底，与父项激活（nav-active-skew / 实白凹陷）同一 cgzxui 色彩语言；
+   完整三态（默认 → hover 蓝染 → active 按压内凹）。 */
 .sp-nav-sub {
   display: flex; flex-direction: column; gap: 2px;
   margin: -1px 0 6px 22px;
@@ -13860,33 +13873,33 @@ main.reg { align-items: flex-start; }
   border-left: 1px solid oklch(0.88 0.015 258 / 0.8);
 }
 .sp-nav-sub[data-open="true"] {
-  border-left-color: color-mix(in oklab, var(--sp-primary) 26%, transparent);
+  border-left-color: color-mix(in oklab, var(--accent-strong) 26%, transparent);
 }
 .sp-nav-sub-item {
   position: relative; display: flex; align-items: center; gap: 7px;
   min-height: 32px; padding: 4px 9px;
   border: none; border-radius: 9px;
-  background: transparent; color: var(--sp-nav-fg, #5a6d8a);
+  background: transparent; color: var(--muted-foreground);
   font-size: 12.5px; font-weight: 500; text-decoration: none; cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .sp-nav-sub-item svg { opacity: 0.78; transition: opacity 0.15s ease; }
-.sp-nav-sub-item:hover { background: oklch(0.955 0.02 258); color: var(--sp-primary); }
+.sp-nav-sub-item:hover { background: var(--accent-tint); color: var(--accent-strong); }
 .sp-nav-sub-item:hover svg { opacity: 1; }
 .sp-nav-sub-item:active {
   box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.7);
 }
 .sp-nav-sub-item.is-current {
-  color: var(--sp-primary); font-weight: 700;
-  background: color-mix(in oklab, var(--sp-primary) 8%, transparent);
+  color: var(--accent-strong);
+  background: var(--accent-tint);
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 .sp-nav-sub-item.is-current svg { opacity: 1; }
 .sp-nav-sub-item.is-current::before {
   content: ""; position: absolute; left: -10px; top: 50%; transform: translateY(-50%);
   width: 3px; height: 16px; border-radius: 0 3px 3px 0;
-  /* 水青点缀——与父项 active 左标（.sp-nav-active-bar）同一设计语言 */
-  background: color-mix(in oklch, var(--water) 62%, white);
+  /* 与父项 nav-active-skew 同一品牌蓝（cgzxui 统一，取代旧水青点缀） */
+  background: var(--accent-strong);
 }
 .sp-nav-sub-item:focus-visible { outline: 3px solid color-mix(in oklab, var(--brand) 35%, transparent); outline-offset: 1px; }
 .sp-nav-sub-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.55; }
