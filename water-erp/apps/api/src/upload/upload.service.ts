@@ -697,7 +697,7 @@ export class UploadService implements OnModuleInit {
     // P0-5：开评标留痕资产删除保护（审计 P0-5 剩余面，2026-08-24）——
     // ① category 保护集：归档包/签字包/扫描件等留痕类目整体禁删；
     // ② 引用反查兜底：category 不在集内但被留痕关键列引用的资产（如中标通知书 DOCX）同样禁删。
-    if ((EVIDENCE_PROTECTED_CATEGORIES as readonly string[]).includes(asset.category)) {
+    if (EVIDENCE_PROTECTED_CATEGORIES.includes(asset.category)) {
       throw new ConflictException({ error: '该文件属开评标留痕资产，禁止删除', code: 'FILE_PROTECTED' });
     }
     const evidenceRefs = await Promise.all([

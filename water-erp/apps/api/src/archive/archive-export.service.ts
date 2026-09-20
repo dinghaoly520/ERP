@@ -123,7 +123,6 @@ export class ArchiveExportService {
     // ── 卷内：项目管理/ 阶段组合文件夹（§9.2 按程序先后） ──
     const pmDir = root.folder('项目管理')!;
     const uploadDir = path.resolve(process.cwd(), 'uploads', 'project-management');
-    let fileCount = 0;
 
     for (const st of item.stages) {
       if (st.attachments.length === 0) continue;
@@ -147,7 +146,6 @@ export class ArchiveExportService {
           source: `attachment/${st.stageKey}`,
         });
         seq += 1;
-        fileCount += 1;
       }
     }
 
@@ -211,7 +209,6 @@ export class ArchiveExportService {
               size: buf.length,
               source: `fileAsset/${fa.category}`,
             });
-            fileCount += 1;
           } catch (err) {
             fetchFailures.push(`${fa.originalName ?? fa.key}（${err instanceof Error ? err.message : String(err)}）`);
           }
