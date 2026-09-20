@@ -18,10 +18,10 @@ const IconUser = (
 const IconLock = (
   <svg className="login-field-shell__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="4.5" y="10" width="15" height="10" rx="2.5" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" /></svg>
 );
-// cgzxui 箭头规范（component-specs「箭头 SVG 源」）：纯 chevron 13×13 / strokeWidth 2，
-// 不用带横线的 arrow-right——与 18×18 圆形容器（.login-arrow-badge）尺寸配对
+// cgzxui 箭头规范（component-specs「箭头 SVG 源」）：纯 chevron 13×13 + 18×18 圆形容器；
+// strokeWidth 2.5（用户 2026-09-20 裁定加粗，规格默认 2）
 const IconArrow = (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
 );
 const IconEye = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -212,10 +212,10 @@ function ExpertLoginPage() {
         <div className="login-rise login-rise--4 mt-7 text-center">
           <div className="login-credit">
             {prefersReducedMotion ? (
-              <span className="login-credit__static">四川水发勘测设计研究有限公司　制</span>
+              <span className="login-credit__static">四川水利发展集团有限公司　制</span>
             ) : (
               <TrueFocus
-                sentence="四|川|水|发|勘|测|设|计|研|究|有|限|公|司| |制"
+                sentence="四|川|水|利|发|展|集|团|有|限|公|司| |制"
                 separator="|"
                 manualMode={false}
                 blurAmount={3}

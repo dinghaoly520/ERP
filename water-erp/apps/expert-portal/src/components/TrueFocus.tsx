@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * TrueFocus —— 逐字聚焦动效（「四川水发勘测设计研究有限公司　制」署名用）。
+ * TrueFocus —— 逐字聚焦动效（「四川水利发展集团有限公司　制」署名用）。
  * 移植自 apps/web/src/components/TrueFocus.jsx（2026-09-20），差异仅一处：
  * web 版用 framer-motion 驱动移动取景框，本门户登录页刻意保持零 framer-motion
  * （见 login.css 头注），取景框改为 React state + CSS transition 等价实现
