@@ -140,6 +140,20 @@ describe('BidSignPacketDocxService', () => {
     expect(text).toContain('无留档照（主持人现场确认）');
   });
 
+  it('R5 核验事件：异常/替换留痕随核验记录表附注披露', () => {
+    const snap: SignPacketSnapshot = {
+      ...baseSnapshot,
+      verifyEvents: [
+        { time: '2026-09-20T10:05:00.000Z', action: '核验异常', target: '刘苡池', result: '人证不符（登记人：陈源远）' },
+        { time: '2026-09-20T10:08:00.000Z', action: '专家替换', target: '刘苡池', result: '评标中替换：刘苡池→候补甲（理由：人证不符；经办：陈源远）' },
+      ],
+    };
+    const text = textOf(svc.buildChildren(snap));
+    expect(text).toContain('核验事件（异常/降级/替换留痕）');
+    expect(text).toContain('2026-09-20 10:05 · 核验异常 · 刘苡池 · 人证不符（登记人：陈源远）');
+    expect(text).toContain('2026-09-20 10:08 · 专家替换 · 刘苡池');
+  });
+
   /* ── A-151（P1 波4）：报告章节附注渲染 ── */
   it('A-151：一~九节附注以「附注：」段插入节末；十节正文续写（首句保留+用户句+生效句接续）', () => {
     const snap: SignPacketSnapshot = {

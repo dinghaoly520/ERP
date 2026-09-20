@@ -245,3 +245,21 @@ export function manualConfirmExpertVerification(
 ): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string; signedInAt?: string }> {
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/manual-confirm`, body);
 }
+
+/** R5（2026-09-20 spec §4.4）：核验异常登记 */
+export function rejectExpertVerification(
+  projectId: string,
+  expertId: string,
+  body: { type: '人证不符' | '照片异常' | '到场异常'; note?: string },
+): Promise<{ ok: boolean; expertId: string; expertName: string; action: string; riskFlag: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/reject`, body);
+}
+
+/** R5（2026-09-20 spec §4.4）：评标中替换（仅 :3007；被换正选未评分方可换） */
+export function replaceExpertDuringEvaluation(
+  projectId: string,
+  expertId: string,
+  body: { toExpertId: string; reason: string },
+): Promise<{ ok: boolean; replaced: string; promoted: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/replace`, body);
+}

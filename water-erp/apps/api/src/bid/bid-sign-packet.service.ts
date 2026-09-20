@@ -597,7 +597,7 @@ export class BidSignPacketService {
 
   /** 快照评标全量数据（§42 十项 + 签字页 + 个人表 + 异议/澄清/动议） */
   async buildSnapshot(projectId: string): Promise<SignPacketSnapshot> {
-    const [project, committee, openingRecords, suppliers, invalidBids, scoreItems, results, disputes, clarifications, motions] =
+    const [project, committee, openingRecords, suppliers, invalidBids, scoreItems, results, disputes, clarifications, motions, verifyLogs] =
       await Promise.all([
         this.prisma.bidProject.findUnique({
           where: { id: projectId },
@@ -617,6 +617,12 @@ export class BidSignPacketService {
         this.prisma.expertDispute.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.bidClarification.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true }, orderBy: { createdAt: 'asc' } }),
+        // R5（2026-09-20 §4.4）：核验事件入签字包证据链（降级/异常/替换三类留痕）
+        this.prisma.bidSupervisionLog.findMany({
+          where: { projectId, action: { in: ['身份核验降级', '核验异常', '专家替换'] } },
+          select: { time: true, action: true, target: true, result: true },
+          orderBy: { time: 'asc' },
+        }),
       ]);
 
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -718,6 +724,10 @@ export class BidSignPacketService {
       disputes: disputes.map(d => ({ expertName: d.expertName, type: d.type, title: d.title, content: d.content, status: d.status, response: d.response, createdAt: d.createdAt.toISOString() })),
       clarifications: clarifications.map(c => ({ supplierName: c.supplierName, question: c.question, reply: c.reply, createdAt: c.createdAt.toISOString() })),
       motions: motions.map(m => ({ title: m.title, description: m.description, status: m.status, result: m.result, votes: m.votes.map(v => ({ expertName: committee.find(e => e.id === v.expertId)?.expertName ?? '（专家）', vote: v.vote })) })),
+      // R5（2026-09-20 §4.4）：核验事件（降级/异常/替换）入签字包——核验记录表附注披露
+      verifyEvents: verifyLogs.map(l => ({
+        time: l.time.toISOString(), action: l.action, target: l.target, result: l.result,
+      })),
     };
   }
 }

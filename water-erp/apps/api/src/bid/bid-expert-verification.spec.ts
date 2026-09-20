@@ -133,3 +133,95 @@ describe('BidService.manualConfirmExpertVerification（R9）', () => {
       .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
   });
 });
+
+// R5 核验异常登记 + 评标中替换（2026-09-20 spec §4.4）
+describe('BidService.rejectExpertVerification（R5 异常登记）', () => {
+  let svc: any;
+  let prisma: any;
+  const ACTOR = { id: 'host-1', username: '陈源远' };
+
+  beforeEach(() => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+      bidExpert: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', expertName: '刘苡池' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '陈源远' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    svc = instance;
+  });
+
+  it('登记成功 → 监督日志 核验异常·高风险（含类型/说明/登记人）', async () => {
+    const r = await svc.rejectExpertVerification('proj-1', 'e1', ACTOR, { type: '人证不符', note: '证件照片与本人不符' });
+    expect(r.ok).toBe(true);
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: 'proj-1', role: '评审专家', target: '刘苡池',
+        action: '核验异常',
+        result: expect.stringContaining('人证不符：证件照片与本人不符（登记人：陈源远）'),
+        riskFlag: '高风险',
+      }),
+    });
+  });
+
+  it('阶段不符 → 403 PROJECT_NOT_ACTIVE', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+    await expect(svc.rejectExpertVerification('proj-1', 'e1', ACTOR, { type: '照片异常' }))
+      .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+  });
+});
+
+describe('BidService.replaceExpertDuringEvaluation（R5 评标中替换）', () => {
+  let svc: any;
+  let prisma: any;
+  const ACTOR = { id: 'host-1', username: '陈源远' };
+  const REGULAR = { id: 'e1', expertName: '刘苡池', expertRole: '正选' };
+  const ALT = { id: 'e2', expertName: '候补甲', expertRole: '候补' };
+
+  beforeEach(() => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
+      bidExpert: { findFirst: jest.fn().mockImplementation(({ where }) => Promise.resolve(where.id === 'e1' ? REGULAR : ALT)), update: jest.fn().mockResolvedValue({}) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(0) },
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '陈源远' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (arr: any[]) => Promise.all(arr)),
+    };
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    svc = instance;
+  });
+
+  it('评标中·未评分 → 互换角色 + 监督日志 专家替换·关注', async () => {
+    const r = await svc.replaceExpertDuringEvaluation('proj-1', 'e1', 'e2', ACTOR, '人证不符');
+    expect(r.ok).toBe(true);
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: { expertRole: '候补' } });
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'e2' }, data: { expertRole: '正选' } });
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: '专家替换',
+        result: expect.stringContaining('刘苡池→候补甲'),
+        riskFlag: '关注',
+      }),
+    });
+  });
+
+  it('被换正选已评分 → 409 EXPERT_SWAP_LOCKED（尊重 swapExpertRole 合规禁令）', async () => {
+    prisma.bidScoreRecord.count.mockResolvedValue(5);
+    await expect(svc.replaceExpertDuringEvaluation('proj-1', 'e1', 'e2', ACTOR, '人证不符'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_LOCKED' } });
+    expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+  });
+
+  it('评标未启动（OPENING）→ 409 REPLACE_ONLY_IN_EVALUATION（指引 :3005 面板）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+    await expect(svc.replaceExpertDuringEvaluation('proj-1', 'e1', 'e2', ACTOR, 'x'))
+      .rejects.toMatchObject({ response: { code: 'REPLACE_ONLY_IN_EVALUATION' } });
+  });
+
+  it('方向错误（候补→正选）→ 400 INVALID_SWAP_DIRECTION', async () => {
+    await expect(svc.replaceExpertDuringEvaluation('proj-1', 'e2', 'e1', ACTOR, 'x'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_SWAP_DIRECTION' } });
+  });
+});

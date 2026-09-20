@@ -38,6 +38,8 @@ export interface SignPacketSnapshot {
   disputes: Array<{ expertName: string; type: string; title: string; content: string; status: string; response: string | null; createdAt: string }>;
   clarifications: Array<{ supplierName: string; question: string; reply: string | null; createdAt: string }>;
   motions: Array<{ title: string; description: string | null; status: string; result: string | null; votes: Array<{ expertName: string; vote: string }> }>;
+  /** R5（2026-09-20 §4.4）：核验事件（身份核验降级/核验异常/专家替换）——核验记录表附注，证据自含 */
+  verifyEvents?: Array<{ time: string; action: string; target: string; result: string }>;
 }
 
 const DECLARATION_LINES = [
@@ -344,6 +346,13 @@ export class BidSignPacketDocxService {
       new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '评标专家身份核验记录表', bold: true, size: 30 })] }),
       this.para('本表为签到证据汇总：留档照原图以 FileAsset（expert_signin_photo）存档并随评标档案归档；「遮挡检测」为拍摄时的画面完整性判定（检测非识别，不进行人脸比对）。'),
       new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [this.headerRow(header), ...rows] }),
+      ...(s.verifyEvents && s.verifyEvents.length > 0
+        ? [
+          this.h2('核验事件（异常/降级/替换留痕）'),
+          ...s.verifyEvents.map(ev =>
+            this.para(`${ev.time.replace('T', ' ').slice(0, 16)} · ${ev.action} · ${ev.target} · ${ev.result}`)),
+        ]
+        : []),
     ];
   }
 

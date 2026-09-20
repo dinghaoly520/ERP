@@ -3066,6 +3066,87 @@ export class BidService {
     return { ok: true, expertId: expert.id, expertName: expert.expertName, signedInAt: signInMeta.timestamp };
   }
 
+  /** R5 核验异常登记（2026-09-20 spec §4.4）：主持人发现人证不符/照片异常/到场异常 → 监督日志异常事件（高风险） */
+  async rejectExpertVerification(
+    projectId: string,
+    expertId: string,
+    actor: { id: string; username: string },
+    dto: { type: string; note?: string },
+  ) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可登记异常阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+      select: { id: true, expertName: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '核验异常',
+        result: `${dto.type}${dto.note ? `：${dto.note}` : ''}（登记人：${actorName}）`,
+        riskFlag: '高风险',
+      },
+    }).catch(() => {});
+    return { ok: true, expertId: expert.id, expertName: expert.expertName, action: '核验异常', riskFlag: '高风险' };
+  }
+
+  /** R5 评标中替换（2026-09-20 spec §4.4，仅 :3007）：冒名/异常专家在评标中被替换——
+   *  尊重 swapExpertRole 的合规禁令（EXPERT_SWAP_LOCKED）：仅当被换正选尚未提交任何评分时可换；
+   *  已评分 → 409 指向异议裁决/流标（改变委员会组成须走重评流程，不得静默互换）。 */
+  async replaceExpertDuringEvaluation(
+    projectId: string,
+    fromExpertId: string,
+    toExpertId: string,
+    actor: { id: string; username: string },
+    reason: string,
+  ) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new ConflictException({
+        error: '评标未启动——评标前替换请在采购管理工作台（:3005）开标确认面板操作',
+        code: 'REPLACE_ONLY_IN_EVALUATION',
+      });
+    }
+    const [from, to] = await Promise.all([
+      this.prisma.bidExpert.findFirst({ where: { projectId, id: fromExpertId }, select: { id: true, expertName: true, expertRole: true } }),
+      this.prisma.bidExpert.findFirst({ where: { projectId, id: toExpertId }, select: { id: true, expertName: true, expertRole: true } }),
+    ]);
+    if (!from || !to) throw new BadRequestException({ error: '专家记录不存在', code: 'NOT_FOUND' });
+    if (from.expertRole !== '正选' || to.expertRole !== '候补') {
+      throw new BadRequestException({ error: '替换方向必须为正选→候补', code: 'INVALID_SWAP_DIRECTION' });
+    }
+    const scoreCount = await this.prisma.bidScoreRecord.count({ where: { expertId: from.id } });
+    if (scoreCount > 0) {
+      throw new ConflictException({
+        error: '被替换专家已提交评分——改变委员会组成须走异议裁决或重新评标流程，不允许静默互换',
+        code: 'EXPERT_SWAP_LOCKED',
+      });
+    }
+    await this.prisma.$transaction([
+      this.prisma.bidExpert.update({ where: { id: from.id }, data: { expertRole: '候补' } }),
+      this.prisma.bidExpert.update({ where: { id: to.id }, data: { expertRole: '正选' } }),
+    ]);
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: from.expertName,
+        action: '专家替换',
+        result: `评标中替换：${from.expertName}→${to.expertName}（理由：${reason}；经办：${actorName}）`,
+        riskFlag: '关注',
+      },
+    }).catch(() => {});
+    return { ok: true, replaced: from.expertName, promoted: to.expertName };
+  }
+
   async getEvaluationHandover(projectId: string) {
     const asset = await this.prisma.fileAsset.findFirst({
       where: { category: 'bid_evaluation_handover',
