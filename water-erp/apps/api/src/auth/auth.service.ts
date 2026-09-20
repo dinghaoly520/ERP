@@ -8,6 +8,7 @@ import { VerificationService } from '../verification/verification.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { findOpenEvaluationWindows } from '../expert/expert-room.util';
 
 /**
  * 登录时按来源门户（X-Portal）优先匹配的 role 顺序。
@@ -397,11 +398,12 @@ export class AuthService {
   }
 
   /**
-   * 单设备登录（web 2026-08-21；supplier 2026-09-18）：凡启用互踢的门户（token_web /
-   * token_supplier 命名空间）每次登录轮换会话 ID。新 sid 写入 User.webSessionId 并随
-   * JWT 下发；AuthGuard 发现旧设备 token 的 sid 与库中不一致即 401 SESSION_REPLACED
-   * —— 同一账号同一时间只有一台设备在线。角色↔门户互斥（supplier 用户不可能产生 web
-   * 会话），两门户共用一列零冲突。token_bid/token_expert/token_mall 登录不轮换、不互踢。
+   * 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：凡启用互踢的
+   * 门户（token_web / token_supplier / token_expert 命名空间）每次登录轮换会话 ID。新 sid
+   * 写入 User.webSessionId 并随 JWT 下发；AuthGuard 发现旧设备 token 的 sid 与库中不一致即
+   * 401 SESSION_REPLACED——同一账号同一时间只有一台设备在线。角色↔门户互斥（supplier
+   * 用户不可能产生 web 会话），各门户共用一列零冲突。token_bid/token_mall 登录不轮换、不互踢。
+   * expert 例外：评标窗口开（工位锁定）期间新登录被 auth.controller 直接 409 拒绝，不进入轮换。
    */
   async rotatePortalSession(userId: string, username: string, role: string) {
     const sid = randomUUID();
@@ -410,5 +412,18 @@ export class AuthService {
       data: { webSessionId: sid },
     });
     return this.issueToken(userId, username, role, sid);
+  }
+
+  /**
+   * 闸4 工位锁定检查（2026-09-20 spec）：专家评标窗口开（签到起→报告确认止）且已有
+   * 活动会话（webSessionId 非空）→ 锁定：新登录 409 ACCOUNT_EVALUATING 拒绝。
+   * webSessionId 为空（主持人已 release-login-lock）→ 放行重新登录。
+   */
+  async checkExpertSeatLock(userId: string): Promise<{ locked: boolean; projectNames: string[] }> {
+    const [user, windows] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { webSessionId: true } }),
+      findOpenEvaluationWindows(this.prisma, userId),
+    ]);
+    return { locked: !!user?.webSessionId && windows.length > 0, projectNames: windows.map(w => w.project.name) };
   }
 }

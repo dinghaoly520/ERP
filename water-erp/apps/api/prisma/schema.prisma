@@ -354,6 +354,8 @@ model BidProject {
   leaderCoSigned            Boolean                    @default(false) // C2: 组长末签
   leaderCoSignedAt          DateTime? // C2: 末签时间
   evaluationDeadline        DateTime? // E2: 评标截止时间(超时告警)
+  roomCode                  String? // 评标室口令（2026-09-20 spec：null=闸门不启用；启动评标自动生成，主持人可轮换，归档清除）
+  roomCodeAt                DateTime? // 口令生成/轮换时间（版本戳——BidExpert.roomVerifiedAt >= 此值才有效，轮换即全员失效重验）
   bondReturnedAt            DateTime? // C4（7.5.4.4）：响应担保退还时间（null=未退还；不退的记录见 BidSupervisionLog）
   reportNotes               Json? // A-151：评标报告章节附注 [{section:'一'..'十', content}]（签字包生成前编辑、docx 渲染）
   openingFieldConfig        Json? // A-113（P2）：唱标字段动态配置 {fields:[{key,label,type,options?,required?,prefillFrom?}]}；null=内置默认四字段（OPENING 前可改，法定四键不可删）
@@ -622,6 +624,9 @@ model BidExpert {
   dutyRole                  String? // A-132：组内职责（主审|复核|成员；组长另由 isLead 表达）
   esignature                Json? // A-152：评标报告电子签名归档 {v,payload,signature,algorithm,certSn,verifiedAt}
   esignatureAt              DateTime? // A-152：电子签名时间
+  roomVerifiedAt            DateTime? // 评标室口令通过时间（>= BidProject.roomCodeAt 即有效；2026-09-20 spec）
+  roomAttempts              Int                     @default(0) // 口令连续错误计数（成功清零）
+  roomLockedUntil           DateTime? // 爆破锁定截止（连错 3 次锁 10 分钟）
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
 

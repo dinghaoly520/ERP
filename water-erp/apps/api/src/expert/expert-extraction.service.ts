@@ -59,6 +59,8 @@ export class ExpertExtractionService {
 
     // 合规候选：bid_expert + 可用 + 未分配本项目 + 工作单位不在参与供应商中
     // 重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录），只排除其他项目的占用
+    // 闸1（2026-09-20 spec）：排除「评标窗口未闭合」的专家（签到起→报告确认止）——
+    // 同时段双活跃从源头杜绝；同日不同时段合法（开窗以签到/报告确认为界，不以日历日）。
     const experts = await this.prisma.user.findMany({
       where: {
         role: 'bid_expert',
@@ -72,11 +74,23 @@ export class ExpertExtractionService {
             : regionCodes.length > 1 ? { regionCode: { in: regionCodes } } : {}),
           ...(expertLevels.length ? { expertLevel: { in: expertLevels } } : {}),
         },
+        bidExperts: {
+          none: {
+            signedIn: true,
+            reportConfirmed: false,
+            project: { stage: { in: ['OPENING', 'EVALUATING'] } },
+          },
+        },
       },
       include: {
         expertProfile: true,
         department: { select: { name: true } },
-        bidExperts: { where: { projectId: { not: projectId } }, select: { id: true } },
+        // 同日预告（信息级）：其他在途项目的开标时间，供候选标注 sameDayConflict——
+        // 合规允许同日双标（不同时段），只提示主持人注意时段安排，不排除
+        bidExperts: {
+          where: { project: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT', 'DOWNLOAD'] } } },
+          select: { project: { select: { openTime: true, projectCode: true } } },
+        },
         _count: { select: { bidExperts: true } },
       },
     });
@@ -153,6 +167,15 @@ export class ExpertExtractionService {
     const candidates = eligible.map(u => {
       const latest = latestEvalMap.get(u.id);
       const load = loadMap.get(u.id) ?? 0;
+      // 同日预告（2026-09-20 spec 闸1）：候选已有其他在途项目与本项目同日开标——
+      // 不排除（同日不同时段合法），标注供主持人在抽取结果中权衡时段安排
+      const sameDayConflict = u.bidExperts.some(b => {
+        const a = b.project?.openTime && new Date(b.project.openTime);
+        return a && project.openTime
+          && a.getFullYear() === project.openTime.getFullYear()
+          && a.getMonth() === project.openTime.getMonth()
+          && a.getDate() === project.openTime.getDate();
+      });
       return {
         id: u.id,
         displayName: u.displayName,
@@ -169,6 +192,7 @@ export class ExpertExtractionService {
         disciplineGrade: latest?.disciplineGrade,
         scoreDeviation: deviationMap.get(u.id),
         recentProjects12m: recentMap.get(u.id) ?? 0,
+        sameDayConflict,
         currentLoad: load,
         currentLoadStatus: load === 0 ? '空闲' : load <= 2 ? '正常' : '繁忙',
       };

@@ -208,6 +208,16 @@ export class ExpertController {
     }, body?.photoAssetId, body?.occlusion);
   }
 
+  @Post('projects/:projectId/room-code/verify')
+  @ApiOperation({ summary: '评标室口令校验（2026-09-20 spec §4）：通过记 roomVerifiedAt；连错 3 次锁 10 分钟+高风险告警' })
+  verifyRoomCode(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() body: { code?: string },
+  ) {
+    return this.expertService.verifyRoomCode(userId, projectId, body?.code ?? '');
+  }
+
   @Post('projects/:projectId/avoidance')
   confirmAvoidance(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() body?: ConfirmAvoidanceDto) {
     return this.expertService.confirmAvoidance(userId, projectId, body?.conflictedSupplierIds);

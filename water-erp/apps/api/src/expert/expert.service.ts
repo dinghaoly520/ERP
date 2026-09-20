@@ -14,6 +14,10 @@ import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/serv
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { resolveIdentityVerifyMode } from './identity-verify-mode';
+import {
+  findOpenEvaluationWindows, notifyAdmins,
+  ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
+} from './expert-room.util';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -380,6 +384,12 @@ export class ExpertService {
       ...project,
       // P3 host 态（2026-09-20 spec §4.2）：专家端据此锁定/解锁第 1 步（自我态恒 self）
       identityMode: resolveIdentityVerifyMode(),
+      // 评标室口令（2026-09-20 spec §4）：只暴露「是否启用/是否已验」——口令明文仅 :3007 主持人可见；
+      // roomCodeVerified 与 assertRoomUnlocked 同口径（roomCode 非空且 EVALUATING 且 roomVerifiedAt >= roomCodeAt）
+      roomCode: undefined,
+      roomCodeActive: !!project.roomCode && project.stage === 'EVALUATING',
+      roomCodeVerified: !(!!project.roomCode && project.stage === 'EVALUATING')
+        || (!!expertRecord.roomVerifiedAt && !!project.roomCodeAt && expertRecord.roomVerifiedAt >= project.roomCodeAt),
       // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
       // 逐人签到/回避/进度/报告确认改为聚合计数，对齐 WS broadcastAggregatePresence「只发计数」设计
       experts: project.experts.map(e => ({ id: e.id, expertName: e.expertName, major: e.major })),
@@ -400,6 +410,78 @@ export class ExpertService {
   }
 
   /* ── 身份核验 ── */
+
+  /** 评标室口令闸（2026-09-20 spec §4）：roomCode 非空且阶段 EVALUATING 且本人未验（roomVerifiedAt >= roomCodeAt）→ 403。
+   *  roomCode 为空（存量/未启用）恒放行——闸门 opt-in，启用权在主持人（:3007 矩阵生成/轮换）。 */
+  private async assertRoomUnlocked(projectId: string, userId: string) {
+    const [project, expert] = await Promise.all([
+      this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { stage: true, roomCode: true, roomCodeAt: true },
+      }),
+      this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { roomVerifiedAt: true } }),
+    ]);
+    if (!project?.roomCode || project.stage !== 'EVALUATING') return;
+    if (expert?.roomVerifiedAt && project.roomCodeAt && expert.roomVerifiedAt >= project.roomCodeAt) return;
+    throw new ForbiddenException({ error: '请先输入评标室口令进入评标室', code: 'ROOM_CODE_REQUIRED' });
+  }
+
+  /** 评标室口令校验（2026-09-20 spec §4）：成功记 roomVerifiedAt（>= roomCodeAt 即有效，轮换自动失效重验）；
+   *  连错 3 次锁 10 分钟；每次失败监督日志高风险 + admin 站内通知——冒用企图当场暴露给主持人。 */
+  async verifyRoomCode(userId: string, projectId: string, code: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, roomCode: true, name: true, projectCode: true },
+    });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可评标阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    if (!project.roomCode) throw new BadRequestException({ error: '本项目未启用评标室口令', code: 'ROOM_CODE_NOT_ENABLED' });
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { userId, projectId },
+      select: { id: true, expertName: true, roomAttempts: true, roomLockedUntil: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    if (expert.roomLockedUntil && expert.roomLockedUntil > new Date()) {
+      throw new ConflictException({
+        error: `口令连续错误已达上限，锁定至 ${expert.roomLockedUntil.toLocaleTimeString('zh-CN')}，请联系主持人`,
+        code: 'ROOM_CODE_LOCKED',
+      });
+    }
+    if (code?.trim().toUpperCase() === project.roomCode) {
+      await this.prisma.bidExpert.update({
+        where: { id: expert.id },
+        data: { roomVerifiedAt: new Date(), roomAttempts: 0, roomLockedUntil: null },
+      });
+      return { verified: true };
+    }
+    // 失败：计数 + 爆破锁定 + 高风险留痕（监督日志 + admin 通知）
+    const attempts = expert.roomAttempts + 1;
+    const locked = attempts >= ROOM_CODE_MAX_ATTEMPTS;
+    await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: { roomAttempts: attempts, ...(locked ? { roomLockedUntil: new Date(Date.now() + ROOM_CODE_LOCK_MINUTES * 60_000) } : {}) },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '评标室口令校验失败',
+        result: `第 ${attempts} 次错误${locked ? `，已锁定 ${ROOM_CODE_LOCK_MINUTES} 分钟` : ''}（项目 ${project.projectCode}）`,
+        riskFlag: '高风险',
+      },
+    }).catch(() => {});
+    await notifyAdmins(this.prisma, this.notificationService, {
+      type: 'security',
+      title: '评标室口令连续错误',
+      content: `专家 ${expert.expertName} 在项目 ${project.name} 口令校验失败（第 ${attempts} 次）${locked ? '，已触发锁定' : ''}，请核实是否本人操作`,
+      link: '/bid',
+    }).catch(() => {});
+    if (locked) {
+      throw new ConflictException({ error: `口令连续错误 ${ROOM_CODE_MAX_ATTEMPTS} 次，已锁定 ${ROOM_CODE_LOCK_MINUTES} 分钟，请联系主持人`, code: 'ROOM_CODE_LOCKED' });
+    }
+    throw new BadRequestException({ error: `评标室口令错误（${ROOM_CODE_MAX_ATTEMPTS - attempts} 次机会后将锁定）`, code: 'ROOM_CODE_INVALID' });
+  }
 
   /** P1-6：候补专家门控——正式递补（expertRole 置'正选'）前不可参与评标活动。
    * 依据《招标投标法》第37条：评标委员会成员须正式进入委员会；候补专家仅在正选
@@ -429,6 +511,16 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '签到');
+
+    // 闸2（2026-09-20 spec §3）：跨项目评标窗口冲突——签到即开窗，同时段双活跃在此硬拦。
+    // 窗口=签到起→本人确认报告止；同日不同时段合法（上午标确认报告后即可签下午标）。
+    const crossWindows = await findOpenEvaluationWindows(this.prisma, userId, projectId);
+    if (crossWindows.length > 0) {
+      throw new ConflictException({
+        error: `您在项目【${crossWindows.map(w => w.project.name).join('、')}】的评标尚未结束（未确认评审报告），不可同时参与本项目评标`,
+        code: 'EXPERT_WINDOW_CONFLICT',
+      });
+    }
 
     // 模式闸（spec §4.3）：self 默认 / host 强化（需主持人核验登记）/ off 应急
     const mode = resolveIdentityVerifyMode();
@@ -578,6 +670,7 @@ export class ExpertService {
   /* ── 标书解密获取 ── */
 
   async getDecryptedDocuments(userId: string, projectId: string, supplierId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     // P2: 阶段门控 — 仅开标/评标阶段可获取解密文件
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -809,6 +902,7 @@ export class ExpertService {
     supplierId: string,
     fileId: string,
   ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.assertExpertActiveForProject(userId, projectId);
 
     // 回避名单检查：与 getAssistData/resolveReviewContext 一致
@@ -936,6 +1030,7 @@ export class ExpertService {
 
   /** Upsert 本人针对某招标条款的标注。复合唯一键 projectId+bidderResultId+expertId+requirementId 保证幂等。 */
   async upsertRequirementReview(userId: string, projectId: string, supplierId: string, dto: UpsertRequirementReviewDto) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const { expert, bidderResult } = await this.resolveReviewContext(userId, projectId, supplierId);
     return this.prisma.bidRequirementReview.upsert({
       where: {
@@ -953,6 +1048,7 @@ export class ExpertService {
 
   /** 列出本人针对该投标人的全部条款标注（reviews 本人-only）。 */
   async listRequirementReviews(userId: string, projectId: string, supplierId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const { expert, bidderResult } = await this.resolveReviewContext(userId, projectId, supplierId);
     return this.prisma.bidRequirementReview.findMany({
       where: { bidderResultId: bidderResult.id, expertId: expert.id },
@@ -962,6 +1058,7 @@ export class ExpertService {
   /* ── 辅助评标（AI引擎驱动） ── */
 
   async getAssistData(userId: string, projectId: string, supplierId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     // P2: 阶段门控 — 仅开标/评标阶段可获取辅助评标数据
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -1060,6 +1157,7 @@ export class ExpertService {
 
   /** 跨供应商对比概览 — 返回项目下所有已完成 AI 分析的供应商摘要 */
   async getAssistCompare(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     // P1-2：阶段门控 — 仅开标/评标阶段可获取跨供应商对比
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -1122,6 +1220,7 @@ export class ExpertService {
 
   /** 多轮报价历史（专家只读）—— 仅返回 published/closed 轮次 + 供应商名 + 报价 */
   async getQuoteHistory(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project) throw new ForbiddenException({ error: '项目不存在', code: 'NOT_FOUND' });
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
@@ -1171,6 +1270,7 @@ export class ExpertService {
   }
 
   async submitScores(userId: string, projectId: string, dto: BatchScoreDto) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     await this.assertEvaluationNotOverdue(projectId);
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
@@ -1574,6 +1674,7 @@ export class ExpertService {
   }
 
   async getMyScores(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -1676,6 +1777,7 @@ export class ExpertService {
   /* ── 核对评分（draft → verified）── */
 
   async verifyScoreReview(userId: string, projectId: string, supplierId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     // P2-3：阶段门控 — 仅评标阶段可核对
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'EVALUATING') {
@@ -1733,6 +1835,7 @@ export class ExpertService {
   /* ── 澄清答疑 ── */
 
   async listClarifications(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     // Verify expert is assigned to this project
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
@@ -1749,6 +1852,7 @@ export class ExpertService {
 
   /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
   async draftClarification(userId: string, projectId: string, supplierId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     // P1-1：归属校验——必须是本项目专家，且供应商属于本项目（防越权套取他项目投标弱点）
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
@@ -1758,6 +1862,7 @@ export class ExpertService {
   }
 
   async createClarification(userId: string, projectId: string, dto: CreateExpertClarificationDto) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     // P2：阶段门控 — 仅评标阶段可发起澄清（澄清答疑发生在评标期间）
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'EVALUATING') {
@@ -1838,6 +1943,7 @@ export class ExpertService {
   /* ── 评审报告 ── */
 
   async getReport(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -1986,6 +2092,7 @@ export class ExpertService {
   }
 
   async confirmReport(userId: string, projectId: string, comment?: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     await this.assertEvaluationNotOverdue(projectId);
 
     // P1: 阶段门控 — 仅在评标阶段可确认报告
@@ -2063,6 +2170,7 @@ export class ExpertService {
   /** G3: 保存/加载评分草稿(服务端持久化,防 localStorage 丢失)。
    *  按 device 分槽存储，避免平板与桌面互相覆盖。 */
   async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>, device?: 'tablet' | 'desktop') {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     // QA-2026-09-11 P2-2：报告确认后评分锁定，但「丢弃草稿」的空清载荷（scores 缺失或空对象）
@@ -2084,6 +2192,7 @@ export class ExpertService {
   }
 
   async getScoreDraft(userId: string, projectId: string, device?: 'tablet' | 'desktop') {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
     const raw = (expert?.scoreDraft ?? {}) as any;
     // 兼容旧扁平格式 → 视为 desktop 草稿
@@ -2109,6 +2218,7 @@ export class ExpertService {
 
   /** 评分历史：已提交值 + 修改快照 + 草稿值 + 未评分项，按 scoreItemId 分组 */
   async getScoreHistory(userId: string, projectId: string, supplierId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
@@ -2254,6 +2364,7 @@ export class ExpertService {
 
   /** D2: 创建异议工单（仅组长） */
   async createDispute(userId: string, projectId: string, dto: { type: string; title: string; content: string }) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可提交异议', code: 'NOT_LEAD' });
@@ -2265,6 +2376,7 @@ export class ExpertService {
   /** D2: 查询项目异议工单（P1 收口：仅本人工单——偏差工单 content 含组均值，
    * 全量下发等于向所有专家泄露组均分；主持端经 /bid/projects/:id 照见全量） */
   async listDisputes(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     return this.prisma.expertDispute.findMany(
@@ -2274,6 +2386,7 @@ export class ExpertService {
 
   /** C2: 组长末签 — 所有专家确认报告后,组长执行最终末签 */
   async leaderCoSign(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
@@ -2321,6 +2434,7 @@ export class ExpertService {
 
   /** 发起表决(仅组长) */
   async createMotion(userId: string, projectId: string, dto: { type: string; title: string; description?: string }) {
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可发起表决', code: 'NOT_LEAD' });

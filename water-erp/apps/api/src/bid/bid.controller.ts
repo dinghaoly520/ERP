@@ -182,6 +182,37 @@ export class BidController {
     );
   }
 
+  @Post('projects/:id/room-code/rotate')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: '评标室口令生成/轮换（2026-09-20 spec §4）：仅 EVALUATING——存量项目补开或评标中轮换（轮换即全员失效重验）' })
+  rotateRoomCode(@Param('id') id: string, @CurrentUser('sub') userId: string, @Req() req: any) {
+    return this.bidService.rotateRoomCode(id, { id: userId, username: req?.user?.username ?? '未知' });
+  }
+
+  @Get('projects/:id/room-code')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: '评标室口令查询（2026-09-20 spec §4）：:3007 主持人矩阵展示（明文仅主持人/管理员可见）' })
+  getRoomCode(@Param('id') id: string) {
+    return this.bidService.getRoomCode(id);
+  }
+
+  @Post('projects/:id/expert-verification/:expertId/release-login-lock')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: '闸4 阀门（2026-09-20 spec）：解除专家评标期登录锁定（换设备场景）——现场核身后清 webSessionId 放行重登' })
+  releaseLoginLock(
+    @Param('id') id: string,
+    @Param('expertId') expertId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: any,
+    @Body() dto: { reason?: string },
+  ) {
+    return this.bidService.releaseLoginLock(
+      id, expertId,
+      { id: userId, username: req?.user?.username ?? '未知' },
+      dto?.reason ?? '',
+    );
+  }
+
   @Post('projects/:id/expert-verification/:expertId/verify')
   @Roles('bid_host', 'admin')
   @ApiOperation({ summary: 'P3（2026-09-20 spec §4.2）：主持人核验登记（host 态签到前置；人↔证件↔名单三对照后登记）' })

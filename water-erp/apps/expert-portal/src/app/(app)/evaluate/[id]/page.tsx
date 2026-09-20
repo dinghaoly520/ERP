@@ -585,8 +585,10 @@ export default function ExpertEvaluatePage() {
   // 未签到期间 10s 静默轮询，覆盖两个场景：
   // ① host 态待主持人核验登记解锁（P3 2026-09-20 spec §4.2，原逻辑）；
   // ② self 态摄像头故障时主持人在 :3007 R9 手动确认签到——专家端需感知 signedIn 变化解锁后续步骤
-  //   （2026-09-20 修复：原轮询仅挂 hostLocked，手动确认后 :3006 无感知、须手动刷新页面）
-  const signInPending = !!project && !expert?.signedIn;
+  //   （2026-09-20 修复：原轮询仅挂 hostLocked，手动确认后 :3006 无感知、须手动刷新页面）；
+  // ③ 评标室口令待验时（2026-09-20 spec §4）——主持人轮换口令后门页自动刷新状态
+  const roomGatePending = !!project?.roomCodeActive && !project?.roomCodeVerified;
+  const signInPending = (!!project && !expert?.signedIn) || roomGatePending;
   useEffect(() => {
     if (!signInPending) return;
     const t = setInterval(() => loadProject(undefined, true), 10_000);
@@ -641,6 +643,24 @@ export default function ExpertEvaluatePage() {
       setStep('verify');
     }
   }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
+
+  // ── 评标室口令门页（2026-09-20 spec §4）──
+  const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [roomCodeBusy, setRoomCodeBusy] = useState(false);
+  const [roomCodeError, setRoomCodeError] = useState('');
+  const handleVerifyRoomCode = async () => {
+    setRoomCodeBusy(true);
+    setRoomCodeError('');
+    try {
+      await api.post(`/expert/projects/${projectId}/room-code/verify`, { code: roomCodeInput.trim() });
+      setRoomCodeInput('');
+      loadProject();
+    } catch (e: any) {
+      setRoomCodeError(e.message || '口令验证失败');
+    } finally {
+      setRoomCodeBusy(false);
+    }
+  };
 
   // 必拍留档照（R3 2026-09-18 身份核验设计）：上传照片（expert_signin_photo）→ 携带 photoAssetId + 遮挡检测结论签到。
   // 失败就地重试（2026-09-20 修复）：faceVerified 仅在签到成功时置位——上传/签到失败不卸载 SigninCamera，
@@ -1025,6 +1045,45 @@ export default function ExpertEvaluatePage() {
     </div>
   );
   if (loading || !project) return <div className="flex h-64 items-center justify-center text-[var(--muted-foreground)]">加载中...</div>;
+
+  // 评标室口令门页（2026-09-20 spec §4）：口令启用且本人未验 → 整个工作区置入口令输入之后。
+  // 冒名者即使拿到登录会话，没有口令进不了评标物料（文档/AI/评分/报告服务端同步 403 ROOM_CODE_REQUIRED）。
+  if (project.roomCodeActive && !project.roomCodeVerified) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-6">
+        <div className="neu-card-static w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[oklch(0.985_0.005_258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+            <Lock size={26} strokeWidth={1.5} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">评标室口令</h2>
+          <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
+            本项目已启用评标室口令保护。请向现场主持人获取口令后进入评标室——连续输错 3 次将锁定 10 分钟。
+          </p>
+          <input
+            type="text"
+            value={roomCodeInput}
+            onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === 'Enter' && roomCodeInput.trim()) void handleVerifyRoomCode(); }}
+            placeholder="8 位口令"
+            maxLength={8}
+            disabled={roomCodeBusy}
+            className="neu-input mt-5 text-center !text-lg !font-bold !tracking-[0.35em]"
+          />
+          {roomCodeError && (
+            <p className="mt-3 text-xs font-semibold text-[var(--danger,#c0392b)]">{roomCodeError}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleVerifyRoomCode()}
+            disabled={roomCodeBusy || !roomCodeInput.trim()}
+            className="neu-btn-primary mt-5 !h-[42px] !w-full !px-8"
+          >
+            {roomCodeBusy ? '验证中…' : '进入评标室'}
+          </button>
+        </div>
+      </div>
+    );
+  }
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier

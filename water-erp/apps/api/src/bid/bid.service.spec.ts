@@ -855,7 +855,7 @@ describe('BidService — stage transitions', () => {
       // Verify the key atomic operations happened
       expect(prisma.bidArchiveItem.update).toHaveBeenCalled();
       expect(prisma.bidProject.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED' } }),
+        expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED', roomCode: null, roomCodeAt: null } }), // 2026-09-20：归档清除评标室口令
       );
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
     });
@@ -995,7 +995,7 @@ describe('BidService — stage transitions', () => {
 
       await expect(service.archiveAll('p1', undefined, 'opening')).resolves.toBeDefined();
       expect(prisma.bidProject.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED' } }),
+        expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED', roomCode: null, roomCodeAt: null } }), // 2026-09-20：归档清除评标室口令
       );
       // F5：开标归档（流标/废标）不推进 PM「开标评标」阶段
       expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalled();
@@ -1168,9 +1168,12 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.auditLog.create.mockResolvedValue({});
-      prisma.bidExpert.findMany.mockResolvedValue([
-        { userId: 'u1', expertName: 'A' }, { userId: null, expertName: 'B' },
-      ]);
+      // 闸2（2026-09-20）：findMany 现承担两种查询——窗口检查（where.signedIn=true）恒空，
+      // 通知专家名单保持原形状
+      prisma.bidExpert.findMany.mockImplementation(async (args: any) =>
+        args?.where?.signedIn === true
+          ? []
+          : [{ userId: 'u1', expertName: 'A' }, { userId: null, expertName: 'B' }]);
 
       await expect(service.startEvaluation('p1', 'host-1')).resolves.toMatchObject({ stage: 'EVALUATING' });
       expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(

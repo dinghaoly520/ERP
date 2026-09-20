@@ -11,7 +11,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck,
-  Clock, FileCheck, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
+  Clock, FileCheck, KeyRound, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
 } from 'lucide-react';
 import {
   extendEvaluation,
@@ -27,6 +27,9 @@ import {
   unverifyExpertIdentity,
   verifyExpertIdentity,
   startEvaluation,
+  getRoomCode,
+  rotateRoomCode,
+  releaseLoginLock,
   type BidEvaluationResultInfo,
   type ExcludedSupplierInfo,
   type LiveOfficialScoresResponse,
@@ -177,6 +180,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [manualReason, setManualReason] = useState('');
   const [manualDocType, setManualDocType] = useState('');
   const [manualBusy, setManualBusy] = useState(false);
+  // 评标室口令（2026-09-20 spec §4）：主持人展示/轮换；明文仅 bid_host/admin（leader/staff 请求 403 静默）
+  const [roomCodeInfo, setRoomCodeInfo] = useState<{ roomCode: string | null; roomCodeAt: string | null } | null>(null);
+  const [roomCodeBusy, setRoomCodeBusy] = useState(false);
+  // 闸4 阀门：解除专家登录锁定弹窗（换设备场景，理由必填留痕）
+  const [releaseFor, setReleaseFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [releaseReason, setReleaseReason] = useState('');
+  const [releaseBusy, setReleaseBusy] = useState(false);
   // R5（2026-09-20 §4.4）：核验异常登记弹窗
   const [rejectFor, setRejectFor] = useState<{ id: string; expertName: string } | null>(null);
   const [rejectType, setRejectType] = useState<'人证不符' | '照片异常' | '到场异常'>('人证不符');
@@ -284,6 +294,15 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     return () => { alive = false; clearInterval(timer); };
   }, [projectId, refreshSignal]);
 
+  // 评标室口令（2026-09-20 spec §4）：EVALUATING 时拉取——明文仅 bid_host/admin
+  //（leader/staff 请求 403 静默不渲染卡片；主持人/管理员口径见 getRoomCode @Roles）
+  useEffect(() => {
+    if (!projectId || project?.stage !== 'EVALUATING') return;
+    getRoomCode(projectId)
+      .then(r => setRoomCodeInfo({ roomCode: r.roomCode, roomCodeAt: r.roomCodeAt }))
+      .catch(() => { /* 非主持人或未启用——静默 */ });
+  }, [projectId, project?.stage]);
+
   // P3 host 态：主持人核验登记（人↔证件↔名单三对照）
   const handleVerifyIdentity = async () => {
     if (!verifyFor) return;
@@ -339,6 +358,38 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       showToast(e?.message || '确认失败，请重试', 'err');
     } finally {
       setManualBusy(false);
+    }
+  };
+
+  // 评标室口令（2026-09-20 spec §4）：生成/轮换——轮换后所有专家下次进工作区重验
+  const handleRotateRoomCode = async () => {
+    setRoomCodeBusy(true);
+    try {
+      const r = await rotateRoomCode(projectId);
+      setRoomCodeInfo({ roomCode: r.roomCode, roomCodeAt: r.roomCodeAt });
+      showToast('评标室口令已生成/轮换（专家需重新验证进入）', 'ok');
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '口令轮换失败', 'err');
+    } finally {
+      setRoomCodeBusy(false);
+    }
+  };
+
+  // 闸4 阀门：解除专家登录锁定（评标期间换设备——现场核身后放行重新登录）
+  const handleReleaseLock = async () => {
+    if (!releaseFor || !releaseReason.trim()) return;
+    setReleaseBusy(true);
+    try {
+      await releaseLoginLock(projectId, releaseFor.id, { reason: releaseReason.trim() });
+      showToast(`已解除 ${releaseFor.expertName} 的登录锁定，请专家重新登录`, 'ok');
+      setReleaseFor(null);
+      setReleaseReason('');
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '解除失败，请重试', 'err');
+    } finally {
+      setReleaseBusy(false);
     }
   };
 
@@ -725,6 +776,29 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       {/* ── 身份核验矩阵（2026-09-18 身份核验设计 §4.5）——被动展示，异常处置见 P2 ── */}
       {verification && verification.experts.length > 0 && (
         <div className="mb-3 rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
+          {/* 评标室口令条（2026-09-20 spec §4）：主持人/管理员可见——大字可读 + 一键轮换 */}
+          {stage === 'EVALUATING' && (me?.role === 'bid_host' || me?.role === 'admin') && (
+            <div className="flex items-center gap-3 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
+              <KeyRound size={14} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
+              <span className="text-[11px] font-bold text-[var(--foreground)]">评标室口令</span>
+              {roomCodeInfo?.roomCode ? (
+                <span className="select-all font-mono text-base font-bold tracking-[0.22em] text-[var(--accent-strong)]">
+                  {roomCodeInfo.roomCode}
+                </span>
+              ) : (
+                <span className="text-[11px] text-[var(--muted-foreground)]">未启用——生成后专家进入工作区需验口令（冒名会话拦在评标室外）</span>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleRotateRoomCode()}
+                disabled={roomCodeBusy}
+                className="neu-btn-xs ml-auto shrink-0"
+                title="生成/轮换评标室口令——轮换后所有专家下次进入工作区重新验证"
+              >
+                {roomCodeBusy ? '处理中…' : roomCodeInfo?.roomCode ? '轮换' : '生成口令'}
+              </button>
+            </div>
+          )}
           <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
             {/* 单行表头：标题占首列 + 六列名（与行同宽同对齐） */}
             <div className="flex items-center gap-4 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
@@ -804,6 +878,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       title="摄像头故障等现场降级——主持人现场确认签到（理由必填，留痕）"
                     >
                       手动确认
+                    </button>
+                  )}
+                  {row.signedIn && stage === 'EVALUATING' && (me?.role === 'bid_host' || me?.role === 'admin') && (
+                    <button
+                      type="button"
+                      onClick={() => { setReleaseFor({ id: row.id, expertName: row.expertName }); setReleaseReason(''); }}
+                      className="neu-btn-xs"
+                      title="评标期间账号登录锁定（防冒名抢占）；专家换设备时现场核身后解除，放行重新登录"
+                    >
+                      解锁登录
                     </button>
                   )}
                   {row.expertRole === EXPERT_ROLE.REGULAR && !row.anomaly && (
@@ -1410,6 +1494,48 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 className="neu-btn-primary !h-[36px] !text-xs"
               >
                 {manualBusy ? '确认中…' : '确认签到'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 闸4 阀门（2026-09-20 spec）：解除专家登录锁定（评标期间换设备）── */}
+      {releaseFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">解除专家登录锁定</h2>
+              <button type="button" onClick={() => setReleaseFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                评标期间专家账号处于登录锁定（工位先占，防冒名抢占）。专家「{releaseFor.expertName}」如需更换设备，
+                请<span className="font-semibold text-[var(--warning)]">现场核对其身份证件后</span>解除锁定——
+                解除后原会话失效、专家可重新登录，操作写入监督日志。
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">解除理由（必填）</label>
+              <textarea
+                value={releaseReason}
+                onChange={(e) => setReleaseReason(e.target.value)}
+                maxLength={200}
+                rows={2}
+                placeholder="如：原设备故障更换工位机……"
+                className="workbench-input w-full resize-none"
+              />
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setReleaseFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button
+                type="button"
+                onClick={() => void handleReleaseLock()}
+                disabled={releaseBusy || !releaseReason.trim()}
+                className="neu-btn-primary !h-[36px] !text-xs"
+              >
+                {releaseBusy ? '解除中…' : '解除并留痕'}
               </button>
             </div>
           </div>

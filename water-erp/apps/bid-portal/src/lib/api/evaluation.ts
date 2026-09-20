@@ -283,3 +283,22 @@ export function unverifyExpertIdentity(
 ): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string }> {
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/unverify`, body);
 }
+
+/** 评标室口令查询（2026-09-20 spec §4）：明文仅主持人/管理员可见 */
+export function getRoomCode(projectId: string): Promise<{ roomCode: string | null; roomCodeAt: string | null; stage: string }> {
+  return api.get(`/bid/projects/${projectId}/room-code`);
+}
+
+/** 评标室口令生成/轮换（2026-09-20 spec §4）：仅 EVALUATING；轮换即全员失效重验 */
+export function rotateRoomCode(projectId: string): Promise<{ roomCode: string; roomCodeAt: string }> {
+  return api.post(`/bid/projects/${projectId}/room-code/rotate`, {});
+}
+
+/** 闸4 阀门（2026-09-20 spec）：解除专家评标期登录锁定（换设备场景，理由必填留痕） */
+export function releaseLoginLock(
+  projectId: string,
+  expertId: string,
+  body: { reason: string },
+): Promise<{ ok: boolean; expertId: string; expertName: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/release-login-lock`, body);
+}

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Query, Param, Res, Req, HttpCode, HttpStatus, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Query, Param, Res, Req, HttpCode, HttpStatus, UnauthorizedException, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -145,6 +145,20 @@ export class AuthController {
     // bid_expert 写 token_expert（留在 :3006）
     if (requestPortal === 'expert' && result.role !== 'bid_expert') {
       cookiePortal = 'bid';
+    }
+
+    // 闸4 工位锁定（2026-09-20 spec）：评标窗口开（签到起→报告确认止）期间，专家账号新登录
+    // 一律 409 拒绝（先占不可抢占——冒名者连顶替机会都没有，真专家会话不可被踢）。
+    // 解锁阀门=主持人 release-login-lock（清 webSessionId）或本人确认评审报告（窗口闭合）。
+    // 检查在会话轮换之前：被拒登录不得影响当前有效会话。
+    if (result.role === 'bid_expert' && cookiePortal === 'expert') {
+      const seat = await this.authService.checkExpertSeatLock(result.userId);
+      if (seat.locked) {
+        throw new ConflictException({
+          error: `评标期间账号已锁定（项目【${seat.projectNames.join('、')}】评标未结束），如需更换设备请联系主持人解除锁定`,
+          code: 'ACCOUNT_EVALUATING',
+        });
+      }
     }
 
     // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：凡是最终写入

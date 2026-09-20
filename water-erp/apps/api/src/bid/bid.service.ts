@@ -56,6 +56,7 @@ import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { SignatureService } from '../common/crypto/signature.service';
 import { buildClarificationReplyCanonical } from '../supplier-portal/clarification-reply.util';
+import { findCrossWindowExperts, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -1550,6 +1551,28 @@ export class BidService {
       });
     }
 
+    // 闸2·预警（2026-09-20 spec §3）：按时开标不阻断（开标时刻公告法定、专家尚未签到，
+    // 冲突可在启动评标前化解）——但发现本项目专家有跨项目未闭合窗口时高风险预警
+    if (isTransitioning) {
+      const conflicts = await findCrossWindowExperts(this.prisma, id);
+      if (conflicts.length > 0) {
+        await this.prisma.bidSupervisionLog.create({
+          data: {
+            projectId: id, time: new Date(), role: '系统', target: '开标预警',
+            action: '专家跨项目评标窗口冲突预警',
+            result: conflicts.map(c => `${c.expertName}（${c.windows.map(w => w.name).join('、')}未确认报告）`).join('；') + '——启动评标前须化解',
+            riskFlag: '关注',
+          },
+        }).catch(() => {});
+        await notifyAdmins(this.prisma, this.notificationService, {
+          type: 'security',
+          title: '开标预警：专家跨项目评标冲突',
+          content: `项目 ${project.name} 开标，但 ${conflicts.map(c => c.expertName).join('、')} 在其他项目评标尚未结束——启动评标前须化解，否则将阻断`,
+          link: '/bid',
+        }).catch(() => {});
+      }
+    }
+
     // P1: 截标时间校验——仅阶段推进（确定开标）时要求投标截止已过；
     // 同阶段调用（:3007 组建/更新开标会话）不受 deadline 约束——
     // 否则 :3005 延期开标（updateProject 无阶段门控）后会话将永远建不出来
@@ -1983,6 +2006,18 @@ export class BidService {
     if (project.stage === 'OPENING') await this.autoHandoverIfDone(id, '启动评标兜底', project);
     assertBidStageTransition(project.stage, 'EVALUATING');
 
+    // 闸2（2026-09-20 spec §3）：启动评标前检查本项目专家是否存在跨项目未闭合评标窗口
+    //（签到起→报告确认止）——同时段双活跃硬拦（同日不同时段合法：冲突专家在开标后确认完
+    // 上午标报告即可化解）。名单随 409 返回供主持人处置（延期/异议/流标）。
+    const crossConflicts = await findCrossWindowExperts(this.prisma, id);
+    if (crossConflicts.length > 0) {
+      throw new ConflictException({
+        error: `以下专家在其他项目评标尚未结束，无法启动评标：${crossConflicts.map(c => `${c.expertName}（${c.windows.map(w => w.name).join('、')}未确认报告）`).join('；')}`,
+        code: 'EXPERT_WINDOW_CONFLICT',
+        conflicts: crossConflicts,
+      } as any);
+    }
+
     // 多轮报价项目——价格同步在 generateEvaluationResults 中执行（评标完成后才报价）
     // 此处不做轮次守卫：谈判采购流程为 先评标 → 再多轮报价 → 最后生成结果
 
@@ -2066,7 +2101,7 @@ export class BidService {
       const hours = evaluationHours && evaluationHours > 0 ? Math.min(Math.floor(evaluationHours), 720) : 72;
       const result = await tx.bidProject.update({
         where: { id },
-        data: { stage: 'EVALUATING', evaluationDeadline: new Date(Date.now() + hours * 60 * 60 * 1000) },
+        data: { stage: 'EVALUATING', evaluationDeadline: new Date(Date.now() + hours * 60 * 60 * 1000), roomCode: generateRoomCode(), roomCodeAt: new Date() },
       });
 
       await tx.bidSupervisionLog.create({
@@ -3084,6 +3119,66 @@ export class BidService {
     return { ok: true, expertId: expert.id, expertName: expert.expertName, signedInAt: signInMeta.timestamp };
   }
 
+  /** 评标室口令生成/轮换（2026-09-20 spec §4）：主持人矩阵操作——存量 EVALUATING 项目补开、
+   *  或评标中轮换（roomCodeAt 更新即全员失效重验）。归档时已自动清除。 */
+  async rotateRoomCode(projectId: string, actor: { id: string; username: string }) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true, projectCode: true },
+    });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ConflictException({ error: '仅评标中项目可启用/轮换评标室口令', code: 'NOT_EVALUATING' });
+    }
+    const roomCode = generateRoomCode();
+    await this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: { roomCode, roomCodeAt: new Date() },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '主持人', target: '评标室口令',
+        action: project.name ? '评标室口令生成/轮换' : '评标室口令轮换',
+        result: `操作人 ${actor.username}；轮换后所有专家下次进入工作区需重新验证`,
+        riskFlag: '无',
+      },
+    }).catch(() => {});
+    return { roomCode, roomCodeAt: new Date().toISOString() };
+  }
+
+  /** 查询评标室口令（:3007 主持人矩阵展示用；不轮换只读） */
+  async getRoomCode(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, roomCode: true, roomCodeAt: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    return { roomCode: project.roomCode, roomCodeAt: project.roomCodeAt, stage: project.stage };
+  }
+
+  /** 解除登录锁定（2026-09-20 spec 闸4 阀门）：评标期间工位锁定拒绝了真专家的换设备登录，
+   *  主持人现场核身后清 User.webSessionId 放行重新登录（旧会话随 sid 判空自然失效）。 */
+  async releaseLoginLock(projectId: string, expertId: string, actor: { id: string; username: string }, reason: string) {
+    if (!reason?.trim() || reason.trim().length > 200) {
+      throw new BadRequestException({ error: '解除理由必填（≤200 字）', code: 'REASON_REQUIRED' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+      select: { id: true, expertName: true, userId: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    await this.prisma.user.update({ where: { id: expert.userId }, data: { webSessionId: null } });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '主持人', target: expert.expertName,
+        action: '解除专家登录锁定',
+        result: `确认人 ${actorName}；理由：${reason.trim()}`,
+        riskFlag: '无',
+      },
+    }).catch(() => {});
+    return { ok: true, expertId: expert.id, expertName: expert.expertName };
+  }
+
   /** R5 核验异常登记（2026-09-20 spec §4.4）：主持人发现人证不符/照片异常/到场异常 → 监督日志异常事件（高风险） */
   async rejectExpertVerification(
     projectId: string,
@@ -3818,7 +3913,7 @@ export class BidService {
       }
       await tx.bidProject.update({
         where: { id },
-        data: { stage: 'ARCHIVED' },
+        data: { stage: 'ARCHIVED', roomCode: null, roomCodeAt: null }, // 归档清除评标室口令（防历史泄漏；roomVerifiedAt 保留作审计
       });
       const scopeLabel = scope === 'opening' ? '（开标归档）' : '';
       await tx.bidSupervisionLog.create({

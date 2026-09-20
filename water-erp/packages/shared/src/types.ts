@@ -130,6 +130,8 @@ export interface BidExpert {
   disciplineAgreed?: boolean; // P4
   disciplineAgreedAt?: string | null; // P4
   reportConfirmedAt?: string | null;
+  /** 评标室口令通过时间（2026-09-20 spec §4；>= 项目 roomCodeAt 即有效） */
+  roomVerifiedAt?: string | null;
 }
 
 export interface BidScorePoint {
@@ -260,6 +262,8 @@ export interface ExpertProject {
   avoidanceConfirmed: boolean;
   progress: number;
   totalScore: number;
+  /** 闸3（2026-09-20 spec）：已确认评审报告=本人评标窗口闭合，首页移「已完结待归档」 */
+  reportConfirmed?: boolean;
   createdAt: string;
   project: {
     id: string;
@@ -279,6 +283,10 @@ export interface ExpertProjectDetail extends BidProjectDetail {
   evaluationDeadline?: string | null;
   /** P3 host 态（2026-09-20 spec §4.2）：身份核验模式闸（self/host/off）——专家端第 1 步锁定/解锁依据 */
   identityMode?: 'self' | 'host' | 'off';
+  /** 评标室口令（2026-09-20 spec §4）：是否启用（明文仅 :3007 主持人可见；EVALUATING 且 roomCode 非空） */
+  roomCodeActive?: boolean;
+  /** 评标室口令：本人是否已验（与后端 assertRoomUnlocked 同口径）——false 即渲染门页 */
+  roomCodeVerified?: boolean;
   myExpertRecord: BidExpert & { id: string };
   myScores: { id: string; expertId: string; supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string; scoreItem: BidScoreItem }[];
   /** 招标文件元信息（仅 OPENING/EVALUATING active 项目附带，否则 null）；供专家独立核对原文 */
