@@ -263,3 +263,21 @@ export function replaceExpertDuringEvaluation(
 ): Promise<{ ok: boolean; replaced: string; promoted: string }> {
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/replace`, body);
 }
+
+/** P3 host 态（2026-09-20 spec §4.2）：主持人核验登记 */
+export function verifyExpertIdentity(
+  projectId: string,
+  expertId: string,
+  body: { docType: '身份证' | '护照' | '其他'; note?: string },
+): Promise<{ ok: boolean; expertId: string; expertName: string; verifiedByName: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/verify`, body);
+}
+
+/** P3 host 态（2026-09-20 spec §4.2）：撤销误登记（已签到 409 VERIFY_LOCKED） */
+export function unverifyExpertIdentity(
+  projectId: string,
+  expertId: string,
+  body: { reason: string },
+): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/unverify`, body);
+}

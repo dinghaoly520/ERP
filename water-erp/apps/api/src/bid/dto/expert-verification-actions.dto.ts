@@ -26,3 +26,24 @@ export class ReplaceExpertDuringEvaluationDto {
   @MaxLength(200)
   reason!: string;
 }
+
+/** P3 host 态核验登记（2026-09-20 spec §4.2）：主持人核对 人↔证件↔名单 后登记 */
+export class VerifyExpertIdentityDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['身份证', '护照', '其他'])
+  docType!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  note?: string;
+}
+
+/** P3 host 态撤销误登记（2026-09-20 spec §4.2）：原因必填，签到重锁 */
+export class UnverifyExpertIdentityDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  reason!: string;
+}

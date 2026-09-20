@@ -3147,6 +3147,96 @@ export class BidService {
     return { ok: true, replaced: from.expertName, promoted: to.expertName };
   }
 
+  /** P3 host 态核验登记（2026-09-20 spec §4.2）：主持人核对 人↔证件↔名单 后登记——写 identity 六列 + 监督日志 */
+  async verifyExpertIdentity(
+    projectId: string,
+    expertId: string,
+    actor: { id: string; username: string },
+    dto: { docType: string; note?: string },
+  ) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可核验阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+      select: { id: true, expertName: true, expertRole: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    if (expert.expertRole !== '正选') {
+      throw new ForbiddenException({ error: '候补专家需递补后方可核验登记', code: 'SUBSTITUTE_EXPERT' });
+    }
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: {
+        identityVerified: true,
+        identityVerifiedAt: new Date(),
+        identityVerifiedBy: actor.id,
+        identityVerifiedByName: actorName,
+        identityDocType: dto.docType,
+        identityNote: dto.note ?? null,
+      },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '身份核验登记',
+        result: `主持人核验登记（证件：${dto.docType}${dto.note ? `；备注：${dto.note}` : ''}；核验人：${actorName}）`,
+        riskFlag: '无',
+      },
+    }).catch(() => {});
+    return { ok: true, expertId: expert.id, expertName: expert.expertName, verifiedByName: actorName };
+  }
+
+  /** P3 host 态撤销误登记（2026-09-20 spec §4.2）：仅未签到时可撤（已签到拒撤——防证据链被回退）；清 identity 列 + 监督日志 */
+  async unverifyExpertIdentity(
+    projectId: string,
+    expertId: string,
+    actor: { id: string; username: string },
+    dto: { reason: string },
+  ) {
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+      select: { id: true, expertName: true, identityVerified: true, signedIn: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.identityVerified) {
+      return { ok: true, already: true, expertId: expert.id, expertName: expert.expertName }; // 幂等：未登记无需撤销
+    }
+    if (expert.signedIn) {
+      throw new ConflictException({
+        error: '专家已签到，不可撤销核验登记——如系误操作请联系系统管理员',
+        code: 'VERIFY_LOCKED',
+      });
+    }
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: {
+        identityVerified: false,
+        identityVerifiedAt: null,
+        identityVerifiedBy: null,
+        identityVerifiedByName: null,
+        identityDocType: null,
+        identityNote: `撤销核验登记：${dto.reason}`,
+      },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '身份核验撤销',
+        result: `撤销核验登记（原因：${dto.reason}；操作人：${actorName}）`,
+        riskFlag: '关注',
+      },
+    }).catch(() => {});
+    return { ok: true, expertId: expert.id, expertName: expert.expertName };
+  }
+
   async getEvaluationHandover(projectId: string) {
     const asset = await this.prisma.fileAsset.findFirst({
       where: { category: 'bid_evaluation_handover',

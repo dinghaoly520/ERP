@@ -288,6 +288,36 @@ describe('ExpertService', () => {
       }
     });
 
+    it('host 态未核验登记 → 403 IDENTITY_NOT_VERIFIED（P3 闸门，先于照片闸）', async () => {
+      process.env.EXPERT_IDENTITY_VERIFY = 'host';
+      try {
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, identityVerified: false });
+        prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
+
+        await expect(service.signIn('user-1', 'proj-1', undefined, 'photo-1'))
+          .rejects.toMatchObject({ response: { code: 'IDENTITY_NOT_VERIFIED' } });
+        expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      } finally {
+        delete process.env.EXPERT_IDENTITY_VERIFY;
+      }
+    });
+
+    it('host 态已核验登记 + 照片 → 签到放行', async () => {
+      process.env.EXPERT_IDENTITY_VERIFY = 'host';
+      try {
+        prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+        prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, identityVerified: true });
+        prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
+        prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
+
+        const r = await service.signIn('user-1', 'proj-1', undefined, 'photo-1');
+        expect(r.signedIn).toBe(true);
+      } finally {
+        delete process.env.EXPERT_IDENTITY_VERIFY;
+      }
+    });
+
     it('带合法拍照留痕 → photoAssetId 并入 signInMeta', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);

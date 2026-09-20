@@ -19,7 +19,7 @@ import { portalFromRequest } from '../auth/portal-cookie';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { ManualConfirmDto } from './dto/manual-confirm.dto';
-import { RejectExpertVerificationDto, ReplaceExpertDuringEvaluationDto } from './dto/expert-verification-actions.dto';
+import { RejectExpertVerificationDto, ReplaceExpertDuringEvaluationDto, VerifyExpertIdentityDto, UnverifyExpertIdentityDto } from './dto/expert-verification-actions.dto';
 import { CreateClarificationDto, DraftClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
@@ -176,6 +176,40 @@ export class BidController {
     @Body() dto: ManualConfirmDto,
   ) {
     return this.bidService.manualConfirmExpertVerification(
+      id, expertId,
+      { id: userId, username: req?.user?.username ?? '未知' },
+      dto,
+    );
+  }
+
+  @Post('projects/:id/expert-verification/:expertId/verify')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: 'P3（2026-09-20 spec §4.2）：主持人核验登记（host 态签到前置；人↔证件↔名单三对照后登记）' })
+  verifyExpertIdentity(
+    @Param('id') id: string,
+    @Param('expertId') expertId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: any,
+    @Body() dto: VerifyExpertIdentityDto,
+  ) {
+    return this.bidService.verifyExpertIdentity(
+      id, expertId,
+      { id: userId, username: req?.user?.username ?? '未知' },
+      dto,
+    );
+  }
+
+  @Post('projects/:id/expert-verification/:expertId/unverify')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: 'P3（2026-09-20 spec §4.2）：撤销误登记（原因必填；已签到 409 VERIFY_LOCKED 防证据回退）' })
+  unverifyExpertIdentity(
+    @Param('id') id: string,
+    @Param('expertId') expertId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: any,
+    @Body() dto: UnverifyExpertIdentityDto,
+  ) {
+    return this.bidService.unverifyExpertIdentity(
       id, expertId,
       { id: userId, username: req?.user?.username ?? '未知' },
       dto,

@@ -65,7 +65,11 @@
 
 ### 4.2 强化模式（host 态，可选启用）
 
-`EXPERT_IDENTITY_VERIFY=host` 时，在 4.1 的 ① 之前加主持人闸门：向导第 1 步锁定显示「请联系现场主持人完成身份核验」；主持人（:3007 桌面端）核对 人↔证件↔名单 后「核验登记」（证件类型**不存号码**+备注+可选现场照）→ WS/轮询解锁；误登记可撤销（原因必填，签到重锁）。核验权 = 主持人 primary + admin 兜底，核验人落库。**默认不启用**；需要更严场次的集团/项目自行开启。
+`EXPERT_IDENTITY_VERIFY=host` 时，在 4.1 的 ① 之前加主持人闸门：向导第 1 步锁定显示「待主持人核验」；主持人（:3007 桌面端）核对 人↔证件↔名单 后「核验登记」（证件类型**不存号码**+备注）→ 专家端 10s 轮询自动解锁（实施注 2026-09-20：WS 未接，轮询覆盖时效）；误登记可撤销（原因必填，**已签到专家 409 `VERIFY_LOCKED` 拒撤**——防证据链回退）。核验权 = 主持人 primary + admin 兜底，核验人落库（identityVerifiedBy/ByName）。**默认不启用**；需要更严场次的集团/项目自行开启。
+
+- 端点：`POST .../expert-verification/:expertId/verify`（docType 白名单 + note?）/ `unverify`（reason 必填）；登记与撤销写监督日志（`身份核验登记`/`身份核验撤销·关注`）；
+- signIn 闸门顺序：host 态先查 `identityVerified`（403 `IDENTITY_NOT_VERIFIED`）→ 再查照片（`PHOTO_REQUIRED`）——与 spec「拍照前拦截」一致；
+- 专家端 `getProject` 下发 `identityMode` + myExpertRecord 的 identity 字段（P3 起）；self 态恒 self、字段恒 false/null，无行为变化。
 
 ### 4.3 模式闸
 

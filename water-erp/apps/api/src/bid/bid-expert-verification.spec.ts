@@ -225,3 +225,75 @@ describe('BidService.replaceExpertDuringEvaluation（R5 评标中替换）', () 
       .rejects.toMatchObject({ response: { code: 'INVALID_SWAP_DIRECTION' } });
   });
 });
+
+// P3 host 态核验登记/撤销（2026-09-20 spec §4.2）
+describe('BidService.verify/unverifyExpertIdentity（P3 host 态）', () => {
+  let svc: any;
+  let prisma: any;
+  const ACTOR = { id: 'host-1', username: '陈源远' };
+
+  beforeEach(() => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+      bidExpert: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'e1', expertName: '刘苡池', expertRole: '正选', identityVerified: false, signedIn: false }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '陈源远' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    svc = instance;
+  });
+
+  it('核验登记 → identity 列写入（含核验人快照）+ 监督日志 身份核验登记', async () => {
+    const r = await svc.verifyExpertIdentity('proj-1', 'e1', ACTOR, { docType: '身份证', note: '现场核对无误' });
+    expect(r.ok).toBe(true);
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: expect.objectContaining({
+        identityVerified: true,
+        identityVerifiedByName: '陈源远',
+        identityDocType: '身份证',
+      }),
+    });
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: '身份核验登记', target: '刘苡池' }),
+    });
+  });
+
+  it('撤销误登记（未签到）→ 清列 + 监督日志 身份核验撤销·关注', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', expertName: '刘苡池', identityVerified: true, signedIn: false });
+    await svc.unverifyExpertIdentity('proj-1', 'e1', ACTOR, { reason: '登记错人' });
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: expect.objectContaining({
+        identityVerified: false, identityVerifiedByName: null, identityDocType: null,
+        identityNote: expect.stringContaining('登记错人'),
+      }),
+    });
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: '身份核验撤销', riskFlag: '关注' }),
+    });
+  });
+
+  it('已签到 → 撤销 409 VERIFY_LOCKED（防证据回退）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', expertName: '刘苡池', identityVerified: true, signedIn: true });
+    await expect(svc.unverifyExpertIdentity('proj-1', 'e1', ACTOR, { reason: 'x' }))
+      .rejects.toMatchObject({ response: { code: 'VERIFY_LOCKED' } });
+    expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+  });
+
+  it('未登记 → 撤销幂等（already:true，不写日志）', async () => {
+    const r = await svc.unverifyExpertIdentity('proj-1', 'e1', ACTOR, { reason: 'x' });
+    expect(r.already).toBe(true);
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('候补 → 登记 403 SUBSTITUTE_EXPERT', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e2', expertName: '候补甲', expertRole: '候补', identityVerified: false, signedIn: false });
+    await expect(svc.verifyExpertIdentity('proj-1', 'e2', ACTOR, { docType: '身份证' }))
+      .rejects.toMatchObject({ response: { code: 'SUBSTITUTE_EXPERT' } });
+  });
+});

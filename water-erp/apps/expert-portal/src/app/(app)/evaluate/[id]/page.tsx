@@ -9,7 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
 import { SigninCamera } from '@/components/signin-camera';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
@@ -579,6 +579,14 @@ export default function ExpertEvaluatePage() {
   }, [activeSupplier, projectId]);
 
   const expert = project?.myExpertRecord;
+
+  // P3 host 态（2026-09-20 spec §4.2）：待主持人核验时 10s 轮询自动解锁
+  const hostLocked = project?.identityMode === 'host' && !expert?.identityVerified && !expert?.signedIn;
+  useEffect(() => {
+    if (!hostLocked) return;
+    const t = setInterval(() => loadProject(), 10_000);
+    return () => clearInterval(t);
+  }, [hostLocked, loadProject]);
 
   // Phase 0：条款响应核对右栏「相关评分项」状态（同类别只读指引）——
   // committed=已提交（myScores 有记录）/ draft=有未提交内存编辑 / empty=未填
@@ -1359,10 +1367,20 @@ export default function ExpertEvaluatePage() {
                       <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待完成</span>
                     )}
                   </div>
-                  {/* 拍照留痕 + 签到 — 未签到时显示 */}
+                  {/* 拍照留痕 + 签到 — 未签到时显示；P3 host 态（2026-09-20 spec §4.2）：未核验登记先锁 */}
                   {!expert?.signedIn && (
                     <div className="neu-card-static mt-3 p-4">
-                      {faceVerified ? (
+                      {project?.identityMode === 'host' && !expert?.identityVerified ? (
+                        <div className="exp-alert exp-alert--warning flex items-center gap-3 !font-normal">
+                          <ShieldAlert size={20} strokeWidth={1.5} className="shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold">待主持人核验</p>
+                            <p className="text-xs leading-relaxed opacity-90">
+                              本项目启用主持人核验（强化模式）——请到主持人处出示证件完成现场核验登记；核验通过后本页自动解锁（每 10 秒自动刷新）。
+                            </p>
+                          </div>
+                        </div>
+                      ) : faceVerified ? (
                         <div className="exp-alert exp-alert--success flex items-center gap-3">
                           <CheckCircle size={20} strokeWidth={1.5} className="shrink-0" />
                           <div>

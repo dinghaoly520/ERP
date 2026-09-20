@@ -378,6 +378,8 @@ export class ExpertService {
     const tenderDoc = await this.findTenderDoc(projectId, project.projectCode);
     return {
       ...project,
+      // P3 host 态（2026-09-20 spec §4.2）：专家端据此锁定/解锁第 1 步（自我态恒 self）
+      identityMode: resolveIdentityVerifyMode(),
       // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
       // 逐人签到/回避/进度/报告确认改为聚合计数，对齐 WS broadcastAggregatePresence「只发计数」设计
       experts: project.experts.map(e => ({ id: e.id, expertName: e.expertName, major: e.major })),
@@ -428,8 +430,13 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '签到');
 
-    // R3 必拍留档照：self/host 态无照片拒签；off 应急态豁免（模式闸 spec §4.3）
+    // 模式闸（spec §4.3）：self 默认 / host 强化（需主持人核验登记）/ off 应急
     const mode = resolveIdentityVerifyMode();
+    // R4 host 态：签到前另需主持人在 :3007 登记人证核验（spec §4.2，拍照之前拦截）
+    if (mode === 'host' && !expert.identityVerified) {
+      throw new ForbiddenException({ error: '请先完成主持人现场身份核验', code: 'IDENTITY_NOT_VERIFIED' });
+    }
+    // R3 必拍留档照：self/host 态无照片拒签；off 应急态豁免
     if (mode !== 'off' && !photoAssetId) {
       throw new BadRequestException({ error: '签到需拍摄留档照（人脸遮挡检测），应急模式除外', code: 'PHOTO_REQUIRED' });
     }
