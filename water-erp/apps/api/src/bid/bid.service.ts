@@ -2986,20 +2986,37 @@ export class BidService {
   /** 获取评标完整性快照信息（指纹 + 下载链接），供验证端点使用 */
   /** 核验矩阵（2026-09-18 身份核验设计 §4.5）：专家签到状态/留档照/遮挡检测结论/IP——:3007 被动展示 */
   async getExpertVerification(projectId: string) {
-    const experts = await this.prisma.bidExpert.findMany({
-      where: { projectId },
-      orderBy: [{ signedIn: 'desc' }, { expertRole: 'asc' }, { expertName: 'asc' }],
-      select: {
-        id: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
-        signedIn: true, signInIp: true, signInMeta: true,
-        identityVerified: true, identityVerifiedByName: true, identityDocType: true,
-      },
-    });
+    const [experts, anomalyLogs] = await Promise.all([
+      this.prisma.bidExpert.findMany({
+        where: { projectId },
+        orderBy: [{ signedIn: 'desc' }, { expertRole: 'asc' }, { expertName: 'asc' }],
+        select: {
+          id: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
+          signedIn: true, signInIp: true, signInMeta: true,
+          identityVerified: true, identityVerifiedByName: true, identityDocType: true,
+        },
+      }),
+      this.prisma.bidSupervisionLog.findMany({
+        where: { projectId, action: { in: ['核验异常', '核验异常撤销'] } },
+        select: { time: true, action: true, target: true, result: true },
+        orderBy: { time: 'asc' },
+      }),
+    ]);
+    // 异常登记状态（2026-09-20 闭环修复）：按时间序折叠——最后一条是「核验异常」= 生效中，是「撤销」= 已更正
+    const anomalyByExpert = new Map<string, { active: boolean; at: string; result: string }>();
+    for (const l of anomalyLogs) {
+      anomalyByExpert.set(l.target, {
+        active: l.action === '核验异常',
+        at: l.time.toISOString(),
+        result: l.result,
+      });
+    }
     return {
       projectId,
       mode: resolveIdentityVerifyMode(),
       experts: experts.map((e) => {
         const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string; reason?: string; confirmedByName?: string };
+        const an = anomalyByExpert.get(e.expertName);
         return {
           id: e.id, expertName: e.expertName, major: e.major, expertRole: e.expertRole,
           isLead: e.isLead, isPurchaserRepresentative: e.isPurchaserRepresentative,
@@ -3010,6 +3027,7 @@ export class BidService {
           photoAssetId: meta.photoAssetId ?? null,
           manualReason: meta.reason ?? null, // R9：主持人手动确认理由（tooltip/披露）
           confirmedByName: meta.confirmedByName ?? null, // R9：确认人姓名快照
+          anomaly: an?.active ? { at: an.at, result: an.result } : null, // 生效中的异常登记（供矩阵徽章/tooltip）
           identityVerified: e.identityVerified, // host 态字段（P3 启用，self 态恒 false）
           identityVerifiedByName: e.identityVerifiedByName,
           identityDocType: e.identityDocType,
@@ -3082,6 +3100,14 @@ export class BidService {
       select: { id: true, expertName: true },
     });
     if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    // 幂等（2026-09-20 闭环修复）：同一专家存在未撤销的异常登记 → 不再重复写高风险记录
+    const [lastAnomaly, lastRetraction] = await Promise.all([
+      this.prisma.bidSupervisionLog.findFirst({ where: { projectId, target: expert.expertName, action: '核验异常' }, orderBy: { time: 'desc' }, select: { time: true } }),
+      this.prisma.bidSupervisionLog.findFirst({ where: { projectId, target: expert.expertName, action: '核验异常撤销' }, orderBy: { time: 'desc' }, select: { time: true } }),
+    ]);
+    if (lastAnomaly && (!lastRetraction || lastAnomaly.time >= lastRetraction.time)) {
+      return { ok: true, already: true, expertId: expert.id, expertName: expert.expertName };
+    }
     const actorName =
       (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
       || actor.username;
@@ -3094,6 +3120,40 @@ export class BidService {
       },
     }).catch(() => {});
     return { ok: true, expertId: expert.id, expertName: expert.expertName, action: '核验异常', riskFlag: '高风险' };
+  }
+
+  /** R5 撤销异常登记（2026-09-20 闭环修复）：误报可更正——不删原记录，追加更正日志（核验异常撤销·关注），签字包两条并载 */
+  async retractExpertVerification(
+    projectId: string,
+    expertId: string,
+    actor: { id: string; username: string },
+    dto: { reason: string },
+  ) {
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+      select: { id: true, expertName: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    const [lastAnomaly, lastRetraction] = await Promise.all([
+      this.prisma.bidSupervisionLog.findFirst({ where: { projectId, target: expert.expertName, action: '核验异常' }, orderBy: { time: 'desc' }, select: { time: true } }),
+      this.prisma.bidSupervisionLog.findFirst({ where: { projectId, target: expert.expertName, action: '核验异常撤销' }, orderBy: { time: 'desc' }, select: { time: true } }),
+    ]);
+    // 幂等：无异常登记、或已撤销（撤销时间晚于最近一次登记）→ 无需再撤
+    if (!lastAnomaly || (lastRetraction && lastRetraction.time >= lastAnomaly.time)) {
+      return { ok: true, already: true, expertId: expert.id, expertName: expert.expertName };
+    }
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '核验异常撤销',
+        result: `撤销异常登记（原因：${dto.reason}；操作人：${actorName}）`,
+        riskFlag: '关注',
+      },
+    }).catch(() => {});
+    return { ok: true, expertId: expert.id, expertName: expert.expertName };
   }
 
   /** P3 host 态核验登记（2026-09-20 spec §4.2）：主持人核对 人↔证件↔名单 后登记——写 identity 六列 + 监督日志 */

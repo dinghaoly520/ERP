@@ -13,6 +13,14 @@ export class RejectExpertVerificationDto {
   note?: string;
 }
 
+/** R5 撤销异常登记（2026-09-20 闭环修复）：误报更正——原因必填，追加更正日志不删原记录 */
+export class RetractExpertVerificationDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  reason!: string;
+}
+
 /** P3 host 态核验登记（2026-09-20 spec §4.2）：主持人核对 人↔证件↔名单 后登记 */
 export class VerifyExpertIdentityDto {
   @IsString()

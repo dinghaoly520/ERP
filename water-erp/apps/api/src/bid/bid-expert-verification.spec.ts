@@ -6,7 +6,10 @@ describe('BidService.getExpertVerification（核验矩阵）', () => {
   let prisma: any;
 
   beforeEach(() => {
-    prisma = { bidExpert: { findMany: jest.fn() } };
+    prisma = {
+      bidExpert: { findMany: jest.fn() },
+      bidSupervisionLog: { findMany: jest.fn().mockResolvedValue([]) },
+    };
     const instance: any = Object.create(BidService.prototype);
     instance.prisma = prisma;
     svc = instance;
@@ -57,6 +60,29 @@ describe('BidService.getExpertVerification（核验矩阵）', () => {
     } finally {
       delete process.env.EXPERT_IDENTITY_VERIFY;
     }
+  });
+
+  it('闭环修复：异常状态折叠——最后一条是登记=生效（anomaly 非空）、是撤销=已更正（anomaly null）', async () => {
+    prisma.bidExpert.findMany.mockResolvedValue([
+      {
+        id: 'e1', expertName: '刘苡池', major: '水利', expertRole: '正选', isLead: false, isPurchaserRepresentative: false,
+        signedIn: false, signInIp: null, signInMeta: null,
+        identityVerified: false, identityVerifiedByName: null, identityDocType: null,
+      },
+      {
+        id: 'e2', expertName: '老专家', major: '造价', expertRole: '候补', isLead: false, isPurchaserRepresentative: false,
+        signedIn: false, signInIp: null, signInMeta: null,
+        identityVerified: false, identityVerifiedByName: null, identityDocType: null,
+      },
+    ]);
+    prisma.bidSupervisionLog.findMany.mockResolvedValue([
+      { time: new Date('2026-09-20T10:00:00Z'), action: '核验异常', target: '刘苡池', result: '人证不符（登记人：陈源远）' },
+      { time: new Date('2026-09-20T10:30:00Z'), action: '核验异常撤销', target: '刘苡池', result: '撤销异常登记（原因：复核为误会；操作人：陈源远）' },
+      { time: new Date('2026-09-20T11:00:00Z'), action: '核验异常', target: '老专家', result: '到场异常' },
+    ]);
+    const r = await svc.getExpertVerification('proj-1');
+    expect(r.experts[0].anomaly).toBeNull(); // 已撤销
+    expect(r.experts[1].anomaly).toMatchObject({ result: '到场异常' }); // 生效中
   });
 });
 
@@ -145,7 +171,10 @@ describe('BidService.rejectExpertVerification（R5 异常登记）', () => {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
       bidExpert: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', expertName: '刘苡池' }) },
       user: { findUnique: jest.fn().mockResolvedValue({ displayName: '陈源远' }) },
-      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
     };
     const instance: any = Object.create(BidService.prototype);
     instance.prisma = prisma;
@@ -169,6 +198,74 @@ describe('BidService.rejectExpertVerification（R5 异常登记）', () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
     await expect(svc.rejectExpertVerification('proj-1', 'e1', ACTOR, { type: '照片异常' }))
       .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_ACTIVE' } });
+  });
+
+  it('闭环修复：存在未撤销异常 → 幂等 already（不重复写高风险记录）', async () => {
+    prisma.bidSupervisionLog.findFirst.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.action === '核验异常' ? { time: new Date('2026-09-20T10:00:00Z') } : null));
+    const r = await svc.rejectExpertVerification('proj-1', 'e1', ACTOR, { type: '人证不符' });
+    expect(r.already).toBe(true);
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('闭环修复：已撤销后再登记 → 写新记录（撤销晚于登记）', async () => {
+    prisma.bidSupervisionLog.findFirst.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.action === '核验异常'
+        ? { time: new Date('2026-09-20T10:00:00Z') }
+        : { time: new Date('2026-09-20T10:30:00Z') }));
+    await svc.rejectExpertVerification('proj-1', 'e1', ACTOR, { type: '人证不符' });
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: '核验异常', riskFlag: '高风险' }),
+    });
+  });
+});
+
+// R5 撤销异常登记（2026-09-20 闭环修复）——误报可更正，不删原记录
+describe('BidService.retractExpertVerification（R5 撤销异常）', () => {
+  let svc: any;
+  let prisma: any;
+  const ACTOR = { id: 'host-1', username: '陈源远' };
+
+  beforeEach(() => {
+    prisma = {
+      bidExpert: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', expertName: '刘苡池' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '陈源远' }) },
+      bidSupervisionLog: {
+        findFirst: jest.fn().mockImplementation(({ where }: any) =>
+          Promise.resolve(where.action === '核验异常' ? { time: new Date('2026-09-20T10:00:00Z') } : null)),
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    svc = instance;
+  });
+
+  it('有生效异常 → 写更正日志（核验异常撤销·关注，含原因/操作人）', async () => {
+    const r = await svc.retractExpertVerification('proj-1', 'e1', ACTOR, { reason: '复核为误会' });
+    expect(r.ok).toBe(true);
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: '核验异常撤销', riskFlag: '关注',
+        result: expect.stringContaining('复核为误会'),
+      }),
+    });
+  });
+
+  it('无异常登记 → 幂等 already', async () => {
+    prisma.bidSupervisionLog.findFirst.mockResolvedValue(null);
+    const r = await svc.retractExpertVerification('proj-1', 'e1', ACTOR, { reason: 'x' });
+    expect(r.already).toBe(true);
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('已撤销（撤销晚于登记）→ 幂等 already', async () => {
+    prisma.bidSupervisionLog.findFirst.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.action === '核验异常'
+        ? { time: new Date('2026-09-20T10:00:00Z') }
+        : { time: new Date('2026-09-20T10:30:00Z') }));
+    const r = await svc.retractExpertVerification('proj-1', 'e1', ACTOR, { reason: 'x' });
+    expect(r.already).toBe(true);
   });
 });
 

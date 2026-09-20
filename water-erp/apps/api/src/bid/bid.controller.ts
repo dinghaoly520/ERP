@@ -19,7 +19,7 @@ import { portalFromRequest } from '../auth/portal-cookie';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { ManualConfirmDto } from './dto/manual-confirm.dto';
-import { RejectExpertVerificationDto, VerifyExpertIdentityDto, UnverifyExpertIdentityDto } from './dto/expert-verification-actions.dto';
+import { RejectExpertVerificationDto, RetractExpertVerificationDto, VerifyExpertIdentityDto, UnverifyExpertIdentityDto } from './dto/expert-verification-actions.dto';
 import { CreateClarificationDto, DraftClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
@@ -217,8 +217,8 @@ export class BidController {
   }
 
   @Post('projects/:id/expert-verification/:expertId/reject')
-  @Roles('bid_host', 'admin')
-  @ApiOperation({ summary: 'R5（2026-09-20 spec §4.4）：核验异常登记（人证不符/照片异常/到场异常）→ 监督日志异常事件（高风险）' })
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'R5（2026-09-20 spec §4.4）：核验异常登记（纯留痕高风险事件；leader/staff 可登——监督身份多为此角色，纯留痕低风险）' })
   rejectExpertVerification(
     @Param('id') id: string,
     @Param('expertId') expertId: string,
@@ -227,6 +227,23 @@ export class BidController {
     @Body() dto: RejectExpertVerificationDto,
   ) {
     return this.bidService.rejectExpertVerification(
+      id, expertId,
+      { id: userId, username: req?.user?.username ?? '未知' },
+      dto,
+    );
+  }
+
+  @Post('projects/:id/expert-verification/:expertId/unreject')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'R5 闭环修复（2026-09-20）：撤销异常登记——误报可更正，追加更正日志不删原记录' })
+  retractExpertVerification(
+    @Param('id') id: string,
+    @Param('expertId') expertId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: any,
+    @Body() dto: RetractExpertVerificationDto,
+  ) {
+    return this.bidService.retractExpertVerification(
       id, expertId,
       { id: userId, username: req?.user?.username ?? '未知' },
       dto,

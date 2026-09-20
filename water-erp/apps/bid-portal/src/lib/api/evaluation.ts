@@ -222,6 +222,8 @@ export interface ExpertVerificationRow {
   photoAssetId: string | null;
   manualReason: string | null;
   confirmedByName: string | null;
+  /** 生效中的核验异常登记（闭环修复 2026-09-20：矩阵徽章/tooltip 用） */
+  anomaly: { at: string; result: string } | null;
   identityVerified: boolean;
   identityVerifiedByName: string | null;
   identityDocType: string | null;
@@ -251,8 +253,17 @@ export function rejectExpertVerification(
   projectId: string,
   expertId: string,
   body: { type: '人证不符' | '照片异常' | '到场异常'; note?: string },
-): Promise<{ ok: boolean; expertId: string; expertName: string; action: string; riskFlag: string }> {
+): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string; action?: string; riskFlag?: string }> {
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/reject`, body);
+}
+
+/** R5 闭环修复（2026-09-20）：撤销异常登记——误报可更正，追加更正日志不删原记录 */
+export function retractExpertVerification(
+  projectId: string,
+  expertId: string,
+  body: { reason: string },
+): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/unreject`, body);
 }
 
 /** P3 host 态（2026-09-20 spec §4.2）：主持人核验登记 */

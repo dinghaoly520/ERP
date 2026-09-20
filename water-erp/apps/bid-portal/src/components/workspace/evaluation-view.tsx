@@ -23,6 +23,7 @@ import {
   listExpertMemosForAdmin,
   manualConfirmExpertVerification,
   rejectExpertVerification,
+  retractExpertVerification,
   unverifyExpertIdentity,
   verifyExpertIdentity,
   startEvaluation,
@@ -181,6 +182,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [rejectType, setRejectType] = useState<'人证不符' | '照片异常' | '到场异常'>('人证不符');
   const [rejectNote, setRejectNote] = useState('');
   const [rejectBusy, setRejectBusy] = useState(false);
+  // R5 闭环修复：撤销异常登记弹窗
+  const [unrejectFor, setUnrejectFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [unrejectReason, setUnrejectReason] = useState('');
+  const [unrejectBusy, setUnrejectBusy] = useState(false);
   // P3 host 态（2026-09-20 §4.2）：核验登记/撤销弹窗
   const [verifyFor, setVerifyFor] = useState<{ id: string; expertName: string } | null>(null);
   const [verifyDocType, setVerifyDocType] = useState<'身份证' | '护照' | '其他'>('身份证');
@@ -337,7 +342,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     }
   };
 
-  // R5：核验异常登记 → 监督日志异常事件（高风险）
+  // R5：核验异常登记 → 监督日志异常事件（高风险；重复登记幂等）
   const handleRejectVerification = async () => {
     if (!rejectFor) return;
     setRejectBusy(true);
@@ -352,6 +357,24 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       showToast(e?.message || '登记失败，请重试', 'err');
     } finally {
       setRejectBusy(false);
+    }
+  };
+
+  // R5 闭环修复：撤销异常登记（误报更正——追加更正日志，不删原记录）
+  const handleUnrejectVerification = async () => {
+    if (!unrejectFor || !unrejectReason.trim()) return;
+    setUnrejectBusy(true);
+    try {
+      await retractExpertVerification(projectId, unrejectFor.id, { reason: unrejectReason.trim() });
+      showToast(`已撤销 ${unrejectFor.expertName} 异常登记（更正日志留痕）`, 'ok');
+      setUnrejectFor(null);
+      setUnrejectReason('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '撤销失败，请重试', 'err');
+    } finally {
+      setUnrejectBusy(false);
     }
   };
 
@@ -756,6 +779,14 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     {row.method === 'manual_confirm' ? '无照片（主持人确认）' : row.signedIn ? '无照片（应急）' : '—'}
                   </span>
                 )}
+                {row.anomaly && (
+                  <span
+                    className="rounded-md bg-[oklch(0.94_0.07_27/0.35)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]"
+                    title={`${new Date(row.anomaly.at).toLocaleString('zh-CN', { hour12: false })} · ${row.anomaly.result}`}
+                  >
+                    已登记异常
+                  </span>
+                )}
                 {row.signInIp && <span className="font-mono text-[9px] text-[var(--muted-foreground)]">{row.signInIp}</span>}
                 <div className="ml-auto flex items-center gap-2">
                   {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && (
@@ -768,14 +799,26 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       手动确认
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => { setRejectFor({ id: row.id, expertName: row.expertName }); setRejectType('人证不符'); setRejectNote(''); }}
-                    className="neu-btn-xs"
-                    title="核验异常登记（人证不符/照片异常/到场异常）——监督日志高风险事件"
-                  >
-                    异常
-                  </button>
+                  {row.expertRole === EXPERT_ROLE.REGULAR && !row.anomaly && (
+                    <button
+                      type="button"
+                      onClick={() => { setRejectFor({ id: row.id, expertName: row.expertName }); setRejectType('人证不符'); setRejectNote(''); }}
+                      className="neu-btn-xs"
+                      title="核验异常登记（人证不符/照片异常/到场异常）——监督日志高风险事件"
+                    >
+                      异常
+                    </button>
+                  )}
+                  {row.anomaly && (
+                    <button
+                      type="button"
+                      onClick={() => { setUnrejectFor({ id: row.id, expertName: row.expertName }); setUnrejectReason(''); }}
+                      className="neu-btn-xs"
+                      title="撤销异常登记（误报更正——追加更正日志，不删原记录）"
+                    >
+                      撤销异常
+                    </button>
+                  )}
                   {verification.mode === 'host' && !row.identityVerified && (
                     <button
                       type="button"
@@ -1454,6 +1497,34 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <button type="button" onClick={() => setUnverifyFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleUnverifyIdentity()} disabled={unverifyBusy || !unverifyReason.trim()} className="neu-btn-primary !h-[36px] !text-xs">
                 {unverifyBusy ? '撤销中…' : '确认撤销'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── R5 闭环修复（2026-09-20）：撤销异常登记（误报更正）── */}
+      {unrejectFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">撤销异常登记</h2>
+              <button type="button" onClick={() => setUnrejectFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">撤销原因（必填）</label>
+              <textarea value={unrejectReason} onChange={(e) => setUnrejectReason(e.target.value)} maxLength={200} rows={2} placeholder="如：复核为误会……" className="workbench-input w-full resize-none" />
+              <p className="mt-3 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                撤销不删除原异常记录——仅追加一条更正日志，两条证据并载于监督时间线与签字包。
+              </p>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setUnrejectFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleUnrejectVerification()} disabled={unrejectBusy || !unrejectReason.trim()} className="neu-btn-primary !h-[36px] !text-xs">
+                {unrejectBusy ? '撤销中…' : '确认撤销'}
               </button>
             </div>
           </div>
