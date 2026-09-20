@@ -66,6 +66,7 @@ describe('Auth (e2e)', () => {
       ['e2e-single-supplier', 'supplier'],
       ['e2e-single-staff', 'staff'],
       ['e2e-single-mall', 'mall'],
+      ['e2e-single-expert', 'bid_expert'],
     ] as const) {
       await prisma.user.upsert({
         where: { username_role: { username, role } },
@@ -83,7 +84,7 @@ describe('Auth (e2e)', () => {
 
   afterAll(async () => {
     await prisma.user.deleteMany({
-      where: { username: { in: ['e2e-disabled-user', 'e2e-single-supplier', 'e2e-single-staff', 'e2e-single-mall'] } },
+      where: { username: { in: ['e2e-disabled-user', 'e2e-single-supplier', 'e2e-single-staff', 'e2e-single-mall', 'e2e-single-expert'] } },
     });
     await app.close();
   });
@@ -179,7 +180,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能创建招标项目', async () => {
-      const cookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
+      const cookie = await loginAs(app, '刘苡池', '111111111111111111', 'expert');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
@@ -190,7 +191,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('专家不能访问 AI 管理端接口', async () => {
-      const cookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
+      const cookie = await loginAs(app, '刘苡池', '111111111111111111', 'expert');
 
       await request(app.getHttpServer())
         .get('/api/ai/projects/fake-id/anomalies')
@@ -251,6 +252,45 @@ describe('Auth (e2e)', () => {
         .get('/api/auth/me')
         .set('Cookie', `token_supplier=${legacyToken}`)
         .set('X-Portal', 'supplier');
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('SESSION_REPLACED');
+    });
+
+    it('expert 重复登录：后登者顶掉先登者（2026-09-20 扩展；评标中冒名登录即踢真专家）', async () => {
+      const first = await loginWith('e2e-single-expert', 'expert').expect(200);
+      const second = await loginWith('e2e-single-expert', 'expert').expect(200);
+      expect(decodeJwt(second.body.access_token).sid).toBeTruthy();
+
+      const kicked = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_expert=${first.body.access_token}`)
+        .set('X-Portal', 'expert');
+      expect(kicked.status).toBe(401);
+      expect(kicked.body.code).toBe('SESSION_REPLACED');
+      expect(kicked.body.error).toBe('该账号已在其他设备登录，请重新登录');
+
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_expert=${second.body.access_token}`)
+        .set('X-Portal', 'expert')
+        .expect(200);
+    });
+
+    it('expert 无 sid 存量 token（token_expert cookie）应 401 强制重登', async () => {
+      const user = await prisma.user.findUnique({
+        where: { username_role: { username: 'e2e-single-expert', role: 'bid_expert' } },
+        select: { id: true },
+      });
+      const legacyToken = app.get(JwtService).sign({
+        sub: user!.id,
+        username: 'e2e-single-expert',
+        role: 'bid_expert',
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_expert=${legacyToken}`)
+        .set('X-Portal', 'expert');
       expect(res.status).toBe(401);
       expect(res.body.code).toBe('SESSION_REPLACED');
     });

@@ -28,11 +28,11 @@ describe('OperationLog (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
     prisma = app.get(PrismaService);
-    // 动态取一个 bid_expert 账号（口令统一 expert@2026，见 CLAUDE.md 种子表），避免硬编码姓名
+    // 动态取一个 bid_expert 账号（口令统一 18个1（ExpertProfile 快照 idNumber），见 CLAUDE.md 种子表），避免硬编码姓名
     const expert = await prisma.user.findFirst({ where: { role: 'bid_expert', isActive: true } });
     expect(expert).not.toBeNull();
     expertUsername = expert!.username;
-    expertCookie = await loginAs(app, expert!.username, 'expert@2026', 'expert');
+    expertCookie = await loginAs(app, expert!.username, '111111111111111111', 'expert');
   });
 
   afterAll(async () => {
@@ -60,7 +60,7 @@ describe('OperationLog (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/auth/login')
       .set('X-Portal', 'expert')
-      .send({ username: expertUsername, password: 'expert@2026' })
+      .send({ username: expertUsername, password: '111111111111111111' })
       .expect(200);
     await new Promise((r) => setTimeout(r, 300));
 
@@ -70,9 +70,13 @@ describe('OperationLog (e2e)', () => {
     });
     expect(found).not.toBeNull();
     // body 里的 password 必须是 ***
-    expect(JSON.stringify(found!.body)).not.toContain('expert@2026');
+    expect(JSON.stringify(found!.body)).not.toContain('111111111111111111');
     expect(JSON.stringify(found!.body)).toContain('***');
     expect(found!.role).toBe('anonymous'); // login 时 req.user 尚不存在
+
+    // 单设备登录（2026-09-20 expert 扩展）：上面同账号二次登录已顶掉 beforeAll 会话
+    // （旧 expertCookie 后续请求将 401 SESSION_REPLACED）——重登取新 cookie 供后续用例
+    expertCookie = await loginAs(app, expertUsername, '111111111111111111', 'expert');
   });
 
   it('/my 仅返回当前用户记录', async () => {
@@ -112,11 +116,13 @@ describe('OperationLog (e2e)', () => {
   });
 
   it('受保护路由无 token → 401 并被补记（role anonymous）', async () => {
-    await request(app.getHttpServer()).get('/api/operation-log').expect(401);
+    // 注：路径用 /api/procurements——原 /api/operation-log 已于 2026-09-16 加入
+    // DEFAULT_EXCLUDE_PATHS（GET 方法限定），排除清单对补记同样生效，原路径不再落库
+    await request(app.getHttpServer()).get('/api/procurements').set('X-Portal', 'web').expect(401);
     // 等待 fire-and-forget 落库
     await new Promise((r) => setTimeout(r, 300));
     const row = await prisma.operationLog.findFirst({
-      where: { path: '/api/operation-log', method: 'GET', statusCode: 401 },
+      where: { path: '/api/procurements', method: 'GET', statusCode: 401 },
       orderBy: { createdAt: 'desc' },
     });
     expect(row).not.toBeNull();

@@ -1,5 +1,6 @@
 import { createApiClient } from '@water-erp/client';
 import type { ExpertMemo } from '@water-erp/shared';
+import { showSessionReplacedOverlay, showFrozenOverlay } from '@/lib/session-kick';
 
 /**
  * expert-portal 专家门户 API 客户端 —— 基于 @water-erp/client 统一封装。
@@ -22,9 +23,17 @@ export class ApiError extends Error {
 
 const client = createApiClient({
   portal: 'expert',
-  // 401 全局兜底：JWT 过期 / 服务端踢人 / cookie 被清 → 直接跳登录页，
-  // 不让调用方的 .catch(() => {}) 静默吞掉鉴权失败。
-  on401: () => { window.location.href = '/login'; },
+  // 401 全局兜底（2026-09-20 单设备登录起按错误码分流）：
+  //  - SESSION_REPLACED：他处登录被顶 → 全屏遮罩（可反馈管理员），不静默跳转
+  //  - ACCOUNT_FROZEN：账号被冻结 → 冻结遮罩
+  //  - 其余（JWT 过期 / cookie 被清）→ 直接跳登录页
+  // 登录页自身的 401（口令错误）由表单 catch 呈现，不做全局兜底。
+  on401: (error) => {
+    if (window.location.pathname === '/login') return;
+    if (error.code === 'SESSION_REPLACED') { showSessionReplacedOverlay(error.message); return; }
+    if (error.code === 'ACCOUNT_FROZEN') { showFrozenOverlay(error.message); return; }
+    window.location.href = '/login';
+  },
 });
 
 async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {

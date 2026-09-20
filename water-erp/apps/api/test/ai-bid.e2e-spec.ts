@@ -79,7 +79,7 @@ describe('AI Bid Analysis (e2e) — C14', () => {
       include: { user: { select: { username: true } } },
     });
     if (expert?.user) {
-      expertCookie = await loginAs(app, expert.user.username, 'expert@2026', 'expert');
+      expertCookie = await loginAs(app, expert.user.username, '111111111111111111', 'expert');
     }
   });
 

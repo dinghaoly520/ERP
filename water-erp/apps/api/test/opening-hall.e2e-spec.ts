@@ -82,7 +82,7 @@ describe('Opening Hall (e2e)', () => {
     hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'bid');
     sup1Cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
     sup2Cookie = await loginAs(app, '成都华西物资供应有限公司', 'supplier@2026', 'supplier');
-    expertCookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
+    expertCookie = await loginAs(app, '刘苡池', '111111111111111111', 'expert');
     expect(hostCookie).toContain('token_bid=');
     expect(sup1Cookie).toContain('token_supplier=');
     expect(sup2Cookie).toContain('token_supplier=');
@@ -100,9 +100,9 @@ describe('Opening Hall (e2e)', () => {
       select: { id: true, username: true },
     });
     if (stray) {
-      strayExpertCookie = await loginAs(app, stray.username, 'expert@2026', 'expert');
+      strayExpertCookie = await loginAs(app, stray.username, '111111111111111111', 'expert');
     } else {
-      // 兜底：临时创建 bid_expert 用户（密码 bcrypt hash 复用现有种子行，即 expert@2026 的 hash）
+      // 兜底：临时创建 bid_expert 用户（密码 bcrypt hash 复用现有种子行，即 18个1 的 hash）
       const donor = await prisma.user.findFirst({ where: { role: 'bid_expert' }, select: { passwordHash: true } });
       const tsE = Date.now();
       const created = await prisma.user.create({
@@ -112,7 +112,7 @@ describe('Opening Hall (e2e)', () => {
         },
       });
       strayExpertUserId = created.id;
-      strayExpertCookie = await loginAs(app, created.username, 'expert@2026', 'expert');
+      strayExpertCookie = await loginAs(app, created.username, '111111111111111111', 'expert');
     }
     expect(strayExpertCookie).toContain('token_expert=');
 

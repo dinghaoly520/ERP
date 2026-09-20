@@ -114,7 +114,8 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  // 限流 env 可调（默认 10/min）：单设备登录 e2e（test/setup-throttle.ts）需连续多次登录
+  @Throttle({ default: { limit: Number(process.env.THROTTLE_LOGIN_LIMIT ?? 10), ttl: Number(process.env.THROTTLE_TTL_MS ?? 60000) } })
   @ApiOperation({ summary: '用户登录' })
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const requestPortal = portalFromRequest(req);
@@ -146,11 +147,12 @@ export class AuthController {
       cookiePortal = 'bid';
     }
 
-    // 单设备登录（web 2026-08-21；supplier 2026-09-18）：凡是最终写入 token_web /
-    // token_supplier 命名空间的登录（无论从本门户还是 :3002 入口）都轮换会话 ID 并
-    // 重签带 sid 的 token——后登录者顶掉先登录者。写 token_bid/token_expert/token_mall
-    // 等其他门户的登录不轮换、不互踢。
-    if (cookiePortal === 'web' || cookiePortal === 'supplier') {
+    // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：凡是最终写入
+    // token_web / token_supplier / token_expert 命名空间的登录（无论从本门户还是 :3002 入口）
+    // 都轮换会话 ID 并重签带 sid 的 token——后登录者顶掉先登录者。写 token_bid/token_mall
+    // 等其他门户的登录不轮换、不互踢（bid_expert 角色↔expert 门户互斥，:3006 分流写
+    // token_bid 的仅限非 bid_expert 角色，不会误伤 :3007 主持人/管理员会话）。
+    if (cookiePortal === 'web' || cookiePortal === 'supplier' || cookiePortal === 'expert') {
       result = await this.authService.rotatePortalSession(result.userId, result.username, result.role);
     }
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);

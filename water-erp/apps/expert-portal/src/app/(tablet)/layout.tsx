@@ -8,6 +8,7 @@ import {
 import type { User } from '@/lib/types';
 import { useIdleTimeout } from '@/hooks/use-idle-timeout';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { SessionWatchdog } from '@/components/session-watchdog';
 
 /**
  * 平板触屏 layout（Phase ⑤ Task 6 · cgzxui 新拟态重构）
@@ -145,6 +146,9 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
       <main className={`flex-1 overflow-y-auto ${isEvaluatePage ? '' : 'p-4'}`}>
         {children}
       </main>
+
+      {/* 单设备登录心跳（2026-09-20）：被顶下线/冻结 ≤15s 弹遮罩 */}
+      <SessionWatchdog />
 
       {/* 空闲超时预警弹窗 —— 倒计时到 0 自动退出，点「继续评标」重置计时器 */}
       <ConfirmDialog
