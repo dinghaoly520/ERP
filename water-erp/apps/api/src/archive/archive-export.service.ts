@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
@@ -22,6 +23,55 @@ export const ARCHIVE_PICKUP_CATEGORIES = [
   'bid_evaluation_sign_handover', 'sign_packet_signature_page', 'expert_sign_scan',
   'opening_sign_page', 'opening_sign_scan', // 2026-09-18 补：P1-3①A 开标记录签字页/开标签字扫描（key=opening-sign-*/${projectId}.*）
 ] as const;
+
+/** 取件分页大小（2026-09-20 审查修复：原 take:200 无截断检测会静默丢件） */
+export const HANDOVER_PICKUP_PAGE_SIZE = 200;
+
+/** 分页全取 FileAsset：orderBy id 保证翻页稳定，页不满即穷尽（防 take 截断产出缺件残包） */
+export async function fetchAllPaged<TArgs extends { skip: number; take: number }, T>(
+  finder: (args: TArgs) => Promise<T[]>,
+  args: Omit<TArgs, 'skip' | 'take' | 'orderBy'>,
+): Promise<T[]> {
+  const out: T[] = [];
+  let skip = 0;
+  for (;;) {
+    const page = await finder({ ...args, orderBy: { id: 'asc' }, skip, take: HANDOVER_PICKUP_PAGE_SIZE } as unknown as TArgs);
+    out.push(...page);
+    if (page.length < HANDOVER_PICKUP_PAGE_SIZE) break;
+    skip += HANDOVER_PICKUP_PAGE_SIZE;
+  }
+  return out;
+}
+
+/** 引用件缺行对账（2026-09-20 审查修复）：FileAsset 行缺失 = 引用悬空，与下载失败同口径整体拒绝 */
+export function assertNoMissingRefs(refIds: ReadonlySet<string>, foundIds: ReadonlySet<string>): void {
+  const missing = [...refIds].filter((id) => !foundIds.has(id));
+  if (missing.length > 0) {
+    throw new BadRequestException({
+      error: `开评标引用件缺失 ${missing.length} 件（FileAsset 行不存在）：${missing.slice(0, 3).join('、')}${missing.length > 3 ? '…' : ''}，已中止导出（防止缺件残包）`,
+      code: 'ARCHIVE_HANDOVER_FETCH_FAILED',
+    });
+  }
+}
+
+/** ZIP 同目录同名消歧（2026-09-20 审查修复）：JSZip file() 同路径是覆盖语义，撞名加 _2/_3 序号 */
+export function uniqueEntryName(category: string, originalName: string, used: Set<string>): string {
+  const base = `${category}/${originalName}`;
+  if (!used.has(base)) {
+    used.add(base);
+    return base;
+  }
+  const dot = originalName.lastIndexOf('.');
+  const stem = dot > 0 ? originalName.slice(0, dot) : originalName;
+  const ext = dot > 0 ? originalName.slice(dot) : '';
+  for (let i = 2; ; i++) {
+    const candidate = `${category}/${stem}_${i}${ext}`;
+    if (!used.has(candidate)) {
+      used.add(candidate);
+      return candidate;
+    }
+  }
+}
 
 @Injectable()
 export class ArchiveExportService {
@@ -106,6 +156,8 @@ export class ArchiveExportService {
     const fetchFailures: string[] = [];
     if (bpIds.length > 0) {
       const dir = pmDir.folder('09_开评标接收件')!;
+      // 2026-09-20 审查修复：同卷多项目/多专家证据件同名频发（JSZip file() 覆盖语义）——按已用路径消歧
+      const usedPaths = new Set<string>();
       for (const bp of bpIds) {
         // 2026-09-18 完整性扩展 v2 配套：回流包按 FileAsset 引用携带笔迹图/签到照/澄清附件/AI 报告等，
         // 这些资产 key 不含项目 ID（uploads/{date}/{random}、reports/{taskId}/…），按 key 前缀取不到件——
@@ -132,22 +184,26 @@ export class ArchiveExportService {
           }
         });
         if (aiTaskRow?.report) [aiTaskRow.report.docxFileId, aiTaskRow.report.pdfFileId].forEach((x: string | null) => x && refIds.add(x));
-        const assets = await this.prisma.fileAsset.findMany({
-          where: {
-            OR: [
-              { key: `bid-evaluation-handover/${bp.id}.json` },
-              // 2026-09-18：+回流包本体/签字页与专家签字扫描（key 含项目 ID，按类目取）；引用件按 id 取
-              { key: { contains: bp.id }, category: { in: [...ARCHIVE_PICKUP_CATEGORIES] } },
-              { id: { in: [...refIds] } },
-            ],
+        // 2026-09-20 审查修复：分页全取（防 take 截断）+ 缺行对账（防引用悬空静默漏取）
+        const assets = await fetchAllPaged(
+          (a: Prisma.FileAssetFindManyArgs) => this.prisma.fileAsset.findMany(a),
+          {
+            where: {
+              OR: [
+                { key: `bid-evaluation-handover/${bp.id}.json` },
+                // 2026-09-18：+回流包本体/签字页与专家签字扫描（key 含项目 ID，按类目取）；引用件按 id 取
+                { key: { contains: bp.id }, category: { in: [...ARCHIVE_PICKUP_CATEGORIES] } },
+                { id: { in: [...refIds] } },
+              ],
+            },
+            select: { id: true, key: true, originalName: true, category: true },
           },
-          select: { key: true, originalName: true, category: true },
-          take: 200, // 引用件并入后件数上限放宽（原 50）
-        });
+        );
+        assertNoMissingRefs(refIds, new Set(assets.filter((a) => refIds.has(a.id)).map((a) => a.id)));
         for (const fa of assets) {
           try {
             const buf = await this.storage.download(fa.key);
-            const name = `${fa.category}/${fa.originalName}`;
+            const name = uniqueEntryName(fa.category, fa.originalName, usedPaths);
             dir.file(name, buf);
             manifest.push({
               path: `${volName}/项目管理/09_开评标接收件/${name}`,
