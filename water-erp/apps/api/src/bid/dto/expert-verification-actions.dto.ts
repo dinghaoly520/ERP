@@ -13,20 +13,6 @@ export class RejectExpertVerificationDto {
   note?: string;
 }
 
-/** R5 评标中替换（2026-09-20 spec §4.4，仅 :3007）：正选→候补 */
-export class ReplaceExpertDuringEvaluationDto {
-  /** 递补转正的候补专家 id（同项目） */
-  @IsString()
-  @IsNotEmpty()
-  toExpertId!: string;
-
-  /** 替换理由，必填——防无脑换人 */
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(200)
-  reason!: string;
-}
-
 /** P3 host 态核验登记（2026-09-20 spec §4.2）：主持人核对 人↔证件↔名单 后登记 */
 export class VerifyExpertIdentityDto {
   @IsString()

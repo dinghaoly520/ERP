@@ -255,15 +255,6 @@ export function rejectExpertVerification(
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/reject`, body);
 }
 
-/** R5（2026-09-20 spec §4.4）：评标中替换（仅 :3007；被换正选未评分方可换） */
-export function replaceExpertDuringEvaluation(
-  projectId: string,
-  expertId: string,
-  body: { toExpertId: string; reason: string },
-): Promise<{ ok: boolean; replaced: string; promoted: string }> {
-  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/replace`, body);
-}
-
 /** P3 host 态（2026-09-20 spec §4.2）：主持人核验登记 */
 export function verifyExpertIdentity(
   projectId: string,

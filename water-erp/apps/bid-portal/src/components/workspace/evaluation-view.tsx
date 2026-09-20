@@ -23,7 +23,6 @@ import {
   listExpertMemosForAdmin,
   manualConfirmExpertVerification,
   rejectExpertVerification,
-  replaceExpertDuringEvaluation,
   unverifyExpertIdentity,
   verifyExpertIdentity,
   startEvaluation,
@@ -177,15 +176,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [manualReason, setManualReason] = useState('');
   const [manualDocType, setManualDocType] = useState('');
   const [manualBusy, setManualBusy] = useState(false);
-  // R5（2026-09-20 §4.4）：核验异常登记 + 评标中替换弹窗
+  // R5（2026-09-20 §4.4）：核验异常登记弹窗
   const [rejectFor, setRejectFor] = useState<{ id: string; expertName: string } | null>(null);
   const [rejectType, setRejectType] = useState<'人证不符' | '照片异常' | '到场异常'>('人证不符');
   const [rejectNote, setRejectNote] = useState('');
   const [rejectBusy, setRejectBusy] = useState(false);
-  const [replaceFor, setReplaceFor] = useState<{ id: string; expertName: string } | null>(null);
-  const [replaceToId, setReplaceToId] = useState('');
-  const [replaceReason, setReplaceReason] = useState('');
-  const [replaceBusy, setReplaceBusy] = useState(false);
   // P3 host 态（2026-09-20 §4.2）：核验登记/撤销弹窗
   const [verifyFor, setVerifyFor] = useState<{ id: string; expertName: string } | null>(null);
   const [verifyDocType, setVerifyDocType] = useState<'身份证' | '护照' | '其他'>('身份证');
@@ -357,25 +352,6 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       showToast(e?.message || '登记失败，请重试', 'err');
     } finally {
       setRejectBusy(false);
-    }
-  };
-
-  // R5：评标中替换（正选→候补；被换者已评分会 409 EXPERT_SWAP_LOCKED）
-  const handleReplaceExpert = async () => {
-    if (!replaceFor || !replaceToId || !replaceReason.trim()) return;
-    setReplaceBusy(true);
-    try {
-      const r = await replaceExpertDuringEvaluation(projectId, replaceFor.id, { toExpertId: replaceToId, reason: replaceReason.trim() });
-      showToast(`已替换：${r.replaced}→${r.promoted}（已留痕）`, 'ok');
-      setReplaceFor(null);
-      setReplaceToId('');
-      setReplaceReason('');
-      getExpertVerification(projectId).then(setVerification).catch(() => {});
-      onChanged?.();
-    } catch (e: any) {
-      showToast(e?.message || '替换失败，请重试', 'err');
-    } finally {
-      setReplaceBusy(false);
     }
   };
 
@@ -790,16 +766,6 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       title="摄像头故障等现场降级——主持人现场确认签到（理由必填，留痕）"
                     >
                       手动确认
-                    </button>
-                  )}
-                  {row.expertRole === EXPERT_ROLE.REGULAR && verification.experts.some(e => e.expertRole !== EXPERT_ROLE.REGULAR) && (
-                    <button
-                      type="button"
-                      onClick={() => { setReplaceFor({ id: row.id, expertName: row.expertName }); setReplaceToId(''); setReplaceReason(''); }}
-                      className="neu-btn-xs"
-                      title="评标中替换（正选→候补；被换者已提交评分将拒绝——须走异议裁决/流标）"
-                    >
-                      替换
                     </button>
                   )}
                   <button
@@ -1412,7 +1378,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
               <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                专家「{rejectFor.expertName}」存在核验异常——登记后写入<span className="font-semibold text-[var(--danger)]">监督日志高风险事件</span>并进入监督视图时间线，随后可走替换或异议裁决。
+                专家「{rejectFor.expertName}」存在核验异常——登记后写入<span className="font-semibold text-[var(--danger)]">监督日志高风险事件</span>并进入监督视图时间线，后续按规处置（异议裁决/流标等既有流程；开标后专家不可替换）。
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">异常类型</label>
               <select value={rejectType} onChange={(e) => setRejectType(e.target.value as typeof rejectType)} className="workbench-input w-full">
@@ -1428,42 +1394,6 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <button type="button" onClick={() => setRejectFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleRejectVerification()} disabled={rejectBusy} className="neu-btn-primary !h-[36px] !text-xs">
                 {rejectBusy ? '登记中…' : '登记异常'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── R5（2026-09-20 §4.4）：评标中替换 ── */}
-      {replaceFor && (
-        <div className="bid-overlay">
-          <div className="bid-overlay-backdrop" />
-          <div className="bid-dialog relative mx-4 w-full max-w-[460px]" role="dialog" aria-modal="true">
-            <div className="flex items-center justify-between px-6 pb-4 pt-5">
-              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标中替换</h2>
-              <button type="button" onClick={() => setReplaceFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="px-6 py-5">
-              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                将「{replaceFor.expertName}」替换为候补专家（正选↔候补互换，写入监督日志）。
-                <span className="font-semibold text-[var(--warning)]">被替换专家若已提交评分将被拒绝——改变委员会组成须走异议裁决/重新评标流程。</span>
-              </p>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">递补候补</label>
-              <select value={replaceToId} onChange={(e) => setReplaceToId(e.target.value)} className="workbench-input w-full">
-                <option value="">请选择候补专家…</option>
-                {verification?.experts.filter(e => e.expertRole !== EXPERT_ROLE.REGULAR).map(e => (
-                  <option key={e.id} value={e.id}>{e.expertName}（{e.major}）</option>
-                ))}
-              </select>
-              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">替换理由（必填）</label>
-              <textarea value={replaceReason} onChange={(e) => setReplaceReason(e.target.value)} maxLength={200} rows={2} placeholder="如：人证不符 / 核验异常……" className="workbench-input w-full resize-none" />
-            </div>
-            <hr className="wb-section-rule mx-6" />
-            <div className="flex justify-end gap-2 px-6 py-4">
-              <button type="button" onClick={() => setReplaceFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void handleReplaceExpert()} disabled={replaceBusy || !replaceToId || !replaceReason.trim()} className="neu-btn-primary !h-[36px] !text-xs">
-                {replaceBusy ? '替换中…' : '确认替换'}
               </button>
             </div>
           </div>

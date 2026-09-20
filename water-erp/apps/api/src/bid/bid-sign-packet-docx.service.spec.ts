@@ -145,13 +145,13 @@ describe('BidSignPacketDocxService', () => {
       ...baseSnapshot,
       verifyEvents: [
         { time: '2026-09-20T10:05:00.000Z', action: '核验异常', target: '刘苡池', result: '人证不符（登记人：陈源远）' },
-        { time: '2026-09-20T10:08:00.000Z', action: '专家替换', target: '刘苡池', result: '评标中替换：刘苡池→候补甲（理由：人证不符；经办：陈源远）' },
+        { time: '2026-09-20T10:08:00.000Z', action: '身份核验降级', target: '刘苡池', result: '主持人手动确认签到（理由：摄像头故障；确认人：陈源远）' },
       ],
     };
     const text = textOf(svc.buildChildren(snap));
     expect(text).toContain('核验事件（异常/降级/替换留痕）');
     expect(text).toContain('2026-09-20 10:05 · 核验异常 · 刘苡池 · 人证不符（登记人：陈源远）');
-    expect(text).toContain('2026-09-20 10:08 · 专家替换 · 刘苡池');
+    expect(text).toContain('2026-09-20 10:08 · 身份核验降级 · 刘苡池');
   });
 
   /* ── A-151（P1 波4）：报告章节附注渲染 ── */

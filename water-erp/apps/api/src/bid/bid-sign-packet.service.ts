@@ -619,7 +619,7 @@ export class BidSignPacketService {
         this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true }, orderBy: { createdAt: 'asc' } }),
         // R5（2026-09-20 §4.4）：核验事件入签字包证据链（降级/异常/替换三类留痕）
         this.prisma.bidSupervisionLog.findMany({
-          where: { projectId, action: { in: ['身份核验降级', '核验异常', '专家替换'] } },
+          where: { projectId, action: { in: ['身份核验降级', '核验异常'] } },
           select: { time: true, action: true, target: true, result: true },
           orderBy: { time: 'asc' },
         }),

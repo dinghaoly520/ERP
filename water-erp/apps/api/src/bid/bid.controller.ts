@@ -19,7 +19,7 @@ import { portalFromRequest } from '../auth/portal-cookie';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { ManualConfirmDto } from './dto/manual-confirm.dto';
-import { RejectExpertVerificationDto, ReplaceExpertDuringEvaluationDto, VerifyExpertIdentityDto, UnverifyExpertIdentityDto } from './dto/expert-verification-actions.dto';
+import { RejectExpertVerificationDto, VerifyExpertIdentityDto, UnverifyExpertIdentityDto } from './dto/expert-verification-actions.dto';
 import { CreateClarificationDto, DraftClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
@@ -230,23 +230,6 @@ export class BidController {
       id, expertId,
       { id: userId, username: req?.user?.username ?? '未知' },
       dto,
-    );
-  }
-
-  @Post('projects/:id/expert-verification/:expertId/replace')
-  @Roles('bid_host', 'admin')
-  @ApiOperation({ summary: 'R5（2026-09-20 spec §4.4）：评标中替换（仅 :3007；被换正选未评分方可换，已评分 409 走异议裁决）' })
-  replaceExpertDuringEvaluation(
-    @Param('id') id: string,
-    @Param('expertId') expertId: string,
-    @CurrentUser('sub') userId: string,
-    @Req() req: any,
-    @Body() dto: ReplaceExpertDuringEvaluationDto,
-  ) {
-    return this.bidService.replaceExpertDuringEvaluation(
-      id, expertId, dto.toExpertId,
-      { id: userId, username: req?.user?.username ?? '未知' },
-      dto.reason,
     );
   }
 
