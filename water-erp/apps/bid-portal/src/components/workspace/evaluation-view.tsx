@@ -728,7 +728,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
             {/* 单行表头：标题占首列 + 六列名（与行同宽同对齐） */}
             <div className="flex items-center gap-4 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
-              <span className="flex-1 text-[11px] font-bold text-[var(--foreground)]">身份核验</span>
+              <span className="flex-[0.7] text-[11px] font-bold text-[var(--foreground)]">身份核验</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
@@ -738,7 +738,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </div>
             {verification.experts.map(row => (
               <div key={row.id} className="flex items-center gap-4 px-3.5 py-2">
-                <div className="flex flex-1 min-w-0 items-center gap-1.5">
+                <div className="flex flex-[0.7] min-w-0 items-center gap-1.5">
                   <span className="truncate text-xs font-semibold text-[var(--foreground)]">{row.expertName}</span>
                   {row.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span className="bid-pill bid-pill--muted shrink-0 text-[9px]">候补</span>
