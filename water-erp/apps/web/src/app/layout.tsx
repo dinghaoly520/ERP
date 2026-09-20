@@ -17,8 +17,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "采购管理中心-智慧水发·蜀水云采",
-  description: "智慧水发·蜀水云采 采购管理中心",
+  title: "采购管理中心-蜀水云采·智慧水发",
+  description: "蜀水云采·智慧水发 采购管理中心",
 };
 
 export default function RootLayout({

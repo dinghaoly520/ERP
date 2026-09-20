@@ -63,7 +63,7 @@ function MessageList({
           <>
             {/* 品牌 logo — neumorphic 凸起圆形，页面/小窗统一 */}
             <div className={isMini ? "asst-page-welcome-sprite asst-welcome-sprite-mini" : "asst-page-welcome-sprite"}>
-              <img src="/procurement-brand-logo.png" alt="智慧水发" />
+              <img src="/procurement-brand-logo.png" alt="蜀水云采" />
             </div>
             <div className={isMini ? "asst-page-welcome-title asst-welcome-title-mini" : "asst-page-welcome-title"}>
               {userName && <div>{userName}，</div>}

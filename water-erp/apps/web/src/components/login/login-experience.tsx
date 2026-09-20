@@ -218,7 +218,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             <div className="login-mark__ring" />
             <Image
               src="/procurement-brand-logo.png"
-              alt="智慧水发 · 采购中心"
+              alt="蜀水云采 · 采购中心"
               width={60}
               height={60}
               className="relative z-10 h-[60px] w-[60px] object-contain"

@@ -749,7 +749,7 @@ export default function MallPage() {
       >
         <div className="flex h-[68px] items-center justify-between px-6">
           <a href={portalURL('public')} className="flex items-center gap-3 no-underline">
-            <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
+            <img src="/assets/logo.png" alt="蜀水云采 · 智慧水发" className="h-10 w-auto object-contain" />
             <span>
               <strong
                 className="block text-lg font-black tracking-[0.10em]"
@@ -762,7 +762,7 @@ export default function MallPage() {
                   WebkitTextFillColor: 'transparent',
                   animation: 'brandShift 6s ease infinite',
                 }}
-              >智慧水发 · 蜀水云采</strong>
+              >蜀水云采 · 智慧水发</strong>
             </span>
           </a>
 

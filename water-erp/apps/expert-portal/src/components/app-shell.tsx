@@ -132,11 +132,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               className="brand-orb-3d exp-brand-orb flex h-12 w-12 shrink-0 items-center justify-center"
               aria-label="返回工作台"
             >
-              <img src="/assets/logo.png" alt="智慧水发 · 专家门户" className="h-[42px] w-[42px] object-contain" />
+              <img src="/assets/logo.png" alt="蜀水云采 · 专家门户" className="h-[42px] w-[42px] object-contain" />
             </button>
             <div className="w-full text-center">
               <div className="truncate text-[1rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                智慧水发 · 专家门户
+                蜀水云采 · 专家门户
               </div>
             </div>
           </header>

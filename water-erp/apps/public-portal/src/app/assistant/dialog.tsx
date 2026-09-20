@@ -129,7 +129,7 @@ export function PublicAssistantDialog({
             />
             <div>
               <div className="text-base font-black text-[#123a6e]">水叮当</div>
-              <div className="text-[11px] text-[#8a96aa]">智慧水发 · AI 智能助手</div>
+              <div className="text-[11px] text-[#8a96aa]">蜀水云采 · AI 智能助手</div>
             </div>
           </div>
           <button

@@ -23,7 +23,7 @@ const TABLET_DETECT_SCRIPT = `(function(){
 })()`;
 
 export const metadata: Metadata = {
-  title: '在线开评标系统-智慧水发·蜀水云采',
+  title: '在线开评标系统-蜀水云采·智慧水发',
   description: '评标专家独立评审工作台',
   manifest: '/manifest.webmanifest',
   applicationName: '专家评标',

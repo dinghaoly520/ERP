@@ -82,8 +82,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             className="sp-brand"
             aria-label="返回开标任务板"
           >
-            <img src="/assets/logo.png" alt="智慧水发·蜀水云采" className="sp-brand-logo" />
-            <strong className="sp-brand-title">智慧水发 · 蜀水云采</strong>
+            <img src="/assets/logo.png" alt="蜀水云采·智慧水发" className="sp-brand-logo" />
+            <strong className="sp-brand-title">蜀水云采 · 智慧水发</strong>
           </button>
         </div>
 

@@ -21,7 +21,7 @@ interface UnifiedHeaderProps {
 /**
  * UnifiedHeader — a slim glass header bar for the main content area.
  *
- * The brand logo + "智慧水发·采购中心" live in the left sidebar (AppShell);
+ * The brand logo + "蜀水云采·采购中心" live in the left sidebar (AppShell);
  * this header intentionally does NOT repeat them. It only renders an optional
  * page title, description, back-link, and right-side actions.
  */

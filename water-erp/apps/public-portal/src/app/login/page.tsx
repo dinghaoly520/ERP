@@ -34,7 +34,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <a href="/" className="inline-flex items-center gap-2 text-2xl font-extrabold text-[#064ea2] hover:text-[#0e62d0]">← </a>
           <h1 className="text-2xl font-bold text-[oklch(0.18_0.012_265)] mb-1 mt-4">登录平台</h1>
-          <p className="text-sm text-[oklch(0.55_0.01_264)]">智慧水发招采ERP系统</p>
+          <p className="text-sm text-[oklch(0.55_0.01_264)]">蜀水云采招采ERP系统</p>
         </div>
         <div className="space-y-4">
           <div>

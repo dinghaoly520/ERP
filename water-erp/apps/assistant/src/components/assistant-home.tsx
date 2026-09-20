@@ -344,7 +344,7 @@ function generatePrompt(cardIndex: number, s: QuickStats | null): string {
 }
 
 const copy = {
-  title: '智慧水发 · 蜀水云采',
+  title: '蜀水云采 · 智慧水发',
   placeholder: '输入问题 / 生成分析 / 操作业务，如：汇总本月招采风险并画趋势图',
 };
 

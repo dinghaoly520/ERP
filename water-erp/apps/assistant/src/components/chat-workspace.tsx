@@ -114,7 +114,7 @@ export function ChatWorkspace({
               direction="horizontal"
               yoyo={true}
             >
-              智慧水发 · 蜀水云采
+              蜀水云采 · 智慧水发
             </GradientText>
           </button>
         </header>

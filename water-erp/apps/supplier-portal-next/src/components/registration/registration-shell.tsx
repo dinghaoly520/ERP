@@ -153,13 +153,13 @@ export function RegistrationShell({
 
       <Link className="reg-brand" href="/login" aria-label="返回供应商门户登录页">
         <Image src="/logo.png" alt="" width={54} height={54} className="reg-brand-mark" priority />
-        <span className="reg-brand-name">智慧水发 · 蜀水云采</span>
+        <span className="reg-brand-name">蜀水云采 · 智慧水发</span>
       </Link>
 
       <section className="reg-panel" aria-label={formLabel}>
         <div className="reg-card">
           <header className="reg-head">
-            <p className="reg-brand-word">智慧水发<span className="reg-dot">·</span>蜀水云采</p>
+            <p className="reg-brand-word">蜀水云采<span className="reg-dot">·</span>智慧水发</p>
             <div className="reg-divider" aria-hidden="true">◆</div>
             <h1 className="reg-title">{title}</h1>
             <p className="reg-sub">{subtitle}</p>

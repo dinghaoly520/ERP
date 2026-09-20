@@ -1,4 +1,4 @@
-export const REGISTER_AGREEMENT_TITLE = "智慧水发·蜀水云采采购管理办公系统用户注册协议";
+export const REGISTER_AGREEMENT_TITLE = "蜀水云采·智慧水发采购管理办公系统用户注册协议";
 
 export const REGISTER_AGREEMENT = [
   {
