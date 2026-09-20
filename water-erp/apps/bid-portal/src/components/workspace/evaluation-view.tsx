@@ -735,30 +735,30 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
             {/* 列表头——与行同宽同对齐（弹性均分：专家/签到/时间/核验方式/留档照/IP/操作） */}
             <div className="flex items-center gap-4 border-b border-[oklch(0.6_0.04_258/0.06)] bg-[oklch(0.98_0.008_258/0.6)] px-3.5 py-1.5">
-              <span className="flex-[1.1] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">专家</span>
-              <span className="flex-[0.7] text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
-              <span className="flex-[1.2] text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
-              <span className="flex-[0.9] text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
-              <span className="flex-[0.7] text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
-              <span className="flex-[1] text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
-              <span className="flex-[1] text-right text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">现场操作</span>
+              <span className="flex-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">专家</span>
+              <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
+              <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
+              <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
+              <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
+              <span className="flex-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
+              <span className="flex-1 text-right text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">现场操作</span>
             </div>
             {verification.experts.map(row => (
               <div key={row.id} className="flex items-center gap-4 px-3.5 py-2">
-                <div className="flex flex-[1.1] min-w-0 items-center gap-1.5">
+                <div className="flex flex-1 min-w-0 items-center gap-1.5">
                   <span className="truncate text-xs font-semibold text-[var(--foreground)]">{row.expertName}</span>
                   {row.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span className="bid-pill bid-pill--muted shrink-0 text-[9px]">候补</span>
                   )}
                 </div>
-                <span className={`flex flex-[0.7] items-center justify-center gap-1 text-[10px] font-semibold ${row.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
+                <span className={`flex flex-1 items-center justify-center gap-1 text-[10px] font-semibold ${row.signedIn ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>
                   <UserCheck size={11} /> {row.signedIn ? '已签到' : '未签到'}
                 </span>
-                <span className="flex-[1.2] text-center font-mono text-[10px] text-[var(--muted-foreground)]">
+                <span className="flex-1 text-center font-mono text-[10px] text-[var(--muted-foreground)]">
                   {row.signedInAt ? new Date(row.signedInAt).toLocaleString('zh-CN', { hour12: false }) : '—'}
                 </span>
                 <span
-                  className={`flex flex-[0.9] items-center justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
+                  className={`flex flex-1 items-center justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
                     row.method === 'manual_confirm'
                       ? 'bg-[oklch(0.94_0.09_83/0.45)] text-[var(--warning)]'
                       : row.occlusion === 'passed'
@@ -775,7 +775,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     ? '主持人确认'
                     : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : row.method === 'off_mode' ? '应急放行' : '未记录'}
                 </span>
-                <span className="flex flex-[0.7] items-center justify-center">
+                <span className="flex flex-1 items-center justify-center">
                   {row.photoAssetId ? (
                     <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -791,10 +791,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                   )}
                 </span>
-                <span className="flex-[1] min-w-0 truncate font-mono text-[9px] text-[var(--muted-foreground)]" title={row.signInIp ?? undefined}>
+                <span className="flex-1 min-w-0 truncate font-mono text-[9px] text-[var(--muted-foreground)]" title={row.signInIp ?? undefined}>
                   {row.signInIp ?? '—'}
                 </span>
-                <div className="flex flex-[1] items-center justify-end gap-2">
+                <div className="flex flex-1 items-center justify-end gap-2">
                   {row.anomaly && (
                     <span
                       className="rounded-md bg-[oklch(0.94_0.07_27/0.35)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]"
