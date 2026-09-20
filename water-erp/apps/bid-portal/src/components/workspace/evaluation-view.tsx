@@ -725,17 +725,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       {/* ── 身份核验矩阵（2026-09-18 身份核验设计 §4.5）——被动展示，异常处置见 P2 ── */}
       {verification && verification.experts.length > 0 && (
         <div className="mb-3 rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
-            <span className="text-[11px] font-bold text-[var(--foreground)]">身份核验</span>
-            <span className="text-[10px] text-[var(--muted-foreground)]">
-              签到留档照 · 遮挡检测 · 时间/IP · 模式：
-              {verification.mode === 'host' ? '强化（主持人核验）' : verification.mode === 'off' ? '应急（无照片放行）' : '自助拍照'}
-            </span>
-          </div>
           <div className="divide-y divide-[oklch(0.6_0.04_258/0.08)]">
-            {/* 列表头——与行同宽同对齐（弹性均分：专家/签到/时间/核验方式/留档照/IP/操作） */}
-            <div className="flex items-center gap-4 border-b border-[oklch(0.6_0.04_258/0.06)] bg-[oklch(0.98_0.008_258/0.6)] px-3.5 py-1.5">
-              <span className="flex-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">专家</span>
+            {/* 单行表头：标题占首列 + 六列名（与行同宽同对齐） */}
+            <div className="flex items-center gap-4 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
+              <span className="flex-1 text-[11px] font-bold text-[var(--foreground)]">身份核验</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
