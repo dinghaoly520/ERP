@@ -30,6 +30,7 @@ export const DEFAULT_EXCLUDE_PATHS: ExcludePattern[] = [
   { method: 'GET', path: '/api/ai-bid-analysis/tasks' }, // 3s/1.5s 轮询分析进度（controller 待补，面向未来）
   { method: 'GET', path: /^\/api\/bid\/projects\/[^/]+\/ai-analysis-progress$/ }, // 3s 轮询 AI 评标进度（:3007 卡片）；同前缀写端点（retry/rerun）保留审计
   { method: 'GET', path: '/api/bid/projects/dashboard' }, // 30s 轮询开标任务板（:3007 O5，2026-08-28）；该路径无写端点，方法限定保持风格一致
+  { method: 'GET', path: /^\/api\/bid\/projects\/[^/]+\/expert-verification$/ }, // 30s 轮询核验矩阵（:3007，2026-09-18 身份核验设计 §4.5）；纯只读展示端点
   { method: 'GET', path: '/api/operation-log' }, // :3005 操作日志查询页翻页/筛选自查询（只读浏览非业务动作，2026-09-16）；前缀覆盖 /archive 归档清单与 verify（均 GET），日志页浏览自身不入日志防审计噪音
 ];
 

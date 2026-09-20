@@ -6,9 +6,12 @@
     "dev": "next dev -p 3006 -H 0.0.0.0",
     "build": "next build",
     "start": "next start -p 3006",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "predev": "node scripts/copy-mediapipe.mjs",
+    "prebuild": "node scripts/copy-mediapipe.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@water-erp/client": "workspace:*",
     "@water-erp/config": "workspace:*",
     "@water-erp/shared": "workspace:*",

@@ -1,37 +1,76 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, RefreshCcw, VideoOff } from 'lucide-react';
+import { Camera, RefreshCcw, ScanFace, ShieldAlert, VideoOff } from 'lucide-react';
+import type { FaceDetector, FaceDetectorResult } from '@mediapipe/tasks-vision';
 
 export interface SigninCameraProps {
   userName?: string;
   /**
-   * 确认签到回调：photoBlob 为拍摄的 JPEG 照片；
-   * 摄像头不可用/被拒时传 null（跳过拍照直接签到，照片留痕缺失不阻塞——真实闸门是手机验证 + 服务端 sign-in）
+   * 确认签到回调：photoBlob 为拍摄的 JPEG 留档照；occlusion 为遮挡检测结论
+   * （passed=检测通过；unchecked=检测不可用降级或应急直签——服务端模式闸最终裁决，
+   * self/host 态无照片会 400 PHOTO_REQUIRED，off 应急态放行）
    */
-  onSignIn: (photoBlob: Blob | null) => void;
+  onSignIn: (photoBlob: Blob | null, occlusion: 'passed' | 'unchecked') => void;
   /** 父组件签到请求进行中（禁用操作按钮） */
   busy?: boolean;
 }
 
-type CameraState = 'idle' | 'preview' | 'captured' | 'unavailable';
+type CameraState = 'idle' | 'starting' | 'preview' | 'captured' | 'unavailable';
+type DetectorState = 'loading' | 'ready' | 'failed';
+type FaceStatus = 'no_face' | 'warn' | 'ok';
+
+/** 连续通过帧数（~1.2s @100ms 节流）——防瞬间误判 */
+const GOOD_FRAMES_REQUIRED = 12;
+const DETECT_INTERVAL_MS = 100;
+/** 眼/鼻/嘴关键点几何判定 + 检测置信度 + 人脸框占比（spec R3：检测≠识别，保证证据可用性） */
+const MODEL_BASE = '/models/mediapipe';
+
+interface FaceAssessment { ok: boolean; hint?: string }
+
+/** blaze_face 关键点序：右眼/左眼/鼻尖/嘴/右耳/左耳（归一化坐标） */
+function assessFace(det: FaceDetectorResult['detections'][number]): FaceAssessment {
+  const score = det.categories?.[0]?.score ?? 0;
+  if (score < 0.5) return { ok: false, hint: '画质或光线不足，请正对摄像头' };
+  const w = det.boundingBox?.width ?? 0;
+  const h = det.boundingBox?.height ?? 0;
+  if (w < 0.15 || h < 0.15) return { ok: false, hint: '人脸太小，请靠近摄像头' };
+  const kp = det.keypoints ?? [];
+  if (kp.length < 6) return { ok: false, hint: '未检出完整面部特征点，请勿遮挡' };
+  const [rEye, lEye, nose, mouth, rEar, lEar] = kp;
+  if (Math.abs(nose.x - (rEye.x + lEye.x) / 2) > 0.08) return { ok: false, hint: '请正对摄像头' };
+  const eyeY = (rEye.y + lEye.y) / 2;
+  if (!(eyeY < nose.y && nose.y < mouth.y)) return { ok: false, hint: '口鼻区域疑似遮挡，请露出完整面部' };
+  if (rEar.x <= rEye.x || lEar.x >= lEye.x) return { ok: false, hint: '请勿侧脸，正对摄像头' };
+  return { ok: true };
+}
 
 /**
- * 专家签到拍照留痕组件（真实摄像头取景，不做人脸比对）
+ * 专家签到留档照组件（必拍 + 客户端人脸遮挡检测，2026-09-18 身份核验设计 R3）
  *
- * - 用户主动「开启摄像头」触发 getUserMedia（浏览器授权由用户手势发起）
- * - 预览取景 → 「拍照」canvas 截帧 JPEG → 缩略图确认（重拍 / 确认签到）
- * - 无摄像头 / 拒绝授权 / 截图失败 → 诚实降级「直接签到」：提示跳过拍照，onSignIn(null)
- * - 照片由父组件上传（category=expert_signin_photo）后随签到请求提交 photoAssetId
+ * - MediaPipe FaceDetector（Apache-2.0）WASM+模型自托管于 /public/models（内网不依赖 CDN）
+ * - 检测≠识别：不建模板、不比对、判定即弃帧，仅保证留档照可用（防拍墙/拍纸/遮挡）
+ * - 检测不可用（模型加载失败/老旧浏览器）→ 诚实降级：仍必拍，occlusion='unchecked'，不阻塞现场
+ * - 无跳过入口；摄像头完全不可用时仅保留「应急签到」按钮（onSignIn(null,'unchecked')，
+ *   由服务端模式闸裁决——self/host 态将 400 PHOTO_REQUIRED，off 应急态放行）
  */
 export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraProps) {
   const [state, setState] = useState<CameraState>('idle');
+  const [detectorState, setDetectorState] = useState<DetectorState>('loading');
+  const [faceStatus, setFaceStatus] = useState<FaceStatus>('no_face');
+  const [hint, setHint] = useState<string>('');
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const photoUrlRef = useRef<string | null>(null);
   const videoElRef = useRef<HTMLVideoElement | null>(null);
+  const detectorRef = useRef<FaceDetector | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const goodFramesRef = useRef(0);
+  const lastDetectAtRef = useRef(0);
+  const stateRef = useRef<CameraState>('idle');
+  stateRef.current = state;
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -45,12 +84,57 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
     }
   }, []);
 
+  const stopDetection = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }, []);
+
   useEffect(() => {
     return () => {
+      stopDetection();
       stopStream();
       clearPhotoUrl();
+      detectorRef.current?.close();
+      detectorRef.current = null;
     };
-  }, [stopStream, clearPhotoUrl]);
+  }, [stopDetection, stopStream, clearPhotoUrl]);
+
+  /** 预览态检测循环：节流评估人脸质量，连续 GOOD_FRAMES_REQUIRED 帧通过 → 放开「拍照」 */
+  const runDetection = useCallback(() => {
+    const loop = () => {
+      rafRef.current = requestAnimationFrame(loop);
+      if (stateRef.current !== 'preview') return;
+      const video = videoElRef.current;
+      const detector = detectorRef.current;
+      if (!video || !detector || video.readyState < 2) return;
+      const now = performance.now();
+      if (now - lastDetectAtRef.current < DETECT_INTERVAL_MS) return;
+      lastDetectAtRef.current = now;
+      const best = detector.detectForVideo(video, now).detections[0];
+      if (!best) {
+        goodFramesRef.current = 0;
+        setFaceStatus('no_face');
+        setHint('未检测到人脸');
+        return;
+      }
+      const a = assessFace(best);
+      if (a.ok) {
+        goodFramesRef.current += 1;
+        if (goodFramesRef.current >= GOOD_FRAMES_REQUIRED) {
+          setFaceStatus('ok');
+          setHint('');
+        } else {
+          setFaceStatus('warn');
+          setHint('正在核对面部，请保持…');
+        }
+      } else {
+        goodFramesRef.current = 0;
+        setFaceStatus('warn');
+        setHint(a.hint ?? '请调整位置');
+      }
+    };
+    rafRef.current = requestAnimationFrame(loop);
+  }, []);
 
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -65,19 +149,36 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
       });
       streamRef.current = stream;
       setState('preview');
-      // video 元素在 preview 态渲染时经 ref 回调挂流
       const video = videoElRef.current;
       if (video) {
         video.srcObject = stream;
         void video.play().catch(() => {});
       }
+      // 检测器懒加载（一次）：失败 → 降级仍必拍（occlusion=unchecked）
+      if (!detectorRef.current && detectorState === 'loading') {
+        try {
+          const { FilesetResolver, FaceDetector: FD } = await import('@mediapipe/tasks-vision');
+          const vision = await FilesetResolver.forVisionTasks(`${MODEL_BASE}/wasm`);
+          detectorRef.current = await FD.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: `${MODEL_BASE}/blaze_face_short_range.tflite`, delegate: 'CPU' },
+            runningMode: 'VIDEO',
+            minDetectionConfidence: 0.3,
+          });
+          setDetectorState('ready');
+          runDetection();
+        } catch {
+          setDetectorState('failed');
+        }
+      } else if (detectorRef.current) {
+        runDetection();
+      }
     } catch {
-      // 无摄像头 / 用户拒绝授权 / 权限被策略拦截 → 诚实降级
+      // 无摄像头 / 用户拒绝授权 / 权限被策略拦截 → 无跳过：仅应急入口（服务端裁决）
       setState('unavailable');
     } finally {
       setStarting(false);
     }
-  }, []);
+  }, [detectorState, runDetection]);
 
   /** preview 态 video 元素挂载回调：挂流并播放 */
   const attachVideo = useCallback((el: HTMLVideoElement | null) => {
@@ -105,6 +206,7 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(
       (blob) => {
+        stopDetection();
         stopStream();
         if (!blob) {
           setState('unavailable');
@@ -120,49 +222,74 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
       'image/jpeg',
       0.85,
     );
-  }, [stopStream, clearPhotoUrl]);
+  }, [stopDetection, stopStream, clearPhotoUrl]);
 
   const handleRetake = useCallback(() => {
     clearPhotoUrl();
     setPhotoBlob(null);
     setPhotoUrl(null);
+    goodFramesRef.current = 0;
+    setFaceStatus('no_face');
+    setHint('');
     void startCamera();
   }, [clearPhotoUrl, startCamera]);
 
   const handleClosePreview = useCallback(() => {
+    stopDetection();
     stopStream();
     setState('idle');
-  }, [stopStream]);
+  }, [stopDetection, stopStream]);
+
+  /** 拍照可放开：检测通过；或检测降级（failed——仍必拍，结论 unchecked） */
+  const captureAllowed = detectorState === 'failed' || (detectorState === 'ready' && faceStatus === 'ok');
+  const occlusion: 'passed' | 'unchecked' = detectorState === 'failed' ? 'unchecked' : 'passed';
 
   return (
     <div className="flex flex-col items-center">
       {/* 标题 */}
       <div className="mb-5 flex items-center gap-2.5">
         <Camera size={20} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
-        <span className="text-sm font-bold text-[var(--foreground)]">签到拍照留痕</span>
+        <span className="text-sm font-bold text-[var(--foreground)]">签到留档照（必拍）</span>
       </div>
 
       {/* 取景区 */}
-      <div className="relative mx-auto mb-4 flex h-[220px] w-[240px] items-center justify-center overflow-hidden rounded-2xl bg-[oklch(0.96_0.01_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.12),inset_-2px_-2px_5px_oklch(1_0_0/0.6)]">
+      <div className="relative mx-auto mb-3 flex h-[220px] w-[240px] items-center justify-center overflow-hidden rounded-2xl bg-[oklch(0.96_0.01_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.12),inset_-2px_-2px_5px_oklch(1_0_0/0.6)]">
         {state === 'idle' && (
           <div className="flex flex-col items-center gap-3 px-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[oklch(0.985_0.005_258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
               <Camera size={28} strokeWidth={1.5} className="text-[var(--muted-foreground)]" />
             </div>
             <span className="text-xs text-[var(--muted-foreground)]">
-              开启摄像头拍摄现场照片，随签到记录保存留痕
+              开启摄像头拍摄留档照；拍摄时进行人脸遮挡检测（不做人脸比对）
             </span>
           </div>
         )}
 
         {state === 'preview' && (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
-          <video ref={attachVideo} className="h-full w-full object-cover" muted playsInline />
+          <>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video ref={attachVideo} className="h-full w-full object-cover" muted playsInline />
+            {/* 检测状态角标 */}
+            <div
+              className={`absolute left-2 top-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold ${
+                detectorState === 'failed'
+                  ? 'bg-[oklch(0.96_0.015_27/0.9)] text-[var(--warning)]'
+                  : faceStatus === 'ok'
+                    ? 'bg-[oklch(0.94_0.05_152/0.92)] text-[var(--success)]'
+                    : 'bg-black/55 text-white'
+              }`}
+            >
+              <ScanFace size={13} strokeWidth={1.5} />
+              {detectorState === 'loading' && '检测组件加载中…'}
+              {detectorState === 'failed' && '遮挡检测不可用（降级必拍）'}
+              {detectorState === 'ready' && (faceStatus === 'ok' ? '面部完整，可拍照' : hint || '检测中…')}
+            </div>
+          </>
         )}
 
         {state === 'captured' && photoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={photoUrl} alt="签到照片" className="h-full w-full object-cover" />
+          <img src={photoUrl} alt="签到留档照" className="h-full w-full object-cover" />
         )}
 
         {state === 'unavailable' && (
@@ -171,7 +298,7 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
               <VideoOff size={28} strokeWidth={1.5} className="text-[var(--warning)]" />
             </div>
             <span className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-              未检测到可用摄像头或已拒绝授权。系统不进行人脸比对，仅拍照留痕——可跳过拍照直接签到。
+              未检测到可用摄像头或已拒绝授权。签到必须拍摄留档照——请重试，或联系现场工作人员处理后使用应急签到。
             </span>
           </div>
         )}
@@ -199,11 +326,12 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
           <button
             type="button"
             onClick={handleCapture}
-            disabled={busy}
+            disabled={busy || !captureAllowed}
+            title={captureAllowed ? '' : hint || '面部检测通过后可拍照'}
             className="neu-btn-primary !h-[42px] !px-8"
           >
             <Camera size={16} strokeWidth={1.5} />
-            拍照
+            {captureAllowed ? '拍照' : '请正对摄像头…'}
           </button>
           <button
             type="button"
@@ -219,7 +347,9 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
       {state === 'captured' && (
         <>
           <p className="mb-3 flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
-            {userName ? `留痕人：${userName} · ` : ''}照片将作为签到记录附件保存（不进行人脸比对）
+            {userName ? `留痕人：${userName} · ` : ''}
+            照片将作为签到留档证据保存
+            {occlusion === 'unchecked' && '（遮挡检测未运行）'}
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -233,7 +363,7 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
             </button>
             <button
               type="button"
-              onClick={() => photoBlob && onSignIn(photoBlob)}
+              onClick={() => photoBlob && onSignIn(photoBlob, occlusion)}
               disabled={busy || !photoBlob}
               className="neu-btn-primary !h-[42px] !px-8"
             >
@@ -249,24 +379,30 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
       )}
 
       {state === 'unavailable' && (
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void startCamera()}
-            disabled={starting || busy}
-            className="neu-btn-soft !h-[42px] !px-6"
-          >
-            <RefreshCcw size={15} strokeWidth={1.5} />
-            重试摄像头
-          </button>
-          <button
-            type="button"
-            onClick={() => onSignIn(null)}
-            disabled={busy}
-            className="neu-btn-primary !h-[42px] !px-8"
-          >
-            直接签到
-          </button>
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void startCamera()}
+              disabled={starting || busy}
+              className="neu-btn-soft !h-[42px] !px-6"
+            >
+              <RefreshCcw size={15} strokeWidth={1.5} />
+              重试摄像头
+            </button>
+            <button
+              type="button"
+              onClick={() => onSignIn(null, 'unchecked')}
+              disabled={busy}
+              className="neu-btn-primary !h-[42px] !px-8"
+            >
+              <ShieldAlert size={16} strokeWidth={1.5} />
+              应急签到（无照片）
+            </button>
+          </div>
+          <span className="text-[11px] text-[var(--muted-foreground)]">
+            应急签到需系统处于应急模式方可通过，否则将被拒绝
+          </span>
         </div>
       )}
     </div>

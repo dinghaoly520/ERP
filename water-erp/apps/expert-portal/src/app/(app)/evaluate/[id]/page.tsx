@@ -9,7 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
 import { SigninCamera } from '@/components/signin-camera';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
@@ -59,7 +59,7 @@ export default function ExpertEvaluatePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
   const [busy, setBusy] = useState(false);
-  // 签到拍照留痕（无摄像头时 photoBlob=null，跳过拍照直接签到）
+  // 必拍留档照 + 遮挡检测（无照片仅应急模式可过——服务端 PHOTO_REQUIRED 闸门）
   const [faceVerified, setFaceVerified] = useState(false);
   const [faceVerifying, setFaceVerifying] = useState(false);
   // P2: clarifications panel
@@ -580,6 +580,14 @@ export default function ExpertEvaluatePage() {
 
   const expert = project?.myExpertRecord;
 
+  // P3 host 态（2026-09-20 spec §4.2）：待主持人核验时 10s 轮询自动解锁
+  const hostLocked = project?.identityMode === 'host' && !expert?.identityVerified && !expert?.signedIn;
+  useEffect(() => {
+    if (!hostLocked) return;
+    const t = setInterval(() => loadProject(), 10_000);
+    return () => clearInterval(t);
+  }, [hostLocked, loadProject]);
+
   // Phase 0：条款响应核对右栏「相关评分项」状态（同类别只读指引）——
   // committed=已提交（myScores 有记录）/ draft=有未提交内存编辑 / empty=未填
   const scoreStatusByItem = useMemo(() => {
@@ -629,8 +637,8 @@ export default function ExpertEvaluatePage() {
     }
   }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
 
-  // 拍照留痕 → 上传照片（expert_signin_photo）→ 携带 photoAssetId 签到
-  const handleFaceSuccess = async (photoBlob: Blob | null) => {
+  // 必拍留档照（R3 2026-09-18 身份核验设计）：上传照片（expert_signin_photo）→ 携带 photoAssetId + 遮挡检测结论签到
+  const handleFaceSuccess = async (photoBlob: Blob | null, occlusion: 'passed' | 'unchecked') => {
     setFaceVerified(true);
     setFaceVerifying(true);
     try {
@@ -642,11 +650,14 @@ export default function ExpertEvaluatePage() {
           const asset = await api.post<{ id: string }>('/upload?category=expert_signin_photo', fd);
           photoAssetId = asset.id;
         } catch {
-          // 照片上传失败不阻塞签到——留痕缺失，但真实闸门（手机验证 + 服务端 sign-in）不受影响
-          toast.warning('签到照片上传失败，本次签到将不带照片');
+          // R3：留档照是签到硬闸（服务端 PHOTO_REQUIRED）——上传失败必须重试，不再静默跳过
+          toast.error('签到照片上传失败，无法完成签到，请重试');
+          setFaceVerifying(false);
+          setFaceVerified(false);
+          return;
         }
       }
-      await api.post(`/expert/projects/${projectId}/sign-in`, photoAssetId ? { photoAssetId } : {});
+      await api.post(`/expert/projects/${projectId}/sign-in`, { ...(photoAssetId ? { photoAssetId } : {}), occlusion });
       setFaceVerifying(false);
       loadProject();
     } catch (e: any) {
@@ -1356,14 +1367,24 @@ export default function ExpertEvaluatePage() {
                       <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待完成</span>
                     )}
                   </div>
-                  {/* 拍照留痕 + 签到 — 未签到时显示 */}
+                  {/* 拍照留痕 + 签到 — 未签到时显示；P3 host 态（2026-09-20 spec §4.2）：未核验登记先锁 */}
                   {!expert?.signedIn && (
                     <div className="neu-card-static mt-3 p-4">
-                      {faceVerified ? (
+                      {project?.identityMode === 'host' && !expert?.identityVerified ? (
+                        <div className="exp-alert exp-alert--warning flex items-center gap-3 !font-normal">
+                          <ShieldAlert size={20} strokeWidth={1.5} className="shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold">待主持人核验</p>
+                            <p className="text-xs leading-relaxed opacity-90">
+                              本项目启用主持人核验（强化模式）——请到主持人处出示证件完成现场核验登记；核验通过后本页自动解锁（每 10 秒自动刷新）。
+                            </p>
+                          </div>
+                        </div>
+                      ) : faceVerified ? (
                         <div className="exp-alert exp-alert--success flex items-center gap-3">
                           <CheckCircle size={20} strokeWidth={1.5} className="shrink-0" />
                           <div>
-                            <p className="text-sm font-semibold">照片留痕已提交</p>
+                            <p className="text-sm font-semibold">留档照已提交</p>
                             <p className="text-xs opacity-80">
                               {faceVerifying ? '正在签到…' : '签到完成'}
                             </p>
@@ -1566,7 +1587,7 @@ export default function ExpertEvaluatePage() {
                   <p className="mb-4 text-sm text-[var(--muted-foreground)]">
                     请逐项核对：若您与以下任一投标单位存在利益关系（如曾受雇、近亲属供职、持有股份等），请勾选声明回避。
                     被回避的供应商将不会出现在您的评分列表中。
-                    <br/><span className="font-semibold text-[var(--warning)]">评审过程中可在任何时候补充或调整回避声明（系统自动检测的冲突不会被清除）。</span>
+                    <br/><span className="font-semibold text-[var(--warning)]">回避申报以专家本人勾选为准，评审过程中可随时补充或调整。</span>
                   </p>
                   <div className="mb-4 space-y-1.5">
                     {project.suppliers.map(sup => {

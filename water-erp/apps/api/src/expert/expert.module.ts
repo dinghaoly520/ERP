@@ -5,7 +5,6 @@ import { ExpertAdminController } from './expert-admin.controller';
 import { ExpertAdminService } from './expert-admin.service';
 import { ExpertExtractionService } from './expert-extraction.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
-import { ExpertConflictService } from './expert-conflict.service';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 import { ExpertMemoService } from './expert-memo.service';
 import { AuthModule } from '../auth/auth.module';
@@ -19,7 +18,7 @@ import { SignatureService } from '../common/crypto/signature.service';
 @Module({
   imports: [AuthModule, AiModule, NotificationModule, BidModule, AiBidAnalysisModule, TenderClarificationModule],
   controllers: [ExpertController, ExpertAdminController],
-  providers: [ExpertService, ExpertAdminService, ExpertExtractionService, ExpertExtractionAiService, ExpertConflictService, ExpertCrossConflictService, ExpertMemoService, SignatureService],
+  providers: [ExpertService, ExpertAdminService, ExpertExtractionService, ExpertExtractionAiService, ExpertCrossConflictService, ExpertMemoService, SignatureService],
   exports: [ExpertAdminService, ExpertMemoService],
 })
 export class ExpertModule {}

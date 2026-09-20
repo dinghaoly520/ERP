@@ -4,3 +4,6 @@
 
 # 数据库备份产物（scripts/db-backup.sh）
 backups/
+
+# MediaPipe wasm 自托管产物（~34MB，不入库；predev/prebuild 从 node_modules 复制）
+apps/expert-portal/public/models/mediapipe/wasm/

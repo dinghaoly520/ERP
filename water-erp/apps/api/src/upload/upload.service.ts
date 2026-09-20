@@ -27,7 +27,7 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 /** P0-5：开评标留痕资产类目——删除一律 409 FILE_PROTECTED（办法第49条不得损毁；审计 P0-5 剩余面，2026-08-24） */
-const EVIDENCE_PROTECTED_CATEGORIES = [
+export const EVIDENCE_PROTECTED_CATEGORIES: readonly string[] = [
   'bid_opening_handover',       // 开标文件包（完成开标·资料移交）
   'bid_evaluation_handover',    // 评标完整性包
   'bid_evaluation_sign_handover', // 评标回流包
@@ -41,6 +41,7 @@ const EVIDENCE_PROTECTED_CATEGORIES = [
   'clarification_reply',        // A-143：澄清答复附件（证据件，不得损毁）
   'supervision_push_packet',    // A-153：推送信封物证
   'supervision_push_voucher',   // A-153：离线凭证物证
+  'ai_bid_report',              // AI 投标分析报告（worker 生成；回流包 aiAnalysis 引用件，防删致引用悬空）
 ];
 
 @Injectable()
@@ -342,10 +343,12 @@ export class UploadService implements OnModuleInit {
 
     // A-143：澄清答复附件——上传人（供应商）之外，开评标现场/管理角色可见（答复本就在主持端展示）
     // A-153：监督推送信封/凭证——管理角色可见
+    // 2026-09-18 身份核验设计 §4.5：签到留档照——:3007 核验矩阵展示给现场/管理角色（本人之外首次对管理端可见）
     if (
       asset.category === 'clarification_reply' ||
       asset.category === 'supervision_push_packet' ||
       asset.category === 'supervision_push_voucher' ||
+      asset.category === 'expert_signin_photo' ||
       // 对接专项 Phase 2 K3：上级平台推送离线文件包——管理角色可见（原走兜底分支，收口为显式白名单）
       asset.category === 'platform_push_package'
     ) {
@@ -694,7 +697,7 @@ export class UploadService implements OnModuleInit {
     // P0-5：开评标留痕资产删除保护（审计 P0-5 剩余面，2026-08-24）——
     // ① category 保护集：归档包/签字包/扫描件等留痕类目整体禁删；
     // ② 引用反查兜底：category 不在集内但被留痕关键列引用的资产（如中标通知书 DOCX）同样禁删。
-    if ((EVIDENCE_PROTECTED_CATEGORIES as readonly string[]).includes(asset.category)) {
+    if (EVIDENCE_PROTECTED_CATEGORIES.includes(asset.category)) {
       throw new ConflictException({ error: '该文件属开评标留痕资产，禁止删除', code: 'FILE_PROTECTED' });
     }
     const evidenceRefs = await Promise.all([

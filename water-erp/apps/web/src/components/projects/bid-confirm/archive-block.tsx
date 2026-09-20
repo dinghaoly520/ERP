@@ -9,13 +9,15 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Archive, AlertTriangle, CheckCircle2, Copy, FileDown, Fingerprint, PenLine } from 'lucide-react';
+import { Archive, AlertTriangle, CheckCircle2, Copy, FileDown, Fingerprint, PenLine, ShieldCheck } from 'lucide-react';
 import {
   archiveAll,
   archivePackageExportUrl,
   exportArchivePackageJson,
+  getExpertVerification,
   getSignPacket,
   type BidProjectDetail,
+  type ExpertVerificationMatrix,
   type SignPacketResponse,
 } from '@/lib/api/bid';
 import { Modal } from '@/components/workbench';
@@ -42,6 +44,8 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
   const [copied, setCopied] = useState(false);
   // 签字闸门状态（只读，来自 :3007 评标签字包）；静默失败——按钮不禁用，后端 409 兜底
   const [signStatus, setSignStatus] = useState<SignPacketResponse | null>(null);
+  // 身份核验完成度（R5 2026-09-20 §4.5：归档面板只读计数——不设新闸门）
+  const [verification, setVerification] = useState<ExpertVerificationMatrix | null>(null);
 
   // P1-9：依赖收敛到原始值签名（stage + updatedAt 刻度）——30s 轮询换引用但状态未变时不重拉
   const refreshSignal = `${detail?.stage ?? ''}|${detail?.archiveItems?.length ?? 0}`;
@@ -50,6 +54,9 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
     getSignPacket(bidProjectId)
       .then((r) => { if (alive) setSignStatus(r); })
       .catch(() => { /* 签字模块未就绪/无结果时静默——按钮不禁用，后端 409 兜底 */ });
+    getExpertVerification(bidProjectId)
+      .then((r) => { if (alive) setVerification(r); })
+      .catch(() => { /* 核验矩阵不可用时静默——只读展示 */ });
     return () => { alive = false; };
   }, [bidProjectId, refreshSignal]);
 
@@ -166,6 +173,22 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
           )}
         </div>
       </div>
+
+      {/* 身份核验完成度（R5 2026-09-20 §4.5：只读展示，不设归档闸门） */}
+      {verification && verification.experts.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+          <ShieldCheck size={13} className="shrink-0 text-[var(--accent)]" />
+          <span>
+            身份核验
+            <span className="font-mono font-semibold text-[var(--foreground)]">
+              {' '}{verification.experts.filter(e => e.signedIn).length}/{verification.experts.length}
+            </span>{' '}
+            （拍照 {verification.experts.filter(e => e.method && e.method !== 'manual_confirm' && e.method !== 'off_mode').length}
+            · 主持人确认 {verification.experts.filter(e => e.method === 'manual_confirm').length}
+            · 未签到 {verification.experts.filter(e => !e.signedIn).length}）
+          </span>
+        </div>
+      )}
 
       {/* 签字闸门警示（完整归档闸门 = 签字包 + 全员闭环 + 评标回流包） */}
       {signGate.blocked && (

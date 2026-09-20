@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service';
 import { BidService } from './bid.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1062,13 +1063,14 @@ describe('evaluation integrity package', () => {
   it('buildEvaluationPackage 应包含全部评分记录 + 指纹', () => {
     const body = {
       packageType: 'BID_EVALUATION_HANDOVER',
-      packageVersion: 1,
+      packageVersion: 2, // 2026-09-18 完整性扩展：pointDecisions 增 note
       generatedAt: expect.any(String) as string,
       projectId: 'proj-1',
       expertConfirmations: [{ expertName: '张三', expertRole: '正选', reportConfirmed: true, reportConfirmedAt: null, progress: 100, totalScore: 88.5 }],
       scoreRecords: [{ expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: 80, passed: true, reason: null }],
       scoreHistory: [{ expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: 70, passed: true, action: 'create', createdAt: '2026-01-01T00:00:00.000Z' }],
-      pointDecisions: [{ expertId: 'e1', pointId: 'p1', supplierId: 's1', checked: true, awardedScore: 5 }],
+      pointDecisions: [{ expertId: 'e1', pointId: 'p1', supplierId: 's1', checked: true, awardedScore: 5, note: '要点说明' }],
+      scoreItemDefinitions: [{ id: 'si1', name: '商务评分', category: 'BUSINESS', maxScore: 20, points: [{ id: 'p1', name: '商务要点1' }] }],
     };
     const crypto = require('crypto');
     const fingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
@@ -1122,5 +1124,39 @@ describe('getWinnerCount evaluation-method-aware', () => {
     expect((service as any).getWinnerCount('谈判采购', null, 5)).toBe(1);
     // 邀请招标默认 comprehensive → 3
     expect((service as any).getWinnerCount('邀请招标', null, 5)).toBe(3);
+  });
+});
+
+describe('buildEvaluationPackage scoreItemDefinitions（2026-09-18 自描述补全）', () => {
+  it('评分项/得分点定义入包，scoreRecords 的 scoreItemId 可离线解析', async () => {
+    const prisma = {
+      bidExpert: { findMany: jest.fn().mockResolvedValue([{ id: 'e1' }]) },
+      bidScoreRecord: { findMany: jest.fn().mockResolvedValue([
+        { expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: new Prisma.Decimal('18'), passed: true, reason: null }]) },
+      bidScoreRecordHistory: { findMany: jest.fn().mockResolvedValue([]) },
+      bidScorePointDecision: { findMany: jest.fn().mockResolvedValue([
+        { expertId: 'e1', pointId: 'sp1', supplierId: 's1', checked: true, awardedScore: new Prisma.Decimal('5'), note: '要点说明' }]) },
+      bidExpertConfirm: { findMany: jest.fn().mockResolvedValue([]) },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([
+        { id: 'si1', name: '商务评分', category: 'BUSINESS', maxScore: new Prisma.Decimal('20'),
+          points: [{ id: 'sp1', name: '商务要点1' }] }]) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+        { provide: BidService, useValue: {} },
+        BidEvaluationResultsService,
+      ],
+    }).compile();
+    const svc = module.get(BidEvaluationResultsService);
+
+    const pkg = await svc.buildEvaluationPackage('proj-1');
+
+    expect(pkg.scoreItemDefinitions).toEqual([
+      { id: 'si1', name: '商务评分', category: 'BUSINESS', maxScore: 20, points: [{ id: 'sp1', name: '商务要点1' }] },
+    ]);
+    expect(pkg.scoreRecords[0].scoreItemId).toBe('si1'); // 与定义可对上
   });
 });

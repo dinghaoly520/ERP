@@ -42,6 +42,7 @@ export const UPLOAD_CATEGORIES = new Set<string>([
   'bid_decrypted',                  // 经校验的解密文件
   'supervision_push_packet',        // A-153：监督推送信封（系统生成）
   'supervision_push_voucher',       // A-153：监督推送离线凭证（系统生成）
+  'ai_bid_report',                  // AI 投标分析报告（worker 生成，回流包引用件）
 ]);
 
 const SUPPLIER_UPLOAD_CATEGORIES = new Set([

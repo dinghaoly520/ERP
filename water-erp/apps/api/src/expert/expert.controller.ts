@@ -205,7 +205,7 @@ export class ExpertController {
     return this.expertService.signIn(userId, projectId, {
       ip: req?.ip ?? req?.socket?.remoteAddress,
       userAgent: req?.headers?.['user-agent'] ?? null,
-    }, body?.photoAssetId);
+    }, body?.photoAssetId, body?.occlusion);
   }
 
   @Post('projects/:projectId/avoidance')

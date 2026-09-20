@@ -7,13 +7,13 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
-import { ExpertConflictService } from './expert-conflict.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
+import { resolveIdentityVerifyMode } from './identity-verify-mode';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -73,7 +73,6 @@ export class ExpertService {
     private prisma: PrismaService,
     private readonly signatureService: SignatureService,
     private aiService: AiService,
-    private conflictService: ExpertConflictService,
     private plaintextFetcher: PlaintextFetcherService,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
@@ -326,7 +325,6 @@ export class ExpertService {
 
     const myExpertRecord = {
       ...expertRecord,
-      phoneVerified: expertRecord.phoneVerified,
       phoneMasked,
       // Exclude nested user object from response
       user: undefined,
@@ -380,6 +378,8 @@ export class ExpertService {
     const tenderDoc = await this.findTenderDoc(projectId, project.projectCode);
     return {
       ...project,
+      // P3 host 态（2026-09-20 spec §4.2）：专家端据此锁定/解锁第 1 步（自我态恒 self）
+      identityMode: resolveIdentityVerifyMode(),
       // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
       // 逐人签到/回避/进度/报告确认改为聚合计数，对齐 WS broadcastAggregatePresence「只发计数」设计
       experts: project.experts.map(e => ({ id: e.id, expertName: e.expertName, major: e.major })),
@@ -411,7 +411,13 @@ export class ExpertService {
   }
 
 
-  async signIn(userId: string, projectId: string, env?: { ip: string; userAgent: string | null }, photoAssetId?: string) {
+  async signIn(
+    userId: string,
+    projectId: string,
+    env?: { ip: string; userAgent: string | null },
+    photoAssetId?: string,
+    occlusion?: 'passed' | 'unchecked',
+  ) {
     // P1: 阶段门控 — 仅开标/评标阶段可签到
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -424,14 +430,18 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '签到');
 
-    if (!expert.phoneVerified) {
-      throw new ForbiddenException({
-        code: 'PHONE_NOT_VERIFIED',
-        error: '请先完成手机验证',
-      });
+    // 模式闸（spec §4.3）：self 默认 / host 强化（需主持人核验登记）/ off 应急
+    const mode = resolveIdentityVerifyMode();
+    // R4 host 态：签到前另需主持人在 :3007 登记人证核验（spec §4.2，拍照之前拦截）
+    if (mode === 'host' && !expert.identityVerified) {
+      throw new ForbiddenException({ error: '请先完成主持人现场身份核验', code: 'IDENTITY_NOT_VERIFIED' });
+    }
+    // R3 必拍留档照：self/host 态无照片拒签；off 应急态豁免
+    if (mode !== 'off' && !photoAssetId) {
+      throw new BadRequestException({ error: '签到需拍摄留档照（人脸遮挡检测），应急模式除外', code: 'PHOTO_REQUIRED' });
     }
 
-    // 拍照留痕（可选）：校验照片资产归属当前专家本人，防止冒用他人上传
+    // 拍照留痕：校验照片资产归属当前专家本人，防止冒用他人上传
     if (photoAssetId) {
       const asset = await this.prisma.fileAsset.findUnique({ where: { id: photoAssetId } });
       if (!asset || asset.category !== 'expert_signin_photo' || asset.uploaderId !== userId) {
@@ -439,14 +449,20 @@ export class ExpertService {
       }
     }
 
+    const signInMeta: Prisma.InputJsonValue = {
+      method: mode === 'off' ? 'off_mode' : 'self_password_photo', // 核验方式（签字包/矩阵读端用）
+      timestamp: new Date().toISOString(),
+      ...(occlusion ? { occlusion } : {}), // 遮挡检测结论：passed | unchecked（缺失=off 态或旧客户端）
+      ...(photoAssetId ? { photoAssetId } : {}),
+      ...(env ? { ip: env.ip, userAgent: env.userAgent } : {}),
+    };
+
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: {
         signedIn: true,
         signInIp: env?.ip ?? null,
-        signInMeta: env
-          ? { ip: env.ip, userAgent: env.userAgent, timestamp: new Date().toISOString(), ...(photoAssetId ? { photoAssetId } : {}) }
-          : (photoAssetId ? { photoAssetId } : undefined),
+        signInMeta,
       },
     });
     // P1-5: 签到监督日志
@@ -477,34 +493,28 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
-    // 自动利益冲突检测：工作单位 vs 投标供应商名称（归一化匹配）
-    const autoConflicts = await this.conflictService.detectForProject(projectId, userId);
-
-    // P2: 合并手动声明的冲突 + 自动检测的冲突（去重），持久化到 expert 记录。
-    // D4: 若调用方显式传入 conflictedSupplierIds（含空数组），以传入值为准（替换手动部分）；
-    // 未传入则保留既有手动声明（向后兼容，旧前端可能不传）。
+    // 2026-09-18 用户裁定：回避只认专家手动申报——系统不自动检测/合并冲突（原 P2/D4「自动检测合并且
+    // 不可清除」设计废止）。依据：招标投标法第37条回避系专家主动申报义务，系统不得代为申报；
+    // 名称归一化自动匹配误判时会强制误回避（不可撤销），侵害评审独立与供应商权益。
+    // conflictedSupplierIds 自此全量为专家手动勾选；存量含自动合并项的历史数据保持原样（申报时点证据）。
     const existingConflicts = parseConflictedIds(expert.conflictedSupplierIds);
-    const manualConflicts = conflictedSupplierIds !== undefined ? conflictedSupplierIds : existingConflicts;
-    const allConflictIds = [...new Set([
-      ...manualConflicts,
-      ...autoConflicts.map(c => c.supplierId),
-    ])];
-    if (!conflictedSupplierIds?.length && autoConflicts.length > 0) {
-      // 仅自动检测出冲突时，仍允许确认（前端会提示），但阻止对冲突供应商评分。
-    }
+    const resolvedConflicts = conflictedSupplierIds !== undefined
+      ? conflictedSupplierIds.filter((id): id is string => !!id)
+      : existingConflicts;
 
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { avoidanceConfirmed: true, conflictedSupplierIds: allConflictIds.length > 0 ? (allConflictIds as any) : undefined },
+      // 显式传入（含空数组）→ 整体替换（可清空）；未传入 → 保留既有（向后兼容）
+      data: { avoidanceConfirmed: true, conflictedSupplierIds: resolvedConflicts as any },
     });
     // P1-5: 回避确认监督日志
-    const conflictNames = allConflictIds.length > 0
-      ? (await this.prisma.bidSupplier.findMany({ where: { id: { in: allConflictIds.filter((id): id is string => !!id) } }, select: { supplierName: true } }))
+    const conflictNames = resolvedConflicts.length > 0
+      ? (await this.prisma.bidSupplier.findMany({ where: { id: { in: resolvedConflicts } }, select: { supplierName: true } }))
           .map(s => s.supplierName).join('、')
       : '无';
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
-        action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: allConflictIds.length > 0 ? '中' : '无' },
+        action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: resolvedConflicts.length > 0 ? '中' : '无' },
     }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'avoidance_confirmed', progressPercent: updated.progress ?? 0,

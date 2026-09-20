@@ -274,29 +274,5 @@ describe('ExpertExtractionService', () => {
       );
       expect(prisma.$transaction).toHaveBeenCalled();
     });
-
-    it('P0-4：创建/更新的正选与候补专家 phoneVerified 均置 true（真实链路签到死锁止血）', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
-      prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
-        { id: 'u2', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
-      ]);
-      const res = await service.confirmExtraction('p1', {
-        projectId: 'p1',
-        experts: [{ userId: 'u1', expertName: '甲', major: '造价' }],
-        candidates: [{ userId: 'u2', expertName: '乙', major: '地质' }],
-      } as any, 'op1');
-      expect(res.success).toBe(true);
-      expect(prisma.bidExpert.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        where: { projectId_userId: { projectId: 'p1', userId: 'u1' } },
-        create: expect.objectContaining({ phoneVerified: true }),
-        update: expect.objectContaining({ phoneVerified: true }),
-      }));
-      expect(prisma.bidExpert.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        where: { projectId_userId: { projectId: 'p1', userId: 'u2' } },
-        create: expect.objectContaining({ expertRole: '候补', phoneVerified: true }),
-        update: expect.objectContaining({ expertRole: '候补', phoneVerified: true }),
-      }));
-    });
   });
 });

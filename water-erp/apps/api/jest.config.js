@@ -1,6 +1,8 @@
 module.exports = {
   moduleFileExtensions: ["js", "json", "ts"],
   rootDir: "src",
+  // scripts/ 下迁移脚本的纯函数 spec（rootDir=src 之外的唯一补充根；testRegex 仍限 *.spec.ts）
+  roots: ["<rootDir>", "<rootDir>/../scripts"],
   testRegex: ".*\\.spec\\.ts$",
   transform: {
     "^.+\\.(t|j)s$": ["ts-jest", { tsconfig: { allowJs: true } }],
