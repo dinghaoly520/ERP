@@ -7,12 +7,13 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
+  History,
   Inbox,
   Info,
   MessageSquare,
   TriangleAlert,
   XCircle,
-} from "lucide-react";
+} from "lucide-react";;
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton } from "@/components/ui";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -77,7 +78,7 @@ export default function ChangeRecordsPage() {
 
   return (
     <>
-      <SpPageHero srTitle="变更记录" />
+      <SpPageHero icon={History} title="变更记录" sub="资料变更申请与审批记录" />
 
       {/* ═══ 变更记录时间线 ═══ */}
       {records.length > 0 ? (

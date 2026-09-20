@@ -55,36 +55,71 @@ test("shell navigation exposes current-page state and labelled toggle controls",
   assert.match(shellSource, /aria-controls="supplier-mobile-navigation"/);
 });
 
-test("multi-route workspaces render sub-page links in the sidebar with one current page", () => {
+test("all workspaces stay single-entry: no sub-page links render anywhere in the sidebar", () => {
   assert.equal(typeof SidebarNavItem, "function");
   if (!SidebarNavItem) return;
 
   const menuItems = buildMenuItems(false);
+  for (const item of menuItems) {
+    if (!("path" in item)) continue;
+    const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
+      item,
+      pathname: item.path,
+      active: true,
+      collapsed: false,
+      unreadCount: 0,
+      onNavigate: () => undefined,
+    }));
+    assert.doesNotMatch(markup, /sp-nav-sub/, `workspace should not render sub links: ${item.title}`);
+    assert.equal((markup.match(/aria-current="page"/g) ?? []).length, 1, `workspace owns its page: ${item.title}`);
+  }
+});
 
-  for (const pathname of ["/bids", "/prequal"] as const) {
+test("extra-path routes keep module attribution in the sidebar parent", () => {
+  assert.equal(typeof SidebarNavItem, "function");
+  if (!SidebarNavItem) return;
+
+  const menuItems = buildMenuItems(false);
+  for (const [pathname, workspaceTitle] of [
+    ["/prequal", "项目机会"],
+    ["/completed-projects", "我的投标"],
+    ["/contracts", "成交履约"],
+    ["/frameworks", "成交履约"],
+    ["/change-records", "企业信息"],
+  ] as const) {
     const workspace = findWorkspaceForPath(pathname, menuItems);
-    assert.ok(workspace);
-
-    const sidebarMarkup = renderToStaticMarkup(createElement(SidebarNavItem, {
-      item: workspace,
+    assert.equal(workspace?.title, workspaceTitle, `${pathname} attribution`);
+    const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
+      item: workspace!,
       pathname,
       active: true,
       collapsed: false,
       unreadCount: 0,
       onNavigate: () => undefined,
     }));
-
-    assert.match(sidebarMarkup, /class="sp-nav-item[^"]*active[^"]*"/);
-    // 子项常显于侧栏，且仅当前子项标记 page
-    assert.match(sidebarMarkup, /class="sp-nav-sub"/);
-    const subLinks = sidebarMarkup.match(/sp-nav-sub-item[^>]*aria-current="page"/g) ?? [];
-    assert.equal(subLinks.length, 1);
-    assert.equal(
-      (sidebarMarkup.match(/aria-current="page"/g) ?? []).length,
-      1,
-    );
-    assert.doesNotMatch(sidebarMarkup, /aria-current="location"/);
+    assert.match(markup, /class="sp-nav-item[^"]*active[^"]*"/, `${pathname} parent active`);
+    assert.doesNotMatch(markup, /sp-nav-sub/);
   }
+});
+
+test("collapsed project opportunities stay single-entry while prequal keeps module attribution", () => {
+  const menu = buildMenuItems(false);
+  const workspace = findWorkspaceForPath("/bids", menu);
+  assert.equal(workspace?.title, "项目机会");
+  assert.deepEqual(workspace?.tabs ?? [], []);
+
+  // /prequal 归属项目机会（父项高亮），但侧栏不渲染其子项
+  const prequalWorkspace = findWorkspaceForPath("/prequal", menu);
+  assert.equal(prequalWorkspace?.title, "项目机会");
+  const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
+    item: prequalWorkspace!,
+    pathname: "/prequal",
+    active: true,
+    collapsed: false,
+    unreadCount: 0,
+    onNavigate: () => undefined,
+  }));
+  assert.doesNotMatch(markup, /sp-nav-sub/);
 });
 
 test("collapsed sidebars omit sub-page links (tooltip carries the module identity)", () => {
@@ -244,55 +279,6 @@ test("tooltip geometry follows its trigger and remains inside a short viewport",
   );
 });
 
-test("sidebar sub-page links render native links and mark the most specific current route", () => {
-  const workspace = findWorkspaceForPath("/profile", buildMenuItems(false));
-  assert.ok(workspace?.tabs);
-  const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
-    item: workspace,
-    pathname: "/change-records/detail",
-    active: true,
-    collapsed: false,
-    unreadCount: 0,
-    onNavigate: () => undefined,
-  }));
-
-  assert.match(markup, /class="sp-nav-sub"/);
-  assert.doesNotMatch(markup, /<button\b/);
-
-  for (const [path, title] of [
-    ["/profile", "基本资料"],
-    ["/change-records", "变更记录"],
-  ] as const) {
-    const anchor = `href="${path}"`;
-    assert.ok(markup.includes(anchor), `sub link missing: ${path}`);
-    assert.ok(markup.includes(`${title}</span>`), `sub label missing: ${title}`);
-  }
-
-  // 最具体的子路由（/change-records）标记 page，其余子项与父项不标记
-  const currentLinks = markup.match(/<a class="sp-nav-sub-item[^"]*is-current"[^>]*aria-current="page"[^>]*href="[^"]*"/g) ?? [];
-  assert.equal(currentLinks.length, 1);
-  assert.match(currentLinks[0], /href="\/change-records"/);
-  assert.equal((markup.match(/aria-current="page"/g) ?? []).length, 1);
-});
-
-test("the default route of a multi-route workspace marks its own sidebar sub link as the page", () => {
-  const workspace = findWorkspaceForPath("/bids", buildMenuItems(false));
-  assert.ok(workspace);
-  const markup = renderToStaticMarkup(createElement(SidebarNavItem, {
-    item: workspace,
-    pathname: "/bids",
-    active: true,
-    collapsed: false,
-    unreadCount: 0,
-    onNavigate: () => undefined,
-  }));
-
-  const currentLinks = markup.match(/<a class="sp-nav-sub-item[^"]*is-current"[^>]*aria-current="page"[^>]*href="[^"]*"/g) ?? [];
-  assert.equal(currentLinks.length, 1);
-  assert.match(currentLinks[0], /href="\/bids"/);
-  assert.equal((markup.match(/aria-current="page"/g) ?? []).length, 1);
-});
-
 test("notification rows and the mobile backdrop use native buttons", () => {
   assert.match(
     shellSource,
@@ -375,7 +361,7 @@ test("collapsed sidebar keeps navigation scrollable while portal tooltips escape
   );
   assert.match(
     globalStyles,
-    /\.sp-collapse-toggle\s*\{[\s\S]{0,220}?flex-shrink:\s*0/,
+    /\.sp-collapse-zone\s*\{[\s\S]{0,220}?flex-shrink:\s*0/,
   );
 });
 

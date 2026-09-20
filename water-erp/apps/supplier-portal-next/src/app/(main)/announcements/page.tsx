@@ -3,22 +3,36 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import dayjs from "dayjs";
-import { ArrowRight, Bell, Search, TriangleAlert, X } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  FilePen,
+  FileX,
+  Inbox,
+  ListChecks,
+  Megaphone,
+  Scale,
+  Search,
+  TriangleAlert,
+  Trophy,
+  X,
+} from "lucide-react";
 import { serverNowMs } from "@water-erp/shared";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { EmptyState, LoadingBlock, SpButton, SpInput, SpPagination, SpTabs } from "@/components/ui";
+import { EmptyState, LoadingBlock, SpButton, SpInput, SpPagination } from "@/components/ui";
 import "@/styles/pages/announcements.css";
+import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
-const typeOptions = [
-  { label: "全部", value: "" },
-  { label: "采购公告", value: "BID_NOTICE" },
-  { label: "流标公告", value: "FAILED_BID_NOTICE" },
-  { label: "中标公告", value: "WIN_BID_NOTICE,PRE_WIN_NOTICE" },
-  { label: "补遗公告", value: "ADDENDUM" },
-  { label: "资格预审", value: "PREQUAL_NOTICE" },
-  { label: "政策法规", value: "POLICY" },
-  { label: "平台通知", value: "PLATFORM" },
+const typeOptions: Array<{ label: string; value: string; icon: typeof Inbox }> = [
+  { label: "全部", value: "", icon: Inbox },
+  { label: "采购公告", value: "BID_NOTICE", icon: Megaphone },
+  { label: "流标公告", value: "FAILED_BID_NOTICE", icon: FileX },
+  { label: "中标公告", value: "WIN_BID_NOTICE,PRE_WIN_NOTICE", icon: Trophy },
+  { label: "补遗公告", value: "ADDENDUM", icon: FilePen },
+  { label: "资格预审", value: "PREQUAL_NOTICE", icon: ListChecks },
+  { label: "政策法规", value: "POLICY", icon: Scale },
+  { label: "平台通知", value: "PLATFORM", icon: Bell },
 ];
 const typeTagMap: Record<string, { label: string; type: string }> = {
   BID_NOTICE: { label: "采购公告", type: "primary" },
@@ -140,21 +154,36 @@ export default function AnnouncementListPage() {
 
   return (
     <>
-      <SpPageHero srTitle="公告公示" />
+      <SpPageHero icon={Megaphone} title="公告公示" sub="集中查看采购公告、预成交公示、成交公告、政策法规和平台通知。" />
 
-      <div className="neu-card ann-filter">
-        <div className="ann-tabs">
-          <SpTabs
-            value={activeType}
-            onChange={handleTab}
-            tabs={typeOptions}
-            ariaLabel="公告类型"
-            semantics="filter"
-          />
+      {/* ═══ 工具行：类型分段切换（左）+ 标题搜索（右，固定 280px）═══ */}
+      <div className="ann-toolbar">
+        <div className="mb-view-seg">
+          <div
+            className="neu-segment"
+            role="group"
+            aria-label="公告类型"
+            data-count="8"
+            data-index={String(typeOptions.findIndex((t) => t.value === activeType))}
+          >
+            <span className="neu-segment-thumb" aria-hidden="true" />
+            {typeOptions.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                className="neu-segment-btn"
+                aria-pressed={activeType === t.value}
+                onClick={() => handleTab(t.value)}
+              >
+                <t.icon size={13} strokeWidth={1.9} aria-hidden="true" />{t.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="search-box">
           <Search size={14} className="search-box__icon" />
           <SpInput
+            className="neu-input-sm"
             value={search}
             placeholder="搜索公告标题"
             aria-label="搜索公告标题"

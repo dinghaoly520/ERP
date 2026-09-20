@@ -213,21 +213,36 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* ══════ 工具栏 + 表格 ══════ */}
-      <div className="neu-table-card">
-        <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
-          <div className="neu-tab-bar">
-            {DOMAIN_TABS.map(t => (
-              <button key={t.key} onClick={() => { setDomain(t.key); setPage(1); setTypeFilter(null); }} className={`neu-tab ${domain === t.key ? 'is-active' : ''}`}>
-                <t.icon size={13} strokeWidth={1.9} />
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <span className="text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">
-            {total} 条{!loading && sortedItems.length > 0 ? ` · 聚合 ${groups.length} 组` : ''}
-          </span>
+      {/* ══════ 工具行：业务域分段切换（左）+ 计数（右）——2026-09-18 对齐公告发布中心同款 ══════ */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="通知业务域"
+          data-count="6"
+          data-index={String(DOMAIN_TABS.findIndex((t) => t.key === domain))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {DOMAIN_TABS.map(t => (
+            <button
+              key={t.key}
+              type="button"
+              className="neu-segment-btn"
+              aria-pressed={domain === t.key}
+              onClick={() => { setDomain(t.key); setPage(1); setTypeFilter(null); }}
+            >
+              <t.icon size={13} strokeWidth={1.9} aria-hidden="true" />
+              {t.label}
+            </button>
+          ))}
         </div>
+        <span className="ml-auto text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">
+          {total} 条{!loading && sortedItems.length > 0 ? ` · 聚合 ${groups.length} 组` : ''}
+        </span>
+      </div>
+
+      {/* ══════ 表格 ══════ */}
+      <div className="neu-table-card">
 
         {/* 类型筛选条（当前域实际出现的类型） */}
         {(presentTypes.length > 1 || typeFilter) && (

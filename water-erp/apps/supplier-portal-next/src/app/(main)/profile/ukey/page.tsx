@@ -9,8 +9,15 @@ import { useEffect, useRef, useState, type ComponentType } from "react";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
-  CalendarClock, FileLock, Lock, PenLine, ShieldCheck, TriangleAlert, Unlock,
-} from "lucide-react";
+  CalendarClock,
+  FileLock,
+  KeyRound,
+  Lock,
+  PenLine,
+  ShieldCheck,
+  TriangleAlert,
+  Unlock,
+} from "lucide-react";;
 import { VendorUKeyAdapter, type CertInfo } from "@water-erp/ukey";
 import { openUkey } from "@/utils/ukey-factory";
 import { isOwnCert } from "@/utils/ukey-cert-match";
@@ -282,7 +289,7 @@ export default function UkeyManagePage() {
 
   return (
     <>
-      <SpPageHero srTitle="U盾管理" />
+      <SpPageHero icon={KeyRound} title="U盾管理" sub="投标加密证书与U盾管理" />
 
       {/* ═══ KPI 概览行：介质 / 驱动 / 生效证书 / 绑定记录 ═══ */}
       <div className="ukey-kpi-row">

@@ -226,6 +226,11 @@ export function NotificationLetterDialog({
         winnerName: winner.supplierName,
         winnerSupplierId: winner.supplierId,
         letterAssetId: asset.id,
+        // 结构化内容随发（供应商门户成交通知卡展示中标单位/金额；draft.winnerPrice 为元）
+        content: {
+          winnerName: winner.supplierName,
+          ...(draft.winnerPrice ? { winnerPrice: draft.winnerPrice } : {}),
+        },
       });
       // 4. 台账留档（非关键，失败不阻塞）
       try { await exportNotificationLedger(draft); } catch {}

@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { Inbox, TriangleAlert } from "lucide-react";
+import {
+  Boxes,
+  Inbox,
+  TriangleAlert,
+} from "lucide-react";;
 import { frameworkApi, type MyFaEntry } from "@/lib/api/framework";
-import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpTabPanel, SpTabs } from "@/components/ui";
 import { OwnArchivesPanel } from "@/components/own-archives-panel";
 import { formatFrameworkQuotaRule } from "@/lib/framework-format";
@@ -46,8 +49,6 @@ export default function FrameworksPage() {
 
   return (
     <>
-      <SpPageHero srTitle="框架协议" />
-
       <div className="dense-workspace-tabs">
         <SpTabs
           value={view}

@@ -1314,6 +1314,11 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
         winnerName: winner.supplierName,
         winnerSupplierId: winner.supplierId,
         letterAssetId: asset.id,
+        // 结构化内容随发（供应商门户成交通知卡展示中标单位/金额；bidPrice 为元）
+        content: {
+          winnerName: winner.supplierName,
+          ...(winner.bidPrice != null ? { winnerPrice: `¥${Number(winner.bidPrice).toLocaleString('zh-CN')}` } : {}),
+        },
       });
       setLetterFile(null);
       refresh();

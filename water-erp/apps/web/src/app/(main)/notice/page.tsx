@@ -11,7 +11,7 @@ import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Partic
 import { toast } from 'sonner';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ANNOUNCEMENT_TYPE_ORDER, announcementTypeGroupIndex } from '@water-erp/shared';
+import { ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
@@ -35,6 +35,12 @@ const typeMeta: Partial<Record<TypeTabKey, { label: string; tone: 'blue' | 'gree
 };
 // 复合 tab 键（逗号联合多类型）排序/分组锚定其首个类型，保持规范页签顺序
 const tabAnchor = (t: string): string => t.split(',')[0];
+
+/** 类型分段切换（neu-segment，2026-09-18 对齐供应商门户公告公示同款）：顺序沿用 ANNOUNCEMENT_TYPE_ORDER。
+ *  七段较宽，段内不带图标（:3005 该页 tab 原无图标），保右侧搜索/筛选同排一行 */
+const TYPE_TABS: Array<{ key: TypeTabKey; label: string }> = (Object.keys(typeMeta) as TypeTabKey[])
+  .sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(a) as AnnouncementType) - ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(b) as AnnouncementType))
+  .map((key) => ({ key, label: typeMeta[key]!.label }));
 
 /** 列表徽标完整映射（含被收敛 tab 的类型——历史数据在「全部」中仍正确标注） */
 const typeBadgeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
@@ -220,28 +226,36 @@ export default function NoticePage() {
         </div>
       </div>
 
-      {/* ══════ 工具栏卡片（类型 tab + 搜索 + 状态下拉） ══════ */}
-      <div className="wb-toolbar">
-        <div className="neu-tab-bar">
-          {(Object.keys(typeMeta) as TypeTabKey[]).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(a) as AnnouncementType) - ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(b) as AnnouncementType)).map((t, i, arr) => (
-            <span key={t} className="flex items-center gap-1">
-              {i > 0 && announcementTypeGroupIndex(tabAnchor(t)) !== announcementTypeGroupIndex(tabAnchor(arr[i - 1])) && (
-                <span className="mx-1.5 h-4 w-px shrink-0 bg-[var(--border)]" aria-hidden="true" />
-              )}
-              <button onClick={() => { setFilterType(t); setPage(1); }} className={`neu-tab ${filterType === t ? 'is-active' : ''}`}>
-                {typeMeta[t]?.label ?? t}
-              </button>
-            </span>
+      {/* ══════ 工具行：类型分段切换（左）+ 搜索/状态筛选（右）——2026-09-18 对齐供应商门户公告公示同款 ══════ */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="公告类型"
+          data-count="7"
+          data-index={String(TYPE_TABS.findIndex((t) => t.key === filterType))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {TYPE_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className="neu-segment-btn"
+              aria-pressed={filterType === t.key}
+              onClick={() => { setFilterType(t.key); setPage(1); }}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
+        <div className="relative ml-auto w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
           <input
             type="text"
             placeholder="搜索标题…"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="neu-input !pl-9"
+            className="neu-input neu-input-sm !pl-9"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10">
@@ -252,7 +266,7 @@ export default function NoticePage() {
         <select
           value={filterStatus}
           onChange={e => { setFilterStatus(e.target.value as AnnouncementStatus | ''); setPage(1); }}
-          className="workbench-input !w-auto min-w-[110px]"
+          className="workbench-input !w-auto min-w-[110px] shrink-0"
         >
           <option value="">全部状态</option>
           <option value="PUBLISHED">已发布</option>

@@ -25,8 +25,10 @@ export class AuthGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<Request>();
     const token = tokenFromRequest(req);
     if (!token) throw new UnauthorizedException();
-    // 该 token 是否来自 token_web cookie（单设备登录只约束 web 会话）
-    const fromWebCookie = (req.cookies as Record<string, string | undefined> | undefined)?.token_web === token;
+    // 该 token 是否来自 token_web / token_supplier cookie（单设备登录只约束这两类会话）
+    const portalCookies = req.cookies as Record<string, string | undefined> | undefined;
+    const fromWebCookie = portalCookies?.token_web === token;
+    const fromSupplierCookie = portalCookies?.token_supplier === token;
     try {
       const payload = await this.jwt.verifyAsync(token);
       // 复查用户启用状态：confirmRetire / setAvailability(false) 已置 isActive=false，
@@ -40,16 +42,21 @@ export class AuthGuard implements CanActivate {
       if (user.isFrozen) {
         throw new UnauthorizedException({ error: '该账号已被冻结，请联系管理员', code: 'ACCOUNT_FROZEN' });
       }
-      // :3005 单设备登录（2026-08-21）：web 登录签发的 token 自带 sid（tab 级——前端把
-      // token 存 sessionStorage 经 X-Web-Token 头携带，同浏览器多账号并存互不覆盖）。
+      // 单设备登录（web 2026-08-21；supplier 2026-09-18）：web/supplier 登录签发的
+      // token 自带 sid（web 侧为 tab 级——前端把 token 存 sessionStorage 经 X-Web-Token
+      // 头携带，同浏览器多账号并存互不覆盖；supplier 侧纯 cookie，同浏览器不并存）。
       // sid 与库中 User.webSessionId 不一致 = 该账号已在别处重新登录，本会话被顶下线。
       // 校验依据是 JWT 内 sid 本身（不可通过省略请求头绕过）；无 sid 的 token 属其他
-      // 门户或本功能上线前的存量 web 会话——后者（来自 token_web cookie）统一失效重登。
+      // 门户或本功能上线前的存量 web/supplier 会话——后者（来自对应门户 cookie）统一失效重登。
       if (payload.sid) {
         if (payload.sid !== user.webSessionId) {
-          throw new UnauthorizedException({ error: '该账号已在其他设备登录，请重新登录', code: 'SESSION_REPLACED' });
+          // 会话 ID 已轮换（他处重新登录）→「其他设备登录」；已清空（登出/改密吊销）→「已失效」
+          const error = user.webSessionId
+            ? '该账号已在其他设备登录，请重新登录'
+            : '登录已失效，请重新登录';
+          throw new UnauthorizedException({ error, code: 'SESSION_REPLACED' });
         }
-      } else if (fromWebCookie) {
+      } else if (fromWebCookie || fromSupplierCookie) {
         throw new UnauthorizedException({ error: '登录已失效，请重新登录', code: 'SESSION_REPLACED' });
       }
       (req as any).user = payload;

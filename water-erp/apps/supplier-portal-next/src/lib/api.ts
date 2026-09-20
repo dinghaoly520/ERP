@@ -10,6 +10,7 @@
  */
 import { createApiClient, ApiError } from "@water-erp/client";
 import { toast } from "sonner";
+import { showSessionReplacedOverlay, showFrozenOverlay } from "./session-kick";
 
 const client = createApiClient({
   portal: "supplier",
@@ -48,9 +49,17 @@ async function guard<T>(p: Promise<T>, path: string, opts: ReqOpts = {}): Promis
         // 这里不弹「登录已过期」、不跳转，避免在登录页给出误导性提示。
         const skip = code === "ACCOUNT_PENDING" || code === "TEMPORARY_EXPIRED" || isLoginReq;
         if (!skip) {
-          if (!opts.silent) toast.warning("登录已过期，请重新登录");
-          if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-            window.location.href = "/login";
+          // 单设备登录（2026-09-18）：被顶下线/账号冻结走全屏遮罩（不受 silent 影响），
+          // 由遮罩引导反馈管理员或回登录页；其余 401 维持 toast+跳转兜底。
+          if (code === "SESSION_REPLACED") {
+            showSessionReplacedOverlay(e.message);
+          } else if (code === "ACCOUNT_FROZEN") {
+            showFrozenOverlay(e.message);
+          } else {
+            if (!opts.silent) toast.warning("登录已过期，请重新登录");
+            if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+              window.location.href = "/login";
+            }
           }
         }
       } else if (!opts.silent) {

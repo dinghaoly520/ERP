@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem } from '@/lib/api/expert';
-import { AlertBanner, StatusBadge } from '@/components/workbench';
+import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
@@ -827,67 +827,110 @@ export default function ExpertDetailPage() {
       )}
 
 
-      {/* ════ 编辑资料弹窗 ════ */}
+      {/* ════ 编辑资料弹窗（Modal 表单范式） ════ */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowEditModal(false)} />
-          <div className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
-            <div className="flex items-start justify-between gap-3 mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="neu-icon-well flex h-9 w-9 items-center justify-center rounded-[10px]"><Pencil size={15} className="text-[var(--accent)]" /></div>
-                <div>
-                  <h2 className="text-sm font-extrabold text-[var(--foreground)]">编辑专家资料</h2>
-                  <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">基础信息用于评审抽取匹配与通知触达</p>
-                </div>
+        <Modal
+          open
+          onClose={() => setShowEditModal(false)}
+          closeOnBackdrop={!editSaving}
+          closeOnEsc={!editSaving}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><Pencil size={14} strokeWidth={1.9} className="text-[var(--accent)]" /></span>
+              编辑专家资料
+            </span>
+          }
+          description={<span>基础信息用于评审抽取匹配与通知触达</span>}
+          size="lg"
+          footer={
+            <>
+              <button type="button" onClick={() => setShowEditModal(false)} disabled={editSaving} className="neu-btn-soft !h-9 !text-xs">取消</button>
+              <button type="button" onClick={saveProfile} disabled={editSaving} className="neu-btn-soft is-info !h-9 !text-xs">{editSaving ? '保存中…' : '保存'}</button>
+            </>
+          }
+        >
+          {/* 分区表单：身份联系 / 专业资格 / 所属状态 / 档案备注（信息密度用排版层级分而非堆间隔） */}
+          <div className="space-y-5">
+            <section className="space-y-3">
+              <GroupHead>身份与联系 · 通知触达</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {PROFILE_FIELDS.filter(f => ['displayName', 'idNumber', 'phone', 'email', 'ethnicity', 'education'].includes(f.key)).map(f => (
+                  <label key={f.key} className="space-y-1 block">
+                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
+                    <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
+                  </label>
+                ))}
               </div>
-              <button onClick={() => setShowEditModal(false)} className="neu-btn-xs" aria-label="关闭"><X size={14} /></button>
-            </div>
+            </section>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {PROFILE_FIELDS.map(f => (
-                <label key={f.key} className="space-y-1 block">
-                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
-                  <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
+            <section className="space-y-3">
+              <GroupHead>专业资格 · 抽取匹配</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {PROFILE_FIELDS.filter(f => ['specialty', 'title', 'licenseNo'].includes(f.key)).map(f => (
+                  <label key={f.key} className="space-y-1 block">
+                    <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
+                    <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
+                  </label>
+                ))}
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
+                  <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（A-129，区别于履职评价等级），抽取配额可按此过滤">
+                    <option value="">未设置</option>
+                    {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
+                  </select>
                 </label>
-              ))}
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span>
-                <input value={editForm.departmentName} onChange={e => setEditForm(prev => ({ ...prev, departmentName: e.target.value }))} placeholder="如 工程勘察院" className="workbench-input" />
-              </label>
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">可用状态</span>
-                <select value={editForm.availability} onChange={e => setEditForm(prev => ({ ...prev, availability: e.target.value as '可用' | '占用' | '停用' }))} className="workbench-input">
-                  <option value="可用">可用</option>
-                  <option value="占用">占用</option>
-                  <option value="停用">停用</option>
-                </select>
-              </label>
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
-                <input value={editForm.regionCode} onChange={e => setEditForm(prev => ({ ...prev, regionCode: e.target.value }))} maxLength={6} placeholder="六位行政区划代码如 510000" className="workbench-input" />
-              </label>
-              <label className="space-y-1 block">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
-                <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（A-129，区别于履职评价等级），抽取配额可按此过滤">
-                  <option value="">未设置</option>
-                  {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
-                </select>
-              </label>
-              <label className="space-y-1 block sm:col-span-2">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span>
-                <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="履职备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />
-              </label>
-            </div>
+              </div>
+            </section>
 
-            <hr className="wb-section-rule" />
+            <section className="space-y-3">
+              <GroupHead>所属与状态</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1 block sm:col-span-2">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位</span>
+                  <input value={editForm.employer} onChange={e => setEditForm(prev => ({ ...prev, employer: e.target.value }))} placeholder="所在单位全称" className="workbench-input" />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span>
+                  <input value={editForm.departmentName} onChange={e => setEditForm(prev => ({ ...prev, departmentName: e.target.value }))} placeholder="如 工程勘察院" className="workbench-input" />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">可用状态</span>
+                  <select value={editForm.availability} onChange={e => setEditForm(prev => ({ ...prev, availability: e.target.value as '可用' | '占用' | '停用' }))} className="workbench-input">
+                    <option value="可用">可用</option>
+                    <option value="占用">占用</option>
+                    <option value="停用">停用</option>
+                  </select>
+                </label>
+              </div>
+            </section>
 
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowEditModal(false)} disabled={editSaving} className="neu-btn-soft h-[38px]">取消</button>
-              <button onClick={saveProfile} disabled={editSaving} className="neu-btn-primary !h-[38px]">{editSaving ? '保存中...' : '保存'}</button>
-            </div>
+            <section className="space-y-3">
+              <GroupHead>档案维度（A-129）与备注</GroupHead>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">区域代码<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
+                  <input value={editForm.regionCode} onChange={e => setEditForm(prev => ({ ...prev, regionCode: e.target.value }))} maxLength={6} placeholder="六位行政区划代码如 510000" className="workbench-input font-mono" />
+                </label>
+                <label className="space-y-1 block sm:col-span-2">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span>
+                  <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="履职备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />
+                </label>
+              </div>
+            </section>
           </div>
-        </div>
+
+        </Modal>
       )}
+    </div>
+  );
+}
+
+/** 弹窗内分区标题：小号大写字距 + 右延 hairline（与公司分组标题同语言） */
+function GroupHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">{children}</span>
+      <span className="h-px min-w-4 flex-1 bg-[color-mix(in_oklch,var(--muted-foreground)_14%,transparent)]" />
     </div>
   );
 }

@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { FileDown, Inbox, MessageSquareHeart, RefreshCcw, TriangleAlert, Upload } from "lucide-react";
+import {
+  FileDown,
+  FileSignature,
+  Inbox,
+  MessageSquareHeart,
+  RefreshCcw,
+  TriangleAlert,
+  Upload,
+} from "lucide-react";;
 import { contractApi, contractAssetUrl, type SpContract, type SpContractFulfillment } from "@/lib/api/contract";
-import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpTabPanel, SpTabs } from "@/components/ui";
 import { toast } from "sonner";
 import { OwnArchivesPanel } from "@/components/own-archives-panel";
@@ -53,8 +60,6 @@ export default function ContractsPage() {
 
   return (
     <>
-      <SpPageHero srTitle="合同履约" />
-
       <div className="dense-workspace-tabs">
         <SpTabs
           value={view}

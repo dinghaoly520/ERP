@@ -146,11 +146,12 @@ export class AuthController {
       cookiePortal = 'bid';
     }
 
-    // :3005 单设备登录（2026-08-21）：凡是最终写入 token_web 命名空间的登录（无论从
-    // :3005 还是 :3002 入口）都轮换会话 ID 并重签带 sid 的 token——后登录者顶掉先登录者。
-    // 写 token_bid/token_expert/token_mall 等其他门户的登录不轮换、不互踢。
-    if (cookiePortal === 'web') {
-      result = await this.authService.rotateWebSession(result.userId, result.username, result.role);
+    // 单设备登录（web 2026-08-21；supplier 2026-09-18）：凡是最终写入 token_web /
+    // token_supplier 命名空间的登录（无论从本门户还是 :3002 入口）都轮换会话 ID 并
+    // 重签带 sid 的 token——后登录者顶掉先登录者。写 token_bid/token_expert/token_mall
+    // 等其他门户的登录不轮换、不互踢。
+    if (cookiePortal === 'web' || cookiePortal === 'supplier') {
+      result = await this.authService.rotatePortalSession(result.userId, result.username, result.role);
     }
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
 
@@ -220,6 +221,14 @@ export class AuthController {
         ipAddress: ip,
         userAgent,
       },
+    });
+
+    // 登出即吊销（2026-09-18）：清空会话 ID 让登出者刚用的 token 立即失效，
+    // 防 cookie 被截获后在 JWT 7 天有效期内重放。单设备语义下登出时只有本处
+    // 一份活会话，置空不影响他人；无 sid 的其他门户会话本就不校验此列。
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { webSessionId: null },
     });
 
     // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token。

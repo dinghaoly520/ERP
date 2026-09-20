@@ -9303,6 +9303,9 @@ a {
 .neu-input::placeholder {
   color: #bcc6d4;
 }
+/* 紧凑搜索框（2026-09-18）：工具行（与分段切换同排）内 44px 收紧到 36px；下拉筛选同步收紧 */
+.neu-input.neu-input-sm { height: 36px; border-radius: 8px; }
+.workbench-input.workbench-input-sm { height: 36px; }
 .neu-input:focus,
 .neu-select:focus {
   border-color: oklch(0.5 0.16 251 / 0.5);
@@ -9590,6 +9593,19 @@ select.workbench-input {
   pointer-events: none;
 }
 .neu-segment[data-index="1"] .neu-segment-thumb { translate: 100% 0; }
+/* 多段扩展（2026-09-18，与供应商门户 shared.css 同规则集）：data-count 声明段数（默认 2），
+   translate 为拇指自身宽度百分比、天然按段数缩放；消费方：公告发布中心类型切换（七段） */
+.neu-segment[data-count="3"] .neu-segment-thumb { width: calc((100% - 8px) / 3); }
+.neu-segment[data-count="5"] .neu-segment-thumb { width: calc((100% - 8px) / 5); }
+.neu-segment[data-count="6"] .neu-segment-thumb { width: calc((100% - 8px) / 6); }
+.neu-segment[data-count="7"] .neu-segment-thumb { width: calc((100% - 8px) / 7); }
+.neu-segment[data-count="8"] .neu-segment-thumb { width: calc((100% - 8px) / 8); }
+.neu-segment[data-index="2"] .neu-segment-thumb { translate: 200% 0; }
+.neu-segment[data-index="3"] .neu-segment-thumb { translate: 300% 0; }
+.neu-segment[data-index="4"] .neu-segment-thumb { translate: 400% 0; }
+.neu-segment[data-index="5"] .neu-segment-thumb { translate: 500% 0; }
+.neu-segment[data-index="6"] .neu-segment-thumb { translate: 600% 0; }
+.neu-segment[data-index="7"] .neu-segment-thumb { translate: 700% 0; }
 .neu-segment-btn {
   position: relative;
   z-index: 1;

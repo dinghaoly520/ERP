@@ -195,14 +195,14 @@ function PageHero({
 
       {/* 搜索 + 筛选行 */}
       <div className="flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="relative min-w-[180px] xl:min-w-[240px] flex-1">
+        <div className="relative w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
           <input
             type="text"
             placeholder="搜索项目名称、供应商..."
             value={filters.searchKeyword}
             onChange={(e) => onFilterChange("searchKeyword", e.target.value)}
-            className="neu-input !pl-9"
+            className="neu-input neu-input-sm !pl-9"
           />
           {filters.searchKeyword && (
             <button onClick={() => onFilterChange("searchKeyword", null)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10">
@@ -212,50 +212,52 @@ function PageHero({
         </div>
 
         {filters.searchKeyword && filters.searchKeyword.length >= 2 && (
-          <button onClick={onAnalyze} className="neu-btn-primary">
+          <button onClick={onAnalyze} className="neu-btn-primary !h-9 !px-4">
             <Sparkles size={15} />
             分析
           </button>
         )}
 
-        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
-        <select
-          value={sortBy}
-          onChange={(e) => onSortChange(e.target.value)}
-          className="workbench-input !w-auto min-w-[100px]"
-        >
-          <option value="procurementDate">时间</option>
-          <option value="departmentId">部门编号</option>
-          <option value="amount">金额</option>
-        </select>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
+          <select
+            value={sortBy}
+            onChange={(e) => onSortChange(e.target.value)}
+            className="workbench-input workbench-input-sm !w-auto min-w-[100px]"
+          >
+            <option value="procurementDate">时间</option>
+            <option value="departmentId">部门编号</option>
+            <option value="amount">金额</option>
+          </select>
 
-        <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
-        <select
-          value={filters.procurementMethod || ""}
-          onChange={(e) => onFilterChange("procurementMethod", e.target.value || null)}
-          className="workbench-input !w-auto min-w-[120px]"
-        >
-          <option value="">全部方式</option>
-          {methods.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+          <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
+          <select
+            value={filters.procurementMethod || ""}
+            onChange={(e) => onFilterChange("procurementMethod", e.target.value || null)}
+            className="workbench-input workbench-input-sm !w-auto min-w-[120px]"
+          >
+            <option value="">全部方式</option>
+            {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
 
-        <select
-          value={filters.resultStatus || ""}
-          onChange={(e) => onFilterChange("resultStatus", e.target.value as ResultStatusKey || null)}
-          className="workbench-input !w-auto min-w-[110px]"
-        >
-          <option value="">全部状态</option>
-          {Object.entries(RESULT_STATUS_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
-        </select>
+          <select
+            value={filters.resultStatus || ""}
+            onChange={(e) => onFilterChange("resultStatus", e.target.value as ResultStatusKey || null)}
+            className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
+          >
+            <option value="">全部状态</option>
+            {Object.entries(RESULT_STATUS_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
+          </select>
 
-        <select
-          value={filters.recycleStatus || "ACTIVE"}
-          onChange={(e) => onFilterChange("recycleStatus", e.target.value || "ACTIVE")}
-          className="workbench-input !w-auto min-w-[110px]"
-        >
-          <option value="ACTIVE">正常台账</option>
-          <option value="RECYCLED">回收站</option>
-        </select>
+          <select
+            value={filters.recycleStatus || "ACTIVE"}
+            onChange={(e) => onFilterChange("recycleStatus", e.target.value || "ACTIVE")}
+            className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
+          >
+            <option value="ACTIVE">正常台账</option>
+            <option value="RECYCLED">回收站</option>
+          </select>
+        </div>
       </div>
     </motion.div>
   );

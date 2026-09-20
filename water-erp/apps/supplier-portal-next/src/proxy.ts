@@ -32,15 +32,13 @@ export async function proxy(request: NextRequest) {
 
     const init: RequestInit = { method: request.method, headers };
     if (!['GET', 'HEAD'].includes(request.method)) {
-      // 流式转发：request.arrayBuffer() 在 dev server 对 ~1.5MB+ 请求体截断（2026-09-10 实测
-      // 50MB 标书上传 multipart 尾部丢失 → multer "Unexpected end of form"），直接透传
-      // request.body 流 + duplex:'half'，不缓冲、无大小上限。
-      if (request.body) {
-        init.body = request.body as unknown as BodyInit;
-        (init as RequestInit & { duplex?: string }).duplex = 'half';
-      } else {
-        init.body = await request.arrayBuffer();
-      }
+      // 2026-09-18 修复（Node 24.14.1 / Next 16.2.3 双杀原方案）：
+      //  - 旧流式透传（request.body + duplex:'half'）被 undici 7.24.4 拒绝
+      //    （"expected non-null body source"）→ 所有 POST 502，登录/注册全断；
+      //  - 改缓冲转发后大请求体又被截断 → 根因是 Next 16 proxy 默认请求体上限 ~1.5MB，
+      //    已在 next.config.ts experimental.proxyClientMaxBodySize 提到 500MB（与 web 一致）。
+      // 现与本门户外的其他门户同构：arrayBuffer 缓冲转发，20MB 实测经代理往返字节一致。
+      init.body = await request.arrayBuffer();
     }
 
     try {

@@ -14,8 +14,6 @@ import {
   Play,
   Database,
   Shield,
-  FolderOpen,
-  ChevronDown,
 } from 'lucide-react';
 import type { ReviewMode, KnowledgeBase } from '@/lib/types/tender-review';
 
@@ -28,10 +26,6 @@ export default function ReviewWorkspaceContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedKb = knowledgeBases.find(kb => kb.id === selectedKbId);
-
-  // Determine which tabs to show based on activeTab
-  const showFilesTab = activeTab === 'files';
-  const showRulesTab = activeTab === 'rules';
 
   // When user leaves files/rules tab, reset to review
   useEffect(() => {
@@ -63,35 +57,8 @@ export default function ReviewWorkspaceContent() {
     }
   };
 
-  // Dynamic tabs based on context - order: review, reports, then dynamic tabs
-  const tabs = [
-    { id: 'review' as const, label: '审查执行', icon: Play },
-    { id: 'reports' as const, label: '审查报告', icon: FileText },
-    ...(showFilesTab ? [{ id: 'files' as const, label: '文件管理', icon: FolderOpen }] : []),
-    ...(showRulesTab ? [{ id: 'rules' as const, label: '规则管理', icon: Shield }] : []),
-  ];
-
   return (
     <div className="wb-panel rounded-[20px] h-full flex flex-col overflow-hidden">
-      {/* Tab header — page-tab 下划线体系（与账号管理等同款） */}
-      <div className="flex items-end gap-1 px-3 pt-2 shrink-0 overflow-x-auto border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            className={`page-tab !text-xs !py-2 whitespace-nowrap ${activeTab === tab.id ? 'is-active' : ''}`}
-          >
-            <tab.icon className="h-3.5 w-3.5" strokeWidth={1.9} />
-            {tab.label}
-            {(tab.id === 'files' || tab.id === 'rules') && selectedKb && (
-              <span className="text-[10px] text-[var(--muted-foreground)]">({selectedKb.name})</span>
-            )}
-          </button>
-        ))}
-      </div>
-
       {/* Content area */}
       <div className="flex-1 flex flex-col min-h-0 p-3">
         {activeTab === 'review' && (

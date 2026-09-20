@@ -34,10 +34,12 @@ function cssRule(source: string, selector: string) {
   assert.fail(`Unclosed CSS rule: ${selector}`);
 }
 
-test("SpPageHeroView renders the slim toolbar bar and keeps an sr-only page heading for a11y", () => {
-  const defaultMarkup = renderToStaticMarkup(
+test("SpPageHeroView renders the restored hero card and keeps an sr-only page heading for a11y", () => {
+  const cardMarkup = renderToStaticMarkup(
     <SpPageHeroView
-      srTitle="项目大厅"
+      icon={TestIcon}
+      title="项目大厅"
+      sub="查看当前可参与项目"
       actions={<button type="button">刷新项目</button>}
     >
       <span>12 个项目</span>
@@ -48,18 +50,21 @@ test("SpPageHeroView renders the slim toolbar bar and keeps an sr-only page head
   );
   const bareMarkup = renderToStaticMarkup(<SpPageHeroView srTitle="公告公示" />);
 
-  // 精简工具条：渐变 hero 卡降为单行条，tabs/统计居左、操作居右；无装饰性图标/标题/描述句
-  assert.match(defaultMarkup, /^<header class="page-hero sp-hero sp-hero--bar">/);
-  assert.doesNotMatch(defaultMarkup, /page-hero__left|page-hero__icon|page-hero__sub|page-hero__eyebrow/);
-  // sr-only h1 锚点仍在卡片内（读屏可获取页面名）
-  assert.match(defaultMarkup, /<h1 class="sp-sr-only">项目大厅<\/h1>/);
+  // 恢复版标题卡：图标井 + 标题 + 副标题 + 右侧统计/操作
+  assert.match(cardMarkup, /^<header class="page-hero sp-hero">/);
+  assert.match(cardMarkup, /class="page-hero__left"/);
+  assert.match(cardMarkup, /class="page-hero__icon" aria-hidden="true"/);
+  assert.match(cardMarkup, /<h1 class="page-hero__title">项目大厅<\/h1>/);
+  assert.match(cardMarkup, /<p class="page-hero__sub">查看当前可参与项目<\/p>/);
   assert.match(
-    defaultMarkup,
-    /<div class="page-hero__right sp-hero__aside">[\s\S]*12 个项目[\s\S]*刷新项目[\s\S]*<\/div><\/div><\/header>$/,
+    cardMarkup,
+    /<div class="page-hero__right sp-hero__aside">[\s\S]*12 个项目[\s\S]*刷新项目[\s\S]*<\/div><\/div><div class="page-hero__divider"><\/div><\/header>$/,
   );
+  // 下横线收底（对齐 :3005 账号管理）始终渲染
+  assert.match(cardMarkup, /<div class="page-hero__divider"><\/div><\/header>$/);
   // 详情页实体名仍作可见标题
   assert.match(detailMarkup, /<h1 class="page-hero__title">某引水工程采购项目<\/h1>/);
-  // 无 tabs/统计/操作时不渲染卡片，仅留 sr-only 标题
+  // 无可见标题且无统计/操作时不渲染卡片，仅留 sr-only 标题
   assert.equal(bareMarkup, '<h1 class="sp-sr-only">公告公示</h1>');
 });
 
@@ -300,7 +305,7 @@ test("SpTabs exposes filter groups without pretending they control tab panels", 
   assert.equal((markup.match(/aria-pressed="true"/g) ?? []).length, 1);
   assert.equal((markup.match(/aria-pressed="false"/g) ?? []).length, 1);
   assert.doesNotMatch(markup, /role="tab"|aria-selected|aria-controls|aria-orientation/);
-  assert.match(announcementsSource, /<SpTabs[\s\S]{0,220}?semantics="filter"/);
+  assert.match(announcementsSource, /neu-segment[\s\S]{0,220}?aria-label="公告类型"/);
 });
 
 test("SpPagination uses a labelled navigation region and labelled icon buttons", () => {

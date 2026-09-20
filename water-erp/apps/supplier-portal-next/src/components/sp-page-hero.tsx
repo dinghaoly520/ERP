@@ -5,20 +5,26 @@ import type { ComponentType } from "react";
 type IconType = ComponentType<{ size?: number | string; className?: string; strokeWidth?: number }>;
 
 type SpPageHeroViewProps = {
-  /** 可见标题——仅详情页实体名等真实数据使用（如项目名）；列表页装饰性标题已删，改用 srTitle */
+  /** 标题卡图标（内凹图标井） */
+  icon?: IconType;
+  /** 可见页面标题 */
   title?: string;
-  /** 视觉隐藏的页面级标题（a11y 锚点）：装饰组合删除后仍为读屏提供页面名 */
+  /** 视觉隐藏的页面级标题（a11y 锚点）：仅当无可见 title 时使用（如详情页实体名即页面标题） */
   srTitle?: string;
+  /** 副标题/功能描述 */
+  sub?: string;
+  /** 眉题（小写间隔大写，弱化分组词） */
+  eyebrow?: string;
   actions?: React.ReactNode;
   children?: React.ReactNode;
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
 };
 
-/** 精简标题条（2026-09-17 删除「图标+页面标题+描述句」装饰组合后）：
- *  cgzxui page-hero 卡片降为单行工具条——工作区 tabs 居左、统计与操作按钮居右；
- *  无任何可见内容时不渲染卡片，仅留 sr-only 标题。cgzxui 渐变 + 方向性双影保留。 */
+/** cgzxui page-hero 标题卡（2026-09-18 恢复可见标题栏）：
+ *  图标井 + 标题/副标题 + 右侧统计与操作；srTitle 仅作无可见标题详情页的读屏锚点。
+ *  cgzxui 105° 渐变 + 方向性双影 + ::after 光晕由 .page-hero 提供。 */
 export function SpPageHeroView({
-  title, srTitle, actions, children, headingLevel = 1,
+  icon: Icon, title, srTitle, sub, eyebrow, actions, children, headingLevel = 1,
 }: SpPageHeroViewProps) {
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
   const hiddenHeading = !title && srTitle ? (
@@ -29,12 +35,21 @@ export function SpPageHeroView({
   if (!title && !hasAside) return hiddenHeading;
 
   return (
-    <header className="page-hero sp-hero sp-hero--bar">
+    <header className="page-hero sp-hero">
       {hiddenHeading}
       <div className="page-hero__row">
-        {title ? (
-          <Heading className="page-hero__title">{title}</Heading>
-        ) : null}
+        <div className="page-hero__left">
+          {Icon && (
+            <div className="page-hero__icon" aria-hidden="true">
+              <Icon size={20} strokeWidth={1.75} />
+            </div>
+          )}
+          <div className="page-hero__copy">
+            {eyebrow && <div className="page-hero__eyebrow">{eyebrow}</div>}
+            {title && <Heading className="page-hero__title">{title}</Heading>}
+            {sub && <p className="page-hero__sub">{sub}</p>}
+          </div>
+        </div>
         {hasAside && (
           <div className="page-hero__right sp-hero__aside">
             {children && <div className="sp-hero__meta">{children}</div>}
@@ -42,6 +57,8 @@ export function SpPageHeroView({
           </div>
         )}
       </div>
+      {/* 下横线收底（2026-09-18 对齐 :3005 账号管理 page-hero__divider）——标题行与内容区的 1px hairline */}
+      <div className="page-hero__divider" />
     </header>
   );
 }

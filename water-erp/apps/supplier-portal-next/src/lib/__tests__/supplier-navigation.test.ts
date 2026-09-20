@@ -25,15 +25,15 @@ function workspaces(items: readonly MenuItem[]): MenuEntry[] {
 const LEGACY_ROUTE_CASES = [
   { path: "/dashboard", workspaceTitle: "工作台" },
   { path: "/bids", workspaceTitle: "项目机会" },
-  { path: "/prequal", workspaceTitle: "项目机会" },
+  { path: "/prequal", workspaceTitle: "项目机会", tabPath: "/bids" },
   { path: "/my-bids", workspaceTitle: "我的投标" },
-  { path: "/completed-projects", workspaceTitle: "我的投标" },
+  { path: "/completed-projects", workspaceTitle: "我的投标", tabPath: "/my-bids" },
   { path: "/award-letters", workspaceTitle: "成交履约" },
-  { path: "/contracts", workspaceTitle: "成交履约" },
-  { path: "/frameworks", workspaceTitle: "成交履约" },
-  { path: "/profile", workspaceTitle: "企业资料" },
+  { path: "/contracts", workspaceTitle: "成交履约", tabPath: "/award-letters" },
+  { path: "/frameworks", workspaceTitle: "成交履约", tabPath: "/award-letters" },
+  { path: "/profile", workspaceTitle: "企业信息" },
   { path: "/profile/ukey", workspaceTitle: "证书与U盾" },
-  { path: "/change-records", workspaceTitle: "企业资料" },
+  { path: "/change-records", workspaceTitle: "企业信息", tabPath: "/profile" },
   { path: "/announcements", workspaceTitle: "公告中心" },
   { path: "/objections", workspaceTitle: "异议投诉" },
 ] as const;
@@ -74,7 +74,7 @@ test("menu construction stays fail-closed while supplier status is unknown", () 
 test("regular suppliers see the nine task-oriented workspaces in order", () => {
   assert.deepEqual(
     workspaces(buildMenuItems(false)).map((item) => item.title),
-    ["工作台", "项目机会", "我的投标", "成交履约", "企业资料", "证书与U盾", "消息中心", "公告中心", "异议投诉"],
+    ["工作台", "项目机会", "我的投标", "成交履约", "企业信息", "证书与U盾", "消息中心", "公告中心", "异议投诉"],
   );
 });
 
@@ -103,10 +103,10 @@ test("only multi-route workspaces define tabs", () => {
 
   assert.deepEqual(routesByWorkspace, {
     工作台: [],
-    项目机会: ["/bids", "/prequal"],
-    我的投标: ["/my-bids", "/completed-projects"],
-    成交履约: ["/award-letters", "/contracts", "/frameworks"],
-    企业资料: ["/profile", "/change-records"],
+    项目机会: [],
+    我的投标: [],
+    成交履约: [],
+    企业信息: [],
     证书与U盾: [],
     消息中心: [],
     公告中心: [],
@@ -125,10 +125,6 @@ test("multi-route workspaces use concise task-oriented tab labels", () => {
   );
 
   assert.deepEqual(labelsByWorkspace, {
-    项目机会: ["可参与项目", "资格预审"],
-    我的投标: ["进行中", "已完成"],
-    成交履约: ["成交通知", "合同履约", "框架协议"],
-    企业资料: ["基本资料", "变更记录"],
   });
 });
 
@@ -186,12 +182,15 @@ test("a workspace without tabs resolves its own route and descendants", () => {
   }
 });
 
-for (const { path, workspaceTitle } of LEGACY_ROUTE_CASES) {
-  test(`${path} resolves through its owning workspace and current tab`, () => {
-    const workspace = findWorkspaceForPath(path, buildMenuItems(false));
+for (const routeCase of LEGACY_ROUTE_CASES) {
+  test(`${routeCase.path} resolves through its owning workspace and current tab`, () => {
+    const workspace = findWorkspaceForPath(routeCase.path, buildMenuItems(false));
 
-    assert.equal(workspace?.title, workspaceTitle);
-    assert.equal(findWorkspaceTabForPath(path, workspace)?.path, path);
+    assert.equal(workspace?.title, routeCase.workspaceTitle);
+    assert.equal(
+      findWorkspaceTabForPath(routeCase.path, workspace)?.path,
+      (routeCase as { tabPath?: string }).tabPath ?? routeCase.path,
+    );
   });
 }
 

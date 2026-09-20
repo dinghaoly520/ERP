@@ -139,7 +139,7 @@ export default function OperationLogPage() {
         <div className="relative min-w-[160px] xl:min-w-[220px] flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
           <input
-            className="neu-input !pl-9" placeholder="关键词（路径 / 查询串）"
+            className="neu-input neu-input-sm !pl-9" placeholder="关键词（路径 / 查询串）"
             value={filters.keyword}
             onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
           />
@@ -151,23 +151,23 @@ export default function OperationLogPage() {
           )}
         </div>
         <input
-          className="workbench-input !w-auto min-w-[130px]" placeholder="用户名（精确）"
+          className="workbench-input workbench-input-sm !w-auto min-w-[130px]" placeholder="用户名（精确）"
           value={filters.username}
           onChange={(e) => setFilters({ ...filters, username: e.target.value })}
         />
-        <select className="workbench-input !w-auto min-w-[110px]" value={filters.portal} onChange={(e) => applyFilter('portal', e.target.value)}>
+        <select className="workbench-input workbench-input-sm !w-auto min-w-[110px]" value={filters.portal} onChange={(e) => applyFilter('portal', e.target.value)}>
           <option value="">全部门户</option>
           {PORTAL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
         </select>
-        <select className="workbench-input !w-auto min-w-[100px]" value={filters.role} onChange={(e) => applyFilter('role', e.target.value)}>
+        <select className="workbench-input workbench-input-sm !w-auto min-w-[100px]" value={filters.role} onChange={(e) => applyFilter('role', e.target.value)}>
           <option value="">全部角色</option>
           {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <select className="workbench-input !w-auto min-w-[96px]" value={filters.method} onChange={(e) => applyFilter('method', e.target.value)}>
+        <select className="workbench-input workbench-input-sm !w-auto min-w-[96px]" value={filters.method} onChange={(e) => applyFilter('method', e.target.value)}>
           <option value="">全部方法</option>
           {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
-        <select className="workbench-input !w-auto min-w-[120px]" value={filters.statusClass} onChange={(e) => applyFilter('statusClass', e.target.value)}>
+        <select className="workbench-input workbench-input-sm !w-auto min-w-[120px]" value={filters.statusClass} onChange={(e) => applyFilter('statusClass', e.target.value)}>
           <option value="">全部状态</option>
           <option value="success">成功 2xx/3xx</option>
           <option value="client">客户端错误 4xx</option>
@@ -175,13 +175,13 @@ export default function OperationLogPage() {
         </select>
         <span className="text-[11px] font-semibold text-[var(--muted-foreground)] flex items-center gap-1">时间</span>
         <input
-          className="workbench-input !w-auto min-w-[168px]" type="datetime-local" title="开始时间"
+          className="workbench-input workbench-input-sm !w-auto min-w-[168px]" type="datetime-local" title="开始时间"
           value={filters.startTime}
           onChange={(e) => setFilters({ ...filters, startTime: e.target.value })}
         />
         <span className="text-[11px] text-[var(--muted-foreground)]">至</span>
         <input
-          className="workbench-input !w-auto min-w-[168px]" type="datetime-local" title="结束时间"
+          className="workbench-input workbench-input-sm !w-auto min-w-[168px]" type="datetime-local" title="结束时间"
           value={filters.endTime}
           onChange={(e) => setFilters({ ...filters, endTime: e.target.value })}
         />
@@ -191,7 +191,7 @@ export default function OperationLogPage() {
             <RotateCcw size={13} /> 重置
           </button>
         )}
-        <button type="submit" className="neu-btn-primary !h-[40px] !px-4" disabled={loading}>
+        <button type="submit" className="neu-btn-primary !h-9 !px-4" disabled={loading}>
           <Search size={14} /> 查询
         </button>
       </form>

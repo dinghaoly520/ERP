@@ -81,7 +81,9 @@ test("award letters and completed projects are discoverable through workspaces",
 
     assert.equal(fulfillmentWorkspace?.title, "成交履约");
     assert.equal(findWorkspaceTabForPath("/award-letters", fulfillmentWorkspace)?.path, "/award-letters");
+    // 2026-09-18 成交履约收起（单入口）：contracts/frameworks 经 extraPaths 归属
+    // 2026-09-18 我的投标收起（单入口）：completed-projects 经 extraPaths 归属，current tab 落工作区路由
     assert.equal(bidsWorkspace?.title, "我的投标");
-    assert.equal(findWorkspaceTabForPath("/completed-projects", bidsWorkspace)?.path, "/completed-projects");
+    assert.equal(findWorkspaceTabForPath("/completed-projects", bidsWorkspace)?.path, "/my-bids");
   }
 });

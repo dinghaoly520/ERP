@@ -397,12 +397,13 @@ export class AuthService {
   }
 
   /**
-   * :3005 单设备登录（2026-08-21）：web 门户（token_web 命名空间）每次登录轮换会话 ID。
-   * 新 sid 写入 User.webSessionId 并随 JWT 下发；AuthGuard 发现旧设备 token 的 sid
-   * 与库中不一致即 401 SESSION_REPLACED —— 同一账号同一时间只有一台设备在线。
-   * 仅 cookiePortal==='web' 时调用（:3006 分流写 token_bid 的登录不轮换、不互踢）。
+   * 单设备登录（web 2026-08-21；supplier 2026-09-18）：凡启用互踢的门户（token_web /
+   * token_supplier 命名空间）每次登录轮换会话 ID。新 sid 写入 User.webSessionId 并随
+   * JWT 下发；AuthGuard 发现旧设备 token 的 sid 与库中不一致即 401 SESSION_REPLACED
+   * —— 同一账号同一时间只有一台设备在线。角色↔门户互斥（supplier 用户不可能产生 web
+   * 会话），两门户共用一列零冲突。token_bid/token_expert/token_mall 登录不轮换、不互踢。
    */
-  async rotateWebSession(userId: string, username: string, role: string) {
+  async rotatePortalSession(userId: string, username: string, role: string) {
     const sid = randomUUID();
     await this.prisma.user.update({
       where: { id: userId },

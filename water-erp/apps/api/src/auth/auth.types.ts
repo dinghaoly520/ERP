@@ -2,7 +2,7 @@ export interface JwtPayload {
   sub: string;
   username: string;
   role: string;
-  /** :3005 单设备会话 ID（仅 web 门户签发的 token 携带；AuthGuard 与 User.webSessionId 比对） */
+  /** 单设备会话 ID（web / supplier 门户签发的 token 携带；AuthGuard 与 User.webSessionId 比对） */
   sid?: string;
 }
 

@@ -1,5 +1,6 @@
 import { Workbook } from 'exceljs';
 import type { SupplierRecommendation } from '@/lib/api/supplier';
+import { LEVEL_LABEL } from '@water-erp/shared';
 
 export function exportShortlistToExcel(
   items: { item: SupplierRecommendation; note: string }[],
@@ -133,22 +134,28 @@ export async function exportAllFilteredSuppliersToExcel(filterParams: Record<str
   exportSuppliersToExcel(allItems);
 }
 
+/** 供应商库导出（按最新供应商资料设计列）：编号/主体信息/联系方式/标签分类/评价/状态。 */
 export function exportSuppliersToExcel(suppliers: any[]) {
   const wb = new Workbook();
   const ws = wb.addWorksheet('供应商库');
 
   ws.columns = [
     { header: '序号', key: 'index', width: 6 },
-    { header: '企业名称', key: 'name', width: 28 },
+    { header: '供应商编号', key: 'supplierNo', width: 14 },
+    { header: '企业名称', key: 'name', width: 30 },
     { header: '统一社会信用代码', key: 'creditCode', width: 22 },
-    { header: '企业类型', key: 'enterpriseType', width: 16 },
-    { header: '分类', key: 'classification', width: 16 },
-    { header: '状态', key: 'status', width: 12 },
-    { header: '入库时间', key: 'createdAt', width: 14 },
-    { header: '联系人', key: 'contact', width: 12 },
-    { header: '电话', key: 'phone', width: 16 },
-    { header: '评价等级', key: 'evalLevel', width: 10 },
+    { header: '企业类型', key: 'enterpriseType', width: 14 },
+    { header: '法定代表人', key: 'legalPerson', width: 12 },
+    { header: '主要联系人', key: 'contact', width: 12 },
+    { header: '联系电话', key: 'phone', width: 16 },
+    { header: '归属公司', key: 'companyName', width: 18 },
+    { header: '业务标签', key: 'tags', width: 30 },
+    { header: '分类', key: 'classification', width: 14 },
+    { header: '平均等级', key: 'avgGrade', width: 11 },
     { header: '评价次数', key: 'evalCount', width: 10 },
+    { header: '最近评价', key: 'latestEval', width: 11 },
+    { header: '入库时间', key: 'createdAt', width: 13 },
+    { header: '状态', key: 'status', width: 14 },
   ];
 
   const headerRow = ws.getRow(1);
@@ -156,15 +163,31 @@ export function exportSuppliersToExcel(suppliers: any[]) {
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF3FB' } };
 
   const statusMap: Record<string, string> = { PENDING: '待审核', RETURNED: '退回补正', APPROVED: '已入库', REJECTED: '审核不通过', DISABLED: '停用', BLACKLIST: '黑名单' };
+  const gradeText = (g?: string | null) => (g ? `${g}（${LEVEL_LABEL[g] ?? ''}）`.replace('（）', '') : '—');
 
   suppliers.forEach((s: any, idx: number) => {
     const contact = s.contacts?.[0];
+    // 临时供应商在状态列注明有效期，与库内标注口径一致。
+    const statusText = s.isTemporary
+      ? `${statusMap[s.status] || s.status}（临时·至 ${s.temporaryExpiresAt ? new Date(s.temporaryExpiresAt).toLocaleDateString('zh-CN') : '—'}）`
+      : statusMap[s.status] || s.status;
     const row = ws.addRow({
-      index: idx + 1, name: s.name, creditCode: s.creditCode || '—',
-      enterpriseType: s.enterpriseType || '—', classification: s.classification?.name || '—',
-      status: statusMap[s.status] || s.status, createdAt: s.createdAt ? new Date(s.createdAt).toLocaleDateString('zh-CN') : '—',
-      contact: contact?.name || '—', phone: contact?.phone || '—',
-      evalLevel: s._avgGrade || '—', evalCount: s._count?.evaluations || 0,
+      index: idx + 1,
+      supplierNo: s.supplierNo || '—',
+      name: s.name,
+      creditCode: s.creditCode || '—',
+      enterpriseType: s.enterpriseType || '—',
+      legalPerson: s.legalPerson || '—',
+      contact: contact?.name || '—',
+      phone: contact?.phone || '—',
+      companyName: s.companyName || '—',
+      tags: s.tags?.length ? s.tags.join('、') : '—',
+      classification: s.classification?.name || '—',
+      avgGrade: gradeText(s._avgGrade),
+      evalCount: s._count?.evaluations ?? 0,
+      latestEval: gradeText(s._latestEvalLevel),
+      createdAt: s.createdAt ? new Date(s.createdAt).toLocaleDateString('zh-CN') : '—',
+      status: statusText,
     });
     row.alignment = { vertical: 'middle' };
   });

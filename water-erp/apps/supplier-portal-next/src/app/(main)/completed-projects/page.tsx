@@ -43,7 +43,7 @@ export default function CompletedProjectsPage() {
 
   return (
     <div className="page-container">
-      <SpPageHero srTitle="已完成项目" />
+      <SpPageHero icon={Archive} title="已完成项目" sub="合作项目完结（归档）后将在此记录" />
 
       <div className="mt-4">
       {loading ? (
@@ -56,9 +56,7 @@ export default function CompletedProjectsPage() {
           <SpButton variant="primary" onClick={() => location.reload()}>重新加载</SpButton>
         </div>
       ) : rows.length === 0 ? (
-        <div className="sp-module">
-          <EmptyState card icon={Archive} title="暂无已完成项目" desc="合作项目完结（归档）后将在此记录" />
-        </div>
+        <EmptyState card icon={Archive} title="暂无已完成项目" desc="合作项目完结（归档）后将在此记录" />
       ) : (
         <div className="neu-table-card">
           <div className="completed-projects-table-wrap">

@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { authApi } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
 
-export type LoginResult = "ok" | "invalid" | "pending" | "expired";
+export type LoginResult = "ok" | "invalid" | "pending" | "expired" | "frozen";
 
 interface AuthContextValue {
   user: any | null;
@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const code = (e.data as any)?.code;
         if (code === "ACCOUNT_PENDING") return "pending";
         if (code === "TEMPORARY_EXPIRED") return "expired";
+        if (code === "ACCOUNT_FROZEN") return "frozen";
       }
       return "invalid";
     }

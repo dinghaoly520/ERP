@@ -5,26 +5,7 @@
    消费方：notifications/page.tsx（消息中心）+ dashboard/page.tsx（通知面板）。
    ════════════════════════════════════════════════════════════════════ */
 
-/* Type filter — tab 基础按 Vue cgzxui 归一（同 AnnouncementList） */
-.neu-tab-bar.notif-tabs {
-  display: flex; flex-wrap: wrap; gap: 4px; margin: 0; max-width: 100%; overflow-x: auto; /* 居于 .sp-toolbar-card 内，外距由工具栏卡统一 */
-  padding: 4px; border-radius: 14px; background: oklch(0.96 0.008 258);
-  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.7);
-}
-.notif-tabs .neu-tab {
-  padding: 7px 14px; font-size: 13px; color: var(--fg-2);
-  background: transparent; border-radius: 10px; box-shadow: none;
-  transition: all 0.2s ease;
-}
-.notif-tabs .neu-tab:hover {
-  color: var(--brand); background: oklch(1 0 0 / 0.6);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 3px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.85);
-}
-.notif-tabs .neu-tab.active {
-  color: var(--brand); background: var(--surface);
-  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7);
-}
-.notif-tabs .neu-tab:active { box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 3px oklch(1 0 0 / 0.6); }
+/* 分类切换已改 .neu-segment 分段切换（shared.css，2026-09-18），旧 .notif-tabs neu-tab 系列废弃删除 */
 
 /* List */
 .notif-list {

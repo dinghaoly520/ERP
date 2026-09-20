@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
-import { StatusBadge, TableSkeleton } from '@/components/workbench';
+import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
 import { ExpertEntryDialog } from '@/components/expert/expert-entry-dialog';
 import { ExpertOperationHistory } from '@/components/expert/expert-operation-history';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle, History } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
 import type { WorkbenchTone } from '@water-erp/shared';
 import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
@@ -221,23 +221,25 @@ export default function ExpertRepositoryPage() {
         </div>
       </div>
 
-      {/* ══════ 工具栏 ══════ */}
-      <div className="wb-toolbar flex-wrap gap-2">
-        <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
+      {/* ══════ 工具行：搜索（左，固定 280px）+ 筛选与操作（右）——2026-09-18 对齐供应商库同款 ══════ */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input !pl-9" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input neu-input-sm !pl-9" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
         </div>
-        <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
-        <button onClick={() => setShowAdvanced(v => !v)} className={`neu-btn-xs ${showAdvanced ? 'is-active' : ''}`}>高级筛选</button>
-        {!batchMode ? (
-          <button onClick={() => setBatchMode(true)} className="neu-btn-xs">批量操作</button>
-        ) : (
-          <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
-        )}
-        <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>
-        <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家` : '导出全部专家'}><Download size={12} />导出CSV{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
+        <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input workbench-input-sm !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
         {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+          <button onClick={() => setShowAdvanced(v => !v)} className={`neu-btn-xs ${showAdvanced ? 'is-active' : ''}`}>高级筛选</button>
+          {!batchMode ? (
+            <button onClick={() => setBatchMode(true)} className="neu-btn-xs">批量操作</button>
+          ) : (
+            <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
+          )}
+          <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>
+          <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家` : '导出全部专家'}><Download size={12} />导出CSV{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
+        </div>
       </div>
 
       {/* 高级筛选 */}
@@ -397,53 +399,85 @@ export default function ExpertRepositoryPage() {
         )}
       </div>
 
-      {/* ══════ 启用/停用二次确认 ══════ */}
+      {/* ══════ 启用/停用二次确认（Modal 表单范式） ══════ */}
       {confirmToggle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => !toggling && setConfirmToggle(null)} />
-          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
-            <div className="flex items-center gap-3">
-              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-                <AlertTriangle size={18} className={confirmToggle.isActive ? 'text-[var(--warning)]' : 'text-[var(--success)]'} />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认{confirmToggle.isActive ? '停用' : '启用'}专家 {confirmToggle.displayName}？</h3>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">{confirmToggle.isActive ? '停用后该专家将无法参与新的评审抽取' : '启用后该专家可重新参与评审抽取，并清除退库标记'}</p>
-              </div>
-            </div>
-            <hr className="wb-section-rule my-4" />
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirmToggle(null)} disabled={toggling} className="neu-btn-soft h-[38px]">取消</button>
-              <button onClick={doToggle} disabled={toggling} className={`neu-btn-primary !h-[38px]${confirmToggle.isActive ? ' is-danger' : ''}`}>{toggling ? '处理中...' : '确认'}</button>
-            </div>
+        <Modal
+          open
+          onClose={() => setConfirmToggle(null)}
+          closeOnBackdrop={!toggling}
+          closeOnEsc={!toggling}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]">
+                <AlertTriangle size={14} strokeWidth={1.9} className={confirmToggle.isActive ? 'text-[var(--warning)]' : 'text-[var(--success)]'} />
+              </span>
+              {confirmToggle.isActive ? '停用专家' : '启用专家'}
+            </span>
+          }
+          description={<span>专家 <span className="font-semibold text-[color:var(--foreground)]">{confirmToggle.displayName}</span></span>}
+          size="sm"
+          footer={
+            <>
+              <button type="button" onClick={() => setConfirmToggle(null)} disabled={toggling} className="neu-btn-soft !h-9 !text-xs">取消</button>
+              <button type="button" onClick={doToggle} disabled={toggling} className={`neu-btn-soft !h-9 !text-xs${confirmToggle.isActive ? ' is-danger' : ' is-success'}`}>{toggling ? '处理中…' : '确认'}</button>
+            </>
+          }
+        >
+          <div className={`flex items-start gap-2 rounded-[10px] px-3 py-2.5 ${confirmToggle.isActive ? 'bg-[color-mix(in_oklch,var(--warning)_8%,transparent)]' : 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]'}`}>
+            <AlertTriangle size={13} strokeWidth={1.9} className={`mt-0.5 shrink-0 ${confirmToggle.isActive ? 'text-[var(--warning)]' : 'text-[var(--accent)]'}`} />
+            <span className="text-xs leading-5 text-[color:var(--muted-foreground)]">
+              {confirmToggle.isActive
+                ? <>停用后该专家将<strong className="text-[color:var(--foreground)]">无法参与新的评审抽取</strong>。</>
+                : <>启用后该专家可<strong className="text-[color:var(--foreground)]">重新参与评审抽取</strong>，并清除退库标记。</>}
+            </span>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* ══════ 批量操作二次确认 ══════ */}
+      {/* ══════ 批量操作二次确认（Modal 表单范式） ══════ */}
       {confirmBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => !batchSaving && setConfirmBatch(false)} />
-          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
-            <div className="flex items-center gap-3">
-              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-                <AlertTriangle size={18} className={batchAction === 'disable' ? 'text-[var(--warning)]' : 'text-[var(--success)]'} />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认{batchAction === 'enable' ? '批量启用' : '批量停用'} {selectedIds.size} 位专家？</h3>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                  {batchAction === 'disable' ? `停用后这 ${selectedIds.size} 位专家将无法参与新的评审抽取` : `启用后这 ${selectedIds.size} 位专家可重新参与评审抽取`}
-                  {batchAction === 'disable' && batchReason.trim() ? ` · 停用原因：${batchReason.trim()}` : ''}
-                </p>
-              </div>
+        <Modal
+          open
+          onClose={() => setConfirmBatch(false)}
+          closeOnBackdrop={!batchSaving}
+          closeOnEsc={!batchSaving}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]">
+                <AlertTriangle size={14} strokeWidth={1.9} className={batchAction === 'disable' ? 'text-[var(--warning)]' : 'text-[var(--success)]'} />
+              </span>
+              {batchAction === 'enable' ? '批量启用专家' : '批量停用专家'}
+            </span>
+          }
+          description={<span>已选 <span className="font-mono font-semibold text-[color:var(--foreground)]">{selectedIds.size}</span> 位专家（跨页保留）</span>}
+          size="sm"
+          footer={
+            <>
+              <button type="button" onClick={() => setConfirmBatch(false)} disabled={batchSaving} className="neu-btn-soft !h-9 !text-xs">取消</button>
+              <button type="button" onClick={doBatch} disabled={batchSaving} className={`neu-btn-soft !h-9 !text-xs${batchAction === 'disable' ? ' is-danger' : ' is-success'}`}>{batchSaving ? '处理中…' : '确认执行'}</button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <div className={`flex items-start gap-2 rounded-[10px] px-3 py-2.5 ${batchAction === 'disable' ? 'bg-[color-mix(in_oklch,var(--warning)_8%,transparent)]' : 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]'}`}>
+              <AlertTriangle size={13} strokeWidth={1.9} className={`mt-0.5 shrink-0 ${batchAction === 'disable' ? 'text-[var(--warning)]' : 'text-[var(--accent)]'}`} />
+              <span className="text-xs leading-5 text-[color:var(--muted-foreground)]">
+                {batchAction === 'disable'
+                  ? <>停用后这 <strong className="text-[color:var(--foreground)]">{selectedIds.size} 位专家将无法参与新的评审抽取</strong>。</>
+                  : <>启用后这 <strong className="text-[color:var(--foreground)]">{selectedIds.size} 位专家可重新参与评审抽取</strong>。</>}
+              </span>
             </div>
-            <hr className="wb-section-rule my-4" />
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirmBatch(false)} disabled={batchSaving} className="neu-btn-soft h-[38px]">取消</button>
-              <button onClick={doBatch} disabled={batchSaving} className={`neu-btn-primary !h-[38px]${batchAction === 'disable' ? ' is-danger' : ''}`}>{batchSaving ? '处理中...' : '确认执行'}</button>
-            </div>
+            {batchAction === 'disable' && batchReason.trim() && (
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-[color:var(--muted-foreground)]">停用原因</span>
+                <div className="neu-pre flex items-center gap-2.5 rounded-[10px] px-3 py-2.5">
+                  <FileText size={13} strokeWidth={1.9} className="shrink-0 text-[color:var(--muted-foreground)]" />
+                  <span className="flex-1 text-xs leading-5 text-[color:var(--foreground)]">{batchReason.trim()}</span>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ══════ 评价弹窗 ══════ */}
