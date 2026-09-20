@@ -277,20 +277,91 @@
 .login-submit-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .login-submit-label { letter-spacing: 0.2em; }
 
-/* ── 演示账号链接（仅开发环境）── */
-.login-demo-link {
-  all: unset;
-  cursor: pointer;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  transition: color 200ms ease;
+/* ── 底部署名（:3005 同款 TrueFocus 逐字聚焦，2026-09-20 移植自 web globals.css）── */
+.login-credit {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-display), var(--font-body), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: transparent;
+  background: linear-gradient(90deg, rgba(84, 107, 150, 0.78), rgba(186, 146, 72, 0.8));
+  background-clip: text;
+  -webkit-background-clip: text;
+  opacity: 0.92;
 }
-.login-demo-link:hover { color: var(--accent); }
-
-/* ── 底部署名 ── */
-.login-credit { opacity: 0.9; }
+.login-credit__static {
+  display: inline-block;
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+}
+.login-credit .focus-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.14em;
+  line-height: 1;
+  user-select: none;
+}
+.login-credit .focus-word {
+  position: relative;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  cursor: inherit;
+  transition:
+    filter 0.3s ease,
+    color 0.3s ease;
+}
+.login-credit .focus-word:last-child {
+  margin-left: 0.18em;
+}
+.login-credit .focus-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  box-sizing: content-box;
+  border: none;
+  /* 替代 web 版 framer-motion 的取景框动画（animate x/y/width/height duration 0.5s） */
+  transition:
+    transform 0.5s ease,
+    width 0.5s ease,
+    height 0.5s ease,
+    opacity 0.5s ease;
+}
+.login-credit .corner {
+  position: absolute;
+  width: 0.34rem;
+  height: 0.34rem;
+  border: 1.5px solid var(--border-color, #7aa8ff);
+  border-radius: 2px;
+  filter: drop-shadow(0 0 2px var(--glow-color, rgba(122, 168, 255, 0.18)));
+}
+.login-credit .top-left {
+  top: -4px;
+  left: -4px;
+  border-right: none;
+  border-bottom: none;
+}
+.login-credit .top-right {
+  top: -4px;
+  right: -4px;
+  border-left: none;
+  border-bottom: none;
+}
+.login-credit .bottom-left {
+  bottom: -4px;
+  left: -4px;
+  border-right: none;
+  border-top: none;
+}
+.login-credit .bottom-right {
+  right: -4px;
+  bottom: -4px;
+  border-left: none;
+  border-top: none;
+}
 
 /* ── keyframes ── */
 @keyframes loginSloganFlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
@@ -395,4 +466,5 @@
   .login-mark--float { animation: none !important; }
   .login-rise { animation: none !important; opacity: 1; }
   .login-arrow-badge { transition: none !important; }
+  .login-credit .focus-frame { display: none !important; }
 }

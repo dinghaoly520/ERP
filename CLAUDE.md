@@ -242,7 +242,7 @@ Passwords follow `<username>@2026` convention:
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
 > **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），两个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` （原 `procurement_staff` 幽灵账户已于 2026-08-20 删除），故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
-详见 `auth.service.ts`。另：专家门户 (:3006) 登录页 dev 模式演示提示账号（周祥志 / Swhi-CGZX-admin，`DEMO_ACCOUNTS`）生产构建自动剥离。
+详见 `auth.service.ts`。另：专家门户 (:3006) 登录页原 dev 演示账号预填/填充按钮（`DEMO_ACCOUNTS`）已于 2026-09-18 删除——登录表单初始为空，请直接用种子账号（专家 `expert@2026`、管理员 `Swhi-CGZX-admin@2026`）。
 
 > `admin` role 已有种子账号 `Swhi-CGZX-admin`（密码审批等管理功能；登录口令 `<用户名>@2026`）。开评标管理端 (:3007) 演示请用 `陈源远` (bid_host)。
 
