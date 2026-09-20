@@ -246,7 +246,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
   const features = [
     { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
-    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: mounted ? SUPPLIER_URL : '#' },
+    { icon: 'share', title: '供应商门户', desc: '供应商注册、投标、反馈', href: mounted ? SUPPLIER_URL : '#' },
     { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: mounted ? WEB_URL : '#' },
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: mounted ? portalURL('expert', '/login?forceLogin=1') : '#' },
   ];
