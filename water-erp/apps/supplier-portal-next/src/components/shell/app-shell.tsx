@@ -428,7 +428,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="sp-header-left">
           <button type="button" className="sp-brand" aria-label="返回业务工作台" onClick={() => router.push("/dashboard")}>
             <Image src="/logo.png" alt="" width={40} height={40} className="sp-brand-logo" priority />
-            <strong className="sp-brand-title">蜀水云采 · 智慧水发</strong>
+            <strong className="sp-brand-title">蜀水云采 · 供应商门户</strong>
           </button>
         </div>
 
