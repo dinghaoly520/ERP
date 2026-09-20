@@ -285,8 +285,10 @@ export default function ExpertEvaluatePage() {
   const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
   // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
-  const loadProject = useCallback((committedSupplierId?: string) => {
-    setLoading(true);
+  // silent=true：不闪「加载中」的静默刷新（10s 轮询用）——loading 门控整页渲染（L1013），
+  // 普通刷新会每 10s 卸载整页含相机组件、重置取景，轮询必须静默
+  const loadProject = useCallback((committedSupplierId?: string, silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(null);
     api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
@@ -580,13 +582,16 @@ export default function ExpertEvaluatePage() {
 
   const expert = project?.myExpertRecord;
 
-  // P3 host 态（2026-09-20 spec §4.2）：待主持人核验时 10s 轮询自动解锁
-  const hostLocked = project?.identityMode === 'host' && !expert?.identityVerified && !expert?.signedIn;
+  // 未签到期间 10s 静默轮询，覆盖两个场景：
+  // ① host 态待主持人核验登记解锁（P3 2026-09-20 spec §4.2，原逻辑）；
+  // ② self 态摄像头故障时主持人在 :3007 R9 手动确认签到——专家端需感知 signedIn 变化解锁后续步骤
+  //   （2026-09-20 修复：原轮询仅挂 hostLocked，手动确认后 :3006 无感知、须手动刷新页面）
+  const signInPending = !!project && !expert?.signedIn;
   useEffect(() => {
-    if (!hostLocked) return;
-    const t = setInterval(() => loadProject(), 10_000);
+    if (!signInPending) return;
+    const t = setInterval(() => loadProject(undefined, true), 10_000);
     return () => clearInterval(t);
-  }, [hostLocked, loadProject]);
+  }, [signInPending, loadProject]);
 
   // Phase 0：条款响应核对右栏「相关评分项」状态（同类别只读指引）——
   // committed=已提交（myScores 有记录）/ draft=有未提交内存编辑 / empty=未填
@@ -1395,6 +1400,7 @@ export default function ExpertEvaluatePage() {
                           userName={expert?.expertName}
                           onSignIn={handleFaceSuccess}
                           busy={faceVerifying}
+                          identityMode={project?.identityMode}
                         />
                       )}
                     </div>

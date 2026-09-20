@@ -7,6 +7,13 @@ import type { FaceDetector, FaceDetectorResult } from '@mediapipe/tasks-vision';
 export interface SigninCameraProps {
   userName?: string;
   /**
+   * 身份核验模式闸（服务端 identityMode 透传，2026-09-20 修复）：
+   * 仅 off 应急态渲染「应急签到（无照片）」——self/host 态该按钮必被服务端 400
+   * PHOTO_REQUIRED 拒收，渲染出来只会诱导反复点击；self/host 态摄像头故障的唯一
+   * 处置 = 主持人 :3007 核验矩阵手动确认，故只留「重试 + 联系主持人」指引
+   */
+  identityMode?: 'self' | 'host' | 'off';
+  /**
    * 确认签到回调：photoBlob 为拍摄的 JPEG 留档照；occlusion 为遮挡检测结论
    * （passed=检测通过；unchecked=检测不可用降级或应急直签——服务端模式闸最终裁决，
    * self/host 态无照片会 400 PHOTO_REQUIRED，off 应急态放行）
@@ -51,10 +58,11 @@ function assessFace(det: FaceDetectorResult['detections'][number]): FaceAssessme
  * - MediaPipe FaceDetector（Apache-2.0）WASM+模型自托管于 /public/models（内网不依赖 CDN）
  * - 检测≠识别：不建模板、不比对、判定即弃帧，仅保证留档照可用（防拍墙/拍纸/遮挡）
  * - 检测不可用（模型加载失败/老旧浏览器）→ 诚实降级：仍必拍，occlusion='unchecked'，不阻塞现场
- * - 无跳过入口；摄像头完全不可用时仅保留「应急签到」按钮（onSignIn(null,'unchecked')，
- *   由服务端模式闸裁决——self/host 态将 400 PHOTO_REQUIRED，off 应急态放行）
+ * - 无跳过入口；摄像头完全不可用时按模式分流（2026-09-20 修复）：off 应急态保留
+ *   「应急签到」按钮（onSignIn(null,'unchecked')，服务端放行）；self/host 态该按钮
+ *   必被 400 PHOTO_REQUIRED 拒——不渲染，只留「重试摄像头 + 联系主持人手动确认」指引
  */
-export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraProps) {
+export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy = false }: SigninCameraProps) {
   const [state, setState] = useState<CameraState>('idle');
   const [detectorState, setDetectorState] = useState<DetectorState>('loading');
   const [faceStatus, setFaceStatus] = useState<FaceStatus>('no_face');
@@ -298,7 +306,9 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
               <VideoOff size={28} strokeWidth={1.5} className="text-[var(--warning)]" />
             </div>
             <span className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-              未检测到可用摄像头或已拒绝授权。签到必须拍摄留档照——请重试，或联系现场工作人员处理后使用应急签到。
+              {identityMode === 'off'
+                ? '未检测到可用摄像头或已拒绝授权。系统处于应急模式，可无照片签到，也可重试摄像头补拍留档照。'
+                : '未检测到可用摄像头或已拒绝授权。请重试；若确认摄像头故障，请联系主持人现场处理——主持人可在开评标管理端为您手动确认签到。'}
             </span>
           </div>
         )}
@@ -385,23 +395,27 @@ export function SigninCamera({ userName, onSignIn, busy = false }: SigninCameraP
               type="button"
               onClick={() => void startCamera()}
               disabled={starting || busy}
-              className="neu-btn-soft !h-[42px] !px-6"
+              className={identityMode === 'off' ? 'neu-btn-soft !h-[42px] !px-6' : 'neu-btn-primary !h-[42px] !px-8'}
             >
               <RefreshCcw size={15} strokeWidth={1.5} />
               重试摄像头
             </button>
-            <button
-              type="button"
-              onClick={() => onSignIn(null, 'unchecked')}
-              disabled={busy}
-              className="neu-btn-primary !h-[42px] !px-8"
-            >
-              <ShieldAlert size={16} strokeWidth={1.5} />
-              应急签到（无照片）
-            </button>
+            {identityMode === 'off' && (
+              <button
+                type="button"
+                onClick={() => onSignIn(null, 'unchecked')}
+                disabled={busy}
+                className="neu-btn-primary !h-[42px] !px-8"
+              >
+                <ShieldAlert size={16} strokeWidth={1.5} />
+                应急签到（无照片）
+              </button>
+            )}
           </div>
           <span className="text-[11px] text-[var(--muted-foreground)]">
-            应急签到需系统处于应急模式方可通过，否则将被拒绝
+            {identityMode === 'off'
+              ? '应急签到需系统处于应急模式方可通过，否则将被拒绝'
+              : '摄像头故障的处置：主持人在开评标管理端「评标管理」核验矩阵中手动确认签到（需登记理由，全程留痕）'}
           </span>
         </div>
       )}
