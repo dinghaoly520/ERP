@@ -245,7 +245,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const WEB_URL = process.env.NEXT_PUBLIC_WEB_PORTAL_URL ?? portalURL('web', '/login?forceLogin=1');
 
   const features = [
-    { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
+    { icon: 'cart', title: '电子商城', desc: '办公集采、员工内购、大宗商品', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
     { icon: 'share', title: '供应商门户', desc: '供应商注册、投标、反馈', href: mounted ? SUPPLIER_URL : '#' },
     { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: mounted ? WEB_URL : '#' },
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: mounted ? portalURL('expert', '/login?forceLogin=1') : '#' },
@@ -527,17 +527,20 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                 </div>
                 <div className="announce-side-list">
                   {/* 侧栏只列最新 3 条（featured 轮播展示其余；完整清单走「全部公告」页） */}
-                  {currentAnnounce.items.filter((_, i) => i !== featuredIndex).slice(0, 3).map((item, idx) => (
-                    <a key={item.id} href={`/announcements/${item.id}?from=home`}
-                      className="announce-side-item group"
-                      onClick={saveHomeScroll}
-                      style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': currentAnnounce.color } as React.CSSProperties}>
-                      <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
-                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                        <span className="text-[13px] text-[#aaa]">{item.date.slice(5)}</span>
-                        <span className="announce-side-item-title">{item.title}</span>
-                      </div>
-                    </a>
+                  {currentAnnounce.items.filter((_, i) => i !== featuredIndex).slice(0, 3).map((item, idx, arr) => (
+                    <React.Fragment key={item.id}>
+                      <a href={`/announcements/${item.id}?from=home`}
+                        className="announce-side-item group"
+                        onClick={saveHomeScroll}
+                        style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': currentAnnounce.color } as React.CSSProperties}>
+                        <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                          <span className="text-[13px] text-[#aaa]">{item.date.slice(5)}</span>
+                          <span className="announce-side-item-title">{item.title}</span>
+                        </div>
+                      </a>
+                      {idx < arr.length - 1 && <div className="announce-side-divider" aria-hidden="true" />}
+                    </React.Fragment>
                   ))}
                 </div>
               </div>
@@ -584,23 +587,26 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
         {/* ═══════════════════ 友情链接 · Footer（玻璃雾化，与顶栏通透呼应）═══════════════════ */}
         <footer className="footer-glass">
           <div className="px-[clamp(40px,4vw,72px)]">
-            {/* ── 友情链接 ── */}
-            <div className="flex items-center justify-center max-sm:flex-col max-sm:py-5 max-sm:gap-3">
-              <div className="flex items-center gap-2.5 select-none pr-8 max-sm:pr-0">
-                <span className="block w-1 h-1 rounded-full bg-[#0891a0]" />
-                <span className="text-[11px] font-bold tracking-[0.25em] text-[#5a6d8a]">友情链接</span>
+            {/* ── 友情链接（内凹轨道整体：标签首段 + 轨道上凸起瓷片链接）── */}
+            <div className="flex justify-center py-6">
+              <div className="footer-links-well">
+                <span className="footer-links-label select-none">
+                  <span className="block w-1 h-1 rounded-full bg-[#0891a0]" />
+                  友情链接
+                </span>
+                <a href="https://slt.sc.gov.cn/" target="_blank" rel="noopener noreferrer" className="footer-link">
+                  四川省水利厅
+                  <svg className="footer-link-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+                </a>
+                <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer" className="footer-link">
+                  四川省水利发展集团有限公司
+                  <svg className="footer-link-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+                </a>
+                <a href="https://www.scswhi.com.cn/" target="_blank" rel="noopener noreferrer" className="footer-link">
+                  四川水发勘测设计研究有限公司
+                  <svg className="footer-link-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+                </a>
               </div>
-              <a href="https://slt.sc.gov.cn/" target="_blank" rel="noopener noreferrer" className="footer-link">
-                四川省水利厅
-              </a>
-              <span className="w-px h-4 bg-[#c8d8db] max-sm:hidden" />
-              <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer" className="footer-link">
-                四川省水利发展集团有限公司
-              </a>
-              <span className="w-px h-4 bg-[#c8d8db] max-sm:hidden" />
-              <a href="https://www.scswhi.com.cn/" target="_blank" rel="noopener noreferrer" className="footer-link">
-                四川水发勘测设计研究有限公司
-              </a>
             </div>
 
             {/* ── 底部信息带 ── */}

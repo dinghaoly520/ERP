@@ -2331,12 +2331,29 @@ a.group:hover::after {
   text-decoration: none;
   transition: all 0.3s ease;
   position: relative;
-  border-bottom: 1px solid oklch(0.6,0.06,258/0.22);
   flex: 1;
 }
 
-.announce-side-item:last-child {
-  border-bottom: none;
+/* ── 条目间分割线（2026-09-20）：真实 DOM 分隔元素（伪元素方案在玻璃卡内不上色，弃用）——
+   常显实感 hairline（中段实、两端轻渐隐）；hover 上方条目时品牌色光带自左向右扫过（相邻兄弟联动）── */
+.announce-side-divider {
+  height: 1px;
+  margin: 0 20px;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, transparent, oklch(0.55 0.05 258 / 0.38) 8%, oklch(0.55 0.05 258 / 0.38) 92%, transparent);
+}
+.announce-side-item:hover + .announce-side-divider {
+  background:
+    linear-gradient(90deg, transparent, transparent 35%, rgba(6, 78, 162, 0.6) 50%, transparent 65%, transparent),
+    linear-gradient(90deg, transparent, oklch(0.55 0.05 258 / 0.38) 8%, oklch(0.55 0.05 258 / 0.38) 92%, transparent);
+  background-size: 220% 100%, 100% 100%;
+  background-position: 160% 0, 0 0;
+  background-repeat: no-repeat;
+  animation: announce-divider-sweep 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes announce-divider-sweep {
+  from { background-position: -60% 0, 0 0; }
+  to   { background-position: 160% 0, 0 0; }
 }
 
 /* 左侧悬停指示线 */
@@ -2966,28 +2983,59 @@ a.group:hover::after {
 }
 /* 底栏背景已改为纯平玻璃（无光晕层、无漂移）——
    移除 ::before 蓝色 aurora 倒影，彻底消除"栏内扫过的蓝色光条"。 */
+/* 友情链接整体（2026-09-20）：内凹轨道容器（融为一个整体）——标签作轨道首段，
+   三个凸起瓷片链接立于轨道上（轨道上唯一凸起物，与分段切换同语言） */
+.footer-links-well {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  background: oklch(0.955 0.012 250 / 0.6);
+  box-shadow:
+    inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.1),
+    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.65);
+}
+.footer-links-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 10px 0 12px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.25em;
+  color: #5a6d8a;
+  white-space: nowrap;
+}
 .footer-link {
   position: relative;
-  padding: 1.25rem 1.5rem;            /* 对齐原 px-6 py-5 */
-  font-size: 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px; font-weight: 600;
   color: #26364e;
   text-decoration: none;
-  transition: color 0.25s ease;
+  border-radius: 10px;
+  background: oklch(1 0 0 / 0.62);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, color 0.25s ease, background 0.25s ease;
 }
-.footer-link::after {                  /* 下划线：左起渐显 */
-  content: "";
-  position: absolute;
-  left: 1.5rem; right: 1.5rem; bottom: 1.05rem;
-  height: 1px;
-  background: #0891a0;
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+.footer-link:hover {
+  color: #0891a0;
+  background: oklch(1 0 0 / 0.85);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 3px 7px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 4px oklch(1 0 0 / 0.95);
 }
-.footer-link:hover { color: #0891a0; }
-.footer-link:hover::after { transform: scaleX(1); }
+.footer-link:active {
+  transform: translateY(0);
+  box-shadow: inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.14), inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5);
+}
+.footer-link .footer-link-arrow {
+  color: #8a96aa;
+  transition: color 0.25s ease, transform 0.25s ease;
+}
+.footer-link:hover .footer-link-arrow { color: #0891a0; transform: translate(1px, -1px); }
 @media (prefers-reduced-motion: reduce) {
-  .footer-link, .footer-link::after { transition: none; }
+  .footer-link, .footer-link .footer-link-arrow { transition: none; }
 }
 
 /* Subtle breathing glow for the search icon when idle */
