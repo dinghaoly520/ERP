@@ -277,20 +277,91 @@
 .login-submit-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .login-submit-label { letter-spacing: 0.2em; }
 
-/* ── 演示账号链接（仅开发环境）── */
-.login-demo-link {
-  all: unset;
-  cursor: pointer;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  transition: color 200ms ease;
+/* ── 底部署名（:3005 同款 TrueFocus 逐字聚焦，2026-09-20 移植自 web globals.css）── */
+.login-credit {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-display), var(--font-body), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: transparent;
+  background: linear-gradient(90deg, rgba(84, 107, 150, 0.78), rgba(186, 146, 72, 0.8));
+  background-clip: text;
+  -webkit-background-clip: text;
+  opacity: 0.92;
 }
-.login-demo-link:hover { color: var(--accent); }
-
-/* ── 底部署名 ── */
-.login-credit { opacity: 0.9; }
+.login-credit__static {
+  display: inline-block;
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+}
+.login-credit .focus-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.14em;
+  line-height: 1;
+  user-select: none;
+}
+.login-credit .focus-word {
+  position: relative;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  cursor: inherit;
+  transition:
+    filter 0.3s ease,
+    color 0.3s ease;
+}
+.login-credit .focus-word:last-child {
+  margin-left: 0.18em;
+}
+.login-credit .focus-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  box-sizing: content-box;
+  border: none;
+  /* 替代 web 版 framer-motion 的取景框动画（animate x/y/width/height duration 0.5s） */
+  transition:
+    transform 0.5s ease,
+    width 0.5s ease,
+    height 0.5s ease,
+    opacity 0.5s ease;
+}
+.login-credit .corner {
+  position: absolute;
+  width: 0.34rem;
+  height: 0.34rem;
+  border: 1.5px solid var(--border-color, #7aa8ff);
+  border-radius: 2px;
+  filter: drop-shadow(0 0 2px var(--glow-color, rgba(122, 168, 255, 0.18)));
+}
+.login-credit .top-left {
+  top: -4px;
+  left: -4px;
+  border-right: none;
+  border-bottom: none;
+}
+.login-credit .top-right {
+  top: -4px;
+  right: -4px;
+  border-left: none;
+  border-bottom: none;
+}
+.login-credit .bottom-left {
+  bottom: -4px;
+  left: -4px;
+  border-right: none;
+  border-top: none;
+}
+.login-credit .bottom-right {
+  right: -4px;
+  bottom: -4px;
+  border-left: none;
+  border-top: none;
+}
 
 /* ── keyframes ── */
 @keyframes loginSloganFlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
@@ -322,27 +393,33 @@
    apps/web/src/app/globals.css 的 login-title--gradient / login-arrow-badge。
    ============================================================================= */
 
-/* ── 渐变流光标题（:3005 同款五段水色渐变 + 缓慢流动）── */
+/* ── 彩色流转标题（2026-09-20 对齐 :3005 现行版：品牌蓝基色（非黑）+ 蓝/绿/青/紫/粉
+   彩色高光带 12s 线性匀速扫过；首尾同色 + repeat → 无缝循环。规则照搬
+   apps/web/src/app/globals.css 的 login-title--gradient，与其 :3002/:3004 同语言）── */
 .login-title--gradient {
   background: linear-gradient(
     90deg,
-    #0b3d7a 0%,
-    #064ea2 22%,
-    #0891a0 48%,
-    #18a56c 70%,
-    #064ea2 88%,
-    #0b3d7a 100%
+    #064ea2 0%,
+    #2f6fd0 8%,
+    #18a56c 18%,
+    #1e7fc4 30%,
+    #7a5bd0 42%,
+    #d0588f 54%,
+    #1e7fc4 66%,
+    #18a56c 78%,
+    #2f6fd0 88%,
+    #064ea2 100%
   );
-  background-size: 200% 100%;
+  background-size: 300% 100%;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: loginTitleFlow 8s ease-in-out infinite alternate;
+  animation: loginTitleFlow 12s linear infinite;
 }
 @keyframes loginTitleFlow {
   0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
+  100% { background-position: 300% 50%; }
 }
 
 /* ── 品牌光晕标漂浮循环（对齐 :3005 framer-motion 徽标 y/rotate/scale 循环）── */
@@ -368,13 +445,15 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── 提交键箭头徽章（:3005 同款：悬停右移 + 品牌色晕）── */
+/* ── 提交键箭头徽章（2026-09-20 对齐 cgzxui component-specs「箭头 SVG 源」：
+   18×18 圆形容器 + 2px 内衬 + 13×13 纯 chevron；hover 右滑 4px + 品牌 8% 底）── */
 .login-arrow-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
   border-radius: 50%;
   background: transparent;
   transition:
@@ -384,15 +463,16 @@
 .login-submit-button:hover .login-arrow-badge,
 .login-submit-button:focus-visible .login-arrow-badge {
   transform: translateX(4px);
-  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  background: rgba(6, 78, 162, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .login-title--gradient {
     animation: none !important;
-    background-position: 22% 50%;
+    background-position: 0% 50%;
   }
   .login-mark--float { animation: none !important; }
   .login-rise { animation: none !important; opacity: 1; }
   .login-arrow-badge { transition: none !important; }
+  .login-credit .focus-frame { display: none !important; }
 }

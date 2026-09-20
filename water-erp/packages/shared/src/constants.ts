@@ -5,10 +5,10 @@
 /* ── 品牌 ── */
 
 export const BRAND = {
-  name: '智慧水发 · 蜀水云采',
+  name: '蜀水云采 · 智慧水发',
   nameEn: 'SICHUAN WATER DEVELOPMENT GROUP CO.,LTD.',
-  shortName: '智慧水发',
-  systemName: '智慧水发·蜀水云采',
+  shortName: '蜀水云采',
+  systemName: '蜀水云采·智慧水发',
   logoPath: '/assets/logo.jpg',
   primary: '#064ea2',
   primaryHover: '#0e62d0',

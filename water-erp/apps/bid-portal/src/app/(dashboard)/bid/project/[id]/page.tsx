@@ -19,6 +19,8 @@ import { RoundBlock } from '@/components/workspace/round-block';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { useOpeningSfx } from '@/hooks/use-opening-sfx';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
+import { STAGE_LABEL } from '@water-erp/shared';
+import { FolderOpen, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 /* 面包屑末段标签：工作区 tab key → 中文名（对齐 :3004 sp-breadcrumb 语义）*/
@@ -220,13 +222,35 @@ function WorkspaceInner() {
   return (
     <div className="space-y-5">
       {project && (
-        <nav className="sp-breadcrumb" aria-label="面包屑">
+        <>
+          {/* ═══ 顶部标题栏（cgzxui page-hero）═══ */}
+          <div className="page-hero">
+            <div className="page-hero__row">
+              <div className="page-hero__left">
+                <div className="page-hero__icon"><FolderOpen size={17} strokeWidth={1.9} /></div>
+                <div className="min-w-0">
+                  <div className="page-hero__title truncate">{project.name}</div>
+                  <div className="page-hero__sub">{project.projectCode} · 开评标项目工作区</div>
+                </div>
+              </div>
+              <div className="page-hero__right">
+                <span className="page-hero__stat page-hero__stat--info">{STAGE_LABEL[stage] ?? stage}</span>
+                <button type="button" onClick={() => void loadProject()} disabled={loading} className="neu-btn-xs" aria-label="刷新">
+                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+            </div>
+            <div className="page-hero__divider" />
+          </div>
+
+          <nav className="sp-breadcrumb" aria-label="面包屑">
           <Link className="sp-breadcrumb-link" href="/bid">开标任务板</Link>
           <span className="sp-breadcrumb-sep">/</span>
           <span className="sp-breadcrumb-current">{project.projectCode} · {project.name}</span>
           <span className="sp-breadcrumb-sep">/</span>
           <span className="sp-breadcrumb-current">{TAB_LABELS[current]}</span>
-        </nav>
+          </nav>
+        </>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ProjectTabs stage={stage} current={current} onSwitch={switchTab} hasRoundMode={hasRoundMode} />

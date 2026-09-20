@@ -253,7 +253,7 @@ export function AppShell({
             <div className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center">
               <Image
                 src="/procurement-brand-logo.png"
-                alt="智慧水发·蜀水云采"
+                alt="蜀水云采·智慧水发"
                 width={46}
                 height={46}
                 className="rounded-[12px] object-cover"
@@ -263,7 +263,7 @@ export function AppShell({
 
             <div className="w-full text-center">
               <div className="sidebar-brand-title truncate text-[1rem] font-semibold tracking-[0.07em]">
-                智慧水发·采购中心
+                蜀水云采·采购中心
               </div>
             </div>
           </header>

@@ -82,15 +82,15 @@ function RsvpInner() {
   return (
     <main className="rv">
       <div className="rv-bg" aria-hidden="true" />
-      <div className="rv-brand" aria-label="智慧水发 · 蜀水云采">
+      <div className="rv-brand" aria-label="蜀水云采 · 智慧水发">
         <Image src="/logo.png" alt="" width={50} height={50} className="rv-brand-mark" priority />
-        <span className="rv-brand-name">智慧水发 · 蜀水云采</span>
+        <span className="rv-brand-name">蜀水云采 · 智慧水发</span>
       </div>
 
       <section className="rv-panel">
         <div className="rv-card">
           <div className="rv-head">
-            <div className="rv-brand-word">智慧水发<span className="rv-dot">·</span>蜀水云采</div>
+            <div className="rv-brand-word">蜀水云采<span className="rv-dot">·</span>智慧水发</div>
             <div className="rv-divider" aria-hidden="true">◆</div>
             <h1 className="rv-title">采购邀请回执</h1>
           </div>

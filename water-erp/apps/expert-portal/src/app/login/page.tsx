@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
 import { detectTabletClient } from '@/lib/device';
 import SplashCursor from '@/components/SplashCursor';
+import TrueFocus from '@/components/TrueFocus';
 import './login.css';
 
 /** 鼠标流体炫彩调色板（与 web :3005 登录页 loginSplashPalette 同款） */
@@ -17,8 +18,10 @@ const IconUser = (
 const IconLock = (
   <svg className="login-field-shell__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="4.5" y="10" width="15" height="10" rx="2.5" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" /></svg>
 );
+// cgzxui 箭头规范（component-specs「箭头 SVG 源」）：纯 chevron 13×13 + 18×18 圆形容器；
+// strokeWidth 2.5（用户 2026-09-20 裁定加粗，规格默认 2）
 const IconArrow = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
 );
 const IconEye = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -32,11 +35,7 @@ type Tab = 'expert' | 'admin';
 /** 管理员 Tab 接受的 web 端角色（与后端 portal-cookie 的 ROLE_COOKIE_PORTAL 对齐：admin/bid_host/leader/staff 共用 token_web 命名空间） */
 const WEB_ROLES = ['admin', 'bid_host', 'leader', 'staff'];
 
-// Dev-only demo accounts — stripped to empty in production builds.
-const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
-  process.env.NODE_ENV === 'production'
-    ? { expert: { username: '', password: '' }, admin: { username: '', password: '' } }
-    : { expert: { username: '赵国栋', password: 'expert@2026' }, admin: { username: 'Swhi-CGZX-admin', password: 'Swhi-CGZX-admin@2026' } };
+// 演示账号预填/填充按钮已于 2026-09-18 按用户要求删除（对齐 :3005 登录页形态：表单初始为空）。
 
 function ExpertLoginPage() {
   const router = useRouter();
@@ -47,7 +46,7 @@ function ExpertLoginPage() {
     return r && r.startsWith('/') && !r.startsWith('//') ? r : '/';
   })();
   const [tab, setTab] = useState<Tab>('expert');
-  const [form, setForm] = useState({ ...DEMO_ACCOUNTS.expert });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -56,13 +55,20 @@ function ExpertLoginPage() {
     fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Portal': 'expert' }, credentials: 'include' });
   }, []);
 
+  // 无 framer-motion：matchMedia 自实现 useReducedMotion 等价物（TrueFocus 署名回退静态文本用）
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setPrefersReducedMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const switchTab = (next: Tab) => {
     setTab(next);
-    setForm({ ...DEMO_ACCOUNTS[next] });
+    setForm({ username: '', password: '' });
   };
-
-  const fillDemo = () => setForm({ ...DEMO_ACCOUNTS[tab] });
-  const isDev = process.env.NODE_ENV !== 'production';
 
   // 平板设备检测（判定收口在 @/lib/device，与 root layout 脚本、proxy.ts 共用一份定义）
   const isTabletDevice = detectTabletClient;
@@ -147,19 +153,20 @@ function ExpertLoginPage() {
           </div>
 
           <h1 className="login-title login-title--gradient mt-4 max-w-[16.5rem] text-[clamp(1.78rem,4.8vw,2.42rem)] font-black leading-[1.15] tracking-[0.08em] sm:max-w-none">
-            智慧水发 · <span className="whitespace-nowrap">专家门户</span>
+            蜀水云采 · <span className="whitespace-nowrap">开评标系统</span>
           </h1>
           <p className="login-slogan mt-5 text-[0.82rem] tracking-[0.28em]">独立评审 · 客观公正 · 全程留痕</p>
         </div>
 
-        {/* 角色切换 —— 复用 cgzxui 内凹 tab（块级流内居中） */}
+        {/* 角色切换 —— cgzxui .neu-segment 分段切换（内凹轨道 + 滑动白拇指，与 :3002 公告类型切换同款） */}
         <div className="login-rise login-rise--2 mt-7 flex justify-center">
-          <div className="neu-tab-bar">
-          {(['expert', 'admin'] as Tab[]).map(t => (
-            <button key={t} type="button" className={`neu-tab${tab === t ? ' is-active' : ''}`} onClick={() => switchTab(t)}>
-              {t === 'expert' ? '专家登录' : '管理员登录'}
-            </button>
-          ))}
+          <div className="neu-segment" role="group" aria-label="登录角色" data-index={tab === 'expert' ? '0' : '1'}>
+            <span className="neu-segment-thumb" aria-hidden="true" />
+            {(['expert', 'admin'] as Tab[]).map(t => (
+              <button key={t} type="button" className="neu-segment-btn" aria-pressed={tab === t} onClick={() => switchTab(t)}>
+                {t === 'expert' ? '专家登录' : '管理员登录'}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -197,16 +204,28 @@ function ExpertLoginPage() {
             <span className="login-submit-label">{loading ? '登录中…' : '登 录'}</span>
             <span aria-hidden className="login-arrow-badge">{IconArrow}</span>
           </button>
-
-          {isDev && (
-            <button type="button" onClick={fillDemo} className="login-demo-link">
-              填充演示账号（仅开发环境可见）
-            </button>
-          )}
         </form>
 
-        <div className="login-rise login-rise--4 login-credit mt-7 text-center text-[0.72rem] tracking-[0.12em] text-[color:var(--muted-foreground)]">
-          智慧水发 · 蜀水云采 · 在线开评标
+        {/* 底部署名（:3005 同款 TrueFocus 逐字聚焦；reduced-motion 回退静态文本）。
+            .login-credit 是 inline-block——外层块级容器 + text-center 负责居中
+            （:3005 靠 form 的 flex items-center，本页结构不同，故显式包一层） */}
+        <div className="login-rise login-rise--4 mt-7 text-center">
+          <div className="login-credit">
+            {prefersReducedMotion ? (
+              <span className="login-credit__static">四川水利发展集团有限公司　制</span>
+            ) : (
+              <TrueFocus
+                sentence="四|川|水|利|发|展|集|团|有|限|公|司| |制"
+                separator="|"
+                manualMode={false}
+                blurAmount={3}
+                borderColor="#7aa8ff"
+                glowColor="rgba(122, 168, 255, 0.18)"
+                animationDuration={0.5}
+                pauseBetweenAnimations={1}
+              />
+            )}
+          </div>
         </div>
       </div>
     </main>

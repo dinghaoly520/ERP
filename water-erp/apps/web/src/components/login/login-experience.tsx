@@ -218,7 +218,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             <div className="login-mark__ring" />
             <Image
               src="/procurement-brand-logo.png"
-              alt="智慧水发 · 采购中心"
+              alt="蜀水云采 · 采购中心"
               width={60}
               height={60}
               className="relative z-10 h-[60px] w-[60px] object-contain"
@@ -226,7 +226,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             />
           </motion.div>
           <h1 className="login-title login-title--gradient mt-4 max-w-[16.5rem] text-[clamp(1.78rem,4.8vw,2.42rem)] font-black leading-[1.15] tracking-[0.08em] sm:max-w-none">
-            智慧水发·采购中心
+            蜀水云采·采购中心
           </h1>
           <p className="login-slogan mt-5 text-[0.82rem] tracking-[0.28em]">
             坚持原则，坚定立场，坚决执行
@@ -403,10 +403,10 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             className="login-credit pt-2 text-center"
           >
             {reducedMotion ? (
-              <span className="login-credit__static">四川水发勘测设计研究有限公司　制</span>
+              <span className="login-credit__static">四川水利发展集团有限公司　制</span>
             ) : (
               <TrueFocus
-                sentence="四|川|水|发|勘|测|设|计|研|究|有|限|公|司| |制"
+                sentence="四|川|水|利|发|展|集|团|有|限|公|司| |制"
                 separator="|"
                 manualMode={false}
                 blurAmount={3}

@@ -53,11 +53,11 @@ function ExpertRsvpPage() {
   return (
     <main className="rv">
       <div className="rv-bg" aria-hidden="true" />
-      <div className="rv-brand"><img src="/logo.png" alt="" className="rv-brand-mark" /><span className="rv-brand-name">智慧水发 · 蜀水云采</span></div>
+      <div className="rv-brand"><img src="/logo.png" alt="" className="rv-brand-mark" /><span className="rv-brand-name">蜀水云采 · 智慧水发</span></div>
       <section className="rv-panel">
         <div className="rv-card">
           <div className="rv-head">
-            <span className="rv-brand-word">智慧水发<span>·</span>蜀水云采</span>
+            <span className="rv-brand-word">蜀水云采<span>·</span>智慧水发</span>
             <div className="rv-divider" aria-hidden="true">◆</div>
             <h1 className="rv-title">评审邀请确认</h1>
           </div>
@@ -108,7 +108,7 @@ function ExpertRsvpPage() {
             </>
           )}
         </div>
-        <p className="rv-credit">智慧水发 · 蜀水云采 · 在线开评标</p>
+        <p className="rv-credit">蜀水云采 · 智慧水发 · 在线开评标</p>
       </section>
     </main>
   );

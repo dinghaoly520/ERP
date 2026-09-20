@@ -5,7 +5,7 @@ import { ErrorBoundary, GlobalErrorHandler } from './interactions';
 import { MotionConfig } from 'framer-motion';
 
 export const metadata: Metadata = {
-  title: '电子商城-智慧水发·蜀水云采',
+  title: '电子商城-蜀水云采·智慧水发',
   description: '四川省水利发展集团集中采购目录价格参考平台',
 };
 

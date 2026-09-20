@@ -357,10 +357,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // 连续的工作区项归入其前导分组（对齐 :3005：组头可点击折叠 + 含激活项染蓝 + 组图标点蓝）
     const rows: React.ReactNode[] = [];
     const leadingItems: Extract<MenuItem, { path: string }>[] = []; // 首个分组之前的散项（工作台）
-    let currentGroup: { label: string; items: Extract<MenuItem, { path: string }>[] } | null = null;
+    let currentGroup: { label: string; icon?: Extract<MenuItem, { divider: true }>["icon"]; items: Extract<MenuItem, { path: string }>[] } | null = null;
     const flushGroup = (key: string) => {
       if (!currentGroup) return;
-      const { label, items } = currentGroup;
+      const { label, items, icon: GroupIcon } = currentGroup;
       const isCollapsed = collapsedGroups.has(label);
       const hasActive = items.some((it) => it.path === activeWorkspace?.path);
       rows.push(
@@ -379,6 +379,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 return next;
               })}
             >
+              {GroupIcon && <GroupIcon size={13} strokeWidth={1.7} className="shrink-0 sidebar-group-icon" aria-hidden="true" />}
               <span className="sidebar-group-label">{label}</span>
               <ChevronDown size={12} aria-hidden="true" className={isCollapsed ? "is-collapsed" : ""} />
             </button>
@@ -394,7 +395,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     menuItems.forEach((item, idx) => {
       if ("divider" in item) {
         flushGroup(`d${idx}`);
-        currentGroup = { label: item.label, items: [] };
+        currentGroup = { label: item.label, icon: item.icon, items: [] };
       } else if (currentGroup) {
         currentGroup.items.push(item);
       } else {
@@ -428,7 +429,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="sp-header-left">
           <button type="button" className="sp-brand" aria-label="返回业务工作台" onClick={() => router.push("/dashboard")}>
             <Image src="/logo.png" alt="" width={40} height={40} className="sp-brand-logo" priority />
-            <strong className="sp-brand-title">智慧水发 · 蜀水云采</strong>
+            <strong className="sp-brand-title">蜀水云采 · 供应商门户</strong>
           </button>
         </div>
 

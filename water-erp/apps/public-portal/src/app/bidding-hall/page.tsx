@@ -22,7 +22,7 @@ const STAGES: StageData[] = [
 ];
 
 export default function BiddingHallPage() {
-  // 供应商端入口：直连 :3004 登录/注册页（与首页「供应商端」卡片同款口径）。
+  // 供应商端入口：直连 :3004 登录/注册页（与首页「供应商门户」卡片同款口径）。
   // portalURL SSR 阶段无 window → 返回 localhost，须等客户端挂载后再取值。
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

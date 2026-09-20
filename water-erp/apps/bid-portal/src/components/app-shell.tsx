@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
@@ -54,6 +54,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .catch(() => { window.location.href = LOGIN_URL; });
   }, []);
 
+  // 用户菜单（复刻 :3004 sp-user-pill：点 pill 开下拉，点外部收起）
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [userMenuOpen]);
+
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     window.location.href = LOGIN_URL;
@@ -82,33 +94,45 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             className="sp-brand"
             aria-label="返回开标任务板"
           >
-            <img src="/assets/logo.png" alt="智慧水发·蜀水云采" className="sp-brand-logo" />
-            <strong className="sp-brand-title">智慧水发 · 蜀水云采</strong>
+            <img src="/assets/logo.png" alt="蜀水云采·开评标系统" className="sp-brand-logo" />
+            <strong className="sp-brand-title">蜀水云采 · 开评标系统</strong>
           </button>
         </div>
 
         <div className="sp-header-right">
           <NotificationBell />
-          <span className="sp-user-pill">
-            <span className="sp-user-avatar">{userInitial}</span>
-            <span className="sp-user-name">{registeredName}</span>
-            <ChevronDown size={12} className="sp-user-arrow" />
-          </span>
-          <button type="button" onClick={logout} className="sp-logout-btn">
-            <LogOut size={15} strokeWidth={1.7} />
-            <span>退出登录</span>
-          </button>
+          {/* 用户 pill + 下拉菜单（复刻 :3004 顶栏右侧：退出登录收进菜单，不再独立成钮） */}
+          <div className="sp-notif-anchor" ref={userMenuRef}>
+            <button
+              type="button"
+              className="sp-user-pill"
+              aria-label={`${registeredName}账户菜单`}
+              aria-expanded={userMenuOpen}
+              onClick={() => setUserMenuOpen(v => !v)}
+            >
+              <span className="sp-user-avatar">{userInitial}</span>
+              <span className="sp-user-name">{registeredName}</span>
+              <ChevronDown size={12} className={`sp-user-arrow${userMenuOpen ? ' rotate-180' : ''}`} />
+            </button>
+            {userMenuOpen && (
+              <div className="sp-user-menu">
+                <button type="button" className="sp-user-menu-item" onClick={() => void logout()}>
+                  <LogOut size={15} aria-hidden="true" />退出登录
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-0 w-full flex-1 gap-3 overflow-hidden px-3 pb-3 pt-3 [perspective:1500px]">
+      <div className="mx-auto flex min-h-0 w-full flex-1 gap-0 overflow-hidden px-3 pb-3 pt-3 [perspective:1500px]">
         {/* ── 3D 玻璃侧栏 ── */}
         <aside
           data-hidden={collapsed ? 'true' : 'false'}
-          className="sidebar-sheen sidebar-3d sidebar-card hidden h-full w-[268px] shrink-0 flex-col rounded-[24px] pr-2 lg:flex"
+          className="sidebar-sheen sidebar-3d sidebar-card hidden h-full shrink-0 flex-col lg:flex"
         >
-          {/* 品牌块已上移至顶栏 sp-brand；侧栏顶部仅留呼吸 padding */}
-          <nav className="sidebar-scroll sidebar-nav mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pt-3 pb-1">
+          {/* nav — 与 :3004 sp-nav 同款节奏（mt-1.5 / px-2 py-1 / gap 2px / 顶部 16px 呼吸） */}
+          <nav className="sidebar-scroll sidebar-nav min-h-0 flex-1 overflow-y-auto" style={{ marginTop: 6, padding: '16px 8px 4px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {navItems.map(item => {
               const active = isActive(item.path);
               const Icon = item.icon;
@@ -124,39 +148,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <span className="nav-active-skew absolute bottom-2 left-[2px] top-2 w-[2.5px]" />
                   ) : null}
                   <Icon size={16} strokeWidth={1.7} className="shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{item.label}</span>
-                    {item.caption ? (
-                      <span className="mt-0.5 block truncate text-[11px] text-[color:var(--muted-foreground)]">{item.caption}</span>
-                    ) : null}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
                 </button>
               );
             })}
           </nav>
 
-          {/* 右边缘折叠手柄 —— 点击向左折叠 */}
-          <button
-            type="button"
-            onClick={() => setCollapsed(true)}
-            aria-label="收起菜单栏"
-            className="sidebar-edge-tab right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px]"
-          >
-            <ChevronLeft size={12} />
-          </button>
+          {/* 底部折叠区（与 :3004 同款：渐隐发丝线 + 导航项同款按钮；rail 态按钮翻转变为展开）*/}
+          {!collapsed && <div aria-hidden className="sp-sidebar-hairline" />}
+          <div className="sp-collapse-zone">
+            <button
+              type="button"
+              onClick={() => setCollapsed(v => !v)}
+              aria-label={collapsed ? '展开菜单栏' : '收起菜单栏'}
+              aria-expanded={!collapsed}
+              title={collapsed ? '展开菜单栏' : '收起菜单栏'}
+              className="sidebar-nav-item justify-center"
+            >
+              {collapsed
+                ? <ChevronRight size={16} strokeWidth={1.7} aria-hidden="true" />
+                : <ChevronLeft size={16} strokeWidth={1.7} aria-hidden="true" />}
+            </button>
+          </div>
         </aside>
-
-        {/* 折叠态：左缘展开手柄 */}
-        {collapsed ? (
-          <button
-            type="button"
-            onClick={() => setCollapsed(false)}
-            aria-label="展开菜单栏"
-            className="sidebar-edge-tab fixed left-0 top-1/2 z-30 hidden h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] lg:flex"
-          >
-            <ChevronRight size={12} />
-          </button>
-        ) : null}
 
         {/* ── 内容区 ── */}
         <section className="flex h-full min-w-0 flex-1 flex-col px-1">

@@ -105,7 +105,7 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
                   <ArrowLeft size={17} strokeWidth={1.7} />
                 </button>
               )}
-              <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="h-8 w-auto object-contain" />
+              <img src="/assets/logo.png" alt="蜀水云采 · 智慧水发" className="h-8 w-auto object-contain" />
               <span className="exp-brand-mark truncate text-base leading-none">专家评标</span>
             </div>
 

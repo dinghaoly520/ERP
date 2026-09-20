@@ -17,6 +17,9 @@ import { PasswordResetRequestDialog } from "@/components/auth/password-reset-req
  * 不预填任何演示账号——硬编码真实种子凭证会让访客一键登录他企，属安全事故。
  * ACCOUNT_PENDING → 查询审核进度面板；TEMPORARY_EXPIRED → 邀请码续期面板。
  */
+/** 登录页背景图池（2026-09-20）：每次打开随机取一张（挂载后随机；SSR 首帧用第一张保证 hydration 一致） */
+const LOGIN_BG_POOL = ["/login-bg-1.jpg", "/login-bg-2.jpg", "/login-bg-3.jpg"] as const;
+
 const STATUS_TEXT: Record<string, string> = {
   PENDING: "待审核：您的注册申请正在审核中，请耐心等待。",
   RETURNED: "退回补正：申请被退回，请按原因补充材料后重新提交。",
@@ -30,6 +33,10 @@ function LoginForm() {
   const params = useSearchParams();
   const { login, logout, isLoggedIn } = useAuth();
 
+  const [bg, setBg] = useState<string>(LOGIN_BG_POOL[0]);
+  useEffect(() => {
+    setBg(LOGIN_BG_POOL[Math.floor(Math.random() * LOGIN_BG_POOL.length)]);
+  }, []);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -154,19 +161,19 @@ function LoginForm() {
   }
 
   return (
-    <main className="lp lp--supplier">
-      <div className="lp-bg" aria-hidden="true" />
+    <main className={`lp lp--supplier ${bg === "/login-bg-3.jpg" ? "lp--panel-left" : ""}`}>
+      <div className="lp-bg" aria-hidden="true" style={{ backgroundImage: `url(${bg})` }} />
 
-      <div className="lp-brand" aria-label="智慧水发 · 蜀水云采">
+      <div className="lp-brand" aria-label="蜀水云采 · 智慧水发">
         <Image src="/logo.png" alt="" width={54} height={54} className="lp-brand-mark" priority />
-        <span className="lp-brand-name">智慧水发 · 蜀水云采</span>
+        <span className="lp-brand-name">蜀水云采 · 智慧水发</span>
       </div>
 
       {!showPasswordReset ? (
         <section className="lp-panel" aria-label="登录表单">
         <div className="lp-card">
           <div className="lp-head">
-            <div className="lp-brand-word">智慧水发<span className="lp-dot">·</span>蜀水云采</div>
+            <div className="lp-brand-word">蜀水云采<span className="lp-dot">·</span>智慧水发</div>
             <div className="lp-divider" aria-hidden="true">◆</div>
             <h1 className="lp-title">供应商门户</h1>
             <p className="lp-subtitle">使用统一社会信用代码登录</p>

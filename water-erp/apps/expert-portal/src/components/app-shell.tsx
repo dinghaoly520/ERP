@@ -119,24 +119,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* cgzxui 水彩光晕 —— 玻璃侧栏背后漂移的色彩层 */}
       <div className="flow-glow" aria-hidden />
 
-      <div className="mx-auto flex h-full w-full overflow-hidden [perspective:1500px]">
+      <div className="mx-auto flex h-full w-full gap-0 overflow-hidden [perspective:1500px]">
         <aside
           data-hidden={sidebarHidden ? 'true' : 'false'}
-          className="sidebar-sheen sidebar-3d sidebar-card mr-4 flex h-full w-[268px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-br-[24px] rounded-bl-none pr-2"
+          className="sidebar-sheen sidebar-3d sidebar-card h-full shrink-0 flex-col"
         >
           {/* 品牌球 + 标题 */}
           <header className="flex flex-col items-center gap-2 px-3.5 pb-3.5 pt-4">
             <button
               type="button"
               onClick={() => router.push('/')}
-              className="brand-orb-3d exp-brand-orb flex h-12 w-12 shrink-0 items-center justify-center"
+              className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center"
               aria-label="返回工作台"
             >
-              <img src="/assets/logo.png" alt="智慧水发 · 专家门户" className="h-[42px] w-[42px] object-contain" />
+              <img src="/procurement-brand-logo.png" alt="蜀水云采 · 专家门户" className="h-[46px] w-[46px] rounded-[12px] object-cover" />
             </button>
             <div className="w-full text-center">
-              <div className="truncate text-[1rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                智慧水发 · 专家门户
+              <div className="exp-brand-text exp-brand-text--flow truncate text-[1rem] font-semibold tracking-[0.07em]">
+                蜀水云采 · 专家门户
               </div>
             </div>
           </header>
@@ -156,7 +156,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     className="sidebar-group-header flex w-full items-center gap-2 rounded-[12px] px-2 py-1.5 text-left transition-all duration-300"
                   >
                     <GroupIcon size={14} className="shrink-0 text-[color:var(--muted-foreground)]" strokeWidth={1.7} />
-                    <span className="flex-1 text-sm font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-foreground)]">
+                    <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">
                       {group.label}
                     </span>
                     <ChevronDown
@@ -181,12 +181,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                           >
                             {active && <span className="nav-active-skew absolute bottom-2 left-[2px] top-2 w-[2.5px]" />}
                             <Icon size={16} className="shrink-0" strokeWidth={1.7} />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-semibold">{item.label}</span>
-                              {item.caption && (
-                                <span className="block truncate text-[11px] text-[color:var(--muted-foreground)]">{item.caption}</span>
-                              )}
-                            </span>
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
                           </button>
                         );
                       })}
@@ -197,37 +192,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* 侧栏底栏 —— 退出 */}
-          <div className="px-2.5 pb-3 pt-2">
-            <div aria-hidden className="mx-1 mb-2.5 h-px bg-[linear-gradient(90deg,transparent,rgba(160,178,210,0.6),transparent)]" />
-            <button onClick={logout} className="neu-btn-soft is-danger w-full justify-center">
-              <LogOut size={15} strokeWidth={1.7} />
-              <span>退出登录</span>
+          {/* 底部折叠区（与 :3005 同款：渐隐发丝线 + 导航项同款按钮；rail 态翻转变为展开）*/}
+          {!sidebarHidden && <div aria-hidden className="sp-sidebar-hairline" />}
+          <div className="sp-collapse-zone">
+            <button
+              type="button"
+              onClick={() => setSidebarHidden(v => !v)}
+              aria-label={sidebarHidden ? '展开菜单栏' : '收起菜单栏'}
+              aria-expanded={!sidebarHidden}
+              title={sidebarHidden ? '展开菜单栏' : '收起菜单栏'}
+              className="sidebar-nav-item justify-center"
+            >
+              {sidebarHidden
+                ? <ChevronRight size={16} strokeWidth={1.7} aria-hidden="true" />
+                : <ChevronLeft size={16} strokeWidth={1.7} aria-hidden="true" />}
             </button>
           </div>
-
-          {/* 右边缘折叠手柄 */}
-          <button
-            type="button"
-            onClick={() => setSidebarHidden(true)}
-            aria-label="收起菜单栏"
-            className="sidebar-edge-tab group absolute right-0 top-1/2 z-20 flex h-9 w-[18px] -translate-y-1/2 items-center justify-center rounded-l-[7px] bg-[linear-gradient(90deg,oklch(0.975_0.012_258/0.62),oklch(1_0_0/0.95))] text-[color:var(--muted-foreground)] shadow-[-4px_0_7px_-3px_oklch(0.5_0.1_263/0.22),1px_0_3px_-2px_oklch(1_0_0/0.55)] transition-colors duration-200 hover:bg-[oklch(1_0_0/0.9)] hover:text-[color:var(--accent)]"
-          >
-            <ChevronLeft size={12} />
-          </button>
         </aside>
 
-        {/* 折叠态 —— 左边缘展开手柄 */}
-        {sidebarHidden && (
-          <button
-            type="button"
-            onClick={() => setSidebarHidden(false)}
-            aria-label="展开菜单栏"
-            className="sidebar-edge-tab group fixed left-0 top-1/2 z-30 flex h-9 w-[18px] -translate-y-1/2 items-center justify-center rounded-r-[7px] bg-[linear-gradient(270deg,oklch(0.975_0.012_258/0.62),oklch(1_0_0/0.95))] text-[color:var(--muted-foreground)] shadow-[4px_0_7px_-3px_oklch(0.5_0.1_263/0.22),-1px_0_3px_-2px_oklch(1_0_0/0.55)] transition-colors duration-200 hover:bg-[oklch(1_0_0/0.9)] hover:text-[color:var(--accent)]"
-          >
-            <ChevronRight size={12} />
-          </button>
-        )}
 
         <section className="flex h-full min-h-0 min-w-0 flex-1 overflow-visible px-1">
           <main className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">

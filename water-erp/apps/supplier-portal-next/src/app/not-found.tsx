@@ -12,8 +12,8 @@ export default function NotFound() {
   return (
     <div className="app-root__content flex min-h-screen flex-col">
       <header className="flex items-center gap-2.5 px-6 py-4">
-        <Image src="/logo.png" alt="智慧水发·蜀水云采" width={40} height={40} className="sp-brand-logo" priority />
-        <strong className="sp-brand-title">智慧水发 · 蜀水云采</strong>
+        <Image src="/logo.png" alt="蜀水云采·智慧水发" width={40} height={40} className="sp-brand-logo" priority />
+        <strong className="sp-brand-title">蜀水云采 · 智慧水发</strong>
       </header>
       <main className="flex flex-1 items-center justify-center p-6">
         <div className="sp-error-block max-w-[420px]">

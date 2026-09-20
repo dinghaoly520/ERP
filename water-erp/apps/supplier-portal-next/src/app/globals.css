@@ -12054,6 +12054,23 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   .lp-panel { grid-column: 1; grid-row: 2; align-items: stretch; min-height: auto; padding: 80px 18px 28px; }
 }
 
+/* bg-3 中签 → 整幅镜像：登录卡、磨砂 scrim、tint 渐变、品牌角标全部换到左侧，
+   把画面让给照片右侧主体（桌面专属；≤860px 单列布局无左右之分） */
+@media (min-width: 861px) {
+  .lp--panel-left { grid-template-columns: 640px minmax(0, 1fr); }
+  .lp--panel-left .lp-panel { grid-column: 1; align-items: flex-start; padding: 96px 32px 40px 150px; }
+  .lp--panel-left::before {
+    -webkit-mask-image: linear-gradient(270deg, transparent 0%, rgba(0,0,0,0.03) 40%, rgba(0,0,0,0.3) 68%, rgba(0,0,0,0.85) 92%, #000 100%);
+    mask-image: linear-gradient(270deg, transparent 0%, rgba(0,0,0,0.03) 40%, rgba(0,0,0,0.3) 68%, rgba(0,0,0,0.85) 92%, #000 100%);
+  }
+  .lp--panel-left::after {
+    background:
+      linear-gradient(270deg, transparent 0%, color-mix(in oklch, var(--tint) 5%, transparent) 42%, color-mix(in oklch, var(--tint) 40%, transparent) 70%, color-mix(in oklch, var(--tint) 94%, white) 100%),
+      radial-gradient(circle at 14% 46%, color-mix(in oklch, white 26%, transparent), transparent 42%);
+  }
+  .lp--panel-left .lp-brand { left: auto; right: 6vw; }
+}
+
 /* Pending / register-status callout (semantic warning surface) */
 .lp-pending {
   margin-top: 14px; padding: 12px 14px; border-radius: 12px;
