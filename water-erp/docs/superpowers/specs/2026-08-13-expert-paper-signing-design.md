@@ -282,3 +282,7 @@ PENDING ──登记──▶ SIGNED（附扫描件）
 **依据**：招标投标法第 37 条回避系专家主动申报义务，系统不得代为申报；名称归一化误匹配会强制误回避且不可撤销，侵害评审独立与供应商权益。附带消解了「回流包内冲突清单不区分自动/手动来源」的 P3——`conflictedSupplierIds` 自此全量为手动勾选，包内自明。
 
 **落地**：`confirmAvoidance` 改为显式传入（含空数组）整体替换、未传入保留既有（向后兼容）；删除 `ExpertConflictService`（含 spec，全仓唯一调用点即此）；专家门户回避区文案改为「回避申报以专家本人勾选为准」。存量数据中已合并的自动项保持原样（申报时点证据）。
+
+### 增补（2026-09-20）：归档导出取件三守卫（审查修复 ba32ed61）
+
+2026-09-20 多路代码审查发现 v2 扩展取件面后 exportAsip 的三个证据链缺口，已修复：①引用件缺行对账（`assertNoMissingRefs`——FileAsset 行缺失 → `ARCHIVE_HANDOVER_FETCH_FAILED` 整体拒绝，此前「被删则归档取件失败」只在 MinIO 对象缺失时成立）；②ZIP 同名消歧（`uniqueEntryName`——JSZip file() 覆盖语义，多专家同名扫描/笔迹图会静默丢证据）；③`fetchAllPaged` 分页全取（原 take:200 无截断检测）。三守卫有纯函数 spec + `exportAsip` 集成 spec（13 用例）锁定，含曾误删 `dir.file` 一行的集成点回归。
