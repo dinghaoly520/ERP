@@ -28,7 +28,7 @@ export const ARCHIVE_PICKUP_CATEGORIES = [
 export const HANDOVER_PICKUP_PAGE_SIZE = 200;
 
 /** 分页全取 FileAsset：orderBy id 保证翻页稳定，页不满即穷尽（防 take 截断产出缺件残包） */
-export async function fetchAllPaged<TArgs extends { skip: number; take: number }, T>(
+export async function fetchAllPaged<TArgs extends { skip?: number; take?: number }, T>(
   finder: (args: TArgs) => Promise<T[]>,
   args: Omit<TArgs, 'skip' | 'take' | 'orderBy'>,
 ): Promise<T[]> {
@@ -151,7 +151,7 @@ export class ArchiveExportService {
       }
     }
 
-    // ── 09 开评标接收件（回流包，MinIO）── H2：取件失败收集并整体拒绝，绝不导出缺件残包 ──
+    // ── 09 开评标接收件（回流包，MinIO）── H2：取件失败一律整体拒绝（缺行立即拒绝 / 下载失败收集报错），绝不导出缺件残包 ──
     const bpIds = item.bidProjects;
     const fetchFailures: string[] = [];
     if (bpIds.length > 0) {

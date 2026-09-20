@@ -43,7 +43,9 @@ function makeMocks(overrides: {
       return page;
     });
   } else {
-    prisma.fileAsset.findMany.mockResolvedValue(overrides.assets ?? []);
+    // 2026-09-20 复审硬化：按 skip 截片（同一数组整页返回会在恰 200 件 fixture 时让 fetchAllPaged 永不穷尽）
+    prisma.fileAsset.findMany.mockImplementation(async ({ skip }: { skip: number }) =>
+      (overrides.assets ?? []).slice(skip, skip + 200));
   }
   const storage = { download: jest.fn().mockResolvedValue(Buffer.from('x')), upload: jest.fn().mockResolvedValue(undefined) };
   const svc = new ArchiveExportService(
@@ -79,6 +81,12 @@ describe('exportAsip 取件三守卫集成', () => {
     const keys = await zipKeysOf(storage);
     expect(keys).toContain('SC-2026-1/项目管理/09_开评标接收件/expert_sign_scan/签字.jpg');
     expect(keys).toContain('SC-2026-1/项目管理/09_开评标接收件/expert_sign_scan/签字_2.jpg');
+    // 2026-09-20 复审补强：manifest 与卷内容一一对应——固化验证清单（由 manifest 生成）须含两条消歧路径
+    const buf = storage.upload.mock.calls[0][1] as Buffer;
+    const zip = await JSZip.loadAsync(buf);
+    const verify = await zip.file('SC-2026-1/其他/固化验证信息.txt')!.async('string');
+    expect(verify).toContain('09_开评标接收件/expert_sign_scan/签字.jpg');
+    expect(verify).toContain('09_开评标接收件/expert_sign_scan/签字_2.jpg');
   });
 
   it('引用件缺行（FileAsset 行不存在）→ ARCHIVE_HANDOVER_FETCH_FAILED 整体拒绝', async () => {
