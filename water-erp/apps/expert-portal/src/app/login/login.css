@@ -439,13 +439,15 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── 提交键箭头徽章（:3005 同款：悬停右移 + 品牌色晕）── */
+/* ── 提交键箭头徽章（2026-09-20 对齐 cgzxui component-specs「箭头 SVG 源」：
+   18×18 圆形容器 + 2px 内衬 + 13×13 纯 chevron；hover 右滑 4px + 品牌 8% 底）── */
 .login-arrow-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
   border-radius: 50%;
   background: transparent;
   transition:
@@ -455,7 +457,7 @@
 .login-submit-button:hover .login-arrow-badge,
 .login-submit-button:focus-visible .login-arrow-badge {
   transform: translateX(4px);
-  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  background: rgba(6, 78, 162, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
