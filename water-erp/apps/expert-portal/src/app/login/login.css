@@ -393,27 +393,33 @@
    apps/web/src/app/globals.css 的 login-title--gradient / login-arrow-badge。
    ============================================================================= */
 
-/* ── 渐变流光标题（:3005 同款五段水色渐变 + 缓慢流动）── */
+/* ── 彩色流转标题（2026-09-20 对齐 :3005 现行版：品牌蓝基色（非黑）+ 蓝/绿/青/紫/粉
+   彩色高光带 12s 线性匀速扫过；首尾同色 + repeat → 无缝循环。规则照搬
+   apps/web/src/app/globals.css 的 login-title--gradient，与其 :3002/:3004 同语言）── */
 .login-title--gradient {
   background: linear-gradient(
     90deg,
-    #0b3d7a 0%,
-    #064ea2 22%,
-    #0891a0 48%,
-    #18a56c 70%,
-    #064ea2 88%,
-    #0b3d7a 100%
+    #064ea2 0%,
+    #2f6fd0 8%,
+    #18a56c 18%,
+    #1e7fc4 30%,
+    #7a5bd0 42%,
+    #d0588f 54%,
+    #1e7fc4 66%,
+    #18a56c 78%,
+    #2f6fd0 88%,
+    #064ea2 100%
   );
-  background-size: 200% 100%;
+  background-size: 300% 100%;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: loginTitleFlow 8s ease-in-out infinite alternate;
+  animation: loginTitleFlow 12s linear infinite;
 }
 @keyframes loginTitleFlow {
   0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
+  100% { background-position: 300% 50%; }
 }
 
 /* ── 品牌光晕标漂浮循环（对齐 :3005 framer-motion 徽标 y/rotate/scale 循环）── */
@@ -463,7 +469,7 @@
 @media (prefers-reduced-motion: reduce) {
   .login-title--gradient {
     animation: none !important;
-    background-position: 22% 50%;
+    background-position: 0% 50%;
   }
   .login-mark--float { animation: none !important; }
   .login-rise { animation: none !important; opacity: 1; }

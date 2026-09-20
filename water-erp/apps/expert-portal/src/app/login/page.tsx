@@ -153,7 +153,7 @@ function ExpertLoginPage() {
           </div>
 
           <h1 className="login-title login-title--gradient mt-4 max-w-[16.5rem] text-[clamp(1.78rem,4.8vw,2.42rem)] font-black leading-[1.15] tracking-[0.08em] sm:max-w-none">
-            蜀水云采 · <span className="whitespace-nowrap">在线开评标系统</span>
+            蜀水云采 · <span className="whitespace-nowrap">开评标系统</span>
           </h1>
           <p className="login-slogan mt-5 text-[0.82rem] tracking-[0.28em]">独立评审 · 客观公正 · 全程留痕</p>
         </div>
