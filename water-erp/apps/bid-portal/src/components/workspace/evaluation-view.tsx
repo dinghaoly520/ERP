@@ -1377,9 +1377,6 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </div>
             <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
-              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                专家「{rejectFor.expertName}」存在核验异常——登记后写入<span className="font-semibold text-[var(--danger)]">监督日志高风险事件</span>并进入监督视图时间线，后续按规处置（异议裁决/流标等既有流程；开标后专家不可替换）。
-              </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">异常类型</label>
               <select value={rejectType} onChange={(e) => setRejectType(e.target.value as typeof rejectType)} className="workbench-input w-full">
                 <option value="人证不符">人证不符</option>
