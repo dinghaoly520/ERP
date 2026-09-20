@@ -757,13 +757,15 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                         ? 'bg-[oklch(0.94_0.05_152/0.5)] text-[var(--success)]'
                         : row.occlusion === 'unchecked'
                           ? 'bg-[oklch(0.96_0.015_27/0.35)] text-[var(--warning)]'
-                          : 'bg-[oklch(0.95_0.01_258)] text-[var(--muted-foreground)]'
+                          : row.method === 'off_mode'
+                            ? 'bg-[oklch(0.94_0.09_83/0.45)] text-[var(--warning)]'
+                            : 'bg-[oklch(0.95_0.01_258)] text-[var(--muted-foreground)]'
                   }`}
                   title={row.method === 'manual_confirm' ? `主持人现场确认：${row.manualReason ?? '—'}（确认人：${row.confirmedByName ?? '—'}）` : undefined}
                 >
                   {row.method === 'manual_confirm'
                     ? '主持人确认'
-                    : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : '无检测记录'}
+                    : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : row.method === 'off_mode' ? '应急放行' : '未记录'}
                 </span>
                 {row.photoAssetId ? (
                   <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
@@ -776,7 +778,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   </a>
                 ) : (
                   <span className="text-[10px] text-[var(--muted-foreground)]">
-                    {row.method === 'manual_confirm' ? '无照片（主持人确认）' : row.signedIn ? '无照片（应急）' : '—'}
+                    {row.method === 'manual_confirm' ? '无照片（主持人确认）' : row.method === 'off_mode' ? '无照片（应急）' : row.signedIn ? '未记录' : '—'}
                   </span>
                 )}
                 {row.anomaly && (
