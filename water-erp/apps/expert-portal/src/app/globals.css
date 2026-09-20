@@ -845,6 +845,20 @@ select.neu-select {
 }
 
 /* ── 品牌球（悬停 360° 旋转）── */
+/* 侧栏品牌标题彩色流转（2026-09-20 对齐 :3005 设计：品牌蓝基色 + 蓝/绿/青/紫/粉
+   十段高光带、300% 画布 12s linear、首尾同色无缝循环；同 :3007 顶栏 sp-brand-title） */
+.exp-brand-text--flow {
+  background: linear-gradient(90deg, #064ea2 0%, #2f6fd0 8%, #18a56c 18%, #1e7fc4 30%, #7a5bd0 42%, #d0588f 54%, #1e7fc4 66%, #18a56c 78%, #2f6fd0 88%, #064ea2 100%);
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: expBrandFlow 12s linear infinite;
+}
+@keyframes expBrandFlow { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+@media (prefers-reduced-motion: reduce) { .exp-brand-text--flow { animation: none; background-position: 0% 50%; } }
+
 .brand-orb-3d { transform-style: preserve-3d; transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1); }
 .brand-orb-3d:hover { transform: perspective(700px) rotateY(360deg) scale(1.08); }
 .exp-brand-orb {

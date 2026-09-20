@@ -135,7 +135,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <img src="/assets/logo.png" alt="蜀水云采 · 专家门户" className="h-[42px] w-[42px] object-contain" />
             </button>
             <div className="w-full text-center">
-              <div className="truncate text-[1rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+              <div className="exp-brand-text exp-brand-text--flow truncate text-[1rem] font-semibold tracking-[-0.02em]">
                 蜀水云采 · 专家门户
               </div>
             </div>
