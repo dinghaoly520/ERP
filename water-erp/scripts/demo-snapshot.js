@@ -199,6 +199,9 @@ async function restore() {
     ai_concordance_results: prisma.aiConcordanceResult,
     ai_bid_reports: prisma.aiBidReport,
   };
+  // 2026-09-20：schema 漂移消毒——迁移已删列的旧快照字段必须剥除，否则 Prisma create 报
+  // Unknown argument（身份核验 P1 删 BidExpert.phoneVerified，65e7240a；旧快照 09-14 捕获仍含该字段）
+  const REMOVED_FIELDS = { BidExpert: ['phoneVerified'] };
   // CI/异 KMS 环境适配（SNAPSHOT_RESEAL_CRYPTO=1 时生效，dev 默认关闭保持原值）：
   // 快照内 SupplierBidSubmission 的 sealedKey/bidPrice 是 dev KMS_SECRET 包裹的——
   // 换 KMS 环境解不开（解密全 DANGER）。此模式：①缺失的 FileAsset 补桩（dummy
@@ -273,6 +276,8 @@ async function restore() {
         await model.deleteMany({ where: { id: { in: rows.map((r) => r.id).filter(Boolean) } } }).catch(() => {});
       }
       for (const row of rows) {
+        const removed = REMOVED_FIELDS[table];
+        if (removed) for (const f of removed) if (row[f] !== undefined) delete row[f];
         await model.create({ data: row }).catch((e) => {
           console.error(`  回灌 ${table} 行失败（id=${row.id}）：${e.message?.slice(0, 140)}`);
           throw e;
