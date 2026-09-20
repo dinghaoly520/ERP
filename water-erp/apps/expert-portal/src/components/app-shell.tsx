@@ -129,10 +129,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => router.push('/')}
-              className="brand-orb-3d exp-brand-orb flex h-12 w-12 shrink-0 items-center justify-center"
+              className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center"
               aria-label="返回工作台"
             >
-              <img src="/assets/logo.png" alt="蜀水云采 · 专家门户" className="h-[42px] w-[42px] object-contain" />
+              <img src="/procurement-brand-logo.png" alt="蜀水云采 · 专家门户" className="h-[46px] w-[46px] rounded-[12px] object-cover" />
             </button>
             <div className="w-full text-center">
               <div className="exp-brand-text exp-brand-text--flow truncate text-[1rem] font-semibold tracking-[-0.02em]">
