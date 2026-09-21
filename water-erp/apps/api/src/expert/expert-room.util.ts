@@ -62,6 +62,19 @@ export const ROOM_CODE_MAX_ATTEMPTS = 3;
 export const ROOM_CODE_LOCK_MINUTES = 10;
 
 /**
+ * 口令已验判定（P3-3 2026-09-21 审查加固口径）：roomVerifiedAt 存在且
+ * （roomCodeAt 为空——手工改库/漂移，正式写点均成对写——或晚于口令轮换时间）。
+ * assertRoomUnlocked（闸门）与 getProject 的 roomCodeVerified（前端派生）共用，
+ * 防两处手抄谓词漂移（UI 说已验而 API 403，或反之）。
+ */
+export function isRoomVerified(
+  project: { roomCode: string | null; roomCodeAt: Date | null },
+  expert: { roomVerifiedAt: Date | null } | null | undefined,
+): boolean {
+  return !!expert?.roomVerifiedAt && (!project.roomCodeAt || expert.roomVerifiedAt >= project.roomCodeAt);
+}
+
+/**
  * 评标室口令闸（2026-09-20 spec §4；2026-09-21 P0-2 移入共享工具供 memo 等独立 service 复用）：
  * roomCode 非空且阶段 EVALUATING 且本人未验（roomVerifiedAt >= roomCodeAt）→ 403 ROOM_CODE_REQUIRED。
  * roomCode 为空（存量/未启用）恒放行——闸门 opt-in，启用权在主持人（:3007 矩阵生成/轮换）。
@@ -79,11 +92,9 @@ export async function assertRoomUnlocked(
     prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { roomVerifiedAt: true } }),
   ]);
   // P2-6（2026-09-21）：ABORTED（流标）同样保持闸门——评标终止后物料不裸奔；
-  // 已验专家（roomVerifiedAt>=roomCodeAt）仍可访问，未验者走 verifyRoomCode（阶段含 ABORTED）。
+  // 已验专家仍可访问，未验者走 verifyRoomCode（阶段含 ABORTED）。
   if (!project?.roomCode || (project.stage !== 'EVALUATING' && project.stage !== 'ABORTED')) return;
-  // P3-3（2026-09-21 审查）：roomCodeAt 为 NULL（手工改库/数据漂移——正式写点均成对写）时，
-  // 旧口径 `>= roomCodeAt` 恒不成立 → 验证成功也永远 403 死锁；此时退化为「已验证即放行」。
-  if (expert?.roomVerifiedAt && (!project.roomCodeAt || expert.roomVerifiedAt >= project.roomCodeAt)) return;
+  if (isRoomVerified(project, expert)) return;
   throw new ForbiddenException({ error: '请先输入评标室口令进入评标室', code: 'ROOM_CODE_REQUIRED' });
 }
 

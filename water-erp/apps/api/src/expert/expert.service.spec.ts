@@ -508,6 +508,31 @@ describe('ExpertService', () => {
         }),
       );
     });
+
+    it('复审：displayName=null（@IsOptional 放行 null）须跳过——否则非空列写入 null 触发 Prisma 500', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', displayName: '王建国' });
+      prisma.user.update.mockResolvedValue({ id: 'user-1', displayName: '王建国' });
+
+      await service.updateProfile('user-1', { displayName: null as any });
+
+      const call = prisma.user.update.mock.calls[0][0] as { data: Record<string, unknown> };
+      expect(call.data).not.toHaveProperty('displayName');
+    });
+
+    it('复审：major 空串/ null 不再假成功——空串如实清写 BidExpert，null 跳过', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      prisma.user.update.mockResolvedValue({ id: 'user-1' });
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.updateProfile('user-1', { major: '' });
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { major: '' } }),
+      );
+
+      prisma.bidExpert.updateMany.mockClear();
+      await service.updateProfile('user-1', { major: null as any });
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('身份隔离', () => {

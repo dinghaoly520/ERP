@@ -16,7 +16,7 @@ import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { resolveIdentityVerifyMode } from './identity-verify-mode';
 import {
   findOpenEvaluationWindows, notifyAdmins, assertRoomUnlocked as assertRoomUnlockedUtil,
-  ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
+  isRoomVerified, ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
 } from './expert-room.util';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
@@ -123,10 +123,11 @@ export class ExpertService {
 
   async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
     const data: Record<string, string> = {};
-    // P2-2（2026-09-21 审查）：原 `if (dto.displayName)` 会把空串静默跳过（保存假成功）；
-    // DTO 已加 @IsNotEmpty 显式 400，这里改为显式 !== undefined 兜底防同类回归
-    if (dto.displayName !== undefined) data.displayName = dto.displayName;
-    if (dto.email) data.email = dto.email;
+    // P2-2（2026-09-21 审查）+复审：原 `if (dto.displayName)` 把空串静默跳过（假成功），DTO 已加 @IsNotEmpty
+    // 显式 400；`!== undefined` 修正后仍放行 null（@IsOptional 只免校验不改值，null 直写非空列会 500）——
+    // 收口为 typeof 守卫：字符串才写（空串已被 DTO 拒），null/undefined 一律跳过。
+    if (typeof dto.displayName === 'string') data.displayName = dto.displayName;
+    if (typeof dto.email === 'string') data.email = dto.email;
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -134,7 +135,8 @@ export class ExpertService {
     });
 
     // Persist major to the expert's BidExpert records (current active assignments)
-    if (dto.major) {
+    // 复审：major 同样按 typeof 收口——空串如实清写（不再假成功），null 跳过
+    if (typeof dto.major === 'string') {
       await this.prisma.bidExpert.updateMany({
         where: { userId, signedIn: false },
         data: { major: dto.major },
@@ -390,12 +392,11 @@ export class ExpertService {
       // P3 host 态（2026-09-20 spec §4.2）：专家端据此锁定/解锁第 1 步（自我态恒 self）
       identityMode: resolveIdentityVerifyMode(),
       // 评标室口令（2026-09-20 spec §4）：只暴露「是否启用/是否已验」——口令明文仅 :3007 主持人可见；
-      // roomCodeVerified 与 assertRoomUnlocked 同口径（roomCode 非空且 EVALUATING 且 roomVerifiedAt >= roomCodeAt；
-      // P3-3 2026-09-21 审查加固：roomCodeAt 空值（手工改库/漂移——正式写点均成对写）时已验证即视为已验，防永久死锁）
+      // 复审：与 assertRoomUnlocked 共用 isRoomVerified（P3-3 roomCodeAt 空值加固口径单一来源，防手抄漂移）
       roomCode: undefined,
       roomCodeActive: !!project.roomCode && (project.stage === 'EVALUATING' || project.stage === 'ABORTED'),
       roomCodeVerified: !(!!project.roomCode && (project.stage === 'EVALUATING' || project.stage === 'ABORTED'))
-        || (!!expertRecord.roomVerifiedAt && (!project.roomCodeAt || expertRecord.roomVerifiedAt >= project.roomCodeAt)),
+        || isRoomVerified(project, expertRecord),
       // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
       // 逐人签到/回避/进度/报告确认改为聚合计数，对齐 WS broadcastAggregatePresence「只发计数」设计
       experts: project.experts.map(e => ({ id: e.id, expertName: e.expertName, major: e.major })),
