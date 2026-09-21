@@ -201,7 +201,8 @@ async function restore() {
   };
   // 2026-09-20：schema 漂移消毒——迁移已删列的旧快照字段必须剥除，否则 Prisma create 报
   // Unknown argument（身份核验 P1 删 BidExpert.phoneVerified，65e7240a；旧快照 09-14 捕获仍含该字段）
-  const REMOVED_FIELDS = { BidExpert: ['phoneVerified'] };
+  // 消毒映射：快照含 schema 已删列时在此追加（否则回灌 P2022）
+  const REMOVED_FIELDS = { BidExpert: ['phoneVerified'], ProjectManagementItem: ['terminationReason'] };
   // CI/异 KMS 环境适配（SNAPSHOT_RESEAL_CRYPTO=1 时生效，dev 默认关闭保持原值）：
   // 快照内 SupplierBidSubmission 的 sealedKey/bidPrice 是 dev KMS_SECRET 包裹的——
   // 换 KMS 环境解不开（解密全 DANGER）。此模式：①缺失的 FileAsset 补桩（dummy

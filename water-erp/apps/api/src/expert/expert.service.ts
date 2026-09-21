@@ -305,7 +305,9 @@ export class ExpertService {
         suppliers: true,
         openingSession: true,
         openingRecords: true,
-        experts: { select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true, reportConfirmed: true } },
+        // P1-9（2026-09-21 审查）：聚合口径只算正选——候补未递补前非评标委员会成员（招标投标法第37条），
+        // 否则有候补的项目 allMembersConfirmed/reportConfirmedCount===totalExperts 永假、组长末签按钮永不渲染
+        experts: { where: { expertRole: '正选' }, select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true, reportConfirmed: true } },
         scoreItems: {
           orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
           include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },

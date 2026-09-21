@@ -1930,6 +1930,7 @@ export default function ExpertEvaluatePage() {
                                         <PointChecklistScoring
                                           points={pfPoints}
                                           value={pfValueMap}
+                                          readOnly={scoreLocked || !canScoreActiveSupplier}
                                           onChange={(pid, pv) => setScores(prev => {
                                             const cur = prev[k] ?? { score: 0, reason: '' };
                                             const points = { ...(cur.points ?? pfValueMap), [pid]: pv };
@@ -1990,6 +1991,7 @@ export default function ExpertEvaluatePage() {
                                     <PointChecklistScoring
                                       points={itemPoints}
                                       value={buildFullPoints(item, val, committedScore)}
+                                      readOnly={scoreLocked || !canScoreActiveSupplier}
                                       onChange={(pid, pv) => setScores(prev => {
                                         const cur = prev[k] ?? { score: 0, reason: '' };
                                         // P2-3：onChange 同样以完整映射起种子——首次编辑不会从 0 起算覆盖提交分

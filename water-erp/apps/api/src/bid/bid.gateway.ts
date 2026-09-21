@@ -402,7 +402,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async broadcastAggregatePresence(projectId: string) {
     const experts = await this.prisma.bidExpert.findMany({
-      where: { projectId },
+      // P1-9（2026-09-21 审查）：与 getProject 聚合同口径——只算正选（候补未递补前非委员会成员）
+      where: { projectId, expertRole: '正选' },
       select: { signedIn: true, avoidanceConfirmed: true, reportConfirmed: true, progress: true },
     });
     const total = experts.length;
