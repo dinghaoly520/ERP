@@ -99,6 +99,12 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
     onChange({ start: startStr, end: endStr });
     setOpen(false);
   };
+  // 审查优化（2026-09-21）：快捷预设选中态——当前生效范围与预设完全一致时高亮
+  const presetMatches = (days: number) => {
+    const end = fmtDateStr(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    const start = fmtDateStr(new Date(Date.now() - days * 86400000).getFullYear(), new Date(Date.now() - days * 86400000).getMonth(), new Date(Date.now() - days * 86400000).getDate());
+    return value.start === start && value.end === end;
+  };
 
   const applyCustom = () => {
     if (draftStart && draftEnd) {
@@ -196,7 +202,11 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
                 key={p.key}
                 type="button"
                 onClick={() => applyPreset(p.days)}
-                className="rounded-[10px] px-2.5 py-1 text-[11px] font-bold text-[color:var(--muted-foreground)] transition hover:bg-[oklch(0.62_0.16_258_/_0.08)] hover:text-[color:var(--accent-strong)]"
+                className={`rounded-[10px] px-2.5 py-1 text-[11px] font-bold transition hover:bg-[oklch(0.62_0.16_258_/_0.08)] hover:text-[color:var(--accent-strong)] ${
+                  presetMatches(p.days)
+                    ? 'bg-[oklch(0.62_0.16_258_/_0.12)] text-[color:var(--accent-strong)]'
+                    : 'text-[color:var(--muted-foreground)]'
+                }`}
               >
                 {p.label}
               </button>
