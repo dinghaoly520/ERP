@@ -1881,8 +1881,10 @@ export default function ExpertEvaluatePage() {
                 const scoringSupplierName = project.suppliers.find(su => su.id === activeSupplier)?.supplierName || '';
                 return (
                   // P3-2（2026-09-21 审查）：不可评供应商（未解密/已撤回/已回避/已废标）整卡置灰防白填
-                  // ——惯用语同身份核验逐级解锁门（pointer-events-none select-none opacity-50）
-                  <div className={`space-y-6 ${!canScoreActiveSupplier && !scoreLocked ? 'pointer-events-none select-none opacity-50' : ''}`}>
+                  // ——惯用语同身份核验逐级解锁门（pointer-events-none select-none opacity-50）。
+                  // UI 验收修正：不设 scoreLocked 豁免——报告已确认（锁定态）下异常供应商同样不可评，
+                  // 置灰与锁定态正交（锁定态正常供应商的输入展示为既有行为，不在本修复范围）。
+                  <div className={`space-y-6 ${!canScoreActiveSupplier ? 'pointer-events-none select-none opacity-50' : ''}`}>
                     {Object.entries(grouped).map(([category, items]) => {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
                       const catScored = items.reduce((s, i) => s + (scores[scoreKey(activeSupplier, i.id)]?.score ?? 0), 0);
