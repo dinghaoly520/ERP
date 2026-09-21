@@ -103,7 +103,7 @@ export function ProjectStageTimeline({
   activeStageKey: ProjectWorkflowStageKey;
   activeRound: number;
   onSelect: (stageKey: ProjectWorkflowStageKey, round: number) => void;
-  onStageAction?: (stageKey: ProjectWorkflowStageKey) => void;
+  onStageAction?: (stageKey: ProjectWorkflowStageKey, round?: number | null) => void;
   showArchiveStep: boolean;
   archiveStepState: ArchiveStepState;
   /** 归档卡内「确认归档」动作（READY 态显示，与阶段卡操作按钮同款设计） */
@@ -277,7 +277,13 @@ export function ProjectStageTimeline({
                   <div key={entry.key} className={segmentClassName}>
                     <button
                       type="button"
-                      onClick={() => onSelect(stageKey, entry.round)}
+                      onClick={() => {
+                        // UX 增强（2026-09-21）：进行中步骤点击卡片主体直接打开对应操作面板
+                        //（此前仅切换右侧详情，用户点卡片无反应误以为入口失效）；
+                        // 其他步骤保持原「仅选中」语义。
+                        onSelect(stageKey, entry.round);
+                        if (entry.isInProgress && onStageAction) onStageAction(stageKey, entry.round);
+                      }}
                       data-selected={isSelected}
                       className={[
                         'pm-stage-card interactive-surface group relative flex min-h-[172px] min-w-0 flex-1 flex-col rounded-[28px] px-4 py-4 text-left',
@@ -342,8 +348,8 @@ export function ProjectStageTimeline({
                             <span
                               role="button"
                               tabIndex={0}
-                              onClick={(e) => { e.stopPropagation(); onStageAction(stageKey); }}
-                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onStageAction(stageKey); } }}
+                              onClick={(e) => { e.stopPropagation(); onStageAction(stageKey, entry.round); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onStageAction(stageKey, entry.round); } }}
                               className="pm-stage-action-btn shrink-0"
                             >
                               {actionLabel}

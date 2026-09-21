@@ -1295,7 +1295,7 @@ export function ProjectDetailPanel({
               activeStageKey={selectedStage.stageKey}
               activeRound={selectedRound}
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
-              onStageAction={readOnly ? undefined : (stageKey) => {
+              onStageAction={readOnly ? undefined : (stageKey, round) => {
                 if (readOnly) { toast.info('项目已归档，仅供查看'); return; }
                 // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身与后置（定标）入口必须可进
                 //（阶段推进后 status=IN_PROGRESS 即 isBidLocked=true，旧守卫把面板唯一入口拦死）
@@ -1309,7 +1309,8 @@ export function ProjectDetailPanel({
                 } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
                   setAnnouncementPublishOpen(true);
                 } else if (stageKey === 'BID_EVALUATION') {
-                  setBidConfirmRound(selectedRound);
+                  // UX 增强（2026-09-21）：round 取步骤卡传入值（卡片主体直开时 onSelect 尚未落地）
+                  setBidConfirmRound(round ?? selectedRound);
                   setBidConfirmOpen(true);
                 } else if (stageKey === 'AWARD_DECISION') {
                   setAwardFileMakerOpen(true);
