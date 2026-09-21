@@ -48,9 +48,13 @@ export default function ExpertProfilePage() {
       setProfile(data);
       setForm({ displayName: data.displayName, email: data.email || '' });
       setEditing(false);
-    } catch { toast.error('更新失败'); }
+    } catch (e: any) { toast.error(e.message || '更新失败'); } // P2-2：透出服务端校验消息（如「姓名不能为空」）
     setSaving(false);
   };
+
+  // P2-2（2026-09-21 审查）：空名/坏邮箱前端先拦——服务端静默跳过空名的假成功由此杜绝双保险
+  const emailValid = !form.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
+  const canSave = form.displayName.trim().length > 0 && emailValid;
 
   const cancelEdit = () => {
     setEditing(false);
@@ -99,7 +103,7 @@ export default function ExpertProfilePage() {
             {editing ? (
               <>
                 <button onClick={cancelEdit} className="neu-btn-soft">取消</button>
-                <button onClick={handleSave} disabled={saving} className="neu-btn-primary">
+                <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary">
                   {saving ? '保存中...' : '保存'}
                 </button>
               </>
@@ -156,8 +160,12 @@ export default function ExpertProfilePage() {
                 <input
                   value={form.displayName}
                   onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
+                  aria-invalid={form.displayName.trim().length === 0 ? 'true' : undefined}
                   className="neu-input"
                 />
+                {editing && form.displayName.trim().length === 0 && (
+                  <p className="mt-1 text-xs font-semibold text-[var(--danger)]">姓名不能为空</p>
+                )}
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-[var(--muted-foreground)]">邮箱</label>
@@ -167,9 +175,12 @@ export default function ExpertProfilePage() {
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   className="neu-input"
                 />
+                {editing && !emailValid && (
+                  <p className="mt-1 text-xs font-semibold text-[var(--danger)]">邮箱格式不正确</p>
+                )}
               </div>
               <div className="flex gap-3 pt-1">
-                <button onClick={handleSave} disabled={saving} className="neu-btn-primary !h-[38px]">
+                <button onClick={handleSave} disabled={saving || !canSave} className="neu-btn-primary !h-[38px]">
                   {saving ? '保存中...' : '保存'}
                 </button>
                 <button onClick={cancelEdit} className="neu-btn-soft h-[38px]">取消</button>

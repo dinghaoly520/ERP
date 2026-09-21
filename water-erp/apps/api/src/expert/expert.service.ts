@@ -123,7 +123,9 @@ export class ExpertService {
 
   async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
     const data: Record<string, string> = {};
-    if (dto.displayName) data.displayName = dto.displayName;
+    // P2-2（2026-09-21 审查）：原 `if (dto.displayName)` 会把空串静默跳过（保存假成功）；
+    // DTO 已加 @IsNotEmpty 显式 400，这里改为显式 !== undefined 兜底防同类回归
+    if (dto.displayName !== undefined) data.displayName = dto.displayName;
     if (dto.email) data.email = dto.email;
 
     await this.prisma.user.update({
