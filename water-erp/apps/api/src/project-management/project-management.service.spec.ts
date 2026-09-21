@@ -451,6 +451,7 @@ describe('ProjectManagementService', () => {
       archiveScope as never, // archiveScope（DA/T103 归档范围闸门，测试可覆写缺失清单）
       { onTerminalAttachmentUploaded: async () => undefined } as never, // archiveFlow
       { getRules: async (k: string) => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
+      {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
     );
     return {
       service,

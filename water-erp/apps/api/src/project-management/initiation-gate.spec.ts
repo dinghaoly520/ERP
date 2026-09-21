@@ -16,6 +16,7 @@ describe('updateStage 立项硬闸（INITIATION_NOT_APPROVED）', () => {
       (archiveScope ?? { checkStageGate: jest.fn().mockResolvedValue([]) }) as never,
       {} as never,
       {} as never,
+      {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
     );
 
   const stage = { projectManagementStage: { findFirst: jest.fn().mockResolvedValue({ id: 'st-1', stageKey: 'INITIATION' }) } };
