@@ -390,11 +390,12 @@ export class ExpertService {
       // P3 host 态（2026-09-20 spec §4.2）：专家端据此锁定/解锁第 1 步（自我态恒 self）
       identityMode: resolveIdentityVerifyMode(),
       // 评标室口令（2026-09-20 spec §4）：只暴露「是否启用/是否已验」——口令明文仅 :3007 主持人可见；
-      // roomCodeVerified 与 assertRoomUnlocked 同口径（roomCode 非空且 EVALUATING 且 roomVerifiedAt >= roomCodeAt）
+      // roomCodeVerified 与 assertRoomUnlocked 同口径（roomCode 非空且 EVALUATING 且 roomVerifiedAt >= roomCodeAt；
+      // P3-3 2026-09-21 审查加固：roomCodeAt 空值（手工改库/漂移——正式写点均成对写）时已验证即视为已验，防永久死锁）
       roomCode: undefined,
       roomCodeActive: !!project.roomCode && (project.stage === 'EVALUATING' || project.stage === 'ABORTED'),
       roomCodeVerified: !(!!project.roomCode && (project.stage === 'EVALUATING' || project.stage === 'ABORTED'))
-        || (!!expertRecord.roomVerifiedAt && !!project.roomCodeAt && expertRecord.roomVerifiedAt >= project.roomCodeAt),
+        || (!!expertRecord.roomVerifiedAt && (!project.roomCodeAt || expertRecord.roomVerifiedAt >= project.roomCodeAt)),
       // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
       // 逐人签到/回避/进度/报告确认改为聚合计数，对齐 WS broadcastAggregatePresence「只发计数」设计
       experts: project.experts.map(e => ({ id: e.id, expertName: e.expertName, major: e.major })),
