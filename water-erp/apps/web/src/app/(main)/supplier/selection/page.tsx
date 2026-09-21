@@ -2742,7 +2742,7 @@ export function SupplierSelectionPage({
                 已记录 <strong className="text-[var(--success)]">{confirmedCount}</strong> 家确认 · <strong className="text-[var(--danger)]">{declinedCount}</strong> 家放弃 · <strong className="text-[var(--foreground)]">{pendingCount}</strong> 家待确认
               </p>
               <div className="flex justify-center gap-3 mt-6">
-                <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft gap-2">
+                <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft gap-2 is-porcelain">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>返回供应商库
                 </button>
                 <button onClick={reset} className="neu-btn-soft">开始新一批</button>

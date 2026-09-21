@@ -8891,27 +8891,28 @@ a {
   padding: 8px 18px;
   font-size: 13px;
   font-weight: 600;
-  color: #5a6d8a;
-  background: #f4f7fc;
+  color: var(--foreground);
+  background: oklch(1 0 0); /* 白瓷底（2026-09-21：返回按钮统一白瓷，与分段切换白拇指/公告瓷片同语言） */
   border: none;
   border-radius: 8px;
   text-decoration: none;
   cursor: pointer;
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.7),
-    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
-    -1px -1px 3px oklch(1 0 0 / 0.85);
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 2px oklch(1 0 0 / 0.95);
   transition: all 0.3s ease;
   white-space: nowrap;
 }
 
 .flow-back:hover {
   color: var(--accent-strong);
-  background: #eef2f8;
+  background: oklch(1 0 0);
+  transform: translateY(-1px);
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
-    -2px -2px 5px oklch(1 0 0 / 0.9);
+    inset 0 1px 0 oklch(1 0 0 / 0.98),
+    3px 3px 8px oklch(0.55 0.03 258 / 0.2),
+    -2px -2px 5px oklch(1 0 0 / 0.95);
 }
 
 .flow-back:active {
@@ -9127,6 +9128,32 @@ a {
 .neu-btn-soft.is-primary { color: #fff; background: var(--neu-brand); }
 .neu-btn-soft.is-primary:hover { color: #fff; background: var(--neu-brand-deep); }
 .neu-btn-soft.is-primary:disabled { opacity: 0.5; }
+
+/* 白瓷变体（2026-09-21）：纯白凸起瓷片——返回/导航类次要按钮（返回供应商库/返回专家库）。
+   与分段切换白拇指、公告瓷片同语言：顶缘内高光 + 方向性双影，hover 抬升染蓝，active 内凹 */
+.neu-btn-soft.is-porcelain {
+  color: var(--foreground);
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 2px oklch(1 0 0 / 0.95);
+}
+.neu-btn-soft.is-porcelain:hover {
+  color: var(--accent-strong);
+  background: oklch(1 0 0);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.98),
+    3px 3px 8px oklch(0.55 0.03 258 / 0.2),
+    -2px -2px 5px oklch(1 0 0 / 0.95);
+}
+.neu-btn-soft.is-porcelain:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.16),
+    inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
 
 /* 按钮组容器 —— 将并排的 .neu-btn-primary(44px) 与 .neu-btn-soft(38px) 统一为 38px 等高，
    消除主/次按钮高度不齐（如弹窗底部「反馈给管理员 / 直接重新登录」）。 */

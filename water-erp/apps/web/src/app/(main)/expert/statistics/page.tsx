@@ -52,7 +52,7 @@ export default function ExpertStatisticsPage() {
             <div><div className="page-hero__title">专家统计</div><div className="page-hero__sub">专家库整体态势、专业分布、评价趋势与活跃度分析</div></div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
+            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft is-porcelain">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回专家库</button>
           </div>

@@ -81,7 +81,7 @@ export default function QualificationAlertsPage() {
           </div>
           <div className="page-hero__right">
             <button onClick={() => { load(); toast.success('已刷新'); }} disabled={loading} className="neu-btn-xs gap-1"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /></button>
-            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft is-porcelain">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回供应商库
             </button>

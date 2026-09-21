@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, BellRing, Clock3, Eye, EyeOff, KeyRound, Lock, SearchCheck, ShieldCheck, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, type LoginResult } from "@/lib/auth-context";
+import { resolveLoginBg, preloadLoginBg } from "@/lib/login-bg";
 import { authApi } from "@/lib/api/auth";
 import { getErrorMessage, validateLoginCredentials } from "@/lib/registration-validation";
 import { PasswordResetRequestDialog } from "@/components/auth/password-reset-request-dialog";
@@ -17,9 +18,6 @@ import { PasswordResetRequestDialog } from "@/components/auth/password-reset-req
  * 不预填任何演示账号——硬编码真实种子凭证会让访客一键登录他企，属安全事故。
  * ACCOUNT_PENDING → 查询审核进度面板；TEMPORARY_EXPIRED → 邀请码续期面板。
  */
-/** 登录页背景图池（2026-09-20）：每次打开随机取一张（挂载后随机；SSR 首帧用第一张保证 hydration 一致） */
-const LOGIN_BG_POOL = ["/login-bg-1.jpg", "/login-bg-2.jpg", "/login-bg-3.jpg"] as const;
-
 const STATUS_TEXT: Record<string, string> = {
   PENDING: "待审核：您的注册申请正在审核中，请耐心等待。",
   RETURNED: "退回补正：申请被退回，请按原因补充材料后重新提交。",
@@ -33,9 +31,11 @@ function LoginForm() {
   const params = useSearchParams();
   const { login, logout, isLoggedIn } = useAuth();
 
-  const [bg, setBg] = useState<string>(LOGIN_BG_POOL[0]);
-  useEffect(() => {
-    setBg(LOGIN_BG_POOL[Math.floor(Math.random() * LOGIN_BG_POOL.length)]);
+  // SSR 首帧不设背景图（纯色兜底），客户端 paint 前同步确定会话图——避免「SSR 图 A → 客户端随机图 B」跳变。
+  const [bg, setBg] = useState<string>("");
+  useLayoutEffect(() => {
+    setBg(resolveLoginBg());
+    preloadLoginBg();
   }, []);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -162,7 +162,7 @@ function LoginForm() {
 
   return (
     <main className={`lp lp--supplier ${bg === "/login-bg-3.jpg" ? "lp--panel-left" : ""}`}>
-      <div className="lp-bg" aria-hidden="true" style={{ backgroundImage: `url(${bg})` }} />
+      <div className="lp-bg" aria-hidden="true" suppressHydrationWarning style={{ backgroundImage: `url(${bg})` }} />
 
       <div className="lp-brand" aria-label="蜀水云采 · 智慧水发">
         <Image src="/logo.png" alt="" width={54} height={54} className="lp-brand-mark" priority />

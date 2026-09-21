@@ -84,7 +84,7 @@ export default function EliminationPage() {
               <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
               {refreshing ? '扫描中...' : '手动扫描'}
             </button>
-            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft">
+            <button onClick={() => router.push('/supplier/repository')} className="neu-btn-soft is-porcelain">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回供应商库
             </button>
