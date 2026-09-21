@@ -13,9 +13,10 @@ import { TimelineService } from './timeline.service';
 import { ProjectManagementService } from './project-management.service';
 import { TenderDraftService } from './tender-draft.service';
 import { GbCodeService } from '../common/gb-code.service';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [AiModule, AuthModule, KnowledgeModule, LocalAiModule, PrismaModule, StorageModule, ArchiveModule],
+  imports: [AiModule, AuthModule, KnowledgeModule, LocalAiModule, PrismaModule, StorageModule, ArchiveModule, NotificationModule],
   controllers: [StageComplianceController, ProjectManagementController],
   providers: [
     TimelineService,

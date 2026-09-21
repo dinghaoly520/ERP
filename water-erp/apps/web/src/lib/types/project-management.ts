@@ -136,12 +136,13 @@ export type ProjectManagementStage = {
   attachments: ProjectManagementAttachment[];
 };
 
-export type ProjectManagementItemStatus = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED';
+export type ProjectManagementItemStatus = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 
 export const PROJECT_MANAGEMENT_STATUS_LABELS: Record<ProjectManagementItemStatus, string> = {
   ACTIVE: '进行中',
   ARCHIVED: '已归档',
   RECYCLED: '已移除',
+  TERMINATED: '已终止',
 };
 
 export type ProjectFileAnalysis = {
@@ -206,6 +207,22 @@ export type ProjectManagementItem = {
   reviewedAt?: string | null;
   reviewedByName?: string | null;
   reviewComment?: string | null;
+  // 项目终止（2026-09-20）
+  terminationReason?: string | null;
+  terminatedAt?: string | null;
+  terminatedStage?: string | null;
+  terminatedProcurementRoundId?: string | null;
+  terminatedById?: string | null;
+  terminatedByName?: string | null;
+  terminationSnapshot?: {
+    stages?: Array<{
+      stageKey: string;
+      stageName: string;
+      status: string;
+      round: number;
+      attachments: Array<{ fileName: string; objectKey: string; uploadedAt: string; uploadedBy: string | null }>;
+    }>;
+  } | null;
   createdById?: string | null;
   createdByName?: string | null;
   /** 公司归属（写时快照）：创建人所属公司；null=未归属（admin 公司视图「未归属」桶） */

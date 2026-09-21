@@ -1,14 +1,16 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
+import { AlertCircle, Ban, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
 import {
   deleteProjectPermanently,
   fetchProjectManagementList,
   moveProjectToRecycleBin,
   restoreProjectFromRecycleBin,
+  terminateProject,
 } from '@/lib/api/project-management';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
@@ -24,8 +26,9 @@ import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/comp
 export function ProjectManagementPage() {
   const [items, setItems] = useState<ProjectManagementItem[]>([]);
   const [archivedItems, setArchivedItems] = useState<ProjectManagementItem[]>([]);
+  const [terminatedItems, setTerminatedItems] = useState<ProjectManagementItem[]>([]);
   const [recycledItems, setRecycledItems] = useState<ProjectManagementItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'terminated'>('active');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [drawerErrorMessage, setDrawerErrorMessage] = useState<string | null>(null);
@@ -50,13 +53,15 @@ export function ProjectManagementPage() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const [activeItems, archived, recycled] = await Promise.all([
+      const [activeItems, archived, terminated, recycled] = await Promise.all([
         fetchProjectManagementList('ACTIVE', companyId),
         fetchProjectManagementList('ARCHIVED', companyId),
+        fetchProjectManagementList('TERMINATED', companyId),
         fetchProjectManagementList('RECYCLED', companyId),
       ]);
       setItems(activeItems);
       setArchivedItems(archived);
+      setTerminatedItems(terminated);
       setRecycledItems(recycled);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '加载项目失败。');
@@ -83,7 +88,10 @@ export function ProjectManagementPage() {
     if (loading) return;
     const pid = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('projectId') : null;
     if (!pid) return;
-    const target = items.find((i) => i.id === pid);
+    // 三态集合查找：台账「项目详情」可从已归档/已终止项目深链进来，不能只查进行中
+    const target = items.find((i) => i.id === pid)
+      ?? archivedItems.find((i) => i.id === pid)
+      ?? terminatedItems.find((i) => i.id === pid);
     if (target) {
       setSelectedItemId(target.id);
       setAutoBidConfirm(new URLSearchParams(window.location.search).get('panel') === 'bid-confirm');
@@ -98,7 +106,7 @@ export function ProjectManagementPage() {
         },
       });
     }
-  }, [loading, items]);
+  }, [loading, items, archivedItems, terminatedItems]);
 
   useEffect(() => {
     setPortalReady(true);
@@ -128,22 +136,25 @@ export function ProjectManagementPage() {
     return Array.from(set).sort();
   }, [items]);
 
+  // 当前 tab 的数据源（active/archived/terminated）
+  const sourceItems = activeTab === 'archived' ? archivedItems : activeTab === 'terminated' ? terminatedItems : items;
+
   const operators = useMemo(() => {
-    const source = activeTab === 'archived' ? archivedItems : items;
+    const source = sourceItems;
     const set = new Set(source.map(i => i.createdByName).filter(Boolean));
     return Array.from(set).sort();
-  }, [items, archivedItems, activeTab]);
+  }, [sourceItems]);
 
   // 级联筛选：根据选中的维度提供可选项
   const filterOptions = useMemo(() => {
-    const source = activeTab === 'archived' ? archivedItems : items;
+    const source = sourceItems;
     if (filterType === 'method') return Array.from(new Set(source.map(i => i.procurementMethod).filter(Boolean))).sort();
     if (filterType === 'department') return Array.from(new Set(source.map(i => i.requesterDepartment).filter(Boolean))).sort();
     return Array.from(new Set(source.map(i => i.createdByName).filter(Boolean))).sort();
-  }, [filterType, items, archivedItems, activeTab]);
+  }, [filterType, sourceItems]);
 
   const filteredItems = useMemo(() => {
-    const source = activeTab === 'archived' ? archivedItems : items;
+    const source = sourceItems;
     let result = [...source];
 
     // Text search
@@ -182,7 +193,7 @@ export function ProjectManagementPage() {
     });
 
     return result;
-  }, [activeTab, items, archivedItems, keyword, sortBy, filterType, filterValue]);
+  }, [activeTab, sourceItems, keyword, sortBy, filterType, filterValue]);
 
   // admin 全部公司视图：按公司分组（计数降序、未归属沉底）；单公司视图用选择器公司名
   const companyViewAll = currentUser?.role === 'admin' && companyId === 'all';
@@ -196,9 +207,10 @@ export function ProjectManagementPage() {
   }, [companyViewAll, filteredItems]);
   const displayItems = filteredItems;
 
-  // 已完成（归档）项目同样可打开详情（只读）——selectedItem 须在 active+archived 两个集合中查找
+  // 已完成（归档）/已终止项目同样可打开详情（只读）——selectedItem 须在三个集合中查找
   const selectedItem = items.find((item) => item.id === selectedItemId)
     ?? archivedItems.find((item) => item.id === selectedItemId)
+    ?? terminatedItems.find((item) => item.id === selectedItemId)
     ?? null;
 
   /** Whether the current user is allowed to modify (recycle/restore/delete) a given project */
@@ -220,6 +232,18 @@ export function ProjectManagementPage() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '移至回收站失败。');
     }
+  };
+
+  const handleTerminate = async (projectId: string, reason: string, notify: 'none' | 'accepted' | 'all') => {
+    setErrorMessage(null);
+    const result = await terminateProject(projectId, reason, notify);
+    if (result?.notifiedCount) {
+      toast.success(`项目已终止，已通知 ${result.notifiedCount} 家供应商`);
+    }
+    if (selectedItemId === projectId) {
+      setSelectedItemId(null);
+    }
+    await loadItems();
   };
 
   const handleRestore = async (projectId: string) => {
@@ -322,7 +346,7 @@ export function ProjectManagementPage() {
                 )}
               </div>
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                <div className="neu-segment" role="group" aria-label="项目状态" data-index={activeTab === 'active' ? '0' : '1'}>
+                <div className="neu-segment" role="group" aria-label="项目状态" data-count="3" data-index={activeTab === 'active' ? '0' : activeTab === 'archived' ? '1' : '2'}>
                   <span className="neu-segment-thumb" aria-hidden="true" />
                   <button
                     type="button"
@@ -342,6 +366,16 @@ export function ProjectManagementPage() {
                     <CheckCircle2 size={13} className="inline mr-1" />
                     已完成
                     {archivedItems.length > 0 && <span className="neu-segment-count">{archivedItems.length}</span>}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('terminated')}
+                    className="neu-segment-btn"
+                    aria-pressed={activeTab === 'terminated'}
+                  >
+                    <Ban size={13} className="inline mr-1" />
+                    已终止
+                    {terminatedItems.length > 0 && <span className="neu-segment-count">{terminatedItems.length}</span>}
                   </button>
                 </div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
@@ -405,7 +439,7 @@ export function ProjectManagementPage() {
                       <ProjectCard
                         key={item.id}
                         item={item}
-                        variant={activeTab === 'archived' ? 'archived' : 'active'}
+                        variant={activeTab === 'archived' ? 'archived' : activeTab === 'terminated' ? 'terminated' : 'active'}
                         onOpen={() => {
                           setSelectedItemId(item.id);
                           setPageContext({
@@ -432,7 +466,7 @@ export function ProjectManagementPage() {
               )}
               {displayItems.length === 0 ? (
             <div className="wb-panel p-10 flex items-center justify-center">
-              <span className="text-sm text-[color:var(--muted-foreground)]">{activeTab === 'active' ? '当前没有进行中的项目。' : '当前没有已完成的项目。'}</span>
+              <span className="text-sm text-[color:var(--muted-foreground)]">{activeTab === 'active' ? '当前没有进行中的项目。' : activeTab === 'terminated' ? '当前没有已终止的项目。' : '当前没有已完成的项目。'}</span>
             </div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">
@@ -440,7 +474,7 @@ export function ProjectManagementPage() {
                 <ProjectCard
                   key={item.id}
                   item={item}
-                  variant={activeTab === 'archived' ? 'archived' : 'active'}
+                  variant={activeTab === 'archived' ? 'archived' : activeTab === 'terminated' ? 'terminated' : 'active'}
                   onOpen={() => {
                     setSelectedItemId(item.id);
                     setPageContext({
@@ -475,6 +509,7 @@ export function ProjectManagementPage() {
               }}
               onUpdated={() => loadItems()}
               onMoveToRecycleBin={handleMoveToRecycleBin}
+              onTerminate={handleTerminate}
               canModify={canModifyProject(selectedItem)}
               currentUsername={currentUser?.username}
               currentUserRole={currentUser?.role}

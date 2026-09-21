@@ -240,6 +240,17 @@ function announcementFieldHasValue(
   return true;
 }
 
+/** datetime-local 字段的展示值兼容层（2026-09-21 公示期限（止）统一 datetime 后）：
+ *  存量草稿/缓存/.docx 解析可能是旧「公告截止时间」的 date-only 值（YYYY-MM-DD），
+ *  datetime-local input 收到会判非法显空——渲染时补 23:59 升级（当日截止惯例，
+ *  与向导 announcementEndDate 自愈同口径）。用户一经编辑，onChange 即写回完整值 */
+function displayValueForField(field: AnnouncementFieldConfig, value: string): string {
+  if (field.type === 'datetime-local' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return `${value.trim()}T23:59`;
+  }
+  return value;
+}
+
 function AnnouncementFieldEditor({
   field,
   value,
@@ -270,7 +281,8 @@ function AnnouncementFieldEditor({
   onSupplierCheck?: () => void;
   supplierChecking?: boolean;
 }) {
-  const hasValue = announcementFieldHasValue(field, value);
+  const hasValue = announcementFieldHasValue(field, displayValueForField(field, value));
+  const shownValue = hasValue ? displayValueForField(field, value) : value;
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -396,7 +408,7 @@ function AnnouncementFieldEditor({
             <input
               ref={dateInputRef}
               type="datetime-local"
-              value={value}
+              value={shownValue}
               onChange={(e) => onChange(field.key, e.target.value)}
               onFocus={() => onFieldFocus?.(field.key)}
               className={commonInputClass}
@@ -454,7 +466,7 @@ function AnnouncementFieldEditor({
       ) : (
         <input
           type={field.type ?? "text"}
-          value={value}
+          value={shownValue}
           onChange={(e) => onChange(field.key, e.target.value)}
           onFocus={() => onFieldFocus?.(field.key)}
           placeholder={field.placeholder}
@@ -815,15 +827,12 @@ export function AnnouncementDialog({
       // 同时修正已有值但格式不符合 datetime-local 的字段
       const needsStartFix = !draftRecord.announcementStart?.trim()
         || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.announcementStart);
-      // announcementEnd 的 input 类型随模板不同：询比/竞价/邀请/内部招标=「公告截止时间」date（YYYY-MM-DD），
-      // 直接采购=「公示期限（止）」datetime-local。预填格式与校验正则须与字段类型一致，
-      // 否则 date 框收到带时分的值会被浏览器判非法 → 表单显示待补充（预览却有值）
-      const endIsDateOnly = fields.find((f) => f.key === 'announcementEnd')?.type === 'date';
-      const endValueRe = endIsDateOnly
-        ? /^\d{4}-\d{2}-\d{2}$/
-        : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+      // 公示期限（止）已全模板统一为 datetime-local（2026-09-21）；旧「公告截止时间」的
+      // date-only 存量值（YYYY-MM-DD）补 23:59 升级，否则 datetime-local 框判非法显空
+      const endValueRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
       const needsEndFix = !draftRecord.announcementEnd?.trim()
         || !endValueRe.test(draftRecord.announcementEnd);
+      const upgradeDateOnly = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T23:59` : iso);
       if (needsStartFix || needsEndFix) {
         const at = project.documentAcquireTime?.trim();
         if (at) {
@@ -844,7 +853,7 @@ export function AnnouncementDialog({
               return toISODate(s);
             };
             if (needsStartFix) patch.announcementStart = toISODatetime(startRaw);
-            if (needsEndFix) patch.announcementEnd = endIsDateOnly ? toISODate(endRaw) : toISODatetime(endRaw);
+            if (needsEndFix) patch.announcementEnd = upgradeDateOnly(toISODatetime(endRaw));
             if (!draftRecord.announcementDays?.trim()) {
               try {
                 const days = Math.round((new Date(toISODate(endRaw)).getTime() - new Date(toISODate(startRaw)).getTime()) / 86400000);
@@ -852,6 +861,9 @@ export function AnnouncementDialog({
               } catch {}
             }
           }
+        } else if (needsEndFix && draftRecord.announcementEnd?.trim()) {
+          // 无 documentAcquireTime 可再解析：旧 date-only 值直接补 23:59
+          patch.announcementEnd = upgradeDateOnly(draftRecord.announcementEnd);
         }
       }
     }

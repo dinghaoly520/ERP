@@ -2157,7 +2157,15 @@ export function buildInvitedBiddingAnnouncementPlan(
     // 旧版括号式目标（最高限价（大写）等）在模板中不存在 → 占位符原样残留（用户实测反馈）。
     { targetText: '最高限价1', ...buildReplacement('最高限价（大写）', stripTrailingZheng(answers.maxPriceChinese)) },
     { targetText: '最高限价2', ...buildReplacement('最高限价（小写）', answers.maxPriceNumeric) },
-    { targetText: '工期及进度要求', ...buildReplacement('工期及进度要求', answers.scheduleRequirementsType === 'none' ? '无' : answers.scheduleRequirements), isHierarchicalText: true },
+    // 工期及进度要求：选「无」时导出不再落「无」字（2026-09-21，与预览端对齐——预览对
+    // scheduleRequirementsType!=='have' 整行条件渲染省略）；空值+shouldDeleteLine → 整段删除
+    // {{工期及进度要求}} 占位段落（同「提交成果要求/服务内容」选无删除行的既有模式）
+    {
+      targetText: '工期及进度要求',
+      ...buildReplacement('工期及进度要求', answers.scheduleRequirementsType === 'none' ? '' : answers.scheduleRequirements, true),
+      isHierarchicalText: true,
+      shouldDeleteLine: answers.scheduleRequirementsType === 'none',
+    },
     { targetText: '报名方式及条件', ...buildReplacement('报名方式及条件', answers.registrationMethod), isHierarchicalText: true },
     // 模板占位符为编号式：{{公示期限1}}（起）/ {{公示期限2}}（止）
     { targetText: '公示期限1', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },

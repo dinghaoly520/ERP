@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Building2, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Send, Shield, Sparkles, UploadCloud, UserPlus, X , Layers } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
@@ -11,7 +11,6 @@ import {
   extractTenderFields,
   reopenProjectStage,
   reprocProject,
-  submitProjectForReview,
   reviewProjectSubmission,
   fetchProjectAttributions,
   refreshProjectSummary,
@@ -45,7 +44,6 @@ import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
 import { AwardFileMaker } from './award-file-maker';
 import { ContractStageModal } from '../contracts/contract-stage-modal';
-import { FrameworkModal } from '../framework/framework-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal, StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
@@ -345,6 +343,7 @@ export function ProjectDetailPanel({
   onClose,
   onUpdated,
   onMoveToRecycleBin,
+  onTerminate,
   canModify = true,
   currentUsername,
   currentUserRole,
@@ -354,6 +353,7 @@ export function ProjectDetailPanel({
   onClose: () => void;
   onUpdated: () => Promise<void>;
   onMoveToRecycleBin: (projectId: string) => Promise<void>;
+  onTerminate?: (projectId: string, reason: string, notify: 'none' | 'accepted' | 'all') => Promise<void>;
   canModify?: boolean;
   currentUsername?: string;
   currentUserRole?: string;
@@ -371,8 +371,8 @@ export function ProjectDetailPanel({
   // 本地 item 镜像 —— 上传后立即注入附件，不等父组件 onUpdated 回流
   const [localItem, setLocalItem] = useState(item);
 
-  // 只读模式（已完成归档）：允许查看全部内容，禁止一切编辑/推进/上传操作
-  const readOnly = item.status === 'ARCHIVED';
+  // 只读模式（已完成归档 / 已终止）：允许查看全部内容，禁止一切编辑/推进/上传操作
+  const readOnly = item.status === 'ARCHIVED' || item.status === 'TERMINATED';
 
   // 父组件重新渲染后同步本地镜像
   useEffect(() => {
@@ -526,7 +526,6 @@ export function ProjectDetailPanel({
   }, [autoOpenBidConfirm]);
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
   const [contractStageOpen, setContractStageOpen] = useState(false);
-  const [frameworkOpen, setFrameworkOpen] = useState(false);
   // 供应商参与（非谈判）：公告自动收集的参与供应商名单，优先于手动维护的 invitedSuppliers
   const [participantNames, setParticipantNames] = useState<string | null>(null);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
@@ -891,21 +890,7 @@ export function ProjectDetailPanel({
     }
   };
 
-  // ── CTS-EBS01 A-36/37 递交受理（申报人递交，admin 受理；服务端强制双人留痕）──
-  const handleSubmitForReview = async () => {
-    setReviewBusy(true);
-    setErrorMessage(null);
-    try {
-      await submitProjectForReview(item.id);
-      toast.success('已递交送审，等待受理');
-      await onUpdated();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '递交送审失败。');
-    } finally {
-      setReviewBusy(false);
-    }
-  };
-
+  // ── CTS-EBS01 A-36/37 递交受理（admin 受理；服务端强制双人留痕）──
   const handleReviewSubmission = async (approve: boolean) => {
     setReviewBusy(true);
     setErrorMessage(null);
@@ -932,6 +917,30 @@ export function ProjectDetailPanel({
       setErrorMessage(error instanceof Error ? error.message : '移至回收站失败。');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── 项目终止（2026-09-20）：填终止原因，项目进「已终止」只读列表 + 台账 CANCELLED 轮次 ──
+  const [terminateOpen, setTerminateOpen] = useState(false);
+  const [terminateReason, setTerminateReason] = useState('');
+  const [terminateNotify, setTerminateNotify] = useState<'none' | 'accepted' | 'all'>('none');
+  const [terminating, setTerminating] = useState(false);
+
+  const submitTerminate = async () => {
+    if (!terminateReason.trim()) { toast.warning('请填写终止原因'); return; }
+    if (terminateReason.trim().length < 2) { toast.warning('终止原因至少 2 个字符'); return; }
+    if (!onTerminate) { toast.error('当前账号无权终止项目'); return; }
+    setTerminating(true);
+    setErrorMessage(null);
+    try {
+      await onTerminate(item.id, terminateReason.trim(), terminateNotify);
+      toast.success('项目已终止');
+      setTerminateOpen(false);
+      onClose();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '项目终止失败。');
+    } finally {
+      setTerminating(false);
     }
   };
 
@@ -1153,15 +1162,6 @@ export function ProjectDetailPanel({
               </div>
             </div>
             <div className="page-hero__right">
-              {/* B4（附录 D）：框架协议两阶段管理（组织形式为框架协议时常用，全程可用） */}
-              <button type="button" onClick={() => setFrameworkOpen(true)} className="neu-btn-soft">
-                <Layers size={15} /> 框架协议
-              </button>
-              {!readOnly && canModify && item.status === 'ACTIVE' && (item.reviewStatus == null || item.reviewStatus === 'REJECTED') && (
-                <button type="button" onClick={() => void handleSubmitForReview()} disabled={reviewBusy || submitting || uploading} className="neu-btn-soft">
-                  <Send size={16} />{item.reviewStatus === 'REJECTED' ? '重新递交审核' : '递交审核'}
-                </button>
-              )}
               {currentUserRole === 'admin' && item.reviewStatus === 'PENDING' && (
                 <>
                   <button type="button" onClick={() => void handleReviewSubmission(true)} disabled={reviewBusy} className="neu-btn-soft">
@@ -1171,6 +1171,11 @@ export function ProjectDetailPanel({
                     <AlertTriangle size={16} />驳回
                   </button>
                 </>
+              )}
+              {!readOnly && canModify && (
+                <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
+                  <Ban size={16} />项目终止
+                </button>
               )}
               {!readOnly && canModify && (
                 <button type="button" onClick={() => void moveToRecycleBin()} disabled={submitting || uploading} className="neu-btn-soft is-danger">
@@ -1198,8 +1203,33 @@ export function ProjectDetailPanel({
             </div>
           )}
 
-          {/* 已归档只读横幅 */}
-          {readOnly && (
+          {/* 已归档 / 已终止 只读横幅 */}
+          {item.status === 'TERMINATED' ? (
+            <div className="rounded-[14px] px-4 py-3"
+              style={{ background: 'color-mix(in oklch, var(--danger) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--danger)]"
+                  style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)' }}>
+                  <Ban size={15} strokeWidth={1.9} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-bold text-[var(--danger)]">项目已终止 · 只读查看</div>
+                  <div className="mt-0.5 text-[11px] leading-5 text-[var(--muted-foreground)]">
+                    终止原因：<span className="font-semibold text-[var(--danger)]">{item.terminationReason || '未填写'}</span>
+                    {item.terminatedAt ? ` · 终止日期：${new Date(item.terminatedAt).toLocaleDateString('zh-CN')}` : ''}
+                    {item.terminatedByName ? ` · 终止人：${item.terminatedByName}` : ''}
+                  </div>
+                </div>
+              </div>
+              {item.terminatedStage && (
+                <div className="mt-2 flex items-center gap-1.5 border-t border-[color-mix(in_oklch,var(--danger)_15%,transparent)] pt-2 text-[11px] text-[var(--muted-foreground)]">
+                  <span className="font-semibold">终止时所在阶段：</span>
+                  <span>{item.terminatedStage}</span>
+                  <span className="ml-auto text-[var(--muted-foreground)]">终止不可恢复，仅供查阅；如需继续采购请重新建立项目</span>
+                </div>
+              )}
+            </div>
+          ) : readOnly && (
             <div className="flex items-center gap-3 rounded-[14px] px-4 py-3"
               style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--accent)]"
@@ -2052,6 +2082,88 @@ export function ProjectDetailPanel({
         onClose={() => setErrorMessage(null)}
       />
 
+      {/* 项目终止对话框（2026-09-20）：填终止原因，快照当前步骤与已有资料 */}
+      {terminateOpen && (
+        <Modal
+          open
+          onClose={() => !terminating && setTerminateOpen(false)}
+          closeOnBackdrop={!terminating}
+          closeOnEsc={!terminating}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><Ban size={14} strokeWidth={1.9} className="text-[var(--danger)]" /></span>
+              项目终止
+            </span>
+          }
+          description={<span>终止后项目进入「已终止」列表（只读），并写入采购台账记录</span>}
+          size="sm"
+          footer={
+            <>
+              <button type="button" onClick={() => setTerminateOpen(false)} disabled={terminating} className="neu-btn-soft !h-9 !text-xs">取消</button>
+              <button type="button" onClick={() => void submitTerminate()} disabled={terminating || !terminateReason.trim()} className="neu-btn-soft is-danger !h-9 !text-xs">{terminating ? '终止中…' : '确认终止'}</button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">终止原因（必填，至少 2 字）</div>
+              <textarea
+                value={terminateReason}
+                onChange={(e) => setTerminateReason(e.target.value)}
+                placeholder="请填写项目终止的具体原因…"
+                className="neu-input min-h-[88px] w-full resize-none text-sm"
+                minLength={2}
+                autoFocus
+              />
+            </div>
+
+            {/* 终止通知配置（2026-09-21 拍板：由用户选择通知对象） */}
+            <div>
+              <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">终止通知</div>
+              <div className="space-y-1.5">
+                {([
+                  { key: 'none', label: '不发送通知', desc: '' },
+                  { key: 'accepted', label: '通知已确认参与的供应商', desc: '仅回执「已确认参加」的供应商' },
+                  { key: 'all', label: '通知全部受邀供应商', desc: '含待确认/已放弃的全部受邀供应商' },
+                ] as const).map((opt) => (
+                  <label
+                    key={opt.key}
+                    className={`flex cursor-pointer items-start gap-2.5 rounded-[10px] px-3 py-2.5 transition ${
+                      terminateNotify === opt.key
+                        ? 'bg-[color-mix(in_oklch,var(--danger)_8%,transparent)]'
+                        : 'bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] hover:bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="terminate-notify"
+                      checked={terminateNotify === opt.key}
+                      onChange={() => setTerminateNotify(opt.key)}
+                      className="mt-0.5 accent-[var(--danger)]"
+                    />
+                    <span className="min-w-0">
+                      <span className={`block text-xs font-semibold ${terminateNotify === opt.key ? 'text-[var(--danger)]' : 'text-[color:var(--foreground)]'}`}>{opt.label}</span>
+                      {opt.desc && <span className="mt-0.5 block text-[11px] leading-4 text-[var(--muted-foreground)]">{opt.desc}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {terminateNotify !== 'none' && (
+                <p className="mt-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                  通知将包含项目名称、终止日期与终止原因，发送至所选供应商的门户站内信。
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3">
+              <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+                终止将记录当前所在阶段（{(() => { const s = item.stages.find((st) => st.stageKey === item.currentStage); return s?.stageName ?? item.currentStage; })()}）及已上传资料，写入采购台账（标记为已取消）。已发布的采购公告将同步下架，进行中的招标流程联动流标，未完成工作安排自动取消。操作不可逆，终止后不可恢复；如需继续采购请重新建立项目。
+              </p>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* 归档确认对话框 */}
       {showArchiveConfirm && (
         <Modal
@@ -2177,9 +2289,6 @@ export function ProjectDetailPanel({
         project={item}
         onPublished={onUpdated}
       />
-
-      {/* B4（附录 D）：框架协议采购两阶段 */}
-      <FrameworkModal open={frameworkOpen} onClose={() => setFrameworkOpen(false)} projectManagementItemId={item.id} />
 
       {/* C2/C3/C4：合同订立·履行·验收（GB/T 43711 7.5.4/7.6） */}
       <ContractStageModal

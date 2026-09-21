@@ -10,8 +10,8 @@ export class QueryProjectManagementDto {
   requesterDepartment?: string;
 
   @IsOptional()
-  @IsIn(['ACTIVE', 'ARCHIVED', 'RECYCLED'])
-  status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED';
+  @IsIn(['ACTIVE', 'ARCHIVED', 'RECYCLED', 'TERMINATED'])
+  status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 
   @IsOptional()
   @IsString()

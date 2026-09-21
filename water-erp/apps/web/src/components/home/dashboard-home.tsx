@@ -168,6 +168,28 @@ function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRa
           </div>
 
           <div className="neu-card-static rounded-[12px] px-4 py-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]"><FolderKanban size={12}/> 项目信息</div>
+            <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-[var(--muted-foreground)] shrink-0">项目编号</span>
+                <span className="truncate font-mono text-xs font-semibold text-[var(--foreground)]">{active.projectCode || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-[var(--muted-foreground)] shrink-0">中标供应商</span>
+                <span className="truncate text-xs font-semibold text-[var(--foreground)]">{active.awardedSupplierName || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-[var(--muted-foreground)] shrink-0">参与供应商</span>
+                <span className="text-xs font-semibold text-[var(--foreground)] tabular-nums">{active.participantCount} 家</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-[var(--muted-foreground)] shrink-0">采购方式</span>
+                <span className="truncate text-xs font-semibold text-[var(--foreground)]">{active.method || "—"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="neu-card-static rounded-[12px] px-4 py-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--success)]">节资额对比</span>
               <span className="text-xs font-bold tabular-nums" style={{ color: rateColor(active.savingsRate) }}>节约 {active.savingsLabel}</span>
@@ -297,7 +319,7 @@ function NonAwardDonutPanel({ profile, index, reducedMotion }: { profile: Dashbo
           </div>
         </section>
       </motion.div>
-      {ar && <Modal open onClose={()=>setAr(null)} size="md" title={<span className="flex items-center gap-3"><AlertCircle size={20} className="text-[var(--danger)]"/><span className="text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]">{ar.label}</span></span>} description={<span className="flex items-center gap-2"><span className="text-[11px] font-bold text-[var(--danger)]">{ar.count} 项</span><span className="text-xs text-[var(--muted-foreground)]">未成交项目</span></span>}><div className="grid grid-cols-2 gap-2 mb-4"><div className="neu-card-static rounded-[12px] px-3 py-2 text-center"><div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">项目数</div><div className="mt-1 text-[14px] font-bold text-[var(--danger)]">{ar.count}</div></div><div className="neu-card-static rounded-[12px] px-3 py-2 text-center"><div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">占比</div><div className="mt-1 text-[14px] font-bold text-[var(--warning)]">{((ar.count/total)*100).toFixed(1)}%</div></div></div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><BarChart3 size={12}/> 相关项目</div><div className="space-y-1.5">{(ar.projects??[]).map((p,idx)=><div key={idx} className="neu-card-static rounded-[10px] flex items-center gap-3 px-3 py-2"><div className="flex-1 min-w-0"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{p.name}</div><div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><span>{p.date}</span><span>·</span><span>{p.department}</span></div></div><div className="text-right shrink-0"><div className="text-xs font-bold text-[var(--foreground)]">{p.budgetLabel}</div><div className="text-xs text-[var(--danger)]">{p.reason}</div></div></div>)}</div></Modal>}
+      {ar && <Modal open onClose={()=>setAr(null)} size="md" title={<span className="flex items-center gap-3"><AlertCircle size={20} className="text-[var(--danger)] shrink-0"/><span className="max-w-[380px] truncate text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]" title={ar.label}>{ar.label}</span></span>} description={<span className="flex items-center gap-2"><span className="text-[11px] font-bold text-[var(--danger)]">{ar.count} 项</span><span className="text-xs text-[var(--muted-foreground)]">未成交项目</span></span>}><div className="grid grid-cols-2 gap-2 mb-4"><div className="neu-card-static rounded-[12px] px-3 py-2 text-center"><div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">项目数</div><div className="mt-1 text-[14px] font-bold text-[var(--danger)]">{ar.count}</div></div><div className="neu-card-static rounded-[12px] px-3 py-2 text-center"><div className="text-xs uppercase tracking-[0.1em] text-[var(--muted-foreground)]">占比</div><div className="mt-1 text-[14px] font-bold text-[var(--warning)]">{((ar.count/total)*100).toFixed(1)}%</div></div></div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><BarChart3 size={12}/> 相关项目</div><div className="space-y-1.5">{(ar.projects??[]).map((p,idx)=><div key={idx} className="neu-card-static rounded-[10px] flex items-center gap-3 px-3 py-2"><div className="flex-1 min-w-0"><div className="truncate text-[11px] font-medium text-[var(--foreground)]">{p.name}</div><div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><span>{p.date}</span><span>·</span><span>{p.department}</span></div></div><div className="text-right shrink-0"><div className="text-xs font-bold text-[var(--foreground)]">{p.budgetLabel}</div><div className="max-w-[180px] truncate text-xs text-[var(--danger)]" title={p.reason}>{p.reason}</div></div></div>)}</div></Modal>}
     </>
   );
 }

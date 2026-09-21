@@ -43,6 +43,11 @@ export class QueryProcurementsDto {
   @IsIn(['ACTIVE', 'RECYCLED', 'ALL'])
   recycleStatus?: 'ACTIVE' | 'RECYCLED' | 'ALL' = 'ACTIVE';
 
+  /** 台账类型快捷筛选（2026-09-20）：已归档=项目管理已完成的成交轮次；已终止=项目终止的取消轮次 */
+  @IsOptional()
+  @IsIn(['archived', 'terminated'])
+  category?: 'archived' | 'terminated';
+
   @IsOptional()
   @IsString()
   sortBy?: string = 'procurementDate';

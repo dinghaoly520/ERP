@@ -32,6 +32,7 @@ export type ProcurementRoundItem = {
   resultStatus: ResultStatusKey;
   resultStatusLabel: string;
   resultText: string | null;
+  terminationReason: string | null;
   sourceType: SourceTypeKey;
   projectManagementId: string | null;
   createdById: string | null;
@@ -72,6 +73,8 @@ export type LedgerFilterState = {
   resultStatus: ResultStatusKey | null;
   searchKeyword: string;
   recycleStatus?: "ACTIVE" | "RECYCLED" | "ALL";
+  /** 台账类型快捷筛选（2026-09-20）：archived=已归档、terminated=已终止 */
+  category?: "archived" | "terminated" | null;
 };
 
 // 统计汇总

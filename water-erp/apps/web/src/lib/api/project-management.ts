@@ -113,7 +113,7 @@ export function buildProjectManagementCreatePayload(fields: InitiationFields) {
 }
 
 export async function fetchProjectManagementList(
-  status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED',
+  status?: 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED',
   companyId?: string,
 ) {
   const params = new URLSearchParams();
@@ -478,6 +478,19 @@ export async function moveProjectToRecycleBin(projectId: string) {
   });
 
   return parseJsonResponse<ProjectManagementItem>(response);
+}
+
+/** 项目终止（2026-09-20）：填终止原因，项目进入「已终止」只读列表并写入台账 CANCELLED 轮次；
+ *  notify 由用户选择：none=不发送 | accepted=通知已确认参与的供应商 | all=通知全部受邀供应商 */
+export async function terminateProject(projectId: string, reason: string, notify: 'none' | 'accepted' | 'all' = 'none') {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/terminate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ reason, notify }),
+  });
+
+  return parseJsonResponse<ProjectManagementItem & { notifiedCount?: number }>(response);
 }
 
 export async function restoreProjectFromRecycleBin(projectId: string) {

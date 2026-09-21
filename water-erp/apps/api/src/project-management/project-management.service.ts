@@ -27,6 +27,7 @@ import { GbCodeService } from '../common/gb-code.service';
 import { ArchiveScopeService } from '../archive/archive-scope.service';
 import { StageComplianceConfigService } from './stage-compliance-config.service';
 import { ArchiveFlowService } from '../archive/archive-flow.service';
+import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { ReviewSubmissionDto } from './dto/review-submission.dto';
@@ -40,7 +41,7 @@ import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.typ
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 
-type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED';
+type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
 type StoredAttachment = {
@@ -58,6 +59,7 @@ const PROJECT_MANAGEMENT_STATUS: Record<
   ACTIVE: 'ACTIVE',
   ARCHIVED: 'ARCHIVED',
   RECYCLED: 'RECYCLED',
+  TERMINATED: 'TERMINATED',
 };
 
 const PROJECT_STAGE_STATUS: Record<
@@ -220,6 +222,7 @@ export class ProjectManagementService {
     private readonly archiveScope: ArchiveScopeService,
     private readonly archiveFlow: ArchiveFlowService,
     private readonly stageCompliance: StageComplianceConfigService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
@@ -271,6 +274,7 @@ export class ProjectManagementService {
         createdBy: true,
         submittedBy: true,
         reviewedBy: true,
+        terminatedBy: true,
       },
     });
 
@@ -280,6 +284,7 @@ export class ProjectManagementService {
       createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
       submittedByName: item.submittedBy?.displayName || item.submittedBy?.username || null,
       reviewedByName: item.reviewedBy?.displayName || item.reviewedBy?.username || null,
+      terminatedByName: item.terminatedBy?.displayName || item.terminatedBy?.username || null,
     }));
   }
 
@@ -3553,6 +3558,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
+    // 状态机闸门（2026-09-20 补齐）：仅进行中项目可归档；已终止/回收站项目不可归档——
+    // 否则终止项目（若恰在合同阶段）可被再次归档，台账出现同名 CANCELLED + AWARDED 双记录。
+    if (project.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
+      throw new BadRequestException('仅进行中的项目可以归档。');
+    }
+
     // allowIncomplete：流标归档等场景，跳过"合同完成"校验
     if (!dto.allowIncomplete && project.currentStage !== 'CONTRACT') {
       throw new BadRequestException('只有合同阶段完成后才允许归档。');
@@ -3587,7 +3598,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
       const createdProject = await tx.project.create({
         data: {
-          projectCode: `PM-${project.id}`,
+          // 项目编号承继 PMI 三段式编号（SWHI-TP-YYYYMMDD##），而非 PM-<cuid> 内码
+          // （此前误写 cuid → 台账/数据库展示的「项目编号」是内部 id，非业务编号）。
+          projectCode: project.projectCode ?? `PM-${project.id}`,
           name: project.title,
           businessCategory: project.procurementCategory,
           description: project.projectReason,
@@ -3680,6 +3693,259 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
 
     return result;
+  }
+
+  /**
+   * 项目终止（2026-09-20）：进行中的项目可终止。
+   *  - 记录终止原因 + 终止时所在阶段（快照）+ 关联的台账轮次
+   *  - 同时写入采购台账：一条 CANCELLED 轮次（格式与归档一致，缺省字段留空，附终止原因）
+   *  - 终止项目在「项目管理 → 已终止」列表只读查看，不得再编辑/推进
+   */
+  async terminateProject(projectId: string, dto: { reason?: string; notify?: 'none' | 'accepted' | 'all' }, userId?: string, user?: AuthenticatedUser) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true, title: true, projectCode: true, procurementMethod: true, procurementCategory: true,
+        projectReason: true, budgetAmount: true, requesterDepartment: true, companyId: true, companyName: true,
+        biddingUnits: true, expertInfo: true, awardedSupplier: true, contractAmount: true,
+        currentStage: true, status: true, createdById: true,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    // 仅创建人或 admin 可终止
+    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
+      throw new ForbiddenException('只能终止本人创建的项目。');
+    }
+
+    if (project.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
+      throw new BadRequestException('仅进行中的项目可以终止。');
+    }
+
+    const reason = (dto.reason ?? '').trim();
+    if (!reason) {
+      throw new BadRequestException('请填写终止原因。');
+    }
+
+    // 终止时所在阶段名（快照）
+    const stageLabel =
+      PROJECT_WORKFLOW_STAGES.find((s) => s.key === project.currentStage)?.label ?? project.currentStage;
+
+    // 终止时资料快照：各阶段状态 + 已上传附件清单（不可变留痕，审计/归档追溯用）
+    const stages = await this.prisma.projectManagementStage.findMany({
+      where: { projectManagementItemId: projectId },
+      include: { attachments: { select: { fileName: true, objectKey: true, createdAt: true, uploadedBy: { select: { displayName: true } } } } },
+      orderBy: { stageOrder: 'asc' },
+    });
+    const terminationSnapshot = {
+      stages: stages.map((s) => ({
+        stageKey: s.stageKey,
+        stageName: s.stageName,
+        status: s.status,
+        round: s.round,
+        attachments: s.attachments.map((a) => ({
+          fileName: a.fileName,
+          objectKey: a.objectKey,
+          uploadedAt: a.createdAt,
+          uploadedBy: a.uploadedBy?.displayName ?? null,
+        })),
+      })),
+    };
+
+    const terminatedAt = new Date();
+
+    // ── 下游联动调查（事务前取数）：关联招标项目 + 公告编号 ──
+    const linkedBidProjects = await this.prisma.bidProject.findMany({
+      where: { projectManagementItemId: projectId },
+      select: { id: true, name: true, stage: true, projectCode: true, procurementMethod: true },
+    });
+    // 非终态（ARCHIVED=不可逆终态、ABORTED=已流标）的才联动流标
+    const activeBidProjects = linkedBidProjects.filter((bp) => bp.stage !== 'ARCHIVED' && bp.stage !== 'ABORTED');
+    const linkedProjectCodes = linkedBidProjects.map((bp) => bp.projectCode).filter((pc): pc is string => !!pc);
+
+    return this.prisma.$transaction(async (tx) => {
+      const department = await tx.department.upsert({
+        where: { name: project.requesterDepartment },
+        update: {},
+        create: { name: project.requesterDepartment },
+      });
+
+      // 台账：项目编号承继 PMI 三段式编号（与归档同口径，修复历史 cuid 内码）。
+      // 用 upsert 幂等：公告直建等路径可能已为同一 projectCode 在 Project 表建过记录，避免撞 @unique。
+      const createdProject = await tx.project.upsert({
+        where: { projectCode: project.projectCode ?? `PM-${project.id}` },
+        update: { name: project.title },
+        create: {
+          projectCode: project.projectCode ?? `PM-${project.id}`,
+          name: project.title,
+          businessCategory: project.procurementCategory,
+          description: project.projectReason,
+          requestingDepartmentId: department.id,
+        },
+      });
+
+      // 动态轮次号：同一 projectId 下已有轮次则 +1，避免 @@unique([projectId, roundNo]) 冲突
+      // （硬编码 roundNo=1 在项目曾关联过台账轮次的场景下会撞 P2002）。
+      const lastRound = await tx.procurementRound.findFirst({
+        where: { projectId: createdProject.id },
+        orderBy: { roundNo: 'desc' },
+        select: { roundNo: true },
+      });
+      const roundNo = (lastRound?.roundNo ?? 0) + 1;
+
+      // 终止轮次：结果=已取消；终止原因单独落 terminationReason 列；缺省字段（成交金额等）留空。
+      // procurementDate 落终止时点——终止本身是一次有日期的采购事件，台账日期列与排序由此有意义。
+      const procurementRound = await tx.procurementRound.create({
+        data: {
+          projectId: createdProject.id,
+          roundNo,
+          procurementDate: terminatedAt,
+          procurementMethod: project.procurementMethod,
+          departmentId: department.id,
+          budgetAmount: project.budgetAmount,
+          controlAmount: project.budgetAmount,
+          resultStatus: ResultStatus.CANCELLED,
+          resultText: '项目已终止',
+          sourceType: SourceType.PROJECT_MANAGEMENT,
+          createdById: userId ?? null,
+          companyId: project.companyId ?? null,
+          companyName: project.companyName ?? null,
+          biddingUnits: project.biddingUnits || null,
+          expertInfo: project.expertInfo || null,
+          terminationReason: reason,
+        },
+      });
+
+      const updated = await tx.projectManagementItem.update({
+        where: { id: projectId },
+        data: {
+          status: PROJECT_MANAGEMENT_STATUS.TERMINATED,
+          terminationReason: reason,
+          terminatedAt,
+          terminatedStage: stageLabel,
+          terminatedProcurementRoundId: procurementRound.id,
+          terminatedById: userId ?? null,
+          terminationSnapshot,
+        },
+      });
+
+      // ── 下游联动①：关联招标项目流标（2026-09-21 拍板：终止必须闭环下游）──
+      // ABORTED 后供应商端「可投标项目」（stage∈DOWNLOAD/SUBMIT）自动排除；
+      // ARCHIVED 终态跳过（归档数据不可扰动）；监督时间线留痕联动原因。
+      for (const bp of activeBidProjects) {
+        const note = `项目终止联动流标（${terminatedAt.toISOString()}${userId ? `，操作人 ${userId}` : ''}，终止原因：${reason}）`;
+        await tx.bidProject.update({
+          where: { id: bp.id },
+          data: { stage: 'ABORTED', riskNote: note },
+        });
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId: bp.id, time: terminatedAt, role: '系统', target: bp.name,
+            action: '流标', result: note, riskFlag: '高风险',
+          },
+        });
+      }
+
+      // ── 下游联动②：已发布公告下架（PUBLISHED→ARCHIVED，publicList 只列 PUBLISHED → 公开门户即时不可见）──
+      if (linkedProjectCodes.length > 0) {
+        await tx.announcement.updateMany({
+          where: { relatedProjectCode: { in: linkedProjectCodes }, status: 'PUBLISHED' },
+          data: { status: 'ARCHIVED' },
+        });
+      }
+
+      // ── 下游联动③：未完成工作安排自动取消（TODO/IN_PROGRESS/BLOCKED → CANCELLED）──
+      await tx.workArrangement.updateMany({
+        where: { projectManagementItemId: projectId, status: { in: ['TODO', 'IN_PROGRESS', 'BLOCKED'] } },
+        data: { status: 'CANCELLED', completionSummary: `项目于 ${terminatedAt.toLocaleDateString('zh-CN')} 终止，安排自动取消（原因：${reason}）` },
+      });
+
+      return updated;
+    }).then(async (updated) => {
+
+    // ── 终止通知（事务后发送，失败不阻断终止）：notify 由用户在终止弹窗选择 ──
+    // 收件人解析：InvitationRsvp 兼容 PMI id / BidProject id 两个 projectId 空间（与归档快照同口径）；
+    // accepted=仅已确认参加（status=ACCEPTED），all=全部受邀（任意回执状态）。
+    let notifiedCount = 0;
+    if (dto.notify && dto.notify !== 'none') {
+      try {
+        const bpIds = await this.prisma.bidProject.findMany({
+          where: { projectManagementItemId: projectId },
+          select: { id: true },
+        });
+        const rsvps = await this.prisma.invitationRsvp.findMany({
+          where: {
+            OR: [{ projectId }, { projectId: { in: bpIds.map((b) => b.id) } }],
+            ...(dto.notify === 'accepted' ? { status: 'ACCEPTED' } : {}),
+          },
+          select: { supplierId: true, supplierName: true },
+        });
+        // 同一供应商多批次邀请去重 → 解析登录账号（Supplier.userId 非空列）
+        const supplierIds = [...new Set(rsvps.map((r) => r.supplierId))];
+        const suppliers = await this.prisma.supplier.findMany({
+          where: { id: { in: supplierIds } },
+          select: { userId: true },
+        });
+        const dateLabel = terminatedAt.toLocaleDateString('zh-CN');
+        const content =
+          `您参与的采购项目「${project.title}」${project.projectCode ? `（${project.projectCode}）` : ''}已于 ${dateLabel} 终止。` +
+          `终止原因：${reason}。相关采购活动已停止，如有疑问请联系采购单位。`;
+        const recipients = suppliers.flatMap((s) => (s.userId ? [s.userId] : []));
+        await Promise.allSettled(
+          recipients.map((uid) =>
+            this.notificationService.create({
+              userId: uid,
+              type: 'PROJECT_TERMINATED',
+              title: '采购项目终止通知',
+              content,
+              link: '/dashboard',
+            }),
+          ),
+        );
+        notifiedCount = recipients.length;
+      } catch (err) {
+        this.logger.error(`项目终止通知发送失败 projectId=${projectId}:`, err);
+      }
+    }
+
+    // ── 联动流标通知（平台内部）：bid_host + 已确认正选专家（与 abortBidProject 同口径）──
+    if (activeBidProjects.length > 0) {
+      try {
+        const bpList = activeBidProjects.map((bp) => `${bp.name}（${bp.procurementMethod}）`).join('、');
+        await this.notificationService
+          .sendToRole('bid_host', {
+            type: 'BID_ABORTED',
+            title: `项目终止联动流标：${project.title}`,
+            content: `采购项目「${project.title}」已终止（原因：${reason}），关联招标项目 ${bpList} 已联动流标。`,
+            link: '/bid',
+          })
+          .catch(() => undefined);
+        const experts = await this.prisma.bidExpert.findMany({
+          where: { projectId: { in: activeBidProjects.map((bp) => bp.id) }, expertRole: '正选', invitationStatus: 'confirmed' },
+          select: { userId: true },
+        });
+        const expertIds = [...new Set(experts.map((e) => e.userId).filter((u): u is string => !!u))];
+        await Promise.allSettled(
+          expertIds.map((uid) =>
+            this.notificationService.create({
+              userId: uid,
+              type: 'BID_ABORTED',
+              title: '评审项目已终止',
+              content: `您参与评审的项目「${project.title}」已终止，评审任务取消。终止原因：${reason}。`,
+              link: '/',
+            }),
+          ),
+        );
+      } catch (err) {
+        this.logger.error(`终止联动流标通知发送失败 projectId=${projectId}:`, err);
+      }
+    }
+
+      return { ...updated, notifiedCount, abortedBidProjects: activeBidProjects.map((bp) => bp.name) };
+    });
   }
 
   async updateExtractedInfo(
@@ -4862,6 +5128,111 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
+   * 终止项目详情：与归档详情同构（复用 ArchiveDetailModal），无归档 TXT——
+   * 数据取实时表（终止后只读，实时即终止时点快照），附件 filePath=null（不走归档文件预览链路）。
+   */
+  private buildTerminatedDetail(pmItem: any) {
+    const terminatedAt = pmItem.terminatedAt as Date;
+    const stageStatusLabel = (s: string) => (s === 'COMPLETED' ? '已完成' : s === 'IN_PROGRESS' ? '进行中' : '未开始');
+    return {
+      projectId: pmItem.id,
+      projectTitle: pmItem.title,
+      archivedAt: terminatedAt ? terminatedAt.toISOString().split('T')[0] : null,
+      archiveHook: null,
+      archiveDir: null,
+      kind: 'terminated' as const,
+      basicInfo: {
+        '项目编号': pmItem.projectCode ?? '',
+        '申请部门': pmItem.requesterDepartment ?? '',
+        '申请人': pmItem.requesterName ?? '',
+        '采购方式': pmItem.procurementMethod ?? '',
+        '采购类别': pmItem.procurementCategory ?? '',
+        '预算金额': pmItem.budgetAmount ? `${Number(pmItem.budgetAmount).toLocaleString('zh-CN')}元` : '',
+        '终止日期': terminatedAt ? terminatedAt.toISOString().split('T')[0] : '',
+        '终止时所在阶段': pmItem.terminatedStage ?? '',
+        '终止人': pmItem.terminatedBy?.displayName ?? pmItem.terminatedBy?.username ?? '',
+      },
+      extractedInfo: {
+        '终止原因': pmItem.terminationReason ?? '',
+        '投标单位': pmItem.biddingUnits ?? '',
+        '专家信息': pmItem.expertInfo ?? '',
+        '中标单位': '',
+        '合同金额': '',
+        '经办人': pmItem.createdBy?.displayName ?? '',
+      },
+      stages: pmItem.stages.map((stage: any, idx: number) => ({
+        stageKey: stage.stageKey,
+        stageName: stage.stageName,
+        stageDirName: `${idx + 1}.${stage.stageName}`,
+        status: stageStatusLabel(stage.status),
+        attachments: stage.attachments.map((att: any) => ({
+          id: att.id,
+          fileName: att.fileName,
+          mimeType: att.mimeType,
+          fileSize: att.fileSize,
+          filePath: null,
+          analysis: '',
+        })),
+      })),
+      summary: `项目于 ${pmItem.terminatedStage ? `「${pmItem.terminatedStage}」阶段` : ''}终止${
+        terminatedAt ? `（${terminatedAt.toISOString().split('T')[0]}）` : ''
+      }。终止原因：${pmItem.terminationReason ?? '未填写'}。终止后项目只读，如需继续采购请重新建立项目。`,
+    };
+  }
+
+  /**
+   * 归档详情降级组装（TXT 缺失时）：DB 直组，与 TXT 解析同构。
+   * 归档项目数据定型 → 实时即归档时点；附件 filePath=null（无归档物理文件，不可预览）。
+   */
+  private buildFallbackArchiveDetail(pmItem: any) {
+    const stageStatusLabel = (s: string) => (s === 'COMPLETED' ? '已完成' : s === 'IN_PROGRESS' ? '进行中' : '未开始');
+    return {
+      projectId: pmItem.id,
+      projectTitle: pmItem.title,
+      archivedAt: pmItem.archivedAt ? pmItem.archivedAt.toISOString().split('T')[0] : null,
+      archiveHook: pmItem.archiveHook ?? null,
+      archiveDir: null,
+      kind: 'archived' as const,
+      basicInfo: {
+        '项目编号': pmItem.projectCode ?? '',
+        '申请人': pmItem.requesterName ?? '',
+        '申请部门': pmItem.requesterDepartment ?? '',
+        '采购方式': pmItem.procurementMethod ?? '',
+        '采购类别': pmItem.procurementCategory ?? '',
+        '预算金额': pmItem.budgetAmount ? `${Number(pmItem.budgetAmount).toLocaleString('zh-CN')}元` : '',
+        '合同编号': pmItem.contractNumber ?? pmItem.demandContractNumber ?? '',
+        '部门编号': pmItem.departmentNumber ?? '',
+      },
+      extractedInfo: {
+        '立项时间': pmItem.initiationDate ? pmItem.initiationDate.toISOString().split('T')[0] : '',
+        '投标单位': pmItem.biddingUnits ?? '',
+        '专家信息': pmItem.expertInfo ?? '',
+        '中标单位': pmItem.awardedSupplier ?? '',
+        '合同金额': pmItem.contractAmount ? `${Number(pmItem.contractAmount).toLocaleString('zh-CN')}元` : '',
+      },
+      stages: pmItem.stages.map((stage: any, idx: number) => ({
+        stageKey: stage.stageKey,
+        stageName: stage.stageName,
+        stageDirName: `${idx + 1}.${stage.stageName}`,
+        status: stageStatusLabel(stage.status),
+        attachments: stage.attachments.map((att: any) => ({
+          id: att.id,
+          fileName: att.fileName,
+          mimeType: att.mimeType,
+          fileSize: att.fileSize,
+          filePath: null,
+          analysis: '',
+        })),
+      })),
+      summary: `项目已完成归档${
+        pmItem.archivedAt ? `（${pmItem.archivedAt.toISOString().split('T')[0]}）` : ''
+      }。中标单位：${pmItem.awardedSupplier ?? '—'}；合同金额：${
+        pmItem.contractAmount ? `${Number(pmItem.contractAmount).toLocaleString('zh-CN')}元` : '—'
+      }。`,
+    };
+  }
+
+  /**
    * Get archive detail for a procurement round (from archived project management item)
    * Reads and parses the archived TXT file
    */
@@ -4877,7 +5248,23 @@ ${JSON.stringify(algorithmResult, null, 2)}
       },
     });
 
+    // ── 终止项目详情（2026-09-21）：终止轮次无归档 TXT 链路，按 terminationSnapshot 时点的
+    //    实时数据（终止后项目只读，实时即快照）组装与归档详情同构的数据，前端复用同一弹窗。
     if (!pmItem) {
+      const terminatedItem = await this.prisma.projectManagementItem.findFirst({
+        where: { terminatedProcurementRoundId: procurementRoundId },
+        include: {
+          stages: {
+            orderBy: { stageOrder: 'asc' },
+            include: { attachments: true },
+          },
+          terminatedBy: { select: { displayName: true, username: true } },
+          createdBy: { select: { displayName: true, username: true } },
+        },
+      });
+      if (terminatedItem?.status === 'TERMINATED') {
+        return this.buildTerminatedDetail(terminatedItem);
+      }
       throw new NotFoundException('未找到对应的归档项目。');
     }
 
@@ -4944,7 +5331,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     if (!txtPath) {
-      throw new NotFoundException('未找到归档文件。');
+      // 归档 TXT 缺失（目录被清理/后台生成失败）→ 降级 DB 组装（2026-09-21）：
+      // 不再硬 404——弹窗/步骤分析仍可用，逐文件 analysis 为空。补齐需重新生成归档文件。
+      const fallback = this.buildFallbackArchiveDetail(pmItem);
+      fallback.summary = `（归档文件缺失，以下信息由数据库组装）\n${fallback.summary}`;
+      return fallback;
     }
 
     // Read and parse the TXT file
@@ -4986,6 +5377,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // Inject department number from DB (not always in archive TXT)
     if (pmItem.departmentNumber) {
       parsed.basicInfo['部门编号'] = pmItem.departmentNumber;
+    }
+    // 项目编号以库内为准（TXT 生成时点早于编号改版的情况以库内三段式为准）
+    if (pmItem.projectCode) {
+      parsed.basicInfo['项目编号'] = pmItem.projectCode;
     }
 
     return {

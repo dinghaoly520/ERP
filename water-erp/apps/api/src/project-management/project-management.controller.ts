@@ -24,6 +24,7 @@ import { CreateProjectFromInitiationDto } from './dto/create-project-from-initia
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { ReviewSubmissionDto } from './dto/review-submission.dto';
+import { TerminateProjectDto } from './dto/terminate-project.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { CreateTenderDraftVersionDto, SaveTenderDraftDto } from './dto/tender-draft.dto';
 import { TimelineService } from './timeline.service';
@@ -330,6 +331,15 @@ export class ProjectManagementController {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     return this.projectManagementService.restoreFromRecycleBin(id, user);
+  }
+
+  @Post(':id/terminate')
+  terminate(
+    @Param('id') id: string,
+    @Body() dto: TerminateProjectDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.terminateProject(id, dto, user?.sub, user);
   }
 
   @Delete(':id')

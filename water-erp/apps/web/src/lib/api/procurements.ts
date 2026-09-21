@@ -11,6 +11,7 @@ export async function fetchProcurements(params: {
   resultStatus?: ResultStatusKey;
   searchKeyword?: string;
   recycleStatus?: 'ACTIVE' | 'RECYCLED' | 'ALL';
+  category?: 'archived' | 'terminated';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   companyId?: string; // 仅 admin 生效：公司选择器
@@ -25,6 +26,7 @@ export async function fetchProcurements(params: {
   if (params.resultStatus) query.set('resultStatus', params.resultStatus);
   if (params.searchKeyword) query.set('searchKeyword', params.searchKeyword);
   if (params.recycleStatus) query.set('recycleStatus', params.recycleStatus);
+  if (params.category) query.set('category', params.category);
   if (params.sortBy) query.set('sortBy', params.sortBy);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
   if (params.companyId && params.companyId !== 'all') query.set('companyId', params.companyId);
@@ -40,6 +42,7 @@ export async function fetchLedgerCompanyCounts(params: {
   startDate?: string; endDate?: string; procurementMethod?: string;
   departmentId?: string; resultStatus?: ResultStatusKey; searchKeyword?: string;
   recycleStatus?: 'ACTIVE' | 'RECYCLED' | 'ALL'; companyId?: string;
+  category?: 'archived' | 'terminated';
 }): Promise<Array<{ name: string; count: number }>> {
   const query = new URLSearchParams();
   if (params.startDate) query.set('startDate', params.startDate);
@@ -49,6 +52,7 @@ export async function fetchLedgerCompanyCounts(params: {
   if (params.resultStatus) query.set('resultStatus', params.resultStatus);
   if (params.searchKeyword) query.set('searchKeyword', params.searchKeyword);
   if (params.recycleStatus) query.set('recycleStatus', params.recycleStatus);
+  if (params.category) query.set('category', params.category);
   if (params.companyId && params.companyId !== 'all') query.set('companyId', params.companyId);
   return api.get<Array<{ name: string; count: number }>>(`/procurements/company-counts?${query.toString()}`);
 }

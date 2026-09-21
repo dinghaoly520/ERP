@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Folder from "@/components/Folder";
 import { Modal } from "@/components/workbench";
+import { analyzeProjectStep } from "@/lib/api/project-management";
 
 // Animation utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -37,6 +38,8 @@ type ArchiveDetailData = {
   archivedAt: string;
   archiveHook: string | null;
   archiveDir: string | null;
+  /** terminated = 项目终止详情（复用本弹窗；附件无归档物理路径，不可预览） */
+  kind?: 'archived' | 'terminated';
   basicInfo: Record<string, string>;
   extractedInfo: Record<string, string>;
   stages: Array<{
@@ -183,6 +186,11 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStageKey, setSelectedStageKey] = useState<string | null>(null);
+  // ── 步骤分析（2026-09-21）：右侧面板 tab 切换，懒加载——读缓存命中秒回，miss 才触发生成 ──
+  const [stageTab, setStageTab] = useState<'files' | 'analysis'>('files');
+  const [stepAnalysis, setStepAnalysis] = useState<{ stageKey: string; content: string; empty: boolean } | null>(null);
+  const [stepAnalysisLoading, setStepAnalysisLoading] = useState(false);
+  const [stepAnalysisError, setStepAnalysisError] = useState<string | null>(null);
 
   // File preview state
   const [previewFile, setPreviewFile] = useState<{
@@ -198,6 +206,25 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
 
   const handleClosePreview = () => {
     setPreviewFile(null);
+  };
+
+  // 懒加载步骤分析：切到「步骤分析」tab 时按需拉取（服务端缓存命中秒回，miss 才生成）；
+  // 同阶段重复点开直接复用已取结果
+  const loadStepAnalysis = async (stageKey: string) => {
+    if (stepAnalysis?.stageKey === stageKey && !stepAnalysisError) return;
+    setStepAnalysisLoading(true);
+    setStepAnalysisError(null);
+    try {
+      const projectId = data?.projectId;
+      if (!projectId) throw new Error('缺少项目标识');
+      const result = await analyzeProjectStep(projectId, stageKey);
+      setStepAnalysis({ stageKey, content: result.content ?? '', empty: !!result.empty });
+    } catch (err) {
+      setStepAnalysis(null);
+      setStepAnalysisError(err instanceof Error ? err.message : '步骤分析加载失败');
+    } finally {
+      setStepAnalysisLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -222,6 +249,10 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
         if (firstStageWithFiles) {
           setSelectedStageKey(firstStageWithFiles.stageKey);
         }
+        // 重置步骤分析视图（新弹窗实例）
+        setStageTab('files');
+        setStepAnalysis(null);
+        setStepAnalysisError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败');
       } finally {
@@ -256,7 +287,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
     ? data.extractedInfo['投标单位'].split(/[、,\n]/).map((unit) => unit.trim()).filter(Boolean)
     : [];
   const totalFiles = data?.stages.reduce((sum, stage) => sum + stage.attachments.length, 0) ?? 0;
-  const completedStages = data?.stages.filter((stage) => stage.status === '已完成').length ?? 0;
+  // 兼容归档（英文枚举原值）与终止（中文标签）两种 status 取值
+  const completedStages = data?.stages.filter((stage) => stage.status === '已完成' || stage.status === 'COMPLETED').length ?? 0;
   const savingsLabel = data?.basicInfo['预算金额'] && data?.extractedInfo['合同金额']
     ? (() => {
         const budget = parseFloat(data.basicInfo['预算金额'].replace(/[^\d.]/g, ''));
@@ -286,6 +318,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
             </span>
             <span className="text-[1.15rem] font-bold text-[color:var(--foreground)]">
               {loading ? '加载中...' : data?.projectTitle || '归档详情'}
+              {data?.kind === 'terminated' && (
+                <span className="ml-2 inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 align-middle text-[11px] font-bold text-[var(--danger)]">已终止</span>
+              )}
             </span>
           </span>
         }
@@ -299,9 +334,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                 </span>
               )}
               {data.archivedAt && (
-                <span className="flex items-center gap-1.5">
+                <span className={`flex items-center gap-1.5 ${data.kind === 'terminated' ? 'text-[var(--danger)] font-semibold' : ''}`}>
                   <FolderOpen size={12} />
-                  归档：{data.archivedAt}
+                  {data.kind === 'terminated' ? '终止' : '归档'}：{data.archivedAt}
                 </span>
               )}
               {data.archiveHook && (
@@ -346,6 +381,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       type="button"
                       onClick={() => {
                         setSelectedStageKey(stage.stageKey);
+                        setStageTab('files'); // 切阶段回到文件 tab，分析按需重新拉取
                       }}
                       className={`neu-tab ${selectedStageKey === stage.stageKey ? 'is-active' : ''}`}
                     >
@@ -434,7 +470,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                     </div>
                     <div className="space-y-4">
                       {/* Row 1: 申请人、申请部门、采购方式、采购类别、所属项目、合同编号、部门编号 */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                         <div className="space-y-1">
                           <div className="text-xs text-[color:var(--muted-foreground)]">申请人</div>
                           <div className="text-[0.85rem] font-medium">{data.basicInfo['申请人'] || '-'}</div>
@@ -456,6 +492,10 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           <div className="text-[0.85rem]">{data.basicInfo['所属项目'] || '-'}</div>
                         </div>
                         <div className="space-y-1">
+                          <div className="text-xs text-[color:var(--muted-foreground)]">项目编号</div>
+                          <div className="text-[0.85rem] font-mono font-semibold text-[color:var(--accent-strong)]">{data.basicInfo['项目编号'] || '-'}</div>
+                        </div>
+                        <div className="space-y-1">
                           <div className="text-xs text-[color:var(--muted-foreground)]">合同编号</div>
                           <div className="text-[0.85rem] font-mono">{data.basicInfo['合同编号'] || '-'}</div>
                         </div>
@@ -464,6 +504,26 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           <div className="text-[0.85rem] font-mono">{data.basicInfo['部门编号'] || '-'}</div>
                         </div>
                       </div>
+                      {data.kind === 'terminated' && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] p-3">
+                          <div className="space-y-1">
+                            <div className="text-xs text-[color:var(--muted-foreground)]">项目编号</div>
+                            <div className="text-[0.85rem] font-mono">{data.basicInfo['项目编号'] || '-'}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-xs text-[color:var(--muted-foreground)]">终止日期</div>
+                            <div className="text-[0.85rem] font-semibold text-[var(--danger)]">{data.basicInfo['终止日期'] || '-'}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-xs text-[color:var(--muted-foreground)]">终止时所在阶段</div>
+                            <div className="text-[0.85rem]">{data.basicInfo['终止时所在阶段'] || '-'}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-xs text-[color:var(--muted-foreground)]">终止人</div>
+                            <div className="text-[0.85rem]">{data.basicInfo['终止人'] || '-'}</div>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">专家信息</div>
                         {experts.length > 0 ? (
@@ -537,9 +597,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                   </motion.div>
                 </div>
 
-                {/* Right Panel - File Preview */}
+                {/* Right Panel - 阶段材料 + 步骤分析（tab 切换） */}
                 <div className="w-[240px] xl:w-[320px] shrink-0 overflow-y-auto border-l border-[oklch(0.6_0.04_258_/_0.16)] bg-[color-mix(in_oklch,var(--success)_4%,transparent)]">
-                  {selectedStage && selectedStage.attachments.length > 0 ? (
+                  {selectedStage ? (
                     <>
                       {/* Stage Header */}
                       <div className="sticky top-0 z-10 px-4 py-3 border-b border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] bg-[color-mix(in_oklch,var(--background)_96%,transparent)] backdrop-blur">
@@ -547,12 +607,44 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           {getStatusIcon(selectedStage.status)}
                           <span className="text-[0.85rem] font-semibold">{selectedStage.stageName}</span>
                         </div>
-                        <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                          {selectedStage.status}
+                        {/* 文件材料 / 步骤分析 tab */}
+                        <div className="mt-2 flex gap-1 rounded-[9px] bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] p-1">
+                          {(['files', 'analysis'] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => { setStageTab(t); if (t === 'analysis') void loadStepAnalysis(selectedStage.stageKey); }}
+                              className={`flex-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition-colors ${stageTab === t ? 'bg-[color:var(--background)] text-[color:var(--foreground)] shadow-[1px_1px_3px_oklch(0.55_0.03_258/0.12)]' : 'text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]'}`}
+                            >
+                              {t === 'files' ? `文件材料（${selectedStage.attachments.length}）` : '步骤分析'}
+                            </button>
+                          ))}
                         </div>
                       </div>
 
-                      {/* Files with Analysis */}
+                      {/* 步骤分析内容 */}
+                      {stageTab === 'analysis' ? (
+                        <div className="p-3">
+                          {stepAnalysisLoading ? (
+                            <div className="flex items-center gap-2 rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-3 py-4 text-xs text-[color:var(--muted-foreground)]">
+                              <Loader2 size={14} className="animate-spin" />
+                              {stepAnalysis?.stageKey === selectedStage.stageKey ? '生成中…（首次分析需数秒）' : '加载中…'}
+                            </div>
+                          ) : stepAnalysisError ? (
+                            <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] px-3 py-4 text-xs text-[var(--danger)]">{stepAnalysisError}</div>
+                          ) : stepAnalysis?.stageKey === selectedStage.stageKey ? (
+                            stepAnalysis.empty || !stepAnalysis.content ? (
+                              <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-3 py-4 text-xs text-[color:var(--muted-foreground)]">
+                                该阶段暂无可分析数据（步骤分析仅对已完成阶段开放）。
+                              </div>
+                            ) : (
+                              <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-3 py-3">
+                                <p className="whitespace-pre-line text-[0.8rem] leading-relaxed text-[color:var(--foreground)]">{stepAnalysis.content}</p>
+                              </div>
+                            )
+                          ) : null}
+                        </div>
+                      ) : selectedStage.attachments.length > 0 ? (
+                      /* Files with Analysis */
                       <div className="p-3 space-y-4">
                         {selectedStage.attachments.map((file, i) => (
                           <motion.div
@@ -567,13 +659,15 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                                   文件{i + 1}
                                 </span>
                                 <span className="text-[0.8rem] font-medium truncate flex-1">{file.fileName}</span>
-                                <button
-                                  onClick={() => handlePreviewFile(selectedStage.stageKey, i, file.fileName, file.mimeType)}
-                                  className="neu-btn-xs"
-                                  title="预览文件"
-                                >
-                                  <Eye size={14} className="text-[var(--success)]" />
-                                </button>
+                                {data.kind !== 'terminated' && data.archiveDir && (
+                                  <button
+                                    onClick={() => handlePreviewFile(selectedStage.stageKey, i, file.fileName, file.mimeType)}
+                                    className="neu-btn-xs"
+                                    title="预览文件"
+                                  >
+                                    <Eye size={14} className="text-[var(--success)]" />
+                                  </button>
+                                )}
                               </div>
                               <div className="text-xs text-[color:var(--muted-foreground)] mt-1">
                                 {formatFileSize(file.fileSize)}
@@ -596,13 +690,17 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           </motion.div>
                         ))}
                       </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-16 px-4">
+                          <FileText size={32} className="text-[color-mix(in_oklch,var(--muted-foreground)_50%,transparent)]" />
+                          <div className="mt-3 text-[0.85rem] text-[color:var(--muted-foreground)]">该步骤暂无文件</div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 px-4">
                       <FileText size={32} className="text-[color-mix(in_oklch,var(--muted-foreground)_50%,transparent)]" />
-                      <div className="mt-3 text-[0.85rem] text-[color:var(--muted-foreground)]">
-                        {selectedStage ? '该步骤暂无文件' : '请选择项目步骤'}
-                      </div>
+                      <div className="mt-3 text-[0.85rem] text-[color:var(--muted-foreground)]">请选择项目步骤</div>
                     </div>
                   )}
                 </div>

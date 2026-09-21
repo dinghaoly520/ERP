@@ -23,7 +23,7 @@ export function ProjectCard({
 }: {
   item: ProjectManagementItem;
   onOpen: () => void;
-  variant?: 'active' | 'archived';
+  variant?: 'active' | 'archived' | 'terminated';
 }) {
   const completedCount = item.stages.filter(
     (stage) => stage.status === 'COMPLETED',
@@ -103,6 +103,17 @@ export function ProjectCard({
           {item.updatedAt && (
             <span className="ml-auto text-[color:var(--muted-foreground)]">{new Date(item.updatedAt).toLocaleDateString('zh-CN')}</span>
           )}
+        </div>
+      ) : variant === 'terminated' ? (
+        <div className="mt-4 rounded-xl px-3 py-2.5 flex items-center gap-4 text-xs"
+          style={{ background: 'color-mix(in oklch, var(--danger) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)' }}>
+          <span className="text-[var(--danger)] font-bold">已终止</span>
+          {item.terminationReason && (
+            <span className="min-w-0 flex-1 truncate text-[var(--muted-foreground)]">原因：<span className="text-[var(--danger)]">{item.terminationReason}</span></span>
+          )}
+          <span className="ml-auto shrink-0 whitespace-nowrap text-[color:var(--muted-foreground)]">
+            {item.terminatedByName ? `${item.terminatedByName} · ` : ''}{item.terminatedAt ? new Date(item.terminatedAt).toLocaleDateString('zh-CN') : ''}
+          </span>
         </div>
       ) : (
         <div className="mt-4 space-y-2">

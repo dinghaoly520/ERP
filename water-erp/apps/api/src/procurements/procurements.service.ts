@@ -340,6 +340,15 @@ export class ProcurementsService {
       where.resultStatus = resultStatus;
     }
 
+    // 台账类型快捷筛选（2026-09-20）
+    if (query.category === 'archived') {
+      where.sourceType = SourceType.PROJECT_MANAGEMENT;
+      where.resultStatus = ResultStatus.AWARDED;
+    } else if (query.category === 'terminated') {
+      where.resultStatus = ResultStatus.CANCELLED;
+      where.terminationReason = { not: null };
+    }
+
     // 公司隔离（2026-08-20）：按公司划归取代原个人/全局分野——非 admin 只见本公司
     Object.assign(where, companyFilter);
 
@@ -434,11 +443,17 @@ export class ProcurementsService {
       const roundIds = projectManagementRounds.map((r) => r.id);
       const pmItems = await this.prisma.projectManagementItem.findMany({
         where: {
-          archivedProcurementRoundId: { in: roundIds },
+          // 归档轮次走 archivedProcurementRoundId；终止轮次走 terminatedProcurementRoundId（2026-09-21：
+          // 终止卡片此前无 projectManagementId → 无任何跳转入口，展开区恒「暂无项目简报」）
+          OR: [
+            { archivedProcurementRoundId: { in: roundIds } },
+            { terminatedProcurementRoundId: { in: roundIds } },
+          ],
         },
         select: {
           id: true,
           archivedProcurementRoundId: true,
+          terminatedProcurementRoundId: true,
           initiationDate: true,
           evaluationMethod: true,
           biddingUnits: true,
@@ -453,6 +468,9 @@ export class ProcurementsService {
       for (const item of pmItems) {
         if (item.archivedProcurementRoundId) {
           pmInfoMap[item.archivedProcurementRoundId] = item;
+        }
+        if (item.terminatedProcurementRoundId) {
+          pmInfoMap[item.terminatedProcurementRoundId] ??= item;
         }
       }
     }
@@ -830,6 +848,7 @@ export class ProcurementsService {
       resultStatus: round.resultStatus,
       resultStatusLabel: this.getResultStatusLabel(round.resultStatus),
       resultText: round.resultText,
+      terminationReason: round.terminationReason ?? null,
       sourceType: round.sourceType || 'MANUAL',
       projectManagementId: pmInfo?.id || null,
       createdById: round.createdById || null,

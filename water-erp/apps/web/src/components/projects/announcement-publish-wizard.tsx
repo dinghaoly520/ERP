@@ -248,7 +248,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [restrictedSupplierIds, setRestrictedSupplierIds] = useState<string[]>([]);
   const [publishTiming, setPublishTiming] = useState<'now' | 'scheduled' | 'announcement_start'>('now');
   const [scheduledDate, setScheduledDate] = useState('');
-  // 公告截止时间（从公告制作提取到发布配置）+ 标书投递截止时间
+  // 公示期限（止）（从公告制作提取到发布配置）+ 标书投递截止时间
   const [announcementEndDate, setAnnouncementEndDate] = useState('');
   const [bidSubmissionDeadline, setBidSubmissionDeadline] = useState('');
   // 自愈：发布配置状态为空（如 localStorage 缓存存了空值）而公告制作草稿已填公示期限（止）时回填，
@@ -797,7 +797,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setBusy(true);
     try {
       // 1. 用公告模板渲染生成 docx + 提取公告全文（mammoth）
-      // 公告截止时间合并进 draft：发布配置状态优先，为空（如缓存恢复存了空值）时回落草稿值——
+      // 公示期限（止）合并进 draft：发布配置状态优先，为空（如缓存恢复存了空值）时回落草稿值——
       // 此前裸用状态会把公告制作里已填的正确日期覆盖成空 → docx 渲染成「请填写公示期限（止）」
       const effectiveAnnouncementEnd = announcementEndDate || ((draft as Record<string, string>).announcementEnd ?? '');
       const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
@@ -863,7 +863,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           ? hoursBeforeOpenTime(openTimeIsoPub, DEADLINE_HOURS_BEFORE_OPENING)
           : bidSubmissionDeadline.trim();
         meta.deadline = derivedSubmissionDeadline || effectiveAnnouncementEnd;
-        if (effectiveAnnouncementEnd) meta.downloadDeadline = effectiveAnnouncementEnd;
+        // 采购文件下载时间=公示期限（止）：落中文可读格式（两门户详情芯片按裸字符串渲染，
+        // 此前直写 ISO 串会显「2026-09-26T23:59」）；后端 parseFlexibleDate 兼容中文解析
+        if (effectiveAnnouncementEnd) meta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
       }
       // 下载方式已删除（统一免费下载）——保留 'free' 写入以兼容旧元数据消费方
       if (tenderOn) {

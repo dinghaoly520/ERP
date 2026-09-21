@@ -98,10 +98,12 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     type: "datetime-local",
   },
   {
+    // 2026-09-21 统一：此前询比/竞价/邀请/内部招标叫「公告截止时间」且仅选日期，与直接采购
+    // 模板及 docx 正文「公示期限（止）」口径不一致——统一为公示期限（止）+ 支持选到时分
     key: "announcementEnd",
-    label: "公告截止时间",
-    placeholder: "选择日期",
-    type: "date",
+    label: "公示期限（止）",
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   {
     key: "bidOpeningTime",

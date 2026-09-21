@@ -26,6 +26,23 @@ function formatWan(value: number) {
   return `${(value / 10000).toFixed(1)} 万`;
 }
 
+/** 展示日期标签：采购日缺省回退立项日（与趋势图「采购日 ?? 立项日」同口径，消灭「未填」） */
+function procurementDateLabel(round: { procurementDate: Date | null; project: { createdAt: Date } }) {
+  const d = round.procurementDate ?? round.project.createdAt;
+  return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+}
+
+/** 参与供应商数：台账轮次的供应商名单在 biddingUnits 文本（顿号/逗号/换行分隔），
+ *  participants 关系多为空——优先解析文本，回退关系计数。 */
+function participantCountOf(round: { biddingUnits: string | null; participants: unknown[] }) {
+  const text = round.biddingUnits?.trim();
+  if (text) {
+    const parts = text.split(/[、,，;；\n\r]+/).map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts.length;
+  }
+  return round.participants.length;
+}
+
 function startOfDay(value: string) {
   return new Date(`${value}T00:00:00+08:00`);
 }
@@ -248,9 +265,7 @@ export class DashboardService {
       }
       trendItem.projects.push({
         name: round.project.name,
-        date: round.procurementDate
-          ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
-          : '未填',
+        date: procurementDateLabel(round),
         department: round.department?.name ?? '未归属部门',
         method: round.procurementMethod ?? '未填',
         budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
@@ -296,9 +311,7 @@ export class DashboardService {
       // Collect project details
       departmentItem.projects.push({
         name: round.project.name,
-        date: round.procurementDate
-          ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
-          : '未填',
+        date: procurementDateLabel(round),
         method: round.procurementMethod ?? '未填',
         budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
         awardLabel:
@@ -331,9 +344,7 @@ export class DashboardService {
       }
       methodItem.projects.push({
         name: round.project.name,
-        date: round.procurementDate
-          ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
-          : '未填',
+        date: procurementDateLabel(round),
         department: departmentName,
         budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
         awardLabel:
@@ -357,9 +368,7 @@ export class DashboardService {
         );
         const procurementEntry = {
           project: round.project.name,
-          date: round.procurementDate
-            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
-            : '未填',
+          date: procurementDateLabel(round),
           method: round.procurementMethod,
           department: deptName,
           budgetLabel,
@@ -430,9 +439,7 @@ export class DashboardService {
         const awardLabel = formatWan(decimalToNumber(round.awardAmount));
         const procurementEntry = {
           project: round.project.name,
-          date: round.procurementDate
-            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
-            : '未填',
+          date: procurementDateLabel(round),
           method: round.procurementMethod,
           department: deptName,
           budgetLabel,
@@ -493,9 +500,7 @@ export class DashboardService {
           const deptName = round.department?.name ?? '未归属部门';
           const budgetLabel = formatWan(decimalToNumber(round.controlAmount || round.budgetAmount));
           const awardLabel = formatWan(decimalToNumber(round.awardAmount));
-          const dateStr = round.procurementDate
-            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
-            : '未填';
+          const dateStr = procurementDateLabel(round);
 
           const tItem = supplierMap.get(supplierName) ?? {
             name: supplierName,
@@ -543,7 +548,11 @@ export class DashboardService {
       }
 
       if (round.resultStatus !== ResultStatus.AWARDED) {
-        const label = round.resultText || '待进一步处理';
+        // 项目终止的轮次：分组用真实终止原因（resultText 只是「项目已终止」占位文案），
+        // 原因各不相同 → 各自成组，符合「原因分析」按原因归类的语义。
+        // resultText 短于 2 字（历史脏数据如 "1"）视为无效，回退通用文案
+        const fallback = round.resultText && round.resultText.trim().length >= 2 ? round.resultText : null;
+        const label = round.terminationReason || fallback || '待进一步处理';
         if (!reasonMap.has(label)) {
           reasonMap.set(label, {
             count: 0,
@@ -555,9 +564,7 @@ export class DashboardService {
         reasonItem.count += 1;
         reasonItem.projects.push({
           name: round.project.name,
-          date: round.procurementDate
-            ? `${round.procurementDate.getUTCMonth() + 1}月${round.procurementDate.getUTCDate()}日`
-            : '未填',
+          date: procurementDateLabel(round),
           department: round.department?.name ?? '未归属部门',
           budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
           reason: label,
@@ -701,12 +708,10 @@ export class DashboardService {
           awardAmountLabel: formatWan(award),
           savingsLabel: formatWan(savings),
           method: item.procurementMethod,
-          date: item.procurementDate
-            ? `${item.procurementDate.getUTCMonth() + 1}月${item.procurementDate.getUTCDate()}日`
-            : '未填',
+          date: procurementDateLabel(item),
           projectCode: item.project.projectCode ?? null,
           awardedSupplierName: item.awardedSupplier?.name ?? item.awardedSupplierName ?? null,
-          participantCount: item.participants.length,
+          participantCount: participantCountOf(item),
         };
       })
       .sort((a, b) => {

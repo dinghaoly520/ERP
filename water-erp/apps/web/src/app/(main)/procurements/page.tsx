@@ -84,7 +84,18 @@ const accentMap = {
 };
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
-function StatusBadge({ status, resultText }: { status: ResultStatusKey; resultText?: string | null }) {
+function StatusBadge({ status, resultText, terminationReason }: { status: ResultStatusKey; resultText?: string | null; terminationReason?: string | null }) {
+  // 终止项目：红色「已终止」徽章（区分于普通「已取消」——后者是投标环节取消，非项目级终止）
+  if (status === "CANCELLED" && terminationReason) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+        style={{ color: "rgba(220,90,80,1)", backgroundColor: "rgba(220,90,80,0.12)", border: "1px solid rgba(220,90,80,0.25)" }}>
+        <Ban size={12} />
+        已终止
+      </span>
+    );
+  }
+
   const config = RESULT_STATUS_CONFIG[status];
   const icons: Record<string, React.ReactNode> = {
     check: <CheckCircle2 size={12} />,
@@ -240,22 +251,32 @@ function PageHero({
             {methods.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
 
+          {/* 状态+类型+回收站 合一（单选收窄，互斥）：cat:=类型项、recycle:=回收站。
+              选项按实际使用频率排序：常用在前、罕见审查类状态殿后 */}
           <select
-            value={filters.resultStatus || ""}
-            onChange={(e) => onFilterChange("resultStatus", e.target.value as ResultStatusKey || null)}
+            value={filters.recycleStatus === "RECYCLED" ? "recycle:RECYCLED" : filters.category ? `cat:${filters.category}` : filters.resultStatus || ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "") {
+                onFilterChange("resultStatus", null);
+                onFilterChange("category", null);
+                onFilterChange("recycleStatus", "ACTIVE");
+              } else if (v.startsWith("cat:")) onFilterChange("category", v.slice(4) as "archived" | "terminated");
+              else if (v.startsWith("recycle:")) onFilterChange("recycleStatus", "RECYCLED");
+              else onFilterChange("resultStatus", v as ResultStatusKey);
+            }}
             className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
           >
-            <option value="">全部状态</option>
-            {Object.entries(RESULT_STATUS_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
-          </select>
-
-          <select
-            value={filters.recycleStatus || "ACTIVE"}
-            onChange={(e) => onFilterChange("recycleStatus", e.target.value || "ACTIVE")}
-            className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
-          >
-            <option value="ACTIVE">正常台账</option>
-            <option value="RECYCLED">回收站</option>
+            <option value="">全部</option>
+            <option value="AWARDED">已成交</option>
+            <option value="PENDING">待处理</option>
+            <option value="cat:archived">已归档</option>
+            <option value="cat:terminated">已终止</option>
+            <option value="CANCELLED">已取消</option>
+            {(["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE"] as ResultStatusKey[]).map((k) => (
+              <option key={k} value={k}>{RESULT_STATUS_CONFIG[k].label}</option>
+            ))}
+            <option value="recycle:RECYCLED">回收站</option>
           </select>
         </div>
       </div>
@@ -334,7 +355,7 @@ function LedgerRow({
           <div className="flex items-center gap-2">
             <Calendar size={11} style={{ color: accentMap.blue }} />
             <span className="text-[11px] font-semibold text-[rgba(96,139,239,1)]">{formatDate(item.procurementDate)}</span>
-            <StatusBadge status={item.resultStatus} resultText={item.resultText} />
+            <StatusBadge status={item.resultStatus} resultText={item.resultText} terminationReason={item.terminationReason} />
             <span className="rounded-full px-2 py-0.5 text-[10px] bg-[rgba(96,139,239,0.08)] text-[rgba(96,139,239,0.8)]">{item.procurementMethod}</span>
           </div>
           {/* 右上角：上传人 + 管理员操作 */}
@@ -383,10 +404,21 @@ function LedgerRow({
           </div>
         </div>
 
-        {/* Name */}
+        {/* Name（已终止项目红字）+ 项目编号徽章 */}
         <div className="mt-2 flex items-center gap-2">
-          <span className="min-w-0 flex-1 text-[0.9rem] font-semibold text-[color:var(--foreground)] line-clamp-1">{item.projectName}</span>
+          <span className={`min-w-0 flex-1 text-[0.9rem] font-semibold line-clamp-1 ${item.resultStatus === "CANCELLED" && item.terminationReason ? "text-[var(--danger)]" : "text-[color:var(--foreground)]"}`}>{item.projectName}</span>
+          {item.projectCode && (
+            <span className="shrink-0 rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 font-mono text-[10px] font-bold tracking-tight text-[color:var(--accent-strong)]">{item.projectCode}</span>
+          )}
         </div>
+
+        {/* 终止原因（项目终止的 CANCELLED 且带 terminationReason 时红字显示） */}
+        {item.resultStatus === "CANCELLED" && item.terminationReason && (
+          <div className="mt-1 flex items-start gap-1.5 text-xs">
+            <span className="shrink-0 font-semibold text-[var(--danger)]">终止原因</span>
+            <span className="min-w-0 flex-1 text-[var(--danger)]">{item.terminationReason}</span>
+          </div>
+        )}
 
         {/* Info: 部门 + 中标单位 */}
         <div className="mt-1.5 flex items-center gap-4 text-xs text-[color:var(--muted-foreground)]">
@@ -408,14 +440,14 @@ function LedgerRow({
               <span className="ml-1.5 text-[0.85rem] font-bold text-[rgba(92,181,150,1)]">{formatAmount(finalAwardAmount)}</span>
             </div>
           )}
-          {/* 右下角：展开详情按钮 */}
-          {item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId ? (
+          {/* 右下角：展开详情按钮（归档/终止 → 归档详情弹窗同款；其余 → 展开） */}
+          {item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && (item.resultStatus === "AWARDED" || (item.resultStatus === "CANCELLED" && item.terminationReason)) ? (
             <button
               onClick={onViewArchive}
-              className="ml-auto flex items-center gap-1.5 neu-btn-xs !text-[rgba(92,181,150,1)]"
+              className={`ml-auto flex items-center gap-1.5 neu-btn-xs ${item.resultStatus === "CANCELLED" ? "!text-[var(--danger)]" : "!text-[rgba(92,181,150,1)]"}`}
             >
               <FolderOpen size={14} />
-              归档详情
+              {item.resultStatus === "CANCELLED" ? "终止详情" : "归档详情"}
             </button>
           ) : (
             <button
@@ -440,10 +472,18 @@ function LedgerRow({
             className="px-4 py-3"
           style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}
           >
-            {/* 所属项目 */}
-            <div className="text-[11px] text-[color:var(--muted-foreground)]">
-              <span className="font-medium">所属项目：</span>
-              <span className="ml-1 text-[color:var(--foreground)]">{item.projectName}</span>
+            {/* 所属项目 + 项目编号 */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[color:var(--muted-foreground)]">
+              <span>
+                <span className="font-medium">所属项目：</span>
+                <span className="ml-1 text-[color:var(--foreground)]">{item.projectName}</span>
+              </span>
+              {item.projectCode && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="font-medium">项目编号：</span>
+                  <span className="rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 font-mono font-bold tracking-tight text-[color:var(--accent-strong)]">{item.projectCode}</span>
+                </span>
+              )}
             </div>
 
             {/* 立项时间和归档时间 - 项目管理来源 */}
@@ -599,7 +639,7 @@ function SimplifiedRow({
             {item.awardAmount && <span className="text-[rgba(92,181,150,0.8)]">成交{formatAmount(item.awardAmount)}</span>}
           </div>
         </div>
-        <StatusBadge status={item.resultStatus} resultText={item.resultText} />
+        <StatusBadge status={item.resultStatus} resultText={item.resultText} terminationReason={item.terminationReason} />
       </div>
     </div>
   );
@@ -1031,6 +1071,7 @@ export default function ProcurementsPage() {
     resultStatus: null,
     searchKeyword: "",
     recycleStatus: "ACTIVE",
+    category: null,
   });
 
   const [sortBy, setSortBy] = useState<'procurementDate' | 'departmentId' | 'amount'>('procurementDate');
@@ -1226,6 +1267,7 @@ export default function ProcurementsPage() {
           resultStatus: filters.resultStatus || undefined,
           searchKeyword: filters.searchKeyword || undefined,
           recycleStatus: filters.recycleStatus || "ACTIVE",
+          category: filters.category || undefined,
           sortBy,
           sortOrder: 'desc',
           companyId,
@@ -1241,6 +1283,7 @@ export default function ProcurementsPage() {
               resultStatus: filters.resultStatus || undefined,
               searchKeyword: filters.searchKeyword || undefined,
               recycleStatus: filters.recycleStatus || 'ACTIVE',
+              category: filters.category || undefined,
             }).catch(() => null)
           : Promise.resolve(null),
       ]);
@@ -1258,6 +1301,13 @@ export default function ProcurementsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
+  // URL 深链：?category=archived|terminated 直接落到类型筛选（通知/外链直达终止列表）
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get('category');
+    if (c === 'archived' || c === 'terminated') {
+      setFilters((prev) => ({ ...prev, category: c, resultStatus: null }));
+    }
+  }, []);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1270,7 +1320,16 @@ export default function ProcurementsPage() {
       }, 300);
       return;
     }
-    setFilters(prev => ({ ...prev, [key]: value }));
+    // 状态/类型/回收站 三者互斥（合并下拉单选收窄）：任一选中即清其余两项。
+    if (key === 'category' && value) {
+      setFilters(prev => ({ ...prev, category: value as "archived" | "terminated", resultStatus: null, recycleStatus: 'ACTIVE' }));
+    } else if (key === 'resultStatus' && value) {
+      setFilters(prev => ({ ...prev, resultStatus: value as ResultStatusKey, category: null, recycleStatus: 'ACTIVE' }));
+    } else if (key === 'recycleStatus' && value === 'RECYCLED') {
+      setFilters(prev => ({ ...prev, recycleStatus: 'RECYCLED', resultStatus: null, category: null }));
+    } else {
+      setFilters(prev => ({ ...prev, [key]: value }));
+    }
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
