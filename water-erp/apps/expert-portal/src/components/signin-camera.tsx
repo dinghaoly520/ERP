@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, RefreshCcw, ScanFace, ShieldAlert, VideoOff } from 'lucide-react';
 import type { FaceDetector, FaceDetectorResult } from '@mediapipe/tasks-vision';
+import { HelpTip } from './help-tip';
 
 export interface SigninCameraProps {
   userName?: string;
@@ -412,10 +413,10 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
               </button>
             )}
           </div>
-          <span className="text-[11px] text-[var(--muted-foreground)]">
+          <span className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
             {identityMode === 'off'
-              ? '应急签到需系统处于应急模式方可通过，否则将被拒绝'
-              : '摄像头故障的处置：主持人在开评标管理端「评标管理」核验矩阵中手动确认签到（需登记理由，全程留痕）'}
+              ? '应急签到需系统处于应急模式，否则将被拒绝'
+              : (<>摄像头故障时，可由主持人现场确认签到<HelpTip text="主持人在开评标管理端「评标管理」核验矩阵中手动确认签到（需登记理由，全程留痕）。" /></>)}
           </span>
         </div>
       )}

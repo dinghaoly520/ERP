@@ -19,6 +19,7 @@ import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { InvitationDocxPreview } from "@/components/invitation-docx-preview";
 import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
+import { HelpTip } from "@/components/help-tip";
 import { ServerClock } from "@/components/server-clock";
 import { serverNowMs } from "@water-erp/shared";
 import "@/styles/pages/bids.css";
@@ -614,7 +615,8 @@ function BidDetailInner() {
                       </div>
                     )}
                     <p className="cc-inv-note">
-                      请按邀请函要求参与本项目；报价与文件投递以本页各项时间为准。如需再次确认或修改回执，可从消息通知中的邀请链接进入。
+                      请按邀请函要求参与本项目；报价与文件投递以本页时间为准。
+                      <HelpTip text="如需再次确认或修改回执，可从消息通知中的邀请链接进入。" className="ml-1" />
                     </p>
                   </div>
                 ) : (
@@ -674,7 +676,7 @@ function BidDetailInner() {
                     {notice ? (
                       <div className="cq-notice" dangerouslySetInnerHTML={{ __html: notice }} />
                     ) : (
-                      <p className="cq-desc">如需获取信息，请按采购文件载明的方式，拨打招标联系人电话或以书面来函提交。</p>
+                      <p className="cq-desc">如需获取信息，请按采购文件载明的方式联系招标联系人（电话或书面来函）。</p>
                     )}
                     {objectionContact && (
                       <div className="cq-notice mt-2 rounded-[12px] px-3 py-2.5" style={{ background: 'color-mix(in oklch, var(--accent, #064ea2) 6%, transparent)' }}>
@@ -886,7 +888,7 @@ function BidDetailInner() {
         }
       >
         <p className="cq-pin-hint">
-          即将对本标书递交回执（服务端重建的规范化负载，含文件指纹与接收时间）进行 U盾电子签名，签署后归档留痕。
+          即将对本标书递交回执进行 U盾电子签名，签署后归档留痕。
         </p>
         {ukeyPresent === false ? (
           <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>

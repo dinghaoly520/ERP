@@ -532,7 +532,7 @@ export default function TabletEvaluatePage() {
         if (remaining <= 0) return (
           <div className="exp-alert flex flex-shrink-0 items-center gap-2 !px-4">
             <AlertTriangle size={14} strokeWidth={1.5} />
-            <span className="text-xs font-semibold">评标截止时间已过（{fmtEnd}）——评分提交已被锁定，如需继续评审请联系采购管理端审批延期</span>
+            <span className="text-xs font-semibold">评标已截止（{fmtEnd}）：评分提交已锁定，继续评审请联系采购管理端延期</span>
           </div>
         );
         const days = Math.floor(remaining / 86_400_000);

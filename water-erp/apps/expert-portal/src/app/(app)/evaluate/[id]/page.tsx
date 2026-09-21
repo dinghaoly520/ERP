@@ -11,6 +11,7 @@ import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } fro
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
 import { SigninCamera } from '@/components/signin-camera';
+import { HelpTip } from '@/components/help-tip';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
@@ -1050,7 +1051,8 @@ export default function ExpertEvaluatePage() {
           </div>
           <h2 className="text-lg font-bold text-[var(--foreground)]">评标室口令</h2>
           <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
-            本项目已启用评标室口令保护。请向现场主持人获取口令后进入评标室——连续输错 3 次将锁定 10 分钟。
+            请向现场主持人获取口令后进入评标室
+            <HelpTip text="连续输错 3 次将锁定 10 分钟。" className="ml-1" />
           </p>
           <input
             type="text"
@@ -1195,7 +1197,7 @@ export default function ExpertEvaluatePage() {
         if (remaining <= 0) return (
           <div className="exp-alert mb-3 flex shrink-0 items-center gap-2 !px-4">
             <AlertTriangle size={13} strokeWidth={1.5} />
-            <span>评标截止时间已过（{fmtEnd}）——评分提交与报告确认已被锁定，如需继续评审请联系采购管理端审批延期</span>
+            <span>评标已截止（{fmtEnd}）：评分提交与报告确认已锁定，继续评审请联系采购管理端延期</span>
           </div>
         );
         const days = Math.floor(remaining / 86_400_000);

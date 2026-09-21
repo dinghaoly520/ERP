@@ -659,7 +659,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
   const handleRemoveBondLedger = async (row: BondLedgerRow) => {
     if (!projectId || bondLedgerDeleting.has(row.id)) return;
-    if (!(await confirm({ message: `确认删除「${row.supplierName}」的到账记录？\n（仅限错登纠正，删除将记入监督日志高风险留痕）`, danger: true }))) return;
+    if (!(await confirm({ message: `确认删除「${row.supplierName}」的到账记录？\n仅限错登纠正；删除将记入监督日志。`, danger: true }))) return;
     setBondLedgerDeleting(prev => new Set(prev).add(row.id));
     try {
       await removeBondLedger(projectId, row.id);

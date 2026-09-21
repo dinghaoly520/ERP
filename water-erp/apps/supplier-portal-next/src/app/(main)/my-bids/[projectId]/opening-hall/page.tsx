@@ -662,7 +662,7 @@ export default function OpeningHallPage() {
         }
       >
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)] mb-2.5">
-          即将对本开标记录（唱标信息快照：报价/工期/质量目标等）进行 U盾电子签名，签名后随确认结果归档留痕。
+          即将对本开标记录（报价、工期、质量目标等）进行 U盾电子签名，签署后归档留痕。
         </p>
         {ukeyPresent === false ? (
           <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>

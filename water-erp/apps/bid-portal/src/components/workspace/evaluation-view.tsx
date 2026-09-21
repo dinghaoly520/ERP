@@ -10,8 +10,8 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck,
-  Clock, FileCheck, KeyRound, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
+  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck, Copy,
+  Clock, Eye, EyeOff, FileCheck, KeyRound, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
 } from 'lucide-react';
 import {
   extendEvaluation,
@@ -42,6 +42,7 @@ import { EXPERT_ROLE, formatBidPrice } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
 import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
+import { HelpTip } from '@/components/help-tip';
 
 type Props = {
   projectId: string;
@@ -183,6 +184,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   // 评标室口令（2026-09-20 spec §4）：主持人展示/轮换；明文仅 bid_host/admin（leader/staff 请求 403 静默）
   const [roomCodeInfo, setRoomCodeInfo] = useState<{ roomCode: string | null; roomCodeAt: string | null } | null>(null);
   const [roomCodeBusy, setRoomCodeBusy] = useState(false);
+  const [roomCodeVisible, setRoomCodeVisible] = useState(false); // 口令掩码（2026-09-21 审查优化）
   // 闸4 阀门：解除专家登录锁定弹窗（换设备场景，理由必填留痕）
   const [releaseFor, setReleaseFor] = useState<{ id: string; expertName: string } | null>(null);
   const [releaseReason, setReleaseReason] = useState('');
@@ -767,7 +769,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         <StatTile
           label="可生成结果" value={results.length > 0 ? '已生成' : canGenerate ? '是' : '否'}
           sub={results.length > 0
-            ? (canGenerate ? '已生成，可重新生成' : '如需重生成须先完成专家确认')
+            ? (canGenerate ? '已生成，可重新生成' : '重生成须先完成专家确认')
             : canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
           pct={results.length > 0 || canGenerate ? 100 : 0} color={results.length > 0 || canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
@@ -782,18 +784,40 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <KeyRound size={14} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
               <span className="text-[11px] font-bold text-[var(--foreground)]">评标室口令</span>
               {roomCodeInfo?.roomCode ? (
-                <span className="select-all font-mono text-base font-bold tracking-[0.22em] text-[var(--accent-strong)]">
-                  {roomCodeInfo.roomCode}
+                <span className="flex items-center gap-1.5">
+                  {/* 审查优化（2026-09-21）：口令默认掩码——旁观屏幕不得窥见；点击显隐 + 复制 */}
+                  <span className="select-all font-mono text-base font-bold tracking-[0.22em] text-[var(--accent-strong)]">
+                    {roomCodeVisible ? roomCodeInfo.roomCode : '••••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRoomCodeVisible(v => !v)}
+                    title={roomCodeVisible ? '隐藏口令' : '显示口令'}
+                    className="neu-btn-xs !h-[24px] !px-2 !text-[10px]"
+                  >
+                    {roomCodeVisible ? <EyeOff size={12} strokeWidth={1.7} /> : <Eye size={12} strokeWidth={1.7} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void navigator.clipboard.writeText(roomCodeInfo.roomCode ?? ''); showToast('口令已复制到剪贴板', 'ok'); }}
+                    title="复制口令"
+                    className="neu-btn-xs !h-[24px] !px-2 !text-[10px]"
+                  >
+                    <Copy size={12} strokeWidth={1.7} />
+                  </button>
                 </span>
               ) : (
-                <span className="text-[11px] text-[var(--muted-foreground)]">未启用——生成后专家进入工作区需验口令（冒名会话拦在评标室外）</span>
+                <span className="inline-flex items-center text-[11px] text-[var(--muted-foreground)]">
+                  未启用
+                  <HelpTip text="生成口令后，专家进入工作区需验证口令。" className="ml-1" />
+                </span>
               )}
               <button
                 type="button"
                 onClick={() => void handleRotateRoomCode()}
                 disabled={roomCodeBusy}
                 className="neu-btn-xs ml-auto shrink-0"
-                title="生成/轮换评标室口令——轮换后所有专家下次进入工作区重新验证"
+                title="轮换后所有专家需重新验证口令"
               >
                 {roomCodeBusy ? '处理中…' : roomCodeInfo?.roomCode ? '轮换' : '生成口令'}
               </button>
@@ -875,7 +899,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => setManualFor({ id: row.id, expertName: row.expertName })}
                       className="neu-btn-xs"
-                      title="摄像头故障等现场降级——主持人现场确认签到（理由必填，留痕）"
+                      title="摄像头故障等降级时，主持人现场确认签到（需登记理由，留痕）"
                     >
                       手动确认
                     </button>
@@ -885,7 +909,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setReleaseFor({ id: row.id, expertName: row.expertName }); setReleaseReason(''); }}
                       className="neu-btn-xs"
-                      title="评标期间账号登录锁定（防冒名抢占）；专家换设备时现场核身后解除，放行重新登录"
+                      title="账号已登录锁定；专家换设备时现场核身后解除"
                     >
                       解锁登录
                     </button>
@@ -895,7 +919,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setRejectFor({ id: row.id, expertName: row.expertName }); setRejectType('人证不符'); setRejectNote(''); }}
                       className="neu-btn-xs"
-                      title="核验异常登记（人证不符/照片异常/到场异常）——监督日志高风险事件"
+                      title="登记人证不符/照片异常/到场异常（写入监督日志）"
                     >
                       异常
                     </button>
@@ -905,7 +929,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setUnrejectFor({ id: row.id, expertName: row.expertName }); setUnrejectReason(''); }}
                       className="neu-btn-xs"
-                      title="撤销异常登记（误报更正——追加更正日志，不删原记录）"
+                      title="误报更正：追加更正日志，不删除原记录"
                     >
                       撤销异常
                     </button>
@@ -915,7 +939,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setVerifyFor({ id: row.id, expertName: row.expertName }); setVerifyDocType('身份证'); setVerifyNote(''); }}
                       className="neu-btn-xs"
-                      title="P3 host 态：主持人核验登记（人↔证件↔名单三对照，登记后专家方可签到）"
+                      title="主持人核验登记：本人↔证件↔名单三对照，登记后专家方可签到"
                     >
                       核验
                     </button>
@@ -947,7 +971,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
           <div className="border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
             <span className="text-[11px] font-bold text-[var(--foreground)]">专家状态</span>
-            <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">实名组织视图——签到·签字·现场沟通（查看留痕）；评分明细见下方编号矩阵</span>
+            <HelpTip text="评标期间专家实名仅主持人/管理员可见，用于签到、签字与现场沟通；评分明细按下方的匿名编号矩阵呈现。" className="ml-1.5" />
           </div>
           {experts.length === 0 ? (
             <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">
@@ -978,7 +1002,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                   )}
                   {expert.invitationStatus === 'declined' && (
-                    <span className="bid-pill shrink-0" data-invite="declined" title="专家已婉拒邀请——正选缺席时由候补递补（由采购管理工作台专家确认环节处理）">
+                    <span className="bid-pill shrink-0" data-invite="declined" title="已婉拒邀请；正选缺席时由候补递补">
                       已婉拒
                     </span>
                   )}
@@ -990,7 +1014,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   {expert.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span
                       className="bid-pill bid-pill--muted shrink-0"
-                      title="候补专家不参与评分、评审报告确认与签字；正选缺席时递补后方可参与"
+                      title="候补专家不参与评分、报告确认与签字；正选缺席时递补后参与"
                     >
                       候补·未递补
                     </span>
@@ -1014,10 +1038,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         {regularExperts.length > 0 && suppliers.length > 0 && (
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
-            <p className="mb-1.5 text-[10px] text-[var(--muted-foreground)]">
-              评分矩阵与分数明细在评标期间按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；现场组织者（主持人/管理员）可在专家状态卡片查看实名，用于签到、签字与现场沟通（查看留痕）；全部专家确认评审报告后恢复实名。
-              {/* F4：矩阵仅列正选专家；编号为服务端按全体专家预分配的稳定号，候补在列时可能不连续（不重排，防刷新换号） */}
-              {alternateExperts.length > 0 && `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。`}
+            <p className="mb-1.5 flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
+              评分明细按匿名编号呈现
+              <HelpTip text={`评标期间评分明细按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；全部专家确认评审报告后恢复实名。${alternateExperts.length > 0 ? `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。` : ''}`} />
             </p>
             <div className="overflow-x-auto rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
             <table className="neu-table is-dense w-full min-w-[560px]">
@@ -1463,9 +1486,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </div>
             <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
-              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                专家「{manualFor.expertName}」未能拍摄留档照（如摄像头故障）。请现场核对其身份证件后确认签到——
-                <span className="font-semibold text-[var(--warning)]">确认将写入监督日志并在签字包披露</span>。
+              <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+                <span>专家「{manualFor.expertName}」未能拍摄留档照，请<span className="font-semibold text-[var(--warning)]">现场核对其身份证件后</span>确认签到。</span>
+                <HelpTip text="确认将写入监督日志，并在签字包中披露。" className="mt-px shrink-0" />
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">降级理由（必填）</label>
               <textarea
@@ -1511,10 +1534,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </div>
             <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
-              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                评标期间专家账号处于登录锁定（工位先占，防冒名抢占）。专家「{releaseFor.expertName}」如需更换设备，
-                请<span className="font-semibold text-[var(--warning)]">现场核对其身份证件后</span>解除锁定——
-                解除后原会话失效、专家可重新登录，操作写入监督日志。
+              <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+                <span>专家「{releaseFor.expertName}」更换设备需<span className="font-semibold text-[var(--warning)]">现场核对其身份证件后</span>解除锁定。</span>
+                <HelpTip text="解除后原会话失效、专家可重新登录；操作写入监督日志。" className="mt-px shrink-0" />
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">解除理由（必填）</label>
               <textarea
@@ -1584,8 +1606,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </div>
             <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
-              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                请现场核对专家「{verifyFor.expertName}」的<span className="font-semibold text-[var(--foreground)]">本人 ↔ 身份证件 ↔ 抽取名单</span>三对照后登记；登记后该专家方可签到（host 态闸门）。
+              <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+                <span>请现场核对专家「{verifyFor.expertName}」的<span className="font-semibold text-[var(--foreground)]">本人 ↔ 身份证件 ↔ 抽取名单</span>一致后登记。</span>
+                <HelpTip text="登记后该专家方可签到。" className="mt-px shrink-0" />
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">证件类型（不存号码）</label>
               <select value={verifyDocType} onChange={(e) => setVerifyDocType(e.target.value as typeof verifyDocType)} className="workbench-input w-full">
@@ -1679,7 +1702,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 当前截止：<span className="tabular-nums text-[var(--foreground)]">{project?.evaluationDeadline ? new Date(project.evaluationDeadline).toLocaleString('zh-CN') : '—'}</span>
                 {project?.evaluationDeadline && new Date(project.evaluationDeadline).getTime() < Date.now() && <span className="ml-1 font-semibold text-[var(--danger)]">（已超时）</span>}
               </p>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数<span className="ml-1.5 font-normal normal-case tracking-normal">（单次最长 720 小时，与启动评标时长相通）</span></label>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数<span className="ml-1.5 font-normal normal-case tracking-normal">（单次最长 720 小时）</span></label>
               <input
                 type="number"
                 min={EVAL_HOURS_MIN}
@@ -1697,8 +1720,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 placeholder="请填写延期理由…"
                 className="workbench-input w-full resize-none"
               />
-              <p className="mt-3 text-[11px] leading-4 text-[var(--muted-foreground)]">
-                审批后将在当前截止时间（已超时则自当前时刻）基础上累加 {extendHours} 小时，并写入监督日志与审计日志。
+              <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                审批后累加 {extendHours} 小时，写入监督与审计日志
+                <HelpTip text="在当前截止时间基础上累加；已超时则自当前时刻起算。" />
               </p>
             </div>
             <hr className="wb-section-rule mx-6" />

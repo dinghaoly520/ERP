@@ -1038,3 +1038,48 @@ select.neu-select {
 @media (prefers-reduced-motion: reduce) { .sp-collapse-zone .sidebar-nav-item { transition: none; } }
 /* 侧栏字体栈对齐 :3005（Plus Jakarta Sans 优先） */
 .sidebar-card { font-family: 'Plus Jakarta Sans', var(--font-body, inherit), 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+
+/* ── HelpTip「?」悬停说明（2026-09-21 文案收敛改造：长说明移入 hover 气泡）── */
+.help-tip { position: relative; display: inline-flex; vertical-align: middle; }
+.help-tip__trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; padding: 0; border-radius: 999px;
+  border: 1px solid oklch(0.6 0.04 258 / 0.3);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: help;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+.help-tip__trigger:hover,
+.help-tip:focus-within .help-tip__trigger {
+  color: var(--accent-strong);
+  border-color: oklch(0.55 0.09 258 / 0.45);
+  background: oklch(0.975 0.012 258 / 0.6);
+}
+.help-tip__bubble {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 7px);
+  transform: translateX(-50%);
+  z-index: 90;
+  width: max-content;
+  max-width: min(300px, 70vw);
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--foreground);
+  color: oklch(0.975 0.012 258);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.65;
+  letter-spacing: 0;
+  text-align: left;
+  box-shadow: 3px 3px 8px oklch(0.3 0.04 258 / 0.25), -2px -2px 6px oklch(1 0 0 / 0.85);
+  pointer-events: none;
+  animation: help-tip-in 0.14s ease-out;
+}
+.help-tip__bubble[hidden] { display: none; }
+@keyframes help-tip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-2px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) { .help-tip__bubble { animation: none; } }
