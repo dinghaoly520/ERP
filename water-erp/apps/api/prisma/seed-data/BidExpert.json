@@ -157,7 +157,7 @@
     "userId": "c1bf8a97b47aed2477b465b",
     "expertName": "周祥志",
     "major": "工程设计",
-    "isLead": false,
+    "isLead": true,
     "expertRole": "正选",
     "invitationStatus": "pending",
     "signedIn": true,

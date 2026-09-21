@@ -251,7 +251,10 @@ export default function ExpertTasksPage() {
               <div className="neu-card-static rounded-2xl px-6 py-10 text-center">
                 <Gavel size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
                 <p className="text-xs text-[var(--muted-foreground)]">暂无动议记录</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">点击「发起动议」按钮新建</p>
+                {/* P2-3（2026-09-21 审查）：发起动议按钮仅组长渲染——空态文案按身份分流，非组长不再指向不存在的按钮 */}
+                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">
+                  {isLeadAnywhere ? '点击「发起动议」按钮新建' : '表决动议由评审组长发起，投票开放后可在此参与'}
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -390,7 +393,9 @@ export default function ExpertTasksPage() {
               <div className="neu-card-static rounded-2xl px-6 py-10 text-center">
                 <AlertTriangle size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
                 <p className="text-xs text-[var(--muted-foreground)]">暂无异议工单</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">点击「提交异议」按钮新建</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">
+                  {isLeadAnywhere ? '点击「提交异议」按钮新建' : '异议工单由评审组长提交；如有评审异议请联系组长'}
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
