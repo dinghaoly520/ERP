@@ -64,6 +64,7 @@ export function RequirementComparePanel({
   pointMemoCounts,
   selectedPointId,
   onPointClick,
+  onReviewChanged,
 }: {
   projectId: string;
   supplierId: string;
@@ -90,6 +91,8 @@ export function RequirementComparePanel({
   selectedPointId?: string | null;
   /** 点击得分点 → 选中并打开备忘抽屉 */
   onPointClick?: (pointId: string, pointName: string) => void;
+  /** P3（2026-09-21）：verdict 标注成功后回调——父组件借此即时刷新 disputeCategoriesBySupplier，打分 tab 徽标/软闸门不再滞后 */
+  onReviewChanged?: () => void;
 }) {
   const [local, setLocal] = useState<Record<string, BidRequirementReview>>(
     () => Object.fromEntries(reviews.map((r) => [r.requirementId, r])),
@@ -190,6 +193,7 @@ export function RequirementComparePanel({
         verdict,
         note: next.note,
       });
+      onReviewChanged?.(); // P3（2026-09-21）：标注落库后通知父组件刷新联动数据
     } catch {
       // 回滚到点击前的 verdict —— 否则 UI 显示新值而 server 仍是旧值，专家以为标注成功实为数据丢失
       setLocal((cur) => ({ ...cur, [item.id]: prevReview }));

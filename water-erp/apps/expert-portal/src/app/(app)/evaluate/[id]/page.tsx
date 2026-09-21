@@ -291,6 +291,41 @@ export default function ExpertEvaluatePage() {
   // Composite key helper — keeps the per-supplier invariant explicit at every call site.
   const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
+  // P3（2026-09-21 审查）：提取 my-scores 拉取——条款核对 setVerdict 成功后经
+  // onReviewChanged 复用此函数即时刷新 disputeCategoriesBySupplier（此前仅挂载时拉取，
+  // 标注后切打分 tab 徽标/软闸门数据滞后，须刷新页面才同步）。
+  const loadMyScores = useCallback(async (pid: string, scoreItems: Array<{ id: string; points?: Array<{ id: string }> }>) => {
+    try {
+      const d = await api.get<{
+        records: unknown[];
+        disputeCategoriesBySupplier: Record<string, string[]>;
+        disputesBySupplier: Record<string, Record<string, Array<{ requirementId: string; content: string; note: string; verdict: 'dispute' | 'doubt' }>>>;
+        pointDecisions?: Array<{ pointId: string; supplierId: string; checked: boolean; awardedScore: number | string; note?: string }>;
+      }>(`/expert/projects/${pid}/my-scores`);
+      setDisputeCategoriesBySupplier(d.disputeCategoriesBySupplier ?? {});
+      setDisputesBySupplier(d.disputesBySupplier ?? {});
+      // Task 7: hydrate point decisions —— build pointId→scoreItemId map once from project.scoreItems.
+      const pointToItem = new Map<string, string>();
+      for (const si of scoreItems) {
+        for (const pt of si.points ?? []) pointToItem.set(pt.id, si.id);
+      }
+      setScores(prev => {
+        const next = { ...prev };
+        for (const pd of (d.pointDecisions ?? [])) {
+          const scoreItemId = pointToItem.get(pd.pointId);
+          if (!scoreItemId) continue;
+          const k = scoreKey(pd.supplierId, scoreItemId);
+          const cur = next[k] ?? { score: 0, reason: '' };
+          next[k] = {
+            ...cur,
+            points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
+          };
+        }
+        return next;
+      });
+    } catch { /* my-scores optional — ignore */ }
+  }, []);
+
   // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
   // silent=true：不闪「加载中」的静默刷新（10s 轮询用）——loading 门控整页渲染（L1013），
   // 普通刷新会每 10s 卸载整页含相机组件、重置取景，轮询必须静默
@@ -333,40 +368,11 @@ export default function ExpertEvaluatePage() {
         // Task 7: 同时取 pointDecisions，按 pointId→scoreItemId 映射 hydrate 到 scores[k].points。
         // P3-4（2026-09-21 审查）：未签到专家跳过——服务端 VERIFICATION_REQUIRED 403 只是控制台噪音
         //（评分区本就锁定，无异议/得分点数据可 hydrate）；服务端闸门保留作纵深防御。
-        if (p.myExpertRecord?.signedIn) api.get<{
-          records: unknown[];
-          disputeCategoriesBySupplier: Record<string, string[]>;
-          disputesBySupplier: Record<string, Record<string, Array<{ requirementId: string; content: string; note: string; verdict: 'dispute' | 'doubt' }>>>;
-          pointDecisions?: Array<{ pointId: string; supplierId: string; checked: boolean; awardedScore: number | string; note?: string }>;
-        }>(`/expert/projects/${projectId}/my-scores`)
-          .then((d) => {
-            setDisputeCategoriesBySupplier(d.disputeCategoriesBySupplier ?? {});
-            setDisputesBySupplier(d.disputesBySupplier ?? {});
-            // Task 7: hydrate point decisions —— build pointId→scoreItemId map once from project.scoreItems.
-            const pointToItem = new Map<string, string>();
-            for (const si of p.scoreItems ?? []) {
-              for (const pt of si.points ?? []) pointToItem.set(pt.id, si.id);
-            }
-            setScores(prev => {
-              const next = { ...prev };
-              for (const pd of (d.pointDecisions ?? [])) {
-                const scoreItemId = pointToItem.get(pd.pointId);
-                if (!scoreItemId) continue;
-                const k = scoreKey(pd.supplierId, scoreItemId);
-                const cur = next[k] ?? { score: 0, reason: '' };
-                next[k] = {
-                  ...cur,
-                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
-                };
-              }
-              return next;
-            });
-          })
-          .catch(() => { /* my-scores optional — ignore */ });
+        if (p.myExpertRecord?.signedIn) void loadMyScores(projectId, p.scoreItems ?? []);
       })
       .catch((e: any) => setLoadError(e?.message || '加载项目失败')) // P1-16：记录错误态供重试
       .finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, loadMyScores]);
 
   // P3-3: default supplier selection decoupled from project load — avoids re-fetch on switch
   useEffect(() => {
@@ -1079,6 +1085,12 @@ export default function ExpertEvaluatePage() {
     // Phase ④ Task 7: block if supplier is currently 废标 (invalid)
     && !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!expert?.reportConfirmed;
+  // P3（2026-09-21 审查）：超时态统一口径——横幅与提交按钮/文案共用（此前按钮可点但服务端必 409）
+  const evaluationOverdue = !!(
+    project?.stage === 'EVALUATING'
+    && project.evaluationDeadline
+    && new Date(project.evaluationDeadline).getTime() <= nowTick
+  );
 
   // ── Task 5: 聚焦复选框面板 helpers ──
   const noteId = (supplierId: string, requirementId: string) => `${supplierId}:${requirementId}`;
@@ -1765,6 +1777,7 @@ export default function ExpertEvaluatePage() {
                 pointMemoCounts={pointMemoCounts}
                 selectedPointId={activePointId}
                 onPointClick={handlePointClickDesk}
+                onReviewChanged={() => { if (project) void loadMyScores(projectId, project.scoreItems ?? []); }}
                 />
               )}
             </div>
@@ -2107,9 +2120,9 @@ export default function ExpertEvaluatePage() {
                             保存草稿
                           </button>
                         )}
-                        <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked}
+                        <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked || evaluationOverdue}
                           className="neu-btn-primary flex-1">
-                          {busy ? '提交中...' : scoreLocked ? '评分已锁定' : `提交 ${scoringSupplierName} 的评分`}
+                          {busy ? '提交中...' : scoreLocked ? '评分已锁定' : evaluationOverdue ? '评标已超时，提交已锁定' : `提交 ${scoringSupplierName} 的评分`}
                         </button>
                       </div>
                     </div>
