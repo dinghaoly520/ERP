@@ -7,10 +7,9 @@
  */
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, BadgeCheck, CheckCircle2, FileSignature, FileText, MessageSquare, Plus, Send, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, CheckCircle2, FileSignature, FileText, MessageSquare, Plus, Send, X } from 'lucide-react';
 import {
   createClarification,
-  draftClarification,
   listClarifications,
   replyClarification,
   summarizeClarification,
@@ -48,7 +47,6 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
   const [supplierName, setSupplierName] = useState('');
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [question, setQuestion] = useState('');
-  const [drafting, setDrafting] = useState(false);
 
   // 回复
   const [replying, setReplying] = useState<string | null>(null);
@@ -83,24 +81,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
   const archived = stage === 'ARCHIVED';
 
-  /* ── AI 起草候选问题（填入输入框，人工审阅后再发）── */
-  async function handleDraft() {
-    if (!selectedSupplierId) { showToast('请先选择供应商', 'err'); return; }
-    setDrafting(true);
-    try {
-      const res = await draftClarification(bidProjectId, selectedSupplierId);
-      if (res.drafts.length > 0) {
-        setQuestion(res.drafts[0]);
-        showToast(`AI 已起草 ${res.drafts.length} 条候选，已填入第一条，请审阅修改`);
-      } else {
-        showToast('AI 暂无起草建议（该供应商可能无 AI 分析弱点）');
-      }
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'AI 起草失败', 'err');
-    } finally {
-      setDrafting(false);
-    }
-  }
+  // 澄清 AI 起草已删（2026-09-21 用户裁定两端同删）——:3007 前端按钮为删除遗漏，本次收口
 
   /* ── AI 提炼回复要点 ── */
   async function handleSummarize(cid: string) {
@@ -453,14 +434,6 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
               <div>
                 <label className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                   <span>澄清问题</span>
-                  <button
-                    type="button"
-                    onClick={() => void handleDraft()}
-                    disabled={drafting || !selectedSupplierId}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold normal-case tracking-normal text-[var(--accent)] hover:underline disabled:opacity-40"
-                  >
-                    <Sparkles size={11} /> {drafting ? '起草中…' : 'AI 起草'}
-                  </button>
                 </label>
                 <textarea
                   value={question}
