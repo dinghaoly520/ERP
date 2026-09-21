@@ -96,6 +96,17 @@ export default function ExpertEvaluatePage() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [showMessages, setShowMessages] = useState(false);
 
+  // P3-1（2026-09-21 审查）：开标消息弹窗文案承诺「按 Esc 或点击遮罩关闭」但无 Esc 处理器——
+  // 兑现承诺；澄清答疑弹窗一并支持（挂载模式对齐 confirm-dialog.tsx：条件挂载+卸载清理）
+  useEffect(() => {
+    if (!showMessages && !showClarifications) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setShowMessages(false); setShowClarifications(false); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showMessages, showClarifications]);
+
   const pushLiveEvent = (label: string, icon: typeof liveEvents[0]['icon']) => {
     setLiveEvents(prev => [{ time: Date.now(), label, icon }, ...prev].slice(0, 20));
   };
@@ -324,7 +335,9 @@ export default function ExpertEvaluatePage() {
         // Fix 1: fetch disputeCategoriesBySupplier (per-supplier) via my-scores endpoint.
         // Task 4: 同时取 disputesBySupplier（异议详情，用于打分 step「📎插入异议」联动）。
         // Task 7: 同时取 pointDecisions，按 pointId→scoreItemId 映射 hydrate 到 scores[k].points。
-        api.get<{
+        // P3-4（2026-09-21 审查）：未签到专家跳过——服务端 VERIFICATION_REQUIRED 403 只是控制台噪音
+        //（评分区本就锁定，无异议/得分点数据可 hydrate）；服务端闸门保留作纵深防御。
+        if (p.myExpertRecord?.signedIn) api.get<{
           records: unknown[];
           disputeCategoriesBySupplier: Record<string, string[]>;
           disputesBySupplier: Record<string, Record<string, Array<{ requirementId: string; content: string; note: string; verdict: 'dispute' | 'doubt' }>>>;
@@ -1867,7 +1880,9 @@ export default function ExpertEvaluatePage() {
                 });
                 const scoringSupplierName = project.suppliers.find(su => su.id === activeSupplier)?.supplierName || '';
                 return (
-                  <div className="space-y-6">
+                  // P3-2（2026-09-21 审查）：不可评供应商（未解密/已撤回/已回避/已废标）整卡置灰防白填
+                  // ——惯用语同身份核验逐级解锁门（pointer-events-none select-none opacity-50）
+                  <div className={`space-y-6 ${!canScoreActiveSupplier && !scoreLocked ? 'pointer-events-none select-none opacity-50' : ''}`}>
                     {Object.entries(grouped).map(([category, items]) => {
                       const catTotal = items.reduce((s, i) => s + Number(i.maxScore), 0);
                       const catScored = items.reduce((s, i) => s + (scores[scoreKey(activeSupplier, i.id)]?.score ?? 0), 0);
