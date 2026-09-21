@@ -5820,6 +5820,15 @@ export class BidService {
       this.prisma.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补' } }),
       this.prisma.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选' } }),
     ]);
+    // P3（2026-09-21 审查）：委员会组成变更必须留痕——此前零日志（与延期/核验/解锁/签字留痕口径不一）
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '采购管理端', target: '评标委员会组成',
+        action: '正选候补互换',
+        result: `正选【${e1.expertName}】⇄ 候补【${e2.expertName}】（${e2.expertName} 递补为正选）`,
+        riskFlag: '中',
+      },
+    }).catch(() => {});
     return { success: true };
   }
 
