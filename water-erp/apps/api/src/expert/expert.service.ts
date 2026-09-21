@@ -390,8 +390,8 @@ export class ExpertService {
       // 评标室口令（2026-09-20 spec §4）：只暴露「是否启用/是否已验」——口令明文仅 :3007 主持人可见；
       // roomCodeVerified 与 assertRoomUnlocked 同口径（roomCode 非空且 EVALUATING 且 roomVerifiedAt >= roomCodeAt）
       roomCode: undefined,
-      roomCodeActive: !!project.roomCode && project.stage === 'EVALUATING',
-      roomCodeVerified: !(!!project.roomCode && project.stage === 'EVALUATING')
+      roomCodeActive: !!project.roomCode && (project.stage === 'EVALUATING' || project.stage === 'ABORTED'),
+      roomCodeVerified: !(!!project.roomCode && (project.stage === 'EVALUATING' || project.stage === 'ABORTED'))
         || (!!expertRecord.roomVerifiedAt && !!project.roomCodeAt && expertRecord.roomVerifiedAt >= project.roomCodeAt),
       // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
       // 逐人签到/回避/进度/报告确认改为聚合计数，对齐 WS broadcastAggregatePresence「只发计数」设计
@@ -428,7 +428,7 @@ export class ExpertService {
       where: { id: projectId },
       select: { stage: true, roomCode: true, name: true, projectCode: true },
     });
-    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+    if (!project || !['OPENING', 'EVALUATING', 'ABORTED'].includes(project.stage)) {
       throw new ForbiddenException({ error: '项目不在可评标阶段', code: 'PROJECT_NOT_ACTIVE' });
     }
     if (!project.roomCode) throw new BadRequestException({ error: '本项目未启用评标室口令', code: 'ROOM_CODE_NOT_ENABLED' });
@@ -506,17 +506,17 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     this.assertRegularExpert(expert, '签到');
-
     // 闸2（2026-09-20 spec §3）：跨项目评标窗口冲突——签到即开窗，同时段双活跃在此硬拦。
     // 窗口=签到起→本人确认报告止；同日不同时段合法（上午标确认报告后即可签下午标）。
     // P1-3（2026-09-21 审查修复）：拒绝同时落监督日志+admin 告警（spec §3 四路之一）。
-    const crossWindows = await findOpenEvaluationWindows(this.prisma, userId, projectId);
-    if (crossWindows.length > 0) {
+    // 冲突优先于模式/照片闸（原行为——错误体直接指向冲突项目，无需先过拍照）。
+    // P2-5（2026-09-21）：此处为预检；权威检查在写入事务内（User 行锁，防并发双开窗 TOCTOU）。
+    const rejectWindowConflict = async (wins: Awaited<ReturnType<typeof findOpenEvaluationWindows>>): Promise<never> => {
       await this.prisma.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '评审专家', target: expert.expertName,
           action: '跨项目评标窗口冲突拦截',
-          result: `签到被拒——其在【${crossWindows.map(w => w.project.name).join('、')}】评标未结束（未确认报告）`,
+          result: `签到被拒——其在【${wins.map(w => w.project.name).join('、')}】评标未结束（未确认报告）`,
           riskFlag: '关注',
         },
       }).catch(() => {});
@@ -527,10 +527,14 @@ export class ExpertService {
         link: '/bid',
       }).catch(() => {});
       throw new ConflictException({
-        error: `您在项目【${crossWindows.map(w => w.project.name).join('、')}】的评标尚未结束（未确认评审报告），不可同时参与本项目评标`,
+        error: `您在项目【${wins.map(w => w.project.name).join('、')}】的评标尚未结束（未确认评审报告），不可同时参与本项目评标`,
         code: 'EXPERT_WINDOW_CONFLICT',
       });
-    }
+    };
+    const preWindows = await findOpenEvaluationWindows(this.prisma, userId, projectId);
+    if (preWindows.length > 0) await rejectWindowConflict(preWindows);
+
+
 
     // 模式闸（spec §4.3）：self 默认 / host 强化（需主持人核验登记）/ off 应急
     const mode = resolveIdentityVerifyMode();
@@ -559,14 +563,28 @@ export class ExpertService {
       ...(env ? { ip: env.ip, userAgent: env.userAgent } : {}),
     };
 
-    const updated = await this.prisma.bidExpert.update({
-      where: { id: expert.id },
-      data: {
-        signedIn: true,
-        signInIp: env?.ip ?? null,
-        signInMeta,
-      },
+
+
+    // P2-5（2026-09-21）：权威复查与签到写入并入同一事务，先取 User 行锁——同一专家的并发
+    // 签到串行化，后到者在锁内必见先到者刚开的窗（预检与写入分离存在 TOCTOU 双开窗竞态）。
+    // 位置在模式/照片/资产闸与 signInMeta 之后（闸门拒绝不空耗行锁，事务内引用均已声明）。
+    let txWindows: Awaited<ReturnType<typeof findOpenEvaluationWindows>> = [];
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      txWindows = await findOpenEvaluationWindows(tx, userId, projectId);
+      if (txWindows.length > 0) return null;
+      return tx.bidExpert.update({
+        where: { id: expert.id },
+        data: {
+          signedIn: true,
+          signInIp: env?.ip ?? null,
+          signInMeta,
+        },
+      });
     });
+    if (txWindows.length > 0) await rejectWindowConflict(txWindows);
+    if (!updated) throw new ConflictException({ error: '签到失败，请重试', code: 'SIGNIN_FAILED' }); // 类型收窄兜底
+
     // P1-5: 签到监督日志
     let signInResult = '签到成功';
     try {

@@ -56,7 +56,7 @@ import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { SignatureService } from '../common/crypto/signature.service';
 import { buildClarificationReplyCanonical } from '../supplier-portal/clarification-reply.util';
-import { findCrossWindowExperts, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
+import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -5810,6 +5810,15 @@ export class BidService {
       this.prisma.bidExpert.findFirst({ where: { projectId, id: toExpertId } }),
     ]);
     if (!e1 || !e2) throw new BadRequestException({ error: '专家记录不存在', code: 'NOT_FOUND' });
+    // P2-4（2026-09-21）：进场（候补→正选）专家跨项目窗口复查——与抽取硬闸（闸1）同口径。
+    // 派单在开标前、开窗可能在派单后——防止开窗专家经候补递补通道进场（signIn 硬闸的提前兜底）。
+    const toWindows = await findOpenEvaluationWindows(this.prisma, e2.userId, projectId);
+    if (toWindows.length > 0) {
+      throw new ConflictException({
+        error: `候补专家【${e2.expertName}】在项目【${toWindows.map(w => w.project.name).join('、')}】评标未结束（未确认报告），不可递补进场`,
+        code: 'EXPERT_WINDOW_CONFLICT',
+      });
+    }
     await this.prisma.$transaction([
       this.prisma.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补' } }),
       this.prisma.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选' } }),

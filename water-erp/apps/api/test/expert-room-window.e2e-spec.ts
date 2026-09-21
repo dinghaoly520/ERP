@@ -22,9 +22,12 @@ describe('Expert room code & window isolation (e2e)', () => {
   const U = {
     admin: 'e2e-rw-admin', host: 'e2e-rw-host',
     wexp: 'e2e-rw-wexp', texp: 'e2e-rw-texp',
+    cexp: 'e2e-rw-cexp',
   };
   let adminId: string, hostId: string, wexpId: string, texpId: string;
   let projectA: string, projectB: string, projectC: string;
+  let projectD: string, projectE1: string, projectE2: string;
+  let cexpId: string, cexpPhotoId: string;
 
   const login = (username: string, portal: string) =>
     request(app.getHttpServer()).post('/api/auth/login').set('X-Portal', portal).send({ username, password: PW });
@@ -84,10 +87,23 @@ describe('Expert room code & window isolation (e2e)', () => {
     await prisma.bidExpert.create({ data: { projectId: projectB, userId: wexpId, expertName: U.wexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
     await prisma.bidExpert.create({ data: { projectId: projectB, userId: texpId, expertName: U.texp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
     await prisma.bidExpert.create({ data: { projectId: projectC, userId: wexpId, expertName: U.wexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
+    // P2 用例夹具（2026-09-21）：D=swap 复查；E1/E2+cexp=并发签到 TOCTOU；photo=过签到照片闸
+    const [d, e1, e2] = await Promise.all([
+      mkProject('RW-D-2026', 'SUBMIT'), mkProject('RW-E1-2026', 'OPENING'), mkProject('RW-E2-2026', 'OPENING'),
+    ]);
+    projectD = d.id; projectE1 = e1.id; projectE2 = e2.id;
+    await prisma.bidExpert.create({ data: { projectId: projectD, userId: wexpId, expertName: U.wexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
+    await prisma.bidExpert.create({ data: { projectId: projectD, userId: texpId, expertName: U.texp, major: '造价', expertRole: '候补', invitationStatus: 'confirmed' } });
+    const cexp = await mk(U.cexp, 'bid_expert', true);
+    cexpId = cexp.id;
+    await prisma.bidExpert.create({ data: { projectId: projectE1, userId: cexpId, expertName: U.cexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
+    await prisma.bidExpert.create({ data: { projectId: projectE2, userId: cexpId, expertName: U.cexp, major: '造价', expertRole: '正选', invitationStatus: 'confirmed' } });
+    cexpPhotoId = (await prisma.fileAsset.create({ data: { key: 'e2e-rw-cexp-photo', originalName: 'cexp.jpg', mimeType: 'image/jpeg', size: 1024, sha256: '0'.repeat(64), category: 'expert_signin_photo', uploaderId: cexpId } })).id;
   });
 
   afterAll(async () => {
-    await prisma.bidProject.deleteMany({ where: { id: { in: [projectA, projectB, projectC] } } });
+    await prisma.bidProject.deleteMany({ where: { id: { in: [projectA, projectB, projectC, projectD, projectE1, projectE2] } } });
+    await prisma.fileAsset.deleteMany({ where: { id: cexpPhotoId } });
     await prisma.user.deleteMany({ where: { username: { in: Object.values(U) } } });
     await app.close();
   });
@@ -340,5 +356,70 @@ describe('Expert room code & window isolation (e2e)', () => {
     // 收尾：闭合窗口恢复可登录（留给环境的干净态）
     await prisma.bidExpert.update({ where: { id: wexpRow!.id }, data: { reportConfirmed: true } });
     await login(U.wexp, 'expert').expect(200);
+  });
+
+  /* ── 2026-09-21 P2 三案修复回归 ── */
+
+  it('P2-4：swapExpertRole 进场专家有开窗 → 409；无窗候补 → 放行', async () => {
+    const adminCookie = await loginCookie(U.admin, 'web');
+    const rows = await prisma.bidExpert.findMany({ where: { projectId: projectD }, select: { id: true, userId: true, expertRole: true } });
+    const tRow = rows.find(r => r.userId === texpId)!; // 候补（无窗）
+    const wRow = rows.find(r => r.userId === wexpId)!;  // 正选（此刻 wexp 窗口已闭合——重开再测阻断）
+    // 先验证无窗候补可正常递补（正选 wexp → 候补 texp）
+    const ok1 = await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectD}/swap-expert`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .send({ fromExpertId: wRow.id, toExpertId: tRow.id });
+    expect([200, 201]).toContain(ok1.status);
+    // 重开 wexp 窗口 → 反向递补（正选 texp → 候补 wexp）应被阻断
+    await prisma.bidExpert.update({ where: { id: (await prisma.bidExpert.findFirst({ where: { projectId: projectA, userId: wexpId } }))!.id }, data: { reportConfirmed: false } });
+    const blocked = await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectD}/swap-expert`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')
+      .send({ fromExpertId: tRow.id, toExpertId: wRow.id });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.code).toBe('EXPERT_WINDOW_CONFLICT');
+    expect(blocked.body.error).toContain(U.wexp);
+    // 收尾：闭合窗口
+    await prisma.bidExpert.update({ where: { id: (await prisma.bidExpert.findFirst({ where: { projectId: projectA, userId: wexpId } }))!.id }, data: { reportConfirmed: true } });
+  });
+
+  it('P2-5：并发双签到串行化——同专家两项目同时签到，恰成一败一成（User 行锁消 TOCTOU）', async () => {
+    const c = await loginCookie(U.cexp, 'expert');
+    const [r1, r2] = await Promise.all([
+      request(app.getHttpServer()).post(`/api/expert/projects/${projectE1}/sign-in`)
+        .set('Cookie', c).set('X-Portal', 'expert').send({ photoAssetId: cexpPhotoId }),
+      request(app.getHttpServer()).post(`/api/expert/projects/${projectE2}/sign-in`)
+        .set('Cookie', c).set('X-Portal', 'expert').send({ photoAssetId: cexpPhotoId }),
+    ]);
+    const codes = [r1.status, r2.status].sort();
+    expect(codes).toEqual([201, 409]);
+    const conflict = r1.status === 409 ? r1 : r2;
+    expect(conflict.body.code).toBe('EXPERT_WINDOW_CONFLICT');
+  });
+
+  it('P2-6：ABORTED（流标）后口令闸保持——未验 403，补验后放行', async () => {
+    await prisma.bidProject.update({ where: { id: projectA }, data: { stage: 'ABORTED' } });
+    // texp 此前爆破锁定未过期（10 分钟窗）——重置后走补验路径
+    await prisma.bidExpert.updateMany({ where: { projectId: projectA }, data: { roomAttempts: 0, roomLockedUntil: null } });
+    const tCookie = await loginCookie(U.texp, 'expert');
+    const r = await request(app.getHttpServer())
+      .get(`/api/expert/projects/${projectA}/my-scores`)
+      .set('Cookie', tCookie).set('X-Portal', 'expert');
+    expect(r.status).toBe(403);
+    expect(r.body.code).toBe('ROOM_CODE_REQUIRED');
+    // 补验口令（ABORTED 阶段允许 verify）→ 闸门放行（后续业务态不在此断言范围）
+    const adminCookie = await loginCookie(U.admin, 'web');
+    const code = (await (await request(app.getHttpServer())
+      .get(`/api/bid/projects/${projectA}/room-code`)
+      .set('Cookie', adminCookie).set('X-Portal', 'web')).body).roomCode;
+    await request(app.getHttpServer())
+      .post(`/api/expert/projects/${projectA}/room-code/verify`)
+      .set('Cookie', tCookie).set('X-Portal', 'expert').send({ code })
+      .expect(201);
+    const r2 = await request(app.getHttpServer())
+      .get(`/api/expert/projects/${projectA}/my-scores`)
+      .set('Cookie', tCookie).set('X-Portal', 'expert');
+    expect(r2.body.code ?? '').not.toBe('ROOM_CODE_REQUIRED');
   });
 });

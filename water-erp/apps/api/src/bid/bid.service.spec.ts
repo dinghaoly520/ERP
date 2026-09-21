@@ -4529,7 +4529,7 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
   beforeEach(async () => {
     prisma = {
       bidProject: { findUnique: jest.fn() },
-      bidExpert: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidExpert: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) }, // findMany：P2-4 swap 进场窗口复查
       $transaction: jest.fn().mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(prisma)),
     };
     const { BidService } = await import('./bid.service');

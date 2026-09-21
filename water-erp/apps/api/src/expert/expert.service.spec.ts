@@ -80,6 +80,11 @@ describe('ExpertService', () => {
       $transaction: jest.fn(async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
       $queryRaw: jest.fn(),
     };
+    // P2-5（2026-09-21）：signIn 事务化——$transaction 回调透传 tx（queryRaw 空 + bidExpert 复用外层 mock）
+    (prisma as any).$transaction = jest.fn(async (arg: any) =>
+      typeof arg === 'function'
+        ? arg({ ...prisma, $queryRaw: jest.fn().mockResolvedValue([]) })
+        : Promise.all(arg));
 
     ai = { analyzeBid: jest.fn() };
     gateway = {
@@ -2566,6 +2571,11 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
       fileAsset: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-reg' }) },
       bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn().mockResolvedValue({ count: 0 }) },
     };
+    // P2-5（2026-09-21）：signIn 事务化——$transaction 回调透传 tx（queryRaw 空 + bidExpert 复用外层 mock）
+    (prisma as any).$transaction = jest.fn(async (arg: any) =>
+      typeof arg === 'function'
+        ? arg({ ...prisma, $queryRaw: jest.fn().mockResolvedValue([]) })
+        : Promise.all(arg));
     const { ExpertService } = await import('./expert.service');
     const instance: any = Object.create(ExpertService.prototype);
     instance.prisma = prisma;

@@ -78,7 +78,9 @@ export async function assertRoomUnlocked(
     }),
     prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { roomVerifiedAt: true } }),
   ]);
-  if (!project?.roomCode || project.stage !== 'EVALUATING') return;
+  // P2-6（2026-09-21）：ABORTED（流标）同样保持闸门——评标终止后物料不裸奔；
+  // 已验专家（roomVerifiedAt>=roomCodeAt）仍可访问，未验者走 verifyRoomCode（阶段含 ABORTED）。
+  if (!project?.roomCode || (project.stage !== 'EVALUATING' && project.stage !== 'ABORTED')) return;
   if (expert?.roomVerifiedAt && project.roomCodeAt && expert.roomVerifiedAt >= project.roomCodeAt) return;
   throw new ForbiddenException({ error: '请先输入评标室口令进入评标室', code: 'ROOM_CODE_REQUIRED' });
 }
