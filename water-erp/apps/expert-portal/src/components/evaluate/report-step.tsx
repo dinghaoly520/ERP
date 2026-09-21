@@ -26,6 +26,8 @@ interface ReportStepProps {
   report: EvaluationReport | null;
   busy: boolean;
   onConfirmReport: () => void;
+  /** P2-1（2026-09-21 审查）：本人已确认报告（BidExpert.reportConfirmed）——隐藏确认键、出已确认徽标 */
+  reportConfirmed?: boolean;
   isLead?: boolean;
   leaderCoSigned?: boolean;
   allMembersConfirmed?: boolean;
@@ -55,7 +57,7 @@ export type EsignBlockState = 'need-cert' | 'ready' | 'wait-packet' | 'done-or-r
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
-export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], projectId, esign, onCreateAndSign, onSign }: ReportStepProps) {
+export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], projectId, esign, onCreateAndSign, onSign }: ReportStepProps) {
   // 逐项明细折叠态（默认折叠，点击 item 行展开）
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const toggleItem = (key: string) => setExpandedItems(prev => {
@@ -83,15 +85,22 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-[var(--foreground)]">评审报告</h2>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">查看评审结果汇总，确认后不可修改</p>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            {reportConfirmed ? '评审报告已确认，评分已锁定' : '查看评审结果汇总，确认后不可修改'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
+          {reportConfirmed && (
+            <span className="exp-pill exp-pill--solid" style={{ '--c': 'var(--success)' } as React.CSSProperties}>
+              <Check size={11} strokeWidth={2.5} /> 评审报告已确认
+            </span>
+          )}
           {isLead && allMembersConfirmed && !leaderCoSigned && (
             <button onClick={onLeaderCoSign} disabled={busy} className="neu-btn-primary is-warning">
               {busy ? '末签中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />组长末签</span>}
             </button>
           )}
-          {report?.canConfirm && (
+          {report?.canConfirm && !reportConfirmed && (
             <button onClick={onConfirmReport} disabled={busy} className="neu-btn-primary is-success">
               {busy ? '确认中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />确认评审报告</span>}
             </button>

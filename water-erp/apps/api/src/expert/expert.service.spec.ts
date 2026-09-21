@@ -591,6 +591,37 @@ describe('ExpertService', () => {
       expect(result.supplierScores.map(s => s.bidPrice)).toEqual(['153.8998', '152.9', '1485000']);
       expect(result.supplierScores.map(s => s.bidPriceUnit)).toEqual(['万元', '万元', null]);
     });
+
+    it('P2-1（2026-09-21 审查）：已确认报告后 canConfirm=false——否则前端确认按钮永续可点', async () => {
+      const mkProject = () => ({
+        id: 'proj-1', name: '测试项目', projectCode: 'SC-TEST-01',
+        suppliers: [
+          { id: 'sup-1', supplierName: '供应商一', bidValidity: 'valid', decryptStatus: 'SUCCESS', submitStatus: '已提交' },
+        ],
+        scoreItems: [],
+      });
+      const mkExpert = (reportConfirmed: boolean) => ({
+        ...mockExpert, signedIn: true, avoidanceConfirmed: true,
+        aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true,
+        progress: 100, reportConfirmed,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', displayName: '王建国' });
+      prisma.bidProject.findUnique.mockResolvedValue(mkProject());
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidScoreReview.findMany.mockResolvedValue([
+        { supplierId: 'sup-1', status: 'verified', verifiedAt: new Date() },
+      ]);
+
+      // 已确认：progress 100 + 全核对也不可再确认
+      prisma.bidExpert.findFirst.mockResolvedValue(mkExpert(true));
+      const confirmed = await service.getReport('user-1', 'proj-1');
+      expect(confirmed.canConfirm).toBe(false);
+
+      // 对照组：未确认 + 全核对 + progress 100 → 可确认
+      prisma.bidExpert.findFirst.mockResolvedValue(mkExpert(false));
+      const pending = await service.getReport('user-1', 'proj-1');
+      expect(pending.canConfirm).toBe(true);
+    });
   });
 
   describe('submitScores', () => {

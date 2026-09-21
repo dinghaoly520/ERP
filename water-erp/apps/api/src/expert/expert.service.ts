@@ -2113,7 +2113,8 @@ export class ExpertService {
       avoidanceConfirmed: expert.avoidanceConfirmed,
       supplierScores,
       scoreItems: project.scoreItems,
-      canConfirm: expert.progress >= 100 && allVerified,
+      // P2-1（2026-09-21 审查）：已确认报告不可再确认——缺此闸门则前端按钮永续可点、重复确认
+      canConfirm: !expert.reportConfirmed && expert.progress >= 100 && allVerified,
       overallComplete: expert.progress >= 100,
       myDisputedReviews,
     };

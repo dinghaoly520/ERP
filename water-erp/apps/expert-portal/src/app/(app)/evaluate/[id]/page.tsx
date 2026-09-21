@@ -902,7 +902,12 @@ export default function ExpertEvaluatePage() {
   const handleConfirmReport = async () => {
     if (!confirm('确认后将锁定所有评分，不可再修改。是否继续？')) return;
     setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/report/confirm`, { comment: '确认完成评审' }); loadProject(); toast.success('评审报告已确认'); }
+    try {
+      await api.post(`/expert/projects/${projectId}/report/confirm`, { comment: '确认完成评审' });
+      loadProject();
+      loadReport(); // P2-1：同步刷新 report——canConfirm 翻 false、按钮即时消失
+      toast.success('评审报告已确认');
+    }
     catch (e: any) { toast.error(e.message || '确认失败'); }
     setBusy(false);
   };
@@ -2170,6 +2175,7 @@ export default function ExpertEvaluatePage() {
           {/* ====== 评审报告 ====== */}
           {step === 'report' && (
             <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport}
+              reportConfirmed={!!expert?.reportConfirmed}
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
               onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId}
               esign={{ state: esignState, busy: esignBusy }}
