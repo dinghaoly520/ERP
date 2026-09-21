@@ -8,9 +8,3 @@ export class CreateClarificationDto {
   @IsString() @IsNotEmpty() issuer: string;
   @IsString() @IsNotEmpty() supplierName: string;
 }
-
-/** AI 起草澄清候选端点入参。内联对象类型不经 ValidationPipe 校验（F3，2026-08-28） */
-export class DraftClarificationDto {
-  /** BidSupplier.id（行 id）——AI 分析结果按 bidSupplierId 关联 */
-  @IsString() @IsNotEmpty() supplierId: string;
-}

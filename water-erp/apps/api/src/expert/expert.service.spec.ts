@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { encryptBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
-import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { minioClient } from '../upload/minio.client';
@@ -103,7 +102,6 @@ describe('ExpertService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: AiService, useValue: ai },
         { provide: PlaintextFetcherService, useValue: { fetchBidderPlaintext: jest.fn() } },
-        { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
         { provide: BidGateway, useValue: gateway },
         { provide: SignatureService, useValue: signature },
         { provide: NotificationService, useValue: notification },
@@ -2043,30 +2041,6 @@ describe('ExpertService', () => {
       expect(joined).not.toContain('rm -rf');
       expect(String(args[args.length - 1])).toMatch(/input\.docx$/); // 安全名，不含原始文件名
       spy.mockRestore();
-    });
-  });
-
-  describe('draftClarification (P1-1)', () => {
-    it('非本项目专家 → 403 NOT_PROJECT_EXPERT', async () => {
-      prisma.bidExpert.findFirst.mockResolvedValue(null);
-      await expect(service.draftClarification('user-x', 'proj-1', 'sup-1')).rejects.toMatchObject({
-        response: { code: 'NOT_PROJECT_EXPERT' },
-      });
-    });
-
-    it('供应商不属于项目 → 400 SUPPLIER_NOT_IN_PROJECT', async () => {
-      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
-      prisma.bidSupplier.findFirst.mockResolvedValue(null);
-      await expect(service.draftClarification('user-1', 'proj-1', 'sup-x')).rejects.toMatchObject({
-        response: { code: 'SUPPLIER_NOT_IN_PROJECT' },
-      });
-    });
-
-    it('合法 → 调用 draftQuestion 并返回结果', async () => {
-      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', projectId: 'proj-1' });
-      const res = await service.draftClarification('user-1', 'proj-1', 'sup-1');
-      expect(res).toMatchObject({ drafts: [], basis: [] });
     });
   });
 

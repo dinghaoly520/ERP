@@ -69,10 +69,6 @@ export default function ExpertEvaluatePage() {
   const [clarSupplier, setClarSupplier] = useState('');
   const [clarSupplierId, setClarSupplierId] = useState('');
   const [clarPosting, setClarPosting] = useState(false);
-  const [clarDrafting, setClarDrafting] = useState(false);
-  // P2-4（2026-09-15）：AI 起草候选集——多条候选可切换，basis 供悬浮提示
-  const [clarDrafts, setClarDrafts] = useState<string[]>([]);
-  const [clarDraftBasis, setClarDraftBasis] = useState<string[]>([]);
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
@@ -786,39 +782,12 @@ export default function ExpertEvaluatePage() {
     if (!clarQuestion.trim()) { toast.error('请输入问题'); return; }
     if (!clarSupplier) { toast.error('请选择目标供应商'); return; }
     setClarPosting(true);
-    try { await api.post(`/expert/projects/${projectId}/clarifications`, { question: clarQuestion, supplierName: clarSupplier, supplierId: clarSupplierId || undefined }); toast.success('澄清已发起'); setClarQuestion(''); setClarDrafts([]); setClarDraftBasis([]); loadClarifications(); }
+    try { await api.post(`/expert/projects/${projectId}/clarifications`, { question: clarQuestion, supplierName: clarSupplier, supplierId: clarSupplierId || undefined }); toast.success('澄清已发起'); setClarQuestion(''); loadClarifications(); }
     catch (e: any) { toast.error(e.message || '发起失败'); }
     setClarPosting(false);
   };
 
-  // P1-F：AI 起草澄清候选（不落库，填入 textarea，专家改完再发）
-  const draftClarificationQ = async () => {
-    if (!projectId) return;
-    if (!clarSupplierId) { toast.error('请先选择供应商'); return; }
-    setClarDrafting(true);
-    try {
-      const res: any = await api.post(`/expert/projects/${projectId}/clarifications/draft`, { supplierId: clarSupplierId });
-      const drafts: string[] = res?.drafts ?? res?.data?.drafts ?? [];
-      const basis: string[] = res?.basis ?? res?.data?.basis ?? [];
-      if (drafts.length) {
-        // P3-5：覆盖已有输入前留撤销通道（window.confirm 已全站禁用——toast action 一键还原）
-        const prev = clarQuestion;
-        setClarDrafts(drafts);
-        setClarDraftBasis(basis);
-        setClarQuestion(drafts[0]);
-        toast.success(
-          drafts.length > 1 ? `AI 已起草 ${drafts.length} 条候选——点击候选序号可切换` : 'AI 已起草 1 条候选，请审阅修改',
-          prev.trim() ? { duration: 10000, action: { label: '撤销覆盖', onClick: () => setClarQuestion(prev) } } : undefined,
-        );
-      } else {
-        toast.info('AI 暂无起草建议（该供应商可能无 AI 分析弱点）');
-      }
-    } catch (e: any) {
-      toast.error(e.message || 'AI 起草失败');
-    } finally {
-      setClarDrafting(false);
-    }
-  };
+  // 澄清 AI 起草已按用户裁定删除（2026-09-21，两端同删）——澄清一律专家手写发起
 
   const loadAssist = async (sid: string) => {
     const seq = ++assistSeqRef.current;
@@ -1296,13 +1265,10 @@ export default function ExpertEvaluatePage() {
           <div className="space-y-2 pt-3">
             <hr className="wb-section-rule" />
             <select value={clarSupplierId} onChange={e => {
-                // F3：澄清供应商契约 = BidSupplier.id（行 id）——后端归属校验与
-                // AI 起草（bidSupplierId）均按行 id；同名供应商也不会错行
+                // F3：澄清供应商契约 = BidSupplier.id（行 id）——后端归属校验按行 id；同名供应商也不会错行
                 const sel = project.suppliers.find(s => s.id === e.target.value);
                 setClarSupplierId(e.target.value);
                 setClarSupplier(sel?.supplierName ?? '');
-                setClarDrafts([]);
-                setClarDraftBasis([]);
               }}
               className="neu-select w-full !h-8 !text-xs">
               <option value="">选择供应商（必选）</option>
@@ -1312,28 +1278,11 @@ export default function ExpertEvaluatePage() {
             </select>
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <div className="mb-1 flex justify-end">
-                  <button type="button" onClick={draftClarificationQ} disabled={clarDrafting || !clarSupplierId}
-                    className="flex items-center gap-1 text-[11px] font-semibold text-[var(--accent-strong)] hover:underline disabled:opacity-40">
-                    <Sparkles size={11} /> {clarDrafting ? '起草中…' : 'AI 起草'}
-                  </button>
-                </div>
                 <textarea value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}
                   placeholder="向所选供应商发起澄清…（Ctrl+Enter 发送）"
                   rows={4}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
                   className="neu-input resize-y !text-xs" />
-                {clarDrafts.length > 1 && (
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">AI 候选：</span>
-                    {clarDrafts.map((d, i) => (
-                      <button key={i} type="button" onClick={() => setClarQuestion(d)} title={clarDraftBasis[i] || d.slice(0, 60)}
-                        className={`neu-btn-xs !h-[22px] !px-2 !text-[10px] ${clarQuestion === d ? 'is-info' : ''}`}>
-                        候选 {i + 1}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
               <button onClick={postClarification} disabled={clarPosting} className="neu-btn-primary !h-[38px]">
                 {clarPosting ? '…' : '发送'}

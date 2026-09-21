@@ -26,7 +26,6 @@ import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
-import { DraftClarificationDto } from './dto/draft-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
@@ -549,14 +548,7 @@ export class ExpertController {
     return this.expertService.createClarification(userId, projectId, dto);
   }
 
-  @Post('projects/:projectId/clarifications/draft')
-  draftClarification(
-    @CurrentUser('sub') userId: string,
-    @Param('projectId') projectId: string,
-    @Body() dto: DraftClarificationDto,
-  ) {
-    return this.expertService.draftClarification(userId, projectId, dto.supplierId);
-  }
+  // 澄清 AI 起草端点已删（2026-09-21 用户裁定，两端同删）——澄清一律手写发起
 
   /* ── 评审报告 ── */
   @Get('projects/:projectId/report')

@@ -2938,10 +2938,7 @@ export class BidService {
     return this.stripClarificationSignature(result!);
   }
 
-  /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
-  async draftClarification(projectId: string, supplierId: string) {
-    return this.clarificationAi?.draftQuestion(projectId, supplierId) ?? { drafts: [], basis: [] };
-  }
+  // 澄清 AI 起草已删（2026-09-21 用户裁定，两端同删）；summarizeReply（回复摘要）保留
 
   /** P1-F：AI 提炼回复要点 → 写入 BidClarification.aiSummary（供全体评委速读） */
   async summarizeClarification(projectId: string, cid: string) {

@@ -176,7 +176,7 @@ describe('BidService — stage transitions', () => {
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
-        { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
+        { provide: ClarificationAiService, useValue: { summarizeReply: jest.fn().mockResolvedValue(null) } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
       ],

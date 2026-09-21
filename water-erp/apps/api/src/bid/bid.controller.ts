@@ -20,7 +20,7 @@ import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { ManualConfirmDto } from './dto/manual-confirm.dto';
 import { RejectExpertVerificationDto, RetractExpertVerificationDto, VerifyExpertIdentityDto, UnverifyExpertIdentityDto } from './dto/expert-verification-actions.dto';
-import { CreateClarificationDto, DraftClarificationDto } from './dto/create-clarification.dto';
+import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
 import { StartEvaluationDto } from './dto/start-evaluation.dto';
@@ -979,11 +979,7 @@ export class BidController {
   @ApiOperation({ summary: '发起澄清' })
   createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto, @CurrentUser('sub') userId?: string) { return this.bidService.createClarification(id, dto, userId); }
 
-  @Post('projects/:id/clarifications/draft')
-  @ApiOperation({ summary: 'P1-F：AI 起草澄清问题候选（不落库）' })
-  draftClarification(@Param('id') id: string, @Body() dto: DraftClarificationDto) {
-    return this.bidService.draftClarification(id, dto.supplierId);
-  }
+  // 澄清 AI 起草端点已删（2026-09-21 用户裁定，两端同删）——澄清一律手写发起
 
   @Post('projects/:id/clarifications/:cid/summarize')
   @ApiOperation({ summary: 'P1-F：AI 提炼回复要点 → aiSummary' })

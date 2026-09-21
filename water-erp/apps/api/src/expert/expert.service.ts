@@ -9,7 +9,6 @@ import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
-import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
@@ -78,7 +77,6 @@ export class ExpertService {
     private readonly signatureService: SignatureService,
     private aiService: AiService,
     private plaintextFetcher: PlaintextFetcherService,
-    @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
     @Optional() private readonly notificationService?: NotificationService,
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
@@ -1882,16 +1880,7 @@ export class ExpertService {
     });
   }
 
-  /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
-  async draftClarification(userId: string, projectId: string, supplierId: string) {
-    await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
-    // P1-1：归属校验——必须是本项目专家，且供应商属于本项目（防越权套取他项目投标弱点）
-    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
-    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
-    const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: supplierId, projectId } });
-    if (!supplier) throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
-    return this.clarificationAi?.draftQuestion(projectId, supplierId) ?? { drafts: [], basis: [] };
-  }
+  // 澄清 AI 起草已按用户裁定删除（2026-09-21，两端同删）——澄清一律专家手写发起
 
   async createClarification(userId: string, projectId: string, dto: CreateExpertClarificationDto) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
