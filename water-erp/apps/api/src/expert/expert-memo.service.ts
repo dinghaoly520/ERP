@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertRoomUnlocked } from './expert-room.util';
 import { StorageService } from '../storage/storage.service';
 import { OcrService } from '../local-ai/ocr.service';
 
@@ -36,6 +37,7 @@ export class ExpertMemoService {
       sourceDevice?: string;
     },
   ) {
+    await assertRoomUnlocked(this.prisma, projectId, userId); // P0-2（2026-09-21）：评标手写备忘在口令闸后
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -117,6 +119,7 @@ export class ExpertMemoService {
     scorePointId?: string,
     scoreItemId?: string,
   ) {
+    await assertRoomUnlocked(this.prisma, projectId, userId); // P0-2（2026-09-21）
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -143,6 +146,7 @@ export class ExpertMemoService {
     memoId: string,
     dto: { contentText?: string },
   ) {
+    await assertRoomUnlocked(this.prisma, projectId, userId); // P0-2（2026-09-21）
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -166,6 +170,7 @@ export class ExpertMemoService {
   }
 
   async deleteMemo(userId: string, projectId: string, memoId: string) {
+    await assertRoomUnlocked(this.prisma, projectId, userId); // P0-2（2026-09-21）
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });

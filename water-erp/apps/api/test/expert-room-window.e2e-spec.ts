@@ -282,4 +282,63 @@ describe('Expert room code & window isolation (e2e)', () => {
     await login(U.wexp, 'expert').expect(200);
     await login(U.wexp, 'expert').expect(200); // 无窗期二次登录=顶替而非 409
   });
+
+  /* ── 2026-09-21 审查修复回归（P0-1/P0-2/P1-3）── */
+
+  it('P0-1：listProjects 不泄漏 roomCode（口令启用时）', async () => {
+    const cookie = await loginCookie(U.wexp, 'expert'); // 窗口已闭合（上一用例确认了报告）
+    const res = await request(app.getHttpServer())
+      .get('/api/expert/projects')
+      .set('Cookie', cookie).set('X-Portal', 'expert')
+      .expect(200);
+    expect(JSON.stringify(res.body)).not.toContain('"roomCode"');
+  });
+
+  it('P0-2：esign-payload / esign 未验口令 → 403 ROOM_CODE_REQUIRED（电子签名不可绕闸）', async () => {
+    const cookie = await loginCookie(U.texp, 'expert');
+    // texp 在口令轮换用例后未重验 → 未验态
+    const p = await request(app.getHttpServer())
+      .get(`/api/expert/projects/${projectA}/esign-payload`)
+      .set('Cookie', cookie).set('X-Portal', 'expert');
+    expect(p.status).toBe(403);
+    expect(p.body.code).toBe('ROOM_CODE_REQUIRED');
+    const e = await request(app.getHttpServer())
+      .post(`/api/expert/projects/${projectA}/esign`)
+      .set('Cookie', cookie).set('X-Portal', 'expert').send({ signature: '04' + '00'.repeat(64) });
+    expect(e.status).toBe(403);
+    expect(e.body.code).toBe('ROOM_CODE_REQUIRED');
+  });
+
+  it('P1-3：signIn 冲突与登录锁定拒绝均留监督日志 + admin 通知', async () => {
+    // 重开窗口（wexp 报告确认撤销——直接改库模拟未完结）
+    const wexpRow = await prisma.bidExpert.findFirst({ where: { projectId: projectA, userId: wexpId } });
+    await prisma.bidExpert.update({ where: { id: wexpRow!.id }, data: { reportConfirmed: false } });
+    await prisma.user.update({ where: { id: wexpId }, data: { webSessionId: null } }); // 模拟已释放（否则首登即 409 拿不到会话）
+    // 冲突签到 → 409 + 监督日志
+    const c = await loginCookie(U.wexp, 'expert');
+    const si = await request(app.getHttpServer())
+      .post(`/api/expert/projects/${projectB}/sign-in`)
+      .set('Cookie', c).set('X-Portal', 'expert');
+    expect(si.status).toBe(409);
+    expect(si.body.code).toBe('EXPERT_WINDOW_CONFLICT');
+    const conflictLog = await prisma.bidSupervisionLog.findFirst({
+      where: { projectId: projectB, action: '跨项目评标窗口冲突拦截' },
+    });
+    expect(conflictLog).not.toBeNull();
+    // 登录锁定拒绝 → 409 + 监督日志高风险 + admin 通知
+    const lk = await login(U.wexp, 'expert');
+    expect(lk.status).toBe(409);
+    expect(lk.body.code).toBe('ACCOUNT_EVALUATING');
+    const lockLog = await prisma.bidSupervisionLog.findFirst({
+      where: { projectId: projectA, action: '评标期登录锁定拒绝', riskFlag: '高风险' },
+    });
+    expect(lockLog).not.toBeNull();
+    const adminNotif = await prisma.notification.findFirst({
+      where: { type: 'ACCOUNT_SECURITY_FEEDBACK', title: '专家账号评标期登录被拒' },
+    });
+    expect(adminNotif).not.toBeNull();
+    // 收尾：闭合窗口恢复可登录（留给环境的干净态）
+    await prisma.bidExpert.update({ where: { id: wexpRow!.id }, data: { reportConfirmed: true } });
+    await login(U.wexp, 'expert').expect(200);
+  });
 });

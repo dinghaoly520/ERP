@@ -296,6 +296,45 @@ export class AuthService {
     } catch { /* 通知失败不阻塞反馈 */ }
   }
 
+  /**
+   * 工位锁定拒绝告警（P1-3 2026-09-21 审查修复）：spec §3 承诺的四路之一——
+   * 冒名者反复撞登录时，监督日志高风险 + admin 站内信主动唤醒（而非事后翻 OperationLog）。
+   */
+  async alertSeatLockRejection(
+    username: string,
+    windows: Array<{ projectId: string; projectName: string }>,
+    ip?: string | null,
+    userAgent?: string | null,
+  ) {
+    try {
+      for (const w of windows) {
+        await this.prisma.bidSupervisionLog.create({
+          data: {
+            projectId: w.projectId, time: new Date(), role: '评审专家', target: username,
+            action: '评标期登录锁定拒绝',
+            result: `评标窗口内的新登录被拒（IP ${ip ?? '未知'}；UA ${(userAgent ?? '').slice(0, 80)}）——如非本人换设备，疑似冒名登录（项目 ${w.projectName}）`,
+            riskFlag: '高风险',
+          },
+        });
+      }
+      const admins = await this.prisma.user.findMany({
+        where: { role: 'admin', isActive: true },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        await this.prisma.notification.create({
+          data: {
+            userId: admin.id,
+            type: 'ACCOUNT_SECURITY_FEEDBACK',
+            title: '专家账号评标期登录被拒',
+            content: `「${username}」在评标期间尝试登录被工位锁定拒绝（IP：${ip ?? '未知'}）——若非本人换设备，疑似冒名，请在开评标端核实。`,
+            link: '/bid',
+          },
+        });
+      }
+    } catch { /* 告警失败不阻塞拒绝本身 */ }
+  }
+
   /** 写入注册审核历史（append-only，仅 create，不提供 update/delete） */
   private async writeRegistrationReview(
     user: { id: string; username: string; displayName: string; company: string | null; departmentName: string | null; phone: string | null; email: string | null; officeLocation: string | null; requestedRole: string | null },
@@ -419,11 +458,15 @@ export class AuthService {
    * 活动会话（webSessionId 非空）→ 锁定：新登录 409 ACCOUNT_EVALUATING 拒绝。
    * webSessionId 为空（主持人已 release-login-lock）→ 放行重新登录。
    */
-  async checkExpertSeatLock(userId: string): Promise<{ locked: boolean; projectNames: string[] }> {
+  async checkExpertSeatLock(userId: string): Promise<{ locked: boolean; projectNames: string[]; windows: Array<{ projectId: string; projectName: string }> }> {
     const [user, windows] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { webSessionId: true } }),
       findOpenEvaluationWindows(this.prisma, userId),
     ]);
-    return { locked: !!user?.webSessionId && windows.length > 0, projectNames: windows.map(w => w.project.name) };
+    return {
+      locked: !!user?.webSessionId && windows.length > 0,
+      projectNames: windows.map(w => w.project.name),
+      windows: windows.map(w => ({ projectId: w.project.id, projectName: w.project.name })),
+    };
   }
 }

@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { ForbiddenException } from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -59,6 +60,28 @@ export function generateRoomCode(): string {
 /** 口令爆破阈值（2026-09-20 用户裁定：3 次锁 10 分钟） */
 export const ROOM_CODE_MAX_ATTEMPTS = 3;
 export const ROOM_CODE_LOCK_MINUTES = 10;
+
+/**
+ * 评标室口令闸（2026-09-20 spec §4；2026-09-21 P0-2 移入共享工具供 memo 等独立 service 复用）：
+ * roomCode 非空且阶段 EVALUATING 且本人未验（roomVerifiedAt >= roomCodeAt）→ 403 ROOM_CODE_REQUIRED。
+ * roomCode 为空（存量/未启用）恒放行——闸门 opt-in，启用权在主持人（:3007 矩阵生成/轮换）。
+ */
+export async function assertRoomUnlocked(
+  prisma: Pick<PrismaService, 'bidProject' | 'bidExpert'>,
+  projectId: string,
+  userId: string,
+) {
+  const [project, expert] = await Promise.all([
+    prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, roomCode: true, roomCodeAt: true },
+    }),
+    prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { roomVerifiedAt: true } }),
+  ]);
+  if (!project?.roomCode || project.stage !== 'EVALUATING') return;
+  if (expert?.roomVerifiedAt && project.roomCodeAt && expert.roomVerifiedAt >= project.roomCodeAt) return;
+  throw new ForbiddenException({ error: '请先输入评标室口令进入评标室', code: 'ROOM_CODE_REQUIRED' });
+}
 
 /** 通知全部 admin（与 :3005 security-feedback 同模式：逐 userId create 站内信） */
 export async function notifyAdmins(

@@ -15,7 +15,7 @@ import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { resolveIdentityVerifyMode } from './identity-verify-mode';
 import {
-  findOpenEvaluationWindows, notifyAdmins,
+  findOpenEvaluationWindows, notifyAdmins, assertRoomUnlocked as assertRoomUnlockedUtil,
   ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
 } from './expert-room.util';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
@@ -238,7 +238,10 @@ export class ExpertService {
       },
       include: {
         project: {
-          include: {
+          // 2026-09-21 P0-1 泄漏修复：显式 select 收口——include 全标量曾把 roomCode 明文
+          // 返回给专家（冒名者一个 GET 绕过评标室口令全链）。新敏感列必须显式加入才会外泄。
+          select: {
+            id: true, projectCode: true, name: true, stage: true, openTime: true,
             suppliers: true,
             scoreItems: true,
             _count: { select: { clarifications: true } },
@@ -413,17 +416,9 @@ export class ExpertService {
 
   /** 评标室口令闸（2026-09-20 spec §4）：roomCode 非空且阶段 EVALUATING 且本人未验（roomVerifiedAt >= roomCodeAt）→ 403。
    *  roomCode 为空（存量/未启用）恒放行——闸门 opt-in，启用权在主持人（:3007 矩阵生成/轮换）。 */
+  /** 评标室口令闸（2026-09-20 spec §4）：委托共享工具（2026-09-21 P0-2 起 memo 等独立 service 同源复用） */
   private async assertRoomUnlocked(projectId: string, userId: string) {
-    const [project, expert] = await Promise.all([
-      this.prisma.bidProject.findUnique({
-        where: { id: projectId },
-        select: { stage: true, roomCode: true, roomCodeAt: true },
-      }),
-      this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { roomVerifiedAt: true } }),
-    ]);
-    if (!project?.roomCode || project.stage !== 'EVALUATING') return;
-    if (expert?.roomVerifiedAt && project.roomCodeAt && expert.roomVerifiedAt >= project.roomCodeAt) return;
-    throw new ForbiddenException({ error: '请先输入评标室口令进入评标室', code: 'ROOM_CODE_REQUIRED' });
+    return assertRoomUnlockedUtil(this.prisma, projectId, userId);
   }
 
   /** 评标室口令校验（2026-09-20 spec §4）：成功记 roomVerifiedAt（>= roomCodeAt 即有效，轮换自动失效重验）；
@@ -514,8 +509,23 @@ export class ExpertService {
 
     // 闸2（2026-09-20 spec §3）：跨项目评标窗口冲突——签到即开窗，同时段双活跃在此硬拦。
     // 窗口=签到起→本人确认报告止；同日不同时段合法（上午标确认报告后即可签下午标）。
+    // P1-3（2026-09-21 审查修复）：拒绝同时落监督日志+admin 告警（spec §3 四路之一）。
     const crossWindows = await findOpenEvaluationWindows(this.prisma, userId, projectId);
     if (crossWindows.length > 0) {
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+          action: '跨项目评标窗口冲突拦截',
+          result: `签到被拒——其在【${crossWindows.map(w => w.project.name).join('、')}】评标未结束（未确认报告）`,
+          riskFlag: '关注',
+        },
+      }).catch(() => {});
+      await notifyAdmins(this.prisma, this.notificationService, {
+        type: 'security',
+        title: '专家跨项目评标冲突拦截',
+        content: `专家 ${expert.expertName} 尝试签到本项目时被拦截——其在其他项目评标尚未结束（同时段双活跃违规）`,
+        link: '/bid',
+      }).catch(() => {});
       throw new ConflictException({
         error: `您在项目【${crossWindows.map(w => w.project.name).join('、')}】的评标尚未结束（未确认评审报告），不可同时参与本项目评标`,
         code: 'EXPERT_WINDOW_CONFLICT',
@@ -2461,6 +2471,7 @@ export class ExpertService {
       where: { userId, projectId: motion.projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '不是该项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    await this.assertRoomUnlocked(motion.projectId, userId); // P0-2（2026-09-21）：动议表决属评标过程写操作，口令闸不可绕过
 
     const existing = await this.prisma.bidVote.findUnique({ where: { motionId_expertId: { motionId, expertId: expert.id } } });
     if (existing) throw new BadRequestException({ error: '您已投过票,不可重复投票', code: 'ALREADY_VOTED' });
@@ -2486,6 +2497,7 @@ export class ExpertService {
       where: { userId, projectId: motion.projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '不是该项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    await this.assertRoomUnlocked(motion.projectId, userId); // P0-2（2026-09-21）：动议表决属评标过程写操作，口令闸不可绕过
     if (!expert.isLead && motion.createdBy !== expert.id)
       throw new ForbiddenException({ error: '仅评审组长或动议发起人可结束投票', code: 'NOT_AUTHORIZED' });
 
@@ -2691,6 +2703,7 @@ export class ExpertService {
 
   /** 电子签名载荷：下发 canonical 串（专家对此串做 SM2 签名，验证期服务端重算比对） */
   async getEsignPayload(userId: string, projectId: string) {
+    await this.assertRoomUnlocked(projectId, userId); // P0-2（2026-09-21）：报告电子签名属评标核心动作，口令闸不可绕过
     const { expert, packet } = await this.assertEsignable(userId, projectId);
     const payload = buildExpertEsignCanonical({
       purpose: 'report_esign',
@@ -2709,6 +2722,7 @@ export class ExpertService {
    * → 事务内原子抢占（PENDING→SIGNED，防并发双签）写 esignature/esignatureAt → 闭环判定（与主持端登记同闸）。
    */
   async esignReport(userId: string, projectId: string, dto: ExpertEsignDto) {
+    await this.assertRoomUnlocked(projectId, userId); // P0-2（2026-09-21）：报告电子签名属评标核心动作，口令闸不可绕过
     const { expert, packet } = await this.assertEsignable(userId, projectId);
 
     const cert = await this.prisma.expertCert.findFirst({
