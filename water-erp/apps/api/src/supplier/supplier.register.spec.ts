@@ -16,7 +16,7 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
     name: '测试公司', creditCode: '91510000MA62K5XX0X', enterpriseType: '有限责任公司',
     legalPerson: '张三', legalPersonIdCard: '510104199001011234', registeredAddress: '成都市',
     businessScope: '水利工程', username: 'testuser', displayName: '张三', password: '12345678',
-    registrationPhone: '13800138000', registrationCode: '123456',
+    registrationPhone: '13800138000', registrationCode: '123456', companyName: '测试集团',
     contacts: [{
       name: '李四', phone: '13800138000', idCard: '510104199202023456', isPrimary: true,
     }],
@@ -30,6 +30,7 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
     claimAssets = jest.fn().mockResolvedValue({ count: 1 });
     prisma = {
       supplier: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 's1', userId: 'u1' }) },
+      company: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({ id: 'c1', name: '测试集团' }) }, // 2026-09-17 归档合并：注册按 companyName upsert 建档
       supplierContact: { findFirst: jest.fn().mockResolvedValue(null) },
       user: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'u1' }) },
       businessTag: {

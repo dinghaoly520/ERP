@@ -42,8 +42,10 @@ function joinAck(socket: Socket, projectId: string): Promise<any> {
 }
 
 function onceEvent(socket: Socket, event: string, ms = 4000): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`timeout waiting ${event}`)), ms);
+  // 超时 resolve（不 reject）——本套多处「先建 promise 后 await」，前置步骤失败时 promise 被弃置，
+  // reject 会在测试结束后触发 unhandled rejection，Node 24 直接崩 worker（CI 实录）
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve({ error: 'TIMEOUT' }), ms);
     socket.once(event, (d: any) => { clearTimeout(t); resolve(d); });
   });
 }
@@ -64,6 +66,18 @@ describe('Opening Hall (e2e)', () => {
   let strayExpertCookie: string; // 未指派到 hero 项目的专家（S1 负用例）
   let strayExpertUserId: string | undefined; // 仅在兜底创建时有值，afterAll 清理
   let sup1Sm2Pk: string | null = null, sup2Sm2Pk: string | null = null; // A-114 绑盾前快照，afterAll 还原
+  // D5 口径（2026-09-21 修复）：A-114 用例须绑 ACTIVE SupplierCert（验签不再读 sm2PublicKey 旧列）；
+  // certSn 前缀固定，afterAll 按前缀兜底清理
+  const E2E_CERT_SN_PREFIX = 'e2e-oh-cert-';
+  const bindActiveCert = async (supplierId: string, publicKey: string, tag: string) => {
+    await prisma.supplierCert.deleteMany({ where: { supplierId, certSn: { startsWith: E2E_CERT_SN_PREFIX } } });
+    return prisma.supplierCert.create({
+      data: {
+        supplierId, certSn: `${E2E_CERT_SN_PREFIX}${tag}-${Date.now()}`,
+        certDn: `CN=e2e-${tag},O=opening-hall-spec`, publicKey, bindingStatus: 'ACTIVE',
+      },
+    });
+  };
   let sm2PkSnapshotted = false; // 快照完成才允许还原（防 beforeAll 中途崩把真实公钥清成 null）
 
   beforeAll(async () => {
@@ -179,6 +193,7 @@ describe('Opening Hall (e2e)', () => {
 
   afterAll(async () => {
     for (const s of sockets) s.disconnect();
+    await prisma.supplierCert.deleteMany({ where: { certSn: { startsWith: E2E_CERT_SN_PREFIX } } }).catch(() => {}); // D5 绑定证书清理
     if (projectId) {
       await prisma.openingHallReadCursor.deleteMany({ where: { projectId } }).catch(() => {});
       await prisma.openingHallMessage.deleteMany({ where: { projectId } }).catch(() => {});
@@ -467,6 +482,7 @@ describe('Opening Hall (e2e)', () => {
     // 不一致（如 der:true 或 hash:false）验签必败。
     const { publicKey, privateKey } = sm2.generateKeyPairHex();
     await prisma.supplier.update({ where: { id: sup1Id }, data: { sm2PublicKey: publicKey } });
+    await bindActiveCert(sup1Id, publicKey, 'sup1'); // D5 口径：开标确认验签读 ACTIVE SupplierCert
     const payloadRes = await request(app.getHttpServer())
       .get(`/api/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`)
       .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').expect(200);
@@ -488,6 +504,7 @@ describe('Opening Hall (e2e)', () => {
     // 私钥对同一 canonical 签名——公私钥不配对 → 验签失败，须 400 且不产生任何写入。
     const { publicKey } = sm2.generateKeyPairHex();
     await prisma.supplier.update({ where: { id: sup2Id }, data: { sm2PublicKey: publicKey } });
+    await bindActiveCert(sup2Id, publicKey, 'sup2'); // D5 口径同上
     const { privateKey: wrongKey } = sm2.generateKeyPairHex();
     const payloadRes = await request(app.getHttpServer())
       .get(`/api/supplier-portal/bid-submissions/${projectId}/opening-confirm-payload`)

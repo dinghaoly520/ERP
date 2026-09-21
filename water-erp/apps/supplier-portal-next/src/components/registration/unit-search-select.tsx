@@ -78,8 +78,8 @@ export function UnitSearchSelect({
           }
           setOpen((o) => !o);
         }}
-        className="flex w-full items-center justify-between gap-2 text-left"
-        style={{ height: 52, borderRadius: 14, padding: "0 16px", background: open ? "oklch(0.985 0.01 252)" : "var(--surface, oklch(0.965 0.012 252))", boxShadow: SHADOW_SUNK, border: "none", outline: "none", fontSize: 15, cursor: "pointer", transition: "box-shadow .2s" }}
+        className="uss-shadow-sunk flex w-full items-center justify-between gap-2 text-left"
+        style={{ height: 52, borderRadius: 14, padding: "0 16px", background: open ? "oklch(0.985 0.01 252)" : "var(--surface, oklch(0.965 0.012 252))", border: "none", outline: "none", fontSize: 15, cursor: "pointer", transition: "box-shadow .2s" }}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="选择归属公司"
@@ -91,10 +91,11 @@ export function UnitSearchSelect({
         <div
           ref={popRef}
           role="listbox"
-          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width, zIndex: 700, maxHeight: 248, overflowY: "auto", borderRadius: 16, padding: "0 6px 6px", background: "linear-gradient(145deg, #ffffff 0%, #f1f4f9 100%)", boxShadow: "6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)" }}
+          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width, zIndex: 700, maxHeight: 248, overflowY: "auto", borderRadius: 16, padding: "0 6px 6px", background: "linear-gradient(145deg, #ffffff 0%, #f1f4f9 100%)" }}
+          className="uss-shadow-pop"
         >
           {/* 搜索行：内凹小输入 + 图标 */}
-          <div style={{ position: "sticky", top: 0, zIndex: 1, background: "linear-gradient(145deg, #ffffff 0%, #f1f4f9 100%)", borderRadius: "16px 16px 0 0", padding: "4px 4px 6px", boxShadow: "0 2px 4px -2px oklch(0.55 0.03 258 / 0.18)" }}>
+          <div className="uss-shadow-sticky" style={{ position: "sticky", top: 0, zIndex: 1, background: "linear-gradient(145deg, #ffffff 0%, #f1f4f9 100%)", borderRadius: "16px 16px 0 0", padding: "4px 4px 6px" }}>
             <div style={{ position: "relative" }}>
               <Search size={13} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "oklch(0.62 0.03 258)" }} />
               <input
@@ -102,15 +103,16 @@ export function UnitSearchSelect({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="搜索公司…"
-                style={{ width: "100%", height: 34, border: "none", outline: "none", borderRadius: 10, paddingLeft: 30, paddingRight: 10, fontSize: 12.5, color: "var(--reg-ink, #1e293b)", background: "var(--surface, oklch(0.965 0.012 252))", boxShadow: SHADOW_SUNK }}
+                style={{ width: "100%", height: 34, border: "none", outline: "none", borderRadius: 10, paddingLeft: 30, paddingRight: 10, fontSize: 12.5, color: "var(--reg-ink, #1e293b)", background: "var(--surface, oklch(0.965 0.012 252))" }}
+                className="uss-shadow-sunk"
               />
             </div>
           </div>
           {/* 当前值：白瓷片凸起 + 品牌蓝（全站激活语义） */}
           {value && filtered.includes(value) ? (
             <button type="button" role="option" aria-selected onClick={() => pick(value)}
-              className="flex w-full items-center justify-between"
-              style={{ borderRadius: 10, padding: "7px 10px", marginBottom: 3, background: "#ffffff", boxShadow: SHADOW_PLATE, color: "var(--sp-primary, #064ea2)", fontSize: 12.5, fontWeight: 700, textAlign: "left", cursor: "pointer" }}>
+              className="uss-shadow-plate flex w-full items-center justify-between"
+              style={{ borderRadius: 10, padding: "7px 10px", marginBottom: 3, background: "#ffffff", color: "var(--sp-primary, #064ea2)", fontSize: 12.5, fontWeight: 700, textAlign: "left", cursor: "pointer" }}>
               <span className="truncate">{value}</span>
               <Check size={12} strokeWidth={2.6} className="shrink-0" />
             </button>

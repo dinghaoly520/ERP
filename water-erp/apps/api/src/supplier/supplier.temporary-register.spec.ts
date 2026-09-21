@@ -19,6 +19,7 @@ const dtoPayload = {
   password: 'supplier2026',
   phone: '13800138000',
   registrationCode: '123456',
+  companyName: '四川水发集团',
   tags: ['水利工程', '泵站设备'],
 };
 
@@ -73,6 +74,7 @@ describe('SupplierService.registerTemporary business tags', () => {
       },
     };
     prisma = {
+      company: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({ id: 'c1', name: '四川水发集团' }) }, // 2026-09-17 归档合并：resolveSupplierCompany 按 companyName upsert 建档
       supplierInvitation: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({
@@ -137,9 +139,11 @@ describe('SupplierService.registerTemporary business tags', () => {
   });
 
   it('rejects unknown company id with COMPANY_NOT_FOUND (须正确选择)', async () => {
-    prisma.company = { findUnique: jest.fn().mockResolvedValue(null) };
+    // 2026-09-17 语义：companyId 失效时回退 companyName 归一化建档——负例须两者皆缺才拒
+    prisma.company = { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
+    const { companyName, ...noName } = dtoPayload;
     await expect(service.registerTemporary({
-      ...dtoPayload,
+      ...noName,
       companyId: 'FAKE-ID',
     } as RegisterTemporarySupplierDto)).rejects.toMatchObject({
       response: { code: 'COMPANY_NOT_FOUND' },

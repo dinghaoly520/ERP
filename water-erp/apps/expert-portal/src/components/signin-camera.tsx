@@ -284,7 +284,7 @@ export function SigninCamera({ userName, identityMode = 'self', onSignIn, busy =
                   ? 'bg-[oklch(0.96_0.015_27/0.9)] text-[var(--warning)]'
                   : faceStatus === 'ok'
                     ? 'bg-[oklch(0.94_0.05_152/0.92)] text-[var(--success)]'
-                    : 'bg-black/55 text-white'
+                    : 'bg-[oklch(0.96_0.01_258/0.92)] text-[var(--foreground)]'
               }`}
             >
               <ScanFace size={13} strokeWidth={1.5} />

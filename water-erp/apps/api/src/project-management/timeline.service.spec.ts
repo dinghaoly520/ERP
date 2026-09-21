@@ -32,7 +32,7 @@ describe('TimelineService（B3 A-204）', () => {
     );
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
     expect(nodes.map(n => n.key)).toEqual([
-      'initiation', 'documentAcquire', 'bidNoticePublish', 'bidDeadline', 'bidOpening',
+      'initiation', 'bidNoticePublish', 'documentAcquire', 'bidDeadline', 'bidOpening',
       'winNoticePublish', 'contractSign', 'archived',
     ]);
     expect(nodes.every(n => n.label && n.source)).toBe(true);
@@ -58,7 +58,7 @@ describe('TimelineService（B3 A-204）', () => {
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe('按开标时间推算（前24小时）');
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - 24 * 3600 * 1000).getTime());
-    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['documentAcquire', 'bidNoticePublish', 'winNoticePublish', 'contractSign', 'archived']);
+    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'winNoticePublish', 'contractSign', 'archived']);
   });
 
   it('兜底：立项缺 initiationDate → 建档时刻；合同缺 Contract 记录 → CONTRACT 阶段完成时刻', async () => {
