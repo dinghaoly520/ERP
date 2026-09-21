@@ -34,6 +34,9 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
   const [signRefreshTick, setSignRefreshTick] = useState(0);
   const batchInputRef = useRef<HTMLInputElement | null>(null);
+  // 审查优化（2026-09-21）：文件名路由未识别的文件不再静默 unmatched——弹分配选择器人工指定去向
+  const [pendingAssign, setPendingAssign] = useState<Array<{ file: File; reason: string; target: string }> | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
   // L2（2026-08-28）：签字包写操作（生成/扫描回传/登记/撤销/回流包）后端收口 @Roles('bid_host','admin')——
   // leader/staff 只读查看；开标记录签字卡端点为全角色，不受此门控影响
   const me = useBidUser();
@@ -54,8 +57,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         const expert = pool.find((e) => e.name && name.includes(e.name.toLowerCase()));
         if (expert) target = { key: `expert:${expert.expertId}`, label: `专家·${expert.name}` };
       }
-      if (!target) return { file: f.name, target: '', status: 'unmatched' as const, note: '未识别（文件名不含主持人/监督人/报告/专家名）' };
-      if (taken.has(target.key)) return { file: f.name, target: '', status: 'unmatched' as const, note: `重复：${target.label} 已有文件` };
+      if (!target) return { file: f.name, rawFile: f, target: '', status: 'unmatched' as const, note: '未识别（文件名不含主持人/监督人/报告/专家名）' };
+      if (taken.has(target.key)) return { file: f.name, rawFile: f, target: '', status: 'unmatched' as const, note: `重复：${target.label} 已有文件` };
       taken.add(target.key);
       return { file: f, target: target.key, label: target.label, status: 'ok' as const };
     });
@@ -66,9 +69,10 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
     setBatchBusy(true);
     const routed = routeFiles(files, data.experts ?? [], !!data.packet);
     const results: Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> = [];
+    const unmatchedFiles: Array<{ file: File; reason: string; target: string }> = [];
     let hostRouted = false;
     for (const r of routed) {
-      if (r.status !== 'ok') { results.push({ file: String(r.file), target: '', status: 'unmatched', note: r.note }); continue; }
+      if (r.status !== 'ok') { unmatchedFiles.push({ file: (r as { rawFile: File }).rawFile, reason: r.note ?? '未识别', target: '' }); continue; }
       const f = r.file as File;
       // 链前捕获 + 显式 string：字面量联合的穷尽窄化会把 r 整体窄成 never（含别名窄化），链后不可再碰 r.*
       const label: string = r.label ?? '';
@@ -97,6 +101,35 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
     setSignRefreshTick((t) => t + 1);
     await refresh();
     setBatchBusy(false);
+    // 审查优化（2026-09-21）：未识别文件弹分配选择器（不再静默 unmatched）
+    if (unmatchedFiles.length > 0) setPendingAssign(unmatchedFiles);
+  };
+
+  /** 分配器确认：按人工指定目标逐个上传（与智能路由同一上传链） */
+  const onAssignConfirm = async () => {
+    if (!pendingAssign || !data) return;
+    setAssignBusy(true);
+    const results = batchResult ?? [];
+    const withTarget = pendingAssign.filter((a) => a.target);
+    for (const a of withTarget) {
+      try {
+        if (a.target === 'host') await uploadOpeningSignScan(projectId, 'host', a.file);
+        else if (a.target === 'supervisor') await uploadOpeningSignScan(projectId, 'supervisor', a.file);
+        else if (a.target === 'report') await uploadSignaturePageScan(projectId, a.file);
+        else if (a.target.startsWith('expert:')) await uploadExpertScan(projectId, a.target.slice(7), a.file);
+        results.push({ file: a.file.name, target: a.target, status: 'ok' });
+      } catch (e: any) {
+        results.push({ file: a.file.name, target: a.target, status: 'fail', note: e?.message ?? '上传失败' });
+      }
+    }
+    for (const a of pendingAssign) {
+      if (!a.target) results.push({ file: a.file.name, target: '', status: 'unmatched', note: '未分配，已跳过' });
+    }
+    setBatchResult(results);
+    setPendingAssign(null);
+    setAssignBusy(false);
+    setSignRefreshTick((t) => t + 1);
+    await refresh();
   };
 
   /** 合并扫描件模式：一整份 PDF（含全部签字页）一次性应用到所有签字项——纸件核对后一遍扫描即可存档，各签字项引用同一文件（归属=每人签字页在文件内可查） */
@@ -473,6 +506,49 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* 审查优化（2026-09-21）：未识别文件分配选择器——文件名路由失败时人工指定去向 */}
+      {pendingAssign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-4 backdrop-blur-sm">
+          <div className="bid-dialog relative w-full max-w-[min(520px,92vw)]">
+            <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258/0.12)] px-5 py-4">
+              <h3 className="text-sm font-bold text-[var(--foreground)]">分配扫描件去向</h3>
+              <button type="button" aria-label="关闭" onClick={() => setPendingAssign(null)} className="neu-btn-xs is-square"><X size={14} /></button>
+            </div>
+            <div className="max-h-[55vh] overflow-y-auto px-5 py-4">
+              <p className="mb-3 text-xs text-[var(--muted-foreground)]">
+                以下文件未按文件名识别去向（{pendingAssign.map(a => a.reason).filter((v, i, arr) => arr.indexOf(v) === i).join('、')}）。请为每个文件指定签字归属：
+              </p>
+              <div className="space-y-3">
+                {pendingAssign.map((a, i) => (
+                  <div key={i} className="rounded-xl bg-[oklch(0.975_0.012_258/0.6)] p-3">
+                    <p className="mb-1.5 truncate font-mono text-xs font-semibold text-[var(--foreground)]" title={a.file.name}>{a.file.name}</p>
+                    <select
+                      value={a.target}
+                      onChange={(e) => setPendingAssign(prev => prev ? prev.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)) : prev)}
+                      className="neu-input !h-9 w-full text-xs"
+                    >
+                      <option value="">跳过此文件</option>
+                      <option value="host">主持人签字（开标记录）</option>
+                      <option value="supervisor">监督人签字（开标记录）</option>
+                      {!!data.packet && <option value="report">主报告签字页（共签）</option>}
+                      {(data.experts ?? []).filter(e => e.role === EXPERT_ROLE.REGULAR).map(e => (
+                        <option key={e.expertId} value={`expert:${e.expertId}`}>专家·{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[oklch(0.6_0.04_258/0.12)] px-5 py-3">
+              <button type="button" onClick={() => setPendingAssign(null)} className="neu-btn-soft">取消</button>
+              <button type="button" onClick={() => void onAssignConfirm()} disabled={assignBusy} className="neu-btn-primary">
+                {assignBusy ? '上传中…' : '确认上传'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
