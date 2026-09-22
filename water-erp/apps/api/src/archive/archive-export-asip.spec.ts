@@ -12,10 +12,11 @@ const itemFixture = {
 };
 
 function makeMocks(overrides: {
-  assets?: Array<{ id: string; key: string; originalName: string; category: string }>;
+  assets?: Array<{ id: string; key: string; originalName: string; category: string; sha256?: string | null }>;
   fileAssetPages?: Array<Array<{ id: string; key: string; originalName: string; category: string }>>;
   memoInks?: Array<{ inkFileId: string | null }>;
   packet?: { fileAssetId: string | null; signPageScanFileId: string | null; handoverFileAssetId: string | null } | null;
+  download?: (key: string) => Promise<Buffer>;
 } = {}) {
   const prisma = {
     projectManagementItem: {
@@ -47,7 +48,7 @@ function makeMocks(overrides: {
     prisma.fileAsset.findMany.mockImplementation(async ({ skip }: { skip: number }) =>
       (overrides.assets ?? []).slice(skip, skip + 200));
   }
-  const storage = { download: jest.fn().mockResolvedValue(Buffer.from('x')), upload: jest.fn().mockResolvedValue(undefined) };
+  const storage = { download: jest.fn(overrides.download ?? (async () => Buffer.from('x'))), upload: jest.fn().mockResolvedValue(undefined) };
   const svc = new ArchiveExportService(
     prisma as any,
     storage as any,
@@ -118,5 +119,38 @@ describe('exportAsip 取件三守卫集成', () => {
     const keys = await zipKeysOf(storage);
     const picked = keys.filter((k) => k.includes('09_开评标接收件/bid_decrypted/') && !k.endsWith('/')); // 排除 JSZip 目录条目
     expect(picked).toHaveLength(250);
+  });
+
+  it('2026-09-22 P1-1：证据件内容与登记指纹不符 → ARCHIVE_HANDOVER_FETCH_FAILED 中止（防篡改内容被 manifest 合法化）', async () => {
+    const content = Buffer.from('tampered-content');
+    const { storage, svc } = makeMocks({
+      packet: { fileAssetId: 'fa1', signPageScanFileId: null, handoverFileAssetId: null },
+      assets: [
+        // 登记指纹 = 原始内容 hash；storage.download 返回被篡改内容 → 重算不符
+        { id: 'fa1', key: 'bid-sign-handover/bp1.json', originalName: '评标回流包-bp1.json', category: 'bid_evaluation_sign_handover', sha256: require('node:crypto').createHash('sha256').update(Buffer.from('original')).digest('hex') },
+      ],
+      download: async () => content,
+    });
+
+    await expect(svc.exportAsip('pmi1')).rejects.toMatchObject({
+      response: { code: 'ARCHIVE_HANDOVER_FETCH_FAILED' },
+    });
+    expect(storage.upload).not.toHaveBeenCalled(); // 零残包
+  });
+
+  it('2026-09-22 P1-1：登记指纹相符的证据件正常入卷（比对不误伤）', async () => {
+    const content = Buffer.from('good-content');
+    const { storage, svc } = makeMocks({
+      packet: { fileAssetId: 'fa1', signPageScanFileId: null, handoverFileAssetId: null },
+      assets: [
+        { id: 'fa1', key: 'bid-sign-handover/bp1.json', originalName: '评标回流包-bp1.json', category: 'bid_evaluation_sign_handover', sha256: require('node:crypto').createHash('sha256').update(content).digest('hex') },
+      ],
+      download: async () => content,
+    });
+
+    await svc.exportAsip('pmi1');
+
+    const keys = await zipKeysOf(storage);
+    expect(keys).toContain('SC-2026-1/项目管理/09_开评标接收件/bid_evaluation_sign_handover/评标回流包-bp1.json');
   });
 });

@@ -19,7 +19,7 @@ import { ApprovalTrailExporter } from './approval-trail.exporter';
 // 2026-09-22 P1-1：取件常量/分页函数迁至单一取件源收集器（检测/导出/勾稽共用），
 // 此处 re-export 保持既有外部 import（archive-pickup-categories.spec / guards.spec）不变
 export { ARCHIVE_PICKUP_CATEGORIES, HANDOVER_PICKUP_PAGE_SIZE, fetchAllPaged } from './archive-evidence.collector';
-import { ARCHIVE_PICKUP_CATEGORIES, fetchAllPaged } from './archive-evidence.collector';
+import { collectBidEvidenceAssets } from './archive-evidence.collector';
 
 /** 引用件缺行对账（2026-09-20 审查修复）：FileAsset 行缺失 = 引用悬空，与下载失败同口径整体拒绝 */
 export function assertNoMissingRefs(refIds: ReadonlySet<string>, foundIds: ReadonlySet<string>): void {
@@ -135,51 +135,23 @@ export class ArchiveExportService {
       // 2026-09-20 审查修复：同卷多项目/多专家证据件同名频发（JSZip file() 覆盖语义）——按已用路径消歧
       const usedPaths = new Set<string>();
       for (const bp of bpIds) {
-        // 2026-09-18 完整性扩展 v2 配套：回流包按 FileAsset 引用携带笔迹图/签到照/澄清附件/AI 报告等，
-        // 这些资产 key 不含项目 ID（uploads/{date}/{random}、reports/{taskId}/…），按 key 前缀取不到件——
-        // 改按引用 ID 反查收集，保证「包内引用 ↔ 案卷文件」一一对应（防引用悬空）。
-        const [memoInks, expertRows, packetRow, clarRows, aiTaskRow] = await Promise.all([
-          this.prisma.expertMemo.findMany({ where: { projectId: bp.id }, select: { inkFileId: true } }),
-          this.prisma.bidExpert.findMany({ where: { projectId: bp.id }, select: { signScanFileId: true, signInMeta: true } }),
-          this.prisma.bidSignPacket.findUnique({ where: { projectId: bp.id }, select: { fileAssetId: true, signPageScanFileId: true, handoverFileAssetId: true } }),
-          this.prisma.bidClarification.findMany({ where: { projectId: bp.id }, select: { fileAssetId: true, replyAttachmentIds: true } }),
-          this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId: bp.id }, select: { report: { select: { docxFileId: true, pdfFileId: true } } } }),
-        ]);
-        const refIds = new Set<string>();
-        memoInks.forEach(m => m.inkFileId && refIds.add(m.inkFileId));
-        expertRows.forEach(e => {
-          if (e.signScanFileId) refIds.add(e.signScanFileId);
-          const photoId = (e.signInMeta as { photoAssetId?: unknown } | null)?.photoAssetId; // 签到拍照留痕引用藏在 signInMeta 内
-          if (typeof photoId === 'string') refIds.add(photoId);
-        });
-        if (packetRow) [packetRow.fileAssetId, packetRow.signPageScanFileId, packetRow.handoverFileAssetId].forEach((x: string | null) => x && refIds.add(x));
-        clarRows.forEach(c => {
-          if (c.fileAssetId) refIds.add(c.fileAssetId);
-          for (const a of ((c.replyAttachmentIds as Array<{ fileAssetId?: unknown }> | null) ?? [])) {
-            if (a && typeof a.fileAssetId === 'string') refIds.add(a.fileAssetId);
-          }
-        });
-        if (aiTaskRow?.report) [aiTaskRow.report.docxFileId, aiTaskRow.report.pdfFileId].forEach((x: string | null) => x && refIds.add(x));
-        // 2026-09-20 审查修复：分页全取（防 take 截断）+ 缺行对账（防引用悬空静默漏取）
-        const assets = await fetchAllPaged(
-          (a: Prisma.FileAssetFindManyArgs) => this.prisma.fileAsset.findMany(a),
-          {
-            where: {
-              OR: [
-                { key: `bid-evaluation-handover/${bp.id}.json` },
-                // 2026-09-18：+回流包本体/签字页与专家签字扫描（key 含项目 ID，按类目取）；引用件按 id 取
-                { key: { contains: bp.id }, category: { in: [...ARCHIVE_PICKUP_CATEGORIES] } },
-                { id: { in: [...refIds] } },
-              ],
-            },
-            select: { id: true, key: true, originalName: true, category: true },
-          },
-        );
-        assertNoMissingRefs(refIds, new Set(assets.filter((a) => refIds.has(a.id)).map((a) => a.id)));
+        // 2026-09-22 P1-1：取件走共享收集器（检测/勾稽同源，清单永不漂移）；
+        // 引用件（笔迹图/签到照/澄清附件/AI 报告）key 不含项目 ID，按引用 id 反查收集，
+        // 保证「包内引用 ↔ 案卷文件」一一对应（防引用悬空，2026-09-18 完整性扩展 v2 配套）。
+        const { assets, refIds } = await collectBidEvidenceAssets(this.prisma, bp.id);
+        assertNoMissingRefs(refIds, new Set(assets.map(a => a.id)));
         for (const fa of assets) {
           try {
             const buf = await this.storage.download(fa.key);
-            const name = uniqueEntryName(fa.category, fa.originalName, usedPaths);
+            // 2026-09-22 P1-1：内容与 DB 登记指纹比对——不符即拒（防篡改对象被 manifest 新算指纹「合法化」）
+            if (fa.sha256) {
+              const digest = crypto.createHash('sha256').update(buf).digest('hex');
+              if (digest !== fa.sha256) {
+                fetchFailures.push(`${fa.originalName ?? fa.key}（内容与登记指纹不符，可能被篡改或损坏）`);
+                continue;
+              }
+            }
+            const name = uniqueEntryName(fa.category ?? '未分类', fa.originalName ?? fa.key, usedPaths);
             dir.file(name, buf);
             manifest.push({
               path: `${volName}/项目管理/09_开评标接收件/${name}`,
