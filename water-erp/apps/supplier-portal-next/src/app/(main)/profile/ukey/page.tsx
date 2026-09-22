@@ -20,7 +20,7 @@ import {
 } from "lucide-react";;
 import { VendorUKeyAdapter, type CertInfo } from "@water-erp/ukey";
 import { openUkey } from "@/utils/ukey-factory";
-import { isOwnCert } from "@/utils/ukey-cert-match";
+import { extractCn, formatCertDn, isOwnCert } from "@/utils/ukey-cert-match";
 import { useUkeyHealth } from "@/utils/use-ukey-health";
 import { supplierApi } from "@/lib/api/supplier";
 import { LoadingBlock, SpButton, SpInput } from "@/components/ui";
@@ -227,7 +227,8 @@ export default function UkeyManagePage() {
       writeBound({ certSn: cert.certSn, certDn: cert.certDn, publicKey: cert.publicKey, certId: res?.cert?.id ?? "" });
       setBoundInfo(readBound());
       await Promise.all([refreshServerCerts(), fetchProfile()]);
-      toast.success(`证书已绑定：${res?.cert?.certDn ?? cert.certDn}（主体与注册企业名称校验通过）`);
+      const boundDn: string = res?.cert?.certDn ?? cert.certDn;
+      toast.success(`证书已绑定：${extractCn(boundDn) || boundDn}（主体与注册企业名称校验通过）`);
       if (prevActive) {
         try {
           const revoked: any = await supplierApi.revokeCert(prevActive.id);
@@ -369,7 +370,7 @@ export default function UkeyManagePage() {
                     <div key={cert.certSn} className="cert-row">
                       <div className="cert-main">
                         <span className="cert-sn">{cert.certSn}</span>
-                        <span className="cert-dn">{cert.certDn}</span>
+                        <span className="cert-dn" title={cert.certDn}>{formatCertDn(cert.certDn)}</span>
                         {cert.notAfter && <span className="cert-time">{certValidityText(cert.notAfter)}</span>}
                       </div>
                       <div className="cert-actions">
@@ -427,7 +428,7 @@ export default function UkeyManagePage() {
                 <div key={row.id} className="cert-row server">
                   <div className="cert-main">
                     <span className="cert-sn">{row.certSn}</span>
-                    <span className="cert-dn">{row.certDn}</span>
+                    <span className="cert-dn" title={row.certDn}>{formatCertDn(row.certDn)}</span>
                     <span className="cert-time">
                       {row.bindingStatus === "ACTIVE"
                         ? `绑定于 ${dayjs(row.boundAt).format("YYYY-MM-DD HH:mm")}`

@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start -p 3004",
     "lint": "eslint .",
-    "test": "tsx --test src/lib/__tests__/*.test.ts src/components/__tests__/*.test.tsx",
-    "test:watch": "tsx --test --watch src/lib/__tests__/*.test.ts src/components/__tests__/*.test.tsx"
+    "test": "tsx --test src/lib/__tests__/*.test.ts src/components/__tests__/*.test.tsx src/utils/__tests__/*.test.ts",
+    "test:watch": "tsx --test --watch src/lib/__tests__/*.test.ts src/components/__tests__/*.test.tsx src/utils/__tests__/*.test.ts"
   },
   "dependencies": {
     "@water-erp/client": "workspace:*",
