@@ -41,6 +41,8 @@ function makePrismaMock() {
     // §5.5b（Task 18）：buildHandoverPackage 解密明文指纹段查 submission（默认空 → 旧项目零变化）
     supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
     bidSupervisionLog: { findMany: jest.fn().mockResolvedValue([]) },
+    // P2-2（2026-09-22）：会场交流全量入包查询（默认空 → 旧用例零变化）
+    openingHallMessage: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn(async (cb: any) => cb(tx)),
     __tx: tx,
   };
@@ -163,5 +165,60 @@ describe('completeOpening / assertOpeningDone', () => {
     expect(r.handoverAssetId).toBe('asset_race');
     expect(prisma.__tx.fileAsset.create).not.toHaveBeenCalled();
     expect(prisma.__tx.fileAsset.upsert).not.toHaveBeenCalled(); // 早退路径零写入
+  });
+
+  // ── P2-2（2026-09-22 用户裁定）：会场交流（公聊+私聊）全量入开标文件包 ──
+  const TERMINAL_SUPPLIER = {
+    id: 'bs1', supplierId: 's1', supplierName: '甲公司', receiptNo: 'R1',
+    encryptStatus: 'ENCRYPTED', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED',
+    submitStatus: '已提交', dangerAttribution: null, decryptedAt: new Date('2026-07-01T02:00:00Z'),
+  };
+
+  it('会场交流全量入包：私聊解析公司名 + version 2 + fingerprint 覆盖新段', async () => {
+    const prisma = makePrismaMock();
+    const svc = await buildService(prisma);
+    prisma.bidProject.findUnique.mockResolvedValue(OPENING_PROJECT);
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
+    prisma.__tx.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
+    prisma.__tx.fileAsset.upsert.mockResolvedValue({ id: 'asset_1', key: 'bid-opening-handover/p1.json' });
+    prisma.__tx.bidOpeningSession.update.mockResolvedValue({ ...SESSION, status: '开标完成', handoverAt: new Date(), handoverAssetId: 'asset_1' });
+    prisma.__tx.bidProject.findUnique.mockResolvedValue(OPENING_PROJECT);
+    prisma.bidSupplier.findMany.mockResolvedValue([TERMINAL_SUPPLIER]);
+    prisma.__tx.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+    prisma.openingHallMessage.findMany.mockResolvedValue([
+      { roomType: 'PUBLIC', supplierId: null, senderName: '李主任', senderRole: 'HOST', type: 'TEXT', content: '现在开始解密', fileAssetId: null, createdAt: new Date('2026-07-01T01:00:00Z') },
+      { roomType: 'PRIVATE', supplierId: 's1', senderName: '李主任', senderRole: 'HOST', type: 'TEXT', content: '请确认唱标', fileAssetId: null, createdAt: new Date('2026-07-01T02:30:00Z') },
+    ]);
+
+    await svc.completeOpening('p1', 'user1');
+
+    const storage = (svc as any).storage as { upload: jest.Mock };
+    const pkg = JSON.parse((storage.upload.mock.calls[0][1] as Buffer).toString('utf8'));
+    expect(pkg.packageVersion).toBe(2);
+    expect(pkg.hallMessages).toHaveLength(2);
+    expect(pkg.hallMessages[0]).toMatchObject({ room: 'PUBLIC', supplierName: null, content: '现在开始解密' });
+    expect(pkg.hallMessages[1]).toMatchObject({ room: 'PRIVATE', supplierName: '甲公司', content: '请确认唱标' });
+    // fingerprint 自洽：body（去 fingerprint）重算 sha256 应相等——新段已入指纹覆盖
+    const crypto = require('node:crypto');
+    const { fingerprint, ...body } = pkg;
+    expect(crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex')).toBe(fingerprint);
+  });
+
+  it('无会场消息时 hallMessages 不输出（保持包紧凑），version 仍为 2', async () => {
+    const prisma = makePrismaMock();
+    const svc = await buildService(prisma);
+    prisma.bidProject.findUnique.mockResolvedValue(OPENING_PROJECT);
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
+    prisma.__tx.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
+    prisma.__tx.fileAsset.upsert.mockResolvedValue({ id: 'asset_1', key: 'bid-opening-handover/p1.json' });
+    prisma.__tx.bidOpeningSession.update.mockResolvedValue({ ...SESSION, status: '开标完成', handoverAt: new Date(), handoverAssetId: 'asset_1' });
+    prisma.__tx.bidProject.findUnique.mockResolvedValue(OPENING_PROJECT);
+
+    await svc.completeOpening('p1', 'user1');
+
+    const storage = (svc as any).storage as { upload: jest.Mock };
+    const pkg = JSON.parse((storage.upload.mock.calls[0][1] as Buffer).toString('utf8'));
+    expect(pkg.packageVersion).toBe(2);
+    expect('hallMessages' in pkg).toBe(false);
   });
 });

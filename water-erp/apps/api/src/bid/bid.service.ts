@@ -1169,7 +1169,7 @@ export class BidService {
       select: { roundMode: true },
     });
 
-    const [suppliers, submissions, records, logs, bidRounds] = await Promise.all([
+    const [suppliers, submissions, records, logs, bidRounds, hallMessagesRaw] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: project.id },
         // §5.5：dangerAttribution 归因写入开标文件包（法定留痕）；A-111：decryptedAt 解密成功时间入包
@@ -1198,7 +1198,15 @@ export class BidService {
         include: { quotes: { select: { bidSupplierId: true, quotePrice: true, submittedAt: true, status: true } } },
         orderBy: { roundNo: 'asc' },
       }) : Promise.resolve([]),
+      // P2-2（2026-09-22 用户裁定）：会场交流全量入包（公聊+私聊）——还原开标现场互动
+      this.prisma.openingHallMessage.findMany({
+        where: { projectId: project.id },
+        orderBy: { createdAt: 'asc' },
+        select: { roomType: true, supplierId: true, senderName: true, senderRole: true, type: true, content: true, fileAssetId: true, createdAt: true },
+      }),
     ]);
+    // 防御：jest mock 缺省（undefined）不炸——回退空列表（opening-amount-unit.util 同款）
+    const hallMessages = Array.isArray(hallMessagesRaw) ? hallMessagesRaw : [];
     const active = suppliers.filter(s => s.submitStatus !== '已撤回');
 
     // §5.5b（Task 18）：dual-v2 解密明文资产指纹——submission.decryptedAssets 为 {role: assetId}，
@@ -1255,6 +1263,9 @@ export class BidService {
     const orderedSuppliers = sortSupplierRowsBySubmission(suppliersWithFingerprints)
       .map(({ submitted: _submitted, withdrawn: _withdrawn, submission: _submission, ...rest }) => rest);
 
+    // P2-2：会场交流私聊房间 supplierId（Supplier.id 域）→ 公司名
+    const supplierNameBySupplierId = new Map(suppliers.map((s: any) => [s.supplierId as string, s.supplierName as string]));
+
     const summary = {
       supplierTotal: suppliers.length,
       active: active.length,
@@ -1267,7 +1278,7 @@ export class BidService {
     };
     const body = {
       packageType: 'BID_OPENING_HANDOVER',
-      packageVersion: 1,
+      packageVersion: 2, // 2026-09-22：+hallMessages（会场交流全量，公聊+私聊）
       generatedAt: new Date().toISOString(),
       project: {
         id: project.id, projectCode: project.projectCode, name: project.name,
@@ -1287,6 +1298,14 @@ export class BidService {
         roundNo: r.roundNo, roundType: r.roundType, status: r.status,
         deadline: r.deadline?.toISOString() ?? null,
         quotes: r.quotes,
+      })) : undefined,
+      // P2-2（2026-09-22 用户裁定）：会场交流全量入包（公聊+私聊）——还原开标现场互动。
+      // senderName 为发送时快照；PRIVATE 的 supplierId 解析为公司名（存证不依赖日后改名）。
+      hallMessages: hallMessages.length > 0 ? hallMessages.map(m => ({
+        room: m.roomType,
+        supplierName: m.supplierId ? supplierNameBySupplierId.get(m.supplierId) ?? null : null,
+        senderName: m.senderName, senderRole: m.senderRole, type: m.type, content: m.content,
+        fileAssetId: m.fileAssetId, createdAt: m.createdAt.toISOString(),
       })) : undefined,
       summary,
     };
