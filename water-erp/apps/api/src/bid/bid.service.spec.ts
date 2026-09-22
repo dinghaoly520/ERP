@@ -123,6 +123,8 @@ describe('BidService — stage transitions', () => {
         groupBy: jest.fn(),
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
+      // P2-2（2026-09-22）：开标文件包会场交流查询（默认空 → 存量用例零变化）
+      openingHallMessage: { findMany: jest.fn().mockResolvedValue([]) },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
@@ -1956,6 +1958,8 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
         groupBy: jest.fn(),
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
+      // P2-2（2026-09-22）：开标文件包会场交流查询（默认空 → 存量用例零变化）
+      openingHallMessage: { findMany: jest.fn().mockResolvedValue([]) },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn() },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
@@ -3668,6 +3672,7 @@ describe('BidService — 解密失败归因矩阵（Task 15, §5.5）——裁�
       supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'user-s1' }) },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
+      openingHallMessage: { findMany: jest.fn().mockResolvedValue([]) }, // P2-2：会场交流入包查询
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       bidRound: { findMany: jest.fn().mockResolvedValue([]) },
       fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
@@ -4530,6 +4535,8 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
     prisma = {
       bidProject: { findUnique: jest.fn() },
       bidExpert: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) }, // findMany：P2-4 swap 进场窗口复查
+      // 92ee5a77 起换签写监督日志（留痕）——既有红修复：mock 缺 delegate（与本轮 P2-2 无关，顺手补齐）
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn().mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(prisma)),
     };
     const { BidService } = await import('./bid.service');
