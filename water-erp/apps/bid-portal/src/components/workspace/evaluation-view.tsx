@@ -1565,7 +1565,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 <MonitorSmartphone size={13} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
                 {releaseFor.onlineDevice ? (
                   <span>
-                    当前会话：<span className="font-semibold text-[var(--foreground)]">{releaseFor.onlineDevice.deviceClass === 'tablet' ? '平板' : releaseFor.onlineDevice.deviceClass === 'phone' ? '手机' : '桌面'}</span>
+                    当前会话：<span className="font-semibold text-[var(--foreground)]">{releaseFor.onlineDevice.deviceClass === 'tablet' ? '平板' : releaseFor.onlineDevice.deviceClass === 'phone' ? '手机' : releaseFor.onlineDevice.deviceClass === 'unknown' ? '未记录' : '桌面'}</span>
                     {' · '}{releaseFor.onlineDevice.uaSummary}
                     {releaseFor.onlineDevice.at ? ` · ${new Date(releaseFor.onlineDevice.at).toLocaleString('zh-CN', { hour12: false })}登录` : ''}
                     ——核身时请与专家实际所在工位比对
