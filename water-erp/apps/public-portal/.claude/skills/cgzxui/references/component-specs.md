@@ -12,6 +12,7 @@
 - [CTA 底栏按钮](#cta-底栏按钮)
 - [通用卡片（neu-card）](#通用卡片)
 - [输入框（neu-input）](#输入框)
+- [状态分段切换（neu-segment）](#状态分段切换-neu-segment)
 
 ---
 
@@ -809,3 +810,85 @@ Signal 徽标可选：`warning` → 橙色"待处理" / `danger` → 红色"风�
 - **选中唯一标识**：`inset 2px 0 0 var(--accent-strong)` 左侧 2px 色标——不是 banned 的 `border-left` 大于 1px 通用侧条，而是选中态的语义化视觉反馈（宽度 ≤ 2px + 仅选中时出现）
 - **排序反馈**：表头排序图标 opacity 随状态变化（默认 0.45 / hover 0.75 / active 1）
 - **动画 > 静态**：批量操作条从 `translateY(-6px)` 滑入，选中行有 `transform: scale(0.995)` 按入反馈
+
+---
+
+## 状态分段切换（.neu-segment）
+
+> 2026-09-22 收录。互斥的类型/状态筛选切换；范本 :3002（信息门户首页公告区 / 全部公告页）。放置原则与分工边界见 SKILL.md「状态分段切换」节——**hero 下方独立工具行、置于页面底色、flex 包裹**。
+
+### CSS 规格
+
+```css
+/* 内凹轨道——半透明白底，必须置于页面底色（oklch 0.975 一类）上呈现 */
+.neu-segment {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid oklch(1 0 0 / 0.6);
+  background: oklch(1 0 0 / 0.45);
+  box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.7);
+}
+/* 滑动纯白拇指——轨道上唯一凸起物；选中态禁改其他底色 */
+.neu-segment-thumb {
+  position: absolute;
+  top: 4px; bottom: 4px; left: 4px;
+  width: calc(50% - 8px);
+  border-radius: 9px;
+  background: oklch(1 0 0);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.95);
+  transition: translate 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+/* 多段驱动：data-count 声明段数（默认 2）；translate 为拇指自身宽度百分比，天然按段数缩放 */
+.neu-segment[data-index="1"] .neu-segment-thumb { translate: 100% 0; }
+.neu-segment[data-count="3"] .neu-segment-thumb { width: calc((100% - 8px) / 3); }
+.neu-segment[data-count="5"] .neu-segment-thumb { width: calc((100% - 8px) / 5); }
+.neu-segment[data-count="6"] .neu-segment-thumb { width: calc((100% - 8px) / 6); }
+.neu-segment[data-count="7"] .neu-segment-thumb { width: calc((100% - 8px) / 7); }
+.neu-segment[data-count="8"] .neu-segment-thumb { width: calc((100% - 8px) / 8); }
+.neu-segment[data-index="2"] .neu-segment-thumb { translate: 200% 0; }
+.neu-segment[data-index="3"] .neu-segment-thumb { translate: 300% 0; }
+.neu-segment[data-index="4"] .neu-segment-thumb { translate: 400% 0; }
+.neu-segment[data-index="5"] .neu-segment-thumb { translate: 500% 0; }
+.neu-segment[data-index="6"] .neu-segment-thumb { translate: 600% 0; }
+.neu-segment[data-index="7"] .neu-segment-thumb { translate: 700% 0; }
+/* 按钮——aria-pressed 驱动文字态 */
+.neu-segment-btn {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 12px;
+  font: inherit; font-size: 12.5px; font-weight: 500;
+  color: var(--muted-foreground);
+  background: transparent; border: none; border-radius: 9px; cursor: pointer;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  white-space: nowrap;
+}
+.neu-segment-btn[aria-pressed="true"] { color: var(--accent-strong); font-weight: 600; }
+.neu-segment-btn[aria-pressed="false"]:hover { color: var(--foreground); background: oklch(1 0 0 / 0.4); }
+.neu-segment-btn:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+/* 计数徽标——选中态自动染 accent */
+.neu-segment-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: oklch(0.55 0.03 258 / 0.12);
+  color: var(--muted-foreground);
+}
+.neu-segment-btn[aria-pressed="true"] .neu-segment-count {
+  background: color-mix(in oklch, var(--accent-strong) 12%, transparent);
+  color: var(--accent-strong);
+}
+@media (prefers-reduced-motion: reduce) { .neu-segment-thumb { transition: none; } }
+```
+
+### 关键设计点
+
+- **两段默认拇指宽 `calc(50% - 8px)`** 为 :3005 原始规格；三段及以上用 `calc((100% - 8px) / n)` 精确平铺（同一轨道两种口径并存是历史兼容，勿"归一"）
+- **门户变量映射**：public-portal (:3002) 无 `--accent-strong/--foreground/--muted-foreground`，映射 `--accent-strong→--brand`、`--foreground→--fg/--ink`、`--muted-foreground→--fg-2`
+- **勿用伪元素实现依赖**（条目分割线一类若需常显，用真实 DOM 元素——伪元素在玻璃卡内有不上色实录，见 :3002 公告分割线教训）
+- **跨页复用须单源 CSS**（:3004 收敛于 `styles/pages/shared.css`；:3002/:3005/:3006 各自 globals.css 同名同义）

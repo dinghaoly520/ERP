@@ -93,20 +93,31 @@ export default function ExpertProjectsPage() {
         </div>
 
         <div className="wb-section-rule" />
+      </div>
 
-        <div className="relative z-[1]">
-          <div className="neu-tab-bar flex-wrap">
-            {filterTabs.map(f => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`neu-tab ${filter === f.key ? 'is-active' : ''}`}
-              >
-                {f.label}
-                <span className="neu-tab-count">{statusCounts[f.key]}</span>
-              </button>
-            ))}
-          </div>
+      {/* ═══ 工具行：状态分段切换（hero 下方独立一行；:3002 公告类型切换同款——
+           内凹轨道需置于页面底色上呈现，白瓷 hero 渐变底会洗掉轨道对比度）═══ */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="项目筛选"
+          data-count="3"
+          data-index={String(filterTabs.findIndex(f => f.key === filter))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {filterTabs.map(f => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key)}
+              className="neu-segment-btn"
+              aria-pressed={filter === f.key}
+            >
+              {f.label}
+              <span className="neu-segment-count">{statusCounts[f.key]}</span>
+            </button>
+          ))}
         </div>
       </div>
 

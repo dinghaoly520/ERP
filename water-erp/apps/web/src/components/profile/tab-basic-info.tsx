@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { submitProfileChange, requestPasswordChange } from '@/lib/api/auth';
+import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import type { AuthUser, DepartmentItem, ProfileChangePayload } from '@/lib/api/auth';
 import { api } from '@/lib/api';
 
@@ -142,7 +143,7 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
   // 资料字段定义
   const profileFields = [
     { label: '姓名', icon: UserRound, val: displayName, set: setDisplayName, type: 'text', placeholder: '请输入姓名', maxLen: 32 },
-    { label: '公司', icon: Building, val: company, set: setCompany, type: 'text', placeholder: '请输入所属公司', maxLen: 64 },
+    { label: '公司', icon: Building, val: company, set: setCompany, type: 'company', placeholder: '请选择或输入公司名称' },
     { label: '部门', icon: Building2, val: departmentId, set: setDepartmentId, type: 'select', placeholder: '', options: departments },
     { label: '邮箱', icon: Mail, val: email, set: setEmail, type: 'email', placeholder: '请输入邮箱' },
     { label: '手机', icon: Phone, val: phone, set: setPhone, type: 'tel', placeholder: '请输入手机号' },
@@ -200,7 +201,11 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
                 <div className="flex w-[88px] shrink-0 items-center gap-1.5 text-[12px] font-semibold text-[var(--muted-foreground)]">
                   <f.icon size={12} strokeWidth={1.7} />{f.label}
                 </div>
-                {f.type === 'select' ? (
+                {f.type === 'company' ? (
+                  <div className="flex-1">
+                    <UnitSearchSelect value={f.val} onChange={f.set} placeholder={f.placeholder} />
+                  </div>
+                ) : f.type === 'select' ? (
                   <select value={f.val} onChange={e => f.set(e.target.value)} className="workbench-input h-[36px] flex-1 text-[13px]">
                     <option value="">未设置</option>
                     {f.options.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}

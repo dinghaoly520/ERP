@@ -182,3 +182,16 @@
 @media (prefers-reduced-motion: reduce) {
   .ann-toolbar, .announcement-row { transition: none !important; }
 }
+
+/* ── 异议联系方式（2026-09-21）：公告正文后单独展示的异议声明区块 ── */
+.detail-objection {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-top: 16px; padding: 14px 16px;
+  border: none; border-radius: 12px;
+  background: color-mix(in oklab, var(--warning, oklch(0.7 0.1 80)) 8%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.detail-objection__icon { flex-shrink: 0; margin-top: 2px; color: var(--warning, oklch(0.6 0.12 80)); }
+.detail-objection__body { font-size: 13.5px; line-height: 1.7; color: var(--foreground); }
+.detail-objection__body p { margin: 0; }
+.detail-objection__body b { color: var(--brand); font-variant-numeric: tabular-nums; }

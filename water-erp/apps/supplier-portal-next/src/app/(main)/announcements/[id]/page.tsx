@@ -225,6 +225,18 @@ export default function AnnouncementDetailPage() {
 
           <div className="detail-content" dangerouslySetInnerHTML={{ __html: announcement.content || "" }} />
 
+          {/* 异议联系方式（2026-09-21）：发布向导快照于 metadata.objectionContact，正文后单独展示。
+              含固定异议声明（致电/书面来函）——与 :3005 澄清说明配置同源。 */}
+          {((announcement.metadata || {}).objectionContact as string) && (
+            <>
+              <hr className="ann-divider" />
+              <div className="detail-objection">
+                <span className="detail-objection__icon" aria-hidden="true"><TriangleAlert size={15} strokeWidth={1.9} /></span>
+                <div className="detail-objection__body" dangerouslySetInnerHTML={{ __html: (announcement.metadata || {}).objectionContact as string }} />
+              </div>
+            </>
+          )}
+
           {announcement.relatedProjectCode ? (
             <>
               <hr className="ann-divider" />

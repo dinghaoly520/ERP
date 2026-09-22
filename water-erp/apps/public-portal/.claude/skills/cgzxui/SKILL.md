@@ -171,6 +171,7 @@ box-shadow:
 | `.neu-table` | 数据表格基类——半透明 thead + 四层行交互（透明/hover/选中/press） |
 | `.neu-batch-bar` | 批量操作浮条——表格卡片顶部滑入；玻璃 + 内高光 + 双影 |
 | `.neu-tab-bar` / `.neu-tab` | 内凹 tab 容器 + 凸起 tab 项（hover 抬升/激活内凹） |
+| `.neu-segment` / `.neu-segment-btn` / `.neu-segment-count` | **状态分段切换**——内凹轨道 + 滑动纯白拇指 + `aria-pressed`；类型/状态筛选用（放置原则见专节，**禁入标题卡**） |
 
 ### 公告组件
 
@@ -354,7 +355,7 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 
 **"新建数据管理页面"** — 必须包含以下三层：
 1. `page-hero` 标题卡片（含 `page-hero__row` + hairline 分割线 + KPI 瓷片或搜索行）
-2. 独立的工具栏卡片（type tab + 搜索 + 筛选下拉，neumorphic 浅底 + 方向性双影）
+2. 独立的工具栏行/卡片（类型/状态切换用 `.neu-segment` 分段切换——hero 下方独立一行、置于页面底色；搜索 + 筛选下拉可并入同行，neumorphic 浅底 + 方向性双影）
 3. `neu-table-card` + `neu-table` 数据表格（透明行 + 四层交互 + 批量操作浮条）
 
 **"改一个按钮的样式"** — 改 `globals.css` 中对应类名，**绝不**在 TSX 加内联 `style`。
@@ -613,6 +614,56 @@ background:
 | `<tr className="bg-blue-50">` 标记选中 | `<tr data-selected="true">` |
 | `border-b border-gray-200` 行分割 | td 自带 `border-top: 1px solid oklch(.../0.06)` |
 | 内联 `style={{ background: ... }}` 行高亮 | 使用 `data-selected` 属性 + CSS 选择器 |
+
+## 状态分段切换（.neu-segment，2026-09-22 收录）
+
+互斥的类型/状态筛选切换。**范本：:3002 信息门户首页公告区与「全部公告」页**；同款已覆盖 :3005（公告发布中心/通知管理/供应商库/项目管理）、:3004（shared.css 跨页单源，六处）、:3006（登录角色切换/评审项目筛选）。内凹轨道 + 滑动纯白拇指——拇指是轨道上唯一凸起物。
+
+### 结构
+
+```tsx
+{/* 工具行容器——flex 包裹（.neu-segment 是 grid，裸放 block 父级会拉满整行） */}
+<div className="flex flex-wrap items-center gap-4">
+  <div
+    className="neu-segment"
+    role="group"
+    aria-label="公告类型"
+    data-count="8"                                    {/* 声明段数（默认 2），支持 2/3/5/6/7/8 */}
+    data-index={String(tabs.findIndex(t => t.key === active))}
+  >
+    <span className="neu-segment-thumb" aria-hidden="true" />
+    {tabs.map(t => (
+      <button type="button" className="neu-segment-btn" aria-pressed={t.key === active} onClick={() => setActive(t.key)}>
+        {t.label}
+        {t.count > 0 && <span className="neu-segment-count">{t.count}</span>}
+      </button>
+    ))}
+  </div>
+  {/* 同行右侧可放：搜索（固定 280px）/ 筛选下拉 / 操作按钮组（ml-auto） */}
+</div>
+```
+
+### 放置原则（2026-09-22 评审裁定）
+
+1. **hero 下方独立工具行**——严禁嵌入 page-hero 标题卡内部（hero 只承载标题 + KPI/搜索行）。
+2. **必须置于页面底色（oklch 0.975 一类）或非白瓷表面**。轨道为半透明白 `oklch(1 0 0/0.45)`，放在白瓷 hero 渐变底上对比度被洗掉，视觉上等于样式失效。
+3. 外层必须 **flex 包裹**，否则 grid 轨道拉满整行（2026-09-22 :3006 实测 1408px 全宽教训）。
+
+### 驱动方式
+
+- 容器 `data-count` 声明段数、`data-index` 驱动拇指位移——`translate` 为拇指自身宽度百分比，天然按段数缩放，无需逐段写死几何。
+- 按钮 `aria-pressed` 驱动文字态（选中染 accent + 加粗）；计数用 `.neu-segment-count` 徽标（选中态自动染 accent）。
+- reduced-motion：拇指滑动过渡禁用（各门户规格内已内置）。
+
+### 与 .neu-tab-bar 的分工边界
+
+| 场景 | 用 |
+|------|-----|
+| 互斥的类型/状态**筛选**（公告类型、供应商状态、通知业务域、进行中/已完成） | `.neu-segment` |
+| 同页多**视图**切换（账号管理三类视图、表格卡内 tab 组） | `.neu-tab-bar` + `.neu-tab` |
+| 采购文件编写类「模板类型」散开瓷片切换 | TenderTypeSwitcher 瓷片（另一语言，勿混用） |
+
+完整 CSS 规格见 `references/component-specs.md`「状态分段切换」节。
 
 ## 侧边栏（AppShell Sidebar，2026-09-18 定版）
 
