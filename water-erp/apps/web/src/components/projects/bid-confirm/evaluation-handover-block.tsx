@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { FileCheck, PenLine } from 'lucide-react';
 import { getSignPacket, type BidProjectDetail, type SignPacketResponse } from '@/lib/api/bid';
+import { HandoverPreview } from './handover-preview';
 
 type Props = {
   bidProjectId: string;
@@ -107,6 +108,11 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
             <FileCheck size={11} /> 下载评标回流包
           </a>
         </div>
+      )}
+
+      {/* P2-3：回流包内容查验（只读结构化预览；懒加载 fetch handoverDownloadUrl，与横幅同门槛） */}
+      {signData?.packet?.handoverDownloadUrl && (
+        <HandoverPreview downloadUrl={signData.packet.handoverDownloadUrl} />
       )}
     </section>
   );
