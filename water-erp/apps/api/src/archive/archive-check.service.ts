@@ -5,6 +5,7 @@ import * as fs from 'node:fs/promises';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { ArchiveScopeService, ScopeMatchRow } from './archive-scope.service';
+import { collectBidEvidenceAssets } from './archive-evidence.collector';
 
 export interface CheckDetail {
   code: string;
@@ -80,22 +81,21 @@ export class ArchiveCheckService {
     if (!item) throw new Error('项目不存在');
 
     // ── M4：回流件（FileAsset，MinIO）参与检测——§8.3 检测对象不应只有 PMI 附件 ──
-    // 逐 BidProject 查询（评标包精确 key + 其余 category 按 key 含 bpId 匹配），key 去重防重复检测
-    const seenKeys = new Set<string>();
+    // 2026-09-22 P1-1：改走共享收集器（与导出同源），回流包/签字扫描/开标签字页/AI 报告
+    // 及全部引用件（笔迹图/签到照/澄清附件）纳入哈希+可读检测；引用悬空记 FAIL（导出会被拒）。
+    const seenIds = new Set<string>();
     for (const bp of item.bidProjects) {
-      const assets = await this.prisma.fileAsset.findMany({
-        where: {
-          OR: [
-            { key: `bid-evaluation-handover/${bp.id}.json` },
-            { key: { contains: bp.id }, category: { in: ['bid_opening_handover', 'bid_sign_packet', 'bid_decrypted'] } },
-          ],
-        },
-        select: { key: true, originalName: true, category: true, sha256: true },
-        take: 50,
-      });
+      const { assets, missingRefIds } = await collectBidEvidenceAssets(this.prisma, bp.id);
+      for (const missingId of missingRefIds) {
+        details.push({
+          code: '-', materialName: `证据件引用缺失（FileAsset ${missingId.slice(0, 8)}…）`,
+          check: '完整性-范围', status: 'FAIL',
+          message: '回流包引用的证据件在 FileAsset 中无行（可能已被删除），归档导出将被拒绝',
+        });
+      }
       for (const fa of assets) {
-        if (seenKeys.has(fa.key)) continue;
-        seenKeys.add(fa.key);
+        if (seenIds.has(fa.id)) continue;
+        seenIds.add(fa.id);
         const label = `回流件/${fa.originalName ?? fa.key}`;
         try {
           const buf = await this.storage.download(fa.key);
