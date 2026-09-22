@@ -562,13 +562,15 @@ export default function TabletEvaluatePage() {
     }
   };
 
-  // host 态待主持人核验：10s 静默轮询（主持人 :3007 登记后本页自动解锁，与桌面端同款）
+  // 未签到期间 10s 静默轮询（与桌面端 signInPending 同口径）：主持人手动确认签到（摄像头故障降级）
+  // 或 host 态核验登记后，本页自动解锁进入下一步，无需专家手动刷新。
   const hostLocked = project?.identityMode === 'host' && !meRecord?.identityVerified && !meRecord?.signedIn;
+  const signInPending = !meRecord?.signedIn && !scoreLocked;
   useEffect(() => {
-    if (!hostLocked) return;
+    if (!hostLocked && !signInPending) return;
     const t = setInterval(() => loadProject(undefined, true), 10_000);
     return () => clearInterval(t);
-  }, [hostLocked, loadProject]);
+  }, [hostLocked, signInPending, loadProject]);
 
   // ── 评标室口令门（2026-09-20 spec §4 · 2026-09-22 平板补齐）──
   // 与桌面端同源：口令启用且本人未验 → 整个打分工作位置于口令输入之后；
