@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -127,6 +128,7 @@ export class PasswordRequestsService {
         // 旧申请（无副本字段）不清空已有 vault；审批通过后保持「最新版可查看」
         ...(req.requestedPasswordVault ? { passwordVault: req.requestedPasswordVault } : {}),
         webSessionId: null,
+        sessionMeta: Prisma.DbNull,
       },
     });
     // 通知申请人审批结果（与资料变更审批对齐；通知失败不阻塞审批）
@@ -203,6 +205,7 @@ export class PasswordRequestsService {
         passwordHash: req.requestedPasswordHash,
         ...(req.requestedPasswordVault ? { passwordVault: req.requestedPasswordVault } : {}),
         webSessionId: null,
+        sessionMeta: Prisma.DbNull,
       },
     });
     try {

@@ -1,4 +1,5 @@
 import { Body, BadRequestException, ConflictException, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { hashSync } from 'bcryptjs';
@@ -250,6 +251,7 @@ export class AccountAdminController {
         // 此前重置只写 hash → 弹窗回显的是重置前的旧密码
         passwordVault: encryptPasswordVault(dto.password) ?? null,
         webSessionId: null,
+        sessionMeta: Prisma.DbNull,
       },
       select: ACCOUNT_SELECT,
     });
@@ -265,7 +267,7 @@ export class AccountAdminController {
     if (id === user.sub) throw new BadRequestException({ error: '不能冻结自己的账号', code: 'SELF_LOCK' });
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { isFrozen: true, webSessionId: null },
+      data: { isFrozen: true, webSessionId: null, sessionMeta: Prisma.DbNull },
       select: ACCOUNT_SELECT,
     });
     // 冻结 = 对「异地登录反馈」采取了实质安全处置 → 相关提醒自动消
