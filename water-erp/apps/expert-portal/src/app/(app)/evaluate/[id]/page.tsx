@@ -333,7 +333,7 @@ export default function ExpertEvaluatePage() {
   const loadProject = useCallback((committedSupplierId?: string, silent = false) => {
     if (!silent) setLoading(true);
     setLoadError(null);
-    api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
+    return api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         // Stage gate: redirect if project is not in an active review stage
         if (p.restricted || (p.stage !== 'OPENING' && p.stage !== 'EVALUATING')) {
@@ -598,6 +598,14 @@ export default function ExpertEvaluatePage() {
 
   const expert = project?.myExpertRecord;
 
+  // 回避声明脏检查（2026-09-22）：已确认且勾选与服务端申报一致 → 按钮转「已确认」禁用，
+  // 杜绝确认后反复点击（每次 POST 都会重写申报并新增一条监督日志）；勾选变化才重新激活
+  // （「评审过程中可随时补充或调整」口径不变，改勾选即视为调整）
+  const confirmedConflictIds = new Set(expert?.conflictedSupplierIds ?? []);
+  const avoidanceDirty = !expert?.avoidanceConfirmed
+    || confirmedConflictIds.size !== conflictedSupplierIds.size
+    || [...conflictedSupplierIds].some((id) => !confirmedConflictIds.has(id));
+
   // 未签到期间 10s 静默轮询，覆盖两个场景：
   // ① host 态待主持人核验登记解锁（P3 2026-09-20 spec §4.2，原逻辑）；
   // ② self 态摄像头故障时主持人在 :3007 R9 手动确认签到——专家端需感知 signedIn 变化解锁后续步骤
@@ -725,10 +733,10 @@ export default function ExpertEvaluatePage() {
       toast.success(conflictedSupplierIds.size > 0
         ? `回避声明已确认（${conflictedSupplierIds.size} 家冲突申报）`
         : '回避声明已确认：与全部投标单位无利益冲突');
-      loadProject();
+      await loadProject(); // 等 refresh 落库后再放开按钮，避免「已确认」态闪回可点击
     }
     catch (e: any) { toast.error(e.message || '操作失败'); }
-    setAvoiding(false);
+    finally { setAvoiding(false); }
   };
 
   const handleConfirmAiConsent = async () => {
@@ -1669,9 +1677,15 @@ export default function ExpertEvaluatePage() {
                       );
                     })}
                   </div>
-                  <button onClick={handleAvoidance} disabled={avoiding} className="neu-btn-primary">
-                    {avoiding ? '提交中…' : `确认回避声明（${conflictedSupplierIds.size} 家冲突 / ${project.suppliers.length - conflictedSupplierIds.size} 家无冲突）`}
+                  <button onClick={handleAvoidance} disabled={avoiding || !avoidanceDirty} className={avoidanceDirty ? 'neu-btn-primary' : 'neu-btn-primary is-success'}>
+                    {avoiding ? '提交中…'
+                      : !avoidanceDirty
+                        ? `已确认回避声明（${confirmedConflictIds.size} 家冲突申报）`
+                        : `${expert?.avoidanceConfirmed ? '重新确认回避声明' : '确认回避声明'}（${conflictedSupplierIds.size} 家冲突 / ${project.suppliers.length - conflictedSupplierIds.size} 家无冲突）`}
                   </button>
+                  {!avoidanceDirty && (
+                    <p className="mt-2 text-xs text-[var(--muted-foreground)]">调整上方勾选后可重新申报回避。</p>
+                  )}
                 </div>
               )}
 
