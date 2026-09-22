@@ -120,12 +120,22 @@ const RISK_TONES: Record<string, { label: string; tone: string }> = {
   low: { label: '低风险', tone: 'var(--accent)' },
 };
 
-/** 监督日志 riskFlag 高亮口径：'无'/'—'（占位）不标；高风险=红、关注/低=橙 */
+/** 监督日志 riskFlag 着色口径（api 端实测 9 种字面值）：高档红、中档橙；低档/'无'/'—'（占位）不着色 */
+const RISKFLAG_DANGER = new Set(['高风险', '高', '有']);
+const RISKFLAG_WARNING = new Set(['中风险', '中', '关注']);
 function riskFlagTone(flag?: string | null): string | null {
-  if (flag === '高风险') return 'var(--danger)';
-  if (flag === '关注' || flag === '低') return 'var(--warning)';
+  if (flag == null) return null;
+  if (RISKFLAG_DANGER.has(flag)) return 'var(--danger)';
+  if (RISKFLAG_WARNING.has(flag)) return 'var(--warning)';
   return null;
 }
+
+/* ExpertDispute / BidMotion / BidRequirementReview 枚举（schema 注释值域；未知值原样显示） */
+const DISPUTE_STATUS_LABELS: Record<string, string> = { open: '待处理', resolved: '已裁决', rejected: '已驳回' };
+const DISPUTE_TYPE_LABELS: Record<string, string> = { scoring: '评分异议', procedure: '程序异议', other: '其他' };
+const MOTION_STATUS_LABELS: Record<string, string> = { open: '发起中', voting: '表决中', closed: '已结束' };
+const MOTION_TYPE_LABELS: Record<string, string> = { dispute_resolution: '异议裁决', invalid_bid: '废标认定', other: '其他' };
+const VERDICT_LABELS: Record<string, string> = { ack: '认可', dispute: '异议', doubt: '存疑' };
 
 function shortHash(hash?: string | null): string {
   return hash ? `${hash.slice(0, 12)}…` : '—';
@@ -244,6 +254,10 @@ function SignSection({ pkg }: { pkg: HandoverPackage }) {
   const primary = all.filter((s) => s.expertRole !== '候补');
   const alternates = all.filter((s) => s.expertRole === '候补');
   const [showAlt, setShowAlt] = useState(false);
+  // 回避冲突供应商名反查（包内 evaluationResults 是唯一 supplierId→名称源；查不到回退短 id）
+  const supplierName = new Map((pkg.evaluationResults ?? []).map((r) => [r.supplierId, r.supplierName]));
+  const conflictLabel = (ids: string[]) =>
+    ids.map((id) => supplierName.get(id) ?? `供应商 ${id.slice(-6)}`).join('、');
 
   function renderRows(rows: ExpertSignStatus[]) {
     return rows.map((s, i) => {
@@ -272,6 +286,15 @@ function SignSection({ pkg }: { pkg: HandoverPackage }) {
               <AgreeMark ok={s.aiConsentConfirmed} />
               <AgreeMark ok={s.avoidanceConfirmed} />
             </span>
+            {(s.conflictedSupplierIds?.length ?? 0) > 0 && (
+              <span
+                className="wb-status-pill ml-2 font-semibold"
+                style={{ '--tone': 'var(--danger)' } as React.CSSProperties}
+                title={`回避冲突供应商：${conflictLabel(s.conflictedSupplierIds!)}`}
+              >
+                回避冲突 {s.conflictedSupplierIds!.length} 家
+              </span>
+            )}
           </td>
           <td className="!text-left max-w-[260px]">
             {s.dissentingOpinion ? (
@@ -334,7 +357,7 @@ function SignSection({ pkg }: { pkg: HandoverPackage }) {
         </div>
       )}
       <div className="text-[10px] text-[var(--muted-foreground)]">
-        承诺勾选从左至右：保密承诺、评标纪律、AI 辅助声明、回避确认；回避冲突供应商以包内 conflictedSupplierIds 留痕
+        承诺勾选从左至右：保密承诺、评标纪律、AI 辅助声明、回避确认；申报回避冲突的专家以红色徽标标出（悬停见供应商名）
       </div>
     </div>
   );
@@ -376,8 +399,6 @@ function ScoreSnapshotSection({ pkg }: { pkg: HandoverPackage }) {
     arr.push(d);
     pdBySupplier.set(d.supplierId, arr);
   }
-  const pointName = new Map(defs.flatMap((d) => d.points?.map((p) => [p.id, p.name] as const) ?? []));
-
   const [showDecisions, setShowDecisions] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -521,7 +542,6 @@ function ScoreSnapshotSection({ pkg }: { pkg: HandoverPackage }) {
               </table>
               <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
                 逐专家 × 得分点记录聚合；得分点名称见评分项定义（{defs.reduce((a, d) => a + (d.points?.length ?? 0), 0)} 个得分点）
-                {pointName.size === 0 ? '' : ''}
               </div>
             </div>
           )}
@@ -594,14 +614,26 @@ function ProcessRecordsSection({ pkg }: { pkg: HandoverPackage }) {
                 {disputes.map((d, i) => (
                   <tr key={d.id ?? i}>
                     <td className="!text-left font-medium text-[var(--foreground)]">{d.expertName ?? '—'}</td>
-                    <td className="!text-left text-[var(--muted-foreground)]">{d.type ?? '—'}</td>
+                    <td className="!text-left text-[var(--muted-foreground)]">{DISPUTE_TYPE_LABELS[d.type ?? ''] ?? d.type ?? '—'}</td>
                     <td className="!text-left max-w-[280px]" title={d.content ?? undefined}>
                       <span className="font-medium text-[var(--foreground)]">{d.title}</span>
                       {d.content ? <span className="block truncate text-[var(--muted-foreground)]">{d.content}</span> : null}
                     </td>
-                    <td className="!text-left">{d.status ?? '—'}</td>
+                    <td className="!text-left">
+                      <span
+                        className="wb-status-pill"
+                        style={{ '--tone': d.status === 'resolved' ? 'var(--success)' : d.status === 'rejected' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}
+                      >
+                        {DISPUTE_STATUS_LABELS[d.status ?? ''] ?? d.status ?? '—'}
+                      </span>
+                    </td>
                     <td className="!text-left text-[var(--muted-foreground)]">
-                      {d.resolvedAt ? `${d.resolvedBy ?? ''} ${formatDateTime(d.resolvedAt)}` : '未裁决'}
+                      {d.resolvedAt ? (
+                        <span title={d.response ?? undefined}>
+                          {d.resolvedBy ?? ''} {formatDateTime(d.resolvedAt)}
+                          {d.response ? <span className="block truncate text-[10px]">{d.response}</span> : null}
+                        </span>
+                      ) : '未裁决'}
                     </td>
                   </tr>
                 ))}
@@ -622,7 +654,9 @@ function ProcessRecordsSection({ pkg }: { pkg: HandoverPackage }) {
               <div key={m.id ?? i} className="wb-note px-3.5 py-3 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold text-[var(--foreground)]">{m.title ?? '（无标题）'}</span>
-                  <span className="wb-status-pill" style={{ '--tone': 'var(--accent)' } as React.CSSProperties}>{m.status ?? '—'}</span>
+                  <span className="wb-status-pill" style={{ '--tone': 'var(--accent)' } as React.CSSProperties}>
+                    {MOTION_TYPE_LABELS[m.type ?? ''] ?? m.type ?? '—'} · {MOTION_STATUS_LABELS[m.status ?? ''] ?? m.status ?? '—'}
+                  </span>
                   {m.result && <span className="text-[var(--muted-foreground)]">结果：{m.result}</span>}
                 </div>
                 {m.description && <div className="mt-1 text-[var(--muted-foreground)]">{m.description}</div>}
@@ -705,7 +739,13 @@ function ProcessRecordsSection({ pkg }: { pkg: HandoverPackage }) {
                     <td className="!text-left">{r.supplierName ?? '—'}</td>
                     <td className="!text-left font-mono text-[11px] text-[var(--muted-foreground)]">{r.requirementId ?? '—'}</td>
                     <td className="!text-left text-[var(--muted-foreground)]">{r.category ?? '—'}</td>
-                    <td className="!text-left font-semibold text-[var(--foreground)]">{r.verdict ?? '—'}</td>
+                    <td className="!text-left font-semibold text-[var(--foreground)]">
+                      <span
+                        className={r.verdict === 'dispute' ? 'text-[var(--danger)]' : r.verdict === 'doubt' ? 'text-[var(--warning)]' : undefined}
+                      >
+                        {VERDICT_LABELS[r.verdict ?? ''] ?? r.verdict ?? '—'}
+                      </span>
+                    </td>
                     <td className="!text-left max-w-[220px] truncate text-[var(--muted-foreground)]" title={r.note ?? undefined}>{r.note ?? '—'}</td>
                   </tr>
                 ))}
@@ -889,7 +929,7 @@ function SupervisionSection({ pkg }: { pkg: HandoverPackage }) {
           })}
         </tbody>
       </table>
-      <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">共 {logs.length} 条，开评标全周期留痕；风险标记非「无」时着色</div>
+      <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">共 {logs.length} 条，开评标全周期留痕；高/中档风险标记着色（低档与「无」不着色）</div>
     </div>
   );
 }
@@ -903,12 +943,12 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
   const [error, setError] = useState<string | null>(null);
   const loadedUrlRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
-  const hasPkgRef = useRef(false);
 
   const load = useCallback(
     (force = false) => {
       if (loadingRef.current) return;
-      if (!force && loadedUrlRef.current === downloadUrl && hasPkgRef.current) return;
+      // loadedUrlRef 仅在成功拉取后置位——即「此 URL 已有缓存」的判据
+      if (!force && loadedUrlRef.current === downloadUrl) return;
       loadingRef.current = true;
       setLoading(true);
       setError(null);
@@ -919,7 +959,6 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
         })
         .then((j) => {
           loadedUrlRef.current = downloadUrl;
-          hasPkgRef.current = true;
           setPkg(j);
         })
         .catch((e) => {
