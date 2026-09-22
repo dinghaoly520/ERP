@@ -16,32 +16,10 @@ import { ApprovalTrailExporter } from './approval-trail.exporter';
  * 说明文件.TXT + 项目管理/（卷内按阶段组合）+ 其他/（移交清单、元数据、固化验证、审批留痕、登记表）。
  * 双源取件：PMI 附件（本地 uploads/）+ 开评标回流件（MinIO）。一卷一包，重导覆盖同 key 前缀。
  */
-/** 2026-09-18：归档取件类目——key 含项目 ID 的开评标留痕件按类目+key 前缀取；
- * key 不含项目 ID 的（uploads/{date}/{random}、reports/{taskId}/…）走引用 id 取件，不得混入此清单 */
-export const ARCHIVE_PICKUP_CATEGORIES = [
-  'bid_opening_handover', 'bid_sign_packet', 'bid_decrypted',
-  'bid_evaluation_sign_handover', 'sign_packet_signature_page', 'expert_sign_scan',
-  'opening_sign_page', 'opening_sign_scan', // 2026-09-18 补：P1-3①A 开标记录签字页/开标签字扫描（key=opening-sign-*/${projectId}.*）
-] as const;
-
-/** 取件分页大小（2026-09-20 审查修复：原 take:200 无截断检测会静默丢件） */
-export const HANDOVER_PICKUP_PAGE_SIZE = 200;
-
-/** 分页全取 FileAsset：orderBy id 保证翻页稳定，页不满即穷尽（防 take 截断产出缺件残包） */
-export async function fetchAllPaged<TArgs extends { skip?: number; take?: number }, T>(
-  finder: (args: TArgs) => Promise<T[]>,
-  args: Omit<TArgs, 'skip' | 'take' | 'orderBy'>,
-): Promise<T[]> {
-  const out: T[] = [];
-  let skip = 0;
-  for (;;) {
-    const page = await finder({ ...args, orderBy: { id: 'asc' }, skip, take: HANDOVER_PICKUP_PAGE_SIZE } as unknown as TArgs);
-    out.push(...page);
-    if (page.length < HANDOVER_PICKUP_PAGE_SIZE) break;
-    skip += HANDOVER_PICKUP_PAGE_SIZE;
-  }
-  return out;
-}
+// 2026-09-22 P1-1：取件常量/分页函数迁至单一取件源收集器（检测/导出/勾稽共用），
+// 此处 re-export 保持既有外部 import（archive-pickup-categories.spec / guards.spec）不变
+export { ARCHIVE_PICKUP_CATEGORIES, HANDOVER_PICKUP_PAGE_SIZE, fetchAllPaged } from './archive-evidence.collector';
+import { ARCHIVE_PICKUP_CATEGORIES, fetchAllPaged } from './archive-evidence.collector';
 
 /** 引用件缺行对账（2026-09-20 审查修复）：FileAsset 行缺失 = 引用悬空，与下载失败同口径整体拒绝 */
 export function assertNoMissingRefs(refIds: ReadonlySet<string>, foundIds: ReadonlySet<string>): void {
