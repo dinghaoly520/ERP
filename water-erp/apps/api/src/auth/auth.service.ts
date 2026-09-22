@@ -488,7 +488,33 @@ export class AuthService {
   ) {
     if (!this.redis) throw new ServiceUnavailableException('Redis 不可用');
     const key = `expert-transfer:${dto.ticket}`;
-    const raw = await this.redis.get(key);
+    // 并发互斥（严格审查修复）：get→校验→del 之间存在竞态窗口，两请求可同时持票通过
+    // （密码都对则双重轮换，单次语义被破坏）。按票据互斥锁串行化领取全程。
+    const raw0 = await this.redis.get(key);
+    if (!raw0) {
+      throw new BadRequestException({ error: '迁移码已过期或已使用，请在桌面端重新生成', code: 'TICKET_INVALID' });
+    }
+    const t0 = JSON.parse(raw0) as { ticketId: string };
+    const lockKey = `expert-transfer-lock:${t0.ticketId}`;
+    const locked = await this.redis.set(lockKey, '1', 'EX', 15, 'NX');
+    if (!locked) {
+      throw new ConflictException({ error: '该迁移码正在领取中，请稍候重试', code: 'CLAIM_IN_PROGRESS' });
+    }
+    try {
+      return await this.claimExpertTransferLocked(dto, meta, key);
+    } finally {
+      await this.redis.del(lockKey).catch(() => {});
+    }
+  }
+
+  private async claimExpertTransferLocked(
+    dto: { ticket: string; password: string },
+    meta: { ip?: string | null; userAgent?: string | null },
+    key: string,
+  ) {
+    const redis = this.redis;
+    if (!redis) throw new ServiceUnavailableException('Redis 不可用');
+    const raw = await redis.get(key);
     if (!raw) {
       throw new BadRequestException({ error: '迁移码已过期或已使用，请在桌面端重新生成', code: 'TICKET_INVALID' });
     }
@@ -498,27 +524,27 @@ export class AuthService {
       select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true, webSessionId: true },
     });
     if (!user || user.role !== 'bid_expert' || !user.isActive || user.isFrozen) {
-      await this.redis.del(key);
+      await redis.del(key);
       throw new BadRequestException({ error: '迁移码无效', code: 'TICKET_INVALID' });
     }
     // 票据绑定签发时会话：桌面会话已被替换/吊销 → 票据随之作废（防旧票复用）
     if (!user.webSessionId || user.webSessionId !== t.sid) {
-      await this.redis.del(key);
+      await redis.del(key);
       throw new ConflictException({ error: '桌面会话已变化，迁移码失效，请重新生成', code: 'TICKET_STALE' });
     }
     // 密码重证：错 3 次烧票（票据是能力凭证，须防持票者暴力试密码）
     if (!user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
       const aKey = `expert-transfer-attempts:${t.ticketId}`;
-      const attempts = await this.redis.incr(aKey);
-      await this.redis.expire(aKey, 90);
+      const attempts = await redis.incr(aKey);
+      await redis.expire(aKey, 90);
       if (attempts >= 3) {
-        await this.redis.del(key);
+        await redis.del(key);
         throw new BadRequestException({ error: '密码连续错误 3 次，迁移码已作废，请回桌面重新生成', code: 'TICKET_BURNED' });
       }
       throw new UnauthorizedException({ error: `登录密码错误（剩余 ${3 - attempts} 次机会）`, code: 'PASSWORD_MISMATCH' });
     }
-    await this.redis.del(key); // 单次使用（成功即销毁）
-    await this.redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'claimed' }), 'EX', 180);
+    await redis.del(key); // 单次使用（成功即销毁）
+    await redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'claimed' }), 'EX', 180);
     const device = buildSessionMeta(meta.userAgent, meta.ip);
     const token = await this.rotatePortalSession(user.id, user.username, user.role, device);
     await this.prisma.bidSupervisionLog.create({
