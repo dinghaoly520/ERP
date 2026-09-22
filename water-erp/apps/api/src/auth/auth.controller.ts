@@ -14,6 +14,7 @@ import type { AuthenticatedUser } from './auth.types';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { getClientIp } from '../common/client-ip.util';
+import { buildSessionMeta } from '../common/session-device.util';
 import { cookieNameForPortal, portalForRole, portalFromRequest, tokenFromRequest, LEGACY_COOKIE } from './portal-cookie';
 import { checkPortRole } from './port-roles';
 import { PORTS } from '@water-erp/config';
@@ -171,7 +172,11 @@ export class AuthController {
     // 等其他门户的登录不轮换、不互踢（bid_expert 角色↔expert 门户互斥，:3006 分流写
     // token_bid 的仅限非 bid_expert 角色，不会误伤 :3007 主持人/管理员会话）。
     if (cookiePortal === 'web' || cookiePortal === 'supplier' || cookiePortal === 'expert') {
-      result = await this.authService.rotatePortalSession(result.userId, result.username, result.role);
+      // 设备快照随会话轮换同写（2026-09-22）：IP/UA 分类后的「当前在线设备」供主持人侧展示
+      result = await this.authService.rotatePortalSession(
+        result.userId, result.username, result.role,
+        buildSessionMeta((req.headers['user-agent'] as string) ?? null, getClientIp(req)),
+      );
     }
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
 

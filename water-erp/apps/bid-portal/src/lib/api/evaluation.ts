@@ -220,6 +220,10 @@ export interface ExpertVerificationRow {
   identityVerified: boolean;
   identityVerifiedByName: string | null;
   identityDocType: string | null;
+  /** 当前会话设备（2026-09-22）：null=无活动会话；快照=登录时分类 */
+  onlineDevice: { deviceClass: string; uaSummary: string; ip?: string | null; at?: string } | null;
+  /** 签到设备（signInMeta.userAgent 即时分类） */
+  signInDevice: { deviceClass: string; uaSummary: string } | null;
 }
 
 export interface ExpertVerificationMatrix {

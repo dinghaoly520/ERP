@@ -444,11 +444,13 @@ export class AuthService {
    * 用户不可能产生 web 会话），各门户共用一列零冲突。token_bid/token_mall 登录不轮换、不互踢。
    * expert 例外：评标窗口开（工位锁定）期间新登录被 auth.controller 直接 409 拒绝，不进入轮换。
    */
-  async rotatePortalSession(userId: string, username: string, role: string) {
+  async rotatePortalSession(userId: string, username: string, role: string, sessionMeta?: object) {
     const sid = randomUUID();
     await this.prisma.user.update({
       where: { id: userId },
-      data: { webSessionId: sid },
+      // sessionMeta：本次登录设备快照（deviceClass/uaSummary/ip/at）——与 sid 同一次写入，
+      // 供主持人工位视图/解锁弹窗展示「当前在线设备」（2026-09-22）
+      data: { webSessionId: sid, ...(sessionMeta !== undefined ? { sessionMeta } : {}) },
     });
     return this.issueToken(userId, username, role, sid);
   }

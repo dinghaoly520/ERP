@@ -40,6 +40,7 @@ import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFro
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { Prisma, AiBidderStatus } from '@prisma/client';
+import { classifyUserAgent } from '../common/session-device.util';
 import { pendingBondReturnWhere } from './bond-pending.util';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
@@ -3042,7 +3043,7 @@ export class BidService {
         where: { projectId },
         orderBy: [{ signedIn: 'desc' }, { expertRole: 'asc' }, { expertName: 'asc' }],
         select: {
-          id: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
+          id: true, userId: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
           signedIn: true, signInIp: true, signInMeta: true,
           identityVerified: true, identityVerifiedByName: true, identityDocType: true,
         },
@@ -3053,6 +3054,12 @@ export class BidService {
         orderBy: { time: 'asc' },
       }),
     ]);
+    // 当前会话设备（2026-09-22）：webSessionId 非空=有活动会话，sessionMeta 为登录时设备快照
+    const sessionUsers = await this.prisma.user.findMany({
+      where: { id: { in: experts.map((e) => e.userId) } },
+      select: { id: true, webSessionId: true, sessionMeta: true },
+    });
+    const sessionByUser = new Map(sessionUsers.map((u) => [u.id, u]));
     // 异常登记状态（2026-09-20 闭环修复）：按时间序折叠——最后一条是「核验异常」= 生效中，是「撤销」= 已更正
     const anomalyByExpert = new Map<string, { active: boolean; at: string; result: string }>();
     for (const l of anomalyLogs) {
@@ -3066,10 +3073,15 @@ export class BidService {
       projectId,
       mode: resolveIdentityVerifyMode(),
       experts: experts.map((e) => {
-        const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string; reason?: string; confirmedByName?: string };
+        const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string; reason?: string; confirmedByName?: string; userAgent?: string };
         const an = anomalyByExpert.get(e.expertName);
+        const su = sessionByUser.get(e.userId);
+        const sm = (su?.sessionMeta ?? null) as { deviceClass?: string; uaSummary?: string; ip?: string; at?: string } | null;
         return {
           id: e.id, expertName: e.expertName, major: e.major, expertRole: e.expertRole,
+          // 当前在线设备（null=无活动会话）；签到设备由 signInMeta.userAgent 即时分类
+          onlineDevice: su?.webSessionId ? (sm ?? { deviceClass: 'unknown', uaSummary: '未记录' }) : null,
+          signInDevice: meta.userAgent ? classifyUserAgent(meta.userAgent) : null,
           isLead: e.isLead, isPurchaserRepresentative: e.isPurchaserRepresentative,
           signedIn: e.signedIn, signInIp: e.signInIp,
           signedInAt: meta.timestamp ?? null,
@@ -3183,12 +3195,18 @@ export class BidService {
     const actorName =
       (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
       || actor.username;
-    await this.prisma.user.update({ where: { id: expert.userId }, data: { webSessionId: null } });
+    // 解除即原会话作废：设备快照随 webSessionId 一并清空；留痕带上原会话设备（核身参考）
+    const priorSession = await this.prisma.user.findUnique({
+      where: { id: expert.userId },
+      select: { sessionMeta: true },
+    });
+    const priorDevice = (priorSession?.sessionMeta ?? null) as { deviceClass?: string; uaSummary?: string } | null;
+    await this.prisma.user.update({ where: { id: expert.userId }, data: { webSessionId: null, sessionMeta: Prisma.DbNull } });
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '主持人', target: expert.expertName,
         action: '解除专家登录锁定',
-        result: `确认人 ${actorName}；理由：${reason.trim()}`,
+        result: `确认人 ${actorName}；理由：${reason.trim()}${priorDevice ? `；原会话设备：${priorDevice.uaSummary ?? priorDevice.deviceClass ?? '未记录'}` : '；原会话设备：未记录'}`,
         riskFlag: '无',
       },
     }).catch(() => {});

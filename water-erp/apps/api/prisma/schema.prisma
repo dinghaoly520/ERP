@@ -58,6 +58,7 @@ model User {
   role           String      @default("internal_user")
   isActive       Boolean     @default(true)
   webSessionId   String? // 单设备登录（web 2026-08 / supplier 2026-09）：每次登录轮换；JWT 里的 sid 与之不符即拒绝（旧设备被顶下线）。角色↔门户互斥，两门户共用一列
+  sessionMeta    Json? // 会话设备元数据（2026-09-22）：登录/轮换时写入 { deviceClass, uaSummary, ip, at }——主持人工位视图/解锁弹窗展示「当前在线设备」；webSessionId 清空时同步清空
   isFrozen       Boolean     @default(false) // 管理员冻结：登录拦截（ACCOUNT_FROZEN）+ 守卫即时 401，区别于未激活 isActive=false
   requestedRole  String?     @map("requested_role") // 注册申请权限：management | office（审批时映射为正式角色）
   drafts         UserDraft[]

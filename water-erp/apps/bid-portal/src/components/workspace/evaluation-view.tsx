@@ -11,7 +11,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck, Copy,
-  Clock, Eye, EyeOff, FileCheck, KeyRound, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
+  Clock, Eye, EyeOff, FileCheck, KeyRound, MessageSquare, MonitorSmartphone, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
 } from 'lucide-react';
 import {
   extendEvaluation,
@@ -186,7 +186,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [roomCodeBusy, setRoomCodeBusy] = useState(false);
   const [roomCodeVisible, setRoomCodeVisible] = useState(false); // 口令掩码（2026-09-21 审查优化）
   // 闸4 阀门：解除专家登录锁定弹窗（换设备场景，理由必填留痕）
-  const [releaseFor, setReleaseFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [releaseFor, setReleaseFor] = useState<{ id: string; expertName: string; onlineDevice?: { deviceClass: string; uaSummary: string; ip?: string | null; at?: string } | null } | null>(null);
   const [releaseReason, setReleaseReason] = useState('');
   const [releaseBusy, setReleaseBusy] = useState(false);
   // R5（2026-09-20 §4.4）：核验异常登记弹窗
@@ -831,7 +831,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到时间</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验方式</span>
               <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">留档照</span>
-              <span className="flex-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">IP</span>
+              <span className="flex-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">在线设备</span>
+              <span className="flex-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">签到IP/设备</span>
               <span className="flex-1 text-right text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">现场操作</span>
             </div>
             {verification.experts.map(row => (
@@ -882,7 +883,29 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                   )}
                 </span>
-                <span className="flex-1 min-w-0 truncate font-mono text-[9px] text-[var(--muted-foreground)]" title={row.signInIp ?? undefined}>
+                <span className="flex flex-1 items-center justify-center">
+                  {row.onlineDevice ? (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                        row.onlineDevice.deviceClass === 'tablet'
+                          ? 'bg-[oklch(0.94_0.04_260/0.4)] text-[var(--accent-strong)]'
+                          : row.onlineDevice.deviceClass === 'phone'
+                            ? 'bg-[oklch(0.95_0.015_27/0.3)] text-[var(--warning)]'
+                            : 'bg-[oklch(0.95_0.01_258)] text-[var(--muted-foreground)]'
+                      }`}
+                      title={`当前会话：${row.onlineDevice.uaSummary}${row.onlineDevice.ip ? ` · ${row.onlineDevice.ip}` : ''}${row.onlineDevice.at ? ` · ${new Date(row.onlineDevice.at).toLocaleString('zh-CN', { hour12: false })}` : ''}`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      {row.onlineDevice.deviceClass === 'tablet' ? '平板在线' : row.onlineDevice.deviceClass === 'phone' ? '手机在线' : row.onlineDevice.deviceClass === 'unknown' ? '在线' : '桌面在线'}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-[var(--muted-foreground)]" title={row.signedIn ? '无活动会话（已解锁或未登录）' : '未登录'}>离线</span>
+                  )}
+                </span>
+                <span
+                  className="flex-1 min-w-0 truncate text-center font-mono text-[9px] text-[var(--muted-foreground)]"
+                  title={`${row.signInIp ?? '—'}${row.signInDevice ? ` · 签到设备：${row.signInDevice.uaSummary}` : ''}`}
+                >
                   {row.signInIp ?? '—'}
                 </span>
                 <div className="flex flex-1 items-center justify-end gap-2">
@@ -907,7 +930,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   {row.signedIn && stage === 'EVALUATING' && (me?.role === 'bid_host' || me?.role === 'admin') && (
                     <button
                       type="button"
-                      onClick={() => { setReleaseFor({ id: row.id, expertName: row.expertName }); setReleaseReason(''); }}
+                      onClick={() => { setReleaseFor({ id: row.id, expertName: row.expertName, onlineDevice: row.onlineDevice }); setReleaseReason(''); }}
                       className="neu-btn-xs"
                       title="账号已登录锁定；专家换设备时现场核身后解除"
                     >
@@ -1538,6 +1561,19 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 <span>专家「{releaseFor.expertName}」更换设备需<span className="font-semibold text-[var(--warning)]">现场核对其身份证件后</span>解除锁定。</span>
                 <HelpTip text="解除后原会话失效、专家可重新登录；操作写入监督日志。" className="mt-px shrink-0" />
               </p>
+              <div className="mb-4 flex items-center gap-2 rounded-[10px] bg-[oklch(0.975_0.012_258/0.7)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
+                <MonitorSmartphone size={13} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
+                {releaseFor.onlineDevice ? (
+                  <span>
+                    当前会话：<span className="font-semibold text-[var(--foreground)]">{releaseFor.onlineDevice.deviceClass === 'tablet' ? '平板' : releaseFor.onlineDevice.deviceClass === 'phone' ? '手机' : '桌面'}</span>
+                    {' · '}{releaseFor.onlineDevice.uaSummary}
+                    {releaseFor.onlineDevice.at ? ` · ${new Date(releaseFor.onlineDevice.at).toLocaleString('zh-CN', { hour12: false })}登录` : ''}
+                    ——核身时请与专家实际所在工位比对
+                  </span>
+                ) : (
+                  <span>当前无活动会话（可能已被解锁或专家已登出）</span>
+                )}
+              </div>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">解除理由（必填）</label>
               <textarea
                 value={releaseReason}
