@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Lock } from 'lucide-react';
 import { api, listMemos } from '@/lib/api';
+import { HelpTip } from '@/components/help-tip';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
@@ -462,6 +463,26 @@ export default function TabletEvaluatePage() {
     };
   };
 
+  // ── 评标室口令门（2026-09-20 spec §4 · 2026-09-22 平板补齐）──
+  // 与桌面端同源：口令启用且本人未验 → 整个打分工作位置于口令输入之后；
+  // 服务端对文档/AI/评分/报告接口同步 403 ROOM_CODE_REQUIRED，冒名者拿到会话也进不了评标物料。
+  const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [roomCodeBusy, setRoomCodeBusy] = useState(false);
+  const [roomCodeError, setRoomCodeError] = useState('');
+  const handleVerifyRoomCode = async () => {
+    setRoomCodeBusy(true);
+    setRoomCodeError('');
+    try {
+      await api.post(`/expert/projects/${projectId}/room-code/verify`, { code: roomCodeInput.trim() });
+      setRoomCodeInput('');
+      loadProject();
+    } catch (e: any) {
+      setRoomCodeError(e.message || '口令验证失败');
+    } finally {
+      setRoomCodeBusy(false);
+    }
+  };
+
   if (loadError) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-4 text-[var(--muted-foreground)]">
@@ -476,6 +497,49 @@ export default function TabletEvaluatePage() {
     return (
       <div className="flex h-64 items-center justify-center text-[var(--muted-foreground)]">
         加载中…
+      </div>
+    );
+  }
+
+  // 评标室口令门：口令启用且本人未验（roomVerifiedAt < roomCodeAt）→ 先验口令。
+  // 触屏加大输入/按钮热区；文案与桌面端口令门同源（HelpTip 同款提示）。
+  if (project.roomCodeActive && !project.roomCodeVerified) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-6">
+        <div className="neu-card-static w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[oklch(0.985 0.005 258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+            <Lock size={30} strokeWidth={1.5} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">评标室口令</h2>
+          <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
+            请向现场主持人获取口令后进入评标室
+            <HelpTip text="连续输错 3 次将锁定 10 分钟。" className="ml-1" />
+          </p>
+          <input
+            type="text"
+            value={roomCodeInput}
+            onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === 'Enter' && roomCodeInput.trim()) void handleVerifyRoomCode(); }}
+            placeholder="8 位口令"
+            maxLength={8}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            disabled={roomCodeBusy}
+            className="neu-input mt-5 text-center !h-14 !text-2xl !font-bold !tracking-[0.35em]"
+          />
+          {roomCodeError && (
+            <p className="mt-3 text-xs font-semibold text-[var(--danger,#c0392b)]">{roomCodeError}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleVerifyRoomCode()}
+            disabled={roomCodeBusy || !roomCodeInput.trim()}
+            className="neu-btn-primary mt-5 !h-[48px] !w-full !px-8"
+          >
+            {roomCodeBusy ? '验证中…' : '进入评标室'}
+          </button>
+        </div>
       </div>
     );
   }
