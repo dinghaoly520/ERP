@@ -1,11 +1,22 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { portalURL } from '@water-erp/config';
+import { PORTS, portalURL } from '@water-erp/config';
 import { detectTabletUA } from '@/lib/device';
 
 const PORTAL = 'expert';
 const COOKIE = `token_${PORTAL}`;
-const LOGIN_URL = portalURL('expert', '/login?forceLogin=1');
+// 登录跳转不能用模块级 portalURL：middleware 在服务端求值恒为 localhost，
+// 平板/局域网客户端被 307 到打不开的 localhost 地址（2026-09-22 平板实测）。
+// 一律以 request.url 为基准相对构建。
+const loginUrlFor = (request: NextRequest, pathname: string) => {
+  // request.url 的 origin 在 middleware 内是 dev 绑定地址（0.0.0.0），不可直接用；
+  // 取 Host 头保真实访问主机名（平板经 LAN IP 访问时才能跳对）。
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+  const hostname = host.split(',')[0].trim().split(':')[0] || request.nextUrl.hostname;
+  const u = new URL(`http://${hostname}:${PORTS.expert}/login?forceLogin=1`);
+  u.searchParams.set('redirect', pathname);
+  return u;
+};
 
 /**
  * 无线网络 / 平板设备检测
@@ -77,11 +88,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   // token 失效/角色不符时回登录页，保留 redirect 以便登录后回到原页面（如邀请确认页）
-  const loginWithRedirect = () => {
-    const u = new URL(LOGIN_URL);
-    u.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(u);
-  };
+  const loginWithRedirect = () => NextResponse.redirect(loginUrlFor(request, pathname));
   try {
     const res = await fetch(portalURL('api', '/api/auth/me'), {
       headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
