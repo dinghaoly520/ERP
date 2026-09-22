@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle, Clock, Lock } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Lock, Check, CheckCircle, Clipboard, Gavel, Sparkles, ShieldAlert } from 'lucide-react';
 import { api, listMemos } from '@/lib/api';
 import { HelpTip } from '@/components/help-tip';
+import { SigninCamera } from '@/components/signin-camera';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
@@ -81,9 +82,11 @@ export default function TabletEvaluatePage() {
 
   // P0-1: hydrate 时用 composite key（与桌面端一致，避免跨供应商串分）
   // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
-  const loadProject = useCallback((committedSupplierId?: string) => {
-    setLoading(true);
-    setLoadError(null);
+  const loadProject = useCallback((committedSupplierId?: string, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError(null);
+    }
     api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         if (p.restricted || (p.stage !== 'OPENING' && p.stage !== 'EVALUATING')) {
@@ -92,6 +95,12 @@ export default function TabletEvaluatePage() {
           return;
         }
         setProject(p);
+        // 身份核验视图（2026-09-22 平板补齐）：同步承诺/回避/签到本地态
+        const me = p.myExpertRecord;
+        setConfidentialityAgreed(!!me?.confidentialityAgreed);
+        setDisciplineAgreed(!!me?.disciplineAgreed);
+        if (me?.signedIn) setFaceVerified(true);
+        setAvoidIds(new Set(me?.conflictedSupplierIds ?? []));
         const existing: Record<string, ScoreEntry> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string }) => {
           existing[scoreKey(rec.supplierId, rec.scoreItemId)] = {
@@ -137,10 +146,11 @@ export default function TabletEvaluatePage() {
           .catch(() => { /* my-scores optional */ });
       })
       .catch(e => {
+        if (silent) return; // 静默轮询失败不打扰（下次轮询重试）
         const err = e as { message?: string };
         setLoadError(err?.message || '加载项目失败'); // P1-16：记录错误态供重试
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, [projectId, router]);
 
   useEffect(() => { loadProject(); }, [loadProject]);
@@ -463,6 +473,103 @@ export default function TabletEvaluatePage() {
     };
   };
 
+  // ── 身份核验视图（2026-09-22 平板补齐）：桌面端向导第 1 步的平板版 ──
+  // 签到留档照（SigninCamera 自带 secure context 不可用降级：重试+联系主持人指引）
+  // + 保密承诺/评标纪律/AI 声明逐级解锁 + 利益冲突回避申报。
+  const [confidentialityAgreed, setConfidentialityAgreed] = useState(false);
+  const [disciplineAgreed, setDisciplineAgreed] = useState(false);
+  const [aiConsentChecked, setAiConsentChecked] = useState(false);
+  const [avoidIds, setAvoidIds] = useState<Set<string>>(new Set());
+  const [faceVerifying, setFaceVerifying] = useState(false);
+  const [faceVerified, setFaceVerified] = useState(false);
+  const [avoiding, setAvoiding] = useState(false);
+  const [consentBusy, setConsentBusy] = useState(false);
+  const lastSigninPhotoRef = useRef<{ blob: Blob; assetId: string } | null>(null);
+  const meRecord = project?.myExpertRecord;
+  const confirmedConflictIds = useMemo(
+    () => new Set(meRecord?.conflictedSupplierIds ?? []),
+    [meRecord?.conflictedSupplierIds],
+  );
+  const avoidanceDirty = !meRecord?.avoidanceConfirmed
+    || confirmedConflictIds.size !== avoidIds.size
+    || [...avoidIds].some((id) => !confirmedConflictIds.has(id));
+
+  // 必拍留档照（与桌面端 handleFaceSuccess 同源）：上传照片 → 携 photoAssetId + 遮挡检测结论签到；
+  // 上传失败就地重试（照片保留），同一 blob 复用 assetId 防重复上传攒孤儿资产。
+  const handleFaceSignIn = async (photoBlob: Blob | null, occlusion: 'passed' | 'unchecked') => {
+    setFaceVerifying(true);
+    try {
+      let photoAssetId: string | undefined;
+      if (photoBlob) {
+        const cached = lastSigninPhotoRef.current;
+        if (cached && cached.blob === photoBlob) {
+          photoAssetId = cached.assetId;
+        } else {
+          try {
+            const fd = new FormData();
+            fd.append('file', photoBlob, `expert-signin-${Date.now()}.jpg`);
+            const asset = await api.post<{ id: string }>('/upload?category=expert_signin_photo', fd);
+            lastSigninPhotoRef.current = { blob: photoBlob, assetId: asset.id };
+            photoAssetId = asset.id;
+          } catch {
+            toast.error('签到照片上传失败，请点击「确认签到」重试，或「重拍」');
+            return;
+          }
+        }
+      }
+      await api.post(`/expert/projects/${projectId}/sign-in`, { ...(photoAssetId ? { photoAssetId } : {}), occlusion });
+      setFaceVerified(true);
+      loadProject();
+    } catch (e: any) {
+      if (e?.code === 'INVALID_SIGNIN_PHOTO') lastSigninPhotoRef.current = null;
+      toast.error(e.message || '签到失败，请点击「确认签到」重试');
+    } finally {
+      setFaceVerifying(false);
+    }
+  };
+
+  const handleAgreement = (key: 'confidentialityAgreed' | 'disciplineAgreed', value: boolean) => {
+    if (key === 'confidentialityAgreed') setConfidentialityAgreed(value);
+    else setDisciplineAgreed(value);
+    api.patch(`/expert/projects/${projectId}/agreements`, { [key]: value }).catch(() => {});
+  };
+
+  const handleConfirmAiConsent = async () => {
+    if (!aiConsentChecked) return;
+    setConsentBusy(true);
+    try {
+      await api.post(`/expert/projects/${projectId}/ai-consent`, {});
+      loadProject();
+      toast.success('AI 辅助评标声明已确认');
+    } catch (e: any) {
+      toast.error(e.message || '确认失败');
+    }
+    setConsentBusy(false);
+  };
+
+  const handleAvoidance = async () => {
+    setAvoiding(true);
+    try {
+      await api.post(`/expert/projects/${projectId}/avoidance`, { conflictedSupplierIds: [...avoidIds] });
+      toast.success(avoidIds.size > 0
+        ? `回避声明已确认（${avoidIds.size} 家冲突申报）`
+        : '回避声明已确认：与全部投标单位无利益冲突');
+      await loadProject();
+    } catch (e: any) {
+      toast.error(e.message || '操作失败');
+    } finally {
+      setAvoiding(false);
+    }
+  };
+
+  // host 态待主持人核验：10s 静默轮询（主持人 :3007 登记后本页自动解锁，与桌面端同款）
+  const hostLocked = project?.identityMode === 'host' && !meRecord?.identityVerified && !meRecord?.signedIn;
+  useEffect(() => {
+    if (!hostLocked) return;
+    const t = setInterval(() => loadProject(undefined, true), 10_000);
+    return () => clearInterval(t);
+  }, [hostLocked, loadProject]);
+
   // ── 评标室口令门（2026-09-20 spec §4 · 2026-09-22 平板补齐）──
   // 与桌面端同源：口令启用且本人未验 → 整个打分工作位置于口令输入之后；
   // 服务端对文档/AI/评分/报告接口同步 403 ROOM_CODE_REQUIRED，冒名者拿到会话也进不了评标物料。
@@ -540,6 +647,192 @@ export default function TabletEvaluatePage() {
             {roomCodeBusy ? '验证中…' : '进入评标室'}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // 身份核验门（2026-09-22 平板补齐）：签到/回避/AI 声明未齐 → 先核验（原桌面端向导第 1 步，
+  // 平板此前只有一条「请先完成身份核验」横幅却无任何入口——现场平板卡死于此）。
+  const verificationNeeded = !verificationComplete && !scoreLocked;
+  if (verificationNeeded) {
+    const signedIn = !!meRecord?.signedIn;
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 pb-8">
+        <h1 className="text-[1.2rem] font-black tracking-[-0.01em] text-[var(--foreground)]">身份核验与承诺确认</h1>
+
+        {/* ① 身份核验 */}
+        <div className="neu-card-static p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+              signedIn ? 'bg-[var(--success)] text-white' : 'bg-[oklch(0.985 0.005 258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+            }`}>
+              {signedIn ? <Check size={18} strokeWidth={2.5} /> : '1'}
+            </div>
+            <h2 className={`flex-1 text-sm font-bold ${signedIn ? 'text-[var(--success)]' : 'text-[var(--foreground)]'}`}>身份核验</h2>
+            {!signedIn && <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待完成</span>}
+          </div>
+          {project.identityMode === 'host' && !meRecord?.identityVerified ? (
+            <div className="exp-alert exp-alert--warning flex items-center gap-3 !font-normal">
+              <ShieldAlert size={20} strokeWidth={1.5} className="shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">待主持人核验</p>
+                <p className="text-xs leading-relaxed opacity-90">
+                  本项目启用主持人核验（强化模式）——请到主持人处出示证件完成现场核验登记；核验通过后本页自动解锁。
+                </p>
+              </div>
+            </div>
+          ) : signedIn ? (
+            <div className="exp-alert exp-alert--success flex items-center gap-2">
+              <CheckCircle size={16} strokeWidth={1.5} className="shrink-0" />
+              <span className="text-sm">留档照已提交 · 签到完成</span>
+            </div>
+          ) : (
+            <SigninCamera
+              userName={meRecord?.expertName}
+              onSignIn={handleFaceSignIn}
+              busy={faceVerifying}
+              identityMode={project.identityMode}
+            />
+          )}
+        </div>
+
+        {/* ② 保密承诺 — 签到后解锁 */}
+        <div className={`neu-card-static p-4 ${!signedIn ? 'pointer-events-none select-none opacity-50' : ''}`}>
+          <div className="mb-3 flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+              confidentialityAgreed ? 'bg-[var(--success)] text-white'
+                : signedIn ? 'bg-[oklch(0.985 0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+                  : 'bg-[oklch(0.96_0.006_258)] text-[var(--muted-foreground)] opacity-60'
+            }`}>
+              {confidentialityAgreed ? <Check size={18} strokeWidth={2.5} /> : signedIn ? '2' : <Lock size={16} strokeWidth={1.5} />}
+            </div>
+            <h2 className="flex-1 text-sm font-bold text-[var(--foreground)]">保密承诺</h2>
+          </div>
+          {!confidentialityAgreed ? (
+            <div className="exp-alert exp-alert--info space-y-3 !p-4 !font-normal">
+              <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
+                本人作为本项目评审专家，郑重承诺：在评标过程中严格遵守保密规定，不向任何第三方泄露评标过程中获取的投标文件内容、评审意见及其他相关信息。如有违反，愿意承担相应法律责任。
+              </p>
+              <label className="flex cursor-pointer items-center gap-3">
+                <input type="checkbox" checked={confidentialityAgreed} onChange={e => handleAgreement('confidentialityAgreed', e.target.checked)} className="neu-checkbox !h-5 !w-5" />
+                <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并同意以上保密承诺</span>
+              </label>
+            </div>
+          ) : (
+            <div className="exp-alert exp-alert--success flex items-center gap-2">
+              <CheckCircle size={14} strokeWidth={1.5} className="shrink-0" />
+              <span className="text-sm">已签署保密承诺书</span>
+            </div>
+          )}
+        </div>
+
+        {/* ③ 评标纪律 — 保密承诺后解锁 */}
+        <div className={`neu-card-static p-4 ${!confidentialityAgreed ? 'pointer-events-none select-none opacity-50' : ''}`}>
+          <div className="mb-3 flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+              disciplineAgreed ? 'bg-[var(--success)] text-white'
+                : confidentialityAgreed ? 'bg-[oklch(0.985_0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+                  : 'bg-[oklch(0.96_0.006_258)] text-[var(--muted-foreground)] opacity-60'
+            }`}>
+              {disciplineAgreed ? <Check size={18} strokeWidth={2.5} /> : confidentialityAgreed ? '3' : <Lock size={16} strokeWidth={1.5} />}
+            </div>
+            <h2 className="flex-1 text-sm font-bold text-[var(--foreground)]">评标纪律</h2>
+          </div>
+          {!disciplineAgreed ? (
+            <div className="exp-alert exp-alert--info space-y-3 !p-4 !font-normal">
+              <ul className="space-y-2 text-sm text-[var(--muted-foreground)]">
+                <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
+                <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
+                <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>客观公正，不带任何偏见和个人倾向</li>
+                <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>对评审过程和结果保密，不向任何人透露</li>
+              </ul>
+              <label className="flex cursor-pointer items-center gap-3">
+                <input type="checkbox" checked={disciplineAgreed} onChange={e => handleAgreement('disciplineAgreed', e.target.checked)} className="neu-checkbox !h-5 !w-5" />
+                <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并同意遵守以上评标纪律</span>
+              </label>
+            </div>
+          ) : (
+            <div className="exp-alert exp-alert--success flex items-center gap-2">
+              <CheckCircle size={14} strokeWidth={1.5} className="shrink-0" />
+              <span className="text-sm">已确认评标纪律</span>
+            </div>
+          )}
+        </div>
+
+        {/* ④ AI 辅助评标声明 — 评标纪律后解锁 */}
+        <div className={`neu-card-static p-4 ${!disciplineAgreed ? 'pointer-events-none select-none opacity-50' : ''}`}>
+          <div className="mb-3 flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+              meRecord?.aiConsentConfirmed ? 'bg-[var(--success)] text-white'
+                : disciplineAgreed ? 'bg-[oklch(0.985 0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+                  : 'bg-[oklch(0.96_0.006_258)] text-[var(--muted-foreground)] opacity-60'
+            }`}>
+              {meRecord?.aiConsentConfirmed ? <Check size={18} strokeWidth={2.5} /> : disciplineAgreed ? '4' : <Lock size={16} strokeWidth={1.5} />}
+            </div>
+            <h2 className="flex-1 text-sm font-bold text-[var(--foreground)]">AI 辅助评标声明</h2>
+          </div>
+          {!meRecord?.aiConsentConfirmed ? (
+            <div className="exp-alert exp-alert--info space-y-3 !p-4 !font-normal">
+              <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
+                本项目评审引入人工智能（大语言模型与文档识别）辅助工具，可对投标文件进行合规性检查、风险提示与评分参考分析。AI 意见均为<strong className="text-[var(--foreground)]">辅助参考</strong>，不构成评审结论，不得干预本人的独立职业判断；最终评分由本人独立作出并负责。
+              </p>
+              <label className="flex cursor-pointer items-center gap-3">
+                <input type="checkbox" checked={aiConsentChecked} onChange={e => setAiConsentChecked(e.target.checked)} className="neu-checkbox !h-5 !w-5" />
+                <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并知悉以上声明</span>
+              </label>
+              <button onClick={() => void handleConfirmAiConsent()} disabled={!aiConsentChecked || consentBusy} className="neu-btn-primary !h-[46px] w-full">
+                {consentBusy ? '确认中…' : '确认同意'}
+              </button>
+            </div>
+          ) : (
+            <div className="exp-alert exp-alert--success flex items-center gap-2">
+              <CheckCircle size={14} strokeWidth={1.5} className="shrink-0" />
+              <span className="text-sm">已确认 AI 辅助评标声明</span>
+            </div>
+          )}
+        </div>
+
+        {/* ⑤ 利益冲突回避 — 签到后可申报 */}
+        {signedIn && (
+          <div className="neu-card-static p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold bg-[oklch(0.985_0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+                <Gavel size={16} strokeWidth={1.5} />
+              </div>
+              <h2 className="flex-1 text-sm font-bold text-[var(--foreground)]">利益冲突回避</h2>
+              {!meRecord?.avoidanceConfirmed && <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待申报</span>}
+            </div>
+            <p className="mb-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
+              若您与以下任一投标单位存在利益关系（如曾受雇、近亲属供职、持有股份等），请勾选声明回避；被回避的供应商不会出现在您的评分列表中。
+            </p>
+            <div className="mb-3 space-y-1.5">
+              {project.suppliers.map(sup => {
+                const isConflict = avoidIds.has(sup.id);
+                return (
+                  <label key={sup.id} className={`flex cursor-pointer items-center gap-3 rounded-[10px] p-2.5 transition ${
+                    isConflict ? 'bg-[color-mix(in_oklch,var(--danger)_8%,transparent)]' : 'hover:bg-[oklch(1_0_0/0.5)]'
+                  }`}>
+                    <input type="checkbox" checked={isConflict} onChange={e => {
+                      setAvoidIds(prev => {
+                        const n = new Set(prev);
+                        if (e.target.checked) n.add(sup.id); else n.delete(sup.id);
+                        return n;
+                      });
+                    }} className="neu-checkbox !h-5 !w-5" />
+                    <span className="flex-1 text-sm font-semibold text-[var(--foreground)]">{sup.supplierName}</span>
+                    {isConflict && <span className="exp-pill" style={{ '--c': 'var(--danger)' } as React.CSSProperties}>已声明回避</span>}
+                  </label>
+                );
+              })}
+            </div>
+            <button onClick={() => void handleAvoidance()} disabled={avoiding || !avoidanceDirty} className={`neu-btn-primary !h-[46px] w-full ${!avoidanceDirty ? 'is-success' : ''}`}>
+              {avoiding ? '提交中…'
+                : !avoidanceDirty
+                  ? `已确认回避声明（${confirmedConflictIds.size} 家冲突申报）`
+                  : `${meRecord?.avoidanceConfirmed ? '重新确认回避声明' : '确认回避声明'}（${avoidIds.size} 家冲突 / ${project.suppliers.length - avoidIds.size} 家无冲突）`}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
