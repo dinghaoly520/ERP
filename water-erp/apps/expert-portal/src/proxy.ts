@@ -80,6 +80,12 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // 工位迁移领取页（2026-09-22）：扫码进入时平板尚无会话——票据+密码在页内提交，
+  // 成功后由 API 写 token_expert 再跳评审页；桌面 QR 短时效票据即入口凭证
+  if (pathname === '/tablet/claim') {
+    return NextResponse.next();
+  }
+
   // Block all other routes without valid auth
   if (!token) {
     const loginUrl = new URL('/login', request.url);

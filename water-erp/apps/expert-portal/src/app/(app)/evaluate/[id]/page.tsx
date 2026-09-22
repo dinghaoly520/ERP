@@ -9,8 +9,10 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Smartphone } from 'lucide-react';
+import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
+import { QRCodeSVG } from 'qrcode.react';
 import { HelpTip } from '@/components/help-tip';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
@@ -667,6 +669,45 @@ export default function ExpertEvaluatePage() {
       setStep('verify');
     }
   }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
+
+  // ── 工位迁移码（2026-09-22 修正方案）：核验全齐后可签发，QR 短时效单次 ──
+  // 领取需票据+登录密码重证（防专家互扫冒名评分）；状态轮询走 @Public 端点——
+  // 领取成功瞬间桌面 sid 已轮换，带 token 的请求会 401 触发全局遮罩，故轮询不带凭证。
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTicket, setTransferTicket] = useState<{ ticket: string; ticketId: string; expiresInSeconds: number } | null>(null);
+  const [transferStatus, setTransferStatus] = useState<'pending' | 'claimed' | 'expired'>('pending');
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferCountdown, setTransferCountdown] = useState(0);
+  const openTransferDialog = async () => {
+    setTransferBusy(true);
+    try {
+      const r = await api.post<{ ticket: string; ticketId: string; expiresInSeconds: number }>(`/expert/projects/${projectId}/transfer-ticket`, {});
+      setTransferTicket(r);
+      setTransferStatus('pending');
+      setTransferCountdown(r.expiresInSeconds);
+      setTransferOpen(true);
+    } catch (e: any) {
+      toast.error(e?.message || '迁移码签发失败');
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+  // 倒计时 + 3s 状态轮询（不带凭证）
+  useEffect(() => {
+    if (!transferOpen || !transferTicket) return;
+    const tick = setInterval(() => setTransferCountdown((c) => Math.max(0, c - 1)), 1000);
+    const poll = setInterval(() => {
+      if (!transferTicket) return;
+      fetch(`/api/expert/transfer-ticket/${transferTicket.ticketId}/status`, { headers: { 'X-Portal': 'expert' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d?.status === 'claimed') setTransferStatus('claimed'); })
+        .catch(() => {});
+    }, 3000);
+    return () => { clearInterval(tick); clearInterval(poll); };
+  }, [transferOpen, transferTicket]);
+  useEffect(() => {
+    if (transferCountdown === 0 && transferOpen && transferStatus === 'pending') setTransferStatus((s) => (s === 'claimed' ? s : 'expired'));
+  }, [transferCountdown, transferOpen, transferStatus]);
 
   // ── 评标室口令门页（2026-09-20 spec §4）──
   const [roomCodeInput, setRoomCodeInput] = useState('');
@@ -1699,6 +1740,11 @@ export default function ExpertEvaluatePage() {
                   <button onClick={() => setStep('documents')} className="neu-btn-primary is-success ml-auto !h-[38px]">
                     进入标书获取 →
                   </button>
+                  {project.stage === 'EVALUATING' && (
+                    <button onClick={() => void openTransferDialog()} disabled={transferBusy} className="neu-btn-soft ml-2 !h-[38px]">
+                      <Smartphone size={15} strokeWidth={1.5} className="mr-1.5" />迁移到打分平板
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2269,6 +2315,52 @@ export default function ExpertEvaluatePage() {
           suppliers={project?.suppliers.map(s => ({ id: s.id, supplierName: s.supplierName })) ?? []}
           onClose={() => setHistoryOpen(false)}
         />
+        {/* ── 工位迁移码弹窗（2026-09-22）：QR + 倒计时 + 领取状态 ── */}
+        {transferOpen && transferTicket && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-4 backdrop-blur-sm">
+            <div className="neu-card-static w-full max-w-sm p-6 text-center">
+              <div className="mb-1 flex items-center justify-center gap-2">
+                <Smartphone size={17} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
+                <h3 className="text-sm font-bold text-[var(--foreground)]">迁移到打分平板</h3>
+              </div>
+              {transferStatus === 'claimed' ? (
+                <div className="exp-alert exp-alert--success mt-4 flex flex-col items-center gap-2 !p-4">
+                  <CheckCircle size={26} strokeWidth={1.5} />
+                  <p className="text-sm font-semibold">已迁移至打分平板</p>
+                  <p className="text-xs opacity-80">本机评审会话已移交，可关闭本页</p>
+                  <button type="button" onClick={() => setTransferOpen(false)} className="neu-btn-soft mt-1 !h-[34px]">关闭</button>
+                </div>
+              ) : transferStatus === 'expired' ? (
+                <div className="mt-4 space-y-3">
+                  <p className="text-xs text-[var(--muted-foreground)]">迁移码已过期（{transferTicket.expiresInSeconds}s 有效）</p>
+                  <div className="flex justify-center gap-2">
+                    <button type="button" onClick={() => void openTransferDialog()} className="neu-btn-primary !h-[38px]">重新生成</button>
+                    <button type="button" onClick={() => setTransferOpen(false)} className="neu-btn-soft !h-[38px]">取消</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="mb-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                    用平板相机扫描下方二维码，扫码后<strong className="text-[var(--foreground)]">需输入登录密码</strong>并拍摄留档照完成迁移
+                  </p>
+                  <div className="mx-auto flex w-fit rounded-2xl bg-white p-3 shadow-[inset_0_0_0_1px_oklch(0.6_0.04_258/0.15)]">
+                    <QRCodeSVG
+                      value={portalURL('expert', `/tablet/claim?tk=${encodeURIComponent(transferTicket.ticket)}&p=${projectId}`)}
+                      size={188}
+                      level="M"
+                    />
+                  </div>
+                  <p className="mt-3 font-mono text-xs font-semibold text-[var(--accent-strong)]">
+                    {String(Math.floor(transferCountdown / 60)).padStart(2, '0')}:{String(transferCountdown % 60).padStart(2, '0')}
+                    <span className="ml-1.5 font-sans font-normal text-[var(--muted-foreground)]">后失效（单次使用）</span>
+                  </p>
+                  <button type="button" onClick={() => setTransferOpen(false)} className="neu-btn-soft mt-3 !h-[34px]">取消</button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* A-152 电子签署口令弹窗（口令仅内存持有，用后即清） */}
         <ExpPinDialog
           open={esignPinOpen}

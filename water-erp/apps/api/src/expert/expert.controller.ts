@@ -28,6 +28,7 @@ import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
+import { ExpertTransferClaimDto, TransferPhotoDto } from './dto/expert-transfer.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { BindExpertCertDto } from './dto/expert-cert.dto';
@@ -59,6 +60,34 @@ export class ExpertController {
   ) {}
 
   /* ── 个人资料 ── */
+  /* ══ 工位迁移码（2026-09-22 修正方案：票据免闸4解锁 + 密码重证 + 留档照证据）══ */
+
+  @Post('projects/:projectId/transfer-ticket')
+  @Roles('bid_expert')
+  @ApiOperation({ summary: '工位迁移码签发：核验全齐+口令已验+有活动会话；90s 单次（Redis 原子）' })
+  issueTransferTicket(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
+    return this.expertService.issueTransferTicket(userId, projectId);
+  }
+
+  @Get('transfer-ticket/:ticketId/status')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: '迁移码状态轮询（@Public：领取成功后桌面会话已亡，不能带 token）——ticketId 随机短时效，仅暴露 pending/claimed/expired' })
+  transferTicketStatus(@Param('ticketId') ticketId: string) {
+    return this.expertService.transferTicketStatus(ticketId);
+  }
+
+  @Post('projects/:projectId/transfer-photo')
+  @Roles('bid_expert')
+  @ApiOperation({ summary: '迁移后留档照登记（检测级证据；skipped 跳过如实留痕）' })
+  recordTransferPhoto(
+    @Param('projectId') projectId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() dto: TransferPhotoDto,
+  ) {
+    return this.expertService.recordTransferPhoto(userId, projectId, dto);
+  }
+
   @Get('profile')
   getProfile(@CurrentUser('sub') userId: string) {
     return this.expertService.getProfile(userId);

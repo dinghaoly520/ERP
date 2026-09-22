@@ -1,4 +1,5 @@
-import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, ConflictException, Logger, Inject } from '@nestjs/common';
+import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, ConflictException, ServiceUnavailableException, Logger, Inject } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -2836,5 +2837,70 @@ export class ExpertService {
       throw new BadRequestException({ error: '当前签字状态不可电子签名（已登记或已闭环）', code: 'NOT_SIGNABLE' });
     }
     return { expert, packet };
+  }
+
+  /* ══ 工位迁移码（2026-09-22 修正方案）：票据免闸4解锁 + 密码重证 + 留档照证据 ══
+   * 语义：同人「会话迁移」而非新登录——claim 走 rotatePortalSession 直轮换，
+   * 不经过 login 的 checkExpertSeatLock（闸4 评标期登录锁定）。设计评审结论：
+   * 纯票据是 bearer 凭证，两专家互扫即评分归因失真，故领取必须密码重证
+   * （docs/2026-09-22 工位迁移方案讨论）；留档照为检测级证据（检测≠识别），
+   * 威慑与事后审计用，不作为身份闸。 */
+
+  private readonly TRANSFER_TTL_SECONDS = 90;
+
+  /** 签发迁移码：核验全齐 + 口令已验 + 有活动会话；90s 单次，Redis 原子 */
+  async issueTransferTicket(userId: string, projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标中，不能迁移工位', code: 'NOT_EVALUATING' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId },
+      select: { id: true, expertName: true, signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    if (!(expert.signedIn && expert.avoidanceConfirmed && expert.aiConsentConfirmed)) {
+      throw new BadRequestException({ error: '身份核验未完成，不能迁移工位', code: 'VERIFY_INCOMPLETE' });
+    }
+    await this.assertRoomUnlocked(projectId, userId); // 评标室口令已验（未启用口令的项目恒放行）
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { webSessionId: true } });
+    if (!user?.webSessionId) throw new ConflictException({ error: '当前无活动会话，无需迁移', code: 'NO_SESSION' });
+    if (!this.redis) throw new ServiceUnavailableException('Redis 不可用，迁移码暂不可用');
+    const ticket = randomBytes(32).toString('base64url');
+    const ticketId = randomBytes(8).toString('hex');
+    const payload = JSON.stringify({ userId, expertId: expert.id, expertName: expert.expertName, projectId, sid: user.webSessionId, ticketId });
+    await this.redis.set(`expert-transfer:${ticket}`, payload, 'EX', this.TRANSFER_TTL_SECONDS);
+    await this.redis.set(`expert-transfer-status:${ticketId}`, JSON.stringify({ userId, status: 'pending' }), 'EX', 180);
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName, action: '工位迁移码签发', result: `有效期 ${this.TRANSFER_TTL_SECONDS}s 单次使用；扫码领取需输入登录密码`, riskFlag: '无' },
+    }).catch(() => {});
+    return { ticket, ticketId, expiresInSeconds: this.TRANSFER_TTL_SECONDS };
+  }
+
+  /** 迁移码状态（@Public 轮询：桌面领取成功后自身会话已亡，不能依赖 token 轮询）
+   *  ticketId 为 16 hex 随机且短时效，仅暴露 pending/claimed/expired，无敏感信息。 */
+  async transferTicketStatus(ticketId: string) {
+    if (!this.redis) throw new ServiceUnavailableException('Redis 不可用');
+    const raw = await this.redis.get(`expert-transfer-status:${ticketId}`);
+    if (!raw) return { status: 'expired' as const };
+    const parsed = JSON.parse(raw) as { status: string };
+    return { status: parsed.status as 'pending' | 'claimed' | 'expired' };
+  }
+
+  /** 迁移留档照登记（检测级证据；skipped=摄像头不可用跳过——如实留痕） */
+  async recordTransferPhoto(userId: string, projectId: string, dto: { photoAssetId?: string | null; occlusion?: 'passed' | 'unchecked' | null; skipped?: boolean }) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { projectId, userId }, select: { expertName: true } });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '工位迁移留档照',
+        result: dto.skipped || !dto.photoAssetId
+          ? `迁移后未拍摄留档照（${dto.skipped ? '跳过' : '未提供'}）`
+          : `迁移后留档照已拍摄（遮挡检测：${dto.occlusion === 'passed' ? '通过' : dto.occlusion === 'unchecked' ? '未运行' : '未记录'}）`,
+        riskFlag: dto.skipped || !dto.photoAssetId ? '低' : '无',
+      },
+    }).catch(() => {});
+    return { ok: true };
   }
 }

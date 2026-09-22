@@ -1,4 +1,7 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Inject, Optional, ServiceUnavailableException } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { buildSessionMeta } from '../common/session-device.util';
 import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
@@ -30,6 +33,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private verificationService: VerificationService,
+    @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -470,5 +474,61 @@ export class AuthService {
       projectNames: windows.map(w => w.project.name),
       windows: windows.map(w => ({ projectId: w.project.id, projectName: w.project.name })),
     };
+  }
+
+  /* ══ 工位迁移领取（2026-09-22 修正方案）：票据（免闸4）+ 密码重证（个人秘密绑定）→ 会话轮换 ══
+   * @Public 端点（平板尚无会话）；票据 90s 单次 + 密码连错 3 次烧票。
+   * 刻意不调 checkExpertSeatLock：这是已认证同人的会话迁移（桌面核验+口令全齐后签发），
+   * 不是新登录——闸4 防的是冒名抢占，本路径的身份绑定由「票据签发前置核验 + 密码重证」承担。
+   * 成功即 rotatePortalSession（新 sid 归平板、桌面旧 token 自然 401 SESSION_REPLACED），
+   * 设备快照（sessionMeta）随轮换同写——主持人工位矩阵实时看到「在线设备」切换。 */
+  async claimExpertTransfer(
+    dto: { ticket: string; password: string },
+    meta: { ip?: string | null; userAgent?: string | null },
+  ) {
+    if (!this.redis) throw new ServiceUnavailableException('Redis 不可用');
+    const key = `expert-transfer:${dto.ticket}`;
+    const raw = await this.redis.get(key);
+    if (!raw) {
+      throw new BadRequestException({ error: '迁移码已过期或已使用，请在桌面端重新生成', code: 'TICKET_INVALID' });
+    }
+    const t = JSON.parse(raw) as { userId: string; expertName: string; projectId: string; sid: string; ticketId: string };
+    const user = await this.prisma.user.findUnique({
+      where: { id: t.userId },
+      select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true, webSessionId: true },
+    });
+    if (!user || user.role !== 'bid_expert' || !user.isActive || user.isFrozen) {
+      await this.redis.del(key);
+      throw new BadRequestException({ error: '迁移码无效', code: 'TICKET_INVALID' });
+    }
+    // 票据绑定签发时会话：桌面会话已被替换/吊销 → 票据随之作废（防旧票复用）
+    if (!user.webSessionId || user.webSessionId !== t.sid) {
+      await this.redis.del(key);
+      throw new ConflictException({ error: '桌面会话已变化，迁移码失效，请重新生成', code: 'TICKET_STALE' });
+    }
+    // 密码重证：错 3 次烧票（票据是能力凭证，须防持票者暴力试密码）
+    if (!user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
+      const aKey = `expert-transfer-attempts:${t.ticketId}`;
+      const attempts = await this.redis.incr(aKey);
+      await this.redis.expire(aKey, 90);
+      if (attempts >= 3) {
+        await this.redis.del(key);
+        throw new BadRequestException({ error: '密码连续错误 3 次，迁移码已作废，请回桌面重新生成', code: 'TICKET_BURNED' });
+      }
+      throw new UnauthorizedException({ error: `登录密码错误（剩余 ${3 - attempts} 次机会）`, code: 'PASSWORD_MISMATCH' });
+    }
+    await this.redis.del(key); // 单次使用（成功即销毁）
+    await this.redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'claimed' }), 'EX', 180);
+    const device = buildSessionMeta(meta.userAgent, meta.ip);
+    const token = await this.rotatePortalSession(user.id, user.username, user.role, device);
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId: t.projectId, time: new Date(), role: '评审专家', target: t.expertName,
+        action: '工位迁移',
+        result: `桌面→平板工位迁移（迁移码单次使用，密码重证通过）；新设备 ${device.uaSummary}；原桌面会话已失效`,
+        riskFlag: '无',
+      },
+    }).catch(() => {});
+    return { access_token: token.access_token, role: user.role, username: user.username, projectId: t.projectId };
   }
 }
