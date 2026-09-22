@@ -1,8 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureArchiveScopeSeeded } from './archive-scope.seed';
+import { fetchAllPaged } from './archive-evidence.collector';
 
 export type ScopeRowStatus = 'MATCHED' | 'MISSING' | 'PENDING_GENERATED';
+
+/** 回流件 category → 定位规则（FileAsset 无 projectId 直连，按 key 结构定位）。
+ *  2026-09-22 P2-1：与 ARCHIVE_PICKUP_CATEGORIES（单一取件源）对齐——key 含项目 ID 的
+ *  取件类目必须有勾稽定位规则（pickup-categories spec 锁定）。ai_bid_report 等 key 不含
+ *  项目 ID 的引用件类目除外（勾稽按 key 无从定位，随导出引用 id 取件入卷）。 */
+export const HANDOVER_KEY_PATTERNS: Record<string, (bpId: string) => object> = {
+  bid_opening_handover: (bpId) => ({ key: { contains: bpId }, category: 'bid_opening_handover' }),
+  bid_evaluation_handover: (bpId) => ({ key: `bid-evaluation-handover/${bpId}.json` }),
+  bid_evaluation_sign_handover: (bpId) => ({ key: `bid-sign-handover/${bpId}.json` }),
+  bid_sign_packet: (bpId) => ({ key: { contains: bpId }, category: 'bid_sign_packet' }),
+  bid_decrypted: (bpId) => ({ key: { contains: bpId }, category: 'bid_decrypted' }),
+  sign_packet_signature_page: (bpId) => ({ key: { contains: bpId }, category: 'sign_packet_signature_page' }),
+  expert_sign_scan: (bpId) => ({ key: { contains: bpId }, category: 'expert_sign_scan' }),
+  opening_sign_page: (bpId) => ({ key: { contains: bpId }, category: 'opening_sign_page' }),
+  opening_sign_scan: (bpId) => ({ key: { contains: bpId }, category: 'opening_sign_scan' }),
+};
 
 export interface ScopeMatchRow {
   scopeItemId: string;
@@ -31,13 +48,6 @@ export class ArchiveScopeService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** 回流件 category → 定位规则（FileAsset 无 projectId 直连，按 key 结构定位） */
-  private static HANDOVER_KEY_PATTERNS: Record<string, (bpId: string) => object> = {
-    bid_opening_handover: (bpId) => ({ key: { contains: bpId }, category: 'bid_opening_handover' }),
-    bid_evaluation_handover: (bpId) => ({ key: `bid-evaluation-handover/${bpId}.json` }),
-    bid_sign_packet: (bpId) => ({ key: { contains: bpId }, category: 'bid_sign_packet' }),
-    bid_decrypted: (bpId) => ({ key: { contains: bpId }, category: 'bid_decrypted' }),
-  };
 
   async ensureSeeded(): Promise<void> {
     if (this.seeded) return;
@@ -91,13 +101,13 @@ export class ArchiveScopeService {
     const handoverAssets = new Map<string, string[]>(); // category → fileAssetId[]
     if (bpIds.length > 0) {
       for (const bpId of bpIds) {
-        for (const [category, pattern] of Object.entries(ArchiveScopeService.HANDOVER_KEY_PATTERNS)) {
+        for (const [category, pattern] of Object.entries(HANDOVER_KEY_PATTERNS)) {
           const where = pattern(bpId);
-          const assets = await this.prisma.fileAsset.findMany({
-            where: { ...where } as never,
-            select: { id: true },
-            take: 5,
-          });
+          // 2026-09-22 P2-5：分页全取（原 take:5 截断静默——量大时勾稽漏配）
+          const assets = await fetchAllPaged(
+            (a: { skip?: number; take?: number }) => this.prisma.fileAsset.findMany(a as never),
+            { where, select: { id: true } },
+          );
           if (assets.length > 0) {
             handoverAssets.set(category, [
               ...(handoverAssets.get(category) ?? []),

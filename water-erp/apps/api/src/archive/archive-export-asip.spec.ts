@@ -34,7 +34,7 @@ function makeMocks(overrides: {
     bidSignPacket: { findUnique: jest.fn().mockResolvedValue(overrides.packet ?? null) },
     bidClarification: { findMany: jest.fn().mockResolvedValue([]) },
     aiBidAnalysisTask: { findUnique: jest.fn().mockResolvedValue(null) },
-    fileAsset: { findMany: jest.fn() },
+    fileAsset: { findMany: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
   };
   if (overrides.fileAssetPages) {
     let call = 0;

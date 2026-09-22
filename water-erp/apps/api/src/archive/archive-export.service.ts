@@ -130,6 +130,8 @@ export class ArchiveExportService {
     // ── 09 开评标接收件（回流包，MinIO）── H2：取件失败一律整体拒绝（缺行立即拒绝 / 下载失败收集报错），绝不导出缺件残包 ──
     const bpIds = item.bidProjects;
     const fetchFailures: string[] = [];
+    // 2026-09-22 P2-1：证据件行累积——供「其他/元数据.json」覆盖与兜底建档（fileAsset 源元数据此前缺席）
+    const evidenceAssetRows: Array<{ id: string; key: string; originalName: string | null; category: string | null }> = [];
     if (bpIds.length > 0) {
       const dir = pmDir.folder('09_开评标接收件')!;
       // 2026-09-20 审查修复：同卷多项目/多专家证据件同名频发（JSZip file() 覆盖语义）——按已用路径消歧
@@ -140,6 +142,7 @@ export class ArchiveExportService {
         // 保证「包内引用 ↔ 案卷文件」一一对应（防引用悬空，2026-09-18 完整性扩展 v2 配套）。
         const { assets, refIds } = await collectBidEvidenceAssets(this.prisma, bp.id);
         assertNoMissingRefs(refIds, new Set(assets.map(a => a.id)));
+        evidenceAssetRows.push(...assets.filter(a => !evidenceAssetRows.some(x => x.id === a.id)));
         for (const fa of assets) {
           try {
             const buf = await this.storage.download(fa.key);
@@ -198,14 +201,47 @@ export class ArchiveExportService {
           }).catch(() => undefined); // 兜底失败不阻断导出
         }
       }
+      // 2026-09-22 P2-1：证据件（fileAsset 源）兜底建档——fileAssetId 唯一，先查后建防双写撞约束
+      if (evidenceAssetRows.length > 0) {
+        const existingFa = await this.prisma.archiveMetadata.findMany({
+          where: { fileAssetId: { in: evidenceAssetRows.map(a => a.id) } },
+          select: { fileAssetId: true },
+        });
+        const haveFa = new Set(existingFa.map(m => m.fileAssetId));
+        for (const fa of evidenceAssetRows) {
+          if (haveFa.has(fa.id)) continue;
+          const meta = await this.prisma.fileAsset.findUnique({
+            where: { id: fa.id }, select: { createdAt: true },
+          }).catch(() => null);
+          await this.prisma.archiveMetadata.create({
+            data: {
+              fileAssetId: fa.id,
+              title: `${item.title}·开评标接收件·${fa.originalName ?? fa.key}`,
+              responsibles: [item.requesterDepartment, item.requesterName].filter(Boolean),
+              formedAt: meta?.createdAt ?? null,
+              sourceModule: 'export-fallback',
+              autoCapturedAt: new Date(),
+            },
+          }).catch(() => undefined); // 兜底失败不阻断导出
+        }
+      }
     }
+    // 2026-09-22 P2-1：元数据覆盖卷内全部文件——attachment 源之外并查证据件（fileAsset 源）
     const metas = await this.prisma.archiveMetadata.findMany({
-      where: { attachmentId: { in: attIds.length > 0 ? attIds : ['none'] } },
-      include: { attachment: { select: { fileName: true, objectKey: true } } },
+      where: {
+        OR: [
+          { attachmentId: { in: attIds.length > 0 ? attIds : ['none'] } },
+          ...(evidenceAssetRows.length > 0 ? [{ fileAssetId: { in: evidenceAssetRows.map(a => a.id) } }] : []),
+        ],
+      },
+      include: {
+        attachment: { select: { fileName: true, objectKey: true } },
+        fileAsset: { select: { originalName: true } },
+      },
       take: 500,
     });
     const metaPayload = metas.map((m) => ({
-      fileName: m.attachment?.fileName ?? m.fileAssetId,
+      fileName: m.attachment?.fileName ?? m.fileAsset?.originalName ?? m.fileAssetId,
       title: m.title, // M22
       persons: m.persons, // M28
       responsibles: m.responsibles, // M32

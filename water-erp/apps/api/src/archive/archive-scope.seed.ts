@@ -46,14 +46,14 @@ export const ARCHIVE_SCOPE_SEED: Array<{
   { code: '3.2', stage: '投标', materialName: '投标保证金凭证', sourceType: 'manual', stageKeys: ['BID_EVALUATION'], keepByBidder: true, keepByAgency: true },
   { code: '3.3', stage: '投标', materialName: '投标回执文件', sourceType: 'manual', stageKeys: ['BID_EVALUATION'], keepByBidder: true, keepByAgency: true },
   // ── 4 开标阶段 ──
-  { code: '4.1', stage: '开标', materialName: '开标过程记录', sourceType: 'fileAsset', fileCategories: ['bid_opening_handover'], isRequired: false, keepByAgency: true },
+  { code: '4.1', stage: '开标', materialName: '开标过程记录', sourceType: 'fileAsset', fileCategories: ['bid_opening_handover', 'opening_sign_page', 'opening_sign_scan'], isRequired: false, keepByAgency: true },
   { code: '4.2', stage: '开标', materialName: '评审委员会名单', sourceType: 'manual', stageKeys: ['EXPERT_SELECTION'] },
   // ── 5 评标阶段 ──
   { code: '5.1', stage: '评标', materialName: '评标标准', sourceType: 'manual', stageKeys: ['BID_EVALUATION'], keepByBidder: true, keepByAgency: true },
   { code: '5.2', stage: '评标', materialName: '评标澄清文件', sourceType: 'manual', stageKeys: ['BID_EVALUATION'], keepByAgency: true },
   { code: '5.3', stage: '评标', materialName: '评标过程照片', sourceType: 'manual', stageKeys: ['BID_EVALUATION'] },
   { code: '5.4', stage: '评标', materialName: '评标过程录音录像', sourceType: 'manual', stageKeys: ['BID_EVALUATION'] },
-  { code: '5.5', stage: '评标', materialName: '评标报告', sourceType: 'fileAsset', fileCategories: ['bid_evaluation_handover'], isRequired: false, keepByAgency: true },
+  { code: '5.5', stage: '评标', materialName: '评标报告', sourceType: 'fileAsset', fileCategories: ['bid_evaluation_handover', 'bid_evaluation_sign_handover', 'bid_sign_packet', 'sign_packet_signature_page', 'expert_sign_scan'], isRequired: false, keepByAgency: true },
   // ── 6 中标（定标）阶段 ──
   { code: '6.1', stage: '中标', materialName: '中标候选人公示及中标结果公告', sourceType: 'attachment', stageKeys: ['PUBLIC_ANNOUNCEMENT'], keepByAgency: true },
   { code: '6.2', stage: '中标', materialName: '中标通知书', sourceType: 'attachment', stageKeys: ['AWARD_DECISION'], isRequired: true, keepByBidder: true, keepByAgency: true },
@@ -67,10 +67,26 @@ export const ARCHIVE_SCOPE_SEED: Array<{
   { code: '7.6', stage: '其他', materialName: '行政监督文件', sourceType: 'manual' },
 ];
 
+/**
+ * 范围行 fileCategories 对齐（2026-09-22 审查 P2-1）：ensureArchiveScopeSeeded 的 upsert
+ * update:{} 不覆盖存量行——新增类目必须在此枚举式同步（只动这两个字段的集合，不碰其他列，
+ * 保留将来范围表管理界面的人工调整余地）。
+ */
+export const FILE_CATEGORY_SYNC: Record<string, string[]> = {
+  '4.1': ['bid_opening_handover', 'opening_sign_page', 'opening_sign_scan'],
+  '5.5': ['bid_evaluation_handover', 'bid_evaluation_sign_handover', 'bid_sign_packet', 'sign_packet_signature_page', 'expert_sign_scan'],
+};
+
+const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+
 /** 幂等播种：按 code upsert（模块启动时调用，规范内容固定无需后台管理） */
 export async function ensureArchiveScopeSeeded(prisma: PrismaService): Promise<void> {
   const existing = await prisma.archiveScopeItem.count();
-  if (existing >= ARCHIVE_SCOPE_SEED.length) return;
+  if (existing >= ARCHIVE_SCOPE_SEED.length) {
+    // 快路径跳过 upsert，但存量 fileCategories 对齐不可跳（P2-1）
+    await syncFileCategories(prisma);
+    return;
+  }
   for (let i = 0; i < ARCHIVE_SCOPE_SEED.length; i++) {
     const s = ARCHIVE_SCOPE_SEED[i];
     await prisma.archiveScopeItem.upsert({
@@ -92,5 +108,16 @@ export async function ensureArchiveScopeSeeded(prisma: PrismaService): Promise<v
       // 不覆盖存量行：为将来范围表管理界面留路（人工调整不会被启动播种重置）
       update: {},
     });
+  }
+  await syncFileCategories(prisma);
+}
+
+/** FILE_CATEGORY_SYNC 枚举式对齐：行缺失或集合不同才 update（幂等） */
+async function syncFileCategories(prisma: PrismaService): Promise<void> {
+  for (const [code, cats] of Object.entries(FILE_CATEGORY_SYNC)) {
+    const row = await prisma.archiveScopeItem.findUnique({ where: { code } });
+    if (row && !sameSet(row.fileCategories, cats)) {
+      await prisma.archiveScopeItem.update({ where: { code }, data: { fileCategories: cats } });
+    }
   }
 }

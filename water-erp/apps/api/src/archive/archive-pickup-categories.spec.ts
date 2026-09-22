@@ -1,4 +1,5 @@
 import { ARCHIVE_PICKUP_CATEGORIES } from './archive-export.service';
+import { HANDOVER_KEY_PATTERNS } from './archive-scope.service';
 
 describe('归档取件类目覆盖（2026-09-18 补漏锁定）', () => {
   it('key 含项目 ID 的开评标留痕件全部在类目取件清单', () => {
@@ -15,6 +16,12 @@ describe('归档取件类目覆盖（2026-09-18 补漏锁定）', () => {
   it('key 不含项目 ID 的引用件类目不得混入类目取件（它们走引用 id 取件）', () => {
     for (const c of ['expert_memo_ink', 'expert_signin_photo', 'clarification_reply', 'ai_bid_report'] as const) {
       expect(ARCHIVE_PICKUP_CATEGORIES).not.toContain(c);
+    }
+  });
+
+  it('2026-09-22 P2-1：key 含项目 ID 的取件类目都有勾稽定位规则（取件/勾稽不漂移）', () => {
+    for (const c of ARCHIVE_PICKUP_CATEGORIES) {
+      expect(Object.keys(HANDOVER_KEY_PATTERNS)).toContain(c);
     }
   });
 });
