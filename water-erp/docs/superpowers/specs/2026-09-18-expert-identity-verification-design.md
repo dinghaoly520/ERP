@@ -211,4 +211,4 @@ model BidExpert {
 ## 修订记录（2026-09-23）
 
 **R5 口径修订（用户裁定）：**「开标后不可替换」细化为「**评标启动后不可替换**」——
-OPENING 阶段、正选尚未签到（未进场）时，:3005 开标确认面板仍可正选↔候补递补，覆盖现场「开标→专家签到→评标」之间发现缺席的窗口。已签到正选视为进场，不可换出（后端 409 `EXPERT_ALREADY_SIGNED_IN`）。同时补三闸：方向校验 400 `INVALID_SWAP_ROLES`、婉拒候补不可递补 409 `ALTERNATE_DECLINED`、递补者 `invitationStatus` 落 `confirmed`（保启动评标委员会校验不跌破法定下限）。实施计划：`docs/superpowers/plans/2026-09-23-opening-stage-expert-swap-fallback.md`。
+OPENING 阶段、正选尚未签到（未进场）时，:3005 开标确认面板仍可正选↔候补递补，覆盖现场「开标→专家签到→评标」之间发现缺席的窗口。已签到正选视为进场，不可换出（后端 409 `EXPERT_ALREADY_SIGNED_IN`）。同时补四闸：方向校验 400 `INVALID_SWAP_ROLES`、婉拒候补不可递补 409 `ALTERNATE_DECLINED`、递补者为采购人代表且被换正选为组长时 400 `ALTERNATE_CANNOT_LEAD`（P1-7 采购人代表不得任组长，须先经 `PATCH /expert-admin/extract/leader` 换组长再替换）、递补者 `invitationStatus` 落 `confirmed`（保启动评标委员会校验不跌破法定下限）。换出组长时 `isLead` 随换转移到递补者（与角色互换同事务原子落库），防委员会失去组长（末签/异议/表决链死锁）。实施计划：`docs/superpowers/plans/2026-09-23-opening-stage-expert-swap-fallback.md`。
