@@ -114,7 +114,7 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 - **项目工作区** (`/bid/project/[id]?tab=`) — 四 tab「开标大厅（嵌入大厅组件）／评标管理（**全操作**，2026-08 从 :3005 迁回：启动评标·专家进度·AI 辅助评标进度卡片·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决（含评标中流标）·澄清答疑）／评分标准（只读：评分项+得分点，编制归 :3005）／评标签字（新增）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；旧链接 `/bid/open?id=` 兼容重定向至此
 - **评标签字**（工作区 tab，2026-08 新增）— 评标结果生成后可用：生成签字包 PDF（《评标报告》十项法定内容 + 签字页含「评标专家声明」与在线操作留痕 + 个人评分确认表×N + 异议工单 + 澄清纪要 + 动议决议）→ 主持人打印 → 专家现场手写签字 → 扫描回传 → 逐专家登记「已签字 / 拒绝(附书面不同意见) / 视为同意(拒绝且未陈述理由)」→ 全员闭环 → 生成评标回流包流转回 :3005。完整归档闸门 = 签字闭环 + 回流已生成。详见 `docs/superpowers/specs/2026-08-13-expert-paper-signing-design.md`
 
-:3005 保留（不迁）：「开标确认」面板的评标前准备（供应商投标状态·催促未投递、专家确认·正选候补替换、评分标准编制、监督时间线、开标进度·开标前流标、主持人指派·延时开标·按时开标）与评标后收尾（评标回流接收、完整归档·签字闭环闸门、公示、中标通知书）。评标管理/异议裁决/澄清答疑已迁回 :3007（:3005 面板对应三区块已移除）。
+:3005 保留（不迁）：「开标确认」面板的评标前准备（供应商投标状态·催促未投递、专家确认·正选候补替换（开标后、评标启动前、未签到可换；2026-09-23 口径修订）、评分标准编制、监督时间线、开标进度·开标前流标、主持人指派·延时开标·按时开标）与评标后收尾（评标回流接收、完整归档·签字闭环闸门、公示、中标通知书）。评标管理/异议裁决/澄清答疑已迁回 :3007（:3005 面板对应三区块已移除）。
 
 **Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → non-bid_expert roles get cookie `token_bid` written (auth port-roles 分流) → post-login redirect to bid portal (:3007). The bid portal sends `X-Portal: bid` for API calls.
 
