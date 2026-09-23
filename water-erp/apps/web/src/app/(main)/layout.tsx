@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
+import { RealtimeNotifications } from "@/components/notification/realtime-notifications";
 import { SessionWatchdog } from "@/components/session-watchdog";
 import { ConfirmHost } from "@/components/catalog/confirm-dialog";
 import { UserSettingsProvider } from "@/lib/user-settings-context";
@@ -135,6 +136,8 @@ function AssistantLayoutInner({ children }: { children: ReactNode }) {
       <AppShell activeKey={activeKey} bodyScrollMode={isChildrenScrollMode ? "children" : "shell"}>
         {children}
       </AppShell>
+      {/* 全局实时通知（2026-09-22）：新站内通知右下角即时弹窗，无需刷新页面 */}
+      <RealtimeNotifications />
     </>
   );
 }

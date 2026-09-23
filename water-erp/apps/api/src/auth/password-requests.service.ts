@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { PASSWORD_PATTERN } from '../common/validators/password-strength';
 import { VerificationService } from '../verification/verification.service';
+import { NotificationService } from '../notification/notification.service';
 
 /**
  * 密码变更/重置申请（2026-08-21 补齐后端实现）：
@@ -14,9 +15,23 @@ import { VerificationService } from '../verification/verification.service';
  */
 @Injectable()
 export class PasswordRequestsService {
+  /** 资料字段中文名（通知摘要用，与前端 PROFILE_FIELD_LABELS 对齐） */
+  static readonly PROFILE_FIELD_LABELS: Record<string, string> = {
+    displayName: '姓名',
+    email: '邮箱',
+    phone: '手机',
+    officeLocation: '办公位置',
+    company: '公司',
+    departmentId: '部门',
+    avatar: '头像',
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly verificationService: VerificationService,
+    // 资料变更通知（2026-09-22，走 NotificationService=含 WS 实时推送）；Optional 防测试环境
+    @Optional() @Inject(forwardRef(() => NotificationService))
+    private readonly notifications?: NotificationService,
   ) {}
 
   // ── 用户端：提交申请 ──
@@ -133,15 +148,19 @@ export class PasswordRequestsService {
     });
     // 通知申请人审批结果（与资料变更审批对齐；通知失败不阻塞审批）
     try {
-      await this.prisma.notification.create({
-        data: {
+      await (this.notifications ? this.notifications.create({
           userId: req.userId,
           type: 'PASSWORD_CHANGE_REVIEWED',
           title: '密码修改已通过',
           content: '您的密码修改申请已由管理员审核通过，新密码已生效；当前登录已失效，请使用新密码重新登录。',
           link: '/profile',
-        },
-      });
+        }) : this.prisma.notification.create({ data: {
+          userId: req.userId,
+          type: 'PASSWORD_CHANGE_REVIEWED',
+          title: '密码修改已通过',
+          content: '您的密码修改申请已由管理员审核通过，新密码已生效；当前登录已失效，请使用新密码重新登录。',
+          link: '/profile',
+        } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
     return this.prisma.passwordChangeRequest.update({
       where: { id },
@@ -156,15 +175,19 @@ export class PasswordRequestsService {
     if (req.status !== 'PENDING') throw new BadRequestException({ error: '该申请已处理', code: 'ALREADY_REVIEWED' });
     // 拒绝必须让申请人知晓，否则个人中心永远停在「等待审批」
     try {
-      await this.prisma.notification.create({
-        data: {
+      await (this.notifications ? this.notifications.create({
           userId: req.userId,
           type: 'PASSWORD_CHANGE_REVIEWED',
           title: '密码修改未通过',
           content: `您的密码修改申请被拒绝${note ? `：${note}` : ''}，原密码继续有效。`,
           link: '/profile',
-        },
-      });
+        }) : this.prisma.notification.create({ data: {
+          userId: req.userId,
+          type: 'PASSWORD_CHANGE_REVIEWED',
+          title: '密码修改未通过',
+          content: `您的密码修改申请被拒绝${note ? `：${note}` : ''}，原密码继续有效。`,
+          link: '/profile',
+        } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
     return this.prisma.passwordChangeRequest.update({
       where: { id },
@@ -209,15 +232,19 @@ export class PasswordRequestsService {
       },
     });
     try {
-      await this.prisma.notification.create({
-        data: {
+      await (this.notifications ? this.notifications.create({
           userId: req.matchedUserId,
           type: 'PASSWORD_RESET_APPROVED',
           title: '忘记密码申请已通过',
           content: '您的忘记密码申请已通过审核，管理员已将密码按你提交内容重置；请尽快登录并再次修改。',
           link: '/profile',
-        },
-      });
+        }) : this.prisma.notification.create({ data: {
+          userId: req.matchedUserId,
+          type: 'PASSWORD_RESET_APPROVED',
+          title: '忘记密码申请已通过',
+          content: '您的忘记密码申请已通过审核，管理员已将密码按你提交内容重置；请尽快登录并再次修改。',
+          link: '/profile',
+        } })).catch(() => {});
     } catch {
       // 通知失败不阻塞审批
     }
@@ -277,10 +304,32 @@ export class PasswordRequestsService {
       where: { userId, status: 'PENDING' },
       data: { status: 'REJECTED', decisionNote: '已提交新的资料变更申请，本条自动关闭', reviewedAt: new Date() },
     });
-    return this.prisma.profileChangeRequest.create({
+    const created = await this.prisma.profileChangeRequest.create({
       data: { userId, payload: changes },
       select: { id: true, status: true, requestedAt: true },
     });
+
+    // 2026-09-22：资料变更必须通知审批人（此前静默，admin 无感知不合理）
+    const admins = await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } });
+    const summary = Object.keys(changes)
+      .map((f) => PasswordRequestsService.PROFILE_FIELD_LABELS[f] ?? f)
+      .join('、');
+    for (const a of admins) {
+      const body = {
+        userId: a.id,
+        type: 'PROFILE_CHANGE_PENDING',
+        title: '资料变更待审批',
+        content: `「${user.displayName}」提交了资料变更（${summary}），请前往账号管理审批。`,
+        link: '/admin/accounts',
+      };
+      // NotificationService.create = 落库 + WS 实时推送（右下角弹窗）；降级 prisma 直建
+      await (this.notifications
+        ? this.notifications.create(body)
+        : this.prisma.notification.create({ data: body })
+      ).catch(() => { /* 通知失败不阻塞申请 */ });
+    }
+
+    return created;
   }
 
   listPendingProfileChanges() {
@@ -294,10 +343,11 @@ export class PasswordRequestsService {
         requestedAt: true,
         decisionNote: true,
         user: {
-          // 当前值 = 旧值对照（批准前用户资料未变）
+          // 当前值 = 旧值对照（批准前用户资料未变）；department 关系用于把裸 cuid 翻译成部门名
           select: {
             id: true, username: true, displayName: true, email: true, phone: true,
             officeLocation: true, company: true, departmentId: true, avatar: true, role: true,
+            department: { select: { id: true, name: true } },
           },
         },
       },
@@ -323,15 +373,19 @@ export class PasswordRequestsService {
 
     // 通知申请人审批结果
     try {
-      await this.prisma.notification.create({
-        data: {
+      await (this.notifications ? this.notifications.create({
           userId: req.userId,
           type: 'PROFILE_CHANGE_REVIEWED',
           title: '资料变更已通过',
           content: '您的资料修改申请已由管理员审核通过，新资料已生效。',
           link: '/profile',
-        },
-      });
+        }) : this.prisma.notification.create({ data: {
+          userId: req.userId,
+          type: 'PROFILE_CHANGE_REVIEWED',
+          title: '资料变更已通过',
+          content: '您的资料修改申请已由管理员审核通过，新资料已生效。',
+          link: '/profile',
+        } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
 
     return this.prisma.profileChangeRequest.update({
@@ -347,15 +401,19 @@ export class PasswordRequestsService {
     if (req.status !== 'PENDING') throw new BadRequestException({ error: '该申请已处理', code: 'ALREADY_REVIEWED' });
 
     try {
-      await this.prisma.notification.create({
-        data: {
+      await (this.notifications ? this.notifications.create({
           userId: req.userId,
           type: 'PROFILE_CHANGE_REVIEWED',
           title: '资料变更未通过',
           content: `您的资料修改申请被拒绝${note ? `：${note}` : ''}，当前资料保持不变。`,
           link: '/profile',
-        },
-      });
+        }) : this.prisma.notification.create({ data: {
+          userId: req.userId,
+          type: 'PROFILE_CHANGE_REVIEWED',
+          title: '资料变更未通过',
+          content: `您的资料修改申请被拒绝${note ? `：${note}` : ''}，当前资料保持不变。`,
+          link: '/profile',
+        } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
 
     return this.prisma.profileChangeRequest.update({

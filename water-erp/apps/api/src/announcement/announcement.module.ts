@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AnnouncementController } from './announcement.controller';
 import { AnnouncementService } from './announcement.service';
 import { AnnouncementAiService } from './announcement-ai.service';
@@ -6,12 +6,14 @@ import { BidDocumentService } from './bid-document.service';
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
 import { AnnouncementHistoryService } from './announcement-history.service';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationModule } from '../notification/notification.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { BidModule } from '../bid/bid.module';
 import { ProjectManagementModule } from '../project-management/project-management.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, BidModule, ProjectManagementModule],
+  imports: [
+    forwardRef(() => NotificationModule),AuthModule, PrismaModule, BidModule, ProjectManagementModule],
   controllers: [AnnouncementController],
   providers: [AnnouncementService, AnnouncementAiService, BidDocumentService, AnnouncementAttachmentService, AnnouncementHistoryService],
   exports: [AnnouncementService, BidDocumentService, AnnouncementAttachmentService],

@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { Inject, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, UnauthorizedException, Inject, Optional, ServiceUnavailableException } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { buildSessionMeta } from '../common/session-device.util';
 import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
+import { NotificationService } from '../notification/notification.service';
+import { forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { VerificationService } from '../verification/verification.service';
 import { LoginDto } from './dto/login.dto';
@@ -34,6 +35,8 @@ export class AuthService {
     private jwt: JwtService,
     private verificationService: VerificationService,
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
+    @Optional() @Inject(forwardRef(() => NotificationService))
+    private readonly notifications?: NotificationService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -194,15 +197,19 @@ export class AuthService {
         select: { id: true },
       });
       for (const admin of admins) {
-        await this.prisma.notification.create({
-          data: {
+        await (this.notifications ? this.notifications.create({
             userId: admin.id,
             type: 'USER_REGISTRATION_PENDING',
             title: '新用户注册待审核',
             content: `${name}（${company} · ${department}）申请${roleLabel}，等待审核。`,
             link: `/admin/accounts?userId=${userId}`,
-          },
-        });
+          }) : this.prisma.notification.create({ data: {
+            userId: admin.id,
+            type: 'USER_REGISTRATION_PENDING',
+            title: '新用户注册待审核',
+            content: `${name}（${company} · ${department}）申请${roleLabel}，等待审核。`,
+            link: `/admin/accounts?userId=${userId}`,
+          } })).catch(() => {});
       }
     } catch { /* 通知失败不阻塞注册 */ }
   }
@@ -287,15 +294,19 @@ export class AuthService {
         select: { id: true },
       });
       for (const admin of admins) {
-        await this.prisma.notification.create({
-          data: {
+        await (this.notifications ? this.notifications.create({
             userId: admin.id,
             type: 'ACCOUNT_SECURITY_FEEDBACK',
             title: '账号异地登录反馈',
             content: `「${username}」反馈：账号被他人登录（IP：${ip ?? '未知'}），请核查并处理。`,
             link: '/admin/accounts',
-          },
-        });
+          }) : this.prisma.notification.create({ data: {
+            userId: admin.id,
+            type: 'ACCOUNT_SECURITY_FEEDBACK',
+            title: '账号异地登录反馈',
+            content: `「${username}」反馈：账号被他人登录（IP：${ip ?? '未知'}），请核查并处理。`,
+            link: '/admin/accounts',
+          } })).catch(() => {});
       }
     } catch { /* 通知失败不阻塞反馈 */ }
   }
@@ -326,15 +337,19 @@ export class AuthService {
         select: { id: true },
       });
       for (const admin of admins) {
-        await this.prisma.notification.create({
-          data: {
+        await (this.notifications ? this.notifications.create({
             userId: admin.id,
             type: 'ACCOUNT_SECURITY_FEEDBACK',
             title: '专家账号评标期登录被拒',
             content: `「${username}」在评标期间尝试登录被工位锁定拒绝（IP：${ip ?? '未知'}）——若非本人换设备，疑似冒名，请在开评标端核实。`,
             link: '/bid',
-          },
-        });
+          }) : this.prisma.notification.create({ data: {
+            userId: admin.id,
+            type: 'ACCOUNT_SECURITY_FEEDBACK',
+            title: '专家账号评标期登录被拒',
+            content: `「${username}」在评标期间尝试登录被工位锁定拒绝（IP：${ip ?? '未知'}）——若非本人换设备，疑似冒名，请在开评标端核实。`,
+            link: '/bid',
+          } })).catch(() => {});
       }
     } catch { /* 告警失败不阻塞拒绝本身 */ }
   }

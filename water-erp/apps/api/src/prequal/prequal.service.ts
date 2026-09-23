@@ -2,6 +2,8 @@ import { Injectable, BadRequestException, NotFoundException, Logger } from '@nes
 import { Document, Packer } from 'docx';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
+import { Inject, Optional, forwardRef } from '@nestjs/common';
 import { StorageService } from '../storage/storage.service';
 import { htmlToDocxChildren } from '../project-management/docx/html-to-docx.converter';
 import { buildStandardFileName } from '@water-erp/shared';
@@ -19,6 +21,8 @@ export class PrequalService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    @Optional() @Inject(forwardRef(() => NotificationService))
+    private readonly notifications?: NotificationService,
   ) {}
 
   list(params: { status?: string; q?: string }) {
@@ -176,18 +180,20 @@ export class PrequalService {
         data: { status, notifiedAt: new Date() },
       });
 
-      // 7.2.3.4：合格/未通过均告知
-      await this.prisma.notification.create({
-        data: {
-          userId: app.userId,
-          type: 'SYSTEM',
-          title: r.passed ? '资格预审合格通知' : '资格预审结果通知',
-          content: r.passed
-            ? `贵公司已通过「${prequal.title}」资格预审，合格通知书已生成，可在资格预审页查看。`
-            : `很遗憾，贵公司未通过「${prequal.title}」资格预审。如有异议可按公告约定提出。`,
-          link: '/prequal',
-        },
-      }).catch(() => { /* 通知失败不阻塞 */ });
+      // 7.2.3.4：合格/未通过均告知（NotificationService=含 WS 实时推送）
+      const notifBody = {
+        userId: app.userId,
+        type: 'SYSTEM',
+        title: r.passed ? '资格预审合格通知' : '资格预审结果通知',
+        content: r.passed
+          ? `贵公司已通过「${prequal.title}」资格预审，合格通知书已生成，可在资格预审页查看。`
+          : `很遗憾，贵公司未通过「${prequal.title}」资格预审。如有异议可按公告约定提出。`,
+        link: '/prequal',
+      };
+      await (this.notifications
+        ? this.notifications.create(notifBody)
+        : this.prisma.notification.create({ data: notifBody })
+      ).catch(() => { /* 通知失败不阻塞 */ });
     }
 
     const result = {

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AccountAdminController } from './account-admin.controller';
@@ -9,9 +9,11 @@ import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
 import { getJwtSecret } from '../common/jwt-secret.helper';
 import { VerificationModule } from '../verification/verification.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
+    forwardRef(() => NotificationModule),
     JwtModule.register({
       secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },
