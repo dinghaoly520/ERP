@@ -224,6 +224,10 @@ export interface ExpertVerificationRow {
   onlineDevice: { deviceClass: string; uaSummary: string; ip?: string | null; at?: string } | null;
   /** 签到设备（signInMeta.userAgent 即时分类） */
   signInDevice: { deviceClass: string; uaSummary: string } | null;
+  /** 严版（2026-09-23）：迁移留档照待补拍/豁免态 */
+  transferPhotoPending: boolean;
+  transferPhotoExempted: boolean;
+  transferPhotoExemptByName: string | null;
 }
 
 export interface ExpertVerificationMatrix {
@@ -243,6 +247,15 @@ export function manualConfirmExpertVerification(
   body: { reason: string; docType?: string },
 ): Promise<{ ok: boolean; already?: boolean; expertId: string; expertName: string; signedInAt?: string }> {
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/manual-confirm`, body);
+}
+
+/** 严版（2026-09-23）：主持人确认迁移留档照豁免——摄像头不可用等现场判定，理由必填 */
+export function confirmTransferPhotoExemption(
+  projectId: string,
+  expertId: string,
+  body: { reason: string },
+): Promise<{ ok: boolean; expertId: string; expertName: string }> {
+  return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/confirm-transfer-photo`, body);
 }
 
 /** R5（2026-09-20 spec §4.4）：核验异常登记 */

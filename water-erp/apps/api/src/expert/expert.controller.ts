@@ -77,6 +77,13 @@ export class ExpertController {
     return this.expertService.transferTicketStatus(ticketId);
   }
 
+  @Get('projects/:projectId/transfer-photo-status')
+  @Roles('bid_expert')
+  @ApiOperation({ summary: '迁移留档照状态（严版 2026-09-23）：claim 页轮询主持人豁免解锁' })
+  transferPhotoStatus(@Param('projectId') projectId: string, @CurrentUser('sub') userId: string) {
+    return this.expertService.transferPhotoStatus(userId, projectId);
+  }
+
   @Post('projects/:projectId/transfer-photo')
   @Roles('bid_expert')
   @ApiOperation({ summary: '迁移后留档照登记（检测级证据；skipped 跳过如实留痕）' })

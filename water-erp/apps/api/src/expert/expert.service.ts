@@ -2887,20 +2887,48 @@ export class ExpertService {
     return { status: parsed.status as 'pending' | 'claimed' | 'expired' };
   }
 
-  /** 迁移留档照登记（检测级证据；skipped=摄像头不可用跳过——如实留痕） */
+  /** 迁移留档照登记（检测级证据；skipped=摄像头不可用跳过——如实留痕）
+   *  严版（2026-09-23）：签到无留档照者（transferPhotoPendingAt 非空）skipped 必须有主持人豁免
+   *  （transferPhotoExemptAt），否则 403 PHOTO_REQUIRED_FOR_TRANSFER——服务端权威，前端隐藏只是 UX。 */
   async recordTransferPhoto(userId: string, projectId: string, dto: { photoAssetId?: string | null; occlusion?: 'passed' | 'unchecked' | null; skipped?: boolean }) {
-    const expert = await this.prisma.bidExpert.findFirst({ where: { projectId, userId }, select: { expertName: true } });
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId },
+      select: { id: true, expertName: true, transferPhotoPendingAt: true, transferPhotoExemptAt: true },
+    });
     if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    if (dto.skipped && expert.transferPhotoPendingAt && !expert.transferPhotoExemptAt) {
+      throw new ForbiddenException({
+        error: '您的签到未留档照，迁移留档照不可跳过——请拍摄，或由主持人现场确认豁免',
+        code: 'PHOTO_REQUIRED_FOR_TRANSFER',
+      });
+    }
+    await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: { transferPhotoPendingAt: null },
+    });
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '评审专家', target: expert.expertName,
         action: '工位迁移留档照',
         result: dto.skipped || !dto.photoAssetId
-          ? `迁移后未拍摄留档照（${dto.skipped ? '跳过' : '未提供'}）`
+          ? `迁移后未拍摄留档照（${dto.skipped ? '跳过' : '未提供'}${expert.transferPhotoExemptAt ? '——主持人已豁免' : ''}）`
           : `迁移后留档照已拍摄（遮挡检测：${dto.occlusion === 'passed' ? '通过' : dto.occlusion === 'unchecked' ? '未运行' : '未记录'}）`,
         riskFlag: dto.skipped || !dto.photoAssetId ? '低' : '无',
       },
     }).catch(() => {});
     return { ok: true };
+  }
+
+  /** 迁移留档照状态（严版 2026-09-23）：claim 页轮询豁免解锁 */
+  async transferPhotoStatus(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId, userId },
+      select: { transferPhotoPendingAt: true, transferPhotoExemptAt: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    return {
+      photoRequired: !!expert.transferPhotoPendingAt,
+      exempted: !!expert.transferPhotoExemptAt,
+    };
   }
 }

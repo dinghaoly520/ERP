@@ -22,6 +22,7 @@ import {
   listEvaluationResults,
   listExpertMemosForAdmin,
   manualConfirmExpertVerification,
+  confirmTransferPhotoExemption,
   rejectExpertVerification,
   retractExpertVerification,
   unverifyExpertIdentity,
@@ -187,6 +188,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [roomCodeVisible, setRoomCodeVisible] = useState(false); // 口令掩码（2026-09-21 审查优化）
   // 闸4 阀门：解除专家登录锁定弹窗（换设备场景，理由必填留痕）
   const [releaseFor, setReleaseFor] = useState<{ id: string; expertName: string; onlineDevice?: { deviceClass: string; uaSummary: string; ip?: string | null; at?: string } | null } | null>(null);
+  const [exemptFor, setExemptFor] = useState<{ id: string; expertName: string } | null>(null);
+  const [exemptReason, setExemptReason] = useState('');
+  const [exemptBusy, setExemptBusy] = useState(false);
   const [releaseReason, setReleaseReason] = useState('');
   const [releaseBusy, setReleaseBusy] = useState(false);
   // R5（2026-09-20 §4.4）：核验异常登记弹窗
@@ -360,6 +364,24 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       showToast(e?.message || '确认失败，请重试', 'err');
     } finally {
       setManualBusy(false);
+    }
+  };
+
+  // 严版（2026-09-23）：主持人确认迁移留档照豁免——摄像头不可用等现场判定，理由必填留痕
+  const handleTransferExempt = async () => {
+    if (!exemptFor || !exemptReason.trim()) return;
+    setExemptBusy(true);
+    try {
+      await confirmTransferPhotoExemption(projectId, exemptFor.id, { reason: exemptReason.trim() });
+      showToast(`已豁免 ${exemptFor.expertName} 的迁移留档照（已留痕）`, 'ok');
+      setExemptFor(null);
+      setExemptReason('');
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '豁免失败，请重试', 'err');
+    } finally {
+      setExemptBusy(false);
     }
   };
 
@@ -935,6 +957,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       title="账号已登录锁定；专家换设备时现场核身后解除"
                     >
                       解锁登录
+                    </button>
+                  )}
+                  {row.transferPhotoPending && !row.transferPhotoExempted && stage === 'EVALUATING' && (me?.role === 'bid_host' || me?.role === 'admin') && (
+                    <button
+                      type="button"
+                      onClick={() => { setExemptFor({ id: row.id, expertName: row.expertName }); setExemptReason(''); }}
+                      className="neu-btn-xs"
+                      title="该专家迁移后待补拍留档照——摄像头不可用等现场确认后可豁免（留痕）"
+                    >
+                      豁免迁移照
                     </button>
                   )}
                   {row.expertRole === EXPERT_ROLE.REGULAR && !row.anomaly && (
@@ -1594,6 +1626,47 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 className="neu-btn-primary !h-[36px] !text-xs"
               >
                 {releaseBusy ? '解除中…' : '解除并留痕'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 严版（2026-09-23）：迁移留档照豁免 ── */}
+      {exemptFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">豁免迁移留档照</h2>
+              <button type="button" onClick={() => setExemptFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+                <span>专家「{exemptFor.expertName}」签到未留档照，迁移后<strong className="text-[var(--foreground)]">本应强制补拍</strong>。仅在摄像头确实不可用时，请<span className="font-semibold text-[var(--warning)]">现场核实</span>后豁免。</span>
+                <HelpTip text="豁免写入监督日志（中风险）并显示于监督时间线；专家平板自动解锁进入评审。" className="mt-px shrink-0" />
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">豁免理由（必填）</label>
+              <textarea
+                value={exemptReason}
+                onChange={(e) => setExemptReason(e.target.value)}
+                maxLength={200}
+                rows={2}
+                placeholder="如：平板无摄像头且无可更换设备……"
+                className="workbench-input w-full resize-none"
+              />
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setExemptFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button
+                type="button"
+                onClick={() => void handleTransferExempt()}
+                disabled={exemptBusy || !exemptReason.trim()}
+                className="neu-btn-primary !h-[36px] !text-xs"
+              >
+                {exemptBusy ? '豁免中…' : '确认豁免并留痕'}
               </button>
             </div>
           </div>

@@ -165,6 +165,23 @@ export class BidController {
   @ApiOperation({ summary: '2026-09-18 身份核验 §4.5：核验矩阵（签到状态/留档照/遮挡检测结论/IP；host 态含核验人）——:3007 被动展示' })
   getExpertVerification(@Param('id') id: string) { return this.bidService.getExpertVerification(id); }
 
+  @Post('projects/:id/expert-verification/:expertId/confirm-transfer-photo')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: '严版（2026-09-23）：主持人确认迁移留档照豁免——摄像头不可用等现场判定，理由必填+监督留痕（中风险）' })
+  confirmTransferPhotoExemption(
+    @Param('id') id: string,
+    @Param('expertId') expertId: string,
+    @CurrentUser('sub') userId: string,
+    @Req() req: any,
+    @Body() dto: ManualConfirmDto,
+  ) {
+    return this.bidService.confirmTransferPhotoExemption(
+      id, expertId,
+      { id: userId, username: req?.user?.username ?? '未知' },
+      dto.reason,
+    );
+  }
+
   @Post('projects/:id/expert-verification/:expertId/manual-confirm')
   @Roles('bid_host', 'admin')
   @ApiOperation({ summary: 'R9（2026-09-20 spec §4.6）：主持人手动确认专家签到（摄像头故障等现场降级）——逐人+监督日志留痕' })

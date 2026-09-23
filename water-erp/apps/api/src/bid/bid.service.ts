@@ -3046,6 +3046,7 @@ export class BidService {
           id: true, userId: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
           signedIn: true, signInIp: true, signInMeta: true,
           identityVerified: true, identityVerifiedByName: true, identityDocType: true,
+          transferPhotoPendingAt: true, transferPhotoExemptAt: true, transferPhotoExemptByName: true,
         },
       }),
       this.prisma.bidSupervisionLog.findMany({
@@ -3094,6 +3095,10 @@ export class BidService {
           identityVerified: e.identityVerified, // host 态字段（P3 启用，self 态恒 false）
           identityVerifiedByName: e.identityVerifiedByName,
           identityDocType: e.identityDocType,
+          // 严版（2026-09-23）：迁移留档照待补拍/豁免态——矩阵按钮（主持人豁免）+ 展示徽章用
+          transferPhotoPending: !!e.transferPhotoPendingAt,
+          transferPhotoExempted: !!e.transferPhotoExemptAt,
+          transferPhotoExemptByName: e.transferPhotoExemptByName,
         };
       }),
     };
@@ -3208,6 +3213,34 @@ export class BidService {
         action: '解除专家登录锁定',
         result: `确认人 ${actorName}；理由：${reason.trim()}${priorDevice ? `；原会话设备：${priorDevice.uaSummary ?? priorDevice.deviceClass ?? '未记录'}` : '；原会话设备：未记录'}`,
         riskFlag: '无',
+      },
+    }).catch(() => {});
+    return { ok: true, expertId: expert.id, expertName: expert.expertName };
+  }
+
+  /** 主持人确认迁移留档照豁免（严版 2026-09-23）：摄像头不可用等现场判定，理由必填+监督留痕（中风险） */
+  async confirmTransferPhotoExemption(projectId: string, expertId: string, actor: { id: string; username: string }, reason: string) {
+    if (!reason?.trim() || reason.trim().length > 200) {
+      throw new BadRequestException({ error: '豁免理由必填（≤200 字）', code: 'REASON_REQUIRED' });
+    }
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+      select: { id: true, expertName: true, transferPhotoPendingAt: true },
+    });
+    if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
+    const actorName =
+      (await this.prisma.user.findUnique({ where: { id: actor.id }, select: { displayName: true } }))?.displayName
+      || actor.username;
+    await this.prisma.bidExpert.update({
+      where: { id: expert.id },
+      data: { transferPhotoExemptAt: new Date(), transferPhotoExemptByName: actorName },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '主持人', target: expert.expertName,
+        action: '迁移留档照豁免',
+        result: `确认人 ${actorName}；理由：${reason.trim()}${expert.transferPhotoPendingAt ? '' : '（当前无待补拍迁移照）'}`,
+        riskFlag: '中',
       },
     }).catch(() => {});
     return { ok: true, expertId: expert.id, expertName: expert.expertName };

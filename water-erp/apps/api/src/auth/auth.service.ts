@@ -545,6 +545,21 @@ export class AuthService {
     }
     await redis.del(key); // 单次使用（成功即销毁）
     await redis.set(`expert-transfer-status:${t.ticketId}`, JSON.stringify({ userId: t.userId, status: 'claimed' }), 'EX', 180);
+    // 严版（2026-09-23）：签到无留档照者迁移后强制补拍——置 pending，拍完/豁免跳过才清；
+    // 服务端权威：photoRequired 时 recordTransferPhoto(skipped) 无豁免必 403
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { projectId: t.projectId, userId: t.userId },
+      select: { signInMeta: true },
+    });
+    const signInMeta = (expert?.signInMeta ?? null) as { photoAssetId?: string | null } | null;
+    const photoRequired = !signInMeta?.photoAssetId;
+    if (photoRequired) {
+      await this.prisma.bidExpert.updateMany({
+        where: { projectId: t.projectId, userId: t.userId },
+        // 豁免是逐次现场判定——新一轮迁移重新补拍要求，旧豁免不沿用
+        data: { transferPhotoPendingAt: new Date(), transferPhotoExemptAt: null, transferPhotoExemptByName: null },
+      });
+    }
     const device = buildSessionMeta(meta.userAgent, meta.ip);
     const token = await this.rotatePortalSession(user.id, user.username, user.role, device);
     await this.prisma.bidSupervisionLog.create({
@@ -555,6 +570,6 @@ export class AuthService {
         riskFlag: '无',
       },
     }).catch(() => {});
-    return { access_token: token.access_token, role: user.role, username: user.username, projectId: t.projectId };
+    return { access_token: token.access_token, role: user.role, username: user.username, projectId: t.projectId, photoRequired };
   }
 }

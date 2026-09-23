@@ -215,10 +215,10 @@ export class AuthController {
     const result = await this.authService.claimExpertTransfer(dto, {
       ip: getClientIp(req),
       userAgent: (req.headers['user-agent'] as string) ?? null,
-    });
+    }) as { access_token: string; role: string; username: string; projectId: string; photoRequired: boolean };
     // 与登录同款 cookie 轨（命名空间 expert；localhost 各端口共享 cookie 域）
     res.cookie(cookieNameForPortal('expert'), result.access_token, COOKIE_OPTS);
-    return { access_token: result.access_token, role: result.role, username: result.username, projectId: result.projectId };
+    return { access_token: result.access_token, role: result.role, username: result.username, projectId: result.projectId, photoRequired: result.photoRequired };
   }
 
   @Post('security-feedback')
