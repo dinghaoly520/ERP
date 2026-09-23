@@ -42,6 +42,7 @@ import {
   type BidProjectDetail,
   type BidProjectRef,
   type BidWorkspace,
+  type BidWorkspaceExpert,
   type AwardLetterStatus,
 } from '@/lib/api/bid';
 import { ApiError } from '@water-erp/client';
@@ -182,7 +183,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   }, [workspace, detail, project]);
   // 正选专家替换弹窗
   const [replaceModalOpen, setReplaceModalOpen] = useState(false);
-  const [replaceModalExpert, setReplaceModalExpert] = useState<{ id: string; name: string } | null>(null);
+  const [replaceModalExpert, setReplaceModalExpert] = useState<{ id: string; name: string; isLead: boolean } | null>(null);
+  /** 两段确认：先选候补，再确认替换（2026-09-23：此前点选即换、误触无挽回） */
+  const [replaceModalAlt, setReplaceModalAlt] = useState<BidWorkspaceExpert | null>(null);
   const onSyncRef = useRef(onSyncProjectInfo);
   onSyncRef.current = onSyncProjectInfo;
 
@@ -716,7 +719,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                   </td>
                                   <td className="text-center">
                                     {!isAlt && hasAlts && !isEvalStarted && !e.signedIn && (
-                                      <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName }); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
+                                      <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName, isLead: e.isLead ?? false }); setReplaceModalAlt(null); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
                                     )}
                                   </td>
                                 </tr>
@@ -734,28 +737,57 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
               {replaceModalOpen && replaceModalExpert && workspace && (
                 <Modal
                   open
-                  onClose={() => { setReplaceModalOpen(false); setReplaceModalExpert(null); }}
+                  onClose={() => { setReplaceModalOpen(false); setReplaceModalExpert(null); setReplaceModalAlt(null); }}
                   size="sm"
                   title={`替换专家：${replaceModalExpert.name}`}
                   description="选择一名候补专家替换当前正选专家"
                 >
                   <div className="space-y-2 max-h-[260px] overflow-y-auto">
-                    {workspace.experts
-                      .filter(e => e.expertRole === '候补')
-                      .map(alt => (
+                    {availableAlts.length === 0 ? (
+                      <p className="text-center text-xs text-[var(--muted-foreground)] py-6">无可用候补专家（均已婉拒邀请）</p>
+                    ) : replaceModalAlt ? (
+                      <div className="space-y-3">
+                        <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
+                          <div className="text-xs text-[var(--muted-foreground)] mb-1">确认用以下候补替换【{replaceModalExpert.name}】：</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[var(--foreground)]">{replaceModalAlt.expertName}</span>
+                            <span className="text-xs text-[var(--muted-foreground)]">{replaceModalAlt.major || '—'}</span>
+                            <StatusBadge tone="orange">候补</StatusBadge>
+                          </div>
+                          {replaceModalExpert.isLead && (
+                            <p className="mt-2 flex items-start gap-1.5 text-[11px] text-[color-mix(in_oklch,var(--warning)_75%,black)]">
+                              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                              该正选为评审组长，替换后组长由候补【{replaceModalAlt.expertName}】接任。
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button className="neu-btn-soft" onClick={() => setReplaceModalAlt(null)} disabled={busy}>返回重选</button>
+                          <button
+                            className="neu-btn-primary"
+                            disabled={busy}
+                            onClick={async () => {
+                              setBusy(true);
+                              try {
+                                await swapExpertRole(bidProject?.id || '', replaceModalExpert.id, replaceModalAlt.id);
+                                showToast(`已将 ${replaceModalExpert.name} 与 ${replaceModalAlt.expertName} 角色互换`);
+                                setReplaceModalOpen(false);
+                                setReplaceModalExpert(null);
+                                setReplaceModalAlt(null);
+                                void refreshWorkspace();
+                              } catch (err: any) { showToast(err?.message || '替换失败', 'err'); }
+                              setBusy(false);
+                            }}
+                          >
+                            确认替换
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      availableAlts.map(alt => (
                         <button
                           key={alt.id}
-                          onClick={async () => {
-                            setBusy(true);
-                            try {
-                              await swapExpertRole(bidProject?.id || '', replaceModalExpert.id, alt.id);
-                              showToast(`已将 ${replaceModalExpert.name} 与 ${alt.expertName} 角色互换`);
-                              setReplaceModalOpen(false);
-                              setReplaceModalExpert(null);
-                              void refreshWorkspace();
-                            } catch (err: any) { showToast(err?.message || '替换失败', 'err'); }
-                            setBusy(false);
-                          }}
+                          onClick={() => setReplaceModalAlt(alt)}
                           disabled={busy}
                           className="neu-btn-soft w-full text-left flex items-center gap-3 p-3"
                         >
@@ -763,7 +795,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                           <span className="text-xs text-[var(--muted-foreground)]">{alt.major || '—'}</span>
                           <StatusBadge tone="orange">候补</StatusBadge>
                         </button>
-                      ))}
+                      ))
+                    )}
                   </div>
                 </Modal>
               )}
