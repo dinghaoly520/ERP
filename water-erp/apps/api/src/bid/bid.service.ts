@@ -5877,6 +5877,23 @@ export class BidService {
       this.prisma.bidExpert.findFirst({ where: { projectId, id: toExpertId } }),
     ]);
     if (!e1 || !e2) throw new BadRequestException({ error: '专家记录不存在', code: 'NOT_FOUND' });
+    // 2026-09-23 方案 A：方向校验——此前任意两行互换无方向约束（API 层防呆，UI 只暴露合法组合）
+    if (e1.expertRole !== '正选' || e2.expertRole !== '候补') {
+      throw new BadRequestException({ error: '互换角色不匹配：被替换方须为正选、递补方须为候补', code: 'INVALID_SWAP_ROLES' });
+    }
+    // 2026-09-23 方案 A：已签到=已进场（评标委员会组成实际形成），换出会遗留 open window 与已交材料——禁止
+    if (e1.signedIn) {
+      throw new ConflictException({ error: `正选专家【${e1.expertName}】已签到进场，不可替换`, code: 'EXPERT_ALREADY_SIGNED_IN' });
+    }
+    // 2026-09-23 方案 A：婉拒候补不可递补（此前前端候选列表未过滤，可换入 declined 行卡死启动评标）
+    if (e2.invitationStatus === 'declined') {
+      throw new ConflictException({ error: `候补专家【${e2.expertName}】已婉拒邀请，不可递补`, code: 'ALTERNATE_DECLINED' });
+    }
+    // 2026-09-23 方案 A：换出组长时递补者须接任组长（否则委员会失去组长，末签/异议/表决全链死锁）。
+    // P1-7（#47）：采购人代表不得担任评审组长——此类情形须先走 PATCH /expert-admin/extract/leader 换组长再替换。
+    if (e1.isLead && e2.isPurchaserRepresentative) {
+      throw new BadRequestException({ error: '递补候补为采购人代表，不可接任组长——请先更换评审组长再替换', code: 'ALTERNATE_CANNOT_LEAD' });
+    }
     // P2-4（2026-09-21）：进场（候补→正选）专家跨项目窗口复查——与抽取硬闸（闸1）同口径。
     // 派单在开标前、开窗可能在派单后——防止开窗专家经候补递补通道进场（signIn 硬闸的提前兜底）。
     const toWindows = await findOpenEvaluationWindows(this.prisma, e2.userId, projectId);
@@ -5887,15 +5904,19 @@ export class BidService {
       });
     }
     await this.prisma.$transaction([
-      this.prisma.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补' } }),
-      this.prisma.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选' } }),
+      // 换出组长时同步摘除其 isLead，防止组长标记残留在候补行
+      this.prisma.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补', ...(e1.isLead ? { isLead: false } : {}) } }),
+      // 2026-09-23 方案 A：递补即确认进场——startEvaluation 委员会校验只数 confirmed 正选，
+      // 不置 confirmed 则换掉 confirmed 正选后 confirmed 数悄悄跌破法定下限（INSUFFICIENT_COMMITTEE_SIZE/EVEN_COMMITTEE_SIZE）；
+      // 换出组长则递补者接任组长（isLead 转移）
+      this.prisma.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选', invitationStatus: 'confirmed', ...(e1.isLead ? { isLead: true } : {}) } }),
     ]);
     // P3（2026-09-21 审查）：委员会组成变更必须留痕——此前零日志（与延期/核验/解锁/签字留痕口径不一）
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '采购管理端', target: '评标委员会组成',
         action: '正选候补互换',
-        result: `正选【${e1.expertName}】⇄ 候补【${e2.expertName}】（${e2.expertName} 递补为正选）`,
+        result: `正选【${e1.expertName}】⇄ 候补【${e2.expertName}】（${e2.expertName} 递补为正选${e1.isLead ? '并接任组长' : ''}）`,
         riskFlag: '中',
       },
     }).catch(() => {});
