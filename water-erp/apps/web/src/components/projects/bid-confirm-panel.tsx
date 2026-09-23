@@ -362,6 +362,12 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const stage = bidProject?.stage;
   // 开标已开始（OPENING/EVALUATING/ARCHIVED）→ 供应商和专家均锁定，不可修改
   const isOpened = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
+  // 2026-09-23 口径修订（方案 A）：评标启动后才锁死专家组——OPENING 且正选未签到仍可递补（现场签到前换人窗口）
+  const isEvalStarted = stage === 'EVALUATING' || stage === 'ARCHIVED';
+  // 可用候补：排除已婉拒（后端 409 ALTERNATE_DECLINED 双保险）
+  const availableAlts = (workspace?.experts ?? []).filter(
+    x => x.expertRole === '候补' && x.invitationStatus !== 'declined',
+  );
 
   /* ── 操作 ── */
   async function withBusy(fn: () => Promise<void>, errMsg = '操作失败', onErr?: (e: unknown) => void) {
@@ -508,7 +514,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
             <div className="wb-tone-banner wb-tone-banner--info mb-3">
               <Shield size={16} className="shrink-0" />
               <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
-                <strong>已开标</strong>——供应商名单、专家组、采购文件、评分标准等前置信息均已锁定。开标确认页面仅供查看。
+                <strong>已开标</strong>——供应商名单、采购文件、评分标准均已锁定；专家组仅在正选签到前可替换（评标启动后不可替换）。其余仅供查看。
               </div>
             </div>
           )}
@@ -643,7 +649,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 accentSoft="var(--stage-expert-soft)"
                 action={
                   isOpened ? (
-                    <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">已开标·锁定</span>
+                    <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">
+                      {isEvalStarted ? '评标已启动·锁定' : '已开标·签到前可递补'}
+                    </span>
                   ) : undefined
                 }
               >
@@ -656,7 +664,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                     const activeExperts = workspace.experts.filter(
                       e => e.invitationStatus !== 'declined',
                     );
-                    const hasAlts = workspace.experts.some(x => x.expertRole === '候补');
+                    const hasAlts = availableAlts.length > 0;
                     if (activeExperts.length === 0) {
                       return <EmptyHint text="所有专家均已拒绝或超时，暂无确认的专家组成员。" />;
                     }
@@ -677,6 +685,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                               <th>职称</th>
                               <th>角色</th>
                               <th>确认状态</th>
+                              <th>签到</th>
                               <th style={{ width: 60 }}>操作</th>
                             </tr>
                           </thead>
@@ -702,8 +711,11 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                   <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
                                   <td><StatusBadge tone={isAlt ? 'orange' : 'blue'}>{roleLabel(e.expertRole)}</StatusBadge></td>
                                   <td>{isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
+                                  <td>
+                                    {isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.signedIn ? <StatusBadge tone="green">已签到</StatusBadge> : <StatusBadge tone="gray">未签到</StatusBadge>}
+                                  </td>
                                   <td className="text-center">
-                                    {!isAlt && hasAlts && !isOpened && (
+                                    {!isAlt && hasAlts && !isEvalStarted && !e.signedIn && (
                                       <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName }); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
                                     )}
                                   </td>
