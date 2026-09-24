@@ -4571,6 +4571,8 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
     svc.prisma = prisma;
     // 复审 F4：递补站内信通知（allow 用例断言 type；best-effort 由 service 内 try/catch 保证）
     svc.notificationService = { sendToUser: jest.fn().mockResolvedValue({}) };
+    // FE-3 后端（2026-09-24 全链审计）：互换后广播 WS 里程碑 role_changed（:3005 面板刷新）
+    svc.gateway = { notifyExpertPresence: jest.fn() };
   });
 
   it('EVALUATING 互换 → 409 EXPERT_SWAP_LOCKED 且零更新', async () => {
@@ -4578,6 +4580,7 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
     await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
       .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_LOCKED' } });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(svc.gateway.notifyExpertPresence).not.toHaveBeenCalled();
   });
 
   it('ARCHIVED 互换 → 409 同码', async () => {
@@ -4616,6 +4619,10 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
     expect(res.success).toBe(true);
     const e2Update = updateCalls.find((u: any) => u.where?.id === 'e2');
     expect(e2Update?.data).toMatchObject({ expertRole: '正选', invitationStatus: 'confirmed' });
+    // FE-3：互换成功广播 role_changed 里程碑（:3005 已开面板 refreshWorkspace）
+    expect(svc.gateway.notifyExpertPresence).toHaveBeenCalledWith('p1', expect.objectContaining({
+      expertId: 'e2', expertName: '乙', milestone: 'role_changed',
+    }));
   });
 
   it('OPENING 但正选已签到 → 409 EXPERT_ALREADY_SIGNED_IN 且零更新', async () => {

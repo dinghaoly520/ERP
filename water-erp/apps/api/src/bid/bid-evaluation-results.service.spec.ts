@@ -437,6 +437,26 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       );
     });
 
+    it('C1 余留（2026-09-24 全链审计）：分母同 confirmed 口径——declined 正选残留不计入专家组人数', async () => {
+      // 4 confirmed 正选 + 1 declined 残留：裸正选口径=5 人（还会误标「去极值」）；confirmed 口径=4 人
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        experts: [
+          { id: 'e1', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: true },
+          { id: 'e2', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: true },
+          { id: 'e3', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: true },
+          { id: 'e4', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: true },
+          { id: 'e5', expertRole: '正选', invitationStatus: 'declined', reportConfirmed: false },
+        ],
+      }));
+      await service.generateEvaluationResults('p1', 'u1');
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: '生成评标结果', result: expect.stringContaining('专家组 4 人') }),
+      }));
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ result: expect.stringContaining('专家组 5 人') }),
+      }));
+    });
+
     it('前 3 名均标记 recommended（候选人）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue(buildProject({
         suppliers: [

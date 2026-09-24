@@ -607,6 +607,8 @@ describe('ExpertAdminService', () => {
       // e=未婉拒候补；个别用例覆写制造并发冲突）
       prisma.$queryRaw = jest.fn().mockResolvedValue([]);
       prisma.bidExpert.findUnique = jest.fn().mockResolvedValue({ expertRole: '候补', invitationStatus: 'pending' });
+      // FE-3 后端（2026-09-24 全链审计）：递补也是委员会角色变更——广播 role_changed
+      (service as any).gateway = { notifyExpertPresence: jest.fn() };
     });
 
     const mkCand = (id: string, name: string, opts: { inv?: string; rep?: boolean } = {}) => ({
@@ -630,6 +632,10 @@ describe('ExpertAdminService', () => {
         expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }) }),
       );
       expect(notification.sendToUser).toHaveBeenCalledWith('u-c1', ['in_app'], expect.objectContaining({ type: 'EXPERT_AUTO_PROMOTED' }));
+      // FE-3：递补成功广播 role_changed（:3005 已开面板刷新委员会名单）
+      expect((service as any).gateway.notifyExpertPresence).toHaveBeenCalledWith('p1', expect.objectContaining({
+        expertId: 'c1', expertName: '候补甲', milestone: 'role_changed',
+      }));
     });
 
     it('组长婉拒：isLead 清残留并转移到递补者', async () => {

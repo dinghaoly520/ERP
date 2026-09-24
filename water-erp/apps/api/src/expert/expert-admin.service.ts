@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Optional, NotFoundException, BadRequestException, ForbiddenException, ConflictException, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,6 +24,7 @@ import type { CommitteeAssignmentDto } from '../bid/dto/committee-assignment.dto
 import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from '../common/scoring/expert-deviation';
 import { buildExpertPortrait } from './expert-portrait.util';
 import { NotificationService } from '../notification/notification.service';
+import { BidGateway } from '../bid/bid.gateway';
 
 /** 等级→分值（用于加权计算综合等级） */
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -74,6 +75,9 @@ export class ExpertAdminService {
     private llm: LlmService,
     private ocr: OcrService,
     private readonly extraction: ExpertExtractionService,
+    // FE-3（2026-09-24 全链审计）：递补也是委员会角色变更——广播 role_changed。
+    // BidModule 已导出 BidGateway 且 ExpertModule 已 import（ExpertService 同款 @Optional 注入，无新增模块改动）
+    @Optional() private readonly gateway?: BidGateway,
   ) {}
 
   /** 专家管理审计留痕（AuditLog 仅追加、无改删端点，天然不可篡改）。操作人缺失（种子导入等系统动作）静默跳过；写失败不阻断主流程。 */
@@ -753,6 +757,12 @@ export class ExpertAdminService {
         content: `因原正选专家婉拒或超时未回复，您已递补为正选评审专家${promotedAsLead ? '并接任评审组长' : ''}，请按时到场完成签到并参与评审。`,
       });
     } catch { /* 通知失败不阻塞递补 */ }
+
+    // FE-3（2026-09-24 全链审计）：递补也是委员会角色变更——广播 role_changed，
+    // :3005 已开面板刷新委员会名单/专家签到态（与 swap 互换同款里程碑）
+    this.gateway?.notifyExpertPresence(projectId, {
+      expertId: best.id, expertName: best.expertName, milestone: 'role_changed', progressPercent: best.progress ?? 0,
+    });
 
     return { userId: best.userId, expertName: best.expertName, major: best.major, ...(leadOnDeclined ? { promotedAsLead } : {}) };
   }

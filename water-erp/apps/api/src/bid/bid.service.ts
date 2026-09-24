@@ -3143,6 +3143,11 @@ export class BidService {
       where: { id: expert.id },
       data: { signedIn: true, signInIp: null, signInMeta },
     });
+    // FE-3（2026-09-24 全链审计）：手动确认签到此前零 WS 事件——:3005 开标确认面板专家签到态
+    // 不实时刷新；与专家自助 signIn 同款广播 signed_in 里程碑
+    this.gateway?.notifyExpertPresence(projectId, {
+      expertId: expert.id, expertName: expert.expertName, milestone: 'signed_in', progressPercent: 0,
+    });
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '评审专家', target: expert.expertName,
@@ -5950,6 +5955,11 @@ export class BidService {
         content: `因原正选专家临时变故，您已递补为正选评审专家${e1.isLead ? '并接任评审组长' : ''}，请按时到场完成签到并参与评审。`,
       });
     } catch { /* 通知失败不阻塞 */ }
+    // FE-3（2026-09-24 全链审计）：角色变更广播——互换是委员会组成变更，:3005 已开面板
+    // 监听 role_changed 后 refreshWorkspace（专家签到态/名单实时刷新）
+    this.gateway?.notifyExpertPresence(projectId, {
+      expertId: e2.id, expertName: e2.expertName, milestone: 'role_changed', progressPercent: e2.progress ?? 0,
+    });
     // M7（2026-09-24 全链审计）：被换出的 confirmed 正选同样有知情权——静默降候补，到场才撞 SUBSTITUTE_EXPERT。
     try {
       await this.notificationService.sendToUser(e1.userId, ['in_app'], {
