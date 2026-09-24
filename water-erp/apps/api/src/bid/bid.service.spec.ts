@@ -4667,6 +4667,21 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
     expect(e2Update?.data).toMatchObject({ expertRole: '正选', invitationStatus: 'confirmed', isLead: true });
     // 复审 F4：递补者收到站内信（含组长接任文案）
     expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u2', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_PROMOTED' }));
+    // M7：被换出组长同样收站内信（含「并接任评审组长」知情文案）
+    expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u1', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_RELEASED', content: expect.stringContaining('接任评审组长') }));
+  });
+
+  it('M7（2026-09-24 全链审计）：被换出正选同样收站内信——e1 EXPERT_SWAP_RELEASED + e2 EXPERT_SWAP_PROMOTED', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', isLead: false, isPurchaserRepresentative: false, userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', isLead: false, isPurchaserRepresentative: false, userId: 'u2' },
+    );
+    const res = await svc.swapExpertRole('p1', 'e1', 'e2');
+    expect(res.success).toBe(true);
+    expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u2', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_PROMOTED' }));
+    expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u1', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_RELEASED' }));
   });
 
   it('锁内重断言：并发已改角色 → 409 EXPERT_SWAP_CONFLICT 零更新（复审 F1）', async () => {

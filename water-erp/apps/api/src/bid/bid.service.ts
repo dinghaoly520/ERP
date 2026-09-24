@@ -5950,6 +5950,14 @@ export class BidService {
         content: `因原正选专家临时变故，您已递补为正选评审专家${e1.isLead ? '并接任评审组长' : ''}，请按时到场完成签到并参与评审。`,
       });
     } catch { /* 通知失败不阻塞 */ }
+    // M7（2026-09-24 全链审计）：被换出的 confirmed 正选同样有知情权——静默降候补，到场才撞 SUBSTITUTE_EXPERT。
+    try {
+      await this.notificationService.sendToUser(e1.userId, ['in_app'], {
+        type: 'EXPERT_SWAP_RELEASED',
+        title: `项目【${project.name}】评标邀请变更`,
+        content: `您已被调整为项目【${project.name}】的候补专家，原正选席位由【${e2.expertName}】递补${e1.isLead ? '并接任评审组长' : ''}。如需帮助请联系采购管理端。`,
+      });
+    } catch { /* 通知失败不阻塞互换 */ }
     return { success: true };
   }
 
