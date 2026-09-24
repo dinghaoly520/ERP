@@ -366,7 +366,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   // 开标已开始（OPENING/EVALUATING/ARCHIVED）→ 供应商和专家均锁定，不可修改
   const isOpened = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
   // 2026-09-23 口径修订（方案 A）：评标启动后才锁死专家组——OPENING 且正选未签到仍可递补（现场签到前换人窗口）
-  const isEvalStarted = stage === 'EVALUATING' || stage === 'ARCHIVED';
+  // 复审 F3（2026-09-24）：ABORTED（流标）同锁——后端同口径
+  const isEvalStarted = stage === 'EVALUATING' || stage === 'ARCHIVED' || stage === 'ABORTED';
   // 可用候补：排除已婉拒（后端 409 ALTERNATE_DECLINED 双保险）
   const availableAlts = (workspace?.experts ?? []).filter(
     x => x.expertRole === '候补' && x.invitationStatus !== 'declined',
@@ -784,18 +785,25 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                         </div>
                       </div>
                     ) : (
-                      availableAlts.map(alt => (
+                      availableAlts.map(alt => {
+                        // 复审 F2（2026-09-24）：换出组长时采购人代表候补不可接任组长（后端 ALTERNATE_CANNOT_LEAD 对齐）
+                        const cannotLeadSwap = !!replaceModalExpert.isLead && !!alt.isPurchaserRepresentative;
+                        return (
                         <button
                           key={alt.id}
                           onClick={() => setReplaceModalAlt(alt)}
-                          disabled={busy}
+                          disabled={busy || cannotLeadSwap}
                           className="neu-btn-soft w-full text-left flex items-center gap-3 p-3"
                         >
                           <span className="text-sm font-bold text-[var(--foreground)]">{alt.expertName}</span>
                           <span className="text-xs text-[var(--muted-foreground)]">{alt.major || '—'}</span>
                           <StatusBadge tone="orange">候补</StatusBadge>
+                          {cannotLeadSwap && (
+                            <span className="ml-auto text-[10px] font-semibold text-[color-mix(in_oklch,var(--danger)_85%,black)]">采购人代表·不可接任组长</span>
+                          )}
                         </button>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </Modal>

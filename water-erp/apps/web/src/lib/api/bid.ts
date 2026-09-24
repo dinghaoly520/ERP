@@ -71,6 +71,7 @@ export interface BidWorkspaceExpert {
   invitationStatus: string; // pending | confirmed | declined
   title?: string | null; // 职称，来自 ExpertProfile
   isLead?: boolean; // 评审组长标记（专家抽取步骤第 5 步选定）
+  isPurchaserRepresentative?: boolean; // 采购人代表（P1-7 不得任组长；组长替换时不可递补）
   signedIn: boolean;
   avoidanceConfirmed: boolean;
   progress: string;
