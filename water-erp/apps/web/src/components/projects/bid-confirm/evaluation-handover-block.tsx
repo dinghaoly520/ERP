@@ -64,7 +64,7 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
                 <tr>
                   <th className="!text-left">名次</th>
                   <th className="!text-left">供应商</th>
-                  <th className="!text-right">总得分</th>
+                  <th className="!text-right" title="排名依据：专家组 ≥5 人去 1 高 1 低后的均分（总分为全体原始分之和，两者口径不同）">去极值均分</th>
                   <th className="!text-right">报价</th>
                   <th className="!text-left">状态</th>
                 </tr>
@@ -74,7 +74,7 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
                   <tr key={r.id}>
                     <td className="!text-left font-mono font-bold tabular-nums text-[var(--foreground)]">{r.rank}</td>
                     <td className="!text-left font-medium text-[var(--foreground)]">{r.supplierName}</td>
-                    <td className="!text-right font-mono tabular-nums">{Number(r.totalScore).toFixed(2)}</td>
+                    <td className="!text-right font-mono tabular-nums" title={`总得分（原始口径）：${Number(r.totalScore).toFixed(2)}`}>{Number(r.averageScore).toFixed(1)}</td>
                     <td className="!text-right font-mono tabular-nums text-[var(--foreground)]">
                       {r.bidPrice != null ? `¥${Number(r.bidPrice).toLocaleString('zh-CN')}` : '—'}
                     </td>
