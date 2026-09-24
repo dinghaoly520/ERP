@@ -248,7 +248,8 @@ export default function SupplierRepositoryPage() {
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
+        {/* admin 4 张 KPI 卡（含待审核）排 4 列；办公账号删待审核后剩 3 张，跟随收为 3 列避免留空格 */}
+        <div className={isAdmin ? 'grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch' : 'grid grid-cols-2 gap-2 sm:grid-cols-3 items-stretch'}>
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">供应商总数</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.total}</span>
