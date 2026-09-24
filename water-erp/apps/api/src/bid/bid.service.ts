@@ -5863,10 +5863,11 @@ export class BidService {
     // 会被聚合口径静默排除——须走重评/补选流程，不允许静默互换。评标前互换是正常递补，放行。
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    if (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') {
+    // 复审 F3（2026-09-24）：ABORTED（流标）同样禁换——死项目上换专家=无意义委员会变动留痕
+    if (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED' || project.stage === 'ABORTED') {
       throw new ConflictException({
         error: '评标已启动，不可互换正选/候补专家（改变委员会组成）——如需更换请走异议裁决或重新评标流程',
         code: 'EXPERT_SWAP_LOCKED',
@@ -5903,14 +5904,28 @@ export class BidService {
         code: 'EXPERT_WINDOW_CONFLICT',
       });
     }
-    await this.prisma.$transaction([
+    // 复审 F1（2026-09-24）：并发防——镜像 P2-5 signIn 的 User 行锁模式，锁两行后在锁内重断言
+    // 方向/签到/婉拒三闸。双管理员并发互换（A↔B 与 A↔C）后到者在锁内必见先到者已改的角色，
+    // 杜绝双晋升静默胀委员会；夹缝签到同理在锁内可见（签到侧亦持 User 锁）。
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BidExpert" WHERE id IN (${e1.id}, ${e2.id}) FOR UPDATE`;
+      const r1 = await tx.bidExpert.findUnique({ where: { id: e1.id }, select: { expertRole: true, signedIn: true } });
+      const r2 = await tx.bidExpert.findUnique({ where: { id: e2.id }, select: { expertRole: true, invitationStatus: true } });
+      if (!r1 || !r2 || r1.expertRole !== '正选' || r2.expertRole !== '候补') {
+        throw new ConflictException({ error: '专家角色已发生变化（可能存在并发替换），请刷新后重试', code: 'EXPERT_SWAP_CONFLICT' });
+      }
+      if (r1.signedIn) {
+        throw new ConflictException({ error: `正选专家【${e1.expertName}】已签到进场，不可替换`, code: 'EXPERT_ALREADY_SIGNED_IN' });
+      }
+      if (r2.invitationStatus === 'declined') {
+        throw new ConflictException({ error: `候补专家【${e2.expertName}】已婉拒邀请，不可递补`, code: 'ALTERNATE_DECLINED' });
+      }
       // 换出组长时同步摘除其 isLead，防止组长标记残留在候补行
-      this.prisma.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补', ...(e1.isLead ? { isLead: false } : {}) } }),
+      await tx.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补', ...(e1.isLead ? { isLead: false } : {}) } });
       // 2026-09-23 方案 A：递补即确认进场——startEvaluation 委员会校验只数 confirmed 正选，
-      // 不置 confirmed 则换掉 confirmed 正选后 confirmed 数悄悄跌破法定下限（INSUFFICIENT_COMMITTEE_SIZE/EVEN_COMMITTEE_SIZE）；
-      // 换出组长则递补者接任组长（isLead 转移）
-      this.prisma.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选', invitationStatus: 'confirmed', ...(e1.isLead ? { isLead: true } : {}) } }),
-    ]);
+      // 不置 confirmed 则换掉 confirmed 正选后 confirmed 数悄悄跌破法定下限；换出组长则递补者接任组长
+      await tx.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选', invitationStatus: 'confirmed', ...(e1.isLead ? { isLead: true } : {}) } });
+    });
     // P3（2026-09-21 审查）：委员会组成变更必须留痕——此前零日志（与延期/核验/解锁/签字留痕口径不一）
     await this.prisma.bidSupervisionLog.create({
       data: {
@@ -5920,6 +5935,15 @@ export class BidService {
         riskFlag: '中',
       },
     }).catch(() => {});
+    // 复审 F4（2026-09-24）：递补即确认却零通知——被递补专家无感知（RSVP 同意流被绕过）。
+    // 站内信 best-effort，失败不阻塞互换（与既有多渠道通知口径一致）。
+    try {
+      await this.notificationService.sendToUser(e2.userId, ['in_app'], {
+        type: 'EXPERT_SWAP_PROMOTED',
+        title: `您已递补为项目【${project.name}】的正选评标专家`,
+        content: `因原正选专家临时变故，您已递补为正选评审专家${e1.isLead ? '并接任评审组长' : ''}，请按时到场完成签到并参与评审。`,
+      });
+    } catch { /* 通知失败不阻塞 */ }
     return { success: true };
   }
 
