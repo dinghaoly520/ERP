@@ -542,8 +542,14 @@ export function ProjectDetailPanel({
     return 'ok';
   }, [bpRefs, bpDetails, bpScoreItems]);
 
-  const scoreCardRound = selectedRound;
-  const scoreCardRef = bpRefs.find((r) => r.round === scoreCardRound) ?? null;
+  const [scorePanelRound, setScorePanelRound] = useState<number | null>(null);
+  // Esc 关闭评分标准面板（开标确认面板同款 z-[500] overlay；内部 workbench Modal z-[600] 盖过）
+  useEffect(() => {
+    if (scorePanelRound == null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setScorePanelRound(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [scorePanelRound]);
 
   const stageFileAnalysis = useMemo(
     () => analysis?.fileAnalyses ?? [],
@@ -1392,6 +1398,7 @@ export function ProjectDetailPanel({
               onArchive={() => void archiveProject()}
               canArchive={canArchive}
               scoreStandardStatusFor={scoreStatusForRound}
+              onOpenScoreStandard={(round) => setScorePanelRound(round)}
               onReopenStage={readOnly ? undefined : async (stageKey, round) => {
                 // 开标锁定（2026-09-24）：按时开标后前置步骤不可重开（后端同款 409 硬闸，此处先拦给出友好提示）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定，不可重开'); return; }
@@ -1408,19 +1415,8 @@ export function ProjectDetailPanel({
               isStageLocked={isLockedByBid}
             />
 
-            {/* 评分标准与评标办法（2026-09-24 方案 v2：自开标确认面板迁至此处，随选中轮次）
-                —— 无 TENDER_DOCUMENT 阶段（极少数模板）不渲染；未关联时卡片自带空态指引 */}
-            {localItem.stages.some((s) => s.stageKey === 'TENDER_DOCUMENT') && (
-              <div className="mt-4">
-                <ScoreStandardCard
-                  project={item}
-                  round={scoreCardRound}
-                  bidProject={scoreCardRef ? { ...scoreCardRef, publishTime: null } : null}
-                  detail={scoreCardRef ? (bpDetails[scoreCardRef.id] ?? null) : null}
-                  onChanged={() => setBpDataTick((t) => t + 1)}
-                />
-              </div>
-            )}
+            {/* 评分标准与评标办法（2026-09-24 定稿：常驻卡撤、改为 03 卡按钮弹出面板
+                —— 面板渲染见文件末尾 scorePanelRound overlay；数据仍抽屉级只读拉取） */}
 
           </div>
         </div>
@@ -2337,6 +2333,36 @@ export function ProjectDetailPanel({
         initialCategory={announcementCategory}
         onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
       />
+
+      {/* 评分标准与评标办法面板（2026-09-24 定稿：03 卡「评分标准」按钮弹出；开标确认面板同款
+          z-[500] overlay——内部 workbench Modal z-[600] 盖过；任何阶段可开，锁定态由子块自理） */}
+      {scorePanelRound != null && (() => {
+        const panelRef = bpRefs.find((r) => r.round === scorePanelRound) ?? null;
+        return (
+          <div className="fixed inset-0 z-[500] flex flex-col">
+            <div className="absolute inset-0 wb-overlay-backdrop" onClick={() => setScorePanelRound(null)} />
+            <div className="relative z-10 mx-5 my-5 wb-overlay-panel">
+              <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4 wb-overlay-panel-header">
+                <h2 className="text-base font-semibold tracking-[-0.02em] text-[var(--foreground)]">
+                  评分标准与评标办法{scorePanelRound > 1 ? `（第 ${scorePanelRound} 轮）` : ''}
+                </h2>
+                <button type="button" onClick={() => setScorePanelRound(null)} className="neu-btn-xs" title="关闭">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <ScoreStandardCard
+                  project={item}
+                  round={scorePanelRound}
+                  bidProject={panelRef ? { ...panelRef, publishTime: null } : null}
+                  detail={panelRef ? (bpDetails[panelRef.id] ?? null) : null}
+                  onChanged={() => setBpDataTick((t) => t + 1)}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 开标确认面板：投标状态 / 专家确认 / 唱标字段 / 开标决策（评分标准已迁 03「采购文件」步骤，2026-09-24） */}
       <BidConfirmPanel

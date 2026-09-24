@@ -96,6 +96,7 @@ export function ProjectStageTimeline({
   onArchive,
   canArchive,
   scoreStandardStatusFor,
+  onOpenScoreStandard,
   onReopenStage,
   isStageLocked,
 }: {
@@ -110,8 +111,10 @@ export function ProjectStageTimeline({
   onArchive?: () => void;
   canArchive?: boolean;
   /** 03 采购文件步骤的评分标准配置状态（按轮查；undefined=该轮无此步骤或数据未就绪）。
-   *  2026-09-24 方案 v2：卡片迁至步骤轨道下方，卡片右上状态徽标渲染于 03 卡体。 */
+   *  2026-09-24 定稿：03 卡原「采购文件修改」按钮位改为「评分标准」入口，点击弹出评分标准面板。 */
   scoreStandardStatusFor?: (round: number) => 'unlinked' | 'exempt' | 'ok' | 'incomplete' | 'unknown';
+  /** 打开评分标准面板（round=被点 03 行轮次）；任何阶段可开（锁定态查看） */
+  onOpenScoreStandard?: (round: number) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
   /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。 */
@@ -393,6 +396,19 @@ export function ProjectStageTimeline({
                               className="pm-stage-action-btn shrink-0"
                             >
                               {actionLabel}
+                            </span>
+                          )}
+                          {/* 评分标准入口（2026-09-24 定稿：原「采购文件修改」按钮位）——
+                              任何阶段都可打开（已推进/已归档=锁定态查看），点击弹出评分标准面板 */}
+                          {stageKey === 'TENDER_DOCUMENT' && onOpenScoreStandard && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => { e.stopPropagation(); onOpenScoreStandard(entry.round); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onOpenScoreStandard(entry.round); } }}
+                              className="pm-stage-action-btn shrink-0"
+                            >
+                              评分标准
                             </span>
                           )}
                         </div>
