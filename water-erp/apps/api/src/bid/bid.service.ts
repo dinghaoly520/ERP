@@ -1531,8 +1531,10 @@ export class BidService {
    * 正选专家全部确认 + 组长末签 + 无未裁决异议，与 generateEvaluationResults 同口径。
    */
   private async assertEvaluationComplete(projectId: string): Promise<void> {
+    // C1（2026-09-24 全链审计）：与 startEvaluation 计数同口径——declined/pending 正选不占席，
+    // 否则婉拒/过期残留行永久卡死报价轮（decline 路径只写 invitationStatus 不腾席）。
     const experts = await this.prisma.bidExpert.findMany({
-      where: { projectId, expertRole: '正选' },
+      where: { projectId, expertRole: '正选', invitationStatus: 'confirmed' },
       select: { reportConfirmed: true },
     });
     if (experts.some(e => !e.reportConfirmed)) {
@@ -4079,6 +4081,10 @@ export class BidService {
         type: 'PRE_WIN_NOTICE',
         status: 'DRAFT',
         relatedProjectCode: project.projectCode,
+        // 归属公司快照（公告管理端按公司硬过滤隔离）：缺省时公司用户在信息发布中心看不到
+        // 自动草稿 → 公示发不出去 → 中标通知书被 PUBLICITY_NOT_ENDED 永久卡死（2026-09-24 验收实测）
+        companyId: project.companyId,
+        companyName: project.companyName,
         metadata: {
           projectCode: project.projectCode,
           winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore), price: winnerPrice } : null,

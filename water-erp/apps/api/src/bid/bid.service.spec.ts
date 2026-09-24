@@ -3443,6 +3443,15 @@ describe('createRound — 谈判采购评标完成闸门（先评标→再报价
     expect(prisma.bidRound.create).toHaveBeenCalled();
   });
 
+  it('C1（2026-09-24 全链审计）：E6 完成闸只数 confirmed 正选——declined 残留不占席（与 startEvaluation 同口径）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation', procurementMethod: '谈判采购', leaderCoSigned: true });
+    prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: true }]);
+    await service.createRound('p1', 'negotiation', undefined, 'u1');
+    expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }) }),
+    );
+  });
+
   it('竞价采购·评标未完成 → 闸门不生效（形态B）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', roundMode: 'sealed_auction', procurementMethod: '竞价采购' });
     prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: false }]);

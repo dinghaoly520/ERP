@@ -2214,6 +2214,42 @@ describe('ExpertService', () => {
       await expect(service.leaderCoSign('user-1', 'proj-1'))
         .rejects.toMatchObject({ response: { code: 'MEMBERS_NOT_CONFIRMED' } });
     });
+
+    it('C1（2026-09-24 全链审计）：declined 正选残留不占席——末签计数与 startEvaluation 同口径（confirmed 正选）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, id: 'exp-lead', isLead: true,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+        confidentialityAgreed: true, disciplineAgreed: true,
+        reportConfirmed: true,
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      // declined 正选（decline 路径只写 invitationStatus 不腾席）不在 confirmed 口径内 → count=0
+      prisma.bidExpert.count.mockResolvedValue(0);
+      prisma.bidProject.update = jest.fn().mockResolvedValue({ id: 'p1', leaderCoSigned: true });
+
+      await service.leaderCoSign('user-1', 'proj-1');
+
+      expect(prisma.bidExpert.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ expertRole: '正选', reportConfirmed: false, invitationStatus: 'confirmed' }),
+        }),
+      );
+      expect(prisma.bidProject.update).toHaveBeenCalled();
+    });
+
+    it('C1 对照：confirmed 正选未确认报告 → 仍阻塞 MEMBERS_NOT_CONFIRMED', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, id: 'exp-lead', isLead: true,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+        confidentialityAgreed: true, disciplineAgreed: true,
+        reportConfirmed: true,
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.count.mockResolvedValue(1); // 一位 confirmed 正选未确认
+
+      await expect(service.leaderCoSign('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'MEMBERS_NOT_CONFIRMED' } });
+    });
   });
 
   describe('P1 专家间可见性收口：listMotions / listDisputes / getProject', () => {

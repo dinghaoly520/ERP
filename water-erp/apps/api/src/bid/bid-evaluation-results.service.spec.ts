@@ -74,12 +74,27 @@ describe('BidEvaluationResultsService — evaluation results', () => {
     it('rejects until all experts confirm reports', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', stage: 'EVALUATING', name: '测试项目',
-        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: false }, { id: 'e2', expertRole: '正选', reportConfirmed: true }],
+        experts: [{ id: 'e1', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: false }, { id: 'e2', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: true }],
         suppliers: [],
       });
 
       await expect(service.generateEvaluationResults('p1'))
         .rejects.toMatchObject({ response: { code: 'EXPERT_REPORTS_NOT_CONFIRMED' } });
+    });
+
+    it('C1（2026-09-24 全链审计）：declined 正选残留不占席——报告确认闸只数 confirmed 正选', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目',
+        experts: [
+          { id: 'e1', expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: true },
+          // 婉拒残留行：decline 路径只写 invitationStatus 不腾席，旧口径会永久卡死结果生成
+          { id: 'e2', expertRole: '正选', invitationStatus: 'declined', reportConfirmed: false },
+        ],
+        suppliers: [],
+      });
+      // 报告确认闸放行 → 落到下一道闸（组长未末签），证明 declined 残留未占席
+      await expect(service.generateEvaluationResults('p1'))
+        .rejects.toMatchObject({ response: { code: 'LEADER_NOT_COSIGNED' } });
     });
 
     it('rejects when leader has not co-signed', async () => {
