@@ -1531,8 +1531,10 @@ export class BidService {
    * 正选专家全部确认 + 组长末签 + 无未裁决异议，与 generateEvaluationResults 同口径。
    */
   private async assertEvaluationComplete(projectId: string): Promise<void> {
+    // C1（2026-09-24 全链审计）：与 startEvaluation 计数同口径——declined/pending 正选不占席，
+    // 否则婉拒/过期残留行永久卡死报价轮（decline 路径只写 invitationStatus 不腾席）。
     const experts = await this.prisma.bidExpert.findMany({
-      where: { projectId, expertRole: '正选' },
+      where: { projectId, expertRole: '正选', invitationStatus: 'confirmed' },
       select: { reportConfirmed: true },
     });
     if (experts.some(e => !e.reportConfirmed)) {
@@ -3141,6 +3143,11 @@ export class BidService {
       where: { id: expert.id },
       data: { signedIn: true, signInIp: null, signInMeta },
     });
+    // FE-3（2026-09-24 全链审计）：手动确认签到此前零 WS 事件——:3005 开标确认面板专家签到态
+    // 不实时刷新；与专家自助 signIn 同款广播 signed_in 里程碑
+    this.gateway?.notifyExpertPresence(projectId, {
+      expertId: expert.id, expertName: expert.expertName, milestone: 'signed_in', progressPercent: 0,
+    });
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '评审专家', target: expert.expertName,
@@ -4079,6 +4086,10 @@ export class BidService {
         type: 'PRE_WIN_NOTICE',
         status: 'DRAFT',
         relatedProjectCode: project.projectCode,
+        // 归属公司快照（公告管理端按公司硬过滤隔离）：缺省时公司用户在信息发布中心看不到
+        // 自动草稿 → 公示发不出去 → 中标通知书被 PUBLICITY_NOT_ENDED 永久卡死（2026-09-24 验收实测）
+        companyId: project.companyId,
+        companyName: project.companyName,
         metadata: {
           projectCode: project.projectCode,
           winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore), price: winnerPrice } : null,
@@ -5863,10 +5874,11 @@ export class BidService {
     // 会被聚合口径静默排除——须走重评/补选流程，不允许静默互换。评标前互换是正常递补，放行。
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    if (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') {
+    // 复审 F3（2026-09-24）：ABORTED（流标）同样禁换——死项目上换专家=无意义委员会变动留痕
+    if (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED' || project.stage === 'ABORTED') {
       throw new ConflictException({
         error: '评标已启动，不可互换正选/候补专家（改变委员会组成）——如需更换请走异议裁决或重新评标流程',
         code: 'EXPERT_SWAP_LOCKED',
@@ -5877,6 +5889,23 @@ export class BidService {
       this.prisma.bidExpert.findFirst({ where: { projectId, id: toExpertId } }),
     ]);
     if (!e1 || !e2) throw new BadRequestException({ error: '专家记录不存在', code: 'NOT_FOUND' });
+    // 2026-09-23 方案 A：方向校验——此前任意两行互换无方向约束（API 层防呆，UI 只暴露合法组合）
+    if (e1.expertRole !== '正选' || e2.expertRole !== '候补') {
+      throw new BadRequestException({ error: '互换角色不匹配：被替换方须为正选、递补方须为候补', code: 'INVALID_SWAP_ROLES' });
+    }
+    // 2026-09-23 方案 A：已签到=已进场（评标委员会组成实际形成），换出会遗留 open window 与已交材料——禁止
+    if (e1.signedIn) {
+      throw new ConflictException({ error: `正选专家【${e1.expertName}】已签到进场，不可替换`, code: 'EXPERT_ALREADY_SIGNED_IN' });
+    }
+    // 2026-09-23 方案 A：婉拒候补不可递补（此前前端候选列表未过滤，可换入 declined 行卡死启动评标）
+    if (e2.invitationStatus === 'declined') {
+      throw new ConflictException({ error: `候补专家【${e2.expertName}】已婉拒邀请，不可递补`, code: 'ALTERNATE_DECLINED' });
+    }
+    // 2026-09-23 方案 A：换出组长时递补者须接任组长（否则委员会失去组长，末签/异议/表决全链死锁）。
+    // P1-7（#47）：采购人代表不得担任评审组长——此类情形须先走 PATCH /expert-admin/extract/leader 换组长再替换。
+    if (e1.isLead && e2.isPurchaserRepresentative) {
+      throw new BadRequestException({ error: '递补候补为采购人代表，不可接任组长——请先更换评审组长再替换', code: 'ALTERNATE_CANNOT_LEAD' });
+    }
     // P2-4（2026-09-21）：进场（候补→正选）专家跨项目窗口复查——与抽取硬闸（闸1）同口径。
     // 派单在开标前、开窗可能在派单后——防止开窗专家经候补递补通道进场（signIn 硬闸的提前兜底）。
     const toWindows = await findOpenEvaluationWindows(this.prisma, e2.userId, projectId);
@@ -5886,19 +5915,59 @@ export class BidService {
         code: 'EXPERT_WINDOW_CONFLICT',
       });
     }
-    await this.prisma.$transaction([
-      this.prisma.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补' } }),
-      this.prisma.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选' } }),
-    ]);
+    // 复审 F1（2026-09-24）：并发防——镜像 P2-5 signIn 的 User 行锁模式，锁两行后在锁内重断言
+    // 方向/签到/婉拒三闸。双管理员并发互换（A↔B 与 A↔C）后到者在锁内必见先到者已改的角色，
+    // 杜绝双晋升静默胀委员会；夹缝签到同理在锁内可见（签到侧亦持 User 锁）。
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BidExpert" WHERE id IN (${e1.id}, ${e2.id}) FOR UPDATE`;
+      const r1 = await tx.bidExpert.findUnique({ where: { id: e1.id }, select: { expertRole: true, signedIn: true } });
+      const r2 = await tx.bidExpert.findUnique({ where: { id: e2.id }, select: { expertRole: true, invitationStatus: true } });
+      if (!r1 || !r2 || r1.expertRole !== '正选' || r2.expertRole !== '候补') {
+        throw new ConflictException({ error: '专家角色已发生变化（可能存在并发替换），请刷新后重试', code: 'EXPERT_SWAP_CONFLICT' });
+      }
+      if (r1.signedIn) {
+        throw new ConflictException({ error: `正选专家【${e1.expertName}】已签到进场，不可替换`, code: 'EXPERT_ALREADY_SIGNED_IN' });
+      }
+      if (r2.invitationStatus === 'declined') {
+        throw new ConflictException({ error: `候补专家【${e2.expertName}】已婉拒邀请，不可递补`, code: 'ALTERNATE_DECLINED' });
+      }
+      // 换出组长时同步摘除其 isLead，防止组长标记残留在候补行
+      await tx.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补', ...(e1.isLead ? { isLead: false } : {}) } });
+      // 2026-09-23 方案 A：递补即确认进场——startEvaluation 委员会校验只数 confirmed 正选，
+      // 不置 confirmed 则换掉 confirmed 正选后 confirmed 数悄悄跌破法定下限；换出组长则递补者接任组长
+      await tx.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选', invitationStatus: 'confirmed', ...(e1.isLead ? { isLead: true } : {}) } });
+    });
     // P3（2026-09-21 审查）：委员会组成变更必须留痕——此前零日志（与延期/核验/解锁/签字留痕口径不一）
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '采购管理端', target: '评标委员会组成',
         action: '正选候补互换',
-        result: `正选【${e1.expertName}】⇄ 候补【${e2.expertName}】（${e2.expertName} 递补为正选）`,
+        result: `正选【${e1.expertName}】⇄ 候补【${e2.expertName}】（${e2.expertName} 递补为正选${e1.isLead ? '并接任组长' : ''}）`,
         riskFlag: '中',
       },
     }).catch(() => {});
+    // 复审 F4（2026-09-24）：递补即确认却零通知——被递补专家无感知（RSVP 同意流被绕过）。
+    // 站内信 best-effort，失败不阻塞互换（与既有多渠道通知口径一致）。
+    try {
+      await this.notificationService.sendToUser(e2.userId, ['in_app'], {
+        type: 'EXPERT_SWAP_PROMOTED',
+        title: `您已递补为项目【${project.name}】的正选评标专家`,
+        content: `因原正选专家临时变故，您已递补为正选评审专家${e1.isLead ? '并接任评审组长' : ''}，请按时到场完成签到并参与评审。`,
+      });
+    } catch { /* 通知失败不阻塞 */ }
+    // FE-3（2026-09-24 全链审计）：角色变更广播——互换是委员会组成变更，:3005 已开面板
+    // 监听 role_changed 后 refreshWorkspace（专家签到态/名单实时刷新）
+    this.gateway?.notifyExpertPresence(projectId, {
+      expertId: e2.id, expertName: e2.expertName, milestone: 'role_changed', progressPercent: e2.progress ?? 0,
+    });
+    // M7（2026-09-24 全链审计）：被换出的 confirmed 正选同样有知情权——静默降候补，到场才撞 SUBSTITUTE_EXPERT。
+    try {
+      await this.notificationService.sendToUser(e1.userId, ['in_app'], {
+        type: 'EXPERT_SWAP_RELEASED',
+        title: `项目【${project.name}】评标邀请变更`,
+        content: `您已被调整为项目【${project.name}】的候补专家，原正选席位由【${e2.expertName}】递补${e1.isLead ? '并接任评审组长' : ''}。如需帮助请联系采购管理端。`,
+      });
+    } catch { /* 通知失败不阻塞互换 */ }
     return { success: true };
   }
 

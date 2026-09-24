@@ -481,7 +481,16 @@ export default function ExpertEvaluatePage() {
       const si = project?.scoreItems.find(s => s.id === itemId);
       const committedScore = committedRecordFor(project?.myScores, sid, itemId)?.score ?? null;
       const hasPartialPoints = v.points && Object.keys(v.points).length > 0;
-      norm[k] = si && hasPartialPoints ? { ...v, points: buildFullPoints(si, v, committedScore) } : v;
+      if (!(si && hasPartialPoints)) { norm[k] = v; continue; }
+      const points = buildFullPoints(si, v, committedScore);
+      // 草稿可能缺 passed（旧版存档/中断保存）——通过性项从客观分点重导（与 handlePointChange 同规则）；
+      // 否则恢复后勾选全亮、项头却「未评」、提交被「评分项未完成」拦且无任何按钮可补（2026-09-24 验收实测）
+      let passed = v.passed;
+      if (typeof passed !== 'boolean' && isPassFailCategory(si.category)) {
+        const objectivePts = (si.points ?? []).filter(p => p.objective);
+        if (objectivePts.length > 0) passed = objectivePts.every(p => points[p.id]?.checked === true);
+      }
+      norm[k] = { ...v, points, ...(typeof passed === 'boolean' ? { passed } : {}) };
     }
     setScores(prev => ({ ...prev, ...norm }));
     toast.success(`已恢复 ${Object.keys(norm).length} 项评分草稿`);

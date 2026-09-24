@@ -255,13 +255,21 @@ describe('ExpertAdminService', () => {
 
   describe('setLeader（P1-7 采购人代表禁任组长）', () => {
     it('采购人代表被拒绝担任组长', async () => {
-      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', isPurchaserRepresentative: true });
+      // I5：confirmed 前置闸通过，专测采购人代表禁任组长
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', invitationStatus: 'confirmed', isPurchaserRepresentative: true });
       await expect(service.setLeader('p1', 'u1')).rejects.toThrow('采购人代表不得担任评审组长');
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
+    it('I5（2026-09-24 全链审计）：pending/declined 正选不得任组长 → 400', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', invitationStatus: 'declined', isPurchaserRepresentative: false });
+      await expect(service.setLeader('p1', 'u1')).rejects.toThrow('仅已确认参加的正选专家可设为组长');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it('非代表的正选专家可正常设为组长', async () => {
-      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', isPurchaserRepresentative: false });
+      // I5：fixture 补 invitationStatus='confirmed'（仅已确认正选可任组长）
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', invitationStatus: 'confirmed', isPurchaserRepresentative: false });
       prisma.bidExpert.updateMany.mockResolvedValue({ count: 0 });
       prisma.bidExpert.update.mockResolvedValue({});
       const r = await service.setLeader('p1', 'u1');
@@ -532,6 +540,7 @@ describe('ExpertAdminService', () => {
     });
 
     it('getProjectInvitations 过期清扫含正选时触发一次递补', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' }); // I2：maybeAutoPromote 读阶段
       prisma.bidExpert.findMany
         .mockResolvedValueOnce([{ id: 'be-1', expertRole: '正选' }])   // 过期查询
         .mockResolvedValue([]);                                        // 列表查询
@@ -543,6 +552,7 @@ describe('ExpertAdminService', () => {
     });
 
     it('过期行全是候补时不递补（避免误替换仍待命的正选）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
       prisma.bidExpert.findMany
         .mockResolvedValueOnce([{ id: 'be-1', expertRole: '候补' }])   // 过期查询
         .mockResolvedValue([]);                                        // 列表查询
@@ -550,6 +560,158 @@ describe('ExpertAdminService', () => {
       (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue(null);
       await service.getProjectInvitations('p1');
       expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('I2 — RSVP/过期/admin 婉拒路径阶段感知递补', () => {
+    it('EVALUATING 中婉拒：declined 照写但递补抑制（改变委员会组成须走异议裁决/补选）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'be-1' }, data: { invitationStatus: 'declined' } });
+      expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
+      expect(res).toEqual({ success: true, status: 'declined', promoted: null });
+    });
+
+    it('ARCHIVED 婉拒 → 409 PROJECT_CLOSED（终态拒绝操作，不写 declined）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      await expect(service.declineInvitation('p1', 'u1')).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+
+    it('OPENING 婉拒 → 照常递补（既有行为保留）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9', expertName: '候补A' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect(res.promoted).toMatchObject({ expertName: '候补A' });
+    });
+
+    it('maybeAutoPromote：ABORTED → 409 PROJECT_CLOSED；项目不存在 → null 静默', async () => {
+      prisma.bidProject.findUnique.mockResolvedValueOnce({ stage: 'ABORTED' }).mockResolvedValueOnce(null);
+      await expect((service as any).maybeAutoPromote('p1')).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
+      await expect((service as any).maybeAutoPromote('p1')).resolves.toBeNull();
+    });
+  });
+
+  describe('fix-later② — autoPromoteCandidate 递补即确认 + 组长转移', () => {
+    beforeEach(() => {
+      // autoPromoteCandidate 读 bidScoreRecord（偏离度），主 beforeEach 未提供——本组补齐
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      // 评分 mock 须返回数字（默认 undefined 会让排序比较 NaN）
+      (service as any).extraction.extendedRuleScore.mockReturnValue(80);
+      // I3（2026-09-24 全链审计）：tx 内 FOR UPDATE 行锁 + 锁内重断言（findUnique 默认放行形状：
+      // e=未婉拒候补；个别用例覆写制造并发冲突）
+      prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+      prisma.bidExpert.findUnique = jest.fn().mockResolvedValue({ expertRole: '候补', invitationStatus: 'pending' });
+      // FE-3 后端（2026-09-24 全链审计）：递补也是委员会角色变更——广播 role_changed
+      (service as any).gateway = { notifyExpertPresence: jest.fn() };
+    });
+
+    const mkCand = (id: string, name: string, opts: { inv?: string; rep?: boolean } = {}) => ({
+      id, userId: `u-${id}`, expertName: name, major: '技术', expertRole: '候补',
+      invitationStatus: opts.inv ?? 'pending', isPurchaserRepresentative: opts.rep ?? false,
+      user: {
+        isActive: true,
+        expertProfile: { availability: '可用', entryStatus: 'ACTIVE', employer: null, specialty: '技术', title: '高级工程师', education: '本科' },
+        _count: { bidExperts: 1 }, expertEvaluations: [], bidExperts: [],
+      },
+    });
+
+    it('递补即确认：晋升写 invitationStatus=confirmed 并发站内通知（F4 同口径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      // I3：首调=候补候选查询（Once）；后续调用=跨项目开窗检查（默认 []，无冲突窗口）
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('c1', '候补甲', { inv: 'pending' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue(null); // 无组长残留
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toMatchObject({ expertName: '候补甲' });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }) }),
+      );
+      expect(notification.sendToUser).toHaveBeenCalledWith('u-c1', ['in_app'], expect.objectContaining({ type: 'EXPERT_AUTO_PROMOTED' }));
+      // FE-3：递补成功广播 role_changed（:3005 已开面板刷新委员会名单）
+      expect((service as any).gateway.notifyExpertPresence).toHaveBeenCalledWith('p1', expect.objectContaining({
+        expertId: 'c1', expertName: '候补甲', milestone: 'role_changed',
+      }));
+    });
+
+    it('组长婉拒：isLead 清残留并转移到递补者', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('c1', '候补甲', { inv: 'confirmed' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' }); // 组长残留（已 declined）
+      const res = await service.autoPromoteCandidate('p1');
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'lead-old' }, data: { isLead: false } });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed', isLead: true }) }),
+      );
+      expect(res?.promotedAsLead).toBe(true);
+    });
+
+    it('组长婉拒且最优候选为采购人代表：改选次优非代表递补并任组长（P1-7）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      // 排序在前的代表（confirmed 优先）+ 次优非代表
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true }), mkCand('nrm', '候补丙', { inv: 'pending' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toMatchObject({ expertName: '候补丙', promotedAsLead: true });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'rep' } }));
+    });
+
+    it('组长婉拒且候选全为采购人代表：仍递补但组长留空（promotedAsLead=false，待 setLeader）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true })]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toMatchObject({ expertName: '代表乙', promotedAsLead: false });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'rep' }, data: expect.not.objectContaining({ isLead: true }) }),
+      );
+    });
+
+    it('I3：零候补 + 组长残留 → 返回 null 但仍清 isLead 残留（早退不清残留=清扫脚本要修的病）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValueOnce([]); // 候补候选查询：零候选
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toBeNull();
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'lead-old' }, data: { isLead: false } });
+    });
+
+    it('I3：锁内重断言——并发已递补（锁内重读已是正选）→ 放弃且零递补写、零通知', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('c1', '候补甲', { inv: 'confirmed' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      // 锁内重读：best 已被并发请求递补为正选
+      prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '正选', invitationStatus: 'confirmed' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toBeNull();
+      expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ expertRole: '正选' }) }),
+      );
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+    });
+
+    it('I3：候补存在跨项目未闭合评标窗口 → 剔除后递补次优（与 signIn 硬闸/swap P2-4 同口径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      // 候选查询 where 带 expertRole='候补'；开窗检查（findOpenEvaluationWindows）where 只带 userId——按此分流
+      prisma.bidExpert.findMany.mockImplementation(async ({ where }: any = {}) =>
+        where.expertRole
+          ? [mkCand('c1', '候补甲', { inv: 'confirmed' }), mkCand('c2', '候补乙', { inv: 'pending' })]
+          : where.userId === 'u-c1'
+            ? [{ projectId: 'px', project: { id: 'px', projectCode: 'PCX', name: '他项目' } }]
+            : [],
+      );
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      const res = await service.autoPromoteCandidate('p1');
+      // c1（排序在前的 confirmed 候补）因开窗被剔除，次优 c2 递补
+      expect(res).toMatchObject({ expertName: '候补乙' });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'c1' } }));
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'c2' }, data: expect.objectContaining({ expertRole: '正选' }) }),
+      );
     });
   });
 });

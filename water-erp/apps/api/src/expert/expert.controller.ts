@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request, Response } from 'express';
@@ -152,7 +153,7 @@ export class ExpertController {
     if (!t) throw new BadRequestException({ error: '缺少邀请凭证', code: 'MISSING_TOKEN' });
     const be = await this.prisma.bidExpert.findUnique({
       where: { rsvpToken: t },
-      include: { project: { select: { name: true, projectCode: true, procurementMethod: true, openTime: true, projectManagementItemId: true, scope: true, qualification: true, riskNote: true } } },
+      include: { project: { select: { name: true, projectCode: true, procurementMethod: true, openTime: true, projectManagementItemId: true, scope: true, qualification: true, riskNote: true, stage: true } } },
     });
     if (!be) throw new BadRequestException({ error: '邀请链接无效', code: 'RSVP_NOT_FOUND' });
     // 用项目管理编号覆盖 BidProject 的自动生成编号
@@ -164,10 +165,15 @@ export class ExpertController {
     const expired = be.rsvpExpiresAt ? new Date(be.rsvpExpiresAt).getTime() < Date.now() : false;
     // 超时且未回复 → 自动弃权；正选席位空缺时自动递补候补（与 respond 路径同款正选守卫；失败静默不影响 verify 返回）
     if (expired && be.invitationStatus === 'pending') {
+      // I2（2026-09-24 全链审计）：终态项目连 declined 写也拒（邀请状态机随项目终结）；
+      // EVALUATING 婉拒照写但 maybeAutoPromote 内抑制递补（改变委员会组成须走异议裁决/补选）
+      if (be.project.stage === 'ARCHIVED' || be.project.stage === 'ABORTED') {
+        throw new ConflictException({ error: '项目已结束，无法操作邀请', code: 'PROJECT_CLOSED' });
+      }
       await this.prisma.bidExpert.update({ where: { id: be.id }, data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() } });
       be.invitationStatus = 'declined';
       if (be.expertRole === '正选') {
-        await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null);
+        await this.expertAdminService.maybeAutoPromote(be.projectId).catch(() => null);
       }
     }
     return {
@@ -208,6 +214,14 @@ export class ExpertController {
     if (be.invitationStatus !== 'pending') {
       throw new BadRequestException({ error: '您已回复过此邀请', code: 'ALREADY_RESPONDED' });
     }
+    // I2（2026-09-24 全链审计）：终态项目婉拒 → declined 写也拒绝（邀请状态机随项目终结）；
+    // EVALUATING 婉拒照写，递补由 maybeAutoPromote 内抑制（改变委员会组成须走异议裁决/补选）
+    if (body.status === 'declined') {
+      const project = await this.prisma.bidProject.findUnique({ where: { id: be.projectId }, select: { stage: true } });
+      if (project && (project.stage === 'ARCHIVED' || project.stage === 'ABORTED')) {
+        throw new ConflictException({ error: '项目已结束，无法操作邀请', code: 'PROJECT_CLOSED' });
+      }
+    }
     await this.prisma.bidExpert.update({
       where: { id: be.id },
       data: { invitationStatus: body.status, rsvpRespondedAt: new Date() },
@@ -217,7 +231,7 @@ export class ExpertController {
     const respondedAt = new Date().toISOString();
     if (body.status === 'declined') {
       const promoted = be.expertRole === '正选'
-        ? await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null)
+        ? await this.expertAdminService.maybeAutoPromote(be.projectId).catch(() => null)
         : null;
       return { success: true, status: body.status, rsvpNo, respondedAt, promoted };
     }

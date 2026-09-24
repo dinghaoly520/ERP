@@ -9,6 +9,8 @@ describe('BidService.getExpertVerification（核验矩阵）', () => {
     prisma = {
       bidExpert: { findMany: jest.fn() },
       bidSupervisionLog: { findMany: jest.fn().mockResolvedValue([]) },
+      // 2026-09-22 会话设备快照（getExpertVerification 读 user.findMany）——既有夹具滞后补齐
+      user: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const instance: any = Object.create(BidService.prototype);
     instance.prisma = prisma;
@@ -106,6 +108,8 @@ describe('BidService.manualConfirmExpertVerification（R9）', () => {
     };
     const instance: any = Object.create(BidService.prototype);
     instance.prisma = prisma;
+    // FE-3 后端（2026-09-24 全链审计）：手动确认签到补广播 WS 里程碑 signed_in
+    instance.gateway = { notifyExpertPresence: jest.fn() };
     svc = instance;
   });
 
@@ -131,14 +135,19 @@ describe('BidService.manualConfirmExpertVerification（R9）', () => {
         riskFlag: '关注',
       }),
     });
+    // FE-3：此前写 signedIn 零 WS 事件——:3005 专家签到态不实时刷新；现广播 signed_in
+    expect(svc.gateway.notifyExpertPresence).toHaveBeenCalledWith('proj-1', expect.objectContaining({
+      expertId: 'e1', expertName: '刘苡池', milestone: 'signed_in', progressPercent: 0,
+    }));
   });
 
-  it('已签到 → 幂等（不重复写、不重复记监督日志）', async () => {
+  it('已签到 → 幂等（不重复写、不重复记监督日志、不重复广播）', async () => {
     prisma.bidExpert.findFirst.mockResolvedValue({ ...REGULAR_UNSIGNED, signedIn: true });
     const r = await svc.manualConfirmExpertVerification('proj-1', 'e1', ACTOR, { reason: '摄像头故障' });
     expect(r.already).toBe(true);
     expect(prisma.bidExpert.update).not.toHaveBeenCalled();
     expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    expect(svc.gateway.notifyExpertPresence).not.toHaveBeenCalled();
   });
 
   it('候补 → 403 SUBSTITUTE_EXPERT', async () => {

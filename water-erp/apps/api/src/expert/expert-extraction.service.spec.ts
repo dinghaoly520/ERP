@@ -259,6 +259,45 @@ describe('ExpertExtractionService', () => {
       expect(res.success).toBe(true);
     });
 
+    it('I6：ABORTED（流标）非追加重抽 → 409 RE_EXTRACTION_LOCKED（deleteMany 会抹掉已签到/评分证据行）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'ABORTED', suppliers: [] });
+      await expect(service.confirmExtraction('p1', dto(), 'op1'))
+        .rejects.toMatchObject({ response: { code: 'RE_EXTRACTION_LOCKED' } });
+      expect(prisma.bidExpert.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('I6：终态项目（ARCHIVED）追加补选 → 409 PROJECT_CLOSED（死项目上不铸新邀请行）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'ARCHIVED', suppliers: [] });
+      await expect(service.confirmExtraction('p1', {
+        projectId: 'p1', experts: [{ userId: 'u1', expertName: '甲', major: '造价' }], candidates: [], append: true,
+      } as any, 'op1')).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
+      expect(prisma.bidExpert.upsert).not.toHaveBeenCalled();
+    });
+
+    it('I6：EVALUATING 追加带 isLead 的专家 → 先清现有组长（防 append 铸双组长，镜像 setLeader）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'EVALUATING', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
+      ]);
+      const res = await service.confirmExtraction('p1', {
+        projectId: 'p1', experts: [{ userId: 'u1', expertName: '甲', major: '造价', isLead: true }], candidates: [], append: true,
+      } as any, 'op1');
+      expect(res.success).toBe(true);
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith({ where: { projectId: 'p1', isLead: true }, data: { isLead: false } });
+    });
+
+    it('I6：追加不带 isLead → 不触发清组长（既有 append 补选口径不变）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'EVALUATING', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
+      ]);
+      const res = await service.confirmExtraction('p1', {
+        projectId: 'p1', experts: [{ userId: 'u1', expertName: '甲', major: '造价' }], candidates: [], append: true,
+      } as any, 'op1');
+      expect(res.success).toBe(true);
+      expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+    });
+
     it('成功抽取应写入 BidExpert 与审计日志（同一事务）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([

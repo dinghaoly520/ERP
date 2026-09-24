@@ -576,6 +576,12 @@ export class ExpertService {
     let txWindows: Awaited<ReturnType<typeof findOpenEvaluationWindows>> = [];
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      // I4（2026-09-24 全链审计）：swap 锁 BidExpert 行、signIn 锁 User 行——锁域不相交，
+      // 夹缝中被互换降为候补仍会写入签到（候补+signedIn=永不闭窗）。锁内重读角色堵死。
+      const fresh = await tx.bidExpert.findUnique({ where: { id: expert.id }, select: { expertRole: true } });
+      if (!fresh || fresh.expertRole !== '正选') {
+        throw new ForbiddenException({ error: '您是候补专家，正式递补前不可签到', code: 'SUBSTITUTE_EXPERT' });
+      }
       txWindows = await findOpenEvaluationWindows(tx, userId, projectId);
       if (txWindows.length > 0) return null;
       return tx.bidExpert.update({
@@ -2434,8 +2440,10 @@ export class ExpertService {
     if (!expert.reportConfirmed) throw new BadRequestException({ error: '组长须先确认自己的评审报告', code: 'REPORT_NOT_CONFIRMED' });
 
     // 所有正选专家必须已确认报告（候补不参与评标，不阻塞末签）
+    // C1（2026-09-24 全链审计）：与 startEvaluation 计数同口径——declined/pending 正选不占席，
+    // 否则婉拒/过期残留行永久卡死末签（decline 路径只写 invitationStatus 不腾席）。
     const unconfirmed = await this.prisma.bidExpert.count({
-      where: { projectId, expertRole: '正选', reportConfirmed: false },
+      where: { projectId, expertRole: '正选', invitationStatus: 'confirmed', reportConfirmed: false },
     });
     if (unconfirmed > 0) throw new BadRequestException({
       error: `还有 ${unconfirmed} 位专家未确认报告,无法末签`, code: 'MEMBERS_NOT_CONFIRMED',

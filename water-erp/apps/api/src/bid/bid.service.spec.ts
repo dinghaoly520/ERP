@@ -3443,6 +3443,15 @@ describe('createRound — 谈判采购评标完成闸门（先评标→再报价
     expect(prisma.bidRound.create).toHaveBeenCalled();
   });
 
+  it('C1（2026-09-24 全链审计）：E6 完成闸只数 confirmed 正选——declined 残留不占席（与 startEvaluation 同口径）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation', procurementMethod: '谈判采购', leaderCoSigned: true });
+    prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: true }]);
+    await service.createRound('p1', 'negotiation', undefined, 'u1');
+    expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }) }),
+    );
+  });
+
   it('竞价采购·评标未完成 → 闸门不生效（形态B）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', roundMode: 'sealed_auction', procurementMethod: '竞价采购' });
     prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: false }]);
@@ -4530,18 +4539,40 @@ describe('P1-4 — 旧轨解密归因与时间修改留痕（updateProject）—
 describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', () => {
   let svc: any;
   let prisma: any;
+  // 复审 F1（2026-09-24）：$transaction 改交互式回调后 txArgs 捕获版失效——改为捕获 update 调用实参
+  let updateCalls: any[] = [];
 
   beforeEach(async () => {
+    updateCalls = [];
     prisma = {
       bidProject: { findUnique: jest.fn() },
-      bidExpert: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) }, // findMany：P2-4 swap 进场窗口复查
+      // 复审 F1：回调内 tx 即本 prisma mock（同一套 jest.fn 命中）；findMany：P2-4 swap 进场窗口复查
+      bidExpert: {
+        findFirst: jest.fn(),
+        update: jest.fn().mockImplementation((args: any) => { updateCalls.push(args); return args; }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       // 92ee5a77 起换签写监督日志（留痕）——既有红修复：mock 缺 delegate（与本轮 P2-2 无关，顺手补齐）
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
-      $transaction: jest.fn().mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(prisma)),
+      // 复审 F1：SELECT ... FOR UPDATE 行锁（无 DB，空结果走通即可）
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      $transaction: jest.fn().mockImplementation(async (fn: any) =>
+        typeof fn === 'function' ? fn(prisma) : Promise.all(fn),
+      ),
     };
+    // 复审 F1：锁内重读（findUnique）默认放行形状——e1=未签到正选 / e2=未婉拒候补；个别用例覆写制造并发冲突
+    prisma.bidExpert.findUnique = jest.fn().mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { expertRole: '正选', signedIn: false }
+        : { expertRole: '候补', invitationStatus: 'pending' },
+    );
     const { BidService } = await import('./bid.service');
     svc = Object.create(BidService.prototype);
     svc.prisma = prisma;
+    // 复审 F4：递补站内信通知（allow 用例断言 type；best-effort 由 service 内 try/catch 保证）
+    svc.notificationService = { sendToUser: jest.fn().mockResolvedValue({}) };
+    // FE-3 后端（2026-09-24 全链审计）：互换后广播 WS 里程碑 role_changed（:3005 面板刷新）
+    svc.gateway = { notifyExpertPresence: jest.fn() };
   });
 
   it('EVALUATING 互换 → 409 EXPERT_SWAP_LOCKED 且零更新', async () => {
@@ -4549,6 +4580,7 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
     await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
       .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_LOCKED' } });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(svc.gateway.notifyExpertPresence).not.toHaveBeenCalled();
   });
 
   it('ARCHIVED 互换 → 409 同码', async () => {
@@ -4557,12 +4589,132 @@ describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', ()
       .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_LOCKED' } });
   });
 
+  it('ABORTED（流标）互换 → 409 EXPERT_SWAP_LOCKED（复审 F3）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ABORTED', name: '测试项目' });
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_LOCKED' } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('DOWNLOAD（评标前递补）→ 放行', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
-    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', userId: 'u2' },
+    );
     const res = await svc.swapExpertRole('p1', 'e1', 'e2');
     expect(res.success).toBe(true);
     expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('OPENING 且正选未签到 → 放行，且递补者 invitationStatus 落 confirmed（2026-09-23 口径）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', userId: 'u2' },
+    );
+    const res = await svc.swapExpertRole('p1', 'e1', 'e2');
+    expect(res.success).toBe(true);
+    const e2Update = updateCalls.find((u: any) => u.where?.id === 'e2');
+    expect(e2Update?.data).toMatchObject({ expertRole: '正选', invitationStatus: 'confirmed' });
+    // FE-3：互换成功广播 role_changed 里程碑（:3005 已开面板 refreshWorkspace）
+    expect(svc.gateway.notifyExpertPresence).toHaveBeenCalledWith('p1', expect.objectContaining({
+      expertId: 'e2', expertName: '乙', milestone: 'role_changed',
+    }));
+  });
+
+  it('OPENING 但正选已签到 → 409 EXPERT_ALREADY_SIGNED_IN 且零更新', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: true, invitationStatus: 'confirmed', userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', userId: 'u2' },
+    );
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_ALREADY_SIGNED_IN' } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('方向不匹配（from 非正选 / to 非候补）→ 400 INVALID_SWAP_ROLES', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', userId: 'u2' }
+        : { id: 'e2', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', userId: 'u1' },
+    );
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_SWAP_ROLES' } });
+  });
+
+  it('候补已婉拒 → 409 ALTERNATE_DECLINED', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'declined', userId: 'u2' },
+    );
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'ALTERNATE_DECLINED' } });
+  });
+
+  it('换出组长 → 递补者接任组长（isLead 转移，防组长缺席死锁）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', isLead: true, isPurchaserRepresentative: false, userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', isLead: false, isPurchaserRepresentative: false, userId: 'u2' },
+    );
+    const res = await svc.swapExpertRole('p1', 'e1', 'e2');
+    expect(res.success).toBe(true);
+    const e1Update = updateCalls.find((u: any) => u.where?.id === 'e1');
+    const e2Update = updateCalls.find((u: any) => u.where?.id === 'e2');
+    expect(e1Update?.data).toMatchObject({ expertRole: '候补', isLead: false });
+    expect(e2Update?.data).toMatchObject({ expertRole: '正选', invitationStatus: 'confirmed', isLead: true });
+    // 复审 F4：递补者收到站内信（含组长接任文案）
+    expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u2', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_PROMOTED' }));
+    // M7：被换出组长同样收站内信（含「并接任评审组长」知情文案）
+    expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u1', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_RELEASED', content: expect.stringContaining('接任评审组长') }));
+  });
+
+  it('M7（2026-09-24 全链审计）：被换出正选同样收站内信——e1 EXPERT_SWAP_RELEASED + e2 EXPERT_SWAP_PROMOTED', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', isLead: false, isPurchaserRepresentative: false, userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', isLead: false, isPurchaserRepresentative: false, userId: 'u2' },
+    );
+    const res = await svc.swapExpertRole('p1', 'e1', 'e2');
+    expect(res.success).toBe(true);
+    expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u2', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_PROMOTED' }));
+    expect(svc.notificationService.sendToUser).toHaveBeenCalledWith('u1', ['in_app'], expect.objectContaining({ type: 'EXPERT_SWAP_RELEASED' }));
+  });
+
+  it('锁内重断言：并发已改角色 → 409 EXPERT_SWAP_CONFLICT 零更新（复审 F1）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', userId: 'u2' },
+    );
+    // 锁内重读：e1 已被并发互换降为候补
+    prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '候补', signedIn: false });
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_CONFLICT' } });
+    expect(updateCalls.length).toBe(0);
+  });
+
+  it('换出组长但候补为采购人代表 → 400 ALTERNATE_CANNOT_LEAD（P1-7：采购人代表不得任组长）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'e1'
+        ? { id: 'e1', expertName: '甲', expertRole: '正选', signedIn: false, invitationStatus: 'confirmed', isLead: true, isPurchaserRepresentative: false, userId: 'u1' }
+        : { id: 'e2', expertName: '乙', expertRole: '候补', signedIn: false, invitationStatus: 'pending', isLead: false, isPurchaserRepresentative: true, userId: 'u2' },
+    );
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'ALTERNATE_CANNOT_LEAD' } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });
 

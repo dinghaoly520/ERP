@@ -74,7 +74,9 @@ export interface EvaluationStartedPayload {
 export interface ExpertPresencePayload {
   expertId: string;
   expertName: string;
-  milestone: 'signed_in' | 'avoidance_confirmed' | 'scoring_activity' | 'report_confirmed';
+  /** FE-3（2026-09-24 全链审计）：role_changed=管理侧改写委员会角色（swap 互换/自动递补）——
+   *  :3005 已开面板监听后 refreshWorkspace（与 expert-portal 里程碑同通道） */
+  milestone: 'signed_in' | 'avoidance_confirmed' | 'scoring_activity' | 'report_confirmed' | 'role_changed';
   supplierName?: string;
   progressPercent: number;
   timestamp: number;
