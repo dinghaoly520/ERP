@@ -2338,7 +2338,7 @@ export function ProjectDetailPanel({
         onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
       />
 
-      {/* 开标确认面板：投标状态 / 专家确认 / 评分标准 / 开标决策 */}
+      {/* 开标确认面板：投标状态 / 专家确认 / 唱标字段 / 开标决策（评分标准已迁 03「采购文件」步骤，2026-09-24） */}
       <BidConfirmPanel
         isOpen={bidConfirmOpen}
         onClose={() => setBidConfirmOpen(false)}
