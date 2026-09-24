@@ -418,8 +418,14 @@ export class ExpertExtractionService {
     if (!dto.experts?.length && !dto.candidates?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
     // P1-6：评标启动/归档后禁「先清空再写入」的整体重抽（评分进度与签字状态挂 BidExpert，
     // deleteMany 会连带摧毁）；追加补选仍允许。
-    if (!dto.append && (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')) {
+    // I6：流标项目同样禁整体重抽——deleteMany 会抹掉已签到/评分证据行
+    if (!dto.append && (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED' || project.stage === 'ABORTED')) {
       throw new ConflictException({ error: '项目已进入评标/归档，禁止整体重抽专家；如需补人请使用追加模式', code: 'RE_EXTRACTION_LOCKED' });
+    }
+    // I6（2026-09-24 全链审计）：追加模式终态拒绝——终态项目上补选=铸新邀请行+通知，死项目不接收；
+    // 评标中（EVALUATING）追加仍放行：C1 完成闸谓词（正选 && confirmed）下 pending 追加行不阻塞
+    if (dto.append && (project.stage === 'ARCHIVED' || project.stage === 'ABORTED')) {
+      throw new ConflictException({ error: '项目已结束，禁止追加抽取专家', code: 'PROJECT_CLOSED' });
     }
 
     // 供应商名集合（回避校验）——P1-5：回避口径=实际参与投标的供应商全集（已投递或开标后到终局态）。
@@ -436,6 +442,11 @@ export class ExpertExtractionService {
       // 追加模式（补选）：保留已存在记录，仅追加新增专家
       if (!dto.append) {
         await tx.bidExpert.deleteMany({ where: { projectId } });
+      } else if ((dto.experts ?? []).some(e => e.isLead)) {
+        // I6（2026-09-24 全链审计）：追加 isLead 卫生——镜像 setLeader：追加带 isLead 的专家前
+        // 先清现有组长，否则 upsert update 分支写 isLead 却不清旧值 → append 铸出双组长
+        // （末签/表决按「唯一组长」口径会分裂）
+        await tx.bidExpert.updateMany({ where: { projectId, isLead: true }, data: { isLead: false } });
       }
 
       // 资格复核放在事务内重查：与 previewExtraction 同款合规过滤，并杜绝复核后、提交前被并发停用/退库的专家混入
