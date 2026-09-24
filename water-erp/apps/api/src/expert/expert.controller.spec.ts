@@ -19,9 +19,11 @@ describe('ExpertController', () => {
       downloadTenderDocument: jest.fn(),
       confirmAiConsent: jest.fn(),
     };
-    expertAdminService = { autoPromoteCandidate: jest.fn().mockResolvedValue(null) };
+    expertAdminService = { autoPromoteCandidate: jest.fn().mockResolvedValue(null), maybeAutoPromote: jest.fn().mockResolvedValue(null) };
     prisma = {
       bidExpert: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      // I2（2026-09-24 全链审计）：rsvpRespond 婉拒前读项目阶段（终态拒绝写 declined）
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'SUBMIT' }) },
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ExpertController],
@@ -119,6 +121,7 @@ describe('ExpertController', () => {
     const project = {
       name: '测试项目', projectCode: 'PC-1', procurementMethod: '公开招标', openTime: null,
       projectManagementItemId: null, scope: '', qualification: '', riskNote: '',
+      stage: 'SUBMIT', // I2：rsvpVerify 过期分支读 be.project.stage 做终态判定
     };
 
     it('rsvpRespond：正选婉拒 → 递补一次并回传 promoted', async () => {
@@ -127,8 +130,8 @@ describe('ExpertController', () => {
         invitationStatus: 'pending', expertRole: '正选',
       });
       const res = await controller.rsvpRespond('t', { status: 'declined' });
-      expect(expertAdminService.autoPromoteCandidate).toHaveBeenCalledTimes(1);
-      expect(expertAdminService.autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledTimes(1);
+      expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledWith('p1');
       expect(res.promoted).toBeNull();
       expect(res.success).toBe(true);
     });
@@ -139,7 +142,7 @@ describe('ExpertController', () => {
         invitationStatus: 'pending', expertRole: '候补',
       });
       const res = await controller.rsvpRespond('t', { status: 'declined' });
-      expect(expertAdminService.autoPromoteCandidate).not.toHaveBeenCalled();
+      expect(expertAdminService.maybeAutoPromote).not.toHaveBeenCalled();
       expect(res.promoted).toBeNull();
     });
 
@@ -154,8 +157,8 @@ describe('ExpertController', () => {
         where: { id: 'be-1' },
         data: expect.objectContaining({ invitationStatus: 'declined' }),
       }));
-      expect(expertAdminService.autoPromoteCandidate).toHaveBeenCalledTimes(1);
-      expect(expertAdminService.autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledTimes(1);
+      expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledWith('p1');
     });
 
     it('rsvpVerify：过期+pending+候补 → 自动弃权但不递补', async () => {
@@ -166,7 +169,56 @@ describe('ExpertController', () => {
       });
       await controller.rsvpVerify('t');
       expect(prisma.bidExpert.update).toHaveBeenCalled();
-      expect(expertAdminService.autoPromoteCandidate).not.toHaveBeenCalled();
+      expect(expertAdminService.maybeAutoPromote).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('I2 — RSVP 过期/婉拒路径阶段感知递补', () => {
+    const future = new Date(Date.now() + 60_000);
+    const past = new Date(Date.now() - 60_000);
+    const mkBe = (overrides: Record<string, unknown> = {}) => ({
+      id: 'be-1', projectId: 'p1', rsvpExpiresAt: past, invitationStatus: 'pending',
+      expertRole: '正选', expertName: '甲', major: '水利', isLead: false, rsvpRespondedAt: null,
+      ...overrides,
+    });
+    const project = {
+      name: '测试项目', projectCode: 'PC-1', procurementMethod: '公开招标', openTime: null,
+      projectManagementItemId: null, scope: '', qualification: '', riskNote: '',
+    };
+
+    it('rsvpVerify：过期+pending+终态项目（ARCHIVED）→ 409 PROJECT_CLOSED 且不写 declined', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ project: { ...project, stage: 'ARCHIVED' } }));
+      await expect(controller.rsvpVerify('t')).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      expect(expertAdminService.maybeAutoPromote).not.toHaveBeenCalled();
+    });
+
+    it('rsvpVerify：过期+pending+EVALUATING → declined 照写但递补抑制（maybeAutoPromote 返回 null）', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ project: { ...project, stage: 'EVALUATING' } }));
+      await controller.rsvpVerify('t');
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ invitationStatus: 'declined' }),
+      }));
+      expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledTimes(1);
+    });
+
+    it('rsvpRespond：终态项目（ABORTED）婉拒 → 409 PROJECT_CLOSED 且不写 declined', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ rsvpExpiresAt: future }));
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ABORTED' });
+      await expect(controller.rsvpRespond('t', { status: 'declined' })).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      expect(expertAdminService.maybeAutoPromote).not.toHaveBeenCalled();
+    });
+
+    it('rsvpRespond：EVALUATING 婉拒 → declined 照写、递补抑制（promoted=null）', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue(mkBe({ rsvpExpiresAt: future }));
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      const res = await controller.rsvpRespond('t', { status: 'declined' });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ invitationStatus: 'declined' }),
+      }));
+      expect(expertAdminService.maybeAutoPromote).toHaveBeenCalledTimes(1);
+      expect(res.promoted).toBeNull();
     });
   });
 });

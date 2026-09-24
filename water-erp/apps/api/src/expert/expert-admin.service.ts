@@ -568,7 +568,7 @@ export class ExpertAdminService {
       });
       // 仅正选过期才递补（候补过期不占正选席位）；失败静默，不阻塞列表返回
       if (expiredPending.some(e => e.expertRole === '正选')) {
-        await this.autoPromoteCandidate(projectId).catch(() => null); // 与 RSVP 链接婉拒路径同款递补
+        await this.maybeAutoPromote(projectId).catch(() => null); // I2：阶段感知递补——评标中抑制、终态拒绝
       }
     }
 
@@ -757,6 +757,19 @@ export class ExpertAdminService {
     return { userId: best.userId, expertName: best.expertName, major: best.major, ...(leadOnDeclined ? { promotedAsLead } : {}) };
   }
 
+  /** I2（2026-09-24 全链审计）：阶段感知递补——仅评标启动前（DOWNLOAD/SUBMIT/OPENING）自动递补；
+   *  EVALUATING 中婉拒允许（写 declined）但抑制递补（改变委员会组成须走异议裁决/补选，spec R5 口径）；
+   *  终态（ARCHIVED/ABORTED）直接拒绝操作。（public：expert.controller 的 RSVP verify/respond 两路径直调） */
+  async maybeAutoPromote(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project) return null;
+    if (project.stage === 'ARCHIVED' || project.stage === 'ABORTED') {
+      throw new ConflictException({ error: '项目已结束，无法操作邀请', code: 'PROJECT_CLOSED' });
+    }
+    if (project.stage === 'EVALUATING') return null; // 婉拒照写，递补抑制
+    return this.autoPromoteCandidate(projectId);
+  }
+
   /** 邀请操作阶段门控：已归档/已废标项目禁止确认/拒绝（防脏数据 + 误递补） */
   private async assertInvitationActionable(projectId: string) {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
@@ -777,9 +790,10 @@ export class ExpertAdminService {
     }
     await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'declined' } });
     // 婉拒 → 自动递补候补（与 RSVP 链接路径一致）；仅正选婉拒才递补——候补婉拒不产生正选空缺，
-    // 无条件递补会把另一候补超编转正并徒耗候补席位（D7 审查）；递补失败静默，不影响婉拒结果
+    // 无条件递补会把另一候补超编转正并徒耗候补席位（D7 审查）；递补失败静默，不影响婉拒结果。
+    // I2：递补经 maybeAutoPromote 阶段感知——EVALUATING 婉拒照写但抑制递补（上面已先行拒绝终态）
     const promoted = record.expertRole === '正选'
-      ? await this.autoPromoteCandidate(projectId).catch(() => null)
+      ? await this.maybeAutoPromote(projectId).catch(() => null)
       : null;
 
     return { success: true, status: 'declined', promoted };

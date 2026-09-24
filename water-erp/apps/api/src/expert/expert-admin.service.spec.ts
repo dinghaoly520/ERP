@@ -540,6 +540,7 @@ describe('ExpertAdminService', () => {
     });
 
     it('getProjectInvitations 过期清扫含正选时触发一次递补', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' }); // I2：maybeAutoPromote 读阶段
       prisma.bidExpert.findMany
         .mockResolvedValueOnce([{ id: 'be-1', expertRole: '正选' }])   // 过期查询
         .mockResolvedValue([]);                                        // 列表查询
@@ -551,6 +552,7 @@ describe('ExpertAdminService', () => {
     });
 
     it('过期行全是候补时不递补（避免误替换仍待命的正选）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
       prisma.bidExpert.findMany
         .mockResolvedValueOnce([{ id: 'be-1', expertRole: '候补' }])   // 过期查询
         .mockResolvedValue([]);                                        // 列表查询
@@ -558,6 +560,40 @@ describe('ExpertAdminService', () => {
       (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue(null);
       await service.getProjectInvitations('p1');
       expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('I2 — RSVP/过期/admin 婉拒路径阶段感知递补', () => {
+    it('EVALUATING 中婉拒：declined 照写但递补抑制（改变委员会组成须走异议裁决/补选）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'be-1' }, data: { invitationStatus: 'declined' } });
+      expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
+      expect(res).toEqual({ success: true, status: 'declined', promoted: null });
+    });
+
+    it('ARCHIVED 婉拒 → 409 PROJECT_CLOSED（终态拒绝操作，不写 declined）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      await expect(service.declineInvitation('p1', 'u1')).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+
+    it('OPENING 婉拒 → 照常递补（既有行为保留）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9', expertName: '候补A' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect(res.promoted).toMatchObject({ expertName: '候补A' });
+    });
+
+    it('maybeAutoPromote：ABORTED → 409 PROJECT_CLOSED；项目不存在 → null 静默', async () => {
+      prisma.bidProject.findUnique.mockResolvedValueOnce({ stage: 'ABORTED' }).mockResolvedValueOnce(null);
+      await expect((service as any).maybeAutoPromote('p1')).rejects.toMatchObject({ response: { code: 'PROJECT_CLOSED' } });
+      await expect((service as any).maybeAutoPromote('p1')).resolves.toBeNull();
     });
   });
 
