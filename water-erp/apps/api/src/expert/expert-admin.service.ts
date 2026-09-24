@@ -682,13 +682,40 @@ export class ExpertAdminService {
       if (ac !== bc) return bc - ac;
       return b.score - a.score;
     });
-    const best = scored[0].c;
+    // fix-later②（2026-09-24）：与 swapExpertRole 同口径——递补即确认（startEvaluation 委员会校验只数
+    // confirmed 正选，不落 confirmed 则递补后确认数悄悄跌破法定下限）。
+    // 组长席空缺检测：三条触发路径（RSVP 婉拒/过期/admin 婉拒）都把原正选置 declined，
+    // isLead 残留在 declined 行 = 组长席实际空缺，须转移，否则末签/异议/表决链死锁。
+    const leadOnDeclined = await this.prisma.bidExpert.findFirst({
+      where: { projectId, isLead: true, invitationStatus: 'declined' },
+      select: { id: true },
+    });
+    let best = scored[0].c;
+    // P1-7：采购人代表不得任组长——组长席空缺时在非代表候选中按原排序择优；全为代表则组长留空（待 setLeader）
+    if (leadOnDeclined) {
+      const nonRep = scored.find(s => !s.c.isPurchaserRepresentative);
+      if (nonRep) best = nonRep.c;
+    }
+    const promotedAsLead = !!leadOnDeclined && !best.isPurchaserRepresentative;
 
+    if (leadOnDeclined) {
+      await this.prisma.bidExpert.update({ where: { id: leadOnDeclined.id }, data: { isLead: false } });
+    }
     await this.prisma.bidExpert.update({
       where: { id: best.id },
-      data: { expertRole: '正选' },
+      data: { expertRole: '正选', invitationStatus: 'confirmed', ...(promotedAsLead ? { isLead: true } : {}) },
     });
-    return { userId: best.userId, expertName: best.expertName, major: best.major };
+
+    // F4 同口径：递补零通知=被「拉壮丁」无感知——站内信 best-effort，失败不阻塞
+    try {
+      await this.notification.sendToUser(best.userId, ['in_app'], {
+        type: 'EXPERT_AUTO_PROMOTED',
+        title: `您已递补为项目【${project?.name ?? ''}】的正选评标专家`,
+        content: `因原正选专家婉拒或超时未回复，您已递补为正选评审专家${promotedAsLead ? '并接任评审组长' : ''}，请按时到场完成签到并参与评审。`,
+      });
+    } catch { /* 通知失败不阻塞递补 */ }
+
+    return { userId: best.userId, expertName: best.expertName, major: best.major, ...(leadOnDeclined ? { promotedAsLead } : {}) };
   }
 
   /** 邀请操作阶段门控：已归档/已废标项目禁止确认/拒绝（防脏数据 + 误递补） */

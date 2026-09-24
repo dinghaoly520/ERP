@@ -552,4 +552,68 @@ describe('ExpertAdminService', () => {
       expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
     });
   });
+
+  describe('fix-later② — autoPromoteCandidate 递补即确认 + 组长转移', () => {
+    beforeEach(() => {
+      // autoPromoteCandidate 读 bidScoreRecord（偏离度），主 beforeEach 未提供——本组补齐
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      // 评分 mock 须返回数字（默认 undefined 会让排序比较 NaN）
+      (service as any).extraction.extendedRuleScore.mockReturnValue(80);
+    });
+
+    const mkCand = (id: string, name: string, opts: { inv?: string; rep?: boolean } = {}) => ({
+      id, userId: `u-${id}`, expertName: name, major: '技术', expertRole: '候补',
+      invitationStatus: opts.inv ?? 'pending', isPurchaserRepresentative: opts.rep ?? false,
+      user: {
+        isActive: true,
+        expertProfile: { availability: '可用', entryStatus: 'ACTIVE', employer: null, specialty: '技术', title: '高级工程师', education: '本科' },
+        _count: { bidExperts: 1 }, expertEvaluations: [], bidExperts: [],
+      },
+    });
+
+    it('递补即确认：晋升写 invitationStatus=confirmed 并发站内通知（F4 同口径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValue([mkCand('c1', '候补甲', { inv: 'pending' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue(null); // 无组长残留
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toMatchObject({ expertName: '候补甲' });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }) }),
+      );
+      expect(notification.sendToUser).toHaveBeenCalledWith('u-c1', ['in_app'], expect.objectContaining({ type: 'EXPERT_AUTO_PROMOTED' }));
+    });
+
+    it('组长婉拒：isLead 清残留并转移到递补者', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValue([mkCand('c1', '候补甲', { inv: 'confirmed' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' }); // 组长残留（已 declined）
+      const res = await service.autoPromoteCandidate('p1');
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'lead-old' }, data: { isLead: false } });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'c1' }, data: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed', isLead: true }) }),
+      );
+      expect(res?.promotedAsLead).toBe(true);
+    });
+
+    it('组长婉拒且最优候选为采购人代表：改选次优非代表递补并任组长（P1-7）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      // 排序在前的代表（confirmed 优先）+ 次优非代表
+      prisma.bidExpert.findMany.mockResolvedValue([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true }), mkCand('nrm', '候补丙', { inv: 'pending' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toMatchObject({ expertName: '候补丙', promotedAsLead: true });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'rep' } }));
+    });
+
+    it('组长婉拒且候选全为采购人代表：仍递补但组长留空（promotedAsLead=false，待 setLeader）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValue([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true })]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toMatchObject({ expertName: '代表乙', promotedAsLead: false });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'rep' }, data: expect.not.objectContaining({ isLead: true }) }),
+      );
+    });
+  });
 });
