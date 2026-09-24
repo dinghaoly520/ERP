@@ -6,6 +6,7 @@ import {
   Archive, ClipboardCheck, Download, FileArchive, History, PlayCircle, RefreshCw, ShieldCheck, Upload,
 } from 'lucide-react';
 import { Modal } from '@/components/workbench';
+import { fetchCurrentUser } from '@/lib/api/auth';
 
 /* ═══════════════════════════════════════════════════════════════
    归档管理（DA/T 103-2024）— 卷台账 / 四性检测 / ASIP 导出
@@ -78,6 +79,15 @@ function ArchivePageInner() {
 
   // 质检弹窗
   const [inspect, setInspect] = useState<{ row: VolumeRow; snapshot: SnapshotRow[]; check: CheckResult | null } | null>(null);
+  // 导出端点方法级 @Roles('admin','leader')——staff 点击必 403；按钮随角色隐藏（检测/质检类级含 staff 不受限）
+  const [canExport, setCanExport] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetchCurrentUser()
+      .then((u) => { if (alive) setCanExport(u.role === 'admin' || u.role === 'leader'); })
+      .catch(() => { if (alive) setCanExport(false); });
+    return () => { alive = false; };
+  }, []);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [auditRows, setAuditRows] = useState<AuditRow[] | null>(null);
@@ -277,9 +287,11 @@ function ArchivePageInner() {
                           <button className="neu-btn-xs" disabled={busy === r.id} onClick={() => void runCheck(r.id)}>
                             <PlayCircle size={13} /> 检测
                           </button>
-                          <button className="neu-btn-xs is-success" disabled={busy === r.id} onClick={() => void exportAsip(r.id)}>
-                            <FileArchive size={13} /> 导出
-                          </button>
+                          {canExport && (
+                            <button className="neu-btn-xs is-success" disabled={busy === r.id} onClick={() => void exportAsip(r.id)}>
+                              <FileArchive size={13} /> 导出
+                            </button>
+                          )}
                           {r.archiveExportedAt && (
                             <button className="neu-btn-xs" onClick={() => download(r.id)}>
                               <Download size={13} />
