@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, HelpCircle, Loader2, PenLine, RefreshCw, Upload, X, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, HelpCircle, Loader2, LockOpen, PenLine, RefreshCw, Upload, X, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { EXPERT_ROLE } from '@water-erp/shared';
 import {
-  generateHandover, generateSignPacket, getReportNotes, getSignPacket, setReportNotes, unregisterSign,
+  generateHandover, generateSignPacket, getReportNotes, getSignPacket, reopenSignPacket, setReportNotes, unregisterSign,
   uploadExpertScan, uploadSignaturePageScan,
   type SignPacketResponse, type SignPacketExpertRow,
 } from '@/lib/api/sign-packet';
@@ -29,6 +29,9 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [notesOpen, setNotesOpen] = useState(false);
   // P2-14：通用二次确认弹窗（重新生成 / 撤销登记两处共用，替代 window.confirm）
   const [confirmBox, setConfirmBox] = useState<{ message: string; onOk: () => void } | null>(null);
+  // 数据修正流程（2026-09-24 验收落地）：admin 重开已闭环签字包——理由必填
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
   // ═══ 批量回传签字扫描件：一次多选 → 文件名智能路由直传 → 结果清单肉眼核对 ═══
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<Array<{ file: string; target: string; status: 'ok' | 'fail' | 'unmatched'; note?: string }> | null>(null);
@@ -574,6 +577,17 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 生成评标回流包
               </button>
             ) : null}
+            {me?.role === 'admin' && (
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() => { setReopenReason(''); setReopenOpen(true); }}
+                title="数据修正流程：解除闭环并全员回待签（高风险，入监督日志）"
+                className="neu-btn-soft !h-[30px] !text-[11px]"
+              >
+                <LockOpen size={12} /> 重开签字包
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -599,6 +613,41 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setConfirmBox(null)}>取消</button>
               <button type="button" className="neu-btn-primary !h-8 !text-xs" onClick={() => { const ok = confirmBox.onOk; setConfirmBox(null); ok(); }}>确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 数据修正流程：重开已闭环签字包（仅 admin；理由必填入监督日志） */}
+      {reopenOpen && (
+        <div className="bid-overlay" onClick={() => setReopenOpen(false)}>
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)] px-6 py-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-black text-[color:var(--foreground)]">重开签字包（数据修正）</h3>
+            <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
+              仅用于数据修正：解除签字闭环与回流包引用，全员正选签字状态回到「待签」（电子签名与书面不同意见一并清空；签字包
+              PDF 快照与指纹保留）。重开后须重新登记签字、重新生成回流包；操作记入监督日志（高风险）。
+            </p>
+            <textarea
+              value={reopenReason}
+              onChange={(e) => setReopenReason(e.target.value)}
+              placeholder="数据修正理由（必填，入监督日志）"
+              rows={3}
+              className="workbench-input mt-3 w-full resize-none text-xs"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="neu-btn-soft !h-8 !text-xs" onClick={() => setReopenOpen(false)}>取消</button>
+              <button
+                type="button"
+                className="neu-btn-primary !h-8 !text-xs disabled:opacity-40"
+                disabled={!reopenReason.trim() || busy !== null}
+                onClick={() => {
+                  setReopenOpen(false);
+                  void run('reopen', () => reopenSignPacket(projectId, reopenReason.trim()));
+                }}
+              >
+                {busy === 'reopen' && <Loader2 size={12} className="animate-spin" />} 确认重开
+              </button>
             </div>
           </div>
         </div>
