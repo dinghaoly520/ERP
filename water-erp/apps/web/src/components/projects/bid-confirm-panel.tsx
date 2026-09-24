@@ -290,8 +290,11 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     onSupervisionLog: scheduleRefresh,
     onExpertPresence: useCallback((d: any) => {
       scheduleRefresh();
+      // fix-later①（2026-09-24）：签到里程碑同步轻刷 workspace——替换按钮/签到列即时反映
+      // （scheduleRefresh 只刷 detail；不刷 workspace 则已签到行仍显示替换按钮，只能靠后端 409 兜底）
+      if (d?.milestone === 'signed_in') void refreshWorkspace();
       if (d?.onlineCount !== undefined) setExpertOnlineCount(d.onlineCount);
-    }, [scheduleRefresh]),
+    }, [scheduleRefresh, refreshWorkspace]),
     onExpertPresenceAggregate: useCallback((d: any) => {
       if (d?.onlineCount !== undefined) setExpertOnlineCount(d.onlineCount);
     }, []),
