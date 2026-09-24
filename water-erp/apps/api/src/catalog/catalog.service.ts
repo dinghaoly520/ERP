@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException } from '@nestjs/comm
 import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { Inject, Optional, forwardRef } from '@nestjs/common';
 import { Workbook } from 'exceljs';
 import { LlmService } from '../local-ai/llm.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
@@ -108,7 +109,8 @@ export class CatalogService {
     private readonly embedding: EmbeddingService,
     private readonly validator: LlmOutputValidator,
     private readonly notification: NotificationService,
-  ) {}
+    @Optional() @Inject(forwardRef(() => NotificationService))
+    private readonly notifications?: NotificationService,) {}
 
   async list(params: {
     category?: string;
@@ -1611,7 +1613,7 @@ export class CatalogService {
   }
 
   private async notify(userId: string, title: string, content: string, link: string) {
-    await this.prisma.notification.create({ data: { userId, type: 'CATALOG_APPLICATION', title, content, link } });
+    await (this.notifications ? this.notifications.create({ userId, type: 'CATALOG_APPLICATION', title, content, link }) : this.prisma.notification.create({ data: { userId, type: 'CATALOG_APPLICATION', title, content, link } })).catch(() => {});
   }
 
   /**

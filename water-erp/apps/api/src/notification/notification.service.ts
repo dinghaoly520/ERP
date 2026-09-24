@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { NotificationGateway, type NotificationPushPayload } from './notification.gateway';
 import { EmailChannel } from './channels/email.channel';
 import { SmsChannel } from './channels/sms.channel';
 import { PhoneChannel } from './channels/phone.channel';
@@ -13,7 +14,19 @@ export class NotificationService {
     private emailChannel: EmailChannel,
     private smsChannel: SmsChannel,
     private phoneChannel: PhoneChannel,
+    // 站内信创建后 WS 即时推送（2026-09-22）；@Optional 防 e2e 测试环境无 gateway 时崩溃
+    @Optional() private readonly gateway?: NotificationGateway,
   ) {}
+
+  /** WS 实时推送：目标账号所有在线门户页面右下角弹窗（无 gateway/未连接时静默跳过）。 */
+  private pushRealtime(userId: string, n: { id: string; type: string; title: string; content: string; link?: string | null; createdAt: Date | string }) {
+    try {
+      this.gateway?.pushToUser(userId, {
+        id: n.id, type: n.type, title: n.title, content: n.content, link: n.link ?? null,
+        createdAt: (n.createdAt instanceof Date ? n.createdAt : new Date(n.createdAt)).toISOString(),
+      } satisfies NotificationPushPayload);
+    } catch { /* 推送失败不影响通知落库 */ }
+  }
 
   /** 写一条投递日志（Track A：多渠道投递可观测性）。失败不阻断主流程。 */
   private async logDelivery(userId: string, notificationId: string | null, channel: string, r: { status: string; error?: string }) {
@@ -72,6 +85,7 @@ export class NotificationService {
         data: { userId, type: payload.type, title: payload.title, content: payload.content, link: payload.link },
       });
       notificationId = n.id;
+      this.pushRealtime(userId, n);
       await this.logDelivery(userId, notificationId, 'in_app', { status: 'sent' });
     }
 
@@ -120,6 +134,7 @@ export class NotificationService {
     });
     // 站内信视为已投递；记录 in_app 投递日志后异步分发外部渠道
     await this.logDelivery(dto.userId, n.id, 'in_app', { status: 'sent' });
+    this.pushRealtime(dto.userId, n);
     void this.dispatchExternal(dto.userId, n.id, { type: dto.type, title: dto.title, content: dto.content, link: dto.link });
     return n;
   }
@@ -147,6 +162,7 @@ export class NotificationService {
     );
 
     // 多渠道异步分发（失败不阻断）；每条站内信先记 in_app 投递日志
+    for (const n of notifications) this.pushRealtime(n.userId, n);
     void Promise.allSettled(
       notifications.map(n =>
         (async () => {

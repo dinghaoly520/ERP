@@ -84,6 +84,20 @@ export type SupplierAccount = {
 
 export type CompanyOption = { id: string; name: string };
 
+export interface PendingSummary {
+  registrations: number;
+  passwordChanges: number;
+  passwordResets: number;
+  profileChanges: number;
+  securityFeedback: number;
+  total: number;
+}
+
+/** 账号管理待审批汇总（侧栏红标 + tab 红色角标） */
+export function fetchPendingSummary() {
+  return api.get<PendingSummary>("/auth/admin/accounts/pending-summary");
+}
+
 export function fetchSupplierAccounts() {
   return api.get<SupplierAccount[]>("/auth/admin/accounts/suppliers");
 }

@@ -84,6 +84,27 @@ export class AccountAdminController {
     });
   }
 
+  /** 待审批汇总（2026-09-22）：账号管理侧栏红标 + tab 红色角标数据源（注册/改密/重置/资料变更/安全反馈） */
+  @Get('pending-summary')
+  @ApiOperation({ summary: '待审批数量汇总（admin 角标）' })
+  async pendingSummary() {
+    const [registrations, passwordChanges, passwordResets, profileChanges, securityFeedback] = await Promise.all([
+      this.prisma.user.count({ where: { role: 'internal_user', isActive: false } }),
+      this.prisma.passwordChangeRequest.count({ where: { status: 'PENDING' } }),
+      this.prisma.passwordResetRequest.count({ where: { status: 'PENDING' } }),
+      this.prisma.profileChangeRequest.count({ where: { status: 'PENDING' } }),
+      Promise.resolve(0), // 安全反馈暂无独立表（通知随重置密码自动消），占位 0
+    ]);
+    return {
+      registrations,
+      passwordChanges,
+      passwordResets,
+      profileChanges,
+      securityFeedback,
+      total: registrations + passwordChanges + passwordResets + profileChanges + securityFeedback,
+    };
+  }
+
   @Get('suppliers')
   @ApiOperation({ summary: '供应商账号列表（只读视图，账号管理按公司分组用）' })
   listSuppliers() {

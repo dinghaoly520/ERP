@@ -390,6 +390,7 @@ export type PendingProfileChange = {
     email: string | null;
     phone: string | null;
     officeLocation: string | null;
+    department?: { id: string; name: string } | null;
     company: string | null;
     departmentId: string | null;
     avatar: string | null;

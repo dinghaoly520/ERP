@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
+  fetchDepartments,
   approvePasswordChangeRequest,
   approvePasswordResetRequest,
   approveProfileChange,
@@ -155,6 +156,8 @@ export function PasswordRequestsPanel() {
   const [changeRequests, setChangeRequests] = useState<PendingPasswordChangeRequest[]>([]);
   const [resetRequests, setResetRequests] = useState<PendingPasswordResetRequest[]>([]);
   const [profileRequests, setProfileRequests] = useState<PendingProfileChange[]>([]);
+  // departmentId → 部门名翻译表（payload 里的裸 cuid 没法看）
+  const [departmentMap, setDepartmentMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
@@ -178,6 +181,10 @@ export function PasswordRequestsPanel() {
       setChangeRequests(pendingChange);
       setResetRequests(pendingReset);
       setProfileRequests(pendingProfile);
+      // 部门表独立拉取（失败时降级显示原 id）
+      fetchDepartments()
+        .then((ds) => setDepartmentMap(Object.fromEntries(ds.map((d) => [d.id, d.name]))))
+        .catch(() => setDepartmentMap({}));
     } catch {
       /* 列表加载失败保持空态 */
     }
@@ -532,11 +539,19 @@ export function PasswordRequestsPanel() {
                           <div className="flex flex-col gap-1">
                             {entries.map(([field, next]) => {
                               const label = PROFILE_FIELD_LABELS[field] ?? field;
+                              const translateDept = (v: string | null | undefined) =>
+                                v ? departmentMap[v] ?? v : null;
                               const oldVal =
                                 field === "avatar"
                                   ? request.user.avatar ? "已设置" : "未设置"
-                                  : (request.user as unknown as Record<string, string | null>)[field] ?? "—";
-                              const newVal = field === "avatar" ? "更换新图片" : next ?? "（清除）";
+                                  : field === "departmentId"
+                                    ? request.user.department?.name ?? translateDept(request.user.departmentId) ?? "未设置"
+                                    : (request.user as unknown as Record<string, string | null>)[field] ?? "—";
+                              const newVal =
+                                field === "avatar" ? "更换新图片"
+                                : field === "departmentId"
+                                  ? next ? departmentMap[next] ?? next : "（清除）"
+                                  : next ?? "（清除）";
                               return (
                                 <div key={field} className="text-xs leading-5">
                                   <span className="font-medium text-[var(--foreground)]">{label}</span>

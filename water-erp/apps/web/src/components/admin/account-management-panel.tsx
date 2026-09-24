@@ -33,6 +33,7 @@ import {
   deleteAccount,
   fetchAccounts,
   fetchCompanyOptions,
+  fetchPendingSummary,
   fetchSupplierAccounts,
   freezeAccount,
   revealAccountPassword,
@@ -146,10 +147,18 @@ export function AccountManagementPanel() {
     void loadAccounts().finally(() => setLoading(false));
   }, [loadAccounts]);
 
+  // 待审批汇总（红标数据源）：登录态确认后拉取，审批动作后 refresh() 重拉
+  const [pending, setPending] = useState({ registrations: 0, passwordChanges: 0, passwordResets: 0, profileChanges: 0, total: 0 });
+  const loadPending = useCallback(() => {
+    fetchPendingSummary().then(setPending).catch(() => {});
+  }, []);
+  useEffect(() => { if (currentUser === "admin") loadPending(); }, [currentUser, loadPending]);
+
   const refresh = () => {
     setActionMessage(null);
     startTransition(async () => {
       await loadAccounts();
+      loadPending();
     });
   };
 
@@ -275,7 +284,15 @@ export function AccountManagementPanel() {
               <UserCog size={17} strokeWidth={1.9} />
             </div>
             <div>
-              <div className="page-hero__title">账号管理</div>
+              <div className="flex items-center gap-2">
+                <div className="page-hero__title">账号管理</div>
+                {pending.total > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]" style={{ background: "color-mix(in oklch, var(--danger) 9%, transparent)" }}>
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--danger)]" />
+                    {pending.total} 项待审
+                  </span>
+                )}
+              </div>
               <div className="page-hero__sub">{SUBTITLE[tab]}</div>
             </div>
           </div>
@@ -317,10 +334,12 @@ export function AccountManagementPanel() {
             <button type="button" role="tab" aria-selected={tab === "registration"} className={`page-tab ${tab === "registration" ? "is-active" : ""}`} onClick={() => setTab("registration")}>
               <ShieldCheck size={13} strokeWidth={1.9} />
               注册审核
+              <PendingBadge count={pending.registrations} />
             </button>
             <button type="button" role="tab" aria-selected={tab === "password"} className={`page-tab ${tab === "password" ? "is-active" : ""}`} onClick={() => setTab("password")}>
               <KeyRound size={13} strokeWidth={1.9} />
               安全审批
+              <PendingBadge count={pending.passwordChanges + pending.passwordResets + pending.profileChanges} />
             </button>
           </div>
           {/* 列表 tab 显示搜索框；其他 tab 等高占位（二级分区切换已下移到列表上方独立一层） */}
@@ -1072,5 +1091,20 @@ function ConfirmActionModal({
         {error ? <p className="text-xs text-[color:var(--danger)]">{error}</p> : null}
       </div>
     </Modal>
+  );
+}
+
+
+/** 待审红色角标：>0 时红底白字数字，=0 不渲染 */
+function PendingBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className="ml-1 inline-flex min-w-[16px] items-center justify-center rounded-full px-1 py-px text-[10px] font-extrabold leading-none text-white"
+      style={{ background: "var(--danger)" }}
+      aria-label={`${count} 项待审`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
   );
 }

@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional, Inject, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional, Inject, Logger, forwardRef } from '@nestjs/common';
 import { parseAmountToYuan } from '@water-erp/shared';
 import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { encryptPasswordVault } from '../auth/password-vault.util';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { BidService } from '../bid/bid.service';
@@ -26,7 +27,6 @@ import type { DualEnvelope, EnvelopeRole, SealedFields } from '@water-erp/ukey';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
 import { BidGateway } from '../bid/bid.gateway';
-import { NotificationService } from '../notification/notification.service';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan, resolveDisplayInYuan } from '../bid/opening-compare.util';
 import { resolveOpeningFieldConfig } from '../bid/opening-field-config.util';
 import { assertDecryptCheckInQuorum } from '../bid/decrypt-quorum.util';
@@ -184,6 +184,8 @@ export class SupplierPortalService {
     private notificationService: NotificationService,
     private readonly bidService: BidService,
     @Optional() private readonly gateway?: BidGateway,
+    @Optional() @Inject(forwardRef(() => NotificationService))
+    private readonly notifications?: NotificationService,
   ) {}
 
   /**
@@ -3561,7 +3563,10 @@ export class SupplierPortalService {
     // 深链到 :3005 目录审批 Tab 并定位到该申请（与 reviewApplication 后的 resolve link 全等，待办可清零）。
     // 旧 link /supplier/catalog-review 在 :3005 不存在（死链）。
     const link = `/mall-management/catalog?tab=approval&appId=${app.id}`;
-    await this.prisma.notification.create({ data: { userId: app.reviewedBy, type: 'CATALOG_APPLICATION', title, content, link } });
+    await (this.notifications
+      ? this.notifications.create({ userId: app.reviewedBy, type: 'CATALOG_APPLICATION', title, content, link })
+      : this.prisma.notification.create({ data: { userId: app.reviewedBy, type: 'CATALOG_APPLICATION', title, content, link } })
+    ).catch(() => {});
   }
 
   // ─── 我的已准入供货关系 ───

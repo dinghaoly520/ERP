@@ -2,6 +2,8 @@ import { Injectable, BadRequestException, ConflictException, Logger, NotFoundExc
 import { assertBidNoticeTiming } from '../bid/bid-timing-rules';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
+import { Inject, forwardRef } from '@nestjs/common';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
@@ -20,6 +22,8 @@ export class AnnouncementService {
     @Optional() private bidService?: BidService,
     @Optional() private projectManagementService?: ProjectManagementService,
     @Optional() private bidDocumentService?: BidDocumentService,
+    @Optional() @Inject(forwardRef(() => NotificationService))
+    private readonly notifications?: NotificationService,
   ) {}
 
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名；两段式公示语义收口 shared） */
@@ -516,15 +520,19 @@ export class AnnouncementService {
     for (const s of suppliers) {
       if (!s.userId) continue;
       try {
-        await this.prisma.notification.create({
-          data: {
+        await (this.notifications ? this.notifications.create({
             userId: s.userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
             title: `补遗公告：${ann.title}`,
             content: `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`,
             link: `/announcements/${ann.id}`,
-          },
-        });
+          }) : this.prisma.notification.create({ data: {
+            userId: s.userId,
+            type: 'ANNOUNCEMENT_PUBLISHED',
+            title: `补遗公告：${ann.title}`,
+            content: `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`,
+            link: `/announcements/${ann.id}`,
+          } })).catch(() => {});
         sent++;
       } catch { /* 单个失败不阻塞 */ }
     }
@@ -663,15 +671,19 @@ export class AnnouncementService {
     let sent = 0;
     for (const userId of userIds) {
       try {
-        await this.prisma.notification.create({
-          data: {
+        await (this.notifications ? this.notifications.create({
             userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
             title: `新${label}：${title}`,
             content: `${label}「${title}」已发布，请前往公告中心查看详情。`,
             link: `/announcements/${annId}`,
-          },
-        });
+          }) : this.prisma.notification.create({ data: {
+            userId,
+            type: 'ANNOUNCEMENT_PUBLISHED',
+            title: `新${label}：${title}`,
+            content: `${label}「${title}」已发布，请前往公告中心查看详情。`,
+            link: `/announcements/${annId}`,
+          } })).catch(() => {});
         sent++;
       } catch (e) {
         this.logger.warn(`公告通知创建失败 userId=${userId}: ${(e as Error).message}`);
