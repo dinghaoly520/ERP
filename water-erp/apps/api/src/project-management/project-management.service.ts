@@ -3533,8 +3533,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       const viaInvitation = pmi?.procurementMethod === '谈判采购';
       throw new BadRequestException({
         error: viaInvitation
-          ? `评分标准未配置：尚未关联开评标项目。请先发送供应商邀请（或在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」），再在「采购文件」步骤完成评分标准配置`
-          : `评分标准未配置：尚未关联开评标项目。请先在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」，再在「采购文件」步骤完成评分标准配置`,
+          ? `评分标准未配置：尚未关联开评标项目。请先发送供应商邀请（或在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」），再点击「采购文件」卡片的「评分标准」按钮完成配置`
+          : `评分标准未配置：尚未关联开评标项目。请先在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」，再点击「采购文件」卡片的「评分标准」按钮完成配置`,
         code: 'SCORE_STANDARD_REQUIRED',
       });
     }

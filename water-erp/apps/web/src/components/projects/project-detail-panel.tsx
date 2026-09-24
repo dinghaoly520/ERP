@@ -766,7 +766,7 @@ export function ProjectDetailPanel({
     if (stage.stageKey === 'TENDER_DOCUMENT') {
       const scoreStatus = scoreStatusForRound(stage.round ?? 1);
       if (scoreStatus === 'incomplete') {
-        setErrorMessage('评分标准未配置完整：打分类满分合计须为 100 且每个打分项须有得分点。请在上方「评分标准与评标办法」卡片完成配置后再标记本阶段完成。');
+        setErrorMessage('评分标准未配置完整：打分类满分合计须为 100 且每个打分项须有得分点。请点击步骤条「采购文件」卡片的「评分标准」按钮完成配置后，再标记本阶段完成。');
         return;
       }
     }
