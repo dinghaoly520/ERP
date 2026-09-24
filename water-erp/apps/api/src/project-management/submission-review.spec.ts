@@ -21,6 +21,7 @@ describe('ProjectManagementService 递交受理（CTS A-36/37）', () => {
       { onTerminalAttachmentUploaded: async () => undefined } as never, // archiveFlow
       { getRules: async () => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
       {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
+      { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } as never, // scoreStandardValidator（2026-09-24 评分标准闸）
     );
     return { service, prisma };
   };

@@ -14,9 +14,10 @@ import { ProjectManagementService } from './project-management.service';
 import { TenderDraftService } from './tender-draft.service';
 import { GbCodeService } from '../common/gb-code.service';
 import { NotificationModule } from '../notification/notification.module';
+import { BidModule } from '../bid/bid.module'; // ScoreStandardValidator（评分标准闸，2026-09-24）——已核无反向依赖，无环
 
 @Module({
-  imports: [AiModule, AuthModule, KnowledgeModule, LocalAiModule, PrismaModule, StorageModule, ArchiveModule, NotificationModule],
+  imports: [AiModule, AuthModule, KnowledgeModule, LocalAiModule, PrismaModule, StorageModule, ArchiveModule, NotificationModule, BidModule],
   controllers: [StageComplianceController, ProjectManagementController],
   providers: [
     TimelineService,

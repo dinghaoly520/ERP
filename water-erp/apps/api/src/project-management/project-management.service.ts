@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { mkdir, readFile, unlink, writeFile, copyFile, access, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
@@ -34,6 +34,7 @@ import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
+import { ScoreStandardValidator } from '../bid/score-standard-validator.service';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
@@ -223,6 +224,7 @@ export class ProjectManagementService {
     private readonly archiveFlow: ArchiveFlowService,
     private readonly stageCompliance: StageComplianceConfigService,
     private readonly notificationService: NotificationService,
+    private readonly scoreStandardValidator: ScoreStandardValidator,
   ) {}
 
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
@@ -3388,6 +3390,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
           });
         }
       }
+      // 评分标准配置闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置——
+      // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
+      // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
+      if (stageKey === 'TENDER_DOCUMENT') {
+        await this.assertScoreStandardConfigured(projectId, stage.round ?? 1);
+      }
       // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
       // （范围表 attachment 源必选项 = TENDER_DOCUMENT/AWARD_DECISION/CONTRACT 三处，与下方专项检查口径互补）
       // M5：显式豁免路径——确无材料（流标终止等）时 waiveArchiveGate=true + note 必填留痕，阶段可推进
@@ -3488,6 +3496,69 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     return updatedStage;
+  }
+
+  /**
+   * 评分标准配置闸（2026-09-24 方案 v2）：完成 03 采购文件前须完成评分标准配置。
+   * 口径（与发布 / 启动评标 G9 同源）：
+   *  - 评标办法 = none（不评分：直接采购/直接委托/续约）→ 免校验；BidProject 缺失时按
+   *    PMI.procurementMethod 经 getEvaluationDefault 推导（直接采购无 BP 也能完成 03）。
+   *  - 办法 ≠ none → 须存在【该轮】BidProject（round 取被完成 stage 行的 round，多轮再次
+   *    采购各轮独立校验）；缺失 → 拦截并按采购方式给出指引（谈判采购走邀请分支文案）；
+   *    存在 → 复用 ScoreStandardValidator.assertScoreStandardComplete（打分类 Σ=100、
+   *    每打分项 ≥1 得分点等），不另写谓词副本。
+   * 400 + SCORE_STANDARD_REQUIRED（与 updateStage 既有阶段闸 INITIATION_NOT_APPROVED /
+   * ARCHIVE_GATE_MISSING 惯例一致）；不可豁免——评分标准即本阶段产物本身。
+   */
+  private async assertScoreStandardConfigured(pmiId: string, round: number) {
+    const [bp, pmi] = await Promise.all([
+      this.prisma.bidProject.findFirst({
+        where: { projectManagementItemId: pmiId, round },
+        select: { id: true, evaluationMethod: true },
+      }),
+      this.prisma.projectManagementItem.findUnique({
+        where: { id: pmiId },
+        select: { procurementMethod: true, title: true },
+      }),
+    ]);
+    const method =
+      bp?.evaluationMethod ?? getEvaluationDefault(pmi?.procurementMethod).evaluationMethod;
+    if (method === 'none') return;
+    if (!bp) {
+      const viaInvitation = pmi?.procurementMethod === '谈判采购';
+      throw new BadRequestException({
+        error: viaInvitation
+          ? `评分标准未配置：尚未关联开评标项目。请先发送供应商邀请（或在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」），再在「采购文件」步骤完成评分标准配置`
+          : `评分标准未配置：尚未关联开评标项目。请先在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」，再在「采购文件」步骤完成评分标准配置`,
+        code: 'SCORE_STANDARD_REQUIRED',
+      });
+    }
+    try {
+      await this.scoreStandardValidator.assertScoreStandardComplete(bp.id);
+    } catch (e) {
+      const resp = e instanceof HttpException ? e.getResponse() : null;
+      const detail =
+        resp && typeof resp === 'object' && 'error' in (resp as Record<string, unknown>)
+          ? String((resp as Record<string, unknown>).error)
+          : (e as Error).message;
+      throw new BadRequestException({
+        error: `评分标准未配置完整：${detail}`,
+        code: 'SCORE_STANDARD_REQUIRED',
+      });
+    }
+  }
+
+  /**
+   * 只读解析 PMI ↔ BidProject 关联（按轮）——项目管理抽屉级展示用。
+   * 只查不建（创建仅经 ensureBidProject：开标确认面板 / 供应商邀请回执流）；
+   * 抽屉级轮询若误用 ensure 会在公告发布前批量误建 SUBMIT 幽灵项目（方案 v2 P0-1）。
+   */
+  async listBidProjectRefs(pmiId: string) {
+    return this.prisma.bidProject.findMany({
+      where: { projectManagementItemId: pmiId },
+      select: { id: true, round: true, projectCode: true, stage: true },
+      orderBy: { round: 'asc' },
+    });
   }
 
   /**

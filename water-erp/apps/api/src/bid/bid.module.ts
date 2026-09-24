@@ -49,7 +49,7 @@ import { SignatureService } from '../common/crypto/signature.service';
   controllers: [BidController, BidSignPacketController, AdminCertController, NonTenderDealController, OpeningSignController, WorkTemplateController],
   providers: [
     GbCodeService, NonTenderDealService, WorkTemplateService, BidService, BidEvaluationResultsService, BidOpeningRecordService, BidDecryptService, BidBondService, BondLedgerService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService, OpeningSignService],
-  exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService, BidSignPacketService],
+  exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService, BidSignPacketService, ScoreStandardValidator],
 })
 export class BidModule implements OnModuleInit {
   private readonly logger = new Logger(BidModule.name);

@@ -17,6 +17,7 @@ describe('updateStage 立项硬闸（INITIATION_NOT_APPROVED）', () => {
       {} as never,
       {} as never,
       {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
+      { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } as never, // scoreStandardValidator（2026-09-24 评分标准闸）
     );
 
   const stage = { projectManagementStage: { findFirst: jest.fn().mockResolvedValue({ id: 'st-1', stageKey: 'INITIATION' }) } };

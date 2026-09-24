@@ -203,6 +203,13 @@ export class ProjectManagementController {
     return this.projectManagementService.ensureBidProject(id, Number.isNaN(roundNum as number) ? undefined : roundNum);
   }
 
+  /** 只读：按轮解析 PMI 关联的 BidProject（不创建；创建仅经 ensureBidProject/公告/邀请流。
+   *  抽屉级展示专用——误用 ensure 会在公告发布前批量误建 SUBMIT 项目，方案 v2 P0-1） */
+  @Get(':id/bid-project-refs')
+  getBidProjectRefs(@Param('id') id: string) {
+    return this.projectManagementService.listBidProjectRefs(id);
+  }
+
   /** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
   @Post(':id/extract-tender-fields')
   extractTenderFields(@Param('id') id: string, @Query('field') field?: string) {
