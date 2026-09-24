@@ -186,19 +186,57 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [replaceModalExpert, setReplaceModalExpert] = useState<{ id: string; name: string; isLead: boolean } | null>(null);
   /** 两段确认：先选候补，再确认替换（2026-09-23：此前点选即换、误触无挽回） */
   const [replaceModalAlt, setReplaceModalAlt] = useState<BidWorkspaceExpert | null>(null);
+  /** FE-1（2026-09-24 全链审计）：弹窗内联错误——面板 toast(z-20) 被 Modal(z-600) 遮罩盖住，替换失败完全静默 */
+  const [replaceModalError, setReplaceModalError] = useState<string | null>(null);
   const onSyncRef = useRef(onSyncProjectInfo);
   onSyncRef.current = onSyncProjectInfo;
 
   const showToast = useCallback((text: string, tone: 'ok' | 'err' = 'ok') => setToast({ text, tone }), []);
 
   // 轻量刷新 workspace（交换角色后只刷新专家数据，不 setLoading 导致页面跳顶）
-  const refreshWorkspace = useCallback(async () => {
-    if (!bidProject?.id) return;
+  // FE-2（2026-09-24）：返回拉取到的 workspace，供调用方（替换成功路径）接续同步 PMI
+  const refreshWorkspace = useCallback(async (): Promise<BidWorkspace | null> => {
+    if (!bidProject?.id) return null;
     try {
       const ws = await getBidWorkspace(bidProject.id);
       setWorkspace(ws);
-    } catch {}
+      return ws;
+    } catch {
+      return null;
+    }
   }, [bidProject?.id]);
+
+  /** FE-2（2026-09-24）：同步确认参加/已投递供应商+专家组到项目基本信息——自 load() 原样抽出为
+   *  可复用回调，替换成功后即时同步（此前仅面板打开时 load() 跑一次，PMI 专家信息落库陈旧到下次全量加载）。
+   *  同步回调经参数注入（onSyncRef 仅 load 内读取）——本函数不触 ref，事件处理器可直呼 */
+  const syncProjectInfo = useCallback((
+    ws: BidWorkspace,
+    rsvpMapLocal: Map<string, string>,
+    sync?: (info: { invitedSuppliers: string; expertInfo: string }) => void,
+  ) => {
+    if (!sync || !project) return;
+    try {
+      // 供应商：回执确认参加 + 已投递 → 每行一个，换行分隔（匹配 BiddingUnitsField 格式）
+      const confirmedSuppliers = ws.suppliers
+        .filter(s => {
+          const hasRsvp = rsvpMapLocal.size > 0;
+          const rsvpOk = hasRsvp ? rsvpMapLocal.get(s.supplierId ?? '') === 'ACCEPTED' : true;
+          return rsvpOk && s.submitted;
+        })
+        .map(s => s.supplierName);
+      // 专家：正选已确认 + 候补（排除已拒绝）→ 每行 姓名|部门|专业|职称（匹配 ExpertInfoField pipe 格式）
+      const confirmedExperts = ws.experts
+        .filter(e => e.expertRole !== '候补' && e.invitationStatus === 'confirmed')
+        .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|正选`);
+      const alternateExperts = ws.experts
+        .filter(e => e.expertRole === '候补' && e.invitationStatus !== 'declined')
+        .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|候补`);
+      sync({
+        invitedSuppliers: confirmedSuppliers.join('\n'),
+        expertInfo: [...confirmedExperts, ...alternateExperts].join('\n'),
+      });
+    } catch { /* sync 失败不阻断 */ }
+  }, [project]);
 
   const load = useCallback(async () => {
     if (!project) return;
@@ -229,37 +267,15 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         setRsvpMap(rsvpLocal);
         setRsvpItems(merged);
       } catch { /* RSVP 加载失败不阻断 */ }
-      // 同步确认参加/已投递的供应商+专家组到项目基本信息
-      if (onSyncRef.current && ws && project) {
-        try {
-          // 供应商：回执确认参加 + 已投递 → 每行一个，换行分隔（匹配 BiddingUnitsField 格式）
-          const confirmedSuppliers = ws.suppliers
-            .filter(s => {
-              const hasRsvp = rsvpLocal.size > 0;
-              const rsvpOk = hasRsvp ? rsvpLocal.get(s.supplierId ?? '') === 'ACCEPTED' : true;
-              return rsvpOk && s.submitted;
-            })
-            .map(s => s.supplierName);
-          // 专家：正选已确认 + 候补（排除已拒绝）→ 每行 姓名|部门|专业|职称（匹配 ExpertInfoField pipe 格式）
-          const confirmedExperts = ws.experts
-            .filter(e => e.expertRole !== '候补' && e.invitationStatus === 'confirmed')
-            .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|正选`);
-          const alternateExperts = ws.experts
-            .filter(e => e.expertRole === '候补' && e.invitationStatus !== 'declined')
-            .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|候补`);
-          onSyncRef.current({
-            invitedSuppliers: confirmedSuppliers.join('\n'),
-            expertInfo: [...confirmedExperts, ...alternateExperts].join('\n'),
-          });
-        } catch { /* sync 失败不阻断 */ }
-      }
+      // 同步确认参加/已投递的供应商+专家组到项目基本信息（FE-2：抽为 syncProjectInfo 复用）
+      syncProjectInfo(ws, rsvpLocal, onSyncRef.current);
       setDelayTime(toLocalInput(bp.openTime));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
       setLoading(false);
     }
-  }, [project, round]);
+  }, [project, round, syncProjectInfo]);
 
   /* ── Phase 2：详情增量刷新（socket 事件驱动，防抖合并高频事件）── */
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -292,7 +308,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       scheduleRefresh();
       // fix-later①（2026-09-24）：签到里程碑同步轻刷 workspace——替换按钮/签到列即时反映
       // （scheduleRefresh 只刷 detail；不刷 workspace 则已签到行仍显示替换按钮，只能靠后端 409 兜底）
-      if (d?.milestone === 'signed_in') void refreshWorkspace();
+      // role_changed：管理侧互换/自动递补（swap/autoPromote 广播）——候选列表/角色即时反映
+      if (d?.milestone === 'signed_in' || d?.milestone === 'role_changed') void refreshWorkspace();
       if (d?.onlineCount !== undefined) setExpertOnlineCount(d.onlineCount);
     }, [scheduleRefresh, refreshWorkspace]),
     onExpertPresenceAggregate: useCallback((d: any) => {
@@ -352,6 +369,18 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     const t = setTimeout(() => setToast(null), toast.tone === 'err' ? 6000 : 2600);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // FE-4：评标启动/流标即锁——替换弹窗随阶段翻转强制关闭（后端 409 兜底，前端不再留死入口）
+  /* eslint-disable react-hooks/set-state-in-effect -- 阶段翻转强制关弹窗，锁定语义优先 */
+  useEffect(() => {
+    const st = bidProject?.stage;
+    if (st !== 'EVALUATING' && st !== 'ARCHIVED' && st !== 'ABORTED') return;
+    setReplaceModalOpen(false);
+    setReplaceModalExpert(null);
+    setReplaceModalAlt(null);
+    setReplaceModalError(null);
+  }, [bidProject?.stage]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!isOpen) return;
@@ -723,7 +752,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                   </td>
                                   <td className="text-center">
                                     {!isAlt && hasAlts && !isEvalStarted && !e.signedIn && (
-                                      <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName, isLead: e.isLead ?? false }); setReplaceModalAlt(null); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
+                                      <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName, isLead: e.isLead ?? false }); setReplaceModalAlt(null); setReplaceModalError(null); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
                                     )}
                                   </td>
                                 </tr>
@@ -741,35 +770,46 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
               {replaceModalOpen && replaceModalExpert && workspace && (
                 <Modal
                   open
-                  onClose={() => { setReplaceModalOpen(false); setReplaceModalExpert(null); setReplaceModalAlt(null); }}
+                  onClose={() => { setReplaceModalOpen(false); setReplaceModalExpert(null); setReplaceModalAlt(null); setReplaceModalError(null); }}
                   size="sm"
                   title={`替换专家：${replaceModalExpert.name}`}
                   description="选择一名候补专家替换当前正选专家"
                 >
                   <div className="space-y-2 max-h-[260px] overflow-y-auto">
                     {availableAlts.length === 0 ? (
-                      <p className="text-center text-xs text-[var(--muted-foreground)] py-6">无可用候补专家（均已婉拒邀请）</p>
+                      <p className="text-center text-xs text-[var(--muted-foreground)] py-6">无可用候补专家（已婉拒或已被递补）</p>
                     ) : replaceModalAlt ? (
+                      (() => {
+                        // FE-4：确认卡持有陈旧快照防护——所选候补已被并发递补/婉拒时回落列表步
+                        const currentAlt = availableAlts.find(a => a.id === replaceModalAlt.id);
+                        const altView = currentAlt ?? replaceModalAlt;
+                        return (
                       <div className="space-y-3">
                         <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
                           <div className="text-xs text-[var(--muted-foreground)] mb-1">确认用以下候补替换【{replaceModalExpert.name}】：</div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-[var(--foreground)]">{replaceModalAlt.expertName}</span>
-                            <span className="text-xs text-[var(--muted-foreground)]">{replaceModalAlt.major || '—'}</span>
+                            <span className="font-bold text-[var(--foreground)]">{altView.expertName}</span>
+                            <span className="text-xs text-[var(--muted-foreground)]">{altView.major || '—'}</span>
                             <StatusBadge tone="orange">候补</StatusBadge>
                           </div>
                           {replaceModalExpert.isLead && (
                             <p className="mt-2 flex items-start gap-1.5 text-[11px] text-[color-mix(in_oklch,var(--warning)_75%,black)]">
                               <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                              该正选为评审组长，替换后组长由候补【{replaceModalAlt.expertName}】接任。
+                              该正选为评审组长，替换后组长由候补【{altView.expertName}】接任。
+                            </p>
+                          )}
+                          {!currentAlt && (
+                            <p className="mt-2 flex items-start gap-1.5 text-[11px] text-[color-mix(in_oklch,var(--warning)_75%,black)]">
+                              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                              所选候补状态已变化，请重新选择。
                             </p>
                           )}
                         </div>
                         <div className="flex justify-end gap-2">
-                          <button className="neu-btn-soft" onClick={() => setReplaceModalAlt(null)} disabled={busy}>返回重选</button>
+                          <button className="neu-btn-soft" onClick={() => { setReplaceModalAlt(null); setReplaceModalError(null); }} disabled={busy}>返回重选</button>
                           <button
                             className="neu-btn-primary"
-                            disabled={busy}
+                            disabled={busy || !currentAlt}
                             onClick={async () => {
                               setBusy(true);
                               try {
@@ -778,15 +818,30 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                 setReplaceModalOpen(false);
                                 setReplaceModalExpert(null);
                                 setReplaceModalAlt(null);
-                                void refreshWorkspace();
-                              } catch (err: any) { showToast(err?.message || '替换失败', 'err'); }
+                                setReplaceModalError(null);
+                                // FE-2：替换成功后即时同步 PMI 专家信息（此前仅 load() 同步，落库陈旧至下次全量加载）
+                                void refreshWorkspace().then(ws => { if (ws) syncProjectInfo(ws, rsvpMap, onSyncProjectInfo); });
+                              } catch (err: any) {
+                                showToast(err?.message || '替换失败', 'err');
+                                // FE-1：面板 toast(z-20) 被 Modal(z-600) 遮罩盖住——弹窗内联兜底展示
+                                setReplaceModalError(err?.message || '替换失败，请刷新后重试');
+                              }
                               setBusy(false);
                             }}
                           >
                             确认替换
                           </button>
                         </div>
+                        {/* FE-1：替换失败内联错误（toast 被 Modal 遮罩盖住时的弹窗内可见反馈） */}
+                        {replaceModalError && (
+                          <div role="alert" className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-[color-mix(in_oklch,var(--danger)_88%,black)] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)]">
+                            <AlertTriangle size={13} className="shrink-0" />
+                            {replaceModalError}
+                          </div>
+                        )}
                       </div>
+                        );
+                      })()
                     ) : (
                       availableAlts.map(alt => {
                         // 复审 F2（2026-09-24）：换出组长时采购人代表候补不可接任组长（后端 ALTERNATE_CANNOT_LEAD 对齐）
