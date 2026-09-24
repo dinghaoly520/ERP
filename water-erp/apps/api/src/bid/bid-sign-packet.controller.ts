@@ -4,7 +4,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { BidSignPacketService } from './bid-sign-packet.service';
-import { RegisterSignDto } from './dto/bid-sign-packet.dto';
+import { RegisterSignDto, ReopenSignPacketDto } from './dto/bid-sign-packet.dto';
 
 @ApiTags('开评标管理·评标签字')
 @ApiCookieAuth('token')
@@ -77,5 +77,12 @@ export class BidSignPacketController {
   @ApiOperation({ summary: '生成评标回流包（签字闭环后，回传 :3005）' })
   generateHandover(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return this.service.generateHandover(id, userId);
+  }
+
+  @Post('reopen')
+  @Roles('admin')
+  @ApiOperation({ summary: '重开已闭环签字包（数据修正：解闭环+全员回待签；仅 admin，理由必填入监督日志）' })
+  reopen(@Param('id') id: string, @Body() dto: ReopenSignPacketDto, @CurrentUser('sub') userId: string) {
+    return this.service.reopen(id, dto, userId);
   }
 }
