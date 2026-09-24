@@ -34,6 +34,7 @@ interface Fix {
   clearDuplicate: { id: string; expertName: string }[];
   appoint: { id: string; expertName: string } | null;
   leadVacantAllRep: boolean; // 活跃正选全为采购人代表 → 组长留空待人工
+  isTerminal: boolean; // M8：终态项目（ARCHIVED/ABORTED）只报告零写入（归档即证据）
 }
 
 const ACTIVE_ROLES = (e: { expertRole: string; invitationStatus: string }) =>
@@ -61,7 +62,12 @@ async function main() {
     // 清残留后的活跃组长（正选 + 非 declined + isLead）
     const staleIds = new Set(clearStale.map(s => s.id));
     const activeLeads = p.experts.filter(e => e.isLead && !staleIds.has(e.id) && ACTIVE_ROLES(e));
-    const clearDuplicate = activeLeads.slice(1).map(e => ({ id: e.id, expertName: e.expertName }));
+    // M8：去重保留者优先非采购人代表——旧 slice(1) 保留最早者，若最早者是代表则
+    // 清掉了唯一的合规组长、留下不可任组长的代表组长（P1-7 口径自相矛盾）。
+    const keepLead = activeLeads.find(e => !e.isPurchaserRepresentative) ?? activeLeads[0];
+    const clearDuplicate = keepLead
+      ? activeLeads.filter(e => e.id !== keepLead.id).map(e => ({ id: e.id, expertName: e.expertName }))
+      : [];
 
     const isTerminal = p.stage === 'ARCHIVED' || p.stage === 'ABORTED';
     const activeRegulars = p.experts.filter(e => ACTIVE_ROLES(e));
@@ -74,7 +80,7 @@ async function main() {
       else leadVacantAllRep = true;
     }
     if (clearStale.length || clearDuplicate.length || appoint || leadVacantAllRep) {
-      fixes.push({ projectId: p.id, projectName: p.name, stage: p.stage, clearStale, clearDuplicate, appoint, leadVacantAllRep });
+      fixes.push({ projectId: p.id, projectName: p.name, stage: p.stage, clearStale, clearDuplicate, appoint, leadVacantAllRep, isTerminal });
     }
   }
 
@@ -89,6 +95,7 @@ async function main() {
     for (const d of f.clearDuplicate) console.log(`  清重复: ${d.expertName} → isLead=false`);
     if (f.appoint) console.log(`  补任命: ${f.appoint.expertName} → isLead=true（最早非采购人代表活跃正选）`);
     if (f.leadVacantAllRep) console.log(`  ⚠ 组长空缺且活跃正选全为采购人代表——不自动任命，请走 PATCH /expert-admin/extract/leader`);
+    if (f.isTerminal) console.log(`  跳过终态项目（归档即证据）：仅报告，${execute ? '不执行任何写入' : 'execute 亦不写入'}`);
   }
 
   if (!execute) {
@@ -97,6 +104,11 @@ async function main() {
   }
 
   for (const f of fixes) {
+    // M8：终态项目（ARCHIVED/ABORTED）零写入——归档即证据，运行时闸门不再消费其 isLead
+    if (f.isTerminal) {
+      console.log(`  跳过终态项目（归档即证据）：${f.projectName}`);
+      continue;
+    }
     await prisma.$transaction(async (tx) => {
       if (f.clearStale.length) {
         await tx.bidExpert.updateMany({ where: { id: { in: f.clearStale.map(s => s.id) } }, data: { isLead: false } });
