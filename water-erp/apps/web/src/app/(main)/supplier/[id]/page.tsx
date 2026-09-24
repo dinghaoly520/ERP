@@ -10,6 +10,8 @@ import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
+import type { AuthUser } from '@/lib/api/auth';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalHistory } from '@/components/supplier/approval-history';
@@ -88,6 +90,11 @@ export default function SupplierDetailPage() {
   const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('info');
   const [loading, setLoading] = useState(true);
+
+  // 注册审批操作仅管理权限账号（2026-09-24 用户裁定；后端 @Roles('admin') 已同步收紧）
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const isAdmin = currentUser?.role === 'admin';
+  useEffect(() => { fetchCurrentUser().then(setCurrentUser).catch(() => {/* ignore */}); }, []);
 
   // 变更审核弹窗
   const [reviewModal, setReviewModal] = useState<{ changeId: string; type: 'approve' | 'reject' } | null>(null);
@@ -325,7 +332,7 @@ export default function SupplierDetailPage() {
   const pendingHint = supplier.status === 'RETURNED' ? '补正中' : '待审核';
 
   return (
-    <div className={`flex flex-col gap-5 ${isPending ? 'pb-24' : ''}`}>
+    <div className={`flex flex-col gap-5 ${isPending && isAdmin ? 'pb-24' : ''}`}>
       {/* ── 返回按钮 ── */}
       <button onClick={() => router.push(backPath)} className="flow-back shrink-0 self-start">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow">
@@ -1246,7 +1253,7 @@ export default function SupplierDetailPage() {
       )}
 
       {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
-      {isPending && (
+      {isPending && isAdmin && (
         <div className={`fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)]/85 backdrop-blur-lg border-t border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] transition-all duration-200 ${barCollapsed ? 'px-6 py-1.5' : 'px-6 py-3'}`}>
           {barCollapsed ? (
             <div className="max-w-6xl mx-auto flex items-center gap-3">

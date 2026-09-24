@@ -8,6 +8,8 @@ import type { SupplierClassification } from '@/lib/types';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
+import type { AuthUser } from '@/lib/api/auth';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown, AlertTriangle, ShieldCheck, User } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
@@ -29,6 +31,16 @@ function SupplierApprovalPage() {
   const [counts, setCounts] = useState<Record<string, number>>({ PENDING: 0, RETURNED: 0, REJECTED: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+
+  // 注册审批仅管理权限账号（2026-09-24 用户裁定；后端 @Roles('admin') 已同步收紧）
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [roleReady, setRoleReady] = useState(false);
+  useEffect(() => {
+    fetchCurrentUser()
+      .then(setCurrentUser)
+      .catch(() => { /* 拿不到角色按非 admin 处理，后端守卫仍兜底 */ })
+      .finally(() => setRoleReady(true));
+  }, []);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchApproving, setBatchApproving] = useState(false);
@@ -129,6 +141,20 @@ function SupplierApprovalPage() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
   const activeTab = TABS.find(t => t.key === tab)!;
+
+  // 非 admin：就绪前渲染空态防闪现，就绪后给无权限卡（后端 @Roles('admin') 双保险）
+  if (!roleReady) return null;
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="neu-card-static flex flex-col items-center justify-center gap-3 p-14 text-center">
+        <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
+          <ShieldCheck size={22} className="text-[var(--muted-foreground)]" />
+        </div>
+        <p className="text-sm font-bold text-[var(--foreground)]">供应商注册审批仅对管理权限账号开放</p>
+        <p className="text-xs text-[var(--muted-foreground)]">新供应商的注册审批与邀请码由系统管理员处理，如有需要请联系管理员</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">

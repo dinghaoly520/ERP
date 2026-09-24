@@ -22,10 +22,16 @@ import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp,
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
+import type { AuthUser } from '@/lib/api/auth';
+import { fetchCurrentUser } from '@/lib/api/auth';
 
 export default function SupplierRepositoryPage() {
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
+  // 邀请码管理仅管理权限账号（2026-09-24 用户裁定；后端 @Roles('admin') 已同步收紧）
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const isAdmin = currentUser?.role === 'admin';
+  useEffect(() => { fetchCurrentUser().then(setCurrentUser).catch(() => {/* ignore */}); }, []);
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0, temporaryApproved: 0 });
   const [loading, setLoading] = useState(true);
@@ -63,11 +69,14 @@ export default function SupplierRepositoryPage() {
   const STATUS_TABS: { key: string; label: string; status: string; isTemporary?: boolean; tone?: string; count?: number; badge?: 'danger' | 'warning' }[] = [
     { key: 'APPROVED', label: '已入库', status: 'APPROVED', tone: 'green' },
     { key: 'TEMPORARY', label: '临时供应商', status: 'APPROVED', isTemporary: true, tone: 'teal', count: stats.temporaryApproved, badge: 'warning' as const },
-    { key: 'PENDING', label: '待审核', status: 'PENDING', tone: 'blue', count: stats.pending, badge: 'danger' as const },
+    // 待审核入口仅管理账号（2026-09-24 用户裁定：审批是 admin 职责，办公账号不见待审队列）
+    ...(isAdmin ? [{ key: 'PENDING', label: '待审核', status: 'PENDING', tone: 'blue', count: stats.pending, badge: 'danger' as const }] : []),
     { key: 'RETURNED', label: '退回补正', status: 'RETURNED', tone: 'orange', count: stats.returned, badge: 'warning' as const },
     { key: 'DISABLED', label: '已停用', status: 'DISABLED', tone: 'gray' },
     { key: 'BLACKLIST', label: '黑名单', status: 'BLACKLIST', tone: 'red' },
   ];
+  // 兜底：非 admin 若停留在待审核视图（角色信息晚到），回落到已入库
+  useEffect(() => { if (!isAdmin && filterStatus === 'PENDING') { setFilterStatus('APPROVED'); setFilterIsTemporary(false); } }, [isAdmin, filterStatus]);
   const effectiveStatus = filterStatus;
   const activeTabKey = filterIsTemporary ? 'TEMPORARY' : filterStatus;
 
@@ -121,7 +130,8 @@ export default function SupplierRepositoryPage() {
     catch { toast.error('邀请码加载失败'); }
     finally { setInvLoading(false); }
   }, []);
-  useEffect(() => { loadInvitations(); }, [loadInvitations]);
+  // 非 admin 不拉邀请码列表（后端已 403，这里避免无效请求与报错噪音）
+  useEffect(() => { if (isAdmin) loadInvitations(); }, [loadInvitations, isAdmin]);
   const handleCreateInvitation = async () => {
     setInvCreating(true);
     try {
@@ -232,7 +242,7 @@ export default function SupplierRepositoryPage() {
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
-            <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>
+            {isAdmin && <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>}
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
             <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
@@ -249,11 +259,13 @@ export default function SupplierRepositoryPage() {
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.approved}</span>
             <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">正常运营</span>
           </div>
+          {isAdmin && (
           <button type="button" onClick={() => { setFilterStatus('PENDING'); setFilterIsTemporary(false); setPage(1); }} title="查看待审核供应商" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.pending}</span>
             <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">新注册申请 · 点击查看</span>
           </button>
+          )}
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已停用</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.disabled}</span>

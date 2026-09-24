@@ -86,14 +86,14 @@ export class SupplierController {
 
   // ── 临时供应商邀请码（采购端管理）──
   @Post('invitations')
-  @Roles('admin', 'leader', 'staff')
+  @Roles('admin') // 邀请码：仅管理权限（2026-09-24 用户裁定，leader/staff 不再放行）
   @ApiOperation({ summary: '生成临时供应商邀请码（30/180/360 天）' })
   async createInvitation(@Body() dto: CreateInvitationDto, @Request() req: any) {
     return this.supplierService.createInvitation(dto, req.user.sub);
   }
 
   @Get('invitations')
-  @Roles('admin', 'leader', 'staff')
+  @Roles('admin') // 邀请码仅 admin
   @ApiOperation({ summary: '邀请码列表' })
   async listInvitations(
     @Query('page') page?: string,
@@ -108,7 +108,7 @@ export class SupplierController {
   }
 
   @Post('invitations/:id/revoke')
-  @Roles('admin', 'leader', 'staff')
+  @Roles('admin') // 邀请码仅 admin
   @ApiOperation({ summary: '作废邀请码' })
   async revokeInvitation(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.revokeInvitation(id, req.user.sub);
@@ -429,21 +429,21 @@ export class SupplierController {
   }
 
   @Post(':id/approve')
-  @Roles('admin', 'leader', 'staff')
+  @Roles('admin') // 注册审批：仅管理权限（2026-09-24 用户裁定）
   @ApiOperation({ summary: '审核通过' })
   async approve(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.approve(id, req.user?.sub);
   }
 
   @Post(':id/reject')
-  @Roles('admin', 'leader', 'staff')
+  @Roles('admin') // 注册审批仅 admin
   @ApiOperation({ summary: '审核不通过' })
   async reject(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
     return this.supplierService.reject(id, dto.reason, req.user?.sub);
   }
 
   @Post(':id/return')
-  @Roles('admin', 'leader', 'staff')
+  @Roles('admin') // 注册审批仅 admin
   @ApiOperation({ summary: '退回补正' })
   async return(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
     return this.supplierService.return(id, dto.reason, req.user?.sub);
@@ -473,7 +473,7 @@ export class SupplierController {
   }
 
   @Post(':id/reactivate')
-  @Roles('admin', 'leader', 'staff')
+  @Roles('admin') // 复活被拒申请属注册审批链路，同收紧
   @ApiOperation({ summary: '复活被拒绝的供应商（REJECTED → PENDING）' })
   async reactivate(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.reactivate(id, req.user?.sub);
