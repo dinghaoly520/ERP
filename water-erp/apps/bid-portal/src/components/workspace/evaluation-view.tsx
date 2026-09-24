@@ -10,7 +10,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck, Copy,
+  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck, Copy, Crown,
   Clock, Eye, EyeOff, FileCheck, KeyRound, MessageSquare, MonitorSmartphone, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
 } from 'lucide-react';
 import {
@@ -1041,6 +1041,15 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 >
                   <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                     {expert.expertName}
+                    {/* FE-5（2026-09-24）：组长徽章——管理端替换/递补接任组长后现场端可辨新任组长（仅实名区，匿名矩阵不变） */}
+                    {expert.isLead && (
+                      <span
+                        className="ml-1.5 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[oklch(0.94_0.09_83/0.45)] px-1.5 py-0.5 align-middle text-[9px] font-bold text-[var(--warning)]"
+                        title="评审组长（管理端替换/递补后随详情实时更新）"
+                      >
+                        <Crown size={10} strokeWidth={1.7} /> 组长
+                      </span>
+                    )}
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                     {/* A-132：评委分工（分组·职责）——两维皆空则不渲染 */}
                     {(expert.reviewGroup || expert.dutyRole) && (
