@@ -363,7 +363,7 @@ export function ProjectStageTimeline({
                                 data-score-status={scoreStatus}
                                 title={
                                   scoreStatus === 'unlinked'
-                                    ? '尚未关联开评标项目——发布采购公告（谈判采购发送邀请）后在此配置'
+                                    ? '尚未关联开评标项目——发布采购公告（谈判采购发送邀请）后在此配置；不评分方式（如直接采购）免配置，完成时不拦'
                                     : scoreStatus === 'exempt'
                                       ? '评标办法为不评分（直接采购），免评分项配置'
                                       : scoreStatus === 'ok'

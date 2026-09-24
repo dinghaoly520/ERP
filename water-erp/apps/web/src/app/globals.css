@@ -2957,8 +2957,8 @@ a {
 }
 
 .pm-score-badge[data-score-status='unlinked'] {
-  color: color-mix(in oklch, var(--warning) 82%, var(--foreground) 18%);
-  background: color-mix(in oklch, var(--warning) 14%, transparent);
+  color: var(--muted-foreground);
+  background: color-mix(in oklch, var(--muted-foreground) 10%, transparent);
 }
 
 .pm-score-badge[data-score-status='exempt'] {
