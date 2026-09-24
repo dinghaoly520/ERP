@@ -489,7 +489,7 @@ export function ProjectDetailPanel({
 
   // ── 评分标准卡（2026-09-24 方案 v2：自开标确认面板迁至 03「采购文件」）──
   // 只读解析（fetchPmBidProjectRefs 只查不建）+ 逐 BP 详情/评分项，驱动卡片与 03 徽标。
-  // 徽标为指示性——权威判定在服务端闸门（SCORE_STANDARD_REQUIRED）。
+  // 状态用于完成前预检与弹层；权威判定在服务端闸门（SCORE_STANDARD_REQUIRED）。
   const [bpRefs, setBpRefs] = useState<Awaited<ReturnType<typeof fetchPmBidProjectRefs>>>([]);
   const [bpDetails, setBpDetails] = useState<Record<string, BidProjectDetail>>({});
   const [bpScoreItems, setBpScoreItems] = useState<Record<string, BidScoreItem[]>>({});
@@ -1397,7 +1397,6 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               onArchive={() => void archiveProject()}
               canArchive={canArchive}
-              scoreStandardStatusFor={scoreStatusForRound}
               onOpenScoreStandard={(round) => setScorePanelRound(round)}
               onReopenStage={readOnly ? undefined : async (stageKey, round) => {
                 // 开标锁定（2026-09-24）：按时开标后前置步骤不可重开（后端同款 409 硬闸，此处先拦给出友好提示）

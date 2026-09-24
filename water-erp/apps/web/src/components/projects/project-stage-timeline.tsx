@@ -95,7 +95,6 @@ export function ProjectStageTimeline({
   archiveStepState,
   onArchive,
   canArchive,
-  scoreStandardStatusFor,
   onOpenScoreStandard,
   onReopenStage,
   isStageLocked,
@@ -112,7 +111,6 @@ export function ProjectStageTimeline({
   canArchive?: boolean;
   /** 03 采购文件步骤的评分标准配置状态（按轮查；undefined=该轮无此步骤或数据未就绪）。
    *  2026-09-24 定稿：03 卡原「采购文件修改」按钮位改为「评分标准」入口，点击弹出评分标准面板。 */
-  scoreStandardStatusFor?: (round: number) => 'unlinked' | 'exempt' | 'ok' | 'incomplete' | 'unknown';
   /** 打开评分标准面板（round=被点 03 行轮次）；任何阶段可开（锁定态查看） */
   onOpenScoreStandard?: (round: number) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
@@ -351,35 +349,6 @@ export function ProjectStageTimeline({
                               {entry.stageCode}
                             </div>
                           )}
-                          {stageKey === 'TENDER_DOCUMENT' && scoreStandardStatusFor && (() => {
-                            const scoreStatus = scoreStandardStatusFor(entry.round);
-                            const scoreStatusLabel: Record<string, string> = {
-                              unlinked: '未关联',
-                              exempt: '不评分·免配置',
-                              ok: '✓ 已配置',
-                              incomplete: '未配置',
-                              unknown: '…',
-                            };
-                            return (
-                              <div
-                                className="pm-score-badge mt-1.5"
-                                data-score-status={scoreStatus}
-                                title={
-                                  scoreStatus === 'unlinked'
-                                    ? '尚未关联开评标项目——发布采购公告（谈判采购发送邀请）后在此配置；不评分方式（如直接采购）免配置，完成时不拦'
-                                    : scoreStatus === 'exempt'
-                                      ? '评标办法为不评分（直接采购），免评分项配置'
-                                      : scoreStatus === 'ok'
-                                        ? '评分标准已配置（打分类满分合计 100）'
-                                        : scoreStatus === 'incomplete'
-                                          ? '评分标准未配置完整：打分类满分合计须为 100 且每个打分项须有得分点'
-                                          : '评分标准状态加载中'
-                                }
-                              >
-                                评分标准 {scoreStatusLabel[scoreStatus] ?? '…'}
-                              </div>
-                            );
-                          })()}
                           <div className="mt-1.5 text-[10px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] opacity-70">
                             {entry.statusLabel}
                           </div>
