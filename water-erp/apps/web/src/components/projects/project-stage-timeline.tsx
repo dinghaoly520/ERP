@@ -95,8 +95,7 @@ export function ProjectStageTimeline({
   archiveStepState,
   onArchive,
   canArchive,
-  tenderDocxAttachments,
-  onEditTenderFile,
+  scoreStandardStatusFor,
   onReopenStage,
   isStageLocked,
 }: {
@@ -110,8 +109,9 @@ export function ProjectStageTimeline({
   /** 归档卡内「确认归档」动作（READY 态显示，与阶段卡操作按钮同款设计） */
   onArchive?: () => void;
   canArchive?: boolean;
-  tenderDocxAttachments?: Array<{ id: string; fileName: string }>;
-  onEditTenderFile?: (attachmentId: string, fileName: string) => void;
+  /** 03 采购文件步骤的评分标准配置状态（按轮查；undefined=该轮无此步骤或数据未就绪）。
+   *  2026-09-24 方案 v2：卡片迁至步骤轨道下方，卡片右上状态徽标渲染于 03 卡体。 */
+  scoreStandardStatusFor?: (round: number) => 'unlinked' | 'exempt' | 'ok' | 'incomplete' | 'unknown';
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
   /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。 */
@@ -348,6 +348,35 @@ export function ProjectStageTimeline({
                               {entry.stageCode}
                             </div>
                           )}
+                          {stageKey === 'TENDER_DOCUMENT' && scoreStandardStatusFor && (() => {
+                            const scoreStatus = scoreStandardStatusFor(entry.round);
+                            const scoreStatusLabel: Record<string, string> = {
+                              unlinked: '未关联',
+                              exempt: '不评分·免配置',
+                              ok: '✓ 已配置',
+                              incomplete: '未配置',
+                              unknown: '…',
+                            };
+                            return (
+                              <div
+                                className="pm-score-badge mt-1.5"
+                                data-score-status={scoreStatus}
+                                title={
+                                  scoreStatus === 'unlinked'
+                                    ? '尚未关联开评标项目——发布采购公告（谈判采购发送邀请）后在此配置'
+                                    : scoreStatus === 'exempt'
+                                      ? '评标办法为不评分（直接采购），免评分项配置'
+                                      : scoreStatus === 'ok'
+                                        ? '评分标准已配置（打分类满分合计 100）'
+                                        : scoreStatus === 'incomplete'
+                                          ? '评分标准未配置完整：打分类满分合计须为 100 且每个打分项须有得分点'
+                                          : '评分标准状态加载中'
+                                }
+                              >
+                                评分标准 {scoreStatusLabel[scoreStatus] ?? '…'}
+                              </div>
+                            );
+                          })()}
                           <div className="mt-1.5 text-[10px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] opacity-70">
                             {entry.statusLabel}
                           </div>
@@ -364,33 +393,6 @@ export function ProjectStageTimeline({
                               className="pm-stage-action-btn shrink-0"
                             >
                               {actionLabel}
-                            </span>
-                          )}
-                          {onEditTenderFile && entry.isInProgress && stageKey === 'TENDER_DOCUMENT' && (
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
-                                  onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.stopPropagation();
-                                  if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
-                                    onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
-                                  }
-                                }
-                              }}
-                              className={[
-                                'pm-stage-action-btn shrink-0',
-                                (!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? 'opacity-40 cursor-not-allowed' : '',
-                              ].join(' ')}
-                              title={(!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? '请先在详情区上传 .docx 文件' : undefined}
-                            >
-                              {entry.title === '招标文件' ? '招标文件修改' : '采购文件修改'}
                             </span>
                           )}
                         </div>

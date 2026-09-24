@@ -694,6 +694,28 @@ export async function getPmBidProject(
   return parseJsonResponse(response);
 }
 
+/** 只读解析的项目 ↔ 开评标项目（按轮）——项目管理抽屉级展示专用。
+ *  ⚠️ 与 getPmBidProject（ensure-or-create，无则建 SUBMIT 项目）不同：本端点只查不建，
+ *  抽屉轮询误用 ensure 会在公告发布前批量误建幽灵项目（方案 v2 P0-1）。 */
+export interface PmBidProjectRefItem {
+  id: string;
+  round: number;
+  projectCode: string;
+  name: string;
+  stage: import('./bid').BidStage;
+  procurementMethod: string;
+  openTime: string;
+  deadline: string;
+}
+
+export async function fetchPmBidProjectRefs(pmId: string): Promise<PmBidProjectRefItem[]> {
+  const response = await fetch(`${API_BASE}/project-management/${pmId}/bid-project-refs`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  return parseJsonResponse(response);
+}
+
 // ═══ 采购文件编写·项目草稿（跨设备同步，2026-09-09）═══
 // 草稿以服务器为准（同账号任意设备一致），localStorage 仅作离线缓存；
 // 详见 tender-write-modal.tsx 同步逻辑。

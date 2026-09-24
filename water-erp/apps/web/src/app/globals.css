@@ -2923,6 +2923,54 @@ a {
   color: rgba(102, 118, 149, 0.88);
 }
 
+/* ── 03 采购文件·评分标准状态徽标（2026-09-24 方案 v2）——文字级小元素，仅色彩点蓝不参与拟态 ── */
+.pm-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: fit-content;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.pm-score-badge::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+}
+
+.pm-score-badge[data-score-status='ok'] {
+  color: color-mix(in oklch, var(--success) 78%, var(--foreground) 22%);
+  background: color-mix(in oklch, var(--success) 12%, transparent);
+}
+
+.pm-score-badge[data-score-status='incomplete'] {
+  color: color-mix(in oklch, var(--warning) 82%, var(--foreground) 18%);
+  background: color-mix(in oklch, var(--warning) 14%, transparent);
+}
+
+.pm-score-badge[data-score-status='unlinked'] {
+  color: color-mix(in oklch, var(--warning) 82%, var(--foreground) 18%);
+  background: color-mix(in oklch, var(--warning) 14%, transparent);
+}
+
+.pm-score-badge[data-score-status='exempt'] {
+  color: color-mix(in oklch, var(--accent) 80%, var(--foreground) 20%);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+}
+
+.pm-score-badge[data-score-status='unknown'] {
+  color: var(--muted-foreground);
+  background: color-mix(in oklch, var(--muted-foreground) 10%, transparent);
+}
+
 .pm-stage-progress--archive-ready {
   background: rgba(233, 194, 111, 0.16);
   color: color-mix(in oklch, var(--warning) 82%, var(--foreground) 18%);

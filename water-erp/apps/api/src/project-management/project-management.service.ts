@@ -3556,7 +3556,17 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async listBidProjectRefs(pmiId: string) {
     return this.prisma.bidProject.findMany({
       where: { projectManagementItemId: pmiId },
-      select: { id: true, round: true, projectCode: true, stage: true },
+      // 列集对齐前端 BidProjectRef 类型（ScoreStandardEditor/评标办法子块入参）
+      select: {
+        id: true,
+        round: true,
+        projectCode: true,
+        name: true,
+        stage: true,
+        procurementMethod: true,
+        openTime: true,
+        deadline: true,
+      },
       orderBy: { round: 'asc' },
     });
   }

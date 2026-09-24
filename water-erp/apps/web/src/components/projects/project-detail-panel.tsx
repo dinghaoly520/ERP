@@ -9,6 +9,7 @@ import {
   analyzeProjectStep,
   completeProjectManagementItem,
   extractTenderFields,
+  fetchPmBidProjectRefs,
   reopenProjectStage,
   reprocProject,
   reviewProjectSubmission,
@@ -22,6 +23,8 @@ import {
   type ExtractedInfo,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
+import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
+import { isPassFailCategory } from '@water-erp/shared';
 import { getProjectParticipants } from '@/lib/api/announcement';
 import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 import {
@@ -45,6 +48,7 @@ import { BidConfirmPanel } from './bid-confirm-panel';
 import { AwardFileMaker } from './award-file-maker';
 import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
+import { ScoreStandardCard } from './score-standard-card';
 import { Modal, StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
@@ -479,14 +483,63 @@ export function ProjectDetailPanel({
 	const { Icon: HeroIcon } = heroVisual;
   const focusAccentClassName = `pm-stage-accent--${selectedStage.stageKey.toLowerCase()}`;
 
-  // 采购文件步骤中已上传的 .docx 附件（供阶段卡片编辑按钮使用）
-  const tenderDocxFiles = useMemo(() => {
-    const stage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
-    if (!stage) return [];
-    return stage.attachments
-      .filter((a) => a.fileName.toLowerCase().endsWith('.docx'))
-      .map((a) => ({ id: a.id!, fileName: a.fileName }));
-  }, [localItem.stages]);
+  // ── 评分标准卡（2026-09-24 方案 v2：自开标确认面板迁至 03「采购文件」）──
+  // 只读解析（fetchPmBidProjectRefs 只查不建）+ 逐 BP 详情/评分项，驱动卡片与 03 徽标。
+  // 徽标为指示性——权威判定在服务端闸门（SCORE_STANDARD_REQUIRED）。
+  const [bpRefs, setBpRefs] = useState<Awaited<ReturnType<typeof fetchPmBidProjectRefs>>>([]);
+  const [bpDetails, setBpDetails] = useState<Record<string, BidProjectDetail>>({});
+  const [bpScoreItems, setBpScoreItems] = useState<Record<string, BidScoreItem[]>>({});
+  const [bpDataTick, setBpDataTick] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const refs = await fetchPmBidProjectRefs(item.id);
+        if (cancelled) return;
+        setBpRefs(refs);
+        const details: Record<string, BidProjectDetail> = {};
+        const itemsMap: Record<string, BidScoreItem[]> = {};
+        await Promise.all(
+          refs.map(async (r) => {
+            const d = await getBidProjectDetail(r.id).catch(() => null);
+            if (!d) return;
+            details[r.id] = d;
+            // 办法=none（不评分）免评分项，无需拉取评分项
+            if (d.evaluationMethod !== 'none') {
+              const its = await listScoreItems(r.id).catch(() => null);
+              if (its) itemsMap[r.id] = its;
+            }
+          }),
+        );
+        if (cancelled) return;
+        setBpDetails(details);
+        setBpScoreItems(itemsMap);
+      } catch {
+        // 徽标/卡片数据尽力而为——失败不阻塞抽屉，服务端闸门兜底
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, bpDataTick]);
+
+  type ScoreGateStatus = 'unlinked' | 'exempt' | 'ok' | 'incomplete' | 'unknown';
+  const scoreStatusForRound = useCallback((round: number): ScoreGateStatus => {
+    const ref = bpRefs.find((r) => r.round === round);
+    if (!ref) return 'unlinked';
+    if (bpDetails[ref.id]?.evaluationMethod === 'none') return 'exempt';
+    const items = bpScoreItems[ref.id];
+    if (!items) return 'unknown';
+    const scoring = items.filter((it) => !isPassFailCategory(it.category));
+    const sum = scoring.reduce((s, it) => s + Number(it.maxScore), 0);
+    const noPoints = scoring.some((it) => !(it.points && it.points.length > 0));
+    // 容差 0.05 与服务端 ScoreStandardValidator 同口径（Decimal 十分位求和浮点误差）
+    if (scoring.length === 0 || Math.abs(sum - 100) > 0.05 || noPoints) return 'incomplete';
+    return 'ok';
+  }, [bpRefs, bpDetails, bpScoreItems]);
+
+  const scoreCardRound = selectedRound;
+  const scoreCardRef = bpRefs.find((r) => r.round === scoreCardRound) ?? null;
 
   const stageFileAnalysis = useMemo(
     () => analysis?.fileAnalyses ?? [],
@@ -697,6 +750,16 @@ export function ProjectDetailPanel({
   const markStageCompleted = async (stage: ProjectManagementStage) => {
     if (readOnly) { toast.info('项目已归档，仅供查看'); return; }
     if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
+    // 评分标准闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置。
+    // 前端仅拦「未配置完整」（数据已就绪、口径确定）；「未关联」不本地拦——
+    // 采购方式可能为不评分（none），由服务端闸门权威判定并给指引（SCORE_STANDARD_REQUIRED）。
+    if (stage.stageKey === 'TENDER_DOCUMENT') {
+      const scoreStatus = scoreStatusForRound(stage.round ?? 1);
+      if (scoreStatus === 'incomplete') {
+        setErrorMessage('评分标准未配置完整：打分类满分合计须为 100 且每个打分项须有得分点。请在上方「评分标准与评标办法」卡片完成配置后再标记本阶段完成。');
+        return;
+      }
+    }
     // P1-14（走查④）：开标评标是核心阶段——完成后推进定标不可逆，误点/连点会把整段
     // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
     // BidProject 状态脱节）。加确认门槛。
@@ -1322,8 +1385,7 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               onArchive={() => void archiveProject()}
               canArchive={canArchive}
-              tenderDocxAttachments={tenderDocxFiles}
-              onEditTenderFile={readOnly ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
+              scoreStandardStatusFor={scoreStatusForRound}
               onReopenStage={readOnly ? undefined : async (stageKey, round) => {
                 // 开标锁定（2026-09-24）：按时开标后前置步骤不可重开（后端同款 409 硬闸，此处先拦给出友好提示）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定，不可重开'); return; }
@@ -1339,6 +1401,20 @@ export function ProjectDetailPanel({
               }}
               isStageLocked={isLockedByBid}
             />
+
+            {/* 评分标准与评标办法（2026-09-24 方案 v2：自开标确认面板迁至此处，随选中轮次）
+                —— 无 TENDER_DOCUMENT 阶段（极少数模板）不渲染；未关联时卡片自带空态指引 */}
+            {localItem.stages.some((s) => s.stageKey === 'TENDER_DOCUMENT') && (
+              <div className="mt-4">
+                <ScoreStandardCard
+                  project={item}
+                  round={scoreCardRound}
+                  bidProject={scoreCardRef ? { ...scoreCardRef, publishTime: null } : null}
+                  detail={scoreCardRef ? (bpDetails[scoreCardRef.id] ?? null) : null}
+                  onChanged={() => setBpDataTick((t) => t + 1)}
+                />
+              </div>
+            )}
 
           </div>
         </div>
