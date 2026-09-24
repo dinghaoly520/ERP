@@ -365,7 +365,7 @@ export function ProjectDetailPanel({
 }) {
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
   // 归档材料缺失豁免（M5）：后端 ARCHIVE_GATE_MISSING 时弹窗，填理由后带 waiveArchiveGate 重试
-  const [waiveTarget, setWaiveTarget] = useState<{ stageKey: ProjectWorkflowStageKey; nextStageKey?: ProjectWorkflowStageKey; message: string } | null>(null);
+  const [waiveTarget, setWaiveTarget] = useState<{ stageKey: ProjectWorkflowStageKey; round?: number; nextStageKey?: ProjectWorkflowStageKey; message: string } | null>(null);
   const [waiveNote, setWaiveNote] = useState('');
   const [waiving, setWaiving] = useState(false);
   const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
@@ -447,9 +447,13 @@ export function ProjectDetailPanel({
 
   const selectedStage = useMemo(
     () =>
+      // round 感知（2026-09-24 I-1）：多轮项目每轮各有一行同 stageKey——不带 round 恒命中首轮行
+      localItem.stages.find(
+        (stage) => stage.stageKey === selectedStageKey && (stage.round ?? 1) === selectedRound,
+      ) ??
       localItem.stages.find((stage) => stage.stageKey === selectedStageKey) ??
       localItem.stages[0],
-    [localItem.stages, selectedStageKey],
+    [localItem.stages, selectedStageKey, selectedRound],
   );
 
   const archiveStepState = getArchiveStepState(item);
@@ -780,6 +784,7 @@ export function ProjectDetailPanel({
       const confirmThreshold = Number(localStorage.getItem('supplier-confirm-threshold')) || 3;
       await updateProjectStage(item.id, stage.stageKey, {
         status: 'COMPLETED',
+        round: stage.round ?? 1, // 多轮项目按被点行的轮次落行（2026-09-24 I-1）
         ...(stage.stageKey === 'SUPPLIER_INVITATION' ? { confirmedThreshold: confirmThreshold } : {}),
       });
       await onUpdated();
@@ -791,7 +796,7 @@ export function ProjectDetailPanel({
     } catch (error) {
       // 归档必选材料缺失 → 弹豁免对话框（而非裸抛后端报错文案）
       if ((error as Error & { code?: string }).code === 'ARCHIVE_GATE_MISSING') {
-        setWaiveTarget({ stageKey: stage.stageKey, nextStageKey, message: error instanceof Error ? error.message : '' });
+        setWaiveTarget({ stageKey: stage.stageKey, round: stage.round ?? 1, nextStageKey, message: error instanceof Error ? error.message : '' });
         setWaiveNote('');
       } else {
         setErrorMessage(error instanceof Error ? error.message : '更新阶段失败。');
@@ -809,6 +814,7 @@ export function ProjectDetailPanel({
     try {
       await updateProjectStage(item.id, waiveTarget.stageKey, {
         status: 'COMPLETED',
+        round: waiveTarget.round, // 多轮项目按被点行的轮次落行（2026-09-24 I-1）
         waiveArchiveGate: true,
         note: waiveNote.trim(),
       });

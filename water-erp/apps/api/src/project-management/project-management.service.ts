@@ -3331,21 +3331,26 @@ ${JSON.stringify(algorithmResult, null, 2)}
     stageKey: string,
     dto: UpdateProjectStageDto,
   ) {
-    const stage = await this.prisma.projectManagementStage.findFirst({
-      where: { projectManagementItemId: projectId, stageKey },
-    });
-
-    if (!stage) {
-      throw new NotFoundException('未找到对应的项目阶段。');
-    }
-
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { currentStage: true },
+      select: { currentStage: true, currentRound: true },
     });
 
     if (!project) {
       throw new NotFoundException('未找到对应项目。');
+    }
+
+    // round 感知（2026-09-24 I-1）：多轮（再次采购）项目每轮各有一行同 stageKey 阶段
+    // （schema (pmiId, stageKey, round) 唯一）——不带 round 的 findFirst 会命中任意行，
+    // 完成 round-2 时可能误读/改写 round-1 行。dto.round 优先（前端传被点行轮次），缺省 currentRound。
+    const targetRound = dto.round ?? project.currentRound ?? 1;
+
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: projectId, stageKey, round: targetRound },
+    });
+
+    if (!stage) {
+      throw new NotFoundException('未找到对应的项目阶段。');
     }
 
     // 补录（2026-09-07）：目标阶段早于当前活跃阶段（流程已越过的前置）允许补完成——
@@ -3394,7 +3399,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
       // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
       if (stageKey === 'TENDER_DOCUMENT') {
-        await this.assertScoreStandardConfigured(projectId, stage.round ?? 1);
+        await this.assertScoreStandardConfigured(projectId, targetRound);
       }
       // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
       // （范围表 attachment 源必选项 = TENDER_DOCUMENT/AWARD_DECISION/CONTRACT 三处，与下方专项检查口径互补）
@@ -3536,7 +3541,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     try {
       await this.scoreStandardValidator.assertScoreStandardComplete(bp.id);
     } catch (e) {
-      const resp = e instanceof HttpException ? e.getResponse() : null;
+      // 仅包装 validator 的业务异常（HttpException：Σ≠100 / 空项等，文案透传）；
+      // Prisma 连接/表缺失等基础设施故障原样上抛保持 500 语义，勿归因为「未配置」（I-2）。
+      if (!(e instanceof HttpException)) throw e;
+      const resp = e.getResponse();
       const detail =
         resp && typeof resp === 'object' && 'error' in (resp as Record<string, unknown>)
           ? String((resp as Record<string, unknown>).error)

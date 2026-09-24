@@ -113,8 +113,9 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
       withBidProjectRound1: true, // round=1 有
     });
     const svc = mkService(prisma);
+    // 契约（2026-09-24 I-1）：轮次由 dto.round 显式传入（前端传被点行轮次），缺省 currentRound
     await expect(
-      svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never),
+      svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED', round: 2 } as never),
     ).rejects.toMatchObject({ response: { code: 'SCORE_STANDARD_REQUIRED' } });
     expect(prisma.bidProject.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ round: 2 }) }),
@@ -163,6 +164,55 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
       svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never),
     ).resolves.toMatchObject({ status: 'COMPLETED' });
     expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
+  });
+
+  it('validator 抛非 HttpException（如 Prisma 连接错误）→ 原样上抛，不包装成 400 评分闸', async () => {
+    const prisma = mkHappyPrisma({
+      procurementMethod: '竞价采购',
+      bidProject: { id: 'bp-1', evaluationMethod: 'lowest_price' },
+    });
+    const infraErr = new Error('P2021: table does not exist');
+    const svc = mkService(prisma, {
+      assertScoreStandardComplete: jest.fn().mockRejectedValue(infraErr) as never,
+    });
+    const err: any = await svc
+      .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never)
+      .then(() => null, (e: unknown) => e);
+    // 基础设施故障须保持 500 语义——包装成 SCORE_STANDARD_REQUIRED 会误导排障
+    expect(err).toBe(infraErr);
+  });
+
+  it('stage 行解析 round 感知：dto.round=2 → stage 查询带 round:2（多轮不误读 round-1 行）', async () => {
+    const prisma = mkHappyPrisma({ procurementMethod: '竞价采购', stageRound: 2, bidProject: null });
+    const svc = mkService(prisma);
+    await svc
+      .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED', round: 2 } as never)
+      .then(() => null, () => undefined);
+    expect(prisma.projectManagementStage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ stageKey: 'TENDER_DOCUMENT', round: 2 }) }),
+    );
+    expect(prisma.bidProject.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ round: 2 }) }),
+    );
+  });
+
+  it('stage 行解析 round 缺省 → 取 PMI.currentRound（不落回任意行）', async () => {
+    const prisma = mkHappyPrisma({ procurementMethod: '竞价采购', stageRound: 2, bidProject: null });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({
+      id: 'pmi-1',
+      title: '测试项目',
+      currentStage: 'TENDER_DOCUMENT',
+      currentRound: 2,
+      procurementMethod: '竞价采购',
+      stages: [],
+    });
+    const svc = mkService(prisma);
+    await svc
+      .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never)
+      .then(() => null, () => undefined);
+    expect(prisma.projectManagementStage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ round: 2 }) }),
+    );
   });
 });
 

@@ -412,7 +412,7 @@ export async function createProjectManagementItem(fields: InitiationFields) {
 export async function updateProjectStage(
   projectId: string,
   stageKey: ProjectWorkflowStageKey,
-  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean },
+  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; round?: number; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean },
 ) {
   const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}`, {
     method: 'PATCH',
