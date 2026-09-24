@@ -9333,6 +9333,29 @@ a {
 /* 紧凑搜索框（2026-09-18）：工具行（与分段切换同排）内 44px 收紧到 36px；下拉筛选同步收紧 */
 .neu-input.neu-input-sm { height: 36px; border-radius: 8px; }
 .workbench-input.workbench-input-sm { height: 36px; }
+
+/* ── 通知渠道行（2026-09-24）：供应商选取/专家抽取「确认通知」步骤同款设计类化 ──
+   （原处为内联样式；开标决策通知弹窗复用，收编为类防内联三态失效与任意 shadow 丢弃） */
+.notify-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in oklch, var(--accent) 5%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.notify-channel-group {
+  display: flex;
+  gap: 4px;
+  border-radius: 8px;
+  padding: 2px;
+  background: oklch(1 0 0 / 0.45);
+}
+@media (prefers-reduced-motion: reduce) {
+  .notify-channel-row, .notify-channel-group { transition: none !important; }
+}
 .neu-input:focus,
 .neu-select:focus {
   border-color: oklch(0.5 0.16 251 / 0.5);

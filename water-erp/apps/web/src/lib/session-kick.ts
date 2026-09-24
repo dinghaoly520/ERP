@@ -80,7 +80,7 @@ function renderOverlay(spec: OverlaySpec) {
 
   const btnRow = document.createElement("div");
   btnRow.className = "neu-btn-group";
-  btnRow.style.cssText = "margin-top:20px;";
+  btnRow.style.cssText = "margin-top:20px;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;";
 
   const makeBtn = (text: string, primary: boolean, onClick: () => void) => {
     const btn = document.createElement("button");

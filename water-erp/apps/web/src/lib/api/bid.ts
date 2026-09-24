@@ -65,6 +65,8 @@ export interface BidWorkspaceSupplier {
 
 export interface BidWorkspaceExpert {
   id: string;
+  /** BidExpert.userId（后端 workspace 原样返回 BidExpert 行；通知弹窗按用户发短信用）*/
+  userId?: string;
   expertName: string;
   major: string;
   expertRole: string; // 正选 | 候补
@@ -336,6 +338,28 @@ export function cancelSupplierNudge(bidProjectId: string) {
 /** 通知开标时间变更（向全部投标供应商 + 评标专家）*/
 export function notifyBidScheduleChange(bidProjectId: string, openTime: string) {
   return api.post<{ reached: number }>(`/bid/projects/${bidProjectId}/notify-schedule-change`, { openTime });
+}
+
+/* ── 开标决策通知（按时/延时开标确认弹窗）：按配置渠道与文案通知供应商与专家 ── */
+
+export interface OpeningDecisionNotifyPayload {
+  decision: 'ONTIME' | 'DELAY';
+  openTime: string;
+  notifySuppliers?: boolean;
+  supplierChannels?: string[]; // 'in_app' | 'sms'
+  supplierTitle?: string;
+  supplierContent?: string;
+  notifyExperts?: boolean;
+  expertChannels?: string[]; // 'in_app' | 'sms'
+  expertTitle?: string;
+  expertContent?: string;
+}
+
+export function notifyOpeningDecision(bidProjectId: string, payload: OpeningDecisionNotifyPayload) {
+  return api.post<{ suppliers: number; experts: number; supplierNotFound: number; expertNotFound: number }>(
+    `/bid/projects/${bidProjectId}/notify-opening-decision`,
+    payload,
+  );
 }
 
 /* ── 开标决策 ── */

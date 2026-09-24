@@ -23,6 +23,7 @@ import { RejectExpertVerificationDto, RetractExpertVerificationDto, VerifyExpert
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
+import { NotifyOpeningDecisionDto } from './dto/notify-opening-decision.dto';
 import { StartEvaluationDto } from './dto/start-evaluation.dto';
 import { AssignHostDto } from './dto/assign-host.dto';
 import { ArchiveAllDto } from './dto/archive-all.dto';
@@ -622,6 +623,17 @@ export class BidController {
     @CurrentUser('sub') userId?: string,
   ) {
     return this.bidService.notifyScheduleChange(id, dto.openTime, userId);
+  }
+
+  @Post('projects/:id/notify-opening-decision')
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // 广播类端点节流（同 notify-schedule-change 口径）
+  @ApiOperation({ summary: '开标决策通知：按时/延时开标确认弹窗按配置渠道与文案通知供应商与专家' })
+  notifyOpeningDecision(
+    @Param('id') id: string,
+    @Body() dto: NotifyOpeningDecisionDto,
+    @CurrentUser('sub') userId?: string,
+  ) {
+    return this.bidService.notifyOpeningDecision(id, dto, userId);
   }
 
   @Post('projects/:id/decrypt/:supplierId')

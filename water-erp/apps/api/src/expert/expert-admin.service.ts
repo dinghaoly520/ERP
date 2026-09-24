@@ -25,6 +25,7 @@ import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from 
 import { buildExpertPortrait } from './expert-portrait.util';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { CompanyScopeService } from '../company/company-scope';
 
 /** 等级→分值（用于加权计算综合等级） */
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -75,10 +76,28 @@ export class ExpertAdminService {
     private llm: LlmService,
     private ocr: OcrService,
     private readonly extraction: ExpertExtractionService,
+    private readonly companyScope: CompanyScopeService,
     // FE-3（2026-09-24 全链审计）：递补也是委员会角色变更——广播 role_changed。
     // BidModule 已导出 BidGateway 且 ExpertModule 已 import（ExpertService 同款 @Optional 注入，无新增模块改动）
     @Optional() private readonly gateway?: BidGateway,
   ) {}
+
+  /* ── 公司级数据隔离（2026-09-24 专家库接入，口径同 dashboard/procurements/progress）──
+   * 规则：admin 默认全部公司、?companyId= 切单公司；非 admin 强制本人公司；
+   * 专家归属落在 User.companyId（录入/导入时自操作人写时快照）。 */
+  /** where 片段（spread 进 User 维度查询） */
+  private async expertScopeFilter(user: AuthenticatedUser | undefined, companyId?: string): Promise<{ companyId?: string }> {
+    const scope = await this.companyScope.resolveScope(user, companyId);
+    return this.companyScope.filter(scope);
+  }
+
+  /** 单专家越权校验（:id 详情/写操作端点用；admin 全视野放行） */
+  private async assertExpertInScope(expertId: string, user: AuthenticatedUser | undefined): Promise<void> {
+    const scope = await this.companyScope.resolveScope(user);
+    const expert = await this.prisma.user.findUnique({ where: { id: expertId }, select: { companyId: true } });
+    if (!expert) throw new NotFoundException('专家不存在');
+    this.companyScope.assertInScope(expert.companyId, scope);
+  }
 
   /** 专家管理审计留痕（AuditLog 仅追加、无改删端点，天然不可篡改）。操作人缺失（种子导入等系统动作）静默跳过；写失败不阻断主流程。 */
   private async auditExpert(actorId: string | undefined, action: string, expertId: string, details?: Record<string, unknown>) {
@@ -94,10 +113,12 @@ export class ExpertAdminService {
 
   /* ── 专家库 ── */
 
-  /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索，服务端分页） */
-  async listExperts(search?: string, specialty?: string, employer?: string, page = 1, pageSize = 20) {
+  /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索，服务端分页；公司隔离） */
+  async listExperts(search?: string, specialty?: string, employer?: string, page = 1, pageSize = 20, user?: AuthenticatedUser, companyId?: string) {
     const where = {
       role: 'bid_expert' as const,
+      // 公司级数据隔离：admin 可 ?companyId= 切单公司，非 admin 强制本人公司
+      ...(await this.expertScopeFilter(user, companyId)),
       // 专业/公司筛选（ExpertProfile）：specialty 须独立于 employer——曾嵌在 employer 条件内，
       // 只传专业不传公司时筛选被静默丢弃，专业配额行人数恒为全库总数
       ...((specialty || employer) && { expertProfile: { ...(specialty && { specialty }), ...(employer && { employer }) } }),
@@ -122,6 +143,7 @@ export class ExpertAdminService {
           displayName: true,
           email: true,
           isActive: true,
+          company: true, // admin 全部公司视图按公司分组用
           department: { select: { id: true, name: true } },
           expertProfile: true,
           bidExperts: {
@@ -175,10 +197,10 @@ export class ExpertAdminService {
     return { total, page, pageSize, items: users };
   }
 
-  /** 全部专业（去重） */
-  async listSpecialties() {
+  /** 全部专业（去重；公司隔离——下拉只列可见专家的专业） */
+  async listSpecialties(user?: AuthenticatedUser, companyId?: string) {
     const rows = await this.prisma.expertProfile.findMany({
-      where: { user: { isActive: true } },
+      where: { user: { isActive: true, role: 'bid_expert', ...(await this.expertScopeFilter(user, companyId)) } },
       select: { specialty: true },
       distinct: ['specialty'],
       orderBy: { specialty: 'asc' },
@@ -186,13 +208,42 @@ export class ExpertAdminService {
     return rows.map(r => r.specialty);
   }
 
-  /** 专家详情 */
-  async getExpert(userId: string) {
+  /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径，与列表同 where；台账 company-counts 同款） */
+  async companyCounts(search?: string, specialty?: string, employer?: string, user?: AuthenticatedUser) {
+    const scope = await this.companyScope.resolveScope(user); // admin 默认全部 → 分组才有意义
+    const groups = await this.prisma.user.groupBy({
+      by: ['company'],
+      where: {
+        role: 'bid_expert' as const,
+        ...this.companyScope.filter(scope),
+        ...((specialty || employer) && { expertProfile: { ...(specialty && { specialty }), ...(employer && { employer }) } }),
+        ...(search ? {
+          OR: [
+            { displayName: { contains: search, mode: 'insensitive' as const } },
+            { expertProfile: { specialty: { contains: search, mode: 'insensitive' as const } } },
+            { expertProfile: { employer: { contains: search, mode: 'insensitive' as const } } },
+            { department: { name: { contains: search, mode: 'insensitive' as const } } },
+          ],
+        } : {}),
+      },
+      _count: { _all: true },
+    });
+    return groups
+      .map(g => ({ name: g.company?.trim() || '未归属', count: g._count._all }))
+      .sort((a, b) => (a.name === '未归属' ? 1 : b.name === '未归属' ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh')));
+  }
+
+  /** 专家详情（公司隔离：非 admin 直调他人公司专家 → 403） */
+  async getExpert(userId: string, actor?: AuthenticatedUser) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, username: true, displayName: true, email: true, role: true, isActive: true, department: { select: { id: true, name: true } }, createdAt: true, expertProfile: true },
+      select: { id: true, username: true, displayName: true, email: true, role: true, isActive: true, companyId: true, company: true, department: { select: { id: true, name: true } }, createdAt: true, expertProfile: true },
     });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+    if (actor) {
+      const scope = await this.companyScope.resolveScope(actor);
+      this.companyScope.assertInScope(user.companyId, scope);
+    }
 
     const assignments = await this.prisma.bidExpert.findMany({
       where: { userId },
@@ -216,8 +267,9 @@ export class ExpertAdminService {
     return { ...user, assignments, evaluations, statistics: { totalProjects, completedProjects, signedInProjects, evalCount: evaluations.length, gradeCounts } };
   }
 
-  /** 专家参与的评审项目列表 */
-  async listExpertProjects(userId: string) {
+  /** 专家参与的评审项目列表（公司隔离） */
+  async listExpertProjects(userId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     return this.prisma.bidExpert.findMany({
       where: { userId },
       include: { project: { select: { id: true, projectCode: true, name: true, stage: true, procurementMethod: true, openTime: true, deadline: true } } },
@@ -245,6 +297,8 @@ export class ExpertAdminService {
       }
     }
     try {
+      // 公司归属写时快照（自操作人）：本公司账号录入的专家入本公司库
+      const { companyId: opCompanyId, companyName: opCompanyName } = operatorId ? await this.operatorCompanyOf(operatorId) : { companyId: null, companyName: null };
       return await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -255,6 +309,7 @@ export class ExpertAdminService {
           role: 'bid_expert',
           isActive: true,
           departmentId,
+          ...(opCompanyId && { companyId: opCompanyId, company: opCompanyName }),
           expertProfile: {
             create: {
               specialty: dto.specialty,
@@ -291,7 +346,7 @@ export class ExpertAdminService {
   }
 
   /** 从种子数据批量导入专家（仅导入尚未存在于数据库中的专家） */
-  async importFromSeed() {
+  async importFromSeed(operatorId?: string) {
     const logger = new Logger(ExpertAdminService.name);
     const seedDir = join(__dirname, '..', '..', '..', 'prisma', 'seed-data');
     // R2（2026-09-18 身份核验设计）：批量导入口令=各自档案身份证号，缺失回退 expert@2026（按口令去重哈希）
@@ -334,6 +389,9 @@ export class ExpertAdminService {
 
       const profile = profiles.find((p: any) => p.userId === seedUser.id);
 
+      // 公司归属写时快照：种子导入同录入口径，归操作人公司
+      const { companyId: opCompanyId, companyName: opCompanyName } = operatorId ? await this.operatorCompanyOf(operatorId) : { companyId: null, companyName: null };
+
       try {
         await this.prisma.user.create({
           data: {
@@ -342,6 +400,7 @@ export class ExpertAdminService {
             passwordHash: hashOf((profile?.idNumber ?? '').toString().trim() || 'expert@2026'),
             role: 'bid_expert',
             isActive: true,
+            ...(opCompanyId && { companyId: opCompanyId, company: opCompanyName }),
             expertProfile: {
               create: {
                 specialty: profile?.specialty ?? '未分类',
@@ -367,8 +426,9 @@ export class ExpertAdminService {
     return { imported, skipped, total: seedExpertUsers.length };
   }
 
-  /** 启用/停用专家（停用 = isActive=false + availability 停用） */
-  async setAvailability(userId: string, available: boolean, operatorId?: string) {
+  /** 启用/停用专家（停用 = isActive=false + availability 停用；公司隔离） */
+  async setAvailability(userId: string, available: boolean, operatorId?: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // 仅限专家角色，防止越权停用任意账户（含 admin/员工）
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
@@ -387,8 +447,9 @@ export class ExpertAdminService {
     return { success: true };
   }
 
-  /** 更新专家资料 */
-  async updateProfile(userId: string, dto: UpdateExpertProfileDto, operatorId?: string) {
+  /** 更新专家资料（公司隔离） */
+  async updateProfile(userId: string, dto: UpdateExpertProfileDto, operatorId?: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
 
@@ -1130,7 +1191,8 @@ export class ExpertAdminService {
 
   /** AI 辅助评价建议：LLM 综合历史评价 / 评分偏离度 / 违规 / 当前负荷给出三维建议分数，
    *  LLM 不可用时走规则兜底（历史均分 ± 偏离度/违规罚分），engine 字段标识来源，前端据实展示。 */
-  async aiSuggestEvaluation(expertUserId: string) {
+  async aiSuggestEvaluation(expertUserId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(expertUserId, actor);
     const user = await this.prisma.user.findFirst({
       where: { id: expertUserId, role: 'bid_expert' },
       select: { id: true, displayName: true, expertProfile: { select: { specialty: true, title: true } } },
@@ -1225,7 +1287,8 @@ export class ExpertAdminService {
     }
   }
 
-  async createEvaluation(evaluatorId: string, dto: CreateExpertEvaluationDto) {
+  async createEvaluation(evaluatorId: string, dto: CreateExpertEvaluationDto, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(dto.expertUserId, actor);
     const expert = await this.prisma.user.findFirst({ where: { id: dto.expertUserId, role: 'bid_expert' } });
     if (!expert) throw new NotFoundException('专家不存在');
 
@@ -1288,9 +1351,12 @@ export class ExpertAdminService {
     return created;
   }
 
-  async getEvaluationStats() {
-    const [evaluations, deviations] = await Promise.all([
+  async getEvaluationStats(user?: AuthenticatedUser) {
+    const scope = await this.companyScope.resolveScope(user);
+    const f = this.companyScope.filter(scope);
+    const [evaluations, allDeviations] = await Promise.all([
       this.prisma.expertEvaluation.findMany({
+        where: { expertUser: f },
         select: { overallGrade: true, expertUserId: true, createdAt: true },
       }),
       // P2：偏离度计算下推到 Postgres 窗口函数，仅返回按专家聚合的结果，避免全表 BidScoreRecord 加载入内存
@@ -1318,6 +1384,15 @@ export class ExpertAdminService {
     const excellentRatio = evaluations.length > 0
       ? Math.round(((levelCounts['A'] + levelCounts['B']) / evaluations.length) * 1000) / 10
       : 0;
+
+    // 偏离度 SQL 走窗口函数无法带关系过滤 → 按隔离集专家 id 后过滤（专家库规模小，代价可忽略）
+    let deviations = allDeviations;
+    if (!scope.all) {
+      const scopedIds = new Set(
+        (await this.prisma.user.findMany({ where: { role: 'bid_expert', ...f }, select: { id: true } })).map(u => u.id),
+      );
+      deviations = allDeviations.filter(d => scopedIds.has(d.expertId));
+    }
 
     // 评分偏离度（已由 DB 窗口函数计算，仅取回按专家聚合的结果）
     const devMap = new Map(deviations.map(d => [d.expertId, Number(d.meanDeviation)]));
@@ -1352,9 +1427,11 @@ export class ExpertAdminService {
     };
   }
 
-  /** 三维等级分布 */
-  async getEvaluationDimensionStats() {
+  /** 三维等级分布（公司隔离） */
+  async getEvaluationDimensionStats(user?: AuthenticatedUser) {
+    const f = await this.expertScopeFilter(user);
     const evals = await this.prisma.expertEvaluation.findMany({
+      where: { expertUser: f },
       select: { attendanceGrade: true, qualityGrade: true, disciplineGrade: true },
     });
     const zero = (): Record<string, number> => ({ A: 0, B: 0, C: 0, D: 0, E: 0 });
@@ -1369,8 +1446,9 @@ export class ExpertAdminService {
 
   /* ── 专家画像（Track D §3.4） ── */
 
-  /** 单专家画像：参与/完成率/均分/偏离度/评价趋势/常委标记。 */
-  async getExpertPortrait(userId: string) {
+  /** 单专家画像：参与/完成率/均分/偏离度/评价趋势/常委标记。（公司隔离） */
+  async getExpertPortrait(userId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, displayName: true, role: true },
@@ -1416,11 +1494,13 @@ export class ExpertAdminService {
   /* ── 退库预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
 
   /** 扫描退库候选（连续 E 级 或 近 12 个月无分配），跳过最近 90 天内被标记忽略的专家；不修改 availability。 */
-  async reviewRetirementCandidates() {
+  async reviewRetirementCandidates(user?: AuthenticatedUser) {
     const ignoreCutoff = new Date(Date.now() - 90 * 24 * 3600 * 1000);
+    const f = await this.expertScopeFilter(user);
     const experts = await this.prisma.user.findMany({
       where: {
         role: 'bid_expert', isActive: true,
+        ...f,
         expertProfile: {
           availability: { not: '停用' },
           OR: [
@@ -1492,8 +1572,9 @@ export class ExpertAdminService {
     return candidates;
   }
 
-  /** 忽略本轮退库预警：标记 retireIgnoredAt，90 天内 reviewRetirementCandidates 跳过此专家 */
-  async ignoreRetirementWarning(userId: string, operatorId?: string) {
+  /** 忽略本轮退库预警：标记 retireIgnoredAt，90 天内 reviewRetirementCandidates 跳过此专家（公司隔离） */
+  async ignoreRetirementWarning(userId: string, operatorId?: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     await this.prisma.expertProfile.update({ where: { userId }, data: { retireIgnoredAt: new Date() } });
@@ -1502,7 +1583,8 @@ export class ExpertAdminService {
   }
 
   /** 人工确认退库：写入停用 + retiredAt + retireReason，同步禁用登录（同一事务，避免半退库态）。 */
-  async confirmRetire(userId: string, reason: string, operatorId?: string) {
+  async confirmRetire(userId: string, reason: string, operatorId?: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // 仅限专家角色，防止越权停用任意账户
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
@@ -1521,8 +1603,9 @@ export class ExpertAdminService {
     return { success: true };
   }
 
-  /** CTS A-218/222 专家库状态机：PENDING→ACTIVE 记审核留痕；RETIRED 联动账号停用（对齐 confirmRetire） */
+  /** CTS A-218/222 专家库状态机：PENDING→ACTIVE 记审核留痕；RETIRED 联动账号停用（对齐 confirmRetire）。公司隔离。 */
   async updateProfileStatus(userId: string, dto: UpdateExpertStatusDto, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     if (!actor || !['admin', 'leader'].includes(actor.role)) {
       throw new ForbiddenException({ error: '仅领导或管理员可变更专家库状态', code: 'EXPERT_STATUS_ROLE_FORBIDDEN' });
     }
@@ -1586,27 +1669,29 @@ export class ExpertAdminService {
   /* ── 统计 / 排名 / 负荷 ── */
 
   /** 专家库整体态势统计（web 统计页） */
-  async getStatistics() {
+  async getStatistics(user?: AuthenticatedUser, companyId?: string) {
     const cutoff7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
     const cutoff30d = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    const f = await this.expertScopeFilter(user, companyId); // 统计在隔离集上算，不是全量算完再减
 
     const [totalExperts, availGroups, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d] = await Promise.all([
-      this.prisma.user.count({ where: { role: 'bid_expert' } }),
-      this.prisma.expertProfile.groupBy({ by: ['availability'], where: { user: { role: 'bid_expert' } }, _count: true }),
+      this.prisma.user.count({ where: { role: 'bid_expert', ...f } }),
+      this.prisma.expertProfile.groupBy({ by: ['availability'], where: { user: { role: 'bid_expert', ...f } }, _count: true }),
       this.prisma.expertProfile.groupBy({
-        by: ['specialty'], where: { user: { role: 'bid_expert', isActive: true } },
+        by: ['specialty'], where: { user: { role: 'bid_expert', isActive: true, ...f } },
         _count: true, orderBy: { _count: { specialty: 'desc' } },
       }),
       this.prisma.expertProfile.groupBy({
-        by: ['title'], where: { user: { role: 'bid_expert', isActive: true } },
+        by: ['title'], where: { user: { role: 'bid_expert', isActive: true, ...f } },
         _count: true, orderBy: { _count: { title: 'desc' } },
       }),
       this.prisma.expertEvaluation.findMany({
+        where: { expertUser: f },
         select: { overallGrade: true, createdAt: true, expertUserId: true, expertUser: { select: { displayName: true } } },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.bidExpert.count({ where: { createdAt: { gte: cutoff7d } } }),
-      this.prisma.auditLog.count({ where: { action: 'EXPERT_EXTRACTION_CONFIRMED', createdAt: { gte: cutoff30d } } }),
+      this.prisma.bidExpert.count({ where: { createdAt: { gte: cutoff7d }, user: { role: 'bid_expert', ...f } } }),
+      this.prisma.auditLog.count({ where: { action: 'EXPERT_EXTRACTION_CONFIRMED', createdAt: { gte: cutoff30d }, user: f } }),
     ]);
 
     const amap: Record<string, number> = {};
@@ -1654,15 +1739,16 @@ export class ExpertAdminService {
   }
 
   /** 专家排名（综合加权得分 = A×5+B×4+C×3+D×2+E×1 / 总次数 × 置信度因子） */
-  async getRanking(period: 'month' | 'quarter' | 'all' = 'month') {
+  async getRanking(period: 'month' | 'quarter' | 'all' = 'month', user?: AuthenticatedUser, companyId?: string) {
     const cutoff = period === 'month'
       ? new Date(Date.now() - 30 * 24 * 3600 * 1000)
       : period === 'quarter'
         ? new Date(Date.now() - 90 * 24 * 3600 * 1000)
         : new Date(0);
+    const f = await this.expertScopeFilter(user, companyId);
 
     const evals = await this.prisma.expertEvaluation.findMany({
-      where: { createdAt: { gte: cutoff } },
+      where: { createdAt: { gte: cutoff }, expertUser: f },
       select: {
         expertUserId: true, overallGrade: true,
         expertUser: { select: { displayName: true, expertProfile: { select: { specialty: true } } } },
@@ -1701,12 +1787,13 @@ export class ExpertAdminService {
     });
   }
 
-  /** 专家负荷分布（按活跃评审项目数） */
-  async getLoadDistribution() {
+  /** 专家负荷分布（按活跃评审项目数；公司隔离） */
+  async getLoadDistribution(user?: AuthenticatedUser, companyId?: string) {
+    const f = await this.expertScopeFilter(user, companyId);
     const [totalActiveExperts, activeAssigns] = await Promise.all([
-      this.prisma.user.count({ where: { role: 'bid_expert', isActive: true } }),
+      this.prisma.user.count({ where: { role: 'bid_expert', isActive: true, ...f } }),
       this.prisma.bidExpert.findMany({
-        where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true } },
+        where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...f } },
         select: { userId: true, user: { select: { displayName: true } } },
       }),
     ]);
@@ -1733,17 +1820,20 @@ export class ExpertAdminService {
 
   /* ── 批量操作 / 导入 / 导出 ── */
 
-  /** 批量启用/停用专家 */
-  async batchOperation(dto: { action: 'enable' | 'disable'; ids: string[]; reason?: string }, operatorId?: string) {
+  /** 批量启用/停用专家（公司隔离：where 注入，他人公司 id 静默不命中） */
+  async batchOperation(dto: { action: 'enable' | 'disable'; ids: string[]; reason?: string }, operatorId?: string, actor?: AuthenticatedUser) {
     if (!dto.ids?.length) throw new BadRequestException('未选择专家');
     const available = dto.action === 'enable';
+    const f = await this.expertScopeFilter(actor);
+    // 先把 id 集收窄到隔离集：两条 updateMany 共用，杜绝 user 侧被 where 护住、profile 侧裸 in 越权命中的分叉
+    const ids = (await this.prisma.user.findMany({ where: { id: { in: dto.ids }, role: 'bid_expert', ...f }, select: { id: true } })).map(u => u.id);
     const result = await this.prisma.$transaction([
       this.prisma.user.updateMany({
-        where: { id: { in: dto.ids }, role: 'bid_expert' },
+        where: { id: { in: ids } },
         data: { isActive: available },
       }),
       this.prisma.expertProfile.updateMany({
-        where: { userId: { in: dto.ids } },
+        where: { userId: { in: ids } },
         data: { availability: available ? '可用' : '停用' },
       }),
     ]);
@@ -1754,10 +1844,11 @@ export class ExpertAdminService {
     return { success: true, count: result[0].count };
   }
 
-  /** 导出专家库（扁平结构，前端拼 CSV） */
-  async exportExperts(ids?: string[]) {
+  /** 导出专家库（扁平结构，前端拼 CSV；公司隔离——只导出可见专家） */
+  async exportExperts(ids?: string[], actor?: AuthenticatedUser) {
+    const f = await this.expertScopeFilter(actor);
     const users = await this.prisma.user.findMany({
-      where: { role: 'bid_expert', ...(ids?.length && { id: { in: ids } }) },
+      where: { role: 'bid_expert', ...f, ...(ids?.length && { id: { in: ids } }) },
       include: { expertProfile: true, department: { select: { name: true } } },
       orderBy: { displayName: 'asc' },
     });
@@ -1767,6 +1858,7 @@ export class ExpertAdminService {
       专业: u.expertProfile?.specialty ?? '',
       职称: u.expertProfile?.title ?? '',
       工作单位: u.expertProfile?.employer ?? '',
+      所属公司: u.company ?? '',
       部门: u.department?.name ?? '',
       手机号: u.expertProfile?.phone ?? '',
       身份证号: u.expertProfile?.idNumber ?? '',
@@ -1815,7 +1907,7 @@ export class ExpertAdminService {
           licenseNo: pick(row, ['证书编号', '证书号', '资格证']) || undefined,
           email: pick(row, ['邮箱', 'email', '电子邮箱']) || undefined,
           notes: pick(row, ['备注']) || undefined,
-        });
+        }, operatorId);
         results.push({ 姓名: displayName, 状态: '成功' });
         imported++;
       } catch (e: any) {
@@ -1831,9 +1923,17 @@ export class ExpertAdminService {
 
   /* ── 违规记录（AuditLog）── */
 
-  async getViolations(expertId?: string) {
+  async getViolations(expertId?: string, user?: AuthenticatedUser) {
     const where: any = { action: 'EXPERT_VIOLATION_RECORDED' };
-    if (expertId) where.resourceId = expertId;
+    if (expertId && user) await this.assertExpertInScope(expertId, user);
+    if (!expertId && user) {
+      // 全量违规列表：resourceId 收窄到隔离集内的专家
+      const scope = await this.companyScope.resolveScope(user);
+      if (!scope.all) {
+        const ids = (await this.prisma.user.findMany({ where: { role: 'bid_expert', companyId: scope.companyId }, select: { id: true } })).map(u => u.id);
+        where.resourceId = { in: ids };
+      }
+    }
     return this.prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -1841,7 +1941,8 @@ export class ExpertAdminService {
     });
   }
 
-  async recordViolation(expertId: string, dto: { type: string; detail: string; severity: 'warning' | 'danger' }, operatorId: string) {
+  async recordViolation(expertId: string, dto: { type: string; detail: string; severity: 'warning' | 'danger' }, operatorId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(expertId, actor);
     const expert = await this.prisma.user.findFirst({ where: { id: expertId, role: 'bid_expert' } });
     if (!expert) throw new NotFoundException('专家不存在');
     if (!operatorId) throw new BadRequestException({ error: '缺少操作人，无法记录违规留痕', code: 'NO_OPERATOR' });
@@ -1859,8 +1960,9 @@ export class ExpertAdminService {
 
   /* ── 评价历史 / AI 采纳率 ── */
 
-  /** 单个专家的履职评价记录 */
-  async getExpertEvaluations(userId: string) {
+  /** 单个专家的履职评价记录（公司隔离） */
+  async getExpertEvaluations(userId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     return this.prisma.expertEvaluation.findMany({
       where: { expertUserId: userId },
       include: { evaluator: { select: { id: true, displayName: true } } },
@@ -1868,11 +1970,14 @@ export class ExpertAdminService {
     });
   }
 
-  /** AI 采纳率（基于 BidScoreDelta：专家分 vs AI 建议分） */
-  async getAiAdoptionRate(expertId?: string) {
+  /** AI 采纳率（基于 BidScoreDelta：专家分 vs AI 建议分；公司隔离） */
+  async getAiAdoptionRate(expertId?: string, user?: AuthenticatedUser) {
+    const f = await this.expertScopeFilter(user);
+    if (expertId && user) await this.assertExpertInScope(expertId, user);
     // BidScoreDelta.expertId 指向 BidExpert.id，需映射到 userId 供前端按专家过滤
+    // 公司过滤须挂在 user 关系上（BidExpert 无 companyId 直列）
     const assignments = await this.prisma.bidExpert.findMany({
-      where: expertId ? { userId: expertId } : undefined,
+      where: expertId ? { userId: expertId } : { user: { role: 'bid_expert', ...f } },
       select: { id: true, userId: true },
     });
     const expertIdToUser = new Map(assignments.map(a => [a.id, a.userId]));
@@ -2193,8 +2298,9 @@ ${combined}`,
     return { projectId: project.id, projectCode: project.projectCode, name: project.name, openTime: project.openTime.toISOString() };
   }
 
-  /** 评标风险预警：融合评分偏离度 + 履职评价 + 违规记录，生成专家级风险简报（规则简报为底，LLM 增强）。 */
-  async getRiskBrief(userId: string) {
+  /** 评标风险预警：融合评分偏离度 + 履职评价 + 违规记录，生成专家级风险简报（规则简报为底，LLM 增强）。公司隔离。 */
+  async getRiskBrief(userId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { expertProfile: true } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
 
@@ -2285,7 +2391,8 @@ ${combined}`,
 
   /* ── 通知偏好（UserSettings.notificationPrefs）── */
 
-  async getNotifyPrefs(userId: string) {
+  async getNotifyPrefs(userId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     const settings = await this.prisma.userSettings.findUnique({ where: { userId } });
@@ -2293,7 +2400,8 @@ ${combined}`,
     return { inApp: prefs.inApp ?? true, sms: prefs.sms ?? false, phone: prefs.phone ?? false };
   }
 
-  async updateNotifyPrefs(userId: string, dto: { inApp?: boolean; sms?: boolean; phone?: boolean }) {
+  async updateNotifyPrefs(userId: string, dto: { inApp?: boolean; sms?: boolean; phone?: boolean }, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     const existing = await this.prisma.userSettings.findUnique({ where: { userId } });
@@ -2307,8 +2415,9 @@ ${combined}`,
     return { success: true };
   }
 
-  /** 专家通知发送历史（最近 50 条），供详情页查看 */
-  async getNotifyHistory(userId: string) {
+  /** 专家通知发送历史（最近 50 条），供详情页查看（公司隔离） */
+  async getNotifyHistory(userId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(userId, actor);
     const logs = await this.prisma.notificationDeliveryLog.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },

@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RealtimeNotifications } from "@/components/notification/realtime-notifications";
 import { SessionWatchdog } from "@/components/session-watchdog";
+import { IdleTimeout } from "@/components/idle-timeout";
 import { ConfirmHost } from "@/components/catalog/confirm-dialog";
 import { UserSettingsProvider } from "@/lib/user-settings-context";
 import { AssistantProvider, useAssistant } from "@/components/assistant/assistant-provider";
@@ -147,6 +148,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     <UserSettingsProvider>
       <AssistantProvider>
         <SessionWatchdog />
+        <IdleTimeout />
         <ConfirmHost />
         <AssistantLayoutInner>{children}</AssistantLayoutInner>
       </AssistantProvider>

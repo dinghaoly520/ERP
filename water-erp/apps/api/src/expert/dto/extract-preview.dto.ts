@@ -15,6 +15,10 @@ export class SpecialtyQuotaDto {
   @IsOptional() @IsString()
   employer?: string;
 
+  /** 公司主数据限定（2026-09-24 抽取配置「公司」下拉）：该配额仅从该公司专家库抽取；空=按池不限定 */
+  @IsOptional() @IsString()
+  companyId?: string;
+
   /** 部门限定（真部门 Department.name）：配额在公司内进一步按专家所属部门过滤 */
   @IsOptional() @IsString()
   department?: string;

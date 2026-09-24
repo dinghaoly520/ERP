@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
+import { api } from '@/lib/api';
 import { fetchCurrentUser } from '@/lib/api/auth';
+import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { StepTrack } from '@/components/step-track';
-import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send } from 'lucide-react';
+import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send } from 'lucide-react';
 import { STAGE_LABEL } from '@water-erp/shared';
 
 /** 兼容新旧 API：新版返回 { total, items }，旧版返回数组 */
@@ -28,7 +30,7 @@ function QuotaFiltersAppliedHint({ filters }: { filters?: ExtractionPreview['quo
   return <p className="text-[11px] text-[var(--muted-foreground)] mt-2">已启用档案过滤：{parts.join(' · ')}{filters.note ? `（${filters.note}）` : ''}</p>;
 }
 
-interface SpecialtyQuota { specialty: string; count: number; employer?: string; regionCode?: string; expertLevel?: string }
+interface SpecialtyQuota { specialty: string; count: number; employer?: string; regionCode?: string; expertLevel?: string; companyId?: string }
 
 type ExtractMode = 'specialty_match' | 'random' | 'merit_best' | 'manual';
 type ApiExtractMode = Exclude<ExtractMode, 'manual'>;
@@ -63,6 +65,9 @@ export function ExpertExtractPage({
   const [projects, setProjects] = useState<BidProjectOption[]>([]);
   // 当前用户（抽取公司默认值来源）
   const [user, setUser] = useState<{ company?: string | null } | null>(null);
+  // 抽取配置「公司」（2026-09-24）：默认本公司，可显式选其他公司的专家池（后端按 companyId 取池+确认白名单）
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string; shortName?: string | null }>>([]);
+  const [myCompanyId, setMyCompanyId] = useState('');
   const [specs, setSpecs] = useState<string[]>([]);
   const [pid, setPid] = useState(q.get('projectId') || '');
   const [pd, setPd] = useState<BidProjectDetail | null>(null);
@@ -121,6 +126,7 @@ export function ExpertExtractPage({
   // 公司→真部门映射（User.department）+ 公司→部门→专业映射（公司→部门→专业三级级联）
   const [companyDepartments, setCompanyDepartments] = useState<Map<string, string[]>>(new Map());
   const [companyDeptSpecs, setCompanyDeptSpecs] = useState<Map<string, string[]>>(new Map()); // key `${company}||${dept}`
+  const [deptByUser, setDeptByUser] = useState<Map<string, string>>(new Map()); // userId → 真部门名（User.department）——确认表「部门」列数据源
   const [demandRepCompany, setDemandRepCompany] = useState(''); // 抽取公司（默认当前用户公司）
   const [step, setStep] = useState(1); // 向导步骤：1=抽取配置 2=审核调整 3=确认通知 4=专家确认
   const [loading, setLoading] = useState(false); const [confirming, setConfirming] = useState(false);
@@ -596,7 +602,10 @@ export function ExpertExtractPage({
     return () => clearTimeout(t);
   }, [manualSearch, extractMode]);
 
-  useEffect(() => { fetchCurrentUser().then(setUser).catch(() => {}); }, []);
+  useEffect(() => {
+    fetchCurrentUser().then(u => { setUser(u); setMyCompanyId((u as any).companyId ?? ''); }).catch(() => {});
+    api.get<Array<{ id: string; name: string; shortName?: string | null }>>('/companies').then(setCompanies).catch(() => {});
+  }, []);
 
   // 公司/部门/专业三级映射：一次性拉取全部专家构建（供需求方代表「公司→部门→专业」级联）
   useEffect(() => {
@@ -605,10 +614,12 @@ export function ExpertExtractPage({
       const empSpecs = new Map<string, Set<string>>();
       const compDepts = new Map<string, Set<string>>();
       const compDeptSpecs = new Map<string, Set<string>>();
+      const uDepts = new Map<string, string>();
       for (const e of list) {
         const emp = e.expertProfile?.employer?.trim();
-        if (!emp) continue;
         const dept = e.department?.name?.trim();
+        if (dept) uDepts.set(e.id, dept);
+        if (!emp) continue;
         const sp = e.expertProfile?.specialty?.trim();
         if (!empSpecs.has(emp)) empSpecs.set(emp, new Set());
         if (sp) empSpecs.get(emp)!.add(sp);
@@ -624,6 +635,7 @@ export function ExpertExtractPage({
       setEmployerSpecs(new Map([...empSpecs.entries()].map(([k, v]) => [k, [...v].sort()])));
       setCompanyDepartments(new Map([...compDepts.entries()].map(([k, v]) => [k, [...v].sort()])));
       setCompanyDeptSpecs(new Map([...compDeptSpecs.entries()].map(([k, v]) => [k, [...v].sort()])));
+      setDeptByUser(uDepts);
       // 公司默认值：当前用户公司（列表无该公司时回退第一个）
       setDemandRepCompany(prev => prev || (user?.company?.trim() || [...empSpecs.keys()][0] || ''));
     }).catch(() => {});
@@ -842,7 +854,7 @@ export function ExpertExtractPage({
   // 专业配额增删改：始终在专业间调配席位，总和恒 = expertSeats（"一定要分配满"）
   const addQ = () => setQuotas(p => {
     const sum = p.reduce((s, q) => s + q.count, 0);
-    const next = [...p, { specialty: '', count: 1 } as SpecialtyQuota];
+    const next = [...p, { specialty: '', count: 1, companyId: myCompanyId || undefined } as SpecialtyQuota]; // 新配额默认本公司
     // 总和已满 → 从 count 最大的现有专业借 1 席给新专业；未满 → 直接占 1 席（向 expertSeats 靠拢）
     if (sum >= expertSeats) {
       let donor = 0; for (let i = 1; i < p.length; i++) if (p[i].count > p[donor].count) donor = i;
@@ -1065,9 +1077,9 @@ export function ExpertExtractPage({
     if (extractMode !== 'manual' && !quotas.some(q => q.specialty.trim())) { setError('请至少选择一个专业'); return; }
     if (extractMode !== 'manual' && !seatsBalanced) { setError(`专业配额合计须等于可分配席位 ${expertSeats} 席（当前 ${quotaSum} 席）`); return; }
     if (needDemandRep) {
-      if (demandRepMode === 'designated' && demandRepPersons.length !== demandRepCount) { setError(`请指定 ${demandRepCount} 名需求方代表（已选 ${demandRepPersons.length} 名）`); return; }
+      if (demandRepMode === 'designated' && demandRepPersons.length !== demandRepCount) { setError(`请指定 ${demandRepCount} 名需求方（业主）代表（已选 ${demandRepPersons.length} 名）`); return; }
       if (needDemandRep && !demandRepCompany) { setError('请选择抽取公司（默认为当前用户所属公司）'); return; }
-      if (demandRepMode === 'department' && !demandRepDept) { setError('请选择需求方代表部门'); return; }
+      if (demandRepMode === 'department' && !demandRepDept) { setError('请选择需求方（业主）代表部门'); return; }
     }
     setError(''); setLoading(true);
     // 清空之前抽取的全部内容（含 invitationData 还原态），再开始新一轮抽取
@@ -1083,12 +1095,12 @@ export function ExpertExtractPage({
     updateMessages(new Map());
     toast.loading('AI 正在分析项目需求并抽取专家组...', { id: 'extract-loading' });
 
-    // 组装抽取配额：各专业配额；部门需求方代表走 employer 限定配额；区域/等级为 A-129 可选档案过滤（空值不传）
-    const manualQuotas: { specialty: string; count: number; employer?: string; regionCode?: string; expertLevel?: string }[] = [];
-    for (const qq of quotas.filter(q => q.specialty.trim())) manualQuotas.push({
+    // 组装抽取配额：专业可空=「不选择」（不限专业桶，2026-09-24）；公司=配额所选（默认本公司，可跨公司）；
+    // 部门需求方代表走 employer 限定配额；区域/等级档案过滤已随 UI 下线不再发送
+    const manualQuotas: { specialty: string; count: number; companyId?: string }[] = [];
+    for (const qq of quotas) manualQuotas.push({
       specialty: qq.specialty, count: qq.count,
-      ...(qq.regionCode?.trim() ? { regionCode: qq.regionCode.trim() } : {}),
-      ...(qq.expertLevel ? { expertLevel: qq.expertLevel } : {}),
+      ...((qq.companyId || myCompanyId) ? { companyId: qq.companyId || myCompanyId } : {}),
     });
     const regularQuotaCount = manualQuotas.length; // 候补 = 每个专业 1 位
     const allQuotas = (needDemandRep && demandRepMode === 'department')
@@ -1125,6 +1137,12 @@ export function ExpertExtractPage({
     }
   };
 
+  /** 抽取配置公司白名单：各配额所选公司（默认本公司）的去重集合，确认抽取时随 payload 递交（跨公司放行依据） */
+  const extractionCompanyIds = (extraQuotas: SpecialtyQuota[] = []): string[] | undefined => {
+    const ids = [...new Set([...quotas, ...extraQuotas].map(q => (q.companyId || myCompanyId || '').trim()).filter(Boolean))];
+    return ids.length ? ids : undefined;
+  };
+
   // 需求方代表（正选成员，不参与 AI 抽取；designated 来自手动指定，department 来自抽取分离）
   const demandRepItems: ExtractionSelected[] = needDemandRep
     ? demandRepPersons.map(p => ({
@@ -1146,7 +1164,7 @@ export function ExpertExtractPage({
     return m;
   }, [demandRepPersons]);
   /** 格式化专家姓名：需求方代表追加「（需求方代表）」后缀 */
-  const fmtExpertName = (userId: string, name: string) => demandRepIdSet.has(userId) ? `${name}（需求方代表）` : name;
+  const fmtExpertName = (userId: string, name: string) => demandRepIdSet.has(userId) ? `${name}（业主代表）` : name;
   /** 取专家专业：需求方代表用配置时选取的真实专业，避免显示为"需求方代表"占位 */
   const fmtExpertSpecialty = (userId: string, fallback: string) => demandRepIdSet.has(userId) ? (demandRepSpecialtyMap.get(userId) || fallback) : fallback;
 
@@ -1249,7 +1267,7 @@ export function ExpertExtractPage({
         major: s.specialty,
         isLead: false,
       }));
-      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode });
+      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode, companyIds: extractionCompanyIds() });
       const ids = result.expertIds || exps.map(e => e.userId);
       setConfirmedExpertIds(ids);
       originalConfirmedIdsRef.current = new Set(ids);
@@ -1316,7 +1334,7 @@ export function ExpertExtractPage({
       const aiRes = await analyzeProjectSpecialties(pid);
       let quotas: SpecialtyQuota[] = [];
       let declinedDemandRepIds: any[] = [];
-      let reEmployerQuotas: { specialty: string; count: number; employer?: string }[] = [];
+      let reEmployerQuotas: { specialty: string; count: number; employer?: string; companyId?: string }[] = [];
       if (aiRes?.requiredSpecialties?.length) {
         const matchSpec = (sp: string): string => { const t = sp.trim(); if (!t) return ''; if (specs.includes(t)) return t; return specs.find(x => x.includes(t) || t.includes(x)) || ''; };
         const merged = new Map<string, number>();
@@ -1373,7 +1391,7 @@ export function ExpertExtractPage({
       const allReQuotas = [...quotas, ...reEmployerQuotas];
       const totalNeeded = allReQuotas.reduce((s, q) => s + q.count, 0);
       const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
-      const manualQuotas = allReQuotas.map(q => ({ specialty: q.specialty, count: q.count, employer: q.employer }));
+      const manualQuotas = allReQuotas.map(q => ({ specialty: q.specialty, count: q.count, employer: q.employer, companyId: q.companyId }));
       updateDraft({ quotas: allReQuotas.map(q => ({ specialty: q.specialty, count: q.count })) });
       const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(quotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
@@ -1421,7 +1439,7 @@ export function ExpertExtractPage({
       updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
       // 记住本次用户确认的配额（下次补选直接用，不再询问）
-      lastReQuotasRef.current = quotas.filter(q => q.specialty.trim() && q.count > 0).map(q => ({ specialty: q.specialty, count: q.count }));
+      lastReQuotasRef.current = quotas.filter(q => q.specialty.trim() && q.count > 0).map(q => ({ specialty: q.specialty, count: q.count, companyId: q.companyId }));
     } catch (e: any) {
       toast.error(e?.message || '补选抽取失败');
       updateDraft({ phase: 'configuring' });
@@ -1434,7 +1452,7 @@ export function ExpertExtractPage({
     setConfirming(true); setError('');
     try {
       const exps = reDraft.selected.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: false }));
-      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode, append: true });
+      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode, append: true, companyIds: extractionCompanyIds(reDraft?.quotas ?? []) });
       const ids = result.expertIds || exps.map(e => e.userId);
       updateDraft({ confirmed: true, expertIds: ids });
       // 入库即入历史（roundNo 已存在则更新，避免重开时重复 push）
@@ -1609,7 +1627,7 @@ export function ExpertExtractPage({
         major: s.specialty,
         isLead: false,
       }));
-      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode });
+      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode, companyIds: extractionCompanyIds() });
       const ids = result.expertIds || exps.map(e => e.userId);
       setConfirmedExpertIds(ids);
       originalConfirmedIdsRef.current = new Set(ids);
@@ -1828,7 +1846,7 @@ export function ExpertExtractPage({
               <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">专家抽取规则</h3>
               <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方（业主）代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>手动调整：抽取后可替换/移除/添加专家，灵活组建最终专家组</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
@@ -1842,7 +1860,7 @@ export function ExpertExtractPage({
       {/* ══ 步骤轨道 ══ */}
       <StepTrack
         steps={[
-          { num: 1, label: '抽取配置', desc: '委员会席位、需求方代表与专业配额' },
+          { num: 1, label: '抽取配置', desc: '委员会席位、需求方（业主）代表与专业配额' },
           { num: 2, label: '审核调整', desc: '查看 AI 推荐结果，手动调整专家组' },
           { num: 3, label: '确认通知', desc: '确定组长、发送通知给专家' },
           { num: 4, label: '专家确认与补选', desc: '查看专家回复，弹窗内补选并记录历史' },
@@ -2009,18 +2027,21 @@ export function ExpertExtractPage({
                   <UsersRound size={13} /> 委员会席位构成
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {demandRepSeats > 0 && <span className="rounded bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--accent)]">需求方代表 × {demandRepSeats}</span>}
+                  {demandRepSeats > 0 && <span className="rounded bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--accent)]">需求方（业主）代表 × {demandRepSeats}</span>}
                   <span className="rounded bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--success)]">专业专家 × {expertSeats}</span>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">总席位</span>
-                <div className="neu-tab-bar">
+                <div className="neu-segment" data-count="3" data-index={[3, 5, 7].indexOf(totalSeats)}>
+                  <span className="neu-segment-thumb" aria-hidden="true" />
                   {([3, 5, 7] as const).map(n => (
                     <button
                       key={n}
+                      type="button"
                       onClick={() => { setTotalSeats(n); if (needDemandRep && demandRepCount >= n) { setDemandRepCount(Math.max(0, n - 1)); setDemandRepPersons(prev => prev.slice(0, Math.max(0, n - 1))); } }}
-                      className={`neu-tab px-3.5 py-1.5 text-xs font-bold ${totalSeats === n ? 'is-active' : ''}`}
+                      className="neu-segment-btn"
+                      aria-pressed={totalSeats === n}
                     >
                       {n} 人
                     </button>
@@ -2030,39 +2051,35 @@ export function ExpertExtractPage({
             </div>
 
             {/* 需求方代表 + 专业配额：左右布局（窄屏自动堆叠） */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[5fr_7fr] lg:items-start">
               {/* 左列：需求方代表 */}
               <div className="neu-table-card p-4">
             {/* 需求方代表（可选） */}
             <div className="space-y-3">
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)] block">需求方代表（可选，占 {demandRepCount} 席）</span>
-                <div className="flex justify-end">
-                <div className="neu-tab-bar">
-                  <button
-                    onClick={() => toggleDemandRep(false)}
-                    className={`neu-tab px-4 py-1.5 text-xs font-bold ${!needDemandRep ? 'is-active' : ''}`}
-                  >
-                    不需要
-                  </button>
-                  <button
-                    onClick={() => toggleDemandRep(true)}
-                    className={`neu-tab px-4 py-1.5 text-xs font-bold ${needDemandRep ? 'is-active' : ''}`}
-                  >
-                    需要
-                  </button>
+              <div className="flex items-center gap-2.5">
+                <span className="neu-icon-well inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]">
+                  <UserCircle size={16} strokeWidth={1.9} className="text-[var(--accent)]" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-bold leading-tight tracking-[-0.01em] text-[var(--foreground)]">需求方（业主）代表</div>
+                  <div className="mt-0.5 text-[10px] leading-tight text-[var(--muted-foreground)]">{needDemandRep ? `可选 · 占用 ${demandRepCount} 席` : '未启用 · 不占用席位'}</div>
                 </div>
+                <div className="neu-segment shrink-0" data-count="2" data-index={needDemandRep ? 1 : 0}>
+                  <span className="neu-segment-thumb" aria-hidden="true" />
+                  <button type="button" onClick={() => toggleDemandRep(false)} className="neu-segment-btn" aria-pressed={!needDemandRep}>不需要</button>
+                  <button type="button" onClick={() => toggleDemandRep(true)} className="neu-segment-btn" aria-pressed={needDemandRep}>需要</button>
                 </div>
               </div>
 
               {needDemandRep && (
                 <>
                   {/* 人数选择（0-2 人，不超过剩余席位） */}
-                  <div className="flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2">
+                  <div className="flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-2.5 py-1.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
                     <span className="text-xs font-semibold text-[var(--foreground)]">代表人数</span>
-                    <div className="ml-auto neu-tab-bar">
+                    <div className="ml-auto neu-segment" data-count="2" data-index={demandRepCount - 1}>
+                      <span className="neu-segment-thumb" aria-hidden="true" />
                       {[1, 2].filter(n => n <= totalSeats - 1).map(n => (
-                        <button key={n} onClick={() => changeDemandRepCount(n)} className={`neu-tab px-3 py-1 text-xs font-bold ${demandRepCount === n ? 'is-active' : ''}`}>{n} 人</button>
+                        <button key={n} type="button" onClick={() => changeDemandRepCount(n)} className="neu-segment-btn" aria-pressed={demandRepCount === n}>{n} 人</button>
                       ))}
                     </div>
                   </div>
@@ -2133,16 +2150,22 @@ export function ExpertExtractPage({
                           {(companyDepartments.get(demandRepCompany) || []).map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                         <select value={demandRepDeptSpecialty} onChange={e => setDemandRepDeptSpecialty(e.target.value)} disabled={!demandRepDept} className="neu-input text-sm flex-1 disabled:opacity-50">
-                          <option value="">专业不限（可选）</option>
+                          <option value="">专业不限</option>
                           {(companyDeptSpecs.get(`${demandRepCompany}||${demandRepDept}`) || []).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </div>
                       {demandRepCompany && (
-                        <p className="text-[10px] text-[var(--muted-foreground)]">
-                          本次抽取仅限「{demandRepCompany}」的专家；需求方代表{demandRepDept ? `将从「${demandRepDept}」` : '将从全公司'}{demandRepDeptSpecialty ? `·「${demandRepDeptSpecialty}」` : ''}中抽取 1 名。
-                        </p>
+                        <div className="flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-2.5 py-1.5">
+                          <Info size={11} strokeWidth={2} className="mt-px shrink-0 text-[var(--muted-foreground)]" />
+                          <p className="text-[10px] leading-4 text-[var(--muted-foreground)]">本次抽取仅限「{demandRepCompany}」的专家；需求方（业主）代表{demandRepDept ? `将从「${demandRepDept}」` : '将从全公司'}{demandRepDeptSpecialty ? `·「${demandRepDeptSpecialty}」` : ''}中抽取 1 名。</p>
+                        </div>
                       )}
-                      {!demandRepCompany && <p className="text-[10px] text-[var(--warning)]">请先选择公司（默认为当前用户所属公司）。</p>}
+                      {!demandRepCompany && (
+                        <div className="flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1.5">
+                          <AlertTriangle size={11} strokeWidth={2} className="mt-px shrink-0 text-[var(--warning)]" />
+                          <p className="text-[10px] leading-4 text-[color-mix(in_oklch,var(--warning)_85%,black)]">请先选择公司（默认为当前用户所属公司）。</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -2150,50 +2173,71 @@ export function ExpertExtractPage({
               </div>
               </div>
 
-              {/* 右列：专业配额 */}
+              {/* 右列：专业配额（2026-09-24 全面优化：头部席位芯片 + 信息条 + 公司色标瓷片行） */}
               <div className="neu-table-card p-4">
-            {/* 抽取专家（专业配额，必填） */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">
-                  抽取专家（专业配额，可分配 <strong className="text-[var(--foreground)]">{expertSeats}</strong> 席，已配 <strong className={seatsBalanced ? 'text-[var(--success)]' : 'text-[var(--warning)]'}>{quotaSum}</strong> 席）
-                </span>
-                <div className="flex items-center gap-2">
-                  <button onClick={aiQuota} disabled={quotaAnalyzing || !pid} className="neu-btn-xs is-info" title="读取项目需求/立项/采购文件生成专业配额">
-                    {quotaAnalyzing ? <><RefreshCw size={12} className="animate-spin inline mr-0.5" />分析中…</> : <><Sparkles size={12} className="inline mr-0.5" />AI 配额</>}
-                  </button>
-                  <button onClick={addQ} className="neu-btn-xs"><Plus size={12} />添加专业</button>
+                <div>
+                  {/* 头部：标题 + 席位芯片 + 操作按钮 */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="neu-icon-well inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]">
+                      <UsersRound size={16} strokeWidth={1.9} className="text-[var(--accent)]" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-bold leading-tight tracking-[-0.01em] text-[var(--foreground)]">抽取专家 · 专业配额</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[color-mix(in_oklch,var(--accent)_85%,black)]">可分配 {expertSeats} 席</span>
+                        <span className={`rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${seatsBalanced ? 'bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[color-mix(in_oklch,var(--success)_80%,black)]' : 'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[color-mix(in_oklch,var(--warning)_80%,black)]'}`}>已配 {quotaSum}/{expertSeats}{seatsBalanced ? ' ✓' : ''}</span>
+                      </div>
+                    </div>
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      <button onClick={aiQuota} disabled={quotaAnalyzing || !pid} className="neu-btn-xs is-info" title="读取项目需求/立项/采购文件生成专业配额">
+                        {quotaAnalyzing ? <><RefreshCw size={12} className="animate-spin inline mr-0.5" />分析中…</> : <><Sparkles size={12} className="inline mr-0.5" />AI 配额</>}
+                      </button>
+                      <button onClick={addQ} className="neu-btn-xs"><Plus size={12} />添加专业</button>
+                    </div>
+                  </div>
+
+                  {/* 信息条：一行说清两个下拉的语义 */}
+                  <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-2.5 py-1.5">
+                    <Info size={11} strokeWidth={2} className="mt-px shrink-0 text-[var(--muted-foreground)]" />
+                    <p className="text-[10px] leading-4 text-[var(--muted-foreground)]">公司默认为本公司，可改选其他公司抽取其专家；专业可选「专业不限」＝不限专业抽取。</p>
+                  </div>
+
+                  {/* 配额行：公司色标 + 公司（短名）/ 专业 + 席位步进 + 删除 */}
+                  <div className="mt-3 space-y-1.5">
+                    {quotas
+                      .map((q, idx) => ({ q, idx }))
+                      .sort((a, b) => {
+                        const ca = a.q.specialty ? (pool.get(a.q.specialty) ?? 0) : -1;
+                        const cb = b.q.specialty ? (pool.get(b.q.specialty) ?? 0) : -1;
+                        return cb - ca; // 库内人数降序，未选专业排末尾
+                      })
+                      .map(({ q, idx }) => {
+                        const qc = companies.find(c => c.id === (q.companyId || myCompanyId));
+                        return (
+                          <div key={idx} className="group flex flex-wrap items-center gap-2 rounded-[11px] bg-[color-mix(in_oklch,var(--muted-foreground)_4%,transparent)] px-2 py-1.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] transition-colors hover:bg-[color-mix(in_oklch,var(--muted-foreground)_7%,transparent)]">
+                            <span className="h-8 w-1 shrink-0 self-center rounded-full" style={{ backgroundColor: companyColor(qc?.name ?? '') }} title={qc?.name} />
+                            <select value={q.companyId || myCompanyId} onChange={e => upQ(idx, 'companyId', e.target.value)} title={`公司：本配额仅从该公司的专家库抽取（${qc?.name ?? ''}）`} className="neu-input text-sm min-w-[210px] flex-[1.4] shrink-0">
+                              {companies.map(c => <option key={c.id} value={c.id} title={c.id === myCompanyId ? `${c.name}（本公司）` : c.name}>{c.name}</option>)}
+                            </select>
+                            <select value={q.specialty} onChange={e => upQ(idx, 'specialty', e.target.value)} className="neu-input text-sm min-w-[150px] flex-1 min-w-0" title="专业：可选「专业不限」＝不限专业抽取"><option value="">专业不限</option>{[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
+                            <div className="ml-auto flex shrink-0 items-center gap-1">
+                              <button onClick={() => adjustQuota(idx, -1)} className="neu-btn-xs" aria-label="减 1 席">−</button>
+                              <span className="min-w-[40px] rounded-[7px] bg-[color-mix(in_oklch,var(--background)_75%,transparent)] px-1 py-1 text-center text-[13px] font-extrabold leading-none tabular-nums text-[var(--foreground)]">{q.count}<span className="ml-0.5 text-[9px] font-semibold text-[var(--muted-foreground)]">席</span></span>
+                              <button onClick={() => adjustQuota(idx, 1)} className="neu-btn-xs" aria-label="加 1 席">+</button>
+                              <button onClick={() => rmQ(idx)} disabled={quotas.length <= 1} className="neu-btn-xs is-danger ml-1 opacity-60 transition-opacity group-hover:opacity-100" aria-label="删除该配额" title="删除该配额">×</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                  {!seatsBalanced && (
+                    <div className="mt-2 rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-[11px] font-semibold text-[var(--warning)]">
+                      专业配额合计须等于可分配席位 {expertSeats} 席（当前 {quotaSum} 席）
+                    </div>
+                  )}
                 </div>
               </div>
-              <p className="mb-2 text-[10px] text-[var(--muted-foreground)]">区域代码 / 等级为可选档案过滤（留空不过滤，不参与席位配平）。</p>
-              {quotas
-                .map((q, idx) => ({ q, idx }))
-                .sort((a, b) => {
-                  const ca = a.q.specialty ? (pool.get(a.q.specialty) ?? 0) : -1;
-                  const cb = b.q.specialty ? (pool.get(b.q.specialty) ?? 0) : -1;
-                  return cb - ca; // 库内人数降序，未选专业排末尾
-                })
-                .map(({ q, idx }) => (
-                <div key={idx} className="flex items-center gap-2 mb-2">
-                  <select value={q.specialty} onChange={e => upQ(idx, 'specialty', e.target.value)} className="neu-input text-sm flex-1 min-w-0"><option value="">选择专业</option>{[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
-                  <input value={q.regionCode ?? ''} onChange={e => upQ(idx, 'regionCode', e.target.value)} placeholder="510000" maxLength={20} inputMode="numeric" title="行政区域代码（六位，可选过滤，留空不过滤）" className="neu-input text-sm !w-[76px]" />
-                  <select value={q.expertLevel ?? ''} onChange={e => upQ(idx, 'expertLevel', e.target.value)} title="库内等级 A-E（可选过滤，留空不过滤）" className="neu-input text-sm !w-[76px]">
-                    <option value="">等级</option>
-                    {['A', 'B', 'C', 'D', 'E'].map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                  <div className="flex items-center gap-1"><button onClick={() => adjustQuota(idx, -1)} className="neu-btn-xs">−</button><span className="w-6 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span><button onClick={() => adjustQuota(idx, 1)} className="neu-btn-xs">+</button></div>
-                  <button onClick={() => rmQ(idx)} disabled={quotas.length <= 1} className="neu-btn-xs is-danger">×</button>
-                </div>
-              ))}
-              {!seatsBalanced && (
-                <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-[11px] font-semibold text-[var(--warning)]">
-                  专业配额合计须等于可分配席位 {expertSeats} 席（当前 {quotaSum} 席）
-                </div>
-              )}
             </div>
-            </div>
-            </div>
-
 
             {/* 抽取方式：标签与按钮同处一个右对齐组件 */}
             <div className="flex justify-end">
@@ -2223,7 +2267,7 @@ export function ExpertExtractPage({
             <div className="flex items-center justify-end gap-3">
               {!canExtract && pid && (
                 <span className="text-[11px] text-[var(--muted-foreground)]">
-                  {!seatsBalanced ? '请先配平专业配额' : needDemandRep && !demandRepMode ? '请选择需求方代表方式' : needDemandRep && demandRepMode === 'designated' && demandRepPersons.length !== demandRepCount ? `请指定 ${demandRepCount} 名需求方代表（已选 ${demandRepPersons.length} 名）` : needDemandRep && demandRepMode === 'department' && !demandRepDept ? '请选择需求方代表部门' : ''}
+                  {!seatsBalanced ? '请先配平专业配额' : needDemandRep && !demandRepMode ? '请选择需求方（业主）代表方式' : needDemandRep && demandRepMode === 'designated' && demandRepPersons.length !== demandRepCount ? `请指定 ${demandRepCount} 名需求方（业主）代表（已选 ${demandRepPersons.length} 名）` : needDemandRep && demandRepMode === 'department' && !demandRepDept ? '请选择需求方（业主）代表部门' : ''}
                 </span>
               )}
               <button onClick={run} disabled={loading || !canExtract} className="neu-btn-soft !w-auto justify-center px-6"><Sparkles size={15} />{loading ? '抽取中...' : '开始抽取'}</button>
@@ -2581,7 +2625,7 @@ export function ExpertExtractPage({
                     return (
                   <div className="flex items-center gap-1.5">
                     {nonDemandMajors.map(m=>{const done=confirmedByMajor.get(m)||0;const total=totalByMajor.get(m)||0;return(<span key={m} className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${done>=total?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>{m} {done}/{total}</span>);})}
-                    {needDemandRep && repTotal > 0 && <span className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${repConfirmed>=repTotal?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>需求方代表 {repConfirmed}/{repTotal}</span>}
+                    {needDemandRep && repTotal > 0 && <span className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${repConfirmed>=repTotal?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>业主代表 {repConfirmed}/{repTotal}</span>}
                   </div>
                     );
                   })()}
@@ -2593,14 +2637,14 @@ export function ExpertExtractPage({
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                     <tbody>
                       {invitationData.experts.filter(e=>e.expertRole==='正选' && originalConfirmedIdsRef.current.has(e.userId)).sort((a,b)=>(a.invitationStatus==='declined'?1:0)-(b.invitationStatus==='declined'?1:0)).map(e => (
                         <tr key={e.id}>
                           <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{fmtExpertName(e.userId, e.expertName)}</span></td>
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
-                          <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                           <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
                           <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
                           <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
@@ -2645,28 +2689,28 @@ export function ExpertExtractPage({
                           </div>
                           {isAlt ? (
                             <table className="neu-table w-full table-fixed">
-                              <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th></tr></thead>
+                              <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th></tr></thead>
                               <tbody>
                                 {h.selected.map(s => (
                                   <tr key={s.userId}>
                                     <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span></td>
                                     <td className="text-center text-sm text-[var(--muted-foreground)]">{s.specialty}</td>
                                     <td className="text-center text-xs text-[var(--muted-foreground)]">{s.title || '—'}</td>
-                                    <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td>
+                                    <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(s.userId) || '—'}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           ) : (
                           <table className="neu-table w-full table-fixed">
-                            <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
+                            <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                             <tbody>
                               {experts.map(e => (
                                 <tr key={e.id}>
                                   <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
                                   <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
-                                  <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
+                                  <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                                   <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
                                   <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
                                   <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
@@ -2756,7 +2800,7 @@ export function ExpertExtractPage({
                 </p>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">分组</th><th className="text-center">职责</th>{selectingLeader && <th className="text-center">操作</th>}</tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">分组</th><th className="text-center">职责</th>{selectingLeader && <th className="text-center">操作</th>}</tr></thead>
                     <tbody>
                       {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus !== 'declined').sort((a, b) => {
                         // 组长排第一，其次已确认在前
@@ -2776,7 +2820,7 @@ export function ExpertExtractPage({
                           </td>
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
-                          <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
                           <td className="text-center">{isOriginal ? <StatusBadge tone="green">正选</StatusBadge> : <StatusBadge tone="blue">第{roundNo || '?'}次补选</StatusBadge>}</td>
                           <td className="text-center">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
                           <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
@@ -2867,14 +2911,14 @@ export function ExpertExtractPage({
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">理由</th></tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">理由</th></tr></thead>
                     <tbody>
                       {altSelected.map((s, i) => (
                         <tr key={s.userId}>
                           <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span></td>
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{s.specialty}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{s.title || '—'}</td>
-                          <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(s.userId) || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)] max-w-[180px] truncate">{s.reason}</td>
                         </tr>
                       ))}

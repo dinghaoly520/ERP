@@ -17,6 +17,7 @@ import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
+import { NotifyOpeningDecisionDto } from './dto/notify-opening-decision.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
@@ -5739,6 +5740,122 @@ export class BidService {
     }
 
     return { reached: userIds.length };
+  }
+
+  /**
+   * 开标决策通知（按时开标/延时开标确认弹窗发送）：按弹窗配置的渠道与文案
+   * 通知名册供应商（in_app=供应商门户站内信 + sms=主联系人手机）与评标专家
+   * （sms=档案联系电话，排除已拒绝）。决策本身由 startOpening/updateProject
+   * 先行完成；本端点只发通知——openTime 一致性校验沿用 P2-8 口径，防通知
+   * 脱离实际变更任意广播。占位符逐人替换：供应商 {供应商名称} / 专家 {专家姓名}。
+   */
+  async notifyOpeningDecision(
+    id: string,
+    dto: NotifyOpeningDecisionDto,
+    actorId?: string,
+  ): Promise<{ suppliers: number; experts: number; supplierNotFound: number; expertNotFound: number }> {
+    const openTimeDate = new Date(dto.openTime);
+    if (Number.isNaN(openTimeDate.getTime())) {
+      throw new BadRequestException({ error: '开标时间无法解析', code: 'INVALID_TIME' });
+    }
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, projectCode: true, name: true, openTime: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.openTime && Math.abs(openTimeDate.getTime() - new Date(project.openTime).getTime()) > 1000) {
+      throw new BadRequestException({
+        error: '通知中的开标时间与项目当前值不一致；请先完成开标时间变更（含 24h 规则校验与留痕），再发送通知',
+        code: 'SCHEDULE_MISMATCH',
+      });
+    }
+
+    const [roster, experts] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: id },
+        select: { supplier: { select: { id: true, name: true, userId: true } } },
+      }),
+      this.prisma.bidExpert.findMany({
+        where: { projectId: id, invitationStatus: { not: 'declined' } },
+        select: { userId: true, expertName: true },
+      }),
+    ]);
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const d = openTimeDate;
+    const fmt = `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    let supplierReached = 0;
+    let supplierNotFound = 0;
+    if (dto.notifySuppliers !== false) {
+      const channels = dto.supplierChannels?.length ? dto.supplierChannels : ['in_app', 'sms'];
+      const title = dto.supplierTitle?.trim() || `开标通知：${project.name}`;
+      // 内容缺省回退口径与 notifyScheduleChange 一致（弹窗默认预填，正常不触发）
+      const content = dto.supplierContent?.trim() || `项目 ${project.projectCode}（${project.name}）开标时间：${fmt}，请留意最新安排。`;
+      const targets = roster
+        .map((r) => r.supplier)
+        .filter((s): s is { id: string; name: string; userId: string } => !!s?.userId);
+      supplierNotFound = roster.length - targets.length;
+      await Promise.all(
+        targets.map((s) =>
+          this.notificationService.sendToUser(s.userId, channels, {
+            type: 'BID_OPENING_DECISION',
+            title: title.replace(/\{(供应商名称|name|supplierName)\}/g, s.name),
+            content: content.replace(/\{(供应商名称|name|supplierName)\}/g, s.name),
+            link: '/bids',
+          }),
+        ),
+      );
+      supplierReached = targets.length;
+    }
+
+    let expertReached = 0;
+    let expertNotFound = 0;
+    if (dto.notifyExperts !== false) {
+      const channels = dto.expertChannels?.length ? dto.expertChannels : ['sms'];
+      const title = dto.expertTitle?.trim() || `评审出席提醒：${project.name}`;
+      const content = dto.expertContent?.trim() || `项目 ${project.projectCode}（${project.name}）开标时间：${fmt}，请准时出席。`;
+      // 专家侧占位符 {专家姓名} 逐人替换（同专家通知设计的 [[专家姓名]] 概念）
+      const named = experts.map((e) => ({
+        ...e,
+        title: title.replace(/\{(专家姓名|expertName)\}/g, e.expertName),
+        content: content.replace(/\{(专家姓名|expertName)\}/g, e.expertName),
+      }));
+      const targets = named.filter((e) => e.userId);
+      expertNotFound = experts.length - targets.length;
+      await Promise.all(
+        targets.map((e) =>
+          this.notificationService.sendToUser(e.userId, channels, {
+            type: 'BID_OPENING_DECISION',
+            title: e.title,
+            content: e.content,
+            link: '/',
+          }),
+        ),
+      );
+      expertReached = targets.length;
+    }
+
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'BID_OPENING_DECISION_NOTIFY',
+          resourceType: project.projectCode,
+          details: {
+            projectId: id,
+            decision: dto.decision,
+            openTime: fmt,
+            suppliers: supplierReached,
+            experts: expertReached,
+            supplierChannels: dto.supplierChannels ?? ['in_app', 'sms'],
+            expertChannels: dto.expertChannels ?? ['sms'],
+          },
+        },
+      });
+    }
+
+    return { suppliers: supplierReached, experts: expertReached, supplierNotFound, expertNotFound };
   }
 
   /**

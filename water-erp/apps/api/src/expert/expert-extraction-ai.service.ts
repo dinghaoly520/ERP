@@ -56,6 +56,8 @@ export interface LlmSpecialtyQuota {
   reason: string;
   /** 公司限定：仅从工作单位匹配该公司的专家中抽取（需求方代表「公司→部门→专业」） */
   employer?: string;
+  /** 公司主数据限定（2026-09-24 抽取配置「公司」）：配额仅从该公司的专家库抽取；空=按池不限定 */
+  companyId?: string;
   /** 部门限定（真部门 Department.name）：公司内进一步按专家所属部门过滤 */
   department?: string;
   /** 行政区域代码（GB/T 2260）：配额候选限定区域（A-129 可选过滤，未填不过滤） */

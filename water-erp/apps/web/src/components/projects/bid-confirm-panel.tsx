@@ -34,7 +34,8 @@ import {
   getBidWorkspace,
   getPublicityStatus,
   nudgeSuppliers,
-  notifyBidScheduleChange,
+  notifyOpeningDecision,
+  type OpeningDecisionNotifyPayload,
   startOpening,
   swapExpertRole,
   updateBidProjectSchedule,
@@ -57,6 +58,7 @@ import { EvaluationHandoverBlock } from './bid-confirm/evaluation-handover-block
 import { SupervisionPushBlock } from './bid-confirm/supervision-push-block';
 import { PlatformPushBlock } from './bid-confirm/platform-push-block';
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
+import { OpeningDecisionModal, type OpeningDecisionMode } from './bid-confirm/opening-decision-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { ArchiveTemplateCard } from './archive-template-card';
@@ -76,12 +78,6 @@ type Props = {
 };
 
 /* ── 日期工具 ── */
-function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -107,9 +103,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   /** A-153 监督推送：当前用户是否 admin（配置按钮可见性；面板打开时经 /auth/me 获取） */
   const [isAdminUser, setIsAdminUser] = useState(false);
 
-  // 延时开标
-  const [delayOpen, setDelayOpen] = useState(false);
-  const [delayTime, setDelayTime] = useState('');
+  // 开标决策（按时/延时）：点击按钮先弹「决策+通知配置」弹窗，确认后执行决策并发通知
+  const [decisionModal, setDecisionModal] = useState<OpeningDecisionMode | null>(null);
 
   /** 开标准备清单未通过（OPENING_CHECKLIST_FAILED）：弹出缺失项明细（toast 之外的长反馈） */
   const [openingChecklist, setOpeningChecklist] = useState<{ error: string; items: string[] } | null>(null);
@@ -117,9 +112,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   // 催促未投递供应商弹窗
   const [nudgeOpen, setNudgeOpen] = useState(false);
 
-  // 延时开标后的"是否通知供应商与专家"确认
+  // 开标决策通知失败后的强制重试（P1-4：通知为强制步骤，无「不通知」路径）——保留弹窗配置的渠道与文案
   const [notifyConfirmOpen, setNotifyConfirmOpen] = useState(false);
-  const [pendingOpenTime, setPendingOpenTime] = useState('');
+  const [pendingNotify, setPendingNotify] = useState<OpeningDecisionNotifyPayload | null>(null);
   // B2: 流标串联对话框
   const [abortDialogOpen, setAbortDialogOpen] = useState(false);
   // 流标按钮（底部决策栏）：仅开标前 24h 内可点击
@@ -269,7 +264,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       } catch { /* RSVP 加载失败不阻断 */ }
       // 同步确认参加/已投递的供应商+专家组到项目基本信息（FE-2：抽为 syncProjectInfo 复用）
       syncProjectInfo(ws, rsvpLocal, onSyncRef.current);
-      setDelayTime(toLocalInput(bp.openTime));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -356,9 +350,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       setNudgeOpen(false);
       setError(null);
       setToast(null);
-      setDelayOpen(false);
+      setDecisionModal(null);
       setNotifyConfirmOpen(false);
-      setPendingOpenTime('');
+      setPendingNotify(null);
     }
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -391,9 +385,57 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
+  const bpId = bidProject?.id;
+
+  /** 开标决策执行（决策弹窗注入）：延时=更新开标时间；按时=startOpening。
+   *  'failed' = 决策被拦（清单弹窗 / 错误 toast 已另行呈现），弹窗据此收起并不发通知。 */
+  const executeDecision = useCallback(async (openTimeIso: string): Promise<'ok' | 'failed'> => {
+    if (!bpId) return 'failed';
+    try {
+      if (decisionModal === 'delay') {
+        const updated = await updateBidProjectSchedule(bpId, { openTime: openTimeIso });
+        setBidProject(updated);
+      } else {
+        await startOpening(bpId);
+      }
+      return 'ok';
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'OPENING_CHECKLIST_FAILED') {
+        // 开标准备清单未通过：弹窗列出缺失项（toast 短提示易错过，清单明细须长反馈）
+        const data = e.data as { items?: unknown } | undefined;
+        setOpeningChecklist({
+          error: e.message,
+          items: Array.isArray(data?.items) ? data.items.filter((x): x is string => typeof x === 'string') : [],
+        });
+      } else {
+        showToast(e instanceof Error ? e.message : '操作失败', 'err');
+      }
+      return 'failed';
+    }
+  }, [bpId, decisionModal, showToast]);
+
+  /** 决策通知发送（决策弹窗注入）：失败不抛错——回落强制重试壳，沿用弹窗配置的渠道与文案。 */
+  const sendDecisionNotify = useCallback(async (payload: OpeningDecisionNotifyPayload) => {
+    if (!bpId) return;
+    try {
+      const r = await notifyOpeningDecision(bpId, payload);
+      showToast(`已通知 ${r.suppliers} 家供应商 · ${r.experts} 位专家`);
+    } catch {
+      setPendingNotify(payload);
+      setNotifyConfirmOpen(true);
+    }
+  }, [bpId, showToast]);
+
+  /** 决策+通知链路完成：收起弹窗、按决策口径提示、全量重载 */
+  const handleDecisionComplete = useCallback(() => {
+    const mode = decisionModal;
+    setDecisionModal(null);
+    if (mode === 'ontime') showToast('已确定开标，请主持人在「开标进度」区块进入开标大厅组建会话');
+    void load();
+  }, [decisionModal, load, showToast]);
+
   if (!isOpen) return null;
 
-  const bpId = bidProject?.id;
   const stage = bidProject?.stage;
   // 开标已开始（OPENING/EVALUATING/ARCHIVED）→ 供应商和专家均锁定，不可修改
   const isOpened = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
@@ -426,52 +468,20 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     }, '催促失败');
   }
 
-  async function handleStartOpening() {
-    if (!bpId) return;
-    await withBusy(async () => {
-      await startOpening(bpId);
-      showToast('已确定开标，请主持人在「开标进度」区块进入开标大厅组建会话');
-      await load();
-    }, '开标失败', (e) => {
-      // 开标准备清单未通过：弹窗列出缺失项（toast 短提示易错过，清单明细须长反馈）
-      if (e instanceof ApiError && e.code === 'OPENING_CHECKLIST_FAILED') {
-        const data = e.data as { items?: unknown } | undefined;
-        setOpeningChecklist({
-          error: e.message,
-          items: Array.isArray(data?.items) ? data.items.filter((x): x is string => typeof x === 'string') : [],
-        });
-      }
-    });
-  }
-
-  async function handleDelaySave() {
-    if (!bpId || !delayTime) return;
-    const iso = new Date(delayTime).toISOString();
-    await withBusy(async () => {
-      const updated = await updateBidProjectSchedule(bpId, { openTime: iso });
-      setBidProject(updated);
-      setDelayOpen(false);
-      // P1-4：变更通知为强制步骤（改时间必须通知全部已获标书供应商与已确认专家）——
-      // 自动发出；失败时保留重试弹窗（无「不通知」选项）
-      try {
-        const r = await notifyBidScheduleChange(bpId, iso);
-        showToast(`已通知 ${r.reached ?? 0} 位供应商/专家`);
-      } catch {
-        setPendingOpenTime(updated.openTime);
-        setNotifyConfirmOpen(true);
-      }
-    }, '更新开标时间失败');
-  }
-
-  async function handleConfirmNotify(notify: boolean) {
-    const openTime = pendingOpenTime;
-    setNotifyConfirmOpen(false);
-    setPendingOpenTime('');
-    if (!bpId) return;
-    await withBusy(async () => {
-      const r = await notifyBidScheduleChange(bpId, openTime);
-      showToast(`已通知 ${r.reached ?? 0} 位供应商/专家`);
-    }, '通知失败');
+  /** 强制重试：通知失败后唯一的收尾路径（无「不通知」选项） */
+  async function handleRetryNotify() {
+    if (!bpId || !pendingNotify) return;
+    setBusy(true);
+    try {
+      const r = await notifyOpeningDecision(bpId, pendingNotify);
+      setNotifyConfirmOpen(false);
+      setPendingNotify(null);
+      showToast(`已通知 ${r.suppliers} 家供应商 · ${r.experts} 位专家`);
+    } catch {
+      showToast('重试通知失败，请稍后再试', 'err');
+    } finally {
+      setBusy(false);
+    }
   }
 
   /* ── 渲染 ── */
@@ -1062,31 +1072,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         {/* ▸ 区块9：开标决策（底部栏）── 仅在数据就绪且未归档时显示 */}
         {workspace && bidProject && !loading && stage && stage !== 'ARCHIVED' && (
           <div className="shrink-0 px-6 py-3.5 wb-overlay-panel-footer">
-            {delayOpen ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2 text-sm text-[var(--foreground)]">
-                  <CalendarClock size={15} className="text-[var(--accent)]" />
-                  <span>新的开标时间</span>
-                </div>
-                <input
-                  type="datetime-local"
-                  className="workbench-input !h-[36px]"
-                  value={delayTime}
-                  min={new Date().toISOString().slice(0, 16)}
-                  onChange={(e) => setDelayTime(e.target.value)}
-                />
-                <span
-                  className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2.5 py-1 text-[11px] text-[var(--warning)]"
-                >
-                  截标已固化，仅推迟开标
-                </span>
-                <div className="ml-auto flex items-center gap-2">
-                  <button type="button" onClick={() => setDelayOpen(false)} className="neu-btn-soft !h-[36px]">取消</button>
-                  <button type="button" onClick={() => void handleDelaySave()} disabled={busy || !delayTime} className="neu-btn-primary !h-[36px]">确认延时</button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
                   <Clock size={14} />
                   <span>计划开标时间：<span className="font-semibold tabular-nums text-[var(--foreground)]">{formatDateTime(bidProject.openTime)}</span></span>
@@ -1114,12 +1100,12 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                           ▾ {assignedHost ? assignedHost.displayName : '未指派'}
                         </span>
                       </button>
-                      <button type="button" onClick={() => setDelayOpen(true)} disabled={busy} className="neu-btn-soft !h-[36px]">
+                      <button type="button" onClick={() => setDecisionModal('delay')} disabled={busy} className="neu-btn-soft !h-[36px]">
                         <CalendarClock size={14} /> 延时开标
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleStartOpening()}
+                        onClick={() => setDecisionModal('ontime')}
                         disabled={busy || !assignedHost}
                         className="neu-btn-primary !h-[36px]"
                         title={!assignedHost ? '请先指派开标主持人' : undefined}
@@ -1153,7 +1139,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   )}
                 </div>
               </div>
-            )}
           </div>
         )}
 
@@ -1182,12 +1167,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           </div>
         )}
 
-        {/* ── 延时开标后的通知确认对话框 ── 强制步骤，不 Modal 化
-             （Modal 头自带 X 关闭钮 = 新增关闭途径，语义变更）→ 壳类化 */}
+        {/* ── 开标决策通知失败后的强制重试壳 ── 强制步骤，不 Modal 化
+             （Modal 头自带 X 关闭钮 = 新增关闭途径，语义变更）→ 壳类化；
+             重试沿用决策弹窗配置的渠道与文案（pendingNotify） */}
         {notifyConfirmOpen && (
           <div className="absolute inset-0 z-30 flex items-center justify-center px-6">
             <div className="absolute inset-0 wb-overlay-backdrop" />
-            <div className="relative w-full max-w-[420px] wb-modal-shell px-6 py-5">
+            <div className="relative w-full max-w-[440px] wb-modal-shell px-6 py-5">
               <div className="mb-2 flex items-center gap-2">
                 <div
                   className="wb-icon-well wb-icon-well--sm"
@@ -1198,12 +1184,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 <span className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">通知供应商与专家</span>
               </div>
               <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                开标时间已更新为
-                <span className="mx-1 font-semibold tabular-nums text-[var(--foreground)]">{formatDateTime(pendingOpenTime)}</span>
-                ，但自动通知失败。变更通知为强制步骤——请重试通知全部投标供应商与评标专家。
+                {pendingNotify?.decision === 'DELAY' ? (
+                  <>开标时间已更新为<span className="mx-1 font-semibold tabular-nums text-[var(--foreground)]">{formatDateTime(pendingNotify.openTime)}</span>，</>
+                ) : '已确定开标，'}
+                但通知发送失败。通知为强制步骤——请重试通知全部投标供应商与评标专家（沿用弹窗内配置的渠道与文案）。
               </p>
               <div className="neu-btn-group">
-                <button type="button" onClick={() => void handleConfirmNotify(true)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+                <button type="button" onClick={() => void handleRetryNotify()} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
                   <BellRing size={13} /> 重试通知
                 </button>
               </div>
@@ -1220,6 +1207,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         bidProjectId={bpId ?? ''}
         onChanged={() => void load()}
       />
+
+      {/* 开标决策弹窗（按时/延时）：决策执行 + 供应商（门户站内/主联系人短信）与专家（档案电话短信）通知配置 */}
+      {decisionModal && bidProject && (
+        <OpeningDecisionModal
+          isOpen
+          mode={decisionModal}
+          bidProject={bidProject}
+          suppliers={workspace?.suppliers ?? []}
+          experts={workspace?.experts ?? []}
+          busy={busy}
+          executeDecision={executeDecision}
+          sendNotify={sendDecisionNotify}
+          onComplete={handleDecisionComplete}
+          onClose={() => setDecisionModal(null)}
+        />
+      )}
 
       {/* 开标准备清单未通过弹窗（OPENING_CHECKLIST_FAILED）：toast 短提示之外的长反馈，
           逐项列出缺失项（法定硬性条件），提示流标或补齐后重试 */}

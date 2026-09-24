@@ -3508,6 +3508,29 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('只有已完成的步骤才能重新设置为进行中。');
     }
 
+    // ★ 开标锁定闸门（2026-09-24 用户拍板）：一旦「按时开标」被点击（BidProject→OPENING），
+    // 前置步骤（开标评标之前）即冻结、不可重开——开标时刻已法定公开，前置资料封存留痕。
+    // 口径与前端 isLockedByBid 一致（2026-08-17）：只锁 <BID_EVALUATION 的前置阶段；
+    // 定标（中标通知书）/合同等后置阶段不受锁，线下定标→扫描上传回填流程保持可达。
+    // 轮次对齐：流标（ABORTED）不在锁定态，再次采购新轮不受旧轮影响。
+    const bidEval = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: projectId, stageKey: 'BID_EVALUATION', round: stage.round },
+      select: { stageOrder: true },
+    });
+    if (bidEval && stage.stageOrder < bidEval.stageOrder) {
+      const bp = await this.prisma.bidProject.findFirst({
+        where: { projectManagementItemId: projectId, round: stage.round },
+        select: { stage: true },
+        orderBy: { updatedAt: 'desc' },
+      });
+      if (bp && ['OPENING', 'EVALUATING', 'ARCHIVED'].includes(bp.stage)) {
+        throw new ConflictException({
+          error: '开标已确认，前置步骤已锁定不可重开；如确需变更请走流标/再次采购流程',
+          code: 'BID_OPENING_LOCKED',
+        });
+      }
+    }
+
     await this.prisma.$transaction(async (tx) => {
       // 1. 目标步骤 → 进行中（清除完成时间）
       await tx.projectManagementStage.update({

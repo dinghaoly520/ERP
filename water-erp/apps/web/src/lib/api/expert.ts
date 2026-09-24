@@ -27,6 +27,8 @@ export interface ExpertListItem {
   displayName: string;
   email: string | null;
   isActive: boolean;
+  /** 归属公司名快照（admin 全部公司视图按公司分组） */
+  company?: string | null;
   department: { id: string; name: string } | null;
   expertProfile: ExpertProfile | null;
   bidExperts: { id: string; major: string; progress: number; signedIn: boolean; project: { id: string; name: string; stage: string } }[];
@@ -84,19 +86,30 @@ export interface NotifyResult {
 
 /* ── 专家库 / 录入 ── */
 
-export function listExperts(params?: { search?: string; specialty?: string; employer?: string; page?: number; pageSize?: number }) {
+export function listExperts(params?: { search?: string; specialty?: string; employer?: string; page?: number; pageSize?: number; companyId?: string }) {
   const q = new URLSearchParams();
   if (params?.search) q.set('search', params.search);
   if (params?.specialty) q.set('specialty', params.specialty);
   if (params?.employer) q.set('employer', params.employer);
   if (params?.page) q.set('page', String(params.page));
   if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+  if (params?.companyId && params.companyId !== 'all') q.set('companyId', params.companyId);
   const qs = q.toString();
   return api.get<{ total: number; page: number; pageSize: number; items: ExpertListItem[] }>(`/expert-admin${qs ? '?' + qs : ''}`);
 }
 
-export function listSpecialties() {
-  return api.get<string[]>('/expert-admin/specialties');
+export function listSpecialties(companyId?: string) {
+  return api.get<string[]>(`/expert-admin/specialties${companyId && companyId !== 'all' ? '?companyId=' + companyId : ''}`);
+}
+
+/** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径；与列表同 where） */
+export function fetchExpertCompanyCounts(params?: { search?: string; specialty?: string; employer?: string }) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set('search', params.search);
+  if (params?.specialty) q.set('specialty', params.specialty);
+  if (params?.employer) q.set('employer', params.employer);
+  const qs = q.toString();
+  return api.get<Array<{ name: string; count: number }>>(`/expert-admin/company-counts${qs ? '?' + qs : ''}`);
 }
 
 export function createExpert(data: {
@@ -129,7 +142,7 @@ export function previewExtraction(data: {
   extractMode?: 'specialty_match' | 'random' | 'merit_best';
   /** @deprecated 兼容旧UI，优先用 extractMode */
   mode?: 'weighted' | 'fair';
-  manualQuotas?: { specialty: string; count: number; employer?: string; department?: string; regionCode?: string; expertLevel?: string }[];
+  manualQuotas?: { specialty: string; count: number; employer?: string; department?: string; regionCode?: string; expertLevel?: string; companyId?: string }[];
   excludedUserIds?: string[];
   /** 公司限定：本次抽取的全部候选仅限该公司专家 */
   employer?: string;
@@ -137,7 +150,7 @@ export function previewExtraction(data: {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }
 
-export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean; extractMode?: 'specialty_match' | 'random' | 'merit_best' }) {
+export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean; extractMode?: 'specialty_match' | 'random' | 'merit_best'; companyIds?: string[] }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }
 

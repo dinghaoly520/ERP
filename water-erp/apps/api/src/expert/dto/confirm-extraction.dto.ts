@@ -37,6 +37,11 @@ export class ConfirmExtractionDto {
   @IsOptional() @IsBoolean()
   append?: boolean;
 
+  /** 公司白名单（2026-09-24）：抽取配置里各配额显式选择的公司（默认本公司，可跨公司）——
+   *  确认复核时这些公司的专家放行；未传则回退操作人隔离视野（本公司） */
+  @IsOptional() @IsArray() @IsString({ each: true })
+  companyIds?: string[];
+
   /** P1-9：抽取模式快照（specialty_match/random/merit_best）——确认时载明，供抽取审计留痕 */
   @IsOptional() @IsIn(['specialty_match', 'random', 'merit_best'])
   extractMode?: string;

@@ -122,12 +122,34 @@ export class AuthService {
   async login(dto: LoginDto, portal?: string) {
     const priority = (portal && PORTAL_ROLE_PRIORITY[portal]) || PORTAL_ROLE_PRIORITY.public;
     // 先按用户名取「所有」同名账号（含未激活），按门户角色优先级选其一。
+    // 供应商登录支持「统一社会信用代码」或「企业名称全称」两种账号（2026-09-24）：
+    //  - 信用代码 → Supplier.creditCode 反查 userId 命中用户
+    //  - 企业全称 → Supplier.name（精确匹配）反查 userId 命中用户
     // 关键：必须先校验密码，密码正确后才判断是否待审核——否则「错密码+存在未激活用户名」与
     // 「错密码+用户名不存在」响应不同，会构成用户名枚举。passwordHash 仅在此函数内使用，不外泄。
     const candidates = await this.prisma.user.findMany({
       where: { username: dto.username },
       select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true },
     });
+
+    // 供应商别名解析：按信用代码或企业全称反查（仅当按用户名未命中供应商角色时启用）
+    if (!candidates.some((u) => u.role === 'supplier')) {
+      const trimmed = dto.username.trim();
+      if (trimmed) {
+        const supplier = await this.prisma.supplier.findFirst({
+          where: { OR: [{ creditCode: trimmed }, { name: trimmed }] },
+          select: { userId: true },
+        });
+        if (supplier) {
+          const aliasUser = await this.prisma.user.findUnique({
+            where: { id: supplier.userId },
+            select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true },
+          });
+          if (aliasUser) candidates.push(aliasUser);
+        }
+      }
+    }
+
     const user =
       priority.map((role) => candidates.find((u) => u.role === role)).find(Boolean) ??
       candidates[0];
@@ -167,6 +189,7 @@ export class AuthService {
         phone: true,
         officeLocation: true,
         company: true,
+        companyId: true,
         avatar: true,
         role: true,
         isActive: true,

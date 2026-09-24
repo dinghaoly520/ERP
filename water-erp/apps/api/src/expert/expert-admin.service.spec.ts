@@ -8,6 +8,7 @@ import { NotificationService } from '../notification/notification.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
+import { CompanyScopeService } from '../company/company-scope';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 
 describe('ExpertAdminService', () => {
@@ -71,6 +72,7 @@ describe('ExpertAdminService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: extractionAi },
@@ -489,6 +491,7 @@ describe('ExpertAdminService', () => {
           { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
           { provide: ExpertCrossConflictService, useValue: { checkCrossConflicts: jest.fn().mockResolvedValue([]) } },
           { provide: ExpertExtractionService, useValue: { extendedRuleScore: jest.fn() } },
+          { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
         ],
       }).compile();
       return mod.get(ExpertAdminService);

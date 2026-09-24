@@ -47,13 +47,15 @@ export class ExpertAdminController {
   }
 
   @Get()
-  @ApiOperation({ summary: '专家库列表（分页）' })
+  @ApiOperation({ summary: '专家库列表（分页；公司隔离——admin 可 ?companyId= 切单公司，非 admin 强制本公司）' })
   listExperts(
     @Query('search') search?: string,
     @Query('specialty') specialty?: string,
     @Query('employer') employer?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('companyId') companyId?: string, // 仅 admin 生效
+    @Request() req: any = {},
   ) {
     return this.expertAdminService.listExperts(
       search,
@@ -61,25 +63,38 @@ export class ExpertAdminController {
       employer,
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
+      req.user,
+      companyId,
     );
   }
 
+  @Get('company-counts')
+  @ApiOperation({ summary: '按公司分组全量计数（admin 全部公司视图的分组标题，与列表同 where）' })
+  companyCounts(
+    @Query('search') search?: string,
+    @Query('specialty') specialty?: string,
+    @Query('employer') employer?: string,
+    @Request() req: any = {},
+  ) {
+    return this.expertAdminService.companyCounts(search, specialty, employer, req.user);
+  }
+
   @Get('specialties')
-  @ApiOperation({ summary: '专家专业列表（去重）' })
-  listSpecialties() {
-    return this.expertAdminService.listSpecialties();
+  @ApiOperation({ summary: '专家专业列表（去重；公司隔离）' })
+  listSpecialties(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.expertAdminService.listSpecialties(req.user, companyId);
   }
 
   @Get('evaluations/stats')
-  @ApiOperation({ summary: '专家评价统计' })
-  getEvaluationStats() {
-    return this.expertAdminService.getEvaluationStats();
+  @ApiOperation({ summary: '专家评价统计（公司隔离）' })
+  getEvaluationStats(@Request() req: any = {}) {
+    return this.expertAdminService.getEvaluationStats(req.user);
   }
 
   @Get('evaluations/dimensions')
-  @ApiOperation({ summary: '三维评分分布（出勤/质量/廉洁全局均分）' })
-  getEvaluationDimensionStats() {
-    return this.expertAdminService.getEvaluationDimensionStats();
+  @ApiOperation({ summary: '三维评分分布（出勤/质量/廉洁全局均分；公司隔离）' })
+  getEvaluationDimensionStats(@Request() req: any = {}) {
+    return this.expertAdminService.getEvaluationDimensionStats(req.user);
   }
 
   @Post()
@@ -89,9 +104,9 @@ export class ExpertAdminController {
   }
 
   @Post('extract')
-  @ApiOperation({ summary: '专家智能抽取预览（三种模式：specialty_match/random/merit_best）' })
-  previewExtraction(@Body() dto: ExtractPreviewDto) {
-    return this.extractionService.previewExtraction(dto.projectId, dto);
+  @ApiOperation({ summary: '专家智能抽取预览（三种模式：specialty_match/random/merit_best；候选池按操作人公司隔离）' })
+  previewExtraction(@Body() dto: ExtractPreviewDto, @Request() req: any = {}) {
+    return this.extractionService.previewExtraction(dto.projectId, dto, req.user);
   }
 
   @Post('notification/generate')
@@ -101,9 +116,9 @@ export class ExpertAdminController {
   }
 
   @Post('extract/confirm')
-  @ApiOperation({ summary: '确认专家抽取（建 BidExpert + 写审计日志）' })
+  @ApiOperation({ summary: '确认专家抽取（建 BidExpert + 写审计日志；复核专家归属公司）' })
   confirmExtraction(@Body() dto: ConfirmExtractionDto, @Request() req: any) {
-    return this.extractionService.confirmExtraction(dto.projectId, dto, req.user?.sub);
+    return this.extractionService.confirmExtraction(dto.projectId, dto, req.user?.sub, req.user);
   }
 
   @Patch('extract/leader')
@@ -193,45 +208,45 @@ export class ExpertAdminController {
   }
 
   @Get('retire-candidates')
-  @ApiOperation({ summary: '专家退库候选扫描（预警，不自动停用）' })
-  reviewRetirementCandidates() {
-    return this.expertAdminService.reviewRetirementCandidates();
+  @ApiOperation({ summary: '专家退库候选扫描（预警，不自动停用；公司隔离）' })
+  reviewRetirementCandidates(@Request() req: any = {}) {
+    return this.expertAdminService.reviewRetirementCandidates(req.user);
   }
 
   @Get('statistics')
-  @ApiOperation({ summary: '专家库整体态势统计' })
-  getStatistics() {
-    return this.expertAdminService.getStatistics();
+  @ApiOperation({ summary: '专家库整体态势统计（公司隔离）' })
+  getStatistics(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.expertAdminService.getStatistics(req.user, companyId);
   }
 
   @Get('ranking')
-  @ApiOperation({ summary: '专家排名（按履职评价均分）' })
-  getRanking(@Query('period') period?: 'month' | 'quarter' | 'all') {
-    return this.expertAdminService.getRanking(period);
+  @ApiOperation({ summary: '专家排名（按履职评价均分；公司隔离）' })
+  getRanking(@Query('period') period?: 'month' | 'quarter' | 'all', @Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.expertAdminService.getRanking(period, req.user, companyId);
   }
 
   @Get('load-distribution')
-  @ApiOperation({ summary: '专家负荷分布（按活跃评审项目数）' })
-  getLoadDistribution() {
-    return this.expertAdminService.getLoadDistribution();
+  @ApiOperation({ summary: '专家负荷分布（按活跃评审项目数；公司隔离）' })
+  getLoadDistribution(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.expertAdminService.getLoadDistribution(req.user, companyId);
   }
 
   @Get('ai-adoption')
-  @ApiOperation({ summary: 'AI 采纳率（专家分 vs AI 建议分）' })
-  getAiAdoptionRate(@Query('expertId') expertId?: string) {
-    return this.expertAdminService.getAiAdoptionRate(expertId);
+  @ApiOperation({ summary: 'AI 采纳率（专家分 vs AI 建议分；公司隔离）' })
+  getAiAdoptionRate(@Query('expertId') expertId?: string, @Request() req: any = {}) {
+    return this.expertAdminService.getAiAdoptionRate(expertId, req.user);
   }
 
   @Get('violations')
-  @ApiOperation({ summary: '违规记录列表' })
-  getViolations(@Query('expertId') expertId?: string) {
-    return this.expertAdminService.getViolations(expertId);
+  @ApiOperation({ summary: '违规记录列表（公司隔离）' })
+  getViolations(@Query('expertId') expertId?: string, @Request() req: any = {}) {
+    return this.expertAdminService.getViolations(expertId, req.user);
   }
 
   @Get('export')
-  @ApiOperation({ summary: '导出专家库（扁平结构）' })
-  exportExperts(@Query('ids') ids?: string) {
-    return this.expertAdminService.exportExperts(ids ? ids.split(',').filter(Boolean) : undefined);
+  @ApiOperation({ summary: '导出专家库（扁平结构；公司隔离——只导出可见专家）' })
+  exportExperts(@Query('ids') ids?: string, @Request() req: any = {}) {
+    return this.expertAdminService.exportExperts(ids ? ids.split(',').filter(Boolean) : undefined, req.user);
   }
 
   @Get('operation-history')
@@ -255,9 +270,9 @@ export class ExpertAdminController {
   }
 
   @Post('batch')
-  @ApiOperation({ summary: '批量启用/停用专家' })
+  @ApiOperation({ summary: '批量启用/停用专家（公司隔离）' })
   batchOperation(@Body() dto: BatchOperationDto, @Request() req: any) {
-    return this.expertAdminService.batchOperation(dto, req.user?.sub);
+    return this.expertAdminService.batchOperation(dto, req.user?.sub, req.user);
   }
 
   @Post('import-csv')
@@ -289,75 +304,75 @@ export class ExpertAdminController {
   // ── 动态 :id 路由 ──
 
   @Get(':id')
-  @ApiOperation({ summary: '专家详情' })
-  getExpert(@Param('id') id: string) {
-    return this.expertAdminService.getExpert(id);
+  @ApiOperation({ summary: '专家详情（公司隔离：他人公司专家 → 403）' })
+  getExpert(@Param('id') id: string, @Request() req: any = {}) {
+    return this.expertAdminService.getExpert(id, req.user);
   }
 
   @Patch(':id/availability')
-  @ApiOperation({ summary: '启用/停用专家' })
+  @ApiOperation({ summary: '启用/停用专家（公司隔离）' })
   setAvailability(@Param('id') id: string, @Body() dto: SetAvailabilityDto, @Request() req: any) {
-    return this.expertAdminService.setAvailability(id, dto.available, req.user?.sub);
+    return this.expertAdminService.setAvailability(id, dto.available, req.user?.sub, req.user);
   }
 
   @Patch(':id/profile')
-  @ApiOperation({ summary: '更新专家资料' })
+  @ApiOperation({ summary: '更新专家资料（公司隔离）' })
   updateProfile(@Param('id') id: string, @Body() dto: UpdateExpertProfileDto, @Request() req: any) {
-    return this.expertAdminService.updateProfile(id, dto, req.user?.sub);
+    return this.expertAdminService.updateProfile(id, dto, req.user?.sub, req.user);
   }
 
   @Get(':id/portrait')
-  @ApiOperation({ summary: '专家画像' })
-  getPortrait(@Param('id') id: string) {
-    return this.expertAdminService.getExpertPortrait(id);
+  @ApiOperation({ summary: '专家画像（公司隔离）' })
+  getPortrait(@Param('id') id: string, @Request() req: any = {}) {
+    return this.expertAdminService.getExpertPortrait(id, req.user);
   }
 
   @Get(':id/risk-brief')
-  @ApiOperation({ summary: '评标风险预警简报（偏离度+履职+违规，LLM 增强）' })
-  getRiskBrief(@Param('id') id: string) {
-    return this.expertAdminService.getRiskBrief(id);
+  @ApiOperation({ summary: '评标风险预警简报（偏离度+履职+违规，LLM 增强；公司隔离）' })
+  getRiskBrief(@Param('id') id: string, @Request() req: any = {}) {
+    return this.expertAdminService.getRiskBrief(id, req.user);
   }
 
   @Get(':id/evaluations')
-  @ApiOperation({ summary: '专家履职评价历史' })
-  getExpertEvaluations(@Param('id') id: string) {
-    return this.expertAdminService.getExpertEvaluations(id);
+  @ApiOperation({ summary: '专家履职评价历史（公司隔离）' })
+  getExpertEvaluations(@Param('id') id: string, @Request() req: any = {}) {
+    return this.expertAdminService.getExpertEvaluations(id, req.user);
   }
 
   @Post(':id/violation')
-  @ApiOperation({ summary: '记录专家违规' })
+  @ApiOperation({ summary: '记录专家违规（公司隔离）' })
   recordViolation(@Param('id') id: string, @Body() dto: RecordViolationDto, @Request() req: any) {
-    return this.expertAdminService.recordViolation(id, dto, req.user?.sub);
+    return this.expertAdminService.recordViolation(id, dto, req.user?.sub, req.user);
   }
 
   @Get(':id/notify-history')
-  @ApiOperation({ summary: '专家通知发送历史（最近 50 条）' })
-  getNotifyHistory(@Param('id') id: string) {
-    return this.expertAdminService.getNotifyHistory(id);
+  @ApiOperation({ summary: '专家通知发送历史（最近 50 条；公司隔离）' })
+  getNotifyHistory(@Param('id') id: string, @Request() req: any = {}) {
+    return this.expertAdminService.getNotifyHistory(id, req.user);
   }
 
   @Get(':id/notify-prefs')
-  @ApiOperation({ summary: '专家通知偏好' })
-  getNotifyPrefs(@Param('id') id: string) {
-    return this.expertAdminService.getNotifyPrefs(id);
+  @ApiOperation({ summary: '专家通知偏好（公司隔离）' })
+  getNotifyPrefs(@Param('id') id: string, @Request() req: any = {}) {
+    return this.expertAdminService.getNotifyPrefs(id, req.user);
   }
 
   @Patch(':id/notify-prefs')
-  @ApiOperation({ summary: '更新专家通知偏好' })
-  updateNotifyPrefs(@Param('id') id: string, @Body() dto: NotifyPrefsDto) {
-    return this.expertAdminService.updateNotifyPrefs(id, dto);
+  @ApiOperation({ summary: '更新专家通知偏好（公司隔离）' })
+  updateNotifyPrefs(@Param('id') id: string, @Body() dto: NotifyPrefsDto, @Request() req: any = {}) {
+    return this.expertAdminService.updateNotifyPrefs(id, dto, req.user);
   }
 
   @Post(':id/retire-ignore')
-  @ApiOperation({ summary: '忽略本轮退库预警（90 天内跳过此专家的扫描）' })
+  @ApiOperation({ summary: '忽略本轮退库预警（90 天内跳过此专家的扫描；公司隔离）' })
   ignoreRetirement(@Param('id') id: string, @Request() req: any) {
-    return this.expertAdminService.ignoreRetirementWarning(id, req.user?.sub);
+    return this.expertAdminService.ignoreRetirementWarning(id, req.user?.sub, req.user);
   }
 
   @Post(':id/retire')
-  @ApiOperation({ summary: '人工确认专家退库' })
+  @ApiOperation({ summary: '人工确认专家退库（公司隔离）' })
   confirmRetire(@Param('id') id: string, @Body() dto: ConfirmRetireDto, @Request() req: any) {
-    return this.expertAdminService.confirmRetire(id, dto.reason, req.user?.sub);
+    return this.expertAdminService.confirmRetire(id, dto.reason, req.user?.sub, req.user);
   }
 
   @Patch(':id/status')
@@ -380,9 +395,9 @@ export class ExpertAdminController {
   }
 
   @Post('import-from-seed')
-  @ApiOperation({ summary: '从种子数据批量导入专家（跳过已存在的）' })
-  importFromSeed() {
-    return this.expertAdminService.importFromSeed();
+  @ApiOperation({ summary: '从种子数据批量导入专家（跳过已存在的；归操作人公司）' })
+  importFromSeed(@Request() req: any = {}) {
+    return this.expertAdminService.importFromSeed(req.user?.sub);
   }
 
   @Post('ocr-intake')
@@ -392,14 +407,14 @@ export class ExpertAdminController {
   }
 
   @Post('evaluations/ai-suggest')
-  @ApiOperation({ summary: 'AI 辅助评价建议（LLM 综合历史评价/偏离度/违规/负荷给出建议分数）' })
-  aiSuggestEvaluation(@Body() dto: AiSuggestEvaluationDto) {
-    return this.expertAdminService.aiSuggestEvaluation(dto.expertUserId);
+  @ApiOperation({ summary: 'AI 辅助评价建议（LLM 综合历史评价/偏离度/违规/负荷给出建议分数；公司隔离）' })
+  aiSuggestEvaluation(@Body() dto: AiSuggestEvaluationDto, @Request() req: any = {}) {
+    return this.expertAdminService.aiSuggestEvaluation(dto.expertUserId, req.user);
   }
 
   @Post('evaluations')
-  @ApiOperation({ summary: '发起专家履职评价' })
+  @ApiOperation({ summary: '发起专家履职评价（公司隔离）' })
   createEvaluation(@Body() dto: CreateExpertEvaluationDto, @Request() req: any) {
-    return this.expertAdminService.createEvaluation(req.user.sub, dto);
+    return this.expertAdminService.createEvaluation(req.user.sub, dto, req.user);
   }
 }

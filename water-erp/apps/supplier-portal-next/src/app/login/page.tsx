@@ -176,19 +176,19 @@ function LoginForm() {
             <div className="lp-brand-word">蜀水云采<span className="lp-dot">·</span>智慧水发</div>
             <div className="lp-divider" aria-hidden="true">◆</div>
             <h1 className="lp-title">供应商门户</h1>
-            <p className="lp-subtitle">使用统一社会信用代码登录</p>
+            <p className="lp-subtitle">使用统一社会信用代码或企业名称全称登录</p>
           </div>
 
           <form className="lp-form" onSubmit={handleLogin}>
             <div className="lp-field">
-              <label className="lp-label" htmlFor="lp-username">用户名</label>
+              <label className="lp-label" htmlFor="lp-username">账号</label>
               <div className="lp-input-wrap">
                 <span className="lp-prefix" aria-hidden="true"><User size={17} /></span>
                 <input
                   id="lp-username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="统一社会信用代码（登录账号）"
+                  placeholder="统一社会信用代码或企业名称全称"
                   autoComplete="username"
                 />
               </div>
@@ -228,7 +228,7 @@ function LoginForm() {
             <div className="lp-pending">
               {pendingInfo && (
                 <p className="lp-pending__hint">
-                  该账号尚未激活（待审核或已停用）。可凭统一社会信用代码查询审核进度：
+                  该账号尚未激活（待审核或已停用）。可凭统一社会信用代码或企业名称查询审核进度：
                 </p>
               )}
               <div className="lp-query">
@@ -236,7 +236,7 @@ function LoginForm() {
                   className="lp-query-input"
                   value={queryCode}
                   onChange={(e) => setQueryCode(e.target.value)}
-                  placeholder="统一社会信用代码（18 位）"
+                  placeholder="统一社会信用代码（18 位）或企业名称"
                   maxLength={18}
                   onKeyDown={(e) => { if (e.key === "Enter") handleQueryStatus(); }}
                 />

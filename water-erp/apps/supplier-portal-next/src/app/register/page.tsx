@@ -643,7 +643,7 @@ export default function RegisterPage() {
 
                 <div className="reg-form-grid">
                   {item("name", "公司名称", inp(basic.name, (s) => setBasic((b) => ({ ...b, name: s })), "营业执照上的企业全称"), true)}
-                  {item("creditCode", "统一社会信用代码（登录账号）", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s.toUpperCase() })), "18 位代码，注册后作为登录账号", { maxLength: 18, onBlur: checkCreditCode }), true)}
+                  {item("creditCode", "统一社会信用代码", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s.toUpperCase() })), "18 位代码，注册后与公司名称均可用于登录", { maxLength: 18, onBlur: checkCreditCode }), true)}
                   {item("country", "国别", inp(basic.country, (s) => setBasic((b) => ({ ...b, country: s })), "中国"))}
                   {item("region", "所属行政区域", inp(basic.region, (s) => setBasic((b) => ({ ...b, region: s })), "如：四川省/成都市/双流区"))}
                   {item("enterpriseType", "公司体制类型", (

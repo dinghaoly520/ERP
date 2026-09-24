@@ -73,7 +73,7 @@ Self-service portal for suppliers. Supports registration (with enterprise info +
 
 ### 采购管理工作台 (`web`, :3005)
 
-The admin/internal staff management console for procurement users (login roles `staff`/`leader`; the legacy `procurement_staff` ghost account was removed 2026-08-20). **公司级数据隔离（2026-08-20）**：数据库/台账/进度/公告管理端按登录人公司隔离（真隔离=where 注入+:id 越权 403+统计在隔离集上算）；admin 四页有公司选择器（默认全部、?companyId= 切换、非 admin 传参忽略）；项目管理页为个人隔离（非 admin 仅本人项目，admin 全量）。归属写时快照（companyId+companyName），Company 主数据表（`companies`，注册 normalizeCompany 对齐建档）。供应商库/专家库/目录不隔离；公告 public 接口不受限。关键模块:
+The admin/internal staff management console for procurement users (login roles `staff`/`leader`; the legacy `procurement_staff` ghost account was removed 2026-08-20). **公司级数据隔离（2026-08-20）**：数据库/台账/进度/公告管理端按登录人公司隔离（真隔离=where 注入+:id 越权 403+统计在隔离集上算）；admin 四页有公司选择器（默认全部、?companyId= 切换、非 admin 传参忽略）；项目管理页为个人隔离（非 admin 仅本人项目，admin 全量）。归属写时快照（companyId+companyName），Company 主数据表（`companies`，注册 normalizeCompany 对齐建档）。**专家库已隔离（2026-09-24）**：expert-admin 全端点（列表/详情/写操作/统计/排名/负荷/退库/违规/导出/抽取候选池）接入 CompanyScopeService，专家归属落 `User.companyId`（录入/CSV/种子导入自操作人快照；存量 29 名回填 co-swhi-sjy，seed 重建段同步兜底 `scripts/backfill-expert-company.ts` 同口径）；admin 专家库页有公司选择器（全部公司=CompanySectionHeader 分组+company-counts 全量计数）。供应商库/目录不隔离；公告 public 接口不受限。关键模块:
 
 - **首页驾驶舱** (`/dashboard`) — operational dashboard with AI panel (水叮当 summary)
 - **信息发布中心** (`/notice`) — manage announcements (CRUD + publish)

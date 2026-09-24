@@ -8,6 +8,7 @@ import { NotificationService } from '../notification/notification.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
+import { CompanyScopeService } from '../company/company-scope';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 
 describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
@@ -28,6 +29,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: { analyzeAndScore: jest.fn(), getMetrics: jest.fn().mockReturnValue({}), recordFallback: jest.fn() } },

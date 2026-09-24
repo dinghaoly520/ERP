@@ -98,6 +98,7 @@ export function ProjectStageTimeline({
   tenderDocxAttachments,
   onEditTenderFile,
   onReopenStage,
+  isStageLocked,
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
@@ -113,6 +114,8 @@ export function ProjectStageTimeline({
   onEditTenderFile?: (attachmentId: string, fileName: string) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
+  /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。 */
+  isStageLocked?: (stageKey: ProjectWorkflowStageKey) => boolean;
 }) {
   const entries: TimelineEntry[] = stages.map((stage): SelectableTimelineEntry => {
     const isCompleted = stage.status === 'COMPLETED';
@@ -304,7 +307,7 @@ export function ProjectStageTimeline({
                           {entry.orderLabel}
                         </span>
                         <div className="flex min-w-0 flex-col items-end gap-2 text-right">
-                          {entry.isCompleted && !isSelected && onReopenStage ? (
+                          {entry.isCompleted && !isSelected && onReopenStage && !isStageLocked?.(stageKey) ? (
                             /* 已完成徽章 → 可点击重开（卡片是 button，内层用 span role=button 避免嵌套 button 的 hydration 错误） */
                             <span
                               role="button"
@@ -315,6 +318,14 @@ export function ProjectStageTimeline({
                               className={['pm-stage-progress pm-stage-progress--completed', 'cursor-pointer hover:brightness-95 active:scale-95 transition-all'].join(' ')}
                             >
                               已完成 ↺
+                            </span>
+                          ) : entry.isCompleted && !isSelected && isStageLocked?.(stageKey) ? (
+                            /* 开标锁定（2026-09-24）：按时开标后前置步骤冻结——重开入口撤除，静态徽章留痕 */
+                            <span
+                              className="pm-stage-progress pm-stage-progress--completed cursor-not-allowed opacity-70"
+                              title="开标已确认，前置步骤已锁定不可重开"
+                            >
+                              已完成 🔒
                             </span>
                           ) : (
                             <span

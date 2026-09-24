@@ -1325,6 +1325,8 @@ export function ProjectDetailPanel({
               tenderDocxAttachments={tenderDocxFiles}
               onEditTenderFile={readOnly ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
               onReopenStage={readOnly ? undefined : async (stageKey, round) => {
+                // 开标锁定（2026-09-24）：按时开标后前置步骤不可重开（后端同款 409 硬闸，此处先拦给出友好提示）
+                if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定，不可重开'); return; }
                 try {
                   await reopenProjectStage(item.id, stageKey, round);
                   // 重开后选中该步骤并回到编辑视图；compliance 缓存按 stageKey 键控、附件未动——分析内容保留
@@ -1335,6 +1337,7 @@ export function ProjectDetailPanel({
                   setErrorMessage(e instanceof Error ? e.message : '重开步骤失败');
                 }
               }}
+              isStageLocked={isLockedByBid}
             />
 
           </div>

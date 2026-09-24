@@ -640,6 +640,14 @@ async function main() {
       if (cid) { await prisma.user.update({ where: { id: u.id }, data: { companyId: cid } }); userLinked++; }
     }
 
+    // 1.5) 专家（bid_expert）：快照无公司归属——统一归设计院本部（专家库公司隔离 2026-09-24，
+    //      与存量回填脚本 scripts/backfill-expert-company.ts 同口径；后续新增专家由录入链路自操作人快照）
+    const expertBackfill = await prisma.user.updateMany({
+      where: { role: 'bid_expert', companyId: null },
+      data: { companyId: sjy.id, company: sjy.name },
+    });
+    console.log(`    专家归属重建：${expertBackfill.count} 名 → 设计院本部`);
+
     // 2) 四张业务表：按创建人回填；无主的种子演示数据归设计院
     const userCompany = new Map(users.map((u) => [u.id, companyByName.get(u.company ?? '') ?? sjy.id]));
     const tables = [

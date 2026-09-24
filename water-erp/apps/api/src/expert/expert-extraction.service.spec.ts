@@ -4,6 +4,7 @@ import { ExpertExtractionService } from './expert-extraction.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
+import { CompanyScopeService } from '../company/company-scope';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 
 describe('ExpertExtractionService', () => {
@@ -66,6 +67,7 @@ describe('ExpertExtractionService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
         ExpertExtractionService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: extractionAi },
