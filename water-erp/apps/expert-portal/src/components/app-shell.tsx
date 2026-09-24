@@ -195,6 +195,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* 底部折叠区（与 :3005 同款：渐隐发丝线 + 导航项同款按钮；rail 态翻转变为展开）*/}
           {!sidebarHidden && <div aria-hidden className="sp-sidebar-hairline" />}
           <div className="sp-collapse-zone">
+            {/* 退出登录（2026-09-24 验收补：logout 函数此前已定义但无任何按钮接线——门户缺登出入口） */}
+            <button
+              type="button"
+              onClick={logout}
+              aria-label="退出登录"
+              title="退出登录"
+              className={`sidebar-nav-item mb-1 ${sidebarHidden ? 'justify-center' : ''}`}
+            >
+              <LogOut size={16} className="shrink-0" strokeWidth={1.7} aria-hidden="true" />
+              {!sidebarHidden && <span className="min-w-0 flex-1 truncate text-sm font-medium">退出登录</span>}
+            </button>
             <button
               type="button"
               onClick={() => setSidebarHidden(v => !v)}
