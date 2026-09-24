@@ -15,6 +15,7 @@ import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { ExpertExtractionAiService, rsvpTtlHours } from './expert-extraction-ai.service';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 import { ExpertExtractionService } from './expert-extraction.service';
+import { findOpenEvaluationWindows } from './expert-room.util';
 import type { CreateExpertDto } from './dto/create-expert.dto';
 import { UpdateExpertStatusDto } from './dto/update-expert-status.dto';
 import type { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
@@ -602,7 +603,9 @@ export class ExpertAdminService {
 
   /** 自动递补：从待确认候补中按综合评分（extendedRuleScore）择优转正，而非简单按创建时间。
    *  递补发生在抽取之后，期间专家状态可能变化，故此处先做与 confirmExtraction 同标准的资格复核
-   *  （剔除已停用/退库/供应商关联候补），再基于最新履职数据（含偏离度与当前负荷）重新评分。 */
+   *  （剔除已停用/退库/供应商关联/跨项目开窗候补），再基于最新履职数据（含偏离度与当前负荷）重新评分。
+   *  I3（2026-09-24 全链审计）：组长残留检测前置（早退也清残留）+ 跨项目开窗过滤 +
+   *  全项目行锁事务内重断言（并发双婉拒防，与 swapExpertRole 同域串行化）。 */
   async autoPromoteCandidate(projectId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -615,6 +618,20 @@ export class ExpertAdminService {
         .map(s => s.supplier?.name || s.supplierName)
         .filter(Boolean) as string[],
     );
+
+    // I3（2026-09-24 全链审计）：组长残留检测前置——零候选/零合格早退也须清残留，
+    // 否则组长婉拒且无候补时仍产出 isLead 残留（清扫脚本要修的病）。
+    // fix-later② 语义：三条触发路径（RSVP 婉拒/过期/admin 婉拒）都把原正选置 declined，
+    // isLead 残留在 declined 行 = 组长席实际空缺，须转移，否则末签/异议/表决链死锁。
+    const leadOnDeclined = await this.prisma.bidExpert.findFirst({
+      where: { projectId, isLead: true, invitationStatus: 'declined' },
+      select: { id: true },
+    });
+    const clearStaleLead = async () => {
+      if (leadOnDeclined) {
+        await this.prisma.bidExpert.update({ where: { id: leadOnDeclined.id }, data: { isLead: false } });
+      }
+    };
 
     // 候补候选：已确认(confirmed)与待确认(pending)都纳入，优先从已确认者中递补（他们已同意参加）
     const candidates = await this.prisma.bidExpert.findMany({
@@ -630,10 +647,22 @@ export class ExpertAdminService {
         },
       },
     });
-    if (candidates.length === 0) return null;
+    if (candidates.length === 0) {
+      await clearStaleLead();
+      return null;
+    }
+
+    // I3：跨项目开窗预过滤（findOpenEvaluationWindows 为 async——先建排除集，保持下方 filter 同步）。
+    // 与 swap P2-4/signIn 硬闸同口径：开窗候补递补后 signIn 必撞闸，提前剔除免递补空转。
+    const windowExcluded = new Set<string>();
+    for (const c of candidates) {
+      const wins = await findOpenEvaluationWindows(this.prisma, c.userId, projectId);
+      if (wins.length > 0) windowExcluded.add(c.userId);
+    }
 
     // 资格复核：与 confirmExtraction 同标准，避免把抽取后被停用/退库/关联供应商的候补提为正选
     const eligible = candidates.filter(c => {
+      if (windowExcluded.has(c.userId)) return false;
       const u = c.user;
       if (!u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') return false;
       const emp = u.expertProfile?.employer?.trim();
@@ -644,7 +673,10 @@ export class ExpertAdminService {
       }
       return true;
     });
-    if (eligible.length === 0) return null;
+    if (eligible.length === 0) {
+      await clearStaleLead();
+      return null;
+    }
 
     // 与抽取同口径补齐偏离度与历史均分（原实现缺这两维，择优比抽取时更粗糙）
     const userIds = eligible.map(c => c.userId);
@@ -687,12 +719,6 @@ export class ExpertAdminService {
     });
     // fix-later②（2026-09-24）：与 swapExpertRole 同口径——递补即确认（startEvaluation 委员会校验只数
     // confirmed 正选，不落 confirmed 则递补后确认数悄悄跌破法定下限）。
-    // 组长席空缺检测：三条触发路径（RSVP 婉拒/过期/admin 婉拒）都把原正选置 declined，
-    // isLead 残留在 declined 行 = 组长席实际空缺，须转移，否则末签/异议/表决链死锁。
-    const leadOnDeclined = await this.prisma.bidExpert.findFirst({
-      where: { projectId, isLead: true, invitationStatus: 'declined' },
-      select: { id: true },
-    });
     let best = scored[0].c;
     // P1-7：采购人代表不得任组长——组长席空缺时在非代表候选中按原排序择优；全为代表则组长留空（待 setLeader）
     if (leadOnDeclined) {
@@ -701,13 +727,23 @@ export class ExpertAdminService {
     }
     const promotedAsLead = !!leadOnDeclined && !best.isPurchaserRepresentative;
 
-    if (leadOnDeclined) {
-      await this.prisma.bidExpert.update({ where: { id: leadOnDeclined.id }, data: { isLead: false } });
-    }
-    await this.prisma.bidExpert.update({
-      where: { id: best.id },
-      data: { expertRole: '正选', invitationStatus: 'confirmed', ...(promotedAsLead ? { isLead: true } : {}) },
+    // I3：并发双婉拒防——锁全项目 BidExpert 行（与 swap 的两行锁同域串行化），
+    // 锁内重断言 best 仍是候补且未婉拒；并发递补后到者见先到者已改角色 → 放弃或顺延。
+    const promoted = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BidExpert" WHERE "projectId" = ${projectId} FOR UPDATE`;
+      if (leadOnDeclined) {
+        await tx.bidExpert.update({ where: { id: leadOnDeclined.id }, data: { isLead: false } });
+      }
+      const freshBest = await tx.bidExpert.findUnique({ where: { id: best.id }, select: { expertRole: true, invitationStatus: true } });
+      if (!freshBest || freshBest.expertRole !== '候补' || freshBest.invitationStatus === 'declined') {
+        return null; // 并发已被递补/已婉拒——本次放弃（调用方 promoted=null 语义已存在）
+      }
+      return tx.bidExpert.update({
+        where: { id: best.id },
+        data: { expertRole: '正选', invitationStatus: 'confirmed', ...(promotedAsLead ? { isLead: true } : {}) },
+      });
     });
+    if (!promoted) return null;
 
     // F4 同口径：递补零通知=被「拉壮丁」无感知——站内信 best-effort，失败不阻塞
     try {

@@ -567,6 +567,10 @@ describe('ExpertAdminService', () => {
       prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
       // 评分 mock 须返回数字（默认 undefined 会让排序比较 NaN）
       (service as any).extraction.extendedRuleScore.mockReturnValue(80);
+      // I3（2026-09-24 全链审计）：tx 内 FOR UPDATE 行锁 + 锁内重断言（findUnique 默认放行形状：
+      // e=未婉拒候补；个别用例覆写制造并发冲突）
+      prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+      prisma.bidExpert.findUnique = jest.fn().mockResolvedValue({ expertRole: '候补', invitationStatus: 'pending' });
     });
 
     const mkCand = (id: string, name: string, opts: { inv?: string; rep?: boolean } = {}) => ({
@@ -581,7 +585,8 @@ describe('ExpertAdminService', () => {
 
     it('递补即确认：晋升写 invitationStatus=confirmed 并发站内通知（F4 同口径）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
-      prisma.bidExpert.findMany.mockResolvedValue([mkCand('c1', '候补甲', { inv: 'pending' })]);
+      // I3：首调=候补候选查询（Once）；后续调用=跨项目开窗检查（默认 []，无冲突窗口）
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('c1', '候补甲', { inv: 'pending' })]);
       prisma.bidExpert.findFirst.mockResolvedValue(null); // 无组长残留
       const res = await service.autoPromoteCandidate('p1');
       expect(res).toMatchObject({ expertName: '候补甲' });
@@ -593,7 +598,7 @@ describe('ExpertAdminService', () => {
 
     it('组长婉拒：isLead 清残留并转移到递补者', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
-      prisma.bidExpert.findMany.mockResolvedValue([mkCand('c1', '候补甲', { inv: 'confirmed' })]);
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('c1', '候补甲', { inv: 'confirmed' })]);
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' }); // 组长残留（已 declined）
       const res = await service.autoPromoteCandidate('p1');
       expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'lead-old' }, data: { isLead: false } });
@@ -606,7 +611,7 @@ describe('ExpertAdminService', () => {
     it('组长婉拒且最优候选为采购人代表：改选次优非代表递补并任组长（P1-7）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
       // 排序在前的代表（confirmed 优先）+ 次优非代表
-      prisma.bidExpert.findMany.mockResolvedValue([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true }), mkCand('nrm', '候补丙', { inv: 'pending' })]);
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true }), mkCand('nrm', '候补丙', { inv: 'pending' })]);
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
       const res = await service.autoPromoteCandidate('p1');
       expect(res).toMatchObject({ expertName: '候补丙', promotedAsLead: true });
@@ -615,12 +620,55 @@ describe('ExpertAdminService', () => {
 
     it('组长婉拒且候选全为采购人代表：仍递补但组长留空（promotedAsLead=false，待 setLeader）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
-      prisma.bidExpert.findMany.mockResolvedValue([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true })]);
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('rep', '代表乙', { inv: 'confirmed', rep: true })]);
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
       const res = await service.autoPromoteCandidate('p1');
       expect(res).toMatchObject({ expertName: '代表乙', promotedAsLead: false });
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'rep' }, data: expect.not.objectContaining({ isLead: true }) }),
+      );
+    });
+
+    it('I3：零候补 + 组长残留 → 返回 null 但仍清 isLead 残留（早退不清残留=清扫脚本要修的病）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValueOnce([]); // 候补候选查询：零候选
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'lead-old' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toBeNull();
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'lead-old' }, data: { isLead: false } });
+    });
+
+    it('I3：锁内重断言——并发已递补（锁内重读已是正选）→ 放弃且零递补写、零通知', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findMany.mockResolvedValueOnce([mkCand('c1', '候补甲', { inv: 'confirmed' })]);
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      // 锁内重读：best 已被并发请求递补为正选
+      prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '正选', invitationStatus: 'confirmed' });
+      const res = await service.autoPromoteCandidate('p1');
+      expect(res).toBeNull();
+      expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ expertRole: '正选' }) }),
+      );
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+    });
+
+    it('I3：候补存在跨项目未闭合评标窗口 → 剔除后递补次优（与 signIn 硬闸/swap P2-4 同口径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', suppliers: [] });
+      // 候选查询 where 带 expertRole='候补'；开窗检查（findOpenEvaluationWindows）where 只带 userId——按此分流
+      prisma.bidExpert.findMany.mockImplementation(async ({ where }: any = {}) =>
+        where.expertRole
+          ? [mkCand('c1', '候补甲', { inv: 'confirmed' }), mkCand('c2', '候补乙', { inv: 'pending' })]
+          : where.userId === 'u-c1'
+            ? [{ projectId: 'px', project: { id: 'px', projectCode: 'PCX', name: '他项目' } }]
+            : [],
+      );
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      const res = await service.autoPromoteCandidate('p1');
+      // c1（排序在前的 confirmed 候补）因开窗被剔除，次优 c2 递补
+      expect(res).toMatchObject({ expertName: '候补乙' });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'c1' } }));
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'c2' }, data: expect.objectContaining({ expertRole: '正选' }) }),
       );
     });
   });
