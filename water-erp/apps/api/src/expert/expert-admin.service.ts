@@ -500,6 +500,9 @@ export class ExpertAdminService {
     });
     if (!target) throw new NotFoundException('该专家不属于本项目');
     if (target.expertRole !== '正选') throw new BadRequestException('仅正选专家可设为组长');
+    // I5（2026-09-24 全链审计）：pending/declined 正选不得任组长——兄弟路径只往 confirmed 转移组长；
+    // declined 组长=末签/异议/表决全链死锁。
+    if (target.invitationStatus !== 'confirmed') throw new BadRequestException('仅已确认参加的正选专家可设为组长');
     // P1-7（#47）：采购人代表不得担任评审组长（多地采购管理办法明确规定）
     if (target.isPurchaserRepresentative) throw new BadRequestException('采购人代表不得担任评审组长');
 

@@ -255,13 +255,21 @@ describe('ExpertAdminService', () => {
 
   describe('setLeader（P1-7 采购人代表禁任组长）', () => {
     it('采购人代表被拒绝担任组长', async () => {
-      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', isPurchaserRepresentative: true });
+      // I5：confirmed 前置闸通过，专测采购人代表禁任组长
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', invitationStatus: 'confirmed', isPurchaserRepresentative: true });
       await expect(service.setLeader('p1', 'u1')).rejects.toThrow('采购人代表不得担任评审组长');
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
+    it('I5（2026-09-24 全链审计）：pending/declined 正选不得任组长 → 400', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', invitationStatus: 'declined', isPurchaserRepresentative: false });
+      await expect(service.setLeader('p1', 'u1')).rejects.toThrow('仅已确认参加的正选专家可设为组长');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it('非代表的正选专家可正常设为组长', async () => {
-      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', isPurchaserRepresentative: false });
+      // I5：fixture 补 invitationStatus='confirmed'（仅已确认正选可任组长）
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', invitationStatus: 'confirmed', isPurchaserRepresentative: false });
       prisma.bidExpert.updateMany.mockResolvedValue({ count: 0 });
       prisma.bidExpert.update.mockResolvedValue({});
       const r = await service.setLeader('p1', 'u1');

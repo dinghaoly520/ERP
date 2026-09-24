@@ -576,6 +576,12 @@ export class ExpertService {
     let txWindows: Awaited<ReturnType<typeof findOpenEvaluationWindows>> = [];
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      // I4（2026-09-24 全链审计）：swap 锁 BidExpert 行、signIn 锁 User 行——锁域不相交，
+      // 夹缝中被互换降为候补仍会写入签到（候补+signedIn=永不闭窗）。锁内重读角色堵死。
+      const fresh = await tx.bidExpert.findUnique({ where: { id: expert.id }, select: { expertRole: true } });
+      if (!fresh || fresh.expertRole !== '正选') {
+        throw new ForbiddenException({ error: '您是候补专家，正式递补前不可签到', code: 'SUBSTITUTE_EXPERT' });
+      }
       txWindows = await findOpenEvaluationWindows(tx, userId, projectId);
       if (txWindows.length > 0) return null;
       return tx.bidExpert.update({

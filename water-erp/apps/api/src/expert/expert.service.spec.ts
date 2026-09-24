@@ -238,6 +238,11 @@ describe('ExpertService', () => {
   });
 
   describe('signIn', () => {
+    beforeEach(() => {
+      // I4（2026-09-24）：signIn 事务内锁后重读角色——默认正选放行（夹缝降候补见 P1-6 专项用例）
+      prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '正选' });
+    });
+
     it('self 默认态无留档照 → 400 PHOTO_REQUIRED（R3 必拍），不写签到状态', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
@@ -2629,7 +2634,8 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
   beforeEach(async () => {
     prisma = {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'proj-1', stage: 'EVALUATING' }) },
-      bidExpert: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}) },
+      // I4（2026-09-24）：signIn 锁内重读角色——bidExpert 补 findUnique（默认正选，夹缝用例覆写）
+      bidExpert: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ expertRole: '正选' }) },
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() }, // findMany：getReport→resolveOpeningAmountUnitMap（P1-1 单位口径）
       supplier: { findUnique: jest.fn().mockResolvedValue(null) },
       bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -2691,6 +2697,16 @@ describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () 
     const res = await svc.signIn('user-reg', 'proj-1', { ip: '127.0.0.1', userAgent: 'test' }, 'photo-1', 'passed');
     expect(res.signedIn).toBe(true);
     expect(prisma.bidExpert.update).toHaveBeenCalled();
+  });
+
+  it('I4（2026-09-24 全链审计）：外层预检为正选、锁内已被互换降为候补 → 403 SUBSTITUTE_EXPERT，不写签到', async () => {
+    // 夹缝场景：swapExpertRole 锁 BidExpert 行、signIn 锁 User 行——锁域不相交，
+    // 预检时仍是正选，进事务后被并发互换降为候补
+    prisma.bidExpert.findFirst.mockResolvedValue(REGULAR);
+    prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '候补' });
+    await expect(svc.signIn('user-reg', 'proj-1', { ip: '127.0.0.1', userAgent: 'test' }, 'photo-1'))
+      .rejects.toMatchObject({ response: { code: 'SUBSTITUTE_EXPERT' } });
+    expect(prisma.bidExpert.update).not.toHaveBeenCalled();
   });
 
   it('递补后（expertRole 已置正选）→ 门控自动放行', async () => {
