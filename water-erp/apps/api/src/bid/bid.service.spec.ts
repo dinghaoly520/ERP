@@ -1504,6 +1504,21 @@ describe('BidService — stage transitions', () => {
           .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_INVALID' } });
       });
 
+      it('scoreTrimEnabled 非布尔 → 400 PRICE_CONFIG_INVALID', async () => {
+        await expect(service.updatePriceConfig('p1', { scoreTrimEnabled: 'yes' as any }, 'u1'))
+          .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_INVALID' } });
+      });
+
+      it('scoreTrimEnabled=false → 合法写库；EVALUATING 锁定亦拦截该键', async () => {
+        await service.updatePriceConfig('p1', { scoreTrimEnabled: false }, 'u1');
+        expect(prisma.bidProject.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ scoreTrimEnabled: false }) }),
+        );
+        prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+        await expect(service.updatePriceConfig('p1', { scoreTrimEnabled: true }, 'u1'))
+          .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
+      });
+
       it('evaluationMethod=manual（专家评审手填）→ 合法', async () => {
         await service.updatePriceConfig('p1', { evaluationMethod: 'manual' }, 'u1');
         expect(prisma.bidProject.update).toHaveBeenCalledWith(

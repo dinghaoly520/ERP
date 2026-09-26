@@ -2646,6 +2646,7 @@ export class BidService {
       passFailVerdicts,
       bidPrices,
       isNegotiation: project.procurementMethod === '谈判采购',
+      trimOutliers: project.scoreTrimEnabled ?? true,
     });
     return {
       results: ranked.map((r, index) => ({ ...r, rank: index + 1 })),
@@ -4181,7 +4182,7 @@ export class BidService {
   /** P1: 设置最高限价 + 价格分公式配置 + 评标办法 */
   async updatePriceConfig(
     projectId: string,
-    dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null },
+    dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean },
     actorId?: string,
   ) {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true } });
@@ -4190,7 +4191,7 @@ export class BidService {
     // P2-17（二轮审查收尾）：评标/归档阶段锁定价格与评标办法配置——评标办法在招标文件确定，
     // 评标中变更评标办法/最高限价/价格分公式会改变评分与排名口径（合规风险）；更正须走法定程序
     if ((project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')
-      && (dto.evaluationMethod !== undefined || dto.ceilingPrice !== undefined || dto.priceFormulaConfig !== undefined)) {
+      && (dto.evaluationMethod !== undefined || dto.ceilingPrice !== undefined || dto.priceFormulaConfig !== undefined || dto.scoreTrimEnabled !== undefined)) {
       throw new ConflictException({ error: '评标已开始，价格与评标办法配置已锁定；如需更正请按法定程序办理', code: 'PRICE_CONFIG_LOCKED' });
     }
 
@@ -4198,6 +4199,9 @@ export class BidService {
     // 引擎 default 分支静默回退最低评标价法、K/penaltyRate 越界照收，错到生成评标结果才爆。
     if (dto.ceilingPrice !== undefined && (typeof dto.ceilingPrice !== 'number' || !Number.isFinite(dto.ceilingPrice) || dto.ceilingPrice < 0)) {
       throw new BadRequestException({ error: '最高限价须为非负数字', code: 'PRICE_CONFIG_INVALID' });
+    }
+    if (dto.scoreTrimEnabled !== undefined && typeof dto.scoreTrimEnabled !== 'boolean') {
+      throw new BadRequestException({ error: '去极值开关须为布尔值', code: 'PRICE_CONFIG_INVALID' });
     }
     // 评标办法白名单（manual=专家评审手填，2026-09-26 增设；switch 消费点 default 落综合评估法类行为）
     if (dto.evaluationMethod !== undefined) {
@@ -4243,13 +4247,14 @@ export class BidService {
     const data: Record<string, unknown> = {};
     if (dto.ceilingPrice !== undefined) data.ceilingPrice = dto.ceilingPrice;
     if (dto.evaluationMethod !== undefined) data.evaluationMethod = dto.evaluationMethod;
+    if (dto.scoreTrimEnabled !== undefined) data.scoreTrimEnabled = dto.scoreTrimEnabled;
     if (dto.priceFormulaConfig !== undefined) {
       // null=停用公式：写 DbNull（SQL NULL，与建项默认「列空」同形态）——直接传 JS null
       // 会被 Prisma 记为 jsonb null 字面量（读回等价但存储形态与存量不一致）
       data.priceFormulaConfig = dto.priceFormulaConfig === null ? Prisma.DbNull : (dto.priceFormulaConfig as any);
     }
 
-    return this.prisma.bidProject.update({ where: { id: projectId }, data, select: { id: true, ceilingPrice: true, evaluationMethod: true, priceFormulaConfig: true } });
+    return this.prisma.bidProject.update({ where: { id: projectId }, data, select: { id: true, ceilingPrice: true, evaluationMethod: true, priceFormulaConfig: true, scoreTrimEnabled: true } });
   }
 
   /** B3（GB/T 43711 7.2.3.6）：资格后审复核结果登记（登记制——评审线下完成，结果留痕） */

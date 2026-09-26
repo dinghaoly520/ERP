@@ -68,7 +68,7 @@ const LEGAL_FORMULA_TYPES = ["lowest_price", "benchmark_deviation", "ratio"];
 const LOCKED_NOTICE =
   "项目已进入评标/归档阶段——评标办法、最高限价与价格分公式已锁定（评标口径确定性）。如需更正请按法定程序办理。";
 
-type PriceConfigSource = Pick<BidProjectDetail, 'id' | 'stage'> & Partial<Pick<BidProjectDetail, 'ceilingPrice' | 'evaluationMethod' | 'priceFormulaConfig' | 'procurementMethod'>>;
+type PriceConfigSource = Pick<BidProjectDetail, 'id' | 'stage'> & Partial<Pick<BidProjectDetail, 'ceilingPrice' | 'evaluationMethod' | 'priceFormulaConfig' | 'procurementMethod' | 'scoreTrimEnabled'>>;
 
 /** P2-17：后端 409 PRICE_CONFIG_LOCKED 如实前置——评标/归档阶段输入禁用（评标口径确定性） */
 const softLockedOf = (stage?: string) => stage === "EVALUATING" || stage === "ARCHIVED";
@@ -104,6 +104,7 @@ export function EvaluationBasisFields({
   const [ceilingPrice, setCeilingPrice] = useState("");
   const [evaluationMethod, setEvaluationMethod] = useState("");
   const [formulaCalc, setFormulaCalc] = useState("manual");
+  const [scoreTrim, setScoreTrim] = useState(true);
   const [paramK, setParamK] = useState("");
   const [paramPenalty, setParamPenalty] = useState("");
   const [paramRange, setParamRange] = useState("");
@@ -120,6 +121,7 @@ export function EvaluationBasisFields({
     // 误解为专家手动打分）；保存即落显式值，顺带规范化数据
     setEvaluationMethod(detail?.evaluationMethod ?? deriveEvalMethod(detail?.procurementMethod));
     setFormulaCalc(resolveFormulaCalc(detail?.priceFormulaConfig));
+    setScoreTrim(detail?.scoreTrimEnabled ?? true);
     setParamK(cfgObj?.K != null ? String(cfgObj.K) : "");
     setParamPenalty(cfgObj?.penaltyRate != null ? String(cfgObj.penaltyRate) : "");
     setParamRange(cfgObj?.noPenaltyRange != null ? String(cfgObj.noPenaltyRange) : "");
@@ -157,12 +159,14 @@ export function EvaluationBasisFields({
 
   const initialEvalMethod = detail?.evaluationMethod ?? deriveEvalMethod(detail?.procurementMethod);
   const evalMethodDirty = evaluationMethod !== initialEvalMethod;
+  const trimDirty = scoreTrim !== (detail?.scoreTrimEnabled ?? true);
   const dirty = useMemo(() => (
     ceilingPrice.trim() !== (detail?.ceilingPrice != null ? String(detail.ceilingPrice) : "")
     || evalMethodDirty
     || formulaDirty
     || implicitClear
-  ), [ceilingPrice, evalMethodDirty, formulaDirty, implicitClear, detail?.ceilingPrice]);
+    || trimDirty
+  ), [ceilingPrice, evalMethodDirty, formulaDirty, implicitClear, trimDirty, detail?.ceilingPrice]);
 
   // 办法切换联动：无条件重置公式为该办法推荐项（行为可预期，不跟踪"是否定制过"）
   function onMethodChange(v: string) {
@@ -176,7 +180,7 @@ export function EvaluationBasisFields({
 
   async function save() {
     if (!detail) return;
-    const data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null } = {};
+    const data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean } = {};
     const cp = ceilingPrice.trim();
     if (cp !== (detail.ceilingPrice != null ? String(detail.ceilingPrice) : "")) {
       if (cp === "") { toast.error("清空最高限价请填 0 或联系管理员（后端未定义清除语义）"); return; }
@@ -185,6 +189,7 @@ export function EvaluationBasisFields({
       data.ceilingPrice = n;
     }
     if (evalMethodDirty) data.evaluationMethod = evaluationMethod;
+    if (trimDirty) data.scoreTrimEnabled = scoreTrim;
     if (implicitClear) data.priceFormulaConfig = null;
     else if (formulaDirty) {
       const err = validateParams(paramK, paramPenalty, paramRange);
@@ -284,6 +289,21 @@ export function EvaluationBasisFields({
           )}
         </>
       )}
+      <label className={`flex items-start gap-2.5 text-xs ${softLocked ? 'opacity-60' : 'cursor-pointer'}`}>
+        <input
+          type="checkbox"
+          checked={scoreTrim}
+          onChange={(e) => setScoreTrim(e.target.checked)}
+          disabled={softLocked}
+          className="neu-checkbox mt-0.5"
+        />
+        <span className="leading-5">
+          <span className="font-semibold text-[var(--foreground)]">评分去极值</span>
+          <span className="ml-1.5 text-[var(--muted-foreground)]">
+            ≥5 位专家时去掉 1 个最高分、1 个最低分后取平均（评标实务惯例）；关闭后全额均分
+          </span>
+        </span>
+      </label>
       {!softLocked && !evalMethodDirty && detail?.evaluationMethod == null && (
         <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
           未显式设置——当前按采购方式默认执行「{EVAL_METHOD_OPTIONS.find(o => o.value === evaluationMethod)?.label}」，保存后落为显式值。

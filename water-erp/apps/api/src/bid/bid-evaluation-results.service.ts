@@ -419,6 +419,7 @@ export class BidEvaluationResultsService {
       passFailVerdicts,
       bidPrices,
       isNegotiation,
+      trimOutliers: project.scoreTrimEnabled ?? true,
     });
 
     const qualifiedRanked = ranked.filter(r => !r.disqualified);

@@ -42,10 +42,13 @@ export interface AggregateSupplierScoresInput {
   bidPrices: Map<string, number>;
   /** 谈判采购：合格组按报价升序（最低价中标）；其余按均分降序 */
   isNegotiation: boolean;
+  /** 去极值开关（2026-09-26 项目级配置 BidProject.scoreTrimEnabled）：false=全额均分（即便 ≥5 人）；
+   *  缺省 true=沿用 ≥5 去 1 高 1 低（存量调用方零变化） */
+  trimOutliers?: boolean;
 }
 
 export function aggregateSupplierScores(input: AggregateSupplierScoresInput): AggregatedSupplierRank[] {
-  const { activeSuppliers, recordsBySupplier, formulaPriceScores, priceItemIds, passFailVerdicts, bidPrices, isNegotiation } = input;
+  const { activeSuppliers, recordsBySupplier, formulaPriceScores, priceItemIds, passFailVerdicts, bidPrices, isNegotiation, trimOutliers = true } = input;
   const ranked: AggregatedSupplierRank[] = [];
   for (const supplier of activeSuppliers) {
     const records = recordsBySupplier.get(supplier.id) ?? [];
@@ -67,9 +70,10 @@ export function aggregateSupplierScores(input: AggregateSupplierScoresInput): Ag
     const expertTotals = [...perExpert.values()].sort((a, b) => a - b);
     const totalScore = expertTotals.reduce((s, v) => s + v, 0);
 
-    // 专家组≥5 时去 1 高 1 低（标准评标实务）——length 是实际打分专家数
+    // 专家组≥5 时去 1 高 1 低（标准评标实务）——length 是实际打分专家数；
+    // trimOutliers=false（项目关闭）→ 全额均分（2026-09-26 项目级开关）
     let trimmed = expertTotals;
-    if (expertTotals.length >= 5) {
+    if (trimOutliers && expertTotals.length >= 5) {
       trimmed = expertTotals.slice(1, -1);
     }
     const averageScore = trimmed.length > 0
