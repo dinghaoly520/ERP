@@ -52,10 +52,10 @@ type Props = {
   onChanged?: () => void;
   variant?: 'standalone' | 'embedded';
   /** 提取源（2026-09-26 双入口分流）：
-   *  - 显式对象 = 03 完成向导 Step2：固定提取正式盖章版采购文件（OCR）
+   *  - 显式对象 = 03 完成向导 Step2：固定提取正式盖章版采购文件（OCR，isOfficial=true）
    *  - undefined = 「评分标准」按钮面板：自动——唯一文件直用；多文件弹选择器由用户指定，
    *    选过一次后面板内后续提取（含逐项）沿用同一源 */
-  extractSource?: { attachmentId: string; fileName: string } | null;
+  extractSource?: { attachmentId: string; fileName: string; isOfficial?: boolean } | null;
   /** 该轮「采购文件」步骤附件（extractSource 未定时作提取源候选） */
   tenderCandidates?: ProjectManagementAttachment[];
 };
@@ -368,7 +368,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             disabled={extractingAll}
             className="neu-btn-xs gap-1.5 is-info"
             title={extractSource
-              ? `从正式盖章版采购文件提取得分点（OCR）：${extractSource.fileName}`
+              ? `从${extractSource.isOfficial === false ? '指定提取源' : '正式盖章版采购文件'}提取得分点${extractSource.isOfficial === false ? '' : '（OCR）'}：${extractSource.fileName}`
               : pickedSource
                 ? `提取源：${pickedSource.fileName}`
                 : '从「采购文件」步骤的采购文件提取得分点（多文件时可选）'}

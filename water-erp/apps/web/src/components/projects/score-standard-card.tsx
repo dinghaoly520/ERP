@@ -21,9 +21,9 @@ type Props = {
   detail: BidProjectDetail | null;
   /** 价格类评分项数量（undefined=数据未就绪不提示；0=提示公式暂不参与计分） */
   priceItemCount?: number;
-  /** AI 提取源（2026-09-26 双入口分流）：显式对象=03 完成向导（固定正式盖章版 OCR）；
-   *  undefined=「评分标准」按钮面板（自动解析，多文件时弹选择器由用户指定）。 */
-  extractSource?: { attachmentId: string; fileName: string } | null;
+  /** AI 提取源（2026-09-26 双入口分流）：显式对象=03 完成向导（固定正式盖章版 OCR，
+   *  isOfficial=true）；undefined=「评分标准」按钮面板（自动解析，多文件时弹选择器）。 */
+  extractSource?: { attachmentId: string; fileName: string; isOfficial?: boolean } | null;
   /** 该轮「采购文件」步骤附件（extractSource 未定时作提取源候选） */
   tenderCandidates?: ProjectManagementAttachment[];
   onChanged: () => void;

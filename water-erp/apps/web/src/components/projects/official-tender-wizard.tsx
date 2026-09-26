@@ -262,7 +262,7 @@ export function OfficialTenderWizard({
                   priceItemCount={priceItemCount}
                   onChanged={onChanged}
                   extractSource={selectedFile?.id && selectedFile.fileName
-                    ? { attachmentId: selectedFile.id, fileName: selectedFile.fileName }
+                    ? { attachmentId: selectedFile.id, fileName: selectedFile.fileName, isOfficial: true }
                     : null}
                 />
               </div>

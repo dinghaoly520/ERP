@@ -26,8 +26,9 @@ interface Props {
   points: BidScorePoint[];
   onChanged: () => void; // 增删改后通知父组件刷新
   locked?: boolean; // 评分标准已发布/项目已进 EVALUATING/ARCHIVED 时禁用修改
-  /** 提取源（2026-09-26）：完成向导=正式盖章版；「评分标准」面板=用户多文件时选定的源（面板级沿用） */
-  extractSource?: { attachmentId: string; fileName: string } | null;
+  /** 提取源（2026-09-26）：完成向导=正式盖章版（isOfficial）；「评分标准」面板=用户多文件时
+   *  选定的源（isOfficial 缺省——非正式文件时文案不得冒称"正式盖章版"） */
+  extractSource?: { attachmentId: string; fileName: string; isOfficial?: boolean } | null;
 }
 
 export function ScorePointsEditor({ projectId, item, points, onChanged, locked, extractSource }: Props) {
@@ -197,7 +198,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
             disabled={extracting}
             className="flex items-center gap-1 rounded-lg border border-[oklch(0.85_0.02_260)] bg-white px-2.5 py-1 text-xs text-[oklch(0.35_0.03_258)] disabled:opacity-50"
             title={extractSource
-              ? `从正式盖章版采购文件提取得分条款建议（OCR）：${extractSource.fileName}`
+              ? `从${extractSource.isOfficial ? '正式盖章版采购文件' : '指定提取源'}提取得分条款建议${extractSource.isOfficial ? '（OCR）' : ''}：${extractSource.fileName}`
               : '从「采购文件」步骤的采购文件自动提取得分条款建议'}
           >
             <Sparkles size={13} /> {extracting ? '提取中…' : 'AI 提取建议'}
