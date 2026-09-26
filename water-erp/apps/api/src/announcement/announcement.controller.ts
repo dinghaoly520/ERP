@@ -407,6 +407,42 @@ export class AnnouncementController {
     });
   }
 
+  // ─── 回收站（2026-09-26：隐藏/下架/恢复取代删除，UI 不再提供删除入口）───
+
+  @Post(':id/hide')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '隐藏公告（任意状态 → 回收站）' })
+  async hide(@Param('id') id: string, @Request() req: any) {
+    await this.assertAnnouncementScope(id, req.user);
+    return this.announcementService.hide(id, this.recycleOperator(req));
+  }
+
+  @Post(':id/offline')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '下架公告（仅已发布 → 回收站）' })
+  async offline(@Param('id') id: string, @Request() req: any) {
+    await this.assertAnnouncementScope(id, req.user);
+    return this.announcementService.offline(id, this.recycleOperator(req));
+  }
+
+  @Post(':id/restore')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '从回收站恢复（还原隐藏/下架前状态）' })
+  async restore(@Param('id') id: string, @Request() req: any) {
+    await this.assertAnnouncementScope(id, req.user);
+    return this.announcementService.restore(id, this.recycleOperator(req));
+  }
+
+  /** 回收站操作人上下文（controller 侧统一取 req） */
+  private recycleOperator(req: any) {
+    return {
+      operatorId: req.user.sub,
+      operatorName: req.user.username,
+      ipAddress: this.clientIp(req),
+      userAgent: req.headers?.['user-agent'],
+    };
+  }
+
   @Post(':id/generate-summary')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'AI 重新生成摘要' })
