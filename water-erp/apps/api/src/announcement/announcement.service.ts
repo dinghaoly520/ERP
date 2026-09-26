@@ -12,6 +12,9 @@ import { BidDocumentService } from './bid-document.service';
 import { ANNOUNCEMENT_TYPE_LABELS, ANNOUNCEMENT_TYPE_DATA_CLASS, PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
 import { checkBidNoticeElements, type ChecklistWarning } from './bid-notice-checklist';
 
+/** 回收站操作人上下文（与 confirmWinnerNotice 的 operator 同构，2026-09-26） */
+export type RecycleOperator = { operatorId?: string; operatorName?: string; ipAddress?: string; userAgent?: string };
+
 @Injectable()
 export class AnnouncementService {
   private readonly logger = new Logger(AnnouncementService.name);
@@ -212,7 +215,14 @@ export class AnnouncementService {
       const types = params.type.split(',').map((t: string) => t.trim()).filter(Boolean);
       where.type = types.length > 1 ? { in: types } : params.type;
     }
-    if (params.status) where.status = params.status;
+    if (params.status) {
+      // 2026-09-26 回收站体系：status 支持逗号分隔（回收站传 HIDDEN,OFFLINE），与 type 逗号语义一致
+      const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
+      where.status = statuses.length > 1 ? { in: statuses } : params.status;
+    } else {
+      // 2026-09-26 回收站体系：默认排除回收站内容（隐藏/下架只在回收站可见，公开端本就只出 PUBLISHED）
+      where.status = { notIn: ['HIDDEN', 'OFFLINE'] };
+    }
     if (params.search) {
       where.OR = [
         { title: { contains: params.search, mode: 'insensitive' } },
@@ -638,6 +648,67 @@ export class AnnouncementService {
 
     this.logger.log(`预成交公示 ${pre.id} 已确认，生成成交公告 ${winnerNotice.id}`);
     return { winnerNotice, created: true };
+  }
+
+  /* ── 回收站体系（2026-09-26）：隐藏/下架/恢复，UI 不再提供删除 ── */
+
+  /** 隐藏：任意状态 → HIDDEN，进回收站（主列表与公开门户均不可见） */
+  async hide(id: string, operator: RecycleOperator = {}) {
+    return this.applyRecycle(id, 'HIDDEN', operator);
+  }
+
+  /** 下架：仅已发布可下架 → OFFLINE，进回收站（撤下公开门户） */
+  async offline(id: string, operator: RecycleOperator = {}) {
+    return this.applyRecycle(id, 'OFFLINE', operator);
+  }
+
+  /** 隐藏/下架共用落地：状态流转 + metadata.recycle 留痕（原状态/动作/时间/操作人）+ 历史动作 */
+  private async applyRecycle(id: string, target: 'HIDDEN' | 'OFFLINE', operator: RecycleOperator) {
+    const ann = await this.prisma.announcement.findUnique({ where: { id } });
+    if (!ann) throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
+    if (ann.status === 'HIDDEN' || ann.status === 'OFFLINE') {
+      throw new ConflictException({ error: '该公告已在回收站中，请先恢复后再操作', code: 'ALREADY_IN_RECYCLE' });
+    }
+    if (target === 'OFFLINE' && ann.status !== 'PUBLISHED') {
+      throw new ConflictException({ error: '仅「已发布」的公告可下架，草稿/已公示请用隐藏', code: 'NOT_PUBLISHED_FOR_OFFLINE' });
+    }
+    // 合并写入：保留其余 metadata 键（编辑页整存 metadata 时 recycle 随行）
+    const meta = { ...((ann.metadata as Record<string, any>) ?? {}) };
+    meta.recycle = { from: ann.status, action: target, at: new Date().toISOString(), by: operator.operatorName ?? null };
+    const result = await this.prisma.announcement.update({ where: { id }, data: { status: target, metadata: meta as any } });
+    await this.prisma.announcementHistory.create({
+      data: {
+        announcementId: id, action: target === 'HIDDEN' ? 'HIDE' : 'OFFLINE',
+        title: result.title, type: result.type, status: result.status, changedFields: ['status'],
+        operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+        ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
+      },
+    }).catch(e => this.logger.warn(`回收站留痕写入失败（不阻塞）: ${(e as Error).message}`));
+    this.logger.log(`公告 ${id} 已${target === 'HIDDEN' ? '隐藏' : '下架'}进回收站（原状态 ${ann.status}）`);
+    return result;
+  }
+
+  /** 恢复：按 metadata.recycle.from 还原状态并清除回收标记（缺失/非法兜底 DRAFT） */
+  async restore(id: string, operator: RecycleOperator = {}) {
+    const ann = await this.prisma.announcement.findUnique({ where: { id } });
+    if (!ann) throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
+    if (ann.status !== 'HIDDEN' && ann.status !== 'OFFLINE') {
+      throw new ConflictException({ error: '该公告不在回收站中', code: 'NOT_IN_RECYCLE' });
+    }
+    const meta = (ann.metadata as Record<string, any>) ?? {};
+    const from = ['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(meta.recycle?.from) ? meta.recycle.from : 'DRAFT';
+    const { recycle: _dropped, ...rest } = meta;
+    const result = await this.prisma.announcement.update({ where: { id }, data: { status: from, metadata: rest as any } });
+    await this.prisma.announcementHistory.create({
+      data: {
+        announcementId: id, action: 'RESTORE', title: result.title, type: result.type, status: result.status,
+        changedFields: ['status'],
+        operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+        ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
+      },
+    }).catch(e => this.logger.warn(`回收站恢复留痕写入失败（不阻塞）: ${(e as Error).message}`));
+    this.logger.log(`公告 ${id} 已从回收站恢复为 ${from}`);
+    return result;
   }
 
   /** 按公告可见范围向供应商用户发送站内通知（发布时调用）。
