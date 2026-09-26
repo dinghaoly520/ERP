@@ -1773,6 +1773,8 @@ enum AnnouncementStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+  HIDDEN   // 2026-09-26 回收站：隐藏（任意状态可入）
+  OFFLINE  // 2026-09-26 回收站：下架（仅已发布可下架）
 }
 
 model Announcement {
