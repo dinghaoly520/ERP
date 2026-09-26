@@ -3,7 +3,15 @@ import { api } from '../api';
 /* ── 信息发布中心视图模型 ── */
 
 export type AnnouncementType = 'BID_NOTICE' | 'ADDENDUM' | 'PREQUAL_NOTICE' | 'PRE_WIN_NOTICE' | 'WIN_NOTICE' | 'CONTRACT_NOTICE' | 'PERFORMANCE_NOTICE' | 'POLICY' | 'PLATFORM' | 'FAILED_BID_NOTICE' | 'WIN_BID_NOTICE';
-export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | 'HIDDEN' | 'OFFLINE';
+
+/** 回收站留痕（隐藏/下架时后端合并写入 metadata.recycle；恢复后清除，2026-09-26） */
+export interface AnnouncementRecycleInfo {
+  from: AnnouncementStatus;
+  action: 'HIDDEN' | 'OFFLINE';
+  at: string;
+  by?: string | null;
+}
 
 export interface AnnouncementAttachment {
   id: string;
@@ -98,7 +106,7 @@ export function generateSummary(id: string) {
 
 /* ── 公告操作历史（append-only，只读）── */
 
-export type AnnouncementHistoryAction = 'CREATE' | 'PUBLISH' | 'UPDATE' | 'UNPUBLISH' | 'ARCHIVE' | 'DELETE';
+export type AnnouncementHistoryAction = 'CREATE' | 'PUBLISH' | 'UPDATE' | 'UNPUBLISH' | 'ARCHIVE' | 'DELETE' | 'HIDE' | 'OFFLINE' | 'RESTORE';
 
 export interface AnnouncementHistoryItem {
   id: string;
@@ -160,6 +168,20 @@ export function updateAnnouncement(id: string, data: Partial<{
 
 export function deleteAnnouncement(id: string) {
   return api.delete<{ deleted?: boolean }>(`/announcements/${id}`);
+}
+
+/* ── 回收站（2026-09-26：隐藏/下架/恢复取代删除）── */
+
+export function hideAnnouncement(id: string) {
+  return api.post<AnnouncementListItem>(`/announcements/${id}/hide`, {});
+}
+
+export function offlineAnnouncement(id: string) {
+  return api.post<AnnouncementListItem>(`/announcements/${id}/offline`, {});
+}
+
+export function restoreAnnouncement(id: string) {
+  return api.post<AnnouncementListItem>(`/announcements/${id}/restore`, {});
 }
 
 /** 招标公示投标情况：参与供应商 + 是否已投标（只读） */
