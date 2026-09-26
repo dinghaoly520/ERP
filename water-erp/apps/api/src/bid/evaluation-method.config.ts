@@ -3,7 +3,7 @@
  * 选了采购方式就自动带出默认评标框架,逐项目可微调。
  */
 
-export type EvaluationMethod = 'comprehensive' | 'lowest_price' | 'qualified_lowest_price' | 'none';
+export type EvaluationMethod = 'comprehensive' | 'lowest_price' | 'qualified_lowest_price' | 'manual' | 'none';
 
 export interface ProcurementEvaluationDefault {
   evaluationMethod: EvaluationMethod;
@@ -16,21 +16,24 @@ export interface ProcurementEvaluationDefault {
 /** 5 种标准内置采购方式 + legacy 值映射 */
 export const PROCUREMENT_EVALUATION_MAP: Record<string, ProcurementEvaluationDefault> = {
   // ── 5 种标准方式 ──
-  '邀请招标':  { evaluationMethod: 'comprehensive', formulaType: 'benchmark_deviation', rounds: 1 },
-  '询比采购':  { evaluationMethod: 'lowest_price',  formulaType: 'lowest_price',        rounds: 1 },
-  '谈判采购':  { evaluationMethod: 'qualified_lowest_price', formulaType: null,           rounds: 0 },
-  '竞价采购':  { evaluationMethod: 'lowest_price',  formulaType: 'lowest_price',        rounds: 0 },
-  '直接采购':  { evaluationMethod: 'none',          formulaType: null,                   rounds: 0 },
+  // 2026-09-26 默认改定：竞争性方式（邀请/公开/询比/竞价）默认 manual（专家评审手填），
+  // 价格分公式随之默认停用（formulaType=null→priceFormulaConfig 不写=专家手填）；
+  // 谈判（合格中最低价）与直接采购族（不评分）为采购方式固有属性，维持原值。
+  '邀请招标':  { evaluationMethod: 'manual', formulaType: null, rounds: 1 },
+  '询比采购':  { evaluationMethod: 'manual', formulaType: null, rounds: 1 },
+  '谈判采购':  { evaluationMethod: 'qualified_lowest_price', formulaType: null, rounds: 0 },
+  '竞价采购':  { evaluationMethod: 'manual', formulaType: null, rounds: 0 },
+  '直接采购':  { evaluationMethod: 'none',          formulaType: null,           rounds: 0 },
   // ── legacy / 别名映射 ──
-  '公开招标':  { evaluationMethod: 'comprehensive', formulaType: 'benchmark_deviation', rounds: 1 },
-  '直接委托':  { evaluationMethod: 'none',          formulaType: null,                   rounds: 0 },
-  '续约':      { evaluationMethod: 'none',          formulaType: null,                   rounds: 0 },
+  '公开招标':  { evaluationMethod: 'manual', formulaType: null, rounds: 1 },
+  '直接委托':  { evaluationMethod: 'none',    formulaType: null, rounds: 0 },
+  '续约':      { evaluationMethod: 'none',    formulaType: null, rounds: 0 },
 };
 
 /** 默认 fallback(未知采购方式) */
 const FALLBACK: ProcurementEvaluationDefault = {
-  evaluationMethod: 'comprehensive',
-  formulaType: 'benchmark_deviation',
+  evaluationMethod: 'manual',
+  formulaType: null,
   rounds: 1,
 };
 

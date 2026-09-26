@@ -27,12 +27,13 @@ const EVAL_METHOD_OPTIONS: { value: string; label: string; hint: string }[] = [
  *  PROCUREMENT_EVALUATION_MAP + FALLBACK——web 不可跨包 import，改映射须两侧同步）。
  *  evaluationMethod 为 null（罕见历史/直建）时按此推导实际生效办法——回显=实际口径 */
 const PROCUREMENT_EVAL_DEFAULT: Record<string, string> = {
-  '邀请招标': 'comprehensive', '询比采购': 'lowest_price', '谈判采购': 'qualified_lowest_price',
-  '竞价采购': 'lowest_price', '直接采购': 'none',
-  '公开招标': 'comprehensive', '直接委托': 'none', '续约': 'none', '直接签订合同': 'none',
+  // 2026-09-26 默认改定：竞争性方式默认 manual（专家评审）；谈判/直接采购族为固有属性维持原值
+  '邀请招标': 'manual', '询比采购': 'manual', '谈判采购': 'qualified_lowest_price',
+  '竞价采购': 'manual', '直接采购': 'none',
+  '公开招标': 'manual', '直接委托': 'none', '续约': 'none', '直接签订合同': 'none',
 };
 const deriveEvalMethod = (procurementMethod?: string | null) =>
-  PROCUREMENT_EVAL_DEFAULT[procurementMethod ?? ''] ?? 'comprehensive';
+  PROCUREMENT_EVAL_DEFAULT[procurementMethod ?? ''] ?? 'manual';
 
 /** 评标办法对评分标准编制的影响提示（comprehensive/未设置不提示） */
 const EVAL_METHOD_NOTES: Record<string, string> = {
