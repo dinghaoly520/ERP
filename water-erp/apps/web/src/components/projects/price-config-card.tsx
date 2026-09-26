@@ -19,13 +19,26 @@ const EVAL_METHOD_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: "comprehensive", label: "综合评估法", hint: "资格+符合性+商务+技术+价格" },
   { value: "lowest_price", label: "最低价法", hint: "询比/竞价——价格为主" },
   { value: "qualified_lowest_price", label: "合格最低价法", hint: "谈判采购——合格中最低价" },
+  { value: "manual", label: "专家评审", hint: "评标委员会依据评分标准逐项手填打分" },
   { value: "none", label: "不评分", hint: "直接采购——无竞争性评分" },
 ];
+
+/** 采购方式 → 默认评标办法（镜像自 apps/api/src/bid/evaluation-method.config.ts
+ *  PROCUREMENT_EVALUATION_MAP + FALLBACK——web 不可跨包 import，改映射须两侧同步）。
+ *  evaluationMethod 为 null（罕见历史/直建）时按此推导实际生效办法——回显=实际口径 */
+const PROCUREMENT_EVAL_DEFAULT: Record<string, string> = {
+  '邀请招标': 'comprehensive', '询比采购': 'lowest_price', '谈判采购': 'qualified_lowest_price',
+  '竞价采购': 'lowest_price', '直接采购': 'none',
+  '公开招标': 'comprehensive', '直接委托': 'none', '续约': 'none', '直接签订合同': 'none',
+};
+const deriveEvalMethod = (procurementMethod?: string | null) =>
+  PROCUREMENT_EVAL_DEFAULT[procurementMethod ?? ''] ?? 'comprehensive';
 
 /** 评标办法对评分标准编制的影响提示（comprehensive/未设置不提示） */
 const EVAL_METHOD_NOTES: Record<string, string> = {
   lowest_price: "当前评标办法为最低价法——价格分为主要评标依据（由价格分计算方式自动计算），其余类别评分项酌情编制。",
   qualified_lowest_price: "当前评标办法为合格最低价法——价格不作评分项（多轮报价、合格中最低价定标）。",
+  manual: "当前评标办法为专家评审——评标委员会依据下方评分标准逐项打分；价格分不按公式自动计算（可在价格分计算方式中调整）。",
   none: "当前评标办法为不评分——本项目无竞争性评分，可跳过评分标准编制。",
 };
 
@@ -43,6 +56,7 @@ const PRICE_CALC_OPTIONS: { value: string; label: string; hint: string }[] = [
 const EVAL_METHOD_FORMULA_DEFAULT: Record<string, string> = {
   comprehensive: "benchmark_deviation",
   lowest_price: "lowest_price",
+  manual: "manual",
 };
 
 /** 这些办法下价格不作评分项 → 公式区隐藏、保存自动清除遗留配置 */
@@ -53,7 +67,7 @@ const LEGAL_FORMULA_TYPES = ["lowest_price", "benchmark_deviation", "ratio"];
 const LOCKED_NOTICE =
   "项目已进入评标/归档阶段——评标办法、最高限价与价格分公式已锁定（评标口径确定性）。如需更正请按法定程序办理。";
 
-type PriceConfigSource = Pick<BidProjectDetail, 'id' | 'stage'> & Partial<Pick<BidProjectDetail, 'ceilingPrice' | 'evaluationMethod' | 'priceFormulaConfig'>>;
+type PriceConfigSource = Pick<BidProjectDetail, 'id' | 'stage'> & Partial<Pick<BidProjectDetail, 'ceilingPrice' | 'evaluationMethod' | 'priceFormulaConfig' | 'procurementMethod'>>;
 
 /** P2-17：后端 409 PRICE_CONFIG_LOCKED 如实前置——评标/归档阶段输入禁用（评标口径确定性） */
 const softLockedOf = (stage?: string) => stage === "EVALUATING" || stage === "ARCHIVED";
@@ -101,7 +115,9 @@ export function EvaluationBasisFields({
   /* eslint-disable react-hooks/set-state-in-effect -- 载荷回显：detail 变更时同步表单初值，符合受控表单惯例 */
   useEffect(() => {
     setCeilingPrice(detail?.ceilingPrice != null ? String(detail.ceilingPrice) : "");
-    setEvaluationMethod(detail?.evaluationMethod ?? "");
+    // 回显=实际生效口径：null（罕见）按采购方式推导，不再提供「未设置」空选项（曾致用户
+    // 误解为专家手动打分）；保存即落显式值，顺带规范化数据
+    setEvaluationMethod(detail?.evaluationMethod ?? deriveEvalMethod(detail?.procurementMethod));
     setFormulaCalc(resolveFormulaCalc(detail?.priceFormulaConfig));
     setParamK(cfgObj?.K != null ? String(cfgObj.K) : "");
     setParamPenalty(cfgObj?.penaltyRate != null ? String(cfgObj.penaltyRate) : "");
@@ -138,12 +154,14 @@ export function EvaluationBasisFields({
 
   const formulaDirty = formulaVisible && JSON.stringify(formulaPayload) !== JSON.stringify(currentFormulaPayload);
 
+  const initialEvalMethod = detail?.evaluationMethod ?? deriveEvalMethod(detail?.procurementMethod);
+  const evalMethodDirty = evaluationMethod !== initialEvalMethod;
   const dirty = useMemo(() => (
     ceilingPrice.trim() !== (detail?.ceilingPrice != null ? String(detail.ceilingPrice) : "")
-    || evaluationMethod !== (detail?.evaluationMethod ?? "")
+    || evalMethodDirty
     || formulaDirty
     || implicitClear
-  ), [ceilingPrice, evaluationMethod, formulaDirty, implicitClear, detail?.ceilingPrice, detail?.evaluationMethod]);
+  ), [ceilingPrice, evalMethodDirty, formulaDirty, implicitClear, detail?.ceilingPrice]);
 
   // 办法切换联动：无条件重置公式为该办法推荐项（行为可预期，不跟踪"是否定制过"）
   function onMethodChange(v: string) {
@@ -165,7 +183,7 @@ export function EvaluationBasisFields({
       if (!isFinite(n) || n < 0) { toast.error("最高限价须为非负数字"); return; }
       data.ceilingPrice = n;
     }
-    if (evaluationMethod !== (detail.evaluationMethod ?? "")) data.evaluationMethod = evaluationMethod;
+    if (evalMethodDirty) data.evaluationMethod = evaluationMethod;
     if (implicitClear) data.priceFormulaConfig = null;
     else if (formulaDirty) {
       const err = validateParams(paramK, paramPenalty, paramRange);
@@ -213,7 +231,6 @@ export function EvaluationBasisFields({
             disabled={softLocked}
             className="workbench-input mt-1 w-full !text-[13px]"
           >
-            <option value="">未设置（按采购方式默认）</option>
             {EVAL_METHOD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}（{o.hint}）</option>
             ))}
@@ -265,6 +282,11 @@ export function EvaluationBasisFields({
             </p>
           )}
         </>
+      )}
+      {!softLocked && !evalMethodDirty && detail?.evaluationMethod == null && (
+        <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+          未显式设置——当前按采购方式默认执行「{EVAL_METHOD_OPTIONS.find(o => o.value === evaluationMethod)?.label}」，保存后落为显式值。
+        </p>
       )}
       {!softLocked && EVAL_METHOD_NOTES[evaluationMethod] && (
         <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">

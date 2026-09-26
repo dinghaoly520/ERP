@@ -1499,6 +1499,18 @@ describe('BidService — stage transitions', () => {
           .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_INVALID' } });
       });
 
+      it('evaluationMethod 非白名单值 → 400 PRICE_CONFIG_INVALID（5 值含 manual）', async () => {
+        await expect(service.updatePriceConfig('p1', { evaluationMethod: 'whatever' }, 'u1'))
+          .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_INVALID' } });
+      });
+
+      it('evaluationMethod=manual（专家评审手填）→ 合法', async () => {
+        await service.updatePriceConfig('p1', { evaluationMethod: 'manual' }, 'u1');
+        expect(prisma.bidProject.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ evaluationMethod: 'manual' }) }),
+        );
+      });
+
       it('合法 config（偏离法+参数+限价）→ 放行', async () => {
         await service.updatePriceConfig('p1', {
           ceilingPrice: 100,

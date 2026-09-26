@@ -4199,6 +4199,16 @@ export class BidService {
     if (dto.ceilingPrice !== undefined && (typeof dto.ceilingPrice !== 'number' || !Number.isFinite(dto.ceilingPrice) || dto.ceilingPrice < 0)) {
       throw new BadRequestException({ error: '最高限价须为非负数字', code: 'PRICE_CONFIG_INVALID' });
     }
+    // 评标办法白名单（manual=专家评审手填，2026-09-26 增设；switch 消费点 default 落综合评估法类行为）
+    if (dto.evaluationMethod !== undefined) {
+      const legalMethods = ['comprehensive', 'lowest_price', 'qualified_lowest_price', 'none', 'manual'];
+      if (typeof dto.evaluationMethod !== 'string' || !legalMethods.includes(dto.evaluationMethod)) {
+        throw new BadRequestException({
+          error: `评标办法非法（${String(dto.evaluationMethod)}）——合法值：${legalMethods.join(' / ')}`,
+          code: 'PRICE_CONFIG_INVALID',
+        });
+      }
+    }
     if (dto.priceFormulaConfig !== undefined && dto.priceFormulaConfig !== null) {
       const cfg: unknown = dto.priceFormulaConfig;
       if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) {
