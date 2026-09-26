@@ -48,6 +48,7 @@ import { AwardFileMaker } from './award-file-maker';
 import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { ScoreStandardCard } from './score-standard-card';
+import { OfficialTenderWizard } from './official-tender-wizard';
 import { Modal, StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
@@ -532,6 +533,9 @@ export function ProjectDetailPanel({
   }, [bpRefs, bpDetails, bpScoreItems]);
 
   const [scorePanelRound, setScorePanelRound] = useState<number | null>(null);
+  // 03 完成向导（2026-09-26 用户裁定：强制）——「标记本阶段完成」先走「选/传正式盖章版文件
+  // → 对照确认评分标准」两步向导，确认后才落完成；关闭/取消=阶段不动（服务端双闸兜底）
+  const [tenderWizardRound, setTenderWizardRound] = useState<number | null>(null);
   // Esc 关闭评分标准面板（开标确认面板同款 z-[500] overlay；内部 workbench Modal z-[600] 盖过）
   useEffect(() => {
     if (scorePanelRound == null) return;
@@ -746,26 +750,9 @@ export function ProjectDetailPanel({
   }, [loadStepAnalysis]);
 
 
-  const markStageCompleted = async (stage: ProjectManagementStage) => {
-    if (readOnly) { toast.info('项目已归档，仅供查看'); return; }
-    if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
-    // 评分标准闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置。
-    // 前端仅拦「未配置完整」（数据已就绪、口径确定）；「未关联」不本地拦——
-    // 采购方式可能为不评分（none），由服务端闸门权威判定并给指引（SCORE_STANDARD_REQUIRED）。
-    if (stage.stageKey === 'TENDER_DOCUMENT') {
-      const scoreStatus = scoreStatusForRound(stage.round ?? 1);
-      if (scoreStatus === 'incomplete') {
-        setErrorMessage('评分标准未配置完整：打分类满分合计须为 100 且每个打分项须有得分点。请点击步骤条「采购文件」卡片的「评分标准」按钮完成配置后，再标记本阶段完成。');
-        return;
-      }
-    }
-    // P1-14（走查④）：开标评标是核心阶段——完成后推进定标不可逆，误点/连点会把整段
-    // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
-    // BidProject 状态脱节）。加确认门槛。
-    if (stage.stageKey === 'BID_EVALUATION'
-        && !(await confirm({ message: '确认「开标评标」阶段已全部完成（开标、评标、签字、回流均已收尾）？完成后将进入定标阶段。', danger: true }))) {
-      return;
-    }
+  /** 完成链主体（markStageCompleted 与 03 完成向导确认共用）：updateStage + 推进 + 豁免对话框。
+   *  返回结果供向导前台反馈（面板错误区在向导 overlay 后面，向导须自行 toast）。 */
+  const completeStageCore = async (stage: ProjectManagementStage): Promise<{ ok: boolean; message?: string; waived?: boolean }> => {
     setSubmitting(true);
     setErrorMessage(null);
     // Determine the next stage BEFORE try/catch so the catch (豁免对话框) block can also read it
@@ -788,17 +775,41 @@ export function ProjectDetailPanel({
       if (nextStageKey) {
         setSelectedStageKey(nextStageKey);
       }
+      return { ok: true };
     } catch (error) {
       // 归档必选材料缺失 → 弹豁免对话框（而非裸抛后端报错文案）
       if ((error as Error & { code?: string }).code === 'ARCHIVE_GATE_MISSING') {
         setWaiveTarget({ stageKey: stage.stageKey, round: stage.round ?? 1, nextStageKey, message: error instanceof Error ? error.message : '' });
         setWaiveNote('');
-      } else {
-        setErrorMessage(error instanceof Error ? error.message : '更新阶段失败。');
+        return { ok: false, waived: true };
       }
+      const message = error instanceof Error ? error.message : '更新阶段失败。';
+      setErrorMessage(message);
+      return { ok: false, message };
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const markStageCompleted = async (stage: ProjectManagementStage) => {
+    if (readOnly) { toast.info('项目已归档，仅供查看'); return; }
+    if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
+    // 03 采购文件完成向导（2026-09-26 用户裁定：强制且不可豁免）——先选/传正式盖章版采购文件，
+    // 再左预览右配置对照确认评分标准，确认后才落完成。原「评分标准 incomplete 前置拦截」
+    // 并入向导 Step2（编辑器就在右侧，改完直接确认，闭环更短）；服务端权威闸门不变
+    // （OFFICIAL_TENDER_REQUIRED + SCORE_STANDARD_REQUIRED 双闸）。
+    if (stage.stageKey === 'TENDER_DOCUMENT') {
+      setTenderWizardRound(stage.round ?? 1);
+      return;
+    }
+    // P1-14（走查④）：开标评标是核心阶段——完成后推进定标不可逆，误点/连点会把整段
+    // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
+    // BidProject 状态脱节）。加确认门槛。
+    if (stage.stageKey === 'BID_EVALUATION'
+        && !(await confirm({ message: '确认「开标评标」阶段已全部完成（开标、评标、签字、回流均已收尾）？完成后将进入定标阶段。', danger: true }))) {
+      return;
+    }
+    await completeStageCore(stage);
   };
 
   // 豁免归档闸门并重试完成：waiveArchiveGate=true + note 留痕（M5）
@@ -2285,11 +2296,54 @@ export function ProjectDetailPanel({
                   bidProject={panelRef ? { ...panelRef, publishTime: null } : null}
                   detail={panelRef ? (bpDetails[panelRef.id] ?? null) : null}
                   priceItemCount={priceItemCount}
+                  tenderCandidates={localItem.stages.find(
+                    (s) => s.stageKey === 'TENDER_DOCUMENT' && (s.round ?? 1) === scorePanelRound,
+                  )?.attachments ?? []}
                   onChanged={() => setBpDataTick((t) => t + 1)}
                 />
               </div>
             </div>
           </div>
+        );
+      })()}
+
+      {/* 03 完成向导（2026-09-26 用户裁定：强制）——「标记本阶段完成」先走
+          ①选/传正式盖章版采购文件 → ②左预览右配置对照确认评分标准，确认后才落完成；
+          关闭/取消=阶段不动。服务端双闸兜底（OFFICIAL_TENDER_REQUIRED 不可豁免 + SCORE_STANDARD_REQUIRED） */}
+      {tenderWizardRound != null && (() => {
+        const wizardStage = localItem.stages.find(
+          (s) => s.stageKey === 'TENDER_DOCUMENT' && (s.round ?? 1) === tenderWizardRound,
+        );
+        // 完成成功后（onUpdated 回流 status=COMPLETED）向导自动消隐，与推进到下一阶段衔接
+        if (!wizardStage || wizardStage.status === 'COMPLETED') return null;
+        const wizardRef = bpRefs.find((r) => r.round === tenderWizardRound) ?? null;
+        const wizardScoreItems = wizardRef ? bpScoreItems[wizardRef.id] : undefined;
+        const wizardPriceCount = wizardScoreItems
+          ? wizardScoreItems.filter((it) => it.category === 'PRICE').length
+          : undefined;
+        return (
+          <OfficialTenderWizard
+            project={item}
+            stage={wizardStage}
+            attachments={wizardStage.attachments ?? []}
+            initialOfficialId={wizardStage.officialTenderAttachmentId ?? null}
+            bidProject={wizardRef ? { ...wizardRef, publishTime: null } : null}
+            detail={wizardRef ? (bpDetails[wizardRef.id] ?? null) : null}
+            priceItemCount={wizardPriceCount}
+            scoreStatus={scoreStatusForRound(tenderWizardRound)}
+            submitting={submitting}
+            onChanged={() => {
+              // 上传附件 → 本地镜像重拉（stages/attachments 回流）；评分标准/绑定 → BP 数据重拉
+              reloadItemAttachments();
+              setBpDataTick((t) => t + 1);
+            }}
+            onClose={() => setTenderWizardRound(null)}
+            onConfirm={async () => {
+              const r = await completeStageCore(wizardStage);
+              // waived=true 时豁免对话框已弹出（workbench Modal z-[600] 盖过向导），不再重复提示
+              if (!r.ok && r.message) toast.error(r.message);
+            }}
+          />
         );
       })()}
 

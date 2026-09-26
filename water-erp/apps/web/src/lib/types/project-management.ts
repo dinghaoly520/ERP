@@ -130,6 +130,10 @@ export type ProjectManagementStage = {
   status: ProjectStageStatus;
   note?: string | null;
   completedAt?: string | null;
+  /** 正式盖章版采购文件指针（2026-09-26）：用户标记哪个附件是正式文件就认哪个（不限类型）。
+   *  03 完成强制闸读此指针；附件被删/整体替换时后端 SetNull 自动回空 */
+  officialTenderAttachmentId?: string | null;
+  officialTenderConfirmedAt?: string | null;
   recycledAt?: string | null; // 移入回收站时间（3 年保留期起算点，恢复时清空）
   createdAt?: string;
   updatedAt?: string;

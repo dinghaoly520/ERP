@@ -1,7 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { LlmService } from '../local-ai/llm.service';
 import { LlmOutputValidator } from '../local-ai/llm-output-validator';
-import { PlaintextFetcherService } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { OcrService } from '../local-ai/ocr.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,18 +14,17 @@ import { ScorePointSuggestion, ScorePointSuggestionGroup } from '@water-erp/shar
 @Injectable()
 export class ScorePointExtractorService {
   private readonly tenderTextCache = new Map<string, { text: string; expiresAt: number }>();
-  private static readonly CACHE_TTL_MS = 1 * 60 * 1000; // 1 min,公告重发后快速过期
+  private static readonly CACHE_TTL_MS = 1 * 60 * 1000; // 1 min；重型提取已有 DB 级懒缓存兜底
 
   constructor(
     private readonly llm: LlmService,
     private readonly validator: LlmOutputValidator,
-    private readonly plaintextFetcher: PlaintextFetcherService,
     private readonly ocr: OcrService,
     private readonly embedding: EmbeddingService,
     private readonly prisma: PrismaService,
   ) {}
 
-  async extractScorePoints(projectId: string, itemId: string): Promise<ScorePointSuggestion[]> {
+  async extractScorePoints(projectId: string, itemId: string, sourceAttachmentId?: string): Promise<ScorePointSuggestion[]> {
     const item = await this.prisma.bidScoreItem.findFirst({
       where: { id: itemId, projectId },
       include: { points: true },
@@ -37,9 +35,9 @@ export class ScorePointExtractorService {
 
     // E5 撤除（2026-09-26 用户裁定）：03 阶段即配得分要点——招标文件含价格项则一并提取；
     // 价格分由公式算的口径仅适用于"公式已启用"项目，由 FE 联动切评标办法为专家评审兜底
-    const tenderText = await this.getTenderText(projectId);
+    const tenderText = await this.getTenderText(projectId, sourceAttachmentId);
     if (!tenderText) {
-      throw new BadRequestException({ error: '招标文件未就绪（未发布招标公告或无招标文件）', code: 'TENDER_NOT_READY' });
+      throw new BadRequestException({ error: '采购文件未就绪：请先在「采购文件」步骤通过「采购文件编写」导出或手动上传采购文件', code: 'TENDER_NOT_READY' });
     }
 
     // E1: 语义定位（规则优先 → embedding 兜底）
@@ -96,11 +94,11 @@ export class ScorePointExtractorService {
   }
 
   /**
-   * 一键提取：全部非 PRICE 评分项逐项复用 extractScorePoints。
+   * 一键提取：全部评分项逐项复用 extractScorePoints。
    * 招标文件文本预取一次写入 tenderTextCache（TTL 1min），逐项调用零成本命中；
    * 单项 LLM 失败由其内部 E6 降级返回 []，不中断整批。
    */
-  async extractAllScorePoints(projectId: string): Promise<ScorePointSuggestionGroup[]> {
+  async extractAllScorePoints(projectId: string, sourceAttachmentId?: string): Promise<ScorePointSuggestionGroup[]> {
     const items = await this.prisma.bidScoreItem.findMany({
       where: { projectId },
       orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
@@ -108,14 +106,14 @@ export class ScorePointExtractorService {
     });
     if (items.length === 0) return [];
 
-    const tenderText = await this.getTenderText(projectId);
+    const tenderText = await this.getTenderText(projectId, sourceAttachmentId);
     if (!tenderText) {
-      throw new BadRequestException({ error: '招标文件未就绪（未发布招标公告或无招标文件）', code: 'TENDER_NOT_READY' });
+      throw new BadRequestException({ error: '采购文件未就绪：请先在「采购文件」步骤通过「采购文件编写」导出或手动上传采购文件', code: 'TENDER_NOT_READY' });
     }
 
     const groups: ScorePointSuggestionGroup[] = [];
     for (const item of items) {
-      const suggestions = await this.extractScorePoints(projectId, item.id); // 含 PRICE（E5 撤除，2026-09-26）
+      const suggestions = await this.extractScorePoints(projectId, item.id, sourceAttachmentId); // 含 PRICE（E5 撤除，2026-09-26）
       groups.push({
         itemId: item.id,
         itemName: item.name,
@@ -322,51 +320,101 @@ export class ScorePointExtractorService {
     return maxLen > 0 && dist / maxLen <= 0.3;
   }
 
-  /** 03 阶段兜底：公告未发布时取 PMI「采购文件」阶段最新 .docx 附件。
+  /** 03 阶段提取源解析（2026-09-26 用户裁定：撤公告链——公告是 04 之后才有的内容，
+   *  评分标准已前置到 03，提取只认「采购文件」步骤的文件）：
+   *  - sourceAttachmentId 给定（完成向导=正式盖章版指针；评分标准按钮=用户多文件时选定的源）
+   *    → 直读该附件，并校验其归属本项目（PMI）的「采购文件」步骤；
+   *  - 未给定 → 兜底取该轮 03 阶段最新附件（不限类型）。
    *  注意 PMI 阶段附件是**本地盘存储**（persistUploadedFile→getUploadDir()+writeFile，
-   *  objectKey 仅 `project-management/<file>` 命名约定，不进 MinIO）——须读本地文件而非 storage.download。
-   *  与 fetchTenderPlaintext 同返回语义（Buffer|null），由 processFile docx 分支提文本。 */
-  private async fetchPmiTenderDocx(projectId: string): Promise<Buffer | null> {
+   *  objectKey 仅 `project-management/<file>` 命名约定，不进 MinIO）——须读本地文件。
+   *  重型提取（扫描件 OCR 分钟级）结果经 Attachment.extractedText 落库懒缓存，
+   *  saveAttachmentHtml 换文件时置空失效。 */
+  private async resolveTenderAttachment(
+    projectId: string,
+    sourceAttachmentId?: string,
+  ): Promise<{ id: string; fileName: string; extractedText: string | null; buffer: Buffer | null } | null> {
     const bp = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { projectManagementItemId: true },
+      select: { projectManagementItemId: true, round: true },
     });
     if (!bp?.projectManagementItemId) return null;
-    const att = await this.prisma.attachment.findFirst({
-      where: {
-        projectManagementStage: {
-          projectManagementItemId: bp.projectManagementItemId,
-          stageKey: 'TENDER_DOCUMENT',
-        },
-        fileName: { endsWith: '.docx', mode: 'insensitive' },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: { objectKey: true },
-    });
+
+    const att = sourceAttachmentId
+      ? await this.prisma.attachment.findUnique({
+          where: { id: sourceAttachmentId },
+          select: {
+            id: true,
+            fileName: true,
+            objectKey: true,
+            extractedText: true,
+            projectManagementStageId: true,
+          },
+        })
+      : await this.prisma.attachment.findFirst({
+          where: {
+            projectManagementStage: {
+              projectManagementItemId: bp.projectManagementItemId,
+              stageKey: 'TENDER_DOCUMENT',
+              round: bp.round ?? 1,
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            fileName: true,
+            objectKey: true,
+            extractedText: true,
+            projectManagementStageId: true,
+          },
+        });
     if (!att) return null;
+
+    // 显式指定源：校验归属（本项目 03 步骤；不强制轮次——跨轮取旧文件无危害，仅提示层面约束）
+    if (sourceAttachmentId && att.projectManagementStageId) {
+      const stage = await this.prisma.projectManagementStage.findUnique({
+        where: { id: att.projectManagementStageId },
+        select: { projectManagementItemId: true, stageKey: true },
+      });
+      if (!stage
+        || stage.projectManagementItemId !== bp.projectManagementItemId
+        || stage.stageKey !== 'TENDER_DOCUMENT') {
+        throw new BadRequestException({ error: '提取源文件不属于本项目「采购文件」步骤', code: 'SOURCE_INVALID' });
+      }
+    }
+
     try {
       const stored = att.objectKey.replace(/^project-management\//, '');
-      return await readFile(resolve(getUploadDir(), stored));
+      const buffer = await readFile(resolve(getUploadDir(), stored));
+      return { id: att.id, fileName: att.fileName, extractedText: att.extractedText, buffer };
     } catch {
       return null;
     }
   }
 
-  private async getTenderText(projectId: string): Promise<string | null> {
-    const cached = this.tenderTextCache.get(projectId);
+  private async getTenderText(projectId: string, sourceAttachmentId?: string): Promise<string | null> {
+    const cacheKey = sourceAttachmentId ? `${projectId}:${sourceAttachmentId}` : `${projectId}:auto`;
+    const cached = this.tenderTextCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.text;
     }
-    // 公告链无 → 03 阶段兜底：PMI「采购文件」阶段最新 .docx 附件（用户 2026-09-26 裁定：03 即配得分要点）
-    let buffer = await this.plaintextFetcher.fetchTenderPlaintext(projectId);
-    let fileName = 'tender.pdf';
-    if (!buffer) {
-      buffer = await this.fetchPmiTenderDocx(projectId);
-      fileName = 'tender.docx';
+    const att = await this.resolveTenderAttachment(projectId, sourceAttachmentId);
+    if (!att?.buffer) return null;
+
+    // DB 懒缓存直读（扫描件 OCR 分钟级——重提取/换入口不再重跑）
+    if (att.extractedText) {
+      this.tenderTextCache.set(cacheKey, { text: att.extractedText, expiresAt: Date.now() + ScorePointExtractorService.CACHE_TTL_MS });
+      return att.extractedText;
     }
-    if (!buffer) return null;
-    const processed = await processFile(this.ocr, buffer, fileName);
-    this.tenderTextCache.set(projectId, { text: processed.text, expiresAt: Date.now() + ScorePointExtractorService.CACHE_TTL_MS });
+
+    const processed = await processFile(this.ocr, att.buffer, att.fileName);
+    this.tenderTextCache.set(cacheKey, { text: processed.text, expiresAt: Date.now() + ScorePointExtractorService.CACHE_TTL_MS });
+    // 提取文本落库懒缓存（fire-and-forget；失败不影响本次提取）
+    if (processed.text.trim().length > 0) {
+      this.prisma.attachment.update({
+        where: { id: att.id },
+        data: { extractedText: processed.text, extractedTextAt: new Date() },
+      }).catch(() => { /* 缓存写入失败静默 */ });
+    }
     return processed.text;
   }
 }

@@ -14,18 +14,21 @@ interface Props {
   open: boolean;
   groups: EditableGroup[]; // 调用方已按 confidence 降序 + duplicate 默认不选
   locked: boolean;
+  /** 提取源文件名（2026-09-26 防呆标注：两个入口提取源不同，用户须能看出这次提的是哪个文件） */
+  sourceLabel?: string | null;
   onClose: () => void;
   onImport: (groups: EditableGroup[]) => Promise<void>;
 }
 
-/** 一键 AI 提取的分组审核弹窗：按评分项分组展示建议，勾选后批量导入 */
-export function BulkExtractReviewDialog({ open, groups, locked, onClose, onImport }: Props) {
+/** 一键 AI 提取的分组审核弹窗：按评分项分组展示建议（新增/疑似重复标别），勾选后批量导入 */
+export function BulkExtractReviewDialog({ open, groups, locked, sourceLabel, onClose, onImport }: Props) {
   const [state, setState] = useState<EditableGroup[]>(groups);
   const [importing, setImporting] = useState(false);
 
   const total = state.reduce((s, g) => s + g.suggestions.length, 0);
   const selectedCount = state.reduce((s, g) => s + g.suggestions.filter((x) => x.selected).length, 0);
   const duplicateCount = state.reduce((s, g) => s + g.suggestions.filter((x) => x.duplicate).length, 0);
+  const newCount = total - duplicateCount;
 
   const patchSuggestion = (itemId: string, idx: number, patch: Partial<ScorePointSuggestion>) =>
     setState((prev) =>
@@ -71,7 +74,7 @@ export function BulkExtractReviewDialog({ open, groups, locked, onClose, onImpor
     <Modal
       open={open}
       onClose={onClose}
-      title="AI 提取得分点建议（来自招标文件）"
+      title="AI 提取得分点建议"
       size="lg"
       footer={
         <>
@@ -91,11 +94,21 @@ export function BulkExtractReviewDialog({ open, groups, locked, onClose, onImpor
       }
     >
       <div className="max-h-[60vh] overflow-y-auto">
+        {sourceLabel && (
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-[#5a6d8a]">
+            <span className="rounded bg-[#e8effa] px-1.5 py-0.5 font-semibold text-[#064ea2]">提取源</span>
+            <span className="truncate" title={sourceLabel}>{sourceLabel}</span>
+          </div>
+        )}
         <div className="mb-3 flex items-center justify-between rounded-lg bg-[#f3f7fc] px-3 py-2 text-xs text-[#5a6d8a]">
           <span>
             共 <span className="font-mono font-bold">{total}</span> 项建议 · 已选{' '}
             <span className="font-mono font-bold">{selectedCount}</span> 项
-            {duplicateCount > 0 && ` · ${duplicateCount} 项疑似重复`}
+            {total > 0 && (
+              <> · 其中 <span className="font-bold text-[#11a874]">{newCount} 项新增</span>
+              {duplicateCount > 0 && <>、<span className="font-bold text-[#92400e]">{duplicateCount} 项与现有得分点疑似重复</span></>}
+              ——请核对后勾选采纳</>
+            )}
           </span>
           <button
             onClick={() => toggleAll(selectedCount < total)}

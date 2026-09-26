@@ -3,7 +3,7 @@
 import { FileText, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import type { ProjectManagementItem } from '@/lib/types/project-management';
+import type { ProjectManagementAttachment, ProjectManagementItem } from '@/lib/types/project-management';
 import { ensureBidProject, type BidProjectDetail, type BidProjectRef } from '@/lib/api/bid';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { EvaluationBasisFields } from './price-config-card';
@@ -21,6 +21,11 @@ type Props = {
   detail: BidProjectDetail | null;
   /** 价格类评分项数量（undefined=数据未就绪不提示；0=提示公式暂不参与计分） */
   priceItemCount?: number;
+  /** AI 提取源（2026-09-26 双入口分流）：显式对象=03 完成向导（固定正式盖章版 OCR）；
+   *  undefined=「评分标准」按钮面板（自动解析，多文件时弹选择器由用户指定）。 */
+  extractSource?: { attachmentId: string; fileName: string } | null;
+  /** 该轮「采购文件」步骤附件（extractSource 未定时作提取源候选） */
+  tenderCandidates?: ProjectManagementAttachment[];
   onChanged: () => void;
 };
 
@@ -30,7 +35,7 @@ type Props = {
  * （原空态长文+「创建开评标项目并开始配置」二跳已撤，用户裁定 03 本阶段直接绑定即配；
  * 04 公告发布/邀请 syncBidProject 关联同一 BP 不双建，保留为未开面板者的兜底路径）。
  */
-export function ScoreStandardCard({ project, round, bidProject, detail, priceItemCount, onChanged }: Props) {
+export function ScoreStandardCard({ project, round, bidProject, detail, priceItemCount, extractSource, tenderCandidates, onChanged }: Props) {
   const [linkError, setLinkError] = useState<string | null>(null);
   /** 防同轮重复触发（StrictMode 双挂载）；换轮=面板经 null 态重挂载，新实例 ref 清零 */
   const attemptedRoundRef = useRef<number | null>(null);
@@ -111,6 +116,8 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
               bidProject={bidProject}
               onChanged={onChanged}
               variant="embedded"
+              extractSource={extractSource}
+              tenderCandidates={tenderCandidates}
             />
           </div>
           {/* ③ 价格分公式参数——已于 2026-09-26 表单化并入①（原裸 JSON 高级区撤销） */}

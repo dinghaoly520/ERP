@@ -24,6 +24,7 @@ import { CreateProjectFromInitiationDto } from './dto/create-project-from-initia
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { TerminateProjectDto } from './dto/terminate-project.dto';
+import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { CreateTenderDraftVersionDto, SaveTenderDraftDto } from './dto/tender-draft.dto';
 import { TimelineService } from './timeline.service';
@@ -151,6 +152,17 @@ export class ProjectManagementController {
       stageKey,
       Number.isNaN(roundNum as number) ? undefined : roundNum,
     );
+  }
+
+  /** 标记正式盖章版采购文件（2026-09-26）：03 完成向导 Step1 选定即落指针——
+   *  指针即真相（不限文件类型），完成闸 OFFICIAL_TENDER_REQUIRED 读此指针 */
+  @Post(':id/stages/:stageKey/official-tender')
+  selectOfficialTender(
+    @Param('id') id: string,
+    @Param('stageKey') stageKey: string,
+    @Body() dto: SelectOfficialTenderDto,
+  ) {
+    return this.projectManagementService.selectOfficialTender(id, stageKey, dto);
   }
 
   @Post(':id/stages/:stageKey/attachments')

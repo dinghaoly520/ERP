@@ -1040,6 +1040,7 @@ describe('ProjectManagementService', () => {
       stageKey: 'TENDER_DOCUMENT',
       status: 'IN_PROGRESS',
       projectManagementItemId: 'pm-01',
+      officialTenderAttachmentId: 'att-official', // 正式盖章版闸（2026-09-26）：已选定放行
     });
     prisma.projectManagementItem.findUnique.mockResolvedValue({
       id: 'pm-01',
@@ -1216,7 +1217,7 @@ describe('ProjectManagementService', () => {
 
     it('TENDER_DOCUMENT 完成 + 归档范围必选材料缺失 → 400（DA/T103 前端控制）', async () => {
       const { service, prisma, archiveScope } = makeService();
-      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'TENDER_DOCUMENT' });
+      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'TENDER_DOCUMENT', officialTenderAttachmentId: 'att-official' });
       prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'TENDER_DOCUMENT', stages: [] });
       // 评分标准闸（2026-09-24）先于归档材料闸：本用例聚焦归档闸——BP 已配置放行评分闸
       prisma.bidProject = { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', evaluationMethod: 'comprehensive' }) };

@@ -198,21 +198,33 @@ export function publishScoreStandard(bidProjectId: string) {
   return api.post<BidProjectDetail>(`/bid/projects/${bidProjectId}/score-items/publish`, {});
 }
 
-/** AI 从招标文件提取得分点建议（同步、不落库；120s 超时可经 options.signal 中断）。限流 3 次/分。*/
-export function extractScorePoints(bidProjectId: string, itemId: string, options?: RequestInit) {
+/** AI 提取得分点建议（同步、不落库；120s 超时可经 options.signal 中断）。限流 3 次/分。
+ *  sourceAttachmentId（2026-09-26 双入口分流）：不传=自动取该轮「采购文件」步骤最新附件；
+ *  传=指定附件直读（完成向导=正式盖章版 OCR；「评分标准」按钮多文件时用户选定的源）。 */
+export function extractScorePoints(
+  bidProjectId: string,
+  itemId: string,
+  options?: RequestInit & { sourceAttachmentId?: string },
+) {
+  const { sourceAttachmentId, ...requestInit } = options ?? {};
   return api.post<ScorePointSuggestion[]>(
     `/bid/projects/${bidProjectId}/score-items/${itemId}/points/extract`,
-    {},
-    options,
+    sourceAttachmentId ? { sourceAttachmentId } : {},
+    requestInit,
   );
 }
 
-/** 一键 AI 提取：全部评分项（除 PRICE）分组返回建议（同步、不落库；300s 超时可经 options.signal 中断）。限流 3 次/分。*/
-export function extractAllScorePoints(bidProjectId: string, options?: RequestInit) {
+/** 一键 AI 提取：全部评分项分组返回建议（同步、不落库；300s 超时可经 options.signal 中断）。限流 3 次/分。
+ *  sourceAttachmentId 语义同上（正式盖章版扫描件 OCR 重——首次提取分钟级，后端已做提取文本懒缓存）。 */
+export function extractAllScorePoints(
+  bidProjectId: string,
+  options?: RequestInit & { sourceAttachmentId?: string },
+) {
+  const { sourceAttachmentId, ...requestInit } = options ?? {};
   return api.post<ScorePointSuggestionGroup[]>(
     `/bid/projects/${bidProjectId}/score-items/points/extract-all`,
-    {},
-    options,
+    sourceAttachmentId ? { sourceAttachmentId } : {},
+    requestInit,
   );
 }
 

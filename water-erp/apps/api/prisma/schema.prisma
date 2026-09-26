@@ -2852,6 +2852,12 @@ model Attachment {
   uploadedBy               User?                   @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
   versions                 AttachmentVersion[]
   archiveMeta              ArchiveMetadata?
+  /// 提取文本懒缓存（docx→mammoth / PDF→pdftotext / 扫描件→OCR 一次提取后落库；
+  /// 正式盖章版 OCR 重（200 页扫描件分钟级），重提取直读免重跑。saveAttachmentHtml 换文件时置空）
+  extractedText            String?
+  extractedTextAt          DateTime?
+  /// 反向：被哪些 03 阶段行标记为正式盖章版采购文件（一般 0..1）
+  officialTenderStages     ProjectManagementStage[] @relation("OfficialTenderAttachment")
 
   @@index([attachmentType])
   @@index([projectManagementItemId])
@@ -3184,6 +3190,13 @@ model ProjectManagementStage {
   status                  ProjectStageStatus    @default(NOT_STARTED)
   note                    String?
   completedAt             DateTime?
+  /// 正式盖章版采购文件指针（2026-09-26 用户裁定：指针即真相——用户标记哪个附件是正式文件
+  /// 就认哪个，不限类型）。03 完成强制闸（OFFICIAL_TENDER_REQUIRED，不可豁免）；
+  /// 附件被删/被整体替换时 SetNull 自动回空 → 闸门重开须重选
+  officialTenderAttachmentId String?
+  officialTenderAttachment   Attachment?           @relation("OfficialTenderAttachment", fields: [officialTenderAttachmentId], references: [id], onDelete: SetNull)
+  /// 走完「选择正式文件 → 对照确认评分标准」向导、阶段完成落章的时间（留痕）
+  officialTenderConfirmedAt  DateTime?
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
   attachments             Attachment[]          @relation("ProjectManagementStageAttachments")

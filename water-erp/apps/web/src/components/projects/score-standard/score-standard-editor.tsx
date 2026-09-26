@@ -31,13 +31,14 @@ import {
   type BidScoreItem,
   type ScoreCategory,
 } from '@/lib/api/bid';
-import type { ProjectManagementItem } from '@/lib/types/project-management';
+import type { ProjectManagementAttachment, ProjectManagementItem } from '@/lib/types/project-management';
 import { Modal, TableSkeleton } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ScorePointsEditor } from './score-points-editor';
 import { SaveTemplateDialog } from './save-template-dialog';
 import { TemplateLibraryDialog } from './template-library-dialog';
 import { BulkExtractReviewDialog, type EditableGroup } from './bulk-extract-review-dialog';
+import { ExtractSourcePickerDialog } from './extract-source-picker-dialog';
 
 const CATEGORY_OPTIONS: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
 const inputCls = 'workbench-input';
@@ -50,9 +51,16 @@ type Props = {
   bidProject?: BidProjectRef | null;
   onChanged?: () => void;
   variant?: 'standalone' | 'embedded';
+  /** 提取源（2026-09-26 双入口分流）：
+   *  - 显式对象 = 03 完成向导 Step2：固定提取正式盖章版采购文件（OCR）
+   *  - undefined = 「评分标准」按钮面板：自动——唯一文件直用；多文件弹选择器由用户指定，
+   *    选过一次后面板内后续提取（含逐项）沿用同一源 */
+  extractSource?: { attachmentId: string; fileName: string } | null;
+  /** 该轮「采购文件」步骤附件（extractSource 未定时作提取源候选） */
+  tenderCandidates?: ProjectManagementAttachment[];
 };
 
-export function ScoreStandardEditor({ project, round, bidProject, onChanged, variant = 'standalone' }: Props) {
+export function ScoreStandardEditor({ project, round, bidProject, onChanged, variant = 'standalone', extractSource, tenderCandidates }: Props) {
   const [bpId, setBpId] = useState<string | null>(bidProject?.id ?? null);
   const [stage, setStage] = useState('');
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
@@ -74,6 +82,10 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   });
   const [bulkGroups, setBulkGroups] = useState<EditableGroup[] | null>(null);
   const [extractingAll, setExtractingAll] = useState(false);
+  // 提取源（2026-09-26）：面板内最近一次选定的源（选择器挑过即沿用）；sourceLabel 供审核弹窗标注
+  const [pickedSource, setPickedSource] = useState<{ attachmentId: string; fileName: string } | null>(null);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [sourceLabel, setSourceLabel] = useState<string | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
@@ -151,21 +163,30 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     }
   };
 
-  const handleBulkExtract = async () => {
+  /** 解析本次提取源：显式 extractSource（完成向导=正式盖章版）优先；否则按候选数自动/弹选择器。
+   *  返回 null = 流程中止（已弹选择器或已 toast 提示），调用方直接 return。 */
+  const resolveExtractSource = (): { attachmentId: string; fileName: string } | null => {
+    if (extractSource) return extractSource;
+    const candidates = (tenderCandidates ?? []).filter((c) => !!c.id);
+    if (candidates.length === 0) {
+      toast.error('采购文件未就绪：请先在「采购文件编写」导出或手动上传采购文件');
+      return null;
+    }
+    if (candidates.length === 1) return { attachmentId: candidates[0].id!, fileName: candidates[0].fileName };
+    if (pickedSource) return pickedSource; // 多文件但本面板已选过源——沿用，避免反复询问
+    setShowSourcePicker(true); // 多文件：用户裁定须询问提取哪一个
+    return null;
+  };
+
+  const runBulkExtract = async (source: { attachmentId: string; fileName: string }) => {
     if (!bpId) return;
-    if (items.length === 0) {
-      toast.error('请先「应用模板」或手动新增评分项');
-      return;
-    }
-    if (items.every((i) => i.category === 'PRICE')) {
-      toast.error('当前评分项均为价格项，无需 AI 提取');
-      return;
-    }
     setExtractingAll(true);
+    setSourceLabel(source.fileName);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 300_000);
+    // 提取均带显式源（正式盖章版多为扫描件，OCR 分钟级）——超时放宽到 600s
+    const timer = setTimeout(() => controller.abort(), 600_000);
     try {
-      const groups = await extractAllScorePoints(bpId, { signal: controller.signal });
+      const groups = await extractAllScorePoints(bpId, { sourceAttachmentId: source.attachmentId, signal: controller.signal });
       const withSelection: EditableGroup[] = groups
         .filter((g) => g.suggestions.length > 0)
         .map((g) => ({
@@ -182,7 +203,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.name 判 AbortError + e?.message 回退（与单项提取一致）
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        toast.error('AI 提取超时（300s），招标文件可能较大，请稍后重试');
+        toast.error('AI 提取超时（600s）——正式盖章版扫描件 OCR 较慢，请稍后重试（重复提取会命中已缓存的识别文本）');
       } else {
         toast.error(e?.message ?? 'AI 提取暂时不可用，请稍后重试或逐项提取。');
       }
@@ -190,6 +211,21 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       clearTimeout(timer);
       setExtractingAll(false);
     }
+  };
+
+  const handleBulkExtract = async () => {
+    if (!bpId) return;
+    if (items.length === 0) {
+      toast.error('请先「应用模板」或手动新增评分项');
+      return;
+    }
+    if (items.every((i) => i.category === 'PRICE')) {
+      toast.error('当前评分项均为价格项，无需 AI 提取');
+      return;
+    }
+    const source = resolveExtractSource();
+    if (!source) return;
+    await runBulkExtract(source);
   };
 
   const handleBulkImport = async (groups: EditableGroup[]) => {
@@ -327,7 +363,16 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           <FileSpreadsheet size={13} />应用模板
         </button>
         {!locked && (
-          <button onClick={handleBulkExtract} disabled={extractingAll} className="neu-btn-xs gap-1.5 is-info">
+          <button
+            onClick={handleBulkExtract}
+            disabled={extractingAll}
+            className="neu-btn-xs gap-1.5 is-info"
+            title={extractSource
+              ? `从正式盖章版采购文件提取得分点（OCR）：${extractSource.fileName}`
+              : pickedSource
+                ? `提取源：${pickedSource.fileName}`
+                : '从「采购文件」步骤的采购文件提取得分点（多文件时可选）'}
+          >
             <Sparkles size={13} />
             {extractingAll ? '提取中…' : 'AI 提取'}
           </button>
@@ -492,7 +537,14 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                     {open && !isEdit && bpId && (
                       <tr className="border-t oklch(0.6 0.04 258 / 0.08) bg-[oklch(0.985_0.003_265)]">
                         <td colSpan={5} className="px-4 pb-4 pt-1">
-                          <ScorePointsEditor projectId={bpId} item={it} points={points} onChanged={reloadItems} locked={locked} />
+                          <ScorePointsEditor
+                            projectId={bpId}
+                            item={it}
+                            points={points}
+                            onChanged={reloadItems}
+                            locked={locked}
+                            extractSource={extractSource ?? pickedSource}
+                          />
                         </td>
                       </tr>
                     )}
@@ -653,8 +705,23 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           open
           groups={bulkGroups}
           locked={locked}
+          sourceLabel={sourceLabel}
           onClose={() => setBulkGroups(null)}
           onImport={handleBulkImport}
+        />
+      )}
+
+      {/* 提取源选择（用户裁定 2026-09-26）：「采购文件」步骤多文件时询问提取哪一个 */}
+      {showSourcePicker && (
+        <ExtractSourcePickerDialog
+          open
+          candidates={tenderCandidates ?? []}
+          onClose={() => setShowSourcePicker(false)}
+          onPick={(attachmentId, fileName) => {
+            setShowSourcePicker(false);
+            setPickedSource({ attachmentId, fileName });
+            void runBulkExtract({ attachmentId, fileName });
+          }}
         />
       )}
       {dialog}

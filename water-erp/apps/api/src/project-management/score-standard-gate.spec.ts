@@ -49,6 +49,8 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
           round: opts.stageRound ?? 1,
           status: 'IN_PROGRESS',
           projectManagementItemId: 'pmi-1',
+          // 正式盖章版闸（2026-09-26）：默认已选定——本套聚焦评分闸口径
+          officialTenderAttachmentId: 'att-official',
         }),
         findMany: jest.fn().mockResolvedValue([
           { stageKey: 'PROCUREMENT_DEMAND', stageOrder: 1 },
@@ -204,6 +206,61 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
     expect(prisma.projectManagementStage.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ round: 2 }) }),
     );
+  });
+
+  // ── 正式盖章版强制闸（2026-09-26 用户裁定：必须强制、不可豁免）──
+
+  it('正式盖章版指针为空 → 400 OFFICIAL_TENDER_REQUIRED，且先于评分标准闸（validator 不触发）', async () => {
+    const prisma = mkHappyPrisma({
+      procurementMethod: '竞价采购',
+      bidProject: { id: 'bp-1', evaluationMethod: 'lowest_price' },
+    });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'st-td',
+      stageKey: 'TENDER_DOCUMENT',
+      stageOrder: 3,
+      round: 1,
+      status: 'IN_PROGRESS',
+      projectManagementItemId: 'pmi-1',
+      officialTenderAttachmentId: null, // 未选定正式文件
+    });
+    const validator = { assertScoreStandardComplete: jest.fn() };
+    const svc = mkService(prisma, validator);
+    const err: any = await svc
+      .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never)
+      .then(() => null, (e: unknown) => e);
+    expect(err?.response?.code).toBe('OFFICIAL_TENDER_REQUIRED');
+    // 闸序：无正式文件连「对照确认评分标准」的前提都不成立——评分闸不得先行消耗
+    expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
+  });
+
+  it('正式盖章版闸不可豁免：waiveArchiveGate=true 仍拦截（区别于归档材料豁免）', async () => {
+    const prisma = mkHappyPrisma({
+      procurementMethod: '竞价采购',
+      bidProject: null,
+    });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({
+      id: 'st-td',
+      stageKey: 'TENDER_DOCUMENT',
+      stageOrder: 3,
+      round: 1,
+      status: 'IN_PROGRESS',
+      projectManagementItemId: 'pmi-1',
+      officialTenderAttachmentId: null,
+    });
+    const svc = mkService(prisma);
+    const err: any = await svc
+      .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED', waiveArchiveGate: true, note: '确无材料' } as never)
+      .then(() => null, (e: unknown) => e);
+    expect(err?.response?.code).toBe('OFFICIAL_TENDER_REQUIRED');
+  });
+
+  it('03 完成落章：officialTenderConfirmedAt 随 COMPLETED 写入（update data 含确认时间）', async () => {
+    const prisma = mkHappyPrisma({ procurementMethod: '直接采购', bidProject: null });
+    const svc = mkService(prisma);
+    await svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never);
+    const updateArg = (prisma.projectManagementStage.update as jest.Mock).mock.calls[0][0];
+    expect(updateArg.data.officialTenderConfirmedAt).toBeInstanceOf(Date);
   });
 });
 

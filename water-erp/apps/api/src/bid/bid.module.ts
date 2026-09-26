@@ -25,7 +25,6 @@ import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
-import { AiBidAnalysisModule } from '../ai-bid-analysis/ai-bid-analysis.module';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
 import { PriceFormulaService } from './price-formula.service';
@@ -43,7 +42,9 @@ import { SignatureService } from '../common/crypto/signature.service';
       { name: QUEUE_NAMES.TENDER_PROCESSING },
       { name: QUEUE_NAMES.BIDDER_PROCESSING }, // 单家重试 AI 分析（retryAiBidders）
     ),
-    AiBidAnalysisModule, // ← 为了注入 PlaintextFetcherService（Task 1: AI 提取得分点）
+    // AiBidAnalysisModule 已撤（2026-09-26）：原为 ScorePointExtractor 注入 PlaintextFetcherService
+    // （公告链提取源）；公告链已删、提取只认 PMI 03 阶段附件，bid 模块对 ai-bid-analysis 仅剩
+    // 常量/纯函数 import（QUEUE_NAMES/prompts/file-processor），无需模块级依赖
     BidBackupModule,
   ],
   controllers: [BidController, BidSignPacketController, AdminCertController, NonTenderDealController, OpeningSignController, WorkTemplateController],

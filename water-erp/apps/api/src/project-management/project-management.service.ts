@@ -34,6 +34,7 @@ import { CreateProjectFromInitiationDto } from './dto/create-project-from-initia
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
 import { ScoreStandardValidator } from '../bid/score-standard-validator.service';
+import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
@@ -3336,6 +3337,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
       // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
       if (stageKey === 'TENDER_DOCUMENT') {
+        // 正式盖章版强制闸（2026-09-26 用户裁定：必须强制、不可豁免）——先于评分标准闸：
+        // 连正式文件都没定，「对照正式文件确认评分标准」无从谈起
+        this.assertOfficialTenderSelected(stage);
         await this.assertScoreStandardConfigured(projectId, targetRound);
       }
       // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
@@ -3394,6 +3398,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
         note: dto.note?.trim() || null,
         completedAt:
           dto.status === PROJECT_STAGE_STATUS.COMPLETED ? new Date() : null,
+        // 03 完成 = 走完「选正式文件 → 对照确认评分标准」向导，落确认时间留痕；
+        // 回退为未完成（重开路径）则同步清空，重走向导时重新落
+        ...(stageKey === 'TENDER_DOCUMENT' && {
+          officialTenderConfirmedAt:
+            dto.status === PROJECT_STAGE_STATUS.COMPLETED ? new Date() : null,
+        }),
       },
     });
 
@@ -3473,6 +3483,67 @@ ${JSON.stringify(algorithmResult, null, 2)}
         code: 'SCORE_STANDARD_REQUIRED',
       });
     }
+  }
+
+  /**
+   * 正式盖章版采购文件强制闸（2026-09-26 用户裁定：必须强制、不可豁免——
+   * waiveArchiveGate 仅覆盖归档材料缺口，本闸不受其影响）。
+   * 指针经 FK(onDelete: SetNull) 保证非空即存在：附件被删/整体替换时自动回空、闸门重开。
+   */
+  private assertOfficialTenderSelected(stage: {
+    officialTenderAttachmentId: string | null;
+  }) {
+    if (!stage.officialTenderAttachmentId) {
+      throw new BadRequestException({
+        error: '请先选择或上传正式盖章版采购文件，并对照正式文件确认评分标准后，再标记本阶段完成。',
+        code: 'OFFICIAL_TENDER_REQUIRED',
+      });
+    }
+  }
+
+  /**
+   * 标记正式盖章版采购文件（指针即真相，不限类型）：仅「采购文件」步骤、仅未完成态可改——
+   * 已完成的阶段指针为归档留痕，更换须先重开步骤。完成向导 Step1 选定即调本方法落指针
+   * （中途取消不丢，重进向导回显）。
+   */
+  async selectOfficialTender(
+    pmiId: string,
+    stageKey: string,
+    dto: SelectOfficialTenderDto,
+  ) {
+    if (stageKey !== 'TENDER_DOCUMENT') {
+      throw new BadRequestException('仅「采购文件」步骤支持标记正式盖章版采购文件。');
+    }
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: pmiId },
+      select: { currentRound: true },
+    });
+    if (!project) throw new NotFoundException('未找到对应项目。');
+    const round = dto.round ?? project.currentRound ?? 1;
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: pmiId, stageKey, round },
+    });
+    if (!stage) throw new NotFoundException('未找到对应的项目阶段。');
+    if (stage.status === PROJECT_STAGE_STATUS.COMPLETED) {
+      throw new BadRequestException('该步骤已完成，正式盖章版文件已锁定；如需更换请先重开该步骤。');
+    }
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: dto.attachmentId },
+      select: { id: true, fileName: true, projectManagementStageId: true },
+    });
+    if (!attachment || attachment.projectManagementStageId !== stage.id) {
+      throw new BadRequestException('该文件不属于本步骤，请从「采购文件」步骤已上传的文件中选择。');
+    }
+    await this.prisma.projectManagementStage.update({
+      where: { id: stage.id },
+      data: { officialTenderAttachmentId: attachment.id },
+    });
+    return {
+      stageId: stage.id,
+      round,
+      officialTenderAttachmentId: attachment.id,
+      fileName: attachment.fileName,
+    };
   }
 
   /**
@@ -7232,6 +7303,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         objectKey: persistResult.attachment.objectKey,
         fileSize: persistResult.attachment.fileSize,
         uploadedById: persistResult.attachment.uploadedById,
+        // 文件内容已整体替换——提取文本懒缓存同步失效（AI 提取/OCR 按新内容重跑）
+        extractedText: null,
+        extractedTextAt: null,
       },
     });
 

@@ -35,6 +35,7 @@ import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
 import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
+import { ExtractScorePointsDto } from './dto/extract-score-points.dto';
 import { UpdateLinkedRequirementsDto } from './dto/update-linked-requirements.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { UpdateOpeningFieldConfigDto } from './dto/update-opening-field-config.dto';
@@ -948,16 +949,20 @@ export class BidController {
 
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @Post('projects/:id/score-items/:itemId/points/extract')
-  @ApiOperation({ summary: 'AI 从招标文件提取得分点建议（同步，不落库）' })
-  extractScorePoints(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.scorePointExtractor.extractScorePoints(id, itemId);
+  @ApiOperation({ summary: 'AI 从采购文件提取得分点建议（同步，不落库；sourceAttachmentId 可指定提取源）' })
+  extractScorePoints(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: ExtractScorePointsDto,
+  ) {
+    return this.scorePointExtractor.extractScorePoints(id, itemId, dto?.sourceAttachmentId);
   }
 
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @Post('projects/:id/score-items/points/extract-all')
-  @ApiOperation({ summary: '一键 AI 提取全部评分项的得分点建议（同步，不落库）' })
-  extractAllScorePoints(@Param('id') id: string) {
-    return this.scorePointExtractor.extractAllScorePoints(id);
+  @ApiOperation({ summary: '一键 AI 提取全部评分项的得分点建议（同步，不落库；sourceAttachmentId 可指定提取源）' })
+  extractAllScorePoints(@Param('id') id: string, @Body() dto: ExtractScorePointsDto) {
+    return this.scorePointExtractor.extractAllScorePoints(id, dto?.sourceAttachmentId);
   }
 
   @Post('projects/:id/score-items/:itemId/points/batch')

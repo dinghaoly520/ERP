@@ -472,6 +472,23 @@ export async function uploadProjectStageAttachment(
   return parseJsonResponse<UploadStageAttachmentResult>(response);
 }
 
+/** 标记正式盖章版采购文件（2026-09-26）：指针即真相（不限文件类型）——
+ *  03 完成向导 Step1 选定即落指针（中途取消不丢，重进回显）；已完成阶段指针锁定不可改 */
+export async function selectOfficialTender(
+  projectId: string,
+  stageKey: 'TENDER_DOCUMENT',
+  payload: { attachmentId: string; round: number },
+) {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/official-tender`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  return parseJsonResponse<{ stageId: string; round: number; officialTenderAttachmentId: string; fileName: string }>(response);
+}
+
 export async function moveProjectToRecycleBin(projectId: string) {
   const response = await apiFetch(`${API_BASE}/project-management/${projectId}/recycle`, {
     method: 'POST',
