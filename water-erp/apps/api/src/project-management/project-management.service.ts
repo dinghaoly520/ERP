@@ -30,7 +30,6 @@ import { ArchiveFlowService } from '../archive/archive-flow.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
-import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
@@ -3271,61 +3270,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
     };
   }
 
-  // ── CTS-EBS01 A-36/37 项目递交与受理留痕（申报人/时间、验证人/时间，双人分离）──
-
-  /** 创建人递交项目送审；REJECTED 修正后可重新递交 */
-  async submitForReview(projectId: string, user?: AuthenticatedUser) {
-    const item = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: { reviewStatus: true, status: true },
-    });
-    if (!item) throw new NotFoundException('未找到对应项目。');
-    // 生命周期闸：已归档/回收项目不可递交（UI 同口径；API 侧收口防直调）
-    if (item.status !== 'ACTIVE') {
-      throw new BadRequestException({ error: '仅进行中的项目可递交审核，已归档/回收项目不可递交', code: 'INVALID_LIFECYCLE' });
-    }
-    if (item.reviewStatus === 'PENDING') {
-      throw new BadRequestException({ error: '该项目已递交待审核，请勿重复递交', code: 'ALREADY_SUBMITTED' });
-    }
-    if (item.reviewStatus === 'APPROVED') {
-      throw new BadRequestException({ error: '该项目已审核通过，无需再次递交', code: 'ALREADY_APPROVED' });
-    }
-    return this.prisma.projectManagementItem.update({
-      where: { id: projectId },
-      data: { reviewStatus: 'PENDING', submittedAt: new Date(), submittedById: user?.sub ?? null, reviewComment: null },
-    });
-  }
-
-  /** leader/admin 受理审核；申报人与审核人分离（admin 复核不受限） */
-  async reviewSubmission(projectId: string, dto: ReviewSubmissionDto, user?: AuthenticatedUser) {
-    if (!user || !['leader', 'admin'].includes(user.role)) {
-      throw new ForbiddenException({ error: '仅领导或管理员可受理审核', code: 'REVIEW_ROLE_FORBIDDEN' });
-    }
-    const item = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: { reviewStatus: true, submittedById: true },
-    });
-    if (!item) throw new NotFoundException('未找到对应项目。');
-    if (item.reviewStatus !== 'PENDING') {
-      throw new BadRequestException({ error: '该项目不在待审核状态', code: 'NOT_PENDING_REVIEW' });
-    }
-    if (user.role !== 'admin' && item.submittedById === user.sub) {
-      throw new BadRequestException({ error: '申报人与审核人不得为同一人，请由领导或管理员受理', code: 'SELF_REVIEW_FORBIDDEN' });
-    }
-    if (!dto.approve && !dto.comment?.trim()) {
-      throw new BadRequestException({ error: '驳回必须填写理由', code: 'REJECT_REASON_REQUIRED' });
-    }
-    return this.prisma.projectManagementItem.update({
-      where: { id: projectId },
-      data: {
-        reviewStatus: dto.approve ? 'APPROVED' : 'REJECTED',
-        reviewedAt: new Date(),
-        reviewedById: user.sub,
-        reviewComment: dto.comment?.trim() || null,
-      },
-    });
-  }
-
   async updateStage(
     projectId: string,
     stageKey: string,
@@ -3380,21 +3324,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
     // 一路放行到开标确认才发现缺前置，返工成本高）
     if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
-      // 制度硬闸（2026-08-27 拍板 #6）：立项须先「递交审核」并受理通过（reviewStatus=APPROVED），
-      // 方可完成立项阶段进入采购文件编制——「立项批准后才能采购」从 AI 提示升级为硬控制。
-      // 仅约束存在立项阶段的常规流程；小额采购（无 INITIATION 阶段）与已越过该阶段的存量不受影响。
-      if (stageKey === 'INITIATION') {
-        const pmi = await this.prisma.projectManagementItem.findUnique({
-          where: { id: projectId },
-          select: { reviewStatus: true },
-        });
-        if (pmi?.reviewStatus !== 'APPROVED') {
-          throw new BadRequestException({
-            error: '立项尚未受理审核通过（需先「递交审核」并由领导/管理员受理），不能完成立项阶段进入采购文件编制',
-            code: 'INITIATION_NOT_APPROVED',
-          });
-        }
-      }
       // 评分标准配置闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置——
       // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
       // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
@@ -4802,7 +4731,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   /** 步骤分析阶段元数据：每阶段的分析要点（按各阶段实际情况定制） */
   private static readonly STAGE_ANALYSIS_META: Record<string, { label: string; focus: string }> = {
     PROCUREMENT_DEMAND: { label: '采购需求', focus: '需求来源与内容（需求申请要点、提出部门与经办人、预算规模与资金性质）' },
-    INITIATION: { label: '采购立项', focus: '立项事由与审批（立项依据、递交审核与受理结果、供方要求、预算审定）' },
+    INITIATION: { label: '采购立项', focus: '立项事由与审批（立项依据、供方要求、预算审定）' },
     TENDER_DOCUMENT: { label: '采购文件', focus: '采购文件编制（文件构成、资格与评审要点、采购组织形式与计价方式）' },
     SUPPLIER_INVITATION: { label: '供应商邀请', focus: '邀请过程与名单（选取方式、逐家确认状态）' },
     EXPERT_SELECTION: { label: '专家抽取', focus: '抽取过程与名单（配额/随机/回避原则、专家信息）' },
@@ -4901,11 +4830,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (project.demandProjectReason) parts.push(`需求说明：${project.demandProjectReason.slice(0, 400)}`);
       }
       if (stageKey === 'INITIATION') {
-        const reviewLabel: Record<string, string> = { PENDING: '待受理', APPROVED: '已受理通过', REJECTED: '已驳回' };
         if (project.projectReason) parts.push(`立项事由：${project.projectReason.slice(0, 400)}`);
         if (project.supplierRequirements) parts.push(`供方要求：${project.supplierRequirements.slice(0, 300)}`);
         if (project.initiationDate) parts.push(`立项日期：${project.initiationDate.toISOString().slice(0, 10)}`);
-        if (project.reviewStatus) parts.push(`递交审核：${reviewLabel[project.reviewStatus] ?? project.reviewStatus}`);
       }
       if (stageKey === 'TENDER_DOCUMENT') {
         if (project.procurementOrganizationForm) parts.push(`采购组织形式：${project.procurementOrganizationForm}`);

@@ -3,7 +3,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PmiOwnershipGuard } from '../project-management/pmi-ownership.guard';
-import { ReviewSubmissionDto } from '../project-management/dto/review-submission.dto';
+import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { ProjectPlanService } from './project-plan.service';
 import { CreatePlanItemDto } from './dto/create-plan-item.dto';
 import { UpdatePlanItemDto } from './dto/update-plan-item.dto';

@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
-import { ReviewSubmissionDto } from '../project-management/dto/review-submission.dto';
+import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { CreatePlanItemDto } from './dto/create-plan-item.dto';
 import { UpdatePlanItemDto } from './dto/update-plan-item.dto';
 import { CreateTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
