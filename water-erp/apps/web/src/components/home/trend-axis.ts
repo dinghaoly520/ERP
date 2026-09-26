@@ -18,3 +18,12 @@ export function isTrendLabelShown(index: number, bucketCount: number, step: numb
   if (bucketCount <= 0 || index < 0 || index >= bucketCount) return false;
   return index % step === 0 || index === bucketCount - 1;
 }
+
+/**
+ * 换月边界：首桶或与前一个桶不同月（跨年必然命中）。
+ * 换月桶的刻度/标签加重一档，长区间里月份切换一眼可辨（M/DD 标签本身不带年份）。
+ */
+export function isMonthBoundary(prevIsoDate: string | null, isoDate: string): boolean {
+  if (!prevIsoDate || prevIsoDate.length < 7 || isoDate.length < 7) return true;
+  return prevIsoDate.slice(0, 7) !== isoDate.slice(0, 7);
+}

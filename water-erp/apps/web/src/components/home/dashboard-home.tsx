@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
-import { trendLabelStep, isTrendLabelShown } from "@/components/home/trend-axis";
+import { trendLabelStep, isTrendLabelShown, isMonthBoundary } from "@/components/home/trend-axis";
 import { AwardResultPanel } from "@/components/home/award-result-panel";
 import { PerformancePanel } from "@/components/home/performance-panel";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
@@ -404,7 +404,7 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
         <section className="wb-panel h-full">
           <div className="wb-panel-header"><div className="flex items-center gap-2.5"><BarChart3 size={15} className="text-[var(--accent)]"/><div><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购执行趋势</h2><div className="text-xs text-[var(--muted-foreground)]">立项 → 归档 双节点 · 采购数量与成交金额</div></div></div><div className="flex items-center gap-3"><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--accent)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--accent)]"/>{tc}项</span><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--success)_15%,transparent)] bg-[color-mix(in_oklch,var(--success)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--success)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--success)]"/>{ta.toFixed(1)}万</span></div></div>
           <div ref={cr} className="wb-panel-body"><div className="neu-card-static rounded-[14px] p-3 overflow-hidden">
-            <svg width="100%" height={ch} viewBox={`0 0 ${cw} ${ch}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible" onMouseLeave={()=>setHoveredIdx(null)}>
+            <svg width="100%" height={ch} viewBox={`0 0 ${cw} ${ch}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible" role="img" aria-label="采购执行趋势图：横轴为日期，主区为成交金额曲线，副带为立项/归档数量与在执行净值" onMouseLeave={()=>setHoveredIdx(null)}>
               <defs>
                 <linearGradient id="amtLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="oklch(0.63 0.128 247)"/><stop offset="55%" stopColor="oklch(0.58 0.14 164)"/><stop offset="100%" stopColor="oklch(0.6 0.13 175)"/></linearGradient>
                 <linearGradient id="amtArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="oklch(0.58 0.14 164 / 0.22)"/><stop offset="100%" stopColor="oklch(0.58 0.14 164 / 0.02)"/></linearGradient>
@@ -416,7 +416,8 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
               {/* 主区网格 + 金额刻度（左）/数量刻度（右） */}
               {[0,0.5,1].map((t,i)=>{const y=tp+(1-t)*mh;return <line key={`g-${i}`} x1={lp} y1={y} x2={cw-rp} y2={y} stroke="oklch(0.65 0.03 250 / 0.22)" strokeWidth="1" strokeDasharray={t===0?"none":"3 4"}/>;})}
               {[0,0.5,1].map((t,i)=>{const y=tp+(1-t)*mh;return <text key={`la-${i}`} x={lp-7} y={y+3} textAnchor="end" style={{fontSize:"9px",fill:"oklch(0.6 0.06 250)",fontWeight:"500"}}>{(t*ma).toFixed(0)}万</text>;})}
-              {[0,0.5,1].map((t,i)=>{const y=cy-(t*mi/1)*(bandHalf);return <text key={`ra-${i}`} x={cw-rp+7} y={y+3} textAnchor="start" style={{fontSize:"9px",fill:"oklch(0.55 0.1 247 / 0.75)",fontWeight:"500"}}>{Math.round(t*mi)}</text>;})}
+              {/* 右轴 = 立项/归档柱的数量刻度；顶格带单位「项」，空区间无意义不渲染 */}
+              {S.length>0&&[0,0.5,1].map((t,i)=>{const y=cy-(t*mi/1)*(bandHalf);return <text key={`ra-${i}`} x={cw-rp+7} y={y+3} textAnchor="start" style={{fontSize:"9px",fill:"oklch(0.55 0.1 247 / 0.75)",fontWeight:"500"}}>{Math.round(t*mi)}{i===2?"项":""}</text>;})}
 
               {/* 镜像带中轴（时间轴） */}
               <line x1={lp} y1={cy} x2={cw-rp} y2={cy} stroke="oklch(0.6 0.05 250 / 0.4)" strokeWidth="1"/>
@@ -425,23 +426,27 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
               <line x1={lp} y1={axisY} x2={cw-rp} y2={axisY} stroke="oklch(0.6 0.05 250 / 0.3)" strokeWidth="1"/>
 
               {/* 立项↑ / 归档↓ 镜像柱（双节点） */}
-              {S.map((item,i)=>{const x=sx+i*(bw+gap);const ih=initH(item.initiated??0);const ah=initH(item.archived??0);const hot=hoveredIdx===i;const labeled=isTrendLabelShown(i,dc,lStep);return (
+              {S.map((item,i)=>{const x=sx+i*(bw+gap);const ih=initH(item.initiated??0);const ah=initH(item.archived??0);const hot=hoveredIdx===i;const labeled=isTrendLabelShown(i,dc,lStep);const mBnd=isMonthBoundary(i>0?S[i-1].date:null,item.date);return (
                 <g key={`node-${i}`} className="cursor-pointer" onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(item as TrendDetail)}>
                   {ih>0&&<rect x={x} y={cy-ih} width={bw} height={ih} rx={3} fill="url(#barUp)" opacity={hot?1:0.8} filter={hot?"url(#glowSoft)":undefined} style={{transition:"opacity .2s"}}/>}
                   {ah>0&&<rect x={x} y={cy} width={bw} height={ah} rx={3} fill="url(#barDown)" opacity={hot?1:0.75} filter={hot?"url(#glowSoft)":undefined} style={{transition:"opacity .2s"}}/>}
-                  {/* 时间栏刻度：每桶一个短刻度，带标签的桶加长加浓，悬停染品牌蓝 */}
-                  <line x1={x+bw/2} x2={x+bw/2} y1={axisY} y2={axisY+(labeled||hot?5:3)} stroke={hot?"oklch(0.5 0.12 247)":labeled?"oklch(0.55 0.05 250 / 0.6)":"oklch(0.6 0.04 250 / 0.38)"} strokeWidth="1" style={{transition:"stroke .2s"}}/>
-                  {(labeled||hot)&&<text x={x+bw/2} y={labelY} textAnchor="middle" style={{fontSize:"10px",fontVariantNumeric:"tabular-nums",fill:hot?"oklch(0.5 0.12 247)":"oklch(0.55 0.028 244)",fontWeight:hot?"700":"500",transition:"fill .2s"}}>{item.label}</text>}
+                  {/* 时间栏刻度：每桶一短刻度；带标签桶加长，换月桶再长一档（长区间里月份切换可辨），悬停染品牌蓝 */}
+                  <line x1={x+bw/2} x2={x+bw/2} y1={axisY} y2={axisY+(mBnd?7:labeled||hot?5:3)} stroke={hot?"oklch(0.5 0.12 247)":mBnd?"oklch(0.48 0.05 250 / 0.8)":labeled?"oklch(0.55 0.05 250 / 0.6)":"oklch(0.6 0.04 250 / 0.38)"} strokeWidth="1" style={{transition:"stroke .2s"}}/>
+                  {(labeled||hot)&&<text x={x+bw/2} y={labelY} textAnchor="middle" style={{fontSize:"10px",fontVariantNumeric:"tabular-nums",fill:hot?"oklch(0.5 0.12 247)":mBnd?"oklch(0.42 0.03 250)":"oklch(0.55 0.028 244)",fontWeight:hot?"700":mBnd?"600":"500",transition:"fill .2s"}}>{item.label}</text>}
                 </g>
               );})}
 
-              {/* 在执行净值阶梯线（累计立项 − 累计归档） */}
+              {/* 在执行净值阶梯线（累计立项 − 累计归档）+ 末端实点（净值落点） */}
               {stepD&&<path d={stepD} fill="none" stroke="oklch(0.55 0.14 280 / 0.85)" strokeWidth="1.5" strokeDasharray="4 2.5" strokeLinecap="round"/>}
+              {stepD&&<circle cx={xc(S.length-1)+(bw+gap)/2} cy={actY(S[S.length-1].active??0)} r={2.6} fill="oklch(0.55 0.14 280)" stroke="oklch(1 0 0 / 0.95)" strokeWidth={1.6}/>}
 
               {/* 成交金额：发光曲线 + 渐变面积 + 光晕数据点 */}
               {areaD&&<path d={areaD} fill="url(#amtArea)"/>}
               {lineD&&<><path d={lineD} fill="none" stroke="url(#amtLine)" strokeWidth="5" opacity="0.16" strokeLinecap="round" filter="url(#glowSoft)"/><path d={lineD} fill="none" stroke="url(#amtLine)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></>}
               {pts.map((p,i)=><circle key={`dot-${i}`} cx={p.x} cy={p.y} r={hoveredIdx===i?5:3} fill="oklch(0.58 0.14 164)" stroke="oklch(1 0 0 / 0.95)" strokeWidth="2" className="cursor-pointer" filter={hoveredIdx===i?"url(#glowSoft)":undefined} onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(S[i] as TrendDetail)}/>)}
+
+              {/* 空态：区间无任何桶时居中提示（轴/网格保留作上下文） */}
+              {S.length===0&&<text x={(lp+cw-rp)/2} y={tp+(axisY-tp)/2} textAnchor="middle" style={{fontSize:"12px",fontWeight:"600",fill:"oklch(0.55 0.028 244)"}}>当前区间暂无采购活动</text>}
 
               {/* hover 十字线 + 毛玻璃数据卡 */}
               {hoveredIdx!==null&&hover&&<line x1={xc(hoveredIdx)} y1={tp} x2={xc(hoveredIdx)} y2={axisY} stroke="oklch(0.63 0.128 247 / 0.28)" strokeWidth="1" strokeDasharray="3 2"/>}

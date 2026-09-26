@@ -4,6 +4,7 @@ import {
   TREND_LABEL_MIN_SLOT_PX,
   trendLabelStep,
   isTrendLabelShown,
+  isMonthBoundary,
 } from "./trend-axis";
 
 test("trendLabelStep keeps every label when buckets have enough horizontal room", () => {
@@ -38,4 +39,11 @@ test("degenerate inputs never divide by zero and never show labels for an empty 
 
 test("minimum slot constant is a deliberate design value (label ~28px + 间隙)", () => {
   assert.equal(TREND_LABEL_MIN_SLOT_PX, 46);
+});
+
+test("isMonthBoundary flags the first bucket and every month change", () => {
+  assert.equal(isMonthBoundary(null, "2026-09-07"), true, "首桶视为换月");
+  assert.equal(isMonthBoundary("2026-09-07", "2026-09-17"), false, "同月不标");
+  assert.equal(isMonthBoundary("2026-08-31", "2026-09-01"), true, "跨月要标");
+  assert.equal(isMonthBoundary("2025-12-30", "2026-01-02"), true, "跨年必然跨月");
 });
