@@ -169,7 +169,7 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
           description="公告详情（回收站内查看；恢复请回到回收站「已隐藏」节）"
           size="4xl"
         >
-          <iframe src={`/notice/${view.id}`} title={view.title} className="h-[74vh] w-full rounded-[12px] border-0 bg-white" />
+          <iframe src={`/notice-view/${view.id}`} title={view.title} className="h-[74vh] w-full rounded-[12px] border-0 bg-white" />
         </Modal>
       )}
     </>
