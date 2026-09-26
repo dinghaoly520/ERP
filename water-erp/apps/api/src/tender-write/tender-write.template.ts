@@ -550,7 +550,7 @@ function parseAcquireEnd(acquireTime: string | undefined): Date {
 }
 
 /** 时间类字段兜底（各字段空值才推导，已有值不覆盖） */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function applyTimeFallbacks<T extends Record<string, any>>(answers: T): T {
   const out = { ...answers } as Record<string, any>;
   const today = new Date();
