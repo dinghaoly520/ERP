@@ -37,10 +37,10 @@ const deriveEvalMethod = (procurementMethod?: string | null) =>
 
 /** 评标办法对评分标准编制的影响提示（comprehensive/未设置不提示） */
 const EVAL_METHOD_NOTES: Record<string, string> = {
-  lowest_price: "当前评标办法为最低价法——价格分为主要评标依据（由价格分计算方式自动计算），其余类别评分项酌情编制。",
-  qualified_lowest_price: "当前评标办法为合格最低价法——价格不作评分项（多轮报价、合格中最低价定标）。",
-  manual: "当前评标办法为专家评审——评标委员会依据下方评分标准逐项打分；价格分不按公式自动计算（可在价格分计算方式中调整）。",
-  none: "当前评标办法为不评分——本项目无竞争性评分，可跳过评分标准编制。",
+  lowest_price: "最低价法——价格分为主要评标依据，按所选价格分计算方式计分；其余类别评分项酌情编制。",
+  qualified_lowest_price: "合格最低价法——价格不作评分项（多轮报价、合格中最低价定标）。",
+  manual: "专家评审——评标委员会依据评分标准逐项打分；价格分不按公式自动计算（可在价格分计算方式中调整）。",
+  none: "不评分——本项目无竞争性评分，可跳过评分标准编制。",
 };
 
 /** 价格分计算方式（镜像自 apps/api/src/bid/price-formula.service.ts PRICE_FORMULA_OPTIONS——
@@ -232,7 +232,15 @@ export function EvaluationBasisFields({
           />
         </label>
         <label className="block text-xs text-[var(--muted-foreground)]">
-          评标办法
+          <span className="flex items-center gap-1.5">
+            评标办法
+            {!softLocked && EVAL_METHOD_NOTES[evaluationMethod] && (
+              <span className="pm-help-anchor" tabIndex={0}>
+                <span className="pm-help-dot" aria-label="评标办法说明" role="img">？</span>
+                <span className="pm-help-tip" role="tooltip">{EVAL_METHOD_NOTES[evaluationMethod]}</span>
+              </span>
+            )}
+          </span>
           <select
             value={evaluationMethod} onChange={(e) => onMethodChange(e.target.value)}
             disabled={softLocked}
@@ -245,7 +253,15 @@ export function EvaluationBasisFields({
         </label>
         {formulaVisible && (
           <label className="block text-xs text-[var(--muted-foreground)]">
-            价格分计算方式
+            <span className="flex items-center gap-1.5">
+              价格分计算方式
+              {(() => { const cur = PRICE_CALC_OPTIONS.find(o => o.value === formulaCalc); return cur ? (
+                <span className="pm-help-anchor" tabIndex={0}>
+                  <span className="pm-help-dot" aria-label="价格分计算方式说明" role="img">？</span>
+                  <span className="pm-help-tip" role="tooltip">{cur.hint}</span>
+                </span>
+              ) : null; })()}
+            </span>
             <select
               value={formulaCalc} onChange={(e) => setFormulaCalc(e.target.value)}
               disabled={softLocked}
@@ -285,11 +301,6 @@ export function EvaluationBasisFields({
               </label>
             </div>
           )}
-          {!softLocked && PRICE_CALC_OPTIONS.find(o => o.value === formulaCalc)?.hint && formulaCalc !== "manual" && (
-            <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-              {PRICE_CALC_OPTIONS.find(o => o.value === formulaCalc)?.hint}
-            </p>
-          )}
         </>
       )}
       <label className={`flex items-center gap-2.5 ${softLocked ? 'opacity-60' : 'cursor-pointer'}`}>
@@ -314,11 +325,6 @@ export function EvaluationBasisFields({
       {!softLocked && !evalMethodDirty && detail?.evaluationMethod == null && (
         <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
           未显式设置——当前按采购方式默认执行「{EVAL_METHOD_OPTIONS.find(o => o.value === evaluationMethod)?.label}」，保存后落为显式值。
-        </p>
-      )}
-      {!softLocked && EVAL_METHOD_NOTES[evaluationMethod] && (
-        <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-          {EVAL_METHOD_NOTES[evaluationMethod]}
         </p>
       )}
       {!softLocked && ceilingMissingForFormula && (
