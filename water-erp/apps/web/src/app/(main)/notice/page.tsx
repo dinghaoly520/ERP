@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { useRouter } from 'next/navigation';
 import {
-  listAnnouncements, deleteAnnouncement, updateAnnouncement,
+  listAnnouncements, updateAnnouncement, hideAnnouncement, offlineAnnouncement,
   getParticipants,
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant, ParticipantsResult } from '@/lib/api/announcement';
@@ -16,8 +16,10 @@ import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
   Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw, History as HistoryIcon,
+  EyeOff, PackageX,
 } from 'lucide-react';
 import { AnnouncementHistoryModal, AllAnnouncementHistoriesModal } from '@/components/notice/announcement-history-modal';
+import { AnnouncementRecycleModal } from '@/components/notice/announcement-recycle-modal';
 
 /* ── 类型/状态映射 ── */
 // 2026-09-09 拍板：公告类型入口收敛为 6 类（删中标公示/成交/合同/履行结果/流标/中标公告 tab，与公开端一致）；
@@ -60,6 +62,8 @@ const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'g
   DRAFT: { label: '草稿', tone: 'gray' },
   PUBLISHED: { label: '已发布', tone: 'green' },
   ARCHIVED: { label: '已公示', tone: 'gray' },
+  HIDDEN: { label: '已隐藏', tone: 'gray' },  // 回收站态：主列表默认排除，仅供类型穷举/回收站复用
+  OFFLINE: { label: '已下架', tone: 'gray' },
 };
 
 /**
@@ -98,6 +102,7 @@ export default function NoticePage() {
   const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
   const [historyAnnId, setHistoryAnnId] = useState<string | null>(null);
   const [showAllHistories, setShowAllHistories] = useState(false);
+  const [showRecycle, setShowRecycle] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey | null>('publishDate');
@@ -147,14 +152,20 @@ export default function NoticePage() {
   const toggleAll = () => setSelectedIds(prev => { const n = new Set(prev); allSelected ? selectableIds.forEach(id => n.delete(id)) : selectableIds.forEach(id => n.add(id)); return n; });
   const clearSelection = () => setSelectedIds(new Set());
 
-  const runBatch = async (action: 'publish' | 'archive' | 'delete') => {
-    const target = Array.from(selectedIds);
-    if (target.length === 0) return;
-    const label = action === 'publish' ? '发布' : action === 'archive' ? '下线' : '删除';
-    if (action === 'delete' && !(await confirm({ message: `确认删除选中的 ${target.length} 条信息？此操作不可撤销。`, danger: true }))) return;
+  const runBatch = async (action: 'publish' | 'archive' | 'hide' | 'offline') => {
+    if (selectedIds.size === 0) return;
+    const label = action === 'publish' ? '发布' : action === 'archive' ? '下线' : action === 'hide' ? '隐藏' : '下架';
+    // 2026-09-26 回收站体系：下架仅对「已发布」生效（草稿/已公示无"架"可下）
+    const target = action === 'offline'
+      ? data.items.filter(i => selectedIds.has(i.id) && i.status === 'PUBLISHED').map(i => i.id)
+      : Array.from(selectedIds);
+    if (target.length === 0) { toast.error('选中项中没有已发布的公告，无需下架'); return; }
+    if (action !== 'publish' && !(await confirm({ message: `确认${label}选中的 ${target.length} 条信息？操作后进入回收站，可在右上角回收站中恢复。` }))) return;
     clearSelection();
     const results = await Promise.allSettled(target.map(id =>
-      action === 'delete' ? deleteAnnouncement(id) : updateAnnouncement(id, { status: action === 'publish' ? 'PUBLISHED' : 'ARCHIVED' })
+      action === 'hide' ? hideAnnouncement(id)
+      : action === 'offline' ? offlineAnnouncement(id)
+      : updateAnnouncement(id, { status: action === 'publish' ? 'PUBLISHED' : 'ARCHIVED' })
     ));
     const ok = results.filter(r => r.status === 'fulfilled').length;
     const fail = results.length - ok;
@@ -164,15 +175,17 @@ export default function NoticePage() {
     load();
   };
 
-  const remove = async (a: AnnouncementListItem) => {
-    if (!(await confirm({ message: `确认删除「${a.title}」？`, danger: true }))) return;
-    const prevItems = data.items;
-    setData(d => ({ ...d, items: d.items.filter(x => x.id !== a.id) }));
-    let cancelled = false;
-    toast('已删除「' + a.title + '」', { description: '4 秒内可撤销', duration: 4000, action: { label: '撤销', onClick: () => { cancelled = true; setData(d => ({ ...d, items: prevItems })); } } });
-    await new Promise(r => setTimeout(r, 4200));
-    if (cancelled) return;
-    try { await deleteAnnouncement(a.id); load(); } catch (e: any) { toast.error(e?.message || '删除失败'); load(); }
+  /* ── 回收站体系（2026-09-26）：行级隐藏/下架，删除入口移除 ── */
+  const hideRow = async (a: AnnouncementListItem) => {
+    if (!(await confirm({ message: `确认隐藏「${a.title}」？隐藏后进入回收站，可在右上角回收站中恢复。` }))) return;
+    try { await hideAnnouncement(a.id); toast.success(`已隐藏「${a.title}」，可在回收站中恢复`); load(); }
+    catch (e: any) { toast.error(e?.message || '隐藏失败'); }
+  };
+
+  const takeOffline = async (a: AnnouncementListItem) => {
+    if (!(await confirm({ message: `确认下架「${a.title}」？下架后公开门户不再可见，进入回收站，可在回收站中恢复。` }))) return;
+    try { await offlineAnnouncement(a.id); toast.success(`已下架「${a.title}」，可在回收站中恢复`); load(); }
+    catch (e: any) { toast.error(e?.message || '下架失败'); }
   };
 
   /* ── 统计 ── */
@@ -205,6 +218,9 @@ export default function NoticePage() {
             <CompanySelect value={companyId} onChange={setCompanyId} />
             <button onClick={() => setShowAllHistories(true)} className="neu-btn-soft">
               <HistoryIcon size={15} /> 公告历史
+            </button>
+            <button onClick={() => setShowRecycle(true)} className="neu-btn-soft">
+              <Trash2 size={15} /> 回收站
             </button>
             <button onClick={() => router.push('/notice/new')} className="neu-btn-soft">
               <PlusCircle size={15} /> 新建信息
@@ -283,7 +299,8 @@ export default function NoticePage() {
             <div className="neu-batch-bar-spacer" />
             <button onClick={() => runBatch('publish')} className="neu-btn-xs is-success"><Send size={13} /> 发布</button>
             <button onClick={() => runBatch('archive')} className="neu-btn-xs is-warning"><Archive size={13} /> 下线</button>
-            <button onClick={() => runBatch('delete')} className="neu-btn-xs is-danger"><Trash2 size={13} /> 删除</button>
+            <button onClick={() => runBatch('offline')} className="neu-btn-xs is-warning"><PackageX size={13} /> 下架</button>
+            <button onClick={() => runBatch('hide')} className="neu-btn-xs is-danger"><EyeOff size={13} /> 隐藏</button>
             <button onClick={clearSelection} className="neu-btn-xs"><X size={13} /> 取消选择</button>
           </div>
         )}
@@ -374,7 +391,10 @@ export default function NoticePage() {
                       <div className="flex flex-wrap justify-center gap-1.5">
                         {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标情况</button>}
                         <button onClick={() => setHistoryAnnId(a.id)} className="neu-btn-xs"><HistoryIcon size={12} /> 历史</button>
-                        <button onClick={() => remove(a)} className="neu-btn-xs is-danger">删除</button>
+                        {a.status === 'PUBLISHED' && (
+                          <button onClick={() => takeOffline(a)} className="neu-btn-xs is-warning"><PackageX size={12} /> 下架</button>
+                        )}
+                        <button onClick={() => hideRow(a)} className="neu-btn-xs is-danger"><EyeOff size={12} /> 隐藏</button>
                       </div>
                     </td>
                   </tr>
@@ -408,6 +428,7 @@ export default function NoticePage() {
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
       {historyAnnId && <AnnouncementHistoryModal announcementId={historyAnnId} onClose={() => setHistoryAnnId(null)} />}
       {showAllHistories && <AllAnnouncementHistoriesModal onClose={() => setShowAllHistories(false)} />}
+      {showRecycle && <AnnouncementRecycleModal onClose={() => setShowRecycle(false)} onChanged={load} />}
       {dialog}
 
     </div>
