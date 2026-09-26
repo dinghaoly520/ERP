@@ -273,8 +273,6 @@ export class ProjectManagementService {
           include: { attachments: true },
         },
         createdBy: true,
-        submittedBy: true,
-        reviewedBy: true,
         terminatedBy: true,
       },
     });
@@ -283,8 +281,6 @@ export class ProjectManagementService {
       ...item,
       budgetAmount: Number(item.budgetAmount),
       createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
-      submittedByName: item.submittedBy?.displayName || item.submittedBy?.username || null,
-      reviewedByName: item.reviewedBy?.displayName || item.reviewedBy?.username || null,
       terminatedByName: item.terminatedBy?.displayName || item.terminatedBy?.username || null,
     }));
   }
@@ -3441,8 +3437,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
    *    采购各轮独立校验）；缺失 → 拦截并按采购方式给出指引（谈判采购走邀请分支文案）；
    *    存在 → 复用 ScoreStandardValidator.assertScoreStandardComplete（打分类 Σ=100、
    *    每打分项 ≥1 得分点等），不另写谓词副本。
-   * 400 + SCORE_STANDARD_REQUIRED（与 updateStage 既有阶段闸 INITIATION_NOT_APPROVED /
-   * ARCHIVE_GATE_MISSING 惯例一致）；不可豁免——评分标准即本阶段产物本身。
+   * 400 + SCORE_STANDARD_REQUIRED（与 updateStage 既有阶段闸 ARCHIVE_GATE_MISSING
+   * 惯例一致）；不可豁免——评分标准即本阶段产物本身。
    */
   private async assertScoreStandardConfigured(pmiId: string, round: number) {
     const [bp, pmi] = await Promise.all([
