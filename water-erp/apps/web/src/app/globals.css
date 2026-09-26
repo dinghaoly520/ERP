@@ -3484,68 +3484,11 @@ a {
   opacity: 1;
 }
 
-.bubble-popover {
-  position: relative;
-  overflow: hidden;
-  animation: bubbleEnter 280ms var(--ease-out-quint);
-}
 
-.bubble-popover::before {
-  content: "";
-  position: absolute;
-  inset: -18% -10% auto 12%;
-  height: 44%;
-  background:
-    radial-gradient(circle at 18% 35%, rgba(109, 149, 238, 0.16), transparent 26%),
-    radial-gradient(circle at 78% 26%, rgba(92, 181, 150, 0.12), transparent 24%);
-  filter: blur(22px);
-  pointer-events: none;
-}
 
-.bubble-popover::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -10px;
-  width: 22px;
-  height: 22px;
-  border-top: 1px solid rgba(255, 255, 255, 0.72);
-  border-left: 1px solid rgba(255, 255, 255, 0.72);
-  background: rgba(249, 251, 255, 0.92);
-  transform: translateX(-50%) rotate(45deg);
-  box-shadow: -8px -8px 24px rgba(75, 108, 168, 0.05);
-}
 
-.supplier-detail-popover {
-  position: relative;
-  overflow: hidden;
-  animation: bubbleEnter 260ms var(--ease-out-quint);
-}
 
-.supplier-detail-popover::before {
-  content: "";
-  position: absolute;
-  inset: -16% 8% auto auto;
-  width: 160px;
-  height: 160px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(109, 149, 238, 0.14), transparent 68%);
-  filter: blur(12px);
-  pointer-events: none;
-}
 
-.supplier-detail-popover::after {
-  content: "";
-  position: absolute;
-  right: 26px;
-  top: -9px;
-  width: 18px;
-  height: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.74);
-  border-left: 1px solid rgba(255, 255, 255, 0.74);
-  background: rgba(248, 251, 255, 0.94);
-  transform: rotate(45deg);
-}
 
 .nav-glow::after {
   content: "";
@@ -3684,16 +3627,6 @@ a {
   }
 }
 
-@keyframes bubbleEnter {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.985);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
 
 @keyframes chromaShift {
   0%,
