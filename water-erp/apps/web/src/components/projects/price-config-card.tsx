@@ -220,7 +220,8 @@ export function EvaluationBasisFields({
           <Lock size={13} /> {LOCKED_NOTICE}
         </div>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* 三项主控件一行三列等宽（2026-09-26 用户裁定：限价/办法/公式同层级排列清晰） */}
+      <div className={`grid gap-3 sm:grid-cols-2 ${formulaVisible ? 'xl:grid-cols-3' : ''}`}>
         <label className="block text-xs text-[var(--muted-foreground)]">
           最高限价 / 控制价（元）
           <input
@@ -242,9 +243,7 @@ export function EvaluationBasisFields({
             ))}
           </select>
         </label>
-      </div>
-      {formulaVisible && (
-        <>
+        {formulaVisible && (
           <label className="block text-xs text-[var(--muted-foreground)]">
             价格分计算方式
             <select
@@ -257,6 +256,10 @@ export function EvaluationBasisFields({
               ))}
             </select>
           </label>
+        )}
+      </div>
+      {formulaVisible && (
+        <>
           {formulaCalc === "benchmark_deviation" && (
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block text-xs text-[var(--muted-foreground)]">
