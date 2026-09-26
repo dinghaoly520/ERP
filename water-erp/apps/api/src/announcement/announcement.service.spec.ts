@@ -524,3 +524,94 @@ describe('W2 依法必招标示录入口（P1-4，2026-09-09）— guard 读 met
     expect(prisma.announcement.create).toHaveBeenCalled();
   });
 });
+
+describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-09-26）', () => {
+  let service: AnnouncementService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      announcement: { findUnique: jest.fn(), update: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+      announcementHistory: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AnnouncementAiService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  const op = { operatorId: 'u1', operatorName: '张三' };
+
+  it('hide：任意状态 → HIDDEN，metadata.recycle 记录原状态且保留其余键，历史记 HIDE', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'DRAFT', metadata: { foo: 1 } });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'HIDDEN' });
+    await expect(service.hide('a1', op)).resolves.toMatchObject({ status: 'HIDDEN' });
+    const arg = prisma.announcement.update.mock.calls[0][0];
+    expect(arg.data.status).toBe('HIDDEN');
+    expect(arg.data.metadata).toMatchObject({ foo: 1, recycle: { from: 'DRAFT', action: 'HIDDEN' } });
+    expect(prisma.announcementHistory.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'HIDE', announcementId: 'a1' }),
+    }));
+  });
+
+  it('hide：已在回收站 → 409 ALREADY_IN_RECYCLE，零写入', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'HIDDEN', metadata: {} });
+    await expect(service.hide('a1', op)).rejects.toMatchObject({ response: { code: 'ALREADY_IN_RECYCLE' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('offline：已发布 → OFFLINE，recycle.from=PUBLISHED，历史记 OFFLINE', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', metadata: null });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'OFFLINE' });
+    await expect(service.offline('a1', op)).resolves.toMatchObject({ status: 'OFFLINE' });
+    const arg = prisma.announcement.update.mock.calls[0][0];
+    expect(arg.data.metadata.recycle).toMatchObject({ from: 'PUBLISHED', action: 'OFFLINE' });
+    expect(prisma.announcementHistory.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'OFFLINE' }),
+    }));
+  });
+
+  it('offline：非已发布 → 409 NOT_PUBLISHED_FOR_OFFLINE，零写入', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'DRAFT', metadata: null });
+    await expect(service.offline('a1', op)).rejects.toMatchObject({ response: { code: 'NOT_PUBLISHED_FOR_OFFLINE' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('restore：按 metadata.recycle.from 恢复并清除 recycle 键，历史记 RESTORE', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'OFFLINE', metadata: { recycle: { from: 'PUBLISHED', action: 'OFFLINE', at: 'x' }, foo: 2 } });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'PUBLISHED' });
+    await expect(service.restore('a1', op)).resolves.toMatchObject({ status: 'PUBLISHED' });
+    const arg = prisma.announcement.update.mock.calls[0][0];
+    expect(arg.data.status).toBe('PUBLISHED');
+    expect(arg.data.metadata).toEqual({ foo: 2 });
+    expect(prisma.announcementHistory.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'RESTORE' }),
+    }));
+  });
+
+  it('restore：from 缺失/非法 → 兜底 DRAFT', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'HIDDEN', metadata: null });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'DRAFT' });
+    await expect(service.restore('a1', op)).resolves.toMatchObject({ status: 'DRAFT' });
+  });
+
+  it('restore：不在回收站 → 409 NOT_IN_RECYCLE', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'PUBLISHED', metadata: null });
+    await expect(service.restore('a1', op)).rejects.toMatchObject({ response: { code: 'NOT_IN_RECYCLE' } });
+  });
+
+  it('list：无 status 默认排除回收态；HIDDEN,OFFLINE 逗号查询只出回收站；单值不受影响', async () => {
+    prisma.announcement.count.mockResolvedValue(0);
+    prisma.announcement.findMany.mockResolvedValue([]);
+    await service.list({});
+    expect(prisma.announcement.findMany.mock.calls[0][0].where.status).toEqual({ notIn: ['HIDDEN', 'OFFLINE'] });
+    await service.list({ status: 'HIDDEN,OFFLINE' });
+    expect(prisma.announcement.findMany.mock.calls[1][0].where.status).toEqual({ in: ['HIDDEN', 'OFFLINE'] });
+    await service.list({ status: 'PUBLISHED' });
+    expect(prisma.announcement.findMany.mock.calls[2][0].where.status).toBe('PUBLISHED');
+  });
+});
