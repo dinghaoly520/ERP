@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  getAnnouncement, updateAnnouncement, hideAnnouncement,
+  getAnnouncement, updateAnnouncement, hideAnnouncement, offlineAnnouncement,
   listAttachments, addAttachment, removeAttachment, uploadFile,
   getBidDocument, uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument,
   generateSummary, confirmWinnerNotice, getParticipants,
@@ -14,7 +14,7 @@ import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ArrowLeft, Pencil, X, EyeOff, Megaphone, Upload, Sparkles } from 'lucide-react';
+import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
@@ -30,7 +30,7 @@ const statusTone: Record<AnnouncementStatus, 'green' | 'gray'> = {
   DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray', HIDDEN: 'gray', OFFLINE: 'gray',
 };
 const statusLabel: Record<AnnouncementStatus, string> = {
-  DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已归档', HIDDEN: '已隐藏', OFFLINE: '已下架',
+  DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已下线', HIDDEN: '已隐藏', OFFLINE: '已下架',
 };
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
@@ -110,6 +110,14 @@ export default function NoticeDetailPage() {
       .catch((e: any) => toast.error(e?.message || "隐藏失败"));
   };
 
+  const handleOffline = async () => {
+    // v2 拍板：下架为终态——进回收站「已下架」节，不可恢复
+    if (!ann || !(await confirm({ message: `确认下架「${ann.title}」？下架后公开门户不再可见，进入回收站且不可恢复。`, danger: true }))) return;
+    offlineAnnouncement(ann.id)
+      .then(() => { toast.success("已下架（不可恢复）"); router.push("/notice"); })
+      .catch((e: any) => toast.error(e?.message || "下架失败"));
+  };
+
   if (!ann) return (
     <div className="flex flex-col items-center gap-3 py-24">
       <div className="neu-icon-well flex h-16 w-16 items-center justify-center rounded-2xl">
@@ -170,6 +178,11 @@ export default function NoticeDetailPage() {
                   {ann.status !== 'HIDDEN' && ann.status !== 'OFFLINE' && (
                     <button onClick={() => setEditing(true)} className="neu-btn-soft"><Pencil size={14} /> 编辑</button>
                   )}
+                  <button
+                    onClick={handleOffline}
+                    className="neu-btn-soft is-warning"
+                    disabled={ann.status === 'HIDDEN' || ann.status === 'OFFLINE'}
+                  ><PackageX size={14} /> 下架</button>
                   <button
                     onClick={handleHide}
                     className="neu-btn-soft is-danger"
@@ -509,7 +522,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">状态</label>
             <select value={status} onChange={e => setStatus(e.target.value as AnnouncementStatus)} className="neu-input">
-              <option value="DRAFT">草稿</option><option value="PUBLISHED">已发布</option><option value="ARCHIVED">已归档</option>
+              <option value="DRAFT">草稿</option><option value="PUBLISHED">已发布</option><option value="ARCHIVED">已下线</option>
             </select>
           </div>
           <div>

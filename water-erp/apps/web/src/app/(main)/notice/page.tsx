@@ -15,7 +15,7 @@ import { ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw, History as HistoryIcon,
+  Paperclip, Lock, Trash2, Send, X, RefreshCw, History as HistoryIcon,
   EyeOff, PackageX,
 } from 'lucide-react';
 import { AnnouncementHistoryModal, AllAnnouncementHistoriesModal } from '@/components/notice/announcement-history-modal';
@@ -61,7 +61,7 @@ const typeBadgeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'g
 const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'gray' }> = {
   DRAFT: { label: '草稿', tone: 'gray' },
   PUBLISHED: { label: '已发布', tone: 'green' },
-  ARCHIVED: { label: '已公示', tone: 'gray' },
+  ARCHIVED: { label: '已下线', tone: 'gray' },  // v2（2026-09-26）：公示期满=已下线（存量 ARCHIVED 同标）
   HIDDEN: { label: '已隐藏', tone: 'gray' },  // 回收站态：主列表默认排除，仅供类型穷举/回收站复用
   OFFLINE: { label: '已下架', tone: 'gray' },
 };
@@ -74,16 +74,17 @@ const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'g
  * 底层 DB 状态仍是 PUBLISHED（草稿/ARCHIVED 不变），仅展示层细分。ARCHIVED 对外显示「已公示」（下线=结束公示）。
  */
 const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
 
 function displayStatus(a: { status: AnnouncementStatus; publishDate?: string | null; publicityEnd?: string | null }): { label: string; tone: 'green' | 'orange' | 'gray' } {
   if (a.status !== 'PUBLISHED') return statusMeta[a.status];
   const pub = a.publishDate ? new Date(a.publishDate).getTime() : 0;
-  const end = a.publicityEnd ? new Date(a.publicityEnd).getTime() : pub + 3 * DAY_MS; // 兜底 3 天
   const now = Date.now();
   if (now - pub < HOUR_MS) return { label: '已发布', tone: 'green' };
-  if (now < end) return { label: '公示中', tone: 'orange' };
-  return { label: '已公示', tone: 'gray' };
+  // v2（2026-09-26）：公示期满 = 已下线；无公示期字段的类型（政策/平台等）永不过期，保持已发布——
+  // 与公开门户的标题壳判定同口径（不再按发布+3天兜底）
+  if (!a.publicityEnd) return { label: '已发布', tone: 'green' };
+  if (now < new Date(a.publicityEnd).getTime()) return { label: '公示中', tone: 'orange' };
+  return { label: '已下线', tone: 'gray' };
 }
 
 type SortKey = 'publishDate' | 'viewCount' | 'type' | 'status';
@@ -152,20 +153,19 @@ export default function NoticePage() {
   const toggleAll = () => setSelectedIds(prev => { const n = new Set(prev); allSelected ? selectableIds.forEach(id => n.delete(id)) : selectableIds.forEach(id => n.add(id)); return n; });
   const clearSelection = () => setSelectedIds(new Set());
 
-  const runBatch = async (action: 'publish' | 'archive' | 'hide' | 'offline') => {
+  const runBatch = async (action: 'publish' | 'hide' | 'offline') => {
     if (selectedIds.size === 0) return;
-    const label = action === 'publish' ? '发布' : action === 'archive' ? '下线' : action === 'hide' ? '隐藏' : '下架';
-    // 2026-09-26 回收站体系：下架仅对「已发布」生效（草稿/已公示无"架"可下）
-    const target = action === 'offline'
-      ? data.items.filter(i => selectedIds.has(i.id) && i.status === 'PUBLISHED').map(i => i.id)
-      : Array.from(selectedIds);
-    if (target.length === 0) { toast.error('选中项中没有已发布的公告，无需下架'); return; }
-    if (action !== 'publish' && !(await confirm({ message: `确认${label}选中的 ${target.length} 条信息？操作后进入回收站，可在右上角回收站中恢复。` }))) return;
+    const label = action === 'publish' ? '发布' : action === 'hide' ? '隐藏' : '下架';
+    // v2（2026-09-26）：下架/隐藏对任意状态可用；旧「下线（→ARCHIVED 结束公示）」动作移除——公示期满自动显示已下线
+    const target = Array.from(selectedIds);
+    if (action !== 'publish' && !(await confirm({ message: action === 'offline'
+      ? `确认下架选中的 ${target.length} 条信息？下架后进入回收站且不可恢复。`
+      : `确认隐藏选中的 ${target.length} 条信息？操作后进入回收站，可在回收站中恢复。`, danger: action === 'offline' }))) return;
     clearSelection();
     const results = await Promise.allSettled(target.map(id =>
       action === 'hide' ? hideAnnouncement(id)
       : action === 'offline' ? offlineAnnouncement(id)
-      : updateAnnouncement(id, { status: action === 'publish' ? 'PUBLISHED' : 'ARCHIVED' })
+      : updateAnnouncement(id, { status: 'PUBLISHED' })
     ));
     const ok = results.filter(r => r.status === 'fulfilled').length;
     const fail = results.length - ok;
@@ -183,8 +183,9 @@ export default function NoticePage() {
   };
 
   const takeOffline = async (a: AnnouncementListItem) => {
-    if (!(await confirm({ message: `确认下架「${a.title}」？下架后公开门户不再可见，进入回收站，可在回收站中恢复。` }))) return;
-    try { await offlineAnnouncement(a.id); toast.success(`已下架「${a.title}」，可在回收站中恢复`); load(); }
+    // v2 拍板：下架任意状态可用、进回收站「已下架」节、不可恢复（终态）
+    if (!(await confirm({ message: `确认下架「${a.title}」？下架后公开门户不再可见，进入回收站且不可恢复。`, danger: true }))) return;
+    try { await offlineAnnouncement(a.id); toast.success(`已下架「${a.title}」（不可恢复）`); load(); }
     catch (e: any) { toast.error(e?.message || '下架失败'); }
   };
 
@@ -287,7 +288,7 @@ export default function NoticePage() {
           <option value="">全部状态</option>
           <option value="PUBLISHED">已发布</option>
           <option value="DRAFT">草稿</option>
-          <option value="ARCHIVED">已公示</option>
+          <option value="ARCHIVED">已下线</option>
         </select>
       </div>
 
@@ -298,7 +299,6 @@ export default function NoticePage() {
             <span className="neu-batch-bar-count">已选 <strong>{selectedCount}</strong> 条</span>
             <div className="neu-batch-bar-spacer" />
             <button onClick={() => runBatch('publish')} className="neu-btn-xs is-success"><Send size={13} /> 发布</button>
-            <button onClick={() => runBatch('archive')} className="neu-btn-xs is-warning"><Archive size={13} /> 下线</button>
             <button onClick={() => runBatch('offline')} className="neu-btn-xs is-warning"><PackageX size={13} /> 下架</button>
             <button onClick={() => runBatch('hide')} className="neu-btn-xs is-danger"><EyeOff size={13} /> 隐藏</button>
             <button onClick={clearSelection} className="neu-btn-xs"><X size={13} /> 取消选择</button>
@@ -391,9 +391,7 @@ export default function NoticePage() {
                       <div className="flex flex-wrap justify-center gap-1.5">
                         {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标情况</button>}
                         <button onClick={() => setHistoryAnnId(a.id)} className="neu-btn-xs"><HistoryIcon size={12} /> 历史</button>
-                        {a.status === 'PUBLISHED' && (
-                          <button onClick={() => takeOffline(a)} className="neu-btn-xs is-warning"><PackageX size={12} /> 下架</button>
-                        )}
+                        <button onClick={() => takeOffline(a)} className="neu-btn-xs is-warning"><PackageX size={12} /> 下架</button>
                         <button onClick={() => hideRow(a)} className="neu-btn-xs is-danger"><EyeOff size={12} /> 隐藏</button>
                       </div>
                     </td>
