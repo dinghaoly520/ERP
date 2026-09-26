@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2, RefreshCw, CalendarDays, Lock, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2, RefreshCw, CalendarDays, Lock, Search, ChevronLeft, ChevronRight, EyeOff, PackageX, RotateCcw } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import {
   fetchAnnouncementHistory,
@@ -17,6 +17,9 @@ const ACTION_META: Record<AnnouncementHistoryAction, { label: string; icon: type
   UNPUBLISH: { label: "撤回", icon: Undo2, cls: "text-[rgba(176,134,55,0.96)] bg-[rgba(233,194,111,0.14)]" },
   ARCHIVE: { label: "归档", icon: Archive, cls: "text-[var(--muted-foreground)] bg-[var(--muted)]/60" },
   DELETE: { label: "删除", icon: Trash2, cls: "text-[var(--danger)] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)]" },
+  HIDE: { label: "隐藏", icon: EyeOff, cls: "text-[var(--danger)] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)]" },
+  OFFLINE: { label: "下架", icon: PackageX, cls: "text-[rgba(176,134,55,0.96)] bg-[rgba(233,194,111,0.14)]" },
+  RESTORE: { label: "恢复", icon: RotateCcw, cls: "text-[rgba(42,140,110,0.92)] bg-[rgba(92,181,150,0.12)]" },
 };
 
 const FIELD_LABELS: Record<string, string> = {
