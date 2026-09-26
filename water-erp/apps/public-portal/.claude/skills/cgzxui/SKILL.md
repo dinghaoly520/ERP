@@ -336,7 +336,7 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 规格要点（照抄，勿偏离——全部实测校准过）：
 
 - **图标**：`.pm-help-dot` 14×14px 圆、1px 描边 + 顶缘内高光 + 微外影；**必须半角 `?`**（全角？墨迹在字身框内偏移，视觉不居中）+ `font-size: 9px; font-weight: 800; line-height: 1`——墨迹中心与圆心偏差 0px、占内径 48%。
-- **气泡**：`.pm-help-tip` 定位 `left:0; top:calc(100%+6px)`（**左对齐图标向下弹**，居中弹在面板左缘会越界裁切）；宽 14rem、`wb-modal-shell` 同款渐变底 + 方向性双影、11px 正文。
+- **气泡**：`.pm-help-tip` 定位 `left:0; top:calc(100%+6px)`（**左对齐图标向下弹**，居中弹在面板左缘会越界裁切）；宽 14rem、方向性双影、11px 正文；**底色近实底** `linear-gradient(170deg, oklch(1 0 0/0.99), oklch(0.985 0.004 258/0.97))`——**勿抄 wb-modal-shell 的 0.72 尾端**（小文字气泡下背景字会透出；气泡靠双影分层，不靠透明度）。
 - **显隐**：纯 CSS——`.pm-help-anchor:hover .pm-help-tip, .pm-help-anchor:focus-within .pm-help-tip`（hover + 键盘/触屏 focus 双通道，anchor `tabIndex=0`）；默认 `opacity:0 + translateY(-2px)`，0.15s 淡入上浮。
 - **可达性**：dot `role="img"` + `aria-label`，tip `role="tooltip"`。
 - **reduced-motion**：transition 降级瞬时（铁律）。
