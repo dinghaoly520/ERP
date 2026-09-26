@@ -353,7 +353,9 @@ export function ProjectStageTimeline({
                             {entry.statusLabel}
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-1.5">
+                        {/* items-stretch（2026-09-26 用户裁定）：列内操作按钮等宽（如 03 卡「采购文件编写/评分标准」），
+                            按钮自身 justify-content:center → 文字居中；单按钮卡无副作用（容器宽=内容宽） */}
+                        <div className="flex flex-col items-stretch gap-1.5">
                           {/* 步骤操作按钮仅对"进行中"步骤开放（2026-09-09 拍板）——
                               仅选中/聚焦（activeStageKey）不再显示按钮；选中卡只切换右侧详情面板 */}
                           {actionLabel && onStageAction && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
