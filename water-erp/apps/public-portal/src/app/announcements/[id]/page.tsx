@@ -18,16 +18,18 @@ export default function AnnouncementDetailPage() {
   const backLabel = fromHome ? '返回首页' : '返回信息公告';
   const [item, setItem] = useState<AnnouncementItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetchPublicAnnouncement(id)
       .then(data => { if (!cancelled) setItem(data); })
-      .catch(() => {
-        // Fallback to local data
+      .catch((e) => {
+        // Fallback to local data；无本地兜底时透出后端业务文案（如「该公告已下线」）
         if (!cancelled) {
           const found = ANNOUNCEMENTS.find(a => a.id === id) || null;
           setItem(found);
+          if (!found) setErrMsg(e instanceof Error ? e.message : '公告加载失败');
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -43,8 +45,8 @@ export default function AnnouncementDetailPage() {
 
   if (!item) return (
     <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
-      <div className="text-5xl">📢</div>
-      <p className="text-[#5a6d8a] font-semibold">未找到该公告</p>
+      <div className="text-5xl">{errMsg?.includes('已下线') ? '📩' : '📢'}</div>
+      <p className="text-[#5a6d8a] font-semibold">{errMsg ?? '未找到该公告'}</p>
       <button onClick={() => router.push('/announcements')}
         className="neu-btn-primary">
         返回公告列表

@@ -18,6 +18,8 @@ export interface AnnouncementItem {
   content: string;
   aiSummary?: string;
   metadata?: Record<string, any>;
+  /** 已下线标题壳（2026-09-26 v2）：公示期满/存量下线——仅标题可见，不可点开看内容 */
+  titleOnly?: boolean;
 }
 
 /* ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）── */
@@ -111,9 +113,10 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     code: a.relatedProjectCode || '',
     deadlineLabel: a.type === 'WIN_NOTICE' || a.type === 'PRE_WIN_NOTICE' ? '公示截止' : '报名截止',
     deadline: '',
-    content: a.content || '',
-    aiSummary: a.aiSummary || undefined,
+    content: a.titleOnly ? '' : (a.content || ''),
+    aiSummary: a.titleOnly ? undefined : (a.aiSummary || undefined),
     metadata: a.metadata || {},
+    titleOnly: a.titleOnly === true,
   };
 }
 
@@ -142,7 +145,12 @@ export async function fetchPublicAnnouncements(params?: {
 /* ── API 获取公告详情 ── */
 export async function fetchPublicAnnouncement(id: string): Promise<AnnouncementItem> {
   const res = await fetch(`/api/announcements/public/${id}`);
-  if (!res.ok) throw new Error(`公告加载失败 (${res.status})`);
+  if (!res.ok) {
+    // 透传后端业务文案（如「该公告已下线」），无 body 再回落通用文案
+    let msg = `公告加载失败 (${res.status})`;
+    try { const b = await res.json(); if (b?.error) msg = b.error; } catch { /* keep */ }
+    throw new Error(msg);
+  }
   const data = await res.json();
   return toAnnouncementItem(data);
 }

@@ -171,7 +171,9 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   // 按固定 tab 分组：全部=合并全部类型按日期倒序；中标=中标公告+预成交公示合并；
   // 空类型保留 tab（items 为空时内容区显示空态）——只展示数据库真实数据，不使用本地兜底
   const announceData = useMemo(() => HOME_ANNOUNCE_TABS.map(tab => {
-    const src = tab.types ? fetchedAnnouncements.filter(a => tab.types!.includes(a.type)) : fetchedAnnouncements;
+    // v2（2026-09-26）：已下线标题壳不进首页轮播/侧栏（完整清单在「全部公告」页留标题）——
+    const src = (tab.types ? fetchedAnnouncements.filter(a => tab.types!.includes(a.type)) : fetchedAnnouncements)
+      .filter(a => !a.titleOnly);
     const items = [...src].sort((a, b) => (a.date < b.date ? 1 : -1))
       .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel }));
     return {
