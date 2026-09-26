@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  getAnnouncement, updateAnnouncement, deleteAnnouncement,
+  getAnnouncement, updateAnnouncement, hideAnnouncement,
   listAttachments, addAttachment, removeAttachment, uploadFile,
   getBidDocument, uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument,
   generateSummary, confirmWinnerNotice, getParticipants,
@@ -14,7 +14,7 @@ import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ArrowLeft, Pencil, X, Trash2, Megaphone, Upload, Sparkles } from 'lucide-react';
+import { ArrowLeft, Pencil, X, EyeOff, Megaphone, Upload, Sparkles } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
@@ -27,10 +27,10 @@ const typeLabel: Record<AnnouncementType, string> = {
   BID_NOTICE: '采购公告', ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '中标公示', WIN_NOTICE: '成交公告', CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知', FAILED_BID_NOTICE: '流标公告', WIN_BID_NOTICE: '中标公告',
 };
 const statusTone: Record<AnnouncementStatus, 'green' | 'gray'> = {
-  DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray',
+  DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray', HIDDEN: 'gray', OFFLINE: 'gray',
 };
 const statusLabel: Record<AnnouncementStatus, string> = {
-  DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已归档',
+  DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已归档', HIDDEN: '已隐藏', OFFLINE: '已下架',
 };
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
@@ -103,11 +103,11 @@ export default function NoticeDetailPage() {
       <div className="h-64 w-full animate-pulse rounded-[20px] bg-[var(--muted)]" />
     </div>
   );
-  const handleDelete = async () => {
-    if (!ann || !(await confirm({ message: `确认删除「${ann.title}」？`, danger: true }))) return;
-    deleteAnnouncement(ann.id)
-      .then(() => { toast.success("已删除"); router.push("/notice"); })
-      .catch((e: any) => toast.error(e?.message || "删除失败"));
+  const handleHide = async () => {
+    if (!ann || !(await confirm({ message: `确认隐藏「${ann.title}」？隐藏后进入回收站，可在公告发布中心右上角回收站中恢复。` }))) return;
+    hideAnnouncement(ann.id)
+      .then(() => { toast.success("已隐藏，可在回收站中恢复"); router.push("/notice"); })
+      .catch((e: any) => toast.error(e?.message || "隐藏失败"));
   };
 
   if (!ann) return (
@@ -166,8 +166,15 @@ export default function NoticeDetailPage() {
               {ann.type === 'PRE_WIN_NOTICE' && ann.status === 'PUBLISHED' && <ConfirmWinnerButton ann={ann} />}
               {!editing ? (
                 <>
-                  <button onClick={() => setEditing(true)} className="neu-btn-soft"><Pencil size={14} /> 编辑</button>
-                  <button onClick={handleDelete} className="neu-btn-soft is-danger"><Trash2 size={14} /> 删除</button>
+                  {/* 回收态（HIDDEN/OFFLINE）只读：编辑隐藏、禁用隐藏按钮——恢复只走回收站，避免编辑态状态下拉绕过体系 */}
+                  {ann.status !== 'HIDDEN' && ann.status !== 'OFFLINE' && (
+                    <button onClick={() => setEditing(true)} className="neu-btn-soft"><Pencil size={14} /> 编辑</button>
+                  )}
+                  <button
+                    onClick={handleHide}
+                    className="neu-btn-soft is-danger"
+                    disabled={ann.status === 'HIDDEN' || ann.status === 'OFFLINE'}
+                  ><EyeOff size={14} /> 隐藏</button>
                 </>
               ) : (
                 <button onClick={() => setEditing(false)} className="neu-btn-soft"><X size={14} /> 取消编辑</button>
