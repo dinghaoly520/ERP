@@ -236,7 +236,7 @@ export function EvaluationBasisFields({
             评标办法
             {!softLocked && EVAL_METHOD_NOTES[evaluationMethod] && (
               <span className="pm-help-anchor" tabIndex={0}>
-                <span className="pm-help-dot" aria-label="评标办法说明" role="img">？</span>
+                <span className="pm-help-dot" aria-label="评标办法说明" role="img">?</span>
                 <span className="pm-help-tip" role="tooltip">{EVAL_METHOD_NOTES[evaluationMethod]}</span>
               </span>
             )}
@@ -257,7 +257,7 @@ export function EvaluationBasisFields({
               价格分计算方式
               {(() => { const cur = PRICE_CALC_OPTIONS.find(o => o.value === formulaCalc); return cur ? (
                 <span className="pm-help-anchor" tabIndex={0}>
-                  <span className="pm-help-dot" aria-label="价格分计算方式说明" role="img">？</span>
+                  <span className="pm-help-dot" aria-label="价格分计算方式说明" role="img">?</span>
                   <span className="pm-help-tip" role="tooltip">{cur.hint}</span>
                 </span>
               ) : null; })()}
@@ -315,7 +315,7 @@ export function EvaluationBasisFields({
         <span className="flex items-center gap-1.5 text-xs font-semibold leading-5 text-[var(--foreground)]">
           评分去极值
           <span className="pm-help-anchor" tabIndex={0}>
-            <span className="pm-help-dot" aria-label="评分去极值说明" role="img">？</span>
+            <span className="pm-help-dot" aria-label="评分去极值说明" role="img">?</span>
             <span className="pm-help-tip" role="tooltip">
               ≥5 位专家时去掉 1 个最高分、1 个最低分后取平均（评标实务惯例）；关闭后全额均分
             </span>

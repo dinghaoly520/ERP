@@ -2932,8 +2932,9 @@ a {
   width: 14px;
   height: 14px;
   border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
+  /* 半角 ? + 9px（2026-09-26 修正）：全角？墨迹在字身框内偏移致视觉不居中且显大 */
+  font-size: 9px;
+  font-weight: 800;
   line-height: 1;
   color: var(--muted-foreground);
   background: oklch(0.99 0.004 258);
