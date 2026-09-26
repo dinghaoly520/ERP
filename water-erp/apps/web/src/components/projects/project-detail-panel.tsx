@@ -2275,6 +2275,11 @@ export function ProjectDetailPanel({
           z-[500] overlay——内部 workbench Modal z-[600] 盖过；任何阶段可开，锁定态由子块自理） */}
       {scorePanelRound != null && (() => {
         const panelRef = bpRefs.find((r) => r.round === scorePanelRound) ?? null;
+        // 价格类评分项数（供公式区「暂不参与计分」提示；数据未就绪=undefined 不提示）
+        const panelScoreItems = panelRef ? bpScoreItems[panelRef.id] : undefined;
+        const priceItemCount = panelScoreItems
+          ? panelScoreItems.filter((it) => it.category === 'PRICE').length
+          : undefined;
         return (
           <div className="fixed inset-0 z-[500] flex flex-col">
             <div className="absolute inset-0 wb-overlay-backdrop" onClick={() => setScorePanelRound(null)} />
@@ -2293,6 +2298,7 @@ export function ProjectDetailPanel({
                   round={scorePanelRound}
                   bidProject={panelRef ? { ...panelRef, publishTime: null } : null}
                   detail={panelRef ? (bpDetails[panelRef.id] ?? null) : null}
+                  priceItemCount={priceItemCount}
                   onChanged={() => setBpDataTick((t) => t + 1)}
                 />
               </div>

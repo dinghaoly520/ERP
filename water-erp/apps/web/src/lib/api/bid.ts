@@ -475,7 +475,7 @@ export function getAwardLetterStatus(bidProjectId: string) {
 /** P1: 设置价格分公式配置 */
 export function updatePriceConfig(
   bidProjectId: string,
-  data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> },
+  data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null },
 ) {
   return api.patch(`/bid/projects/${bidProjectId}/price-config`, data);
 }
