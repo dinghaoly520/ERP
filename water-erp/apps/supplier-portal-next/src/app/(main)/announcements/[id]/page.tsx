@@ -80,6 +80,7 @@ export default function AnnouncementDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<any>(null);
 
   const [bidDoc, setBidDoc] = useState<any>(null);
@@ -106,6 +107,7 @@ export default function AnnouncementDetailPage() {
     if (!id) return;
     setLoading(true);
     setError(false);
+    setErrMsg(null);
     try {
       const a = await announcementApi.getPublic(id);
       setAnnouncement(a);
@@ -118,8 +120,10 @@ export default function AnnouncementDetailPage() {
         }
         setBidDocLoading(false);
       }
-    } catch {
+    } catch (e: any) {
       setError(true);
+      // v2（2026-09-26）：透出后端业务文案（如「该公告已下线」）
+      setErrMsg(typeof e?.message === 'string' && e.message ? e.message : null);
     } finally {
       setLoading(false);
     }
@@ -180,8 +184,8 @@ export default function AnnouncementDetailPage() {
       {error ? (
         <div className="sp-error-block">
           <div className="sp-error-icon"><TriangleAlert size={22} strokeWidth={1.75} /></div>
-          <div className="sp-error-text">数据加载失败</div>
-          <div className="sp-error-desc">网络或服务异常，请稍后重试</div>
+          <div className="sp-error-text">{errMsg ?? "数据加载失败"}</div>
+          <div className="sp-error-desc">{errMsg ? "该公告当前无法查看" : "网络或服务异常，请稍后重试"}</div>
           <SpButton variant="primary" onClick={load}>重新加载</SpButton>
         </div>
       ) : loading && !announcement ? (

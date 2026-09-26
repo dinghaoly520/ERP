@@ -60,6 +60,8 @@ interface AnnouncementListItem {
   isTop?: boolean;
   publishDate?: string | null;
   createdAt: string;
+  /** 已下线标题壳（2026-09-26 v2）：仅标题可见，不可点开看内容 */
+  titleOnly?: boolean;
 }
 
 interface AnnouncementListResponse {
@@ -207,7 +209,23 @@ export default function AnnouncementListPage() {
         <LoadingBlock />
       ) : items.length > 0 ? (
         <div className="announcement-list">
-          {items.map((a) => (
+          {items.map((a) => a.titleOnly ? (
+            /* 已下线标题壳（v2 2026-09-26）：只留标题，灰态不可点，内容不可查看 */
+            <div key={a.id} className="announcement-row" aria-disabled="true" title="该公告已下线" style={{ cursor: 'default', opacity: 0.62 }}>
+              <div className="ann-row-left">
+                <span className={`ann-tag ann-tag--sm ann-tag--${typeTagMap[a.type]?.type || "info"}`}>
+                  {typeTagMap[a.type]?.label || a.type}
+                </span>
+                <div className="ann-row-body">
+                  <span className="ann-row-title">{a.title}</span>
+                </div>
+              </div>
+              <div className="ann-row-right">
+                <span className="top-badge" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>已下线</span>
+                <span className="ann-row-date">{dayjs(a.publishDate || a.createdAt).format("YYYY-MM-DD")}</span>
+              </div>
+            </div>
+          ) : (
             <Link
               key={a.id}
               href={`/announcements/${encodeURIComponent(a.id)}`}
