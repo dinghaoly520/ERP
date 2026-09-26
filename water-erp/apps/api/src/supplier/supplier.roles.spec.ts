@@ -13,7 +13,7 @@ describe('SupplierController — 注册审批/邀请码仅 admin', () => {
   const reflector = new Reflector();
   const roles = (method: keyof SupplierController) =>
     reflector.getAllAndOverride<string[]>(ROLES_KEY, [
-      SupplierController.prototype[method] as unknown as Function,
+      SupplierController.prototype[method] as never,
       SupplierController,
     ]);
 
