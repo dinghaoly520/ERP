@@ -3,7 +3,8 @@
 /**
  * 嵌入式文件预览面板（2026-09-26 从 stage-file-list FilePreviewModal 抽出）：
  * docx 高保真渲染（docx-preview）+ PDF iframe + 图片 + 其他类型占位。
- * 撑满父容器（h-full），供全屏预览 Modal 与「03 完成向导」左栏共用。
+ * 撑满父容器（h-full），供全屏预览 Modal、「03 完成向导」左栏与「04 公告预览确认」共用；
+ * urlOverride 可预览尚未落库的文件（如向导内生成的公告 docx blob 的 object URL）。
  */
 import { FileText, Loader2, ZoomIn, ZoomOut, File as FileIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -29,12 +30,15 @@ export function getFileKind(fileName: string): 'docx' | 'pdf' | 'image' | 'other
 export function FilePreviewPane({
   projectId,
   file,
+  urlOverride,
 }: {
   projectId: string;
   file: ProjectManagementAttachment;
+  /** 覆盖取件 URL（blob: 等）——传入则不再按 attachmentId/objectKey 取件 */
+  urlOverride?: string;
 }) {
   const kind = getFileKind(file.fileName);
-  const fileUrl = attachmentFileUrl(projectId, file);
+  const fileUrl = urlOverride ?? attachmentFileUrl(projectId, file);
 
   // DOCX 高保真渲染（docx-preview：保留字体/字号/颜色/对齐/表格/分页）
   const docxContainerRef = useRef<HTMLDivElement | null>(null);
@@ -44,7 +48,7 @@ export function FilePreviewPane({
 
   useEffect(() => {
     if (kind !== 'docx') return;
-    if (!file.id) { setLoadError('缺少附件 ID'); return; }
+    if (!urlOverride && !file.id) { setLoadError('缺少附件 ID'); return; }
     let cancelled = false;
     setLoading(true);
     setLoadError('');
@@ -90,7 +94,7 @@ export function FilePreviewPane({
       }
     })();
     return () => { cancelled = true; };
-  }, [kind, fileUrl, file.id]);
+  }, [kind, fileUrl, file.id, urlOverride]);
 
   const zoomStep = (d: number) => setZoom(z => Math.min(2, Math.max(0.5, Math.round((z + d) * 100) / 100)));
 

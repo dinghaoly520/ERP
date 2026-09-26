@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload,
+  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload, Eye, FileText,
 } from 'lucide-react';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import {
@@ -55,6 +55,7 @@ import type {
   ProjectManagementItem,
   ProjectManagementAttachment,
 } from '@/lib/types/project-management';
+import { FilePreviewPane } from './file-preview-pane';
 
 type Props = {
   isOpen: boolean;
@@ -236,7 +237,7 @@ function saveWizardState(projectId: string, category: string, state: Record<stri
 
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(true);
 
   // Step 1 → Step 2 handoff
@@ -272,10 +273,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // 采购文件下载方式：免费 / 解密密码 / 付费（占位）
   const [downloadMode, setDownloadMode] = useState<'free'>('free');
   const [attachOn, setAttachOn] = useState(false);
-  const [tenderOn, setTenderOn] = useState(false);
-  // 多份采购文件时，公告引用哪一份（objectKey 唯一标识）；单份默认选它
-  const [selectedTenderObjectKey, setSelectedTenderObjectKey] = useState<string>('');
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
+  // Step 3 预览确认（2026-09-26「预览并发布」）：预览时生成的公告 docx——
+  // blob URL 交 FilePreviewPane 高保真渲染，确认发布时复用同一份产物（预览即所得）
+  const [preview, setPreview] = useState<{ url: string; blob: Blob; fileName: string; textContent: string } | null>(null);
   // 异议联系方式（2026-09-11，取代原「法定时限」勾选——集团采购基本非依法必招，勾选无实际意义）：
   // 打开向导时从澄清说明配置读取，发布时快照写入公告 metadata，信息门户详情页单独展示
   const [objectionContact, setObjectionContact] = useState('');
@@ -315,10 +316,28 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     return map[category ?? 'procurement_document'] ?? on;
   }, [category]);
 
-  const tenderFiles = useMemo<ProjectManagementAttachment[]>(
-    () => project?.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT')?.attachments ?? [],
+  // 03 步骤（按当前轮次；无轮次行兜底第一条防旧数据断链）——第四步引用采购文件的
+  // 唯一合法来源是正式盖章版指针（2026-09-26 用户裁定：有指针→强制引用该文件；
+  // 无指针（未标记/历史项目）→ 不引用、照常发布，同样由用户裁定）
+  const tenderStage = useMemo(
+    () => project?.stages.find(
+        (s) => s.stageKey === 'TENDER_DOCUMENT' && (s.round ?? 1) === (project?.currentRound ?? 1),
+      ) ?? project?.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT'),
     [project],
   );
+  const officialTender = useMemo<ProjectManagementAttachment | null>(
+    () => (tenderStage?.officialTenderAttachmentId
+      ? tenderStage.attachments.find((a) => a.id === tenderStage.officialTenderAttachmentId) ?? null
+      : null),
+    [tenderStage],
+  );
+
+  // 预览 blob URL 生命周期：换新预览 / 关闭向导（preview 置空）/ 卸载时自动回收
+  useEffect(() => {
+    const url = preview?.url;
+    if (!url) return;
+    return () => URL.revokeObjectURL(url);
+  }, [preview?.url]);
 
   // 打开时：确定 tenderType + 构造预填 draft + 解析 .docx
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时重置表单值，符合模态惯例 */
@@ -332,8 +351,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setStep(1);
     setAnnId(null);
     setAttachOn(false);
-    setTenderOn(false);
     setNotifyOnPublish(true);
+    setPreview(null);
     setVisibility('PUBLIC');
     setRestrictedSupplierIds([]);
     setShowSupplierPicker(false);
@@ -369,8 +388,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       setBidSubmissionDeadline(cachedWiz.bidSubmissionDeadline ?? '');
       setDownloadMode('free');
       setAttachOn(cachedWiz.attachOn ?? false);
-      setTenderOn(cachedWiz.tenderOn ?? tenderFiles.length > 0);
-      setSelectedTenderObjectKey(cachedWiz.selectedTenderObjectKey ?? tenderFiles[0]?.objectKey ?? '');
       setNotifyOnPublish(cachedWiz.notifyOnPublish ?? true);
       setSunshineOn(cachedWiz.sunshineOn ?? false);
       setSunshineConfig(cachedWiz.sunshineConfig ?? null);
@@ -506,10 +523,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）
     saveWizardState(project.id, procCat, { step: 1, draft: filledDraft as Record<string, string> });
 
-    // ★ 默认引用采购文件（多份时默认选第一份）
-    // 引用采购文件仅采购公告默认开启；中标/流标公告不挂采购文件（开关也已隐藏，防状态残留导致后端自动生成 BidDocument）
-    setTenderOn(initialCategory === 'procurement_document' && tenderFiles.length > 0);
-    setSelectedTenderObjectKey(tenderFiles[0]?.objectKey ?? '');
+    // ★ 引用采购文件（2026-09-26 起不再走开关/多选）：采购公告固定引用 03 步标记的
+    // 正式盖章版（officialTender 派生值，见 memo）；中标/流标公告不挂采购文件
     // 默认截止时间：优先取公示期限（止）→ 兜底按采购方式给默认
     const isQuickDeadlineCategory = project.procurementMethod === '询比采购' || project.procurementMethod === '竞价采购';
     const inheritEnd = (filledDraft as Record<string, string>).announcementEnd ?? '';
@@ -782,6 +797,44 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
   };
 
+  /** 「预览并发布」：先过发布前校验，再生成公告 docx 进入第三步预览确认（核对版式与文字） */
+  const handlePreview = async () => {
+    if (!draft || !category || !tenderType) {
+      toast.error('请先完成公告制作');
+      return;
+    }
+    if (publishTiming === 'scheduled' && !scheduledDate) {
+      toast.error('请选择定时发布时间');
+      return;
+    }
+    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
+      toast.error('公告制作中未填写公示期限（止），请返回填写');
+      return;
+    }
+    if (visibility === 'RESTRICTED' && restrictedSupplierIds.length === 0) {
+      toast.error('请至少选择一家可见供应商');
+      return;
+    }
+    setBusy(true);
+    try {
+      // 与 handlePublish 同口径合并公示期限（止）——预览所见即发布所得
+      const effectiveAnnouncementEnd = announcementEndDate || ((draft as Record<string, string>).announcementEnd ?? '');
+      const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
+      const built = await buildAnnouncement({
+        tenderType,
+        category,
+        draft: finalDraft,
+        projectCode: project?.projectCode || undefined,
+      });
+      setPreview({ ...built, url: URL.createObjectURL(built.blob) });
+      setStep(3);
+    } catch (e) {
+      toast.error((e as Error).message || '生成公告预览失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handlePublish = async () => {
     if (!draft || !category || !tenderType) {
       toast.error('请先完成公告制作');
@@ -828,7 +881,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 此前裸用状态会把公告制作里已填的正确日期覆盖成空 → docx 渲染成「请填写公示期限（止）」
       const effectiveAnnouncementEnd = announcementEndDate || ((draft as Record<string, string>).announcementEnd ?? '');
       const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
-      const { blob, fileName, textContent } = await buildAnnouncement({
+      // 复用「预览并发布」生成的 docx（同一 draft 构建，预览即所得）；直接调用兜底重建
+      const { blob, fileName, textContent } = preview ?? await buildAnnouncement({
         tenderType,
         category,
         draft: finalDraft,
@@ -878,14 +932,13 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
       // 异议联系方式快照（2026-09-11）：随公告冻结在 metadata，详情页单独展示（澄清说明后续修改不影响已发公告）
       if (objectionContact.trim()) meta.objectionContact = objectionContact;
-      if (tenderOn && selectedTenderObjectKey) {
-        meta.selectedTenderObjectKey = selectedTenderObjectKey;
-        const tenderFile = tenderFiles.find((f) => f.objectKey === selectedTenderObjectKey) ?? tenderFiles[0];
+      // 引用采购文件（2026-09-26 用户裁定）：采购公告强制引用 03 步标记的正式盖章版文件；
+      // 无指针（未标记/历史项目）→ 不引用、照常发布
+      if (category === 'procurement_document' && officialTender) {
+        meta.selectedTenderObjectKey = officialTender.objectKey;
         // P1b：后端据此自动生成加密 BidDocument（附文件名/MIME，docx 会转 PDF）
-        if (tenderFile) {
-          meta.selectedTenderFileName = tenderFile.fileName;
-          meta.selectedTenderMimeType = tenderFile.mimeType;
-        }
+        meta.selectedTenderFileName = officialTender.fileName;
+        meta.selectedTenderMimeType = officialTender.mimeType;
       }
       // 投递截止（bid deadline）—— 由当前开标时间直接推导（开标前 DEADLINE_HOURS_BEFORE_OPENING 小时），
       // 与关键时间卡展示口径一致；无开标时间时兜底 init 时算的值，再兜底公告截止。
@@ -906,7 +959,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         if (effectiveAnnouncementEnd) meta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
       }
       // 下载方式已删除（统一免费下载）——保留 'free' 写入以兼容旧元数据消费方
-      if (tenderOn) {
+      if (category === 'procurement_document' && officialTender) {
         meta.downloadMode = 'free';
       }
       // 中标公告：公示期/异议受理写入 metadata（详情页公示期与异议渠道芯片消费）；
@@ -1021,8 +1074,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
   if (!isOpen || !project) return null;
 
-  const tenderAvailable = tenderFiles.length > 0;
-
   return (
     <div className="fixed inset-0 z-[500] flex flex-col">
       <div
@@ -1061,7 +1112,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 公告制作与发布
               </div>
               <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-                Step {step}/2 · {project.title}
+                Step {step}/3 · {project.title}
               </div>
             </div>
           </div>
@@ -1082,6 +1133,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               ].join(' ')}
             >
               ○ 发布配置
+            </span>
+            <span className="text-[var(--muted-foreground)]">→</span>
+            <span
+              className={[
+                'text-xs font-semibold',
+                step === 3 ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)]',
+              ].join(' ')}
+            >
+              ○ 预览确认
             </span>
             <button type="button" onClick={onClose} className="neu-btn-soft !p-2">
               <X size={16} />
@@ -1142,13 +1202,117 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               onDraftChange={handleDraftChange}
               project={project}
             />
+          ) : step === 3 ? (
+            /* Step 3: 预览确认（2026-09-26「预览并发布」三步向导）——左公告版式预览，
+               右配置摘要 + 引用的正式盖章版采购文件预览；确认发布复用预览产物 */
+            preview ? (() => {
+              const dr = (draft ?? {}) as Record<string, string>;
+              const pubStart = dr.announcementStart || '';
+              const pubEnd = announcementEndDate || dr.announcementEnd || '';
+              const summaryRows: Array<[string, string]> = [
+                ['公告范围', visibility === 'PUBLIC' ? '全部可见' : `部分供应商可见（${restrictedSupplierIds.length} 家）`],
+                ['发布时间', publishTiming === 'now' ? '确认后立即发布' : `定时 ${formatDateTimeDisplay(scheduledDate)}`],
+              ];
+              if (pubStart || pubEnd) {
+                summaryRows.push(['公示期限', `${formatDateTimeDisplay(pubStart)} 至 ${formatDateTimeDisplay(pubEnd)}`]);
+              }
+              if (category === 'procurement_document') {
+                summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
+              }
+              summaryRows.push(['公告附件', pendingFiles.length > 0 ? `${pendingFiles.length} 份` : '无']);
+              summaryRows.push(['发布后通知', notifyOnPublish ? '发送站内通知' : '不发送']);
+              return (
+                <div className="flex h-full min-h-[60vh] flex-col gap-4 lg:flex-row">
+                  {/* 左：公告 docx 版式预览（发布后所见即此版式） */}
+                  <div
+                    className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px]"
+                    style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 3px 12px oklch(0.46 0.07 258 / 0.14)' }}
+                  >
+                    <div className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-xs" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+                      <FileText size={13} className="shrink-0 text-[var(--accent)]" />
+                      <span className="truncate font-semibold text-[var(--foreground)]" title={preview.fileName}>
+                        {preview.fileName}
+                      </span>
+                      <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]">
+                        公告版式预览
+                      </span>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                      <FilePreviewPane
+                        projectId={project.id}
+                        file={{
+                          fileName: preview.fileName,
+                          objectKey: `preview:${preview.fileName}`,
+                          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                          fileSize: preview.blob.size,
+                        }}
+                        urlOverride={preview.url}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 右：发布配置摘要 + 引用的正式盖章版采购文件预览 */}
+                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pl-1">
+                    <div
+                      className="rounded-[16px] p-4"
+                      style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}
+                    >
+                      <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">发布配置摘要</div>
+                      <div className="mt-2.5 space-y-1.5">
+                        {summaryRows.map(([k, v]) => (
+                          <div key={k} className="flex items-baseline gap-3 text-xs">
+                            <span className="w-20 shrink-0 text-[10px] font-bold text-[var(--muted-foreground)]">{k}</span>
+                            <span className="min-w-0 flex-1 break-all font-semibold text-[var(--foreground)]">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                        请核对左侧公告版式与文字；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
+                      </p>
+                    </div>
+
+                    {category === 'procurement_document' && (
+                      <div
+                        className="flex min-h-[320px] flex-1 flex-col overflow-hidden rounded-[16px]"
+                        style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 3px 12px oklch(0.46 0.07 258 / 0.14)' }}
+                      >
+                        <div className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-xs" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+                          <FileText size={13} className="shrink-0 text-[var(--accent)]" />
+                          <span className="truncate font-semibold text-[var(--foreground)]" title={officialTender?.fileName}>
+                            {officialTender?.fileName ?? '引用采购文件'}
+                          </span>
+                          {officialTender && (
+                            <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">
+                              正式盖章版
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-h-0 flex-1">
+                          {officialTender ? (
+                            <FilePreviewPane projectId={project.id} file={officialTender} />
+                          ) : (
+                            <div className="flex h-full items-center justify-center px-6 text-center text-xs leading-relaxed text-[var(--muted-foreground)]">
+                              03「采购文件」步骤未标记正式盖章版——本公告不引用采购文件。
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">
+                正在生成公告预览…
+              </div>
+            )
           ) : (
             /* Step 2: Publish Config */
             <div className="space-y-5">
               <h2 className="text-sm font-bold text-[var(--foreground)] flex items-center gap-2">
                 <Send size={14} className="text-[var(--accent)]" /> 发布配置
               </h2>
-              <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">以下配置已根据项目采购方式智能填入，可直接点击底部「立即发布」；如需调整，修改后发布。</p>
+              <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">以下配置已根据项目采购方式智能填入，可直接点击底部「预览并发布」进入版式核对；如需调整，修改后再预览。</p>
 
               {/* 公告范围 + 发布时间 — 同一行 */}
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -1378,23 +1542,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         />
                         添加附件
                       </label>
-                      {category !== 'winning_bid' && (
-                      <label
-                        className={[
-                          'flex items-center gap-2 text-sm',
-                          tenderAvailable ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed',
-                        ].join(' ')}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={tenderOn && tenderAvailable}
-                          disabled={!tenderAvailable}
-                          onChange={(e) => setTenderOn(e.target.checked)}
-                          className="accent-[var(--accent)]"
-                        />
-                        引用采购文件{tenderAvailable ? ` · ${tenderFiles.length} 份` : ''}
-                      </label>
-                      )}
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                           type="checkbox"
@@ -1407,26 +1554,35 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     </div>
                   </div>
 
-                  {/* 采购文件选择 —— 多份时让用户指定公告引用哪一份 */}
-                  {tenderOn && tenderFiles.length > 1 && (
-                    <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                      <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-                        选择引用的采购文件 <span className="text-[var(--danger)]">*</span>
+                  {/* 引用采购文件（2026-09-26 用户裁定）：采购公告固定引用 03 步标记的正式盖章版
+                      采购文件——指针即真相，此处只读展示不可换选；未标记（历史项目）→ 不引用、照常发布 */}
+                  {category === 'procurement_document' && (
+                    <div
+                      className="rounded-[20px] p-4"
+                      style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">引用采购文件</div>
+                        {officialTender ? (
+                          <span className="rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">正式盖章版</span>
+                        ) : (
+                          <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">未标记</span>
+                        )}
                       </div>
-                      <div className="mt-2 space-y-2">
-                        {tenderFiles.map((f) => (
-                          <label key={f.objectKey} className="flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name="tenderFile"
-                              checked={selectedTenderObjectKey === f.objectKey}
-                              onChange={() => setSelectedTenderObjectKey(f.objectKey)}
-                              className="accent-[var(--accent)]"
-                            />
-                            <span className="truncate">{f.fileName}</span>
-                          </label>
-                        ))}
+                      <div className="mt-2 text-sm">
+                        {officialTender ? (
+                          <span className="break-all font-semibold text-[var(--foreground)]">{officialTender.fileName}</span>
+                        ) : (
+                          <span className="leading-relaxed text-[var(--muted-foreground)]">
+                            03「采购文件」步骤尚未标记正式盖章版采购文件——本公告将不引用采购文件；如需引用，请先回到项目管理「采购文件」步骤完成标记。
+                          </span>
+                        )}
                       </div>
+                      {officialTender && (
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                          公告发布后，供应商获取的采购文件即此正式盖章版（自动生成加密招标文件）；第三步预览中可一并核对该文件。
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1477,10 +1633,24 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               <button onClick={handleNext} disabled={!draft} className="neu-btn-primary !h-[34px] disabled:opacity-50">
                 下一步 <ChevronRight size={14} />
               </button>
-            ) : (
+            ) : step === 2 ? (
               <>
                 <button onClick={() => { setStep(1); if (project && draft && category) saveWizardState(project.id, category, { step: 1 }); }} type="button" className="neu-btn-soft !h-[34px]">
                   <ChevronLeft size={14} /> 上一步
+                </button>
+                <button
+                  onClick={handlePreview}
+                  disabled={busy}
+                  className="neu-btn-primary !h-[34px] disabled:opacity-50"
+                >
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
+                  {busy ? '生成预览...' : '预览并发布'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => setStep(2)} type="button" className="neu-btn-soft !h-[34px]">
+                  <ChevronLeft size={14} /> 返回修改
                 </button>
                 <button
                   onClick={handlePublish}
@@ -1488,7 +1658,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   className="neu-btn-primary !h-[34px] disabled:opacity-50"
                 >
                   {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  {busy ? '处理中...' : publishTiming === 'now' ? '立即发布' : publishTiming === 'announcement_start' ? '保存（公示期起发送）' : '保存定时发布'}
+                  {busy ? '处理中...' : publishTiming === 'scheduled' ? '确认定时发布' : '确认发布'}
                 </button>
               </>
             )}
