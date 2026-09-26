@@ -575,14 +575,15 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     }));
   });
 
-  it('offline：非已发布 → 409 NOT_PUBLISHED_FOR_OFFLINE，零写入', async () => {
+  it('offline：任意状态可下架（v2 拍板）——草稿 → OFFLINE，from=DRAFT', async () => {
     prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'DRAFT', metadata: null });
-    await expect(service.offline('a1', op)).rejects.toMatchObject({ response: { code: 'NOT_PUBLISHED_FOR_OFFLINE' } });
-    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'OFFLINE' });
+    await expect(service.offline('a1', op)).resolves.toMatchObject({ status: 'OFFLINE' });
+    expect(prisma.announcement.update.mock.calls[0][0].data.metadata.recycle).toMatchObject({ from: 'DRAFT', action: 'OFFLINE' });
   });
 
-  it('restore：按 metadata.recycle.from 恢复并清除 recycle 键，历史记 RESTORE', async () => {
-    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'OFFLINE', metadata: { recycle: { from: 'PUBLISHED', action: 'OFFLINE', at: 'x' }, foo: 2 } });
+  it('restore（隐藏）：按 metadata.recycle.from 恢复并清除 recycle 键，历史记 RESTORE', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'HIDDEN', metadata: { recycle: { from: 'PUBLISHED', action: 'HIDDEN', at: 'x' }, foo: 2 } });
     prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'PUBLISHED' });
     await expect(service.restore('a1', op)).resolves.toMatchObject({ status: 'PUBLISHED' });
     const arg = prisma.announcement.update.mock.calls[0][0];
@@ -591,6 +592,46 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     expect(prisma.announcementHistory.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ action: 'RESTORE' }),
     }));
+  });
+
+  it('restore：OFFLINE（已下架）→ 409 OFFLINE_NOT_RESTORABLE（下架为终态，v2 拍板）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'OFFLINE', metadata: { recycle: { from: 'PUBLISHED', action: 'OFFLINE', at: 'x' } } });
+    await expect(service.restore('a1', op)).rejects.toMatchObject({ response: { code: 'OFFLINE_NOT_RESTORABLE' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('publicList：已下线（公示期满/ARCHIVED）出标题壳——剥正文/摘要 + titleOnly 标记；无公示期永不过期', async () => {
+    const past = new Date(Date.now() - 86400000).toISOString();
+    const future = new Date(Date.now() + 86400000).toISOString();
+    prisma.announcement.count.mockResolvedValue(4);
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'p1', title: '在公示期', type: 'BID_NOTICE', status: 'PUBLISHED', content: '<p>正文</p>', publicityEnd: future, metadata: {} },
+      { id: 'p2', title: '公示期满', type: 'BID_NOTICE', status: 'PUBLISHED', content: '<p>正文</p>', publicityEnd: past, metadata: {}, summary: 's', aiSummary: 'a' },
+      { id: 'p3', title: '政策无公示期', type: 'POLICY', status: 'PUBLISHED', content: '<p>正文</p>', metadata: {} },
+      { id: 'p4', title: '存量归档', type: 'BID_NOTICE', status: 'ARCHIVED', content: '<p>正文</p>', metadata: {}, summary: 's' },
+    ]);
+    const res = await service.publicList({});
+    expect(prisma.announcement.findMany.mock.calls[0][0].where.status).toEqual({ in: ['PUBLISHED', 'ARCHIVED'] });
+    const by: any = Object.fromEntries(res.items.map((i: any) => [i.id, i]));
+    expect(by.p1.titleOnly).toBeUndefined();
+    expect(by.p1.content).toContain('正文');
+    expect(by.p2.titleOnly).toBe(true);
+    expect(by.p2.content).toBe('');
+    expect(by.p2.summary).toBeNull();
+    expect(by.p3.titleOnly).toBeUndefined();
+    expect(by.p3.content).toContain('正文');
+    expect(by.p4.titleOnly).toBe(true);
+  });
+
+  it('getPublic：公示期满/ARCHIVED → OFFLINED 拒绝且不计浏览；公示期内正常出全文', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'g1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c', publicityEnd: new Date(Date.now() - 86400000), dataClass: null, metadata: {} });
+    await expect(service.getPublic('g1')).rejects.toMatchObject({ response: { code: 'OFFLINED', error: '该公告已下线' } });
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'g2', title: 't', type: 'BID_NOTICE', status: 'ARCHIVED', content: 'c', dataClass: null, metadata: {} });
+    await expect(service.getPublic('g2')).rejects.toMatchObject({ response: { code: 'OFFLINED' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'g3', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c', publicityEnd: new Date(Date.now() + 86400000), dataClass: null, metadata: {} });
+    prisma.announcement.update.mockResolvedValue({});
+    await expect(service.getPublic('g3')).resolves.toMatchObject({ id: 'g3', content: '<p>c</p>' });
   });
 
   it('restore：from 缺失/非法 → 兜底 DRAFT', async () => {

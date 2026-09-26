@@ -252,10 +252,25 @@ export class AnnouncementService {
     // 契约（2026-08-20 拍板）：公开门户（:3002）与供应商门户（:3004）**全量展示所有公司公告**——
     // 复用 list() 但不传 companyFilter（默认空 = 无公司过滤）。切勿在此注入公司隔离。
     // A2（表 B.1）：查询层过滤公开级别（total 与 items 同口径）
-    const res = await this.list({ ...params, status: 'PUBLISHED' }, {}, { publicVisibilityOnly: true });
+    // v2（2026-09-26 拍板）：已下线（公示期满的 PUBLISHED / 存量 ARCHIVED）仍列标题壳——
+    // 服务端剥正文/摘要 + titleOnly 标记，门户只渲染不可点标题；下架(OFFLINE)/隐藏(HIDDEN)完全不出。
+    const res = await this.list({ ...params, status: 'PUBLISHED,ARCHIVED' }, {}, { publicVisibilityOnly: true });
     return { ...res, items: res.items
       .filter((a: any) => a.metadata?.visibility !== 'RESTRICTED')
-      .map((a: any) => this.stripForPublic(a)) };
+      .map((a: any) => this.isOfflined(a) ? this.titleOnlyStub(a) : this.stripForPublic(a)) };
+  }
+
+  /** 已下线判定：公示期满（有 publicityEnd 才会到期；政策/平台等无公示期永不过期）或存量 ARCHIVED */
+  private isOfflined(a: any): boolean {
+    if (a.status !== 'PUBLISHED') return true; // ARCHIVED（存量手动下线）
+    if (!a.publicityEnd) return false;
+    return new Date(a.publicityEnd).getTime() < Date.now();
+  }
+
+  /** 已下线标题壳：保留标题/类型/时间等元信息，正文与摘要置空（内容不可看，v2 拍板） */
+  private titleOnlyStub(a: any) {
+    const base = this.stripForPublic(a);
+    return { ...base, content: '', summary: null, aiSummary: null, titleOnly: true };
   }
 
   async get(id: string) {
@@ -273,7 +288,15 @@ export class AnnouncementService {
   async getPublic(id: string) {
     const announcement = await this.get(id);
     if (announcement.status !== 'PUBLISHED') {
+      // v2（2026-09-26）：ARCHIVED=已下线（公示期满/存量下线）——与未发布区分提示
+      if (announcement.status === 'ARCHIVED') {
+        throw new BadRequestException({ error: '该公告已下线', code: 'OFFLINED' });
+      }
       throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });
+    }
+    // v2（2026-09-26）：公示期满的 PUBLISHED 同样视为已下线——直链详情阻断
+    if (announcement.publicityEnd && new Date(announcement.publicityEnd).getTime() < Date.now()) {
+      throw new BadRequestException({ error: '该公告已下线', code: 'OFFLINED' });
     }
     // A2（表 B.1）：与列表同口径——应保密/可公开（未发布到公开级）的公告详情不可按 id 直取
     if (announcement.dataClass && !(PUBLIC_VISIBLE_CLASSES as readonly string[]).includes(announcement.dataClass)) {
@@ -669,9 +692,7 @@ export class AnnouncementService {
     if (ann.status === 'HIDDEN' || ann.status === 'OFFLINE') {
       throw new ConflictException({ error: '该公告已在回收站中，请先恢复后再操作', code: 'ALREADY_IN_RECYCLE' });
     }
-    if (target === 'OFFLINE' && ann.status !== 'PUBLISHED') {
-      throw new ConflictException({ error: '仅「已发布」的公告可下架，草稿/已公示请用隐藏', code: 'NOT_PUBLISHED_FOR_OFFLINE' });
-    }
+    // v2 拍板（2026-09-26）：下架/隐藏对任意状态可用——下架为终态（不可恢复），隐藏可恢复
     // 合并写入：保留其余 metadata 键（编辑页整存 metadata 时 recycle 随行）
     const meta = { ...((ann.metadata as Record<string, any>) ?? {}) };
     meta.recycle = { from: ann.status, action: target, at: new Date().toISOString(), by: operator.operatorName ?? null };
@@ -692,7 +713,10 @@ export class AnnouncementService {
   async restore(id: string, operator: RecycleOperator = {}) {
     const ann = await this.prisma.announcement.findUnique({ where: { id } });
     if (!ann) throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
-    if (ann.status !== 'HIDDEN' && ann.status !== 'OFFLINE') {
+    if (ann.status === 'OFFLINE') {
+      throw new ConflictException({ error: '已下架的公告不可恢复（下架为终态），如需重新发布请新建', code: 'OFFLINE_NOT_RESTORABLE' });
+    }
+    if (ann.status !== 'HIDDEN') {
       throw new ConflictException({ error: '该公告不在回收站中', code: 'NOT_IN_RECYCLE' });
     }
     const meta = (ann.metadata as Record<string, any>) ?? {};
