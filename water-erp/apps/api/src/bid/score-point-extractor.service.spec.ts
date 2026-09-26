@@ -116,6 +116,20 @@ describe('ScorePointExtractorService', () => {
       .rejects.toMatchObject({ response: { code: 'SOURCE_INVALID' } });
   });
 
+  it('显式指定源无阶段归属（项目级附件，projectManagementStageId=null）→ SOURCE_INVALID（审查修复：初版静默放行）', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] });
+    prisma.bidProject.findUnique.mockResolvedValue({ projectManagementItemId: 'pmi-1', round: 1 });
+    prisma.attachment.findUnique.mockResolvedValue({
+      id: 'att-no-stage',
+      fileName: '项目级附件.pdf',
+      objectKey: 'project-management/no-stage.pdf',
+      extractedText: null,
+      projectManagementStageId: null,
+    });
+    await expect(service.extractScorePoints('p1', 'i1', 'att-no-stage'))
+      .rejects.toMatchObject({ response: { code: 'SOURCE_INVALID' } });
+  });
+
   it('extractedText 懒缓存直读：不跑 processFile、不写缓存', async () => {
     prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] });
     prisma.bidProject.findUnique.mockResolvedValue({ projectManagementItemId: 'pmi-1', round: 1 });

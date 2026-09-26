@@ -369,12 +369,16 @@ export class ScorePointExtractorService {
         });
     if (!att) return null;
 
-    // 显式指定源：校验归属（本项目 03 步骤；不强制轮次——跨轮取旧文件无危害，仅提示层面约束）
-    if (sourceAttachmentId && att.projectManagementStageId) {
-      const stage = await this.prisma.projectManagementStage.findUnique({
-        where: { id: att.projectManagementStageId },
-        select: { projectManagementItemId: true, stageKey: true },
-      });
+    // 显式指定源：校验归属（本项目 03 步骤；不强制轮次——跨轮取旧文件无危害，仅提示层面约束）。
+    // stageId 为空（项目级/其他归属附件）同样拒绝——审查修复：初版仅在 stageId 非空时校验，
+    // 无阶段附件会静默绕过（越权提取口子）。
+    if (sourceAttachmentId) {
+      const stage = att.projectManagementStageId
+        ? await this.prisma.projectManagementStage.findUnique({
+            where: { id: att.projectManagementStageId },
+            select: { projectManagementItemId: true, stageKey: true },
+          })
+        : null;
       if (!stage
         || stage.projectManagementItemId !== bp.projectManagementItemId
         || stage.stageKey !== 'TENDER_DOCUMENT') {

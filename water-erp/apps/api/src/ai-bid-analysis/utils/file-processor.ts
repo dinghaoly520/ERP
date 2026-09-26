@@ -58,8 +58,8 @@ export async function processFile(
     }
   }
 
-  // 图片（盖章照片等，2026-09-26 正式文件不限类型）— 走 ocrImage 分支
-  if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'bmp' || ext === 'webp') {
+  // 图片（盖章照片等，2026-09-26 正式文件不限类型）— 走 ocrImage 分支（与 FE 预览类型集对齐，含 gif）
+  if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'bmp' || ext === 'webp' || ext === 'gif') {
     const ocrResult = await ocrService.ocrImage(buffer, '', fileName ?? 'image.png');
     return {
       text: ocrResult.text,

@@ -74,11 +74,12 @@ export function OfficialTenderWizard({
     [attachments, selectedId],
   );
 
-  // 智能默认提示：文件名含「盖章/正式」的候选排前（仅展示顺序引导，不替用户决定）
+  // 智能排序（双键，修复 2026-09-26 审查：初版权重被毫秒时间戳淹没）：
+  // ①文件名含「盖章/正式」排前（提示引导，不替用户决定）②其余按上传时间新→旧
   const candidates = useMemo(() => {
-    const score = (f: ProjectManagementAttachment) =>
-      (/盖章|正式/.test(f.fileName) ? 0 : 1) * 100 - new Date(f.createdAt ?? 0).getTime();
-    return [...attachments].sort((a, b) => score(a) - score(b));
+    const flagged = (f: ProjectManagementAttachment) => (/盖章|正式/.test(f.fileName) ? 0 : 1);
+    const ts = (f: ProjectManagementAttachment) => -new Date(f.createdAt ?? 0).getTime();
+    return [...attachments].sort((a, b) => flagged(a) - flagged(b) || ts(a) - ts(b));
   }, [attachments]);
 
   /** 选定即落指针（中途取消不丢——重进向导回显；后端拒绝已完成阶段改指针） */
