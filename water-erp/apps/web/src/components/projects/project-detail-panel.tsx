@@ -12,7 +12,6 @@ import {
   fetchPmBidProjectRefs,
   reopenProjectStage,
   reprocProject,
-  reviewProjectSubmission,
   fetchProjectAttributions,
   refreshProjectSummary,
   updateProjectStage,
@@ -398,10 +397,6 @@ export function ProjectDetailPanel({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // CTS A-36/37 递交受理
-  const [reviewBusy, setReviewBusy] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [reviewComment, setReviewComment] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [analysis, setAnalysis] = useState<ProjectDetailAnalysis | null>(null);
@@ -965,23 +960,6 @@ export function ProjectDetailPanel({
     }
   };
 
-  // ── CTS-EBS01 A-36/37 递交受理（admin 受理；服务端强制双人留痕）──
-  const handleReviewSubmission = async (approve: boolean) => {
-    setReviewBusy(true);
-    setErrorMessage(null);
-    try {
-      await reviewProjectSubmission(item.id, { approve, comment: reviewComment.trim() || undefined });
-      toast.success(approve ? '已审核通过' : '已驳回，可修改后重新递交');
-      setRejectOpen(false);
-      setReviewComment('');
-      await onUpdated();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '受理审核失败。');
-    } finally {
-      setReviewBusy(false);
-    }
-  };
-
   const moveToRecycleBin = async () => {
     setSubmitting(true);
     setErrorMessage(null);
@@ -1218,35 +1196,10 @@ export function ProjectDetailPanel({
                   <span className="inline-flex items-center gap-1 rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--accent)]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />{selectedStage.stageName}
                   </span>
-                  {item.reviewStatus === 'PENDING' && (
-                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.75_0.14_75)_20%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.5_0.12_75)]" title={item.submittedAt ? `递交：${item.submittedByName ?? ''} ${new Date(item.submittedAt).toLocaleString('zh-CN')}` : undefined}>
-                      待审核
-                    </span>
-                  )}
-                  {item.reviewStatus === 'APPROVED' && (
-                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.72_0.14_155)_18%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.48_0.12_155)]" title={item.reviewedAt ? `受理：${item.reviewedByName ?? ''} ${new Date(item.reviewedAt).toLocaleString('zh-CN')}` : undefined}>
-                      审核通过
-                    </span>
-                  )}
-                  {item.reviewStatus === 'REJECTED' && (
-                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.65_0.17_25)_16%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.5_0.16_25)]" title={item.reviewComment ?? undefined}>
-                      已驳回
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
             <div className="page-hero__right">
-              {currentUserRole === 'admin' && item.reviewStatus === 'PENDING' && (
-                <>
-                  <button type="button" onClick={() => void handleReviewSubmission(true)} disabled={reviewBusy} className="neu-btn-soft">
-                    <CheckCircle2 size={16} />审核通过
-                  </button>
-                  <button type="button" onClick={() => setRejectOpen((v) => !v)} disabled={reviewBusy} className="neu-btn-soft is-danger">
-                    <AlertTriangle size={16} />驳回
-                  </button>
-                </>
-              )}
               {!readOnly && canModify && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
                   <Ban size={16} />项目终止
@@ -1262,21 +1215,6 @@ export function ProjectDetailPanel({
               </button>
             </div>
           </div>
-
-          {/* CTS A-36/37 驳回理由输入（展开式） */}
-          {rejectOpen && currentUserRole === 'admin' && item.reviewStatus === 'PENDING' && (
-            <div className="mt-3 flex items-start gap-2">
-              <textarea
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="驳回理由（必填，将反馈给申报人）"
-                className="neu-input min-h-[64px] flex-1 resize-none text-sm"
-              />
-              <button type="button" onClick={() => void handleReviewSubmission(false)} disabled={reviewBusy || !reviewComment.trim()} className="neu-btn-soft is-danger shrink-0">
-                {reviewBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}确认驳回
-              </button>
-            </div>
-          )}
 
           {/* 已归档 / 已终止 只读横幅 */}
           {item.status === 'TERMINATED' ? (
