@@ -289,17 +289,18 @@ export function EvaluationBasisFields({
           )}
         </>
       )}
-      <label className={`flex items-start gap-2.5 text-xs ${softLocked ? 'opacity-60' : 'cursor-pointer'}`}>
+      <label className={`flex items-start gap-2.5 ${softLocked ? 'opacity-60' : 'cursor-pointer'}`}>
         <input
           type="checkbox"
           checked={scoreTrim}
           onChange={(e) => setScoreTrim(e.target.checked)}
           disabled={softLocked}
-          className="neu-checkbox mt-0.5"
+          className="neu-checkbox shrink-0"
         />
-        <span className="leading-5">
-          <span className="font-semibold text-[var(--foreground)]">评分去极值</span>
-          <span className="ml-1.5 text-[var(--muted-foreground)]">
+        <span className="min-w-0">
+          {/* 标题行 leading-5(20px)=选择框高(20px)，items-start 下二者精确水平居中 */}
+          <span className="block text-xs font-semibold leading-5 text-[var(--foreground)]">评分去极值</span>
+          <span className="mt-0.5 block text-[11px] leading-relaxed text-[var(--muted-foreground)]">
             ≥5 位专家时去掉 1 个最高分、1 个最低分后取平均（评标实务惯例）；关闭后全额均分
           </span>
         </span>
