@@ -568,6 +568,12 @@ select.neu-select {
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 0 20px 60px oklch(0.3 0.05 258 / 0.22);
 }
 
+/* ── 通知铃铛下拉浮层 .exp-notice-pop（渐变薄板 + 方向性双影 + 顶缘内高光）── */
+.exp-notice-pop {
+  background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
+  box-shadow: 6px 6px 18px oklch(0.45 0.05 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9);
+}
+
 /* ── 内联提示 .exp-alert（无边框，语义色底，--a 驱动）── */
 .exp-alert {
   border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 600; line-height: 1.55;

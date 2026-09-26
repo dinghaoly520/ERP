@@ -92,7 +92,7 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="flex w-full items-center justify-center gap-1.5 rounded-[12px] px-2 py-1.5 text-[11px] font-medium text-[color:var(--muted-foreground)] transition-colors hover:bg-white/50 hover:text-[var(--foreground)]"
+        className="flex w-full items-center justify-center gap-1.5 rounded-[12px] px-2 py-1.5 text-[11px] font-medium text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0/0.5)] hover:text-[var(--foreground)]"
         aria-label={`通知（${unread} 未读）`}
       >
         <span className="relative">
@@ -108,11 +108,7 @@ export default function NotificationBell() {
 
       {open && (
         <div
-          className="absolute left-full top-0 z-[300] ml-2 w-[320px] overflow-hidden rounded-[14px]"
-          style={{
-            background: "linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)",
-            boxShadow: "6px 6px 18px oklch(0.45 0.05 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)",
-          }}
+          className="exp-notice-pop absolute left-full top-0 z-[300] ml-2 w-[320px] overflow-hidden rounded-[14px]"
         >
           <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-2.5">
             <span className="text-[12px] font-semibold text-[var(--foreground)]">
