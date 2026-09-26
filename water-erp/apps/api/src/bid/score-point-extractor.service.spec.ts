@@ -2,6 +2,11 @@ jest.mock('../ai-bid-analysis/utils/file-processor', () => ({
   processFile: jest.fn().mockImplementation(async (_ocr: unknown, buffer: Buffer) => ({ text: buffer.toString('utf-8') })),
 }));
 
+// PMI 附件本地盘读取（fetchPmiTenderDocx）——单测 mock 真实 fs
+jest.mock('node:fs/promises', () => ({
+  readFile: jest.fn().mockResolvedValue(Buffer.from('pmi-docx-tender-text')),
+}));
+
 import { ScorePointExtractorService } from './score-point-extractor.service';
 
 describe('ScorePointExtractorService', () => {
@@ -13,6 +18,8 @@ describe('ScorePointExtractorService', () => {
   const embedding = { embed: jest.fn() };
   const prisma = {
     bidScoreItem: { findFirst: jest.fn(), findMany: jest.fn() },
+    bidProject: { findUnique: jest.fn() },
+    attachment: { findFirst: jest.fn() },
   };
 
   beforeEach(() => {
@@ -32,6 +39,36 @@ describe('ScorePointExtractorService', () => {
     await expect(service.extractScorePoints('p1', 'iX')).rejects.toMatchObject({
       response: { code: 'NOT_FOUND' },
     });
+  });
+
+  it('PRICE 项不再跳过——与打分类同样走提取（2026-09-26 裁定：03 即配得分要点，招标文件含价格项则提取）', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i-price', projectId: 'p1', category: 'PRICE', name: '价格评分', maxScore: 30, points: [] });
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    validator.retryChatJson.mockResolvedValue({ items: [{ name: '报价合理性', fullScore: 30 }] });
+    const out = await service.extractScorePoints('p1', 'i-price');
+    expect(out.length).toBe(1); // 不再返回 []
+    expect(validator.retryChatJson).toHaveBeenCalled();
+  });
+
+  it('公告未发布时兜底取 PMI「采购文件」阶段最新 .docx 附件明文（03 阶段即可提取）', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 40, points: [] });
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(null); // 公告链无
+    prisma.bidProject.findUnique.mockResolvedValue({ projectManagementItemId: 'pmi-1' });
+    prisma.attachment.findFirst.mockResolvedValue({ objectKey: 'pm/tender.docx' });
+    ;(require('node:fs/promises').readFile as jest.Mock).mockResolvedValue(Buffer.from('pmi-docx-tender-text'));
+    validator.retryChatJson.mockResolvedValue({ items: [] });
+    await service.extractScorePoints('p1', 'i1');
+    // processFile 收到 docx 文件名（走 docx 分支）且文本来自附件
+    // 附件 objectKey 已命中（无 TENDER_NOT_READY 抛出即证明走到了本地读取分支）
+  });
+
+  it('公告链与 PMI docx 兜底均无 → 仍抛 TENDER_NOT_READY', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 40, points: [] });
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(null);
+    prisma.bidProject.findUnique.mockResolvedValue({ projectManagementItemId: 'pmi-1' });
+    prisma.attachment.findFirst.mockResolvedValue(null);
+    await expect(service.extractScorePoints('p1', 'i1'))
+      .rejects.toMatchObject({ response: { code: 'TENDER_NOT_READY' } });
   });
 
   it('招标文件未就绪（fetchTenderPlaintext 返回 null）抛 TENDER_NOT_READY', async () => {
@@ -107,13 +144,7 @@ describe('ScorePointExtractorService', () => {
     expect(plaintextFetcher.fetchTenderPlaintext).toHaveBeenCalledTimes(1);
   });
 
-  // E5: PRICE 类别直接返回空数组,不调 LLM
-  it('E5: PRICE 类别直接返回空数组,不调 LLM', async () => {
-    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'PRICE', name: '价格评分', maxScore: 30, points: [] });
-    const r = await service.extractScorePoints('p1', 'i1');
-    expect(r).toEqual([]);
-    expect(plaintextFetcher.fetchTenderPlaintext).not.toHaveBeenCalled();
-  });
+  // E5 已撤除（2026-09-26 裁定）：PRICE 同样提取——由下方新用例守门（「PRICE 项不再跳过」）
 
   // E6: LLM 故障降级,不抛 500
   it('E6: LLM 故障返回空数组不抛异常', async () => {
@@ -141,7 +172,7 @@ describe('ScorePointExtractorService', () => {
 
   // ── extractAllScorePoints：一键提取全部评分项 ──
 
-  it('一键提取：跳过 PRICE 项，其余项分组返回', async () => {
+  it('一键提取：含 PRICE 项一并分组返回（E5 撤除，2026-09-26）', async () => {
     prisma.bidScoreItem.findMany.mockResolvedValue([
       { id: 't1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] },
       { id: 'pr1', projectId: 'p1', category: 'PRICE', name: '价格评分', maxScore: 30, points: [] },
@@ -151,7 +182,7 @@ describe('ScorePointExtractorService', () => {
       items: [{ name: '施工组织设计', fullScore: 10, evidenceHint: '', objective: true }],
     });
     const r = await service.extractAllScorePoints('p1');
-    expect(r.map((g) => g.itemId)).toEqual(['t1']);
+    expect(r.map((g) => g.itemId)).toEqual(['t1', 'pr1']); // findMany mock 返回序
     expect(r[0]).toMatchObject({ itemName: '技术评分', category: 'TECHNICAL', maxScore: 50 });
     expect(r[0].suggestions).toHaveLength(1);
   });
