@@ -37,10 +37,7 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
     >
       {!bidProject ? (
         <div className="text-xs leading-6 text-[var(--muted-foreground)]">
-          尚未关联开评标项目。
-          {project.procurementMethod === '谈判采购'
-            ? '请先通过「供应商邀请」发送邀请（或在信息发布中心发布公告并关联本项目），关联后即可在此完成评分标准配置。'
-            : '请先在信息发布中心发布公告并关联本项目，关联后即可在此完成评分标准配置。'}
+          尚未关联开评标项目。完成本阶段并在「{project.procurementMethod === '谈判采购' ? '供应商邀请' : '采购公告公示'}」步骤{project.procurementMethod === '谈判采购' ? '发送邀请' : '发布公告'}后，即可在此完成评分标准配置（启动评标前系统将强制校验配置完整）。
         </div>
       ) : (
         <div className="space-y-4">

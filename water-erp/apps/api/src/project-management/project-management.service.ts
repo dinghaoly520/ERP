@@ -3429,40 +3429,22 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
-   * 评分标准配置闸（2026-09-24 方案 v2）：完成 03 采购文件前须完成评分标准配置。
-   * 口径（与发布 / 启动评标 G9 同源）：
-   *  - 评标办法 = none（不评分：直接采购/直接委托/续约）→ 免校验；BidProject 缺失时按
-   *    PMI.procurementMethod 经 getEvaluationDefault 推导（直接采购无 BP 也能完成 03）。
-   *  - 办法 ≠ none → 须存在【该轮】BidProject（round 取被完成 stage 行的 round，多轮再次
-   *    采购各轮独立校验）；缺失 → 拦截并按采购方式给出指引（谈判采购走邀请分支文案）；
-   *    存在 → 复用 ScoreStandardValidator.assertScoreStandardComplete（打分类 Σ=100、
-   *    每打分项 ≥1 得分点等），不另写谓词副本。
-   * 400 + SCORE_STANDARD_REQUIRED（与 updateStage 既有阶段闸 ARCHIVE_GATE_MISSING
-   * 惯例一致）；不可豁免——评分标准即本阶段产物本身。
+   * 评分标准配置闸（2026-09-24 方案 v2；2026-09-26 方案 E 修订）：完成 03 采购文件前的
+   * 提前校验——仅约束【已关联该轮 BidProject】的项目：
+   *  - 无 BP → 放行。原 v2 拦截经 UI 全链实测为死锁（采购公告只能走 04 向导生成、信息
+   *    发布中心不提供手工创建，而 04 向导被本阶段挡住）；终极兜底=启动评标 G9 硬闸。
+   *  - BP 存在 + 评标办法=none（不评分）→ 免校验。
+   *  - BP 存在 + 办法 ≠ none → 复用 ScoreStandardValidator.assertScoreStandardComplete
+   *    （与发布/启动评标 G9 同源，不另写谓词副本）。
+   * 400 + SCORE_STANDARD_REQUIRED（与 updateStage 既有阶段闸惯例一致）；不可豁免。
    */
   private async assertScoreStandardConfigured(pmiId: string, round: number) {
-    const [bp, pmi] = await Promise.all([
-      this.prisma.bidProject.findFirst({
-        where: { projectManagementItemId: pmiId, round },
-        select: { id: true, evaluationMethod: true },
-      }),
-      this.prisma.projectManagementItem.findUnique({
-        where: { id: pmiId },
-        select: { procurementMethod: true, title: true },
-      }),
-    ]);
-    const method =
-      bp?.evaluationMethod ?? getEvaluationDefault(pmi?.procurementMethod).evaluationMethod;
-    if (method === 'none') return;
-    if (!bp) {
-      const viaInvitation = pmi?.procurementMethod === '谈判采购';
-      throw new BadRequestException({
-        error: viaInvitation
-          ? `评分标准未配置：尚未关联开评标项目。请先发送供应商邀请（或在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」），再点击「采购文件」卡片的「评分标准」按钮完成配置`
-          : `评分标准未配置：尚未关联开评标项目。请先在信息发布中心发布公告并关联本项目「${pmi?.title ?? ''}」，再点击「采购文件」卡片的「评分标准」按钮完成配置`,
-        code: 'SCORE_STANDARD_REQUIRED',
-      });
-    }
+    const bp = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: pmiId, round },
+      select: { id: true, evaluationMethod: true },
+    });
+    if (!bp) return; // 方案 E：未关联开评标项目 → 放行（启动评标 G9 硬闸兜底）
+    if (bp.evaluationMethod === 'none') return;
     try {
       await this.scoreStandardValidator.assertScoreStandardComplete(bp.id);
     } catch (e) {

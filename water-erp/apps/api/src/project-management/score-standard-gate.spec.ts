@@ -83,43 +83,34 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
     expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
   });
 
-  it('无 BP + 竞价采购（lowest_price）→ 拦截，指引含「发布公告并关联本项目」', async () => {
+  it('无 BP → 放行（方案 E，2026-09-26）：公告只能走 04 向导而 04 被 03 挡——无 BP 拦截即死锁；'
+    + '终极兜底=启动评标 G9 硬闸', async () => {
     const prisma = mkHappyPrisma({ procurementMethod: '竞价采购', bidProject: null });
-    const svc = mkService(prisma);
+    const validator = { assertScoreStandardComplete: jest.fn() };
+    const svc = mkService(prisma, validator);
     await expect(
       svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never),
-    ).rejects.toMatchObject({
-      response: { code: 'SCORE_STANDARD_REQUIRED' },
-    });
-    // 只读链不落库推进
-    expect(prisma.projectManagementStage.update).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ status: 'COMPLETED' });
+    expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
   });
 
-  it('无 BP + 谈判采购 → 拦截，指引含「供应商邀请」分支文案', async () => {
-    const prisma = mkHappyPrisma({ procurementMethod: '谈判采购', bidProject: null });
-    const svc = mkService(prisma);
-    const err: any = await svc
-      .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never)
-      .then(() => null, (e: unknown) => e);
-    expect(err?.response?.code).toBe('SCORE_STANDARD_REQUIRED');
-    expect(String(err?.response?.error)).toContain('供应商邀请');
-  });
-
-  it('round 感知：完成 round=2 行时按 round:2 解析——round1 有 BP 也不能放行 round2', async () => {
+  it('round 感知：完成 round=2 行时按 round:2 解析——round2 无 BP 放行（E 方案）但 round1 有 BP 不参与判定', async () => {
     const prisma = mkHappyPrisma({
       procurementMethod: '竞价采购',
       stageRound: 2,
-      bidProject: null, // round=2 查不到
-      withBidProjectRound1: true, // round=1 有
+      bidProject: null, // round=2 查不到 → 放行
+      withBidProjectRound1: true, // round=1 有（不得误用）
     });
-    const svc = mkService(prisma);
+    const validator = { assertScoreStandardComplete: jest.fn() };
+    const svc = mkService(prisma, validator);
     // 契约（2026-09-24 I-1）：轮次由 dto.round 显式传入（前端传被点行轮次），缺省 currentRound
     await expect(
       svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED', round: 2 } as never),
-    ).rejects.toMatchObject({ response: { code: 'SCORE_STANDARD_REQUIRED' } });
+    ).resolves.toMatchObject({ status: 'COMPLETED' });
     expect(prisma.bidProject.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ round: 2 }) }),
     );
+    expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
   });
 
   it('BP 存在 + validator 判 Σ≠100 → 拦截且透传明细文案', async () => {
