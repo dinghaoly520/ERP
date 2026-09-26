@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import NotificationBell from './notification/notification-bell';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '../lib/types';
 import {
@@ -139,6 +140,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 蜀水云采 · 专家门户
               </div>
             </div>
+            {/* 通知铃铛（2026-09-26）：未读角标 + 下拉最近通知，点击按本门户白名单跳转 */}
+            <NotificationBell />
           </header>
 
           <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,transparent,rgba(160,178,210,0.70),transparent)]" />

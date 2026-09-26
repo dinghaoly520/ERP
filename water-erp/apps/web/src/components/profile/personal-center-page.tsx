@@ -19,6 +19,10 @@ type ModalKind = 'closed' | 'basic-info' | 'preferences';
 export function PersonalCenterPage() {
   const router = useRouter();
   const [modal, setModal] = useState<ModalKind>('closed');
+  // 深链（2026-09-26）：通知 link 带 ?edit=1 直接打开「基本资料与安全」编辑弹窗（实质内容）
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('edit') === '1') setModal('basic-info');
+  }, []);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);

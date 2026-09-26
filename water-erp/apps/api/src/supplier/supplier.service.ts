@@ -22,6 +22,7 @@ import { shouldAutoDisable } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
+import { CompanyScopeService } from '../company/company-scope';
 import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
 import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
@@ -61,6 +62,7 @@ export class SupplierService {
     @Inject('REDIS_CLIENT') private redis: any,
     private llm: LlmService,
     private verificationService: VerificationService,
+    private readonly companyScope: CompanyScopeService,
   ) {}
 
   /**
@@ -68,6 +70,40 @@ export class SupplierService {
    * 使用 PG 序列 supplier_no_seq 原子递增，并发注册安全。
    * 序列在迁移 20260807000000_supplier_no 中创建。
    */
+  /** 审批人公司域守卫：admin 豁免；leader/staff 须与供应商归属公司一致。 */
+  private async assertCompanyApprover(userId: string | undefined, supplierCompanyId: string | null) {
+    if (!userId) return; // 系统触发（seed 等）不拦
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true, companyId: true } });
+    if (!user) return;
+    if (user.role === 'admin') return;
+    if ((user.role === 'leader' || user.role === 'staff') && supplierCompanyId && user.companyId === supplierCompanyId) return;
+    throw new ForbiddenException({ error: '供应商审批仅限其归属公司的管理账号（或平台管理员）', code: 'COMPANY_APPROVER_ONLY' });
+  }
+
+  /** 归属公司审批人解析（2026-09-26 用户裁定：供应商审批归归属公司的管理权限账号）：
+   *  该公司 leader+staff（IsActive）；公司无人可审时回退平台 admin（防待办悬空）。
+   *  admin 不在主路径——平台 admin 只管管理端账号注册/修改。 */
+  private async resolveCompanyApprovers(companyId: string | null | undefined): Promise<string[]> {
+    if (companyId) {
+      const approvers = await this.prisma.user.findMany({
+        where: { role: { in: ['leader', 'staff'] }, isActive: true, companyId },
+        select: { id: true },
+      });
+      if (approvers.length > 0) return approvers.map(u => u.id);
+    }
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'admin', isActive: true },
+      select: { id: true },
+    });
+    return admins.map(u => u.id);
+  }
+
+  /** 按公司域发送审批待办（resolveCompanyApprovers + 逐人 create，保持 WS 推送与待办语义）。 */
+  private async notifyCompanyApprovers(companyId: string | null | undefined, payload: { type: string; title: string; content: string; link: string }) {
+    const ids = await this.resolveCompanyApprovers(companyId);
+    await Promise.allSettled(ids.map(id => this.notificationService.create({ userId: id, ...payload })));
+  }
+
   /** 供应商公司归属解析（账号管理分组）：companyId 无效时静默未归属，不阻断注册。 */
   /** 归属公司解析（2026-09-17）：companyId 命中主数据 → 用之；否则按 companyName
    *  归一化 upsert 建档（注册页改用集团 62 家名单选择，多数不在既有主数据；与工作人员注册的自动建档同型）。 */
@@ -356,21 +392,21 @@ export class SupplierService {
     const { passwordHash: _omit, ...safeUser } = user;
     void _omit;
 
-    await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    await this.notifyCompanyApprovers(supplier.companyId, {
       type: 'SUPPLIER_PENDING',
       title: '新供应商注册待审批',
       content: `${supplier.name} 提交了注册申请，信用代码 ${supplier.creditCode}，请前往审批。`,
       link: `/supplier/${supplier.id}`,
-    })));
+    });
 
-    // 含自创业务标签时，额外提醒管理员到供应商管理中心审核标签入池
+    // 含自创业务标签时，额外提醒到供应商管理中心审核标签入池
     if (customTags.length) {
-      await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+      await this.notifyCompanyApprovers(supplier.companyId, {
         type: 'SUPPLIER_PENDING',
         title: '新自创业务标签待审核',
         content: `${supplier.name} 注册时自创标签：${customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
         link: '/supplier',
-      })));
+      });
     }
 
     return { user: safeUser, supplier };
@@ -583,21 +619,21 @@ export class SupplierService {
 
     const expireLabel = inv.expiresAt.toISOString().slice(0, 10);
     const { passwordHash: _omit, ...safeUser } = user; void _omit;
-    await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    await this.notifyCompanyApprovers(supplier.companyId, {
       type: 'SUPPLIER_PENDING',
       title: '新临时供应商注册待审批',
       content: `${supplier.name}（临时供应商，有效期至 ${expireLabel}）提交了注册申请，请前往审批。`,
       link: `/supplier/${supplier.id}`,
-    })));
+    });
 
-    // 含自创业务标签时，额外提醒管理员到供应商管理中心审核标签入池
+    // 含自创业务标签时，额外提醒到供应商管理中心审核标签入池
     if (customTags.length) {
-      await Promise.allSettled(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+      await this.notifyCompanyApprovers(supplier.companyId, {
         type: 'SUPPLIER_PENDING',
         title: '新自创业务标签待审核',
         content: `${supplier.name} 注册时自创标签：${customTags.join('、')}，审核通过后将进入标签库供后续注册选择。`,
         link: '/supplier',
-      })));
+      });
     }
 
     return { user: safeUser, supplier, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays };
@@ -661,7 +697,7 @@ export class SupplierService {
     return result;
   }
 
-  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; scopeUserId?: string }) {
+  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; scopeUserId?: string; companyId?: string; actor?: AuthenticatedUser }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
@@ -670,6 +706,12 @@ export class SupplierService {
     const where: any = {};
     // 数据隔离：supplier 角色只能看到自己企业，防止跨企枚举与主联系人 PII 泄露。
     if (params.scopeUserId) where.userId = params.scopeUserId;
+    // 公司级数据隔离（2026-09-26，口径同专家库）：内部角色 admin 可 ?companyId= 切单公司（默认全部）、
+    // 非 admin 强制本公司；supplier 角色走 scopeUserId 既有收敛，不叠加公司过滤
+    if (!params.scopeUserId && params.actor) {
+      const f = this.companyScope.filter(await this.companyScope.resolveScope(params.actor, params.companyId));
+      if (f.companyId) where.companyId = f.companyId;
+    }
     if (params.status) {
       // 支持「排除若干状态」语义：前端「全部」标签传 `exclude:PENDING,RETURNED`，使默认列表不含待审核/退回补正。
       if (params.status.startsWith('exclude:')) {
@@ -746,6 +788,8 @@ export class SupplierService {
     const conditions: Prisma.Sql[] = [];
     // 数据隔离：supplier 角色仅见本企业（与 list() 的 Prisma 路径 where.userId 对齐，否则 raw 路径会丢弃该过滤）。
     if (where.userId) conditions.push(Prisma.sql`s."userId" = ${where.userId}`);
+    // 公司级数据隔离：raw 路径与 Prisma 路径行为一致，否则默认排序下公司过滤被丢弃
+    if (where.companyId) conditions.push(Prisma.sql`s."companyId" = ${where.companyId}`);
     // status 列是 SupplierStatus 枚举，参数需显式 cast，否则 PG 报 operator does not exist: SupplierStatus = text
     if (where.status) {
       if (where.status.notIn) {
@@ -862,7 +906,7 @@ export class SupplierService {
     }
   }
 
-  async get(id: string) {
+  async get(id: string, actor?: AuthenticatedUser) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
       include: {
@@ -883,6 +927,12 @@ export class SupplierService {
       await this.notificationService
         .resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`)
         .catch(() => undefined);
+    }
+    // 公司级数据隔离（2026-09-26）：非 admin 直调他人公司供应商详情 → 403（admin 全视野放行；
+    // supplier 角色另有归属校验，不走此闸）
+    if (actor && actor.role !== 'supplier' && supplier) {
+      const scope = await this.companyScope.resolveScope(actor);
+      this.companyScope.assertInScope(supplier.companyId, scope);
     }
     return supplier;
   }
@@ -957,17 +1007,17 @@ export class SupplierService {
       }
     }
 
-    // 收件人：归属公司下的工作人员；无归属或该公司无工作人员时回退全体 staff/leader/admin
+    // 收件人：归属公司的管理账号（leader+staff）；公司无人时回退平台 admin（2026-09-26 与审批权限同口径）
     const recipients = supplier.companyId
       ? await this.prisma.user.findMany({
-          where: { role: { in: ['staff', 'leader', 'admin'] }, isActive: true, companyId: supplier.companyId },
+          where: { role: { in: ['staff', 'leader'] }, isActive: true, companyId: supplier.companyId },
           select: { id: true },
         })
       : [];
     const targets = recipients.length > 0
       ? recipients
       : await this.prisma.user.findMany({
-          where: { role: { in: ['staff', 'leader', 'admin'] }, isActive: true },
+          where: { role: 'admin', isActive: true },
           select: { id: true },
         });
 
@@ -1153,6 +1203,9 @@ export class SupplierService {
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
+    // 2026-09-26 审批权限=归属公司管理账号：非 admin 操作者须与供应商同公司（跨公司 403）
+    await this.assertCompanyApprover(userId, supplier.companyId);
+
     if (supplier.status !== 'PENDING' && supplier.status !== 'RETURNED') {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
@@ -1192,6 +1245,9 @@ export class SupplierService {
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
+    // 2026-09-26 审批权限=归属公司管理账号：非 admin 操作者须与供应商同公司（跨公司 403）
+    await this.assertCompanyApprover(userId, supplier.companyId);
+
     if (supplier.status !== 'PENDING' && supplier.status !== 'RETURNED') {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
@@ -1233,6 +1289,9 @@ export class SupplierService {
     }
 
     // P1-17 乐观锁：return 仅允许 PENDING→RETURNED，并发时仅一方成功。
+    // 2026-09-26 审批权限=归属公司管理账号：非 admin 操作者须与供应商同公司（跨公司 403）
+    await this.assertCompanyApprover(userId, supplier.companyId);
+
     const claimed = await this.prisma.supplier.updateMany({
       where: { id, status: 'PENDING' },
       data: { status: 'RETURNED', returnReason: reason },
@@ -1312,7 +1371,7 @@ export class SupplierService {
   async resubmit(supplierId: string, userId: string, note?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, name: true, status: true, userId: true },
+      select: { id: true, name: true, status: true, userId: true, companyId: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
     if (supplier.userId !== userId) {
@@ -1328,12 +1387,12 @@ export class SupplierService {
     if (claimed.count === 0) {
       throw new BadRequestException({ error: '状态已变更，请刷新后重试', code: 'CONFLICT' });
     }
-    void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    void this.notifyCompanyApprovers(supplier.companyId, {
       type: 'SUPPLIER_PENDING',
       title: '供应商重新提交审核',
       content: `${supplier.name} 已补正资料重新提交${note ? `（说明：${note}）` : ''}，请前往审核。`,
       link: `/supplier/${supplierId}`,
-    })));
+    });
     await this.audit(userId, 'SUPPLIER_RESUBMITTED', supplierId, { name: supplier.name, note: note ?? null });
     return { success: true };
   }
@@ -1423,14 +1482,12 @@ export class SupplierService {
 
     // 通知采购管理员：供应商变更申请待审核（待办型，审批后 resolve；此前提交变更无任何通知，
     // 管理员无感知。link 指向供应商详情页，其内有变更审批动作 approveChange/rejectChange）。
-    void Promise.all(['admin', 'leader', 'staff'].map((r) =>
-      this.notificationService.sendToRole(r, {
-        type: 'SUPPLIER_PENDING',
-        title: '供应商变更申请待审核',
-        content: `${supplier.name} 提交了变更申请（${dto.fieldLabel}），请前往审核。`,
-        link: `/supplier/${supplierId}`,
-      }),
-    ));
+    void this.notifyCompanyApprovers(supplier.companyId, {
+      type: 'SUPPLIER_PENDING',
+      title: '供应商变更申请待审核',
+      content: `${supplier.name} 提交了变更申请（${dto.fieldLabel}），请前往审核。`,
+      link: `/supplier/${supplierId}`,
+    });
 
     return record;
   }
@@ -1828,7 +1885,7 @@ export class SupplierService {
     if (!reason?.trim()) throw new BadRequestException({ error: '拉黑必须填写原因', code: 'REASON_REQUIRED' });
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, name: true, status: true, userId: true },
+      select: { id: true, name: true, status: true, userId: true, companyId: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
     if (supplier.status === 'BLACKLIST') {
@@ -1869,7 +1926,7 @@ export class SupplierService {
     if (!reason?.trim()) throw new BadRequestException({ error: '解除黑名单必须填写原因', code: 'REASON_REQUIRED' });
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, name: true, status: true, userId: true },
+      select: { id: true, name: true, status: true, userId: true, companyId: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
     if (supplier.status !== 'BLACKLIST') {
@@ -2013,7 +2070,8 @@ export class SupplierService {
         content: `${candidates.length} 家供应商进入淘汰候选，请人工复核：${names}`,
         link: '/supplier',
       };
-      await Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, payload)));
+      // 淘汰复核属 :3005 供应商库管理（leader+staff）；admin 只管管理端账号，不收业务知会
+      await Promise.all(['leader', 'staff'].map(r => this.notificationService.sendToRole(r, payload)));
     }
 
     return candidates;
@@ -2253,18 +2311,48 @@ export class SupplierService {
     return { levelCounts, excellentRatio, total: evaluations.length };
   }
 
-  async getStats() {
+  async getStats(actor?: AuthenticatedUser, companyId?: string) {
+    // 公司级数据隔离：统计在隔离集上算（口径同专家库），admin 可 ?companyId= 切单公司
+    const f = actor ? this.companyScope.filter(await this.companyScope.resolveScope(actor, companyId)) : {};
     const [total, pending, approved, disabled, blacklist, returned, temporaryApproved] = await Promise.all([
-      this.prisma.supplier.count(),
-      this.prisma.supplier.count({ where: { status: 'PENDING' } }),
-      this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
-      this.prisma.supplier.count({ where: { status: 'DISABLED' } }),
-      this.prisma.supplier.count({ where: { status: 'BLACKLIST' } }),
-      this.prisma.supplier.count({ where: { status: 'RETURNED' } }),
-      this.prisma.supplier.count({ where: { status: 'APPROVED', isTemporary: true } }),
+      this.prisma.supplier.count({ where: { ...f } }),
+      this.prisma.supplier.count({ where: { status: 'PENDING', ...f } }),
+      this.prisma.supplier.count({ where: { status: 'APPROVED', ...f } }),
+      this.prisma.supplier.count({ where: { status: 'DISABLED', ...f } }),
+      this.prisma.supplier.count({ where: { status: 'BLACKLIST', ...f } }),
+      this.prisma.supplier.count({ where: { status: 'RETURNED', ...f } }),
+      this.prisma.supplier.count({ where: { status: 'APPROVED', isTemporary: true, ...f } }),
     ]);
 
     return { total, pending, approved, disabled, blacklist, returned, temporaryApproved };
+  }
+
+  /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径，与列表同筛选；台账/专家库 company-counts 同款） */
+  async companyCounts(params: { status?: string; search?: string; enterpriseTypes?: string[]; isTemporary?: boolean }, actor?: AuthenticatedUser) {
+    const scope = await this.companyScope.resolveScope(actor);
+    const where: any = { ...this.companyScope.filter(scope) };
+    if (params.status) {
+      if (params.status.startsWith('exclude:')) {
+        const excl = params.status.slice('exclude:'.length).split(',').filter(Boolean);
+        where.status = excl.length === 1 ? { not: excl[0] } : { notIn: excl };
+      } else {
+        where.status = params.status;
+      }
+    }
+    if (params.enterpriseTypes?.length) where.enterpriseType = { in: params.enterpriseTypes };
+    if (params.isTemporary === true) where.isTemporary = true;
+    if (params.search) {
+      where.OR = [
+        { name: { contains: params.search, mode: 'insensitive' } },
+        { creditCode: { contains: params.search } },
+        { normalizedName: { contains: params.search, mode: 'insensitive' } },
+        { tags: { hasSome: [params.search] } },
+      ];
+    }
+    const groups = await this.prisma.supplier.groupBy({ by: ['companyName'], where, _count: { _all: true } });
+    return groups
+      .map(g => ({ name: g.companyName?.trim() || '未归属', count: g._count._all }))
+      .sort((a, b) => (a.name === '未归属' ? 1 : b.name === '未归属' ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh')));
   }
 
   /** 业务标签词表：聚合已入库供应商 tags 的出现频次，供选取/邀请页的标签多选控件。

@@ -58,6 +58,12 @@ export class ProjectManagementController {
     return this.projectManagementService.getProjectAttributions();
   }
 
+  /** 按公司分组项目计数（公司下拉语境化计数：数据库/台账=已完成 ARCHIVED、进度=进行中 ACTIVE） */
+  @Get('company-counts')
+  getCompanyCounts(@Query('status') status?: 'ACTIVE' | 'ARCHIVED') {
+    return this.projectManagementService.companyCounts(status);
+  }
+
   @Post('extract-initiation')
   @UseInterceptors(
     FileInterceptor('file', {

@@ -1,3 +1,5 @@
+import { NotificationService } from '../notification/notification.service';
+import { renderNotificationPayload } from '@water-erp/shared';
 import { Injectable, BadRequestException, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { Document, Packer } from 'docx';
 import { createHash } from 'crypto';
@@ -30,6 +32,7 @@ export class ContractService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private notifications: NotificationService,
   ) {}
 
   /**
@@ -346,7 +349,7 @@ export class ContractService {
     if (project) {
       supplier = await this.resolveOnlineContractSupplier(project.id, dto);
     } else if (dto.supplierId) {
-      const knownSupplier = await this.prisma.supplier.findUnique({
+      const knownSupplier = await this.prisma.supplier?.findUnique({
         where: { id: dto.supplierId },
         select: { id: true, name: true },
       });
@@ -491,6 +494,17 @@ export class ContractService {
     if (claimed.count !== 1) {
       throw new ConflictException({ error: '合同状态已变更，请刷新后重试', code: 'CONTRACT_VERSION_CHANGED' });
     }
+    // 内审通过 → 知会中标供应商配合签署（2026-09-26 补齐：合同环节此前零通知）
+    if (dto.approved) {
+      const supplierUser = await this.prisma.supplier?.findUnique({
+        where: { id: contract.supplierId },
+        select: { userId: true },
+      }).catch(() => null);
+      if (supplierUser?.userId) {
+        const tpl = renderNotificationPayload('CONTRACT_READY_TO_SIGN', { projectName: contract.contractCode })!;
+        void this.notifications?.create({ userId: supplierUser.userId, type: 'CONTRACT_READY_TO_SIGN', ...tpl }).catch(() => {});
+      }
+    }
     return this.get(id, scopedWhere);
   }
 
@@ -566,7 +580,18 @@ export class ContractService {
       const updated = await tx.contract.findUnique({ where: { id } });
       if (!updated) throw new NotFoundException({ error: '合同不存在', code: 'NOT_FOUND' });
       return updated;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).then(async updated => {
+      // 签署登记完成 → 知会供应商合同生效（fire-and-forget，不阻塞主流程）
+      const supplierUser = await this.prisma.supplier?.findUnique({
+        where: { id: updated.supplierId },
+        select: { userId: true },
+      }).catch(() => null);
+      if (supplierUser?.userId) {
+        const tpl = renderNotificationPayload('CONTRACT_SIGNED', { projectName: updated.contractCode })!;
+        void this.notifications?.create({ userId: supplierUser.userId, type: 'CONTRACT_SIGNED', ...tpl }).catch(() => {});
+      }
+      return updated;
+    });
   }
 
   /** 合同公告（7.5.4.5 宜公开） */

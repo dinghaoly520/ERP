@@ -1726,6 +1726,7 @@ model Notification {
   title      String
   content    String
   isRead     Boolean   @default(false)
+  readAt     DateTime? // 查阅时间（2026-09-26 五段状态：已阅段展示）
   resolvedAt DateTime?
   link       String?
   createdAt  DateTime  @default(now())

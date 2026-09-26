@@ -11,6 +11,7 @@ import type {
   WorkArrangementType,
   WorkArrangementUrgency,
 } from '@/lib/types/work-arrangements';
+import { apiFetch } from './api-fetch';
 
 // Use relative /api path to leverage Next.js rewrites for cookie handling
 const API_BASE = '/api';
@@ -107,7 +108,7 @@ export async function fetchWorkArrangements(query: WorkArrangementQuery = {}) {
   if (query.reminderState) params.set('reminderState', query.reminderState);
 
   const suffix = params.toString() ? `?${params.toString()}` : '';
-  const response = await fetch(`${API_BASE}/work-arrangements${suffix}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements${suffix}`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -117,7 +118,7 @@ export async function fetchWorkArrangements(query: WorkArrangementQuery = {}) {
 
 export async function fetchWorkArrangementDailyPlan(date?: string) {
   const suffix = date ? `?date=${encodeURIComponent(date)}` : '';
-  const response = await fetch(`${API_BASE}/work-arrangements/daily-plan${suffix}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/daily-plan${suffix}`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -127,7 +128,7 @@ export async function fetchWorkArrangementDailyPlan(date?: string) {
 
 export async function refreshWorkArrangementDailyPlan(date?: string) {
   const suffix = date ? `?date=${encodeURIComponent(date)}` : '';
-  const response = await fetch(`${API_BASE}/work-arrangements/daily-plan/refresh${suffix}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/daily-plan/refresh${suffix}`, {
     method: 'POST',
     credentials: 'include',
     cache: 'no-store',
@@ -137,7 +138,7 @@ export async function refreshWorkArrangementDailyPlan(date?: string) {
 }
 
 export async function fetchWorkArrangementGreeting() {
-  const response = await fetch(`${API_BASE}/work-arrangements/greeting`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/greeting`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -147,7 +148,7 @@ export async function fetchWorkArrangementGreeting() {
 
 export async function fetchWorkArrangementSummary(date?: string) {
   const suffix = date ? `?date=${encodeURIComponent(date)}` : '';
-  const response = await fetch(`${API_BASE}/work-arrangements/summary${suffix}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/summary${suffix}`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -156,7 +157,7 @@ export async function fetchWorkArrangementSummary(date?: string) {
 }
 
 export async function createWorkArrangement(payload: WorkArrangementPayload) {
-  const response = await fetch(`${API_BASE}/work-arrangements`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -167,7 +168,7 @@ export async function createWorkArrangement(payload: WorkArrangementPayload) {
 }
 
 export async function updateWorkArrangement(id: string, payload: Partial<WorkArrangementPayload>) {
-  const response = await fetch(`${API_BASE}/work-arrangements/${id}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/${id}`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -181,7 +182,7 @@ export async function postponeWorkArrangementReminder(
   id: string,
   payload: PostponeWorkArrangementReminderPayload,
 ) {
-  const response = await fetch(`${API_BASE}/work-arrangements/${id}/postpone-reminder`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/${id}/postpone-reminder`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -192,7 +193,7 @@ export async function postponeWorkArrangementReminder(
 }
 
 export async function deleteWorkArrangement(id: string) {
-  const response = await fetch(`${API_BASE}/work-arrangements/${id}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -204,7 +205,7 @@ export async function addWorkArrangementNote(
   id: string,
   payload: { type: 'PROGRESS' | 'INSIGHT'; content: string },
 ) {
-  const response = await fetch(`${API_BASE}/work-arrangements/${id}/notes`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/${id}/notes`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -215,7 +216,7 @@ export async function addWorkArrangementNote(
 }
 
 export async function fetchWorkArrangementTemplates() {
-  const response = await fetch(`${API_BASE}/work-arrangements/templates`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/templates`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -226,7 +227,7 @@ export async function fetchWorkArrangementTemplates() {
 export async function createWorkArrangementTemplate(
   payload: WorkArrangementTemplatePayload,
 ) {
-  const response = await fetch(`${API_BASE}/work-arrangements/templates`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/templates`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -240,7 +241,7 @@ export async function updateWorkArrangementTemplate(
   id: string,
   payload: Partial<WorkArrangementTemplatePayload>,
 ) {
-  const response = await fetch(`${API_BASE}/work-arrangements/templates/${id}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/templates/${id}`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -251,7 +252,7 @@ export async function updateWorkArrangementTemplate(
 }
 
 export async function deleteWorkArrangementTemplate(id: string) {
-  const response = await fetch(`${API_BASE}/work-arrangements/templates/${id}`, {
+  const response = await apiFetch(`${API_BASE}/work-arrangements/templates/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -272,7 +273,7 @@ export type WorkPortrait = {
 };
 
 export async function fetchWorkPortrait(): Promise<WorkPortrait> {
-  const response = await fetch('/api/work-arrangements/portrait', {
+  const response = await apiFetch('/api/work-arrangements/portrait', {
     credentials: 'include',
     cache: 'no-store',
   });

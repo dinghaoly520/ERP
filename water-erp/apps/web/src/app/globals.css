@@ -9613,6 +9613,24 @@ select.workbench-input {
    二选一互斥切换：内凹轨道 + 滑动纯白拇指（唯一凸起物）+ 数量徽标。
    容器 data-index="0|1" 驱动拇指位置；按钮 aria-pressed 驱动文字态。
    ══════════════════════════════════════════════════════════════════ */
+/* ── 公司两字标识徽章（公司下拉选项，2026-09-26 质感升级）──
+   方向性双影小瓷片：底色/文字色由内联注入（公司专属色，动态值走 style 是 company-tag 同款口径）；
+   阴影必须用真类——多层 oklch 走 Tailwind 任意值会静默不编译 */
+.co-badge {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.65),
+    1px 1px 2.5px oklch(0.55 0.03 258 / 0.12),
+    -1px -1px 2px oklch(1 0 0 / 0.85);
+  transition: box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+.co-badge--active {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    inset 0 -0.5px 0 oklch(0.55 0.03 258 / 0.06),
+    1.5px 1.5px 4px oklch(0.45 0.1 258 / 0.18),
+    -1px -1px 2.5px oklch(1 0 0 / 0.95);
+}
+
 .neu-segment {
   position: relative;
   display: grid;
@@ -9649,6 +9667,9 @@ select.workbench-input {
 .neu-segment[data-count="6"] .neu-segment-thumb { width: calc((100% - 8px) / 6); }
 .neu-segment[data-count="7"] .neu-segment-thumb { width: calc((100% - 8px) / 7); }
 .neu-segment[data-count="8"] .neu-segment-thumb { width: calc((100% - 8px) / 8); }
+/* 任意段数通式（2026-09-26）：容器内联 --segs=N 时拇指宽度按 N 等分——
+   通知中心 Tab 数随角色变化（admin=3），硬编码 data-count 不再适用；置于此处覆盖上面的定值规则 */
+.neu-segment[style*="--segs"] .neu-segment-thumb { width: calc((100% - 8px) / var(--segs)); }
 .neu-segment[data-index="2"] .neu-segment-thumb { translate: 200% 0; }
 .neu-segment[data-index="3"] .neu-segment-thumb { translate: 300% 0; }
 .neu-segment[data-index="4"] .neu-segment-thumb { translate: 400% 0; }

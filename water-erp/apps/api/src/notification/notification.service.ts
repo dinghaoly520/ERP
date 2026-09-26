@@ -1,4 +1,5 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { NOTIFICATION_REGISTRY, NOTIFICATION_REGISTRY_MAP } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationGateway, type NotificationPushPayload } from './notification.gateway';
@@ -7,8 +8,24 @@ import { SmsChannel } from './channels/sms.channel';
 import { PhoneChannel } from './channels/phone.channel';
 import { shouldDispatch } from './channels/notification-channel.interface';
 
+/** 可操作（待办类）类型集合——五段状态视图的 todo/done 判定依据（注册表派生） */
+const ACTIONABLE_TYPES = NOTIFICATION_REGISTRY.filter(s => s.actionable).map(s => s.code);
+const READONLY_TYPES = NOTIFICATION_REGISTRY.filter(s => !s.actionable).map(s => s.code);
+
 @Injectable()
 export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+  /** 未知类型告警去重（每类型每进程一条，防刷屏） */
+  private readonly warnedTypes = new Set<string>();
+
+  /** 注册表校验：未登记类型 warn（2026-09-26 规范化）——不阻断投递，仅暴露漂移。 */
+  private assertRegisteredType(type: string) {
+    if (!NOTIFICATION_REGISTRY_MAP[type] && !this.warnedTypes.has(type)) {
+      this.warnedTypes.add(type);
+      this.logger.warn(`未登记的通知类型「${type}」——请补录 packages/shared/src/notification-registry.ts（继续投递）`);
+    }
+  }
+
   constructor(
     private prisma: PrismaService,
     private emailChannel: EmailChannel,
@@ -67,6 +84,7 @@ export class NotificationService {
     channels: string[],
     payload: { type: string; title: string; content: string; link?: string | null },
   ): Promise<{ userId: string; results: Record<string, string> }> {
+    this.assertRegisteredType(payload.type);
     const [user, profile, supplier] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
       this.prisma.expertProfile.findUnique({ where: { userId }, select: { phone: true } }).catch(() => null),
@@ -123,6 +141,7 @@ export class NotificationService {
   }
 
   async create(dto: CreateNotificationDto) {
+    this.assertRegisteredType(dto.type);
     const n = await this.prisma.notification.create({
       data: {
         userId: dto.userId,
@@ -140,6 +159,7 @@ export class NotificationService {
   }
 
   async sendToRole(role: string, dto: Omit<CreateNotificationDto, 'userId'>) {
+    this.assertRegisteredType(dto.type);
     // 获取所有指定角色的用户
     const users = await this.prisma.user.findMany({
       where: { role, isActive: true },
@@ -179,18 +199,28 @@ export class NotificationService {
     userId: string,
     page: number = 1,
     pageSize: number = 20,
-    tab: 'all' | 'todo' = 'all',
+    tab: 'all' | 'todo' | 'done' | 'toread' | 'read' = 'all',
     types: string[] = [],
     countTypes: string[] = [],
   ) {
     const skip = (page - 1) * pageSize;
 
     const where: any = { userId };
+    // 五段状态（2026-09-26）：待办/已办=可操作类型（resolvedAt 分界，已读兜底归已办）；
+    // 待阅/已阅=知会类型（isRead 分界）。tab=all 不过滤。
     if (tab === 'todo') {
-      // 「待办」= 未读且未 resolve 的通知——已读即视为已知晓，不再留在待办
-      // （actionable 与否由前端 META 判定，后端按 resolvedAt + isRead 过滤）
+      where.type = { in: ACTIONABLE_TYPES };
       where.resolvedAt = null;
       where.isRead = false;
+    } else if (tab === 'done') {
+      where.type = { in: ACTIONABLE_TYPES };
+      where.OR = [{ resolvedAt: { not: null } }, { isRead: true }];
+    } else if (tab === 'toread') {
+      where.type = { in: READONLY_TYPES };
+      where.isRead = false;
+    } else if (tab === 'read') {
+      where.type = { in: READONLY_TYPES };
+      where.isRead = true;
     }
     if (types.length > 0) where.type = { in: types };
 
@@ -198,6 +228,7 @@ export class NotificationService {
     // 使筛选条的类型 chip 在选中任意一个后保持稳定（不随过滤结果消失）
     const countWhere: any = { userId };
     if (tab === 'todo') {
+      countWhere.type = { in: ACTIONABLE_TYPES };
       countWhere.resolvedAt = null;
       countWhere.isRead = false;
     }
@@ -261,14 +292,14 @@ export class NotificationService {
 
     return this.prisma.notification.update({
       where: { id: notificationId },
-      data: { isRead: true },
+      data: { isRead: true, readAt: new Date() },
     });
   }
 
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
       where: { userId, isRead: false },
-      data: { isRead: true },
+      data: { isRead: true, readAt: new Date() },
     });
   }
 }

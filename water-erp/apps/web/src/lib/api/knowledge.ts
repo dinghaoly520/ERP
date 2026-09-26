@@ -2,9 +2,10 @@
 const API_BASE = '/api';
 
 import type { KnowledgeBase, KnowledgeFile } from '../types/tender-review';
+import { apiFetch } from './api-fetch';
 
 export async function fetchKnowledgeBases(): Promise<KnowledgeBase[]> {
-  const res = await fetch(`${API_BASE}/knowledge`, { credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/knowledge`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch knowledge bases');
   return res.json();
 }
@@ -14,7 +15,7 @@ export async function createKnowledgeBase(data: {
   description?: string;
   isShared?: boolean;
 }): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE}/knowledge`, {
+  const res = await apiFetch(`${API_BASE}/knowledge`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -32,7 +33,7 @@ export async function updateKnowledgeBase(
   id: string,
   data: { name?: string; description?: string; isShared?: boolean; isActive?: boolean },
 ): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE}/knowledge/${id}`, {
+  const res = await apiFetch(`${API_BASE}/knowledge/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -46,7 +47,7 @@ export async function updateKnowledgeBase(
 }
 
 export async function deleteKnowledgeBase(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/knowledge/${id}`, { method: 'DELETE', credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/knowledge/${id}`, { method: 'DELETE', credentials: 'include' });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     console.error('Delete knowledge base error:', res.status, errorData);
@@ -60,7 +61,7 @@ export async function uploadKnowledgeFile(
 ): Promise<KnowledgeFile> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${API_BASE}/knowledge/${kbId}/files`, {
+  const res = await apiFetch(`${API_BASE}/knowledge/${kbId}/files`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -77,7 +78,7 @@ export async function deleteKnowledgeFile(
   kbId: string,
   fileId: string,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/knowledge/${kbId}/files/${fileId}`, {
+  const res = await apiFetch(`${API_BASE}/knowledge/${kbId}/files/${fileId}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -89,7 +90,7 @@ export async function deleteKnowledgeFile(
 }
 
 export async function reindexKnowledgeBase(kbId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/knowledge/${kbId}/reindex`, {
+  const res = await apiFetch(`${API_BASE}/knowledge/${kbId}/reindex`, {
     method: 'POST',
     credentials: 'include',
   });

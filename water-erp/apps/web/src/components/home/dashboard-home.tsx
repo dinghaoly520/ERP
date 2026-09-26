@@ -604,7 +604,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                 异常 {data.summary.abnormalCount}
               </span>
             )}
-            <CompanySelect value={companyId} onChange={setCompanyId}/>
+            <CompanySelect value={companyId} onChange={setCompanyId} countMode="projectsDone"/>
             <div className="relative">
               {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
               <button ref={dateBtnRef} onClick={()=>setShowDP(!showDP)} className="neu-btn-xs flex items-center gap-1.5"><CalendarRange size={12}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>

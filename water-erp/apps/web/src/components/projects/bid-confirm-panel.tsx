@@ -385,10 +385,15 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   }, [isOpen, onClose]);
 
   const bpId = bidProject?.id;
+  // 清单拦截暂存：executeDecision 只存 ref 返回 'checklist'，决策弹窗收起后（onBlocked）
+  // 才 setOpeningChecklist——两次 setState 落同一事件批次，避免「决策 Modal + 清单 Modal」
+  // 短暂并存破坏「同一时刻至多一个 Modal」不变式（Esc 双层同关）
+  const blockedChecklistRef = useRef<{ error: string; items: string[] } | null>(null);
 
   /** 开标决策执行（决策弹窗注入）：延时=更新开标时间；按时=startOpening。
-   *  'failed' = 决策被拦（清单弹窗 / 错误 toast 已另行呈现），弹窗据此收起并不发通知。 */
-  const executeDecision = useCallback(async (openTimeIso: string): Promise<'ok' | 'failed'> => {
+   *  'checklist' = 清单拦截（数据存 blockedChecklistRef，弹窗收起后经 onBlocked 呈现）；
+   *  'failed' = 其余失败（错误 toast 已另行呈现）。弹窗据此收起并不发通知。 */
+  const executeDecision = useCallback(async (openTimeIso: string): Promise<'ok' | 'failed' | 'checklist'> => {
     if (!bpId) return 'failed';
     try {
       if (decisionModal === 'delay') {
@@ -399,26 +404,36 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       }
       return 'ok';
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'OPENING_CHECKLIST_FAILED') {
+      // instanceof 兜底鸭子判定：Turbopack HMR 下 ApiError 可能出现双类实例使 instanceof 假阴性
+      const code = e instanceof ApiError ? e.code : (e as { code?: string })?.code;
+      if (code === 'OPENING_CHECKLIST_FAILED') {
         // 开标准备清单未通过：弹窗列出缺失项（toast 短提示易错过，清单明细须长反馈）
-        const data = e.data as { items?: unknown } | undefined;
-        setOpeningChecklist({
-          error: e.message,
+        const data = (e as { data?: { items?: unknown } })?.data;
+        blockedChecklistRef.current = {
+          error: e instanceof Error ? e.message : '开标准备未完成',
           items: Array.isArray(data?.items) ? data.items.filter((x): x is string => typeof x === 'string') : [],
-        });
-      } else {
-        showToast(e instanceof Error ? e.message : '操作失败', 'err');
+        };
+        return 'checklist';
       }
+      showToast(e instanceof Error ? e.message : '操作失败', 'err');
       return 'failed';
     }
   }, [bpId, decisionModal, showToast]);
+
+  /** 决策弹窗收起后的清单拦截呈现（与 onClose 同批，见 blockedChecklistRef 注释） */
+  const handleDecisionBlocked = useCallback(() => {
+    const blocked = blockedChecklistRef.current;
+    blockedChecklistRef.current = null;
+    if (blocked) setOpeningChecklist(blocked);
+  }, []);
 
   /** 决策通知发送（决策弹窗注入）：失败不抛错——回落强制重试壳，沿用弹窗配置的渠道与文案。 */
   const sendDecisionNotify = useCallback(async (payload: OpeningDecisionNotifyPayload) => {
     if (!bpId) return;
     try {
       const r = await notifyOpeningDecision(bpId, payload);
-      showToast(`已通知 ${r.suppliers} 家供应商 · ${r.experts} 位专家`);
+      const skipped = (r.supplierNotFound ?? 0) + (r.expertNotFound ?? 0);
+      showToast(`已通知 ${r.suppliers} 家供应商 · ${r.experts} 位专家${skipped > 0 ? `（${skipped} 个账户未关联，已跳过）` : ''}`);
     } catch {
       setPendingNotify(payload);
       setNotifyConfirmOpen(true);
@@ -475,7 +490,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       const r = await notifyOpeningDecision(bpId, pendingNotify);
       setNotifyConfirmOpen(false);
       setPendingNotify(null);
-      showToast(`已通知 ${r.suppliers} 家供应商 · ${r.experts} 位专家`);
+      const skipped = (r.supplierNotFound ?? 0) + (r.expertNotFound ?? 0);
+      showToast(`已通知 ${r.suppliers} 家供应商 · ${r.experts} 位专家${skipped > 0 ? `（${skipped} 个账户未关联，已跳过）` : ''}`);
     } catch {
       showToast('重试通知失败，请稍后再试', 'err');
     } finally {
@@ -1170,6 +1186,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           executeDecision={executeDecision}
           sendNotify={sendDecisionNotify}
           onComplete={handleDecisionComplete}
+          onBlocked={handleDecisionBlocked}
           onClose={() => setDecisionModal(null)}
         />
       )}

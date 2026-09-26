@@ -91,3 +91,14 @@
   .nd-btn { transition: none; }
   .nd-btn:hover { transform: none; }
 }
+
+/* 去完成（2026-09-26 待办闭环）：品牌蓝实心，与 danger/soft 并列的主操作变体 */
+.nd-btn--primary {
+  background: var(--brand); color: #fff;
+  box-shadow: 3px 3px 6px oklch(0.45 0.12 258 / 0.22), -2px -2px 5px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.2);
+}
+.nd-btn--primary:hover { transform: translateY(-1px);
+  box-shadow: 4px 4px 10px oklch(0.4 0.12 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.25); }
+.nd-btn--primary:active { transform: translateY(0);
+  box-shadow: inset 2px 2px 5px oklch(0.35 0.12 258 / 0.25), inset -2px -2px 5px oklch(1 0 0 / 0.4); }
+.nd-btn--xs.nd-btn--primary { box-shadow: 2px 2px 4px oklch(0.45 0.12 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.2); }

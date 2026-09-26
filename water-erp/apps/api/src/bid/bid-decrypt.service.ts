@@ -580,6 +580,15 @@ export class BidDecryptService {
       this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'SUCCESS');
       const legacyNote2 = hasSealedKey ? '' : '（legacy 记录：未加密封存，仅完成完整性校验）';
       this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密成功，等待供应商确认唱标信息${legacyNote2}`, riskFlag: '无' });
+      // 解密成功 → 临关提醒待办消音（fire-and-forget：任何失败不阻塞解密主流程）
+      try {
+        if (bidSupplier.supplierId) {
+          const sup = await this.prisma.supplier?.findUnique({ where: { id: bidSupplier.supplierId }, select: { userId: true } }).catch(() => null);
+          if (sup?.userId) {
+            await this.notificationService?.resolveActionableForUser?.(sup.userId, 'DECRYPT_WINDOW_CLOSING', `/my-bids/${projectId}/opening-hall`);
+          }
+        }
+      } catch { /* 消音失败不影响解密 */ }
     }
 
     // 终局即固化（A）：解密异常定性为终局态，若全体已终局则自动固化开标文件包（幂等、不阻塞）

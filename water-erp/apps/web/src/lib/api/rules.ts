@@ -3,6 +3,7 @@
 const API_BASE = '/api/tender-review';
 
 import type { ComplianceRule } from '../types/tender-review';
+import { apiFetch } from './api-fetch';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -28,7 +29,7 @@ export async function fetchRules(
   const params = knowledgeBaseId
     ? `?knowledgeBaseId=${knowledgeBaseId}`
     : '';
-  const res = await fetch(`${API_BASE}/rules${params}`, { credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/rules${params}`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch rules');
   return res.json();
 }
@@ -37,7 +38,7 @@ export async function fetchRules(
 export async function findActiveExtraction(
   knowledgeBaseId: string,
 ): Promise<{ id: string; status: string; extractedCount?: number } | null> {
-  const res = await fetch(`${API_BASE}/rules/extract/active?knowledgeBaseId=${knowledgeBaseId}`, {
+  const res = await apiFetch(`${API_BASE}/rules/extract/active?knowledgeBaseId=${knowledgeBaseId}`, {
     credentials: 'include',
   });
   if (!res.ok) return null;
@@ -52,7 +53,7 @@ export async function findActiveExtraction(
 export async function extractRules(
   knowledgeBaseId: string,
 ): Promise<{ taskId: string; status: string; extractedCount?: number; error?: string }> {
-  const res = await fetch(`${API_BASE}/rules/extract`, {
+  const res = await apiFetch(`${API_BASE}/rules/extract`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -67,7 +68,7 @@ export async function getExtractionTask(taskId: string): Promise<{
   extractedCount?: number;
   error?: string;
 }> {
-  const res = await fetch(`${API_BASE}/rules/extract/tasks/${taskId}`, {
+  const res = await apiFetch(`${API_BASE}/rules/extract/tasks/${taskId}`, {
     credentials: 'include',
   });
   return handleResponse(res);
@@ -77,7 +78,7 @@ export async function getExtractionTask(taskId: string): Promise<{
 export async function extractRulesFromKb(
   knowledgeBaseId: string,
 ): Promise<ComplianceRule[]> {
-  const res = await fetch(`${API_BASE}/rules/extract`, {
+  const res = await apiFetch(`${API_BASE}/rules/extract`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -90,7 +91,7 @@ export async function extractRulesFromKb(
 export async function createRuleLegacy(
   data: Omit<ComplianceRule, 'id' | 'isActive' | 'createdAt' | 'updatedAt'>,
 ): Promise<ComplianceRule> {
-  const res = await fetch(`${API_BASE}/rules`, {
+  const res = await apiFetch(`${API_BASE}/rules`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -104,7 +105,7 @@ export async function createRule(
   kbId: string,
   data: Omit<ComplianceRule, 'id' | 'knowledgeBaseId' | 'createdAt' | 'updatedAt'>,
 ): Promise<ComplianceRule> {
-  const res = await fetch(`${API_BASE}/rules`, {
+  const res = await apiFetch(`${API_BASE}/rules`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -117,7 +118,7 @@ export async function updateRule(
   id: string,
   data: Partial<ComplianceRule>,
 ): Promise<ComplianceRule> {
-  const res = await fetch(`${API_BASE}/rules/${id}`, {
+  const res = await apiFetch(`${API_BASE}/rules/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -127,7 +128,7 @@ export async function updateRule(
 }
 
 export async function deleteRule(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/rules/${id}`, { method: 'DELETE', credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/rules/${id}`, { method: 'DELETE', credentials: 'include' });
   if (!res.ok) {
     let message = 'Failed to delete rule';
     if (res.status === 403) {

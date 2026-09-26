@@ -40,12 +40,15 @@ type Props = {
   /** workspace 专家组（排除已拒绝由后端把关，前端全量展示） */
   experts: BidWorkspaceExpert[];
   busy?: boolean;
-  /** 执行决策：'ok' 继续发通知；'failed' 中止（清单拦截/失败提示已由父级呈现），本弹窗关闭 */
-  executeDecision: (openTimeIso: string) => Promise<'ok' | 'failed'>;
+  /** 执行决策：'ok' 继续发通知；'checklist' = 清单拦截（收起后经 onBlocked 呈现）；
+   *  'failed' 中止（错误提示已由父级呈现），两种情况本弹窗都收起且不发通知 */
+  executeDecision: (openTimeIso: string) => Promise<'ok' | 'failed' | 'checklist'>;
   /** 发送通知：失败不抛错（父级回落强制重试壳） */
   sendNotify: (payload: OpeningDecisionNotifyPayload) => Promise<void>;
   /** 决策+通知链路收尾（父级关弹窗 + 重载） */
   onComplete: () => void;
+  /** 决策被清单拦截：弹窗收起后同批调用（避免双 Modal 并存） */
+  onBlocked?: () => void;
   onClose: () => void;
 };
 
@@ -105,6 +108,7 @@ export function OpeningDecisionModal({
   executeDecision,
   sendNotify,
   onComplete,
+  onBlocked,
   onClose,
 }: Props) {
   const [delayTime, setDelayTime] = useState('');
@@ -117,12 +121,15 @@ export function OpeningDecisionModal({
   const [expertBody, setExpertBody] = useState('');
   const [expertDirty, setExpertDirty] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  /** 截标是否已过（frozen/align 分界，开弹窗时定格——后端 P0-2 两档语义，见 pill 文案） */
+  const [deadlinePassed, setDeadlinePassed] = useState(false);
 
   /* 打开即按模式+开标时间预填默认文案；关闭复位（模态打开/关闭重置惯例） */
   /* eslint-disable react-hooks/set-state-in-effect -- 模态打开时按 props 派生初始文案，符合面板同款惯例 */
   useEffect(() => {
     if (isOpen && bidProject) {
       setDelayTime(toLocalInput(bidProject.openTime));
+      setDeadlinePassed(!!bidProject.deadline && new Date(bidProject.deadline).getTime() <= Date.now());
       const tpl = buildSupplierTemplate(bidProject, mode, fmtCn(bidProject.openTime));
       setSupplierTitle(tpl.title);
       setSupplierBody(tpl.body);
@@ -161,7 +168,10 @@ export function OpeningDecisionModal({
   };
 
   const supplierNames = suppliers.map((s) => s.supplierName);
-  const expertChips = experts.map((e) => ({ name: e.expertName, role: e.expertRole }));
+  // 已拒绝专家不出现在通知对象中（后端同口径排除 declined）
+  const expertChips = experts
+    .filter((e) => e.invitationStatus !== 'declined')
+    .map((e) => ({ name: e.expertName, role: e.expertRole }));
 
   const handleConfirm = async () => {
     if (mode === 'delay' && !delayTime) {
@@ -181,8 +191,10 @@ export function OpeningDecisionModal({
       const openTimeIso = mode === 'delay' ? new Date(delayTime).toISOString() : bidProject.openTime;
       const r = await executeDecision(openTimeIso);
       if (r !== 'ok') {
-        // 决策被拦（清单弹窗/错误提示已由父级呈现）——收起配置弹窗
+        // 决策被拦（清单弹窗/错误提示由父级呈现）——先收起配置弹窗；清单拦截
+        // 与 onClose 同一批次打开，避免双 Modal 并存
         onClose();
+        if (r === 'checklist') onBlocked?.();
         return;
       }
       await sendNotify({
@@ -252,12 +264,19 @@ export function OpeningDecisionModal({
                 type="datetime-local"
                 className="workbench-input workbench-input-sm !w-auto"
                 value={delayTime}
-                min={new Date().toISOString().slice(0, 16)}
+                min={toLocalInput(new Date().toISOString())}
                 onChange={(e) => handleDelayTimeChange(e.target.value)}
               />
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--warning)]">
-                截标已固化，仅推迟开标
-              </span>
+              {/* 后端 P0-2 分阶段语义：截标已过（frozen）仅推迟开标；截标未过（align）截标随开标联动顺延 */}
+              {deadlinePassed ? (
+                <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--warning)]">
+                  截标已固化，仅推迟开标
+                </span>
+              ) : (
+                <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--warning)]">
+                  截标未过：将随开标联动顺延（保持 24h 间隔）
+                </span>
+              )}
               <span className="text-[var(--muted-foreground)]">原 {fmtDateTime(bidProject.openTime)}</span>
             </>
           )}
@@ -285,6 +304,7 @@ export function OpeningDecisionModal({
               <button
                 type="button"
                 onClick={() => toggle(supplierChannels, 'in_app', setSupplierChannels)}
+                aria-pressed={supplierChannels.includes('in_app')}
                 className={`neu-tab flex-row items-center gap-1.5 px-3 py-1.5 ${supplierChannels.includes('in_app') ? 'is-active' : ''}`}
               >
                 <MessageSquare size={13} />
@@ -293,6 +313,7 @@ export function OpeningDecisionModal({
               <button
                 type="button"
                 onClick={() => toggle(supplierChannels, 'sms', setSupplierChannels)}
+                aria-pressed={supplierChannels.includes('sms')}
                 className={`neu-tab flex-row items-center gap-1.5 px-3 py-1.5 ${supplierChannels.includes('sms') ? 'is-active' : ''}`}
               >
                 <Bell size={13} />
@@ -328,12 +349,14 @@ export function OpeningDecisionModal({
               value={supplierTitle}
               onChange={(e) => { setSupplierTitle(e.target.value); setSupplierDirty(true); }}
               placeholder="通知标题"
+              maxLength={120}
               className="workbench-input w-full text-xs !h-9"
             />
             <textarea
               value={supplierBody}
               onChange={(e) => { setSupplierBody(e.target.value); setSupplierDirty(true); }}
               rows={7}
+              maxLength={1000}
               className="neu-input w-full resize-y text-xs leading-relaxed"
             />
             <p className="text-[11px] text-[var(--muted-foreground)]">
@@ -364,6 +387,7 @@ export function OpeningDecisionModal({
               <button
                 type="button"
                 onClick={() => toggle(expertChannels, 'sms', setExpertChannels)}
+                aria-pressed={expertChannels.includes('sms')}
                 className={`neu-tab flex-row items-center gap-1.5 px-3 py-1.5 ${expertChannels.includes('sms') ? 'is-active' : ''}`}
               >
                 <Bell size={13} />
@@ -375,7 +399,7 @@ export function OpeningDecisionModal({
             )}
           </div>
 
-          {/* 通知对象 chips（正选/候补标注） */}
+          {/* 通知对象 chips（正选/候补标注；已拒绝专家后端同口径排除，不在此展示） */}
           {expertChips.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {expertChips.map((e, i) => (
@@ -386,7 +410,9 @@ export function OpeningDecisionModal({
               ))}
             </div>
           ) : (
-            <p className="text-[11px] text-[var(--muted-foreground)]">本项目暂无评标专家，将不发送专家通知。</p>
+            <p className="text-[11px] text-[var(--muted-foreground)]">
+              {experts.length > 0 ? '专家均已拒绝出席，将不发送专家通知。' : '本项目暂无评标专家，将不发送专家通知。'}
+            </p>
           )}
 
           {/* 短信通知（专家联系电话） */}
@@ -399,12 +425,14 @@ export function OpeningDecisionModal({
               value={expertTitle}
               onChange={(e) => { setExpertTitle(e.target.value); setExpertDirty(true); }}
               placeholder="通知标题"
+              maxLength={120}
               className="workbench-input w-full text-xs !h-9"
             />
             <textarea
               value={expertBody}
               onChange={(e) => { setExpertBody(e.target.value); setExpertDirty(true); }}
               rows={5}
+              maxLength={1000}
               className="neu-input w-full resize-y text-xs leading-relaxed"
             />
             <p className="text-[11px] text-[var(--muted-foreground)]">

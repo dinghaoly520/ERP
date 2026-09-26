@@ -1,3 +1,4 @@
+import { apiFetch } from './api-fetch';
 export type Contact = {
   id: string;
   name: string;
@@ -10,7 +11,7 @@ export type Contact = {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 export async function fetchContacts(): Promise<Contact[]> {
-  const response = await fetch(`${API_BASE}/contacts`, {
+  const response = await apiFetch(`${API_BASE}/contacts`, {
     credentials: 'include',
   });
 
@@ -26,7 +27,7 @@ export async function createContact(data: {
   email?: string;
   phone?: string;
 }): Promise<Contact> {
-  const response = await fetch(`${API_BASE}/contacts`, {
+  const response = await apiFetch(`${API_BASE}/contacts`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -44,7 +45,7 @@ export async function updateContact(
   id: string,
   data: { name?: string; email?: string; phone?: string },
 ): Promise<Contact> {
-  const response = await fetch(`${API_BASE}/contacts/${id}`, {
+  const response = await apiFetch(`${API_BASE}/contacts/${id}`, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -59,7 +60,7 @@ export async function updateContact(
 }
 
 export async function deleteContact(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/contacts/${id}`, {
+  const response = await apiFetch(`${API_BASE}/contacts/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -70,7 +71,7 @@ export async function deleteContact(id: string): Promise<void> {
 }
 
 export async function findContactByName(name: string): Promise<Contact | null> {
-  const response = await fetch(`${API_BASE}/contacts/by-name?name=${encodeURIComponent(name)}`, {
+  const response = await apiFetch(`${API_BASE}/contacts/by-name?name=${encodeURIComponent(name)}`, {
     credentials: 'include',
   });
 

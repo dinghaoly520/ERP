@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
+import { getNotificationLabel } from "@water-erp/shared";
 
 /**
  * 全局实时通知（2026-09-22）：WS 订阅 `notification:new`，新站内通知在
@@ -147,7 +148,7 @@ export function RealtimeNotifications() {
               <p className="truncate text-[12.5px] font-bold text-[var(--foreground)]">{n.title}</p>
               <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">{n.content}</p>
               <div className="mt-1.5 flex items-center justify-between">
-                <span className="text-[9px] uppercase tracking-wider text-[color:var(--sp-gray-400)]/70">{n.type}</span>
+                <span className="text-[9px] uppercase tracking-wider text-[color:var(--sp-gray-400)]/70">{getNotificationLabel(n.type)}</span>
                 <button
                   type="button"
                   onClick={(e) => markRead(e, n)}

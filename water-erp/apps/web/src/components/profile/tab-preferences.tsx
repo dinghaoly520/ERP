@@ -12,14 +12,14 @@ const NOTIF_GROUPS: { group: string; items: NotifToggle[] }[] = [
     group: '审批与审核',
     items: [
       { type: 'SUPPLIER_PENDING', label: '供应商审批', desc: '新供应商入库、变更申请等', icon: UserCheck },
-      { type: 'PRICE_REVIEW', label: '价格复核', desc: '报价调整、目录新增待审批', icon: Tag },
+      { type: 'CATALOG_PRICE_ALERT', label: '目录价格预警', desc: '目录价格偏离预警待处理', icon: Tag },
     ],
   },
   {
     group: '预警与到期',
     items: [
       { type: 'QUALIFICATION_EXPIRING', label: '资质到期', desc: '供应商资质证书即将到期提醒', icon: AlertIcon },
-      { type: 'BID_REMINDER', label: '投标截止', desc: '投标即将截止的提醒通知', icon: Clock },
+      { type: 'BID_DEADLINE_NUDGE', label: '投标截止', desc: '投标即将截止的提醒通知', icon: Clock },
     ],
   },
   {

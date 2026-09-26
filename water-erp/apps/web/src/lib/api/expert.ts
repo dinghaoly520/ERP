@@ -59,6 +59,16 @@ export interface CandidatePoolItem {
   matchScore: number;
   evaluationLevel?: string;
   currentLoadStatus?: string;
+  /** 所属部门（Department.name） */
+  department?: string | null;
+  /** 档案联系电话 */
+  phone?: string | null;
+  /** A-129 库内档案等级 A-E */
+  expertLevel?: string | null;
+  /** 历史参评项目数（累计） */
+  pastProjects?: number;
+  /** 评分偏离度（均分，越小越贴近共识） */
+  scoreDeviation?: number | null;
   reason: string;
 }
 

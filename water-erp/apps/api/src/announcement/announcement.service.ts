@@ -556,13 +556,13 @@ export class AnnouncementService {
         await (this.notifications ? this.notifications.create({
             userId: s.userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
-            title: `补遗公告：${ann.title}`,
+            title: `【与您相关】补遗公告：${ann.title}`, // 参与供应商定向（ADDENDUM 属项目内类，A1 同口径）
             content: `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`,
             link: `/announcements/${ann.id}`,
           }) : this.prisma.notification.create({ data: {
             userId: s.userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
-            title: `补遗公告：${ann.title}`,
+            title: `【与您相关】补遗公告：${ann.title}`, // 参与供应商定向（ADDENDUM 属项目内类，A1 同口径）
             content: `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`,
             link: `/announcements/${ann.id}`,
           } })).catch(() => {});
@@ -735,8 +735,16 @@ export class AnnouncementService {
     return result;
   }
 
+  /** 项目内公告类型：收件人定向为该项目供应商名册（受邀/已投递）——
+   *  结果类/项目内公告对名册外的供应商是纯噪音（2026-09-26 降噪，dev 库曾 100 条/70 未读）。
+   *  新机会类（BID_NOTICE/PREQUAL_NOTICE）与平台类（POLICY/PLATFORM）仍全量。 */
+  private static readonly PROJECT_SCOPED_ANN_TYPES = new Set([
+    'ADDENDUM', 'CLARIFY_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE', 'WIN_BID_NOTICE',
+    'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE', 'FAILED_BID_NOTICE',
+  ]);
+
   /** 按公告可见范围向供应商用户发送站内通知（发布时调用）。
-   *  PUBLIC/未设置 → 全部已启用供应商；RESTRICTED → restrictedSupplierIds 对应用户。 */
+   *  优先级：RESTRICTED → restrictedSupplierIds；项目内类型 → 该项目供应商名册；其余 → 全部已启用供应商。 */
   async notifySuppliersOnPublish(annId: string, title: string, meta: Record<string, any>) {
     // notifyOnPublish 显式关闭则不发
     if (meta.notifyOnPublish === false) return;
@@ -753,6 +761,23 @@ export class AnnouncementService {
         select: { userId: true },
       });
       userIds = suppliers.map(s => s.userId);
+    } else if (AnnouncementService.PROJECT_SCOPED_ANN_TYPES.has(String(meta.__type))) {
+      // 项目内公告 → 定向该项目供应商名册；无项目关联或名册为空则不广播（发也是噪音）
+      const ann = await this.prisma.announcement.findUnique({
+        where: { id: annId },
+        select: { relatedProjectCode: true },
+      });
+      const code = ann?.relatedProjectCode;
+      if (code) {
+        const roster = await this.prisma.bidSupplier.findMany({
+          where: { project: { projectCode: code } },
+          select: { supplier: { select: { userId: true } } },
+        });
+        userIds = roster.map(r => r.supplier?.userId).filter((u): u is string => !!u);
+      } else {
+        userIds = [];
+        this.logger.warn(`项目内公告「${title}」（${meta.__type}）无项目关联，跳过站内通知`);
+      }
     } else {
       const users = await this.prisma.user.findMany({
         where: { role: 'supplier', isActive: true },
@@ -763,19 +788,21 @@ export class AnnouncementService {
 
     const typeLabel: Record<string, string> = { ...ANNOUNCEMENT_TYPE_LABELS };
     const label = typeLabel[meta.__type] || '公告';
+    // 定向类（名册内）公告带【与您相关】前缀，与全量新机会/平台类公告一眼区分（2026-09-26 A1）
+    const relevancePrefix = AnnouncementService.PROJECT_SCOPED_ANN_TYPES.has(String(meta.__type)) ? '【与您相关】' : '';
     let sent = 0;
     for (const userId of userIds) {
       try {
         await (this.notifications ? this.notifications.create({
             userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
-            title: `新${label}：${title}`,
+            title: `${relevancePrefix}新${label}：${title}`,
             content: `${label}「${title}」已发布，请前往公告中心查看详情。`,
             link: `/announcements/${annId}`,
           }) : this.prisma.notification.create({ data: {
             userId,
             type: 'ANNOUNCEMENT_PUBLISHED',
-            title: `新${label}：${title}`,
+            title: `${relevancePrefix}新${label}：${title}`,
             content: `${label}「${title}」已发布，请前往公告中心查看详情。`,
             link: `/announcements/${annId}`,
           } })).catch(() => {});

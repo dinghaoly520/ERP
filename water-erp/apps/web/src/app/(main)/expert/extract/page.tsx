@@ -128,7 +128,7 @@ export function ExpertExtractPage({
   const [companyDeptSpecs, setCompanyDeptSpecs] = useState<Map<string, string[]>>(new Map()); // key `${company}||${dept}`
   const [deptByUser, setDeptByUser] = useState<Map<string, string>>(new Map()); // userId → 真部门名（User.department）——确认表「部门」列数据源
   const [demandRepCompany, setDemandRepCompany] = useState(''); // 抽取公司（默认当前用户公司）
-  const [step, setStep] = useState(1); // 向导步骤：1=抽取配置 2=审核调整 3=确认通知 4=专家确认
+  const [step, setStep] = useState(1); // 向导步骤：1=抽取配置 2=抽取结果 3=确认通知 4=专家确认
   const [loading, setLoading] = useState(false); const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState(''); const [preview, setPreview] = useState<ExtractionPreview | null>(null); const [done, setDone] = useState(false);
   // 手动调整后的名单
@@ -483,7 +483,7 @@ export function ExpertExtractPage({
     setSelectedExperts(autoExtractResult.selected);
     setAlternativeExperts(autoExtractResult.alternatives);
     setNotifyMessages(new Map(autoExtractResult.selected.map((s: ExtractionSelected) => [s.userId, autoExtractResult.notifyMessage])));
-    setStep(2); // 已有抽取结果 → 直接进入审核调整
+    setStep(2); // 已有抽取结果 → 直接进入抽取结果
   }, [autoExtractResult]);
 
   useEffect(() => { listBidProjects().then(setProjects).catch(() => toast.error('加载项目列表失败')); listSpecialties().then(setSpecs).catch(() => {}); }, []);
@@ -1127,7 +1127,7 @@ export function ExpertExtractPage({
         setSelectedExperts([...result.selected]);
         setAlternativeExperts([...result.alternatives]);
       }
-      setStep(2); // 重新抽取 → 审核调整（初始专家组）
+      setStep(2); // 重新抽取 → 抽取结果（初始专家组）
       toast.dismiss('extract-loading');
     } catch (e: any) {
       toast.dismiss('extract-loading');
@@ -1848,7 +1848,7 @@ export function ExpertExtractPage({
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方（业主）代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>手动调整：抽取后可替换/移除/添加专家，灵活组建最终专家组</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>结果即定：抽取完成后进入「抽取结果」全信息总览，配置不可回改；如需更换人选在后续步骤补选</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
               </ol>
             </RulesPopover>
@@ -1861,7 +1861,7 @@ export function ExpertExtractPage({
       <StepTrack
         steps={[
           { num: 1, label: '抽取配置', desc: '委员会席位、需求方（业主）代表与专业配额' },
-          { num: 2, label: '审核调整', desc: '查看 AI 推荐结果，手动调整专家组' },
+          { num: 2, label: '抽取结果', desc: '查看抽取结果与专家完整信息' },
           { num: 3, label: '确认通知', desc: '确定组长、发送通知给专家' },
           { num: 4, label: '专家确认与补选', desc: '查看专家回复，弹窗内补选并记录历史' },
           { num: 5, label: '专家组确认', desc: '完成组建，查看最终专家组成员' },
@@ -1870,6 +1870,8 @@ export function ExpertExtractPage({
         current={step}
         onStepClick={(s) => setStep(s)}
         reachable={(s) => {
+          // 抽取完成进入步骤2后不可回步骤1重新抽取（2026-09-24 拍板）——结果即定，后续仅向前
+          if (s === 1 && step >= 2) return false;
           if (s <= step) return true;
           if (s === 2 && !!preview) return true;
           if (s === 3 && confirmedExpertIds.length > 0) return true;
@@ -2278,14 +2280,14 @@ export function ExpertExtractPage({
           {preview && (
             <div className="flex justify-end pr-4">
               <button onClick={() => setStep(2)} className="neu-btn-soft is-info">
-                下一步：审核调整<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                下一步：抽取结果<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* ── 步骤 2：审核调整 ── */}
+      {/* ── 步骤 2：抽取结果 ── */}
       {step === 2 && (
         <div className="space-y-4">
           {loading && <div className="neu-table-card py-14 text-center"><div className="inline-flex items-center gap-2 text-sm font-bold text-[var(--accent)]"><RefreshCw size={14} className="animate-spin" />AI 正在分析项目需求并抽取专家组...</div></div>}
@@ -2306,44 +2308,75 @@ export function ExpertExtractPage({
 
                 {preview.shortages.length > 0 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3 text-sm text-[var(--warning)]"><AlertTriangle size={16} className="inline mr-2" />专业候选人不足{preview.shortages.map(s => `：${s.specialty} 需${s.needed}人/仅${s.available}人`).join('')}</div>}
 
-                {/* 正选专家组（含需求方代表，可调整） */}
+                {/* 抽取结果全信息表（2026-09-24 改版：表格式全量信息；结果即定，不提供添加/替换/移除） */}
                 <div className="neu-table-card p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">专家组 · {selectedExperts.length + demandRepItems.length} 人</span>
-                    <button onClick={() => { setReplaceTarget(null); setReplaceSearch(''); setShowReplaceModal(true); }} className="neu-btn-xs"><Plus size={12} />添加专家</button>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">抽取结果 · 专家组 {selectedExperts.length + demandRepItems.length} 人（正选 {selectedExperts.filter(s => !demandRepIdSet.has(s.userId)).length} · 需求方（业主）代表 {demandRepItems.length}）</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]">候选池 {preview.eligiblePool} 人 · {preview.engine === 'deepseek' ? 'AI 抽取' : '规则引擎'} · {new Date(preview.generatedAt).toLocaleString('zh-CN', { hour12: false })}</span>
                   </div>
-                  {/* 需求方代表（置顶，姓名后缀标注身份，格式与专家一致：专业+正选+等级+理由） */}
-                  {demandRepItems.map((item, i) => (
-                    <div key={item.userId} className={`flex items-start gap-3 mt-3 ${i > 0 || sortedSelectedExperts.filter(s => !demandRepIdSet.has(s.userId)).length > 0 ? 'border-b border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] pb-3' : ''}`}>
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">
-                        <UserCircle size={15} />
-                      </span>
-                      <div className="min-w-0 flex-1 py-0.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-[var(--foreground)]">{fmtExpertName(item.userId, item.name)}</span>
-                          {item.title && <StatusBadge tone="gray">{item.title}</StatusBadge>}
-                          <StatusBadge tone="blue">{fmtExpertSpecialty(item.userId, item.specialty)}</StatusBadge>
-                          <StatusBadge tone="green">正选</StatusBadge>
-                          {item.evaluationLevel && <StatusBadge tone={item.evaluationLevel === 'A' ? 'green' : item.evaluationLevel === 'B' ? 'blue' : item.evaluationLevel === 'D' ? 'orange' : item.evaluationLevel === 'E' ? 'red' : 'gray'}>{item.evaluationLevel}</StatusBadge>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => setDemandRepPersons(prev => prev.filter(p => p.userId !== item.userId))} className="neu-btn-xs is-danger" title="移除"><X size={11} /></button>
-                      </div>
-                    </div>
-                  ))}
-                  {sortedSelectedExperts.filter(s => !demandRepIdSet.has(s.userId)).map((s, i) => (
-                    <div key={s.userId} className={`flex items-start gap-3 mt-3 ${i > 0 ? 'border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] pt-3' : ''}`}>
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{i + 1}</span>
-                      <div className="min-w-0 flex-1 py-0.5">
-                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>{s.title && <StatusBadge tone="gray">{s.title}</StatusBadge>}<StatusBadge tone="blue">{s.specialty}</StatusBadge><StatusBadge tone="green">正选</StatusBadge>{s.evaluationLevel && <StatusBadge tone={s.evaluationLevel === 'A' ? 'green' : s.evaluationLevel === 'B' ? 'blue' : s.evaluationLevel === 'D' ? 'orange' : s.evaluationLevel === 'E' ? 'red' : 'gray'}>{s.evaluationLevel}</StatusBadge>}</div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => openReplace(s.userId, 'selected')} className="neu-btn-xs" title="替换"><Pencil size={11} /></button>
-                        <button onClick={() => removeExpert(s.userId, 'selected')} className="neu-btn-xs is-danger" title="移除"><X size={11} /></button>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="overflow-x-auto">
+                    <table className="neu-table w-full min-w-[1140px]">
+                      <thead>
+                        <tr>
+                          <th className="w-[44px]">#</th>
+                          <th>姓名</th>
+                          <th>身份</th>
+                          <th>工作单位</th>
+                          <th>部门</th>
+                          <th>职称</th>
+                          <th>专业</th>
+                          <th>联系方式</th>
+                          <th className="text-center">库内等级</th>
+                          <th className="text-center">履职等级</th>
+                          <th className="text-center">当前负荷</th>
+                          <th className="text-center">历史参评</th>
+                          <th className="text-center">评分偏离</th>
+                          <th className="text-center">匹配度</th>
+                          <th>选用理由</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const poolMap = new Map(preview.candidatePool.map(c => [c.userId, c]));
+                          const levelBadge = (lv?: string | null) => !lv ? <span className="text-xs text-[var(--muted-foreground)]">—</span> : (
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: ({ A: '#059669', B: '#0a5eb8', C: '#d97706', D: '#ca8a04', E: '#dc2626' } as Record<string, string>)[lv] ?? 'var(--muted-foreground)' }}>{lv}</span>
+                          );
+                          const loadClass = (t?: string) => t === '过载' ? 'text-[var(--danger)]' : t === '繁忙' ? 'text-[var(--warning)]' : t === '正常' ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]';
+                          const rows = [
+                            ...demandRepItems.map(item => ({ s: item, isRep: true })),
+                            ...sortedSelectedExperts.filter(x => !demandRepIdSet.has(x.userId)).map(x => ({ s: x, isRep: false })),
+                          ];
+                          let seq = 0;
+                          return rows.map(({ s, isRep }) => {
+                            const c = poolMap.get(s.userId);
+                            seq += 1;
+                            const reason = s.reason || c?.reason || '';
+                            return (
+                              <tr key={`${s.userId}-${seq}`} className="row-clickable" onClick={() => router.push(`/expert/${s.userId}`)}>
+                                <td className="font-mono text-xs font-bold tabular-nums text-[var(--muted-foreground)]">{String(seq).padStart(2, '0')}</td>
+                                <td className="whitespace-nowrap text-sm font-bold text-[var(--foreground)]">{s.name}</td>
+                                <td className="whitespace-nowrap">{isRep ? <StatusBadge tone="orange">业主代表</StatusBadge> : <StatusBadge tone="green">正选</StatusBadge>}</td>
+                                <td className="max-w-[180px] truncate text-sm text-[var(--muted-foreground)]" title={s.employer ?? c?.employer ?? ''}>{s.employer ?? c?.employer ?? '—'}</td>
+                                <td className="max-w-[120px] truncate text-sm text-[var(--muted-foreground)]" title={c?.department ?? ''}>{c?.department ?? '—'}</td>
+                                <td className="whitespace-nowrap text-sm text-[var(--muted-foreground)]">{s.title ?? c?.title ?? '—'}</td>
+                                <td className="whitespace-nowrap"><StatusBadge tone="blue">{fmtExpertSpecialty(s.userId, s.specialty)}</StatusBadge></td>
+                                <td className="whitespace-nowrap font-mono text-xs text-[var(--muted-foreground)]">{c?.phone ?? '—'}</td>
+                                <td className="text-center">{levelBadge(c?.expertLevel ?? null)}</td>
+                                <td className="text-center">{levelBadge(s.evaluationLevel ?? c?.evaluationLevel ?? null)}</td>
+                                <td className={`text-center text-xs font-semibold ${loadClass(c?.currentLoadStatus)}`}>{c?.currentLoadStatus ?? '—'}</td>
+                                <td className="text-center text-sm font-semibold tabular-nums text-[var(--foreground)]">{c?.pastProjects ?? '—'}</td>
+                                <td className="text-center text-sm tabular-nums text-[var(--muted-foreground)]">{c?.scoreDeviation != null ? c.scoreDeviation : '—'}</td>
+                                <td className="text-center">
+                                  <span className="inline-flex items-baseline gap-0.5 text-sm font-bold tabular-nums text-[var(--accent)]">{s.matchScore ?? c?.matchScore ?? '—'}<span className="text-[10px] font-semibold text-[var(--muted-foreground)]">分</span></span>
+                                </td>
+                                <td className="max-w-[260px] text-xs leading-5 text-[var(--muted-foreground)]" title={reason}>{reason ? reason.slice(0, 80) + (reason.length > 80 ? '…' : '') : '—'}</td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
 
@@ -2355,9 +2388,9 @@ export function ExpertExtractPage({
 
 
             <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-              <div className="flex items-center gap-3">
-                <button onClick={() => { setStep(1); setStep3Confirmed(false); }} className="neu-btn-soft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：抽取配置</button>
-              </div>
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+                <ShieldCheck size={13} className="text-[var(--success)]" />抽取已完成，抽取配置不可回改；如需更换专家组请在后续步骤补选
+              </span>
               <div className="flex items-center gap-3">
                 {step3Confirmed || confirmedExpertIds.length > 0 ? (
                   <span className="inline-flex items-center gap-1.5 rounded-xl bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-4 py-2 text-sm font-bold text-[var(--success)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
@@ -2541,7 +2574,7 @@ export function ExpertExtractPage({
             </div>
           <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
             <button onClick={() => { setStep(2); setStep3Confirmed(false); }} className="neu-btn-soft">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：审核调整
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：抽取结果
             </button>
             <div className="flex items-center gap-3">
               {done || (notifyResults && notifyResults.length > 0) || notifySentRef.current ? (

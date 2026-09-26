@@ -35,7 +35,7 @@ export function ProjectManagementPage() {
   const [keyword, setKeyword] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
-  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'departmentNumber' | 'title'>('updatedAt');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'title'>('updatedAt');
   // 级联筛选：filterType 选维度，filterValue 选值
   const [filterType, setFilterType] = useState<'method' | 'department' | 'operator'>('method');
   const [filterValue, setFilterValue] = useState<string>('');
@@ -161,7 +161,7 @@ export function ProjectManagementPage() {
     const normalized = keyword.trim().toLowerCase();
     if (normalized) {
       result = result.filter((item) =>
-        [item.title, item.requesterName, item.requesterDepartment, item.projectCode ?? '', item.contractNumber ?? '', item.departmentNumber ?? '']
+        [item.title, item.requesterName, item.requesterDepartment, item.projectCode ?? '', item.contractNumber ?? '']
           .join(' ')
           .toLowerCase()
           .includes(normalized),
@@ -180,8 +180,6 @@ export function ProjectManagementPage() {
       switch (sortBy) {
         case 'budgetAmount':
           return (b.budgetAmount ?? 0) - (a.budgetAmount ?? 0);
-        case 'departmentNumber':
-          return (a.departmentNumber ?? '').localeCompare(b.departmentNumber ?? '', 'zh-CN');
         case 'title':
           return (a.title ?? '').localeCompare(b.title ?? '', 'zh-CN');
         case 'createdAt':
@@ -387,7 +385,6 @@ export function ProjectManagementPage() {
                   <option value="updatedAt">最近更新</option>
                   <option value="createdAt">最近创建</option>
                   <option value="budgetAmount">预算金额</option>
-                  <option value="departmentNumber">部门编号</option>
                   <option value="title">项目名称</option>
                 </select>
                 <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>

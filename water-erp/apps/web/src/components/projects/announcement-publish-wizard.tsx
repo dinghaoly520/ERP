@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2,
+  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload,
 } from 'lucide-react';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import {
@@ -25,6 +25,11 @@ import { getObjectionContact } from '@/lib/api/system-config';
 import { listBidProjects, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
+import {
+  SunshinePlatformDialog,
+  SUNSHINE_CATEGORY_INTERFACE,
+  type SunshinePublishConfig,
+} from '@/components/projects/sunshine-platform-dialog';
 import { confirmDialog } from '@/components/catalog/confirm-dialog';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
 import { buildPrefillFromProject } from '@/lib/tender-write/prefill-from-project';
@@ -246,6 +251,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // Step 2 config
   const [visibility, setVisibility] = useState<'PUBLIC' | 'RESTRICTED'>('PUBLIC');
   const [restrictedSupplierIds, setRestrictedSupplierIds] = useState<string[]>([]);
+  // ★ 阳光采购平台同步发布（2026-09-24）：与公告范围（全部/部分可见）不互斥的附加选项，所有公告类型常置；
+  // 配置内容按《天府阳光采购平台招标数据接口文档 V2.0.5》设计，发布时快照写入 metadata.sunshinePublish
+  const [sunshineOn, setSunshineOn] = useState(false);
+  const [sunshineConfig, setSunshineConfig] = useState<SunshinePublishConfig | null>(null);
+  const [sunshineModalOpen, setSunshineModalOpen] = useState(false);
   const [publishTiming, setPublishTiming] = useState<'now' | 'scheduled' | 'announcement_start'>('now');
   const [scheduledDate, setScheduledDate] = useState('');
   // 公示期限（止）（从公告制作提取到发布配置）+ 标书投递截止时间
@@ -332,6 +342,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setScheduledDate('');
     setBusy(false);
     setPendingFiles([]); // File 对象不可序列化，关闭即丢弃
+    setSunshineOn(false);
+    setSunshineConfig(null);
+    setSunshineModalOpen(false);
 
     const tt = mapProcurementMethodToTenderType(project.procurementMethod);
     if (!tt) { setLoading(false); return; }
@@ -359,6 +372,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       setTenderOn(cachedWiz.tenderOn ?? tenderFiles.length > 0);
       setSelectedTenderObjectKey(cachedWiz.selectedTenderObjectKey ?? tenderFiles[0]?.objectKey ?? '');
       setNotifyOnPublish(cachedWiz.notifyOnPublish ?? true);
+      setSunshineOn(cachedWiz.sunshineOn ?? false);
+      setSunshineConfig(cachedWiz.sunshineConfig ?? null);
       if (tt === 'SINGLE_SOURCE') {
         const sn = (cachedWiz.draft as Record<string, string>).supplierName?.trim();
         if (sn) setAutoMatchName(sn);
@@ -739,8 +754,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       return;
     }
     setStep(2);
-    if (project && draft) saveWizardState(project.id, category, { step: 2, draft: draft as Record<string, string> });
+    if (project && draft) saveWizardState(project.id, category, { step: 2, draft: draft as Record<string, string>, sunshineOn, sunshineConfig });
   };
+
+  // 阳光采购平台配置保存（弹窗回调）：随草稿一起入 localStorage 缓存
+  const handleSunshineSave = useCallback((cfg: SunshinePublishConfig) => {
+    setSunshineConfig(cfg);
+    if (project && category) saveWizardState(project.id, category, { sunshineConfig: cfg, sunshineOn: true });
+  }, [project, category]);
 
   // Notification callback from embedded AnnouncementDialog
   const handleDraftChange = useCallback((d: AnnouncementDraft, cat: AnnouncementCategory) => {
@@ -785,6 +806,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
     if (visibility === 'RESTRICTED' && restrictedSupplierIds.length === 0) {
       toast.error('请至少选择一家可见供应商');
+      return;
+    }
+    // 阳光采购平台：勾选同步但未完成配置 → 拦截发布并拉起配置弹窗
+    if (sunshineOn && !sunshineConfig) {
+      setSunshineModalOpen(true);
+      toast.error('请先完成阳光采购平台发布配置，或取消勾选「同步发布至阳光采购平台」');
       return;
     }
     const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
@@ -838,6 +865,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
       meta.notifyOnPublish = notifyOnPublish;
+      // 阳光采购平台同步快照（2026-09-24）：按接口文档 V2.0.5 组织，供后端推送链路消费；
+      // issueType/isExternal 由公告范围冻结（全部可见=公开方式+对外，部分可见=邀请方式+不对外）
+      if (sunshineOn && sunshineConfig && category) {
+        meta.sunshinePublish = {
+          enabled: true,
+          interfaceCode: SUNSHINE_CATEGORY_INTERFACE[category].code,
+          config: sunshineConfig,
+          issueType: visibility === 'PUBLIC' ? 1 : 2,
+          isExternal: visibility === 'PUBLIC' ? 1 : 0,
+        };
+      }
       // 异议联系方式快照（2026-09-11）：随公告冻结在 metadata，详情页单独展示（澄清说明后续修改不影响已发公告）
       if (objectionContact.trim()) meta.objectionContact = objectionContact;
       if (tenderOn && selectedTenderObjectKey) {
@@ -1122,6 +1160,13 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     <CheckCircle2 size={14} className="text-[var(--success)]" />
                     全部可见（流标公告强制公开）
                   </span>
+                  <SunshineSyncRow
+                    sunshineOn={sunshineOn}
+                    sunshineConfig={sunshineConfig}
+                    category={category}
+                    onToggle={(on) => { setSunshineOn(on); if (on) setSunshineModalOpen(true); }}
+                    onOpenConfig={() => setSunshineModalOpen(true)}
+                  />
                 </div>
               ) : (
               <div className="flex flex-col rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
@@ -1180,6 +1225,13 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     </div>
                   </div>
                 )}
+                <SunshineSyncRow
+                  sunshineOn={sunshineOn}
+                  sunshineConfig={sunshineConfig}
+                  category={category}
+                  onToggle={(on) => { setSunshineOn(on); if (on) setSunshineModalOpen(true); }}
+                  onOpenConfig={() => setSunshineModalOpen(true)}
+                />
               </div>
               )}
 
@@ -1444,6 +1496,20 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         </div>
       </div>
 
+      {/* ★ 阳光采购平台发布配置弹窗（勾选同步后弹出；「配置发布内容」按钮常置可随时打开） */}
+      {sunshineModalOpen && category && draft && (
+        <SunshinePlatformDialog
+          isOpen
+          onClose={() => setSunshineModalOpen(false)}
+          onSave={handleSunshineSave}
+          category={category}
+          project={project}
+          draft={draft}
+          visibility={visibility}
+          operatorName={project.requesterName ?? undefined}
+        />
+      )}
+
       {/* 供应商选择弹窗 */}
       {showSupplierPicker && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center">
@@ -1586,5 +1652,59 @@ function AttachmentSection({
         )}
       </div>
     </div>
+  );
+}
+
+/** ★ 阳光采购平台同步行（2026-09-24）：公告范围卡的附加选项——与 全部可见/部分供应商可见 不互斥，
+ *  所有公告类型常置展示；勾选即拉起配置弹窗，「配置发布内容」按钮任何时候可点 */
+function SunshineSyncRow({
+  sunshineOn,
+  sunshineConfig,
+  category,
+  onToggle,
+  onOpenConfig,
+}: {
+  sunshineOn: boolean;
+  sunshineConfig: SunshinePublishConfig | null;
+  category: AnnouncementCategory | null;
+  onToggle: (on: boolean) => void;
+  onOpenConfig: () => void;
+}) {
+  const iface = category ? SUNSHINE_CATEGORY_INTERFACE[category] : null;
+  return (
+    <>
+      <div className="mt-3 flex items-center gap-2 border-t border-[oklch(0.6_0.04_258_/_0.1)] pt-3">
+        <input
+          type="checkbox"
+          id="sunshine-sync"
+          checked={sunshineOn}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="accent-[var(--accent)]"
+        />
+        <label htmlFor="sunshine-sync" className="cursor-pointer text-sm">
+          同步发布至阳光采购平台
+        </label>
+        <span
+          className={[
+            'rounded-[6px] px-2 py-0.5 text-[10px] font-bold',
+            sunshineOn
+              ? sunshineConfig
+                ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]'
+                : 'bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] text-[var(--warning)]'
+              : 'bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] text-[var(--muted-foreground)]',
+          ].join(' ')}
+        >
+          {sunshineOn ? (sunshineConfig ? '已配置' : '待配置') : '未启用'}
+        </span>
+        <button type="button" onClick={onOpenConfig} className="neu-btn-xs ml-auto shrink-0">
+          <CloudUpload size={11} />配置发布内容
+        </button>
+      </div>
+      <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--muted-foreground)]">
+        按《天府阳光采购平台招标数据接口文档 V2.0.5》推送本公告
+        {iface ? `（${iface.code} ${iface.name}，前置推送 SCM0001 招标基础信息）` : '（前置推送 SCM0001 招标基础信息）'}；
+        推送需平台分配身份标识并加 IP 白名单，接入完成前配置仅随公告存档。
+      </p>
+    </>
   );
 }

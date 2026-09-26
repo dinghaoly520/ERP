@@ -160,98 +160,23 @@ export const EXPERT_ROLE = {
   ALTERNATE: '候补',
 } as const;
 
-/* ── 通知类型元数据 ── */
+/* ── 通知类型元数据（2026-09-26 起从注册表派生，单一事实源见 notification-registry.ts） ── */
 // icon = Lucide 图标名（前端按名渲染）；tone = 语义色；actionable = 是否进「待办」分段
+import { NOTIFICATION_REGISTRY } from './notification-registry';
+
 export interface NotificationMeta {
   icon: string;
   tone: 'blue' | 'green' | 'orange' | 'red' | 'purple' | 'gray';
   actionable: boolean;
 }
 
-export const NOTIFICATION_META: Record<string, NotificationMeta> = {
-  SUPPLIER_APPROVED:       { icon: 'CheckCircle2',     tone: 'green',  actionable: false },
-  SUPPLIER_REJECTED:       { icon: 'XCircle',           tone: 'red',    actionable: false },
-  SUPPLIER_RETURNED:       { icon: 'RotateCcw',         tone: 'orange', actionable: false },
-  SUPPLIER_PENDING:        { icon: 'UserCheck',         tone: 'blue',   actionable: true  },
-  QUALIFICATION_EXPIRING:  { icon: 'AlertTriangle',     tone: 'orange', actionable: true  },
-  BID_PUBLISHED:           { icon: 'Megaphone',         tone: 'blue',   actionable: false },
-  BID_REMINDER:            { icon: 'Clock',             tone: 'orange', actionable: true  },
-  BID_OPENING:             { icon: 'Gavel',             tone: 'blue',   actionable: false },
-  BID_EVALUATION_RESULT:   { icon: 'Award',             tone: 'green',  actionable: false },
-  CLARIFICATION_REPLIED:   { icon: 'MessageCircle',     tone: 'purple', actionable: false },
-  HALL_MESSAGE:            { icon: 'MessagesSquare',   tone: 'blue',   actionable: true  },
-  PRICE_REVIEW:            { icon: 'Tag',               tone: 'purple', actionable: true  },
-  CATALOG_APPLICATION:     { icon: 'ShoppingBag',       tone: 'gray',   actionable: false },
-  USER_REGISTRATION_PENDING: { icon: 'UserPlus',        tone: 'blue',   actionable: true  },
-  ARCHIVE_READY:            { icon: 'FileArchive',       tone: 'orange', actionable: true  },
-  ARCHIVE_TRANSFER_DUE:     { icon: 'CalendarClock',     tone: 'orange', actionable: true  },
-  ARCHIVE_OVERDUE:          { icon: 'AlertTriangle',     tone: 'red',    actionable: true  },
-  ACCOUNT_SECURITY_FEEDBACK: { icon: 'ShieldAlert',     tone: 'red',    actionable: true  },
-  PROFILE_CHANGE_REVIEWED: { icon: 'IdCard',            tone: 'blue',   actionable: false },
-  PASSWORD_CHANGE_REVIEWED: { icon: 'KeyRound',         tone: 'blue',   actionable: false },
-  ANNOUNCEMENT_PUBLISHED:  { icon: 'Megaphone',         tone: 'blue',   actionable: false },
-  EXPERT_ASSIGNED:         { icon: 'UserCheck',         tone: 'blue',   actionable: true  },
-  EXPERT_RETIRE_CANDIDATE: { icon: 'UserMinus',         tone: 'orange', actionable: true  },
-  AWARD_LETTER:            { icon: 'Award',             tone: 'green',  actionable: true  },
-  BID_INVITED:             { icon: 'Send',              tone: 'blue',   actionable: true  },
-  BID_NUDGE_EXPERT:        { icon: 'Clock',             tone: 'orange', actionable: true  },
-  BID_NUDGE_SUPPLIER:      { icon: 'Clock',             tone: 'orange', actionable: true  },
-  BID_OPENING_STARTED:     { icon: 'Gavel',             tone: 'blue',   actionable: false },
-  BID_OPENING_CONFIRMED:   { icon: 'Gavel',             tone: 'blue',   actionable: false },
-  BID_OPENING_HANDED_OVER: { icon: 'PackageCheck',      tone: 'green',  actionable: true  },
-  BID_EVALUATION_STARTED:  { icon: 'ClipboardList',     tone: 'purple', actionable: false },
-  BID_ABORTED:             { icon: 'CircleX',           tone: 'red',    actionable: false },
-  CLARIFICATION:           { icon: 'MessageCircle',     tone: 'purple', actionable: true  },
-  SELECTION_SHARED:        { icon: 'Share2',            tone: 'blue',   actionable: true  },
-  SUPPLIER_BLACKLISTED:    { icon: 'Ban',               tone: 'red',    actionable: false },
-  SUPPLIER_UNBLACKLISTED:  { icon: 'CircleCheck',       tone: 'green',  actionable: false },
-  SUPPLIER_ELIMINATE_CANDIDATE: { icon: 'UserMinus',    tone: 'orange', actionable: true  },
-  PASSWORD_RESET_APPROVED: { icon: 'KeyRound',          tone: 'green',  actionable: false },
-  SYSTEM:                  { icon: 'Bell',              tone: 'gray',   actionable: false },
-};
+export const NOTIFICATION_META: Record<string, NotificationMeta> = Object.fromEntries(
+  NOTIFICATION_REGISTRY.map(s => [s.code, { icon: s.icon, tone: s.tone, actionable: s.actionable }]),
+);
 
-/** 通知类型中文标签（各端类型列/聚合组共用；缺省回退原始 type） */
-export const NOTIFICATION_LABEL: Record<string, string> = {
-  SUPPLIER_APPROVED: '供应商入库',
-  SUPPLIER_REJECTED: '供应商驳回',
-  SUPPLIER_RETURNED: '退回补正',
-  SUPPLIER_PENDING: '供应商审批',
-  QUALIFICATION_EXPIRING: '资质到期',
-  BID_PUBLISHED: '招标公告',
-  BID_REMINDER: '投标提醒',
-  BID_OPENING: '开标通知',
-  BID_EVALUATION_RESULT: '评标结果',
-  CLARIFICATION_REPLIED: '澄清答疑',
-  HALL_MESSAGE: '会场交流',
-  PRICE_REVIEW: '价格复核',
-  CATALOG_APPLICATION: '目录申请',
-  USER_REGISTRATION_PENDING: '注册审核',
-  ARCHIVE_READY: '归档待办',
-  ARCHIVE_TRANSFER_DUE: '归档移交临期',
-  ARCHIVE_OVERDUE: '归档严重逾期',
-  ACCOUNT_SECURITY_FEEDBACK: '账号安全反馈',
-  PROFILE_CHANGE_REVIEWED: '资料变更审批',
-  PASSWORD_CHANGE_REVIEWED: '密码变更审批',
-  ANNOUNCEMENT_PUBLISHED: '公告发布',
-  EXPERT_ASSIGNED: '专家指派',
-  EXPERT_RETIRE_CANDIDATE: '专家退库预警',
-  AWARD_LETTER: '中标通知书',
-  BID_INVITED: '投标邀请',
-  BID_NUDGE_EXPERT: '专家催办',
-  BID_NUDGE_SUPPLIER: '供应商催办',
-  BID_OPENING_STARTED: '开标开始',
-  BID_OPENING_CONFIRMED: '开标确认',
-  BID_OPENING_HANDED_OVER: '开标资料移交',
-  BID_EVALUATION_STARTED: '评标开始',
-  BID_ABORTED: '流标通知',
-  CLARIFICATION: '澄清答疑',
-  SELECTION_SHARED: '候选名单分享',
-  SUPPLIER_BLACKLISTED: '供应商拉黑',
-  SUPPLIER_UNBLACKLISTED: '供应商解除拉黑',
-  SUPPLIER_ELIMINATE_CANDIDATE: '供应商淘汰预警',
-  PASSWORD_RESET_APPROVED: '密码重置审批',
-  SYSTEM: '系统通知',
-};
+export const NOTIFICATION_LABEL: Record<string, string> = Object.fromEntries(
+  NOTIFICATION_REGISTRY.map(s => [s.code, s.label]),
+);
 
 export function getNotificationLabel(type: string): string {
   return NOTIFICATION_LABEL[type] ?? type;

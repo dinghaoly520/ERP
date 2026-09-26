@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { apiFetch } from './api-fetch';
 
 /* ── 信息发布中心视图模型 ── */
 
@@ -321,7 +322,7 @@ export async function exportAnnouncementDocument(payload: {
   draft: AnnouncementDraft;
   projectCode?: string;
 }) {
-  const response = await fetch(`${API_BASE}/tender-write/export-announcement`, {
+  const response = await apiFetch(`${API_BASE}/tender-write/export-announcement`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -347,7 +348,7 @@ export async function buildAnnouncement(payload: {
   draft: AnnouncementDraft;
   projectCode?: string;
 }): Promise<{ blob: Blob; fileName: string; textContent: string }> {
-  const response = await fetch(`${API_BASE}/tender-write/build-announcement`, {
+  const response = await apiFetch(`${API_BASE}/tender-write/build-announcement`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -386,7 +387,7 @@ export async function importWinningBidFromPdf(file: File): Promise<
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/tender-write/import-winning-bid`,
     {
       method: "POST",
@@ -438,7 +439,7 @@ export async function extractNotificationData(
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/tender-write/extract-notification-data`,
     {
       method: "POST",
@@ -457,7 +458,7 @@ export async function extractNotificationData(
 export async function exportNotificationLetter(
   draft: NotificationLetterDraft,
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/tender-write/export-notification`,
     {
       method: "POST",
@@ -482,7 +483,7 @@ export async function exportNotificationLetter(
 export async function exportNotificationLedger(
   draft: NotificationLetterDraft,
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/tender-write/export-notification-ledger`,
     {
       method: "POST",
@@ -507,7 +508,7 @@ export async function exportNotificationLedger(
 // ─── 台账管理 ───
 
 export async function fetchNotificationLedger(): Promise<string[][]> {
-  const response = await fetch(`${API_BASE}/tender-write/notification-ledger`, {
+  const response = await apiFetch(`${API_BASE}/tender-write/notification-ledger`, {
     credentials: "include",
     cache: "no-store",
   });
@@ -520,7 +521,7 @@ export async function fetchNotificationLedger(): Promise<string[][]> {
 }
 
 export async function updateNotificationLedger(rows: unknown[][]) {
-  const response = await fetch(`${API_BASE}/tender-write/notification-ledger`, {
+  const response = await apiFetch(`${API_BASE}/tender-write/notification-ledger`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },

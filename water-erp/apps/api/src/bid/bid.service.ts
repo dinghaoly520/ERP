@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan } from '@water-erp/shared';
+import { GB_ARCHIVE_CATEGORIES, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
 import { resolveOpeningAmountUnitMap, formatAmountWithUnit, DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
 import { buildArchiveTemplate } from './archive-template';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
@@ -709,12 +709,8 @@ export class BidService {
       });
     }
 
-    await this.notificationService.sendToRole('bid_host', {
-      type: 'BID_PUBLISHED',
-      title: `新采购项目发布：${project.name}`,
-      content: `项目编号 ${project.projectCode} 已创建，采购方式：${project.procurementMethod}。`,
-      link: `/bid?id=${project.id}`,
-    });
+    // BID_PUBLISHED 通知已移除（2026-09-26 场内矩阵）：发布知会不进 bid_host，
+    // 主持人在「开标确认」阶段才介入（届时收 BID_OPENING_CONFIRMED）。
 
     return project;
   }
@@ -1119,14 +1115,14 @@ export class BidService {
       : '/projects';
     for (const role of ['leader', 'staff']) {
       try {
-        await this.notificationService.sendToRole(role, {
-          type: 'BID_OPENING_HANDED_OVER',
-          title: opts?.auto ? `项目${project.name}开标完成，开标资料已自动固化移交` : `项目${project.name}开标完成，资料已移交`,
-          content: opts?.auto
-            ? `全部投标人已到终局态（触发：${opts.trigger ?? '终局'}），开标文件包已自动生成固化`
-            : '开标文件包已生成，可在开标确认面板启动评标或执行后续流程',
-          link: pmLink,
-        });
+        // 文案/链接走 shared 注册表模板（notification-registry）
+        const tpl = renderNotificationPayload('BID_OPENING_HANDED_OVER', {
+          projectName: project.name,
+          auto: opts?.auto ? 1 : 0,
+          trigger: opts?.trigger,
+          projectManagementItemId: project.projectManagementItemId ?? undefined,
+        })!;
+        await this.notificationService.sendToRole(role, { type: 'BID_OPENING_HANDED_OVER', ...tpl });
       } catch { /* 通知失败不阻塞移交 */ }
     }
 
@@ -1414,7 +1410,7 @@ export class BidService {
         type: 'BID_ABORTED',
         title: `项目${project.name}已流标`,
         content: `招标方式：${project.procurementMethod}，投标供应商 ${supplierCount} 家`,
-        link: `/bid?id=${id}`,
+        link: `/bid/project/${id}`, // :3007 工作区直达（原 /bid?id= 落任务板不定位）
       });
     } catch { /* 通知失败不阻塞流标 */ }
 
@@ -1739,12 +1735,8 @@ export class BidService {
     // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发
     if (isTransitioning) {
       try {
-        await this.notificationService.sendToRole('bid_host', {
-          type: 'BID_OPENING_CONFIRMED',
-          title: `项目${project.name}已确定开标`,
-          content: '请前往开标大厅组建会话（填写主持人、监督人与解密窗口）',
-          link: `/bid/project/${id}`,
-        });
+        const tpl = renderNotificationPayload('BID_OPENING_CONFIRMED', { projectName: project.name, projectId: id })!;
+        await this.notificationService.sendToRole('bid_host', { type: 'BID_OPENING_CONFIRMED', ...tpl });
       } catch { /* 通知失败不阻塞阶段流转 */ }
 
       // 通知所有已投递的供应商——开标已启动，请前往开标大厅
@@ -1763,12 +1755,8 @@ export class BidService {
           for (const s of submittedSuppliers) {
             const userId = s.supplierId ? userIdBySupplierId.get(s.supplierId) : null;
             if (userId) {
-              await this.notificationService.sendToUser(userId, ['in_app'], {
-                type: 'BID_OPENING_STARTED',
-                title: `开标已启动：${project.name}`,
-                content: '请前往开标大厅查看解密窗口时间并参与开标。',
-                link: `/my-bids/${id}/opening-hall`,
-              });
+              const tpl = renderNotificationPayload('BID_OPENING_STARTED', { projectName: project.name, projectId: id })!;
+              await this.notificationService.sendToUser(userId, ['in_app'], { type: 'BID_OPENING_STARTED', ...tpl });
             }
           }
         }
@@ -2004,12 +1992,10 @@ export class BidService {
 
     // 通知主持人
     try {
-      await this.notificationService.sendToRole('bid_host', {
-        type: 'BID_DISPUTE_TIMEOUT',
-        title: '开标异议处理已超时',
-        content: `${names} 的异议已超过 ${session.disputeTimeoutMinutes} 分钟。请前往开标大厅强制裁决。`,
-        link: `/bid/project/${projectId}`,
-      });
+      const disputeTpl = renderNotificationPayload('BID_DISPUTE_TIMEOUT', {
+        names, timeoutMinutes: session.disputeTimeoutMinutes, projectId,
+      })!;
+      await this.notificationService.sendToRole('bid_host', { type: 'BID_DISPUTE_TIMEOUT', ...disputeTpl });
     } catch { /* 通知失败不阻塞 */ }
   }
 
@@ -2180,11 +2166,9 @@ export class BidService {
       });
       for (const expert of experts) {
         if (!expert.userId) continue;
+        const evalTpl = renderNotificationPayload('BID_EVALUATION_STARTED', { projectName: project.name, projectId: id })!;
         await this.notificationService.sendToUser(expert.userId, ['in_app'], {
-          type: 'BID_EVALUATION_STARTED',
-          title: `项目${project.name}已启动评标`,
-          content: `您被指派的评标项目「${project.name}」已启动，请登录专家门户查看投标文件并完成独立评分。`,
-          link: `/evaluate/${id}`,
+          type: 'BID_EVALUATION_STARTED', ...evalTpl,
         }).catch(() => {});
       }
     } catch { /* 通知失败不阻塞评标启动 */ }
@@ -3030,7 +3014,9 @@ export class BidService {
           await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
             type: 'BID_CLARIFICATION_CREATED',
             title: `收到澄清要求：${project?.name ?? dto.supplierName}`,
-            content: '采购人已发起澄清，请在规定时间内查看并提交答复。',
+            content: project?.evaluationDeadline
+              ? `采购人已发起澄清，请在评标结束前查看并提交答复（评标截止：${new Date(project.evaluationDeadline).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}）。`
+              : '采购人已发起澄清，请在规定时间内查看并提交答复。',
             link: `/bids/${projectId}/clarifications`,
           });
         }
@@ -4930,12 +4916,8 @@ export class BidService {
       });
       const userIds = [...new Set(eligibleAccounts.map(row => row.supplier?.userId).filter((id): id is string => Boolean(id)))];
       for (const userId of userIds) {
-        await this.notificationService.sendToUser(userId, ['in_app'], {
-          type: 'BID_ROUND_OPEN',
-          title: `新报价轮次已开放（第${roundNo}轮）`,
-          content: '请在截止时间前提交本轮报价。',
-          link: `/bids/${projectId}/round-quote`,
-        });
+        const roundTpl = renderNotificationPayload('BID_ROUND_OPEN', { roundNo, projectId })!;
+        await this.notificationService.sendToUser(userId, ['in_app'], { type: 'BID_ROUND_OPEN', ...roundTpl });
       }
     } catch {}
 
@@ -5088,7 +5070,15 @@ export class BidService {
 
     // H4: 严格一报制——与供应商端一致，upsert 改为 create + P2002 catch
     try {
-      return await this.prisma.bidQuote.create({ data: { roundId, bidSupplierId, quotePrice } });
+      const created = await this.prisma.bidQuote.create({ data: { roundId, bidSupplierId, quotePrice } });
+      // 报价完成 → 该供应商本轮待办消音（与签收中标通知书/澄清答复同口径，2026-09-26 闭环补齐）
+      if (supplier.supplierId) {
+        const sup = await this.prisma.supplier?.findUnique({ where: { id: supplier.supplierId }, select: { userId: true } }).catch(() => null);
+        if (sup?.userId) {
+          await this.notificationService?.resolveActionableForUser?.(sup.userId, 'BID_ROUND_OPEN', `/bids/${projectId}/round-quote`).catch(() => {});
+        }
+      }
+      return created;
     } catch (e: any) {
       if (e?.code === 'P2002') throw new BadRequestException({ error: '该供应商本轮已提交报价', code: 'ALREADY_QUOTED' });
       throw e;
@@ -5452,7 +5442,7 @@ export class BidService {
   /** 批量创建站内信（逐条调用以触发多通道异步分发）；空列表直接返回。 */
   private async notifyParticipants(
     userIds: string[],
-    payload: { type: string; title: string; content: string; link: string },
+    payload: { type: string; title: string; content: string; link?: string },
   ): Promise<void> {
     if (userIds.length === 0) return;
     await Promise.all(
@@ -5709,14 +5699,15 @@ export class BidService {
       .filter((u): u is string => !!u);
 
     const isSignin = reason === 'signin';
-    await this.notifyParticipants(userIds, {
-      type: 'BID_NUDGE_EXPERT',
-      title: `${isSignin ? '评审签到' : '评审进度'}提醒：${project.name}`,
+    const nudgeExpertTpl = renderNotificationPayload('BID_NUDGE_EXPERT', {
+      kind: reason,
+      projectName: project.name,
       content: isSignin
         ? `项目 ${project.projectCode}（${project.name}）开评标在即，请尽快登录专家门户完成身份核验与签到。`
         : `项目 ${project.projectCode}（${project.name}）评标进行中，您的评分尚未完成，请尽快登录专家门户完成评分。`,
-      link: `/?projectId=${id}`,
-    });
+      projectId: id,
+    })!;
+    await this.notifyParticipants(userIds, { type: 'BID_NUDGE_EXPERT', ...nudgeExpertTpl });
 
     await this.prisma.auditLog.create({
       data: {
@@ -5761,14 +5752,8 @@ export class BidService {
       }),
     ]);
 
-    const userIdSet = new Set<string>();
-    for (const s of suppliers) {
-      if (s.supplier?.userId) userIdSet.add(s.supplier.userId);
-    }
-    for (const e of experts) {
-      if (e.userId) userIdSet.add(e.userId);
-    }
-    const userIds = [...userIdSet];
+    const supplierUserIds = suppliers.map(s => s.supplier?.userId).filter((u): u is string => !!u);
+    const expertUserIds = experts.map(e => e.userId).filter((u): u is string => !!u);
 
     const pad = (n: number) => String(n).padStart(2, '0');
     const d = new Date(openTime);
@@ -5776,12 +5761,12 @@ export class BidService {
       ? openTime
       : `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-    await this.notifyParticipants(userIds, {
-      type: 'BID_SCHEDULE_CHANGE',
-      title: `开标时间变更：${project.name}`,
-      content: `项目 ${project.projectCode}（${project.name}）开标时间已调整为 ${fmt}，请留意最新安排。`,
-      link: `/dashboard`,
-    });
+    const schedTpl = renderNotificationPayload('BID_SCHEDULE_CHANGE', {
+      projectName: project.name, projectCode: project.projectCode, openTime: fmt,
+    })!;
+    // 链接按收件端分流：供应商→:3004 工作台，专家→:3006 项目列表（同一文案，两个门户各有去处）
+    await this.notifyParticipants(supplierUserIds, { type: 'BID_SCHEDULE_CHANGE', ...schedTpl, link: '/dashboard' });
+    await this.notifyParticipants(expertUserIds, { type: 'BID_SCHEDULE_CHANGE', ...schedTpl, link: '/projects' });
 
     if (actorId) {
       await this.prisma.auditLog.create({
@@ -5789,12 +5774,12 @@ export class BidService {
           userId: actorId,
           action: 'BID_SCHEDULE_CHANGE_NOTIFY',
           resourceType: project.projectCode,
-          details: { projectId: id, reached: userIds.length, openTime: fmt },
+          details: { projectId: id, reached: supplierUserIds.length + expertUserIds.length, openTime: fmt },
         },
       });
     }
 
-    return { reached: userIds.length };
+    return { reached: supplierUserIds.length + expertUserIds.length };
   }
 
   /**

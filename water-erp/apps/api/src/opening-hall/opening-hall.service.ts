@@ -273,6 +273,15 @@ export class OpeningHallService {
       checkInAt: now.toISOString(), timestamp: Date.now(),
     });
     this.gateway?.broadcastHallPresence(projectId)?.catch(() => {});
+    // 签到完成 → 开标临近待办消音（fire-and-forget：任何失败不阻塞签到主流程）
+    try {
+      if (actor.supplierId) {
+        const sup = await this.prisma.supplier?.findUnique({ where: { id: actor.supplierId }, select: { userId: true } }).catch(() => null);
+        if (sup?.userId) {
+          await this.notification?.resolveActionableForUser?.(sup.userId, 'BID_OPENING_SOON', `/my-bids/${projectId}/opening-hall`);
+        }
+      }
+    } catch { /* 消音失败不影响签到 */ }
     return { checkInAt: now, already: false };
   }
 

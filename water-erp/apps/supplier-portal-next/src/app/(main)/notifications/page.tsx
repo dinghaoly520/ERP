@@ -220,9 +220,17 @@ export default function NotificationListPage() {
                 </button>
                 <div className="notif-right">
                   <time className="notif-row-time" dateTime={notification.createdAt}>{dayjs(notification.createdAt).format("MM-DD HH:mm")}</time>
-                  {!notification.isRead && (
-                    <button type="button" className="nd-btn nd-btn--xs nd-btn--danger" onClick={() => void markRead(notification.id)}>标为已读</button>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {/* 待办直达（2026-09-26 闭环）：actionable 项在列表内联「去完成」，免开详情弹窗 */}
+                    {meta.actionable && !notification.isRead && meta.actionLabel && (
+                      <button type="button" className="nd-btn nd-btn--xs nd-btn--primary" onClick={() => followLink(notification)}>
+                        {meta.actionLabel}
+                      </button>
+                    )}
+                    {!notification.isRead && (
+                      <button type="button" className="nd-btn nd-btn--xs nd-btn--danger" onClick={() => void markRead(notification.id)}>标为已读</button>
+                    )}
+                  </div>
                 </div>
               </article>
             );

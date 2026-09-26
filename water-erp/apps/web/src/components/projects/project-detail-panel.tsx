@@ -300,35 +300,17 @@ function getArchiveStepState(item: ProjectManagementItem): ArchiveStepState {
   return 'PENDING';
 }
 
-function getArchiveStepDescription(state: ArchiveStepState, item: ProjectManagementItem) {
-  const contractStage = item.stages.find((stage) => stage.stageKey === 'CONTRACT');
-  const missingFields: string[] = [];
-  if (!item.departmentNumber || !item.departmentNumber.trim()) {
-    missingFields.push('部门编号');
-  }
-
-  switch (state) {
-    case 'DONE':
-      return '项目已完成归档，并已同步生成正式采购台账记录。';
-    case 'READY': {
-      const base = '合同阶段已经完成。执行归档后，项目会从项目管理中移除，并生成采购台账记录。';
-      if (missingFields.length > 0) {
-        return `${base}（提示：${missingFields.join('、')}尚未填写，可在归档前补充。）`;
-      }
-      return base;
-    }
-    default: {
-      if (contractStage?.status !== 'COMPLETED') {
-        return '合同阶段尚未完成，完成后才会解锁归档。';
-      }
-      return '归档完成后项目会从项目管理中移除，只有合同阶段完成后才会解锁。';
-    }
-  }
-}
-
-
 // ─── 阶段视觉映射：当前步骤 hero 用 — 按 stageKey 取专属图标 + 阶段色 ───
 type StageIcon = typeof FileText;
+/** 判定 TENDER_DOCUMENT 阶段附件是否为「采购文件」主文件——与后端 file-utils.isTenderMainFile
+ *  保持同款正则（后端判定为准，此处仅做点击 AI 提取前的快速反馈）。
+ *  排除词用精确组合而非裸词：裸词「合同|需求|立项」会误伤项目名（实测
+ *  「SWHI-JJ-…-合同及编-竞价采购文件-….docx」被「合同」二字排除 → 误报未上传采购文件）。 */
+function isTenderMainFile(fileName: string): boolean {
+  return /采购文件|招标文件/.test(fileName)
+    && !/审批表|公告|通知书|采购合同|合同书|合同文本|合同协议|需求书|需求文件|需求说明|需求清单|立项申请|立项报告|立项书/.test(fileName);
+}
+
 const STAGE_HERO_VISUAL: Record<string, { Icon: StageIcon; colorVar: string }> = {
   PROCUREMENT_DEMAND: { Icon: ClipboardList, colorVar: 'var(--stage-demand)' },
   INITIATION: { Icon: ClipboardList, colorVar: 'var(--stage-initiation)' },
@@ -339,6 +321,19 @@ const STAGE_HERO_VISUAL: Record<string, { Icon: StageIcon; colorVar: string }> =
   BID_EVALUATION: { Icon: Gavel, colorVar: 'var(--stage-evaluation)' },
   AWARD_DECISION: { Icon: Award, colorVar: 'var(--stage-award)' },
   CONTRACT: { Icon: ScrollText, colorVar: 'var(--stage-contract)' },
+};
+
+// ─── 阶段应提供资料清单：当前步骤 hero 标题下提示（与阶段提示卡/归档闸门口径一致）───
+const STAGE_REQUIRED_MATERIALS: Record<string, string[]> = {
+  PROCUREMENT_DEMAND: ['采购需求审批表', '业务部门需求说明', '市场调研情况'],
+  INITIATION: ['采购立项申请表', '预算及资金来源证明', '采购方式论证意见（如适用）'],
+  TENDER_DOCUMENT: ['采购文件（.docx）', '评分标准及评审办法'],
+  SUPPLIER_INVITATION: ['供应商邀请名单', '邀请通知发送记录'],
+  PUBLIC_ANNOUNCEMENT: ['采购公告发布稿', '公告附件（如有）'],
+  EXPERT_SELECTION: ['专家抽取方案（专业配额）', '专家确认及回避声明记录'],
+  BID_EVALUATION: ['开标记录', '评标报告及评标签字材料（回流包）'],
+  AWARD_DECISION: ['评标报告', '定标审批表', '中标通知书'],
+  CONTRACT: ['合同文件', '合同签署及履约资料'],
 };
 
 export function ProjectDetailPanel({
@@ -425,7 +420,6 @@ export function ProjectDetailPanel({
     demandProject: '',
     demandContractNumber: '',
     contractNumber: '',
-    departmentNumber: '',
     projectOverview: '',
     bidOpeningTime: '',
     documentAcquireTime: '',
@@ -1059,9 +1053,7 @@ export function ProjectDetailPanel({
   const handleAiExtractTender = async (field: string) => {
     if (readOnly) return; // 已归档只读
     const tenderStage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
-    const hasTenderFile = tenderStage?.attachments?.some(
-      (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
-    );
+    const hasTenderFile = tenderStage?.attachments?.some((a) => isTenderMainFile(a.fileName));
     if (!hasTenderFile) {
       setAiResult({ type: 'warning', message: '请先在「采购文件」步骤上传采购文件后再使用 AI 提取' });
       return;
@@ -1532,10 +1524,6 @@ export function ProjectDetailPanel({
                       </button>
                     )}
                   </div>
-                  <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">部门编号</span>
-                    <div className="mt-0.5 text-[color:var(--foreground)]">{item.departmentNumber || '无'}</div>
-                  </div>
                 </div>
                 <div className="mt-3 pt-3" style={{borderTop:"1px solid oklch(0.6 0.04 258 / 0.12)"}}>
                   <div className="flex items-center justify-between gap-2">
@@ -1837,7 +1825,7 @@ export function ProjectDetailPanel({
                     第 {stepPosition.number} 步 / 共 {stepPosition.total} 步
                   </span>
                 </div>
-                {/* 主标题：大图标 + 阶段名 + 状态徽章 */}
+                {/* 主标题：大图标 + 阶段名 + 应提供资料（红色，标题右侧）+ 状态徽章 */}
                 <div className="relative flex items-center gap-3.5 px-5 pb-4">
                   <div
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
@@ -1849,10 +1837,16 @@ export function ProjectDetailPanel({
                   >
                     <HeroIcon size={22} style={{ color: 'var(--step-color)' }} />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-1 items-baseline gap-3">
                     <div className="text-[1.05rem] font-bold leading-tight tracking-[-0.02em] text-[color:var(--foreground)]">
                       {selectedStage.stageName}
                     </div>
+                    {/* 本步骤应提供资料（阶段材料清单提示，2026-09-24）：红色、标题右侧 */}
+                    {STAGE_REQUIRED_MATERIALS[selectedStage.stageKey] && (
+                      <p className="min-w-0 truncate text-xs font-semibold leading-5 text-[oklch(0.52_0.19_25)]" title={STAGE_REQUIRED_MATERIALS[selectedStage.stageKey].join('、') + '等'}>
+                        应提供：{STAGE_REQUIRED_MATERIALS[selectedStage.stageKey].join('、')}等
+                      </p>
+                    )}
                   </div>
                   <span
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[11px] font-bold tracking-[0.04em]"
@@ -1900,7 +1894,7 @@ export function ProjectDetailPanel({
                   // 判断被删文件是否"采购文件"（信息来源），而非审批表/公告/合同等附件
                   const deletedFile = selectedStage.attachments.find((a) => a.objectKey === deletedObjectKey);
                   const deletedName = deletedFile?.fileName || '';
-                  const isTenderDoc = /采购文件|招标文件/.test(deletedName) && !/审批表|公告|合同|通知书|需求|立项/.test(deletedName);
+                  const isTenderDoc = isTenderMainFile(deletedName);
 
                   if (isTenderDoc && selectedStage.stageKey === 'TENDER_DOCUMENT') {
                     // 删除采购文件：清空提取信息（DB 持久化）+ 文件分析
@@ -2201,14 +2195,6 @@ export function ProjectDetailPanel({
             归档后项目将从项目管理列表中移除，并同步生成正式采购台账记录。归档完成后可在归档文件中查看。
           </p>
 
-          {/* 缺失字段提醒 */}
-          {(!item.departmentNumber || !item.departmentNumber.trim()) && (
-            <div className="rounded-[14px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3">
-              <p className="text-sm leading-5 text-[color:var(--muted-foreground)]">
-                ⚠️ 部门编号尚未填写，建议在归档前补充。归档后仍可在台账中修改。
-              </p>
-            </div>
-          )}
         </Modal>
       )}
 

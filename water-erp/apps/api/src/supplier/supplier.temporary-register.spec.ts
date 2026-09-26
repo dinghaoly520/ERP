@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { VerificationService } from '../verification/verification.service';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { SupplierService } from './supplier.service';
+import { CompanyScopeService } from '../company/company-scope';
 
 const dtoPayload = {
   invitationCode: 'ABCDEFGH',
@@ -47,7 +48,7 @@ describe('SupplierService.registerTemporary business tags', () => {
   beforeEach(async () => {
     tx = {
       $queryRaw: jest.fn().mockResolvedValue([{ supplier_no: 'SUP-000001' }]),
-      user: {
+      user: { findMany: jest.fn().mockResolvedValue([]), 
         create: jest.fn().mockResolvedValue({
           id: 'user-1',
           username: dtoPayload.creditCode,
@@ -91,12 +92,14 @@ describe('SupplierService.registerTemporary business tags', () => {
       },
       user: {
         findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]), // 2026-09-26 公司审批人解析（resolveCompanyApprovers → admin 回退）
       },
       $transaction: jest.fn((callback) => callback(tx)),
     };
 
     const module = await Test.createTestingModule({
       providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
         SupplierService,
         { provide: PrismaService, useValue: prisma },
         {

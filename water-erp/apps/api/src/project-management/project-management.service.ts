@@ -14,7 +14,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
 import { htmlToDocxChildren } from './docx/html-to-docx.converter';
-import { getTenderTextCachePath, isLabelLine, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getComplianceCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff } from './docx/file-utils';
+import { getTenderTextCachePath, isLabelLine, isTenderMainFile, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getComplianceCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff } from './docx/file-utils';
 import { parseArchiveTxt } from './docx/archive-txt-parser';
 import { decodeXmlText, extractPlainText, applyTextToParagraphXml } from './docx/paragraph-xml';
 import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText } from './docx/field-extractor';
@@ -225,6 +225,18 @@ export class ProjectManagementService {
     private readonly notificationService: NotificationService,
     private readonly scoreStandardValidator: ScoreStandardValidator,
   ) {}
+
+  /** 按公司分组项目计数（2026-09-26 公司下拉语境化）：ARCHIVED=已完成、ACTIVE=进行中（RECYCLED/TERMINATED 不计） */
+  async companyCounts(status?: 'ACTIVE' | 'ARCHIVED') {
+    const groups = await this.prisma.projectManagementItem.groupBy({
+      by: ['companyName'],
+      where: { status: status ?? 'ACTIVE' },
+      _count: { _all: true },
+    });
+    return groups
+      .map(g => ({ name: g.companyName?.trim() || '未归属', count: g._count._all }))
+      .sort((a, b) => (a.name === '未归属' ? 1 : b.name === '未归属' ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh')));
+  }
 
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
     const where: Record<string, unknown> = {};
@@ -628,7 +640,7 @@ export class ProjectManagementService {
       if (!stage) throw new NotFoundException({ error: '未找到采购文件阶段', code: 'NOT_FOUND' });
 
       const tenderFile = stage.attachments.find(
-        (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
+        (a) => isTenderMainFile(a.fileName),
       );
       if (!tenderFile) throw new BadRequestException({ error: '未找到采购文件，请先上传', code: 'NO_TENDER_FILE' });
 
@@ -724,7 +736,7 @@ export class ProjectManagementService {
         include: { attachments: true },
       });
       const tenderFile = stage?.attachments.find(
-        (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
+        (a) => isTenderMainFile(a.fileName),
       );
       if (!tenderFile) {
         return { current: item.awardedSupplier ?? '', extracted: null, changed: false, reason: '未找到采购文件' };
@@ -1330,7 +1342,7 @@ ${shortlist}
       }
       // 仅从"采购文件/招标文件"提取，审批表/公告/合同等附件不提取（避免覆盖已有信息）
       const tdFileName = decodedFileName;
-      const isTenderDocFile = /采购文件|招标文件/.test(tdFileName) && !/审批表|公告|合同|通知书|需求|立项/.test(tdFileName);
+      const isTenderDocFile = isTenderMainFile(tdFileName);
       if (isTenderDocFile) {
       try {
         const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
@@ -3588,10 +3600,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('只有合同阶段完成后才允许归档。');
     }
 
-    if (!project.departmentNumber || !project.departmentNumber.trim()) {
-      throw new BadRequestException('请先在项目基本信息中填写部门编号后再完成归档。');
-    }
-
     const stages = await this.prisma.projectManagementStage.findMany({
       where: { projectManagementItemId: projectId },
       include: { attachments: true },
@@ -3939,7 +3947,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
             type: 'BID_ABORTED',
             title: `项目终止联动流标：${project.title}`,
             content: `采购项目「${project.title}」已终止（原因：${reason}），关联招标项目 ${bpList} 已联动流标。`,
-            link: '/bid',
+            link: '/bid/archive', // 联动流标覆盖多项目：:3007 归档端（流标项目归属地）
           })
           .catch(() => undefined);
         const experts = await this.prisma.bidExpert.findMany({

@@ -333,7 +333,7 @@ export default function ExpertRepositoryPage() {
             <div><div className="page-hero__title">专家库</div><div className="page-hero__sub">评审专家目录、专业分类与启停管理，支持按专业和姓名筛选</div></div>
           </div>
           <div className="page-hero__right">
-            <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} />
+            <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="experts" />
             <Link href="/expert/ranking" className="neu-btn-soft"><Trophy size={15} />排名</Link>
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
             <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>

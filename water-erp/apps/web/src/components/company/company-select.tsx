@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Building2, Check, ChevronDown, Loader2 } from "lucide-react";
 import { fetchCurrentUser } from "@/lib/api/auth";
 import { api } from "@/lib/api";
+import { companyColor } from "@/components/company/company-tag";
 
 /**
  * admin 专用公司选择器（公司级数据隔离，2026-08-20；2026-09-16 重设计）。
@@ -27,18 +28,72 @@ interface CompanyOption {
   id: string;
   name: string;
   shortName: string | null;
-  _count: { users: number };
+  /** users=全部账号；officeUsers=admin/leader/staff/bid_host 办公账号；expertUsers=评审专家账号（口径拆分 2026-09-26） */
+  _count: { users: number; officeUsers?: number; expertUsers?: number };
 }
+
+/** 账号计数口径文案：有专家时拆「办公 N · 专家 M」，避免把专家误读成办公人员 */
+function accountCountLabel(c: CompanyOption): string {
+  const office = c._count.officeUsers ?? c._count.users;
+  const expert = c._count.expertUsers ?? 0;
+  return expert > 0 ? `办公 ${office} · 专家 ${expert}` : `办公 ${office}`;
+}
+
+/**
+ * 公司两字标识（2026-09-26 用户拍板）：shortName 去「公司」后缀优先（设计/建设/投资）；
+ * 无 shortName 时公司名剥「四川水发」前缀取后两字，非该前缀取前两字；
+ * 全列表去重——冲突时向后扩字直至唯一，确保每家公司显示不同。
+ */
+function buildCompanyBadges(options: CompanyOption[]): Map<string, string> {
+  const baseOf = (c: CompanyOption): string => {
+    const fromShort = (c.shortName ?? "").replace(/公司$/, "").trim();
+    if (fromShort) return fromShort;
+    const n = c.name.startsWith("四川水发") ? c.name.slice("四川水发".length) : c.name;
+    return n.trim();
+  };
+  const badges = new Map<string, string>();
+  const used = new Set<string>();
+  for (const c of options) {
+    const base = baseOf(c);
+    let label = base.slice(0, 2);
+    let len = 2;
+    while (used.has(label) && len < base.length) {
+      len += 1;
+      label = base.slice(0, len);
+    }
+    if (used.has(label)) label = `${base.slice(0, 2)}·${badges.size + 1}`; // 极端兜底（同名同基串）
+    used.add(label);
+    badges.set(c.id, label);
+  }
+  return badges;
+}
+
+/** 下拉副标：按 countMode 取口径——业务口径无数据（接口未返回/该公司为 0）时显示 0 */
+function subLabelFor(c: CompanyOption, countMode: CompanyCountMode, bizCounts: Record<string, number> | null): string {
+  if (countMode === "accounts") return accountCountLabel(c);
+  const n = bizCounts?.[c.name] ?? 0;
+  if (countMode === "suppliers") return `${n} 家供应商`;
+  if (countMode === "experts") return `${n} 位专家`;
+  return `${n} 个项目`;
+}
+
+/** 计数口径（2026-09-26 用户拍板）：下拉副标显示「当前页面的业务数据」按公司的数量——
+ *  供应商页=各公司供应商数、专家页=各公司专家数；其余页面=账号口径（办公/专家拆分） */
+export type CompanyCountMode = 'accounts' | 'suppliers' | 'experts' | 'projectsDone' | 'projectsActive';
 
 export function CompanySelect({
   value,
   onChange,
+  countMode = 'accounts',
 }: {
   value: string;
   onChange: (companyId: string) => void;
+  countMode?: CompanyCountMode;
 }) {
   const [role, setRole] = useState<string | null>(null);
   const [options, setOptions] = useState<CompanyOption[] | null>(null);
+  // 业务口径计数（按公司名映射）：suppliers=/supplier/company-counts，experts=/expert-admin/company-counts
+  const [bizCounts, setBizCounts] = useState<Record<string, number> | null>(null);
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -57,6 +112,20 @@ export function CompanySelect({
       .then(setOptions)
       .catch(() => setOptions([]));
   }, [role]);
+
+  useEffect(() => {
+    if (role !== "admin" || countMode === "accounts") return;
+    // 项目口径（2026-09-26）：数据库/台账=已完成(ARCHIVED)、进度=进行中(ACTIVE)；RECYCLED/TERMINATED 不计
+    const url =
+      countMode === "suppliers" ? "/supplier/company-counts"
+      : countMode === "experts" ? "/expert-admin/company-counts"
+      : countMode === "projectsDone" ? "/project-management/company-counts?status=ARCHIVED"
+      : "/project-management/company-counts?status=ACTIVE";
+    api
+      .get<Array<{ name: string; count: number }>>(url)
+      .then((list) => setBizCounts(Object.fromEntries(list.map((x) => [x.name, x.count]))))
+      .catch(() => setBizCounts({}));
+  }, [role, countMode]);
 
   const syncAnchor = useCallback(() => {
     const r = btnRef.current?.getBoundingClientRect();
@@ -104,7 +173,7 @@ export function CompanySelect({
     if (next !== value) handleChange(next);
   };
 
-  const optionRow = (key: string, active: boolean, label: string, sub: string, onClick: () => void) => (
+  const optionRow = (key: string, active: boolean, label: string, sub: string, onClick: () => void, badge?: string) => (
     <button
       key={key}
       type="button"
@@ -117,8 +186,15 @@ export function CompanySelect({
           : "text-[color:var(--foreground)] hover:bg-white/55"
       }`}
     >
-      <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[11px] font-bold ${active ? "bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]" : "bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] text-[color:var(--muted-foreground)]"}`}>
-        {label.slice(0, 2)}
+      <span
+        className={`co-badge${active ? " co-badge--active" : ""} inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[11px] font-extrabold tracking-tight ${active ? "bg-[color-mix(in_oklch,var(--accent)_14%,white)] text-[color-mix(in_oklch,var(--accent)_80%,black)]" : ""}`}
+        style={active ? undefined : {
+          // 公司专属色瓷片（company-tag 同款口径：识别色淡染底 + 深染字）
+          color: `color-mix(in oklch, ${companyColor(label)} 76%, black)`,
+          backgroundColor: `color-mix(in oklch, ${companyColor(label)} 11%, transparent)`,
+        }}
+      >
+        {badge ?? label.slice(0, 2)}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs leading-4">{label}</span>
@@ -177,12 +253,21 @@ export function CompanySelect({
                 "all",
                 isAll,
                 "全部公司",
-                `不限公司 · 共 ${options!.reduce((sum, c) => sum + (c._count?.users ?? 0), 0)} 账号`,
+                countMode === "accounts"
+                  ? `不限公司 · 办公 ${options!.reduce((sum, c) => sum + (c._count?.officeUsers ?? c._count?.users ?? 0), 0)} · 专家 ${options!.reduce((sum, c) => sum + (c._count?.expertUsers ?? 0), 0)}`
+                  : countMode === "suppliers"
+                    ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 家供应商`
+                    : countMode === "experts"
+                      ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 位专家`
+                      : `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 个项目`,
                 () => pick("all"),
               )}
-              {options!.map((c) =>
-                optionRow(c.id, value === c.id, c.name, `${c._count?.users ?? 0} 账号`, () => pick(c.id)),
-              )}
+              {(() => {
+                const badges = buildCompanyBadges(options!);
+                return options!.map((c) =>
+                  optionRow(c.id, value === c.id, c.name, subLabelFor(c, countMode, bizCounts), () => pick(c.id), badges.get(c.id)),
+                );
+              })()}
             </>
           )}
         </div>,

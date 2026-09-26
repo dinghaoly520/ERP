@@ -17,11 +17,17 @@ describe('SupplierController — 注册审批/邀请码仅 admin', () => {
       SupplierController,
     ]);
 
+  // 2026-09-26 改定：供应商审批=归属公司管理账号（controller 放开三角色，service 层校验公司域）
   it.each([
     'approve',           // POST :id/approve 审核通过
     'reject',            // POST :id/reject 审核不通过
     'return',            // POST :id/return 退回补正
-    'reactivate',        // POST :id/reactivate 复活被拒申请（REJECTED→PENDING）
+  ] as (keyof SupplierController)[])('%s → admin/leader/staff（公司域校验在 service）', (method) => {
+    expect(roles(method)).toEqual(['admin', 'leader', 'staff']);
+  });
+
+  it.each([
+    'reactivate',        // POST :id/reactivate 复活被拒申请（REJECTED→PENDING，注册审批链路特殊操作）
     'createInvitation',  // POST invitations 生成邀请码
     'listInvitations',   // GET invitations 邀请码列表
     'revokeInvitation',  // POST invitations/:id/revoke 作废邀请码

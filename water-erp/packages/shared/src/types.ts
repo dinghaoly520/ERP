@@ -396,6 +396,8 @@ export interface Supplier {
   classificationId?: string;
   rejectReason?: string;
   returnReason?: string;
+  /** 归属 ERP 公司名快照（2026-09-14 供应商按公司分组；admin 全部公司视图分组用） */
+  companyName?: string | null;
   createdAt: string;
   updatedAt: string;
   user?: { id: string; username: string; displayName: string; email?: string; role: string; isActive: boolean };

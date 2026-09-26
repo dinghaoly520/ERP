@@ -469,7 +469,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <h3 className="text-base font-semibold">基本信息</h3>
                     </div>
                     <div className="space-y-4">
-                      {/* Row 1: 申请人、申请部门、采购方式、采购类别、所属项目、合同编号、部门编号 */}
+                      {/* Row 1: 申请人、申请部门、采购方式、采购类别、所属项目、合同编号 */}
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                         <div className="space-y-1">
                           <div className="text-xs text-[color:var(--muted-foreground)]">申请人</div>
@@ -498,10 +498,6 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         <div className="space-y-1">
                           <div className="text-xs text-[color:var(--muted-foreground)]">合同编号</div>
                           <div className="text-[0.85rem] font-mono">{data.basicInfo['合同编号'] || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">部门编号</div>
-                          <div className="text-[0.85rem] font-mono">{data.basicInfo['部门编号'] || '-'}</div>
                         </div>
                       </div>
                       {data.kind === 'terminated' && (

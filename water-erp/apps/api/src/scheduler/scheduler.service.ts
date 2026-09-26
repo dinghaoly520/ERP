@@ -8,7 +8,7 @@ import { AnnouncementService } from '../announcement/announcement.service';
 import { BidService } from '../bid/bid.service';
 import { nudgeWindowOpen } from '../bid/opening-deadline.util';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
-import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, renderNotificationPayload } from '@water-erp/shared';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
   const date = input.validTo.toISOString().slice(0, 10);
@@ -106,8 +106,7 @@ export class SchedulerService {
         link,
       };
       if (isOverdue) {
-        await this.notification.sendToRole('leader', dto).catch(() => {});
-        await this.notification.sendToRole('admin', dto).catch(() => {});
+        await this.notification.sendToRole('leader', dto).catch(() => {}); // 2026-09-26：逾期升级不再抄送 admin
       } else {
         await this.notification.sendToRole('staff', dto).catch(() => {});
         await this.notification.sendToRole('leader', dto).catch(() => {});
@@ -513,19 +512,101 @@ export class SchedulerService {
       const userId = s.supplier?.userId;
       if (!userId) continue;
       try {
-        await this.notification.create({
-          userId,
-          type: 'BID_DEADLINE_NUDGE',
-          title: `投标即将截止：${projectName}`,
-          content: `项目「${projectName}」投标将于 ${fmt} 截止，请尽快提交投标文件。`,
-          link: '/dashboard',
-        });
+        const tpl = renderNotificationPayload('BID_DEADLINE_NUDGE', { projectName, deadline: fmt })!;
+        await this.notification.create({ userId, type: 'BID_DEADLINE_NUDGE', ...tpl });
         sent += 1;
       } catch (e) {
         this.logger.warn(`催促通知失败 userId=${userId}: ${(e as Error).message}`);
       }
     }
     this.logger.log(`投标截止催促已发送: ${projectName}, 收件人 ${sent} 人`);
+  }
+
+  /** 开标临近提醒（2026-09-26 补齐）：每 5 分钟扫描 30 分钟内开标的项目，
+   *  通知已投递供应商提前上线进入开标大厅并完成签到（与 :3004 大厅签到动作衔接）。
+   *  幂等去重：同项目同日已发过 BID_OPENING_SOON 则跳过。 */
+  @Cron('0 */5 * * * *')
+  async scanUpcomingOpenings() {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 30 * 60_000);
+    const projects = await this.prisma.bidProject.findMany({
+      where: {
+        stage: { in: ['DOWNLOAD', 'SUBMIT'] },
+        openTime: { gt: now, lte: soon },
+      },
+      select: { id: true, name: true, openTime: true },
+    });
+    const pad = (n: number) => String(n).padStart(2, '0');
+    for (const p of projects) {
+      const d = p.openTime!;
+      const fmt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const link = `/my-bids/${p.id}/opening-hall`;
+      const suppliers = await this.prisma.bidSupplier.findMany({
+        where: { projectId: p.id, submitStatus: '已提交' },
+        include: { supplier: { select: { userId: true } } },
+      });
+      let sent = 0;
+      for (const s of suppliers) {
+        const userId = s.supplier?.userId;
+        if (!userId) continue;
+        // 去重：当天已有同链接通知则跳过
+        const dup = await this.prisma.notification.findFirst({
+          where: { userId, type: 'BID_OPENING_SOON', link }, // 无界去重：开标时间唯一，跨午夜不双发
+          select: { id: true },
+        });
+        if (dup) continue;
+        try {
+          const tpl = renderNotificationPayload('BID_OPENING_SOON', { projectName: p.name, openTime: fmt, projectId: p.id })!;
+          await this.notification.create({ userId, type: 'BID_OPENING_SOON', ...tpl });
+          sent += 1;
+        } catch { /* 单个失败不阻断 */ }
+      }
+      if (sent > 0) this.logger.log(`开标临近提醒已发送: ${p.name}（${fmt}），收件人 ${sent} 人`);
+    }
+  }
+
+  /** 解密窗口临关提醒（2026-09-26 补齐）：每分钟扫描解密窗口 5 分钟内关闭的开标会话，
+   *  通知尚未解密成功的供应商（逾期未解密视为撤销/撤回投标，代价高须强提醒）。
+   *  幂等去重：同供应商同窗口只提醒一次（查同类型同链接当日已存在）。 */
+  @Cron('0 * * * * *')
+  async scanClosingDecryptWindows() {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 5 * 60_000);
+    const sessions = await this.prisma.bidOpeningSession.findMany({
+      where: { decryptWindowEnd: { gt: now, lte: soon } },
+      select: { projectId: true, decryptWindowEnd: true },
+    });
+    const pad = (n: number) => String(n).padStart(2, '0');
+    for (const session of sessions) {
+      const project = await this.prisma.bidProject.findUnique({
+        where: { id: session.projectId },
+        select: { id: true, name: true },
+      });
+      if (!project) continue;
+      const d = session.decryptWindowEnd;
+      const fmt = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const link = `/my-bids/${project.id}/opening-hall`;
+      const pending = await this.prisma.bidSupplier.findMany({
+        where: { projectId: project.id, decryptStatus: { not: 'SUCCESS' } },
+        include: { supplier: { select: { userId: true } } },
+      });
+      let sent = 0;
+      for (const s of pending) {
+        const userId = s.supplier?.userId;
+        if (!userId) continue;
+        const dup = await this.prisma.notification.findFirst({
+          where: { userId, type: 'DECRYPT_WINDOW_CLOSING', link },
+          select: { id: true },
+        });
+        if (dup) continue;
+        try {
+          const tpl = renderNotificationPayload('DECRYPT_WINDOW_CLOSING', { projectName: project.name, closesAt: fmt, projectId: project.id })!;
+          await this.notification.create({ userId, type: 'DECRYPT_WINDOW_CLOSING', ...tpl });
+          sent += 1;
+        } catch { /* 单个失败不阻断 */ }
+      }
+      if (sent > 0) this.logger.log(`解密窗口临关提醒已发送: ${project.name}（${fmt} 关窗），收件人 ${sent} 人`);
+    }
   }
 
   /** E2: 每小时扫描评标超时项目——已过 evaluationDeadline 的 EVALUATING 项目写监督日志 + 通知 */

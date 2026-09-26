@@ -18,8 +18,8 @@ test("supplier notification taxonomy covers current workflow events", () => {
   }
   assert.deepEqual(
     notificationTypesForGroup("todo").sort(),
-    ["AWARD_LETTER", "BID_CLARIFICATION_CREATED", "BID_ROUND_OPEN"].sort(),
-    "待办只应包含已有明确完成条件和 resolvedAt 闭环的业务动作",
+    ["AWARD_LETTER", "BID_CLARIFICATION_CREATED", "BID_ROUND_OPEN", "BID_OPENING_SOON", "DECRYPT_WINDOW_CLOSING"].sort(),
+    "待办只应包含已有明确完成条件和 resolvedAt 闭环的业务动作（签到/解密完成即消音）",
   );
 });
 

@@ -91,9 +91,9 @@ export default function SupplierDetailPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('info');
   const [loading, setLoading] = useState(true);
 
-  // 注册审批操作仅管理权限账号（2026-09-24 用户裁定；后端 @Roles('admin') 已同步收紧）
+  // 注册审批=归属公司管理账号（2026-09-26 改定；后端 @Roles + 公司域校验同步）
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = ['admin', 'leader', 'staff'].includes(currentUser?.role ?? '');
   useEffect(() => { fetchCurrentUser().then(setCurrentUser).catch(() => {/* ignore */}); }, []);
 
   // 变更审核弹窗

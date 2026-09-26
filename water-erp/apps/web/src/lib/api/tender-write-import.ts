@@ -1,5 +1,6 @@
 import type { ReadyTenderDocumentType } from '@/lib/types/tender-write';
 import type { ImportAutofillResult } from '@/lib/types/tender-write-import';
+import { apiFetch } from './api-fetch';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
@@ -22,7 +23,7 @@ export async function importAutofill(
   // 统一走 /api 相对路径，由 src/proxy.ts 转发到后端（proxy 已透传 Cookie + X-Portal）。
   // 之前的「LAN 直连 :4000」逻辑是错误的——(1) water-erp API 端口是 4001 不是 4000；
   // (2) 直连会绕过 proxy 丢掉 X-Portal 头导致 401/跨域 Failed to fetch。
-  const response = await fetch(`${API_BASE}/tender-write/import-autofill`, {
+  const response = await apiFetch(`${API_BASE}/tender-write/import-autofill`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'X-Portal': 'web' },

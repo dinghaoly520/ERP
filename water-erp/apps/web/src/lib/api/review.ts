@@ -2,6 +2,7 @@
 const API_BASE = '/api/tender-review';
 
 import type { ReviewTask } from '../types/tender-review';
+import { apiFetch } from './api-fetch';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -27,7 +28,7 @@ export async function uploadReviewDocument(
 }> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${API_BASE}/review/upload`, {
+  const res = await apiFetch(`${API_BASE}/review/upload`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -42,7 +43,7 @@ export async function executeReview(params: {
   documentName: string;
   objectKey: string;
 }): Promise<{ taskId: string; status: string }> {
-  const res = await fetch(`${API_BASE}/review/execute`, {
+  const res = await apiFetch(`${API_BASE}/review/execute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -52,7 +53,7 @@ export async function executeReview(params: {
 }
 
 export async function fetchReviewTask(id: string): Promise<ReviewTask> {
-  const res = await fetch(`${API_BASE}/review/tasks/${id}`, { credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/review/tasks/${id}`, { credentials: 'include' });
   return handleResponse(res);
 }
 
@@ -64,22 +65,22 @@ export interface TodayStats {
 }
 
 export async function fetchTodayStats(): Promise<TodayStats> {
-  const res = await fetch(`${API_BASE}/review/stats/today`, { credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/review/stats/today`, { credentials: 'include' });
   return handleResponse(res);
 }
 
 export async function fetchReviewTasks(): Promise<ReviewTask[]> {
-  const res = await fetch(`${API_BASE}/review/tasks`, { credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/review/tasks`, { credentials: 'include' });
   return handleResponse(res);
 }
 
 export async function stopReviewTask(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/review/tasks/${id}/stop`, { method: 'POST', credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/review/tasks/${id}/stop`, { method: 'POST', credentials: 'include' });
   return handleResponse(res);
 }
 
 export async function deleteReviewTask(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/review/tasks/${id}`, { method: 'DELETE', credentials: 'include' });
+  const res = await apiFetch(`${API_BASE}/review/tasks/${id}`, { method: 'DELETE', credentials: 'include' });
   return handleResponse(res);
 }
 
@@ -93,7 +94,7 @@ export async function resolveIssue(
   action: 'accept' | 'reject',
   editedSuggestion?: string,
 ): Promise<ReviewTask> {
-  const res = await fetch(`${API_BASE}/review/tasks/${taskId}/issues/resolve`, {
+  const res = await apiFetch(`${API_BASE}/review/tasks/${taskId}/issues/resolve`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

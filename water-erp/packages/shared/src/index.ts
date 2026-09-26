@@ -1,5 +1,6 @@
 export * from './types';
 export * from './constants';
+export * from './notification-registry';
 export * from './server-clock';
 export * from './workbench';
 

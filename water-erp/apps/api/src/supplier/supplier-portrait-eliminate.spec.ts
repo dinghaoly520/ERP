@@ -5,6 +5,7 @@ import { SupplierService } from './supplier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { LlmService } from '../local-ai/llm.service';
+import { CompanyScopeService } from '../company/company-scope';
 
 describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
   let service: SupplierService;
@@ -24,6 +25,7 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
         SupplierService,
         { provide: VerificationService, useValue: {} },
         { provide: PrismaService, useValue: prisma },

@@ -1,3 +1,4 @@
+import { renderNotificationPayload } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 
@@ -30,11 +31,11 @@ export async function notifySupplierDecryptAttribution(
       select: { userId: true },
     });
     if (supplier?.userId) {
+      const tpl = renderNotificationPayload('BID_DECRYPT_ADJUDGED', {
+        title: MESSAGES[kind].title, supplierName, content: MESSAGES[kind].content, projectId,
+      })!;
       await notificationService.sendToUser(supplier.userId, ['in_app'], {
-        type: 'BID_DECRYPT_ADJUDGED',
-        title: `${MESSAGES[kind].title}：${supplierName}`,
-        content: MESSAGES[kind].content,
-        link: `/my-bids/${projectId}/opening-hall`,
+        type: 'BID_DECRYPT_ADJUDGED', ...tpl,
       });
     }
   } catch {

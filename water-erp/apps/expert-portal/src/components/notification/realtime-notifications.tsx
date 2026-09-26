@@ -1,18 +1,16 @@
 "use client";
 
-import { apiFetch } from '@/lib/api/api-fetch';
-
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
+import { getNotificationLabel } from "@water-erp/shared";
 
 /**
- * 全局实时通知（2026-09-22）：WS 订阅 `notification:new`，新站内通知在
- * **当前页面**右下角即时弹出小窗（无需刷新），10 秒未点击自动消失；点击跳转通知 link。
- *
- * 连接：/notifications 命名空间，cookie 鉴权（token_web 等），断线指数退避重连（最多 5 次）。
- * 与 sonner（top-center，操作反馈）互不干扰——这里自绘堆叠卡片，视觉与系统瓷片语言一致。
+ * 全局实时通知（2026-09-26，专家门户版）：WS 订阅 `notification:new`，新站内通知在
+ * 当前页面右下角即时弹出（10s 未点击自动消失、hover 暂停），点击跳转通知 link。
+ * 与 :3004/:3005 同源移植，差异：X-Portal=expert、类型显示中文标签（注册表派生）、
+ * 链接按本门户白名单解析——外门户路径（供应商/管理端）不跳转，绝对链接（RSVP）新窗打开。
  */
 
 interface PushNotification {
@@ -28,6 +26,18 @@ function wsUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, "");
   if (process.env.NODE_ENV === "production") return `${window.location.origin}/api/notifications`;
   return "http://localhost:4001/notifications";
+}
+
+/** 本门户可跳转路径前缀（专家门户路由）；绝对链接走外链；其余（供应商/管理端路径）不跳转 */
+const EXPERT_LINK_PREFIXES = ["/evaluate", "/tasks", "/projects", "/profile", "/rsvp", "/invitation"];
+
+export function resolveExpertLink(link?: string | null): { href: string; external: boolean } | null {
+  if (!link) return null;
+  if (/^https?:\/\//i.test(link)) return { href: link, external: true };
+  if (link === "/" || EXPERT_LINK_PREFIXES.some(p => link === p || link.startsWith(`${p}/`) || link.startsWith(`${p}?`))) {
+    return { href: link, external: false };
+  }
+  return null;
 }
 
 export function RealtimeNotifications() {
@@ -84,7 +94,10 @@ export function RealtimeNotifications() {
 
       socket.on("connect", () => { attempts = 0; });
       socket.on("notification:new", (n: PushNotification) => {
-        if (n?.id && n.title) open(n);
+        if (n?.id && n.title) {
+          open(n);
+          window.dispatchEvent(new CustomEvent("notification:received"));
+        }
       });
       socket.on("disconnect", (reason: string) => {
         if (reason === "io client disconnect") return;
@@ -106,17 +119,17 @@ export function RealtimeNotifications() {
 
   const handleClick = (n: PushNotification) => {
     dismiss(n.id);
-    if (n.link) {
-      router.push(n.link);
-      window.dispatchEvent(new CustomEvent("notification:received"));
-    }
+    const target = resolveExpertLink(n.link);
+    if (!target) return;
+    if (target.external) window.open(target.href, "_blank", "noopener");
+    else router.push(target.href);
   };
 
   const markRead = async (e: React.MouseEvent, n: PushNotification) => {
     e.stopPropagation();
     dismiss(n.id);
     try {
-      await apiFetch(`/api/notifications/${n.id}/read`, { method: "POST", credentials: "include", headers: { "X-Portal": "web" } });
+      await fetch(`/api/notifications/${n.id}/read`, { method: "POST", credentials: "include", headers: { "X-Portal": "expert" } });
       window.dispatchEvent(new CustomEvent("notification:received"));
     } catch { /* 已读标记失败不影响 */ }
   };
@@ -136,7 +149,7 @@ export function RealtimeNotifications() {
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
-            className="absolute right-2 top-2 text-[color:var(--muted-foreground)]/60 transition-colors hover:text-[var(--foreground)]"
+            className="absolute right-2 top-2 text-[color:var(--muted-foreground)]/70 transition-colors hover:text-[var(--foreground)]"
             aria-label="关闭"
           >
             <X size={13} strokeWidth={2} />
@@ -149,7 +162,7 @@ export function RealtimeNotifications() {
               <p className="truncate text-[12.5px] font-bold text-[var(--foreground)]">{n.title}</p>
               <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">{n.content}</p>
               <div className="mt-1.5 flex items-center justify-between">
-                <span className="text-[9px] uppercase tracking-wider text-[color:var(--muted-foreground)]/60">{n.type}</span>
+                <span className="text-[9px] uppercase tracking-wider text-[color:var(--muted-foreground)]/70">{getNotificationLabel(n.type)}</span>
                 <button
                   type="button"
                   onClick={(e) => markRead(e, n)}

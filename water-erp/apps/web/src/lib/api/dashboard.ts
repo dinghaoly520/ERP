@@ -1,3 +1,4 @@
+import { apiFetch } from './api-fetch';
 const API_BASE = '/api';
 
 export type DashboardData = {
@@ -157,7 +158,7 @@ export async function fetchDashboardData(
 
   const url = `${API_BASE}/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
 
-  const response = await fetch(url, { credentials: 'include' });
+  const response = await apiFetch(url, { credentials: 'include' });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to fetch dashboard data: ${errorText}`);

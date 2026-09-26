@@ -1,4 +1,5 @@
 import { normalizeApiBaseUrl, parseJsonResponse } from './auth';
+import { apiFetch } from './api-fetch';
 
 const API_BASE = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
 
@@ -23,7 +24,7 @@ export type UpdateUserSettingsInput = {
 };
 
 export async function fetchUserSettings(): Promise<UserSettings> {
-  const response = await fetch(`${API_BASE}/user-settings`, {
+  const response = await apiFetch(`${API_BASE}/user-settings`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -34,7 +35,7 @@ export async function fetchUserSettings(): Promise<UserSettings> {
 export async function updateUserSettings(
   input: UpdateUserSettingsInput,
 ): Promise<UserSettings> {
-  const response = await fetch(`${API_BASE}/user-settings`, {
+  const response = await apiFetch(`${API_BASE}/user-settings`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

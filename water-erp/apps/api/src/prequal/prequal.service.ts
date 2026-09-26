@@ -183,7 +183,7 @@ export class PrequalService {
       // 7.2.3.4：合格/未通过均告知（NotificationService=含 WS 实时推送）
       const notifBody = {
         userId: app.userId,
-        type: 'SYSTEM',
+        type: 'PREQUAL_RESULT', // 2026-09-26 SYSTEM 拆解：具体类型可辨识（:3004 显示"资格预审结果"）
         title: r.passed ? '资格预审合格通知' : '资格预审结果通知',
         content: r.passed
           ? `贵公司已通过「${prequal.title}」资格预审，合格通知书已生成，可在资格预审页查看。`

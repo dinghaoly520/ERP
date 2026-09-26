@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CalendarClock } from 'lucide-react';
 import { fmtAcquireRangeISO } from '@/lib/utils/format-acquire-time';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /**
  * B3 项目时间信息轴（CTS-EBS01 A-204）：六类节点横向条（立项/获取文件/截标/开标/签约/归档）。
@@ -16,7 +17,7 @@ export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
 
   useEffect(() => {
     let alive = true;
-    fetch(`/api/project-management/${pmiId}/timeline`, {
+    apiFetch(`/api/project-management/${pmiId}/timeline`, {
       credentials: 'include',
       headers: { 'X-Portal': 'web' },
     })

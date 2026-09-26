@@ -225,13 +225,13 @@ export class AuthService {
             type: 'USER_REGISTRATION_PENDING',
             title: '新用户注册待审核',
             content: `${name}（${company} · ${department}）申请${roleLabel}，等待审核。`,
-            link: `/admin/accounts?userId=${userId}`,
+            link: `/admin/accounts?tab=registration&userId=${userId}`,
           }) : this.prisma.notification.create({ data: {
             userId: admin.id,
             type: 'USER_REGISTRATION_PENDING',
             title: '新用户注册待审核',
             content: `${name}（${company} · ${department}）申请${roleLabel}，等待审核。`,
-            link: `/admin/accounts?userId=${userId}`,
+            link: `/admin/accounts?tab=registration&userId=${userId}`,
           } })).catch(() => {});
       }
     } catch { /* 通知失败不阻塞注册 */ }
@@ -322,13 +322,13 @@ export class AuthService {
             type: 'ACCOUNT_SECURITY_FEEDBACK',
             title: '账号异地登录反馈',
             content: `「${username}」反馈：账号被他人登录（IP：${ip ?? '未知'}），请核查并处理。`,
-            link: '/admin/accounts',
+            link: `/admin/accounts?tab=list&keyword=${encodeURIComponent(username)}`,
           }) : this.prisma.notification.create({ data: {
             userId: admin.id,
             type: 'ACCOUNT_SECURITY_FEEDBACK',
             title: '账号异地登录反馈',
             content: `「${username}」反馈：账号被他人登录（IP：${ip ?? '未知'}），请核查并处理。`,
-            link: '/admin/accounts',
+            link: `/admin/accounts?tab=list&keyword=${encodeURIComponent(username)}`,
           } })).catch(() => {});
       }
     } catch { /* 通知失败不阻塞反馈 */ }
@@ -384,6 +384,15 @@ export class AuthService {
     note: string | null,
     reviewer?: { id: string; name?: string },
   ) {
+    // 操作留痕（2026-09-26）：AuditLog 供通知中心「操作历史」（registrationReview 表是业务审核历史）
+    await this.prisma.auditLog.create({
+      data: {
+        userId: reviewer?.id ?? user.id,
+        action: decision === 'APPROVED' ? 'USER_REGISTRATION_APPROVED' : 'USER_REGISTRATION_REJECTED',
+        resourceType: '注册审核', resourceId: user.username,
+        details: { note },
+      },
+    }).catch(() => {});
     await this.prisma.registrationReview.create({
       data: {
         userId: user.id,

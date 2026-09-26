@@ -3,6 +3,7 @@ import type {
   TenderHistoryRecord,
   TenderDraftRecord,
 } from '@/lib/types/tender-write';
+import { apiFetch } from './api-fetch';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
@@ -16,7 +17,7 @@ export async function createTenderHistory(payload: {
   title: string;
   draftData: TenderDraftRecord;
 }): Promise<TenderHistoryRecord> {
-  const response = await fetch(`${API_BASE}/tender-history`, {
+  const response = await apiFetch(`${API_BASE}/tender-history`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -40,7 +41,7 @@ export async function fetchTenderHistory(
     limit: String(limit),
   });
 
-  const response = await fetch(`${API_BASE}/tender-history?${params.toString()}`, {
+  const response = await apiFetch(`${API_BASE}/tender-history?${params.toString()}`, {
     credentials: 'include',
   });
 
@@ -54,7 +55,7 @@ export async function fetchTenderHistory(
 export async function fetchTenderHistoryDetail(
   id: string,
 ): Promise<TenderHistoryRecord> {
-  const response = await fetch(`${API_BASE}/tender-history/${id}`, {
+  const response = await apiFetch(`${API_BASE}/tender-history/${id}`, {
     credentials: 'include',
   });
 
@@ -66,7 +67,7 @@ export async function fetchTenderHistoryDetail(
 }
 
 export async function deleteTenderHistory(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/tender-history/${id}`, {
+  const response = await apiFetch(`${API_BASE}/tender-history/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });

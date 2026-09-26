@@ -1561,11 +1561,13 @@ export class ExpertAdminService {
         type: 'EXPERT_RETIRE_CANDIDATE',
         title: '专家退库预警',
         content: `${candidates.length} 名专家进入退库候选，请人工复核：${names}`,
-        link: '/expert-admin',
+        link: '/expert/retirement',
       };
+      // 2026-09-26 场内矩阵：退库预警是专家库管理事件（:3005），不进 bid_host（场内角色）；
+      // 收件人=leader+staff（expert-admin 类级 @Roles 已允许复核），link 指向 :3005 退库复核页
       await Promise.all([
-        this.notification.sendToRole('admin', payload),
-        this.notification.sendToRole('bid_host', payload),
+        this.notification.sendToRole('leader', payload),
+        this.notification.sendToRole('staff', payload),
       ]);
     }
 

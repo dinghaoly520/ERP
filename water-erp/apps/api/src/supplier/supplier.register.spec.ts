@@ -5,6 +5,7 @@ import { NotificationService } from '../notification/notification.service';
 import { VerificationService } from '../verification/verification.service';
 import { LlmService } from '../local-ai/llm.service';
 import { registrationUploadNamespace } from '../upload/registration-upload';
+import { CompanyScopeService } from '../company/company-scope';
 
 describe('SupplierService.register — P1-13 注册手机验证前置', () => {
   let service: SupplierService;
@@ -32,7 +33,7 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
       supplier: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 's1', userId: 'u1' }) },
       company: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({ id: 'c1', name: '测试集团' }) }, // 2026-09-17 归档合并：注册按 companyName upsert 建档
       supplierContact: { findFirst: jest.fn().mockResolvedValue(null) },
-      user: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'u1' }) },
+      user: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'u1' }) },
       businessTag: {
         upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'tag-1', ...create })),
       },
@@ -51,6 +52,7 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
     const { Test } = await import('@nestjs/testing');
     const module = await Test.createTestingModule({
       providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
         SupplierService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue({}), sendToUser: jest.fn().mockResolvedValue({}) } },

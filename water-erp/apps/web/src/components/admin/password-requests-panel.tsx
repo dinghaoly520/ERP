@@ -153,6 +153,11 @@ type ConfirmState =
 export function PasswordRequestsPanel() {
   const [role, setRole] = useState<string | null>(null);
   const [tab, setTab] = useState<"change" | "reset" | "profile">("change");
+  // 深链（2026-09-26）：通知 link 带 ?section= 直达对应申请段
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get("section");
+    if (s === "change" || s === "reset" || s === "profile") setTab(s);
+  }, []);
   const [changeRequests, setChangeRequests] = useState<PendingPasswordChangeRequest[]>([]);
   const [resetRequests, setResetRequests] = useState<PendingPasswordResetRequest[]>([]);
   const [profileRequests, setProfileRequests] = useState<PendingProfileChange[]>([]);

@@ -1,3 +1,4 @@
+import { apiFetch } from './api-fetch';
 export interface CatalogItem {
   id: string;
   code: string;
@@ -61,7 +62,7 @@ export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const initHeaders = (init?.headers as Record<string, string>) || {};
   const headers: Record<string, string> = { 'X-Portal': 'web', ...initHeaders };
   if (init?.body && !(init.body instanceof FormData)) headers['Content-Type'] = 'application/json';
-  const res = await fetch(url, { credentials: 'include', headers, body: init?.body, method: init?.method, signal: init?.signal });
+  const res = await apiFetch(url, { credentials: 'include', headers, body: init?.body, method: init?.method, signal: init?.signal });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     throw new Error(data?.error || data?.message || '请求失败');
@@ -98,14 +99,14 @@ export function updateCatalogItem(id: string, input: Partial<CatalogItemInput>) 
 export async function exportCatalog(params: Record<string, string | undefined> = {}) {
   const sp = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) sp.set(k, v); });
-  const res = await fetch(`/api/catalog/export${sp.toString() ? '?' + sp.toString() : ''}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
+  const res = await apiFetch(`/api/catalog/export${sp.toString() ? '?' + sp.toString() : ''}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
   if (!res.ok) throw new Error('目录导出失败');
   return res.blob();
 }
 
 export async function downloadImportTemplate() {
   // 与 exportCatalog 一致：裸 fetch 必须带 X-Portal 头，否则后端按缺省门户解析会话
-  const res = await fetch('/api/catalog/admin/import-template', { credentials: 'include', headers: { 'X-Portal': 'web' } });
+  const res = await apiFetch('/api/catalog/admin/import-template', { credentials: 'include', headers: { 'X-Portal': 'web' } });
   if (!res.ok) throw new Error('模板下载失败');
   return res.blob();
 }

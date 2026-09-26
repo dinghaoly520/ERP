@@ -7,6 +7,7 @@ import type {
   FieldCandidate,
   FieldComparison,
 } from '@/lib/types/project-management';
+import { apiFetch } from './api-fetch';
 
 // Use /api proxy by default so LAN clients do not resolve localhost on their own machine.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
@@ -120,7 +121,7 @@ export async function fetchProjectManagementList(
   if (status) params.set('status', status);
   if (companyId && companyId !== 'all') params.set('companyId', companyId);
   const query = params.toString() ? `?${params.toString()}` : '';
-  const response = await fetch(`${API_BASE}/project-management${query}`, {
+  const response = await apiFetch(`${API_BASE}/project-management${query}`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -130,17 +131,40 @@ export async function fetchProjectManagementList(
 
 /** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
 export async function reprocProject(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/reproc`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/reproc`, {
     method: 'POST',
     credentials: 'include',
   });
   return parseJsonResponse<{ round: number; inserted: number }>(response);
 }
 
+/** CTS-EBS01 A-36/37 创建人递交项目送审（驳回后可重新递交） */
+export async function submitProjectForReview(projectId: string) {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/submit-review`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJsonResponse<ProjectManagementItem>(response);
+}
+
+/** CTS-EBS01 A-36/37 受理审核（admin；驳回须填理由） */
+export async function reviewProjectSubmission(
+  projectId: string,
+  payload: { approve: boolean; comment?: string },
+) {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<ProjectManagementItem>(response);
+}
+
 /** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
 export async function extractTenderFields(projectId: string, field?: string) {
   const qs = field ? `?field=${field}` : '';
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields${qs}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields${qs}`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -150,7 +174,7 @@ export async function extractTenderFields(projectId: string, field?: string) {
 /** 重开已完成步骤：该步骤→进行中，后续步骤→待解锁；文件与分析内容保留。 */
 export async function reopenProjectStage(projectId: string, stageKey: string, round?: number) {
   const qs = round ? `?round=${round}` : '';
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/reopen${qs}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/reopen${qs}`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -159,7 +183,7 @@ export async function reopenProjectStage(projectId: string, stageKey: string, ro
 
 /** 直接采购供应商抽选：读取项目各阶段文档，AI 推荐 3-5 家供应商 */
 export async function recommendSuppliersForProject(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/recommend-suppliers`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/recommend-suppliers`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -170,7 +194,7 @@ export async function extractInitiationFields(file: File) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/project-management/extract-initiation`, {
+  const response = await apiFetch(`${API_BASE}/project-management/extract-initiation`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -187,7 +211,7 @@ export async function extractDemandFields(file: File) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/project-management/extract-demand`, {
+  const response = await apiFetch(`${API_BASE}/project-management/extract-demand`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -201,7 +225,7 @@ export async function extractDemandFields(file: File) {
 }
 
 export async function aiIdentifyField(fieldName: string, documentText: string, topK?: number) {
-  const response = await fetch(`${API_BASE}/project-management/ai-identify-field`, {
+  const response = await apiFetch(`${API_BASE}/project-management/ai-identify-field`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -301,7 +325,7 @@ export async function analyzeBudgetReference(data: {
   lines?: BudgetReferenceLineInput[];
   budgetListId?: string;
 }): Promise<BudgetReferenceResult> {
-  const response = await fetch(`${API_BASE}/project-management/analyze-budget-reference`, {
+  const response = await apiFetch(`${API_BASE}/project-management/analyze-budget-reference`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -319,7 +343,7 @@ export async function polishInitiationField(data: {
   initiationDocText?: string;
   projectContext?: { title?: string; category?: string; method?: string };
 }): Promise<{ polished: string }> {
-  const response = await fetch(`${API_BASE}/ai/polish-initiation-field`, {
+  const response = await apiFetch(`${API_BASE}/ai/polish-initiation-field`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -376,7 +400,7 @@ export function compareFields(
 }
 
 export async function createProjectManagementItem(fields: InitiationFields) {
-  const response = await fetch(`${API_BASE}/project-management`, {
+  const response = await apiFetch(`${API_BASE}/project-management`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -391,7 +415,7 @@ export async function updateProjectStage(
   stageKey: ProjectWorkflowStageKey,
   payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; round?: number; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean },
 ) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -439,7 +463,7 @@ export async function uploadProjectStageAttachment(
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/attachments`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/attachments`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -449,7 +473,7 @@ export async function uploadProjectStageAttachment(
 }
 
 export async function moveProjectToRecycleBin(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/recycle`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/recycle`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -460,7 +484,7 @@ export async function moveProjectToRecycleBin(projectId: string) {
 /** 项目终止（2026-09-20）：填终止原因，项目进入「已终止」只读列表并写入台账 CANCELLED 轮次；
  *  notify 由用户选择：none=不发送 | accepted=通知已确认参与的供应商 | all=通知全部受邀供应商 */
 export async function terminateProject(projectId: string, reason: string, notify: 'none' | 'accepted' | 'all' = 'none') {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/terminate`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/terminate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -471,7 +495,7 @@ export async function terminateProject(projectId: string, reason: string, notify
 }
 
 export async function restoreProjectFromRecycleBin(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/restore`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/restore`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -480,7 +504,7 @@ export async function restoreProjectFromRecycleBin(projectId: string) {
 }
 
 export async function deleteProjectPermanently(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -497,7 +521,7 @@ export async function analyzeProjectManagementItem(
   if (stageKey) params.set('stageKey', stageKey);
   if (refresh) params.set('refresh', 'true');
   const search = params.toString();
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/analyze${search ? `?${search}` : ''}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/analyze${search ? `?${search}` : ''}`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -506,7 +530,7 @@ export async function analyzeProjectManagementItem(
 }
 
 export async function completeProjectManagementItem(projectId: string, allowIncomplete?: boolean) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/complete`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/complete`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -520,7 +544,7 @@ export async function deleteProjectAttachment(
   projectId: string,
   attachmentId: string,
 ) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/attachments/${attachmentId}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/attachments/${attachmentId}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -561,7 +585,7 @@ export async function checkSupplierChange(projectId: string): Promise<{
   changed: boolean;
   reason?: string | null;
 }> {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/check-supplier-change`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/check-supplier-change`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -572,7 +596,7 @@ export async function updateProjectExtractedInfo(
   projectId: string,
   payload: ExtractedInfoPayload,
 ) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/extracted-info`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/extracted-info`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -583,7 +607,7 @@ export async function updateProjectExtractedInfo(
 }
 
 export async function refreshProjectSummary(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/refresh-summary`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/refresh-summary`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -614,7 +638,7 @@ export async function auditStageCompliance(
   if (stageKey) params.set('stageKey', stageKey);
   if (force) params.set('force', 'true');
   const qs = params.toString();
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/audit-compliance${qs ? `?${qs}` : ''}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/audit-compliance${qs ? `?${qs}` : ''}`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -630,7 +654,7 @@ export async function analyzeProjectStep(
   const params = new URLSearchParams();
   params.set('stageKey', stageKey);
   if (refresh) params.set('refresh', 'true');
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/analyze-step?${params.toString()}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/analyze-step?${params.toString()}`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -642,7 +666,7 @@ export async function analyzeProjectStep(
 export async function optimizeInitiationFields(
   projectId: string,
 ): Promise<{ projectReason: string; supplierRequirements: string }> {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/optimize-initiation`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/optimize-initiation`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -651,7 +675,7 @@ export async function optimizeInitiationFields(
 }
 
 export async function fetchProjectAttributions(): Promise<ProjectAttribution[]> {
-  const response = await fetch(`${API_BASE}/project-management/project-attributions`, {
+  const response = await apiFetch(`${API_BASE}/project-management/project-attributions`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -665,7 +689,7 @@ export async function getPmBidProject(
   round?: number,
 ): Promise<{ id: string; projectCode: string; name: string; stage: string }> {
   const params = round != null ? `?round=${round}` : '';
-  const response = await fetch(`${API_BASE}/project-management/${pmId}/bid-project${params}`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${pmId}/bid-project${params}`, {
     credentials: 'include',
   });
   return parseJsonResponse(response);
@@ -701,7 +725,7 @@ export async function fetchPmBidProjectRefs(pmId: string): Promise<PmBidProjectR
 export async function fetchProjectTenderDraft(
   projectId: string,
 ): Promise<{ drafts: Record<string, unknown>; updatedAt: string } | null> {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -714,7 +738,7 @@ export async function saveProjectTenderDraft(
   projectId: string,
   drafts: Record<string, unknown>,
 ): Promise<{ projectId: string; updatedAt: string }> {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -725,7 +749,7 @@ export async function saveProjectTenderDraft(
 
 /** 一键清除：删除服务器当前草稿与全部历史版本。 */
 export async function clearProjectTenderDraft(projectId: string): Promise<void> {
-  await fetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
+  await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -735,7 +759,7 @@ export async function clearProjectTenderDraft(projectId: string): Promise<void> 
 export async function fetchProjectTenderDraftVersions(
   projectId: string,
 ): Promise<{ id: string; label: string; timestamp: string; drafts: Record<string, unknown> }[]> {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -748,7 +772,7 @@ export async function addProjectTenderDraftVersion(
   drafts: Record<string, unknown>,
   label?: string,
 ): Promise<{ id: string; label: string; createdAt: string }> {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -759,7 +783,7 @@ export async function addProjectTenderDraftVersion(
 
 /** 清空历史版本（保留当前草稿）。 */
 export async function clearProjectTenderDraftVersions(projectId: string): Promise<void> {
-  await fetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
+  await apiFetch(`${API_BASE}/project-management/${projectId}/tender-draft/versions`, {
     method: 'DELETE',
     credentials: 'include',
   });

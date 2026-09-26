@@ -1,4 +1,5 @@
 import type { TenderFieldKey } from '@/lib/types/tender-write';
+import { apiFetch } from './api-fetch';
 
 const API_BASE = '/api';
 
@@ -22,7 +23,7 @@ export async function fetchFieldSamples(
     params.append('isFavorite', String(isFavorite));
   }
 
-  const response = await fetch(`${API_BASE}/tender-sample?${params}`, {
+  const response = await apiFetch(`${API_BASE}/tender-sample?${params}`, {
     credentials: 'include',
     headers: { 'X-Portal': 'web' },
   });
@@ -39,7 +40,7 @@ export async function createFieldSample(payload: {
   sourceType?: 'manual' | 'ai_generated';
   context?: Record<string, unknown>;
 }): Promise<TenderFieldSample> {
-  const response = await fetch(`${API_BASE}/tender-sample`, {
+  const response = await apiFetch(`${API_BASE}/tender-sample`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },
     credentials: 'include',
@@ -55,7 +56,7 @@ export async function updateFieldSample(
   id: string,
   payload: { content?: string; isFavorite?: boolean },
 ): Promise<TenderFieldSample> {
-  const response = await fetch(`${API_BASE}/tender-sample/${id}`, {
+  const response = await apiFetch(`${API_BASE}/tender-sample/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },
     credentials: 'include',
@@ -70,7 +71,7 @@ export async function updateFieldSample(
 export async function toggleFieldSampleFavorite(
   id: string,
 ): Promise<TenderFieldSample> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/tender-sample/${id}/toggle-favorite`,
     {
       method: 'PATCH',
@@ -85,7 +86,7 @@ export async function toggleFieldSampleFavorite(
 }
 
 export async function deleteFieldSample(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/tender-sample/${id}`, {
+  const response = await apiFetch(`${API_BASE}/tender-sample/${id}`, {
     method: 'DELETE',
     credentials: 'include',
     headers: { 'X-Portal': 'web' },
@@ -102,7 +103,7 @@ export async function generateFieldContent(payload: {
   aiPrompt?: string;
   context: Record<string, string>;
 }): Promise<{ content: string }> {
-  const response = await fetch(`${API_BASE}/ai/tender-field-generate`, {
+  const response = await apiFetch(`${API_BASE}/ai/tender-field-generate`, {
     method: 'POST',
     // 裸 fetch 必须带 X-Portal 头，否则后端 portal-cookie 无法识别 cookie 会话 → 401
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },

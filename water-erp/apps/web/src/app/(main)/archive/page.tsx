@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { fetchCurrentUser } from '@/lib/api/auth';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /* ═══════════════════════════════════════════════════════════════
    归档管理（DA/T 103-2024）— 卷台账 / 四性检测 / ASIP 导出
@@ -56,7 +57,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/archive${path}`, {
+  const res = await apiFetch(`/api/archive${path}`, {
     ...init,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web', ...(init?.headers ?? {}) },
@@ -146,7 +147,7 @@ function ArchivePageInner() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`/api/archive/items/${pmiId}/registration-scan`, {
+      const res = await apiFetch(`/api/archive/items/${pmiId}/registration-scan`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'X-Portal': 'web' },

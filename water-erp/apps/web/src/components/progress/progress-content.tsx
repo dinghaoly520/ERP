@@ -585,6 +585,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
             <CompanySelect
               value={companyId}
               onChange={(c) => { setCompanyId(c); void loadData(c); }}
+              countMode="projectsActive"
             />
             <span className="page-hero__stat page-hero__stat--info">
               共 {stats.totalActive} 项

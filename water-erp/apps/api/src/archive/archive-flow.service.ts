@@ -43,8 +43,7 @@ export class ArchiveFlowService {
         content: `「${item.title}」已到定标/合同节点（DA/T 103-2024 §8.1），请前往归档管理完成四性检测并导出归档信息包。`,
         link,
       };
-      await this.notification.sendToRole('leader', dto);
-      await this.notification.sendToRole('admin', dto);
+      await this.notification.sendToRole('leader', dto); // 2026-09-26：业务通知不进 admin（admin 只收账号域）
     } catch (err) {
       this.logger.warn(`归档待派发失败（不阻塞上传）: ${err}`);
     }

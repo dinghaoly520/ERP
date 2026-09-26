@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  getSupplierList, getSupplierStats,
+  getSupplierList, getSupplierStats, fetchSupplierCompanyCounts,
   updateSupplierStatus,
   toggleFavorite, getFavorites,
   listInvitations, createInvitation, revokeInvitation,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
+import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
+import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
@@ -38,6 +40,10 @@ export default function SupplierRepositoryPage() {
   const [error, setError] = useState<string>('');
 
   const [sortMode, setSortMode] = useState<'completeness' | 'createdAt'>('completeness');
+  // 公司级数据隔离（2026-09-26，专家库同款）：admin 右上角 CompanySelect 切换视野，全部公司=按公司分组
+  const [companyId, setCompanyId] = useState('all');
+  const [companyCounts, setCompanyCounts] = useState<Array<{ name: string; count: number }> | null>(null);
+  const selectedCompanyName = useCompanyName(companyId);
   const [filterStatus, setFilterStatus] = useState('APPROVED');
   // 临时供应商子视图：与 filterStatus='APPROVED' 叠加，仅看凭邀请码注册的临时入库供应商。
   const [filterIsTemporary, setFilterIsTemporary] = useState(false);
@@ -165,19 +171,31 @@ export default function SupplierRepositoryPage() {
       if (advDateTo) params.dateTo = advDateTo;
       if (advEvalLevel) params.evalLevel = advEvalLevel;
       if (advQualStatus) params.qualificationStatus = advQualStatus;
-      const res = await getSupplierList(params);
+      const res = await getSupplierList({ ...params, companyId });
       setData(res);
     } catch (e: any) {
       // B13：区分「真空」与「接口挂掉」——失败时显示错误态+重试，而非静默显示空表。
       setError(e?.message || '供应商列表加载失败');
     }
     setLoading(false);
-  }, [effectiveStatus, filterStatus, filterIsTemporary, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
+  }, [effectiveStatus, filterStatus, filterIsTemporary, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus, companyId]);
 
   const refreshMeta = useCallback(() => {
-    getSupplierStats().then(setStats).catch(() => {});
+    getSupplierStats(companyId).then(setStats).catch(() => {});
     getFavorites().then(fs => setFavIds(new Set(fs.map(f => f.supplierId)))).catch(() => {});
-  }, []);
+  }, [companyId]);
+
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
+  // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径不因分页失真
+  useEffect(() => {
+    if (!isAdmin || companyId !== 'all') { setCompanyCounts(null); return; }
+    fetchSupplierCompanyCounts({
+      status: effectiveStatus ?? undefined,
+      search: search || undefined,
+      enterpriseTypes: advEnterpriseTypes.length > 0 ? advEnterpriseTypes.join(',') : undefined,
+      isTemporary: filterIsTemporary || undefined,
+    }).then(setCompanyCounts).catch(() => setCompanyCounts(null));
+  }, [isAdmin, companyId, effectiveStatus, search, advEnterpriseTypes, filterIsTemporary]);
 
   // 导出全部筛选结果（非仅当前页）：筛选条件与 loadData 完全一致，分批拉取后生成 Excel。
   const [exporting, setExporting] = useState(false);
@@ -218,6 +236,107 @@ export default function SupplierRepositoryPage() {
     setStatusLoading(false);
   };
 
+
+  // admin 全部公司视图：当前页行按公司分组（CompanySectionHeader，专家库/台账同款）；标题计数=后端全量口径
+  const companyViewAll = isAdmin && companyId === 'all';
+  const supplierGroups = useMemo(() => {
+    if (!companyViewAll) return [];
+    return buildCompanyCounts(displayItems.map(x => ({ company: x.companyName }))).map(g => ({
+      name: g.name,
+      fullCount: companyCounts?.find(c => c.name === g.name)?.count ?? g.count,
+      items: displayItems.filter(x => ((x.companyName ?? '').trim() || '未归属') === g.name),
+    }));
+  }, [companyViewAll, displayItems, companyCounts]);
+
+  // 表格渲染函数：分组视图按组各渲染一张表，单表视图整页一张
+  const renderSupplierTable = (rows: Supplier[]) => (
+    <div className="neu-table-card">
+      <div className="overflow-x-auto">
+        <table className="neu-table w-full min-w-[780px]">
+          <thead>
+            <tr>
+              <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === rows.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < rows.length; }} onChange={toggleAll} /></th>
+              <th style={{ width: 100 }}>企业名称</th>
+              <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
+              <th style={{ width: 140 }}>企业类型</th>
+              <th className="text-center" style={{ width: 84 }}>评价次数</th>
+              <th className="text-center" style={{ width: 96 }}>平均等级</th>
+              <th className="text-center" style={{ width: 96 }}>最近评价</th>
+              <th className="text-center" style={{ width: 96 }}>入库时间</th>
+              <th className="text-center" style={{ width: 100 }}>状态</th>
+              <th className="text-center" style={{ width: 240 }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <TableSkeleton cols={10} rows={5} />
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={10} className="px-4 py-16">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
+                  <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
+                </div>
+              </td></tr>
+            ) : rows.map((s: Supplier) => {
+              const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray' : s.status === 'BLACKLIST' ? 'red' : 'gray';
+              const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
+              return (
+                <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
+                  <td onClick={e => e.stopPropagation()} className="pl-3">
+                    <input type="checkbox" className="neu-checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} />
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{s.name[0]}</div>
+                      <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors" title={s.name}>{s.name}</span>
+                      <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'} aria-label={favIds.has(s.id) ? '取消收藏' : '收藏'}>
+                        <Star size={13} fill={favIds.has(s.id) ? 'var(--warning)' : 'none'} stroke={favIds.has(s.id) ? 'var(--warning)' : 'currentColor'} />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
+                  <td className="text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
+                  <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{s._count?.evaluations ?? 0}</td>
+                  <td className="text-center">
+                    {s._avgGrade ? (
+                      <div className="flex items-center justify-center gap-1.5" title={`平均评价等级 ${s._avgGrade}（${LEVEL_LABEL[s._avgGrade] ?? ''}）`}>
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._avgGrade] ?? 'var(--muted-foreground)' }}>{s._avgGrade}</span>
+                        <span className="text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[s._avgGrade] ?? '—'}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-[var(--muted-foreground)]">—</span>
+                    )}
+                  </td>
+                  <td className="text-center">
+                    {s._latestEvalLevel ? (
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._latestEvalLevel] ?? 'var(--muted-foreground)' }}>{s._latestEvalLevel}</span>
+                    ) : (
+                      <span className="text-sm text-[var(--muted-foreground)]">—</span>
+                    )}
+                  </td>
+                  <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
+                  <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
+                      {s.status === 'APPROVED' && (
+                        <>
+                          <button onClick={() => setEvalTarget(s)} className="neu-btn-xs is-info">评价</button>
+                          <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }} className="neu-btn-xs is-warning">停用</button>
+                          <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+
   return (
     <div className="flex flex-col gap-5">
       {/* 异议与投诉受理（与供应商门户 :3004 异议提交端联结：在线答复/转投诉/办结） */}
@@ -237,6 +356,7 @@ export default function SupplierRepositoryPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => setReviewModalOpen(true)} className="neu-btn-soft"><ClipboardCheck size={15} />审批</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
@@ -437,109 +557,47 @@ export default function SupplierRepositoryPage() {
         </div>
       )}
 
-      {/* ══════ 数据表格 ══════ */}
-      <div className="neu-table-card">
-        {selected.size > 0 && (
-          <div className="neu-batch-bar">
-            <span className="neu-batch-bar-count">已选 <strong>{selected.size}</strong> 条</span>
-            <div className="neu-batch-bar-spacer" />
-            <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'DISABLED' }); }} className="neu-btn-xs is-warning">批量停用</button>
-            <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'BLACKLIST' }); }} className="neu-btn-xs is-danger">批量拉黑</button>
-            <button onClick={() => setSelected(new Set())} className="neu-btn-xs"><X size={12} />取消选择</button>
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[780px]">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === displayItems.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < displayItems.length; }} onChange={toggleAll} /></th>
-                <th style={{ width: 100 }}>企业名称</th>
-                <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
-                <th style={{ width: 140 }}>企业类型</th>
-                <th className="text-center" style={{ width: 84 }}>评价次数</th>
-                <th className="text-center" style={{ width: 96 }}>平均等级</th>
-                <th className="text-center" style={{ width: 96 }}>最近评价</th>
-                <th className="text-center" style={{ width: 96 }}>入库时间</th>
-                <th className="text-center" style={{ width: 100 }}>状态</th>
-                <th className="text-center" style={{ width: 240 }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <TableSkeleton cols={10} rows={5} />
-              ) : displayItems.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-16">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
-                    <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
-                  </div>
-                </td></tr>
-              ) : displayItems.map((s: Supplier) => {
-                const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray' : s.status === 'BLACKLIST' ? 'red' : 'gray';
-                const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
-                return (
-                  <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
-                    <td onClick={e => e.stopPropagation()} className="pl-3">
-                      <input type="checkbox" className="neu-checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} />
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{s.name[0]}</div>
-                        <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors" title={s.name}>{s.name}</span>
-                        <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'} aria-label={favIds.has(s.id) ? '取消收藏' : '收藏'}>
-                          <Star size={13} fill={favIds.has(s.id) ? 'var(--warning)' : 'none'} stroke={favIds.has(s.id) ? 'var(--warning)' : 'currentColor'} />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
-                    <td className="text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
-                    <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{s._count?.evaluations ?? 0}</td>
-                    <td className="text-center">
-                      {s._avgGrade ? (
-                        <div className="flex items-center justify-center gap-1.5" title={`平均评价等级 ${s._avgGrade}（${LEVEL_LABEL[s._avgGrade] ?? ''}）`}>
-                          <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._avgGrade] ?? 'var(--muted-foreground)' }}>{s._avgGrade}</span>
-                          <span className="text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[s._avgGrade] ?? '—'}</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-[var(--muted-foreground)]">—</span>
-                      )}
-                    </td>
-                    <td className="text-center">
-                      {s._latestEvalLevel ? (
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._latestEvalLevel] ?? 'var(--muted-foreground)' }}>{s._latestEvalLevel}</span>
-                      ) : (
-                        <span className="text-sm text-[var(--muted-foreground)]">—</span>
-                      )}
-                    </td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
-                    <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
-                        {s.status === 'APPROVED' && (
-                          <>
-                            <button onClick={() => setEvalTarget(s)} className="neu-btn-xs is-info">评价</button>
-                            <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }} className="neu-btn-xs is-warning">停用</button>
-                            <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* ══════ 数据表格（admin 全部公司视图=按公司分组；单公司/非 admin=平铺）══════ */}
+      {selected.size > 0 && (
+        <div className="neu-batch-bar">
+          <span className="neu-batch-bar-count">已选 <strong>{selected.size}</strong> 条</span>
+          <div className="neu-batch-bar-spacer" />
+          <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'DISABLED' }); }} className="neu-btn-xs is-warning">批量停用</button>
+          <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'BLACKLIST' }); }} className="neu-btn-xs is-danger">批量拉黑</button>
+          <button onClick={() => setSelected(new Set())} className="neu-btn-xs"><X size={12} />取消选择</button>
         </div>
-        {data.total > 0 && (
-          <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{data.total}</strong> 条 · 第 {page}/{totalPages} 页</span>
-            <div className="flex gap-1.5">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
-              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
+      )}
+      {companyViewAll && !loading && displayItems.length > 0 ? (
+        <div className="space-y-5">
+          {supplierGroups.map(g => (
+            <section key={g.name}>
+              <CompanySectionHeader name={g.name} count={g.fullCount} suffix={g.items.length < g.fullCount ? `本页 ${g.items.length}` : undefined} />
+              <div className="mt-3">{renderSupplierTable(g.items)}</div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <>
+          {/* 单公司视图（admin）：该公司主标题（非 admin 隐含本公司，不加标题） */}
+          {isAdmin && companyId !== 'all' && selectedCompanyName && (
+            <div className="mb-3">
+              <CompanySectionHeader name={selectedCompanyName} count={data.total} />
             </div>
+          )}
+          {renderSupplierTable(displayItems)}
+        </>
+      )}
+      {data.total > 0 && (
+        <div className="neu-table-card-footer mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{data.total}</strong> 条 · 第 {page}/{totalPages} 页</span>
+          <div className="flex gap-1.5">
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+
 
       {/* ══════ 批量操作弹窗 ══════ */}
       {batchModal && (

@@ -11,6 +11,7 @@ import {
   type ChatMessage, type ChatUser,
 } from '@/lib/api/chat';
 import { ROLE_LABELS } from '@/lib/role-labels';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 interface ChatDialogProps {
   peerId: string;
@@ -68,7 +69,7 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch('/api/auth/me', { credentials: 'include' }).then((r) => r.json() as Promise<{ id: string }>),
+      apiFetch('/api/auth/me', { credentials: 'include' }).then((r) => r.json() as Promise<{ id: string }>),
       fetchChatUsers(),
     ])
       .then(([me, users]) => {

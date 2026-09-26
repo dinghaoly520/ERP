@@ -1,11 +1,12 @@
 import type { Conversation, Message, AssistantPageContext, AssistantAction } from '@/components/assistant/types';
+import { apiFetch } from './api-fetch';
 
 const API_BASE = '/api';
 
 // ---- REST helpers ----
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { credentials: 'include', ...init });
+  const res = await apiFetch(url, { credentials: 'include', ...init });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: '请求失败' }));
     throw new Error((body as { message?: string }).message ?? '请求失败');
@@ -32,7 +33,7 @@ export async function getConversation(id: string): Promise<{ messages: Message[]
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  await fetch(`${API_BASE}/assistant/conversations/${id}`, {
+  await apiFetch(`${API_BASE}/assistant/conversations/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -40,7 +41,7 @@ export async function deleteConversation(id: string): Promise<void> {
 
 export async function generateTitle(conversationId: string): Promise<string> {
   try {
-    const res = await fetch(`${API_BASE}/assistant/conversations/${conversationId}/title`, {
+    const res = await apiFetch(`${API_BASE}/assistant/conversations/${conversationId}/title`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -84,7 +85,7 @@ export async function sendMessage(
   options?: { signal?: AbortSignal },
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/assistant/chat`, {
+    const response = await apiFetch(`${API_BASE}/assistant/chat`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

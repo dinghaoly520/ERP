@@ -70,7 +70,7 @@ export interface SupplierSelectionResult {
 }
 
 // 供应商列表
-export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean }) {
+export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; companyId?: string }) {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
   if (params?.classificationId) query.set('classificationId', params.classificationId);
@@ -84,7 +84,18 @@ export function getSupplierList(params?: { status?: string; classificationId?: s
   if (params?.evalLevel) query.set('evalLevel', params.evalLevel);
   if (params?.qualificationStatus) query.set('qualificationStatus', params.qualificationStatus);
   if (params?.isTemporary) query.set('isTemporary', 'true');
+  if (params?.companyId && params.companyId !== 'all') query.set('companyId', params.companyId);
   return api.get<SupplierListResponse>(`/supplier/list?${query.toString()}`);
+}
+
+/** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径；与列表同筛选） */
+export function fetchSupplierCompanyCounts(params?: { status?: string; search?: string; enterpriseTypes?: string; isTemporary?: boolean }) {
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  if (params?.search) query.set('search', params.search);
+  if (params?.enterpriseTypes) query.set('enterpriseTypes', params.enterpriseTypes);
+  if (params?.isTemporary) query.set('isTemporary', 'true');
+  return api.get<Array<{ name: string; count: number }>>(`/supplier/company-counts?${query.toString()}`);
 }
 
 /* ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）── */
@@ -118,8 +129,8 @@ export function revokeInvitation(id: string) {
 }
 
 // 供应商统计（总数 / 待审核 / 已入库 / 停用 / 黑名单）
-export function getSupplierStats() {
-  return api.get<SupplierStats>('/supplier/stats');
+export function getSupplierStats(companyId?: string) {
+  return api.get<SupplierStats>(`/supplier/stats${companyId && companyId !== 'all' ? '?companyId=' + companyId : ''}`);
 }
 
 // AI 智能推荐供应商（按采购需求 + 项目上下文）

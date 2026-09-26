@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Search, X, UserRound, Loader2, Star, NotebookPen } from 'lucide-react';
 import { fetchChatUsers, getChatSocket, type ChatUser } from '@/lib/api/chat';
 import { ROLE_LABELS } from '@/lib/role-labels';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 interface MemberListDialogProps {
   onClose: () => void;
@@ -31,7 +32,7 @@ export function MemberListDialog({ onClose, onSelectPeer }: MemberListDialogProp
     setLoading(true);
     Promise.all([
       fetchChatUsers(),
-      fetch('/api/auth/me', { credentials: 'include' }).then((r) => r.json() as Promise<{ id: string }>).catch(() => ({ id: '' })),
+      apiFetch('/api/auth/me', { credentials: 'include' }).then((r) => r.json() as Promise<{ id: string }>).catch(() => ({ id: '' })),
     ])
       .then(([data, me]) => {
         if (cancelled) return;

@@ -18,6 +18,19 @@ import { basename, extname, join, resolve } from 'node:path';
     mkdir(dir, { recursive: true }).catch(() => {});
     return join(dir, `tender-text-${projectId}.txt`);
   }
+  /**
+   * 判定 TENDER_DOCUMENT 阶段附件是否为「采购文件」主文件（开标时间/概况/获取时间的提取来源）。
+   * 正向：文件名含 采购文件/招标文件（系统各采购方式生成的文件名均为「××采购文件.docx」）。
+   * 排除词用精确组合而非裸词——裸词「合同|需求|立项」会误伤项目名（实测
+   * 「SWHI-JJ-2026092601-合同及编-竞价采购文件-20260926.docx」被「合同」二字排除，
+   * 导致上传时不提取开标时间、AI 提取按钮误报「未上传采购文件」）。
+   * project-detail-panel.tsx 的前端预检保持同款正则（后端判定为准，预检仅快速反馈）。
+   */
+  export function isTenderMainFile(fileName: string): boolean {
+    return /采购文件|招标文件/.test(fileName)
+      && !/审批表|公告|通知书|采购合同|合同书|合同文本|合同协议|需求书|需求文件|需求说明|需求清单|立项申请|立项报告|立项书/.test(fileName);
+  }
+
   export function isLabelLine(line: string) {
     return [
       '需求申请人',

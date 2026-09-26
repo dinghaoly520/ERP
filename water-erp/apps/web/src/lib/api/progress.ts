@@ -1,3 +1,4 @@
+import { apiFetch } from './api-fetch';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 export interface ProjectProgress {
@@ -76,7 +77,7 @@ export async function fetchProgressStats(
 
   const url = `${API_BASE}/progress/stats${params.toString() ? `?${params.toString()}` : ''}`;
 
-  const response = await fetch(url, { credentials: 'include' });
+  const response = await apiFetch(url, { credentials: 'include' });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to fetch progress stats: ${errorText}`);
@@ -89,7 +90,7 @@ export async function fetchProgressAiInsights(companyId?: string): Promise<Progr
   const qs = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
   const url = `${API_BASE}/progress/ai-insights${qs}`;
 
-  const response = await fetch(url, { credentials: 'include' });
+  const response = await apiFetch(url, { credentials: 'include' });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to fetch AI insights: ${errorText}`);

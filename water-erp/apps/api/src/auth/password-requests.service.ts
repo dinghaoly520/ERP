@@ -153,13 +153,13 @@ export class PasswordRequestsService {
           type: 'PASSWORD_CHANGE_REVIEWED',
           title: '密码修改已通过',
           content: '您的密码修改申请已由管理员审核通过，新密码已生效；当前登录已失效，请使用新密码重新登录。',
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         }) : this.prisma.notification.create({ data: {
           userId: req.userId,
           type: 'PASSWORD_CHANGE_REVIEWED',
           title: '密码修改已通过',
           content: '您的密码修改申请已由管理员审核通过，新密码已生效；当前登录已失效，请使用新密码重新登录。',
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
     return this.prisma.passwordChangeRequest.update({
@@ -180,13 +180,13 @@ export class PasswordRequestsService {
           type: 'PASSWORD_CHANGE_REVIEWED',
           title: '密码修改未通过',
           content: `您的密码修改申请被拒绝${note ? `：${note}` : ''}，原密码继续有效。`,
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         }) : this.prisma.notification.create({ data: {
           userId: req.userId,
           type: 'PASSWORD_CHANGE_REVIEWED',
           title: '密码修改未通过',
           content: `您的密码修改申请被拒绝${note ? `：${note}` : ''}，原密码继续有效。`,
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
     return this.prisma.passwordChangeRequest.update({
@@ -237,13 +237,13 @@ export class PasswordRequestsService {
           type: 'PASSWORD_RESET_APPROVED',
           title: '忘记密码申请已通过',
           content: '您的忘记密码申请已通过审核，管理员已将密码按你提交内容重置；请尽快登录并再次修改。',
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         }) : this.prisma.notification.create({ data: {
           userId: req.matchedUserId,
           type: 'PASSWORD_RESET_APPROVED',
           title: '忘记密码申请已通过',
           content: '您的忘记密码申请已通过审核，管理员已将密码按你提交内容重置；请尽快登录并再次修改。',
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         } })).catch(() => {});
     } catch {
       // 通知失败不阻塞审批
@@ -281,6 +281,7 @@ export class PasswordRequestsService {
       select: {
         displayName: true, email: true, phone: true, officeLocation: true,
         company: true, departmentId: true, avatar: true,
+        role: true, // 2026-09-26 审批分流：供应商申请人 → 归属公司管理账号；管理端申请人 → admin
       },
     });
     if (!user) throw new NotFoundException({ error: '账号不存在', code: 'NOT_FOUND' });
@@ -309,18 +310,36 @@ export class PasswordRequestsService {
       select: { id: true, status: true, requestedAt: true },
     });
 
-    // 2026-09-22：资料变更必须通知审批人（此前静默，admin 无感知不合理）
-    const admins = await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } });
+    // 2026-09-22：资料变更必须通知审批人（此前静默无感知不合理）
+    // 2026-09-26 分流（用户裁定）：供应商申请人 → 其归属公司管理账号（leader+staff，无人回退 admin）；
+    // 管理端申请人 → 平台 admin（admin 只管管理端账号的注册与修改）
+    const applicantIsSupplier = user.role === 'supplier';
+    let approverIds: string[] = [];
+    if (applicantIsSupplier) {
+      const supplierRow = await this.prisma.supplier.findUnique({ where: { userId }, select: { companyId: true } }).catch(() => null);
+      if (supplierRow?.companyId) {
+        const companyApprovers = await this.prisma.user.findMany({
+          where: { role: { in: ['leader', 'staff'] }, isActive: true, companyId: supplierRow.companyId },
+          select: { id: true },
+        });
+        approverIds = companyApprovers.map(u => u.id);
+      }
+      if (approverIds.length === 0) {
+        approverIds = (await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } })).map(u => u.id);
+      }
+    } else {
+      approverIds = (await this.prisma.user.findMany({ where: { role: 'admin', isActive: true }, select: { id: true } })).map(u => u.id);
+    }
     const summary = Object.keys(changes)
       .map((f) => PasswordRequestsService.PROFILE_FIELD_LABELS[f] ?? f)
       .join('、');
-    for (const a of admins) {
+    for (const a of approverIds.map(id => ({ id }))) {
       const body = {
         userId: a.id,
         type: 'PROFILE_CHANGE_PENDING',
         title: '资料变更待审批',
         content: `「${user.displayName}」提交了资料变更（${summary}），请前往账号管理审批。`,
-        link: '/admin/accounts',
+        link: '/admin/accounts?tab=password&section=profile',
       };
       // NotificationService.create = 落库 + WS 实时推送（右下角弹窗）；降级 prisma 直建
       await (this.notifications
@@ -378,15 +397,26 @@ export class PasswordRequestsService {
           type: 'PROFILE_CHANGE_REVIEWED',
           title: '资料变更已通过',
           content: '您的资料修改申请已由管理员审核通过，新资料已生效。',
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         }) : this.prisma.notification.create({ data: {
           userId: req.userId,
           type: 'PROFILE_CHANGE_REVIEWED',
           title: '资料变更已通过',
           content: '您的资料修改申请已由管理员审核通过，新资料已生效。',
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
+
+    // 2026-09-26 五段状态：审批人待办消音（新旧 link 双口径）+ 操作留痕（操作历史/已办结果依据）
+    await Promise.allSettled([
+      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts?tab=password&section=profile'),
+      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts'),
+      this.prisma.auditLog.create({ data: {
+        userId: reviewerId, action: 'PROFILE_CHANGE_APPROVED',
+        resourceType: '资料变更审批', resourceId: updated.username,
+        details: { requestId: id, fields: Object.keys(payload) },
+      } }),
+    ]);
 
     return this.prisma.profileChangeRequest.update({
       where: { id },
@@ -406,15 +436,27 @@ export class PasswordRequestsService {
           type: 'PROFILE_CHANGE_REVIEWED',
           title: '资料变更未通过',
           content: `您的资料修改申请被拒绝${note ? `：${note}` : ''}，当前资料保持不变。`,
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         }) : this.prisma.notification.create({ data: {
           userId: req.userId,
           type: 'PROFILE_CHANGE_REVIEWED',
           title: '资料变更未通过',
           content: `您的资料修改申请被拒绝${note ? `：${note}` : ''}，当前资料保持不变。`,
-          link: '/profile',
+          link: '/profile?edit=1', // 落地即打开基本资料编辑弹窗
         } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
+
+    // 2026-09-26 五段状态：审批人待办消音 + 操作留痕
+    const reqUser = await this.prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }).catch(() => null);
+    await Promise.allSettled([
+      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts?tab=password&section=profile'),
+      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts'),
+      this.prisma.auditLog.create({ data: {
+        userId: reviewerId, action: 'PROFILE_CHANGE_REJECTED',
+        resourceType: '资料变更审批', resourceId: reqUser?.username ?? req.userId,
+        details: { requestId: id, reason: note ?? null },
+      } }),
+    ]);
 
     return this.prisma.profileChangeRequest.update({
       where: { id },

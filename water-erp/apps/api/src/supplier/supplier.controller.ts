@@ -180,9 +180,27 @@ export class SupplierController {
 
   @Get('stats')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '供应商统计数据（Dashboard用）' })
-  async getStats() {
-    return this.supplierService.getStats();
+  @ApiOperation({ summary: '供应商统计数据（Dashboard用；公司隔离，admin 可 ?companyId= 切单公司）' })
+  async getStats(@Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.supplierService.getStats(req.user, companyId);
+  }
+
+  @Get('company-counts')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '按公司分组全量计数（admin 全部公司视图分组标题，与列表同筛选）' })
+  async companyCounts(
+    @Request() req: any = {},
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('enterpriseTypes') enterpriseTypes?: string,
+    @Query('isTemporary') isTemporary?: string,
+    @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
+  ) {
+    return this.supplierService.companyCounts({
+      status, search,
+      enterpriseTypes: enterpriseTypes ? enterpriseTypes.split(',').filter(Boolean) : undefined,
+      isTemporary: isTemporary === 'true' ? true : undefined,
+    }, req.user);
   }
 
   // ── 业务标签：词表（选取/邀请页多选） + 全量回填（规则引擎，写 tags）──
@@ -233,6 +251,7 @@ export class SupplierController {
     @Query('evalLevel') evalLevel?: string,
     @Query('qualificationStatus') qualificationStatus?: string,
     @Query('isTemporary') isTemporary?: string,
+    @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
   ) {
     // #18 status 枚举校验：非法值会让 Prisma/raw cast 抛 500；支持 `exclude:A,B` 形式。
     if (status) {
@@ -249,6 +268,8 @@ export class SupplierController {
       // 临时供应商筛选：仅 'true' 视为真，其余（'false'/缺省）均不加该过滤，避免误判。
       isTemporary: isTemporary === 'true' ? true : undefined,
       scopeUserId: req?.user?.role === 'supplier' ? req.user.sub : undefined,
+      companyId,
+      actor: req?.user?.role === 'supplier' ? undefined : req.user,
     });
   }
 
@@ -420,7 +441,7 @@ export class SupplierController {
   @Roles('admin', 'leader', 'staff', 'supplier') // 补角色白名单；supplier 归属校验在方法体内
   @ApiOperation({ summary: '供应商详情（supplier 角色仅见本企业，防跨企枚举与联系人 PII 泄露）' })
   async get(@Param('id') id: string, @Request() req: any) {
-    const detail = await this.supplierService.get(id);
+    const detail = await this.supplierService.get(id, req?.user);
     // get() 用 include 返回关联 user，供应商归属 userId 在 detail.user.id（标量 userId 不在 select 顶层）。
     if (req?.user?.role === 'supplier' && detail?.user?.id && detail.user.id !== req.user.sub) {
       throw new ForbiddenException({ error: '只能查看本企业详情', code: 'FORBIDDEN' });
@@ -429,21 +450,21 @@ export class SupplierController {
   }
 
   @Post(':id/approve')
-  @Roles('admin') // 注册审批：仅管理权限（2026-09-24 用户裁定）
+  @Roles('admin', 'leader', 'staff') // 2026-09-26 改定：供应商审批=归属公司管理账号（service 校验公司域，平台 admin 豁免）
   @ApiOperation({ summary: '审核通过' })
   async approve(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.approve(id, req.user?.sub);
   }
 
   @Post(':id/reject')
-  @Roles('admin') // 注册审批仅 admin
+  @Roles('admin', 'leader', 'staff') // 同 approve：归属公司管理账号
   @ApiOperation({ summary: '审核不通过' })
   async reject(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
     return this.supplierService.reject(id, dto.reason, req.user?.sub);
   }
 
   @Post(':id/return')
-  @Roles('admin') // 注册审批仅 admin
+  @Roles('admin', 'leader', 'staff') // 同 approve：归属公司管理账号
   @ApiOperation({ summary: '退回补正' })
   async return(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
     return this.supplierService.return(id, dto.reason, req.user?.sub);

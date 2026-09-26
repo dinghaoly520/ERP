@@ -1,32 +1,26 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import * as LucideIcons from 'lucide-react';
 import { getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead } from '@/lib/api/supplier';
 import type { Notification } from '@/lib/types';
-import { Bell, CheckCheck, CheckCircle, XCircle, RefreshCw, Info, Gavel, AlertTriangle } from 'lucide-react';
+import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
+import { resolveBidLink } from './notification/realtime-notifications';
+import { Bell, CheckCheck } from 'lucide-react';
 
-type TypeCfg = { Icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>; cls: string };
-
-/** O8（2026-08-28）：原 typeCfg 仅供应商审批三类（:3005 时代遗留），本端开评标通知
- *  （BID_*，后端 20+ 类型）全落 Info 兜底。改两级解析：语义明确者精确映射，其余
- *  BID_* 前缀按开评标执行类兜底；未识别类型维持 Info。 */
-const EXACT_TYPE_CFG: Record<string, TypeCfg> = {
-  SUPPLIER_APPROVED: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
-  SUPPLIER_REJECTED: { Icon: XCircle, cls: 'text-red-600 bg-red-50' },
-  SUPPLIER_RETURNED: { Icon: RefreshCw, cls: 'text-amber-600 bg-amber-50' },
-  BID_ABORTED: { Icon: XCircle, cls: 'text-red-600 bg-red-50' },
-  BID_DECRYPT_FAILED: { Icon: AlertTriangle, cls: 'text-amber-600 bg-amber-50' },
-  BID_DISPUTE_TIMEOUT: { Icon: AlertTriangle, cls: 'text-amber-600 bg-amber-50' },
-  AWARD_LETTER: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
-  PRE_WIN_NOTICE: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
-  BID_OPENING_HANDED_OVER: { Icon: CheckCircle, cls: 'text-emerald-600 bg-emerald-50' },
-};
-
-function resolveTypeCfg(type?: string | null): TypeCfg | undefined {
-  if (!type) return undefined;
-  if (EXACT_TYPE_CFG[type]) return EXACT_TYPE_CFG[type];
-  if (type.startsWith('BID_')) return { Icon: Gavel, cls: 'text-sky-600 bg-sky-50' };
-  return undefined;
+/** 类型图标从 shared 注册表派生（2026-09-26 单一事实源；原本地 9 条兜底表已删） */
+function resolveIcon(type?: string | null): { Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; cls: string } {
+  const meta = getNotificationMeta(type ?? '');
+  const Icon = (LucideIcons as any)[meta.icon] ?? LucideIcons.Bell;
+  const cls =
+    meta.tone === 'red' ? 'text-red-600 bg-red-50' :
+    meta.tone === 'green' ? 'text-emerald-600 bg-emerald-50' :
+    meta.tone === 'orange' ? 'text-amber-600 bg-amber-50' :
+    meta.tone === 'purple' ? 'text-violet-600 bg-violet-50' :
+    meta.tone === 'gray' ? 'text-slate-500 bg-slate-50' :
+    'text-sky-600 bg-sky-50';
+  return { Icon, cls };
 }
 
 export default function NotificationBell() {
@@ -42,7 +36,10 @@ export default function NotificationBell() {
   useEffect(() => {
     loadUnread();
     const timer = setInterval(loadUnread, 30000);
-    return () => clearInterval(timer);
+    // 实时弹窗（notification/realtime-notifications）触达时即时刷新角标
+    const onReceived = () => loadUnread();
+    window.addEventListener('notification:received', onReceived);
+    return () => { clearInterval(timer); window.removeEventListener('notification:received', onReceived); };
   }, []);
 
   useEffect(() => {
@@ -58,10 +55,16 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const handleRead = async (id: string) => {
-    await markNotificationRead(id);
-    setItems(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    setUnread(prev => Math.max(0, prev - 1));
+  const router = useRouter();
+
+  const handleItemClick = async (n: Notification) => {
+    if (!n.isRead) {
+      await markNotificationRead(n.id).catch(() => {});
+      setItems(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x));
+      setUnread(prev => Math.max(0, prev - 1));
+    }
+    const href = resolveBidLink(n.link);
+    if (href) { setOpen(false); router.push(href); }
   };
 
   const handleAllRead = async () => {
@@ -98,20 +101,21 @@ export default function NotificationBell() {
               <div className="p-8 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无通知</div>
             ) : (
               items.map(n => {
-                const cfg = resolveTypeCfg(n.type);
-                const IconComp = cfg?.Icon || Info;
+                const { Icon: IconComp, cls } = resolveIcon(n.type);
                 return (
                   <div key={n.id}
                     className={`px-4 py-3 border-b border-[oklch(0.94_0.004_264)] hover:bg-[oklch(0.992_0.003_264)] cursor-pointer ${!n.isRead ? 'bg-[oklch(0.97_0.008_262)]' : ''}`}
-                    onClick={() => !n.isRead && handleRead(n.id)}>
+                    onClick={() => handleItemClick(n)}>
                     <div className="flex items-start gap-3">
-                      <div className={`p-1.5 flex-shrink-0 mt-0.5 ${cfg?.cls || 'text-slate-500 bg-slate-50'}`}>
+                      <div className={`p-1.5 flex-shrink-0 mt-0.5 ${cls}`}>
                         <IconComp size={14} strokeWidth={1.5} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] truncate tracking-tight">{n.title}</p>
                         <p className="text-[12px] text-[oklch(0.55_0.01_264)] mt-0.5 line-clamp-2">{n.content}</p>
-                        <p className="text-[11px] text-[oklch(0.72_0.008_264)] mt-1 font-mono">{new Date(n.createdAt).toLocaleString('zh-CN')}</p>
+                        <p className="text-[11px] text-[oklch(0.72_0.008_264)] mt-1 font-mono">
+                          {getNotificationLabel(n.type)} · {new Date(n.createdAt).toLocaleString('zh-CN')}
+                        </p>
                       </div>
                     </div>
                   </div>

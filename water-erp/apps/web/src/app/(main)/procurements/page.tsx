@@ -177,7 +177,7 @@ function PageHero({
         </div>
 
         <div className="page-hero__right">
-          <CompanySelect value={companyId} onChange={onCompanyChange} />
+          <CompanySelect value={companyId} onChange={onCompanyChange} countMode="projectsDone" />
           {isAdmin && (
           <button
             type="button"
@@ -237,7 +237,6 @@ function PageHero({
             className="workbench-input workbench-input-sm !w-auto min-w-[100px]"
           >
             <option value="procurementDate">时间</option>
-            <option value="departmentId">部门编号</option>
             <option value="amount">金额</option>
           </select>
 

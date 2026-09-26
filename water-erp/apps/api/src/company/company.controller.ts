@@ -14,15 +14,31 @@ export class CompanyController {
   @Get()
   @ApiOperation({ summary: '公司列表（含用户数，管理端公司选择器用）' })
   async list() {
-    return this.prisma.company.findMany({
-      select: {
-        id: true,
-        name: true,
-        shortName: true,
-        _count: { select: { users: true } },
+    // 账号计数拆口径（2026-09-26）：专家库公司隔离后专家账号也挂 companyId，
+    // 单一 users 计数会把「办公 6 + 专家 29」误读成 35 个办公人员——按角色分组后合并
+    const [companies, roleCounts] = await Promise.all([
+      this.prisma.company.findMany({
+        select: { id: true, name: true, shortName: true, _count: { select: { users: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.user.groupBy({ by: ['companyId', 'role'], _count: true }),
+    ]);
+    const byCompany = new Map<string, { office: number; expert: number }>();
+    for (const g of roleCounts) {
+      if (!g.companyId) continue;
+      const rec = byCompany.get(g.companyId) ?? { office: 0, expert: 0 };
+      if (['admin', 'leader', 'staff', 'bid_host'].includes(g.role)) rec.office += g._count;
+      if (g.role === 'bid_expert') rec.expert += g._count;
+      byCompany.set(g.companyId, rec);
+    }
+    return companies.map(c => ({
+      ...c,
+      _count: {
+        users: c._count.users,
+        officeUsers: byCompany.get(c.id)?.office ?? 0,
+        expertUsers: byCompany.get(c.id)?.expert ?? 0,
       },
-      orderBy: { createdAt: 'asc' },
-    });
+    }));
   }
 
   /** D4（A-205~A-207 裁剪）：单位管理视图——列表 + 每单位业绩（在办/已归档项目数、合同额合计） */

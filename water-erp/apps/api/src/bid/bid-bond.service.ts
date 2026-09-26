@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { SupplierBondReturnDto } from './dto/supplier-bond-return.dto';
 
 /** 保证金域（F1a）——自 bid.service.ts 迁出（P1 审查 F 簇拆分，纯移动）。索引：markBondReturned / listBondReturns / markSupplierBondReturned */
@@ -7,7 +8,10 @@ import { SupplierBondReturnDto } from './dto/supplier-bond-return.dto';
 export class BidBondService {
   private readonly logger = new Logger(BidBondService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications?: NotificationService,
+  ) {}
 
   /**
    * C4（GB/T 43711 7.5.4.4）：登记响应担保退还 / 不予退还。
@@ -127,6 +131,23 @@ export class BidBondService {
         },
       }).catch(e => this.logger.warn(`保证金逐家退还留痕失败: ${(e as Error).message}`));
     });
+
+    // 退还结果知会供应商（GB/T 43711 7.5.4.4；不予退还必附理由）——fire-and-forget
+    const supplierUser = await this.prisma.supplier?.findFirst({
+      where: { name: dto.supplierName },
+      select: { userId: true },
+    }).catch(() => null);
+    if (supplierUser?.userId && this.notifications) {
+      await this.notifications?.create({
+        userId: supplierUser.userId,
+        type: 'BOND_REFUND_RESULT',
+        title: dto.returned ? `保证金已退还：${project.name}` : `保证金不予退还：${project.name}`,
+        content: dto.returned
+          ? `项目「${project.name}」的响应担保已登记退还，请查收。`
+          : `项目「${project.name}」的响应担保不予退还。理由：${dto.reason!.trim()}。如有异议请按规定提出。`,
+        link: `/my-bids/${projectId}/opening-hall`,
+      }).catch(() => {});
+    }
     return { success: true };
   }
 }

@@ -105,6 +105,11 @@ export function AccountManagementPanel() {
   const [isPending, startTransition] = useTransition();
   // 三合一（2026-08-21）：注册审核 / 密码审批并入账号管理
   const [tab, setTab] = useState<"list" | "registration" | "password">("list");
+  // 深链（2026-09-26）：通知 link 带 ?tab= 直达对应审批分区（挂载读一次 + 参数变化响应）
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t === "registration" || t === "password" || t === "list") setTab(t);
+  }, []);
   // 2026-09-14：账号列表双分区——工作人员（审批管理，保留现状）/ 供应商（只读 + 密码查看 + 归属调整）
   const [listView, setListView] = useState<"staff" | "supplier">("staff");
   const [suppliers, setSuppliers] = useState<SupplierAccount[]>([]);

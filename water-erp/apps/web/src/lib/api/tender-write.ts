@@ -1,3 +1,4 @@
+import { apiFetch } from './api-fetch';
 import type {
   ReadyTenderDocumentType,
   ReadyTenderDraft,
@@ -31,7 +32,7 @@ export async function exportTenderDocument(payload: {
   /** 项目编号（统一命名用，项目绑定场景传入） */
   projectCode?: string;
 }) {
-  const response = await fetch(`${API_BASE}/tender-write/export`, {
+  const response = await apiFetch(`${API_BASE}/tender-write/export`, {
     method: "POST",
     credentials: "include",
     // 裸 fetch 必须带 X-Portal 头，否则后端 portal-cookie 无法识别会话 → 401

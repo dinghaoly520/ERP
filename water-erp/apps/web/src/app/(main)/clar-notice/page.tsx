@@ -72,6 +72,8 @@ export default function ClarificationNoticePage() {
             {saving ? '发布中...' : '保存并发布'}
           </button>
         </div>
+        {/* hairline 下横线（cgzxui 规定：标题行与下方内容之间必有分割线，与其他页面高度一致） */}
+        <div className="page-hero__divider" />
       </div>
 
       {/* ══════ 编辑区 ══════ */}

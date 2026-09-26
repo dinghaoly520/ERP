@@ -4,14 +4,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ListChecks, Check } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { getNotificationMeta, getNotificationLabel, statusTone } from '@water-erp/shared';
+import { getNotificationMeta, getNotificationLabel, statusTone, NOTIFICATION_DOMAIN_TABS, notificationTypesForTab } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import { Modal } from '@/components/workbench';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import type { NotificationItem } from '@/lib/api/notification';
 import { listNotifications, markNotificationRead } from '@/lib/api/notification';
-import { Bell, Inbox, ClipboardList, Users, Gavel, FileArchive, Megaphone } from 'lucide-react';
+import { Bell, Inbox, ClipboardList, Users, Gavel, FileArchive, Megaphone, IdCard } from 'lucide-react';
 import { handleNotificationClick } from '@/lib/notification-click';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
@@ -46,8 +46,8 @@ const TYPE_LINKS: Record<string, string> = {
 };
 
 const ACTIONABLE_ORDER = [
-  'SUPPLIER_PENDING', 'PRICE_REVIEW', 'QUALIFICATION_EXPIRING',
-  'BID_REMINDER', 'SUPPLIER_RETURNED',
+  'SUPPLIER_PENDING', 'CATALOG_PRICE_ALERT', 'QUALIFICATION_EXPIRING',
+  'BID_DEADLINE_NUDGE', 'SUPPLIER_RETURNED',
 ];
 
 // 特定标题的系统通知——赋予场景化图标
@@ -301,13 +301,13 @@ interface TaskNotificationCenterProps {
   hasActiveTasks?: boolean;
 }
 
-/** 通知域分组（与通知管理页 /notifications 一致）——按业务域分类展示 */
+/** 通知域分组（与通知管理页 /notifications 一致）——类型清单从 shared 注册表派生（单一事实源）；
+ *  tab 结构/图标是本页展示层关注点：expert 并入开评标，system 并入账号，catalog 并入公告与目录 */
+const NOTIFY_TAB_ICONS: Record<string, any> = { supplier: Users, bid: Gavel, account: IdCard, archive: FileArchive, ann: Megaphone };
+
 const NOTIFY_DOMAINS: { key: string; label: string; icon: any; types: string[] }[] = [
   { key: 'all', label: '全部', icon: Inbox, types: [] },
-  { key: 'supplier', label: '供应商', icon: Users, types: ['SUPPLIER_PENDING', 'SUPPLIER_APPROVED', 'SUPPLIER_REJECTED', 'SUPPLIER_RETURNED', 'SUPPLIER_BLACKLISTED', 'SUPPLIER_UNBLACKLISTED', 'SUPPLIER_ELIMINATE_CANDIDATE', 'USER_REGISTRATION_PENDING', 'ACCOUNT_SECURITY_FEEDBACK', 'SELECTION_SHARED'] },
-  { key: 'bid', label: '开评标', icon: Gavel, types: ['BID_INVITED', 'BID_NUDGE_EXPERT', 'BID_NUDGE_SUPPLIER', 'BID_OPENING_STARTED', 'BID_OPENING_CONFIRMED', 'BID_OPENING_HANDED_OVER', 'BID_EVALUATION_STARTED', 'BID_ABORTED', 'EXPERT_ASSIGNED', 'EXPERT_RETIRE_CANDIDATE', 'CLARIFICATION'] },
-  { key: 'archive', label: '归档', icon: FileArchive, types: ['ARCHIVE_READY', 'ARCHIVE_TRANSFER_DUE', 'ARCHIVE_OVERDUE'] },
-  { key: 'ann', label: '公告', icon: Megaphone, types: ['ANNOUNCEMENT_PUBLISHED', 'AWARD_LETTER', 'PROFILE_CHANGE_REVIEWED', 'PASSWORD_CHANGE_REVIEWED', 'PASSWORD_RESET_APPROVED', 'QUALIFICATION_EXPIRING'] },
+  ...NOTIFICATION_DOMAIN_TABS.map(t => ({ key: t.key, label: t.label, icon: NOTIFY_TAB_ICONS[t.key] ?? Bell, types: notificationTypesForTab(t.key) })),
 ];
 
 export function TaskNotificationCenter({
