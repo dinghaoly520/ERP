@@ -4233,7 +4233,11 @@ export class BidService {
     const data: Record<string, unknown> = {};
     if (dto.ceilingPrice !== undefined) data.ceilingPrice = dto.ceilingPrice;
     if (dto.evaluationMethod !== undefined) data.evaluationMethod = dto.evaluationMethod;
-    if (dto.priceFormulaConfig !== undefined) data.priceFormulaConfig = dto.priceFormulaConfig as any;
+    if (dto.priceFormulaConfig !== undefined) {
+      // null=停用公式：写 DbNull（SQL NULL，与建项默认「列空」同形态）——直接传 JS null
+      // 会被 Prisma 记为 jsonb null 字面量（读回等价但存储形态与存量不一致）
+      data.priceFormulaConfig = dto.priceFormulaConfig === null ? Prisma.DbNull : (dto.priceFormulaConfig as any);
+    }
 
     return this.prisma.bidProject.update({ where: { id: projectId }, data, select: { id: true, ceilingPrice: true, evaluationMethod: true, priceFormulaConfig: true } });
   }

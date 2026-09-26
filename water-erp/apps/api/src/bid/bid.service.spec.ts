@@ -1487,10 +1487,10 @@ describe('BidService — stage transitions', () => {
           .rejects.toMatchObject({ response: { code: 'PRICE_FORMULA_INVALID' } });
       });
 
-      it('priceFormulaConfig=null → 合法清除，update 收到 null', async () => {
+      it('priceFormulaConfig=null → 合法清除，update 收到 Prisma.DbNull（SQL NULL 形态）', async () => {
         await service.updatePriceConfig('p1', { priceFormulaConfig: null }, 'u1');
         expect(prisma.bidProject.update).toHaveBeenCalledWith(
-          expect.objectContaining({ data: expect.objectContaining({ priceFormulaConfig: null }) }),
+          expect.objectContaining({ data: expect.objectContaining({ priceFormulaConfig: Prisma.DbNull }) }),
         );
       });
 
