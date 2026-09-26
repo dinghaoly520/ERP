@@ -1,8 +1,10 @@
 'use client';
 
-import { FileText } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import type { BidProjectDetail, BidProjectRef } from '@/lib/api/bid';
+import { ensureBidProject, type BidProjectDetail, type BidProjectRef } from '@/lib/api/bid';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { EvaluationBasisFields } from './price-config-card';
 import { SectionCard } from './section-card';
@@ -28,6 +30,23 @@ type Props = {
  * 其余走公告+关联本项目——不关联的直建发布会另建独立项目，本项目仍无关联）。
  */
 export function ScoreStandardCard({ project, round, bidProject, detail, priceItemCount, onChanged }: Props) {
+  const [creating, setCreating] = useState(false);
+
+  /** 显式创建开评标项目（用户点击=明确意图，非展示层误建）：本阶段即可配置评分标准；
+   *  04 公告发布/邀请时 syncBidProject 会关联同一 BP（不双建）；不创建也不影响完成本阶段（方案 E） */
+  async function createAndConfigure() {
+    setCreating(true);
+    try {
+      await ensureBidProject(project.id, round);
+      toast.success('开评标项目已创建，可开始配置评分标准与评标办法');
+      onChanged(); // 触发抽屉级重拉 → 卡片进入可配置态
+    } catch (e: any) {
+      toast.error(e?.message || '创建开评标项目失败');
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <SectionCard
       icon={<FileText size={14} />}
@@ -36,8 +55,20 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
       accentSoft="var(--stage-evaluation-soft)"
     >
       {!bidProject ? (
-        <div className="text-xs leading-6 text-[var(--muted-foreground)]">
-          尚未关联开评标项目。完成本阶段并在「{project.procurementMethod === '谈判采购' ? '供应商邀请' : '采购公告公示'}」步骤{project.procurementMethod === '谈判采购' ? '发送邀请' : '发布公告'}后，即可在此完成评分标准配置（启动评标前系统将强制校验配置完整）。
+        <div className="space-y-3">
+          <p className="text-xs leading-6 text-[var(--muted-foreground)]">
+            尚未关联开评标项目——评分标准与评标办法依托开评标项目配置。现在创建即可在本阶段完成配置；也可在本阶段完成后，经「{project.procurementMethod === '谈判采购' ? '供应商邀请' : '采购公告公示'}」步骤{project.procurementMethod === '谈判采购' ? '发送邀请' : '发布公告'}时自动创建（启动评标前系统将强制校验配置完整）。
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="neu-btn-primary !h-[34px] !text-xs"
+              onClick={() => void createAndConfigure()}
+              disabled={creating}
+            >
+              {creating ? (<><Loader2 size={14} className="animate-spin" />创建中…</>) : '创建开评标项目并开始配置'}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
