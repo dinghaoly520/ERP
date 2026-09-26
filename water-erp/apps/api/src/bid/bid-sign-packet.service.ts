@@ -8,7 +8,7 @@ import type { SignPacketSnapshot, OperationTrace } from './bid-sign-packet-docx.
 import { lockAndReassertStage } from './bid-state';
 import { closeSignLoopIfDone } from './sign-loop.util';
 import { stripExpertEsignature } from '../expert/expert-esign.util';
-import type { RegisterSignDto } from './dto/bid-sign-packet.dto';
+import type { RegisterSignDto, ReopenSignPacketDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
@@ -220,6 +220,49 @@ export class BidSignPacketService {
         data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, dissentingOpinion: null, dissentingReason: null },
       });
       if (updated.count === 0) throw new BadRequestException({ error: '该专家尚未登记', code: 'SIGN_NOT_REGISTERED' });
+    });
+
+    return this.getStatus(projectId);
+  }
+
+  /** 数据修正流程：admin 重开已闭环签字包（2026-09-24 验收落地——闭环即锁死后唯一受控回退通道）。
+   *  重开 = 解闭环 + 解回流包引用 + 全员正选回 PENDING（含电子签名/不同意见/扫描件引用清空，
+   *  与 generate 重置同口径）；签字包 PDF 快照与指纹保留（证据不销毁），后续可重生成结果（删包）
+   *  或直接重新登记再闭环、重新生成回流包。仅 EVALUATING 阶段可重开——ARCHIVED 终态证据不可动。 */
+  async reopen(projectId: string, dto: ReopenSignPacketDto, actorId: string): Promise<SignPacketResponse> {
+    const reason = (dto?.reason ?? '').trim();
+    if (!reason) throw new BadRequestException({ error: '重开须书面说明数据修正理由（入监督日志留痕）', code: 'REOPEN_REASON_REQUIRED' });
+    // 阶段前置与 generate 同码同口径：ARCHIVED 终态证据不可重开（事务内 lockAndReassertStage 二次断言）
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new ConflictException({ error: '仅评标阶段可重开签字包（ARCHIVED 终态证据不可动）', code: 'SIGN_PACKET_STAGE_REQUIRED' });
+    }
+    const packet = await this.prisma.bidSignPacket.findUnique({ where: { projectId } });
+    if (!packet) throw new ConflictException({ error: '签字包尚未生成，无需重开', code: 'SIGN_PACKET_NOT_GENERATED' });
+    if (!packet.closedAt) throw new ConflictException({ error: '签字尚未闭环，无需重开', code: 'SIGN_NOT_CLOSED' });
+    const closedAt = packet.closedAt;
+
+    await this.prisma.$transaction(async (tx) => {
+      const project = await lockAndReassertStage(tx, projectId, 'EVALUATING');
+
+      await tx.bidSignPacket.update({
+        where: { projectId },
+        data: { closedAt: null, closedById: null, handoverFileAssetId: null, handoverSha256: null },
+      });
+      await tx.bidExpert.updateMany({
+        where: { projectId, expertRole: '正选' },
+        data: { signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null, dissentingOpinion: null, dissentingReason: null, esignature: Prisma.DbNull, esignatureAt: null },
+      });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '系统管理员', target: project.name,
+          action: '签字包重开（数据修正）',
+          result: `理由：${reason}；原闭环 ${closedAt.toISOString()} 解除、回流包引用解链，全员签字状态回 PENDING（签字包快照与指纹保留）`,
+          riskFlag: '高',
+          operatorId: actorId, operatorRole: 'admin',
+        },
+      });
     });
 
     return this.getStatus(projectId);

@@ -5,6 +5,9 @@ import { PlaintextFetcherService } from '../ai-bid-analysis/services/plaintext-f
 import { OcrService } from '../local-ai/ocr.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { getUploadDir } from '../project-management/docx/file-utils';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { SCORE_POINTS_EXTRACT_SYSTEM, SCORE_POINTS_EXTRACT_PROMPT } from './prompts/score-points.prompt';
 import { ScorePointSuggestion, ScorePointSuggestionGroup } from '@water-erp/shared';
@@ -32,11 +35,8 @@ export class ScorePointExtractorService {
       throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
     }
 
-    // E5: PRICE 类别的得分点由报价公式计算，无需 AI 提取
-    if (item.category === 'PRICE') {
-      return [];
-    }
-
+    // E5 撤除（2026-09-26 用户裁定）：03 阶段即配得分要点——招标文件含价格项则一并提取；
+    // 价格分由公式算的口径仅适用于"公式已启用"项目，由 FE 联动切评标办法为专家评审兜底
     const tenderText = await this.getTenderText(projectId);
     if (!tenderText) {
       throw new BadRequestException({ error: '招标文件未就绪（未发布招标公告或无招标文件）', code: 'TENDER_NOT_READY' });
@@ -115,8 +115,7 @@ export class ScorePointExtractorService {
 
     const groups: ScorePointSuggestionGroup[] = [];
     for (const item of items) {
-      if (item.category === 'PRICE') continue; // E5: 价格分由报价公式计算
-      const suggestions = await this.extractScorePoints(projectId, item.id);
+      const suggestions = await this.extractScorePoints(projectId, item.id); // 含 PRICE（E5 撤除，2026-09-26）
       groups.push({
         itemId: item.id,
         itemName: item.name,
@@ -323,14 +322,50 @@ export class ScorePointExtractorService {
     return maxLen > 0 && dist / maxLen <= 0.3;
   }
 
+  /** 03 阶段兜底：公告未发布时取 PMI「采购文件」阶段最新 .docx 附件。
+   *  注意 PMI 阶段附件是**本地盘存储**（persistUploadedFile→getUploadDir()+writeFile，
+   *  objectKey 仅 `project-management/<file>` 命名约定，不进 MinIO）——须读本地文件而非 storage.download。
+   *  与 fetchTenderPlaintext 同返回语义（Buffer|null），由 processFile docx 分支提文本。 */
+  private async fetchPmiTenderDocx(projectId: string): Promise<Buffer | null> {
+    const bp = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectManagementItemId: true },
+    });
+    if (!bp?.projectManagementItemId) return null;
+    const att = await this.prisma.attachment.findFirst({
+      where: {
+        projectManagementStage: {
+          projectManagementItemId: bp.projectManagementItemId,
+          stageKey: 'TENDER_DOCUMENT',
+        },
+        fileName: { endsWith: '.docx', mode: 'insensitive' },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { objectKey: true },
+    });
+    if (!att) return null;
+    try {
+      const stored = att.objectKey.replace(/^project-management\//, '');
+      return await readFile(resolve(getUploadDir(), stored));
+    } catch {
+      return null;
+    }
+  }
+
   private async getTenderText(projectId: string): Promise<string | null> {
     const cached = this.tenderTextCache.get(projectId);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.text;
     }
-    const buffer = await this.plaintextFetcher.fetchTenderPlaintext(projectId);
+    // 公告链无 → 03 阶段兜底：PMI「采购文件」阶段最新 .docx 附件（用户 2026-09-26 裁定：03 即配得分要点）
+    let buffer = await this.plaintextFetcher.fetchTenderPlaintext(projectId);
+    let fileName = 'tender.pdf';
+    if (!buffer) {
+      buffer = await this.fetchPmiTenderDocx(projectId);
+      fileName = 'tender.docx';
+    }
     if (!buffer) return null;
-    const processed = await processFile(this.ocr, buffer, 'tender.pdf');
+    const processed = await processFile(this.ocr, buffer, fileName);
     this.tenderTextCache.set(projectId, { text: processed.text, expiresAt: Date.now() + ScorePointExtractorService.CACHE_TTL_MS });
     return processed.text;
   }

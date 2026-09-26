@@ -1350,6 +1350,19 @@ export class ExpertService {
     }
     const itemMeta = new Map(scoreItems.map(si => [si.id, { maxScore: Number(si.maxScore), category: si.category as string }]));
 
+    // 加固（2026-09-26）：价格分公式激活时拒收 PRICE 项——专家端 UI 对公式 PRICE 项只读无入口，
+    // 此处封"绕过前端直写"的洞：残留记录本被聚合层跳过（aggregate-supplier-scores 公式产出时
+    // continue），但公式嗣后停用即复活计入排名。公式 null（专家手填模式）不受影响。
+    if (scoreItems.some(si => si.category === 'PRICE')) {
+      const proj = await this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { priceFormulaConfig: true },
+      });
+      if (proj?.priceFormulaConfig) {
+        throw new BadRequestException({ error: '价格分由系统公式自动计算，无需专家打分', code: 'PRICE_FORMULA_ACTIVE' });
+      }
+    }
+
     const supplierIds = Array.from(new Set(dto.scores.map(s => s.supplierId)));
     const bidSuppliers = await this.prisma.bidSupplier.findMany({
       where: { id: { in: supplierIds }, projectId },

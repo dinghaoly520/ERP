@@ -95,8 +95,7 @@ export function ProjectStageTimeline({
   archiveStepState,
   onArchive,
   canArchive,
-  tenderDocxAttachments,
-  onEditTenderFile,
+  onOpenScoreStandard,
   onReopenStage,
   isStageLocked,
 }: {
@@ -110,8 +109,10 @@ export function ProjectStageTimeline({
   /** 归档卡内「确认归档」动作（READY 态显示，与阶段卡操作按钮同款设计） */
   onArchive?: () => void;
   canArchive?: boolean;
-  tenderDocxAttachments?: Array<{ id: string; fileName: string }>;
-  onEditTenderFile?: (attachmentId: string, fileName: string) => void;
+  /** 03 采购文件步骤的评分标准配置状态（按轮查；undefined=该轮无此步骤或数据未就绪）。
+   *  2026-09-24 定稿：03 卡原「采购文件修改」按钮位改为「评分标准」入口，点击弹出评分标准面板。 */
+  /** 打开评分标准面板（round=被点 03 行轮次）；任何阶段可开（锁定态查看） */
+  onOpenScoreStandard?: (round: number) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
   /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。 */
@@ -352,7 +353,9 @@ export function ProjectStageTimeline({
                             {entry.statusLabel}
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-1.5">
+                        {/* items-stretch（2026-09-26 用户裁定）：列内操作按钮等宽（如 03 卡「采购文件编写/评分标准」），
+                            按钮自身 justify-content:center → 文字居中；单按钮卡无副作用（容器宽=内容宽） */}
+                        <div className="flex flex-col items-stretch gap-1.5">
                           {/* 步骤操作按钮仅对"进行中"步骤开放（2026-09-09 拍板）——
                               仅选中/聚焦（activeStageKey）不再显示按钮；选中卡只切换右侧详情面板 */}
                           {actionLabel && onStageAction && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
@@ -366,31 +369,17 @@ export function ProjectStageTimeline({
                               {actionLabel}
                             </span>
                           )}
-                          {onEditTenderFile && entry.isInProgress && stageKey === 'TENDER_DOCUMENT' && (
+                          {/* 评分标准入口（2026-09-24 定稿：原「采购文件修改」按钮位）——
+                              任何阶段都可打开（已推进/已归档=锁定态查看），点击弹出评分标准面板 */}
+                          {stageKey === 'TENDER_DOCUMENT' && onOpenScoreStandard && (
                             <span
                               role="button"
                               tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
-                                  onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.stopPropagation();
-                                  if (tenderDocxAttachments && tenderDocxAttachments.length > 0) {
-                                    onEditTenderFile(tenderDocxAttachments[0].id, tenderDocxAttachments[0].fileName);
-                                  }
-                                }
-                              }}
-                              className={[
-                                'pm-stage-action-btn shrink-0',
-                                (!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? 'opacity-40 cursor-not-allowed' : '',
-                              ].join(' ')}
-                              title={(!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? '请先在详情区上传 .docx 文件' : undefined}
+                              onClick={(e) => { e.stopPropagation(); onOpenScoreStandard(entry.round); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onOpenScoreStandard(entry.round); } }}
+                              className="pm-stage-action-btn shrink-0"
                             >
-                              {entry.title === '招标文件' ? '招标文件修改' : '采购文件修改'}
+                              评分标准
                             </span>
                           )}
                         </div>

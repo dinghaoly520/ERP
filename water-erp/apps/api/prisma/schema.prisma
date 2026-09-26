@@ -93,8 +93,6 @@ model User {
   workArrangementTemplates       WorkArrangementTemplate[]
   tenderDocumentHistories        TenderDocumentHistory[]
   createdProjects                ProjectManagementItem[]   @relation("ProjectCreatedBy")
-  submittedProjects              ProjectManagementItem[]   @relation("ProjectSubmittedBy")
-  reviewedProjects               ProjectManagementItem[]   @relation("ProjectReviewedBy")
   terminatedProjects             ProjectManagementItem[]   @relation("ProjectTerminatedBy")
   teamMemberships                ProjectTeamMember[]
   reviewTasks                    ReviewTask[]
@@ -334,6 +332,7 @@ model BidProject {
   ceilingPrice              Decimal?                   @db.Decimal(14, 2) // P1: 最高限价/控制价(逐项目可编辑)
   evaluationMethod          String? // P2: 评标办法 comprehensive|lowest_price|ratio|none
   priceFormulaConfig        Json? // P1: { formulaType, K, penaltyRate, noPenaltyRange }
+  scoreTrimEnabled          Boolean @default(true) // 去极值开关（2026-09-26）：true=≥5 专家去 1 高 1 低后均分（默认/法定实务）；false=全额均分
   scope                     String?
   companyId                 String?
   companyName               String? // 写时快照（公司改名不扰历史）
@@ -2935,15 +2934,6 @@ model ProjectManagementItem {
   paymentPerformance          String?
   attachments                 Attachment[]                @relation("ProjectManagementAttachments")
   createdBy                   User?                       @relation("ProjectCreatedBy", fields: [createdById], references: [id])
-  // CTS-EBS01 A-36/37 递交与受理留痕：reviewStatus null=未递交 | PENDING | APPROVED | REJECTED（驳回后可改再递交）
-  reviewStatus                String?
-  submittedAt                 DateTime?
-  submittedById               String?
-  submittedBy                 User?                       @relation("ProjectSubmittedBy", fields: [submittedById], references: [id])
-  reviewedAt                  DateTime?
-  reviewedById                String?
-  reviewedBy                  User?                       @relation("ProjectReviewedBy", fields: [reviewedById], references: [id])
-  reviewComment               String?
   // ── 项目终止（2026-09-20）：终止原因 + 终止时点/所在阶段/终止人/资料快照；台账落 CANCELLED 轮次 ──
   terminationReason           String?
   terminatedAt                DateTime?

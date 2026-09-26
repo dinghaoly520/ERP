@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { mkdir, readFile, unlink, writeFile, copyFile, access, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
@@ -30,10 +30,10 @@ import { ArchiveFlowService } from '../archive/archive-flow.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
-import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
+import { ScoreStandardValidator } from '../bid/score-standard-validator.service';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
@@ -223,6 +223,7 @@ export class ProjectManagementService {
     private readonly archiveFlow: ArchiveFlowService,
     private readonly stageCompliance: StageComplianceConfigService,
     private readonly notificationService: NotificationService,
+    private readonly scoreStandardValidator: ScoreStandardValidator,
   ) {}
 
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
@@ -272,8 +273,6 @@ export class ProjectManagementService {
           include: { attachments: true },
         },
         createdBy: true,
-        submittedBy: true,
-        reviewedBy: true,
         terminatedBy: true,
       },
     });
@@ -282,8 +281,6 @@ export class ProjectManagementService {
       ...item,
       budgetAmount: Number(item.budgetAmount),
       createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
-      submittedByName: item.submittedBy?.displayName || item.submittedBy?.username || null,
-      reviewedByName: item.reviewedBy?.displayName || item.reviewedBy?.username || null,
       terminatedByName: item.terminatedBy?.displayName || item.terminatedBy?.username || null,
     }));
   }
@@ -3269,81 +3266,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
     };
   }
 
-  // ── CTS-EBS01 A-36/37 项目递交与受理留痕（申报人/时间、验证人/时间，双人分离）──
-
-  /** 创建人递交项目送审；REJECTED 修正后可重新递交 */
-  async submitForReview(projectId: string, user?: AuthenticatedUser) {
-    const item = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: { reviewStatus: true, status: true },
-    });
-    if (!item) throw new NotFoundException('未找到对应项目。');
-    // 生命周期闸：已归档/回收项目不可递交（UI 同口径；API 侧收口防直调）
-    if (item.status !== 'ACTIVE') {
-      throw new BadRequestException({ error: '仅进行中的项目可递交审核，已归档/回收项目不可递交', code: 'INVALID_LIFECYCLE' });
-    }
-    if (item.reviewStatus === 'PENDING') {
-      throw new BadRequestException({ error: '该项目已递交待审核，请勿重复递交', code: 'ALREADY_SUBMITTED' });
-    }
-    if (item.reviewStatus === 'APPROVED') {
-      throw new BadRequestException({ error: '该项目已审核通过，无需再次递交', code: 'ALREADY_APPROVED' });
-    }
-    return this.prisma.projectManagementItem.update({
-      where: { id: projectId },
-      data: { reviewStatus: 'PENDING', submittedAt: new Date(), submittedById: user?.sub ?? null, reviewComment: null },
-    });
-  }
-
-  /** leader/admin 受理审核；申报人与审核人分离（admin 复核不受限） */
-  async reviewSubmission(projectId: string, dto: ReviewSubmissionDto, user?: AuthenticatedUser) {
-    if (!user || !['leader', 'admin'].includes(user.role)) {
-      throw new ForbiddenException({ error: '仅领导或管理员可受理审核', code: 'REVIEW_ROLE_FORBIDDEN' });
-    }
-    const item = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      select: { reviewStatus: true, submittedById: true },
-    });
-    if (!item) throw new NotFoundException('未找到对应项目。');
-    if (item.reviewStatus !== 'PENDING') {
-      throw new BadRequestException({ error: '该项目不在待审核状态', code: 'NOT_PENDING_REVIEW' });
-    }
-    if (user.role !== 'admin' && item.submittedById === user.sub) {
-      throw new BadRequestException({ error: '申报人与审核人不得为同一人，请由领导或管理员受理', code: 'SELF_REVIEW_FORBIDDEN' });
-    }
-    if (!dto.approve && !dto.comment?.trim()) {
-      throw new BadRequestException({ error: '驳回必须填写理由', code: 'REJECT_REASON_REQUIRED' });
-    }
-    return this.prisma.projectManagementItem.update({
-      where: { id: projectId },
-      data: {
-        reviewStatus: dto.approve ? 'APPROVED' : 'REJECTED',
-        reviewedAt: new Date(),
-        reviewedById: user.sub,
-        reviewComment: dto.comment?.trim() || null,
-      },
-    });
-  }
-
   async updateStage(
     projectId: string,
     stageKey: string,
     dto: UpdateProjectStageDto,
   ) {
-    const stage = await this.prisma.projectManagementStage.findFirst({
-      where: { projectManagementItemId: projectId, stageKey },
-    });
-
-    if (!stage) {
-      throw new NotFoundException('未找到对应的项目阶段。');
-    }
-
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { currentStage: true },
+      select: { currentStage: true, currentRound: true },
     });
 
     if (!project) {
       throw new NotFoundException('未找到对应项目。');
+    }
+
+    // round 感知（2026-09-24 I-1）：多轮（再次采购）项目每轮各有一行同 stageKey 阶段
+    // （schema (pmiId, stageKey, round) 唯一）——不带 round 的 findFirst 会命中任意行，
+    // 完成 round-2 时可能误读/改写 round-1 行。dto.round 优先（前端传被点行轮次），缺省 currentRound。
+    const targetRound = dto.round ?? project.currentRound ?? 1;
+
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: projectId, stageKey, round: targetRound },
+    });
+
+    if (!stage) {
+      throw new NotFoundException('未找到对应的项目阶段。');
     }
 
     // 补录（2026-09-07）：目标阶段早于当前活跃阶段（流程已越过的前置）允许补完成——
@@ -3373,20 +3320,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
     // 一路放行到开标确认才发现缺前置，返工成本高）
     if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
-      // 制度硬闸（2026-08-27 拍板 #6）：立项须先「递交审核」并受理通过（reviewStatus=APPROVED），
-      // 方可完成立项阶段进入采购文件编制——「立项批准后才能采购」从 AI 提示升级为硬控制。
-      // 仅约束存在立项阶段的常规流程；小额采购（无 INITIATION 阶段）与已越过该阶段的存量不受影响。
-      if (stageKey === 'INITIATION') {
-        const pmi = await this.prisma.projectManagementItem.findUnique({
-          where: { id: projectId },
-          select: { reviewStatus: true },
-        });
-        if (pmi?.reviewStatus !== 'APPROVED') {
-          throw new BadRequestException({
-            error: '立项尚未受理审核通过（需先「递交审核」并由领导/管理员受理），不能完成立项阶段进入采购文件编制',
-            code: 'INITIATION_NOT_APPROVED',
-          });
-        }
+      // 评分标准配置闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置——
+      // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
+      // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
+      if (stageKey === 'TENDER_DOCUMENT') {
+        await this.assertScoreStandardConfigured(projectId, targetRound);
       }
       // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
       // （范围表 attachment 源必选项 = TENDER_DOCUMENT/AWARD_DECISION/CONTRACT 三处，与下方专项检查口径互补）
@@ -3488,6 +3426,64 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     return updatedStage;
+  }
+
+  /**
+   * 评分标准配置闸（2026-09-24 方案 v2；2026-09-26 方案 E 修订）：完成 03 采购文件前的
+   * 提前校验——仅约束【已关联该轮 BidProject】的项目：
+   *  - 无 BP → 放行。原 v2 拦截经 UI 全链实测为死锁（采购公告只能走 04 向导生成、信息
+   *    发布中心不提供手工创建，而 04 向导被本阶段挡住）；终极兜底=启动评标 G9 硬闸。
+   *  - BP 存在 + 评标办法=none（不评分）→ 免校验。
+   *  - BP 存在 + 办法 ≠ none → 复用 ScoreStandardValidator.assertScoreStandardComplete
+   *    （与发布/启动评标 G9 同源，不另写谓词副本）。
+   * 400 + SCORE_STANDARD_REQUIRED（与 updateStage 既有阶段闸惯例一致）；不可豁免。
+   */
+  private async assertScoreStandardConfigured(pmiId: string, round: number) {
+    const bp = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: pmiId, round },
+      select: { id: true, evaluationMethod: true },
+    });
+    if (!bp) return; // 方案 E：未关联开评标项目 → 放行（启动评标 G9 硬闸兜底）
+    if (bp.evaluationMethod === 'none') return;
+    try {
+      await this.scoreStandardValidator.assertScoreStandardComplete(bp.id);
+    } catch (e) {
+      // 仅包装 validator 的业务异常（HttpException：Σ≠100 / 空项等，文案透传）；
+      // Prisma 连接/表缺失等基础设施故障原样上抛保持 500 语义，勿归因为「未配置」（I-2）。
+      if (!(e instanceof HttpException)) throw e;
+      const resp = e.getResponse();
+      const detail =
+        resp && typeof resp === 'object' && 'error' in (resp as Record<string, unknown>)
+          ? String((resp as Record<string, unknown>).error)
+          : (e as Error).message;
+      throw new BadRequestException({
+        error: `评分标准未配置完整：${detail}`,
+        code: 'SCORE_STANDARD_REQUIRED',
+      });
+    }
+  }
+
+  /**
+   * 只读解析 PMI ↔ BidProject 关联（按轮）——项目管理抽屉级展示用。
+   * 只查不建（创建仅经 ensureBidProject：开标确认面板 / 供应商邀请回执流）；
+   * 抽屉级轮询若误用 ensure 会在公告发布前批量误建 SUBMIT 幽灵项目（方案 v2 P0-1）。
+   */
+  async listBidProjectRefs(pmiId: string) {
+    return this.prisma.bidProject.findMany({
+      where: { projectManagementItemId: pmiId },
+      // 列集对齐前端 BidProjectRef 类型（ScoreStandardEditor/评标办法子块入参）
+      select: {
+        id: true,
+        round: true,
+        projectCode: true,
+        name: true,
+        stage: true,
+        procurementMethod: true,
+        openTime: true,
+        deadline: true,
+      },
+      orderBy: { round: 'asc' },
+    });
   }
 
   /**
@@ -4713,7 +4709,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   /** 步骤分析阶段元数据：每阶段的分析要点（按各阶段实际情况定制） */
   private static readonly STAGE_ANALYSIS_META: Record<string, { label: string; focus: string }> = {
     PROCUREMENT_DEMAND: { label: '采购需求', focus: '需求来源与内容（需求申请要点、提出部门与经办人、预算规模与资金性质）' },
-    INITIATION: { label: '采购立项', focus: '立项事由与审批（立项依据、递交审核与受理结果、供方要求、预算审定）' },
+    INITIATION: { label: '采购立项', focus: '立项事由与审批（立项依据、供方要求、预算审定）' },
     TENDER_DOCUMENT: { label: '采购文件', focus: '采购文件编制（文件构成、资格与评审要点、采购组织形式与计价方式）' },
     SUPPLIER_INVITATION: { label: '供应商邀请', focus: '邀请过程与名单（选取方式、逐家确认状态）' },
     EXPERT_SELECTION: { label: '专家抽取', focus: '抽取过程与名单（配额/随机/回避原则、专家信息）' },
@@ -4812,11 +4808,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (project.demandProjectReason) parts.push(`需求说明：${project.demandProjectReason.slice(0, 400)}`);
       }
       if (stageKey === 'INITIATION') {
-        const reviewLabel: Record<string, string> = { PENDING: '待受理', APPROVED: '已受理通过', REJECTED: '已驳回' };
         if (project.projectReason) parts.push(`立项事由：${project.projectReason.slice(0, 400)}`);
         if (project.supplierRequirements) parts.push(`供方要求：${project.supplierRequirements.slice(0, 300)}`);
         if (project.initiationDate) parts.push(`立项日期：${project.initiationDate.toISOString().slice(0, 10)}`);
-        if (project.reviewStatus) parts.push(`递交审核：${reviewLabel[project.reviewStatus] ?? project.reviewStatus}`);
       }
       if (stageKey === 'TENDER_DOCUMENT') {
         if (project.procurementOrganizationForm) parts.push(`采购组织形式：${project.procurementOrganizationForm}`);

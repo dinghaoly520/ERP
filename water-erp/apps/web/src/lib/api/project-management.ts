@@ -137,29 +137,6 @@ export async function reprocProject(projectId: string) {
   return parseJsonResponse<{ round: number; inserted: number }>(response);
 }
 
-/** CTS-EBS01 A-36/37 创建人递交项目送审（驳回后可重新递交） */
-export async function submitProjectForReview(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/submit-review`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-  return parseJsonResponse<ProjectManagementItem>(response);
-}
-
-/** CTS-EBS01 A-36/37 受理审核（admin；驳回须填理由） */
-export async function reviewProjectSubmission(
-  projectId: string,
-  payload: { approve: boolean; comment?: string },
-) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/review`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-  return parseJsonResponse<ProjectManagementItem>(response);
-}
-
 /** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
 export async function extractTenderFields(projectId: string, field?: string) {
   const qs = field ? `?field=${field}` : '';
@@ -412,7 +389,7 @@ export async function createProjectManagementItem(fields: InitiationFields) {
 export async function updateProjectStage(
   projectId: string,
   stageKey: ProjectWorkflowStageKey,
-  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean },
+  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; round?: number; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean },
 ) {
   const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}`, {
     method: 'PATCH',
@@ -690,6 +667,28 @@ export async function getPmBidProject(
   const params = round != null ? `?round=${round}` : '';
   const response = await fetch(`${API_BASE}/project-management/${pmId}/bid-project${params}`, {
     credentials: 'include',
+  });
+  return parseJsonResponse(response);
+}
+
+/** 只读解析的项目 ↔ 开评标项目（按轮）——项目管理抽屉级展示专用。
+ *  ⚠️ 与 getPmBidProject（ensure-or-create，无则建 SUBMIT 项目）不同：本端点只查不建，
+ *  抽屉轮询误用 ensure 会在公告发布前批量误建幽灵项目（方案 v2 P0-1）。 */
+export interface PmBidProjectRefItem {
+  id: string;
+  round: number;
+  projectCode: string;
+  name: string;
+  stage: import('./bid').BidStage;
+  procurementMethod: string;
+  openTime: string;
+  deadline: string;
+}
+
+export async function fetchPmBidProjectRefs(pmId: string): Promise<PmBidProjectRefItem[]> {
+  const response = await fetch(`${API_BASE}/project-management/${pmId}/bid-project-refs`, {
+    credentials: 'include',
+    cache: 'no-store',
   });
   return parseJsonResponse(response);
 }

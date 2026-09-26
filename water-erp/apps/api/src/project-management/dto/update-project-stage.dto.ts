@@ -4,6 +4,13 @@ export class UpdateProjectStageDto {
   @IsIn(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'])
   status!: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
+  /** 目标阶段行轮次（多轮再次采购每轮各有一行同 stageKey 阶段——schema (pmiId, stageKey, round)
+   *  唯一）。缺省取 PMI.currentRound；不带 round 的解析在多轮项目会命中任意行（I-1 修复）。 */
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  round?: number;
+
   @IsString()
   @IsOptional()
   note?: string;

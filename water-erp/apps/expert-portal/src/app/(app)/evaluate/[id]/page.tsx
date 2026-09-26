@@ -2352,7 +2352,7 @@ export default function ExpertEvaluatePage() {
                   <p className="mb-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
                     用平板相机扫描下方二维码，扫码后<strong className="text-[var(--foreground)]">需输入登录密码</strong>并拍摄留档照完成迁移
                   </p>
-                  <div className="mx-auto flex w-fit rounded-2xl bg-white p-3 shadow-[inset_0_0_0_1px_oklch(0.6_0.04_258/0.15)]">
+                  <div className="mx-auto flex w-fit rounded-2xl bg-[oklch(1_0_0/0.97)] p-3 shadow-[inset_0_0_0_1px_oklch(0.6_0.04_258/0.15)]">
                     <QRCodeSVG
                       value={portalURL('expert', `/tablet/claim?tk=${encodeURIComponent(transferTicket.ticket)}&p=${projectId}`)}
                       size={188}

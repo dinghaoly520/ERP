@@ -1423,6 +1423,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               )}
             </div>
 
+            {/* 生成失败（如闭环签字包 409 SIGN_PACKET_CLOSED）内联反馈——顶层横幅在弹窗遮罩之外易被忽略 */}
+            {wizardStep === 2 && feedback?.tone === 'err' && (
+              <div className="px-6">
+                <FeedbackBanner feedback={feedback} />
+              </div>
+            )}
+
             <hr className="wb-section-rule mx-6" />
 
             <div className="flex items-center justify-between px-6 py-4">

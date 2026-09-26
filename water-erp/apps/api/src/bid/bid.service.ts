@@ -2646,6 +2646,7 @@ export class BidService {
       passFailVerdicts,
       bidPrices,
       isNegotiation: project.procurementMethod === '谈判采购',
+      trimOutliers: project.scoreTrimEnabled ?? true,
     });
     return {
       results: ranked.map((r, index) => ({ ...r, rank: index + 1 })),
@@ -4181,7 +4182,7 @@ export class BidService {
   /** P1: 设置最高限价 + 价格分公式配置 + 评标办法 */
   async updatePriceConfig(
     projectId: string,
-    dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> },
+    dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean },
     actorId?: string,
   ) {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true } });
@@ -4190,16 +4191,70 @@ export class BidService {
     // P2-17（二轮审查收尾）：评标/归档阶段锁定价格与评标办法配置——评标办法在招标文件确定，
     // 评标中变更评标办法/最高限价/价格分公式会改变评分与排名口径（合规风险）；更正须走法定程序
     if ((project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')
-      && (dto.evaluationMethod !== undefined || dto.ceilingPrice !== undefined || dto.priceFormulaConfig !== undefined)) {
+      && (dto.evaluationMethod !== undefined || dto.ceilingPrice !== undefined || dto.priceFormulaConfig !== undefined || dto.scoreTrimEnabled !== undefined)) {
       throw new ConflictException({ error: '评标已开始，价格与评标办法配置已锁定；如需更正请按法定程序办理', code: 'PRICE_CONFIG_LOCKED' });
+    }
+
+    // 值校验（2026-09-26 价格分公式表单化设计 §3）：此前透传零校验——formulaType 拼错会在
+    // 引擎 default 分支静默回退最低评标价法、K/penaltyRate 越界照收，错到生成评标结果才爆。
+    if (dto.ceilingPrice !== undefined && (typeof dto.ceilingPrice !== 'number' || !Number.isFinite(dto.ceilingPrice) || dto.ceilingPrice < 0)) {
+      throw new BadRequestException({ error: '最高限价须为非负数字', code: 'PRICE_CONFIG_INVALID' });
+    }
+    if (dto.scoreTrimEnabled !== undefined && typeof dto.scoreTrimEnabled !== 'boolean') {
+      throw new BadRequestException({ error: '去极值开关须为布尔值', code: 'PRICE_CONFIG_INVALID' });
+    }
+    // 评标办法白名单（manual=专家评审手填，2026-09-26 增设；switch 消费点 default 落综合评估法类行为）
+    if (dto.evaluationMethod !== undefined) {
+      const legalMethods = ['comprehensive', 'lowest_price', 'qualified_lowest_price', 'none', 'manual'];
+      if (typeof dto.evaluationMethod !== 'string' || !legalMethods.includes(dto.evaluationMethod)) {
+        throw new BadRequestException({
+          error: `评标办法非法（${String(dto.evaluationMethod)}）——合法值：${legalMethods.join(' / ')}`,
+          code: 'PRICE_CONFIG_INVALID',
+        });
+      }
+    }
+    if (dto.priceFormulaConfig !== undefined && dto.priceFormulaConfig !== null) {
+      const cfg: unknown = dto.priceFormulaConfig;
+      if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) {
+        throw new BadRequestException({ error: '价格分公式参数须为对象，或传 null 停用自动计算', code: 'PRICE_FORMULA_INVALID' });
+      }
+      const c = cfg as Record<string, unknown>;
+      const legalTypes = ['lowest_price', 'benchmark_deviation', 'ratio'];
+      if (typeof c.formulaType !== 'string' || !legalTypes.includes(c.formulaType)) {
+        throw new BadRequestException({
+          error: `价格分公式 formulaType 非法（${String(c.formulaType)}）——合法值：${legalTypes.join(' / ')}；停用请传 null`,
+          code: 'PRICE_FORMULA_INVALID',
+        });
+      }
+      // 数值参数（缺省=引擎默认，存在则须在合法区间）：K(0,1]、penaltyRate>0、noPenaltyRange≥0
+      const numericRules: Array<[string, (n: number) => boolean, string]> = [
+        ['K', (n) => n > 0 && n <= 1, '0 < K ≤ 1'],
+        ['penaltyRate', (n) => n > 0, '> 0'],
+        ['noPenaltyRange', (n) => n >= 0, '≥ 0'],
+      ];
+      for (const [key, ok, range] of numericRules) {
+        const v = c[key];
+        if (v === undefined) continue;
+        if (typeof v !== 'number' || !Number.isFinite(v) || !ok(v)) {
+          throw new BadRequestException({
+            error: `价格分公式参数 ${key} 非法（${String(v)}）——合法区间 ${range}`,
+            code: 'PRICE_FORMULA_INVALID',
+          });
+        }
+      }
     }
 
     const data: Record<string, unknown> = {};
     if (dto.ceilingPrice !== undefined) data.ceilingPrice = dto.ceilingPrice;
     if (dto.evaluationMethod !== undefined) data.evaluationMethod = dto.evaluationMethod;
-    if (dto.priceFormulaConfig !== undefined) data.priceFormulaConfig = dto.priceFormulaConfig as any;
+    if (dto.scoreTrimEnabled !== undefined) data.scoreTrimEnabled = dto.scoreTrimEnabled;
+    if (dto.priceFormulaConfig !== undefined) {
+      // null=停用公式：写 DbNull（SQL NULL，与建项默认「列空」同形态）——直接传 JS null
+      // 会被 Prisma 记为 jsonb null 字面量（读回等价但存储形态与存量不一致）
+      data.priceFormulaConfig = dto.priceFormulaConfig === null ? Prisma.DbNull : (dto.priceFormulaConfig as any);
+    }
 
-    return this.prisma.bidProject.update({ where: { id: projectId }, data, select: { id: true, ceilingPrice: true, evaluationMethod: true, priceFormulaConfig: true } });
+    return this.prisma.bidProject.update({ where: { id: projectId }, data, select: { id: true, ceilingPrice: true, evaluationMethod: true, priceFormulaConfig: true, scoreTrimEnabled: true } });
   }
 
   /** B3（GB/T 43711 7.2.3.6）：资格后审复核结果登记（登记制——评审线下完成，结果留痕） */

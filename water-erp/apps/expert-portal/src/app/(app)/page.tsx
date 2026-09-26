@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   ShieldCheck, Gavel, AlertTriangle, CheckCircle2, ChevronRight,
-  RefreshCw, ClipboardCheck, UserCircle, Plus,
+  RefreshCw, ClipboardCheck, UserCircle, Plus, PenLine,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject, User } from '@/lib/types';
@@ -151,7 +151,9 @@ export default function ExpertDashboardPage() {
     [projects],
   );
 
-  const totalPending = pendingSignin.length + pendingMotionCount + pendingDisputeCount;
+  // 待处理事项含「评审进行中」（签到后→报告确认前）：评分未完成/报告未确认均应列入，
+  // 否则专家首页显示「暂无待处理事项」与 0% 进度矛盾（2026-09-24 验收补）
+  const totalPending = pendingSignin.length + inProgress.length + pendingMotionCount + pendingDisputeCount;
 
   return (
     <div className="space-y-5">
@@ -325,11 +327,11 @@ export default function ExpertDashboardPage() {
               </div>
             )}
 
-            {(pendingSignin.length === 0 && activeMotions.length === 0 && activeDisputes.length === 0) ? (
+            {(pendingSignin.length === 0 && inProgress.length === 0 && activeMotions.length === 0 && activeDisputes.length === 0) ? (
               <div className="neu-card-static rounded-2xl px-6 py-8 text-center">
                 <CheckCircle2 size={24} strokeWidth={1.4} className="mx-auto mb-2 text-[var(--success)]" />
                 <p className="text-xs font-semibold text-[var(--foreground)]">暂无待处理事项</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">所有签到、投票、异议均已处理</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">所有签到、评分、投票、异议均已处理</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -338,6 +340,20 @@ export default function ExpertDashboardPage() {
                   <TaskGroup icon={<ShieldCheck size={14} strokeWidth={1.8} />} color="var(--warning)" label="待签到" count={pendingSignin.length}>
                     {pendingSignin.map(p => (
                       <TaskRow key={p.id} name={p.project.name} stage={p.project.stage} onClick={() => router.push(`/evaluate/${p.project.id}`)} />
+                    ))}
+                  </TaskGroup>
+                )}
+                {/* 评审进行中（签到后→报告确认前）：评分未完成或报告未确认 */}
+                {inProgress.length > 0 && (
+                  <TaskGroup icon={<PenLine size={14} strokeWidth={1.8} />} color="var(--accent)" label="评审进行中" count={inProgress.length}>
+                    {inProgress.map(p => (
+                      <TaskRow
+                        key={p.id}
+                        name={p.project.name}
+                        stage={p.project.stage}
+                        meta={p.progress >= 100 ? '待确认报告' : `评分 ${p.progress}%`}
+                        onClick={() => router.push(`/evaluate/${p.project.id}`)}
+                      />
                     ))}
                   </TaskGroup>
                 )}

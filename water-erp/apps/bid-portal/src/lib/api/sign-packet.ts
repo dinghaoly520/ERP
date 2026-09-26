@@ -69,6 +69,11 @@ export function generateHandover(projectId: string) {
   return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/handover`, {});
 }
 
+// 数据修正流程（仅 admin）：重开已闭环签字包——解闭环+全员回待签，理由必填入监督日志
+export function reopenSignPacket(projectId: string, reason: string) {
+  return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/reopen`, { reason });
+}
+
 export function uploadExpertScan(projectId: string, expertId: string, file: File) {
   const form = new FormData();
   form.append('file', file);

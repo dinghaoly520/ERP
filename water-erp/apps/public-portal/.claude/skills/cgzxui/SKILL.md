@@ -276,6 +276,7 @@ box-shadow:
 | web | `.wb-note` | 凸起便笺（oklch(1 0 0/.48) 底 + 顶缘高光） |
 | web | `.wb-overlay-backdrop` / `.wb-modal-shell` / `.wb-overlay-panel(-header/-footer)` | 手写弹窗壳层（不 Modal 化的场景） |
 | web | `.tender-toast--ok/--err` | toast 色调变体（基类 .tender-toast） |
+| web | `.pm-help-anchor` / `.pm-help-dot` / `.pm-help-tip` | **？帮助图标 + hover 气泡**（2026-09-26 定稿，详见下方「？帮助气泡」节） |
 | bid-portal | `.bid-overlay` + `.bid-overlay-backdrop` | 标准三层蒙层（替代 JSX 字符串/内联蒙层常量） |
 | bid-portal | `.bid-dialog` | 弹窗薄板（+ `.neu-table.is-dense` 密度变体 / `.bid-tile` / `.bid-icon-well` / `.bid-pick-row`） |
 | bid-portal | `.bid-alert` + `--success/--info/--warning/--danger` | 告警条（--tone 化） |
@@ -318,6 +319,29 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 
 **违例黑名单**（新代码禁止）：`fixed inset-0` 手搓壳 + `rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]` 遗产模板——扁平全向 rgba 投影（反模式 #2）+ 无 focus trap/Esc/滚动锁/aria 全套。2026-09-18 盘点命中并**同日全数改造完毕**（→Modal+本范式）：expert/repository×2、expert/retirement、expert/[id]（编辑资料）、archive（质检）、supplier/selection（补选 + 供应商详情，内联 boxShadow 一并清除）。剩余手搓壳（global-search / dashboard-home / chat / tender-write 五对话框）为 z 层/交互特例，未列入本批。
 
+## ？帮助气泡（.pm-help-dot / .pm-help-tip，2026-09-26 定版）
+
+字段级说明的统一载体：label 文字后跟 ？小圆标，hover / 键盘 focus 弹出说明气泡。web :3005 首用（评分标准卡办法/公式/去极值三处），其他门户需用时按同规格实现（前缀换成门户自己的）。
+
+```tsx
+<span className="flex items-center gap-1.5">
+  字段名
+  <span className="pm-help-anchor" tabIndex={0}>
+    <span className="pm-help-dot" aria-label="字段名说明" role="img">?</span>
+    <span className="pm-help-tip" role="tooltip">说明文字…</span>
+  </span>
+</span>
+```
+
+规格要点（照抄，勿偏离——全部实测校准过）：
+
+- **图标**：`.pm-help-dot` 14×14px 圆、1px 描边 + 顶缘内高光 + 微外影；**必须半角 `?`**（全角？墨迹在字身框内偏移，视觉不居中）+ `font-size: 9px; font-weight: 800; line-height: 1`——墨迹中心与圆心偏差 0px、占内径 48%。
+- **气泡**：`.pm-help-tip` 定位 `left:0; top:calc(100%+6px)`（**左对齐图标向下弹**，居中弹在面板左缘会越界裁切）；宽 14rem、方向性双影、11px 正文；**底色近实底** `linear-gradient(170deg, oklch(1 0 0/0.99), oklch(0.985 0.004 258/0.97))`——**勿抄 wb-modal-shell 的 0.72 尾端**（小文字气泡下背景字会透出；气泡靠双影分层，不靠透明度）。
+- **显隐**：纯 CSS——`.pm-help-anchor:hover .pm-help-tip, .pm-help-anchor:focus-within .pm-help-tip`（hover + 键盘/触屏 focus 双通道，anchor `tabIndex=0`）；默认 `opacity:0 + translateY(-2px)`，0.15s 淡入上浮。
+- **可达性**：dot `role="img"` + `aria-label`，tip `role="tooltip"`。
+- **reduced-motion**：transition 降级瞬时（铁律）。
+- **反模式**：常驻说明段落（重复下拉选项文本/挤占布局）；原生 title（触屏无效）；全角？；气泡居中弹出。
+
 ## 弹窗「Modal 化」决策规则（web :3005）
 
 - **默认用 workbench `Modal` 组件**（`src/components/workbench/modal.tsx`）：token 蒙层 + oklch 阴影 + focus trap + Esc + 滚动锁 + aria 全套；宽度用 `size` 或 `className="!max-w-[480px]"` 覆写；busy 防护映射 `closeOnBackdrop/closeOnEsc`。
@@ -357,6 +381,8 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 1. `page-hero` 标题卡片（含 `page-hero__row` + hairline 分割线 + KPI 瓷片或搜索行）
 2. 独立的工具栏行/卡片（类型/状态切换用 `.neu-segment` 分段切换——hero 下方独立一行、置于页面底色；搜索 + 筛选下拉可并入同行，neumorphic 浅底 + 方向性双影）
 3. `neu-table-card` + `neu-table` 数据表格（透明行 + 四层交互 + 批量操作浮条）
+
+**"给表单字段/名词加说明文字"** — 用 ？帮助气泡（`.pm-help-anchor` + `.pm-help-dot` + `.pm-help-tip`，见跨门户目录与下方规范）挂在 label 文字后，**不要**用常驻说明段落（视觉噪音）也不要只靠原生 `title`（触屏无效、延迟大）。可操作警示（缺件/风险）才允许常驻（wb-alert）。
 
 **"改一个按钮的样式"** — 改 `globals.css` 中对应类名，**绝不**在 TSX 加内联 `style`。
 

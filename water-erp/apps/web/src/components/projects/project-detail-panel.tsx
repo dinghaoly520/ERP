@@ -9,9 +9,9 @@ import {
   analyzeProjectStep,
   completeProjectManagementItem,
   extractTenderFields,
+  fetchPmBidProjectRefs,
   reopenProjectStage,
   reprocProject,
-  reviewProjectSubmission,
   fetchProjectAttributions,
   refreshProjectSummary,
   updateProjectStage,
@@ -22,6 +22,8 @@ import {
   type ExtractedInfo,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
+import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
+import { isPassFailCategory } from '@water-erp/shared';
 import { getProjectParticipants } from '@/lib/api/announcement';
 import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 import {
@@ -45,6 +47,7 @@ import { BidConfirmPanel } from './bid-confirm-panel';
 import { AwardFileMaker } from './award-file-maker';
 import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
+import { ScoreStandardCard } from './score-standard-card';
 import { Modal, StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
@@ -361,7 +364,7 @@ export function ProjectDetailPanel({
 }) {
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
   // 归档材料缺失豁免（M5）：后端 ARCHIVE_GATE_MISSING 时弹窗，填理由后带 waiveArchiveGate 重试
-  const [waiveTarget, setWaiveTarget] = useState<{ stageKey: ProjectWorkflowStageKey; nextStageKey?: ProjectWorkflowStageKey; message: string } | null>(null);
+  const [waiveTarget, setWaiveTarget] = useState<{ stageKey: ProjectWorkflowStageKey; round?: number; nextStageKey?: ProjectWorkflowStageKey; message: string } | null>(null);
   const [waiveNote, setWaiveNote] = useState('');
   const [waiving, setWaiving] = useState(false);
   const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
@@ -394,10 +397,6 @@ export function ProjectDetailPanel({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // CTS A-36/37 递交受理
-  const [reviewBusy, setReviewBusy] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [reviewComment, setReviewComment] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [analysis, setAnalysis] = useState<ProjectDetailAnalysis | null>(null);
@@ -443,9 +442,13 @@ export function ProjectDetailPanel({
 
   const selectedStage = useMemo(
     () =>
+      // round 感知（2026-09-24 I-1）：多轮项目每轮各有一行同 stageKey——不带 round 恒命中首轮行
+      localItem.stages.find(
+        (stage) => stage.stageKey === selectedStageKey && (stage.round ?? 1) === selectedRound,
+      ) ??
       localItem.stages.find((stage) => stage.stageKey === selectedStageKey) ??
       localItem.stages[0],
-    [localItem.stages, selectedStageKey],
+    [localItem.stages, selectedStageKey, selectedRound],
   );
 
   const archiveStepState = getArchiveStepState(item);
@@ -479,14 +482,69 @@ export function ProjectDetailPanel({
 	const { Icon: HeroIcon } = heroVisual;
   const focusAccentClassName = `pm-stage-accent--${selectedStage.stageKey.toLowerCase()}`;
 
-  // 采购文件步骤中已上传的 .docx 附件（供阶段卡片编辑按钮使用）
-  const tenderDocxFiles = useMemo(() => {
-    const stage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
-    if (!stage) return [];
-    return stage.attachments
-      .filter((a) => a.fileName.toLowerCase().endsWith('.docx'))
-      .map((a) => ({ id: a.id!, fileName: a.fileName }));
-  }, [localItem.stages]);
+  // ── 评分标准卡（2026-09-24 方案 v2：自开标确认面板迁至 03「采购文件」）──
+  // 只读解析（fetchPmBidProjectRefs 只查不建）+ 逐 BP 详情/评分项，驱动卡片与 03 徽标。
+  // 状态用于完成前预检与弹层；权威判定在服务端闸门（SCORE_STANDARD_REQUIRED）。
+  const [bpRefs, setBpRefs] = useState<Awaited<ReturnType<typeof fetchPmBidProjectRefs>>>([]);
+  const [bpDetails, setBpDetails] = useState<Record<string, BidProjectDetail>>({});
+  const [bpScoreItems, setBpScoreItems] = useState<Record<string, BidScoreItem[]>>({});
+  const [bpDataTick, setBpDataTick] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const refs = await fetchPmBidProjectRefs(item.id);
+        if (cancelled) return;
+        setBpRefs(refs);
+        const details: Record<string, BidProjectDetail> = {};
+        const itemsMap: Record<string, BidScoreItem[]> = {};
+        await Promise.all(
+          refs.map(async (r) => {
+            const d = await getBidProjectDetail(r.id).catch(() => null);
+            if (!d) return;
+            details[r.id] = d;
+            // 办法=none（不评分）免评分项，无需拉取评分项
+            if (d.evaluationMethod !== 'none') {
+              const its = await listScoreItems(r.id).catch(() => null);
+              if (its) itemsMap[r.id] = its;
+            }
+          }),
+        );
+        if (cancelled) return;
+        setBpDetails(details);
+        setBpScoreItems(itemsMap);
+      } catch {
+        // 徽标/卡片数据尽力而为——失败不阻塞抽屉，服务端闸门兜底
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, bpDataTick]);
+
+  type ScoreGateStatus = 'unlinked' | 'exempt' | 'ok' | 'incomplete' | 'unknown';
+  const scoreStatusForRound = useCallback((round: number): ScoreGateStatus => {
+    const ref = bpRefs.find((r) => r.round === round);
+    if (!ref) return 'unlinked';
+    if (bpDetails[ref.id]?.evaluationMethod === 'none') return 'exempt';
+    const items = bpScoreItems[ref.id];
+    if (!items) return 'unknown';
+    const scoring = items.filter((it) => !isPassFailCategory(it.category));
+    const sum = scoring.reduce((s, it) => s + Number(it.maxScore), 0);
+    const noPoints = scoring.some((it) => !(it.points && it.points.length > 0));
+    // 容差 0.05 与服务端 ScoreStandardValidator 同口径（Decimal 十分位求和浮点误差）
+    if (scoring.length === 0 || Math.abs(sum - 100) > 0.05 || noPoints) return 'incomplete';
+    return 'ok';
+  }, [bpRefs, bpDetails, bpScoreItems]);
+
+  const [scorePanelRound, setScorePanelRound] = useState<number | null>(null);
+  // Esc 关闭评分标准面板（开标确认面板同款 z-[500] overlay；内部 workbench Modal z-[600] 盖过）
+  useEffect(() => {
+    if (scorePanelRound == null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setScorePanelRound(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [scorePanelRound]);
 
   const stageFileAnalysis = useMemo(
     () => analysis?.fileAnalyses ?? [],
@@ -697,6 +755,16 @@ export function ProjectDetailPanel({
   const markStageCompleted = async (stage: ProjectManagementStage) => {
     if (readOnly) { toast.info('项目已归档，仅供查看'); return; }
     if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
+    // 评分标准闸（2026-09-24 方案 v2）：03 采购文件完成前须完成评分标准配置。
+    // 前端仅拦「未配置完整」（数据已就绪、口径确定）；「未关联」不本地拦——
+    // 采购方式可能为不评分（none），由服务端闸门权威判定并给指引（SCORE_STANDARD_REQUIRED）。
+    if (stage.stageKey === 'TENDER_DOCUMENT') {
+      const scoreStatus = scoreStatusForRound(stage.round ?? 1);
+      if (scoreStatus === 'incomplete') {
+        setErrorMessage('评分标准未配置完整：打分类满分合计须为 100 且每个打分项须有得分点。请点击步骤条「采购文件」卡片的「评分标准」按钮完成配置后，再标记本阶段完成。');
+        return;
+      }
+    }
     // P1-14（走查④）：开标评标是核心阶段——完成后推进定标不可逆，误点/连点会把整段
     // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
     // BidProject 状态脱节）。加确认门槛。
@@ -717,6 +785,7 @@ export function ProjectDetailPanel({
       const confirmThreshold = Number(localStorage.getItem('supplier-confirm-threshold')) || 3;
       await updateProjectStage(item.id, stage.stageKey, {
         status: 'COMPLETED',
+        round: stage.round ?? 1, // 多轮项目按被点行的轮次落行（2026-09-24 I-1）
         ...(stage.stageKey === 'SUPPLIER_INVITATION' ? { confirmedThreshold: confirmThreshold } : {}),
       });
       await onUpdated();
@@ -728,7 +797,7 @@ export function ProjectDetailPanel({
     } catch (error) {
       // 归档必选材料缺失 → 弹豁免对话框（而非裸抛后端报错文案）
       if ((error as Error & { code?: string }).code === 'ARCHIVE_GATE_MISSING') {
-        setWaiveTarget({ stageKey: stage.stageKey, nextStageKey, message: error instanceof Error ? error.message : '' });
+        setWaiveTarget({ stageKey: stage.stageKey, round: stage.round ?? 1, nextStageKey, message: error instanceof Error ? error.message : '' });
         setWaiveNote('');
       } else {
         setErrorMessage(error instanceof Error ? error.message : '更新阶段失败。');
@@ -746,6 +815,7 @@ export function ProjectDetailPanel({
     try {
       await updateProjectStage(item.id, waiveTarget.stageKey, {
         status: 'COMPLETED',
+        round: waiveTarget.round, // 多轮项目按被点行的轮次落行（2026-09-24 I-1）
         waiveArchiveGate: true,
         note: waiveNote.trim(),
       });
@@ -887,23 +957,6 @@ export function ProjectDetailPanel({
       setErrorMessage(error instanceof Error ? error.message : '归档失败。');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  // ── CTS-EBS01 A-36/37 递交受理（admin 受理；服务端强制双人留痕）──
-  const handleReviewSubmission = async (approve: boolean) => {
-    setReviewBusy(true);
-    setErrorMessage(null);
-    try {
-      await reviewProjectSubmission(item.id, { approve, comment: reviewComment.trim() || undefined });
-      toast.success(approve ? '已审核通过' : '已驳回，可修改后重新递交');
-      setRejectOpen(false);
-      setReviewComment('');
-      await onUpdated();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '受理审核失败。');
-    } finally {
-      setReviewBusy(false);
     }
   };
 
@@ -1143,35 +1196,10 @@ export function ProjectDetailPanel({
                   <span className="inline-flex items-center gap-1 rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--accent)]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />{selectedStage.stageName}
                   </span>
-                  {item.reviewStatus === 'PENDING' && (
-                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.75_0.14_75)_20%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.5_0.12_75)]" title={item.submittedAt ? `递交：${item.submittedByName ?? ''} ${new Date(item.submittedAt).toLocaleString('zh-CN')}` : undefined}>
-                      待审核
-                    </span>
-                  )}
-                  {item.reviewStatus === 'APPROVED' && (
-                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.72_0.14_155)_18%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.48_0.12_155)]" title={item.reviewedAt ? `受理：${item.reviewedByName ?? ''} ${new Date(item.reviewedAt).toLocaleString('zh-CN')}` : undefined}>
-                      审核通过
-                    </span>
-                  )}
-                  {item.reviewStatus === 'REJECTED' && (
-                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.65_0.17_25)_16%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.5_0.16_25)]" title={item.reviewComment ?? undefined}>
-                      已驳回
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
             <div className="page-hero__right">
-              {currentUserRole === 'admin' && item.reviewStatus === 'PENDING' && (
-                <>
-                  <button type="button" onClick={() => void handleReviewSubmission(true)} disabled={reviewBusy} className="neu-btn-soft">
-                    <CheckCircle2 size={16} />审核通过
-                  </button>
-                  <button type="button" onClick={() => setRejectOpen((v) => !v)} disabled={reviewBusy} className="neu-btn-soft is-danger">
-                    <AlertTriangle size={16} />驳回
-                  </button>
-                </>
-              )}
               {!readOnly && canModify && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
                   <Ban size={16} />项目终止
@@ -1187,21 +1215,6 @@ export function ProjectDetailPanel({
               </button>
             </div>
           </div>
-
-          {/* CTS A-36/37 驳回理由输入（展开式） */}
-          {rejectOpen && currentUserRole === 'admin' && item.reviewStatus === 'PENDING' && (
-            <div className="mt-3 flex items-start gap-2">
-              <textarea
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="驳回理由（必填，将反馈给申报人）"
-                className="neu-input min-h-[64px] flex-1 resize-none text-sm"
-              />
-              <button type="button" onClick={() => void handleReviewSubmission(false)} disabled={reviewBusy || !reviewComment.trim()} className="neu-btn-soft is-danger shrink-0">
-                {reviewBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}确认驳回
-              </button>
-            </div>
-          )}
 
           {/* 已归档 / 已终止 只读横幅 */}
           {item.status === 'TERMINATED' ? (
@@ -1322,8 +1335,7 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               onArchive={() => void archiveProject()}
               canArchive={canArchive}
-              tenderDocxAttachments={tenderDocxFiles}
-              onEditTenderFile={readOnly ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
+              onOpenScoreStandard={(round) => setScorePanelRound(round)}
               onReopenStage={readOnly ? undefined : async (stageKey, round) => {
                 // 开标锁定（2026-09-24）：按时开标后前置步骤不可重开（后端同款 409 硬闸，此处先拦给出友好提示）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定，不可重开'); return; }
@@ -1339,6 +1351,9 @@ export function ProjectDetailPanel({
               }}
               isStageLocked={isLockedByBid}
             />
+
+            {/* 评分标准与评标办法（2026-09-24 定稿：常驻卡撤、改为 03 卡按钮弹出面板
+                —— 面板渲染见文件末尾 scorePanelRound overlay；数据仍抽屉级只读拉取） */}
 
           </div>
         </div>
@@ -2256,7 +2271,43 @@ export function ProjectDetailPanel({
         onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
       />
 
-      {/* 开标确认面板：投标状态 / 专家确认 / 评分标准 / 开标决策 */}
+      {/* 评分标准与评标办法面板（2026-09-24 定稿：03 卡「评分标准」按钮弹出；开标确认面板同款
+          z-[500] overlay——内部 workbench Modal z-[600] 盖过；任何阶段可开，锁定态由子块自理） */}
+      {scorePanelRound != null && (() => {
+        const panelRef = bpRefs.find((r) => r.round === scorePanelRound) ?? null;
+        // 价格类评分项数（供公式区「暂不参与计分」提示；数据未就绪=undefined 不提示）
+        const panelScoreItems = panelRef ? bpScoreItems[panelRef.id] : undefined;
+        const priceItemCount = panelScoreItems
+          ? panelScoreItems.filter((it) => it.category === 'PRICE').length
+          : undefined;
+        return (
+          <div className="fixed inset-0 z-[500] flex flex-col">
+            <div className="absolute inset-0 wb-overlay-backdrop" onClick={() => setScorePanelRound(null)} />
+            <div className="relative z-10 mx-5 my-5 wb-overlay-panel">
+              <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4 wb-overlay-panel-header">
+                <h2 className="text-base font-semibold tracking-[-0.02em] text-[var(--foreground)]">
+                  评分标准与评标办法{scorePanelRound > 1 ? `（第 ${scorePanelRound} 轮）` : ''}
+                </h2>
+                <button type="button" onClick={() => setScorePanelRound(null)} className="neu-btn-xs" title="关闭">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <ScoreStandardCard
+                  project={item}
+                  round={scorePanelRound}
+                  bidProject={panelRef ? { ...panelRef, publishTime: null } : null}
+                  detail={panelRef ? (bpDetails[panelRef.id] ?? null) : null}
+                  priceItemCount={priceItemCount}
+                  onChanged={() => setBpDataTick((t) => t + 1)}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 开标确认面板：投标状态 / 专家确认 / 唱标字段 / 开标决策（评分标准已迁 03「采购文件」步骤，2026-09-24） */}
       <BidConfirmPanel
         isOpen={bidConfirmOpen}
         onClose={() => setBidConfirmOpen(false)}

@@ -417,7 +417,7 @@ export class BidController {
   @ApiOperation({ summary: 'P1: 设置最高限价 + 价格分公式配置 + 评标办法' })
   updatePriceConfig(
     @Param('id') id: string,
-    @Body() dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> },
+    @Body() dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean },
     @CurrentUser('sub') userId?: string,
   ) { return this.bidService.updatePriceConfig(id, dto, userId); }
 

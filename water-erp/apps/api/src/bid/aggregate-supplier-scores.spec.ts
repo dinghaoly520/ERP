@@ -32,6 +32,34 @@ describe('aggregateSupplierScores（F12 提取纯函数）', () => {
     expect(ranked.find(r => r.supplierId === 's2')!.trimmedCount).toBe(2);
   });
 
+  it('trimOutliers=false（项目关闭去极值）→ ≥5 位专家也全额均分', () => {
+    const records = new Map([
+      recs('s1', { e1: 90, e2: 92, e3: 94, e4: 96, e5: 98 }), // 全额 [90..98] 均 94
+    ]);
+    const ranked = aggregateSupplierScores({
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }],
+      recordsBySupplier: records, formulaPriceScores: emptyFormula, priceItemIds: emptyItemIds,
+      passFailVerdicts: emptyVerdicts, bidPrices: emptyPrices, isNegotiation: false,
+      trimOutliers: false,
+    });
+    const s1 = ranked[0];
+    expect(s1.averageScore).toBe(94); // (90+92+94+96+98)/5 = 94
+    expect(s1.trimmedCount).toBe(5); // 未去极值=全员参与均分
+    expect(s1.expertCount).toBe(5);
+  });
+
+  it('trimOutliers 缺省 → 沿用 ≥5 去极值（存量调用方零变化）', () => {
+    const records = new Map([
+      recs('s1', { e1: 90, e2: 92, e3: 94, e4: 96, e5: 98 }),
+    ]);
+    const ranked = aggregateSupplierScores({
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }],
+      recordsBySupplier: records, formulaPriceScores: emptyFormula, priceItemIds: emptyItemIds,
+      passFailVerdicts: emptyVerdicts, bidPrices: emptyPrices, isNegotiation: false,
+    });
+    expect(ranked[0].trimmedCount).toBe(3); // 默认去极值仍生效
+  });
+
   it('公式价格分作常量：跳过专家 PRICE 打分 + 加到每位专家总分（不影响去极值对称性）', () => {
     // 专家对 PRICE 项各打 10（应被忽略），技术项 5 位专家打 80-100
     const records = new Map([

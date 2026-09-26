@@ -2923,6 +2923,72 @@ a {
   color: rgba(102, 118, 149, 0.88);
 }
 
+/* ── ？帮助图标 + hover 气泡（2026-09-26，先例：标题行 Info 图标 + group-hover 显隐）──
+   纯 CSS 显隐：anchor hover / focus-within 触发；气泡左对齐图标向下弹出（居中弹出在面板左缘会越界裁切） */
+.pm-help-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  /* 半角 ? + 9px（2026-09-26 修正）：全角？墨迹在字身框内偏移致视觉不居中且显大 */
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--muted-foreground);
+  background: oklch(0.99 0.004 258);
+  border: 1px solid oklch(0.78 0.03 258 / 0.5);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08);
+  cursor: help;
+  flex: none;
+}
+
+.pm-help-tip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  width: 14rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--foreground);
+  text-align: left;
+  /* 近实底（2026-09-26 修正）：勿抄 wb-modal-shell 的 0.72 尾端——小文字气泡下背景字透出；
+     气泡自带头缘内高光与双影，不需要靠透明度呼吸 */
+  background: linear-gradient(170deg, oklch(1 0 0 / 0.99), oklch(0.985 0.004 258 / 0.97));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.pm-help-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.pm-help-anchor:hover .pm-help-tip,
+.pm-help-anchor:focus-within .pm-help-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-help-tip {
+    transition: none;
+  }
+}
+
+
+
 .pm-stage-progress--archive-ready {
   background: rgba(233, 194, 111, 0.16);
   color: color-mix(in oklch, var(--warning) 82%, var(--foreground) 18%);
@@ -3418,68 +3484,11 @@ a {
   opacity: 1;
 }
 
-.bubble-popover {
-  position: relative;
-  overflow: hidden;
-  animation: bubbleEnter 280ms var(--ease-out-quint);
-}
 
-.bubble-popover::before {
-  content: "";
-  position: absolute;
-  inset: -18% -10% auto 12%;
-  height: 44%;
-  background:
-    radial-gradient(circle at 18% 35%, rgba(109, 149, 238, 0.16), transparent 26%),
-    radial-gradient(circle at 78% 26%, rgba(92, 181, 150, 0.12), transparent 24%);
-  filter: blur(22px);
-  pointer-events: none;
-}
 
-.bubble-popover::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -10px;
-  width: 22px;
-  height: 22px;
-  border-top: 1px solid rgba(255, 255, 255, 0.72);
-  border-left: 1px solid rgba(255, 255, 255, 0.72);
-  background: rgba(249, 251, 255, 0.92);
-  transform: translateX(-50%) rotate(45deg);
-  box-shadow: -8px -8px 24px rgba(75, 108, 168, 0.05);
-}
 
-.supplier-detail-popover {
-  position: relative;
-  overflow: hidden;
-  animation: bubbleEnter 260ms var(--ease-out-quint);
-}
 
-.supplier-detail-popover::before {
-  content: "";
-  position: absolute;
-  inset: -16% 8% auto auto;
-  width: 160px;
-  height: 160px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(109, 149, 238, 0.14), transparent 68%);
-  filter: blur(12px);
-  pointer-events: none;
-}
 
-.supplier-detail-popover::after {
-  content: "";
-  position: absolute;
-  right: 26px;
-  top: -9px;
-  width: 18px;
-  height: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.74);
-  border-left: 1px solid rgba(255, 255, 255, 0.74);
-  background: rgba(248, 251, 255, 0.94);
-  transform: rotate(45deg);
-}
 
 .nav-glow::after {
   content: "";
@@ -3618,16 +3627,6 @@ a {
   }
 }
 
-@keyframes bubbleEnter {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.985);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
 
 @keyframes chromaShift {
   0%,

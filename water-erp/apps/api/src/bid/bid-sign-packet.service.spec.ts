@@ -667,3 +667,80 @@ describe('BidSignPacketService.buildSnapshot（A-132 分工入委员会名单 / 
     expect(snapshot.reportNotes).toEqual([{ section: '十', content: '评标过程合规。' }]);
   });
 });
+
+// ═══ 数据修正流程：admin 重开已闭环签字包（2026-09-24 验收落地） ═══
+describe('BidSignPacketService.reopen（数据修正）', () => {
+  const projectId = 'p1';
+
+  beforeEach(() => jest.clearAllMocks());
+
+  function arrangeClosed() {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING', name: '测试项目' });
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date('2026-09-22T04:01:27Z'), closedById: 'u9',
+      handoverFileAssetId: 'hfa1', handoverSha256: 'hsha1',
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.bidEvaluationResult.count as jest.Mock).mockResolvedValue(3);
+  }
+
+  it('理由为空 → 400 REOPEN_REASON_REQUIRED', async () => {
+    arrangeClosed();
+    const svc = makeService();
+    await expect(svc.reopen(projectId, { reason: '   ' }, 'u1')).rejects.toMatchObject({
+      response: { code: 'REOPEN_REASON_REQUIRED' },
+    });
+  });
+
+  it('签字包未生成 → 409 SIGN_PACKET_NOT_GENERATED', async () => {
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue(null);
+    const svc = makeService();
+    await expect(svc.reopen(projectId, { reason: '修正' }, 'u1')).rejects.toMatchObject({
+      response: { code: 'SIGN_PACKET_NOT_GENERATED' },
+    });
+  });
+
+  it('未闭环 → 409 SIGN_NOT_CLOSED（未闭环走撤销登记即可，不开放整包重开）', async () => {
+    arrangeClosed();
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, closedAt: null, handoverFileAssetId: null,
+    });
+    const svc = makeService();
+    await expect(svc.reopen(projectId, { reason: '修正' }, 'u1')).rejects.toMatchObject({
+      response: { code: 'SIGN_NOT_CLOSED' },
+    });
+  });
+
+  it('ARCHIVED 阶段 → 409（终态证据不可重开）', async () => {
+    arrangeClosed();
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'ARCHIVED', name: '测试项目' });
+    const svc = makeService();
+    await expect(svc.reopen(projectId, { reason: '修正' }, 'u1')).rejects.toMatchObject({
+      response: { code: 'SIGN_PACKET_STAGE_REQUIRED' },
+    });
+  });
+
+  it('闭环态重开成功：解闭环+解回流引用+全员回 PENDING（含电子签名清空）+监督日志(高/admin)', async () => {
+    arrangeClosed();
+    const svc = makeService();
+    await svc.reopen(projectId, { reason: '回填修正：签字包基于缺员数据生成' }, 'uAdmin');
+
+    const packetUpdate = (prisma.bidSignPacket.update as jest.Mock).mock.calls[0]?.[0];
+    expect(packetUpdate.where).toEqual({ projectId });
+    expect(packetUpdate.data).toMatchObject({ closedAt: null, closedById: null, handoverFileAssetId: null, handoverSha256: null });
+
+    const expertUpdate = (prisma.bidExpert.updateMany as jest.Mock).mock.calls[0]?.[0];
+    expect(expertUpdate.where).toEqual({ projectId, expertRole: '正选' });
+    expect(expertUpdate.data).toMatchObject({
+      signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null,
+      dissentingOpinion: null, dissentingReason: null, esignature: Prisma.DbNull, esignatureAt: null,
+    });
+
+    const log = (prisma.bidSupervisionLog.create as jest.Mock).mock.calls[0]?.[0]?.data;
+    expect(log.action).toBe('签字包重开（数据修正）');
+    expect(log.riskFlag).toBe('高');
+    expect(log.operatorRole).toBe('admin');
+    expect(log.result).toContain('回填修正：签字包基于缺员数据生成');
+  });
+});

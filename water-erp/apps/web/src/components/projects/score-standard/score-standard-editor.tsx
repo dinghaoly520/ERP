@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { CATEGORY_COLOR, CATEGORY_LABEL, STAGE_LABEL, isPassFailCategory } from '@water-erp/shared';
 import {
   batchCreateScorePoints,
+  updatePriceConfig,
   createScoreItem,
   deleteScoreItem,
   ensureBidProject,
@@ -208,9 +209,21 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       }
     }
     if (okCount > 0) {
+      // 2026-09-26 用户裁定：导入含价格类（PRICE）评分项 → 评标办法自动切「专家评审」
+      // （价格作为打分项由专家逐项手填；幂等写——已是 manual 时无副作用）
+      const hasPriceItem = picked.some((g) => items.find((i) => i.id === g.itemId)?.category === 'PRICE');
+      if (hasPriceItem) {
+        try {
+          await updatePriceConfig(bpId, { evaluationMethod: 'manual' });
+          toast.info('检测到价格类评分项——评标办法已切换为「专家评审」（价格分由专家按项打分）');
+        } catch {
+          // 切换失败不阻断导入；评标办法可在上方「评标办法与最高限价」手动调整
+        }
+      }
       toast.success(`已导入得分点（${okCount}/${picked.length} 个评分项）`);
       setBulkGroups(null);
       await reloadItems();
+      onChanged?.(); // PRICE 联动后重拉详情 → 上方块回显 manual
     }
   };
 

@@ -452,6 +452,7 @@ describe('ProjectManagementService', () => {
       { onTerminalAttachmentUploaded: async () => undefined } as never, // archiveFlow
       { getRules: async (k: string) => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
       {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
+      { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } as never, // scoreStandardValidator（2026-09-24 评分标准闸）
     );
     return {
       service,
@@ -1028,6 +1029,8 @@ describe('ProjectManagementService', () => {
     const { service, prisma, aiService, readFileMock } = makeService();
 
     // P1-12：完成实质校验的放行前提（采购文件阶段 ≥1 附件）
+    // 评分标准闸（2026-09-24）：公开招标→comprehensive，本用例聚焦阶段推进——BP 已配置
+    prisma.bidProject = { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', evaluationMethod: 'comprehensive' }) };
     prisma.attachment = { count: jest.fn().mockResolvedValue(1) };
     prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(1) };
     prisma.bidExpert = { count: jest.fn().mockResolvedValue(1) };
@@ -1215,6 +1218,8 @@ describe('ProjectManagementService', () => {
       const { service, prisma, archiveScope } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'TENDER_DOCUMENT' });
       prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'TENDER_DOCUMENT', stages: [] });
+      // 评分标准闸（2026-09-24）先于归档材料闸：本用例聚焦归档闸——BP 已配置放行评分闸
+      prisma.bidProject = { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', evaluationMethod: 'comprehensive' }) };
       archiveScope.checkStageGate.mockResolvedValueOnce(['采购文件']);
       // 2026-09-04 文案优化：错误结构化 { error, code }，按 code 断言（文案不含旧关键词）
       await expect(service.updateStage('pm-01', 'TENDER_DOCUMENT', completing)).rejects.toMatchObject({

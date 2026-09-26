@@ -475,7 +475,7 @@ export function getAwardLetterStatus(bidProjectId: string) {
 /** P1: 设置价格分公式配置 */
 export function updatePriceConfig(
   bidProjectId: string,
-  data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> },
+  data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean },
 ) {
   return api.patch(`/bid/projects/${bidProjectId}/price-config`, data);
 }
@@ -572,6 +572,8 @@ export interface BidProjectDetail {
   ceilingPrice?: number | null;
   evaluationMethod?: string | null;
   priceFormulaConfig?: Record<string, unknown> | null;
+  /** 去极值开关（2026-09-26）：true=≥5 专家去 1 高 1 低后均分（默认）；false=全额均分 */
+  scoreTrimEnabled?: boolean;
   /** A-113：唱标字段动态配置（null = 内置默认四字段；OPENING 起锁定不可改） */
   openingFieldConfig?: { fields?: OpeningFieldDef[] } | null;
   suppliers: BidProjectSupplierInfo[];
