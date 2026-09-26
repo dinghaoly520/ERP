@@ -87,6 +87,18 @@ describe('DashboardService', () => {
     };
   };
 
+  it('labels 立项/归档-only trend buckets as M/DD instead of the raw ISO bucket key (2026-09-26 底部时间栏统一)', async () => {
+    const { service } = makeService();
+
+    const result = await service.getDashboard('2026-04-01', '2026-04-30');
+
+    // 项目立项日 2026-03-01 的桶只承载 initiated 节点（无采购日落点），
+    // 此前该桶 label 残留 ISO 键 "2026-03-01"，与 "4/02" 混排在同一条时间轴上
+    const labels = result.trendSeries.map((t) => t.label);
+    expect(labels).toContain('3/01');
+    expect(labels.every((l) => !/^\d{4}-\d{2}-\d{2}$/.test(l))).toBe(true);
+  });
+
   it('returns summary values needed by the dashboard top row', async () => {
     const { service } = makeService();
 

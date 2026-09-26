@@ -238,7 +238,16 @@ export class DashboardService {
     const ensureBucket = (dateKey: string) => {
       let item = trendMap.get(dateKey);
       if (!item) {
-        item = { label: dateKey, count: 0, amount: 0, initiated: 0, archived: 0, projects: [] };
+        // label 从桶键解出 M/DD：仅承载立项/归档节点的桶（无采购日落点）也要与主桶同格式，
+        // 否则时间轴上会混排 "2026-09-17" 与 "9/07"（2026-09-26 底部时间栏统一）
+        item = {
+          label: trendBucketOf(new Date(dateKey)),
+          count: 0,
+          amount: 0,
+          initiated: 0,
+          archived: 0,
+          projects: [],
+        };
         trendMap.set(dateKey, item);
       }
       return item;

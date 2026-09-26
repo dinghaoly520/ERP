@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
+import { trendLabelStep, isTrendLabelShown } from "@/components/home/trend-axis";
 import { AwardResultPanel } from "@/components/home/award-result-panel";
 import { PerformancePanel } from "@/components/home/performance-panel";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
@@ -369,13 +370,15 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
   const mi = Math.max(...S.map(i=>Math.max(i.initiated??0,i.archived??0)),1);
   const mAct = Math.max(...S.map(i=>i.active??0),1);
 
-  const ch=268,lp=52,rp=52,tp=26;
+  const ch=296,lp=52,rp=52,tp=26;
   const mh=118;                      // 主区高（金额曲线）
   const bandHalf=50;                 // 镜像带半高（立项↑/归档↓）
   const cy=tp+mh+bandHalf+14;        // 镜像带中轴 y
-  const bp=ch-cy-bandHalf;           // 底部留白（日期标签）
+  const axisY=cy+bandHalf+8;         // 底部时间栏发丝轴线（刻度悬挂基准）
+  const labelY=ch-10;                // 日期标签基线（底部留白 38px：刻度 5px + 标签 10px + 呼吸）
   const caw=cw-lp-rp;
   const dc=S.length||1;
+  const lStep=trendLabelStep(dc,caw);// 日期标签抽稀步长（桶距不足 46px 时隔 N 桶显 1）
   const bw=Math.max(14,Math.min(44,(caw/dc)*0.5));
   const gap=Math.max(6,Math.min(16,bw*0.4));
   const tw=dc*(bw+gap)-gap;
@@ -418,12 +421,17 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
               {/* 镜像带中轴（时间轴） */}
               <line x1={lp} y1={cy} x2={cw-rp} y2={cy} stroke="oklch(0.6 0.05 250 / 0.4)" strokeWidth="1"/>
 
+              {/* 底部时间栏发丝轴线（2026-09-26 重设计）：收拢镜像带下缘，日期刻度自此处悬挂 */}
+              <line x1={lp} y1={axisY} x2={cw-rp} y2={axisY} stroke="oklch(0.6 0.05 250 / 0.3)" strokeWidth="1"/>
+
               {/* 立项↑ / 归档↓ 镜像柱（双节点） */}
-              {S.map((item,i)=>{const x=sx+i*(bw+gap);const ih=initH(item.initiated??0);const ah=initH(item.archived??0);const hot=hoveredIdx===i;return (
+              {S.map((item,i)=>{const x=sx+i*(bw+gap);const ih=initH(item.initiated??0);const ah=initH(item.archived??0);const hot=hoveredIdx===i;const labeled=isTrendLabelShown(i,dc,lStep);return (
                 <g key={`node-${i}`} className="cursor-pointer" onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(item as TrendDetail)}>
                   {ih>0&&<rect x={x} y={cy-ih} width={bw} height={ih} rx={3} fill="url(#barUp)" opacity={hot?1:0.8} filter={hot?"url(#glowSoft)":undefined} style={{transition:"opacity .2s"}}/>}
                   {ah>0&&<rect x={x} y={cy} width={bw} height={ah} rx={3} fill="url(#barDown)" opacity={hot?1:0.75} filter={hot?"url(#glowSoft)":undefined} style={{transition:"opacity .2s"}}/>}
-                  <text x={x+bw/2} y={ch-10} textAnchor="middle" style={{fontSize:"9px",fill:hot?"oklch(0.5 0.12 247)":"oklch(0.5 0.04 250 / 0.65)",fontWeight:hot?"700":"500"}}>{item.label}</text>
+                  {/* 时间栏刻度：每桶一个短刻度，带标签的桶加长加浓，悬停染品牌蓝 */}
+                  <line x1={x+bw/2} x2={x+bw/2} y1={axisY} y2={axisY+(labeled||hot?5:3)} stroke={hot?"oklch(0.5 0.12 247)":labeled?"oklch(0.55 0.05 250 / 0.6)":"oklch(0.6 0.04 250 / 0.38)"} strokeWidth="1" style={{transition:"stroke .2s"}}/>
+                  {(labeled||hot)&&<text x={x+bw/2} y={labelY} textAnchor="middle" style={{fontSize:"10px",fontVariantNumeric:"tabular-nums",fill:hot?"oklch(0.5 0.12 247)":"oklch(0.55 0.028 244)",fontWeight:hot?"700":"500",transition:"fill .2s"}}>{item.label}</text>}
                 </g>
               );})}
 
@@ -436,7 +444,7 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
               {pts.map((p,i)=><circle key={`dot-${i}`} cx={p.x} cy={p.y} r={hoveredIdx===i?5:3} fill="oklch(0.58 0.14 164)" stroke="oklch(1 0 0 / 0.95)" strokeWidth="2" className="cursor-pointer" filter={hoveredIdx===i?"url(#glowSoft)":undefined} onMouseEnter={()=>setHoveredIdx(i)} onClick={()=>setActiveTrend(S[i] as TrendDetail)}/>)}
 
               {/* hover 十字线 + 毛玻璃数据卡 */}
-              {hoveredIdx!==null&&hover&&<line x1={xc(hoveredIdx)} y1={tp} x2={xc(hoveredIdx)} y2={cy+bandHalf} stroke="oklch(0.63 0.128 247 / 0.28)" strokeWidth="1" strokeDasharray="3 2"/>}
+              {hoveredIdx!==null&&hover&&<line x1={xc(hoveredIdx)} y1={tp} x2={xc(hoveredIdx)} y2={axisY} stroke="oklch(0.63 0.128 247 / 0.28)" strokeWidth="1" strokeDasharray="3 2"/>}
               {hoveredIdx!==null&&hover&&(()=>{const w=128,h=86;const x=Math.min(Math.max(xc(hoveredIdx)-w/2,lp),cw-rp-w);const y=tp+4;return (
                 <g pointerEvents="none">
                   <rect x={x} y={y} width={w} height={h} rx="10" fill="oklch(1 0 0 / 0.92)" stroke="oklch(0.63 0.128 247 / 0.25)" strokeWidth="1"/>
