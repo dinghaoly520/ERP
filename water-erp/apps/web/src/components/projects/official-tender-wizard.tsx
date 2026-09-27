@@ -61,10 +61,9 @@ export function OfficialTenderWizard({
 }: Props) {
   const round = stage.round ?? 1;
   const [step, setStep] = useState<1 | 2>(1);
-  // 智能默认：无已落指针且候选唯一 → 自动选中（仍需用户点「下一步」确认）
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initialOfficialId ?? (attachments.length === 1 ? attachments[0].id ?? null : null),
-  );
+  // 默认不选（2026-09-27 用户裁定）：仅回显已落指针的上次标记；候选唯一也不自动选中——
+  // 标记正式文件须由用户主动点击，否则出现「圆圈已选但无『已标记正式』徽章」的不一致态
+  const [selectedId, setSelectedId] = useState<string | null>(initialOfficialId);
   const [selecting, setSelecting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
