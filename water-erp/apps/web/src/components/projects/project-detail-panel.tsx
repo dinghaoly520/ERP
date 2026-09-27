@@ -1901,6 +1901,13 @@ export function ProjectDetailPanel({
               <StageFileList
                 files={selectedStage.attachments}
                 projectId={item.id}
+                frozenAttachmentIds={
+                  selectedStage.stageKey === 'TENDER_DOCUMENT' &&
+                  selectedStage.status === 'COMPLETED' &&
+                  selectedStage.officialTenderAttachmentId
+                    ? [selectedStage.officialTenderAttachmentId]
+                    : undefined
+                }
                 onDeleted={async (deletedObjectKey) => {
                   // 判断被删文件是否"采购文件"（信息来源），而非审批表/公告/合同等附件
                   const deletedFile = selectedStage.attachments.find((a) => a.objectKey === deletedObjectKey);

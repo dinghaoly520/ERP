@@ -84,6 +84,15 @@ export class AnnouncementService {
       await this.assertGbCodeIfLinked(dto.relatedProjectCode);
     }
 
+    // 正式盖章版引用校验（2026-09-27 用户裁定）：BID_NOTICE 即时发布且引用采购文件 → 必须
+    // 与 03 指针一致；置于建行之前（同 W2/T4 口径：违者 400 且不留孤儿公告）
+    if (dto.type === 'BID_NOTICE' && status === 'PUBLISHED') {
+      await this.assertOfficialTenderReference(
+        ((dto.metadata as Record<string, any>) ?? {}),
+        dto.relatedProjectCode,
+      );
+    }
+
     // GB/T 43711（7.3）：谈判采购通过定向邀请组织，不发布采购公告（前端类别矩阵
     // ANNOUNCEMENT_AVAILABILITY 已限定谈判只有流标/中标公告）——此为 API 直发防线
     if (dto.type === 'BID_NOTICE' && (dto.metadata as Record<string, any> | null)?.method === '谈判采购') {
@@ -380,6 +389,15 @@ export class AnnouncementService {
     // 对接专项 Phase 1（T4）：发布赋码强制闸（update 路径——状态转入 PUBLISHED 时）
     if (isPublishTransition) {
       await this.assertGbCodeIfLinked(dto.relatedProjectCode ?? announcement.relatedProjectCode);
+    }
+
+    // 正式盖章版引用校验（2026-09-27）：BID_NOTICE 转入发布且引用采购文件 → 必须与 03 指针
+    // 一致；置于写库之前（定时发布/草稿转发布同样受闸，取数与 W2 同口径 dto ?? 库中值）
+    if (isBidNoticePublish) {
+      await this.assertOfficialTenderReference(
+        ((dto.metadata ?? announcement.metadata) as Record<string, any>) ?? {},
+        dto.relatedProjectCode ?? announcement.relatedProjectCode,
+      );
     }
 
     let result;
@@ -846,6 +864,52 @@ export class AnnouncementService {
       }).catch(() => undefined);
     }
     return r;
+  }
+
+  /**
+   * 正式盖章版引用校验（2026-09-27 用户裁定）：公告引用的采购文件必须与 03「采购文件」
+   * 步骤标记的正式盖章版指针一致——服务端权威闸，防绕过 04 向导直发任意文件
+   * （04 前端为只读派生，正常路径必一致；不一致即说明绕过了向导）。
+   * 仅当 metadata 带 selectedTenderObjectKey 且 relatedProjectCode 能定位 PMI 时校验，
+   * 无项目关联的手工公告不受影响。指针查找口径与 04 向导同源：先按 currentRound
+   * 匹配 03 行，缺行回退首条（旧数据 round 空值）。
+   */
+  private async assertOfficialTenderReference(
+    meta: Record<string, any>,
+    relatedProjectCode?: string | null,
+  ) {
+    const key: string | undefined = meta.selectedTenderObjectKey;
+    if (!key || !relatedProjectCode) return;
+    const pmi = await this.prisma.projectManagementItem.findUnique({
+      where: { projectCode: relatedProjectCode },
+      select: { id: true, currentRound: true },
+    });
+    if (!pmi) return;
+    const round = pmi.currentRound ?? 1;
+    const stage =
+      (await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: pmi.id, stageKey: 'TENDER_DOCUMENT', round },
+        select: { officialTenderAttachmentId: true },
+      })) ??
+      (await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: pmi.id, stageKey: 'TENDER_DOCUMENT' },
+        select: { officialTenderAttachmentId: true },
+      }));
+    const officialObjectKey = stage?.officialTenderAttachmentId
+      ? (
+          await this.prisma.attachment.findUnique({
+            where: { id: stage.officialTenderAttachmentId },
+            select: { objectKey: true },
+          })
+        )?.objectKey
+      : null;
+    if (officialObjectKey !== key) {
+      throw new BadRequestException({
+        error:
+          '公告引用的采购文件与 03「采购文件」步骤标记的正式盖章版不一致（或未标记）——请从项目管理第四步「公告制作与发布」向导重新发布。',
+        code: 'OFFICIAL_TENDER_MISMATCH',
+      });
+    }
   }
 
   private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null; companyId?: string | null; companyName?: string | null }) {

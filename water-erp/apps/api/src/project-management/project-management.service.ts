@@ -3486,6 +3486,34 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
+   * 正式盖章版冻结锁（2026-09-27 用户裁定：03 确认即冻结）：附件是「已完成 03 阶段」的
+   * 正式盖章版指针目标时，禁止内容替换（saveAttachmentHtml 原地换 objectKey）与删除——
+   * 保 04 公告引用与 03 确认时刻的内容一致（身份一致由指针天然保证，本闸补内容时点）。
+   * 解锁路径 = 重开该步骤（updateStage 回退未完成即解除）。
+   */
+  private async assertAttachmentNotFrozen(attachment: {
+    id: string;
+    projectManagementStageId: string | null;
+  }) {
+    if (!attachment.projectManagementStageId) return;
+    const stage = await this.prisma.projectManagementStage.findUnique({
+      where: { id: attachment.projectManagementStageId },
+      select: { stageKey: true, status: true, officialTenderAttachmentId: true },
+    });
+    if (
+      stage?.stageKey === 'TENDER_DOCUMENT' &&
+      stage.status === PROJECT_STAGE_STATUS.COMPLETED &&
+      stage.officialTenderAttachmentId === attachment.id
+    ) {
+      throw new BadRequestException({
+        error:
+          '该文件是已确认的正式盖章版采购文件（03 步骤完成时冻结）——如需修改或删除，请先重开「采购文件」步骤。',
+        code: 'OFFICIAL_TENDER_FROZEN',
+      });
+    }
+  }
+
+  /**
    * 正式盖章版采购文件强制闸（2026-09-26 用户裁定：必须强制、不可豁免——
    * waiveArchiveGate 仅覆盖归档材料缺口，本闸不受其影响）。
    * 指针经 FK(onDelete: SetNull) 保证非空即存在：附件被删/整体替换时自动回空、闸门重开。
@@ -5720,6 +5748,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('该附件不属于当前项目。');
     }
 
+    // 冻结锁（2026-09-27）：已完成的 03 正式盖章版不可删除（防归档断链）
+    await this.assertAttachmentNotFrozen(attachment);
+
     // Delete the file from filesystem
     const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
     try {
@@ -7256,6 +7287,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       select: { id: true, fileName: true, objectKey: true, projectManagementStageId: true },
     });
     if (!oldAttachment) throw new NotFoundException('未找到对应附件');
+
+    // 冻结锁（2026-09-27）：已完成的 03 正式盖章版不可替换内容
+    await this.assertAttachmentNotFrozen(oldAttachment);
 
     const oldPath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
     const usePatcher = this.patcherEnabled && !!dto.originalHash;

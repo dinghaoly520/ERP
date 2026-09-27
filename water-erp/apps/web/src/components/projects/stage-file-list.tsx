@@ -107,11 +107,14 @@ export function StageFileList({
   projectId,
   onDeleted,
   onEdit,
+  frozenAttachmentIds,
 }: {
   files: ProjectManagementAttachment[];
   projectId: string;
   onDeleted?: (deletedObjectKey: string) => void;
   onEdit?: (attachmentId: string, fileName: string) => void;
+  /** 冻结附件 id 集（2026-09-27）：已完成 03 阶段的正式盖章版——编辑/删除禁用（服务端硬闸同步） */
+  frozenAttachmentIds?: string[];
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -154,6 +157,9 @@ export function StageFileList({
       <div className="space-y-2">
         {files.map((file) => {
           const kind = getFileKind(file.fileName);
+          // 冻结行（已完成 03 的正式盖章版）：编辑/删除禁用 + 行内徽标提示
+          const frozen = !!(file.id && frozenAttachmentIds?.includes(file.id));
+          const frozenTitle = '正式盖章版已随 03 步骤完成冻结——如需修改请先重开该步骤';
           return (
             <div
               key={file.objectKey}
@@ -167,8 +173,18 @@ export function StageFileList({
               >
                 <FileKindIcon kind={kind} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-[color:var(--foreground)] group-hover:text-[var(--accent)] transition-colors">
-                    {file.fileName}
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-medium text-[color:var(--foreground)] group-hover:text-[var(--accent)] transition-colors">
+                      {file.fileName}
+                    </span>
+                    {frozen && (
+                      <span
+                        className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]"
+                        title={frozenTitle}
+                      >
+                        正式盖章版·已冻结
+                      </span>
+                    )}
                   </div>
                   <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
                     {file.mimeType} · {formatFileSize(file.fileSize)}
@@ -195,8 +211,9 @@ export function StageFileList({
                 <button
                   type="button"
                   onClick={() => onEdit(file.id!, file.fileName)}
-                  className="neu-btn-xs is-info !p-1.5 opacity-0 transition group-hover:opacity-100"
-                  title="编辑修改"
+                  disabled={frozen}
+                  title={frozen ? frozenTitle : '编辑修改'}
+                  className="neu-btn-xs is-info !p-1.5 opacity-0 transition group-hover:opacity-100 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Pencil size={13} />
                 </button>
@@ -218,8 +235,9 @@ export function StageFileList({
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteId(file.id!)}
-                    className="neu-btn-xs is-danger !p-1.5 opacity-0 transition group-hover:opacity-100"
-                    title="删除文件"
+                    disabled={frozen}
+                    title={frozen ? frozenTitle : '删除文件'}
+                    className="neu-btn-xs is-danger !p-1.5 opacity-0 transition group-hover:opacity-100 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <X size={14} />
                   </button>

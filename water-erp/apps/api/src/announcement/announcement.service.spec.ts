@@ -656,3 +656,92 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     expect(prisma.announcement.findMany.mock.calls[2][0].where.status).toBe('PUBLISHED');
   });
 });
+
+describe('AnnouncementService — 正式盖章版引用校验（OFFICIAL_TENDER_MISMATCH，2026-09-27）', () => {
+  const mk = async (prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      projectManagementItem: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'pmi-1', currentRound: 1 }),
+      },
+      projectManagementStage: {
+        findFirst: jest.fn().mockResolvedValue({ officialTenderAttachmentId: 'att-official' }),
+      },
+      attachment: {
+        findUnique: jest.fn().mockResolvedValue({ objectKey: 'obj/official.docx' }),
+      },
+      ...prismaOverrides,
+    };
+    const { AnnouncementService } = await import('./announcement.service');
+    const svc: any = Object.create(AnnouncementService.prototype);
+    svc.prisma = prisma;
+    return { svc, prisma };
+  };
+
+  it('objectKey 与 03 指针一致 → 放行', async () => {
+    const { svc } = await mk();
+    await expect(
+      svc.assertOfficialTenderReference({ selectedTenderObjectKey: 'obj/official.docx' }, 'SWHI-JJ-1'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('objectKey 与指针不一致（绕过 04 向导直发）→ 400 OFFICIAL_TENDER_MISMATCH', async () => {
+    const { svc } = await mk();
+    await expect(
+      svc.assertOfficialTenderReference({ selectedTenderObjectKey: 'obj/任意其他文件.docx' }, 'SWHI-JJ-1'),
+    ).rejects.toMatchObject({ response: { code: 'OFFICIAL_TENDER_MISMATCH' } });
+  });
+
+  it('指针为空但 metadata 带引用 → 400（未标记不得引用——与 04 向导「无指针不引用」口径互斥）', async () => {
+    const { svc } = await mk({
+      projectManagementStage: { findFirst: jest.fn().mockResolvedValue({ officialTenderAttachmentId: null }) },
+    });
+    await expect(
+      svc.assertOfficialTenderReference({ selectedTenderObjectKey: 'obj/official.docx' }, 'SWHI-JJ-1'),
+    ).rejects.toMatchObject({ response: { code: 'OFFICIAL_TENDER_MISMATCH' } });
+  });
+
+  it('无 selectedTenderObjectKey → 跳过校验（不引用不校验，PMI 不查）', async () => {
+    const { svc, prisma } = await mk();
+    await expect(svc.assertOfficialTenderReference({}, 'SWHI-JJ-1')).resolves.toBeUndefined();
+    expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('relatedProjectCode 缺失（无项目关联）→ 跳过校验', async () => {
+    const { svc, prisma } = await mk();
+    await expect(svc.assertOfficialTenderReference({ selectedTenderObjectKey: 'obj/official.docx' }, null)).resolves.toBeUndefined();
+    expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('projectCode 定位不到 PMI（手工公告/历史编号）→ 跳过校验', async () => {
+    const { svc } = await mk({
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+    });
+    await expect(svc.assertOfficialTenderReference({ selectedTenderObjectKey: 'obj/official.docx' }, 'OLD-1')).resolves.toBeUndefined();
+  });
+
+  it('指针查找 round 感知：currentRound=2 → findFirst 带 round:2（多轮不误读 round-1 行）', async () => {
+    const { svc, prisma } = await mk({
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue({ id: 'pmi-1', currentRound: 2 }) },
+    });
+    await svc.assertOfficialTenderReference({ selectedTenderObjectKey: 'obj/official.docx' }, 'SWHI-JJ-1');
+    expect(prisma.projectManagementStage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ stageKey: 'TENDER_DOCUMENT', round: 2 }) }),
+    );
+  });
+
+  it('create 前置校验：BID_NOTICE 即时发布 + 引用不一致 → 400 且不建行（无孤儿公告）', async () => {
+    const { svc, prisma } = await mk({
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ gbProcureCode: 'GB-1' }) },
+    });
+    prisma.announcement = { create: jest.fn() };
+    svc.announcementAi = { summarize: jest.fn().mockResolvedValue('摘要'), looksLikePromptLeak: jest.fn().mockReturnValue(false) };
+    await expect(
+      svc.create({
+        title: 'T', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c',
+        relatedProjectCode: 'SWHI-JJ-1',
+        metadata: { selectedTenderObjectKey: 'obj/wrong.docx' },
+      } as any, 'u1'),
+    ).rejects.toMatchObject({ response: { code: 'OFFICIAL_TENDER_MISMATCH' } });
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+});
