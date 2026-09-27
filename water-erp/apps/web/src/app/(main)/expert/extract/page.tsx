@@ -74,7 +74,7 @@ export function ExpertExtractPage({
   const [pool, setPool] = useState<Map<string, number>>(new Map());
   const [tn, setTn] = useState(5); const [alt, setAlt] = useState(2);
   const [extractMode, setExtractMode] = useState<ExtractMode>('random');
-  // ── 补选：弹窗内闭环（抽取→审核→一键通知），步骤4 只记录历史，不占主轨道 ──
+  // 补选：弹窗内闭环（抽取→审核→一键通知），步骤4 只记录历史，不占主轨道
   const ORDINAL = ['', '一', '二', '三', '四', '五', '六', '七'];
   // 已入库的补选轮次记录（步骤4 工作区展示 + 支持重开继续通知）
   type ReHistoryItem = {
@@ -296,7 +296,7 @@ export function ExpertExtractPage({
     return () => clearInterval(timer);
   }, [step, pid, reDraft]);
 
-  // ── modal 模式状态恢复 ──
+  // modal 模式状态恢复
   // 两个独立 effect，不互等，消除 localStorage ↔ invitationData 加载竞态：
   //   ① pid 就绪后立即查 localStorage（上次抽取状态）→ 成功则恢复
   //   ② 仅当 localStorage 无数据时，从 invitationData 还原已有分配专家
@@ -748,7 +748,7 @@ export function ExpertExtractPage({
     for (const [k, v] of ps) if (v.includes(OLD)) { ps.set(k, v.split(OLD).join(NEW)); changed = true; }
     if (changed) { setNotifyMessages(nm); setPhoneScripts(ps); setNotifyVersion(v => v + 1); }
   }, [notifyMessages, phoneScripts]);
-  // ── 委员会席位数（用户主动选择 3/5/7）──
+  // 委员会席位数（用户主动选择 3/5/7）
   const [totalSeats, setTotalSeats] = useState<3 | 5 | 7>(5);
   const demandRepSeats = needDemandRep ? demandRepCount : 0;
   const expertSeats = Math.max(0, totalSeats - demandRepSeats); // 专业专家可分配席位
@@ -1000,7 +1000,7 @@ export function ExpertExtractPage({
     ),
   [availablePool, replaceSearch]);
 
-  // ── 自定义项目：上传文件 / AI 分析 / 创建影子项目并进入抽取 ──
+  // 自定义项目：上传文件 / AI 分析 / 创建影子项目并进入抽取
   const handleUploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -1774,8 +1774,8 @@ export function ExpertExtractPage({
   };
   const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); lastReQuotasRef.current = []; quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
 
-  // ── 配置卡片 ──
-  // ── 替换/添加弹窗 ──
+  // 配置卡片
+  // 替换/添加弹窗
   // 被替换的原专家信息
   const replacedExpert = useMemo(() => {
     if (!replaceTarget) return null;
@@ -1828,7 +1828,7 @@ export function ExpertExtractPage({
     </Modal>
   );
 
-  // ── 通知弹窗 ──
+  // 通知弹窗
   return (
     <div className="flex flex-col gap-5 pb-8">
       {!hideHeader && (
@@ -1884,7 +1884,7 @@ export function ExpertExtractPage({
 
       {error && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
 
-      {/* ── 步骤 1：抽取配置 ── */}
+      {/* 步骤 1：抽取配置 */}
       {step === 1 && (
         <div className="space-y-4">
           <div className="neu-table-card p-5 space-y-4">
@@ -2409,7 +2409,7 @@ export function ExpertExtractPage({
         </div>
       )}
 
-      {/* ── 步骤 3：发送通知 ── */}
+      {/* 步骤 3：发送通知 */}
       {step === 3 && (
         <div className="space-y-4">
 
@@ -2594,7 +2594,7 @@ export function ExpertExtractPage({
         </div>
       )}
 
-      {/* ── 步骤 4：专家确认与补选 ── */}
+      {/* 步骤 4：专家确认与补选 */}
       {step === 4 && (
         <div className="space-y-4">
           {invitationData && (
@@ -2782,7 +2782,7 @@ export function ExpertExtractPage({
         </div>
       )}
 
-      {/* ── 步骤 5：专家组确认（常态化，展示最终专家组成员）── */}
+      {/* 步骤 5：专家组确认（常态化，展示最终专家组成员） */}
       {step === 5 && (
         <div className="space-y-4">
           {invitationData && (
@@ -2916,7 +2916,7 @@ export function ExpertExtractPage({
         </div>
       )}
 
-      {/* ── 步骤 6：候补专家抽取与确认 ── */}
+      {/* 步骤 6：候补专家抽取与确认 */}
       {step === 6 && (
         <div className="space-y-4">
           {altExtracting ? (
@@ -3010,7 +3010,7 @@ export function ExpertExtractPage({
                     </span>
                   ) : (
                     <>
-                    {/* P1-16（走查③）：候补通知文案 AI 生成入口——正选在步骤 3 有 AI 生成，
+                    {/* （走查③）：候补通知文案 AI 生成入口——正选在步骤 3 有 AI 生成，
                         候补从未生成文案导致「确认并通知候补」tasks 恒空死链。复用正选模式。 */}
                     <button onClick={async () => {
                       setAltNotifying(true);
@@ -3077,7 +3077,7 @@ export function ExpertExtractPage({
         </div>
       )}
 
-      {/* ── 补选弹窗：抽取 → 审核 → 一键通知，闭环后写入历史 ── */}
+      {/* 补选弹窗：抽取 → 审核 → 一键通知，闭环后写入历史 */}
       {reDraft && (
         <Modal open onClose={() => { if (reDraft.phase !== 'extracting' && reDraft.phase !== 'sending') closeReModal(); }} size="lg"
           title={<span className="flex items-center gap-2"><RefreshCw size={15} className="text-[var(--accent)]" />第{reDraft.roundNo}次补选</span>}

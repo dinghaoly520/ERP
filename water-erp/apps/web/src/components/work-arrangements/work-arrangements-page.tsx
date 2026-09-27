@@ -88,7 +88,7 @@ export function clearWorkspaceCache() {
   workspaceCache.lastFetchedAt = 0;
 }
 
-// ── localStorage-backed dailyPlan cache — persists across sessions ──
+// localStorage-backed dailyPlan cache — persists across sessions
 const DAILY_PLAN_STORAGE_KEY = 'workspace:daily-plan';
 const DAILY_PLAN_STORAGE_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -271,7 +271,7 @@ export function WorkArrangementsPage({
   const [isOverview, setIsOverview] = useState(true);
   const [statKey, setStatKey] = useState<WorkbenchStatKey | null>(null);
 
-  // ── 两面板等高水平：每次数据变化时重置 auto 取自然高度，以较矮者为基准 ──
+  // 两面板等高水平：每次数据变化时重置 auto 取自然高度，以较矮者为基准
   const containerRef = useRef<HTMLDivElement>(null);
   const leftColRef = useRef<HTMLDivElement>(null);
   const rightColRef = useRef<HTMLDivElement>(null);
@@ -810,7 +810,7 @@ export function WorkArrangementsPage({
     }
   };
 
-  // ── 逾期任务对话框回调 ──
+  // 逾期任务对话框回调
   const handleOverdueStatusUpdate = async (id: string, status: WorkArrangementStatus) => {
     await updateWorkArrangement(id, { status });
     await refreshTasksOnly();

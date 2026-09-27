@@ -600,13 +600,13 @@ export class TenderWriteService {
       .map((l) => l.trim())
       .filter(Boolean);
 
-    // ── Format B: single-line entries ──
+    // Format B: single-line entries
     // "1四川雏雁…140120.00136400.00"
     // Pattern: row number + non-digit chars (name) + two concatenated prices
     const singleLinePattern =
       /^(\d)([^\d]+?)(\d+\.\d{2})(\d+\.\d{2})$/;
 
-    // ── Format A: multi-line (number on its own line) ──
+    // Format A: multi-line (number on its own line)
     let i = 0;
     while (i < lines.length) {
       // Try Format B first: entire entry on one line

@@ -188,7 +188,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     private reportGenerator: ReportGeneratorService,
   ) {}
 
-  // ── 知识库属主校验（rules / execute 复用）──
+  // 知识库属主校验（rules / execute 复用）
   private async assertKbVisible(kbId: string, user: AuthenticatedUser | undefined) {
     const kb = await this.prisma.knowledgeBase.findUnique({
       where: { id: kbId },
@@ -208,7 +208,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('无权维护该知识库（仅创建者或管理员）');
   }
 
-  // ── Rule Management ──
+  // Rule Management
 
   @Post('rules/extract')
   @Roles('leader', 'admin', 'staff')
@@ -336,7 +336,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     return this.prisma.complianceRule.delete({ where: { id } });
   }
 
-  // ── Review Execution ──
+  // Review Execution
 
   @Post('review/upload')
   @Roles('leader', 'admin', 'staff')
@@ -836,7 +836,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // ── Download modified document ──
+  // Download modified document
 
   @Get('review/tasks/:id/download')
   @Roles('leader', 'admin', 'staff')
@@ -872,7 +872,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // ── Internal Extraction Logic ──
+  // Internal Extraction Logic
 
   private async runExtraction(
     taskId: string,
@@ -920,7 +920,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  // ── Internal Review Logic ──
+  // Internal Review Logic
 
   private async runReview(
     taskId: string,

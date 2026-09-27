@@ -106,7 +106,7 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
         await deleteSupervisionAnnotation(projectId, supplierId);
       }
     } catch (e: any) {
-      // L7（2026-08-28）：落库失败不再静默——乐观态回滚为服务端真值并提示（监督留痕可信度）
+      // L7：落库失败不再静默——乐观态回滚为服务端真值并提示（监督留痕可信度）
       toast.error(`批注保存失败：${e?.message || '请稍后重试'}`);
       void loadAnnotations();
     }

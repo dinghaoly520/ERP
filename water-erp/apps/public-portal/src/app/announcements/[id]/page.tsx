@@ -57,10 +57,10 @@ export default function AnnouncementDetailPage() {
   return (
     <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <FlowBackdrop />
-      {/* ═══ 统一顶栏 ═══ */}
+      {/* 统一顶栏 */}
       <UnifiedHeader announcements={[]} onLoginClick={() => {}} onRegisterClick={() => {}} />
 
-      {/* ═══ 内容区 ═══ */}
+      {/* 内容区 */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
         <a href={backHref} className="flow-back mb-8"
           onClick={(e) => {
@@ -140,7 +140,7 @@ export default function AnnouncementDetailPage() {
             dangerouslySetInnerHTML={{ __html: item.content }}
           />
 
-          {/* 异议联系方式（2026-09-11）：发布时自澄清说明快照写入，公告阅读后单独展示 */}
+          {/* 异议联系方式：发布时自澄清说明快照写入，公告阅读后单独展示 */}
           {(() => {
             const oc = String(item.metadata?.objectionContact ?? '').trim();
             if (!oc) return null;

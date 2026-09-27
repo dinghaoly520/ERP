@@ -346,6 +346,17 @@ const BID_SPECS: NotificationTypeSpec[] = [
     channels: IN_APP,
   },
   {
+    code: 'BOND_REFUND_DUE',
+    label: '响应担保退还',
+    domain: 'bid',
+    icon: 'HandCoins',
+    tone: 'orange',
+    actionable: true,
+    audiences: [{ kind: 'ROLE', roles: ['staff'] }],
+    channels: IN_APP,
+    link: () => '/projects', // 项目管理-合同面板逐家登记退还
+  },
+  {
     code: 'BID_ABORTED',
     label: '流标通知',
     domain: 'bid',
@@ -436,11 +447,13 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_RETURNED', label: '退回补正', domain: 'supplier', icon: 'RotateCcw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_BLACKLISTED', label: '供应商拉黑', domain: 'supplier', icon: 'Ban', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_UNBLACKLISTED', label: '供应商解除拉黑', domain: 'supplier', icon: 'CircleCheck', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
-  { code: 'SUPPLIER_ELIMINATE_CANDIDATE', label: '供应商淘汰预警', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['admin', 'leader', 'staff'] }], channels: IN_APP },
+  { code: 'SUPPLIER_ELIMINATE_CANDIDATE', label: '供应商淘汰预警', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP }, // 2026-09-26 已去 admin
   { code: 'SUPPLIER_REVIEW_URGE', label: '供应商催审', domain: 'supplier', icon: 'Clock', tone: 'orange', actionable: true, audiences: LEGACY('现按归属公司工作人员+回退全体，挂起待议'), channels: IN_APP },
   { code: 'PREQUAL_RESULT', label: '资格预审结果', domain: 'supplier', icon: 'FileCheck2', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'QUALIFICATION_EXPIRING', label: '资质到期', domain: 'supplier', icon: 'AlertTriangle', tone: 'orange', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
+  { code: 'OBJECTION_ANSWERED', label: '异议答复', domain: 'bid', icon: 'MessageCircle', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-09-27 从 SYSTEM 拆分（供应商收）
   { code: 'SELECTION_SHARED', label: '候选名单分享', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP },
+  { code: 'SUPPLIER_CLEANUP_DUE', label: '临时供应商清理', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/supplier/repository' }, // 2026-09-27 从 SYSTEM 拆分
 ];
 
 const ACCOUNT_SPECS: NotificationTypeSpec[] = [
@@ -456,6 +469,7 @@ const ARCHIVE_SPECS: NotificationTypeSpec[] = [
   { code: 'ARCHIVE_READY', label: '归档待办', domain: 'archive', icon: 'FileArchive', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP }, // 2026-09-26 已实施：业务通知不进 admin
   { code: 'ARCHIVE_TRANSFER_DUE', label: '归档移交临期', domain: 'archive', icon: 'CalendarClock', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff', 'leader'] }], channels: IN_APP },
   { code: 'ARCHIVE_OVERDUE', label: '归档严重逾期', domain: 'archive', icon: 'AlertTriangle', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['leader'] }], channels: IN_APP }, // 2026-09-26 已实施
+  { code: 'ARCHIVE_INTEGRITY_ALERT', label: '档案完整性告警', domain: 'archive', icon: 'ShieldAlert', tone: 'red', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/archive' }, // 2026-09-27 从 SYSTEM 拆分
 ];
 
 /* ── 合同履约域（2026-09-26 补齐：合同签约此前零通知） ── */
@@ -494,6 +508,7 @@ const CONTRACT_SPECS: NotificationTypeSpec[] = [
 
 const ANNOUNCEMENT_SPECS: NotificationTypeSpec[] = [
   { code: 'ANNOUNCEMENT_PUBLISHED', label: '公告发布', domain: 'announcement', icon: 'Megaphone', tone: 'blue', actionable: false, audiences: LEGACY('公告订阅供应商定向，挂起待议'), channels: IN_APP },
+  { code: 'PRE_WIN_CONFIRM_DUE', label: '成交公告待确认', domain: 'announcement', icon: 'ClipboardCheck', tone: 'orange', actionable: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/notice' }, // 2026-09-27 从 SYSTEM 拆分
 ];
 
 const CATALOG_SPECS: NotificationTypeSpec[] = [

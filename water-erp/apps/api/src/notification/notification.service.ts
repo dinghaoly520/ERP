@@ -54,8 +54,17 @@ export class NotificationService {
 
   /** 站内信创建后，按用户联系方式异步分发到 Email/SMS/Phone（失败不阻断主流程）。 */
   private async dispatchExternal(userId: string, notificationId: string, payload: { type: string; title: string; content: string; link?: string | null }) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
-    const contact = { email: user?.email ?? null, phone: null as string | null };
+    // 2026-09-27 修复：phone 原先恒为 null → sms/phone 渠道永远 skipped。
+    // 与 sendToUser 同口径：专家取 ExpertProfile.phone，供应商取主联系人电话。
+    const [user, profile, supplier] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
+      this.prisma.expertProfile.findUnique({ where: { userId }, select: { phone: true } }).catch(() => null),
+      this.prisma.supplier.findUnique({
+        where: { userId },
+        select: { contacts: { where: { isPrimary: true }, select: { phone: true }, take: 1 } },
+      }).catch(() => null),
+    ]);
+    const contact = { email: user?.email ?? null, phone: profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null };
     const tasks: Promise<unknown>[] = [];
     if (shouldDispatch('email', contact)) {
       tasks.push(
@@ -234,7 +243,7 @@ export class NotificationService {
     }
     if (countTypes.length > 0) countWhere.type = { in: countTypes };
 
-    const [total, items, unreadCount, todoCount, typeGroups] = await Promise.all([
+    const [total, items, unreadCount, todoCount, typeGroups, segAll, segTodo, segDone, segToread, segRead] = await Promise.all([
       this.prisma.notification.count({ where }),
       this.prisma.notification.findMany({
         where,
@@ -242,7 +251,7 @@ export class NotificationService {
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      // KPI 元信息（2026-09-09）：服务端口径，前端不再用当前页 items 估算
+      // KPI 元信息：服务端口径，前端不再用当前页 items 估算
       this.prisma.notification.count({ where: { userId, isRead: false } }),
       this.prisma.notification.count({ where: { userId, isRead: false, resolvedAt: null } }),
       this.prisma.notification.groupBy({
@@ -250,13 +259,21 @@ export class NotificationService {
         where: countWhere,
         _count: { type: true },
       }),
+      // 五段计数（2026-09-27）：分段按钮红色/灰色数量角标数据源
+      this.prisma.notification.count({ where: { userId } }),
+      this.prisma.notification.count({ where: { userId, type: { in: ACTIONABLE_TYPES }, resolvedAt: null, isRead: false } }),
+      this.prisma.notification.count({ where: { userId, type: { in: ACTIONABLE_TYPES }, OR: [{ resolvedAt: { not: null } }, { isRead: true }] } }),
+      this.prisma.notification.count({ where: { userId, type: { in: READONLY_TYPES }, isRead: false } }),
+      this.prisma.notification.count({ where: { userId, type: { in: READONLY_TYPES }, isRead: true } }),
     ]);
 
     const typeCounts = typeGroups
       .map((g) => ({ type: g.type, count: g._count.type }))
       .sort((a, b) => b.count - a.count);
 
-    return { total, page, pageSize, items, unreadCount, todoCount, typeCounts };
+    const segmentCounts = { all: segAll, todo: segTodo, done: segDone, toread: segToread, read: segRead };
+
+    return { total, page, pageSize, items, unreadCount, todoCount, typeCounts, segmentCounts };
   }
 
   /** 将某 type+link 对应的未 resolve 通知标记为已处理（待办清零）。 */
@@ -297,8 +314,10 @@ export class NotificationService {
   }
 
   async markAllAsRead(userId: string) {
+    // 2026-09-27 修复：仅置「知会类」（READONLY_TYPES）已读，不动 actionable 待办——
+    // 否则「全部标已读」会因"已读兜底归已办"把待办瞬间清空（语义陷阱）。
     return this.prisma.notification.updateMany({
-      where: { userId, isRead: false },
+      where: { userId, isRead: false, type: { in: READONLY_TYPES } },
       data: { isRead: true, readAt: new Date() },
     });
   }

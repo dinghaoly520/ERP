@@ -15,7 +15,7 @@ import { OpeningFieldDef, STATUTORY_OPENING_KEYS, resolveOpeningFieldConfig, ass
 /** A-113：唱标字段配置锁定阶段——开标已开始后改配置会造成既有唱标记录历史列漂移 */
 const OPENING_FIELD_CONFIG_LOCKED_STAGES = ['OPENING', 'EVALUATING', 'ARCHIVED'];
 
-/** 开标记录/异议域（F1c）——自 bid.service.ts 迁出（P1 审查 F 簇拆分，纯移动）。索引：listOpeningRecords / getOpeningRecordDraft / enterOpeningRecord / resolveOpeningDispute / overrideDispute；唱标校验共用 opening-record-assert.util */
+/** 开标记录与异议处理。唱标校验共用 opening-record-assert.util。 */
 @Injectable()
 export class BidOpeningRecordService {
   constructor(
@@ -42,7 +42,7 @@ export class BidOpeningRecordService {
 
   /**
    * 唱标预填草稿：聚合项目级质量目标 + 投标提交的报价/工期/质量承诺 + 已有开标记录的保证金状态。
-   * 质量承诺口径（2026-08-17）：优先供应商投递的质量承诺（qualityCommitment），未填写回退项目级
+   * 质量承诺口径：优先供应商投递的质量承诺（qualityCommitment），未填写回退项目级
    * qualityRequirement——唱标不再凭空增项。
    * 仅 OPENING 阶段且该供应商解密成功才返回真实数据（canView=true），
    * 保证金凭证（bidBondAssetId）同样仅此时可见，供主持人核对。
@@ -91,7 +91,7 @@ export class BidOpeningRecordService {
       canView: true,
       // bidPrice 入库已密封；此处 canView=true 已保证 decryptStatus==='SUCCESS'，安全拆封。
       // 旧明文数据经 openField legacy 兼容原样返回。
-      // dual-v2（P1-4 同口径）：报价改指 decryptedPrice（解密上传经 fieldsCommit 承诺验证落库；
+      // dual-v2（同口径）：报价改指 decryptedPrice（解密上传经 fieldsCommit 承诺验证落库；
       // 新轨投递 bidPrice 列恒 null，读旧列会显示 null 价 → 主持人按面板录入必撞 409 PRICE_MISMATCH）。
       amount: submission
         ? (submission.envelopeVersion === 'dual-v2'
@@ -155,12 +155,12 @@ export class BidOpeningRecordService {
       throw new ConflictException({ error: '该供应商已确认开标记录，禁止覆盖唱标信息', code: 'RECORD_ALREADY_CONFIRMED' });
     }
 
-    // P1-4：与供应商密封报价比对（误录一路进排名/中标公示的防线）
+    // 与供应商密封报价比对（误录一路进排名/中标公示的防线）
     const priceNote = await assertPriceMatchesSealed(this.prisma, projectId, bidSupplier.id, dto.amount, dto.confirmSealedPrice);
-    // P1-4 同构：与投递工期比对（误录工期一路进评标/公示的防线）
+    // 同构：与投递工期比对（误录工期一路进评标/公示的防线）
     const periodNote = await assertPeriodMatchesSubmitted(this.prisma, projectId, bidSupplier.id, dto.period, dto.confirmSealedPeriod);
 
-    // 单位戳（2026-09-14）：dual-v2 轨金额=万元裸数字——落列自描述，读端（util）优先取本列
+    // 单位戳：dual-v2 轨金额=万元裸数字——落列自描述，读端（util）优先取本列
     const submission = bidSupplier.supplierId
       ? await this.prisma.supplierBidSubmission.findUnique({
           where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
@@ -185,7 +185,7 @@ export class BidOpeningRecordService {
       customFields: customFields ?? Prisma.JsonNull,
     };
 
-    // P0: Wrap check-then-act + log in transaction to prevent duplicate record race
+    // Wrap check-then-act + log in transaction to prevent duplicate record race
     const record = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.bidOpeningRecord.findFirst({
         where: { projectId, bidSupplierId: bidSupplier.id },
@@ -312,7 +312,7 @@ export class BidOpeningRecordService {
     const record = await this.prisma.bidOpeningRecord.findFirst({ where: { id: recordId, projectId } });
     if (!record) throw new BadRequestException({ error: '开标记录不存在', code: 'NOT_FOUND' });
 
-    // P0: 阶段门控 — 仅在开标阶段可处理异议
+    // 阶段门控 — 仅在开标阶段可处理异议
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'OPENING') {
       throw new BadRequestException({ error: '项目不在开标阶段，无法处理异议', code: 'PROJECT_NOT_OPENING' });
@@ -329,7 +329,7 @@ export class BidOpeningRecordService {
     // Wave4a-M5：监督日志记态迁移（前态 → 后态：处理结果），便于监督端回放异议闭环
     const supervisionResult = `供应商提出异议 → ${confirmStatus}：${dto.result}`;
 
-    // P0: Wrap record update + supplier update + supervision log in transaction
+    // Wrap record update + supplier update + supervision log in transaction
     await this.prisma.$transaction(async (tx) => {
       // Wave4a-M4：事务内条件更新是并发防线——事务外的状态门基于 stale read，并发双处理都过门时
       // 仅首笔命中异议待处理行（count=1），第二笔 count=0 → 400，杜绝双落（与 R6 原子抢占同构）。
@@ -423,7 +423,7 @@ export class BidOpeningRecordService {
       select: { id: true, supplierName: true, confirmStatus: true, decryptStatus: true },
     });
     if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
-    // P2: 扩展接受 DISPUTED 和 EXCEPTION（CONFIRMED 无需覆盖）
+    // 扩展接受 DISPUTED 和 EXCEPTION（CONFIRMED 无需覆盖）
     if (!['DISPUTED', 'EXCEPTION'].includes(bidSupplier.confirmStatus)) {
       throw new BadRequestException({ error: '仅异议中（DISPUTED）或异常（EXCEPTION）的供应商可被强制裁决', code: 'NOT_OVERRIDABLE' });
     }

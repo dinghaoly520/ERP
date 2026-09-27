@@ -100,7 +100,7 @@ function FilePreviewModal({
   );
 }
 
-/* ── 阶段文件列表 ─────────────────────────────────────────────── */
+/* 阶段文件列表 */
 
 export function StageFileList({
   files,

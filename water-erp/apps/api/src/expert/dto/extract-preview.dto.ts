@@ -24,7 +24,7 @@ export class SpecialtyQuotaDto {
   department?: string;
 
   /** 行政区域代码（GB/T 2260 六位）：配额候选限定区域（A-129 可选过滤，未填不过滤；多配额不同值取并集）。
-   *  终审 Minor#4：收紧为 6 位纯数字（与档案侧对齐；超长/非 6 位值原会静默空池） */
+   *  收紧为 6 位纯数字（与档案侧对齐；超长/非 6 位值原会静默空池） */
   @IsOptional() @IsString() @MaxLength(6) @Matches(/^\d{6}$/)
   regionCode?: string;
 

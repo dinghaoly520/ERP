@@ -224,7 +224,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
   return (
     <div className="space-y-4">
-      {/* P2（二轮审查）：签字流程六步引导——当前步按数据态推导（只读指示，不可点击跳转）。
+      {/* （二轮审查）：签字流程六步引导——当前步按数据态推导（只读指示，不可点击跳转）。
           推导口径：无包→待①生成；有包未闭环→待⑤回传登记（②③④为线下步骤，不判✓只显中性）；
           闭环未回流→待⑥；已回流→全部完成。cur≥6 时 ①-⑤ 全✓（闭环间接证实线下链路完成）。 */}
       {(() => {
@@ -390,7 +390,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         </div>
       )}
 
-      {/* 专家签字清单（Task 8 叠加登记按钮与弹窗）—— cgzxui 玻璃卡承表（原裸 border 无面底，玻璃卡旁显透明） */}
+      {/* 专家签字清单与登记操作 */}
       <div className="neu-card-static overflow-hidden">
         <div className="overflow-x-auto">
         <table className="neu-table is-dense w-full min-w-[640px]">
@@ -603,7 +603,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
       {notesOpen && <ReportNotesDialog projectId={projectId} onClose={() => setNotesOpen(false)} />}
 
-      {/* P2-14：通用二次确认弹窗（重新生成 / 撤销登记共用） */}
+      {/* 通用二次确认弹窗（重新生成 / 撤销登记共用） */}
       {confirmBox && (
         <div className="bid-overlay" onClick={() => setConfirmBox(null)}>
           <div className="bid-overlay-backdrop" />
@@ -656,7 +656,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   );
 }
 
-// ═══ A-151：报告附注编辑弹窗（《评标报告》十项法定内容——一~九节末以「附注：」段插入、十节拼入正文；生成签字包取库内最新） ═══
+// A-151：报告附注编辑弹窗（《评标报告》十项法定内容——一~九节末以「附注：」段插入、十节拼入正文；生成签字包取库内最新）
 // 章节序号与后端白名单 REPORT_NOTE_SECTIONS（一~十）对应；label 与签字包 docx 渲染的 h2 逐字一致
 const REPORT_NOTE_ROWS: ReadonlyArray<{ section: string; label: string }> = [
   { section: '一', label: '一、基本情况和数据表' },

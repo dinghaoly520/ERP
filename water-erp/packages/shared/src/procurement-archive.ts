@@ -26,7 +26,7 @@ export const GB_ARCHIVE_CATEGORIES = [
 export type GbArchiveCategory = (typeof GB_ARCHIVE_CATEGORIES)[number];
 
 /**
- * 方案 X（2026-09-10）：按采购方式的档案类别适用性——不适用的类在对标中豁免
+ * 方案 X：按采购方式的档案类别适用性——不适用的类在对标中豁免
  * （不计缺项、无登记入口），依据该方式下项目档案的实际构成（系统在线产生 + 集团惯例）。
  * 全线上流程下豁免类无需人工登记即可达成「适用类齐备」。
  */

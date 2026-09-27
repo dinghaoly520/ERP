@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
- * P3 审批留痕件生成器（附录 B 7.2「流程审批记录」）：
+ * 审批留痕件生成器（附录 B 7.2「流程审批记录」）：
  * 聚合 PMI 阶段流转 + 审批意见 + 操作日志摘录 → 机器可读 JSON 存证
  * （档案系统解析友好；需要人读版式件时由 ASIP「其他」目录的移交清单承载概览）。
  */

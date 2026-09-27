@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 
-/** P2 归档待办闭环：流程终结（中标通知书/合同上传）→ 通知归档责任人 → 导出完成后自动消（resolvedAt） */
+/** 归档待办闭环：流程终结（中标通知书/合同上传）→ 通知归档责任人 → 导出完成后自动消（resolvedAt） */
 export const ARCHIVE_TODO_TYPE = 'ARCHIVE_READY';
 
 @Injectable()

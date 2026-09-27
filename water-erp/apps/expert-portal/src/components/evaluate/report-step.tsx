@@ -9,7 +9,7 @@ import { QuoteHistoryPanel } from './quote-history-panel';
 interface MotionItem {
   id: string; title: string; description?: string | null;
   status: string; result?: string | null;
-  /** P1 收口：服务端派生字段（voting 期无计数）；组长响应额外带 votes */
+  /** 收口：服务端派生字段（voting 期无计数）；组长响应额外带 votes */
   myVote?: string | null;
   votedCount?: number;
   approveCount?: number;
@@ -26,7 +26,7 @@ interface ReportStepProps {
   report: EvaluationReport | null;
   busy: boolean;
   onConfirmReport: () => void;
-  /** P2-1（2026-09-21 审查）：本人已确认报告（BidExpert.reportConfirmed）——隐藏确认键、出已确认徽标 */
+  /** 本人已确认报告（BidExpert.reportConfirmed）——隐藏确认键、出已确认徽标 */
   reportConfirmed?: boolean;
   isLead?: boolean;
   leaderCoSigned?: boolean;
@@ -45,14 +45,14 @@ interface ReportStepProps {
 }
 
 /**
- * A-152 电子签署区块四态（T12 控制器裁定：门户端不做精确已签徽标——
- * 已电签/已纸质登记合并为中性「已完成签署」文案，精确徽标归 :3007 T13）：
- * - need-cert：未绑定证书 → 「创建签名证书并签署」（首次口令=创建软证书口令）
- * - ready：可签 → 「电子签署评标报告」
- * - wait-packet：签字包未生成 → 等待主持人提示
- * - done-or-registered：非 PENDING（已签/已纸质登记）→ 中性完成文案
- * - hidden：非签署对象（候补/异常）或数据不可用 → 不渲染
+ * 电子签署状态。门户将电子已签与纸质已登记统一显示为已完成；详细签署状态见主持端。
+ * need-cert：未绑定证书，先创建签名证书。
+ * ready：可以电子签署。wait-packet：等待生成签字包。
+ * done-or-registered：已经签署或登记。hidden：非签署对象或数据不可用。
  */
+
+
+
 export type EsignBlockState = 'need-cert' | 'ready' | 'wait-packet' | 'done-or-registered' | 'hidden';
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
@@ -81,7 +81,7 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
 
   return (
     <div className="p-6">
-      {/* ── ① 操作栏 ── */}
+      {/* ① 操作栏 */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-[var(--foreground)]">评审报告</h2>
@@ -129,7 +129,7 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
         </div>
       )}
 
-      {/* ── ①-bis 评标报告电子签署（A-152：四态区块，hidden/未传不渲染）── */}
+      {/* ①-bis 评标报告电子签署（A-152：四态区块，hidden/未传不渲染） */}
       {esign && esign.state !== 'hidden' && (
         <div className="neu-card-static mb-4 flex items-center justify-between gap-3 !p-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -167,7 +167,7 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
         </div>
       )}
 
-      {/* ── ② 评分结果汇总（核心）── */}
+      {/* ② 评分结果汇总（核心） */}
       {report ? (
         <div className="space-y-4">
           {/* 项目概要 */}
@@ -368,7 +368,7 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
         <div className="py-12 text-center text-[var(--muted-foreground)]">加载报告数据...</div>
       )}
 
-      {/* ── ③ 委员会记录（只读附录）── */}
+      {/* ③ 委员会记录（只读附录） */}
       {(hasMotions || hasDisputes) && (
         <div className="mt-8 space-y-3">
           <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
@@ -381,7 +381,7 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
           {hasMotions && (
             <div className="space-y-2">
               {motions.map(m => {
-                // P1 收口：服务端已剥离 votes（组长保留）——统一消费派生字段；
+                // 收口：服务端已剥离 votes（组长保留）——统一消费派生字段；
                 // voting 期不显示赞/反分布（防从众），只显示已投进度
                 const approves = m.approveCount ?? 0;
                 const rejects = m.rejectCount ?? 0;

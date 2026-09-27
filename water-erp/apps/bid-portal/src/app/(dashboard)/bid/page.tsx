@@ -2,7 +2,7 @@
 
 /**
  * 开标任务板（只读）。
- * :3007 为纯开标执行终端：仅展示进行中项目（开标中 / 评标中），已归档移至归档端。
+ * 3007 为纯开标执行终端：仅展示进行中项目（开标中 / 评标中），已归档移至归档端。
  * 项目全生命周期管理与全部阶段流转归 :3005 采购管理工作台。
  */
 
@@ -46,7 +46,7 @@ export default function BidTaskBoard() {
     getProjectsDashboard()
       .then(d => { setProjects(d.projects); setError(null); })
       .catch((e: any) => {
-        // O6（2026-08-28）：不再把故障吞成「暂无项目」空态误导排障（已有数据保留展示）
+        // O6：不再把故障吞成「暂无项目」空态误导排障（已有数据保留展示）
         setError(e?.message || '开标任务加载失败');
       })
       .finally(() => setLoading(false));
@@ -54,7 +54,7 @@ export default function BidTaskBoard() {
 
   useEffect(() => { load(); }, [load]);
 
-  // O5（2026-08-28）：原挂载拉一次后数字静止（刷新按钮已删）——补 30s 轮询 + 回到前台即时刷新。
+  // O5：原挂载拉一次后数字静止（刷新按钮已删）——补 30s 轮询 + 回到前台即时刷新。
   // GET /bid/projects/dashboard 已入操作日志排除默认值（operation-log.filter.ts），轮询不膨胀日志。
   useEffect(() => {
     const timer = setInterval(load, 30_000);
@@ -76,7 +76,7 @@ export default function BidTaskBoard() {
 
   return (
     <div className="space-y-5">
-      {/* ═══ 顶部标题栏（cgzxui page-hero）═══ */}
+      {/* 顶部标题栏（cgzxui page-hero） */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -115,7 +115,7 @@ export default function BidTaskBoard() {
         </div>
       ) : (
         <>
-          {/* ── 开标中 ── */}
+          {/* 开标中 */}
           <section>
             <h2 className="mb-3 flex items-center gap-2 text-[15px] font-bold tracking-tight text-[color:var(--foreground)]">
               <span className="h-4 w-1 rounded-full bg-[oklch(0.6_0.15_210)]" />
@@ -162,7 +162,7 @@ export default function BidTaskBoard() {
             )}
           </section>
 
-          {/* ── 评标中（只读监测：进入工作区默认评标 tab，看真实评标数据）── */}
+          {/* 评标中（只读监测：进入工作区默认评标 tab，看真实评标数据） */}
           <section>
             <h2 className="mb-3 flex items-center gap-2 text-[15px] font-bold tracking-tight text-[color:var(--foreground)]">
               <span className="h-4 w-1 rounded-full bg-[oklch(0.55_0.12_150)]" />

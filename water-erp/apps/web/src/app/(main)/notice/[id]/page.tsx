@@ -19,7 +19,7 @@ import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 
-/* ── 类型/状态标签 ── */
+/* 类型/状态标签 */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
   BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green', WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray', FAILED_BID_NOTICE: 'orange', WIN_BID_NOTICE: 'green',
 };
@@ -153,7 +153,7 @@ export default function NoticeDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            {/* ── 描述性徽章组（采购方式 → 状态类[发布状态/置顶/公开范围]）──
+            {/* 描述性徽章组（采购方式 → 状态类[发布状态/置顶/公开范围]）
                 「已发布」「应公开」同属状态/级别，不再被采购方式隔开 */}
             <div className="flex items-center gap-1.5">
               <StatusBadge tone={typeTone[ann.type]}>{ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}</StatusBadge>
@@ -169,7 +169,7 @@ export default function NoticeDetailPage() {
             {/* 垂直分隔：描述性元数据与操作区之间 */}
             <div className="mx-1 h-6 w-px shrink-0" style={{ background: 'oklch(0.6 0.04 258 / 0.16)' }} />
 
-            {/* ── 操作组 ── */}
+            {/* 操作组 */}
             <div className="flex items-center gap-1.5">
               {ann.type === 'PRE_WIN_NOTICE' && ann.status === 'PUBLISHED' && <ConfirmWinnerButton ann={ann} />}
               {!editing ? (
@@ -210,7 +210,7 @@ export default function NoticeDetailPage() {
   );
 }
 
-/* ════════ renderMeta  — 结构化元数据芯片（从 IIFE 提取为独立函数）════════ */
+/* renderMeta  — 结构化元数据芯片（从 IIFE 提取为独立函数） */
 function renderMeta(ann: AnnouncementListItem) {
   const meta = (ann.metadata || {}) as Record<string, any>;
   // amount 无顶层值时从 winner.price 兜底（WIN_NOTICE 中标公示草稿）
@@ -270,7 +270,7 @@ function renderMeta(ann: AnnouncementListItem) {
   );
 }
 
-/* ════════════ C1：预成交公示期满 → 发布成交公告（GB/T 43711 7.5.2.5 两段式第二段） ════════════ */
+/* C1：预成交公示期满 → 发布成交公告（GB/T 43711 7.5.2.5 两段式第二段） */
 function ConfirmWinnerButton({ ann }: { ann: AnnouncementListItem }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -304,7 +304,7 @@ function ConfirmWinnerButton({ ann }: { ann: AnnouncementListItem }) {
   );
 }
 
-/* ════════════ 只读展示 ════════════ */
+/* 只读展示 */
 function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
   const [bidDoc, setBidDoc] = useState<BidDocumentManage | null>(null);
@@ -433,7 +433,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
   );
 }
 
-/* ════════════ 编辑视图 ════════════ */
+/* 编辑视图 */
 function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCancel: () => void; onSaved: (updated: AnnouncementListItem) => void }) {
   const [type, setType] = useState<AnnouncementType>(ann.type);
   const [title, setTitle] = useState(ann.title);
@@ -589,7 +589,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   );
 }
 
-/* ── 附件编辑 ── */
+/* 附件编辑 */
 function AttachmentEditSection({ annId, attachments, onChanged }: { annId: string; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -652,7 +652,7 @@ function AttachmentEditSection({ annId, attachments, onChanged }: { annId: strin
   );
 }
 
-/* ── 招标文件编辑 ── */
+/* 招标文件编辑 */
 function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc: BidDocumentManage | null; onChanged: () => void }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierSearch, setSupplierSearch] = useState("");

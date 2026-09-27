@@ -17,7 +17,7 @@ import {
 } from "@/lib/notification-meta";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { LoadingBlock, SpDialog, SpPagination } from "@/components/ui";
-import "@/styles/pages/notifications.css"; // nd-*/notif-* 通知样式（原寄居 announcements.css，2026-09-02 归位）
+import "@/styles/pages/notifications.css"; // 通知页面样式。
 import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
 const NEW_WINDOW_MS = 48 * 3600 * 1000;
@@ -169,7 +169,7 @@ export default function NotificationListPage() {
         )}
       />
 
-      {/* ═══ 分类分段切换（cgzxui .neu-segment：与「成交履约」同款——hero 下独立一行）═══ */}
+      {/* 分类分段切换（cgzxui .neu-segment：与「成交履约」同款——hero 下独立一行） */}
       <div className="mb-view-seg">
         <div
           className="neu-segment"

@@ -219,7 +219,7 @@ export class RuleExecutorService {
     return results;
   }
 
-  // ── Individual rule execution (returns null when data is missing) ──
+  // Individual rule execution (returns null when data is missing)
 
   private tryExecuteNumericRule(
     rule: Rule,
@@ -390,7 +390,7 @@ export class RuleExecutorService {
     };
   }
 
-  // ── Document location helpers ──
+  // Document location helpers
 
   private findClauseAtOffset(clauses: Clause[], offset: number): Clause | null {
     for (const clause of clauses) {
@@ -417,7 +417,7 @@ export class RuleExecutorService {
     };
   }
 
-  // ── LLM-based applicability check for missing-data rules ──
+  // LLM-based applicability check for missing-data rules
 
   private async batchCheckApplicability(
     entries: MissingDataRule[],
@@ -590,7 +590,7 @@ ${rulesList}
     };
   }
 
-  // ── Formatting helpers ──
+  // Formatting helpers
 
   private formatFieldName(field: string): string {
     const fieldNames: Record<string, string> = {

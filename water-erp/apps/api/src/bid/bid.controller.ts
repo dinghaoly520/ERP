@@ -422,7 +422,7 @@ export class BidController {
     @CurrentUser('sub') userId?: string,
   ) { return this.bidService.updatePriceConfig(id, dto, userId); }
 
-  // ── P2c: 多轮报价管理 ──
+  // P2c: 多轮报价管理
   @Get('projects/:id/rounds')
   @ApiOperation({ summary: '查询报价轮次列表' })
   listRounds(@Param('id') id: string) { return this.bidService.listRounds(id); }
@@ -578,7 +578,7 @@ export class BidController {
     @CurrentUser('sub') userId: string,
   ) { return this.bidService.nudgeSuppliers(id, dto?.onlyUnsubmitted ?? true, userId); }
 
-  // ── 催促未投递供应商 v2：逐家 AI 文案 + 自选渠道 + 一次性额度（人工/自动共用）──
+  // 催促未投递供应商 v2：逐家 AI 文案 + 自选渠道 + 一次性额度（人工/自动共用）
   @Get('projects/:id/supplier-nudge')
   @ApiOperation({ summary: '催促未投递供应商：当前状态/目标数/定时点' })
   getSupplierNudge(@Param('id') id: string) { return this.bidService.getNudgeStatus(id); }
@@ -616,7 +616,7 @@ export class BidController {
   ) { return this.bidService.nudgeExperts(id, dto?.reason ?? 'signin', userId); }
 
   @Post('projects/:id/notify-schedule-change')
-  @Throttle({ default: { ttl: 60000, limit: 5 } }) // P2-8：广播类端点节流，防滥用刷信
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // 广播类端点节流，防滥用刷信
   @ApiOperation({ summary: '通知开标时间变更（向投标供应商 + 评标专家）' })
   notifyScheduleChange(
     @Param('id') id: string,
@@ -796,7 +796,7 @@ export class BidController {
   @ApiOperation({ summary: '生成评标结果与候选人（成功后自动生成评标签字包）' })
   async generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     const result = await this.evalResults.generateEvaluationResults(id, userId);
-    // P2（2026-09-07）：签字包以评标结果为内容，此前须在 :3007 手动再点一次「生成签字包」，
+    // 签字包以评标结果为内容，此前须在 :3007 手动再点一次「生成签字包」，
     // API/流程驱动场景极易遗漏 → full 归档被「签字包未生成」挡下而降级 opening。
     // 此处串联自动生成（幂等：同轮重复生成会重建包并重置签字状态），失败不阻断结果返回。
     try {
@@ -870,7 +870,7 @@ export class BidController {
     return this.bidService.deleteScoreItem(id, itemId, { userId, role });
   }
 
-  // ── 评分模板（整套评分标准的保存 / 列表 / 应用 / 删除）──
+  // 评分模板（整套评分标准的保存 / 列表 / 应用 / 删除）
 
   @Get('score-templates')
   @ApiOperation({ summary: '评分标准模板列表（自己 + 公共；可选按采购方式/项目类型过滤：通用(null)+精确匹配）' })
@@ -909,7 +909,7 @@ export class BidController {
     return this.bidService.applyScoreTemplateById(id, templateId, { userId, role });
   }
 
-  // ── 得分点（checklist 子项）CRUD ──
+  // 得分点（checklist 子项）CRUD
   @Get('projects/:id/score-items/:itemId/points')
   @ApiOperation({ summary: '列出某评分项的得分点' })
   listScorePoints(@Param('id') id: string, @Param('itemId') itemId: string) {
@@ -1013,7 +1013,7 @@ export class BidController {
   @ApiOperation({ summary: '发起澄清' })
   createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto, @CurrentUser('sub') userId?: string) { return this.bidService.createClarification(id, dto, userId); }
 
-  // 澄清 AI 起草端点已删（2026-09-21 用户裁定，两端同删）——澄清一律手写发起
+  // 澄清问题手动发起；回复内容可调用下方接口生成摘要。
 
   @Post('projects/:id/clarifications/:cid/summarize')
   @ApiOperation({ summary: 'P1-F：AI 提炼回复要点 → aiSummary' })

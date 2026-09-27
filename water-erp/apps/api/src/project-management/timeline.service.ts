@@ -7,12 +7,12 @@ import { parseFlexibleDate } from '../common/parse-date.util';
  * B3 项目时间信息轴（CTS-EBS01 A-204：项目相关时间信息的建立和维护）。
  * 聚合 PMI / BidProject / Contract / Announcement 四域八类时间节点：
  * 采购立项 · 采购文件获取 · 采购公告发布 · 投标截止 · 开标 · 中标公告发布 · 合同签订 · 归档。
- * 输出：固定业务顺序（2026-09-08 用户拍板）——此前有值节点按时间升序，
+ * 输出：固定业务顺序——此前有值节点按时间升序，
  * 时间压缩/回填场景下「归档」会插进中间（实测 6/23 归档排在 9/7 文件获取
  * 之前），阅读割裂；缺值节点原地灰显占位（前端「未登记」）。
  * 兜底：采购立项 initiationDate 缺 → PMI.createdAt（建档即立项下限）；
  * 合同签订 Contract.signedAt 缺 → CONTRACT 阶段 completedAt（阶段完成≈签订完成）。
- * 公告发布（2026-09-16）：取项目关联公告的最早发布时刻——采购公告=BID_NOTICE/PREQUAL_NOTICE，
+ * 公告发布：取项目关联公告的最早发布时刻——采购公告=BID_NOTICE/PREQUAL_NOTICE，
  * 中标公告=WIN_BID_NOTICE/PRE_WIN_NOTICE/WIN_NOTICE；关联口径与 syncBidProject 一致
  * （relatedProjectCode 兼容 PMI 编码与 BidProject 编码两个编码空间）。
  */
@@ -87,7 +87,7 @@ export class TimelineService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // 公告发布时间（2026-09-16）：采购公告/中标公告的发布时刻记录进时间轴。
+    // 公告发布时间：采购公告/中标公告的发布时刻记录进时间轴。
     // 关联口径与 announcement.syncBidProject 一致——relatedProjectCode 既可能是
     // PMI 编码，也可能是 BidProject 编码（公告直建项目后回写），两侧都查；
     // PMI 编码还需兼容旧两段式（2026-09-16 编码迁移为三段式，存量公告 relatedProjectCode
@@ -169,7 +169,7 @@ export class TimelineService {
     const nodes: TimelineNode[] = [
       // initiationDate 未登记（直建/AI 提取缺失）→ 建档时刻兜底，避免「采购立项 未登记」
       { key: 'initiation', label: '采购立项', time: toIsoFromBare(item.initiationDate) ?? toIsoFromBare(item.createdAt), source: item.initiationDate ? '项目管理' : '项目建档' },
-      // 2026-09-17 拍板：公告发布/供应商邀请前置于文件获取（业务时序：先发布公告再获取文件）
+      // 公告发布/供应商邀请前置于文件获取（业务时序：先发布公告再获取文件）
       hasPublicAnnouncementStage
         ? { key: 'bidNoticePublish', label: '采购公告发布', time: bidNoticeIso, source: '公告' }
         : { key: 'supplierInvitation', label: '供应商邀请', time: supplierInviteIso, source: '邀请通知' },
@@ -181,7 +181,7 @@ export class TimelineService {
       { key: 'archived', label: '归档', time: toIsoFromBare(item.archivedAt), source: '归档' },
     ];
 
-    // 固定业务顺序（2026-09-08）：立项→获取→截止→开标→签约→归档，与流程阅读习惯一致；
+    // 固定业务顺序：立项→获取→截止→开标→签约→归档，与流程阅读习惯一致；
     // 缺值节点原位保留（前端灰显「未登记」），不再按时间重排
     return nodes;
   }

@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-// jszip 是 CJS 包，无 esModuleInterop 时默认 import 编译为 .default → 运行时非构造器（见 CLAUDE.md TS import 约定）
+// jszip 是 CJS 包，无 esModuleInterop 时默认 import 编译为 .default → 运行时非构造器
 import JSZip = require('jszip');
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -32,7 +32,7 @@ export function assertNoMissingRefs(refIds: ReadonlySet<string>, foundIds: Reado
   }
 }
 
-/** ZIP 同目录同名消歧（2026-09-20 审查修复）：JSZip file() 同路径是覆盖语义，撞名加 _2/_3 序号 */
+/** ZIP 同目录同名消歧：JSZip file() 同路径是覆盖语义，撞名加 _2/_3 序号 */
 export function uniqueEntryName(category: string, originalName: string, used: Set<string>): string {
   const base = `${category}/${originalName}`;
   if (!used.has(base)) {
@@ -64,7 +64,7 @@ export class ArchiveExportService {
   ) {}
 
   async exportAsip(pmiId: string, actorId?: string, retentionPeriod?: 'PERMANENT' | 'Y30' | 'Y10') {
-    // ── 前置：四性检测通过（generated 必选项除外——导出本身会产出） ──
+    // 前置：四性检测通过（generated 必选项除外——导出本身会产出）
     const snapshot = await this.scope.snapshot(pmiId, { enrichMeta: true });
     const blocking = snapshot.requiredMissing;
     if (blocking.length > 0) {
@@ -98,7 +98,7 @@ export class ArchiveExportService {
     const root = zip.folder(volName)!;
     const manifest: Array<{ path: string; sha256: string; size: number; source: string }> = [];
 
-    // ── 卷内：项目管理/ 阶段组合文件夹（§9.2 按程序先后） ──
+    // 卷内：项目管理/ 阶段组合文件夹（§9.2 按程序先后）
     const pmDir = root.folder('项目管理')!;
     const uploadDir = path.resolve(process.cwd(), 'uploads', 'project-management');
 
@@ -175,7 +175,7 @@ export class ArchiveExportService {
       });
     }
 
-    // ── 其他/ 目录（附录 D） ──
+    // 其他/ 目录（附录 D）
     const other = root.folder('其他')!;
     const attIds = item.stages.flatMap((s) => s.attachments.map((a) => a.id));
     // §8.4 完整捕获元数据：入包但未命中范围项的附件（阶段杂件）兜底建档，
@@ -317,7 +317,7 @@ export class ArchiveExportService {
       '移交日期：＿＿＿＿年＿＿月＿＿日',
     ].join('\n'));
 
-    // ── 说明文件.TXT（附录 D 图 D.1 顶层） ──
+    // 说明文件.TXT（附录 D 图 D.1 顶层）
     root.file('说明文件.TXT', [
       '说 明 文 件',
       '（DA/T 103-2024 招标投标电子文件归档规范 · 附录D 归档信息包）',
@@ -334,7 +334,7 @@ export class ArchiveExportService {
       '「其他/固化验证信息.txt」含全部文件 sha256 指纹，可用任意校验工具复核完整性。',
     ].join('\n'));
 
-    // ── 组包 → MinIO → 落库 ──
+    // 组包 → MinIO → 落库
     const zipBuf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
     const zipSha = crypto.createHash('sha256').update(zipBuf).digest('hex');
     const packageKey = `archive-asip/${pmiId}/${Date.now()}.zip`;

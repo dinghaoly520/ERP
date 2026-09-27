@@ -12,7 +12,7 @@ import { PriceFormulaService } from './price-formula.service';
 import { getEvaluationDefault } from './evaluation-method.config';
 import { StorageService } from '../storage/storage.service';
 
-/** 评标结果域（F1b）——自 bid.service.ts 迁出（P1 审查 F 簇拆分，纯移动）。索引：listEvaluationResults / generateEvaluationResults / buildEvaluationPackage（+私有 getWinnerCount） */
+/** 评标结果查询、生成与评标文件包构建。 */
 
 @Injectable()
 export class BidEvaluationResultsService {
@@ -67,7 +67,7 @@ export class BidEvaluationResultsService {
     const body = {
       packageType: 'BID_EVALUATION_HANDOVER',
       packageVersion: 2, // 2026-09-18 完整性扩展：pointDecisions 增 note（得分点裁定备注）
-      // 2026-09-18 二次扩展：+scoreItemDefinitions（v2 当日未推送，原位并版不留 3）
+      // 文件包同时包含评分项及得分点定义。
       generatedAt: new Date().toISOString(),
       projectId,
       expertConfirmations: experts.map(e => ({
@@ -128,7 +128,7 @@ export class BidEvaluationResultsService {
     if (project.stage !== 'EVALUATING') {
       throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
     }
-    // P2-4（2026-09-09 审查）：评标超时未审批延期不得生成官方结果——专家侧已被
+    // 评标超时未审批延期不得生成官方结果——专家侧已被
     // EVALUATION_OVERDUE 拦截交分，此处放行会让主持人以既有分数绕过延期审批闸
     // （expert.service.assertEvaluationNotOverdue 同口径）。出口=extendEvaluation 延期审批。
     if (project.evaluationDeadline && new Date(project.evaluationDeadline).getTime() < Date.now()) {
@@ -162,7 +162,7 @@ export class BidEvaluationResultsService {
     }
 
     // 谈判（negotiation）/多轮类项目：专家评标完成后进行多轮报价，生成结果前校验轮次已完成 + 同步最终报价。
-    // P1-13fix：sealed_auction（密封竞价）为单轮唱标模式——唱标价即最终价，无报价轮次流程，
+    // sealed_auction（密封竞价）为单轮唱标模式——唱标价即最终价，无报价轮次流程，
     // 旧口径 if (roundMode) 无差别拦截 → 竞价采购结果生成死锁（NO_ROUNDS）。
     if (project.roundMode && project.roundMode !== 'sealed_auction') {
       const totalRounds = await this.prisma.bidRound.count({ where: { projectId } });
@@ -213,7 +213,7 @@ export class BidEvaluationResultsService {
       }
     }
 
-    // P0: Single batch query instead of per-supplier N+1 — fetch all scores at once
+    // Single batch query instead of per-supplier N+1 — fetch all scores at once
     const activeSupplierIds = activeSuppliers.map(s => s.id);
     const allScoreRecords = activeSupplierIds.length > 0
       ? await this.prisma.bidScoreRecord.findMany({
@@ -288,7 +288,7 @@ export class BidEvaluationResultsService {
         }
         passFailVerdicts.set(supplier.id, disqualified);
 
-        // P1-2：防御性检查——该供应商是否所有正选专家都已提交通过性评分
+        // 防御性检查——该供应商是否所有正选专家都已提交通过性评分
         const votersWithPassFail = new Set(
           records.filter(r => passFailItemIds.has(r.scoreItemId) && r.passed !== null && r.passed !== undefined
             && mainExpertIds.has(r.expertId)).map(r => r.expertId),
@@ -303,7 +303,7 @@ export class BidEvaluationResultsService {
       }
     }
 
-    // P1: 价格分公式引擎 — PRICE 类项由公式自动算分,替代专家手填
+    // 价格分公式引擎 — PRICE 类项由公式自动算分,替代专家手填
     const priceItemIds = new Set<string>();
     let formulaPriceScores = new Map<string, number>();
     // A4: 报价从开标记录读取，同时供 createMany 写入 BidEvaluationResult.bidPrice
@@ -321,7 +321,7 @@ export class BidEvaluationResultsService {
           where: { projectId, bidSupplierId: { in: activeSupplierIds } },
           select: { bidSupplierId: true, amount: true },
         }),
-        // 唱标金额单位（2026-09-14）：dual-v2 轨以万元入库，须换算为元——否则公式与
+        // 唱标金额单位：dual-v2 轨以万元入库，须换算为元——否则公式与
         // ceilingPrice 元口径相差一万倍，且 BidEvaluationResult.bidPrice 万元值会以
         // 「¥153.95」流入中标通知书/公示（报价一致性 10000 倍失真）
         resolveOpeningAmountUnitMap(this.prisma, projectId),
@@ -341,7 +341,7 @@ export class BidEvaluationResultsService {
 
       if (priceItems.length > 0 && project.priceFormulaConfig) {
         const config = project.priceFormulaConfig as any;
-        // F11（2026-08-28）：基准价偏离法/比例法的基准=最高限价——缺失时 calculate 会把全供应商
+        // F11：基准价偏离法/比例法的基准=最高限价——缺失时 calculate 会把全供应商
         // 价格分静默置 0（旧实现仅 warn 后照常生成官方结果，排名全废）。改为 400 拦截并给指引；
         // 「公式配置完全缺失 → 回退专家手填价格分」的设计内行为不受影响（不进本分支），
         // 最低评标价法不依赖限价亦放行。
@@ -356,7 +356,7 @@ export class BidEvaluationResultsService {
         formulaPriceScores = this.priceFormula.calculate(config, bidPrices, ceilingPrice, priceMaxTotal);
       }
 
-      // P2-5（2026-09-09 审查）：公式激活时唱标金额缺失/非数值的家，价格分静默按 0 计入
+      // 公式激活时唱标金额缺失/非数值的家，价格分静默按 0 计入
       // （专家 PRICE 打分被跳过且无任何告警）——高风险监督日志提示评标委员会核对开标记录
       // （不阻断生成：记录齐备性由归档闸门保证，此处是数据质量告警）。
       if (priceItems.length > 0 && project.priceFormulaConfig) {
@@ -408,7 +408,7 @@ export class BidEvaluationResultsService {
       }
     }
 
-    // F12（2026-08-28）：聚合+排序提取为纯函数（bid/aggregate-supplier-scores.ts），与
+    // F12：聚合+排序提取为纯函数（bid/aggregate-supplier-scores.ts），与
     // live-official-scores 端点共用——单一事实源，前端预览不再复刻口径。行为与内联版逐行一致。
     const isNegotiation = project.procurementMethod === '谈判采购';
     const ranked = aggregateSupplierScores({
@@ -476,7 +476,7 @@ export class BidEvaluationResultsService {
           })),
         });
       }
-      // ── 权威重算 bidValidity：覆盖实时触发器可能的多-item race 终态 ──
+      // 权威重算 bidValidity：覆盖实时触发器可能的多-item race 终态
       // 仅重算 active 供应商（passFailVerdicts 只含 activeSuppliers）。
       // 已被实时触发器判定为 invalid 的非 active 供应商不在 passFailVerdicts 中，
       // 跳过更新以保留其既有 invalid 状态（避免误恢复为 valid）。
@@ -516,7 +516,7 @@ export class BidEvaluationResultsService {
           },
         });
       }
-      // P1-3：专家组人数不足时写入监督日志
+      // 专家组人数不足时写入监督日志
       if (panelSize < 3) {
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: project.name,
@@ -524,7 +524,7 @@ export class BidEvaluationResultsService {
             result: `专家组仅 ${panelSize} 人（不足 3 人），统计意义有限`, riskFlag: '中' },
         });
       }
-      // P1-2：通过性评分完整性警告
+      // 通过性评分完整性警告
       for (const w of completenessWarnings) {
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: w.supplierName,
@@ -541,7 +541,7 @@ export class BidEvaluationResultsService {
       await this.storage.upload(objectKey, buffer, 'application/json');
       const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
       // N3：结果重生成 = 同 key 覆盖 MinIO；create 会撞 key @unique（P2002）且被下方 catch 吞掉，
-      // 造成 DB 仍留旧指纹、与 MinIO 新内容分叉。改 upsert：同 key 更新行（P1-17 同款）。
+      // 造成 DB 仍留旧指纹、与 MinIO 新内容分叉。改 upsert：同 key 更新行（同款）。
       const existingSnapshot = await this.prisma.fileAsset.findUnique({
         where: { key: objectKey }, select: { id: true },
       });
@@ -574,7 +574,7 @@ export class BidEvaluationResultsService {
 
     // #6: 返回值统一为 { results, excludedSuppliers? }。
     // 历史形状是裸数组 + 有排除时 {...数组} 摊成对象，前端 setResults(r) 后
-    // r.length/r.find 形状不稳定（有排除供应商时直接崩溃）。2026-08-28 统一包一层。
+    // 统一使用对象包装结果，保证前端读取 results 时始终得到数组。
     const results = await this.listEvaluationResults(projectId);
     return {
       results,

@@ -25,25 +25,25 @@ import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
 /**
- * 平板触屏评标页（Phase ⑤ Task 6 —— MINIMAL 版 · cgzxui 新拟态重构）
- *
- * 范围：header + SupplierTabBar + 分组评分项（PointChecklistScoring compact）+ MemoPanel 侧栏
- *       + 评分草稿暂存/自动恢复（localStorage）+ 暂存/重置/提交操作栏。
- * 非范围（当 follow-up）：
- *   - 7 步 wizard（身份核验/标书获取/AI 辅助/条款核对/核对评分/评审报告）
- *     → 由桌面端 (app) 完成；tablet 假设专家已完成这些前置步骤
- *   - 异议条款联动 / 实时 WS 状态板
- *
- * 鉴权：(tablet)/layout.tsx 完成；cookie + X-Portal 由 api 客户端处理。
- * 平板仅产生草稿（localStorage + 服务端 draft），正式提交请在桌面专家打分 tab 完成。
+ * 平板触屏评标页，提供分组评分项、评审备忘和评分草稿暂存。
+ * 身份核验、文件获取、条款核对与评审报告等步骤在桌面端完成。
+ * 本页由 (tablet)/layout.tsx 鉴权，API 客户端处理 cookie 与 X-Portal。
+ * 平板仅保存本地和服务端草稿；正式提交在桌面端专家打分页完成。
  */
+
+
+
+
+
+
+
 export default function TabletEvaluatePage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
 
   const [project, setProject] = useState<ExpertProjectDetail | null>(null);
-  // P2-2 平板跟进：分钟级时钟——评标截止横幅的剩余时间/过期态随它刷新（与桌面端同口径）
+  // 平板跟进：分钟级时钟——评标截止横幅的剩余时间/过期态随它刷新（与桌面端同口径）
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60_000);
@@ -52,7 +52,7 @@ export default function TabletEvaluatePage() {
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
+  const [loadError, setLoadError] = useState<string | null>(null); // 加载失败错误态（替代永久 loading）
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
@@ -61,16 +61,16 @@ export default function TabletEvaluatePage() {
   const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
   // E：跨设备联动——桌面端「去打分平板」focus hint 触发的闪烁项
   const [flashItemId, setFlashItemId] = useState<string | null>(null);
-  // 2026-08-28 审查修复：去重改按服务端时间戳 at（而非 Redis seq）——seq 计数器 key 过去带
+  // 去重改按服务端时间戳 at（而非 Redis seq）——seq 计数器 key 过去带
   // 120s TTL，过期后 INCR 从 1 重新计数，而这里的高水位停在旧值，导致新 hint 永远被忽略。
   // at 单调来自服务端时钟，天然免疫序号回卷（服务端已同步改为不过期计数器，双保险）。
   const lastFocusAt = useRef(0);
 
-  // ── 评分草稿（localStorage 暂存 + 自动恢复）──
+  // 评分草稿（localStorage 暂存 + 自动恢复）
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
   const [serverDraft, setServerDraft] = useState<Record<string, ScoreEntry> | null>(null); // Phase 1：服务端草稿 fallback（跨设备恢复）
   const [draftDismissed, setDraftDismissed] = useState(false);
-  // QA-2026-09-11 A1：草稿检查完成闸——完成前自动保存悬置（防挂载期覆写待恢复草稿）
+  // 草稿检查完成前暂停自动保存，避免挂载时覆盖待恢复草稿。
   const [draftCheckDone, setDraftCheckDone] = useState(false);
   // A2：草稿检查一次性守卫——本 effect 的 deps 含 project 身份（WS 刷新会重跑），只允许检查一次
   const draftCheckedRef = useRef(false);
@@ -109,7 +109,7 @@ export default function TabletEvaluatePage() {
             ...(rec.passed !== null && rec.passed !== undefined ? { passed: rec.passed } : {}),
           };
         });
-        // P0-B：合并而非覆盖——保留其他供应商尚未提交的内存编辑，仅用服务端值覆盖已提交供应商
+        // 合并而非覆盖——保留其他供应商尚未提交的内存编辑，仅用服务端值覆盖已提交供应商
         setScores(prev => {
           const next: Record<string, ScoreEntry> = { ...existing };
           for (const [k, v] of Object.entries(prev)) {
@@ -194,7 +194,7 @@ export default function TabletEvaluatePage() {
     },
   });
 
-  // ── 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）──
+  // 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）
   useEffect(() => {
     if (!draftStorageKey || !project) return;
     // A2：deps 含 project 身份（WS 刷新会重跑），once-guard 保证只检查一次、不反复设闸
@@ -219,10 +219,10 @@ export default function TabletEvaluatePage() {
       .catch(() => { setDraftCheckDone(true); /* 服务端草稿可选 — ignore */ });
   }, [draftStorageKey, project, projectId]);
 
-  // ── 草稿自动暂存（scores 变化后 2 秒防抖）──
+  // 草稿自动暂存（scores 变化后 2 秒防抖）
   useEffect(() => {
     if (!draftStorageKey) return;
-    // QA-2026-09-11 P1-2/A1：草稿检查未完成或存在待处理草稿横幅时悬置（防覆写待恢复草稿）；
+    // 草稿检查未完成或仍有待处理草稿横幅时暂停自动保存，避免覆盖待恢复草稿；
     // 悬置期间清掉已排定的定时器（A3）
     if (!draftCheckDone || draftAvailable !== null) {
       if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
@@ -231,7 +231,7 @@ export default function TabletEvaluatePage() {
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
       try {
-        // P1-1 对齐桌面：pending-only——与已提交记录等价（三字段+有效得分点映射）的条目不入草稿；
+        // 对齐桌面：pending-only——与已提交记录等价（三字段+有效得分点映射）的条目不入草稿；
         // 原按键成员过滤会静默丢弃「已提交项再修改」，改为值感知（隐藏缺陷一并修复）
         const draftScores: typeof scores = {};
         for (const [k, v] of Object.entries(scores)) {
@@ -242,11 +242,11 @@ export default function TabletEvaluatePage() {
         }
         if (Object.keys(draftScores).length > 0) {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
-          // P2-5: 同步草稿到服务端（与桌面端一致，跨设备恢复）
+          // 同步草稿到服务端（与桌面端一致，跨设备恢复）
           api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
         } else {
           localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
-          // P1-1：服务端 tablet 槽同步清空（此前只清 localStorage，槽内残留仍会触发恢复横幅）
+          // 服务端 tablet 槽同步清空（此前只清 localStorage，槽内残留仍会触发恢复横幅）
           api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: {}, savedAt: Date.now() }).catch(() => {});
         }
       } catch { /* quota exceeded — silent */ }
@@ -256,8 +256,8 @@ export default function TabletEvaluatePage() {
     };
   }, [scores, draftStorageKey, project, draftAvailable, draftCheckDone]);
 
-  // ── 草稿操作 ──
-  // P1-3 防御：恢复时把存量部分映射草稿补全为完整映射（缺失点按 passed/提交分回退）
+  // 草稿操作
+  // 防御：恢复时把存量部分映射草稿补全为完整映射（缺失点按 passed/提交分回退）
   const normalizeDraftScores = useCallback((draftScores: Record<string, ScoreEntry>): Record<string, ScoreEntry> => {
     const norm: Record<string, ScoreEntry> = {};
     for (const [k, v] of Object.entries(draftScores)) {
@@ -293,7 +293,7 @@ export default function TabletEvaluatePage() {
 
   const discardDraft = useCallback(() => {
     if (draftStorageKey) localStorage.removeItem(draftStorageKey);
-    // P2-2：报告确认后草稿端点对空清载荷豁免锁定——丢弃同时清服务端 tablet 槽
+    // 报告确认后草稿端点对空清载荷豁免锁定——丢弃同时清服务端 tablet 槽
     api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: {}, savedAt: Date.now() }).catch(() => {});
     setServerDraft(null);
     setDraftAvailable(null);
@@ -378,7 +378,7 @@ export default function TabletEvaluatePage() {
     () =>
       new Set(
         (project?.suppliers ?? [])
-          .filter(s => s.bidValidity === 'invalid') // P2：用共享类型字段，去 unsafe 双 cast
+          .filter(s => s.bidValidity === 'invalid') // 用共享类型字段，去 unsafe 双 cast
           .map(s => s.id),
       ),
     [project],
@@ -392,7 +392,7 @@ export default function TabletEvaluatePage() {
     !conflictedSupplierIds.has(activeSupplier) &&
     !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!project?.myExpertRecord?.reportConfirmed;
-  // P1-3：身份核验/回避/AI声明完成标志（后端仍强制；前端对齐桌面体验，避免专家填完才报错）
+  // 身份核验/回避/AI声明完成标志（后端仍强制；前端对齐桌面体验，避免专家填完才报错）
   const verificationComplete =
     !!project?.myExpertRecord?.signedIn &&
     !!project?.myExpertRecord?.avoidanceConfirmed &&
@@ -443,7 +443,7 @@ export default function TabletEvaluatePage() {
   }, []);
 
   // 平板修改拦截器：检测已有值的修改 → 弹确认
-  // P1-4：fallbackMap = 回退渲染值（buildFullPoints/pfValueMap）——无已存 points 时以回退值判旧值，
+  // fallbackMap = 回退渲染值（buildFullPoints/pfValueMap）——无已存 points 时以回退值判旧值，
   // 已提交点的第一次点击即弹确认（此前视为新增绕过确认）
   const makeTabletOnChange = (scoreItemId: string, itemPoints: any[], fallbackMap: Record<string, PointDecisionValue> | undefined, defaultApply: (pid: string, pv: PointDecisionValue) => void) => {
     return (pid: string, pv: PointDecisionValue) => {
@@ -883,7 +883,7 @@ export default function TabletEvaluatePage() {
         </div>
       )}
 
-      {/* P2-2 平板跟进：评标截止预警——与桌面端同口径三态（过期红 / <24h warn / 正常 info 剩余时间） */}
+      {/* 平板跟进：评标截止预警——与桌面端同口径三态（过期红 / <24h warn / 正常 info 剩余时间） */}
       {project.stage === 'EVALUATING' && project.evaluationDeadline && (() => {
         const end = new Date(project.evaluationDeadline).getTime();
         const remaining = end - nowTick;
@@ -980,7 +980,7 @@ export default function TabletEvaluatePage() {
                       }));
                       const passFail = isPassFailCategory(item.category);
                       const readOnly = !canScoreActiveSupplier || scoreLocked || !verificationComplete;
-                      // P2-3：数值单点项无 pointDecisions 时按提交分回显得分点
+                      // 数值单点项无 pointDecisions 时按提交分回显得分点
                       const committedScore = committedRecordFor(project?.myScores, activeSupplier, item.id)?.score ?? null;
 
                       if (passFail) {
@@ -1072,7 +1072,7 @@ export default function TabletEvaluatePage() {
                         );
                       }
 
-                      // P1: 价格分公式引擎 — PRICE 项由系统自动算分，平板只读展示
+                      // 价格分公式引擎 — PRICE 项由系统自动算分，平板只读展示
                       const isPriceFormula = item.category === 'PRICE' && !!(project as any)?.priceFormulaConfig;
                       if (isPriceFormula) {
                         return (
@@ -1115,7 +1115,7 @@ export default function TabletEvaluatePage() {
                               onChange={makeTabletOnChange(item.id, itemPoints, buildFullPoints(item, val, committedScore), (pid, pv) =>
                                 setScores(prev => {
                                   const cur = prev[k] ?? { score: 0, reason: '' };
-                                  // P2-3：完整映射种子——首次编辑不会从 0 起算覆盖提交分
+                                  // 完整映射种子——首次编辑不会从 0 起算覆盖提交分
                                   const points = { ...buildFullPoints(item, cur, committedScore), [pid]: pv };
                                   // rollup: Σ awardedScore → item.score
                                   const score = itemPoints.reduce(
@@ -1155,7 +1155,7 @@ export default function TabletEvaluatePage() {
                                   setScores(prev => ({
                                     ...prev,
                                     [k]: {
-                                      score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), // P2：clamp 到 [0, max]，禁负分
+                                      score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), // clamp 到 [0, max]，禁负分
                                       reason: prev[k]?.reason || '',
                                     },
                                   }))

@@ -203,7 +203,7 @@ export class BidSignPacketService {
     if (!packet) throw new ConflictException({ error: '签字包尚未生成', code: 'SIGN_PACKET_NOT_GENERATED' });
     if (packet.closedAt) throw new ConflictException({ error: '签字已闭环，登记通道已锁定', code: 'SIGN_PACKET_CLOSED' });
 
-    // 终审 Critical#1：电子签名证据不可静默销毁——已电子签名的行禁止撤销回 PENDING
+    // 电子签名证据不可静默销毁——已电子签名的行禁止撤销回 PENDING
     //（否则陈旧 esignature 随 PENDING 行残留，徽标/计数失真、矛盾证据入归档链）；更正须重新生成整包（generate 清空链路）
     const signed = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId }, select: { esignature: true } });
     if (signed?.esignature != null) {
@@ -311,7 +311,7 @@ export class BidSignPacketService {
     const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
     await this.storage.upload(objectKey, file.buffer, file.mimetype);
     // N2：重传时 MinIO 对象同 key 覆盖，FileAsset 若仍 create 会撞 key @unique（P2002 → 500）。
-    // upsert：同 key 更新行（size/sha256/mimeType/originalName/uploaderId），与 MinIO 覆盖语义一致（P1-17 同款）。
+    // upsert：同 key 更新行（size/sha256/mimeType/originalName/uploaderId），与 MinIO 覆盖语义一致（同款）。
     const asset = await this.prisma.fileAsset.upsert({
       where: { key: objectKey },
       create: {
@@ -436,7 +436,7 @@ export class BidSignPacketService {
       generatedAt: new Date().toISOString(),
       projectId,
       evaluationSnapshot: base, // 评标完整性快照（含 fingerprint）
-      // A4 补齐（2026-09-04）：评标结果汇总（中标候选人排序+总得分+报价）——回传 :3005 开标确认
+      // A4 补齐：评标结果汇总（中标候选人排序+总得分+报价）——回传 :3005 开标确认
       // 面板展示与定标/预成交公示使用；Number 归一（Decimal 字符串不入包，与包内其他数值字段同风格）
       evaluationResults: evalResults.map(r => ({
         supplierId: r.supplierId, supplierName: r.supplierName,
@@ -456,14 +456,14 @@ export class BidSignPacketService {
         // A-152：电子签名剥壳摘要（完整证据在 BidExpert.esignature，payload/签名值不入回流包）
         esignature: stripExpertEsignature(e.esignature),
         esignatureAt: e.esignatureAt?.toISOString() ?? null,
-        // ── 身份核验域（2026-09-18）：勾选/承诺的机器可读证据，与签字包 PDF 留痕表互补 ──
+        // 身份核验域：勾选/承诺的机器可读证据，与签字包 PDF 留痕表互补
         signedIn: e.signedIn, signInIp: e.signInIp, signInMeta: e.signInMeta, // signInMeta 含 photoAssetId（签到照片引用）
         confidentialityAgreed: e.confidentialityAgreed, confidentialityAgreedAt: e.confidentialityAgreedAt?.toISOString() ?? null,
         disciplineAgreed: e.disciplineAgreed, disciplineAgreedAt: e.disciplineAgreedAt?.toISOString() ?? null,
         aiConsentConfirmed: e.aiConsentConfirmed, aiConsentAt: e.aiConsentAt?.toISOString() ?? null,
         avoidanceConfirmed: e.avoidanceConfirmed, conflictedSupplierIds: (e.conflictedSupplierIds as string[] | null) ?? [],
       })),
-      // ── 专家备忘（手写/键盘，含笔迹图 FileAsset 引用——不内嵌字节，归档校验靠 sha256）──
+      // 专家备忘（手写/键盘，含笔迹图 FileAsset 引用——不内嵌字节，归档校验靠 sha256）
       expertMemos: memos.map(m => ({
         expertName: m.expert?.expertName ?? '（专家）',
         supplierName: m.supplier?.supplierName ?? null,
@@ -473,14 +473,14 @@ export class BidSignPacketService {
         createdAt: m.createdAt.toISOString(),
         ink: m.inkFile ? { fileAssetId: m.inkFile.id, key: m.inkFile.key, originalName: m.inkFile.originalName, size: m.inkFile.size, sha256: m.inkFile.sha256 } : null,
       })),
-      // ── 条款裁定（requirement-compare 产物；requirementId 的解析源在下方 aiAnalysis.requirements）──
+      // 条款裁定（requirement-compare 产物；requirementId 的解析源在下方 aiAnalysis.requirements）
       requirementReviews: requirementReviews.map(r => ({
         expertName: r.expert?.expertName ?? '（专家）',
         supplierName: r.bidderResult?.bidSupplier?.supplierName ?? null,
         requirementId: r.requirementId, category: r.category, verdict: r.verdict, note: r.note,
         createdAt: r.createdAt.toISOString(),
       })),
-      // ── AI 分析产物：provenance（用了什么模型/prompt 的证据）+ 每家核心结论 + 汇总报告 ──
+      // AI 分析产物：provenance（用了什么模型/prompt 的证据）+ 每家核心结论 + 汇总报告
       // 边界：原始 OCR 文本（tenderText/technicalText/businessText）与逐家审计快照（extractedInfo/systemInfo/
       // requirementResponses/competitiveAnalysis）不入包——体积大且 DB 常驻；投标明文本体走 bid_decrypted 归档。
       aiAnalysis: aiTask ? {
@@ -506,7 +506,7 @@ export class BidSignPacketService {
           docx: aiFileRef(aiTask.report.docxFileId), pdf: aiFileRef(aiTask.report.pdfFileId),
         } : null,
       } : null,
-      // ── 评标段监督日志（开评标全周期动作留痕；与开标文件包 supervisionLogs 同 select 口径）──
+      // 评标段监督日志（开评标全周期动作留痕；与开标文件包 supervisionLogs 同 select 口径）
       supervisionLogs: supervisionLogs.map(l => ({
         time: l.time.toISOString(), role: l.role, action: l.action, target: l.target, result: l.result, riskFlag: l.riskFlag,
       })),
@@ -542,7 +542,7 @@ export class BidSignPacketService {
 
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
     // N14：幂等守卫已挡重复生成，此处 upsert 为防御性同 key 覆盖——若行已存在则更新指纹，
-    // 保证 DB 记录与 MinIO 内容恒一致（与 N2/N3 同款，P1-17 同构）。
+    // 保证 DB 记录与 MinIO 内容恒一致（与 N2/N3 同款，同构）。
     const asset = await this.prisma.fileAsset.upsert({
       where: { key: objectKey },
       create: {
@@ -600,7 +600,7 @@ export class BidSignPacketService {
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
     await this.storage.upload(objectKey, buffer, mimeType);
 
-    // P1-17：重生成时 MinIO 对象同 key 覆盖，但旧 FileAsset 行仍挂同 key——
+    // 重生成时 MinIO 对象同 key 覆盖，但旧 FileAsset 行仍挂同 key——
     // create 撞 key @unique（P2002 → 500）。改 upsert：同 key 更新行，与 MinIO 覆盖语义一致。
     const asset = await this.prisma.fileAsset.upsert({
       where: { key: objectKey },
@@ -669,7 +669,7 @@ export class BidSignPacketService {
       ]);
 
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
-    // 唱标金额单位解析（2026-09-14）：开标记录 amount 的单位标记（dual-v2=万元）
+    // 唱标金额单位解析：开标记录 amount 的单位标记（dual-v2=万元）
     const amountUnitMapForRecords = await resolveOpeningAmountUnitMap(this.prisma, projectId);
     // 得分点取自 scoreItems 的 include（BidScorePoint 无 projectId 列，经 scoreItem 关联）
     const points = scoreItems.flatMap((i) => i.points);
@@ -701,7 +701,7 @@ export class BidSignPacketService {
         identityVerified: { ip: e.signInIp, meta: e.signInMeta, at: signInMeta.timestamp ?? null },
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,
-        aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null, // 2026-09-18：留痕表加「AI 辅助声明确认」行
+        aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null, // 留痕表加「AI 辅助声明确认」行
         scoreSubmittedAt: firstScoreAt.get(e.id) ?? null,
         scoreVerifiedAt: verifiedAt.get(e.id) ?? null,
         reportConfirmedAt: e.reportConfirmedAt ? e.reportConfirmedAt.toISOString() : null,
@@ -747,14 +747,14 @@ export class BidSignPacketService {
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,
         reportConfirmedAt: e.reportConfirmedAt ? e.reportConfirmedAt.toISOString() : null,
-        // 2026-09-18：身份核验域入签字包 JSON 快照（PDF 留痕表仅 aiConsentAt 一行，回避明细见回流包）
+        // 身份核验域入签字包 JSON 快照（PDF 留痕表仅 aiConsentAt 一行，回避明细见回流包）
         signedIn: e.signedIn, aiConsentConfirmed: e.aiConsentConfirmed,
         aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null,
         avoidanceConfirmed: e.avoidanceConfirmed,
       })),
       leaderCoSignedAt: project.leaderCoSignedAt ? project.leaderCoSignedAt.toISOString() : null,
       reportNotes: (project.reportNotes as Array<{ section: string; content: string }>) ?? undefined,
-      // 唱标金额单位（2026-09-14）：单位戳优先（amountUnit 列），回退轨道推导——签字包纸面/JSON 证据金额自含单位
+      // 唱标金额单位：单位戳优先（amountUnit 列），回退轨道推导——签字包纸面/JSON 证据金额自含单位
       openingRecords: openingRecords.map(r => {
         const unit = r.amountUnit ?? ((r.bidSupplierId ? amountUnitMapForRecords.get(r.bidSupplierId) : null) ?? null);
         return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus };

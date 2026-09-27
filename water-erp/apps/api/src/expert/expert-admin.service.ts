@@ -277,7 +277,7 @@ export class ExpertAdminService {
     });
   }
 
-  /* ── 专家录入 ── */
+  /* 专家录入 */
 
   async createExpert(dto: CreateExpertDto, operatorId?: string) {
     const normalizedName = dto.displayName.trim();
@@ -676,7 +676,7 @@ export class ExpertAdminService {
       where: { id: projectId },
       include: { suppliers: { include: { supplier: { select: { name: true } } } } },
     });
-    // P1-5：回避口径与 preview/confirm 同步——已投递 ∪ 开标后终局态（旧 CONFIRMED 口径开标前恒空集）
+    // 回避口径与 preview/confirm 同步——已投递 ∪ 开标后终局态（旧 CONFIRMED 口径开标前恒空集）
     const supplierNames = new Set(
       (project?.suppliers ?? [])
         .filter(s => s.submitStatus === '已提交' || s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION')
@@ -898,7 +898,7 @@ export class ExpertAdminService {
     return { success: true, status: 'confirmed' };
   }
 
-  /** P0-4: 撤销专家报告确认 — 允许专家在确认后修改评分并重新确认 */
+  /** 撤销专家报告确认 — 允许专家在确认后修改评分并重新确认 */
   async unconfirmReport(projectId: string, expertId: string, reason: string, actorId: string) {
     // 门控：项目必须仍在 EVALUATING 阶段（已归档不可撤销）——事务外快速失败
     const project = await this.prisma.bidProject.findUnique({
@@ -917,7 +917,7 @@ export class ExpertAdminService {
       throw new BadRequestException({ error: '该专家尚未确认报告', code: 'NOT_CONFIRMED' });
     }
 
-    // P0-4/R2: 事务内重读 stage + leaderCoSigned，消除与 archiveAll / leaderCoSign 的 TOCTOU
+    // 事务内重读 stage 与 leaderCoSigned，消除与 archiveAll、leaderCoSign 的 TOCTOU 竞态。
     await this.prisma.$transaction(async (tx) => {
       const locked = await tx.bidProject.findUnique({
         where: { id: projectId },
@@ -1087,7 +1087,7 @@ export class ExpertAdminService {
     return { total, page, pageSize, items };
   }
 
-  /* ── 大屏聚合统计（公开，无需登录）── */
+  /* 大屏聚合统计（公开，无需登录） */
 
   async getBigscreenStats() {
     const [total, availGroups, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
@@ -1187,7 +1187,7 @@ export class ExpertAdminService {
     };
   }
 
-  /* ── 专家评价 ── */
+  /* 专家评价 */
 
   /** AI 辅助评价建议：LLM 综合历史评价 / 评分偏离度 / 违规 / 当前负荷给出三维建议分数，
    *  LLM 不可用时走规则兜底（历史均分 ± 偏离度/违规罚分），engine 字段标识来源，前端据实展示。 */
@@ -1323,7 +1323,7 @@ export class ExpertAdminService {
         : undefined,
     };
 
-    // 去重/防刷（P2 幂等）：同一评价者对同一专家在同一项目仅保留一条评价（可改不可刷）。
+    // 去重/防刷（幂等）：同一评价者对同一专家在同一项目仅保留一条评价（可改不可刷）。
     // 否则可对目标专家无限刷 D 级评价，配合退库预警造成错误退库。
     // （DB 唯一约束与种子数据冲突，故用服务层 find-then-upsert）
     const existing = await this.prisma.expertEvaluation.findFirst({
@@ -1515,7 +1515,7 @@ export class ExpertAdminService {
     const cutoff = new Date(Date.now() - 365 * 24 * 3600 * 1000);
     const expertIds = experts.map(e => e.id);
 
-    // P2: Batch queries instead of N+1 per-expert queries
+    // Batch queries instead of N+1 per-expert queries
     const [allEvals, allRecentAssigns] = await Promise.all([
       // All recent evaluations for all experts (up to 2 per expert)
       this.prisma.expertEvaluation.findMany({
@@ -2017,7 +2017,7 @@ export class ExpertAdminService {
     };
   }
 
-  /* ── AI 深化能力（OCR 录入 / 风险预警 / 抽取复盘，均带规则兜底降级）── */
+  /* AI 深化能力（OCR 录入 / 风险预警 / 抽取复盘，均带规则兜底降级） */
 
   /** 资质 OCR 自动录入：识别证书/证件图片 → LLM 结构化 → 返回表单字段供前端回填。
    *  OCR 服务不可用时抛 503 友好提示；LLM 不可用时返回原始识别文本（降级）。 */
@@ -2050,7 +2050,7 @@ export class ExpertAdminService {
     return { rawText: text.slice(0, 2000), fields };
   }
 
-  /* ── 自定义抽取：文件分析 + 影子项目 ── */
+  /* 自定义抽取：文件分析 + 影子项目 */
 
   /** 读取已上传文件 → 文本（含 OCR），供 AI 推断项目需求。
    *  访问控制：仅允许读取操作者本人上传的文件，避免越权读取开标前投标文件/资质 PII 并外发 LLM。 */
@@ -2434,7 +2434,7 @@ ${combined}`,
     }));
   }
 
-  /* ── 操作历史（审计，只读）── */
+  /* 操作历史（审计，只读） */
 
   /** 专家管理操作历史：仅白名单动作，附操作人/时间/事由，供审计追溯（无改删端点，不可篡改）。 */
   async getExpertOperationHistory(params: { expertId?: string; action?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) {

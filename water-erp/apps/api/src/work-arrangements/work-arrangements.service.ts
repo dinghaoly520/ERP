@@ -472,7 +472,7 @@ export class WorkArrangementsService {
     const HEADER_CACHE_TTL = 30 * 60 * 1000; // 30分钟缓存（避免时段错位）
     const CONTENT_CACHE_TTL = 10 * 60 * 1000; // 10分钟缓存
 
-    // ── FAST PATH: 检查 DB 持久化缓存 ──
+    // FAST PATH: 检查 DB 持久化缓存
     const dbCached = await this.readDbCachedPlan(userId, today);
     if (dbCached) {
       // 判断 DB 缓存的新鲜度
@@ -492,7 +492,7 @@ export class WorkArrangementsService {
       return dbCached;
     }
 
-    // ── SLOW PATH: 无 DB 缓存，需要完整生成（首次访问或缓存被清理）──
+    // SLOW PATH: 无 DB 缓存，需要完整生成（首次访问或缓存被清理）
     const [user, items] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },

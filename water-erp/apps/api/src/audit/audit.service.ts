@@ -136,6 +136,7 @@ export class AuditService {
       limit?: number;
       offset?: number;
       actions?: string[];
+      excludeActions?: string[];
     },
   ) {
     const limit = options?.limit ?? 50;
@@ -145,6 +146,9 @@ export class AuditService {
       userId,
       ...(options?.actions && options.actions.length > 0
         ? { action: { in: options.actions } }
+        : {}),
+      ...(options?.excludeActions && options.excludeActions.length > 0
+        ? { action: { notIn: options.excludeActions } }
         : {}),
     };
 

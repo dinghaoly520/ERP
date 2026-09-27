@@ -41,22 +41,22 @@ function WorkspaceInner() {
   // 页级单源：context 仅取 projectId；project 数据 + 实时全部由本页持有。
   const { projectId } = useBidProjectContext();
 
-  // ═══ project 数据（唯一显示源）═══
+  // project 数据（唯一显示源）
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ═══ 跨 tab 常驻的实时数据（监督日志 / 异常事件）═══
+  // 跨 tab 常驻的实时数据（监督日志 / 异常事件）
   const [liveLogs, setLiveLogs] = useState<SupervisionLog[]>([]);
   const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
 
-  // ═══ 现场协同实时化（P0）：澄清事件信号——驱动 ClarificationsBlock 重拉 ═══
+  // 现场协同实时化：澄清事件信号——驱动 ClarificationsBlock 重拉
   const [clarSignal, setClarSignal] = useState(0);
-  // F6（2026-08-28）：评标结果刷新信号——异议裁决联动废标等操作会删除评标结果，
+  // F6：评标结果刷新信号——异议裁决联动废标等操作会删除评标结果，
   // 递增即驱动 EvaluationView 重拉（结果仅挂载拉取一次，否则排名区显示已删除的旧结果）
   const [resultsSignal, setResultsSignal] = useState(0);
 
-  // ═══ Audio（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）═══
+  // Audio（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）
   const sfx = useOpeningSfx();
   const seenDecrypt = useRef<Set<string>>(new Set());
 
@@ -81,7 +81,7 @@ function WorkspaceInner() {
     loadProject();
   }, [projectId, loadProject]);
 
-  // ═══ 高频事件防抖刷新：评分提交/专家在场成串到达（7 专家 × N 供应商），合并为一次全量重拉 ═══
+  // 高频事件防抖刷新：评分提交/专家在场成串到达（7 专家 × N 供应商），合并为一次全量重拉
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRefresh = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
@@ -89,7 +89,7 @@ function WorkspaceInner() {
   }, [loadProject]);
   useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
 
-  // ═══ 当前 tab ═══
+  // 当前 tab
   const stage = project?.stage ?? 'DOWNLOAD';
   const requested = searchParams.get('tab') as TabDef['key'] | null;
   // 报价轮次仅谈判采购（roundMode=negotiation）显示；sealed_auction 为单轮唱标模式（唱标价即最终价），无多轮报价流程
@@ -105,7 +105,7 @@ function WorkspaceInner() {
     router.replace(`/bid/project/${projectId}?${next.toString()}`, { scroll: false });
   }, [router, projectId, searchParams]);
 
-  // O2（2026-08-28）：评标区两块共用 onEvalChanged——生成/重生成/裁决等会改评标结果的动作
+  // O2：评标区两块共用 onEvalChanged——生成/重生成/裁决等会改评标结果的动作
   // 统一递增 resultsSignal，DisputeBlock 经信号重拉（原依赖 detail 引用，WS 高频
   // scheduleRefresh 每轮都多打一次 evaluation-results）
   const onEvalChanged = useCallback(() => {
@@ -113,10 +113,10 @@ function WorkspaceInner() {
     setResultsSignal(v => v + 1);
   }, [loadProject]);
 
-  // ═══ 解密倒计时提示音（补回旧开标大厅行为）：大厅 tab 且解密窗口在计时时，剩余 ≤60s 每秒 tick、
+  // 解密倒计时提示音（补回旧开标大厅行为）：大厅 tab 且解密窗口在计时时，剩余 ≤60s 每秒 tick、
   // 剩余 300s 时 warning 一次。tab / decryptWindowEnd 变化即 clearInterval 重建，卸载清除；
   // sfx 每渲染新建但仅读稳定的 audioCtxRef，行为等效，故不入依赖。视觉圆环仍在 hall（serverTimeOffset），
-  // 本音效用客户端 now，精度足够。═══
+  // 本音效用客户端 now，精度足够。
   const decryptWindowEnd = project?.openingSession?.decryptWindowEnd;
   useEffect(() => {
     if (current !== 'open' || !decryptWindowEnd) return;
@@ -130,7 +130,7 @@ function WorkspaceInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, decryptWindowEnd]);
 
-  // ═══ 单一 WebSocket（页级持有，跨 tab 常驻；返回值仅副作用——连接 + 事件回调驱动刷新）═══
+  // 单一 WebSocket（页级持有，跨 tab 常驻；返回值仅副作用——连接 + 事件回调驱动刷新）
   useBidWebSocket(projectId ?? undefined, {
     onDecryptStatus: (data) => {
       setProject(prev => {
@@ -174,7 +174,7 @@ function WorkspaceInner() {
       loadProject();
       toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
     },
-    // ── 现场协同实时化（P0）：专家端动作驱动主持端屏幕，替代手动 F5 ──
+    // 现场协同实时化：专家端动作驱动主持端屏幕，替代手动 F5
     onScoresSubmitted: (d) => {
       const expertName = project?.experts?.find(e => e.id === d.expertId)?.expertName;
       const supplierName = project?.suppliers?.find(s => s.id === d.supplierId)?.supplierName;
@@ -223,7 +223,7 @@ function WorkspaceInner() {
     <div className="space-y-5">
       {project && (
         <>
-          {/* ═══ 顶部标题栏（cgzxui page-hero）═══ */}
+          {/* 顶部标题栏（cgzxui page-hero） */}
           <div className="page-hero">
             <div className="page-hero__row">
               <div className="page-hero__left">

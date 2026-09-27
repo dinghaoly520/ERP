@@ -15,12 +15,12 @@ export const rsvpTtlHours = (): number => {
   return Number.isFinite(h) && h > 0 ? h : 2;
 };
 
-/* =================================================================
+/*
    专家智能抽取 — LLM 分析引擎（统一走 LlmService 网关）
    AI 负责"理解项目 + 评估专家匹配度 + 推荐专家组构成"，
    "谁中选"由调用方的确定层决定（模式驱动：专业匹配/随机/综合择优）。
    无 key / 失败时抛错，调用方（previewExtraction）降级到规则评分。
-   ================================================================= */
+ */
 
 /** 送入 LLM 的合规候选专家（含多维度履职数据） */
 export interface ExtractionCandidate {
@@ -132,7 +132,7 @@ export class ExpertExtractionAiService {
 
     const indexToId = new Map<string, string>();
     // 候选行精简到核心6项（减少 token、降低 LLM 耗时、避免超时触发代理 500）
-    // P1-9：脱敏出境——姓名/单位不送外部 LLM（条例第46条评委名单保密纪律），打分所需字段保留
+    // 脱敏出境——姓名/单位不送外部 LLM（条例第46条评委名单保密纪律），打分所需字段保留
     const lines = aiCandidates.map((c, i) => {
       const key = `e${i}`;
       indexToId.set(key, c.id);

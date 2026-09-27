@@ -186,7 +186,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStageKey, setSelectedStageKey] = useState<string | null>(null);
-  // ── 步骤分析（2026-09-21）：右侧面板 tab 切换，懒加载——读缓存命中秒回，miss 才触发生成 ──
+  // 步骤分析：右侧面板 tab 切换，懒加载——读缓存命中秒回，miss 才触发生成
   const [stageTab, setStageTab] = useState<'files' | 'analysis'>('files');
   const [stepAnalysis, setStepAnalysis] = useState<{ stageKey: string; content: string; empty: boolean } | null>(null);
   const [stepAnalysisLoading, setStepAnalysisLoading] = useState(false);

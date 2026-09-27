@@ -55,7 +55,7 @@ export class ArchiveScopeService {
     this.seeded = true;
   }
 
-  /** 阶段闸门（P1）：该阶段必选项（attachment 源）是否齐件。返回缺件清单（空=通过） */
+  /** 阶段闸门：该阶段必选项（attachment 源）是否齐件。返回缺件清单（空=通过） */
   async checkStageGate(projectId: string, stageKey: string): Promise<string[]> {
     await this.ensureSeeded();
     const required = await this.prisma.archiveScopeItem.findMany({

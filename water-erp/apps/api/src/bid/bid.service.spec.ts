@@ -5119,7 +5119,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
 
     // sendToRole 两参签名（同 scheduler 口径）：('staff', { type:'SYSTEM', title, content })
-    expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'SYSTEM' }));
+    expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'BOND_REFUND_DUE', link: '/projects?projectId=p1' }));
     expect(notification.sendToRole.mock.calls[0]).toHaveLength(2);
     expect(prisma.systemConfig.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { key: 'bond_return_reminder_award:p1' } }),

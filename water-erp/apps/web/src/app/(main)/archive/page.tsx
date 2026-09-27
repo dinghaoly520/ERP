@@ -205,7 +205,7 @@ function ArchivePageInner() {
   return (
     <div className="flow-page">
       <div className="px-[clamp(28px,4vw,72px)] pt-4 pb-8">
-        {/* ═══ page-hero ═══ */}
+        {/* page-hero */}
         <div className="page-hero">
           <div className="page-hero__row">
             <div className="page-hero__left">
@@ -238,7 +238,7 @@ function ArchivePageInner() {
           </div>
         </div>
 
-        {/* ═══ 工具栏 ═══ */}
+        {/* 工具栏 */}
         <div className="neu-table-card mt-4">
           <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
             <div className="neu-tab-bar">
@@ -312,7 +312,7 @@ function ArchivePageInner() {
         </div>
       </div>
 
-      {/* ═══ 质检弹窗（Modal 化，2026-09-18 cgzxui 表单弹窗范式） ═══ */}
+      {/* 质检弹窗（Modal 化，2026-09-18 cgzxui 表单弹窗范式） */}
       {inspect && (
         <Modal
           open
@@ -387,7 +387,7 @@ function ArchivePageInner() {
                 </>
               )}
 
-              {/* ── D3 纸电关联：登记表回传（A.1h）── */}
+              {/* D3 纸电关联：登记表回传（A.1h） */}
               <hr className="wb-section-rule my-4" />
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -419,7 +419,7 @@ function ArchivePageInner() {
                 </div>
               </div>
 
-              {/* ── S2 归档审计（A.1g）── */}
+              {/* S2 归档审计（A.1g） */}
               {auditRows && auditRows.length > 0 && (
                 <>
                   <hr className="wb-section-rule my-4" />
@@ -451,8 +451,8 @@ function ArchivePageInner() {
   );
 }
 
-/** 修（2026-09-08，页面波批末总闸 incidental）：useSearchParams 须 Suspense 包裹——
- *  否则 next build 预渲染 /archive 报 missing-suspense-with-csr-bailout（并行线既有缺陷，CI 不 build web 故漏网）。 */
+/** useSearchParams 需由 Suspense 包裹，确保 /archive 可正常预渲染。 */
+
 export default function ArchivePage() {
   return (
     <Suspense>

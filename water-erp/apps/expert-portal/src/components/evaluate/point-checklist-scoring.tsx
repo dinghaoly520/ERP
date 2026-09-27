@@ -63,7 +63,7 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
                 <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
                 {p.evidenceHint && <div className="truncate text-xs text-[var(--muted-foreground)]">{p.evidenceHint}</div>}
               </div>
-              {/* P3-1：fullScore=0（通过制得分点）隐藏数字输入与「/ 0」噪声——勾选即满分 0 */}
+              {/* fullScore=0（通过制得分点）隐藏数字输入与「/ 0」噪声——勾选即满分 0 */}
               {max > 0 && (
                 <>
                   <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}

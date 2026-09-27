@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ClipboardList, Clock, Inbox, RefreshCw } from 'lucide-react';
 
-/* ═══════════════════════════════════════════════════════════════
+/*
    流程中心（C1）— 五源审批统一收件箱（只读聚合，处理在原页面）
    数据管理页标准三层：page-hero + 工具栏 + neu-table-card
-   ═══════════════════════════════════════════════════════════════ */
+ */
 
 type WorkflowItem = {
   source: string;
@@ -121,7 +121,7 @@ export default function WorkflowPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 p-6">
-      {/* ═══ page-hero ═══ */}
+      {/* page-hero */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">

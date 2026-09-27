@@ -29,8 +29,8 @@ interface ExpertDetail {
 const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
 const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'orange', E: 'red' };
 
-/** 字段瓷片（2026-09-18 v3，与供应商详情同款）：kpi-card 承载，label/value + 空值淡化 + copyable；
- *  value 支持 ReactNode（徽章）。去逐字段图标（图标堆砌是噪点）。 */
+/** 字段展示卡片支持 ReactNode、空值淡化和点击复制。 */
+
 function InfoField({
   label,
   value,
@@ -259,7 +259,7 @@ export default function ExpertDetailPage() {
     if (editForm.regionCode.trim() && !/^\d{6}$/.test(editForm.regionCode.trim())) { toast.error('区域代码格式不正确（六位数字，如 510000）'); return; }
     setEditSaving(true);
     try {
-      // A-129 档案维度：空值提交 null=显式清除（P2-quick 后端 null 语义），清空保存即清除
+      // A-129 档案维度：空值提交 null=显式清除（后端 null 语义），清空保存即清除
       await updateExpertProfile(expertId, { ...editForm, regionCode: editForm.regionCode.trim() || null, expertLevel: editForm.expertLevel || null });
       toast.success('专家资料已保存');
       setShowEditModal(false);
@@ -287,7 +287,7 @@ export default function ExpertDetailPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ── 返回按钮 + page-hero ── */}
+      {/* 返回按钮 + page-hero */}
       <button onClick={() => router.push('/expert/repository')} className="flow-back shrink-0 self-start">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow">
           <path d="M15 18l-6-6 6-6" />
@@ -368,7 +368,7 @@ export default function ExpertDetailPage() {
         const availabilityTone = p.availability === '可用' ? 'green' : p.availability === '占用' ? 'orange' : 'gray';
         return (
           <div className="space-y-5">
-            {/* ══ 职业信息 ══ */}
+            {/* 职业信息 */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={Briefcase}>职业信息</SectionTitle>
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
@@ -386,7 +386,7 @@ export default function ExpertDetailPage() {
               </div>
             </section>
 
-            {/* ══ 身份与联系（2026-09-18 v3 合并为单卡分组瓷片）══ */}
+            {/* 身份与联系（2026-09-18 v3 合并为单卡分组瓷片） */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={IdCard}>身份与联系</SectionTitle>
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
@@ -401,7 +401,7 @@ export default function ExpertDetailPage() {
               </div>
             </section>
 
-            {/* ══ 账户与归属 ══ */}
+            {/* 账户与归属 */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={Building2}>账户与归属</SectionTitle>
               <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
@@ -415,7 +415,7 @@ export default function ExpertDetailPage() {
               )}
             </section>
 
-            {/* ══ 系统元信息 footer ══ */}
+            {/* 系统元信息 footer */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-[var(--muted-foreground)]">
               <span className="inline-flex items-center gap-1"><Calendar size={11} /> 入库于 {new Date(expert.createdAt).toLocaleDateString('zh-CN')}</span>
             </div>
@@ -827,7 +827,7 @@ export default function ExpertDetailPage() {
       )}
 
 
-      {/* ════ 编辑资料弹窗（Modal 表单范式） ════ */}
+      {/* 编辑资料弹窗（Modal 表单范式） */}
       {showEditModal && (
         <Modal
           open

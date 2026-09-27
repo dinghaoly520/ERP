@@ -63,7 +63,7 @@ function SupplierApprovalPage() {
     setBatchApproving(true);
     let done = 0; const failed: string[] = [];
     for (const id of selected) { try { await approveSupplier(id); done++; } catch { failed.push(id); } }
-    // P0-9：暴露失败项，而非静默吞错只报成功数。
+    // 暴露失败项，而非静默吞错只报成功数。
     if (failed.length > 0) toast.error(`${done} 个成功，${failed.length} 个失败（可能已被他人处理或状态变更），已自动刷新`);
     else toast.success(`已批量通过 ${done} 个供应商`);
     setSelected(new Set());
@@ -87,7 +87,7 @@ function SupplierApprovalPage() {
         done++;
       } catch { failed.push(id); }
     }
-    // P0-9：暴露失败项。
+    // 暴露失败项。
     if (failed.length > 0) toast.error(`${done} 个成功，${failed.length} 个失败（可能已被他人处理或状态变更），已自动刷新`);
     else toast.success(`已批量${type === 'return' ? '退回' : '拒绝'} ${done} 个供应商`);
     setBatchModal(null);
@@ -158,7 +158,7 @@ function SupplierApprovalPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero — 标题卡片 ══════ */}
+      {/* page-hero — 标题卡片 */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -225,7 +225,7 @@ function SupplierApprovalPage() {
         </div>
       )}
 
-      {/* ══════ 工具栏卡片（tab + 搜索） ══════ */}
+      {/* 工具栏卡片（tab + 搜索） */}
       <div className="wb-toolbar">
         <div className="neu-tab-bar">
           {TABS.map(t => (
@@ -237,7 +237,7 @@ function SupplierApprovalPage() {
         </div>
       </div>
 
-      {/* ══════ 数据表格 ══════ */}
+      {/* 数据表格 */}
       <div className="neu-table-card">
         {selected.size > 0 && (
           <div className="neu-batch-bar">
@@ -402,7 +402,7 @@ function SupplierApprovalPage() {
         )}
       </div>
 
-      {/* ══════ 处理弹窗 ══════ */}
+      {/* 处理弹窗 */}
       {actionModal && (
         <Modal
           open
@@ -431,7 +431,7 @@ function SupplierApprovalPage() {
         </Modal>
       )}
 
-      {/* ══════ 批量退回/拒绝弹窗 ══════ */}
+      {/* 批量退回/拒绝弹窗 */}
       {batchModal && (
         <Modal
           open
@@ -452,7 +452,7 @@ function SupplierApprovalPage() {
         </Modal>
       )}
 
-      {/* ══════ 批量通过确认弹窗 ══════ */}
+      {/* 批量通过确认弹窗 */}
       {batchApproveModal && (
         <Modal
           open

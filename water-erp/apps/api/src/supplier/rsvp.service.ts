@@ -73,7 +73,7 @@ export class RsvpService {
     }
 
     const note = (body.note ?? '').trim().slice(0, 500) || null;
-    // P0-1：回执落库 + 纳入候选同事务（此前分散写：状态更新成功而 upsert FK 失败 → 半成功 + 误报「被篡改」）
+    // 回执落库 + 纳入候选同事务（此前分散写：状态更新成功而 upsert FK 失败 → 半成功 + 误报「被篡改」）
     const updated = await this.prisma.$transaction(async (tx) => {
       const r = await tx.invitationRsvp.update({
         where: { id: row.id },
@@ -88,9 +88,9 @@ export class RsvpService {
 
       // 接受 + 带项目：确保供应商进入项目候选（已存在则不动其投标进度，仅保证行存在）。
       // 拒绝：仅记录，不自动移出候选名单（由采购方在看板人工处理）——按用户确认的产品决策。
-      // P0-1：rsvp.projectId 是邀请页写入的 ProjectManagementItem id（非 BidProject id），
+      // rsvp.projectId 是邀请页写入的 ProjectManagementItem id（非 BidProject id），
       // 旧实现直接拿去 upsert BidSupplier → FK(P2003)。须先解析真实 BidProject。
-      // 2026-08-31：BidProject 尚未懒创建时【立即触发 ensureBidProject】而非仅记录回执——
+      // BidProject 尚未懒创建时【立即触发 ensureBidProject】而非仅记录回执——
       // 供应商确认参加后门户「可投标项目/工作台」需立即可见（此前要等采购端后续操作才补挂，
       // 造成"已确认却看不到项目"）。ensureBidProject 幂等，且创建时会回填全部已接受回执的候选。
       if (body.status === 'ACCEPTED' && row.projectId) {
@@ -174,7 +174,7 @@ export class RsvpService {
       }
     }
 
-    // ── 清理重复行：同一 supplierId 只保留一行，确保通知链接与确认页面 rsvpNo 一致 ──
+    // 清理重复行：同一 supplierId 只保留一行，确保通知链接与确认页面 rsvpNo 一致
     const bySupplier = new Map<string, typeof rows>();
     for (const r of rows) {
       const arr = bySupplier.get(r.supplierId) || [];

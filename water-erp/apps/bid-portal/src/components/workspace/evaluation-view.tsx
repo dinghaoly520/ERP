@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * 评标管理区块——:3007 项目工作区「评标管理」tab（全操作）。
- * 分工 v3（2026-08-13）：评标管理自 :3005 迁回本端，进度仪表盘、启动评标、专家状态卡、
- * 专家×供应商评分矩阵（偏差>20% 标异常）、供应商汇总排名（实时均分参考 /
- * 官方结果）、3 步生成向导、专家批注查看。归档由 :3005 收尾；实时性由页级 socket 驱动。
- * 唯一副本（:3005 原件已删除，2026-08-14）；函数 API 走 @/lib/api/evaluation（同源封装）。
+ * 开评标门户的评标管理工作区：启动评标、查看专家状态与评分矩阵、
+ * 预览供应商排名、生成评标结果和查看专家批注。
+ * 归档由采购工作台处理；页面通过 socket 接收实时更新。
  */
+
+
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -71,7 +71,7 @@ function memoDeviceLabel(sourceDevice: string): string {
   return `${dl}·${il}`;
 }
 
-/* ── 聚合工具（移植自 bid-portal evaluate/page.tsx）── */
+/* 聚合工具（移植自 bid-portal evaluate/page.tsx） */
 
 interface ExpertSupplierCell {
   totalScore: number;
@@ -157,7 +157,7 @@ function StatTile({ label, value, sub, pct, color }: { label: string; value: str
   );
 }
 
-/* ═══ 组件 ═══ */
+/* 组件 */
 
 export default function EvaluationView({ projectId, project, onChanged, refreshSignal }: Props) {
   const [results, setResults] = useState<BidEvaluationResultInfo[]>([]);
@@ -168,7 +168,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [expandedCell, setExpandedCell] = useState<string | null>(null); // `${expertId}:${supplierId}`
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2>(0);
-  // P2-14：重生成二次确认弹窗（替代 window.confirm）
+  // 重生成二次确认弹窗（替代 window.confirm）
   const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
   const [annotationCell, setAnnotationCell] = useState<string | null>(null); // `${expertId}:${supplierId}:${scoreItemId}`
   const [annotationMemos, setAnnotationMemos] = useState<ExpertMemoForAdmin[]>([]);
@@ -202,7 +202,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [unrejectFor, setUnrejectFor] = useState<{ id: string; expertName: string } | null>(null);
   const [unrejectReason, setUnrejectReason] = useState('');
   const [unrejectBusy, setUnrejectBusy] = useState(false);
-  // P3 host 态（2026-09-20 §4.2）：核验登记/撤销弹窗
+  // host 态（2026-09-20 §4.2）：核验登记/撤销弹窗
   const [verifyFor, setVerifyFor] = useState<{ id: string; expertName: string } | null>(null);
   const [verifyDocType, setVerifyDocType] = useState<'身份证' | '护照' | '其他'>('身份证');
   const [verifyNote, setVerifyNote] = useState('');
@@ -266,15 +266,15 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       .catch(() => setResults([]));
   }, [projectId]);
 
-  // F12（2026-08-28）：官方口径实时排名预览（结果未生成时排名区主数据源）——与生成同源聚合
+  // F12：官方口径实时排名预览（结果未生成时排名区主数据源）——与生成同源聚合
   // （去极值/公式价格分/废标置后），替代旧的「正选百分制原始均分」；端点失败回退旧均分。
   const [liveOfficial, setLiveOfficial] = useState<LiveOfficialScoresResponse | null>(null);
-  /** P0-3c：官方口径预览拉取失败标记——回退客户端均分估算时排名区显式告警，不再静默换量纲 */
+  /** 官方口径预览拉取失败标记——回退客户端均分估算时排名区显式告警，不再静默换量纲 */
   const [liveFailed, setLiveFailed] = useState(false);
 
   // F12：按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致
   // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新。
-  // F6（2026-08-28）：新增页级 refreshSignal 依赖——异议裁决联动废标会删除评标结果，
+  // F6：新增页级 refreshSignal 依赖——异议裁决联动废标会删除评标结果，
   // 此前 results 仅挂载时拉取一次，删除后本区块仍显示旧排名（缓存失活）。信号变化即重拉。
   // 重拉后生成响应携带的 excludedSuppliers 告警不再可靠，一并清空。
   useEffect(() => { loadResults(); }, [loadResults]);
@@ -309,7 +309,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       .catch(() => { /* 非主持人或未启用——静默 */ });
   }, [projectId, project?.stage]);
 
-  // P3 host 态：主持人核验登记（人↔证件↔名单三对照）
+  // host 态：主持人核验登记（人↔证件↔名单三对照）
   const handleVerifyIdentity = async () => {
     if (!verifyFor) return;
     setVerifyBusy(true);
@@ -327,7 +327,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     }
   };
 
-  // P3 host 态：撤销误登记（已签到会被 409 拦——防证据回退）
+  // host 态：撤销误登记（已签到会被 409 拦——防证据回退）
   const handleUnverifyIdentity = async () => {
     if (!unverifyFor || !unverifyReason.trim()) return;
     setUnverifyBusy(true);
@@ -453,7 +453,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     }
   };
 
-  /* ── 派生数据 ── */
+  /* 派生数据 */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
 
   // F12：官方口径预览的拉取签名——project 引用随 socket 高频更换（loadResults 同款坑），不能直接
@@ -489,7 +489,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const liveRanks = useMemo(() => {
     if (!project) return new Map<string, number>();
     const entries = [...project.suppliers].map(s => ({ id: s.id, name: s.supplierName, avg: supplierAvg.get(s.id) ?? 0 }));
-    // P0-3c：并列分 tie-break（zh-CN 供应商名 localeCompare，与 aggregate-supplier-scores.ts 服务端同款）——防刷新顺序抖动
+    // 并列分 tie-break（zh-CN 供应商名 localeCompare，与 aggregate-supplier-scores.ts 服务端同款）——防刷新顺序抖动
     entries.sort((a, b) => b.avg - a.avg || a.name.localeCompare(b.name, 'zh-CN'));
     const ranks = new Map<string, number>();
     let rank = 1;
@@ -500,7 +500,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     return ranks;
   }, [project, supplierAvg]);
 
-  // P3-4: 按业务逻辑序排列评分项（而非 API 字母序）。useMemo 必须在所有条件返回之前调用。
+  // 按业务逻辑序排列评分项（而非 API 字母序）。useMemo 必须在所有条件返回之前调用。
   const scoreItems = useMemo(() => {
     if (!project) return [];
     const orderMap = new Map(CATEGORY_ORDER.map((c, i) => [c, i]));
@@ -508,7 +508,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   }, [project]);
   if (!project) return null;
   const { stage, experts, suppliers } = project;
-  // F5（2026-08-28）：ABORTED 不再空白死页——渲染终止态卡片（流标原因 + 去向指引），
+  // F5：ABORTED 不再空白死页——渲染终止态卡片（流标原因 + 去向指引），
   // 评标已随流标终止，本 tab 无操作可做；其余非评标阶段仍返回 null。
   if (stage === 'ABORTED') {
     return (
@@ -535,7 +535,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
 
   const archived = stage === 'ARCHIVED';
-  // F4（2026-08-28）：生成门槛与统计仅计正选专家——候补不参与评分/报告确认/签字
+  // F4：生成门槛与统计仅计正选专家——候补不参与评分/报告确认/签字
   // （后端 assertRegularExpert 拦截，生成闸门也只查正选）。此前把候补计入分母，
   // 有候补的项目「可生成结果」恒为否、生成按钮永久禁用。
   const regularExperts = experts.filter(e => e.expertRole === EXPERT_ROLE.REGULAR);
@@ -553,7 +553,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   );
   const openingDone = activeSuppliers.length > 0 && notReadySuppliers.length === 0;
 
-  // F9（2026-08-28）：启动评标守卫前端镜像（后端 startEvaluation 同口径）——委员会 = 已确认正选
+  // F9：启动评标守卫前端镜像（后端 startEvaluation 同口径）——委员会 = 已确认正选
   // 5 人以上单数（水利项目 7 人以上单数，由后端按 PMI/项目名判定，前端按通用口径提示）；
   // 可评供应商 = 解密成功且未撤回 ≥ 法定家数（minBidders 随详情下发）。旧实现仅拦「开标完成」，
   // 委员会不足/家数不足要点了按钮才被 409 教育。
@@ -610,7 +610,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     }
   }
 
-  /* ── 操作 ── */
+  /* 操作 */
   async function handleStartEvaluation(hours: number) {
     setBusy(true);
     try {
@@ -661,8 +661,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     }
   }
 
-  /** F6（2026-08-28）：重生成入口——结果已存在时此前无入口（按钮仅在 results.length===0 显示），
-   *  裁决废标/评分修正后只能刷新整页。P2-14：二次确认改受控弹窗（未闭环签字包将随重生成作废，
+  /** F6：重生成入口——结果已存在时此前无入口（按钮仅在 results.length===0 显示），
+   *  裁决废标/评分修正后只能刷新整页。二次确认改受控弹窗（未闭环签字包将随重生成作废，
    *  后端同事务删除+重置签字；确认后走 handleGenerate）。 */
   function handleRegenerate() {
     setRegenerateConfirmOpen(true);
@@ -761,7 +761,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* P0-3a：OPENING 预演标注——评标未启动，本 tab 评分/排名均为预演口径，与「启动评标」同屏矛盾需显式区分 */}
+      {/* OPENING 预演标注——评标未启动，本 tab 评分/排名均为预演口径，与「启动评标」同屏矛盾需显式区分 */}
       {stage === 'OPENING' && (
         <div className="bid-alert bid-alert--warning mb-3 flex items-center gap-2 rounded-[12px]">
           <AlertTriangle size={14} className="shrink-0" />
@@ -797,7 +797,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         />
       </div>
 
-      {/* ── 身份核验矩阵（2026-09-18 身份核验设计 §4.5）——被动展示，异常处置见 P2 ── */}
+      {/* 身份核验矩阵（2026-09-18 身份核验设计 §4.5）——被动展示，异常处置见 */}
       {verification && verification.experts.length > 0 && (
         <div className="mb-3 rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
           {/* 评标室口令条（2026-09-20 spec §4）：主持人/管理员可见——大字可读 + 一键轮换 */}
@@ -1022,7 +1022,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       )}
 
       <div className="space-y-3">
-        {/* ── 专家状态卡 ── */}
+        {/* 专家状态卡 */}
         <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
           <div className="border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
             <span className="text-[11px] font-bold text-[var(--foreground)]">专家状态</span>
@@ -1058,7 +1058,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       </span>
                     )}
                   </span>
-                  {/* F10（2026-08-28）：邀请状态徽章（与 :3005 专家确认同词表）——declined 标红；
+                  {/* F10：邀请状态徽章（与 :3005 专家确认同词表）——declined 标红；
                       婉拒/未确认的正选不计入启动评标委员会（后端只认 confirmed 正选） */}
                   {expert.invitationStatus === 'confirmed' && (
                     <span className="bid-pill shrink-0" data-invite="confirmed">
@@ -1098,7 +1098,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           )}
         </div>
 
-        {/* ── 专家×供应商评分矩阵 ── */}
+        {/* 专家×供应商评分矩阵 */}
         {regularExperts.length > 0 && suppliers.length > 0 && (
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
@@ -1209,7 +1209,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           </div>
         )}
 
-        {/* ── 供应商汇总与排名 ── */}
+        {/* 供应商汇总与排名 */}
         <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
           <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
             <span className="text-[11px] font-bold text-[var(--foreground)]">供应商排名</span>
@@ -1221,14 +1221,14 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   : '实时均分参考（未生成官方结果）'}
             </span>
           </div>
-          {/* P0-3c：官方口径预览拉取失败可见化——此前 catch→null 静默回退客户端均分序，两次刷新数据源/量纲切换无感知 */}
+          {/* 官方口径预览拉取失败可见化——此前 catch→null 静默回退客户端均分序，两次刷新数据源/量纲切换无感知 */}
           {liveFailed && results.length === 0 && (
             <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
               <AlertTriangle size={11} className="shrink-0" />
               <span>实时官方预览暂不可用——当前为客户端估算排名（按专家均分），仅供参考。</span>
             </div>
           )}
-          {/* P1-6: 预览口径提示——F12 后官方口径预览为主，原始均分仅为端点失败回退 */}
+          {/* 预览口径提示——F12 后官方口径预览为主，原始均分仅为端点失败回退 */}
           {results.length === 0 && suppliers.length > 0 && (
             liveOfficial?.priceFormulaError ? (
               <div className="mx-3.5 mt-2 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
@@ -1289,7 +1289,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                         {formatBidPrice(official.bidPrice)}
                       </span>
                     )}
-                    {/* P0-3c：主显对齐排序口径——live 态官方预览真值并列「去极值均分」次指标（=排序键本身，
+                    {/* 主显对齐排序口径——live 态官方预览真值并列「去极值均分」次指标（=排序键本身，
                         三家并列 96.0 时顺序由名称/编号定，观感矛盾消解为可见并列）；回退态只显示均分
                         （该态排序键），绝不显示均分×专家数的近似总分 */}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
@@ -1309,7 +1309,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       </div>
 
-      {/* ── 3 步生成向导 ── */}
+      {/* 3 步生成向导 */}
       {wizardOpen && stage === 'EVALUATING' && results.length === 0 && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1507,7 +1507,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         );
       })()}
 
-      {/* ── 自定义评标时长（启动评标弹窗，E2）── */}
+      {/* 自定义评标时长（启动评标弹窗，E2） */}
       {startDialogOpen && stage === 'OPENING' && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1546,7 +1546,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── R9（2026-09-20 §4.6）：主持人手动确认签到（摄像头故障等现场降级）── */}
+      {/* R9（2026-09-20 §4.6）：主持人手动确认签到（摄像头故障等现场降级） */}
       {manualFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1594,7 +1594,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── 闸4 阀门（2026-09-20 spec）：解除专家登录锁定（评标期间换设备）── */}
+      {/* 闸4 阀门（2026-09-20 spec）：解除专家登录锁定（评标期间换设备） */}
       {releaseFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1689,7 +1689,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── R5（2026-09-20 §4.4）：核验异常登记 ── */}
+      {/* R5（2026-09-20 §4.4）：核验异常登记 */}
       {rejectFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1720,7 +1720,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── P3 host 态（2026-09-20 §4.2）：主持人核验登记 ── */}
+      {/* host 态（2026-09-20 §4.2）：主持人核验登记 */}
       {verifyFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1755,7 +1755,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── P3 host 态（2026-09-20 §4.2）：撤销误登记 ── */}
+      {/* host 态（2026-09-20 §4.2）：撤销误登记 */}
       {unverifyFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1784,7 +1784,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── R5 闭环修复（2026-09-20）：撤销异常登记（误报更正）── */}
+      {/* R5 闭环修复：撤销异常登记（误报更正） */}
       {unrejectFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1812,7 +1812,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── 评标延期审批（leader/admin，E2）── */}
+      {/* 评标延期审批（leader/admin，E2） */}
       {extendDialogOpen && stage === 'EVALUATING' && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
@@ -1861,7 +1861,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* P2-14：重生成评标结果二次确认弹窗（替代 window.confirm） */}
+      {/* 重生成评标结果二次确认弹窗（替代 window.confirm） */}
       {regenerateConfirmOpen && (
         <div className="bid-overlay" onClick={() => setRegenerateConfirmOpen(false)}>
           <div className="bid-overlay-backdrop" />

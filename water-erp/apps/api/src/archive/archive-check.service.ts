@@ -58,7 +58,7 @@ export class ArchiveCheckService {
     const snapshot = await this.scope.snapshot(pmiId);
     const details: CheckDetail[] = [];
 
-    // ── 完整性-范围：必选项齐件检查 ──
+    // 完整性-范围：必选项齐件检查
     for (const row of snapshot.rows) {
       if (row.blocking) {
         details.push({
@@ -73,7 +73,7 @@ export class ArchiveCheckService {
       }
     }
 
-    // ── 逐文件检测（哈希/格式/可读）──
+    // 逐文件检测（哈希/格式/可读）
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: pmiId },
       select: { title: true, stages: { include: { attachments: { include: { versions: true } } } }, bidProjects: { select: { id: true } } },

@@ -48,7 +48,7 @@ export class AnnouncementController {
     }
   }
 
-  // ─── 公开接口 ───
+  // 公开接口
 
   @Get('public')
   @Public()
@@ -71,7 +71,7 @@ export class AnnouncementController {
     return this.announcementService.getPublic(id);
   }
 
-  // ─── 管理接口 ───
+  // 管理接口
 
   @Get()
   @Roles('admin', 'bid_host', 'leader', 'staff')
@@ -115,7 +115,7 @@ export class AnnouncementController {
     return this.announcementService.getProjectParticipants(projectCode);
   }
 
-  // ─── 普通附件 ───
+  // 普通附件
 
   @Get(':id/attachments')
   @Roles('admin', 'bid_host', 'leader', 'staff')
@@ -159,7 +159,7 @@ export class AnnouncementController {
     return this.attachmentService.stream(aid, res);
   }
 
-  // ─── 招标文件（加密 + 受控分发）───
+  // 招标文件（加密 + 受控分发）
 
   @Get(':id/bid-document')
   @Roles('admin', 'bid_host', 'leader', 'staff')
@@ -247,7 +247,7 @@ export class AnnouncementController {
     return this.bidDocumentService.remove(id);
   }
 
-  // ─── 公告详情（管理端，含招标文件配置）───
+  // 公告详情（管理端，含招标文件配置）
 
   @Get(':id')
   @Roles('admin', 'bid_host', 'leader', 'staff')

@@ -218,7 +218,7 @@ export function ProjectStageTimeline({
     new Set(sortedRounds.filter((r) => r < maxRound)),
   );
 
-  // ── 重开已完成步骤：确认对话框状态 ──
+  // 重开已完成步骤：确认对话框状态
   const [reopenTarget, setReopenTarget] = useState<{ key: ProjectWorkflowStageKey; round: number; title: string } | null>(null);
   const [reopening, setReopening] = useState(false);
 
@@ -456,7 +456,7 @@ export function ProjectStageTimeline({
         </Fragment>
       ))}
 
-      {/* ══════ 重开已完成步骤确认对话框 ══════ */}
+      {/* 重开已完成步骤确认对话框 */}
       {reopenTarget && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center" onClick={() => !reopening && setReopenTarget(null)}>
           <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />

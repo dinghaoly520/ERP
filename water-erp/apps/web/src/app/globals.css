@@ -9211,6 +9211,12 @@ a {
 .neu-btn-xs.is-danger { color: var(--danger); }
 .neu-btn-xs.is-danger:hover { background: oklch(0.96 0.05 27 / 0.4); }
 .neu-btn-xs.is-warning { color: var(--warning); }
+.neu-btn-xs:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.06), inset -1px -1px 2px oklch(1 0 0 / 0.6);
+}
 .neu-btn-xs.is-warning:hover { background: oklch(0.96 0.05 83 / 0.4); }
 .neu-btn-xs.is-info { color: var(--accent-strong); }
 .neu-btn-xs.is-info:hover { background: oklch(0.96 0.04 251 / 0.4); }

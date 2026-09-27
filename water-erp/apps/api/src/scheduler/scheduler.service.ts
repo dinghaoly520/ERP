@@ -128,9 +128,10 @@ export class SchedulerService {
     this.logger.warn(`[R-4] 发现 ${expired.length} 个过期临时供应商（超 30 天）：${expired.map(s => s.name).join('、')}`);
     const sample = expired.slice(0, 5).map(s => s.name).join('、');
     void this.notification.sendToRole('staff', {
-      type: 'SYSTEM',
+      type: 'SUPPLIER_CLEANUP_DUE',
       title: '过期临时供应商待清理',
       content: `${expired.length} 个临时供应商已过期超过 30 天，建议清理或转正：${sample}${expired.length > 5 ? '…' : ''}`,
+      link: '/supplier/repository',
     }).catch(() => {});
   }
 
@@ -234,9 +235,10 @@ export class SchedulerService {
         if (win) continue;
       }
       void this.notification.sendToRole('staff', {
-        type: 'SYSTEM',
+        type: 'PRE_WIN_CONFIRM_DUE',
         title: '预成交公示期满待确认',
         content: `「${pre.title}」公示期已满且无未决异议，请在公告管理中确认发布成交公告（GB/T 43711 7.5.2.5）`,
+        link: '/notice',
       }).catch(() => {});
       await this.prisma.announcement.update({
         where: { id: pre.id },
@@ -266,9 +268,10 @@ export class SchedulerService {
     }
     if (mismatches > 0) {
       void this.notification.sendToRole('staff', {
-        type: 'SYSTEM',
+        type: 'ARCHIVE_INTEGRITY_ALERT',
         title: '档案完整性抽检告警',
         content: `月度抽检发现 ${mismatches} 个归档项目指纹链不匹配（GB/T 43711 8.3 不可更改要求）——详情见各项目监督日志，请立即核查。`,
+        link: '/archive',
       }).catch(() => {});
       this.logger.warn(`[D2] 档案指纹抽检：${mismatches}/${archived.length} 项不匹配`);
     } else {
@@ -326,9 +329,10 @@ export class SchedulerService {
     const uniqueNames = Array.from(new Set(pendingNames));
     const nameSample = uniqueNames.slice(0, 5).join('、');
     void this.notification.sendToRole('staff', {
-      type: 'SYSTEM',
+      type: 'BOND_REFUND_DUE',
       title: '响应担保待退还提醒',
       content: `${toRemind.length} 个已签署/归档项目尚有供应商响应担保未登记逐家退还（GB/T 43711 7.5.4.4 按约定及时退还）：${sample}${toRemind.length > 5 ? '…' : ''}；未退供应商：${nameSample}${uniqueNames.length > 5 ? '…' : ''}。请在项目管理-合同或归档面板逐家登记退还。`,
+      link: '/projects',
     }).catch(() => {});
     this.logger.log(`[C4] 响应担保逐家退还提醒已发 ${toRemind.length} 项`);
   }
@@ -648,5 +652,21 @@ export class SchedulerService {
         this.logger.warn(`评标超时告警失败 ${p.id}: ${(e as Error).message}`);
       }
     }
+  }
+
+  /** 通知保留期清理（2026-09-27）：每日 03:30 删除「已办/已阅且超过保留期」的通知，
+   *  避免通知表只增不减无限膨胀。保留期 env NOTIFICATION_RETENTION_DAYS（默认 180 天）。
+   *  仅清已终态（resolvedAt 非空 或 isRead=true），未读/待办绝不删除。 */
+  @Cron('0 30 3 * * *')
+  async cleanupExpiredNotifications() {
+    const days = Number(process.env.NOTIFICATION_RETENTION_DAYS ?? 180);
+    const cutoff = new Date(Date.now() - days * 86400000);
+    const deleted = await this.prisma.notification.deleteMany({
+      where: {
+        createdAt: { lt: cutoff },
+        OR: [{ resolvedAt: { not: null } }, { isRead: true }],
+      },
+    });
+    if (deleted.count > 0) this.logger.log(`通知保留期清理：删除 ${deleted.count} 条已终态过期通知（>${days} 天）`);
   }
 }

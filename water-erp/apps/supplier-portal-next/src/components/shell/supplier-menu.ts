@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * 集中供应商菜单权限逻辑 — 移植自 Vue useSupplierMenu（X-1）。
- * 当前基于 isTemporary 布尔分支，后续扩展为权限矩阵时只需改此文件。
+ * 集中管理供应商菜单权限；按 isTemporary 区分临时与正式供应商工作区。
  */
+
 import type { ComponentType } from "react";
 import {
   Bell,
@@ -109,8 +109,8 @@ export function findWorkspaceTabForPath(
   return workspaceMatches ? { path: workspace.path, title: workspace.title } : null;
 }
 
-/** 供货管理工作区（品类目录/申请进度/供货关系）— 2026-09-17 用户裁定侧栏隐藏：
- *  仅从菜单摘除，页面/路由原样保留（直链与任务跳转仍可达）；恢复时置回 false 即可。 */
+/** 隐藏供货管理工作区的菜单入口，保留页面路由供直链与任务跳转使用。 */
+
 const SUPPLY_WORKSPACE_HIDDEN = true;
 
 function supplyWorkspaceEntry(): MenuEntry {
@@ -141,7 +141,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
       title: "项目机会",
       icon: FileText,
       desc: "发现项目与资格预审",
-      // 2026-09-18 用户裁定：可参与项目/资格预审不进侧栏（单入口），资格预审经页面内入口进入
+      // 可参与项目/资格预审不进侧栏（单入口），资格预审经页面内入口进入
       extraPaths: ["/prequal"],
     },
     {
@@ -149,7 +149,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
       title: "我的投标",
       icon: FileCheck,
       desc: "跟踪投标与合作历史",
-      // 2026-09-18 用户裁定：进行中/已完成不进侧栏（单入口），已完成经页面内入口进入
+      // 进行中/已完成不进侧栏（单入口），已完成经页面内入口进入
       extraPaths: ["/completed-projects"],
     },
     {
@@ -157,7 +157,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
       title: "成交履约",
       icon: Trophy,
       desc: "通知书、合同与框架协议",
-      // 2026-09-18 用户裁定：成交通知/合同履约/框架协议不进侧栏（单入口），经页面内入口进入
+      // 成交通知/合同履约/框架协议不进侧栏（单入口），经页面内入口进入
       extraPaths: ["/contracts", "/frameworks"],
     },
   ];
@@ -171,7 +171,7 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
         title: "企业信息",
         icon: Building2,
         desc: "主体资料与变更记录",
-        // 2026-09-18 用户裁定：基本资料/变更记录不进侧栏（单入口），变更记录经页面内入口进入
+        // 基本资料/变更记录不进侧栏（单入口），变更记录经页面内入口进入
         extraPaths: ["/change-records"],
       },
       {

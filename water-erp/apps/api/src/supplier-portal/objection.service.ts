@@ -133,7 +133,7 @@ export class ObjectionService {
     try {
       await this.notification.create({
         userId: objection.userId,
-        type: 'SYSTEM',
+        type: 'OBJECTION_ANSWERED',
         title: '异议答复通知',
         content: `您提交的异议「${objection.title}」已有答复，请前往异议页查看。`,
         link: '/objections',

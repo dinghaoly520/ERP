@@ -18,7 +18,12 @@ export function listNotifications(tab: NotificationTab = 'all', page = 1, pageSi
   const q = new URLSearchParams({ tab, page: String(page), pageSize: String(pageSize) });
   if (types?.length) q.set('types', types.join(','));
   if (countTypes?.length) q.set('countTypes', countTypes.join(','));
-  return api.get<{ total: number; page: number; pageSize: number; items: NotificationItem[]; unreadCount: number; todoCount: number; typeCounts: { type: string; count: number }[] }>(`/notifications?${q.toString()}`);
+  return api.get<{
+    total: number; page: number; pageSize: number; items: NotificationItem[];
+    unreadCount: number; todoCount: number;
+    typeCounts: { type: string; count: number }[];
+    segmentCounts: { all: number; todo: number; done: number; toread: number; read: number };
+  }>(`/notifications?${q.toString()}`);
 }
 export function getUnreadCount() {
   return api.get<{ count: number }>('/notifications/unread-count');
@@ -41,6 +46,7 @@ export interface AuditActivity {
 }
 
 /** 当前用户操作历史（AuditLog）——通知中心「操作历史」与已办结果记录数据源 */
-export function fetchMyActivities(limit = 50) {
-  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/my-activities?limit=${limit}`);
+export function fetchMyActivities(limit = 50, exclude?: string[]) {
+  const ex = exclude?.length ? `&exclude=${exclude.join(',')}` : '';
+  return api.get<{ items: AuditActivity[]; total: number }>(`/audit-log/my-activities?limit=${limit}${ex}`);
 }

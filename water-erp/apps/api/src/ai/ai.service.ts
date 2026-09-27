@@ -21,10 +21,10 @@ import { computeRiskFactors, riskLevel, predictDefaultRisk } from './risk-score.
 import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
 import { openField } from '../common/crypto/field-crypto';
 
-/* =================================================================
+/*
    AI 辅助评标引擎
    — 基于规则 + 统计分析，模拟 AI 对投标文件的智能审查
-   ================================================================= */
+ */
 
 @Injectable()
 export class AiService {
@@ -270,7 +270,7 @@ export class AiService {
       ? `候选供应商（${context.supplierNames.length} 家）：\n${context.supplierNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
       : '';
 
-    // ── 回执链接：建 PENDING 行 + 签发 token（仅当提供 supplierIds）──
+    // 回执链接：建 PENDING 行 + 签发 token（仅当提供 supplierIds）
     const rsvpTokens: Record<string, string> = {};
     let invitationId: string | null = null;
     const ids = (context.supplierIds || []).filter(Boolean);
@@ -303,7 +303,7 @@ export class AiService {
         this.config.get<string>('SUPPLIER_PORTAL_URL') || this.config.get<string>('PUBLIC_PORTAL_URL'),
       );
 
-      // ── 规范 projectId：若传入的是 PM-item id，反查 BidProject id 作为规范 id ──
+      // 规范 projectId：若传入的是 PM-item id，反查 BidProject id 作为规范 id
       // 确保 rsvp 行始终建在 BidProject id 下，与开标确认面板 / 供应商确认页面一致。
       let canonicalProjectId = context.projectId || null;
       if (canonicalProjectId) {
@@ -314,7 +314,7 @@ export class AiService {
         if (bp) canonicalProjectId = bp.id;
       }
 
-      // ── 防重复行：同一 (projectId, supplierId) 只保留一行，复用其 token ──
+      // 防重复行：同一 (projectId, supplierId) 只保留一行，复用其 token
       // 确保通知链接中的 token 与供应商确认页面显示的 rsvpNo 始终指向同一行。
       const existingRows = canonicalProjectId
         ? await this.prisma.invitationRsvp.findMany({
@@ -658,7 +658,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     }
   }
 
-  /* ━━━ 核心：对某供应商在某项目中的投标进行全方位 AI 分析 ━━━ */
+  /* 核心：对某供应商在某项目中的投标进行全方位 AI 分析 */
 
   async analyzeBid(
     projectId: string,
@@ -707,7 +707,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     };
   }
 
-  /* ━━━ 符合性检查引擎 ━━━ */
+  /* 符合性检查引擎 */
 
   private runComplianceCheck(supplier: any, project: any): { overall: string; score: number; items: ComplianceItem[] } {
     const items: ComplianceItem[] = [];
@@ -782,7 +782,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return { overall, score, items };
   }
 
-  /* ━━━ 风险分析引擎 ━━━ */
+  /* 风险分析引擎 */
 
   private runRiskAnalysis(supplier: any, project: any): RiskItem[] {
     const risks: RiskItem[] = [];
@@ -846,7 +846,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return risks;
   }
 
-  /* ━━━ 智能评分建议引擎 ━━━ */
+  /* 智能评分建议引擎 */
 
   private generateScoreSuggestions(
     supplier: any,
@@ -899,7 +899,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     });
   }
 
-  /* ━━━ 关键评审要点生成 ━━━ */
+  /* 关键评审要点生成 */
 
   private generateKeyPoints(
     supplier: any,
@@ -955,7 +955,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return points;
   }
 
-  /* ━━━ 综合评分计算 ━━━ */
+  /* 综合评分计算 */
 
   private calcOverallScore(
     compliance: { score: number },
@@ -982,7 +982,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     };
   }
 
-  /* ━━━ 评分异常检测（管理端用） ━━━ */
+  /* 评分异常检测（管理端用） */
 
   async detectAnomalies(projectId: string) {
     const scores = await this.prisma.bidScoreRecord.findMany({
@@ -1045,7 +1045,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     };
   }
 
-  /* ━━━ 供应商风险评分（管理端用） ━━━ */
+  /* 供应商风险评分（管理端用） */
 
   async getSupplierRiskScores(projectId: string) {
     // 预取：投标方、提交、绩效均分、资质聚合（全部/过期）、项目预算
@@ -1109,7 +1109,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     });
   }
 
-  /* ━━━ 工具方法 ━━━ */
+  /* 工具方法 */
 
   private hashString(str: string): number {
     let hash = 0;
@@ -1119,7 +1119,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return Math.abs(hash);
   }
 
-  /* ━━━ AI 供应商智能选取（检索 → LLM 排序 → 规则兜底） ━━━ */
+  /* AI 供应商智能选取（检索 → LLM 排序 → 规则兜底） */
 
   async recommendSuppliers(
     requirement: string,
@@ -1156,7 +1156,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     });
     scored.sort((a, b) => b.overlap - a.overlap || b.hits - a.hits);
 
-    // ═══ 多维加权评分 + 加权随机采样 ═══
+    // 多维加权评分 + 加权随机采样
     // 问题：纯 n-gram overlap 排序每次结果固定，500+ 供应商中"字符匹配低但语义相关"
     //       的供应商永不进入 LLM 视线；且评价等级/忙闲状态等择优维度未在预筛选阶段体现。
     // 方案：① 多维归一化评分（overlap/评价/标签/资质/忙闲）→ ② 加权随机采样
@@ -1380,7 +1380,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       contacts: (s.contacts || []).map((c: any) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
       evaluation: enrichment?.evalMap.get(id),
       activeProjects: enrichment?.activeMap.get(id) ?? 0,
-      // 对比面板扩充（2026-09-09）
+      // 对比面板扩充
       supplierNo: s.supplierNo,
       businessScope: (s.businessScope || '').slice(0, 300) || undefined,
       qualifications: ((s.qualifications || []) as { name: string }[]).map((q) => q.name).slice(0, 5),
@@ -1410,7 +1410,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
   private readonly logger = new Logger(AiService.name);
 
-  /** P1-E：全局 AI 评分校准（跨项目采纳率 + category 偏差 + top 偏差项） */
+  /** 全局 AI 评分校准（跨项目采纳率 + category 偏差 + top 偏差项） */
   async getAiCalibration() {
     const deltas = await this.prisma.bidScoreDelta.findMany({
       where: { expertReportConfirmed: true },
@@ -1695,9 +1695,9 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return { overview, moduleInsights, crossInsight, highlights: [], suggestions: suggestions.slice(0, 4) };
   }
 
-  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  /*
      大屏 AI 分析面板 — 6 格 + 跑马灯
-     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+ */
 
   async getBigscreenInsight() {
     const logger = new Logger(AiService.name + '(bigscreen)');
@@ -1776,7 +1776,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const now = new Date();
     const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
-    // ── 趋势数据：按月分组最近6个月采购项目 ──
+    // 趋势数据：按月分组最近6个月采购项目
     const monthlyBuckets: Record<string, number> = {};
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     for (const p of recentProcurement) {
@@ -1789,7 +1789,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const monthlyTrend = Object.entries(monthlyBuckets).sort().map(([m, c]) => m + ':' + c).join(',');
     const maxMonthly = Math.max(1, ...Object.values(monthlyBuckets));
 
-    // ── 建设数据快照 ──
+    // 建设数据快照
     const snap = [
       '【蜀水云采运营快照 ' + now.toLocaleDateString('zh-CN') + ' ' + timeStr + '】',
       '',
@@ -2089,7 +2089,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       throw new ServiceUnavailableException('工作画像生成返回空内容，请稍后重试');
     }
 
-    // ── 乱码兜底：DeepSeek 偶发将个别汉字输出为 U+FFFD（�），先二次 LLM 还原，失败则剔除乱码字符 ──
+    // 乱码兜底：DeepSeek 偶发将个别汉字输出为 U+FFFD（�），先二次 LLM 还原，失败则剔除乱码字符
     let narrative = result.narrative;
     const needsRepair = (s: string) => s.includes('�') || /\?{3,}/.test(s);
     if (needsRepair(narrative)) {
@@ -2381,7 +2381,7 @@ stageMatch 字段需要输出两部分判断结果：
         fileAnalyses: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>;
       }>(systemPrompt, userPrompt, 0.2);
 
-      // ── 事后修复：AI 输出含 U+FFFD 或 ??? 乱码 → 二次 LLM 修复 ──
+      // 事后修复：AI 输出含 U+FFFD 或 ??? 乱码 → 二次 LLM 修复
       const needsRepair = (s: string) => s && (s.includes('�') || /\?{3,}/.test(s));
       const summaryGarbled = needsRepair(result.summary?.contentSummary || '');
       const garbledFiles = (result.fileAnalyses || []).filter(
@@ -2916,10 +2916,10 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     };
   }
 
-  // ── 选取历史持久化（#13 落库）：替代多实例不安全的 JSON 文件存储（跨进程 read-modify-write 会丢记录/分裂/阻塞事件循环）。
+  // 选取历史持久化（#13 落库）：替代多实例不安全的 JSON 文件存储（跨进程 read-modify-write 会丢记录/分裂/阻塞事件循环）。
 
   async saveSelectionHistoryRecord(rec: { requirement: string; classificationId?: string; classificationName?: string; resultSummary: string; recommendations: any[]; candidatePool: number }) {
-    // P0-12：同一需求 5 分钟内复用并更新同一条记录，防反复点「推荐」无限刷历史、DB 膨胀、
+    // 同一需求 5 分钟内复用并更新同一条记录，防反复点「推荐」无限刷历史、DB 膨胀、
     // 旧记录超 take:100 后对所有人永久不可见。
     const recent = await this.prisma.supplierSelectionHistory.findFirst({
       where: { requirement: rec.requirement },
@@ -2997,7 +2997,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
   /** 分享候选名单给采购主管：以站内通知下发（无独立分享表，复用通知中心）。 */
   async shareShortlist(data: ShareShortlistDto, sharer?: { id: string; displayName: string }) {
     const names = (data.shortlist || []).map((s) => s.name).filter(Boolean).join('、');
-    // P1-30：定向发给采购主管（leader），不再群发 admin/staff；附分享人，减少无关打扰。
+    // 定向发给采购主管（leader），不再群发 admin/staff；附分享人，减少无关打扰。
     await Promise.all(['leader'].map(r => this.notificationService.sendToRole(r, {
       type: 'SELECTION_SHARED',
       title: '收到一份供应商候选名单分享',

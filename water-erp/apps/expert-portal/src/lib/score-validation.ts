@@ -22,14 +22,14 @@ export type CommittedScoreRecord = {
 };
 
 /**
- * 构建某评分项的「完整」得分点映射（QA-2026-09-11 P1-3/P2-3 共享回退规则）：
- * - 已存 points 优先（stored 赢）；
- * - 缺失点：通过制 → passed===true 全点勾选满分，否则未勾选 0；
- * - 缺失点：数值项且仅 1 个得分点且有提交分 → 勾选 + 提交分（无 pointDecisions 的口径回显）；
- * - 其余 → 未勾选 0。
- * 调用方以 `{ ...buildFullPoints(item, cur, committedScore), [pointId]: value }` 起种子，
- * 保证映射永远完整，杜绝「部分映射卡死不通过」（P1-3）。
+ * 构建评分项的完整得分点映射，已存 points 优先。
+ * 缺失点：通过制按 passed 回填；只有一个数值得分点且已有提交分时，按该分值回填；其余为未勾选、0 分。
+ * 调用方先使用 buildFullPoints 的完整结果，再覆盖当前编辑点，避免遗漏其他得分点。
  */
+
+
+
+
 export function buildFullPoints(
   item: { category: string; points?: BidScorePoint[] },
   entry: ScoreEntry | undefined,
@@ -70,12 +70,12 @@ export function committedRecordFor(
 }
 
 /**
- * 判定内存条目是否与已提交记录「等价」——草稿 pending 过滤的核心（QA-2026-09-11 P1-1）：
- * score/passed/reason 全等，且得分点**有效映射**逐点等价（checked/awardedScore/note 归一 '' → 缺失）。
- * 有效映射用 buildFullPoints 两侧同规则回退——PRICE 无 pointDecisions 的已提交项（两侧同缺）判等价、
- * 不产生幽灵草稿；note 编辑 / 抵消式编辑（改后再还原）分别如实进草稿 / 判等价（相邻洞 A6）。
- * item 缺失时退化为三字段比较。
+ * 判断内存评分是否与已提交记录等价，用于筛选尚未提交的草稿。
+ * 比较 score、passed、reason，并按 buildFullPoints 的同一规则归一得分点映射。
+ * note 变化会产生草稿；编辑后还原为提交值则不保留草稿。item 缺失时仅比较三字段。
  */
+
+
 export function isCommittedEquivalent(
   entry: ScoreEntry,
   rec: CommittedScoreRecord,
@@ -113,7 +113,7 @@ export interface MissingScore {
 }
 
 /**
- * 校验某供应商的评分完整性（桌面端与平板端共用，P1-15）：
+ * 校验某供应商的评分完整性（桌面端与平板端共用）：
  * - 通过性项（QUALIFICATION/RESPONSIVE）：必须有通过/不通过结论；不通过须填写理由。
  * - 数值项：低于满分须填写理由。
  * 返回缺漏项列表（空数组 = 完整可提交）。

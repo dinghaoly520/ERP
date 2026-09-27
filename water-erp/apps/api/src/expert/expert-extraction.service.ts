@@ -41,7 +41,7 @@ export class ExpertExtractionService {
     const totalNeeded = Math.min(Math.max(dto.totalNeeded ?? 5, 1), 9);
     const alternatives = Math.min(Math.max(dto.alternatives ?? 2, 0), 9);
     const extractMode: 'specialty_match' | 'random' | 'merit_best' =
-      dto.extractMode ?? 'random'; // P1-9：默认随机抽取（条例第46条基线）；加权模式仅显式指定时使用
+      dto.extractMode ?? 'random'; // 默认随机抽取（条例第46条基线）；加权模式仅显式指定时使用
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -49,7 +49,7 @@ export class ExpertExtractionService {
     });
     if (!project) throw new NotFoundException('项目不存在');
 
-    // 供应商名集合（回避校验）——P1-5：回避口径=实际参与投标的供应商全集（已投递或开标后到终局态）。
+    // 供应商名集合（回避校验）——回避口径=实际参与投标的供应商全集（已投递或开标后到终局态）。
     // 旧口径 confirmStatus==='CONFIRMED' 在开标前抽取时恒为空集，抽取期单位回避形同虚设。
     const supplierNames = new Set(
       project.suppliers
@@ -355,7 +355,7 @@ export class ExpertExtractionService {
       const drawn = this.drawByMode(pool, Math.min(q.count, pool.length), extractMode, scoreMap);
       const drawnSpecs = drawn.map(c => c.specialty);
       employerDrawnSpecs.set(emp, drawnSpecs);
-      // P1-7：部门限定配额 = 需求方代表（采购人代表），选中结果打标供确认时持久化
+      // 部门限定配额 = 需求方代表（采购人代表），选中结果打标供确认时持久化
       for (const c of drawn) {
         usedIds.add(c.id);
         const sel = this.toSelection(c, specFilter || c.specialty, '正选', scoreMap);
@@ -510,7 +510,7 @@ export class ExpertExtractionService {
         }
       }
 
-      // 正选专家创建为 expertRole=正选（isPurchaserRepresentative：P1-7 采购人代表标识）
+      // 正选专家创建为 expertRole=正选（isPurchaserRepresentative：采购人代表标识）
       for (const e of (dto.experts ?? [])) {
         await tx.bidExpert.upsert({
           where: { projectId_userId: { projectId, userId: e.userId } },
@@ -541,7 +541,7 @@ export class ExpertExtractionService {
             projectName: project.name,
             expertCount: dto.experts?.length ?? 0,
             experts: (dto.experts ?? []).map(e => ({ userId: e.userId, name: e.expertName, major: e.major, isLead: e.isLead ?? false })),
-            // P1-9/P2-8：抽取快照留痕——候选池与命中序列（事后可复核随机性；模式由前端预览步骤决定，确认时以 DTO 载明为准）
+            // 抽取快照留痕——候选池与命中序列（事后可复核随机性；模式由前端预览步骤决定，确认时以 DTO 载明为准）
             extractMode: (dto as any).extractMode ?? null,
             poolUserIds: (dto.candidates ?? []).map(c => c.userId),
             drawnUserIds: (dto.experts ?? []).map(e => e.userId),
@@ -629,7 +629,7 @@ export class ExpertExtractionService {
     }
   }
 
-  /* ── 抽取辅助 ── */
+  /* 抽取辅助 */
 
   private toSelection(c: any, specialty: string, role: string, scoreMap: Map<string, { matchScore: number; reason: string }>) {
     const s = scoreMap.get(c.id);

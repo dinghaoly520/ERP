@@ -50,10 +50,10 @@ export class AnnouncementService {
   }
 
   /**
-   * 客户端直供 aiSummary 过滤：命中提示词泄漏特征一律拒收（undefined = 不采用，转服务端生成）。
-   * 背景：2026-09-10 实录三条公告的 aiSummary 被写入「归纳型摘要…」任务指令文本；
-   * e2e 直供短文本跳过 LLM 是既有约定（test/bid.e2e-spec.ts），故不做一刀切封禁。
+   * 客户端直供 aiSummary 命中提示词泄漏特征时不采用，转由服务端生成。
+   * 保留端到端测试直供短文本、跳过 LLM 的约定（test/bid.e2e-spec.ts）。
    */
+
   private sanitizeClientAiSummary(raw: string | undefined): string | undefined {
     const v = raw?.trim();
     if (!v) return undefined;
@@ -137,10 +137,10 @@ export class AnnouncementService {
       result.publicityEnd = end;
     }
 
-    // P1: create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
+    // create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
     const isBidNoticePublish = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
     if (isBidNoticePublish) {
-      // P1b（2026-08-17）：「引用采购文件」发布时自动生成加密 BidDocument。
+      // 引用采购文件发布时，自动生成加密 BidDocument。
       // 前端把 PMI 阶段采购文件的 MinIO objectKey 放进 metadata.selectedTenderObjectKey，
       // 此前无人消费导致招标文件断链（供应商下载/专家获取/AI 提取得分点全挂）。
       // 先建文档再 syncBidProject——后者会在建项/关联项时回填 bidDocument.bidProjectId。
@@ -212,7 +212,7 @@ export class AnnouncementService {
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
 
-    // 公司隔离（2026-08-20）：非 admin 只见本公司公告；admin 可切公司/全部
+    // 公司隔离：非 admin 只见本公司公告；admin 可切公司/全部
     const where: any = { ...companyFilter };
     // A2（表 B.1）：公开门户仅出 应公开/宜公开（存量 null 按"已发布即可见"放行）。
     // 用 AND 组合——search 分支会覆写 where.OR，不能挂 OR 上
@@ -326,7 +326,7 @@ export class AnnouncementService {
   }
 
   /**
-   * 公开端正文归一（2026-09-08）：
+   * 公开端正文归一：
    * - 剥离未替换的 {{占位符}}（生成链路漏替换时不再裸露给公众，置灰说明代替）；
    * - 纯文本正文（无任何 HTML 标签、无换行结构）按中文章节序号智能分段为 <p>——
    *   docx→mammoth 提取的公告全文若被上游压成单行，公开详情页不再是"缩成一团"。
@@ -448,7 +448,7 @@ export class AnnouncementService {
       result.publicityEnd = end;
     }
 
-    // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
+    // 联动：BID_NOTICE 首次发布 → 创建 BidProject
     if (isBidNoticePublish) {
       // P1b（与 create 路径一致）：「引用采购文件」发布时自动生成加密 BidDocument。
       // 定时发布（草稿→发布）走本 update 路径，此前缺失导致招标文件断链。attachFromObject 幂等（已存在则跳过）。
@@ -847,7 +847,7 @@ export class AnnouncementService {
       ?? existing?.deadline
       ?? parseFlexibleDate(meta.deadline)
       ?? null;
-    // P1-4：直建发布（无关联项目）读 metadata.legalMandatory（向导勾选）；关联项目以项目列为准
+    // 直建发布（无关联项目）读 metadata.legalMandatory（向导勾选）；关联项目以项目列为准
     // （列已随直建建项/项目管理录入持久化，metadata 不反向覆盖）
     const legalMandatory = existing ? existing.legalMandatory === true : meta.legalMandatory === true;
     const r = assertBidNoticeTiming({ saleStart, openTime, saleEnd, legalMandatory });
@@ -916,8 +916,8 @@ export class AnnouncementService {
     if (!this.bidService) return;
     try {
       const meta = AnnouncementService.validateMetadata(announcement.metadata);
-      // ── P1（2026-09-07）：relatedProjectCode 的两个编码空间 ──
-      // :3005 向导传的是 PMI（ProjectManagementItem）projectCode，而旧逻辑拿它 findUnique
+      // relatedProjectCode 的两个编码空间
+      // 3005 向导传的是 PMI（ProjectManagementItem）projectCode，而旧逻辑拿它 findUnique
       // BidProject.projectCode —— 永远 miss → 每次发布都走「直建新项」分支，产生孤儿 PMI
       // 且立项↔招标关联断裂。正确次序：
       //   a) 按 PMI 编码找立项项目 → 其名下最新 BidProject（多轮取最新一轮）
@@ -950,12 +950,12 @@ export class AnnouncementService {
         }
       }
 
-      // A-87（P1 波4）：发布联动命中的项目 id——两分支（关联既有/直建新项）收敛后触发要点提取前移
+      // A-87：发布联动命中的项目 id——两分支（关联既有/直建新项）收敛后触发要点提取前移
       let linkedProjectId: string | null = null;
 
       if (existingProject) {
         linkedProjectId = existingProject.id;
-        // P1：旧数据 BidProject 可能缺 PMI 关联（发布匹配失败的历史遗留）——命中 PMI 时回填
+        // 旧数据 BidProject 可能缺 PMI 关联（发布匹配失败的历史遗留）——命中 PMI 时回填
         if (linkedPmi && !existingProject.projectManagementItemId) {
           await this.prisma.bidProject.update({
             where: { id: existingProject.id },
@@ -991,9 +991,9 @@ export class AnnouncementService {
         if (bidDoc) {
           await this.prisma.bidDocument.update({ where: { announcementId: annId }, data: { bidProjectId: project.id } });
         }
-        // N16 方案 A（2026-08-17）：公告直建项目补最小 PMI 并回填关联（新建部分原子）——
-        // :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主，此前此类项目无宿主
-        // P1（2026-09-07）：relatedProjectCode 已命中既有 PMI 时（立项后首次发公告），新建的
+        // N16 方案 A：公告直建项目补最小 PMI 并回填关联（新建部分原子）——
+        // 3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主，此前此类项目无宿主
+        // relatedProjectCode 已命中既有 PMI 时（立项后首次发公告），新建的
         // BidProject 直接关联该 PMI —— 不再另建孤儿 PMI。
         if (linkedPmi) {
           await this.prisma.bidProject.update({
@@ -1028,7 +1028,7 @@ export class AnnouncementService {
         this.logger.log(`公告首次发布，自动创建项目 ${project.projectCode}`);
       }
 
-      // A-87（P1 波4）：BID_NOTICE 发布即前移招标要点提取——此前提取只在启动评标时发生，供应商在
+      // A-87：BID_NOTICE 发布即前移招标要点提取——此前提取只在启动评标时发生，供应商在
       // 整个 BID 阶段看不到结构化要点。fire-and-forget：失败仅告警不阻塞发布；ensureTenderAnalysis
       // 自带幂等闸（requirements 已提取且无待派发 bidder 跳过入队），重复发布/下架再发布不重复入队。
       // 流标公告（failed_bid）随即置 ABORTED，无提取意义，跳过。E2 白名单化后 meta.category 已可达，
@@ -1040,7 +1040,7 @@ export class AnnouncementService {
         );
       }
 
-      // ── 拟定供应商入参与名单（2026-09-11）：直接采购公告发布后，公告「拟定供应商名称」
+      // 拟定供应商入参与名单：直接采购公告发布后，公告「拟定供应商名称」
       // （metadata.supplierName，向导发布时随草稿快照写入）自动纳入 BidSupplier——
       // 项目基本信息「供应商参与」区块（getParticipants ∪ bidSuppliers）即可见；
       // 同时回填 PMI.awardedSupplier（仅当其为空，不覆盖已确认值）。供应商在库时按名关联 id。
@@ -1100,7 +1100,7 @@ export class AnnouncementService {
         })
       : null;
 
-    // P0-4 闸门：关联项目已进入投标/开标/评标流程（SUBMIT/OPENING/EVALUATING）时禁删公告。
+    // 闸门：关联项目已进入投标/开标/评标流程（SUBMIT/OPENING/EVALUATING）时禁删公告。
     // 置于事务前拦截——零副作用：不下发任何级联删除/复位/MinIO 清理，引导先完成流标或归档。
     if (project) {
       const blocked = ['SUBMIT', 'OPENING', 'EVALUATING'].includes(project.stage);
@@ -1111,7 +1111,7 @@ export class AnnouncementService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        // 终审裁定（2026-08-21）：DOWNLOAD/ABORTED/ARCHIVED 三态仅解关联——追加风险备注、解除标书关联，
+        // DOWNLOAD/ABORTED/ARCHIVED 三态仅解关联——追加风险备注、解除标书关联，
         // 不重置阶段、不级联删除开标/评标产物、不清理 MinIO（SUBMIT+ 已由上方 409 闸门拦截）。
         if (project) {
           await tx.bidProject.update({
@@ -1174,7 +1174,7 @@ export class AnnouncementService {
     // E2：公告分类枚举——前端 AnnouncementCategory 三值（web/lib/types/announcement.ts）+ publicity（中标公示预留）。
     // 白名单化后 :650 流标分支经 meta.category 可达（此前恒 undefined 死分支）；非枚举值由 validateMetadata 剥落
     category: { type: 'string', values: ['procurement_document', 'failed_bid', 'winning_bid', 'publicity'] },
-    // P1-4（2026-09-09 补录入口）：依法必招标式——BID_NOTICE 直建发布时 W2 guard 的强制校验入口
+    // （2026-09-09 补录入口）：依法必招标式——BID_NOTICE 直建发布时 W2 guard 的强制校验入口
     // （发布向导勾选）；随 createFromAnnouncement 持久化到 BidProject.legalMandatory（后续以项目列为准）
     legalMandatory: { type: 'boolean' },
   };
@@ -1213,7 +1213,7 @@ export class AnnouncementService {
       submittedAt: Date | null;
     };
 
-    // ── 1. 解析关联项目（三级回退）──
+    // 1. 解析关联项目（三级回退）
     let project: ProjectInfo & { id: string } | null = null;
 
     if (ann.relatedProjectCode) {
@@ -1260,7 +1260,7 @@ export class AnnouncementService {
 
     const projectId = project?.id;
 
-    // ── 2. 查询：招标文件 + 下载记录 + 项目供应商 + 投标提交 ──
+    // 2. 查询：招标文件 + 下载记录 + 项目供应商 + 投标提交
     const bidDoc = await this.prisma.bidDocument.findUnique({
       where: { announcementId: ann.id },
       select: { id: true },
@@ -1291,7 +1291,7 @@ export class AnnouncementService {
       ]);
     }
 
-    // ── 3. 合并去重：下载者 ∪ 项目供应商 ──
+    // 3. 合并去重：下载者 ∪ 项目供应商
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
     const rowMap = new Map<string, SupplierRow>();
 
@@ -1331,7 +1331,7 @@ export class AnnouncementService {
 
     const rows = [...rowMap.values()];
 
-    // ── 4. 返回 ──
+    // 4. 返回
     const displayProject: ProjectInfo = project ?? {
       name: ann.title,
       projectCode: ann.relatedProjectCode ?? '',

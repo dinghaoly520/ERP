@@ -115,7 +115,7 @@ export function RealtimeNotifications() {
     e.stopPropagation();
     dismiss(n.id);
     try {
-      await fetch(`/api/notifications/${n.id}/read`, { method: "POST", credentials: "include", headers: { "X-Portal": "web" } });
+      await fetch(`/api/notifications/${n.id}/read`, { method: "POST", credentials: "include", headers: { "X-Portal": "supplier" } });
       window.dispatchEvent(new CustomEvent("notification:received"));
     } catch { /* 已读标记失败不影响 */ }
   };

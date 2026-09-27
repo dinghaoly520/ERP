@@ -131,7 +131,7 @@ export class SupplierService {
   }
 
   async register(dto: RegisterSupplierDto) {
-    // P1-13：注册实名核验——主联系人手机号短信验证码前置校验（verifyRegistrationCode 消费后失效）。
+    // 注册实名核验——主联系人手机号短信验证码前置校验（verifyRegistrationCode 消费后失效）。
     // 内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
     const isInternalImport = dto.registrationCode === '__INTERNAL_IMPORT__';
     if (!isInternalImport) {
@@ -412,9 +412,9 @@ export class SupplierService {
     return { user: safeUser, supplier };
   }
 
-  // ═══════════════════════════════════════════════════════════
+  
   //  临时供应商邀请码（采购端生成，有效期 30/180/360 天）
-  // ═══════════════════════════════════════════════════════════
+  
   // X-2：有效期档位可经 INVITATION_VALIDITY_DAYS env 配置（逗号分隔的正整数），默认 30/180/360
   static readonly INVITATION_VALIDITY_DAYS: readonly number[] = (process.env.INVITATION_VALIDITY_DAYS || '30,180,360')
     .split(',').map(s => parseInt(s.trim(), 10)).filter((n: number) => Number.isFinite(n) && n > 0);
@@ -510,9 +510,9 @@ export class SupplierService {
     return { valid: true, validityDays: inv.validityDays, expiresAt: inv.expiresAt };
   }
 
-  // ═══════════════════════════════════════════════════════════
+  
   //  临时供应商注册（凭邀请码，极简字段；审批通过后由供应商补全资料）
-  // ═══════════════════════════════════════════════════════════
+  
   async registerTemporary(dto: RegisterTemporarySupplierDto) {
     const submittedTags = normalizeRegistrationTags(dto.tags);
     if (submittedTags.length < TAG_MIN || submittedTags.length > TAG_MAX) {
@@ -543,7 +543,7 @@ export class SupplierService {
     const existingUser = await this.prisma.user.findFirst({ where: { username, role: 'supplier' } });
     if (existingUser) throw new BadRequestException({ error: '该机构代码已被注册为登录账号，请更换', code: 'DUPLICATE_USERNAME' });
 
-    // 手机验证（2026-09-14）：字段校验通过后一次性消费短信码——与正式注册同款时序
+    // 手机验证：字段校验通过后一次性消费短信码——与正式注册同款时序
     await this.verificationService.verifyRegistrationCode(dto.phone, dto.registrationCode);
 
     const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);
@@ -605,7 +605,7 @@ export class SupplierService {
           customTags.push(tag);
         }
       }
-      // P0-7 邀请码消费原子化：并发同码双注册时仅一方能把 status 从 ACTIVE 置 USED，
+      // 邀请码消费原子化：并发同码双注册时仅一方能把 status 从 ACTIVE 置 USED，
       // 另一方 count=0 → 事务回滚（其 user/supplier 创建一并撤销），杜绝孤儿 supplier 与占位冲突。
       const claimedInv = await tx.supplierInvitation.updateMany({
         where: { id: inv.id, status: 'ACTIVE' },
@@ -640,7 +640,7 @@ export class SupplierService {
   }
 
   /**
-   * 候选供应商对比面板：按 ID 批量取供应商库实时资料（2026-09-09）。
+   * 候选供应商对比面板：按 ID 批量取供应商库实时资料。
    *
    * 背景：对比维度扩到 13 项后，此前数据取自推荐负载（快照）——旧会话恢复的
    * 推荐结果无扩充字段，对比页大面积「—」。改为面板打开时按 supplierId 实时
@@ -921,7 +921,7 @@ export class SupplierService {
       },
     });
     if (!supplier) {
-      // 自愈（2026-08-24）：供应商已被删除（直删库等非常规途径）时，指向它的
+      // 自愈：供应商已被删除（直删库等非常规途径）时，指向它的
       // 待审批通知成为孤儿——点开 404 且待办计数不减。此处顺带 resolve 掉，
       // 待办列表下次刷新即消失；审批/拒绝/退回路径本来就会 resolve，不经过这里。
       await this.notificationService
@@ -964,7 +964,7 @@ export class SupplierService {
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true, action: true },
     });
-    // P1-28：公开查询仅对 RETURNED 状态返回补正说明（供应商需知如何修改）；REJECTED 等原因可能含
+    // 公开查询仅对 RETURNED 状态返回补正说明（供应商需知如何修改）；REJECTED 等原因可能含
     // 审核员内部备注，不对未登录公开，避免信息泄露与信用代码枚举爬取。
     const reason = supplier.status === 'RETURNED' ? (supplier.returnReason || null) : null;
     const reviewed = latest && supplier.status !== 'PENDING' ? { at: latest.createdAt, action: latest.action } : null;
@@ -980,8 +980,8 @@ export class SupplierService {
   }
 
   /** 供应商催促审核：向归属公司（Company）的采购工作人员（staff/leader/admin）发站内通知。
-   *  公开接口（无需登录，凭信用代码定位），P1-28 防刷限流已由 controller @Throttle 承担。
-   *  业务约束（2026-09-14）：仅允许催促一次——urgedAt 非空即已催过；再次调用须距上次 ≥4 小时。 */
+   *  公开接口（无需登录，凭信用代码定位），防刷限流已由 controller @Throttle 承担。
+   *  业务约束：仅允许催促一次——urgedAt 非空即已催过；再次调用须距上次 ≥4 小时。 */
   async urgeReview(creditCode: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { creditCode },
@@ -1102,7 +1102,7 @@ export class SupplierService {
   }
 
   /** 构建审核历史快照：审核时点申请全部信息（不可变留痕的数据源） */
-  // ═══ 业务标签库 ═══
+  // 业务标签库
 
   /** 公开：注册页可选标签（仅 APPROVED，按名称排序） */
   async listApprovedBusinessTags() {
@@ -1131,10 +1131,13 @@ export class SupplierService {
     const tag = await this.prisma.businessTag.findUnique({ where: { id } });
     if (!tag) throw new BadRequestException({ error: '标签不存在', code: 'NOT_FOUND' });
     if (tag.status !== 'PENDING') throw new BadRequestException({ error: '该标签不在待审核状态', code: 'INVALID_STATUS' });
-    return this.prisma.businessTag.update({
+    const updated = await this.prisma.businessTag.update({
       where: { id },
       data: { status: 'APPROVED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },
     });
+    // 2026-09-27 待办闭环：标签入池通知（link=/supplier）随审批消音
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', '/supplier').catch(() => {});
+    return updated;
   }
 
   /** 审核拒绝：PENDING → REJECTED（不入池；供应商资料中已使用的标签文本不受影响） */
@@ -1142,10 +1145,12 @@ export class SupplierService {
     const tag = await this.prisma.businessTag.findUnique({ where: { id } });
     if (!tag) throw new BadRequestException({ error: '标签不存在', code: 'NOT_FOUND' });
     if (tag.status !== 'PENDING') throw new BadRequestException({ error: '该标签不在待审核状态', code: 'INVALID_STATUS' });
-    return this.prisma.businessTag.update({
+    const updated = await this.prisma.businessTag.update({
       where: { id },
       data: { status: 'REJECTED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },
     });
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', '/supplier').catch(() => {});
+    return updated;
   }
 
   private async buildApprovalSnapshot(supplierId: string) {
@@ -1210,7 +1215,7 @@ export class SupplierService {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
-    // 更新供应商状态和用户激活状态（P1-17 乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转出）
+    // 更新供应商状态和用户激活状态（乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转出）
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.supplier.updateMany({
         where: { id, status: { in: ['PENDING', 'RETURNED'] } },
@@ -1252,7 +1257,7 @@ export class SupplierService {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
-    // P1-17 乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转为 REJECTED。
+    // 乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转为 REJECTED。
     const claimed = await this.prisma.supplier.updateMany({
       where: { id, status: { in: ['PENDING', 'RETURNED'] } },
       data: { status: 'REJECTED', rejectReason: reason },
@@ -1329,8 +1334,8 @@ export class SupplierService {
     }
 
     // B6：停用/拉黑原因写入独立字段 disableReason（不再错用 returnReason）。
-    // P0-2：停用/黑名单必须联动账号停用——否则被拉黑的供应商仍可登录、仍能投标（最严重数据一致性洞）。
-    // P1-17：乐观锁，并发时仅一方能从 APPROVED 转出。
+    // 停用/黑名单必须联动账号停用——否则被拉黑的供应商仍可登录、仍能投标（最严重数据一致性洞）。
+    // 乐观锁，并发时仅一方能从 APPROVED 转出。
     const claimed = await this.prisma.supplier.updateMany({
       where: { id, status: 'APPROVED' },
       data: { status, disableReason: reason, eliminatedAt: null },
@@ -1361,13 +1366,13 @@ export class SupplierService {
     if (claimed.count === 0) {
       throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
     }
-    // P0-2：恢复须同步重新激活账号。
+    // 恢复须同步重新激活账号。
     await this.prisma.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
     if (userId) await this.audit(userId, 'SUPPLIER_RESTORED', id, { name: supplier.name, from: supplier.status, reason: reason ?? null });
     return { success: true };
   }
 
-  /** P1-16 供应商补正后重新提交（RETURNED → PENDING），打通「退回补正」死胡同。 */
+  /** 供应商补正后重新提交（RETURNED → PENDING），打通「退回补正」死胡同。 */
   async resubmit(supplierId: string, userId: string, note?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
@@ -1397,7 +1402,7 @@ export class SupplierService {
     return { success: true };
   }
 
-  /** P1-16 管理员复活被拒绝的申请（REJECTED → PENDING），打通「拒绝」死胡同。 */
+  /** 管理员复活被拒绝的申请（REJECTED → PENDING），打通「拒绝」死胡同。 */
   async reactivate(id: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
@@ -1456,7 +1461,7 @@ export class SupplierService {
       throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
     }
 
-    // P1-19：同字段已有 PENDING 变更时拒绝——避免审核列表重复项 + 反复群发通知风暴。
+    // 同字段已有 PENDING 变更时拒绝——避免审核列表重复项 + 反复群发通知风暴。
     const dupPending = await this.prisma.supplierChangeRecord.findFirst({
       where: { supplierId, fieldName: dto.fieldName, status: 'PENDING' },
       select: { id: true },
@@ -1560,7 +1565,7 @@ export class SupplierService {
         }
       }
 
-      // ── 聚合字段：JSON 整体替换子表（非 supplier 列，须从 data 中剔除）──
+      // 聚合字段：JSON 整体替换子表（非 supplier 列，须从 data 中剔除）
       if (change.fieldName === 'bankAccounts') {
         let parsed: any[];
         try { parsed = JSON.parse(change.newValue || '[]'); if (!Array.isArray(parsed)) throw new Error(); }
@@ -1615,7 +1620,7 @@ export class SupplierService {
       await tx.supplier.update({ where: { id: change.supplierId }, data });
     });
 
-    // P1-20：变更审批（敏感操作）补审计留痕。
+    // 变更审批（敏感操作）补审计留痕。
     await this.audit(reviewerId, 'SUPPLIER_CHANGE_APPROVED', change.supplierId, { field: change.fieldName });
 
     // 待办清零：resolve 该供应商的 SUPPLIER_PENDING（变更申请通知，link 与 createChangeRequest 全等）
@@ -1754,7 +1759,7 @@ export class SupplierService {
       throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
     }
 
-    // P1-20：变更拒绝补审计。
+    // 变更拒绝补审计。
     await this.audit(reviewerId, 'SUPPLIER_CHANGE_REJECTED', change.supplierId, { field: change.fieldName, reason });
 
     // 待办清零：resolve 该供应商的 SUPPLIER_PENDING（变更申请通知）
@@ -1831,7 +1836,7 @@ export class SupplierService {
       throw new BadRequestException({ error: '只能评价已入库供应商', code: 'INVALID_STATUS' });
     }
 
-    // P1-27：同一评价人对同一供应商（+同一项目）已评价过则拒绝，防刷分触发误淘汰。
+    // 同一评价人对同一供应商（+同一项目）已评价过则拒绝，防刷分触发误淘汰。
     const dupEval = await this.prisma.supplierEvaluation.findFirst({
       where: { supplierId, evaluatorId, projectId: dto.projectId ?? null },
       select: { id: true },
@@ -1867,7 +1872,7 @@ export class SupplierService {
       },
     });
 
-    // P1-20：评价影响画像/淘汰，补审计。
+    // 评价影响画像/淘汰，补审计。
     await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_CREATED', supplierId, { finalGrade, projectId: dto.projectId ?? null });
 
     // 决策 #3：不自动停用。连续低分由 reviewEliminationCandidates()（cron + 人工）产出预警，
@@ -1875,7 +1880,7 @@ export class SupplierService {
     return created;
   }
 
-  /* ── CTS A-213/215/216 投标人信息资源库 ── */
+  /* CTS A-213/215/216 投标人信息资源库 */
 
   /** A-215 拉黑：原因必填；审核完结状态才可拉黑；乐观锁防并发（操作留痕走全局 operation-log） */
   async blacklistSupplier(supplierId: string, reason: string, user?: AuthenticatedUser) {
@@ -2000,7 +2005,7 @@ export class SupplierService {
     });
   }
 
-  /* ── 供应商画像（Track E §3.3） ── */
+  /* 供应商画像（Track E §3.3） */
 
   /** 综合画像：参与次数、中标率、绩效均分/趋势、价格偏离度（数据可得时）。 */
   async getSupplierPortrait(supplierId: string) {
@@ -2040,7 +2045,7 @@ export class SupplierService {
     });
   }
 
-  /* ── 淘汰预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
+  /* 淘汰预警 + 人工确认（决策 #3：只预警，不自动改状态） */
 
   /** 扫描淘汰候选（最近 3 次绩效均为 E），通知管理员；不修改 status。 */
   async reviewEliminationCandidates() {
@@ -2089,7 +2094,7 @@ export class SupplierService {
       throw new BadRequestException({ error: '仅已入库供应商可确认淘汰', code: 'INVALID_STATUS' });
     }
     // B12：淘汰=DISABLED + eliminatedAt 时间戳（区分手动停用：后者 eliminatedAt 为 null）。
-    // P1-17 乐观锁 + P0-2 联动账号停用。
+    // 乐观锁 + 联动账号停用。
     const claimed = await this.prisma.supplier.updateMany({
       where: { id: supplierId, status: 'APPROVED' },
       data: { status: 'DISABLED', disableReason: reason, eliminatedAt: new Date() },
@@ -2102,7 +2107,7 @@ export class SupplierService {
     return { success: true };
   }
 
-  /* ── 资质到期预警看板 ── */
+  /* 资质到期预警看板 */
   async getQualificationAlerts(userId?: string) {
     const now = Date.now();
     const in90 = new Date(now + 90 * 86400000);
@@ -2168,7 +2173,7 @@ export class SupplierService {
     return { success: true };
   }
 
-  /* ── 供应商生命周期时间线 ── */
+  /* 供应商生命周期时间线 */
   /** 管理员直接修改供应商业务标签（不走变更审批流程） */
   async updateTags(supplierId: string, tags: string[], reviewerId: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true, name: true, tags: true, status: true } });
@@ -2401,7 +2406,7 @@ export class SupplierService {
     return { processed, updated, skipped, belowMin, sample };
   }
 
-  /** P0-14：企业类型分布后端聚合——替代看板拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。 */
+  /** 企业类型分布后端聚合——替代看板拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。 */
   async getEnterpriseTypeDistribution() {
     const rows = await this.prisma.supplier.groupBy({
       by: ['enterpriseType'],
@@ -2529,7 +2534,7 @@ export class SupplierService {
     });
   }
 
-  /* ━━━ 供应商多分类管理 ━━━ */
+  /* 供应商多分类管理 */
 
   async getSupplierClassifications(supplierId: string) {
     return this.prisma.supplierClassificationLink.findMany({
@@ -2557,7 +2562,7 @@ export class SupplierService {
       }
     }
 
-    // 事务：先删后插 + 同步旧 classificationId 字段（P1：全部并入同一事务，避免半同步态）。
+    // 事务：先删后插 + 同步旧 classificationId 字段（全部并入同一事务，避免半同步态）。
     await this.prisma.$transaction(async (tx) => {
       await tx.supplierClassificationLink.deleteMany({ where: { supplierId } });
       await Promise.all(uniqueIds.map(cid =>
@@ -2572,7 +2577,7 @@ export class SupplierService {
     return this.getSupplierClassifications(supplierId);
   }
 
-  /* ━━━ 通知供应商 ━━━ */
+  /* 通知供应商 */
 
   async notifySuppliers(
     supplierIds: string[],
@@ -2599,7 +2604,7 @@ export class SupplierService {
     return { totalTargets: supplierIds.length, sent: results.length, notFound, results };
   }
 
-  /* ━━━ 供应商关注/收藏 ━━ */
+  /* 供应商关注/收藏 */
 
   async toggleFavorite(supplierId: string, userId: string) {
     const existing = await this.prisma.supplierFavorite.findFirst({
@@ -2635,7 +2640,7 @@ export class SupplierService {
     }).filter(f => f.supplier);
   }
 
-  /* ━━━ 近期动态 ━━━ */
+  /* 近期动态 */
 
   async getRecentActivities(limit = 15) {
     const logs = await this.prisma.auditLog.findMany({
@@ -2703,7 +2708,7 @@ export class SupplierService {
     };
   }
 
-  /* ━━━ 评价维度统计 ━━━ */
+  /* 评价维度统计 */
 
   async getEvaluationDimensionStats() {
     const evals = await this.prisma.supplierEvaluation.findMany({
@@ -2742,7 +2747,7 @@ export class SupplierService {
     };
   }
 
-  /* ━━━ 沟通记录 ━━━ */
+  /* 沟通记录 */
 
   async getSupplierCommunications(supplierId: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { userId: true } });
@@ -2769,7 +2774,7 @@ export class SupplierService {
     }));
   }
 
-  /* ━━━ 文件档案 CRUD ━━ */
+  /* 文件档案 CRUD */
 
   async listDocuments(supplierId: string) {
     const docs = await this.prisma.supplierDocument.findMany({
@@ -2819,10 +2824,10 @@ export class SupplierService {
     return { success: true };
   }
 
-  // ── 谈判采购配置下发 ──
+  // 谈判采购配置下发
   async sendNegotiationConfig(dto: NegotiationConfigDto) {
     const key = `negotiation-config:${dto.projectId}`;
-    // 先读旧配置（写入前）：是否曾下发过——固化判定的前提（2026-09-10 收紧）
+    // 先读旧配置（写入前）：是否曾下发过——固化判定的前提
     const prevConfigRaw = await this.redis.get(key).catch(() => null);
     const configDelivered = !!prevConfigRaw;
     const payload = {
@@ -2972,7 +2977,7 @@ export class SupplierService {
     return JSON.parse(raw);
   }
 
-  // ── Excel 批量导入 ──
+  // Excel 批量导入
   private SUPPLIER_IMPORT_COLUMNS = [
     '企业名称*', '统一社会信用代码*', '企业类型', '法定代表人', '法定代表人身份证号', '注册地址', '经营范围',
     '联系人姓名', '联系人手机号', '联系人邮箱', '联系人职位',
@@ -3031,7 +3036,7 @@ export class SupplierService {
           tags: [],
           contacts: [],
           qualifications: [],
-          // P1-13：内部导入（管理端批量建档）跳过短信验证——直接调用内部建档绕过 verifyRegistrationCode
+          // 内部导入（管理端批量建档）跳过短信验证——直接调用内部建档绕过 verifyRegistrationCode
           registrationPhone: '',
           registrationCode: '__INTERNAL_IMPORT__',
         });

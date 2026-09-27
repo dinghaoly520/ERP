@@ -40,7 +40,7 @@ export class SupplierController {
     return this.supplierService.register(dto);
   }
 
-  // ─── 业务标签库：注册页选择制（库内选择 + 自创待审） ───
+  // 业务标签库：注册页选择制（库内选择 + 自创待审）
 
   @Get('tags')
   @Public()
@@ -140,7 +140,7 @@ export class SupplierController {
   // 仅回传 name/status/rejectReason，不泄漏敏感字段；按信用代码精确匹配，不可枚举。
   @Get('register/status/public')
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // P1-28：防信用代码枚举爬取
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 防信用代码枚举爬取
   @ApiOperation({ summary: '凭信用代码公开查询注册审核进度' })
   async getRegisterStatusPublic(@Query('creditCode') creditCode?: string) {
     const code = (creditCode ?? '').trim();
@@ -273,7 +273,7 @@ export class SupplierController {
     });
   }
 
-  // ─── 静态路由（必须在动态 :id 路由之前，否则会被吞掉）───
+  // 静态路由（必须在动态 :id 路由之前，否则会被吞掉）
 
   @Public()
   @Get('bigscreen')
@@ -283,7 +283,7 @@ export class SupplierController {
   }
 
   @Get('bigscreen/detail')
-  @Roles('admin', 'leader', 'staff') // P0-15：评价分布/分类计数/绩效趋势属经营敏感数据，须鉴权
+  @Roles('admin', 'leader', 'staff') // 评价分布/分类计数/绩效趋势属经营敏感数据，须鉴权
   @ApiOperation({ summary: '大屏供应商统计（详细，需采购侧鉴权）' })
   async getBigscreenDetail() {
     return this.supplierService.getBigscreenDetail();
@@ -324,7 +324,7 @@ export class SupplierController {
     return this.supplierService.deleteClassification(id);
   }
 
-  // ─── 供应商多分类标签 ───
+  // 供应商多分类标签
   @Get(':id/classifications')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '获取供应商的分类标签列表' })
@@ -435,7 +435,7 @@ export class SupplierController {
     return this.supplierService.getEnterpriseTypeDistribution();
   }
 
-  // ─── 动态路由 ───
+  // 动态路由
 
   @Get(':id')
   @Roles('admin', 'leader', 'staff', 'supplier') // 补角色白名单；supplier 归属校验在方法体内
@@ -501,7 +501,7 @@ export class SupplierController {
   }
 
   @Post(':id/resubmit')
-  @Roles('supplier') // P1-16：供应商补正后重新提交（RETURNED → PENDING）；归属校验在 service 内
+  @Roles('supplier') // 供应商补正后重新提交（RETURNED → PENDING）；归属校验在 service 内
   @ApiOperation({ summary: '供应商补正后重新提交（RETURNED → PENDING）' })
   async resubmit(@Param('id') id: string, @Body() body: { note?: string }, @Request() req: any) {
     return this.supplierService.resubmit(id, req.user.sub, body?.note);
@@ -509,7 +509,7 @@ export class SupplierController {
 
   @Get(':id/changes')
   @UseGuards(OwnerGuard)
-  @Roles('admin', 'leader', 'staff', 'supplier') // P0-3：杜绝 bid_expert/mall 越权读他企变更（含 oldValue/newValue PII）
+  @Roles('admin', 'leader', 'staff', 'supplier') // 杜绝 bid_expert/mall 越权读他企变更（含 oldValue/newValue PII）
   @ApiOperation({ summary: '变更记录列表' })
   async listChanges(@Param('id') id: string) {
     return this.supplierService.listChanges(id);
@@ -539,7 +539,7 @@ export class SupplierController {
 
   @Get(':id/qualifications')
   @UseGuards(OwnerGuard)
-  @Roles('admin', 'leader', 'staff', 'supplier') // P0-3：资质记录含 fileUrl（身份证/营业执照），杜绝跨角色读取
+  @Roles('admin', 'leader', 'staff', 'supplier') // 资质记录含 fileUrl（身份证/营业执照），杜绝跨角色读取
   @ApiOperation({ summary: '资质材料列表' })
   async listQualifications(@Param('id') id: string) {
     return this.supplierService.listQualifications(id);
@@ -596,7 +596,7 @@ export class SupplierController {
     return this.supplierService.confirmEliminate(id, body.reason, req.user?.sub);
   }
 
-  // ── CTS A-213/215/216 投标人信息资源库 ──
+  // CTS A-213/215/216 投标人信息资源库
   @Post(':id/blacklist')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: 'CTS A-215 拉入黑名单（原因必填，通知供应商）' })

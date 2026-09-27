@@ -59,7 +59,7 @@ import { useAssistant } from "@/components/assistant/assistant-provider";
 import { Modal } from "@/components/workbench";
 import { useConfirm } from "@/components/workbench/use-confirm";
 
-// ─── Animation Utilities ───────────────────────────────────────────────────────
+// Animation Utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
@@ -83,7 +83,7 @@ const accentMap = {
   indigo: "rgba(119,129,219,1)",
 };
 
-// ─── Status Badge ──────────────────────────────────────────────────────────────
+// Status Badge
 function StatusBadge({ status, resultText, terminationReason }: { status: ResultStatusKey; resultText?: string | null; terminationReason?: string | null }) {
   // 终止项目：红色「已终止」徽章（区分于普通「已取消」——后者是投标环节取消，非项目级终止）
   if (status === "CANCELLED" && terminationReason) {
@@ -122,7 +122,7 @@ function StatusBadge({ status, resultText, terminationReason }: { status: Result
   );
 }
 
-// ─── Unified Page Hero: title + KPI + search toolbar ──────────────────────────
+// Unified Page Hero: title + KPI + search toolbar
 function PageHero({
   filters,
   onFilterChange,
@@ -283,7 +283,7 @@ function PageHero({
   );
 }
 
-// ─── Ledger Row (Full version for main list) ────────────────────────────────────
+// Ledger Row (Full version for main list)
 function LedgerRow({
   item,
   onExpand,
@@ -600,7 +600,7 @@ function LedgerRow({
   );
 }
 
-// ─── Simplified Row for Selection Modal ─────────────────────────────────────────
+// Simplified Row for Selection Modal
 function SimplifiedRow({
   item,
   isSelected,
@@ -644,7 +644,7 @@ function SimplifiedRow({
   );
 }
 
-// ─── Analysis Selection Modal ───────────────────────────────────────────────────
+// Analysis Selection Modal
 function AnalysisSelectionModal({
   keyword,
   items,
@@ -706,7 +706,7 @@ function AnalysisSelectionModal({
   );
 }
 
-// ─── AI Analysis Result Type ────────────────────────────────────────────────────
+// AI Analysis Result Type
 type AiAnalysisResult = {
   overview: string;
   highlights: string[];
@@ -714,7 +714,7 @@ type AiAnalysisResult = {
   suggestions: string[];
 };
 
-// ─── Analysis Result Modal ─────────────────────────────────────────────────────
+// Analysis Result Modal
 function AnalysisResultModal({
   keyword,
   items,
@@ -975,7 +975,7 @@ function AnalysisResultModal({
   );
 }
 
-// ─── Recycle confirmation Modal ────────────────────────────────────────────────
+// Recycle confirmation Modal
 function RecycleConfirmModal({
   item,
   loading,
@@ -1050,7 +1050,7 @@ function RecycleConfirmModal({
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// Main Page
 export default function ProcurementsPage() {
   const router = useRouter();
   const reducedMotion = useReducedMotion();

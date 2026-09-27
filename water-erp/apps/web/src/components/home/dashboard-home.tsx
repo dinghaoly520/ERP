@@ -36,7 +36,7 @@ function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
   return { initial: { opacity: 0, y: 18, scale: 0.98, filter: "blur(6px)" }, animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }, transition: { duration: 0.5, delay: index * baseDelay, ease: easeOutQuint } };
 }
 
-// ── KPI Card ─────────────────────────────────────────────────────────────
+// KPI Card
 
 function KpiCard({ label, value, sub, signal, trend, trendLabel, index, reducedMotion, showDivider }: {
   label: string; value: string; sub?: string; signal?: "normal" | "warning" | "danger" | "success";
@@ -63,7 +63,7 @@ function KpiCard({ label, value, sub, signal, trend, trendLabel, index, reducedM
   );
 }
 
-// ── AI Intelligence ──────────────────────────────────────────────────────
+// AI Intelligence
 
 function IntelligencePanel({ analysis, loading, error, onRefresh, index, reducedMotion }: {
   analysis: DashboardAnalysisResult | null; loading: boolean; error: string | null;
@@ -94,7 +94,7 @@ function IntelligencePanel({ analysis, loading, error, onRefresh, index, reduced
   );
 }
 
-// ── Savings Ranking ──────────────────────────────────────────────────────
+// Savings Ranking
 
 type SavingsRankingItem = { project: string; department: string; controlAmount: number; awardAmount: number; savings: number; savingsRate: number; controlAmountLabel: string; awardAmountLabel: string; savingsLabel: string; method: string; date: string; projectCode: string | null; awardedSupplierName: string | null; participantCount: number };
 
@@ -205,7 +205,7 @@ function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRa
   );
 }
 
-// ── Risk Projects ────────────────────────────────────────────────────────
+// Risk Projects
 
 function RiskProjectsPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
@@ -226,7 +226,7 @@ function RiskProjectsPanel({ profile, index, reducedMotion }: { profile: Dashboa
   );
 }
 
-// ── Project Scale ────────────────────────────────────────────────────────
+// Project Scale
 
 type ScaleSegment = { label: string; range: string; min: number; max: number; count: number; amount: number; amountLabel: string; share: number; color: string };
 
@@ -266,7 +266,7 @@ function ProjectScalePanel({ profile, index, reducedMotion }: { profile: Dashboa
   );
 }
 
-// ── Method Pie ───────────────────────────────────────────────────────────
+// Method Pie
 
 type MethodDetail = { name:string;count:number;amount:number;amountLabel:string;share:number;projects:Array<{name:string;date:string;department:string;budgetLabel:string;awardLabel:string;status:string}> };
 const PC = ["oklch(0.63 0.128 247)","oklch(0.55 0.14 164)","oklch(0.65 0.15 83)","oklch(0.55 0.14 280)","oklch(0.6 0.15 27)","oklch(0.55 0.12 175)"];
@@ -296,7 +296,7 @@ function MethodPieChartPanel({ profile, index, reducedMotion }: { profile: Dashb
   );
 }
 
-// ── Non-Award Donut ──────────────────────────────────────────────────────
+// Non-Award Donut
 
 type NonAwardDetail = { label:string;count:number;detail:string;projects:Array<{name:string;date:string;department:string;budgetLabel:string;reason:string}> };
 const NAC = ["oklch(0.6 0.15 27)","oklch(0.65 0.15 83)","oklch(0.63 0.128 247)","oklch(0.55 0.14 280)"];
@@ -325,7 +325,7 @@ function NonAwardDonutPanel({ profile, index, reducedMotion }: { profile: Dashbo
   );
 }
 
-// ── Supplier Cards ───────────────────────────────────────────────────────
+// Supplier Cards
 
 function SupplierCards({ suppliers, index, reducedMotion }: { suppliers: SupplierDetail[]; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.06);
@@ -346,7 +346,7 @@ function SupplierCards({ suppliers, index, reducedMotion }: { suppliers: Supplie
   );
 }
 
-// ── Trend Chart ──────────────────────────────────────────────────────────
+// Trend Chart
 
 type TrendDetail = { date:string;label:string;count:number;amount:number;initiated?:number;archived?:number;active?:number;projects:Array<{name:string;date:string;department:string;method:string;budgetLabel:string;awardLabel:string;status:string}> };
 
@@ -474,7 +474,7 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
   );
 }
 
-// ── Department ───────────────────────────────────────────────────────────
+// Department
 
 type DepartmentDetail = { name:string;amount:number;amountLabel:string;completedRate:number;topMethod:string;projects:Array<{name:string;date:string;method:string;budgetLabel:string;awardLabel:string;status:string}> };
 const DBC = ["var(--accent)","var(--success)","var(--warning)","oklch(0.55 0.14 280)","var(--danger)","oklch(0.55 0.12 175)"];
@@ -508,7 +508,7 @@ function DepartmentPanel({ profile, index, reducedMotion }: { profile: Dashboard
   );
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────
+// Main
 
 type DashboardHomeProps = { currentUserRole: AuthRole };
 const ANALYSIS_CACHE_KEY = "dashboard_analysis_cache";
@@ -586,7 +586,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
 
   return <>
     <motion.div animate={reducedMotion?undefined:{opacity:1}} transition={{duration:0.28,ease:easeOutQuint}}>
-      {/* ── page-hero 标题卡（对标采购进度设计）── */}
+      {/* page-hero 标题卡（对标采购进度设计） */}
       <motion.div {...{initial:ci,animate:ca,transition:ct}} className="page-hero mb-3">
         <div className="flex items-center justify-between gap-4">
           <div className="page-hero__left">

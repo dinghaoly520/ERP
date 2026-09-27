@@ -116,19 +116,19 @@ export class ExpertController {
     return this.expertService.confirmContact(userId, dto);
   }
 
-  /* ── 统计概览 ── */
+  /* 统计概览 */
   @Get('statistics')
   getStatistics(@CurrentUser('sub') userId: string) {
     return this.expertService.getStatistics(userId);
   }
 
-  /* ── 项目列表 ── */
+  /* 项目列表 */
   @Get('projects')
   listProjects(@CurrentUser('sub') userId: string) {
     return this.expertService.listProjects(userId);
   }
 
-  /* ── 评审邀请确认（通知链接落地页用，专家操作本人邀请）── */
+  /* 评审邀请确认（通知链接落地页用，专家操作本人邀请） */
   @Get('projects/:projectId/invitation')
   getMyInvitation(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.getMyInvitation(userId, projectId);
@@ -144,7 +144,7 @@ export class ExpertController {
     return this.expertAdminService.declineInvitation(projectId, userId);
   }
 
-  /* ── 免登录 RSVP（token 链接，TTL=EXPERT_RSVP_TTL_HOURS 小时，默认 2）── */
+  /* 免登录 RSVP（token 链接，TTL=EXPERT_RSVP_TTL_HOURS 小时，默认 2） */
   @Public()
   @Get('rsvp/verify')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -243,7 +243,7 @@ export class ExpertController {
     return this.expertService.getProject(userId, projectId);
   }
 
-  /* ── 身份核验 ── */
+  /* 身份核验 */
   @Post('projects/:projectId/sign-in')
   signIn(
     @CurrentUser('sub') userId: string,
@@ -287,7 +287,7 @@ export class ExpertController {
     return this.expertService.updateAgreements(userId, projectId, dto);
   }
 
-  /* ── 标书解密获取 ── */
+  /* 标书解密获取 */
   @Get('projects/:projectId/documents/:supplierId')
   getDecryptedDocuments(
     @CurrentUser('sub') userId: string,
@@ -297,7 +297,7 @@ export class ExpertController {
     return this.expertService.getDecryptedDocuments(userId, projectId, supplierId);
   }
 
-  /* ── 招标文件预览（专家独立核对原文）── */
+  /* 招标文件预览（专家独立核对原文） */
 
   @ApiOperation({ summary: '招标文件元信息（专家核对原文，无则 null）' })
   @Get('projects/:projectId/tender-document')
@@ -318,7 +318,7 @@ export class ExpertController {
     res.send(buffer);
   }
 
-  /* ── A-136：澄清与修改文件（评委核对招标文件修改的法定输入）── */
+  /* A-136：澄清与修改文件（评委核对招标文件修改的法定输入） */
 
   @ApiOperation({ summary: '本项目已发布澄清/修改文件列表（本项目评委）' })
   @Get('projects/:projectId/clarification-docs')
@@ -345,7 +345,7 @@ export class ExpertController {
     res.send(buffer);
   }
 
-  /* ── 投标文件解密下载（专家预览投标人 PDF）── */
+  /* 投标文件解密下载（专家预览投标人 PDF） */
   @ApiOperation({ summary: '解密下载投标文件 PDF（inline 预览）' })
   @Get('projects/:projectId/suppliers/:supplierId/documents/:fileId/download')
   async downloadBidDocument(
@@ -356,7 +356,7 @@ export class ExpertController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    // 2026-08-28 审查修复（优化项7）：条款核对页每点一条条款就重建 iframe，此前每次全量重取
+    // 条款核对页每点一条条款就重建 iframe，此前每次全量重取
     // 整份解密 PDF。加 ETag（以不变的 fileId 为凭）+ private 缓存：浏览器重载走本地缓存，
     // 带匹配 If-None-Match 时直接 304——不取 buffer、不进服务层、不写监督/审计日志。
     // 304 无响应体不泄露内容；缓存为浏览器私有，仅持有旧副本者（此前已通过鉴权）可再验证。
@@ -375,7 +375,7 @@ export class ExpertController {
     res.send(buffer);
   }
 
-  /* ── 辅助评标 ── */
+  /* 辅助评标 */
 
   /** 跨供应商对比概览 — 必须在 :supplierId 路由前注册，否则 "compare" 会被当作 supplierId */
   @Get('projects/:projectId/assist/compare')
@@ -404,8 +404,8 @@ export class ExpertController {
     return this.expertService.getAssistData(userId, projectId, supplierId);
   }
 
-  /* ── 招标条款标注（本人 CRUD，Task 9）── 子路径 reviews 必须在 assist/:supplierId 之后、
-   *   assist/compare 之前注册（assist/compare 已在更上方，此处不影响）。── */
+  /* 招标条款标注（本人 CRUD） 子路径 reviews 必须在 assist/:supplierId 之后、
+   * assist/compare 之前注册（assist/compare 已在更上方，此处不影响）。 */
 
   @ApiOperation({ summary: '本人条款标注列表（仅当前专家）' })
   @Get('projects/:projectId/assist/:supplierId/reviews')
@@ -428,7 +428,7 @@ export class ExpertController {
     return this.expertService.upsertRequirementReview(userId, projectId, supplierId, dto);
   }
 
-  /* ── 专家打分 ── */
+  /* 专家打分 */
   @Post('projects/:projectId/scores')
   @ApiOperation({
     summary: '提交评分（按供应商批量）',
@@ -456,7 +456,7 @@ export class ExpertController {
     return this.expertService.getMyScores(userId, projectId);
   }
 
-  /* ── C1: 投票/合议/决议 ── */
+  /* C1: 投票/合议/决议 */
 
   @Get('projects/:projectId/motions')
   @ApiOperation({ summary: '查询项目动议列表（含投票状态）' })
@@ -482,7 +482,7 @@ export class ExpertController {
     return this.expertService.closeMotion(userId, motionId);
   }
 
-  /* ── D2: 专家异议工单 ── */
+  /* D2: 专家异议工单 */
 
   @Get('projects/:projectId/disputes')
   @ApiOperation({ summary: '查询项目异议工单列表' })
@@ -496,7 +496,7 @@ export class ExpertController {
     return this.expertService.createDispute(userId, projectId, dto);
   }
 
-  /* ── C2: 组长末签 ── */
+  /* C2: 组长末签 */
 
   @Post('projects/:projectId/leader-cosign')
   @ApiOperation({ summary: '组长末签——所有专家确认后,组长执行最终末签' })
@@ -504,7 +504,7 @@ export class ExpertController {
     return this.expertService.leaderCoSign(userId, projectId);
   }
 
-  /* ── G3: 评分草稿持久化 ── */
+  /* G3: 评分草稿持久化 */
 
   @Post('projects/:projectId/score-draft')
   async saveScoreDraft(
@@ -543,7 +543,7 @@ export class ExpertController {
     return this.expertService.getScoreHistory(userId, projectId, supplierId);
   }
 
-  /* ── E: 「去打分平板」跨设备联动（Redis focus hint）── */
+  /* E: 「去打分平板」跨设备联动（Redis focus hint） */
 
   @Post('projects/:projectId/focus-hint')
   @ApiOperation({ summary: '桌面端发送打分项定位到平板（Redis，TTL 120s）' })
@@ -571,7 +571,7 @@ export class ExpertController {
     return this.expertService.getFocusHintAck(userId, projectId, Number(seq));
   }
 
-  /* ── 核对评分（draft → verified）── */
+  /* 核对评分（draft → verified） */
 
   @Post('projects/:projectId/suppliers/:supplierId/score-review/verify')
   @ApiOperation({ summary: '核对评分（draft→verified，桌面核对关口）' })
@@ -583,7 +583,7 @@ export class ExpertController {
     return this.expertService.verifyScoreReview(userId, projectId, supplierId);
   }
 
-  /* ── 澄清答疑 ── */
+  /* 澄清答疑 */
   @Get('projects/:projectId/clarifications')
   listClarifications(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.listClarifications(userId, projectId);
@@ -598,9 +598,9 @@ export class ExpertController {
     return this.expertService.createClarification(userId, projectId, dto);
   }
 
-  // 澄清 AI 起草端点已删（2026-09-21 用户裁定，两端同删）——澄清一律手写发起
+  // 澄清问题由专家手动填写并发起。
 
-  /* ── 评审报告 ── */
+  /* 评审报告 */
   @Get('projects/:projectId/report')
   getReport(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.getReport(userId, projectId);
@@ -615,7 +615,7 @@ export class ExpertController {
     return this.expertService.confirmReport(userId, projectId, dto?.comment);
   }
 
-  /* ── 数字证书 + 评标报告电子签名（A-152）── */
+  /* 数字证书 + 评标报告电子签名（A-152） */
 
   @ApiOperation({ summary: '本人 ACTIVE 数字证书（无则 cert=null）' })
   @Get('cert')
@@ -645,7 +645,7 @@ export class ExpertController {
     return this.expertService.esignReport(userId, projectId, dto);
   }
 
-  /* ── 评审备忘（手写备忘 CRUD + 墨迹原图上传 / 预签名下载）── */
+  /* 评审备忘（手写备忘 CRUD + 墨迹原图上传 / 预签名下载） */
 
   @ApiOperation({ summary: '备忘列表（仅当前专家，可按供应商过滤）' })
   @Get('projects/:projectId/memos')
@@ -706,7 +706,7 @@ export class ExpertController {
     return this.memoService.getInkUrl(userId, projectId, memoId);
   }
 
-  /* ── 评审待办：跨项目聚合 ── */
+  /* 评审待办：跨项目聚合 */
 
   @Get('tasks')
   @ApiOperation({ summary: '汇总当前专家所有活跃项目的动议(投票中)与异议工单' })

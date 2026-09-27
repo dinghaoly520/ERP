@@ -59,7 +59,7 @@ export default function RetirementPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero ══════ */}
+      {/* page-hero */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -159,7 +159,7 @@ export default function RetirementPage() {
         </div>
       )}
 
-      {/* ══════ 退库二次确认（Modal 表单范式） ══════ */}
+      {/* 退库二次确认（Modal 表单范式） */}
       {pendingRetire && (
         <Modal
           open

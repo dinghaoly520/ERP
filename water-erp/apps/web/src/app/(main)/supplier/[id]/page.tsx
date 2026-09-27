@@ -30,8 +30,8 @@ const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> 
 const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
-/** 字段瓷片（2026-09-18 v3）：kpi-card 组件承载单字段——label(10px muted) / value(13px 深)；
- *  空值淡化；copyable 点击复制（hover 变品牌蓝）。复用设计系统组件而非手搓 div。 */
+/** 单字段展示卡片：空值淡化；copyable 启用点击复制。 */
+
 function InfoField({
   label,
   value,
@@ -163,7 +163,7 @@ export default function SupplierDetailPage() {
     return { severity, title: `${prefix}：${q.name}`, detail: `有效期至 ${new Date(q.validTo).toLocaleDateString('zh-CN')}（${q.daysLeft < 0 ? '已过期' : `剩 ${q.daysLeft} 天`}）` };
   });
 
-  // ── 变更审核 ──
+  // 变更审核
   const handleReviewChange = async () => {
     if (!reviewModal) return;
     setReviewLoading(true);
@@ -176,7 +176,7 @@ export default function SupplierDetailPage() {
     setReviewLoading(false);
   };
 
-  // ── 审批操作（乐观更新 + 撤销 toast）──
+  // 审批操作（乐观更新 + 撤销 toast）
   const handleApproval = async () => {
     if (!supplier || !approvalMode) return;
     if (approvalMode !== 'approve' && !approvalReason.trim()) { toast.error('请填写原因'); return; }
@@ -211,7 +211,7 @@ export default function SupplierDetailPage() {
     setApprovalLoading(false);
   };
 
-  // ── 状态操作（停用/黑名单/解除黑名单；CTS A-215 黑名单走专用端点带校验与通知）──
+  // 状态操作（停用/黑名单/解除黑名单；CTS A-215 黑名单走专用端点带校验与通知）
   const handleStatusAction = async () => {
     if (!actionModal || !actionReason.trim()) { toast.error('请填写原因'); return; }
     setActionLoading(true);
@@ -231,7 +231,7 @@ export default function SupplierDetailPage() {
     setActionLoading(false);
   };
 
-  // ── CTS A-213 奖惩记录 ──
+  // CTS A-213 奖惩记录
   const loadRewardRecords = async (id: string) => {
     try { setRewardRecords(await listSupplierRecords(id)); } catch { /* 静默 */ }
   };
@@ -246,7 +246,7 @@ export default function SupplierDetailPage() {
     } catch (e: any) { toast.error(e?.message || '录入失败'); }
   };
 
-  // ── CTS A-216 人员类别标注 ──
+  // CTS A-216 人员类别标注
   const handleMarkPersonnel = async () => {
     if (!personnelForm.contactId) { toast.error('请选择联系人'); return; }
     try {
@@ -256,7 +256,7 @@ export default function SupplierDetailPage() {
     } catch (e: any) { toast.error(e?.message || '标注失败'); }
   };
 
-  // ── 业务标签编辑 ──
+  // 业务标签编辑
   const handleSaveTags = async () => {
     if (!supplier) return;
     const filled = editTags.filter(t => t.trim());
@@ -341,7 +341,7 @@ export default function SupplierDetailPage() {
         {backLabel}
       </button>
 
-      {/* ══════ page-hero — 供应商名称 + 核心识别信息 ══════ */}
+      {/* page-hero — 供应商名称 + 核心识别信息 */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -435,10 +435,10 @@ export default function SupplierDetailPage() {
 
       <AlertBanner items={alertItems} />
 
-      {/* ═══════════════════════════════════════════════════
+      {/*
          审批进度卡片 — 合并原「审核摘要」+「状态时间线」+ 资质速览
          仅 PENDING / RETURNED 显示
-         ═══════════════════════════════════════════════════ */}
+ */}
       {supplier.status === 'PENDING' && (
         <div className="mb-5 flex items-start gap-3 rounded-2xl border border-[color-mix(in_oklch,var(--warning)_32%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3">
           <RotateCcw size={16} className="mt-0.5 flex-shrink-0 text-[var(--warning)]" />
@@ -535,10 +535,10 @@ export default function SupplierDetailPage() {
       )}
 
       {/* Tab 内容 */}
-      {/* ── 基本信息 ── */}
+      {/* 基本信息 */}
       {activeTab === 'info' && (
           <div className="space-y-5">
-            {/* ══ 企业工商信息（2026-09-18 v2：Hero 身份头 + 分组字段 + 长文本）══ */}
+            {/* 企业工商信息（2026-09-18 v2：Hero 身份头 + 分组字段 + 长文本） */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
 
@@ -595,7 +595,7 @@ export default function SupplierDetailPage() {
               </div>
             </section>
 
-            {/* ══ 业务标签 + 主要联系人（双列）══ */}
+            {/* 业务标签 + 主要联系人（双列） */}
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {/* 业务标签 */}
               <section className="neu-card-static !rounded-2xl p-5">
@@ -634,7 +634,7 @@ export default function SupplierDetailPage() {
               </section>
             </div>
 
-            {/* ══ 银行账户（注册 2.0）══ */}
+            {/* 银行账户（注册 2.0） */}
             <section>
               <SectionTitle icon={Landmark}>银行账户</SectionTitle>
               {supplier.bankAccounts && supplier.bankAccounts.length > 0 ? (
@@ -666,7 +666,7 @@ export default function SupplierDetailPage() {
               )}
             </section>
 
-            {/* ══ 主体业绩（注册 2.0）══ */}
+            {/* 主体业绩（注册 2.0） */}
             <section>
               <SectionTitle icon={Trophy}>主体业绩</SectionTitle>
               {supplier.performances && supplier.performances.length > 0 ? (
@@ -713,12 +713,12 @@ export default function SupplierDetailPage() {
               )}
             </section>
 
-            {/* ══ 评价概览 ══ */}
+            {/* 评价概览 */}
             {evaluations.length > 0 && (
               <section className="neu-card-static !rounded-2xl p-5">
                 <SectionTitle icon={Award}>评价概览</SectionTitle>
 
-                {/* ── 主指标：两个大卡片 ── */}
+                {/* 主指标：两个大卡片 */}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="neu-card-static !rounded-xl p-4 text-center">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">评价次数</p>
@@ -734,7 +734,7 @@ export default function SupplierDetailPage() {
                   </div>
                 </div>
 
-                {/* ── 等级分布条形图 ── */}
+                {/* 等级分布条形图 */}
                 {evaluations.length > 0 && (() => {
                   const total = evaluations.length;
                   const grades = ['A','B','C','D','E'] as const;
@@ -766,20 +766,20 @@ export default function SupplierDetailPage() {
               </section>
             )}
 
-            {/* ══ 系统元信息（弱化 footer）══ */}
+            {/* 系统元信息（弱化 footer） */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-[var(--muted-foreground)]">
               <span className="inline-flex items-center gap-1"><Calendar size={11} /> 注册于 {new Date(supplier.createdAt).toLocaleDateString('zh-CN')}</span>
               <span className="opacity-40">·</span>
               <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> 最后更新 {new Date(supplier.updatedAt).toLocaleDateString('zh-CN')}</span>
             </div>
 
-            {/* ══ 生命周期时间线 ══ */}
+            {/* 生命周期时间线 */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={RotateCcw}>生命周期</SectionTitle>
               <SupplierTimeline supplierId={id as string} />
             </section>
 
-            {/* ══ 审核历史（不可变留痕）══ */}
+            {/* 审核历史（不可变留痕） */}
             <section className="neu-card-static !rounded-2xl p-5">
               <SectionTitle icon={FileCheck}>审核历史</SectionTitle>
               <ApprovalHistory supplierId={id as string} />
@@ -787,12 +787,12 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* ── 供应商画像 ── */}
+        {/* 供应商画像 */}
         {activeTab === 'portrait' && (
           <section><PortraitTab supplierId={id as string} /></section>
         )}
 
-        {/* ── 联系人 ── */}
+        {/* 联系人 */}
         {activeTab === 'contacts' && (
           <div>
           {/* CTS A-216 人员类别标注工具条 */}
@@ -845,7 +845,7 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* ── 奖惩记录（CTS A-213）── */}
+        {/* 奖惩记录（CTS A-213） */}
         {activeTab === 'records' && (
           <div>
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
@@ -886,7 +886,7 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* ── 资质材料 ── */}
+        {/* 资质材料 */}
         {activeTab === 'qualifications' && (
           <div>
             {qualifications.length === 0 ? (
@@ -968,7 +968,7 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* ── 履约评价 ── */}
+        {/* 履约评价 */}
         {activeTab === 'evaluations' && (
           <div>
             {evaluations.length === 0 ? (
@@ -978,7 +978,7 @@ export default function SupplierDetailPage() {
               </div>
             ) : (
               <>
-                {/* ── 主指标 ── */}
+                {/* 主指标 */}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="neu-card-static !rounded-xl p-4 text-center">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">评价次数</p>
@@ -994,7 +994,7 @@ export default function SupplierDetailPage() {
                   </div>
                 </div>
 
-                {/* ── 等级分布条形图 ── */}
+                {/* 等级分布条形图 */}
                 {(() => {
                   const total = evaluations.length;
                   const grades = ['A','B','C','D','E'] as const;
@@ -1068,7 +1068,7 @@ export default function SupplierDetailPage() {
           </div>
         )}
 
-        {/* ── 变更记录 ── */}
+        {/* 变更记录 */}
         {activeTab === 'changes' && (
           <div>
             {changes.length === 0 ? (
@@ -1137,7 +1137,7 @@ export default function SupplierDetailPage() {
             )}
           </div>
         )}
-      {/* ══ 沟通记录 ══ */}
+      {/* 沟通记录 */}
       {activeTab === 'communications' && (
         <section>
           {commLoading ? (
@@ -1172,7 +1172,7 @@ export default function SupplierDetailPage() {
         </section>
       )}
 
-      {/* ══ 文件档案 ══ */}
+      {/* 文件档案 */}
       {activeTab === 'documents' && (
         <section>
           {docLoading ? (
@@ -1303,7 +1303,7 @@ export default function SupplierDetailPage() {
         </div>
       )}
 
-      {/* ═══ 变更审核弹窗 ═══ */}
+      {/* 变更审核弹窗 */}
       {reviewModal && (
         <Modal
           open
@@ -1325,7 +1325,7 @@ export default function SupplierDetailPage() {
         </Modal>
       )}
 
-      {/* ═══ 状态操作弹窗（停用/黑名单）═══ */}
+      {/* 状态操作弹窗（停用/黑名单） */}
       {actionModal && (
         <Modal
           open
@@ -1346,7 +1346,7 @@ export default function SupplierDetailPage() {
         </Modal>
       )}
 
-      {/* ═══ 业务标签编辑弹窗 ═══ */}
+      {/* 业务标签编辑弹窗 */}
       {tagsModal && (
         <Modal
           open

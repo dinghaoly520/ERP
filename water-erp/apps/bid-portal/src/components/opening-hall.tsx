@@ -41,7 +41,7 @@ function isDecryptOuterBatch(r: DecryptOuterResult): r is DecryptOuterBatch {
 
 // 保证金状态选项 BOND_STATUS_OPTIONS 从 @water-erp/shared 导入（单一来源，原前端镜像已删）
 
-/* ── A-113：唱标字段动态渲染 ── */
+/* A-113：唱标字段动态渲染 */
 
 /** 法定四键（与后端 opening-field-config.util.ts STATUTORY_OPENING_KEYS 镜像） */
 const STATUTORY_KEYS = ['amount', 'period', 'qualityTarget', 'bondStatus'] as const;
@@ -72,7 +72,7 @@ function renderRecordCell(
 ) {
   switch (f.key) {
     case 'amount':
-      // dual-v2 报价以万元入库：带单位标记时直出「万元」，避免裸数字被读成「元」（2026-09-11）
+      // dual-v2 报价以万元入库：带单位标记时直出「万元」，避免裸数字被读成「元」
       return <td key={f.key} className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amountUnit === '万元' && r.amount ? `${r.amount} 万元` : r.amount}</td>;
     case 'period':
       return <td key={f.key} className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.period}</td>;
@@ -89,7 +89,7 @@ function renderRecordCell(
   }
 }
 
-/* ── Ring Countdown（浅色 cgzxui：data-urgent 驱动配色）── */
+/* Ring Countdown（浅色 cgzxui：data-urgent 驱动配色） */
 function RingCountdown({ remaining, big }: { remaining: number; big?: boolean }) {
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
@@ -120,7 +120,7 @@ function RingCountdown({ remaining, big }: { remaining: number; big?: boolean })
   );
 }
 
-/* ── Stage Stepper（浅色新拟态分段）── */
+/* Stage Stepper（浅色新拟态分段） */
 function StageStepper({ step }: { step: number }) {
   return (
     <div className="flex items-center gap-1">
@@ -146,13 +146,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const projectId = project.id;
   // 「前往采购管理工作台」跳转仅对能实际操作 :3005 的角色有意义——bid_host 登 :3005
   // 按 PORTAL_ROLE_PRIORITY.web 解析为 bid_host、采购功能 403，按钮对现场主持人是死链（分工告知文本保留）
-  // L2（2026-08-28）：解密/解外层/归因裁决/重新封标/暂停恢复等后端收口 @Roles('admin','bid_host')——
+  // L2：解密/解外层/归因裁决/重新封标/暂停恢复等后端收口 @Roles('admin','bid_host')——
   // leader/staff 虽可登录本端但无现场执行权，对应按钮不再渲染（此前可见即点、点了 403 且单家解密静默无反馈）
   const me = useBidUser();
   const canGoWeb = me?.role !== 'bid_host';
   const canHost = me?.role === 'admin' || me?.role === 'bid_host';
   const [startOpen, setStartOpen] = useState(false);
-  // ═══ New UX state ═══
+  // New UX state
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
   const [bulkDecrypting, setBulkDecrypting] = useState(false);
   const [decryptTarget, setDecryptTarget] = useState<{ id: string; name: string }[] | null>(null);
@@ -177,14 +177,14 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   const [resuming, setResuming] = useState(false);
-  // ═══ DANGER 兜底：重新封标（从系统内原始明文恢复）═══
+  // DANGER 兜底：重新封标（从系统内原始明文恢复）
   const [resealing, setResealing] = useState<Set<string>>(new Set());
-  // ═══ 双信封 v2（T17）：解外层 / 归因裁决 ═══
+  // 双信封 v2（T17）：解外层 / 归因裁决
   const [outerDecrypting, setOuterDecrypting] = useState<Set<string>>(new Set());
   const [bulkOuterDecrypting, setBulkOuterDecrypting] = useState(false);
   const [adjudgeTarget, setAdjudgeTarget] = useState<{ id: string; name: string; mode: AdjudgeMode } | null>(null);
   const [adjudgeSubmitting, setAdjudgeSubmitting] = useState(false);
-  // ═══ A-102/104：保证金到账台账（主持人面板；bondRequired 项目 OPENING 阶段）═══
+  // A-102/104：保证金到账台账（主持人面板；bondRequired 项目 OPENING 阶段）
   const [bondLedger, setBondLedger] = useState<BondLedgerRow[]>([]);
   const [bondLedgerLoading, setBondLedgerLoading] = useState(false);
   const [bondLedgerError, setBondLedgerError] = useState<string | null>(null);
@@ -192,11 +192,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [bondLedgerSubmitting, setBondLedgerSubmitting] = useState(false);
   const [bondLedgerDeleting, setBondLedgerDeleting] = useState<Set<string>>(new Set());
 
-  /** P2 收尾：统一原因弹窗（定性异常/暂停开标/接受解密失败三处共用，替代裸 prompt） */
+  /** 收尾：统一原因弹窗（定性异常/暂停开标/接受解密失败三处共用，替代裸 prompt） */
   const [reasonDialog, setReasonDialog] = useState<{ title: string; placeholder: string; minLen?: number; submitLabel: string; description?: string; onSubmit: (reason: string) => Promise<void> } | null>(null);
   const [reasonText, setReasonText] = useState('');
   const [reasonBusy, setReasonBusy] = useState(false);
-  // confirm 普查专批（2026-09-09）：不可逆/高后果操作统一受控确认弹窗（与 reasonDialog 并存，互不干扰）
+  // confirm 普查专批：不可逆/高后果操作统一受控确认弹窗（与 reasonDialog 并存，互不干扰）
   const { confirm, dialog } = useConfirm();
 
   // Esc 关闭原因弹窗（提交中不响应，防误关丢稿）
@@ -225,7 +225,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     setResealing(prev => { const n = new Set(prev); n.delete(supplierId); return n; });
   };
 
-  // ═══ 双信封 v2（T17）：解外层（单家/批量，§5.2）═══
+  // 双信封 v2（T17）：解外层（单家/批量，§5.2）
   const handleDecryptOuter = async (sid: string) => {
     setOuterDecrypting(prev => new Set(prev).add(sid));
     try {
@@ -253,7 +253,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     setBulkOuterDecrypting(true);
     try {
       const res = await decryptOuter(project.id);
-      // 批量路径返回明细聚合（total=进入处理的供应商数，Task 12 口径）
+      // 批量路径返回明细聚合（total=进入处理的供应商数，口径）
       if (isDecryptOuterBatch(res)) {
         toast.success(`解外层完成：成功 ${res.success} · 跳过 ${res.skipped} · 失败 ${res.failed}`);
         for (const d of res.details) {
@@ -277,7 +277,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     }
   };
 
-  // ═══ 双信封 v2（T17）：归因裁决（§5.5）═══
+  // 双信封 v2（T17）：归因裁决（§5.5）
   const openAdjudge = (s: { id: string; supplierName: string }, mode: AdjudgeMode) => {
     setAdjudgeTarget({ id: s.id, name: s.supplierName, mode });
   };
@@ -317,7 +317,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [now, setNow] = useState(() => Date.now());
 
   // Sync server time for authoritative countdown
-  // O7（2026-08-28）：授时重拉改键控（窗口止点|暂停态）——原依赖 openingSession 对象引用，
+  // O7：授时重拉改键控（窗口止点|暂停态）——原依赖 openingSession 对象引用，
   // 任何无关刷新（评分事件等）都会重拉；仅窗口经「延长 +15分钟」或暂停/恢复变化时才需重新对时
   const sessionTimeKey = project?.openingSession
     ? `${project.openingSession.decryptWindowEnd}|${project.openingSession.pausedAt ?? ''}`
@@ -341,7 +341,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     }
   };
 
-  // ═══ Derived data ═══
+  // Derived data
   const decryptProgress = useMemo(() => {
     if (!project) return { total: 0, success: 0, running: 0, pending: 0, danger: 0, pct: 0 };
     const suppliers = project.suppliers;
@@ -354,7 +354,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     return { total, success, danger, running, pending, pct: total > 0 ? (success + danger) / total : 0 };
   }, [project]);
 
-  // ═══ 双信封 v2（T17）：分轨操作集 ═══
+  // 双信封 v2（T17）：分轨操作集
   // dualOuterPending：外层待解（§5.2 批量候选；已撤回排除）
   const dualOuterPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
     s.envelopeVersion === 'dual-v2' && !s.outerDecryptedAt && s.submitStatus !== '已撤回'), [project]);
@@ -420,7 +420,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
   // 解密窗口是否已过期（含无会话兜底：未组建会话视为不可解密，不构成裁决候选）
   const windowExpired = !!session && remaining <= 0;
-  // L6（2026-08-28）：状态胶囊改 shared 派生（status 列建档后无流转，开标中/暂停/结束恒显「待开标」误导）；
+  // L6：状态胶囊改 shared 派生（status 列建档后无流转，开标中/暂停/结束恒显「待开标」误导）；
   // now 用 serverTimeOffset 校正（与上方 remaining 同口径）
   const sessionStatus = session
     ? deriveOpeningSessionStatus({
@@ -433,7 +433,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       })
     : null;
 
-  // ═══ 待裁决清单（§5.5）：UNKNOWN 家 + 窗口关闭后的未归因候选（惰性归因将标记 UNKNOWN）═══
+  // 待裁决清单（§5.5）：UNKNOWN 家 + 窗口关闭后的未归因候选（惰性归因将标记 UNKNOWN）
   const adjudgeRows = useMemo(() => {
     if (!project) return [];
     return project.suppliers.filter(s => {
@@ -448,7 +448,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   /** 本项目是否含双信封 v2 供应商（混轨项目文案分派用） */
   const hasDual = useMemo(() => (project?.suppliers ?? []).some(s => s.envelopeVersion === 'dual-v2'), [project]);
 
-  // ═══ API ══
+  // API
   const handleResolveDispute = async (recordId: string, result: string, confirm: boolean) => {
     if (!projectId || disputeSubmitting) return;
     setDisputeSubmitting(true);
@@ -492,7 +492,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       try {
         await decryptBid(projectId, t.id);
       } catch (e: any) {
-        // L3（2026-08-28）：硬拒绝（窗口关/暂停/重复解密/新轨 400/403）不产生 WS 状态事件，
+        // L3：硬拒绝（窗口关/暂停/重复解密/新轨 400/403）不产生 WS 状态事件，
         // 此前静默无反馈（确认后 spinner 一转即逝）。密码学失败后端不抛错——置 DANGER 经
         // WS 推送（页级 toast+音效），此处仅提示请求被拒，无双响。
         toast.error(`${t.name}：${e?.message || '解密请求被拒'}`);
@@ -591,14 +591,14 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     } catch (e: any) {
       // M9：唱标重录对锁定态记录后端返回 409 code=RECORD_LOCKED
       if (e?.code === 'RECORD_LOCKED') { toast.error('该开标记录已锁定，无法重录'); return; }
-      // P1-4：录入价与投标文件密封报价不一致——主持人显式确认后带 flag 重试（保留工期 flag 状态）
+      // 录入价与投标文件密封报价不一致——主持人显式确认后带 flag 重试（保留工期 flag 状态）
       if (e?.code === 'PRICE_MISMATCH' && !confirmSealedPrice) {
         if (await confirm({ message: `${e?.message ?? '录入报价与密封报价不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`, danger: true })) {
           void handleEnterRecord(true, confirmSealedPeriod);
         }
         return;
       }
-      // 工期一致性校验（P1-4 同构）：录入工期与投递工期不一致——确认后带 flag 重试（保留报价 flag 状态）
+      // 工期一致性校验（同构）：录入工期与投递工期不一致——确认后带 flag 重试（保留报价 flag 状态）
       if (e?.code === 'PERIOD_MISMATCH' && !confirmSealedPeriod) {
         if (await confirm({ message: `${e?.message ?? '录入工期与投递工期不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`, danger: true })) {
           void handleEnterRecord(confirmSealedPrice, true);
@@ -609,7 +609,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     }
   };
 
-  // ═══ A-102/104：保证金到账台账 ═══
+  // A-102/104：保证金到账台账
   const bondLedgerVisible = canHost && !!project.bondRequired && project.stage === 'OPENING';
 
   const loadBondLedger = async () => {
@@ -673,7 +673,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     }
   };
 
-  // ═══ Countdown + time warnings ═══
+  // Countdown + time warnings
   // 解密窗口倒计时音效（tick/warning）已随 sfx 上提至工作区页；本处仅保留每秒 setNow 驱动圆环 / MM:SS 视觉跳动。
   useEffect(() => {
     if (!session) return;
@@ -685,7 +685,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
   return (
     <div className="space-y-5">
-      {/* ═══ Time warning banners — 无边框色调提示 ═══ */}
+      {/* Time warning banners — 无边框色调提示 */}
       {timeWarning === '5min' && (
         <div className="flex animate-pulse items-center gap-2 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] px-4 py-2.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">
           <AlertTriangle size={16} /> 解密窗口将在 5 分钟内关闭，请尽快完成解密操作
@@ -696,7 +696,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟！
         </div>
       )}
-      {/* P1-1：窗口已过期且仍有未到终局态的供应商——给出两条出路指引 */}
+      {/* 窗口已过期且仍有未到终局态的供应商——给出两条出路指引 */}
       {session && remaining <= 0 && project.stage === 'OPENING'
         && project.suppliers.some(s => s.submitStatus !== '已撤回' && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER') && (
         <div className="space-y-1 rounded-xl bg-[oklch(0.66_0.175_27_/_0.12)] px-4 py-3 text-sm font-bold text-[var(--danger)]">
@@ -711,7 +711,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       )}
 
-      {/* ═══ 前阶段引导（F7）：流转权在 :3005，大厅只做开标执行 ═══ */}
+      {/* 前阶段引导（F7）：流转权在 :3005，大厅只做开标执行 */}
       {(project.stage === 'DOWNLOAD' || project.stage === 'SUBMIT') && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.62_0.16_251_/_0.1)] p-5">
           <Clock size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--accent-strong)]" />
@@ -747,7 +747,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       )}
 
-      {/* ═══ 待组建会话横幅（:3005 已确定开标，主持人在此组建会话）═══ */}
+      {/* 待组建会话横幅（:3005 已确定开标，主持人在此组建会话） */}
       {!session && project.stage === 'OPENING' && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.78_0.12_83_/_0.14)] p-5">
           <AlertTriangle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--warning)]" />
@@ -762,7 +762,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       )}
 
-      {/* ═══ 开标完成 · 交回 :3005（三态：待移交 / 已移交 / ——未完成时不显示）═══ */}
+      {/* 开标完成 · 交回 :3005（三态：待移交 / 已移交 / ——未完成时不显示） */}
       {project.stage === 'OPENING' && !!session?.handoverAt && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
           <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
@@ -792,7 +792,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       )}
 
-      {/* ═══ Session header：浅色玻璃面板 + 圆环倒计时 + 阶段步进 ═══ */}
+      {/* Session header：浅色玻璃面板 + 圆环倒计时 + 阶段步进 */}
       {session && (
         <div className="neu-card-static space-y-4 p-6">
           <div className="flex flex-wrap items-center gap-8">
@@ -873,7 +873,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       )}
 
-      {/* ═══ Decrypt status table ═══ */}
+      {/* Decrypt status table */}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[oklch(0.6_0.04_258_/_0.14)] px-6 py-4">
           <h2 className="text-sm font-bold text-[color:var(--foreground)]">
@@ -900,7 +900,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </div>
         </div>
 
-        {/* ═══ 待裁决面板（§5.5）：UNKNOWN 非终局态继续阻塞开标——主持人在此逐家落归因 ═══ */}
+        {/* 待裁决面板（§5.5）：UNKNOWN 非终局态继续阻塞开标——主持人在此逐家落归因 */}
         {adjudgeRows.length > 0 && (
           <div className="border-b border-[oklch(0.78_0.12_83_/_0.3)] bg-[oklch(0.78_0.12_83_/_0.08)] px-6 py-3">
             <div className="mb-2 flex items-center gap-1.5">
@@ -984,7 +984,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 const isDanger = s.decryptStatus === 'DANGER';
                 const resealFailed = isDanger && !!s.decryptError?.includes('重新封标失败');
                 const isDecrypting = decrypting.has(s.id);
-                // ═══ 双信封 v2（T17）：新轨分派（envelopeVersion 由项目详情派生下发）═══
+                // 双信封 v2（T17）：新轨分派（envelopeVersion 由项目详情派生下发）
                 const isDual = s.envelopeVersion === 'dual-v2';
                 const outerDone = !!s.outerDecryptedAt;
                 const attribution = s.dangerAttribution ?? null;
@@ -1110,7 +1110,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             </span>
                           )
                         )}
-                        {/* P1-1：窗口过期后的未解密定性通道（后端已放宽 PENDING/RUNNING）；dual-v2 行改用归因裁决 */}
+                        {/* 窗口过期后的未解密定性通道（后端已放宽 PENDING/RUNNING）；dual-v2 行改用归因裁决 */}
                         {!!session && remaining <= 0 && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
                           <button type="button"
                             onClick={() => setReasonDialog({
@@ -1189,7 +1189,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       </Card>
 
-      {/* ═══ A-102/104：保证金到账台账（主持人；bondRequired 项目 OPENING 阶段）═══ */}
+      {/* A-102/104：保证金到账台账（主持人；bondRequired 项目 OPENING 阶段） */}
       {bondLedgerVisible && (
       <Card>
         <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-6 py-4">
@@ -1322,7 +1322,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       </Card>
       )}
 
-      {/* ═══ Opening records ═══ */}
+      {/* Opening records */}
       <Card>
         <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-6 py-4">
           <h2 className="text-sm font-bold text-[color:var(--foreground)]">
@@ -1442,7 +1442,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         onClose={() => setDecryptTarget(null)}
       />
 
-      {/* ═══ T17：解密失败归因裁决弹窗（unknown/rejudge/reset 三模式共用）═══ */}
+      {/* T17：解密失败归因裁决弹窗（unknown/rejudge/reset 三模式共用） */}
       <AdjudicateDialog
         open={adjudgeTarget !== null}
         supplierName={adjudgeTarget?.name ?? ''}
@@ -1453,9 +1453,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         onClose={() => setAdjudgeTarget(null)}
       />
 
-      {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}
+      {/* 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金） */}
       {recordEntry && (
-        /* O10（2026-08-28）：遮罩点击不再关弹窗——已填报价/工期草稿易误触丢失，关闭走「取消」按钮 */
+        /* O10：遮罩点击不再关弹窗——已填报价/工期草稿易误触丢失，关闭走「取消」按钮 */
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm">
           <div className="bid-dialog w-[480px] p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-black text-[color:var(--foreground)]">{recordEntry.reentry ? '重录唱标信息' : '录入唱标信息'} — {recordEntry.supplierName}</h3>
@@ -1545,7 +1545,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         </div>
       )}
 
-      {/* P2 收尾：统一原因弹窗（定性异常/暂停开标/接受解密失败三处共用，替代裸 prompt） */}
+      {/* 收尾：统一原因弹窗（定性异常/暂停开标/接受解密失败三处共用，替代裸 prompt） */}
       {reasonDialog && (
         <div className="bid-overlay" onClick={() => { if (!reasonBusy) { setReasonDialog(null); setReasonText(''); } }}>
           <div className="bid-overlay-backdrop" />

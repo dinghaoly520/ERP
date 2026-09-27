@@ -14,7 +14,7 @@ import { BusinessTagField } from "@/components/registration/business-tag-field";
 import { UnitSearchSelect } from "@/components/registration/unit-search-select";
 import "@/styles/pages/register2.css";
 
-/** 临时供应商注册（凭邀请码，输满 8 位自动校验 + 协议勾选 + 信用代码查重）— 与正式注册同款设计 */
+/** 临时供应商注册：邀请码校验、协议确认与信用代码查重。 */
 export default function RegisterTemporaryPage() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -48,7 +48,7 @@ export default function RegisterTemporaryPage() {
       .catch(() => { /* 不阻塞 */ });
   }, []);
 
-  /* ── 注册短信验证码 ── */
+  /* 注册短信验证码 */
   const [codeSending, setCodeSending] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
   const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "ok" | "bad">("idle");

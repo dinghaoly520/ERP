@@ -34,7 +34,7 @@ export default function ExpertProjectsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // P3: Auto-focus modal close button when opened
+  // Auto-focus modal close button when opened
   const modalCloseRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (overviewProject && modalCloseRef.current) {
@@ -49,7 +49,7 @@ export default function ExpertProjectsPage() {
     return true;
   });
 
-  // P2: single-pass count instead of separate .filter() passes
+  // single-pass count instead of separate .filter() passes
   const statusCounts = useMemo(() => {
     let all = 0, reviewable = 0, archived = 0;
     for (const ep of projects) {

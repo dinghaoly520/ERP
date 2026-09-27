@@ -304,7 +304,7 @@ export function ProjectManagementPage() {
               </div>
               <div className="page-hero__right">
                 <CompanySelect value={companyId} onChange={setCompanyId} />
-                {/* 归档记录入口已收敛至「采购台账」（2026-09-02 拍板）；/archive 页保留供归档待办通知直达 */}
+                {/* 归档记录入口已收敛至「采购台账」；/archive 页保留供归档待办通知直达 */}
                 <button
                   type="button"
                   onClick={() => setShowRecycleBin(true)}

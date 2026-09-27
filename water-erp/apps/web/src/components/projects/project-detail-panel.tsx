@@ -52,7 +52,7 @@ import { OfficialTenderWizard } from './official-tender-wizard';
 import { Modal, StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
-// ─── Extracted Info Field Components ───────────────────────────────────────────
+// Extracted Info Field Components
 
 
 // Expert info display component - handles structured expert data
@@ -451,7 +451,7 @@ export function ProjectDetailPanel({
   const isCurrentStage = selectedStage.stageKey === localItem.currentStage && selectedRound === (localItem.currentRound ?? 1);
 
   // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS 或 COMPLETED）→ 所有前置内容不可修改。
-  // 口径修正（2026-08-17）：只锁「开标评标」之前的前置阶段——定标（中标通知书）/合同等
+  // 口径修正：只锁「开标评标」之前的前置阶段——定标（中标通知书）/合同等
   // 后置阶段不受锁，否则定标入口被误锁、线下定标→扫描上传回填流程永不可达。
   const bidEvalStage = localItem.stages.find(s => s.stageKey === 'BID_EVALUATION');
   const isBidLocked = bidEvalStage?.status === 'IN_PROGRESS' || bidEvalStage?.status === 'COMPLETED';
@@ -554,7 +554,7 @@ export function ProjectDetailPanel({
   // 步骤分析已覆盖全部阶段（analyze-step 按阶段取真实数据源）
   const isStepAnalysisStage = true;
 
-  // ── 步骤分析 state（供应商邀请 / 专家抽取）──
+  // 步骤分析 state（供应商邀请 / 专家抽取）
   const [stepAnalysisContent, setStepAnalysisContent] = useState('');
   const [stepAnalysisLoading, setStepAnalysisLoading] = useState(false);
   const [stepAnalysisError, setStepAnalysisError] = useState<string | null>(null);
@@ -978,7 +978,7 @@ export function ProjectDetailPanel({
     }
   };
 
-  // ── 项目终止（2026-09-20）：填终止原因，项目进「已终止」只读列表 + 台账 CANCELLED 轮次 ──
+  // 项目终止：填终止原因，项目进「已终止」只读列表 + 台账 CANCELLED 轮次
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [terminateReason, setTerminateReason] = useState('');
   const [terminateNotify, setTerminateNotify] = useState<'none' | 'accepted' | 'all'>('none');
@@ -1172,12 +1172,12 @@ export function ProjectDetailPanel({
       <div className="pm-detail-overlay absolute inset-0 z-[120] rounded-[24px] bg-[var(--background)]/60 backdrop-blur-[3px]" />
 
       <section className={`absolute inset-0 z-[121] overflow-y-auto rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]${readOnly ? ' pm-archived-readonly' : ''}`}>
-        {/* ══════ page-hero: 标题 + 简报 + 流程 ══════ */}
+        {/* page-hero: 标题 + 简报 + 流程 */}
         <div className="page-hero">
           {/* B3（A-204）时间信息轴 */}
           <ProjectTimelineStrip pmiId={item.id} />
           <div style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)', paddingTop: '0.75rem', marginBottom: '0.75rem' }} />
-          {/* ── row 1: 标题 + meta + 操作按钮 ── */}
+          {/* row 1: 标题 + meta + 操作按钮 */}
           <div className="page-hero__row">
             <div className="page-hero__left">
               <div className="page-hero__icon">
@@ -1261,7 +1261,7 @@ export function ProjectDetailPanel({
             </div>
           )}
 
-          {/* ── hairline + 项目简报 ── */}
+          {/* hairline + 项目简报 */}
           <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目简报</span>
@@ -1298,7 +1298,7 @@ export function ProjectDetailPanel({
             </div>
           </div>
 
-          {/* ── hairline + 采购流程 ── */}
+          {/* hairline + 采购流程 */}
           <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购流程</span>
@@ -1361,10 +1361,10 @@ export function ProjectDetailPanel({
           </div>
         </div>
 
-        {/* ══════ 双栏正文 —— 列 bg 无外层 px 包裹，文本左缘 = page-hero 左缘(均为 px-5) ══════ */}
+        {/* 双栏正文 —— 列 bg 无外层 px 包裹，文本左缘 = page-hero 左缘(均为 px-5) */}
         <div className="pb-5">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
-            {/* ── 左栏：wb-panel 玻璃容器（渐变 + 内高光 + 方向性三影）── */}
+            {/* 左栏：wb-panel 玻璃容器（渐变 + 内高光 + 方向性三影） */}
             <div className="wb-panel gap-5 px-5 py-5">
               <div className="flex items-center gap-2.5 -mx-5 -mt-5 px-5 py-3.5 rounded-t-[20px]"
                 style={{
@@ -1382,7 +1382,7 @@ export function ProjectDetailPanel({
                 </div>
               </div>
 
-              {/* ── 采购需求及立项 ── */}
+              {/* 采购需求及立项 */}
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">
@@ -1591,7 +1591,7 @@ export function ProjectDetailPanel({
                 </div>
               </div>
 
-              {/* ── 采购文件 ── */}
+              {/* 采购文件 */}
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">
@@ -1646,7 +1646,7 @@ export function ProjectDetailPanel({
                 </div>
               </div>
 
-              {/* ── 供应商邀请/参与 ── */}
+              {/* 供应商邀请/参与 */}
               {['谈判采购', '询比采购', '直接采购', '邀请招标', '竞价采购'].includes(item.procurementMethod) && (
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
@@ -1669,7 +1669,7 @@ export function ProjectDetailPanel({
               </div>
               )}
 
-              {/* ── 专家评审 ── */}
+              {/* 专家评审 */}
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">
@@ -1689,7 +1689,7 @@ export function ProjectDetailPanel({
                 />
               </div>
 
-              {/* ── 开标评标 ── */}
+              {/* 开标评标 */}
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">
@@ -1719,7 +1719,7 @@ export function ProjectDetailPanel({
                 </div>
               </div>
 
-              {/* ── 合同 ── */}
+              {/* 合同 */}
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">
@@ -1810,9 +1810,9 @@ export function ProjectDetailPanel({
               </div>
             </div>
 
-            {/* ── 右栏：wb-panel 玻璃容器（渐变 + 内高光 + 方向性三影）── */}
+            {/* 右栏：wb-panel 玻璃容器（渐变 + 内高光 + 方向性三影） */}
             <div className="wb-panel gap-5 px-5 py-5">
-              {/* ══════ 当前步骤 hero —— 阶段焦点面板 ══════ */}
+              {/* 当前步骤 hero —— 阶段焦点面板 */}
               <div
                 className="pm-current-step-hero -mx-5 -mt-5 mb-1 overflow-hidden rounded-t-[20px]"
                 style={{
@@ -1948,7 +1948,7 @@ export function ProjectDetailPanel({
                 onEdit={readOnly ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
               />
 
-              {/* ── 上传区 —— cgzxui 内凹底（已归档：整体禁用） ── */}
+              {/* 上传区 —— cgzxui 内凹底（已归档：整体禁用） */}
               <div className="rounded-xl p-4" style={{background:"color-mix(in oklch,var(--muted) 25%,transparent)",boxShadow:"inset 1px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 2px oklch(1 0 0 / 0.5)"}}>
                 <label className={`flex cursor-pointer items-center justify-center gap-3 rounded-lg px-4 py-3 transition ${stageLocked || readOnly ? 'cursor-not-allowed opacity-40' : 'bg-[oklch(1_0_0/0.5)] hover:bg-[oklch(1_0_0/0.75)]'}`} style={stageLocked || readOnly ? {} : {boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)"}}>
                   <UploadCloud size={20} className="shrink-0 text-[color:var(--muted-foreground)]" />
@@ -1984,7 +1984,7 @@ export function ProjectDetailPanel({
                 )}
               </div>
 
-              {/* ── 文件分析 / 步骤分析 ── */}
+              {/* 文件分析 / 步骤分析 */}
               <hr className="wb-section-rule" />
 
               {/* 步骤分析阶段：Tab 切换（有文件时）/ 仅步骤分析（无文件时）*/}
@@ -2113,7 +2113,7 @@ export function ProjectDetailPanel({
         onClose={() => setErrorMessage(null)}
       />
 
-      {/* 项目终止对话框（2026-09-20）：填终止原因，快照当前步骤与已有资料 */}
+      {/* 项目终止对话框：填终止原因，快照当前步骤与已有资料 */}
       {terminateOpen && (
         <Modal
           open

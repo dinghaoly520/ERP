@@ -46,7 +46,7 @@ export class RsvpController {
       const code = e?.response?.code || e?.message;
       if (code === 'RSVP_NOT_FOUND') throw new BadRequestException({ error: '回执链接无效或已失效', code: 'RSVP_NOT_FOUND' });
       if (code === 'RSVP_EXPIRED') throw new BadRequestException({ error: '回执链接已过期，请联系采购方重新发送邀请', code: 'RSVP_EXPIRED' });
-      // P0-1：DB 外键/约束失败与「token 被篡改」是两回事，不再统一误报（真实原因曾在日志里被吞）
+      // DB 外键/约束失败与「token 被篡改」是两回事，不再统一误报（真实原因曾在日志里被吞）
       if (e?.code === 'P2003' || e?.code === 'P2002') {
         throw new BadRequestException({ error: '回执项目关联失败，请联系采购方核实邀请', code: 'RSVP_PROJECT_LINK_FAIL' });
       }

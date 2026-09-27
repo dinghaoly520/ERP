@@ -19,6 +19,7 @@ import type { Supplier } from '@/lib/types';
 import {
   Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen,
   RefreshCw, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 /* ════════════════════════════════════════════════════════════════
@@ -52,16 +53,90 @@ const SEGMENT: { key: NotificationTab; label: string; icon: any }[] = [
   { key: 'read', label: '已阅', icon: CheckCheck },
 ];
 
-/** 审计动作 → 中文（操作历史/已办结果展示） */
+/** 审计动作 → 中文（操作历史/已办结果展示）。未列入的会话类动作由 UI 过滤不展示。 */
 const ACTION_LABEL: Record<string, string> = {
+  // ── 账号与安全 ──
+  PASSWORD_CHANGE_REQUEST: '申请修改密码',
+  PASSWORD_CHANGE_APPROVED: '密码修改申请 · 通过',
+  PASSWORD_CHANGE_REJECTED: '密码修改申请 · 拒绝',
+  PASSWORD_RESET_REQUEST: '申请忘记密码重置',
+  PASSWORD_RESET_APPROVED: '密码重置申请 · 通过',
+  PASSWORD_RESET_REJECTED: '密码重置申请 · 拒绝',
   PROFILE_CHANGE_APPROVED: '资料变更审批 · 通过',
   PROFILE_CHANGE_REJECTED: '资料变更审批 · 拒绝',
   USER_REGISTRATION_APPROVED: '注册审核 · 通过',
   USER_REGISTRATION_REJECTED: '注册审核 · 拒绝',
+  PROFILE_UPDATE: '更新个人资料',
+  SETTINGS_UPDATE: '更新系统设置',
+  // ── 供应商 ──
   SUPPLIER_APPROVED: '供应商审批 · 通过',
   SUPPLIER_REJECTED: '供应商审批 · 拒绝',
   SUPPLIER_RETURNED: '供应商审批 · 退回补正',
+  SUPPLIER_BLACKLIST: '供应商列入黑名单',
+  SUPPLIER_DISABLE: '供应商停用',
+  SUPPLIER_ENABLE: '供应商恢复',
+  SUPPLIER_UPDATE: '更新供应商资料',
+  // ── 项目 ──
+  PROJECT_CREATE: '创建采购项目',
+  PROJECT_UPDATE: '更新采购项目',
+  PROJECT_DELETE: '删除采购项目',
+  PROJECT_STAGE_CHANGE: '项目阶段推进',
+  PROJECT_ARCHIVE: '项目归档',
+  // ── 公告 ──
+  ANNOUNCEMENT_CREATE: '新建公告',
+  ANNOUNCEMENT_PUBLISH: '发布公告',
+  ANNOUNCEMENT_UPDATE: '更新公告',
+  ANNOUNCEMENT_DELETE: '删除公告',
+  // ── 开评标 ──
+  BID_STAGE_CHANGE: '开标阶段流转',
+  BID_PROJECT_ABORT: '项目流标',
+  BID_OPENING_HANDOVER: '开标资料移交',
+  BID_OPENING_SIGN_REGISTERED: '评标签字登记',
+  BID_RESULTS_GENERATED: '生成评标结果',
+  BID_DISPUTE_RESOLVE: '异议裁决',
+  BID_CLARIFICATION_CREATE: '发起评标澄清',
+  BID_NUDGE_SUPPLIERS: '催促供应商投标',
+  BID_NUDGE_EXPERTS: '催促专家评审',
+  BID_INVITE_SUPPLIERS: '邀请供应商',
+  BID_DECRYPT: '标书解密',
+  BID_DECRYPT_ADJUDGE: '解密异常裁决',
+  EVALUATION_EXTEND: '延长评标时限',
+  // ── 专家 ──
+  EXPERT_EXTRACTION_CONFIRMED: '确认专家抽取',
+  EXPERT_DISPUTE_RESOLVE: '专家异议处理',
+  EXPERT_VIOLATION_RECORDED: '记录专家违规',
+  // ── 合同 ──
+  CONTRACT_SIGNED: '合同签署',
+  CONTRACT_TERMINATED: '合同终止',
+  CONTRACT_ACCEPTED: '合同验收',
+  CONTRACT_FULFILLMENT_ADDED: '登记合同履约节点',
+  CONTRACT_FULFILLMENT_UPDATED: '更新合同履约节点',
+  CONTRACT_FULFILLMENT_PROOF_ATTACHED: '上传合同履约凭证',
+  // ── 目录 ──
+  CATALOG_APPLICATION_APPROVED: '目录供货申请 · 通过',
+  CATALOG_APPLICATION_REJECTED: '目录供货申请 · 拒绝',
+  CATALOG_APPLICATION_RETURNED: '目录供货申请 · 退回',
+  CATALOG_CREATED: '新增目录条目',
+  CATALOG_IMPORTED: '导入目录',
+  CATALOG_EXPORTED: '导出目录',
+  CATEGORY_CREATED: '新增目录品类',
+  CATEGORY_UPDATED: '更新目录品类',
+  CATEGORY_DELETED: '删除目录品类',
+  // ── 预算 ──
+  BUDGET_CONVERTED: '预算清单转采购项目',
+  BID_SCHEDULE_CHANGE_NOTIFY: '通知开标时间变更',
+  BID_OPENING_DECISION_NOTIFY: '通知开标决策',
+  // ── 通用 ──
+  CREATE: '新建',
+  UPDATE: '更新',
+  DELETE: '删除',
+  RESTORE: '恢复',
+  PUBLISH: '发布',
+  HIDE: '隐藏',
 };
+
+/** 会话/心跳类动作——操作历史不展示（淹没业务动作的噪音） */
+const NOISE_ACTIONS = new Set(['LOGIN', 'LOGOUT']);
 
 function fmt(dt: string | null | undefined) {
   if (!dt) return '—';
@@ -76,6 +151,7 @@ export default function NotificationsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [segmentCounts, setSegmentCounts] = useState<{ all: number; todo: number; done: number; toread: number; read: number }>({ all: 0, todo: 0, done: 0, toread: 0, read: 0 });
 
   // 窗口
   const [detail, setDetail] = useState<NotificationItem | null>(null);        // 查看（已办/待阅/已阅）
@@ -87,7 +163,7 @@ export default function NotificationsPage() {
   const load = useCallback(() => {
     setLoading(true);
     listNotifications(tab, page, PAGE_SIZE)
-      .then(r => { setItems(r.items); setTotal(r.total); })
+      .then(r => { setItems(r.items); setTotal(r.total); if (r.segmentCounts) setSegmentCounts(r.segmentCounts); })
       .catch(() => { setItems([]); setTotal(0); })
       .finally(() => setLoading(false));
   }, [tab, page]);
@@ -99,7 +175,7 @@ export default function NotificationsPage() {
     setDetail(n);
     setDetailActs([]);
     if (itemState(n) === 'done') {
-      fetchMyActivities(50).then(r => {
+      fetchMyActivities(50, ['LOGIN', 'LOGOUT']).then(r => {
         const key = n.type === 'USER_REGISTRATION_PENDING' ? 'USER_REGISTRATION_'
           : n.type === 'PROFILE_CHANGE_PENDING' ? 'PROFILE_CHANGE_'
           : n.type === 'SUPPLIER_PENDING' ? 'SUPPLIER_' : null;
@@ -137,9 +213,9 @@ export default function NotificationsPage() {
           </div>
           <div className="page-hero__right">
             <button className="neu-btn-xs" onClick={() => { void markAllNotificationsRead().then(() => load()); }}>
-              <CheckCheck size={13} /> 全部标已读
+              <CheckCheck size={13} /> 全部标已阅
             </button>
-            <button className="neu-btn-soft" onClick={() => { setHistoryOpen(true); fetchMyActivities(50).then(r => setActivities(r.items)).catch(() => setActivities([])); }}>
+            <button className="neu-btn-soft" onClick={() => { setHistoryOpen(true); fetchMyActivities(50, ['LOGIN', 'LOGOUT']).then(r => setActivities(r.items)).catch(() => setActivities([])); }}>
               <History size={14} /> 操作历史
             </button>
             <button className="neu-btn-xs" onClick={load} aria-label="刷新"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /></button>
@@ -160,6 +236,14 @@ export default function NotificationsPage() {
             <button key={t.key} type="button" className="neu-segment-btn" aria-pressed={tab === t.key}
               onClick={() => { setTab(t.key); setPage(1); }}>
               <t.icon size={13} strokeWidth={1.9} aria-hidden="true" /> {t.label}
+              {t.key !== 'all' && segmentCounts[t.key] > 0 && (
+                <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                  t.key === 'todo' || t.key === 'toread'
+                    ? 'bg-[var(--danger)] text-white'
+                    : 'bg-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)] text-[var(--muted-foreground)]'}`}>
+                  {segmentCounts[t.key] > 99 ? '99+' : segmentCounts[t.key]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -179,7 +263,7 @@ export default function NotificationsPage() {
                 <th>时间</th>
                 <th>类型</th>
                 <th style={{ textAlign: 'left' }}>消息内容</th>
-                <th>状态</th>
+                <th style={{ width: 56, textAlign: 'center' }}>状态</th>
                 <th style={{ textAlign: 'center' }}>操作</th>
               </tr>
             </thead>
@@ -202,7 +286,7 @@ export default function NotificationsPage() {
                     <td style={{ textAlign: 'left' }}>
                       <span className="line-clamp-1 text-[0.82rem] leading-relaxed text-[var(--foreground)]" title={n.content}>{n.content}</span>
                     </td>
-                    <td><StateChip state={st} /></td>
+                    <td style={{ textAlign: 'center' }}><StateChip state={st} /></td>
                     <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
                       {st === 'todo' ? (
                         <button className="neu-btn-xs" onClick={() => setHandleItem(n)}>处理</button>
@@ -217,11 +301,15 @@ export default function NotificationsPage() {
           </table>
         </div>
         {totalPages > 1 && (
-          <div className="neu-table-card-footer">
-            <span>共 {total} 条 · 第 {page}/{totalPages} 页</span>
+          <div className="neu-table-card-footer flex items-center justify-end gap-3">
+            <span className="text-[11px] font-medium tabular-nums text-[var(--muted-foreground)]">共 {total} 条 · 第 {page}/{totalPages} 页</span>
             <div className="flex gap-1.5">
-              <button className="neu-btn-xs" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>←</button>
-              <button className="neu-btn-xs" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>→</button>
+              <button className="neu-btn-xs !px-2" disabled={page <= 1} onClick={() => setPage(p => p - 1)} aria-label="上一页">
+                <ChevronLeft size={15} strokeWidth={2} />
+              </button>
+              <button className="neu-btn-xs !px-2" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} aria-label="下一页">
+                <ChevronRight size={15} strokeWidth={2} />
+              </button>
             </div>
           </div>
         )}
@@ -259,22 +347,40 @@ export default function NotificationsPage() {
 
       {/* ═══ 操作历史（标题栏右上角） ═══ */}
       <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="操作历史"
-        description="我在本系统的审批与处理操作记录（每次操作一条）"
+        description="我在本系统的业务操作记录（登录/登出等会话动作不在此列）"
         footer={<button className="neu-btn-soft" onClick={() => setHistoryOpen(false)}>关闭</button>}>
-        <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-          {activities.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">暂无操作记录</p>
-          ) : activities.map(a => (
-            <div key={a.id} className="flex items-start gap-2.5 rounded-xl bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3.5 py-2.5">
-              <Clock size={13} className="mt-0.5 shrink-0 text-[var(--muted-foreground)]" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-bold text-[var(--foreground)]">{ACTION_LABEL[a.action] ?? a.action}</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-                  {a.resourceType}{a.resourceId ? ` · ${a.resourceId}` : ''} · {fmt(a.createdAt)}
-                </p>
-              </div>
+        <div className="max-h-[60vh] overflow-y-auto pr-1">
+          {activities.filter(a => !NOISE_ACTIONS.has(a.action)).length === 0 ? (
+            <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">暂无操作记录</p>
+          ) : (
+            <div className="space-y-2">
+              {activities.filter(a => !NOISE_ACTIONS.has(a.action)).map(a => {
+                const label = ACTION_LABEL[a.action];
+                const isApprove = label?.includes('通过');
+                const isReject = label?.includes('拒绝') || label?.includes('退回');
+                return (
+                  <div key={a.id} className="flex items-start gap-3 rounded-xl bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-4 py-3">
+                    <Clock size={13} className="mt-1 shrink-0 text-[var(--muted-foreground)]" />
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 text-[11px] font-bold ${
+                          isApprove ? 'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]'
+                          : isReject ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]'
+                          : 'bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] text-[var(--muted-foreground)]'}`}>
+                          {label ?? a.action}
+                        </span>
+                      </p>
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                        {a.resourceType}
+                        {a.resourceId && a.resourceId !== '—' ? ` · ${a.resourceId}` : ''}
+                      </p>
+                      <p className="mt-0.5 text-[10px] tabular-nums text-[var(--muted-foreground)]/60">{fmt(a.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       </Modal>
     </div>
@@ -474,5 +580,5 @@ function StateChip({ state }: { state: 'todo' | 'done' | 'toread' | 'read' }) {
     read: { t: '已阅', cls: 'text-[var(--muted-foreground)] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]' },
   };
   const m = M[state];
-  return <span className={`inline-flex items-center rounded-[5px] px-2 py-0.5 text-[10px] font-semibold ${m.cls}`}>{m.t}</span>;
+  return <span className={`inline-flex items-center justify-center whitespace-nowrap rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold ${m.cls}`}>{m.t}</span>;
 }

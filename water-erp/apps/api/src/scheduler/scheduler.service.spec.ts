@@ -136,7 +136,8 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
 
     expect(notification.sendToRole).toHaveBeenCalledTimes(1);
     const payload = notification.sendToRole.mock.calls[0][1];
-    expect(payload.type).toBe('SYSTEM');
+    expect(payload.type).toBe('BOND_REFUND_DUE');
+    expect(payload.link).toBe('/projects');
     // 项目样例 2≤5：全列且无省略号（负边界——「…」只挂供应商名单侧）
     expect(payload.content).toContain('GK-1、GK-2；未退供应商：');
     // 供应商名单：去重后 slice(0,5) + 「…」截断，第 6 家（己公司）不出现

@@ -4,9 +4,9 @@
  * 供应商正式注册五步向导：
  * 1 身份与账号  2 企业与业务  3 联系人  4 资质与履历  5 确认提交
  *
- * 暂存/恢复：useAutoSave('register') 草稿存于本机 localStorage——
- * 恢复只读取当前浏览器自己的草稿，天然不会恢复他机/他人填写内容。
+ * useAutoSave('register') 将草稿存于当前浏览器的 localStorage，并从同一存储恢复。
  */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
@@ -42,7 +42,7 @@ const STEPS = [
 ] satisfies RegistrationStep[];
 const QUAL_TYPES = ["营业执照", "资质证书", "安全生产许可证", "质量管理体系认证", "环境管理体系认证", "其他"];
 
-/* ─── 多文件上传（附加材料 / 业绩证明）─── */
+/* 多文件上传（附加材料 / 业绩证明） */
 function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
   value: { name: string; url: string }[];
   onChange: (v: { name: string; url: string }[]) => void;
@@ -88,7 +88,7 @@ function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
   );
 }
 
-/* ─── 单文件上传按钮（资质主文件）─── */
+/* 单文件上传按钮（资质主文件） */
 function SingleFile({ url, onPicked, credentials }: {
   url: string;
   onPicked: (a: FileAsset | null) => void;
@@ -132,7 +132,7 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submissionError, setSubmissionError] = useState("");
 
-  /* ── 第 1 部分：账号 + 基本信息 ── */
+  /* 第 1 部分：账号 + 基本信息 */
   // 用户名固定取「机构代码」、联系人/邮箱在第二步维护，故此处仅保留密码
   const [account, setAccount] = useState({ password: "", confirmPassword: "" });
   const [basic, setBasic] = useState({
@@ -156,7 +156,7 @@ export default function RegisterPage() {
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
   const [belongCompany, setBelongCompany] = useState(""); // 归属公司名称（62 家名单选择；提交时随 companyId 传后端自动建档）
 
-  /* ── 第 2-5 部分 ── */
+  /* 第 2-5 部分 */
   const [contacts, setContacts] = useState<ContactRow[]>([{ name: "", gender: "", phone: "", idCard: "", email: "", position: "", isPrimary: true }]);
   const [banks, setBanks] = useState<BankRow[]>([]);
   const [quals, setQuals] = useState<QualRow[]>([{ type: "营业执照", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "" }]);
@@ -166,7 +166,7 @@ export default function RegisterPage() {
   const [creditCodeDuplicate, setCreditCodeDuplicate] = useState(false);
   const [legalIdCardDuplicate, setLegalIdCardDuplicate] = useState(false);
 
-  /* ── 本机草稿暂存（localStorage 仅本浏览器可读，恢复不会拿到他人内容）── */
+  /* 本机注册草稿暂存与恢复（localStorage） */
   const draftData = useMemo(() => ({
     step,
     registrationPhone,
@@ -231,13 +231,13 @@ export default function RegisterPage() {
   }
   function discardRecovery() { draft.clearDraft(); setShowRecovery(false); }
 
-  /* ── 标签库（公开接口，注册页可用）── */
+  /* 标签库（公开接口，注册页可用） */
   useEffect(() => {
     authApi.listBusinessTags().then(setTagOptions).catch(() => setTagOptions([]));
   }, []);
   const inTagPool = useCallback((t: string) => tagOptions.some((o) => o.name === t), [tagOptions]);
 
-  /* ── 验证码输满 6 位 → 400ms 防抖预检（不消费），即时反馈 ✓/✗ ── */
+  /* 验证码输满 6 位 → 400ms 防抖预检（不消费），即时反馈 ✓/✗ */
   useEffect(() => {
     setCodeStatus("idle");
     const code = registrationCode.trim();
@@ -251,7 +251,7 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [registrationCode, registrationPhone]);
 
-  /* ── 注册短信验证码 ── */
+  /* 注册短信验证码 */
   async function sendRegCode() {
     if (!/^1[3-9]\d{9}$/.test(registrationPhone.trim())) { toast.warning("请先输入有效的注册手机号"); return; }
     setCodeSending(true);
@@ -269,7 +269,7 @@ export default function RegisterPage() {
     }
   }
 
-  /* ── 查重 ── */
+  /* 查重 */
   async function checkCreditCode() {
     setCreditCodeDuplicate(false);
     const code = basic.creditCode.trim();
@@ -291,7 +291,7 @@ export default function RegisterPage() {
     } catch { /* 不阻塞 */ }
   }
 
-  /* ── 分步校验 ── */
+  /* 分步校验 */
   function focusFirstError() {
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>(
@@ -396,7 +396,7 @@ export default function RegisterPage() {
   }
   function prevStep() { setStep((s) => Math.max(s - 1, 0)); }
 
-  /* ── 提交 ── */
+  /* 提交 */
   async function submit() {
     setSubmissionError("");
     for (let targetStep = 0; targetStep < STEPS.length - 1; targetStep += 1) {
@@ -487,7 +487,7 @@ export default function RegisterPage() {
     }
   }
 
-  /* ── logo 上传 ── */
+  /* logo 上传 */
   const logoInputRef = useRef<HTMLInputElement>(null);
   async function pickLogo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

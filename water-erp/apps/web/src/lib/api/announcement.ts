@@ -79,7 +79,7 @@ export interface AnnouncementListResponse {
   items: AnnouncementListItem[];
 }
 
-/* ── 公告 CRUD ── */
+/* 公告 CRUD */
 
 export function listAnnouncements(params?: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; companyId?: string }) {
   const q = new URLSearchParams();
@@ -225,7 +225,7 @@ export function checkAnnouncementDuplicate(payload: { title: string; relatedProj
   return api.post<{ matches: AnnouncementDuplicateMatch[] }>('/announcements/check-duplicate', payload);
 }
 
-/* ── 普通附件 ── */
+/* 普通附件 */
 
 export function listAttachments(announcementId: string) {
   return api.get<AnnouncementAttachment[]>(`/announcements/${announcementId}/attachments`);
@@ -255,7 +255,7 @@ export function uploadFile(file: File, category = 'announcement') {
   return api.postForm<{ id: string; key: string; url: string; originalName: string; size: number; mimeType: string }>(`/upload?category=${category}`, fd);
 }
 
-/* ── 招标文件（加密 + 受控分发）── */
+/* 招标文件（加密 + 受控分发） */
 
 export function getBidDocument(announcementId: string) {
   return api.get<BidDocumentManage | null>(`/announcements/${announcementId}/bid-document`);
@@ -403,7 +403,7 @@ export async function importWinningBidFromPdf(file: File): Promise<
   return response.json();
 }
 
-// ─── 中标通知书 ───
+// 中标通知书
 
 export type NotificationExtractedData = {
   projectName: string;

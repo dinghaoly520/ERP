@@ -286,7 +286,7 @@ export class ProjectManagementController {
     return this.projectManagementService.getProjectSummary(id);
   }
 
-  // ═══ 采购文件编写·项目草稿（跨设备同步，2026-09-09）═══
+  // 采购文件编写·项目草稿（跨设备同步，2026-09-09）
   // 草稿从 localStorage 迁至服务器：同一账号在任何设备打开均一致；
   // 越权由类级 PmiOwnershipGuard 拦截（与项目其余 :id 端点同语义）。
 

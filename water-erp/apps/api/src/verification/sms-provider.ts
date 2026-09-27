@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
-/** P1-13：SMS 验证码发送通道抽象——真实网关（泛型 HTTP）与本地控制台（仅非生产 debug）可替换。 */
+/** SMS 验证码发送通道抽象——真实网关（泛型 HTTP）与本地控制台（仅非生产 debug）可替换。 */
 export interface SmsProvider {
   readonly id: string;
   /** 发送验证码短信；返回网关请求标识（无则 undefined）。失败抛错（调用方决定是否回滚 Redis 记录）。 */

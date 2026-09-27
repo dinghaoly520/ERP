@@ -25,7 +25,7 @@ import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
 import "@/styles/pages/bids.css";
-import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
+import "@/styles/pages/shared.css"; // 跨页面共用的卡片与骨架屏样式。
 
 /** el-alert 的原生等价（EP 四色调 + show-icon） */
 function BAlert({ type, title, children, className }: {
@@ -204,7 +204,7 @@ function BidSubmitInner() {
   // E2EE: 加密阶段指示器（UPLOADING 时显示进度条，ENCRYPTING 时显示「正在加密…」）
   const [encrypting, setEncrypting] = useState<Record<string, boolean>>({});
 
-  // ═══ 双信封 v2（dual-v2 新轨）状态 ═══
+  // 双信封 v2（dual-v2 新轨）状态
   // 双层加密密封条目缓存：assetId → { role, entry{sha256,kself,kadmin}, certPublicKey }（全部公开信息，无私钥）
   // certPublicKey 记录上传时所用证书公钥——提交前与签名证书比对，拦截换证窗口期 kself/签名错位
   const [dualEntries, setDualEntries] = useState<Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry; certPublicKey: string }>>({});
@@ -316,7 +316,7 @@ function BidSubmitInner() {
     setShowRecovery(false);
   }
 
-  // ── E2EE: 加密并上传文件 ──
+  // E2EE: 加密并上传文件
   async function uploadEncryptedFile(
     file: File,
     catKey: string, // identifier for encrypting state
@@ -325,7 +325,7 @@ function BidSubmitInner() {
     setEncrypting((prev) => ({ ...prev, [catKey]: true }));
     try {
       if (dualReady) {
-        // ═══ 新轨：M → C_inner(SM4/DEK_S) → C_outer(SM4/DEK_A) → 上传，entry 入信封缓存 ═══
+        // 新轨：M → C_inner(SM4/DEK_S) → C_outer(SM4/DEK_A) → 上传，entry 入信封缓存
         const role = ROLE_BY_CAT[catKey];
         if (!role) throw new Error("未知文件类别，无法双层密封");
         // A-89：标书角色明文必须 PDF（锚点=PDF 明文哈希）——Office 原生格式在加密前拦截并给转换指引
@@ -342,7 +342,7 @@ function BidSubmitInner() {
         setDualEntriesAndPersist((prev) => ({ ...prev, [res.assetId]: { role: res.role, entry: res.entry, certPublicKey: profile.sm2PublicKey } }));
         return res.upload;
       }
-      // ═══ 旧轨（未绑定 U盾证书）：E2EE 加密，行为不变 ═══
+      // 旧轨（未绑定 U盾证书）：E2EE 加密，行为不变
       // 1. 计算原文哈希
       const plaintextSha256 = await computePlaintextHash(file);
       // 2. 生成 DEK
@@ -365,7 +365,7 @@ function BidSubmitInner() {
     }
   }
 
-  // ── 完整标书上传（E2EE 加密）──
+  // 完整标书上传（E2EE 加密）
   async function handleFullBidUpload(file: File) {
     if (file.size > maxUploadSize) { toast.error(`文件不能超过${maxUploadSizeMB}MB`); return; }
     setFullBidProgress(0);
@@ -378,7 +378,7 @@ function BidSubmitInner() {
     finally { setFullBidProgress(null); }
   }
 
-  // ── 拆分文件上传（E2EE 加密）──
+  // 拆分文件上传（E2EE 加密）
   async function handleSplitUpload(catKey: SplitKey, file: File) {
     if (file.size > maxUploadSize) { toast.error(`文件不能超过${maxUploadSizeMB}MB`); return; }
     setSplitCats((prev) => ({ ...prev, [catKey]: { ...prev[catKey], uploading: true, progress: 0 } }));
@@ -404,7 +404,7 @@ function BidSubmitInner() {
     }));
   }
 
-  // ── 保证金上传 ──
+  // 保证金上传
   async function handleBondUpload(file: File) {
     if (file.size > maxUploadSize) { toast.error(`文件不能超过${maxUploadSizeMB}MB`); return; }
     setBondUploadProgress(0);
@@ -431,7 +431,7 @@ function BidSubmitInner() {
     finally { setBondUploadProgress(null); }
   }
 
-  // ── 投标函文件上传（E2EE 加密）──
+  // 投标函文件上传（E2EE 加密）
   async function handleCoverLetterUpload(file: File) {
     if (file.size > maxUploadSize) { toast.error(`文件不能超过${maxUploadSizeMB}MB`); return; }
     setCoverLetterProgress(0);
@@ -476,7 +476,7 @@ function BidSubmitInner() {
             });
           }
         } catch {
-          // P1：草稿/已提交记录读取失败须提示，否则用户以为没填过、重填后被 ALREADY_SUBMITTED 拦截。
+          // 草稿/已提交记录读取失败须提示，否则用户以为没填过、重填后被 ALREADY_SUBMITTED 拦截。
           toast.warning("无法读取已保存的草稿/已提交记录；若您已提交过，请勿重复提交");
         }
         restoreDeks(); // E2EE: restore DEKs / dual entries from previous session
@@ -541,11 +541,11 @@ function BidSubmitInner() {
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
     && new Date(project.deadline).getTime() > nowMs;
   const formDisabled = !canSubmit || existingSubmission?.status === "submitted";
-  /** A-90 方案a（2026-08-31）：旧轨投递 UI 退役——未绑盾且可投递时仅显示绑盾引导卡（双信封为唯一交互投递通道）；已递交状态展示区保留原样 */
+  /** 未绑定 U盾且处于可投递状态时显示绑盾引导；已递交记录继续展示。 */
   const legacyRetired = canSubmit && !dualReady && existingSubmission?.status !== "submitted";
 
   // 构建 clientDeks 映射（根据当前表单中的 assetId 查找 DEK）
-  // ═══ 双信封 v2：按服务端声明口径收集本次提交的已声明资产 ═══
+  // 双信封 v2：按服务端声明口径收集本次提交的已声明资产
   // （镜像 normalizeBidFileAssets：full→technical；split tech→technical / biz→business /
   //  other→coverLetter（仅 coverLetterFileAssetId 未用时的首个）；投标函与 bond 单独参检）
   function collectDeclaredAssetIds(): string[] {
@@ -578,7 +578,7 @@ function BidSubmitInner() {
     const session = ukeySessionRef.current;
     if (!session) throw new Error("U盾未解锁，请先插入 U盾并输入证书口令");
     // 换证窗口期拦截——条目缺失或上传时所用证书公钥 ≠ 当前签名证书公钥，
-    // 说明存在用旧证书加密的条目（kself 用旧公钥，服务端只验 sha256/签名会放行，开标解密才爆），
+    // 存在使用旧证书公钥加密的 kself 时，签名校验通过仍可能在开标时解密失败，
     // 一律要求重新加密上传，不提交。
     const changed = collectDeclaredAssetIds().filter((id) => {
       const rec = dualEntries[id];
@@ -602,7 +602,7 @@ function BidSubmitInner() {
     });
   }
 
-  // ═══ U盾会话（提交时开锁，仅内存持有；口令不持久化）═══
+  // U盾会话（提交时开锁，仅内存持有；口令不持久化）
   async function handleUkeyOpen() {
     if (!ukeyPassword) { toast.warning("请输入证书口令"); return; }
     setUkeyOpening(true);
@@ -666,7 +666,7 @@ function BidSubmitInner() {
     try {
       await supplierApi.saveBidDraft(projectId, buildPayload());
       toast.success("草稿已保存");
-      // A-88 验收补：首次保存后即进入草稿态，删除草稿按钮无需刷新即可见
+      // 首次保存后进入草稿状态，使删除草稿按钮立即可用。
       if (existingSubmission?.status !== "submitted") {
         setExistingSubmission({ ...(existingSubmission ?? {}), status: "draft" });
       }
@@ -674,7 +674,7 @@ function BidSubmitInner() {
     finally { setSaving(false); }
   }
 
-  // ── A-88：删除未递交的投标草稿（服务端草稿行 + 表单/本地缓存一并清；已提交须走撤回）──
+  // A-88：删除未递交的投标草稿（服务端草稿行 + 表单/本地缓存一并清；已提交须走撤回）
   async function confirmDeleteDraft() {
     setDeleteDialogVisible(false);
     setDeleting(true);
@@ -760,7 +760,7 @@ function BidSubmitInner() {
       clearDeks();
       // W11-①（A-101）：双信封轨投递成功后自动签回执（U盾私钥 SM2 签 canonical，服务端验签存档）
       // 失败不阻塞投递结果——提示可稍后在「我的投标」补签
-      const session = ukeySessionRef.current; // 【stale state 修复】用 ref 而非 useState——解锁后同一闭包内 useState 读到旧值
+      const session = ukeySessionRef.current; // 使用 ref 读取最新会话，避免解锁后同一闭包中的 useState 仍为旧值。
       if (dualReady && session?.adapter && session?.certSn && submitted?.id) {
         try {
           const { canonical } = await supplierApi.getReceiptPayload(submitted.id);
@@ -834,7 +834,7 @@ function BidSubmitInner() {
 
               <SpPageHero title={project.name} />
 
-              {/* ═══ A-90 方案a：未绑盾——旧轨上传/投递 UI 退役，仅显示绑盾引导卡（API/应急 flag 原样保留）═══ */}
+              {/* 未绑定 U盾时显示绑盾引导；投递采用双信封流程。 */}
               {legacyRetired && (
                 <div className="neu-card detail-card">
                   <div className="card-header">
@@ -891,7 +891,7 @@ function BidSubmitInner() {
                     </div>
                   </div>
 
-                  {/* ═══ 提交模式选择 ═══ */}
+                  {/* 提交模式选择 */}
                   <div className="b-form-item">
                     <label className="b-required">提交方式</label>
                     <div className="b-form-content">
@@ -902,7 +902,7 @@ function BidSubmitInner() {
                     </div>
                   </div>
 
-                  {/* ═══ 完整标书：单个文件 ═══ */}
+                  {/* 完整标书：单个文件 */}
                   {submissionMode === "full" && (
                     <div className="b-form-item">
                       <label className="b-required">标书文件</label>
@@ -927,7 +927,7 @@ function BidSubmitInner() {
                     </div>
                   )}
 
-                  {/* ═══ 拆分文件：三个分类，每类多文件 ═══ */}
+                  {/* 拆分文件：三个分类，每类多文件 */}
                   {submissionMode === "split" && SPLIT_KEYS.map((cat) => (
                     <div className="b-form-item" key={cat}>
                       <label className={cat === "tech" ? "b-required" : undefined}>{splitCats[cat].label}</label>
@@ -1074,7 +1074,7 @@ function BidSubmitInner() {
           : <BAlert type="success" className="mt-4" title="检查通过，可以提交" />}
       </SpDialog>
 
-      {/* ═══ A-88：删除草稿确认 ═══ */}
+      {/* A-88：删除草稿确认 */}
       <SpDialog open={deleteDialogVisible} onClose={() => setDeleteDialogVisible(false)} title="删除草稿" width={420}
         icon={Trash2}
         footer={
@@ -1089,7 +1089,7 @@ function BidSubmitInner() {
         </p>
       </SpDialog>
 
-      {/* ═══ U盾口令对话框（dual-v2 提交签名）═══ */}
+      {/* U盾口令对话框（dual-v2 提交签名） */}
       <SpDialog
         open={ukeyDialogVisible}
         onClose={() => setUkeyDialogVisible(false)}

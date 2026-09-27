@@ -114,7 +114,7 @@ export default function SupplierRepositoryPage() {
   // 分类管理弹窗
   const [showClassMgr, setShowClassMgr] = useState(false);
 
-  // ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）──
+  // 临时供应商邀请码（采购端生成，有效期 30/180/360 天）
   const [invitations, setInvitations] = useState<SupplierInvitation[]>([]);
   const [invLoading, setInvLoading] = useState(false);
   const [invForm, setInvForm] = useState({ validityDays: 180, note: '', boundCreditCode: '' });
@@ -345,7 +345,7 @@ export default function SupplierRepositoryPage() {
       {/* 操作历史（审计留痕，只读） */}
       {showAuditLog && <SupplierAuditLogModal onClose={() => setShowAuditLog(false)} />}
 
-      {/* ══════ page-hero ══════ */}
+      {/* page-hero */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -396,7 +396,7 @@ export default function SupplierRepositoryPage() {
         </div>
       </div>
 
-      {/* ══════ 临时供应商邀请码弹窗（标题栏「邀请码」按钮触发）══════ */}
+      {/* 临时供应商邀请码弹窗（标题栏「邀请码」按钮触发） */}
       {invModalOpen && (
         <Modal open onClose={() => setInvModalOpen(false)} title="临时供应商邀请码" size="2xl" footer={<span className="text-xs text-[var(--muted-foreground)]">凭码注册的供应商在有效期内可登录，到期自动失效；同样需审核</span>}>
         {/* 生成区 */}
@@ -468,7 +468,7 @@ export default function SupplierRepositoryPage() {
         </Modal>
       )}
 
-      {/* ══════ 审批中心弹窗（顶部「审批」按钮：业务标签 / 密码重置 / 资料变更）══════ */}
+      {/* 审批中心弹窗（顶部「审批」按钮：业务标签 / 密码重置 / 资料变更） */}
       {reviewModalOpen && <ReviewHubModal open onClose={() => setReviewModalOpen(false)} />}
 
       {/* B13 错误态：接口失败时明确提示+重试，避免与「真空」混淆 */}
@@ -480,7 +480,7 @@ export default function SupplierRepositoryPage() {
         </div>
       )}
 
-      {/* ══════ 工具行：状态分段切换（左）+ 搜索（右，固定 280px）——2026-09-18 对齐公告发布中心同款 ══════ */}
+      {/* 工具行：状态分段切换（左）+ 搜索（右，固定 280px）——2026-09-18 对齐公告发布中心同款 */}
       <div className="flex flex-wrap items-center gap-4">
         <div
           className="neu-segment"
@@ -617,7 +617,7 @@ export default function SupplierRepositoryPage() {
         </Modal>
       )}
 
-      {/* ══════ 状态变更弹窗 ══════ */}
+      {/* 状态变更弹窗 */}
       {statusModal && (
         <Modal
           open
@@ -635,7 +635,7 @@ export default function SupplierRepositoryPage() {
         </Modal>
       )}
 
-      {/* ══════ 评价弹窗 ══════ */}
+      {/* 评价弹窗 */}
       <SupplierEvaluationDialog supplier={evalTarget} onClose={() => setEvalTarget(null)} onSubmitted={loadData} />
       <ClassificationManagerDialog open={showClassMgr} onClose={() => setShowClassMgr(false)} />
       {dialog}

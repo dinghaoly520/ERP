@@ -91,7 +91,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
     });
   };
 
-  // 对比资料以供应商库为准（2026-09-09）：面板打开即按 ID 实时抓取库内完整资料，
+  // 对比资料以供应商库为准：面板打开即按 ID 实时抓取库内完整资料，
   // 旧会话恢复的推荐快照缺扩充字段时由库内数据补齐；抓取失败回落推荐负载
   const [profiles, setProfiles] = useState<Record<string, SupplierCompareProfile>>({});
   useEffect(() => {
@@ -301,7 +301,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
                 <p className="text-xs text-[var(--muted-foreground)] max-w-sm">在上方选项卡中勾选 2 至 4 家供应商，系统将并列展示标签、实力、资质、履约等 13 项维度，最佳项高亮标记 🏆</p>
               </div>
             ) : (
-              /* ── 对比表格（按组分段）── */
+              /* 对比表格（按组分段） */
               <div className="overflow-x-auto rounded-[16px]" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
                 <table className="w-full">
                   <thead>

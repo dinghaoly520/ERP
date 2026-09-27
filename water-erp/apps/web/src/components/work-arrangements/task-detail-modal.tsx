@@ -25,7 +25,7 @@ import {
   type WorkArrangementStatus,
 } from '@/lib/types/work-arrangements';
 
-// ── helpers ──
+// helpers
 
 function formatDateTimeLabel(value: string | null) {
   if (!value) return '未设置';

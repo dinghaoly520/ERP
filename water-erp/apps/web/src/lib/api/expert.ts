@@ -1,6 +1,6 @@
 import { api } from '../api';
 
-/* ── 专家管理视图模型（web 门户专属）── */
+/* 专家管理视图模型（web 门户专属） */
 
 export interface ExpertProfile {
   id: string;
@@ -143,7 +143,7 @@ export function updateExpertProfile(id: string, data: Record<string, unknown>) {
   return api.patch<{ success: boolean }>(`/expert-admin/${id}/profile`, data);
 }
 
-/* ── 专家抽取 ── */
+/* 专家抽取 */
 
 export function previewExtraction(data: {
   projectId: string;
@@ -241,7 +241,7 @@ export function getExtractionHistory(params?: { projectId?: string; page?: numbe
   return api.get<{ total: number; page: number; pageSize: number; items: any[] }>(`/expert-admin/extract/history${qs ? '?' + qs : ''}`);
 }
 
-/* ── 专家评价 ── */
+/* 专家评价 */
 
 export function createExpertEvaluation(data: {
   expertUserId: string; projectId?: string;
@@ -259,7 +259,7 @@ export function aiSuggestEvaluation(expertUserId: string) {
   }>('/expert-admin/evaluations/ai-suggest', { expertUserId });
 }
 
-/* ── 采购项目（抽取页选择用）── */
+/* 采购项目（抽取页选择用） */
 
 export interface BidProjectOption {
   id: string; name: string; projectCode: string; stage: string;
@@ -282,7 +282,7 @@ export function getBidProjectDetail(id: string) {
   return api.get<BidProjectDetail>(`/bid/projects/${id}`);
 }
 
-/* ── 专家画像 ── */
+/* 专家画像 */
 export interface ExpertPortrait {
   userId: string; displayName: string; participationCount: number; completedCount: number;
   completionRate: number; gradeCounts: Record<string, number> | null; meanDeviation: number | null;
@@ -293,12 +293,12 @@ export function getExpertPortrait(id: string) {
   return api.get<ExpertPortrait>(`/expert-admin/${id}/portrait`);
 }
 
-/* ── 评价历史 ── */
+/* 评价历史 */
 export function getExpertEvaluations(id: string) {
   return api.get<any[]>(`/expert-admin/${id}/evaluations`);
 }
 
-/* ── 统计仪表盘 ── */
+/* 统计仪表盘 */
 export interface ExpertStatistics {
   totalExperts: number; available: number; occupied: number; disabled: number;
   specialtyDistribution: { name: string; count: number }[];
@@ -312,18 +312,18 @@ export function getExpertStatistics() {
   return api.get<ExpertStatistics>('/expert-admin/statistics');
 }
 
-/* ── 批量操作 ── */
+/* 批量操作 */
 export function batchOperation(data: { action: 'enable' | 'disable'; ids: string[]; reason?: string }) {
   return api.post<{ success: boolean; count: number }>('/expert-admin/batch', data);
 }
 
-/* ── 导出 ── */
+/* 导出 */
 export function exportExperts(ids?: string[]) {
   const q = ids?.length ? `?ids=${ids.join(',')}` : '';
   return api.get<any[]>(`/expert-admin/export${q}`);
 }
 
-/* ── 违规记录 ── */
+/* 违规记录 */
 export function getViolations(expertId?: string) {
   const q = expertId ? `?expertId=${expertId}` : '';
   return api.get<any[]>(`/expert-admin/violations${q}`);
@@ -332,7 +332,7 @@ export function addViolation(expertId: string, data: { type: string; detail: str
   return api.post<{ success: boolean }>(`/expert-admin/${expertId}/violation`, data);
 }
 
-/* ── 通知偏好 ── */
+/* 通知偏好 */
 export function getNotifyPrefs(userId: string) {
   return api.get<{ inApp: boolean; sms: boolean; phone: boolean }>(`/expert-admin/${userId}/notify-prefs`);
 }
@@ -345,7 +345,7 @@ export function getNotifyHistory(userId: string) {
   return api.get<NotifyHistoryItem[]>(`/expert-admin/${userId}/notify-history`);
 }
 
-/* ── 退库管理 ── */
+/* 退库管理 */
 export function getRetireCandidates() {
   return api.get<any[]>('/expert-admin/retire-candidates');
 }
@@ -357,7 +357,7 @@ export function ignoreRetirementWarning(id: string) {
   return api.post<{ success: boolean }>(`/expert-admin/${id}/retire-ignore`, {});
 }
 
-/* ── 邀请确认 ── */
+/* 邀请确认 */
 export function confirmInvitation(projectId: string, userId: string) {
   return api.post<{ success: boolean; status: string }>(`/expert-admin/invitations/${projectId}/${userId}/confirm`, {});
 }
@@ -377,7 +377,7 @@ export function setCommitteeAssignment(projectId: string, data: { assignments: {
   return api.put<{ success: boolean }>(`/expert-admin/projects/${projectId}/committee/assignment`, data);
 }
 
-/* ── AI 采纳率 ── */
+/* AI 采纳率 */
 export function getAiAdoptionRate(expertId?: string) {
   return api.get<any>(`/expert-admin/ai-adoption${expertId ? `?expertId=${expertId}` : ''}`);
 }
@@ -388,12 +388,12 @@ export function getLoadDistribution() {
   return api.get<any>('/expert-admin/load-distribution');
 }
 
-/* ── 批量导入 ── */
+/* 批量导入 */
 export function importCsv(rows: Array<Record<string, string>>) {
   return api.post<any>('/expert-admin/import-csv', { rows });
 }
 
-/* ── AI 深化：OCR 录入 / 风险预警 / 抽取复盘 ── */
+/* AI 深化：OCR 录入 / 风险预警 / 抽取复盘 */
 export function ocrIntake(data: { imageBase64: string; mimeType?: string; filename?: string }) {
   return api.post<{ rawText: string; fields: Record<string, string> }>('/expert-admin/ocr-intake', data);
 }
@@ -418,7 +418,7 @@ export function retrospectExtraction(projectId: string) {
   return api.get<{ summary: { projectName: string; total: number; regular: number; alternative: number; declined: number; avgProgress: number }; experts: { name: string; role: string; isLead: boolean; major: string; progress: number; status: string; latestEvalLevel: string | null }[]; aiSummary: string | null }>(`/expert-admin/extract/retrospect?projectId=${projectId}`);
 }
 
-/* ── 操作历史（审计，只读）── */
+/* 操作历史（审计，只读） */
 
 export interface ExpertOperationHistoryItem {
   id: string;

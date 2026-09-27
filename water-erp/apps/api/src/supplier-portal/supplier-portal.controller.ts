@@ -50,9 +50,9 @@ export class SupplierPortalController {
     return supplier.id;
   }
 
-  // ─── Profile ───
+  // Profile
 
-  /** A-80：供应商就招标文件提出澄清问题（须已下载、截止前 10 日窗口） */
+  
   /** W11-①（A-101）：取投标回执待签负载（canonical 字符串供 U盾签名） */
   @Get('bid-submissions/:submissionId/receipt-payload')
   async getReceiptPayload(@Param('submissionId') submissionId: string, @Request() req: any) {
@@ -103,14 +103,14 @@ export class SupplierPortalController {
     return this.clarifications.downloadDoc(id, docId, supplier);
   }
 
-  /** 供应商视角澄清问答+澄清文件列表（Task 7 实装） */
+  /** 供应商视角的澄清问答与澄清文件列表。 */
   @Get('projects/:id/clarifications')
   async listClarifications(@Param('id') id: string, @Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.clarifications.listForSupplier(id, supplierId);
   }
 
-  // ─── A-143：评标澄清在线答复（编辑+附件+SM2 电子签名）───
+  // A-143：评标澄清在线答复（编辑+附件+SM2 电子签名）
 
   /** 寻址本司的评标澄清列表（仅本人可见；EVALUATING 可答，ARCHIVED 只读） */
   @Get('projects/:id/bid-clarifications')
@@ -154,7 +154,7 @@ export class SupplierPortalController {
     return this.portalService.getDashboardStats(req.user.sub);
   }
 
-  // ─── CA 证书绑定（双信封 v2：DN↔企业名校验）───
+  // CA 证书绑定（双信封 v2：DN↔企业名校验）
 
   // 管理方加密证书公钥公开端点（投递端取用；类级 @Roles('supplier') 已覆盖）
   @Get('admin-cert')
@@ -183,7 +183,7 @@ export class SupplierPortalController {
     return this.portalService.revokeCert(supplierId, id);
   }
 
-  // ─── Contacts ───
+  // Contacts
 
   @Get('contacts')
   async listContacts(@Request() req: any) {
@@ -213,7 +213,7 @@ export class SupplierPortalController {
     return this.portalService.deleteContact(supplierId, contactId);
   }
 
-  // ─── Qualifications ───
+  // Qualifications
 
   @Get('qualifications')
   async listQualifications(@Request() req: any) {
@@ -233,7 +233,7 @@ export class SupplierPortalController {
     return this.portalService.deleteQualification(supplierId, qualificationId);
   }
 
-  // ─── Change Requests ───
+  // Change Requests
 
   @Get('change-records')
   async listChangeRecords(@Request() req: any) {
@@ -259,7 +259,7 @@ export class SupplierPortalController {
     return this.portalService.reactivateTemporary(dto);
   }
 
-  // ─── C6：异议/投诉（GB/T 43711 4.2.2 供应商在线提交）───
+  // C6：异议/投诉（GB/T 43711 4.2.2 供应商在线提交）
 
   @Get('objections')
   async listMyObjections(@Request() req: any) {
@@ -277,7 +277,7 @@ export class SupplierPortalController {
     return this.objectionService.create(dto, supplier);
   }
 
-  // ─── B3：资格预审（GB/T 43711 7.2.3 供应商侧）───
+  // B3：资格预审（GB/T 43711 7.2.3 供应商侧）
 
   @Get('prequals')
   async listPrequals(@Request() req: any) {
@@ -295,7 +295,7 @@ export class SupplierPortalController {
     return this.prequalService.apply(id, supplier, dto.note);
   }
 
-  // ─── E1（第 9.2 条）：供应商满意度简表 ───
+  // E1（第 9.2 条）：供应商满意度简表
 
   @Post('satisfaction')
   async submitSatisfaction(@Request() req: any, @Body() dto: { projectCode: string; score: number; comment?: string }) {
@@ -307,7 +307,7 @@ export class SupplierPortalController {
     return this.performanceService.submitSatisfaction(supplier, dto);
   }
 
-  // ─── B4：我的框架协议（GB/T 43711 附录 D 供应商侧）───
+  // B4：我的框架协议（GB/T 43711 附录 D 供应商侧）
 
   @Get('framework-agreements')
   async myFrameworks(@Request() req: any) {
@@ -315,7 +315,7 @@ export class SupplierPortalController {
     return this.frameworkService.listForSupplier(supplierId);
   }
 
-  // ─── C3：我的合同（GB/T 43711 7.5.4/7.6 供应商侧）───
+  // C3：我的合同（GB/T 43711 7.5.4/7.6 供应商侧）
 
   @Get('contracts')
   async myContracts(@Request() req: any) {
@@ -367,7 +367,7 @@ export class SupplierPortalController {
     return this.portalService.attachContractFulfillmentProof(req.user.sub, id, fid, dto.proofAssetId);
   }
 
-  // ─── Evaluations ───
+  // Evaluations
 
   @Get('evaluations')
   async listEvaluations(@Request() req: any) {
@@ -381,7 +381,7 @@ export class SupplierPortalController {
     return this.portalService.getEvaluationStats(supplierId);
   }
 
-  // ─── Bid Projects (投标机会) ───
+  // Bid Projects (投标机会)
 
   @Get('bid-projects')
   async listBidProjects(
@@ -423,15 +423,15 @@ export class SupplierPortalController {
     return this.portalService.getNegotiationFiles(id, supplierId);
   }
 
-  /** A-87（P1 波4）：招标文件要点（READY/PENDING）——发布即前移提取的结构化清单（不含密文文件本体）；
-   *  终审 Important#3：邀请/指定项目（accessScope 非 OPEN）仅本项目名册内供应商可读 */
+  /** A-87：招标文件要点（READY/PENDING）——发布即前移提取的结构化清单（不含密文文件本体）；
+   *  邀请/指定项目（accessScope 非 OPEN）仅本项目名册内供应商可读 */
   @Get('bid-projects/:id/tender-requirements')
   async getTenderRequirements(@Param('id') id: string, @Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.getTenderRequirements(id, supplierId);
   }
 
-  // ─── Bid Submissions ───
+  // Bid Submissions
 
   @Get('completed-projects')
   async listCompletedProjects(@Request() req: any) {
@@ -480,7 +480,7 @@ export class SupplierPortalController {
     return this.portalService.submitBid(supplierId, projectId, dto);
   }
 
-  // ─── 新轨补传（双信封 v2：解密异常恢复由供应商端双层重封，Task 10）───
+  // 新轨补传（双信封 v2：解密异常恢复由供应商端双层重封）
   // file 字段收的是新 C_outer 密文（客户端重新双层加密产物，非明文）；envelope 为整体新信封 JSON string。
   @Post('bid-submissions/:projectId/reupload-dual')
   @Throttle({ default: { ttl: 60000, limit: 5 } }) // 旧轨 reupload 5/min 同款，防刷拦截路径灌监督日志
@@ -511,7 +511,7 @@ export class SupplierPortalController {
     return this.portalService.withdrawSubmission(supplierId, submissionId);
   }
 
-  // ─── 双信封 v2 开标解密（Task 13：供应商解内层）───
+  // 双信封 v2 开标解密（供应商解内层）
 
   /** 取开标解密包：C_inner 下载凭证 + K_self + sealedFields + 窗口状态（记 packageFetchedAt 归因锚点） */
   @Get('bid-submissions/:projectId/opening-package')
@@ -522,7 +522,7 @@ export class SupplierPortalController {
 
   /** 解密上传：各角色解密明文（file_* 四文件 optional）+ F+nonce 承诺（fieldsJson/nonce）——服务端双闸校验 */
   @Post('bid-submissions/:projectId/decrypt-upload')
-  @Throttle({ default: { ttl: 60000, limit: 5 } }) // reupload-dual 同款防刷（审查 fix round 1）
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // 与 reupload-dual 使用相同的请求频率限制。
   @UseInterceptors(FileFieldsInterceptor([
     { name: 'file_technical', maxCount: 1 },
     { name: 'file_business', maxCount: 1 },
@@ -555,7 +555,7 @@ export class SupplierPortalController {
     return this.portalService.decryptUpload(supplierId, projectId, files, body?.fieldsJson ?? '', body?.nonce ?? '');
   }
 
-  // ─── 开标确认（供应商侧）───
+  // 开标确认（供应商侧）
 
   @Get('bid-submissions/:projectId/opening-record')
   async getMyOpeningRecord(@Request() req: any, @Param('projectId') projectId: string) {
@@ -597,7 +597,7 @@ export class SupplierPortalController {
     return this.portalService.disputeOpening(supplierId, projectId, body.reason);
   }
 
-  // ─── 供应商自有档案（合同/框架协议自建留存）───
+  // 供应商自有档案（合同/框架协议自建留存）
 
   @Get('own-archives')
   @ApiOperation({ summary: '我的自有档案（category=contract|framework）' })
@@ -627,7 +627,7 @@ export class SupplierPortalController {
     return this.portalService.deleteOwnArchive(supplierId, id);
   }
 
-  // ─── Password ───
+  // Password
 
   @Post('change-password')
   async changePassword(
@@ -643,7 +643,7 @@ export class SupplierPortalController {
     return this.portalService.changePassword(req.user.sub, body.oldPassword, body.newPassword);
   }
 
-  // ─── 招标文件（加密 + 受控下载）───
+  // 招标文件（加密 + 受控下载）
 
   @Get('bid-documents/:announcementId')
   async getBidDocument(@Request() req: any, @Param('announcementId') announcementId: string) {
@@ -672,7 +672,7 @@ export class SupplierPortalController {
     res.end(buffer);
   }
 
-  // ─── 集中采购目录（脱敏浏览：仅品类，不含价格）───
+  // 集中采购目录（脱敏浏览：仅品类，不含价格）
 
   @Get('catalog/categories')
   async listCatalogCategories() {
@@ -699,7 +699,7 @@ export class SupplierPortalController {
     return this.portalService.getCatalogItemSupplyStatus(supplierId, id);
   }
 
-  // ─── 目录供货申请 ───
+  // 目录供货申请
 
   @Get('catalog-applications')
   async listMyCatalogApplications(@Request() req: any) {
@@ -731,7 +731,7 @@ export class SupplierPortalController {
     return this.portalService.withdrawCatalogApplication(supplierId, req.user.sub, id);
   }
 
-  // ─── 我的已准入供货关系 ───
+  // 我的已准入供货关系
 
   @Get('catalog-supply')
   async listMyCatalogSupply(@Request() req: any) {
@@ -739,7 +739,7 @@ export class SupplierPortalController {
     return this.portalService.listMyCatalogSupply(supplierId);
   }
 
-  // ─── A3: 中标通知书签收 ───
+  // A3: 中标通知书签收
 
   @Get('award-letters')
   async listAwardLetters(@Request() req: any) {
@@ -764,7 +764,7 @@ export class SupplierPortalController {
     return this.portalService.markAwardLetterReceived(req.user.sub, id, dto.letterAssetId, dto.deliveredAt);
   }
 
-  // ─── P2c: 多轮报价(供应商端) ───
+  // P2c: 多轮报价(供应商端)
 
   @Get('projects/:projectId/my-bid-supplier')
   async getMyBidSupplier(@Request() req: any, @Param('projectId') projectId: string) {

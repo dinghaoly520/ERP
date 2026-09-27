@@ -325,7 +325,7 @@ export default function ExpertRepositoryPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero ══════ */}
+      {/* page-hero */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -374,7 +374,7 @@ export default function ExpertRepositoryPage() {
         </div>
       </div>
 
-      {/* ══════ 工具行：搜索（左，固定 280px）+ 筛选与操作（右）——2026-09-18 对齐供应商库同款 ══════ */}
+      {/* 工具行：搜索（左，固定 280px）+ 筛选与操作（右）——2026-09-18 对齐供应商库同款 */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
@@ -491,7 +491,7 @@ export default function ExpertRepositoryPage() {
         </Modal>
       )}
 
-      {/* ══════ 批量操作二次确认（Modal 表单范式） ══════ */}
+      {/* 批量操作二次确认（Modal 表单范式） */}
       {confirmBatch && (
         <Modal
           open
@@ -537,13 +537,13 @@ export default function ExpertRepositoryPage() {
         </Modal>
       )}
 
-      {/* ══════ 评价弹窗 ══════ */}
+      {/* 评价弹窗 */}
       <ExpertEvaluationDialog expert={evalTarget} onClose={() => setEvalTarget(null)} onSubmitted={load} />
 
-      {/* ══════ 录入专家弹窗 ══════ */}
+      {/* 录入专家弹窗 */}
       <ExpertEntryDialog open={showEntryModal} onClose={() => setShowEntryModal(false)} onSubmitted={load} />
 
-      {/* ══════ 操作历史（审计，只读） ══════ */}
+      {/* 操作历史（审计，只读） */}
       <ExpertOperationHistory open={showHistory} onClose={() => setShowHistory(false)} />
     </div>
   );

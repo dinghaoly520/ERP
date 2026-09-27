@@ -1,4 +1,4 @@
-/* =================================================================
+/*
    专家侧 UKey/软证书工厂 —— A-152 评标报告电子签署
 
    专家门户与供应商门户共用浏览器：MockUKeyAdapter 的 keystore 落在
@@ -7,10 +7,10 @@
    `expert-mock-ukey-keystore:` 的包装 storage——两套介质互不可见。
 
    探测优先（与供应商门户同范式）：CA 厂商中间件在线（VendorUKeyAdapter.probe）
-   → 真 U盾轨；否则回落软证书轨（用户裁定：专家=企业内部人员，
+   → 真 U盾轨；否则回落软证书轨（专家为企业内部人员，
    平台自签 SM2 软证书；供应商购真 CA，专家自建证书）。
    注意：真 U盾轨无 createCertificate——「创建签名证书」流程仅软证书轨可用。
-   ================================================================= */
+ */
 import { MockUKeyAdapter, VendorUKeyAdapter, type StorageLike } from '@water-erp/ukey';
 
 const EXPERT_STORAGE_KEY = 'expert-mock-ukey-keystore';

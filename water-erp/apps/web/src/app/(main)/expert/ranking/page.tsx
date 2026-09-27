@@ -47,7 +47,7 @@ export default function ExpertRankingPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero ══════ */}
+      {/* page-hero */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -63,7 +63,7 @@ export default function ExpertRankingPage() {
         </div>
       </div>
 
-      {/* ══════ 时段切换 ══════ */}
+      {/* 时段切换 */}
       <div className="wb-toolbar">
         <div className="neu-tab-bar">
           {(Object.entries(PERIOD_LABELS) as [any, string][]).map(([key, label]) => (
@@ -91,7 +91,7 @@ export default function ExpertRankingPage() {
         </div>
       ) : (
         <>
-          {/* ══════ Top 3 ══════ */}
+          {/* Top 3 */}
           <div className="grid grid-cols-3 gap-3">
             {top3.map((r, i) => (
               <div
@@ -121,7 +121,7 @@ export default function ExpertRankingPage() {
             ))}
           </div>
 
-          {/* ══════ 排名表格 ══════ */}
+          {/* 排名表格 */}
           <div className="neu-table-card">
             <div className="overflow-x-auto">
               <table className="neu-table w-full min-w-[500px]">
@@ -156,7 +156,7 @@ export default function ExpertRankingPage() {
             </div>
           </div>
 
-          {/* ══════ 负荷概览 ══════ */}
+          {/* 负荷概览 */}
           {loadData && (
             <section className="neu-card-static !rounded-2xl p-5">
               <h3 className="mb-4 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]">

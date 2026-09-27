@@ -205,7 +205,7 @@ export class ProcurementsService {
       stage: stepsOf(pmiByRound.get(r.id)?.stages ?? []) || STAGE[r.resultStatus] || '已成交', // 过程信息：全步骤带编号
     }));
 
-    // ── 进行中项目：项目管理（PMI）未归档项——台账只落已完成轮次，进行中的在 PMI ──
+    // 进行中项目：项目管理（PMI）未归档项——台账只落已完成轮次，进行中的在 PMI
     const pmiWhere: Record<string, unknown> = { status: 'ACTIVE', archivedAt: null };
     if (companyWhere?.companyId !== undefined) pmiWhere.companyId = companyWhere.companyId;
     const pmiStage: Record<string, string> = {
@@ -302,7 +302,7 @@ export class ProcurementsService {
     user: AuthenticatedUser,
     companyFilter: { companyId?: string },
   ) {
-    // 公司隔离（2026-08-20）：admin 视野（filter 为空对象）放行；其余仅限本公司数据
+    // 公司隔离：admin 视野（filter 为空对象）放行；其余仅限本公司数据
     if (companyFilter.companyId && round.companyId !== companyFilter.companyId) {
       throw new ForbiddenException({ error: '该采购记录不属于本公司，无权访问', code: 'COMPANY_SCOPE_FORBIDDEN' });
     }
@@ -340,7 +340,7 @@ export class ProcurementsService {
       where.resultStatus = resultStatus;
     }
 
-    // 台账类型快捷筛选（2026-09-20）
+    // 台账类型快捷筛选
     if (query.category === 'archived') {
       where.sourceType = SourceType.PROJECT_MANAGEMENT;
       where.resultStatus = ResultStatus.AWARDED;
@@ -349,7 +349,7 @@ export class ProcurementsService {
       where.terminationReason = { not: null };
     }
 
-    // 公司隔离（2026-08-20）：按公司划归取代原个人/全局分野——非 admin 只见本公司
+    // 公司隔离：按公司划归取代原个人/全局分野——非 admin 只见本公司
     Object.assign(where, companyFilter);
 
     if (searchKeyword) {
@@ -367,7 +367,7 @@ export class ProcurementsService {
   }
 
   /**
-   * 按采购单位（创建人所属公司）的全量分组计数（2026-09-17）：
+   * 按采购单位（创建人所属公司）的全量分组计数：
    * 与 findAll 同一 where（免分页），供台账「按采购单位规整」chip 显示全量口径——
    * 分页视图下前端从当前页数据统计会失真，此处一次扫描补齐。
    */
@@ -758,7 +758,7 @@ export class ProcurementsService {
       if (endDate) where.procurementDate.lte = new Date(endDate);
     }
 
-    // 公司隔离（2026-08-20）：统计聚合在隔离后的数据集上计算
+    // 公司隔离：统计聚合在隔离后的数据集上计算
     Object.assign(where, companyFilter);
 
     const [

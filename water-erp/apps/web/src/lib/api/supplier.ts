@@ -1,7 +1,7 @@
 import { api } from '../api';
 import type { Supplier, SupplierListResponse, SupplierClassification, SupplierEvaluation, SupplierChangeRecord, SupplierQualification } from '../types';
 
-/* ── 供应商智能选取（web 门户专属视图模型）── */
+/* 供应商智能选取（web 门户专属视图模型） */
 export interface SupplierStats {
   total: number;
   pending: number;
@@ -24,7 +24,7 @@ export interface SupplierRecommendation {
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
   evaluation?: { level: string; count: number };
   activeProjects: number;
-  // 对比面板扩充（2026-09-09）
+  // 对比面板扩充
   supplierNo?: string;
   businessScope?: string;
   qualifications?: string[];
@@ -156,7 +156,7 @@ export function polishRequirement(data: { text: string; projectName?: string; pr
   return api.post<{ polished: string }>('/ai/polish-requirement', data);
 }
 
-// ── AI 生成通知文案（含逐家无登录回执链接 RSVP）──
+// AI 生成通知文案（含逐家无登录回执链接 RSVP）
 export function generateNotificationContent(data: {
   projectName?: string; projectCode?: string; supplierNames: string[];
   supplierIds?: string[]; projectId?: string | null; deadline?: string;
@@ -168,7 +168,7 @@ export function generateNotificationContent(data: {
   return api.post<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }>('/ai/generate-notification', data);
 }
 
-// ── 选取历史 ──
+// 选取历史
 export interface SupplierSelectionHistoryRecord {
   id: string;
   requirement: string;
@@ -197,7 +197,7 @@ export function deleteSelectionHistory(id: string) {
   return api.delete<null>(`/ai/selection-history/${id}`);
 }
 
-// ── 通知供应商 ──
+// 通知供应商
 export interface NotifySuppliersResult {
   totalTargets: number; sent: number; notFound: number;
   results: { supplierId: string; supplierName: string; channels: Record<string, string> }[];
@@ -206,7 +206,7 @@ export function notifySuppliers(data: { supplierIds: string[]; channels: string[
   return api.post<NotifySuppliersResult>('/supplier/notify', data);
 }
 
-// ── 谈判采购配置下发（附件步骤确认后，后台推送给供应商端）──
+// 谈判采购配置下发（附件步骤确认后，后台推送给供应商端）
 export interface NegotiationConfigPayload {
   projectId: string;
   supplierIds: string[];
@@ -223,12 +223,12 @@ export function sendNegotiationConfig(data: NegotiationConfigPayload) {
   return api.post<{ delivered: number }>('/supplier/negotiation-config', data);
 }
 
-// ── 采购端手动标记回执状态（确认页点击切换联动落库，供阶段完成核验计数）──
+// 采购端手动标记回执状态（确认页点击切换联动落库，供阶段完成核验计数）
 export function markRsvpManual(projectId: string, supplierId: string, status: 'PENDING' | 'ACCEPTED' | 'DECLINED') {
   return api.post<{ id: string; status: string }>('/supplier/rsvp/manual-mark', { projectId, supplierId, status });
 }
 
-// ── 邀请回执看板（采购端）──
+// 邀请回执看板（采购端）
 export interface RsvpListItem { rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED'; tags?: string[]; note: string | null; respondedAt: string | null; expired: boolean; }
 export interface RsvpListResult { total: number; counts: { ACCEPTED: number; DECLINED: number; PENDING: number }; items: RsvpListItem[]; }
 export function getRsvpList(params: { projectId?: string; invitationId?: string }) {
@@ -263,7 +263,7 @@ export function updateSupplierStatus(id: string, status: 'DISABLED' | 'BLACKLIST
   return api.patch<Supplier>(`/supplier/${id}/status?status=${status}`, { reason });
 }
 
-// ── CTS A-213/215/216 投标人信息资源库 ──
+// CTS A-213/215/216 投标人信息资源库
 
 /** A-215 拉黑（带校验闸与供应商通知，区别于通用状态更新） */
 export function blacklistSupplier(id: string, reason: string) {
@@ -373,15 +373,15 @@ export function deleteClassification(id: string) {
   return api.delete<SupplierClassification>(`/supplier/classifications/${id}`);
 }
 
-// ── 供应商画像 ──
-// ── 生命周期时间线 ──
+// 供应商画像
+// 生命周期时间线
 export interface TimelineEvent { type: string; label: string; detail: string; at: string; }
 export interface SupplierTimeline { supplierId: string; supplierName: string; events: TimelineEvent[]; }
 export function getSupplierTimeline(id: string) {
   return api.get<SupplierTimeline>(`/supplier/${id}/timeline`);
 }
 
-// ── 审核历史（不可变留痕）──
+// 审核历史（不可变留痕）
 /** 快照内文件链接（资质 fileUrl 之外的附加材料 / 业绩证明材料） */
 export interface SnapshotFileLink { name: string; url: string; }
 export interface ApprovalSnapshot {
@@ -391,7 +391,7 @@ export interface ApprovalSnapshot {
   account: { username: string; displayName: string; email: string | null } | null;
   contacts: { name: string; gender?: string | null; phone: string; idCard: string | null; email: string | null; position: string | null; isPrimary: boolean }[];
   qualifications: { type: string; name: string; fileUrl?: string; attachments?: SnapshotFileLink[] | null; validFrom: string | null; validTo: string | null }[];
-  /* ── 注册 2.0 新增字段（旧快照无以下字段，展示侧须优雅降级）── */
+  /* 注册 2.0 新增字段（旧快照无以下字段，展示侧须优雅降级） */
   legalPersonPhone?: string | null;
   detailedAddress?: string | null;
   logoUrl?: string | null;
@@ -414,7 +414,7 @@ export function getApprovalHistory(id: string) {
   return api.get<ApprovalRecord[]>(`/supplier/${id}/approval-history`);
 }
 
-// ── 资质预警 ──
+// 资质预警
 export interface QualificationAlertItem {
   id: string; supplierId: string; supplierName: string;
   type: string; name: string; validTo: string | null; status: string; daysRemaining: number | null;
@@ -430,7 +430,7 @@ export function notifyQualificationAlert(qualificationId: string) {
   return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/notify`, {});
 }
 
-// ── 淘汰候选 ──
+// 淘汰候选
 export interface EliminationCandidate { supplierId: string; name: string; reason: string; }
 export function getEliminationCandidates() {
   return api.get<EliminationCandidate[]>('/supplier/eliminate-candidates');
@@ -439,7 +439,7 @@ export function confirmEliminate(id: string, reason: string) {
   return api.post<{ success: boolean }>(`/supplier/${id}/eliminate`, { reason });
 }
 
-// ── 多分类标签管理 ──
+// 多分类标签管理
 export interface SupplierClassificationLink {
   supplierId: string; classificationId: string;
   classification: SupplierClassification;
@@ -454,7 +454,7 @@ export function updateSupplierTags(supplierId: string, tags: string[]) {
   return api.patch<{ tags: string[] }>(`/supplier/${supplierId}/tags`, { tags });
 }
 
-// ── 收藏 ──
+// 收藏
 export function toggleFavorite(supplierId: string) {
   return api.post<{ favorited: boolean }>(`/supplier/${supplierId}/favorite`, {});
 }
@@ -463,13 +463,13 @@ export function getFavorites() {
   return api.get<SupplierFavoriteRecord[]>('/supplier/favorites/list');
 }
 
-// ── 近期动态 ──
+// 近期动态
 export interface ActivityItem { id: string; action: string; resourceId: string; details: any; actorName: string; at: string; }
 export function getRecentActivities(limit?: number) {
   return api.get<ActivityItem[]>(`/supplier/recent-activities?limit=${limit ?? 15}`);
 }
 
-// ── 操作历史（审计留痕） ──
+// 操作历史（审计留痕）
 export interface SupplierAuditLogItem {
   id: string; action: string; resourceId: string | null; resourceName: string | null;
   details: Record<string, unknown> | null; actorName: string; createdAt: string;
@@ -489,7 +489,7 @@ export function getSupplierAuditLogs(opts?: { page?: number; pageSize?: number; 
   return api.get<SupplierAuditLogs>(`/supplier/audit-logs${q ? `?${q}` : ''}`);
 }
 
-// ── AI 供应商综合画像分析 ──
+// AI 供应商综合画像分析
 export interface PortraitInsight { label: string; value: string; interpretation: string; tone: string; icon: string; }
 export interface SupplierPortraitAnalysis {
   supplierId: string; supplierName: string; analyzedAt: string;
@@ -500,7 +500,7 @@ export function getSupplierPortraitAnalysis(supplierId: string, bypassCache = fa
   return api.post<SupplierPortraitAnalysis>('/ai/supplier-portrait-analysis', { supplierId, bypassCache });
 }
 
-// ── AI 评价维度分析 ──
+// AI 评价维度分析
 export interface DimensionAnalysis {
   dimension: string; suggestedGrade: string;
   rationale: string; evidencePoints: string[];
@@ -513,24 +513,24 @@ export function getSupplierEvaluationAnalysis(supplierId: string) {
   return api.post<EvaluationAnalysisResult>('/ai/supplier-evaluation-analysis', { supplierId });
 }
 
-// ── 评价维度统计（等级分布）──
+// 评价维度统计（等级分布）
 export interface DimensionStats { completeness: Record<string, number>; responsiveness: Record<string, number>; cooperation: Record<string, number>; compliance: Record<string, number>; comprehensive: Record<string, number>; total: number; }
 export function getEvaluationDimensionStats() {
   return api.get<DimensionStats>('/supplier/evaluations/dimension-stats');
 }
 
-// ── 企业类型分布（看板后端聚合，P0-14）──
+// 企业类型分布（看板后端聚合）
 export function getEnterpriseTypeDistribution() {
   return api.get<{ counts: Record<string, number> }>('/supplier/enterprise-type-distribution');
 }
 
-// ── 沟通记录 ──
+// 沟通记录
 export interface CommunicationRecord { id: string; type: string; title: string; content: string; isRead: boolean; channels: string[]; createdAt: string; }
 export function getSupplierCommunications(id: string) {
   return api.get<CommunicationRecord[]>(`/supplier/${id}/communications`);
 }
 
-// ── 文件档案 ──
+// 文件档案
 export interface SupplierDocumentRecord { id: string; type: string; name: string; fileUrl: string; fileSize?: number; note?: string; uploader: { displayName: string }; createdAt: string; }
 export function getSupplierDocuments(id: string) {
   return api.get<SupplierDocumentRecord[]>(`/supplier/${id}/documents`);
@@ -549,7 +549,7 @@ export function deleteSupplierDocument(id: string, docId: string) {
   return api.delete<null>(`/supplier/${id}/documents/${docId}`);
 }
 
-// ── 全局搜索 ──
+// 全局搜索
 export interface SearchResult { type: string; id: string; title: string; subtitle: string; link: string; }
 export function globalSearch(q: string) {
   return api.get<{ results: SearchResult[]; total: number }>(`/search?q=${encodeURIComponent(q)}`);
@@ -557,7 +557,7 @@ export function globalSearch(q: string) {
 
 
 
-// ═══ 业务标签库（供应商注册选择制：自创标签审核入池）═══
+// 业务标签库（供应商注册选择制：自创标签审核入池）
 
 export interface BusinessTagRow {
   id: string;
@@ -582,7 +582,7 @@ export function rejectBusinessTag(id: string) {
   return api.post(`/supplier/admin/tags/${id}/reject`, {});
 }
 
-/* ── 供应商密码重置审批（2026-09-03：供应商账号的重置申请归供应商管理中心，staff/leader 审批）── */
+/* 供应商密码重置审批（2026-09-03：供应商账号的重置申请归供应商管理中心，staff/leader 审批） */
 export interface SupplierPasswordResetRequest {
   id: string;
   requestedUsername: string;
@@ -613,7 +613,7 @@ export function rejectSupplierPasswordReset(id: string, decisionNote?: string) {
   return api.post(`/supplier/password-reset-requests/${id}/reject`, { decisionNote: decisionNote ?? null });
 }
 
-/* ── 供应商资料变更审批（:3004 供应商门户提交的资料变更，审批中心处理）── */
+/* 供应商资料变更审批（:3004 供应商门户提交的资料变更，审批中心处理） */
 export interface SupplierChangePendingRow {
   id: string;
   supplierId: string;

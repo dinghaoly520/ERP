@@ -151,7 +151,7 @@ export default function NewNoticePage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero — 标题卡片 ══════ */}
+      {/* page-hero — 标题卡片 */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -180,7 +180,7 @@ export default function NewNoticePage() {
         </div>
       )}
 
-      {/* ══════ 表单卡片 — neu-table-card ══════ */}
+      {/* 表单卡片 — neu-table-card */}
       <div className="neu-table-card p-5 space-y-6">
         {/* ① 信息类型 */}
         <fieldset>
@@ -321,7 +321,7 @@ export default function NewNoticePage() {
   );
 }
 
-/* ── 附件上传器 ── */
+/* 附件上传器 */
 function AttachmentUploader({ annId, attachments, onChanged }: { annId: string; attachments: AnnouncementAttachment[]; onChanged: () => void }) {
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);

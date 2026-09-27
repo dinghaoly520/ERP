@@ -116,7 +116,7 @@ function BusinessTagsPicker({
 
   return (
     <div className="rounded-xl border border-[oklch(0.6_0.04_258_/_0.12)]" style={{ background: 'oklch(0.98 0.008 258 / 0.35)' }}>
-      {/* ── 第一层：操作栏（搜索 + AI 匹配）── */}
+      {/* 第一层：操作栏（搜索 + AI 匹配） */}
       <div className="flex items-center gap-2 px-3 py-2.5">
         <div className="relative flex-1">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
@@ -136,7 +136,7 @@ function BusinessTagsPicker({
         </button>
       </div>
 
-      {/* ── 第二层：已选过滤标签（有标签时才显示，视觉独立）── */}
+      {/* 第二层：已选过滤标签（有标签时才显示，视觉独立） */}
       {hasSelected && (
         <div className="px-3 pb-2.5">
           <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-2"
@@ -156,7 +156,7 @@ function BusinessTagsPicker({
         </div>
       )}
 
-      {/* ── 第三层：可选词表（内凹滚动区）── */}
+      {/* 第三层：可选词表（内凹滚动区） */}
       {!hasVocab && (
         <p className="px-3 pb-3 text-[10px] leading-5 text-[var(--muted-foreground)]">暂无可选业务标签——供应商标签词表为空，请在「供应商管理」中先回填业务标签。</p>
       )}
@@ -396,7 +396,7 @@ export function SupplierSelectionPage({
   const [configSending, setConfigSending] = useState(false);
   const [configSent, setConfigSent] = useState(false);
 
-  // ── 补选状态 ──
+  // 补选状态
   const [showRerunDialog, setShowRerunDialog] = useState(false);
   const [rerunMode, setRerunMode] = useState<'ai' | 'manual'>('ai');
   const [rerunShortlist, setRerunShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
@@ -539,7 +539,7 @@ export function SupplierSelectionPage({
 
   // 从项目管理弹窗进入时，自动将 projectId 解析为 BidProject id（规范 id 空间），
   // 确保 rsvp 行的创建/读取与开标确认面板始终一致。
-  // 2026-09-10：严格匹配落空（新项目尚无开评标记录）时走 ensureBidProject 创建本轮，
+  // 严格匹配落空（新项目尚无开评标记录）时走 ensureBidProject 创建本轮，
   // 不再静默留空——留空会让第四步配置把 PMI id 当 BidProject id 用（update 静默失败）。
   useEffect(() => {
     if (!project?.id || projectId) return;
@@ -553,7 +553,7 @@ export function SupplierSelectionPage({
   }, [project?.id, projectId, projects]);
 
   // 恢复上次会话状态（从详情页返回时不丢失），按项目 ID 分桶
-  // 跨设备续作（2026-08-31）：服务端草稿（账号维度）与 localStorage（本机缓存）比较 savedAt 取新者——
+  // 跨设备续作：服务端草稿（账号维度）与 localStorage（本机缓存）比较 savedAt 取新者——
   // 换 IP/换设备打开同账号时，服务端草稿保证进行中的内容不丢
   const sessionKey = `supplier-selection-state${project?.id ? `:${project.id}` : ''}`;
   const draftKey = `supplier-selection${project?.id ? `:${project.id}` : ''}`;
@@ -824,7 +824,7 @@ export function SupplierSelectionPage({
   }, [project?.id, fileContextLoaded, project?.title]);
   const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
-  // ── 业务标签 AI 预填 ──────────────────────────────────────────────
+  // 业务标签 AI 预填
   // 选项目后（AI 模式）/ 文件分析后（手动模式）调用 LLM 从词表预选标签；
   // 用户一旦手动删减/补充即停止自动预填，可点「AI 匹配」重新触发。
   const runTagSuggestion = useCallback(async () => {
@@ -886,7 +886,7 @@ export function SupplierSelectionPage({
   }, [fileContextLoaded, selectionMode, tagVocab.length, selectedProject?.id, project?.id]);
 
   // 模态入口：自动解析项目 ID；步骤由 session 恢复决定（首次进入=步骤 1，再次进入=上次步骤）
-  // 2026-09-10 修复：不再按项目名模糊匹配 BidProject——多轮/同名场景会把新项目误挂到
+  // 不再按项目名模糊匹配 BidProject——多轮/同名场景会把新项目误挂到
   // 旧轮记录（实录：新项目命中 9/7 旧测试轮，谈判配置被旧轮固化截标 409 拦截）。
   // 项目 id 在手时走 ensureBidProject（无记录则创建本轮）；拿不到再兜底严格列表匹配。
   const autoMatchedRef = useRef(false);
@@ -1147,7 +1147,7 @@ export function SupplierSelectionPage({
   };
 
   // 进入确认通知步骤（2026-08-31 步骤合并后为 step 3）时：
-  // 1) 立即预填本地模板（可编辑、可直接发送——AI 不再是发送前置，P1-11）；
+  // 1) 立即预填本地模板（可编辑、可直接发送——AI 不再是发送前置）；
   // 2) 后台自动 AI 生成（notifyAiLoading 同步驱动按钮变「AI 生成中…」并禁用），
   //    完成后覆盖模板并补入逐家回执链接（rsvpLink 仍由 AI 端点签发）。
   const notifyAutoGenRef = useRef(false);
@@ -1207,7 +1207,7 @@ export function SupplierSelectionPage({
 
   const handleNotify = async () => {
     if (notifyPerSupplier.size === 0) { toast.error('请先生成供应商通知内容'); return; }
-    // P1-11：模板预填可直接发送；但回执链接由 AI 端点签发——未就绪时二次确认
+    // 模板预填可直接发送；但回执链接由 AI 端点签发——未就绪时二次确认
     if (Object.keys(notifyRsvpTokens || {}).length === 0) {
       const proceed = await confirm({ message: 'AI 回执链接尚未生成（仍在生成或已失败）。此时发送的通知不含「点击确认参加」链接，供应商将无法在线回执。\n\n建议稍候 AI 完成后发送；仍要现在发送吗？' });
       if (!proceed) return;
@@ -1420,7 +1420,7 @@ export function SupplierSelectionPage({
 
   const reset = () => { setStepInner(1); setMaxStepReached(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setPaidAmount(''); setShowManualAdd(false); setShowRerunManualAdd(false); setAddMoreIds(new Set()); notifyAutoGenRef.current = false; try { localStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} };
 
-  // ── 补选 handlers ──
+  // 补选 handlers
   const openRerun = () => setShowRerunDialog(true);
   const continueRerun = () => {
     setShowRerunDialog(true);
@@ -1807,7 +1807,7 @@ export function SupplierSelectionPage({
     setRerunConfirmations(prev => syncFor(prev, rerunSids));
   }, [filteredRsvp, rerunSids]);
 
-  // ── 第 3 步：候选名单 sidebar ──
+  // 第 3 步：候选名单 sidebar
   const shortlistPanel = (
     <div className="rounded-[18px] p-4 space-y-3 lg:sticky lg:top-20"
       style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
@@ -1876,7 +1876,7 @@ export function SupplierSelectionPage({
 
   return (
     <div className="space-y-5 pb-8">
-      {/* ══════ page-hero ══════ */}
+      {/* page-hero */}
       {!hideHeader && (
         <div className="page-hero">
           <div className="page-hero__row">
@@ -1906,7 +1906,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ══ 步骤轨道 ══ */}
+      {/* 步骤轨道 */}
       <StepTrack
         steps={steps}
         current={isDirect ? step - 2 : step}
@@ -1926,7 +1926,7 @@ export function SupplierSelectionPage({
 
       {error && step !== 3 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
 
-      {/* ── 步骤 1：选择项目 + 业务标签 ── */}
+      {/* 步骤 1：选择项目 + 业务标签 */}
       {step === 1 && (
         <div className="space-y-5">
           {/* 项目信息 — 独立顶部行，无 label */}
@@ -2093,7 +2093,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 步骤 2：审核候选 ── */}
+      {/* 步骤 2：审核候选 */}
       {step === 2 && (
         <div className="space-y-5">
           {loading && (
@@ -2379,7 +2379,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 步骤 3：确认通知 ── */}
+      {/* 步骤 3：确认通知 */}
       {step === 3 && (
         <div className="space-y-5">
           <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
@@ -2416,7 +2416,7 @@ export function SupplierSelectionPage({
 
             <div className="wb-section-rule" />
 
-            {/* ═══ 逐供应商通知（去除模板，直接展示每家供应商的通知内容） ═══ */}
+            {/* 逐供应商通知（去除模板，直接展示每家供应商的通知内容） */}
             <div className="space-y-4">
               {/* 渠道 + AI —— 标签 + 分组按钮同一行卡片 */}
               <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: 'color-mix(in oklch, var(--accent) 5%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
@@ -2466,7 +2466,7 @@ export function SupplierSelectionPage({
 
               {/* 逐供应商通知：紧凑列表 + 点击查看展开编辑 */}
               <div className="space-y-2">
-                {/* ── 供应商行（紧凑） ── */}
+                {/* 供应商行（紧凑） */}
                 {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
                   const msg = getSupplierMessage(sid);
                   const hasContent = notifyPerSupplier.has(sid);
@@ -2543,10 +2543,10 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 步骤 5（谈判采购）：附件选择 ── */}
+      {/* 步骤 5（谈判采购）：附件选择 */}
       {step === attachStep && (
         <div className="space-y-5">
-          {/* ══ 卡片 1：项目时间确认 ══ */}
+          {/* 卡片 1：项目时间确认 */}
           <div className="rounded-[20px] p-6 space-y-4"
             style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
             <div className="flex items-center gap-2">
@@ -2589,7 +2589,7 @@ export function SupplierSelectionPage({
             </button>
           </div>
 
-          {/* ══ 卡片 2+3 双栏：引用采购文件 | 上传附件 ══ */}
+          {/* 卡片 2+3 双栏：引用采购文件 | 上传附件 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
             {/* 引用采购文件 */}
             <div className="rounded-[20px] p-6 space-y-4"
@@ -2655,7 +2655,7 @@ export function SupplierSelectionPage({
             </div>
           </div>
 
-          {/* ══ 卡片 4：采购文件下载方式 ══ */}
+          {/* 卡片 4：采购文件下载方式 */}
           <div className="rounded-[20px] p-6 space-y-4"
             style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
             <div className="flex items-center gap-2">
@@ -2729,7 +2729,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 步骤 {neg ? 6 : 5}：供应商确认 ── */}
+      {/* 步骤 {neg ? 6 : 5}：供应商确认 */}
       {step === baseConfirmStep && (
         <div className="space-y-5">
           {completed ? (
@@ -2829,7 +2829,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 历史补选轮次（只读回顾） ── */}
+      {/* 历史补选轮次（只读回顾） */}
       {isRerun && currentRerunRound >= 0 && currentRerunRound < rerunRound && (
         <div className="space-y-5">
           {(() => {
@@ -2950,7 +2950,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 补选候选步骤 ── */}
+      {/* 补选候选步骤 */}
       {step === rerunPickStep && isRerun && currentRerunRound === rerunRound && (
         <div className="space-y-5">
           {rerunLoading && (
@@ -3253,7 +3253,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 补选通知步骤 ── */}
+      {/* 补选通知步骤 */}
       {step === rerunNotifyStep && isRerun && currentRerunRound === rerunRound && (
         <div className="space-y-5">
           <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
@@ -3399,7 +3399,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ── 最终供应商确认步骤（正选 + 补选） ── */}
+      {/* 最终供应商确认步骤（正选 + 补选） */}
       {step === finalConfirmStep && isRerun && rerunNotified && currentRerunRound === rerunRound && (
         <div className="space-y-5">
           <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
@@ -3491,7 +3491,7 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ═══ 补选弹窗（Modal 表单范式，2026-09-18） ═══ */}
+      {/* 补选弹窗（Modal 表单范式，2026-09-18） */}
       {showRerunDialog && (
         <Modal
           open
@@ -3546,7 +3546,7 @@ export function SupplierSelectionPage({
               <div className="py-12 flex items-center justify-center"><RefreshCw size={22} className="animate-spin text-[var(--accent)]" /></div>
             ) : detailData ? (
               <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,400px)] gap-5 overflow-hidden">
-                {/* ── 左栏：供应商档案 ── */}
+                {/* 左栏：供应商档案 */}
                 <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
                   {/* 基本信息（全字段） */}
                   <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
@@ -3769,7 +3769,7 @@ export function SupplierSelectionPage({
                   )}
                 </div>
 
-                {/* ── 右栏：资格符合性分析（打开详情即自动分析） ── */}
+                {/* 右栏：资格符合性分析（打开详情即自动分析） */}
                 <div className="min-h-0">
                   <QualificationAnalysisPanel
                     supplierId={detailSupplier.supplierId}

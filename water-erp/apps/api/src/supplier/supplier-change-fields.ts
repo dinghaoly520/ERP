@@ -15,7 +15,7 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
   'registeredAddress',
   'businessScope',
   'tags',
-  // ── 注册 2.0 扩展字段 ──
+  // 注册 2.0 扩展字段
   'logoUrl',
   'country',
   'region',
@@ -25,10 +25,10 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
   'legalPersonPhone',
   'companyEmail',
   'companyWebsite',
-  // ── 2026-09-16 国资监管指标扩展 ──
+  // 2026-09-16 国资监管指标扩展
   'establishedDate',
   'companyProfile',
-  // ── 聚合字段（JSON 整体替换）──
+  // 聚合字段（JSON 整体替换）
   'bankAccounts',
   'performances',
 ] as const;

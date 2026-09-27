@@ -2,11 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../local-ai/llm.service';
 
-/* =================================================================
+/*
    供应商智能选取 — DeepSeek LLM 排序引擎
    2026-07 生产加固收口：统一走 LlmService 网关（超时/重试/并发限流由网关负责）。
    回退语义不变：无 key 或失败时返回 undefined，由调用方降级到规则评分引擎。
-   ================================================================= */
+ */
 
 /** 送入 LLM 的候选供应商（已由规则检索阶段筛选） */
 export interface SelectionCandidate {

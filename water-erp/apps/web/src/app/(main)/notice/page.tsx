@@ -24,7 +24,7 @@ import { AnnouncementRecycleModal } from '@/components/notice/announcement-recyc
 /* ── 类型/状态映射 ── */
 // 2026-09-09 拍板：公告类型入口收敛为 6 类（删中标公示/成交/合同/履行结果/流标/中标公告 tab，与公开端一致）；
 // 被删类型的历史数据仍在「全部」中展示（列表类型徽标用 typeBadgeMeta 完整映射）
-// 2026-09-09 最终拍板：采购公告/流标公告/中标公告（系统三类走向）+ 补遗/资格预审 + 政策/平台
+// 公告入口包括采购、流标、中标、补遗、资格预审、政策和平台公告。
 type TypeTabKey = AnnouncementType | 'WIN_BID_NOTICE,PRE_WIN_NOTICE';
 const typeMeta: Partial<Record<TypeTabKey, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }>> = {
   BID_NOTICE: { label: '采购公告', tone: 'blue' },
@@ -202,7 +202,7 @@ export default function NoticePage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ══════ page-hero — 标题卡片 + 内嵌 KPI 瓷片行 ══════ */}
+      {/* page-hero — 标题卡片 + 内嵌 KPI 瓷片行 */}
       <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
@@ -243,7 +243,7 @@ export default function NoticePage() {
         </div>
       </div>
 
-      {/* ══════ 工具行：类型分段切换（左）+ 搜索/状态筛选（右）——2026-09-18 对齐供应商门户公告公示同款 ══════ */}
+      {/* 工具行：类型分段切换（左）+ 搜索/状态筛选（右）——2026-09-18 对齐供应商门户公告公示同款 */}
       <div className="flex flex-wrap items-center gap-4">
         <div
           className="neu-segment"
@@ -292,7 +292,7 @@ export default function NoticePage() {
         </select>
       </div>
 
-      {/* ══════ 数据表格 ══════ */}
+      {/* 数据表格 */}
       <div className="neu-table-card">
         {selectedCount > 0 && (
           <div className="neu-batch-bar">
@@ -433,7 +433,7 @@ export default function NoticePage() {
   );
 }
 
-/* ════════════ HeroStat — 对标采购进度 KpiCard 的紧凑指标瓷片 ════════════
+/* HeroStat — 对标采购进度 KpiCard 的紧凑指标瓷片
    kpi-card 基类：浅底凸起 + hover 抬升 + label/value/sub 纵向排版
    所有卡片保留相同结构层（label区 / value / sub区），确保同排高度一致 */
 function HeroStat({ label, value, sub, signal, valueStr }: {
@@ -465,7 +465,7 @@ function HeroStat({ label, value, sub, signal, valueStr }: {
   );
 }
 
-/* ════════════ 可排序表头 ════════════ */
+/* 可排序表头 */
 function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
   label: string; sortKey: SortKey; current: SortKey | null; dir: SortDir; onToggle: (k: SortKey) => void; align?: 'left' | 'center' | 'right';
 }) {
@@ -481,7 +481,7 @@ function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
   );
 }
 
-/* ════════════ 投标情况弹窗 ════════════ */
+/* 投标情况弹窗 */
 function ParticipantsModal({ announcement, onClose }: { announcement: AnnouncementListItem; onClose: () => void }) {
   const [result, setResult] = useState<ParticipantsResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -514,7 +514,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
         </div>
       ) : (
         <div className="space-y-4">
-          {/* ═══ 项目概况卡片 ═══ */}
+          {/* 项目概况卡片 */}
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="flex flex-col gap-3">
               {/* 项目可能为 null（公告未关联项目/项目已删）——仅项目概况头部加守卫，统计区不受影响 */}
@@ -559,7 +559,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
             </div>
           </div>
 
-          {/* ═══ 供应商表格 ═══ */}
+          {/* 供应商表格 */}
           <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
             <table className="neu-table w-full min-w-[680px] text-sm">
               <thead>

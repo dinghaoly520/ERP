@@ -15,13 +15,18 @@ export class AuditController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('exclude') exclude?: string,
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
     const parsedOffset = offset ? parseInt(offset, 10) : 0;
+    const excludeActions = exclude
+      ? exclude.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
 
     return this.auditLog.getUserActivities(user.sub, {
       limit: Math.min(parsedLimit, 100),
       offset: parsedOffset,
+      excludeActions,
     });
   }
 

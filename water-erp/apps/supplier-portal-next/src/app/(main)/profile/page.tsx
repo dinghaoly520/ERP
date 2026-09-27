@@ -45,16 +45,16 @@ import "@/styles/pages/register2.css";
 import "@/styles/pages/profile.css";
 import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
-/* ═══ 常量（与 CompanyInfo.vue 一致）═══ */
+/* 常量（与 CompanyInfo.vue 一致） */
 const STATUS_TEXT: Record<string, string> = {
   PENDING: "待审核", APPROVED: "已入库", REJECTED: "不通过", RETURNED: "退回补正", DISABLED: "已停用", BLACKLIST: "黑名单",
 };
 const CR_FIELDS = [
   "name", "enterpriseType", "legalPerson", "registeredAddress", "businessScope",
-  // ── 注册 2.0 扩展字段 ──
+  // 注册 2.0 扩展字段
   "logoUrl", "country", "region", "detailedAddress",
   "registeredCapital", "industry", "legalPersonPhone", "companyEmail", "companyWebsite",
-  // ── 2026-09-16 国资监管指标扩展 ──
+  // 2026-09-16 国资监管指标扩展
   "establishedDate", "companyProfile",
 ] as const;
 const CR_FIELD_LABELS: Record<string, string> = {
@@ -80,7 +80,7 @@ function changeLockHint(st: string): string {
   return "当前状态暂不能申请资料变更";
 }
 
-/* ═══ 银行账户 / 主体业绩 变更草稿（提交时 JSON.stringify 整体替换）═══ */
+/* 银行账户 / 主体业绩 变更草稿（提交时 JSON.stringify 整体替换） */
 type BankDraft = { accountName: string; bankName: string; bankBranch: string; accountNo: string; isDefault: boolean };
 type PerfDraft = { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string }[] };
 const emptyBank = (): BankDraft => ({ accountName: "", bankName: "", bankBranch: "", accountNo: "", isDefault: false });
@@ -89,7 +89,7 @@ const emptyPerf = (): PerfDraft => ({ projectName: "", clientName: "", contractA
 const normBank = (b: BankDraft) => ({ accountName: b.accountName.trim(), bankName: b.bankName.trim(), bankBranch: b.bankBranch.trim(), accountNo: b.accountNo.trim(), isDefault: !!b.isDefault });
 const normPerf = (p: PerfDraft) => ({ projectName: p.projectName.trim(), clientName: p.clientName.trim(), contractAmount: p.contractAmount.trim(), signDate: p.signDate, description: p.description.trim(), proofFiles: p.proofFiles });
 
-/** 企业信息（CompanyInfo.vue 移植 — 三 tab：企业信息 / 资质与证照 / 联系人 + 变更申请弹窗） */
+/** 企业资料与变更申请。 */
 /* 变更申请状态 → 徽标色/图标（与 /change-records 页同源） */
 const RECORD_STATUS: Record<string, { label: string; color: string; icon: LucideIcon }> = {
   PENDING: { label: "已申请", color: "var(--warning)", icon: Clock },
@@ -104,19 +104,19 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"info" | "quals" | "contacts" | "bank" | "perf">("info");
 
-  // ═══════════ 资质与证照 ═══════════
+  // 资质与证照
   const [qualifications, setQualifications] = useState<any[]>([]);
   const [qualsLoading, setQualsLoading] = useState(false);
   const [qualsErr, setQualsErr] = useState(false);
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
 
-  // ═══════════ 联系人 ═══════════
+  // 联系人
   const [contacts, setContacts] = useState<any[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsErr, setContactsErr] = useState(false);
   const [ctPanel, setCtPanel] = useState<{ open: boolean; editing: any | null }>({ open: false, editing: null });
 
-  // ═══════════ 变更申请弹窗 ═══════════
+  // 变更申请弹窗
   const [crDlg, setCrDlg] = useState(false);
   const [crMode, setCrMode] = useState<CrMode>("basic");
   const [crSub, setCrSub] = useState(false);
@@ -128,7 +128,7 @@ export default function ProfilePage() {
   const [crOrigContactCount, setCrOrigContactCount] = useState(0);
   const crQualSnapDone = useRef(false);
   const crContactSnapDone = useRef(false);
-  // ── 银行账户 / 主体业绩 聚合变更草稿（orig 为打开时的 JSON 快照，用于 dirty 比较）──
+  // 银行账户 / 主体业绩 聚合变更草稿（orig 为打开时的 JSON 快照，用于 dirty 比较）
   const [crBanks, setCrBanks] = useState<BankDraft[]>([]);
   const [crBanksOrig, setCrBanksOrig] = useState("[]");
   const [crPerfs, setCrPerfs] = useState<PerfDraft[]>([]);
@@ -143,7 +143,7 @@ export default function ProfilePage() {
   const contactsRef = useRef<any[]>([]);
   contactsRef.current = contacts;
 
-  /* ═══════════ 初始加载 / 重试 ═══════════ */
+  /* 初始加载 / 重试 */
   const fetchProfile = async () => {
     const p = await supplierApi.getProfile();
     setProfile(p);
@@ -174,7 +174,7 @@ export default function ProfilePage() {
     finally { setContactsLoading(false); }
   };
 
-  /* ═══════════ 企业信息 ═══════════ */
+  /* 企业信息 */
   const copyCreditCode = async () => {
     if (!profile?.creditCode) return;
     try { await navigator.clipboard.writeText(profile.creditCode); toast.success("已复制统一社会信用代码"); }
@@ -189,7 +189,7 @@ export default function ProfilePage() {
       { label: "企业类型", value: p.enterpriseType },
       { label: "法定代表人", value: p.legalPerson },
       { label: "注册时间", value: dayjs(p.createdAt).format("YYYY-MM-DD") },
-      // ── 注册 2.0 扩展字段 ──
+      // 注册 2.0 扩展字段
       { label: "机构代码（统一社会信用代码）", value: p.creditCode ?? p.organizationCode },
       { label: "国别", value: p.country },
       { label: "所属行政区域", value: p.region },
@@ -213,7 +213,7 @@ export default function ProfilePage() {
   const bankAccounts = useMemo<any[]>(() => (Array.isArray(profile?.bankAccounts) ? profile.bankAccounts : []), [profile]);
   const performances = useMemo<any[]>(() => (Array.isArray(profile?.performances) ? profile.performances : []), [profile]);
 
-  /* ═══════════ 资质删除 ═══════════ */
+  /* 资质删除 */
   const qHandleDelete = async (id: string) => {
     if (!(await confirm({ message: "确定要删除此资质材料吗？", danger: true }))) return;
     try {
@@ -223,7 +223,7 @@ export default function ProfilePage() {
     } catch { toast.error("删除失败"); }
   };
 
-  /* ═══════════ 联系人删除 ═══════════ */
+  /* 联系人删除 */
   const ctHandleDelete = async (id: string) => {
     if (!(await confirm({ message: "确定要删除此联系人吗？", danger: true }))) return;
     try {
@@ -241,7 +241,7 @@ export default function ProfilePage() {
     toast.warning("附件上传功能即将上线");
   };
 
-  /* ═══════════ 变更申请弹窗逻辑 ═══════════ */
+  /* 变更申请弹窗逻辑 */
   const crFieldChanged = useMemo(
     () => CR_FIELDS.filter((k) => (crForm[k] ?? "") !== (crOrig[k] ?? "") && (crForm[k] ?? "").trim() !== ""),
     [crForm, crOrig],
@@ -331,7 +331,7 @@ export default function ProfilePage() {
     }
   };
 
-  /* ═══ 公司logo 上传（变更弹窗内，取 url 写入 crForm.logoUrl）═══ */
+  /* 公司logo 上传（变更弹窗内，取 url 写入 crForm.logoUrl） */
   const onLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";
@@ -347,7 +347,7 @@ export default function ProfilePage() {
     finally { setLogoUploading(false); }
   };
 
-  /* ═══ 银行账户草稿编辑 ═══ */
+  /* 银行账户草稿编辑 */
   const crBankPatch = (i: number, patch: Partial<BankDraft>) =>
     setCrBanks((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const crBankAdd = () => setCrBanks((rows) => [...rows, emptyBank()]);
@@ -355,7 +355,7 @@ export default function ProfilePage() {
   const crBankSetDefault = (i: number) =>
     setCrBanks((rows) => rows.map((r, j) => ({ ...r, isDefault: j === i })));
 
-  /* ═══ 主体业绩草稿编辑 ═══ */
+  /* 主体业绩草稿编辑 */
   const crPerfPatch = (i: number, patch: Partial<PerfDraft>) =>
     setCrPerfs((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const crPerfAdd = () => setCrPerfs((rows) => [...rows, emptyPerf()]);
@@ -415,7 +415,7 @@ export default function ProfilePage() {
       const changeCount = crFieldChanged.length + (crHasTagsChanges ? 1 : 0);
       const lines = crFieldChanged.map((k) => `${CR_FIELD_LABELS[k]}\n${crOrig[k] || "（空）"} → ${crForm[k]}`);
       if (crHasTagsChanges) lines.push(`业务标签\n${crTags.filter((t) => t.trim()).join("、")}`);
-      // 原 ElMessageBox HTML 摘要 → 纯文本摘要（已迁移 useConfirm，whitespace-pre-line 渲染 \n）
+      // 变更摘要使用纯文本，whitespace-pre-line 保留换行。
       if (!(await confirm({ message: `将提交 ${changeCount} 项变更：\n\n${lines.join("\n\n")}\n\n———\n变更原因：${crReason}` }))) return;
       setCrSub(true);
       let ok = 0, fail = 0;
@@ -446,7 +446,7 @@ export default function ProfilePage() {
   /** 非 APPROVED（含 PENDING/RETURNED）禁止发起资料变更——banner 提示 + 按钮禁用 + openCrDlg toast 兜底 */
   const changeLocked = !!st && st !== "APPROVED";
 
-  /* ── 变更记录窗口（2026-09-18 自独立页收为弹窗展示）── */
+  /* 变更记录弹窗 */
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [records, setRecords] = useState<any[] | null>(null);
   useEffect(() => {
@@ -470,7 +470,7 @@ export default function ProfilePage() {
         )}
       />
 
-      {/* ═══ 禁改 banner（PENDING/RETURNED 等状态沿用 reason-card 警示样式）═══ */}
+      {/* 禁改 banner（PENDING/RETURNED 等状态沿用 reason-card 警示样式） */}
       {changeLocked && (
         <div className="reason-card warning profile-lock-banner">
           <strong>{STATUS_TEXT[st] || st}</strong>
@@ -478,7 +478,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ═══ 五段切换（cgzxui .neu-segment：内凹轨道+滑动白拇指，与「我的投标」状态切换同款）═══ */}
+      {/* 五段切换（cgzxui .neu-segment：内凹轨道+滑动白拇指，与「我的投标」状态切换同款） */}
       <div className="mb-view-seg">
         <div
           className="neu-segment"
@@ -509,7 +509,7 @@ export default function ProfilePage() {
       {loading ? (
         <LoadingBlock />
       ) : error ? (
-        /* ═══ Error ═══ */
+        /* Error */
         <div className="sp-error-block">
           <div className="sp-error-icon"><TriangleAlert size={22} strokeWidth={1.75} /></div>
           <div className="sp-error-text">数据加载失败</div>
@@ -518,7 +518,7 @@ export default function ProfilePage() {
         </div>
       ) : profile ? (
         <>
-          {/* ══════════ 企业信息 Tab ══════════ */}
+          {/* 企业信息 Tab */}
           {activeTab === "info" && (
             <>
             <div className="prof-card">
@@ -580,10 +580,10 @@ export default function ProfilePage() {
           </>
           )}
 
-          {/* ══════════ 银行账户 Tab（独立页面，注册 2.0）═══════════ */}
+          {/* 银行账户 Tab（独立页面，注册 2.0） */}
           {activeTab === "bank" && (
             <>
-            {/* ═══ 银行账户（注册 2.0）═══ */}
+            {/* 银行账户（注册 2.0） */}
             <div className="prof-card prof-block">
               <div className="prof-block-head">
                 <span className="prof-block-icon"><Landmark size={16} strokeWidth={1.75} /></span>
@@ -627,10 +627,10 @@ export default function ProfilePage() {
             </>
           )}
 
-          {/* ══════════ 主体业绩 Tab（独立页面，注册 2.0）═══════════ */}
+          {/* 主体业绩 Tab（独立页面，注册 2.0） */}
           {activeTab === "perf" && (
             <>
-            {/* ═══ 主体业绩（注册 2.0）═══ */}
+            {/* 主体业绩（注册 2.0） */}
             <div className="prof-card prof-block">
               <div className="prof-block-head">
                 <span className="prof-block-icon"><Briefcase size={16} strokeWidth={1.75} /></span>
@@ -675,7 +675,7 @@ export default function ProfilePage() {
             </>
           )}
 
-          {/* ══════════ 资质与证照 Tab ══════════ */}
+          {/* 资质与证照 Tab */}
           {activeTab === "quals" && (
             <div>
               {qualsLoading ? <LoadingBlock /> : qualsErr ? (
@@ -690,7 +690,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* ══════════ 联系人 Tab ══════════ */}
+          {/* 联系人 Tab */}
           {activeTab === "contacts" && (
             <div>
               {contactsLoading ? <LoadingBlock /> : contactsErr ? (
@@ -712,7 +712,7 @@ export default function ProfilePage() {
         </>
       ) : null}
 
-      {/* ═══ 资质弹窗（挂载即重置）═══ */}
+      {/* 资质弹窗（挂载即重置） */}
       {qualDialogOpen && (
         <QualAddPanel
           onAdded={async () => {
@@ -723,7 +723,7 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* ═══ 联系人弹窗 ═══ */}
+      {/* 联系人弹窗 */}
       {ctPanel.open && (
         <ContactPanel
           editing={ctPanel.editing}
@@ -735,7 +735,7 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* ═══ 变更申请弹窗（crp — Teleport 等价）═══ */}
+      {/* 变更申请弹窗（crp — Teleport 等价） */}
       {crDlg && createPortal(
         <div className="crp-overlay" onClick={(e) => { if (e.target === e.currentTarget) setCrDlg(false); }}>
           <div className="crp-panel">
@@ -893,7 +893,7 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* ═══ 银行账户（聚合变更：整体替换，一条变更记录）═══ */}
+              {/* 银行账户（聚合变更：整体替换，一条变更记录） */}
               {crMode === "bank" && (
                 <div>
                   {crHasBankChanges && (
@@ -961,7 +961,7 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* ═══ 主体业绩（聚合变更：整体替换，一条变更记录）═══ */}
+              {/* 主体业绩（聚合变更：整体替换，一条变更记录） */}
               {crMode === "perf" && (
                 <div>
                   {crHasPerfChanges && (
@@ -1156,7 +1156,7 @@ export default function ProfilePage() {
         </div>,
         document.body,
       )}
-      {/* ═══ 变更记录窗口（独立时间线，随开懒加载）═══ */}
+      {/* 变更记录窗口（独立时间线，随开懒加载） */}
       <SpDialog
         open={recordsOpen}
         onClose={() => setRecordsOpen(false)}

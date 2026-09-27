@@ -118,10 +118,10 @@ function parseBidOpeningTime(raw: string | null | undefined): Date | null {
 }
 
 /**
- * 各采购方式的完整阶段模板（与前端 PROCUREMENT_METHOD_STAGES 一字不差）。
- * 初次建项必须按方式取模板——旧逻辑从全集裁剪（只删需求/公告），导致询比/竞价/招标
- * 多出「供应商邀请」、直接采购多出「采购文件」等与定义矩阵不符的错乱（2026-09-01 修正）。
+ * 按采购方式选择完整阶段模板，与前端 PROCUREMENT_METHOD_STAGES 保持一致。
+ * 从全部阶段中简单裁剪会引入不适用阶段，例如直接采购的采购文件阶段。
  */
+
 const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string }>> = {
   谈判采购: [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
@@ -298,7 +298,7 @@ export class ProjectManagementService {
     }));
   }
 
-  /** P2: 按采购方式构建评标办法+公式默认值 */
+  /** 按采购方式构建评标办法+公式默认值 */
   private buildEvaluationDefaults(procurementMethod: string): Record<string, unknown> {
     const def = getEvaluationDefault(procurementMethod);
     const data: Record<string, unknown> = { evaluationMethod: def.evaluationMethod };
@@ -317,7 +317,7 @@ export class ProjectManagementService {
    * 兼容未来"立项时自动创建"：无论关联何时建立，本方法都幂等返回。
    */
   /**
-   * N16 方案 A（2026-08-17）：公告直建项目自动补建最小 PMI。
+   * N16 方案 A：公告直建项目自动补建最小 PMI。
    * 信息发布中心独立发布 BID_NOTICE 且无既有项目时，BidProject 由 createFromAnnouncement 创建（无 PMI 挂钩），
    * 而 :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主——本方法补齐宿主。
    * 编号复用 create 流程同款规则（procurementMethodPrefix + 当日序号）；阶段集复用 PROJECT_WORKFLOW_STAGES
@@ -389,7 +389,7 @@ export class ProjectManagementService {
         stageOrder: index + 1,
         round: 1,
         stageCode: stageCodeFor(projectCode, stage.key, 1),
-        // P1-B：currentStage 指向的开标评标阶段置 IN_PROGRESS——:3005 流程卡动作按钮按
+        // currentStage 指向的开标评标阶段置 IN_PROGRESS——:3005 流程卡动作按钮按
         // isInProgress 渲染，NOT_STARTED 会让开标确认面板在 DOWNLOAD/SUBMIT 期（开标前准备窗口）不可达
         status: stage.key === 'BID_EVALUATION'
           ? PROJECT_STAGE_STATUS.IN_PROGRESS
@@ -461,11 +461,11 @@ export class ProjectManagementService {
     }
 
     // 开标时间：取项目基本信息 bidOpeningTime（兼容中文日期），fallback initiationDate → 72h 后
-    // P0-5：fallback 不再取 now（旧行为 deadline=now-12h，项目一创建即 DEADLINE_PASSED，供应商无法投递）
+    // fallback 不再取 now（旧行为 deadline=now-12h，项目一创建即 DEADLINE_PASSED，供应商无法投递）
     const parsedOpen = parseBidOpeningTime(item.bidOpeningTime);
     const openTime = parsedOpen ?? (item.initiationDate ?? new Date(Date.now() + 72 * 60 * 60 * 1000));
-    // 投递截止 = 开标前 BID_DEADLINE_BEFORE_OPENING_MS（24h 业务规则，第五写点，口径同 P0-2）；
-    // P0-5 兜底【仅当 openTime 来自纯兜底（now+72h）时顺延至 24h 后】：真实解析出的历史开标
+    // 投递截止 = 开标前 BID_DEADLINE_BEFORE_OPENING_MS（24h 业务规则，第五写点，口径同 ）；
+    // 兜底【仅当 openTime 来自纯兜底（now+72h）时顺延至 24h 后】：真实解析出的历史开标
     // 时间（如老项目时间轴 3/26）若也顺延，会出现"开标 3/26 / 截止 9/1"倒挂——历史项目
     // 忠实过期（deadline=开标-24h，供应商端显示已截止、不可投），不再人为续命。
     let deadline = new Date(openTime.getTime() - BID_DEADLINE_BEFORE_OPENING_MS);
@@ -499,14 +499,14 @@ export class ProjectManagementService {
         // 公司归属快照自 PMI（漏盖曾致存量项目 companyId 空 → 非_admin 开标确认 403 COMPANY_SCOPE_FORBIDDEN）
         companyId: item.companyId ?? null,
         companyName: item.companyName ?? null,
-        // P2: 按采购方式自动设置评标办法 + 价格公式默认值
+        // 按采购方式自动设置评标办法 + 价格公式默认值
         ...this.buildEvaluationDefaults(item.procurementMethod || '公开招标'),
       },
     });
     this.logger.log(
       `为项目管理项 ${itemId} 第 ${targetRound} 轮创建开评标项目 ${created.projectCode}`,
     );
-    // P0-2 收尾：回填已接受邀请回执的供应商进候选池（rsvp 常早于 BidProject 懒创建——
+    // 收尾：回填已接受邀请回执的供应商进候选池（rsvp 常早于 BidProject 懒创建——
     // respond() 在无 BidProject 时只记录回执；此处补挂，保证门户「可投标项目」受邀分支可见）
     try {
       const accepted = await this.prisma.invitationRsvp.findMany({
@@ -714,7 +714,7 @@ export class ProjectManagementService {
   }
 
   /**
-   * 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
+   * 拟定供应商核对：重新解析采购文件提取当前供应商名（纯公司名），
    * 与项目已存 awardedSupplier 比对——只读不写库，供公告「拟定供应商名称」字段
    * 的核对按钮判断「供应商是否已更换」，更新由用户确认后走 updateProjectExtractedInfo。
    */
@@ -804,7 +804,7 @@ export class ProjectManagementService {
 
     const context = contextParts.join('\n\n');
 
-    // ── 候选池：真实供应商库（2026-09-11 修复）──
+    // 候选池：真实供应商库
     // 旧实现只对 LLM 说「从供应商库中推荐」却不喂名单、不校验结果——LLM 凭行业常识
     // 编造「四川诺克机械」等库外公司名，用户可选到库里不存在的供应商。现改为：
     // 库内 APPROVED 供应商经关键词粗筛后作为候选名单喂给 AI，且返回结果强制校验命中名单。
@@ -883,7 +883,7 @@ ${shortlist}
   }
 
   /**
-   * 部门编号发号（2026-09-10）：{部门编码}-{年度}-{部门内顺序号 3 位}，如 GCKC-2026-003。
+   * 部门编号发号：{部门编码}-{年度}-{部门内顺序号 3 位}，如 GCKC-2026-003。
    * - 部门编码取 Department.code（按 requesterDepartment 匹配；无 code 时生成并回写）
    * - 顺序号 = 同部门编码 + 同年度已用最大号 +1；跨年自动从 001 重新起号
    * - 防重：FOR UPDATE 锁部门行作为发号临界区（同部门并发立项排队），须在事务内调用
@@ -1270,7 +1270,7 @@ ${shortlist}
       }
     }
 
-    // For INITIATION stage, extract 立项时间 from 立项申请表（2026-09-08 用户拍板）：
+    // For INITIATION stage, extract 立项时间 from 立项申请表：
     // 项目基本信息的立项时间来源于本步骤上传的文件——此前只有创建向导的提取链
     // （extract-initiation → 表单 → 创建传参）写入 initiationDate，立项步骤补传/
     // 替换文件不回填，时间轴因此显示「未登记」。仅空值回填，不覆盖已登记值。
@@ -1323,7 +1323,7 @@ ${shortlist}
 
     // For TENDER_DOCUMENT stage, extract project overview and bid opening time
     if (stageKey === 'TENDER_DOCUMENT') {
-      // 上传即同步「采购文件获取时间」（2026-08-27 拍板）：文件可获取的时刻先落账，
+      // 上传即同步「采购文件获取时间」：文件可获取的时刻先落账，
       // 时间轴（A-204）立即可见不再"未登记"；随后 AI 从文件提取到更精确的获取时段会覆盖此值
       try {
         const cur = await this.prisma.projectManagementItem.findUnique({
@@ -1373,7 +1373,7 @@ ${shortlist}
             where: { id: projectId },
             data: { bidOpeningTime },
           });
-          // 开标时间提取成功 → 对齐同轮 BidProject（24h 业务规则，口径同 P0-2）。
+          // 开标时间提取成功 → 对齐同轮 BidProject（24h 业务规则，口径同 ）。
           // 懒创建常早于本次提取（创建时 bidOpeningTime 尚未提取 → openTime 落在
           // fallback=立项日、deadline 落在兜底 now+24h），时间轴因此出现
           // "开标=立项日、投标截止=无关兜底值"的错乱；未开标前按下式回填修正：
@@ -1451,7 +1451,7 @@ ${shortlist}
     }
 
     // For CONTRACT stage, extract contract fields via AI (contract PDFs vary in format —
-    // regex extractors are unreliable; 2026-09-02 switched to LLM structured extraction)
+    // regex extractors are unreliable; use LLM structured extraction)
     if (stageKey === 'CONTRACT') {
       try {
         const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
@@ -3688,7 +3688,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    // 状态机闸门（2026-09-20 补齐）：仅进行中项目可归档；已终止/回收站项目不可归档——
+    // 状态机闸门：仅进行中项目可归档；已终止/回收站项目不可归档——
     // 否则终止项目（若恰在合同阶段）可被再次归档，台账出现同名 CANCELLED + AWARDED 双记录。
     if (project.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
       throw new BadRequestException('仅进行中的项目可以归档。');
@@ -3747,7 +3747,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
           resultText: '项目已完成并归档',
           sourceType: SourceType.PROJECT_MANAGEMENT,
           createdById: userId,
-          // 公司归属承继 PMI 快照（2026-09-17 补盖）：此前漏盖章 → 台账/数据库单公司视图空
+          // 公司归属承继 PMI 快照：此前漏盖章 → 台账/数据库单公司视图空
           companyId: project.companyId ?? null,
           companyName: project.companyName ?? null,
           awardedSupplierName: project.awardedSupplier || null,
@@ -3822,7 +3822,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
-   * 项目终止（2026-09-20）：进行中的项目可终止。
+   * 项目终止：进行中的项目可终止。
    *  - 记录终止原因 + 终止时所在阶段（快照）+ 关联的台账轮次
    *  - 同时写入采购台账：一条 CANCELLED 轮次（格式与归档一致，缺省字段留空，附终止原因）
    *  - 终止项目在「项目管理 → 已终止」列表只读查看，不得再编辑/推进
@@ -3883,7 +3883,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     const terminatedAt = new Date();
 
-    // ── 下游联动调查（事务前取数）：关联招标项目 + 公告编号 ──
+    // 下游联动调查（事务前取数）：关联招标项目 + 公告编号
     const linkedBidProjects = await this.prisma.bidProject.findMany({
       where: { projectManagementItemId: projectId },
       select: { id: true, name: true, stage: true, projectCode: true, procurementMethod: true },
@@ -3958,7 +3958,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         },
       });
 
-      // ── 下游联动①：关联招标项目流标（2026-09-21 拍板：终止必须闭环下游）──
+      // 下游联动①：关联招标项目流标（2026-09-21 拍板：终止必须闭环下游）
       // ABORTED 后供应商端「可投标项目」（stage∈DOWNLOAD/SUBMIT）自动排除；
       // ARCHIVED 终态跳过（归档数据不可扰动）；监督时间线留痕联动原因。
       for (const bp of activeBidProjects) {
@@ -3975,7 +3975,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         });
       }
 
-      // ── 下游联动②：已发布公告下架（PUBLISHED→ARCHIVED，publicList 只列 PUBLISHED → 公开门户即时不可见）──
+      // 下游联动②：已发布公告下架（PUBLISHED→ARCHIVED，publicList 只列 PUBLISHED → 公开门户即时不可见）
       if (linkedProjectCodes.length > 0) {
         await tx.announcement.updateMany({
           where: { relatedProjectCode: { in: linkedProjectCodes }, status: 'PUBLISHED' },
@@ -3983,7 +3983,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         });
       }
 
-      // ── 下游联动③：未完成工作安排自动取消（TODO/IN_PROGRESS/BLOCKED → CANCELLED）──
+      // 下游联动③：未完成工作安排自动取消（TODO/IN_PROGRESS/BLOCKED → CANCELLED）
       await tx.workArrangement.updateMany({
         where: { projectManagementItemId: projectId, status: { in: ['TODO', 'IN_PROGRESS', 'BLOCKED'] } },
         data: { status: 'CANCELLED', completionSummary: `项目于 ${terminatedAt.toLocaleDateString('zh-CN')} 终止，安排自动取消（原因：${reason}）` },
@@ -3992,7 +3992,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return updated;
     }).then(async (updated) => {
 
-    // ── 终止通知（事务后发送，失败不阻断终止）：notify 由用户在终止弹窗选择 ──
+    // 终止通知（事务后发送，失败不阻断终止）：notify 由用户在终止弹窗选择
     // 收件人解析：InvitationRsvp 兼容 PMI id / BidProject id 两个 projectId 空间（与归档快照同口径）；
     // accepted=仅已确认参加（status=ACCEPTED），all=全部受邀（任意回执状态）。
     let notifiedCount = 0;
@@ -4037,7 +4037,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // ── 联动流标通知（平台内部）：bid_host + 已确认正选专家（与 abortBidProject 同口径）──
+    // 联动流标通知（平台内部）：bid_host + 已确认正选专家（与 abortBidProject 同口径）
     if (activeBidProjects.length > 0) {
       try {
         const bpList = activeBidProjects.map((bp) => `${bp.name}（${bp.procurementMethod}）`).join('、');
@@ -4845,7 +4845,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
     const attachmentNames = (project.stages[0]?.attachments ?? []).map((a) => a.fileName);
 
-    // ── 按阶段构建分析数据（各取真实链路）──
+    // 按阶段构建分析数据（各取真实链路）
     const isExpert = stageKey === 'EXPERT_SELECTION';
     let rosterRaw = '';
     const stageContext = `当前阶段：${meta.label}（${stageKey}）。采购方式：${project.procurementMethod || '未知'}。`;
@@ -5372,7 +5372,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       },
     });
 
-    // ── 终止项目详情（2026-09-21）：终止轮次无归档 TXT 链路，按 terminationSnapshot 时点的
+    // 终止项目详情：终止轮次无归档 TXT 链路，按 terminationSnapshot 时点的
     //    实时数据（终止后项目只读，实时即快照）组装与归档详情同构的数据，前端复用同一弹窗。
     if (!pmItem) {
       const terminatedItem = await this.prisma.projectManagementItem.findFirst({
@@ -5455,7 +5455,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     if (!txtPath) {
-      // 归档 TXT 缺失（目录被清理/后台生成失败）→ 降级 DB 组装（2026-09-21）：
+      // 归档 TXT 缺失（目录被清理/后台生成失败）→ 降级 DB 组装：
       // 不再硬 404——弹窗/步骤分析仍可用，逐文件 analysis 为空。补齐需重新生成归档文件。
       const fallback = this.buildFallbackArchiveDetail(pmItem);
       fallback.summary = `（归档文件缺失，以下信息由数据库组装）\n${fallback.summary}`;
@@ -5696,7 +5696,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('请先将项目移入回收站后再彻底删除。');
     }
 
-    // ── DA/T 103-2024 §8.5 保留策略（S1）──
+    // DA/T 103-2024 §8.5 保留策略（S1）
     // ① 已导出归档信息包（ASIP）的卷 = 已移交档案，平台侧禁止物理删除；
     //    如确需重做，先由 leader/admin 在归档管理页取消归档标记并清除导出记录。
     if (project.archiveExportedAt) {
@@ -6473,11 +6473,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
 
   /**
-   * 读取项目管理阶段附件文本（2026-09-11）：附件由 persistUploadedFile 落本地磁盘
-   * （uploads/project-management/<storedFileName>，objectKey 即该相对路径），不进 MinIO——
-   * 此前回退路径调 storage.download 必然 404（key does not exist），长期被 /tmp 文本缓存
-   * 掩盖。统一改为本地优先，本地缺失再试 MinIO（防御未来迁移对象存储）。
+   * 读取项目管理阶段附件文本。persistUploadedFile 将附件保存至本地
+   * uploads/project-management/<storedFileName>，objectKey 为其相对路径。
+   * 优先读取本地文件，缺失时回退 MinIO，以兼容对象存储中的附件。
    */
+
   private async readAttachmentText(objectKey: string, mimeType?: string | null, fileName?: string): Promise<string> {
     const storedName = objectKey.split('/').pop() ?? objectKey;
     const localPath = resolve(getUploadDir(), storedName);
@@ -6584,7 +6584,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const docXml = await zip.file('word/document.xml')?.async('string');
     if (!docXml) throw new NotFoundException('无法解析 DOCX 文档');
 
-    // ── 提取 styles.xml 用于字号映射 ──
+    // 提取 styles.xml 用于字号映射
     const styleSizeMap: Record<string, string> = {};
     try {
       const stylesXml = await zip.file('word/styles.xml')?.async('string');
@@ -6597,7 +6597,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     } catch {}
 
-    // ── 第一步：提取每段的纯文本 + HTML ──
+    // 第一步：提取每段的纯文本 + HTML
     const rawParagraphs: Array<{ text: string; html: string; style: string; origIdx: number }> = [];
     const pRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
     let match;
@@ -6605,7 +6605,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     while ((match = pRegex.exec(docXml)) !== null) {
       const pXml = match[0];
 
-      // ── 提取样式名和段级别字号 ──
+      // 提取样式名和段级别字号
       let styleName = '';
       let fontSizePt = '';
       const styleMatch = pXml.match(/<w:pStyle w:val="([^"]+)"/);
@@ -6682,7 +6682,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // ── 1.5：后处理 ─ 去噪、去重、识别章标题 ──
+    // 1.5：后处理 ─ 去噪、去重、识别章标题
     const CHAPTER_TITLE_PATTERN = /^第[一二三四五六七八九十百零\d]+章\b/;
     const deduped = rawParagraphs.filter((p, i) => {
       // 纯数字/页码 跳过
@@ -6709,7 +6709,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // ── 第二步：AI 语义分析章节结构，回退到纯规则 ──
+    // 第二步：AI 语义分析章节结构，回退到纯规则
     const resultParagraphs: Array<{ index: number; text: string; html: string; style: string; rawRange: { from: number; to: number } }> = [];
 
     try {
@@ -6764,7 +6764,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       this.logger.log(`AI chapter grouping: ${blocks.length} chapters from ${deduped.length} paragraphs`);
     } catch (err: any) {
       this.logger.warn(`AI grouping failed (${err?.message || err}), using rule-based fallback`);
-      // ── fallback：遇 [H] 即切章 ──
+      // fallback：遇 [H] 即切章
       let blockStart = 0;
       for (let i = 1; i <= deduped.length; i++) {
         const isChapterBoundary = i === deduped.length || deduped[i].style === 'heading';
@@ -6841,7 +6841,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const docXml = await zip.file('word/document.xml')?.async('string');
     if (!docXml) throw new NotFoundException('无法解析 DOCX 文档');
 
-    // ── 第一步：提取所有非空 <w:p>（含在 docXml 中的字节起止位置） ──
+    // 第一步：提取所有非空 <w:p>（含在 docXml 中的字节起止位置）
     const rawParas: Array<{ xml: string; text: string; start: number; end: number }> = [];
     const pRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
     let pm;
@@ -6853,7 +6853,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // ── 第二步：为每个编辑段构建编辑指令（仅修改前端发送的段落） ──
+    // 第二步：为每个编辑段构建编辑指令（仅修改前端发送的段落）
     const edits: Array<{ start: number; end: number; newXml: string }> = [];
     let skippedCount = 0;
 
@@ -6912,7 +6912,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     this.logger.log(`保存 saveAttachmentParagraphs：${edits.length} 个编辑指令，${skippedCount} 个跳过`);
 
-    // ── 第三步：从后往前应用编辑（保证位置索引不被前序修改偏移） ──
+    // 第三步：从后往前应用编辑（保证位置索引不被前序修改偏移）
     edits.sort((a, b) => b.start - a.start);
     let modifiedXml = docXml;
     for (const edit of edits) {
@@ -7104,7 +7104,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       // 提取 XML 文本的辅助函数
       const xmText = (xml: string) => xml.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/\s+/g, ' ').trim();
 
-      // ── 1. 提取批注引用范围 <w:commentRangeStart>/<w:commentRangeEnd> ──
+      // 1. 提取批注引用范围 <w:commentRangeStart>/<w:commentRangeEnd>
       // 同时读取 comments.xml 获取批注文本
       const commentNotes: Map<number, string> = new Map();
       try {
@@ -7150,7 +7150,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
           });
         }
 
-        // ── 2. 提取高亮 run ──
+        // 2. 提取高亮 run
         // mammoth 会丢弃 <w:highlight>，所以要对含高亮的 <w:r> 取其 <w:t> 文本作为指纹
         const highlightRegex = /<w:r[^>]*>[\s\S]*?<w:highlight[^>]*w:val="([^"]+)"[^>]*\/>[\s\S]*?<w:t[^>]*>([\s\S]*?)<\/w:t>[\s\S]*?<\/w:r>/g;
         let hm: RegExpExecArray | null;
@@ -7163,13 +7163,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
           }
         }
 
-        // ── 3. 提取修订插入 <w:ins> ──
+        // 3. 提取修订插入 <w:ins>
         for (const m of docXml.matchAll(/<w:ins[\s>][\s\S]*?<\/w:ins>/g)) {
           const fp = xmText(m[0]);
           if (fp.length >= 2) inlineAnnotations.push({ fingerprint: fp, type: 'insertion' });
         }
 
-        // ── 4. 提取修订删除 <w:del> ──
+        // 4. 提取修订删除 <w:del>
         for (const m of docXml.matchAll(/<w:del[\s>][\s\S]*?<\/w:del>/g)) {
           const fp = xmText(m[0]);
           if (fp.length >= 2) inlineAnnotations.push({ fingerprint: fp, type: 'deletion' });
@@ -7181,12 +7181,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
       this.logger.warn(`审阅文件标注提取失败: ${e?.message}`);
     }
 
-    // ── mammoth 转换（审阅版渲染专用：annotation 后处理依赖 mammoth 的 HTML 结构） ──
+    // mammoth 转换（审阅版渲染专用：annotation 后处理依赖 mammoth 的 HTML 结构）
     const result = await this.convertDocxToHtmlLegacy(buffer);
 
     let html = result.value;
 
-    // ── 后处理：在 HTML 中为每条标注包裹 <mark class="tfe-review-xxx"> ──
+    // 后处理：在 HTML 中为每条标注包裹 <mark class="tfe-review-xxx">
     // 为每条标注的文字指纹在 HTML 中查找对应位置，包裹标注标签
     for (const anno of inlineAnnotations) {
       let fp = anno.fingerprint;

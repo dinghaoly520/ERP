@@ -108,7 +108,7 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
       {
         key: "responseDeadline",
         label: "开标时间",
-        // 2026-09-09 拍板：原「响应文件提交截止时间」统一改「开标时间」（截止即开标），
+        // 原「响应文件提交截止时间」统一改「开标时间」（截止即开标），
         // 且不再支持填写文字——仅 datetime-local 选择时间
         type: "datetime",
         placeholder: "选择日期时间",
@@ -220,7 +220,7 @@ export function createEmptyCompetitiveNegotiationDraft(): CompetitiveNegotiation
     businessRequirements: "",
     technicalRequirements: "",
     quotationLetter: "",
-    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
+    quotationLetterType: "table", // 报价表优先表格模式
   };
 }
 
@@ -244,7 +244,7 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
       {
         key: "projectDuration",
         label: "项目完成期限",
-        // 2026-09-11 拍板：不再支持选择时间——纯文字填写，AI 一键生成随其他字段直接产出
+        // 不再支持选择时间——纯文字填写，AI 一键生成随其他字段直接产出
         placeholder: "例如 自合同签订之日起 60 日内完成",
         aiPrompt: "生成项目完成期限。规则：直接输出完成期限的内容本身（如“自合同签订之日起 60 日内完成”），严禁在开头重复“项目完成期限：”作为前缀，也不要输出任何其他说明文字。",
       },
@@ -253,7 +253,7 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
       {
         key: "submissionAndNegotiationTime",
         label: "开标时间",
-        // 2026-09-09 拍板：原「递交和谈判时间」统一改「开标时间」，仅支持时间选择
+        // 原「递交和谈判时间」统一改「开标时间」，仅支持时间选择
         type: "datetime",
         placeholder: "选择日期时间",
         aiPrompt: "生成开标时间。规则：从今天起往后推3-5个工作日（跳过周六日）。格式为'YYYY年MM月DD日HH:MM'（如2026年05月28日09:00），只输出一个具体时间，不要其他说明。",
@@ -343,7 +343,7 @@ export function createEmptySingleSourceDraft(): SingleSourceDraft {
     procurementContent: "",
     procurementRequirements: "",
     quotationLetter: "",
-    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
+    quotationLetterType: "table", // 报价表优先表格模式
   };
 }
 
@@ -405,7 +405,7 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
       {
         key: "bidOpeningTime",
         label: "开标时间",
-        // 2026-09-09 拍板：与其他采购方式统一——仅支持时间选择，不再允许填写文字
+        // 与其他采购方式统一——仅支持时间选择，不再允许填写文字
         type: "datetime",
         placeholder: "选择日期时间",
         aiPrompt: "生成开标时间。规则：从'采购文件获取时间'的结束日期往后推1-3个工作日（跳过周六日），取该工作日的上午09:30。格式为'YYYY年MM月DD日HH:MM'（如2026年03月30日09:30），只输出该日期时间，不要其他说明。",
@@ -451,7 +451,7 @@ export function createEmptyInquiryPurchaseDraft(): InquiryPurchaseDraft {
     contactEmail: "",
     contactPhone: "",
     quotationLetter: "",
-    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
+    quotationLetterType: "table", // 报价表优先表格模式
   };
 }
 
@@ -540,7 +540,7 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
       {
         key: "responseSubmissionTime",
         label: "开标时间",
-        // 2026-09-09 拍板：原「响应文件提交时间」统一改「开标时间」，仅支持时间选择
+        // 原「响应文件提交时间」统一改「开标时间」，仅支持时间选择
         type: "datetime",
         placeholder: "选择日期时间",
         aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
@@ -814,7 +814,7 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     businessRequirements: "",
     technicalRequirements: "",
     quotationLetter: "",
-    quotationLetterType: "table", // 2026-09-09 拍板：报价表优先表格模式
+    quotationLetterType: "table", // 报价表优先表格模式
   };
 }
 

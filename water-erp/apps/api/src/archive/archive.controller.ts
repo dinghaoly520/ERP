@@ -130,7 +130,7 @@ export class ArchiveController {
     return { unmarked: r.count };
   }
 
-  // ── S2 归档审计视图（A.1g：归档过程操作跟踪）──
+  // S2 归档审计视图（A.1g：归档过程操作跟踪）
   @Get('items/:pmiId/audit')
   @ApiOperation({ summary: '该卷的归档相关操作日志（快照/检测/导出/登记）' })
   async audit(@Param('pmiId') pmiId: string) {
@@ -145,7 +145,7 @@ export class ArchiveController {
     });
   }
 
-  // ── D3 纸电关联（A.1h）：登记表打印→签章→扫描回传，与 ASIP 包同卷互链 ──
+  // D3 纸电关联（A.1h）：登记表打印→签章→扫描回传，与 ASIP 包同卷互链
   @Post('items/:pmiId/registration-scan')
   @Roles('admin', 'leader', 'staff')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }))
