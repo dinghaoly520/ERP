@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload, Eye, FileText, PhoneCall, ChevronDown,
@@ -346,6 +346,21 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [downloadMode, setDownloadMode] = useState<'free'>('free');
   const [attachOn, setAttachOn] = useState(false);
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
+  // 附件区锚点：首次勾选「公告附件」时平滑滚到上传区（长表单底部，用户反馈找不到）；
+  // 缓存恢复 attachOn=true 的首帧不滚（prevRef 判定只对 false→true 转换生效）
+  const attachSectionRef = useRef<HTMLDivElement | null>(null);
+  const attachOnPrevRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const prev = attachOnPrevRef.current;
+    attachOnPrevRef.current = attachOn;
+    if (prev === false && attachOn) {
+      // 等附件区渲染后滚动；block:nearest 已可见时不扰动
+      const t = setTimeout(() => {
+        attachSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 80);
+      return () => clearTimeout(t);
+    }
+  }, [attachOn]);
   // Step 3 预览确认（2026-09-26「预览并发布」）：预览时生成的公告 docx（确认发布复用同一份产物）
   // + 门户效果预览载荷（title/类型/展示元数据/正文 HTML——左栏按信息门户公告详情版式渲染）。
   // 2026-09-27 用户裁定：左栏改门户发布效果预览（不再渲染 docx）；右栏引用文件预览默认折叠。
@@ -1309,7 +1324,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               if (category === 'procurement_document') {
                 summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
               }
-              summaryRows.push(['公告附件', pendingFiles.length > 0 ? `${pendingFiles.length} 份` : '无']);
+              // 公告附件列出文件名（2026-09-27 用户反馈：只显计数看不到传了什么）——
+              // 附件为公开下载材料，门户详情页不单独展示（保真预览故左栏无此区块）
+              summaryRows.push([
+                '公告附件',
+                pendingFiles.length > 0
+                  ? `${pendingFiles.length} 份：${pendingFiles.map((f) => f.title || f.file.name).join('；')}`
+                  : '无',
+              ]);
               summaryRows.push(['发布后通知', notifyOnPublish ? '发送站内通知' : '不发送']);
               // 发布时间标签（门户详情页「发布时间」行同款格式）
               const publishTimeLabel =
@@ -1360,6 +1382,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                       </div>
                       <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
                         请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
+                        公告附件为公开可下载材料，发布后经附件接口提供下载、不在门户公告详情页单独展示。
                       </p>
                     </div>
 
@@ -1636,32 +1659,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 );
               })()}
 
-              {/* Toggles */}
+              {/* Toggles（2026-09-27 用户裁定：引用采购文件卡上移在前——核心关联文件先于附加选项） */}
               {categoryConfig.showFullToggles ? (
                 <>
-                  <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                    <div className="flex flex-wrap items-center gap-6">
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={attachOn}
-                          onChange={(e) => setAttachOn(e.target.checked)}
-                          className="accent-[var(--accent)]"
-                        />
-                        公告附件（补充材料，非采购文件）
-                      </label>
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={notifyOnPublish}
-                          onChange={(e) => setNotifyOnPublish(e.target.checked)}
-                          className="accent-[var(--accent)]"
-                        />
-                        发布后发送通知
-                      </label>
-                    </div>
-                  </div>
-
                   {/* 引用采购文件（2026-09-26 用户裁定）：采购公告固定引用 03 步标记的正式盖章版
                       采购文件——指针即真相，此处只读展示不可换选；未标记（历史项目）→ 不引用、照常发布 */}
                   {category === 'procurement_document' && (
@@ -1694,6 +1694,29 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     </div>
                   )}
 
+                  <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={attachOn}
+                          onChange={(e) => setAttachOn(e.target.checked)}
+                          className="accent-[var(--accent)]"
+                        />
+                        公告附件（补充材料，非采购文件）
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notifyOnPublish}
+                          onChange={(e) => setNotifyOnPublish(e.target.checked)}
+                          className="accent-[var(--accent)]"
+                        />
+                        发布后发送通知
+                      </label>
+                    </div>
+                  </div>
+
                   {/* 下载方式区块已删除（2026-09-04）——采购文件统一免费下载，解密/付费占位移除 */}
                 </>
               ) : (
@@ -1712,14 +1735,16 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 </div>
               )}
 
-              {/* Attachment section — 本地暂存，发布时统一上传 */}
+              {/* Attachment section — 本地暂存，发布时统一上传（ref 供勾选后滚动引导） */}
               {attachOn && (
-                <AttachmentSection
-                  pendingFiles={pendingFiles}
-                  onAdd={(file, title) => setPendingFiles((prev) => [...prev, { file, title }])}
-                  onRemove={(idx) => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
-                  inputCls={inputCls}
-                />
+                <div ref={attachSectionRef}>
+                  <AttachmentSection
+                    pendingFiles={pendingFiles}
+                    onAdd={(file, title) => setPendingFiles((prev) => [...prev, { file, title }])}
+                    onRemove={(idx) => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                    inputCls={inputCls}
+                  />
+                </div>
               )}
             </div>
           )}
