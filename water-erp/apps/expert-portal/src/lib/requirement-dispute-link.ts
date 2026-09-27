@@ -43,13 +43,20 @@ export function buildReqToPointIndex(
   return map;
 }
 
-/** 争议列表 → pointId 聚合（多争议落同一点收敛为列表；未命中映射的争议被丢弃） */
+/** 争议列表 → pointId 聚合（多争议落同一点收敛为列表；未命中映射的争议被丢弃）。
+ *  去重（2026-09-27 验收实录）：★实质性条款同时落原组+RESPONSIVE 两个类别桶
+ *  （getMyScores ⑦ 口径），同条争议在 flat() 后出现两次——按 requirementId+verdict
+ *  去重，防徽章误双计（异议2 实为 1 条）。 */
 export function disputesToPoint(
   disputes: LinkedDispute[],
   index: Map<string, PointLocator[]>,
 ): Map<string, LinkedDispute[]> {
+  const seen = new Set<string>();
   const byPoint = new Map<string, LinkedDispute[]>();
   for (const d of disputes) {
+    const key = `${d.requirementId}:${d.verdict}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     for (const hit of index.get(d.requirementId) ?? []) {
       const list = byPoint.get(hit.pointId);
       if (list) list.push(d);
