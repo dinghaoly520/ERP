@@ -96,12 +96,25 @@ export function TemplateLibraryDialog({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title="评分模板库" size="lg">
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-[#f3f7fc] px-3 py-2">
-          <p className="text-xs text-[#5a6d8a]">
-            应用按名称合并到当前项目（已存在的项不重复添加），不会覆盖或删除已有项。
-            {procurementMethod || projectCategory ? '列表已按当前项目维度筛选（通用模板始终显示）。' : ''}
-          </p>
+      <Modal
+        open={open}
+        onClose={onClose}
+        size="lg"
+        title={
+          /* ？帮助气泡（2026-09-27 用户裁定）：合并规则说明自常驻段落收拢至此 */
+          <span className="flex items-center gap-1.5">
+            评分模板库
+            <span className="pm-help-anchor" tabIndex={0}>
+              <span className="pm-help-dot" aria-label="模板应用规则说明" role="img">?</span>
+              <span className="pm-help-tip" role="tooltip">
+                应用按名称合并到当前项目（已存在的项不重复添加），不会覆盖或删除已有项。
+                {procurementMethod || projectCategory ? '列表已按当前项目维度筛选（通用模板始终显示）。' : ''}
+              </span>
+            </span>
+          </span>
+        }
+      >
+        <div className="mb-3 flex items-center justify-end rounded-lg bg-[#f3f7fc] px-3 py-2">
           <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-[#5a6d8a]">
             <input
               type="checkbox"

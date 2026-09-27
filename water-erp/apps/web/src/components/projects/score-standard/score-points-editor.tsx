@@ -231,9 +231,9 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
             className="flex items-center gap-1 rounded-lg border border-[oklch(0.85_0.02_260)] bg-white px-2.5 py-1 text-xs text-[oklch(0.35_0.03_258)] disabled:opacity-50"
             title={extractSource
               ? `从${extractSource.isOfficial ? '正式盖章版采购文件' : '指定提取源'}提取得分条款建议${extractSource.isOfficial ? '（OCR）' : ''}：${extractSource.fileName}`
-              : '提取得分条款建议——提取源与「AI 提取」按钮一致（多文件未选时将先请选择）'}
+              : '补充本评分项的得分条款建议——提取源与「AI 全部提取」一致（多文件未选时将先请选择）'}
           >
-            <Sparkles size={13} /> {extracting ? '提取中…' : 'AI 提取建议'}
+            <Sparkles size={13} /> {extracting ? '提取中…' : 'AI 补充建议'}
           </button>
           )}
           {extractError && <span className="text-xs text-red-600">{extractError}</span>}

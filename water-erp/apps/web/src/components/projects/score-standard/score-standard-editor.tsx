@@ -403,7 +403,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                 : '从「采购文件」步骤的采购文件提取得分点（多文件时可选）'}
           >
             <Sparkles size={13} />
-            {extractingAll ? '提取中…' : 'AI 提取'}
+            {extractingAll ? '提取中…' : 'AI 全部提取'}
           </button>
         )}
       </div>
