@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Trash2, GripVertical, Sparkles, X, Link2 } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Sparkles, X, Link2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createScorePoint,
@@ -29,9 +29,13 @@ interface Props {
   /** 提取源（2026-09-26）：完成向导=正式盖章版（isOfficial）；「评分标准」面板=用户多文件时
    *  选定的源（isOfficial 缺省——非正式文件时文案不得冒称"正式盖章版"） */
   extractSource?: { attachmentId: string; fileName: string; isOfficial?: boolean } | null;
+  /** 就地取源（2026-09-27 用户裁定：逐项与一键同口径）——extractSource 未定时由父级解析：
+   *  单文件/已选源直接返回；多文件未选时弹同一选择器，选定落定、取消返回 null（中止提取）。
+   *  null 返回后不再静默走后端「该轮最新附件」兜底。 */
+  resolveSource?: () => Promise<{ attachmentId: string; fileName: string } | null>;
 }
 
-export function ScorePointsEditor({ projectId, item, points, onChanged, locked, extractSource }: Props) {
+export function ScorePointsEditor({ projectId, item, points, onChanged, locked, extractSource, resolveSource }: Props) {
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
   const isPrice = item.category === 'PRICE'; // 价格分按公式计算,不提取得分点
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
@@ -52,16 +56,44 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
   const total = localPoints.reduce((s, p) => s + Number(p.fullScore), 0);
   const max = Number(item.maxScore);
 
+  // ── 得分点行内编辑（2026-09-27 用户裁定：已配得分点可改名称/评审要点）──
+  const [editingPoint, setEditingPoint] = useState<{ id: string; name: string; evidenceHint: string } | null>(null);
+  async function savePointEdit() {
+    if (!editingPoint) return;
+    const name = editingPoint.name.trim();
+    if (!name) { toast.error('得分点名称不能为空'); return; }
+    const evidenceHint = editingPoint.evidenceHint.trim();
+    try {
+      await updateScorePoint(projectId, item.id, editingPoint.id, { name, evidenceHint });
+      setLocalPoints((prev) => prev.map((x) => (x.id === editingPoint.id ? { ...x, name, evidenceHint } : x)));
+      setEditingPoint(null);
+      onChanged();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.message 回退提示
+    } catch (e: any) {
+      toast.error(e?.message ?? '保存得分点失败，请重试');
+    }
+  }
+
   async function handleExtract() {
     setExtracting(true);
     setExtractError(null);
+    // 取源（2026-09-27 用户裁定：与一键提取同口径）——面板多文件未选时先弹选择器；
+    // 用户取消则中止，不再静默走后端「该轮最新附件」兜底
+    let source = extractSource ?? null;
+    if (!source && resolveSource) {
+      source = await resolveSource();
+      if (!source) {
+        setExtracting(false);
+        return;
+      }
+    }
     const controller = new AbortController();
-    // 指定源（正式盖章版扫描件）OCR 分钟级——超时放宽到 300s；默认 120s
-    const timeoutMs = extractSource?.attachmentId ? 300_000 : 120_000;
+    // 有显式源（正式盖章版扫描件 OCR 分钟级）超时放宽到 300s；无源兜底 120s
+    const timeoutMs = source ? 300_000 : 120_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const list = await extractScorePoints(projectId, item.id, {
-        sourceAttachmentId: extractSource?.attachmentId,
+        sourceAttachmentId: source?.attachmentId,
         signal: controller.signal,
       });
       // E3: 按 confidence 降序,重复项默认不选
@@ -199,7 +231,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
             className="flex items-center gap-1 rounded-lg border border-[oklch(0.85_0.02_260)] bg-white px-2.5 py-1 text-xs text-[oklch(0.35_0.03_258)] disabled:opacity-50"
             title={extractSource
               ? `从${extractSource.isOfficial ? '正式盖章版采购文件' : '指定提取源'}提取得分条款建议${extractSource.isOfficial ? '（OCR）' : ''}：${extractSource.fileName}`
-              : '从「采购文件」步骤的采购文件自动提取得分条款建议'}
+              : '提取得分条款建议——提取源与「AI 提取」按钮一致（多文件未选时将先请选择）'}
           >
             <Sparkles size={13} /> {extracting ? '提取中…' : 'AI 提取建议'}
           </button>
@@ -208,45 +240,92 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
         </div>
       </div>
 
-      {/* 已有得分点列表 */}
+      {/* 已有得分点列表——名称/评审要点两列左对齐（2026-09-27 用户裁定，1:1.8 弹性列宽）；
+          行内编辑改名称/评审要点（悬浮浮层已按用户裁定移除——列宽放宽后全文可见） */}
       <div className="space-y-1">
-        {localPoints.map((p, idx) => (
-          <div key={p.id} className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-sm">
-            <GripVertical size={14} className="text-[oklch(0.7_0.005_264)]" />
-            <span className="text-[oklch(0.45_0.01_265)] w-6">{idx + 1}.</span>
-            <span className="flex-1 font-medium text-[oklch(0.18_0.012_265)]">{p.name}</span>
-            {p.evidenceHint && <span className="text-xs text-[oklch(0.55_0.01_264)]">{p.evidenceHint}</span>}
-            {/* 关联招标条款（映射编辑不受发布锁限制；专家端条款核对就地打分/批注的依据） */}
-            <button
-              onClick={() => openLinks(p)}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-[oklch(0.45_0.02_258)] hover:bg-[oklch(0.96_0.01_258)]"
-              title="关联招标条款（专家端条款核对就地打分/批注依据；可随时修改，不受发布锁限制）"
-            >
-              <Link2 size={13} />
-              {(p.linkedRequirementIds?.length ?? 0) > 0 ? `${p.linkedRequirementIds!.length} 条款` : '关联条款'}
-            </button>
-            <button
-              onClick={() => toggleObjective(p)}
-              className={`rounded px-2 py-0.5 text-xs ${p.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}
-              title="客观=专家勾选制；主观=专家直接给分"
-            >
-              {p.objective ? '客观' : '主观'}
-            </button>
-            {!isPassFail && (
-              <input
-                type="number"
-                min={0}
-                step={0.5}
-                defaultValue={Number(p.fullScore)}
-                onBlur={(e) => editFullScore(p, Number(e.target.value))}
-                className="w-16 rounded border border-[oklch(0.9_0.005_264)] px-1 py-0.5 text-right"
-              />
-            )}
-            <button onClick={() => remove(p)} className="text-[oklch(0.6_0.01_264)] hover:text-red-600">
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
+        {localPoints.map((p, idx) => {
+          const isEditing = editingPoint?.id === p.id;
+          return (
+            <div key={p.id} className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-sm">
+              <GripVertical size={14} className="text-[oklch(0.7_0.005_264)]" />
+              <span className="w-6 text-[oklch(0.45_0.01_265)]">{idx + 1}.</span>
+              {isEditing ? (
+                /* 编辑态：名称 + 评审要点两输入 + 保存/取消（其余操作暂隐） */
+                <>
+                  <input
+                    type="text"
+                    value={editingPoint!.name}
+                    onChange={(e) => setEditingPoint((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+                    className="min-w-0 flex-1 rounded-lg border border-[oklch(0.9_0.005_264)] px-2 py-1 text-sm"
+                    placeholder="得分点名称"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === 'Enter') void savePointEdit(); if (e.key === 'Escape') setEditingPoint(null); }}
+                  />
+                  <input
+                    type="text"
+                    value={editingPoint!.evidenceHint}
+                    onChange={(e) => setEditingPoint((prev) => (prev ? { ...prev, evidenceHint: e.target.value } : prev))}
+                    className="min-w-0 flex-[1.8] rounded-lg border border-[oklch(0.9_0.005_264)] px-2 py-1 text-sm"
+                    placeholder="评审要点（可选）"
+                    onKeyDown={(e) => { if (e.key === 'Enter') void savePointEdit(); if (e.key === 'Escape') setEditingPoint(null); }}
+                  />
+                  <button onClick={() => void savePointEdit()} disabled={!editingPoint!.name.trim()}
+                    className="rounded-lg bg-[oklch(0.55_0.18_258)] px-2.5 py-1 text-xs text-white disabled:opacity-50">
+                    保存
+                  </button>
+                  <button onClick={() => setEditingPoint(null)} className="rounded-lg px-2 py-1 text-xs text-[oklch(0.5_0.01_264)]">
+                    取消
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-left font-medium text-[oklch(0.18_0.012_265)]">{p.name}</span>
+                  {p.evidenceHint && (
+                    <span className="min-w-0 flex-[1.8] truncate text-left text-xs text-[oklch(0.55_0.01_264)]">{p.evidenceHint}</span>
+                  )}
+                  {/* 关联招标条款（映射编辑不受发布锁限制；专家端条款核对就地打分/批注的依据） */}
+                  <button
+                    onClick={() => openLinks(p)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-[oklch(0.45_0.02_258)] hover:bg-[oklch(0.96_0.01_258)]"
+                    title="关联招标条款（专家端条款核对就地打分/批注依据；可随时修改，不受发布锁限制）"
+                  >
+                    <Link2 size={13} />
+                    {(p.linkedRequirementIds?.length ?? 0) > 0 ? `${p.linkedRequirementIds!.length} 条款` : '关联条款'}
+                  </button>
+                  <button
+                    onClick={() => toggleObjective(p)}
+                    className={`shrink-0 rounded px-2 py-0.5 text-xs ${p.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}
+                    title="客观=专家勾选制；主观=专家直接给分"
+                  >
+                    {p.objective ? '客观' : '主观'}
+                  </button>
+                  {!isPassFail && (
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      defaultValue={Number(p.fullScore)}
+                      onBlur={(e) => editFullScore(p, Number(e.target.value))}
+                      className="w-16 shrink-0 rounded border border-[oklch(0.9_0.005_264)] px-1 py-0.5 text-right"
+                    />
+                  )}
+                  {!locked && (
+                    <button
+                      onClick={() => setEditingPoint({ id: p.id, name: p.name, evidenceHint: p.evidenceHint ?? '' })}
+                      className="shrink-0 text-[oklch(0.6_0.01_264)] hover:text-[oklch(0.4_0.02_258)]"
+                      title="编辑得分点名称与评审要点"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  )}
+                  <button onClick={() => remove(p)} className="shrink-0 text-[oklch(0.6_0.01_264)] hover:text-red-600">
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
         {localPoints.length === 0 && (
           <div className="text-xs text-[oklch(0.6_0.01_264)] py-1">暂无得分点，在下方添加。</div>
         )}

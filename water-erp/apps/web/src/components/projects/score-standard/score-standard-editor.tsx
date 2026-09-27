@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   ChevronDown,
@@ -86,6 +86,10 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [pickedSource, setPickedSource] = useState<{ attachmentId: string; fileName: string } | null>(null);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
+  // 逐项「AI 提取建议」经选择器取源（2026-09-27 用户裁定：与一键提取同口径）——
+  // 选择器由哪个动作唤起 + 挂起的 Promise 落定器（onPick/onClose 各自回调）
+  const pickerForRef = useRef<'bulk' | 'item'>('bulk');
+  const pendingItemSourceRef = useRef<((s: { attachmentId: string; fileName: string } | null) => void) | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
@@ -163,19 +167,44 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     }
   };
 
-  /** 解析本次提取源：显式 extractSource（完成向导=正式盖章版）优先；否则按候选数自动/弹选择器。
-   *  返回 null = 流程中止（已弹选择器或已 toast 提示），调用方直接 return。 */
-  const resolveExtractSource = (): { attachmentId: string; fileName: string } | null => {
+  /** 取源核心（一键/逐项共用，2026-09-27 统一口径）：显式 extractSource（完成向导=正式盖章版）
+   *  优先 → 无候选 toast（返回 'none'）→ 单候选自动 → 已选沿用 → 多候选需弹选择器（'picker'）。 */
+  const resolveSourceCore = (): { attachmentId: string; fileName: string } | 'picker' | 'none' => {
     if (extractSource) return extractSource;
     const candidates = (tenderCandidates ?? []).filter((c) => !!c.id);
     if (candidates.length === 0) {
       toast.error('采购文件未就绪：请先在「采购文件编写」导出或手动上传采购文件');
-      return null;
+      return 'none';
     }
     if (candidates.length === 1) return { attachmentId: candidates[0].id!, fileName: candidates[0].fileName };
     if (pickedSource) return pickedSource; // 多文件但本面板已选过源——沿用，避免反复询问
-    setShowSourcePicker(true); // 多文件：用户裁定须询问提取哪一个
-    return null;
+    return 'picker'; // 多文件：用户裁定须询问提取哪一个
+  };
+
+  /** 一键提取用：同步解析；null = 流程中止（已弹选择器或已 toast），调用方直接 return。 */
+  const resolveExtractSource = (): { attachmentId: string; fileName: string } | null => {
+    const r = resolveSourceCore();
+    if (r === 'picker') {
+      pickerForRef.current = 'bulk';
+      setShowSourcePicker(true);
+      return null;
+    }
+    if (r === 'none') return null;
+    return r;
+  };
+
+  /** 逐项「AI 提取建议」用（2026-09-27 用户裁定：不再静默走后端兜底）——与一键同口径；
+   *  多文件未选时弹同一选择器并 Promise 挂起，选定落定 / 取消返回 null（调用方中止）。 */
+  const resolveSourceForItem = (): Promise<{ attachmentId: string; fileName: string } | null> => {
+    const r = resolveSourceCore();
+    if (r === 'picker') {
+      pickerForRef.current = 'item';
+      setShowSourcePicker(true);
+      return new Promise((resolve) => {
+        pendingItemSourceRef.current = resolve;
+      });
+    }
+    return Promise.resolve(r === 'none' ? null : r);
   };
 
   const runBulkExtract = async (source: { attachmentId: string; fileName: string }) => {
@@ -544,6 +573,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                             onChanged={reloadItems}
                             locked={locked}
                             extractSource={extractSource ?? pickedSource}
+                            resolveSource={resolveSourceForItem}
                           />
                         </td>
                       </tr>
@@ -711,16 +741,30 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         />
       )}
 
-      {/* 提取源选择（用户裁定 2026-09-26）：「采购文件」步骤多文件时询问提取哪一个 */}
+      {/* 提取源选择（用户裁定 2026-09-26）：「采购文件」步骤多文件时询问提取哪一个；
+          2026-09-27 起一键与逐项共用——逐项唤起时选定落定挂起 Promise、取消返回 null */}
       {showSourcePicker && (
         <ExtractSourcePickerDialog
           open
           candidates={tenderCandidates ?? []}
-          onClose={() => setShowSourcePicker(false)}
+          onClose={() => {
+            setShowSourcePicker(false);
+            if (pickerForRef.current === 'item') {
+              pickerForRef.current = 'bulk';
+              pendingItemSourceRef.current?.(null);
+              pendingItemSourceRef.current = null;
+            }
+          }}
           onPick={(attachmentId, fileName) => {
             setShowSourcePicker(false);
             setPickedSource({ attachmentId, fileName });
-            void runBulkExtract({ attachmentId, fileName });
+            if (pickerForRef.current === 'item') {
+              pickerForRef.current = 'bulk';
+              pendingItemSourceRef.current?.({ attachmentId, fileName });
+              pendingItemSourceRef.current = null;
+            } else {
+              void runBulkExtract({ attachmentId, fileName });
+            }
           }}
         />
       )}
