@@ -1,6 +1,7 @@
 'use client';
 
-import { MessageSquare, MessageSquarePlus } from 'lucide-react';
+import { AlertTriangle, CircleHelp, MessageSquare, MessageSquarePlus } from 'lucide-react';
+import type { LinkedDispute } from '@/lib/requirement-dispute-link';
 
 export interface PointDecisionValue { checked: boolean; awardedScore: number; note?: string }
 export interface PointDef { id: string; name: string; fullScore: number | string; objective: boolean; evidenceHint?: string | null; seq: number }
@@ -19,15 +20,22 @@ interface Props {
   onPointClick?: (pointId: string, pointName: string) => void;
   /** 得分点批注计数（pointId → count），用于角标渲染 */
   pointMemoCounts?: Record<string, number>;
+  /** 条款核对争议（Phase 2 精确关联）：pointId → 命中管理端映射的争议（dispute=异议/doubt=存疑） */
+  pointDisputes?: Record<string, LinkedDispute[]>;
+  /** 点击异议徽章 →「按异议扣分」预填（页面层实现：置否+理由前缀）；缺省仅展示 */
+  onDisputeApply?: (pointId: string, dispute: LinkedDispute) => void;
+  /** 点击存疑徽章 → 插入备注进理由框（页面层实现）；缺省仅展示 */
+  onDoubtInsert?: (pointId: string, dispute: LinkedDispute) => void;
 }
 
 /**
  * 打分 checklist 共享组件（cgzxui 新拟态）：
  * - objective point → .neu-checkbox（勾选默认满分，可下调）
  * - subjective point → .exp-score-input 数值输入
+ * - pointDisputes → 🔺异议（可按异议扣分）/🟡存疑（插入备注）徽章（Phase 2 映射精确关联）
  * 桌面端与 tablet 端复用（compact 切换紧凑布局）。
  */
-export function PointChecklistScoring({ points, value, onChange, readOnly, compact, hideNotes, selectedPointId, onPointClick, pointMemoCounts }: Props) {
+export function PointChecklistScoring({ points, value, onChange, readOnly, compact, hideNotes, selectedPointId, onPointClick, pointMemoCounts, pointDisputes, onDisputeApply, onDoubtInsert }: Props) {
   const sorted = [...points].sort((a, b) => a.seq - b.seq);
   return (
     <div className="space-y-2">
@@ -35,6 +43,13 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
         const v = value[p.id] ?? { checked: false, awardedScore: 0 };
         const max = Number(p.fullScore);
         const isSelected = selectedPointId === p.id;
+        // Phase 2：本得分点命中的条款争议（映射精确关联；多争议收敛计数）
+        const disputes = pointDisputes?.[p.id] ?? [];
+        const disputeList = disputes.filter(d => d.verdict === 'dispute');
+        const doubtList = disputes.filter(d => d.verdict === 'doubt');
+        const disputeTitle = (list: LinkedDispute[]) => list
+          .map(d => `【${d.verdict === 'dispute' ? '异议' : '存疑'}】${d.content?.trim() ? d.content.slice(0, 40) : '(原文缺失)'}${d.note ? `｜备注：${d.note.slice(0, 30)}` : ''}`)
+          .join('\n');
         return (
           <div key={p.id}
             className={`rounded-[10px] transition ${
@@ -60,7 +75,38 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
                 <span className="exp-pill shrink-0" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>主观</span>
               )}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
+                  {/* Phase 2：异议徽章（可按异议扣分）/ 存疑徽章（插入备注）——只读态仅展示 */}
+                  {disputeList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!readOnly && onDisputeApply) onDisputeApply(p.id, disputeList[0]);
+                      }}
+                      disabled={readOnly || !onDisputeApply}
+                      title={readOnly ? `异议 ${disputeList.length} 条（只读）\n${disputeTitle(disputeList)}` : `异议 ${disputeList.length} 条——点击按异议扣分（置否+理由预填）\n${disputeTitle(disputeList)}`}
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--danger)] disabled:cursor-default"
+                    >
+                      <AlertTriangle size={10} strokeWidth={2} />异议{disputeList.length}
+                    </button>
+                  )}
+                  {doubtList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!readOnly && onDoubtInsert) onDoubtInsert(p.id, doubtList[0]);
+                      }}
+                      disabled={readOnly || !onDoubtInsert}
+                      title={readOnly ? `存疑 ${doubtList.length} 条（只读）\n${disputeTitle(doubtList)}` : `存疑 ${doubtList.length} 条——点击插入备注进理由框\n${disputeTitle(doubtList)}`}
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[oklch(0.52_0.13_70)] disabled:cursor-default"
+                    >
+                      <CircleHelp size={10} strokeWidth={2} />存疑{doubtList.length}
+                    </button>
+                  )}
+                </div>
                 {p.evidenceHint && <div className="truncate text-xs text-[var(--muted-foreground)]">{p.evidenceHint}</div>}
               </div>
               {/* fullScore=0（通过制得分点）隐藏数字输入与「/ 0」噪声——勾选即满分 0 */}

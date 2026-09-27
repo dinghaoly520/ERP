@@ -6,6 +6,7 @@ import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, File
 import type { RequirementResponse, BidRequirementReview, BidScoreItem } from '@water-erp/shared';
 import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { api } from '@/lib/api';
+import { buildReqToPointIndex } from '@/lib/requirement-dispute-link';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 
 /** 桌面端评分条目态（与 @/lib/score-validation 的 ScoreEntry 对齐，只取 panel 需要的字段） */
@@ -174,6 +175,13 @@ export function RequirementComparePanel({
 
   const respBy = (id: string) => responses.find((r) => r.requirementId === id);
 
+  // Phase 2（2026-09-27）：requirementId → 管理端映射的得分点——条款卡展开时显示
+  // 「关联得分点」标签（点击复用 onPointClick 导航跳打分）；无映射则提示按类别关联
+  const reqToPointIndex = useMemo(
+    () => buildReqToPointIndex(scoreItems ?? []),
+    [scoreItems],
+  );
+
   // ── Fix 2：verdict 提交 + 失败回滚（保留 functional update + prevReview 快照）──
   const setVerdict = async (item: ReqItem, verdict: 'ack' | 'dispute' | 'doubt') => {
     touchedRef.current.add(item.id); // 本地已改动——阻止 reviews 同步覆盖进行中的编辑
@@ -340,6 +348,28 @@ export function RequirementComparePanel({
                                 验收/阈值：{item.acceptanceCriteria || item.threshold}
                               </p>
                             )}
+                            {/* Phase 2：本条款映射的得分点（管理端「关联条款」配置）——标注异议前
+                                即可见后果；点击跳打分定位该点。无映射回退类别提示 */}
+                            {isOpen && (() => {
+                              const hits = reqToPointIndex.get(item.id) ?? [];
+                              if (hits.length === 0) return null;
+                              return (
+                                <div className="ml-4 mt-1 flex flex-wrap items-center gap-1">
+                                  <span className="text-[10px] text-[var(--muted-foreground)]">关联得分点：</span>
+                                  {hits.map(h => (
+                                    <button
+                                      key={h.pointId}
+                                      onClick={(e) => { e.stopPropagation(); onPointClick?.(h.pointId, h.pointName); }}
+                                      className="exp-pill"
+                                      style={{ '--c': 'var(--accent)' } as React.CSSProperties}
+                                      title={`跳转到打分——${h.pointName}`}
+                                    >
+                                      {h.pointName}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                             {/* 2026-08-28 审查修复：招标文件缺失时不渲染跳原文按钮——否则点了会把左栏
                                 切成 `undefined#page=N` 的空 iframe（「招标文件」tab 已有同款门控） */}
                             {isOpen && item.sourcePage && tenderDocUrl && (

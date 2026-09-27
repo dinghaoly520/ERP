@@ -12,6 +12,7 @@ import {
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
 import { buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
+import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
@@ -51,6 +52,18 @@ export default function TabletEvaluatePage() {
   }, []);
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
+  // Phase 2（2026-09-27）：条款争议→得分点徽章（平板无核对步骤，桌面标注的争议在此展示）
+  const [disputesBySupplier, setDisputesBySupplier] = useState<Record<string, Record<string, LinkedDispute[]>>>({});
+  // Phase 2：当前供应商争议按映射聚合到 pointId（无映射的不进表；徽章展示用，无扣分动作）
+  const reqToPointIndex = useMemo(
+    () => buildReqToPointIndex(project?.scoreItems ?? []),
+    [project?.scoreItems],
+  );
+  const pointDisputesForActive = useMemo(() => {
+    if (!activeSupplier) return {} as Record<string, LinkedDispute[]>;
+    const flat = Object.values(disputesBySupplier[activeSupplier] ?? {}).flat();
+    return Object.fromEntries(disputesToPoint(flat, reqToPointIndex));
+  }, [disputesBySupplier, activeSupplier, reqToPointIndex]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null); // 加载失败错误态（替代永久 loading）
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
@@ -118,12 +131,14 @@ export default function TabletEvaluatePage() {
           }
           return next;
         });
-        // 同时取 pointDecisions（checklist hydrate）
+        // 同时取 pointDecisions（checklist hydrate）+ disputesBySupplier（Phase 2 争议徽章）
         api.get<{
           records: unknown[];
           pointDecisions?: Array<{ pointId: string; supplierId: string; checked: boolean; awardedScore: number | string; note?: string }>;
+          disputesBySupplier?: Record<string, Record<string, LinkedDispute[]>>;
         }>(`/expert/projects/${projectId}/my-scores`)
           .then(d => {
+            if (d.disputesBySupplier) setDisputesBySupplier(d.disputesBySupplier);
             const pointToItem = new Map<string, string>();
             for (const si of p.scoreItems ?? []) {
               for (const pt of si.points ?? []) pointToItem.set(pt.id, si.id);
@@ -1041,6 +1056,7 @@ export default function TabletEvaluatePage() {
                                   selectedPointId={activePointId}
                                   onPointClick={handlePointClick}
                                   pointMemoCounts={pointMemoCounts}
+                                  pointDisputes={pointDisputesForActive}
                                   onChange={makeTabletOnChange(item.id, pfPoints, pfValueMap, (pid, pv) =>
                                     setScores(prev => {
                                       const cur = prev[k] ?? { score: 0, reason: '' };
@@ -1112,6 +1128,7 @@ export default function TabletEvaluatePage() {
                               selectedPointId={activePointId}
                               onPointClick={handlePointClick}
                               pointMemoCounts={pointMemoCounts}
+                              pointDisputes={pointDisputesForActive}
                               onChange={makeTabletOnChange(item.id, itemPoints, buildFullPoints(item, val, committedScore), (pid, pv) =>
                                 setScores(prev => {
                                   const cur = prev[k] ?? { score: 0, reason: '' };

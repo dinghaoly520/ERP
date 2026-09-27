@@ -24,6 +24,7 @@ import { openExpertUkey } from '@/utils/expert-ukey';
 import { MockUKeyAdapter } from '@water-erp/ukey';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
+import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
 import type { HallMessagePayload } from '@water-erp/shared';
@@ -559,6 +560,54 @@ export default function ExpertEvaluatePage() {
       });
     }
   }, [activeSupplier, scores, project]);
+
+  // ── Phase 2（2026-09-27）：条款争议 → 得分点精确关联（管理端映射）──
+  // 当前供应商的争议按映射聚合到 pointId（未命中映射的走既有类别路由，不进此表）
+  const reqToPointIndex = useMemo(
+    () => buildReqToPointIndex(project?.scoreItems ?? []),
+    [project?.scoreItems],
+  );
+  const pointDisputesForActive = useMemo(() => {
+    if (!activeSupplier) return {} as Record<string, LinkedDispute[]>;
+    const flat = Object.values(disputesBySupplier[activeSupplier] ?? {}).flat();
+    return Object.fromEntries(disputesToPoint(flat, reqToPointIndex));
+  }, [disputesBySupplier, activeSupplier, reqToPointIndex]);
+
+  /** 争议文本（与类别路由 buildInsertText 同款格式） */
+  const disputeText = useCallback((dsp: LinkedDispute) => {
+    const clause = dsp.content?.trim() ? dsp.content.slice(0, 40) : '(原文缺失)';
+    const body = dsp.note?.trim() ? dsp.note : (dsp.content?.trim() ? dsp.content : '(原文缺失)');
+    return `【★条款：${clause}】${body}`;
+  }, []);
+
+  /** 「按异议扣分」：该得分点置否（客观=取消勾选/主观=0 分）+ 理由前缀预填——专家可再改 */
+  const handleDisputeApply = useCallback((pointId: string, dispute: LinkedDispute) => {
+    if (!activeSupplier || !project) return;
+    const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === pointId));
+    if (!item) return;
+    handlePointChange(item.id, pointId, { checked: false, awardedScore: 0 });
+    const k = scoreKey(activeSupplier, item.id);
+    const text = disputeText(dispute);
+    setScores(prev => {
+      const cur = prev[k] ?? { score: 0, reason: '' };
+      const prevReason = cur.reason ?? '';
+      return { ...prev, [k]: { ...cur, reason: prevReason ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text) : text } };
+    });
+  }, [activeSupplier, project, handlePointChange, disputeText]);
+
+  /** 存疑 → 仅插入备注进理由框（不动勾选/得分） */
+  const handleDoubtInsert = useCallback((pointId: string, dispute: LinkedDispute) => {
+    if (!activeSupplier || !project) return;
+    const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === pointId));
+    if (!item) return;
+    const k = scoreKey(activeSupplier, item.id);
+    const text = disputeText(dispute);
+    setScores(prev => {
+      const cur = prev[k] ?? { score: 0, reason: '' };
+      const prevReason = cur.reason ?? '';
+      return { ...prev, [k]: { ...cur, reason: prevReason ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text) : text } };
+    });
+  }, [activeSupplier, project, disputeText]);
 
   // D：得分点级批注（写 points[pointId].note 草稿）
   const handlePointNote = useCallback((scoreItemId: string, pointId: string, note: string) => {
@@ -2026,6 +2075,9 @@ export default function ExpertEvaluatePage() {
                                           selectedPointId={activePointId}
                                           onPointClick={handlePointClickDesk}
                                           pointMemoCounts={pointMemoCounts}
+                                          pointDisputes={pointDisputesForActive}
+                                          onDisputeApply={handleDisputeApply}
+                                          onDoubtInsert={handleDoubtInsert}
                                         />
                                       </div>
                                     )}
@@ -2087,6 +2139,9 @@ export default function ExpertEvaluatePage() {
                                       selectedPointId={activePointId}
                                       onPointClick={handlePointClickDesk}
                                       pointMemoCounts={pointMemoCounts}
+                                      pointDisputes={pointDisputesForActive}
+                                      onDisputeApply={handleDisputeApply}
+                                      onDoubtInsert={handleDoubtInsert}
                                     />
                                     <textarea placeholder="评分理由（可选）" value={val?.reason || ''}
                                       onFocus={() => onReasonFocus(k)}

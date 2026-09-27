@@ -424,7 +424,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
               <button onClick={() => setLinkingPoint(null)} className="text-[oklch(0.6_0.01_264)] hover:text-red-600"><X size={16} /></button>
             </div>
             <p className="mb-2 text-xs text-[oklch(0.55_0.01_264)]">
-              勾选与该得分点相关的招标条款。专家在「条款响应核对」提出异议/存疑时，系统按此映射在打分草稿预填（异议→扣分草案、存疑→仅备注），专家可修改后提交。
+              勾选与该得分点相关的招标条款。专家端「条款响应核对」标注异议/存疑时，命中映射的争议会精确关联到该得分点（异议徽章可一键按异议扣分、存疑可插入备注）；未映射的争议按评分大类提示。修改映射不受发布锁限制。
             </p>
             <div className="max-h-96 space-y-1 overflow-y-auto">
               {requirementsLoading ? (
