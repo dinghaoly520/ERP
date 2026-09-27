@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload, Eye, FileText,
+  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search, CheckCircle2, CloudUpload, Eye, FileText, PhoneCall, ChevronDown,
 } from 'lucide-react';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import {
@@ -142,6 +142,78 @@ function buildCanonicalMeta(
   return out;
 }
 
+/** 公告全文 → 正文 HTML：escape + 空行分段 + 段内换行 <br/> + 落款右对齐。
+ *  发布入库与 Step3 门户效果预览共用同一变换——预览即所得，勿在调用侧另写副本。 */
+function buildAnnouncementContentHtml(textContent: string, title: string): string {
+  const esc = (s: string) =>
+    s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+  const paragraphs = textContent.trim()
+    ? textContent.split(/\n\s*\n/).map((p) => p.replace(/\s+$/, ''))
+    : [];
+  // 落款右对齐（2026-09-11）：正文落款块 = 采购人名称 + 落款日期两段。docx 靠前导空格
+  // 模拟右对齐，HTML 会折叠空格 → 识别最后一个「纯日期」段，其与前一采购人段统一右对齐
+  let sigDateIdx = -1;
+  for (let i = paragraphs.length - 1; i >= 0; i--) {
+    if (/^\s*\d{4}年\d{1,2}月\d{1,2}日\s*$/.test(paragraphs[i])) { sigDateIdx = i; break; }
+  }
+  return paragraphs.length
+    ? paragraphs
+        .map((p, i) => {
+          const isSignature = i === sigDateIdx || i === sigDateIdx - 1;
+          const inner = esc(p.replace(/^\s+/, '').replace(/\n/g, '<br/>'));
+          return isSignature
+            ? `<p style="text-align:right">${inner}</p>`
+            : `<p>${inner}</p>`;
+        })
+        .join('')
+    : `<p>${esc(title)}</p>`;
+}
+
+/* ── Step3「门户发布效果」预览：复刻信息门户公告详情页（public-portal lib/announcements
+      + announcements/[id]/page）的展示映射与版式——口径照抄勿自创；门户侧改字段两处同步。── */
+const PORTAL_TYPE_TAG: Record<string, { tag: string; color: string }> = {
+  BID_NOTICE: { tag: '采购公告', color: '#064ea2' },
+  WIN_BID_NOTICE: { tag: '中标公告', color: '#18a56c' },
+  PRE_WIN_NOTICE: { tag: '中标公告', color: '#18a56c' },
+  FAILED_BID_NOTICE: { tag: '流标公告', color: '#e08a00' },
+};
+type PortalMetaField = { key: string; label: string; area?: boolean; date?: boolean };
+const PORTAL_META_FIELDS: Record<string, PortalMetaField[]> = {
+  BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
+    { key: 'downloadDeadline', label: '采购文件下载时间' },
+    { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
+    { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
+  ],
+  WIN_BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },
+    { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' }, { key: 'experts', label: '评审专家' },
+    { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
+};
+/** 元数据值格式化（门户同款：日期 locale 化、预算/金额万元化） */
+function portalFormatMetaValue(field: PortalMetaField, raw: unknown): string {
+  if (raw == null || raw === '') return '';
+  if (field.date) {
+    const d = new Date(String(raw));
+    if (Number.isNaN(d.getTime())) return '待定';
+    return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+  if ((field.key === 'budget' || field.key === 'amount') && raw) {
+    const n = Number(raw);
+    if (!isNaN(n) && n >= 10000) return (n / 10000).toFixed(0) + ' 万元';
+  }
+  return String(raw);
+}
+/** 正文排版（门户 .announcement-detail-content 摘录；以 .portal-announce-preview 作用域注入） */
+const PORTAL_PREVIEW_CONTENT_CSS = `
+.portal-announce-preview h2 { margin: 0 0 18px; font-size: 24px; font-weight: 900; color: #18243a; line-height: 1.45; }
+.portal-announce-preview h3 { margin: 28px 0 12px; padding-left: 12px; border-left: 4px solid #064ea2; font-size: 17px; font-weight: 800; color: #123a6e; line-height: 1.5; }
+.portal-announce-preview h4 { margin: 18px 0 8px; font-size: 15px; font-weight: 800; color: #26364e; }
+.portal-announce-preview p { margin: 0 0 14px; font-size: 15px; line-height: 2; color: #26364e; text-align: justify; }
+.portal-announce-preview ul, .portal-announce-preview ol { margin: 0 0 16px 1.2em; line-height: 2; color: #26364e; }
+`;
+
 /** 今天 + n 天后的截止时刻（YYYY-MM-DDTHH:MM），时分默认 23:59
  *  （datetime-local 时分上限为 23:59，无法表示 24:00，以 23:59 表示当天截止） */
 function deadlineAfterDays(n: number): string {
@@ -274,9 +346,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [downloadMode, setDownloadMode] = useState<'free'>('free');
   const [attachOn, setAttachOn] = useState(false);
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
-  // Step 3 预览确认（2026-09-26「预览并发布」）：预览时生成的公告 docx——
-  // blob URL 交 FilePreviewPane 高保真渲染，确认发布时复用同一份产物（预览即所得）
-  const [preview, setPreview] = useState<{ url: string; blob: Blob; fileName: string; textContent: string } | null>(null);
+  // Step 3 预览确认（2026-09-26「预览并发布」）：预览时生成的公告 docx（确认发布复用同一份产物）
+  // + 门户效果预览载荷（title/类型/展示元数据/正文 HTML——左栏按信息门户公告详情版式渲染）。
+  // 2026-09-27 用户裁定：左栏改门户发布效果预览（不再渲染 docx）；右栏引用文件预览默认折叠。
+  const [preview, setPreview] = useState<{
+    blob: Blob;
+    fileName: string;
+    textContent: string;
+    portal: { title: string; announcementType: AnnouncementType; meta: Record<string, unknown>; contentHtml: string };
+  } | null>(null);
+  // 右栏「引用采购文件预览」折叠态（默认收起，用户点击展开）
+  const [tenderPreviewOpen, setTenderPreviewOpen] = useState(false);
   // 异议联系方式（2026-09-11，取代原「法定时限」勾选——集团采购基本非依法必招，勾选无实际意义）：
   // 打开向导时从澄清说明配置读取，发布时快照写入公告 metadata，信息门户详情页单独展示
   const [objectionContact, setObjectionContact] = useState('');
@@ -332,13 +412,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     [tenderStage],
   );
 
-  // 预览 blob URL 生命周期：换新预览 / 关闭向导（preview 置空）/ 卸载时自动回收
-  useEffect(() => {
-    const url = preview?.url;
-    if (!url) return;
-    return () => URL.revokeObjectURL(url);
-  }, [preview?.url]);
-
   // 打开时：确定 tenderType + 构造预填 draft + 解析 .docx
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时重置表单值，符合模态惯例 */
   useEffect(() => {
@@ -353,6 +426,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setAttachOn(false);
     setNotifyOnPublish(true);
     setPreview(null);
+    setTenderPreviewOpen(false);
     setVisibility('PUBLIC');
     setRestrictedSupplierIds([]);
     setShowSupplierPicker(false);
@@ -826,7 +900,44 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         draft: finalDraft,
         projectCode: project?.projectCode || undefined,
       });
-      setPreview({ ...built, url: URL.createObjectURL(built.blob) });
+      // 门户效果预览载荷：title/类型/canonical 芯片与 handlePublish 的 meta 同源；
+      // 中标公告公示期亦同口径（草稿正文优先，兜底发布后顺延 3 天）
+      const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
+      const announcementType: AnnouncementType =
+        category === 'failed_bid' ? 'FAILED_BID_NOTICE'
+        : category === 'winning_bid' ? 'WIN_BID_NOTICE'
+        : 'BID_NOTICE';
+      const displayMeta: Record<string, unknown> = {
+        ...(finalDraft as Record<string, unknown>),
+        ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE'),
+      };
+      // 采购文件下载时间芯片与 handlePublish 同口径（非直接采购：=公示期限止的中文可读格式；
+      // 直接采购的 downloadDeadline 已由 buildCanonicalMeta 按公示区间算好，勿覆盖）
+      if (tenderType !== 'SINGLE_SOURCE' && effectiveAnnouncementEnd) {
+        displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+      }
+      if (category === 'winning_bid') {
+        const draftPeriod = (finalDraft as Record<string, string>).publicityPeriod?.trim();
+        if (draftPeriod) {
+          displayMeta.publicityPeriod = draftPeriod;
+        } else {
+          const base = publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : new Date();
+          const end = new Date(base.getTime() + 3 * 86400000);
+          const pad = (n: number) => String(n).padStart(2, '0');
+          displayMeta.publicityPeriod = `3天（${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())} 至 ${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}）`;
+        }
+      }
+      setPreview({
+        blob: built.blob,
+        fileName: built.fileName,
+        textContent: built.textContent,
+        portal: {
+          title,
+          announcementType,
+          meta: displayMeta,
+          contentHtml: buildAnnouncementContentHtml(built.textContent, title),
+        },
+      });
       setStep(3);
     } catch (e) {
       toast.error((e as Error).message || '生成公告预览失败');
@@ -889,29 +1000,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         projectCode: project?.projectCode || undefined,
       });
 
-      // 2. 正文 = 公告全文 → HTML 段落（escape 防注入，空行分段，段内换行转 <br/>）
-      const esc = (s: string) =>
-        s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
-      const paragraphs = textContent.trim()
-        ? textContent.split(/\n\s*\n/).map((p) => p.replace(/\s+$/, ''))
-        : [];
-      // 落款右对齐（2026-09-11）：正文落款块 = 采购人名称 + 落款日期两段。docx 靠前导空格
-      // 模拟右对齐，HTML 会折叠空格 → 识别最后一个「纯日期」段，其与前一采购人段统一右对齐
-      let sigDateIdx = -1;
-      for (let i = paragraphs.length - 1; i >= 0; i--) {
-        if (/^\s*\d{4}年\d{1,2}月\d{1,2}日\s*$/.test(paragraphs[i])) { sigDateIdx = i; break; }
-      }
-      const content = paragraphs.length
-        ? paragraphs
-            .map((p, i) => {
-              const isSignature = i === sigDateIdx || i === sigDateIdx - 1;
-              const inner = esc(p.replace(/^\s+/, '').replace(/\n/g, '<br/>'));
-              return isSignature
-                ? `<p style="text-align:right">${inner}</p>`
-                : `<p>${inner}</p>`;
-            })
-            .join('')
-        : `<p>${esc(title)}</p>`;
+      // 2. 正文 = 公告全文 → HTML（buildAnnouncementContentHtml：与 Step3 门户预览共用同一变换，预览即所得）
+      const content = buildAnnouncementContentHtml(textContent, title);
 
       // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
       const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE') };
@@ -1203,8 +1293,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               project={project}
             />
           ) : step === 3 ? (
-            /* Step 3: 预览确认（2026-09-26「预览并发布」三步向导）——左公告版式预览，
-               右配置摘要 + 引用的正式盖章版采购文件预览；确认发布复用预览产物 */
+            /* Step 3: 预览确认——左=门户发布效果预览（2026-09-27 用户裁定：复刻信息门户公告
+               详情版式而非 docx），右=配置摘要 + 引用文件预览（默认折叠）；确认发布复用预览产物 */
             preview ? (() => {
               const dr = (draft ?? {}) as Record<string, string>;
               const pubStart = dr.announcementStart || '';
@@ -1221,34 +1311,36 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               }
               summaryRows.push(['公告附件', pendingFiles.length > 0 ? `${pendingFiles.length} 份` : '无']);
               summaryRows.push(['发布后通知', notifyOnPublish ? '发送站内通知' : '不发送']);
+              // 发布时间标签（门户详情页「发布时间」行同款格式）
+              const publishTimeLabel =
+                publishTiming === 'scheduled' && scheduledDate
+                  ? new Date(scheduledDate).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                  : new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
               return (
                 <div className="flex h-full min-h-[60vh] flex-col gap-4 lg:flex-row">
-                  {/* 左：公告 docx 版式预览（发布后所见即此版式） */}
+                  {/* 左：门户发布效果预览——发布后供应商在信息门户所见即此版式与内容 */}
                   <div
                     className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px]"
                     style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 3px 12px oklch(0.46 0.07 258 / 0.14)' }}
                   >
                     <div className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-xs" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
-                      <FileText size={13} className="shrink-0 text-[var(--accent)]" />
-                      <span className="truncate font-semibold text-[var(--foreground)]" title={preview.fileName}>
-                        {preview.fileName}
+                      <Eye size={13} className="shrink-0 text-[var(--accent)]" />
+                      <span className="truncate font-semibold text-[var(--foreground)]" title={preview.portal.title}>
+                        {preview.portal.title}
                       </span>
                       <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]">
-                        公告版式预览
+                        门户发布效果
                       </span>
                     </div>
-                    <div className="min-h-0 flex-1">
-                      <FilePreviewPane
-                        projectId={project.id}
-                        file={{
-                          fileName: preview.fileName,
-                          objectKey: `preview:${preview.fileName}`,
-                          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                          fileSize: preview.blob.size,
-                        }}
-                        urlOverride={preview.url}
-                      />
-                    </div>
+                    <PortalAnnouncementPreview
+                      title={preview.portal.title}
+                      announcementType={preview.portal.announcementType}
+                      meta={preview.portal.meta}
+                      contentHtml={preview.portal.contentHtml}
+                      publishTimeLabel={publishTimeLabel}
+                      objectionContact={objectionContact}
+                      objectionIsHtml={objectionContactHtml}
+                    />
                   </div>
 
                   {/* 右：发布配置摘要 + 引用的正式盖章版采购文件预览 */}
@@ -1267,36 +1359,52 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         ))}
                       </div>
                       <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                        请核对左侧公告版式与文字；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
+                        请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
                       </p>
                     </div>
 
                     {category === 'procurement_document' && (
-                      <div
-                        className="flex min-h-[320px] flex-1 flex-col overflow-hidden rounded-[16px]"
-                        style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 3px 12px oklch(0.46 0.07 258 / 0.14)' }}
-                      >
-                        <div className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-xs" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
-                          <FileText size={13} className="shrink-0 text-[var(--accent)]" />
-                          <span className="truncate font-semibold text-[var(--foreground)]" title={officialTender?.fileName}>
-                            {officialTender?.fileName ?? '引用采购文件'}
-                          </span>
-                          {officialTender && (
+                      officialTender ? (
+                        /* 引用文件预览默认折叠（2026-09-27 用户裁定）——点击头部展开/收起 */
+                        <div
+                          className="flex flex-col overflow-hidden rounded-[16px]"
+                          style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 3px 12px oklch(0.46 0.07 258 / 0.14)' }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setTenderPreviewOpen((v) => !v)}
+                            className="flex w-full shrink-0 items-center gap-2 px-4 py-2.5 text-left text-xs transition-colors hover:bg-[oklch(1_0_0/0.4)]"
+                            style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}
+                          >
+                            <FileText size={13} className="shrink-0 text-[var(--accent)]" />
+                            <span className="truncate font-semibold text-[var(--foreground)]" title={officialTender.fileName}>
+                              {officialTender.fileName}
+                            </span>
                             <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">
                               正式盖章版
                             </span>
-                          )}
-                        </div>
-                        <div className="min-h-0 flex-1">
-                          {officialTender ? (
-                            <FilePreviewPane projectId={project.id} file={officialTender} />
-                          ) : (
-                            <div className="flex h-full items-center justify-center px-6 text-center text-xs leading-relaxed text-[var(--muted-foreground)]">
-                              03「采购文件」步骤未标记正式盖章版——本公告不引用采购文件。
+                            <ChevronDown
+                              size={13}
+                              className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${tenderPreviewOpen ? 'rotate-180' : ''}`}
+                            />
+                            <span className="shrink-0 text-[11px] font-semibold text-[var(--muted-foreground)]">
+                              {tenderPreviewOpen ? '收起' : '展开预览'}
+                            </span>
+                          </button>
+                          {tenderPreviewOpen && (
+                            <div className="h-[440px]">
+                              <FilePreviewPane projectId={project.id} file={officialTender} />
                             </div>
                           )}
                         </div>
-                      </div>
+                      ) : (
+                        <div
+                          className="rounded-[16px] px-4 py-3 text-xs leading-relaxed text-[var(--muted-foreground)]"
+                          style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}
+                        >
+                          03「采购文件」步骤未标记正式盖章版——本公告不引用采购文件。
+                        </div>
+                      )
                     )}
                   </div>
                 </div>
@@ -1540,7 +1648,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                           onChange={(e) => setAttachOn(e.target.checked)}
                           className="accent-[var(--accent)]"
                         />
-                        添加附件
+                        公告附件（补充材料，非采购文件）
                       </label>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
@@ -1580,7 +1688,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                       </div>
                       {officialTender && (
                         <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                          公告发布后，供应商获取的采购文件即此正式盖章版（自动生成加密招标文件）；第三步预览中可一并核对该文件。
+                          公告发布后，供应商获取的采购文件即此正式盖章版（自动生成加密招标文件）；第三步预览中可展开核对该文件。
                         </p>
                       )}
                     </div>
@@ -1598,7 +1706,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         onChange={(e) => setAttachOn(e.target.checked)}
                         className="accent-[var(--accent)]"
                       />
-                      添加附件
+                      公告附件（补充材料，非采购文件）
                     </label>
                   </div>
                 </div>
@@ -1784,7 +1892,7 @@ function AttachmentSection({
   return (
     <div className="rounded-xl border border-[var(--border)] p-4">
       <div className="text-xs font-bold text-[var(--accent-strong)] mb-3">
-        附件（公开可下载 · 发布时上传）
+        公告附件·补充材料（公开可下载 · 发布时上传 · 非采购文件本体）
       </div>
       <div className="space-y-3">
         <div className="flex gap-2">
@@ -1796,7 +1904,7 @@ function AttachmentSection({
           />
           <label className="neu-btn-primary cursor-pointer whitespace-nowrap">
             <Upload size={14} />
-            添加附件
+            上传公告附件
             <input type="file" className="hidden" onChange={onSelect} />
           </label>
         </div>
@@ -1876,5 +1984,145 @@ function SunshineSyncRow({
         推送需平台分配身份标识并加 IP 白名单，接入完成前配置仅随公告存档。
       </p>
     </>
+  );
+}
+
+/** Step3 左栏：门户发布效果预览——复刻信息门户公告详情页版式（标签/标题/发布时间/结构化
+ *  芯片/AI 摘要占位/正文/异议联系方式），让经办在发布前看到门户实际呈现的内容与样式。 */
+function PortalAnnouncementPreview({
+  title,
+  announcementType,
+  meta,
+  contentHtml,
+  publishTimeLabel,
+  objectionContact,
+  objectionIsHtml,
+}: {
+  title: string;
+  announcementType: string;
+  meta: Record<string, unknown>;
+  contentHtml: string;
+  publishTimeLabel: string;
+  objectionContact: string;
+  objectionIsHtml: boolean;
+}) {
+  const typeMeta = PORTAL_TYPE_TAG[announcementType] ?? { tag: announcementType, color: '#5a6d8a' };
+  const fields = (PORTAL_META_FIELDS[announcementType] ?? []).filter((f) => {
+    const v = meta[f.key];
+    return v !== undefined && v !== null && v !== '';
+  });
+  const shortFields = fields.filter((f) => !f.area);
+  const areaFields = fields.filter((f) => f.area);
+  return (
+    <div
+      className="portal-announce-preview min-h-0 flex-1 overflow-y-auto"
+      style={{ background: 'oklch(0.975 0.012 258)' }}
+    >
+      {/* 正文排版规则以 .portal-announce-preview 作用域注入（门户 .announcement-detail-content 同款） */}
+      <style>{PORTAL_PREVIEW_CONTENT_CSS}</style>
+      <div className="mx-auto max-w-[780px] px-6 py-8">
+        {/* 玻璃内容卡（门户 .glass rounded-2xl p-8 同款） */}
+        <div
+          className="rounded-2xl p-8"
+          style={{
+            background: 'oklch(0.995 0.004 258 / 0.5)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            border: '1px solid oklch(0.65 0.05 258 / 0.35)',
+            boxShadow: '0 8px 30px oklch(0.45 0.1 258 / 0.08), inset 0 1px 0 oklch(1 0 0 / 0.75)',
+          }}
+        >
+          {/* 类型标签 */}
+          <div className="mb-4 flex items-center gap-3">
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ color: typeMeta.color, backgroundColor: typeMeta.color + '18' }}
+            >
+              {typeMeta.tag}
+            </span>
+          </div>
+
+          {/* 标题（门户黑体大标题同款） */}
+          <h1
+            className="mb-4 text-2xl font-black leading-snug text-[#18243a]"
+            style={{ fontFamily: '"SimHei","黑体",sans-serif' }}
+          >
+            {title}
+          </h1>
+
+          {/* 元信息 */}
+          <div className="mb-4 flex items-center gap-5 text-sm text-[#8a96aa]">
+            <span>发布时间：{publishTimeLabel}</span>
+          </div>
+
+          {/* 结构化元数据芯片 + 区块字段（标签色/格式化与门户一致） */}
+          {(shortFields.length > 0 || areaFields.length > 0) && (
+            <div className="mb-6 border-b border-[#e5ecf4] pb-6">
+              {shortFields.length > 0 && (
+                <div className="flex flex-wrap gap-x-5 gap-y-2.5">
+                  {shortFields.map((f) => {
+                    const isCode = f.key === 'projectCode' || f.key === 'docNo';
+                    const isMoney = f.key === 'budget' || f.key === 'amount';
+                    const labelColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : f.date ? '#f5a623' : '#8a96aa';
+                    const valueColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : '#26364e';
+                    return (
+                      <span
+                        key={f.key}
+                        className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5"
+                        style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08)' }}
+                      >
+                        <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
+                        <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{portalFormatMetaValue(f, meta[f.key])}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {areaFields.map((f) => (
+                <div
+                  key={f.key}
+                  className="mt-3 rounded-lg px-4 py-3"
+                  style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}
+                >
+                  <span className="text-[11px] font-bold tracking-wide" style={{ color: '#064ea2' }}>{f.label}</span>
+                  <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-relaxed" style={{ color: '#26364e' }}>
+                    {String(meta[f.key])}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* AI 摘要占位（发布后由后端生成，预览提示该区块将存在） */}
+          <div className="neu-card mb-6 p-5 opacity-70">
+            <div className="mb-2 text-sm font-bold text-[#064ea2]">AI 摘要</div>
+            <p className="text-[15px] leading-8 text-[#8a96aa]">发布后由 AI 自动生成，此处为占位预览。</p>
+          </div>
+
+          {/* 正文 */}
+          <div
+            className="announcement-detail-content text-[15px] leading-relaxed text-[#18243a]"
+            dangerouslySetInnerHTML={{ __html: contentHtml }}
+          />
+
+          {/* 异议联系方式（发布时自澄清说明快照，门户详情页同款展示） */}
+          {objectionContact.trim() && (
+            <div
+              className="mt-8 rounded-2xl px-5 py-4"
+              style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), inset -1px -1px 3px oklch(0.55 0.03 258 / 0.05)' }}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <PhoneCall size={14} style={{ color: '#064ea2' }} />
+                <span className="text-sm font-bold" style={{ color: '#064ea2' }}>异议联系方式</span>
+              </div>
+              {objectionIsHtml ? (
+                <div className="text-[14px] leading-relaxed text-[#26364e]" dangerouslySetInnerHTML={{ __html: objectionContact }} />
+              ) : (
+                <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[#26364e]">{objectionContact}</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
