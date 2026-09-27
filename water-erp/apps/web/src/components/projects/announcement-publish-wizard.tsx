@@ -372,6 +372,24 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   } | null>(null);
   // 右栏「引用采购文件预览」折叠态（默认收起，用户点击展开）
   const [tenderPreviewOpen, setTenderPreviewOpen] = useState(false);
+  // Step3 摘要·公告附件预览（2026-09-27 用户反馈）：本地未上传文件按需建 blob URL，关闭即回收
+  const [attPreview, setAttPreview] = useState<{ file: File; title: string } | null>(null);
+  const [attPreviewUrl, setAttPreviewUrl] = useState('');
+  useEffect(() => {
+    if (!attPreview) { setAttPreviewUrl(''); return; }
+    const url = URL.createObjectURL(attPreview.file);
+    setAttPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [attPreview]);
+  // Esc 只关附件预览（capture + stopImmediatePropagation 拦在向导 ESC 之前，防连向导一起关）
+  useEffect(() => {
+    if (!attPreview) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); setAttPreview(null); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [attPreview]);
   // 异议联系方式（2026-09-11，取代原「法定时限」勾选——集团采购基本非依法必招，勾选无实际意义）：
   // 打开向导时从澄清说明配置读取，发布时快照写入公告 metadata，信息门户详情页单独展示
   const [objectionContact, setObjectionContact] = useState('');
@@ -442,6 +460,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setNotifyOnPublish(true);
     setPreview(null);
     setTenderPreviewOpen(false);
+    setAttPreview(null);
     setVisibility('PUBLIC');
     setRestrictedSupplierIds([]);
     setShowSupplierPicker(false);
@@ -1314,7 +1333,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               const dr = (draft ?? {}) as Record<string, string>;
               const pubStart = dr.announcementStart || '';
               const pubEnd = announcementEndDate || dr.announcementEnd || '';
-              const summaryRows: Array<[string, string]> = [
+              const summaryRows: Array<[string, React.ReactNode]> = [
                 ['公告范围', visibility === 'PUBLIC' ? '全部可见' : `部分供应商可见（${restrictedSupplierIds.length} 家）`],
                 ['发布时间', publishTiming === 'now' ? '确认后立即发布' : `定时 ${formatDateTimeDisplay(scheduledDate)}`],
               ];
@@ -1324,13 +1343,30 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               if (category === 'procurement_document') {
                 summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
               }
-              // 公告附件列出文件名（2026-09-27 用户反馈：只显计数看不到传了什么）——
-              // 附件为公开下载材料，门户详情页不单独展示（保真预览故左栏无此区块）
+              // 公告附件：芯片清单可点预览（2026-09-27 用户反馈：只显计数看不到传了什么，
+              // 再反馈要能预览）——附件为公开下载材料，门户详情页不单独展示（左栏保真无此区块）
               summaryRows.push([
                 '公告附件',
-                pendingFiles.length > 0
-                  ? `${pendingFiles.length} 份：${pendingFiles.map((f) => f.title || f.file.name).join('；')}`
-                  : '无',
+                pendingFiles.length > 0 ? (
+                  <span className="flex flex-wrap gap-1.5">
+                    {pendingFiles.map((f, idx) => (
+                      <button
+                        key={`${f.file.name}-${idx}`}
+                        type="button"
+                        onClick={() => setAttPreview(f)}
+                        title={`预览 ${f.file.name}`}
+                        className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors hover:bg-[oklch(1_0_0/0.7)]"
+                        style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 2px oklch(0.55 0.03 258 / 0.08)' }}
+                      >
+                        <FileText size={11} className="shrink-0 text-[var(--accent)]" />
+                        <span className="truncate text-xs font-medium text-[var(--foreground)]">{f.title || f.file.name}</span>
+                        <Eye size={11} className="shrink-0 text-[var(--muted-foreground)]" />
+                      </button>
+                    ))}
+                  </span>
+                ) : (
+                  '无'
+                ),
               ]);
               summaryRows.push(['发布后通知', notifyOnPublish ? '发送站内通知' : '不发送']);
               // 发布时间标签（门户详情页「发布时间」行同款格式）
@@ -1345,9 +1381,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px]"
                     style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 2px 3px 12px oklch(0.46 0.07 258 / 0.14)' }}
                   >
-                    <div className="flex shrink-0 items-center gap-2 px-4 py-2.5 text-xs" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+                    <div className="flex shrink-0 items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
                       <Eye size={13} className="shrink-0 text-[var(--accent)]" />
-                      <span className="truncate font-semibold text-[var(--foreground)]" title={preview.portal.title}>
+                      <span className="truncate text-[13px] font-semibold text-[var(--foreground)]" title={preview.portal.title}>
                         {preview.portal.title}
                       </span>
                       <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]">
@@ -1371,12 +1407,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                       className="rounded-[16px] p-4"
                       style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}
                     >
-                      <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">发布配置摘要</div>
-                      <div className="mt-2.5 space-y-1.5">
+                      <div className="text-xs font-bold text-[var(--foreground)]">发布配置摘要</div>
+                      <div className="mt-3 space-y-2">
                         {summaryRows.map(([k, v]) => (
-                          <div key={k} className="flex items-baseline gap-3 text-xs">
-                            <span className="w-20 shrink-0 text-[10px] font-bold text-[var(--muted-foreground)]">{k}</span>
-                            <span className="min-w-0 flex-1 break-all font-semibold text-[var(--foreground)]">{v}</span>
+                          <div key={k} className="flex items-baseline gap-3">
+                            <span className="w-20 shrink-0 text-[11px] font-medium text-[var(--muted-foreground)]">{k}</span>
+                            <span className="min-w-0 flex-1 break-all text-[13px] font-semibold leading-relaxed text-[var(--foreground)]">{v}</span>
                           </div>
                         ))}
                       </div>
@@ -1396,11 +1432,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                           <button
                             type="button"
                             onClick={() => setTenderPreviewOpen((v) => !v)}
-                            className="flex w-full shrink-0 items-center gap-2 px-4 py-2.5 text-left text-xs transition-colors hover:bg-[oklch(1_0_0/0.4)]"
+                            className="flex w-full shrink-0 items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-[oklch(1_0_0/0.4)]"
                             style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}
                           >
                             <FileText size={13} className="shrink-0 text-[var(--accent)]" />
-                            <span className="truncate font-semibold text-[var(--foreground)]" title={officialTender.fileName}>
+                            <span className="truncate text-[13px] font-semibold text-[var(--foreground)]" title={officialTender.fileName}>
                               {officialTender.fileName}
                             </span>
                             <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">
@@ -1410,7 +1446,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                               size={13}
                               className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${tenderPreviewOpen ? 'rotate-180' : ''}`}
                             />
-                            <span className="shrink-0 text-[11px] font-semibold text-[var(--muted-foreground)]">
+                            <span className="shrink-0 text-xs font-semibold text-[var(--muted-foreground)]">
                               {tenderPreviewOpen ? '收起' : '展开预览'}
                             </span>
                           </button>
@@ -1811,6 +1847,56 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           visibility={visibility}
           operatorName={project.requesterName ?? undefined}
         />
+      )}
+
+      {/* 公告附件本地预览（Step3 摘要芯片点开；z-[600] 盖过向导，Esc/蒙层/X 均只关本层） */}
+      {attPreview && attPreviewUrl && (
+        <div className="fixed inset-0 z-[600] flex flex-col">
+          <div
+            className="absolute inset-0"
+            style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }}
+            onClick={() => setAttPreview(null)}
+          />
+          <div
+            className="relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden rounded-[24px]"
+            style={{
+              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))',
+              boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
+            }}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"
+                  style={{ background: 'color-mix(in oklch, var(--accent-soft) 45%, transparent)' }}
+                >
+                  <FileText size={17} className="text-[var(--accent)]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[0.92rem] font-semibold text-[var(--foreground)]">
+                    {attPreview.title || attPreview.file.name}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
+                    {attPreview.file.name} · 公告附件（发布时上传）
+                  </div>
+                </div>
+              </div>
+              <button type="button" onClick={() => setAttPreview(null)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <FilePreviewPane
+                projectId={project.id}
+                file={{
+                  fileName: attPreview.file.name,
+                  objectKey: '',
+                  mimeType: attPreview.file.type,
+                  fileSize: attPreview.file.size,
+                }}
+                urlOverride={attPreviewUrl}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 供应商选择弹窗 */}
