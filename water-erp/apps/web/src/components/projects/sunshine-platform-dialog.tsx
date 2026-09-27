@@ -444,7 +444,18 @@ export function SunshinePlatformDialog({
               <CloudUpload size={17} className="text-[var(--accent)]" />
             </div>
             <div className="min-w-0">
-              <div className="text-[0.92rem] font-semibold text-[var(--foreground)]">阳光采购平台发布配置</div>
+              <div className="flex items-center gap-1.5 text-[0.92rem] font-semibold text-[var(--foreground)]">
+                阳光采购平台发布配置
+                {/* ？帮助气泡（2026-09-27 用户裁定）：说明文案自常驻段落收拢至此（口径不变，措辞精简） */}
+                <span className="pm-help-anchor" tabIndex={0}>
+                  <span className="pm-help-dot" aria-label="阳光采购平台发布配置说明" role="img">?</span>
+                  <span className="pm-help-tip" role="tooltip">
+                    字段已按项目与公告草稿预填，核对补全后保存。组织编码、组织唯一标识、采购主体 ID
+                    等平台侧档案字段如暂无，可联系阳光采购服务团队获取后补填。实际推送需平台分配
+                    identity 身份标识并配置 IP 白名单——接入完成前，本配置仅随公告存档、不实际外发。
+                  </span>
+                </span>
+              </div>
               <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
                 天府阳光采购平台 · 接口文档 V2.0.5 · 本公告走 {iface.code} {iface.name}（前置推送 SCM0001 招标基础信息）
               </div>
@@ -455,56 +466,52 @@ export function SunshinePlatformDialog({
 
         {/* 内容 */}
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-          <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-            以下字段已按项目与公告草稿预填，请核对补全后保存。组织编码/唯一标识、采购主体 id 等平台侧档案字段如暂无，可联系阳光采购服务团队获取后补填；
-            推送需平台分配 identity 身份标识并加 IP 白名单，接入完成前本配置仅随公告存档、不实际外发。
-          </p>
 
-          {/* SCM0001 基础信息 */}
+          {/* SCM0001 基础信息（字段英文名已按 2026-09-27 用户裁定移除——技术对照见「推送报文预览」） */}
           <SectionCard icon={Building2} title="招标基础信息" tag="SCM0001">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="招标计划编码 planCode"><input className={inputCls} value={config.planCode} onChange={(e) => set('planCode', e.target.value)} /></Field>
-              <Field label="招标计划名称 planName"><input className={inputCls} value={config.planName} onChange={(e) => set('planName', e.target.value)} /></Field>
-              <Field label="项目编码 projectCode"><input className={inputCls} value={config.projectCode} onChange={(e) => set('projectCode', e.target.value)} /></Field>
-              <Field label="项目名称 projectName"><input className={inputCls} value={config.projectName} onChange={(e) => set('projectName', e.target.value)} /></Field>
-              <Field label="招标方式 proctype">
+              <Field label="招标计划编码"><input className={inputCls} value={config.planCode} onChange={(e) => set('planCode', e.target.value)} /></Field>
+              <Field label="招标计划名称"><input className={inputCls} value={config.planName} onChange={(e) => set('planName', e.target.value)} /></Field>
+              <Field label="项目编码"><input className={inputCls} value={config.projectCode} onChange={(e) => set('projectCode', e.target.value)} /></Field>
+              <Field label="项目名称"><input className={inputCls} value={config.projectName} onChange={(e) => set('projectName', e.target.value)} /></Field>
+              <Field label="招标方式">
                 <select className={inputCls} value={config.proctype} onChange={(e) => set('proctype', Number(e.target.value))}>
                   {PROCTYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </Field>
-              <Field label="招标计划类型 type">
+              <Field label="招标计划类型">
                 <select className={inputCls} value={config.type} onChange={(e) => set('type', Number(e.target.value))}>
                   {PLAN_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </Field>
-              <Field label="招标金额(万元) tenderAmount"><input type="number" step="0.0001" className={inputCls} value={config.tenderAmount ?? ''} onChange={(e) => set('tenderAmount', e.target.value === '' ? null : Number(e.target.value))} /></Field>
-              <Field label="标包名称 tenderPackage.name" hint="单标包填计划名称">
+              <Field label="招标金额（万元）"><input type="number" step="0.0001" className={inputCls} value={config.tenderAmount ?? ''} onChange={(e) => set('tenderAmount', e.target.value === '' ? null : Number(e.target.value))} /></Field>
+              <Field label="标包名称" hint="单标包填计划名称">
                 <input className={inputCls} value={config.packageName} onChange={(e) => set('packageName', e.target.value)} />
               </Field>
-              <Field label="组织编码 organizationCode"><input className={inputCls} value={config.organizationCode} onChange={(e) => set('organizationCode', e.target.value)} /></Field>
-              <Field label="组织名称 organizationName"><input className={inputCls} value={config.organizationName} onChange={(e) => set('organizationName', e.target.value)} /></Field>
-              <Field label="组织唯一标识 organizationUnique"><input className={inputCls} value={config.organizationUnique} onChange={(e) => set('organizationUnique', e.target.value)} /></Field>
-              <Field label="父级组织 parentOrganization" hint="唯一标识用/分割到根">
+              <Field label="组织编码"><input className={inputCls} value={config.organizationCode} onChange={(e) => set('organizationCode', e.target.value)} /></Field>
+              <Field label="组织名称"><input className={inputCls} value={config.organizationName} onChange={(e) => set('organizationName', e.target.value)} /></Field>
+              <Field label="组织唯一标识"><input className={inputCls} value={config.organizationUnique} onChange={(e) => set('organizationUnique', e.target.value)} /></Field>
+              <Field label="父级组织" hint="唯一标识用/分割到根">
                 <input className={inputCls} value={config.parentOrganization} onChange={(e) => set('parentOrganization', e.target.value)} />
               </Field>
-              <Field label="招标经办人 handUserName"><input className={inputCls} value={config.handUserName} onChange={(e) => set('handUserName', e.target.value)} /></Field>
-              <Field label="招标组织名称 handOrganizationName"><input className={inputCls} value={config.handOrganizationName} onChange={(e) => set('handOrganizationName', e.target.value)} /></Field>
-              <Field label="采购主体id procuringentity" hint="SCM0010 查询"><input className={inputCls} value={config.procuringentity} onChange={(e) => set('procuringentity', e.target.value)} /></Field>
-              <Field label="是否集中采购 centralized">
+              <Field label="招标经办人"><input className={inputCls} value={config.handUserName} onChange={(e) => set('handUserName', e.target.value)} /></Field>
+              <Field label="招标组织名称"><input className={inputCls} value={config.handOrganizationName} onChange={(e) => set('handOrganizationName', e.target.value)} /></Field>
+              <Field label="采购主体 ID" hint="SCM0010 查询"><input className={inputCls} value={config.procuringentity} onChange={(e) => set('procuringentity', e.target.value)} /></Field>
+              <Field label="是否集中采购">
                 <select className={inputCls} value={config.centralized} onChange={(e) => set('centralized', Number(e.target.value) as 0 | 1)}>
                   <option value={1}>1-是</option>
                   <option value={0}>0-否</option>
                 </select>
               </Field>
-              <Field label="招标采购限额(万元) standardQuota"><input type="number" step="0.0001" className={inputCls} value={config.standardQuota ?? ''} onChange={(e) => set('standardQuota', e.target.value === '' ? null : Number(e.target.value))} /></Field>
-              <Field label="公开采购限额(万元) publicQuota"><input type="number" step="0.0001" className={inputCls} value={config.publicQuota ?? ''} onChange={(e) => set('publicQuota', e.target.value === '' ? null : Number(e.target.value))} /></Field>
-              <Field label="联系人 contacts"><input className={inputCls} value={config.contacts} onChange={(e) => set('contacts', e.target.value)} /></Field>
-              <Field label="联系电话 phone"><input className={inputCls} value={config.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
-              <Field label="邮箱 email"><input className={inputCls} value={config.email} onChange={(e) => set('email', e.target.value)} /></Field>
+              <Field label="招标采购限额（万元）"><input type="number" step="0.0001" className={inputCls} value={config.standardQuota ?? ''} onChange={(e) => set('standardQuota', e.target.value === '' ? null : Number(e.target.value))} /></Field>
+              <Field label="公开采购限额（万元）"><input type="number" step="0.0001" className={inputCls} value={config.publicQuota ?? ''} onChange={(e) => set('publicQuota', e.target.value === '' ? null : Number(e.target.value))} /></Field>
+              <Field label="联系人"><input className={inputCls} value={config.contacts} onChange={(e) => set('contacts', e.target.value)} /></Field>
+              <Field label="联系电话"><input className={inputCls} value={config.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
+              <Field label="邮箱"><input className={inputCls} value={config.email} onChange={(e) => set('email', e.target.value)} /></Field>
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 rounded-lg bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
-              <span>发布方式 issueType：<b className="text-[var(--foreground)]">{visibility === 'PUBLIC' ? '1-公开方式' : '2-邀请方式'}</b>（随公告范围）</span>
-              <span>是否对外公开 isExternal：<b className="text-[var(--foreground)]">{visibility === 'PUBLIC' ? '1-是' : '0-否'}</b></span>
+              <span>发布方式：<b className="text-[var(--foreground)]">{visibility === 'PUBLIC' ? '1-公开方式' : '2-邀请方式'}</b>（随公告范围）</span>
+              <span>是否对外公开：<b className="text-[var(--foreground)]">{visibility === 'PUBLIC' ? '1-是' : '0-否'}</b></span>
             </div>
           </SectionCard>
 
@@ -512,50 +519,50 @@ export function SunshinePlatformDialog({
           {category === 'procurement_document' && (
             <SectionCard icon={ClipboardCheck} title="招标公告信息" tag="SCM0002">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="公告发布时间 publishTime"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
-                <Field label="公告截止时间 deadline"><input type="datetime-local" className={inputCls} value={config.deadline} onChange={(e) => set('deadline', e.target.value)} /></Field>
-                <Field label="发售期满足川国资委〔2025〕51号文 annrequire">
+                <Field label="公告发布时间"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
+                <Field label="公告截止时间"><input type="datetime-local" className={inputCls} value={config.deadline} onChange={(e) => set('deadline', e.target.value)} /></Field>
+                <Field label="发售期满足川国资委〔2025〕51号文">
                   <select className={inputCls} value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
                     <option value={1}>1-是</option>
                     <option value={0}>0-否</option>
                   </select>
                 </Field>
                 {config.annrequire === 0 && (
-                  <Field label="不满足原因 annreason"><input className={inputCls} value={config.annreason} onChange={(e) => set('annreason', e.target.value)} placeholder="发售期不满足要求原因" /></Field>
+                  <Field label="不满足原因"><input className={inputCls} value={config.annreason} onChange={(e) => set('annreason', e.target.value)} placeholder="发售期不满足要求原因" /></Field>
                 )}
               </div>
-              <p className="mt-2 text-[10px] text-[var(--muted-foreground)]">公告正文 content（HTML）与附件地址 attachment 将在发布时由系统自动携带，无需填写。</p>
+              <p className="mt-2 text-[10px] text-[var(--muted-foreground)]">公告正文与附件地址将在发布时由系统自动携带，无需填写。</p>
             </SectionCard>
           )}
 
           {category === 'winning_bid' && (
             <SectionCard icon={Trophy} title="中标公示信息" tag="SCM0004">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="公示发布时间 publishTime"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
-                <Field label="发布人 issueUserName"><input className={inputCls} value={config.issueUserName} onChange={(e) => set('issueUserName', e.target.value)} /></Field>
-                <Field label="公示期起 startTime"><input type="datetime-local" className={inputCls} value={config.startTime} onChange={(e) => set('startTime', e.target.value)} /></Field>
-                <Field label="公示期止 endTime"><input type="datetime-local" className={inputCls} value={config.endTime} onChange={(e) => set('endTime', e.target.value)} /></Field>
-                <Field label="公示期满足51号文 pubequire">
+                <Field label="公示发布时间"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
+                <Field label="发布人"><input className={inputCls} value={config.issueUserName} onChange={(e) => set('issueUserName', e.target.value)} /></Field>
+                <Field label="公示期起"><input type="datetime-local" className={inputCls} value={config.startTime} onChange={(e) => set('startTime', e.target.value)} /></Field>
+                <Field label="公示期止"><input type="datetime-local" className={inputCls} value={config.endTime} onChange={(e) => set('endTime', e.target.value)} /></Field>
+                <Field label="公示期满足51号文">
                   <select className={inputCls} value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
                     <option value={1}>1-是</option>
                     <option value={0}>0-否</option>
                   </select>
                 </Field>
                 {config.annrequire === 0 && (
-                  <Field label="不满足原因 pubreason"><input className={inputCls} value={config.annreason} onChange={(e) => set('annreason', e.target.value)} /></Field>
+                  <Field label="不满足原因"><input className={inputCls} value={config.annreason} onChange={(e) => set('annreason', e.target.value)} /></Field>
                 )}
               </div>
               {/* 候选人（公告草稿 bidder 行预填，可增删改） */}
               <div className="mt-3">
                 <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">中标候选单位 candidates（名次 ranking 为 0 时门户不显示）</span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">中标候选单位（名次为 0 时门户不显示）</span>
                   <button type="button" className="neu-btn-xs" onClick={() => setConfig((prev) => prev ? { ...prev, candidates: [...prev.candidates, { packageName: prev.packageName, packageUnique: project.projectCode || project.id, supplierName: '', ranking: prev.candidates.length + 1, companyUnique: '', bidAmount: null }] } : prev)}>添加</button>
                 </div>
                 <div className="space-y-2">
                   {config.candidates.map((c, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <input type="number" className={`${inputCls} w-16 shrink-0 text-center`} value={c.ranking} title="候选名次 ranking" onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, ranking: Number(e.target.value) } : x) } : prev)} />
-                      <input className={`${inputCls} flex-1`} placeholder="公司名称 supplierName" value={c.supplierName} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, supplierName: e.target.value } : x) } : prev)} />
+                      <input type="number" className={`${inputCls} w-16 shrink-0 text-center`} value={c.ranking} title="候选名次" onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, ranking: Number(e.target.value) } : x) } : prev)} />
+                      <input className={`${inputCls} flex-1`} placeholder="公司名称" value={c.supplierName} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, supplierName: e.target.value } : x) } : prev)} />
                       <input type="number" step="0.0001" className={`${inputCls} w-28 shrink-0`} placeholder="投标金额(万元)" value={c.bidAmount ?? ''} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, bidAmount: e.target.value === '' ? null : Number(e.target.value) } : x) } : prev)} />
                       <input className={`${inputCls} w-36 shrink-0`} placeholder="供应商唯一标识" value={c.companyUnique} onChange={(e) => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.map((x, j) => j === i ? { ...x, companyUnique: e.target.value } : x) } : prev)} />
                       <button type="button" className="neu-btn-xs is-danger shrink-0" onClick={() => setConfig((prev) => prev ? { ...prev, candidates: prev.candidates.filter((_, j) => j !== i) } : prev)}><X size={13} /></button>
@@ -564,7 +571,7 @@ export function SunshinePlatformDialog({
                   {config.candidates.length === 0 && <p className="py-2 text-center text-[11px] text-[var(--muted-foreground)]">公告草稿中暂无投标单位，可点击「添加」手动录入候选单位</p>}
                 </div>
               </div>
-              <Field label="公示内容 content">
+              <Field label="公示内容">
                 <textarea className={`${inputCls} mt-1 min-h-[72px]`} value={config.content} onChange={(e) => set('content', e.target.value)} placeholder="留空则随公告正文自动生成" />
               </Field>
             </SectionCard>
@@ -573,12 +580,12 @@ export function SunshinePlatformDialog({
           {category === 'failed_bid' && (
             <SectionCard icon={Ban} title="终止招标信息" tag="SCM0006">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="公示发布时间 publishTime"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
-                <Field label="发布人 issueUserName"><input className={inputCls} value={config.issueUserName} onChange={(e) => set('issueUserName', e.target.value)} /></Field>
-                <Field label="公示期起 startTime"><input type="datetime-local" className={inputCls} value={config.startTime} onChange={(e) => set('startTime', e.target.value)} /></Field>
-                <Field label="公示期止 endTime"><input type="datetime-local" className={inputCls} value={config.endTime} onChange={(e) => set('endTime', e.target.value)} /></Field>
+                <Field label="公示发布时间"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
+                <Field label="发布人"><input className={inputCls} value={config.issueUserName} onChange={(e) => set('issueUserName', e.target.value)} /></Field>
+                <Field label="公示期起"><input type="datetime-local" className={inputCls} value={config.startTime} onChange={(e) => set('startTime', e.target.value)} /></Field>
+                <Field label="公示期止"><input type="datetime-local" className={inputCls} value={config.endTime} onChange={(e) => set('endTime', e.target.value)} /></Field>
               </div>
-              <Field label="公示内容 content">
+              <Field label="公示内容">
                 <textarea maxLength={2000} className={`${inputCls} mt-1 min-h-[72px]`} value={config.content} onChange={(e) => set('content', e.target.value)} placeholder="留空则随公告正文自动生成（文档限长 2000 字）" />
               </Field>
             </SectionCard>
