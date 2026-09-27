@@ -256,6 +256,34 @@ export class AnnouncementService {
     return { total, page, pageSize, items };
   }
 
+  /** 按公司分组全量计数（2026-09-27 公司下拉语境化 + 全部公司分组标题；与 list 同筛选） */
+  async companyCounts(
+    params: { type?: string; status?: string; search?: string },
+    companyFilter: { companyId?: string } = {},
+  ) {
+    const where: any = { ...companyFilter };
+    if (params.type) {
+      const types = params.type.split(',').map((t: string) => t.trim()).filter(Boolean);
+      where.type = types.length > 1 ? { in: types } : params.type;
+    }
+    if (params.status) {
+      const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
+      where.status = statuses.length > 1 ? { in: statuses } : params.status;
+    } else {
+      where.status = { notIn: ['HIDDEN', 'OFFLINE'] };
+    }
+    if (params.search) {
+      where.OR = [
+        { title: { contains: params.search, mode: 'insensitive' } },
+        { content: { contains: params.search, mode: 'insensitive' } },
+      ];
+    }
+    const groups = await this.prisma.announcement.groupBy({ by: ['companyName'], where, _count: { _all: true } });
+    return groups
+      .map(g => ({ name: g.companyName?.trim() || '未归属', count: g._count._all }))
+      .sort((a, b) => (a.name === '未归属' ? 1 : b.name === '未归属' ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh')));
+  }
+
   /** Public listing — only published items；公开端不含招标文件（首页不泄露）；RESTRICTED 可见范围不流转到首页 */
   async publicList(params: { type?: string; search?: string; page?: number; pageSize?: number }) {
     // 契约（2026-08-20 拍板）：公开门户（:3002）与供应商门户（:3004）**全量展示所有公司公告**——

@@ -40,6 +40,8 @@ export interface AnnouncementListItem {
   publicityEnd?: string;
   /** A2（表 B.1）：数据公开范围四级 */
   dataClass?: string;
+  /** 归属公司名快照（admin 全部公司视图按公司分组） */
+  companyName?: string | null;
   dataDomain?: string;
   createdAt: string;
   attachments?: AnnouncementAttachment[];
@@ -80,6 +82,15 @@ export interface AnnouncementListResponse {
 }
 
 /* 公告 CRUD */
+
+/** 按公司分组全量计数（admin 全部公司视图分组标题；与列表同筛选，排除回收站） */
+export function fetchAnnouncementCompanyCounts(params?: { type?: string; status?: string; search?: string }) {
+  const q = new URLSearchParams();
+  if (params?.type) q.set('type', params.type);
+  if (params?.status) q.set('status', params.status);
+  if (params?.search) q.set('search', params.search);
+  return api.get<Array<{ name: string; count: number }>>(`/announcements/company-counts?${q.toString()}`);
+}
 
 export function listAnnouncements(params?: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; companyId?: string }) {
   const q = new URLSearchParams();

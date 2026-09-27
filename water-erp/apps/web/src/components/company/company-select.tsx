@@ -74,12 +74,13 @@ function subLabelFor(c: CompanyOption, countMode: CompanyCountMode, bizCounts: R
   const n = bizCounts?.[c.name] ?? 0;
   if (countMode === "suppliers") return `${n} 家供应商`;
   if (countMode === "experts") return `${n} 位专家`;
+  if (countMode === "announcements") return `${n} 条公告`;
   return `${n} 个项目`;
 }
 
 /** 计数口径（2026-09-26 用户拍板）：下拉副标显示「当前页面的业务数据」按公司的数量——
  *  供应商页=各公司供应商数、专家页=各公司专家数；其余页面=账号口径（办公/专家拆分） */
-export type CompanyCountMode = 'accounts' | 'suppliers' | 'experts' | 'projectsDone' | 'projectsActive';
+export type CompanyCountMode = 'accounts' | 'suppliers' | 'experts' | 'projectsDone' | 'projectsActive' | 'announcements';
 
 export function CompanySelect({
   value,
@@ -120,7 +121,8 @@ export function CompanySelect({
       countMode === "suppliers" ? "/supplier/company-counts"
       : countMode === "experts" ? "/expert-admin/company-counts"
       : countMode === "projectsDone" ? "/project-management/company-counts?status=ARCHIVED"
-      : "/project-management/company-counts?status=ACTIVE";
+      : countMode === "projectsActive" ? "/project-management/company-counts?status=ACTIVE"
+      : "/announcements/company-counts";
     api
       .get<Array<{ name: string; count: number }>>(url)
       .then((list) => setBizCounts(Object.fromEntries(list.map((x) => [x.name, x.count]))))
@@ -259,7 +261,9 @@ export function CompanySelect({
                     ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 家供应商`
                     : countMode === "experts"
                       ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 位专家`
-                      : `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 个项目`,
+                      : countMode === "announcements"
+                        ? `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 条公告`
+                        : `不限公司 · 共 ${options!.reduce((sum, c) => sum + (bizCounts?.[c.name] ?? 0), 0)} 个项目`,
                 () => pick("all"),
               )}
               {(() => {

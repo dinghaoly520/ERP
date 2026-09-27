@@ -100,6 +100,19 @@ export class AnnouncementController {
     return this.announcementService.getStats(this.companyScope.filter(scope));
   }
 
+  /** 按公司分组全量计数（admin 全部公司视图分组标题；与列表同筛选，排除回收站） */
+  @Get('company-counts')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  async companyCounts(
+    @Query('type') type?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Request() req?: any,
+  ) {
+    const scope = await this.companyScope.resolveScope(req?.user);
+    return this.announcementService.companyCounts({ type, status, search }, this.companyScope.filter(scope));
+  }
+
   @Get(':id/participants')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '招标公示投标情况（参与供应商 + 是否已投标）' })

@@ -9722,6 +9722,15 @@ select.workbench-input {
   background: oklch(0.5 0.16 251 / 0.12);
   color: var(--accent-strong);
 }
+/* 危险计数变体（通知管理待办/待阅红底白字；供应商/公告等红徽章场景可复用） */
+.neu-segment-count--danger {
+  background: var(--danger);
+  color: oklch(1 0 0);
+}
+.neu-segment-btn[aria-pressed="true"] .neu-segment-count--danger {
+  background: var(--danger);
+  color: oklch(1 0 0);
+}
 .neu-segment-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) {
   .neu-segment-thumb { transition: none; }

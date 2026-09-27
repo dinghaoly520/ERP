@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
+import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { useRouter } from 'next/navigation';
 import {
   listAnnouncements, updateAnnouncement, hideAnnouncement, offlineAnnouncement,
-  getParticipants,
+  getParticipants, fetchAnnouncementCompanyCounts,
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant, ParticipantsResult } from '@/lib/api/announcement';
 import { toast } from 'sonner';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
@@ -109,6 +111,10 @@ export default function NoticePage() {
   const [sortKey, setSortKey] = useState<SortKey | null>('publishDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [companyId, setCompanyId] = useState('all');
+  // 公司级视图（2026-09-27 公告发布中心，供应商/专家库同款）：admin 全部公司=按公司分组
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [companyCounts, setCompanyCounts] = useState<Array<{ name: string; count: number }> | null>(null);
+  const selectedCompanyName = useCompanyName(companyId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,6 +125,13 @@ export default function NoticePage() {
     setLoading(false);
   }, [filterType, filterStatus, search, page, companyId]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
+  useEffect(() => { void fetchCurrentUser().then(u => setIsAdmin(u.role === 'admin')).catch(() => setIsAdmin(false)); }, []);
+  // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径
+  useEffect(() => {
+    if (!isAdmin || companyId !== 'all') { setCompanyCounts(null); return; }
+    fetchAnnouncementCompanyCounts({ type: filterType, status: filterStatus || undefined, search: search || undefined })
+      .then(setCompanyCounts).catch(() => setCompanyCounts(null));
+  }, [isAdmin, companyId, filterType, filterStatus, search]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setSelectedIds(new Set()); }, [filterType, filterStatus, search, page]);
 
@@ -146,6 +159,117 @@ export default function NoticePage() {
   };
 
   const selectableIds = sortedItems.map(i => i.id);
+
+  // admin 全部公司视图：按公司分组（供应商/专家库同款）；标题计数=后端全量口径
+  const companyViewAll = isAdmin && companyId === 'all';
+  const announcementGroups = useMemo(() => {
+    if (!companyViewAll) return [];
+    return buildCompanyCounts(sortedItems.map(x => ({ company: x.companyName }))).map(g => ({
+      name: g.name,
+      fullCount: companyCounts?.find(c => c.name === g.name)?.count ?? g.count,
+      items: sortedItems.filter(x => ((x.companyName ?? '').trim() || '未归属') === g.name),
+    }));
+  }, [companyViewAll, sortedItems, companyCounts]);
+
+  // 表格渲染函数：分组视图按组各渲染一张表，单表视图整页一张
+  const renderAnnouncementTable = (rows: AnnouncementListItem[]) => (
+    <div className="neu-table-card">
+      <div className="overflow-x-auto">
+        <table className="neu-table w-full min-w-[760px]">
+          <thead>
+            <tr>
+              <th style={{ width: 44 }}>
+                <input type="checkbox" className="neu-checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }} onChange={toggleAll} aria-label="全选" />
+              </th>
+              <th>标题</th>
+              <SortTh label="类型" sortKey="type" current={sortKey} dir={sortDir} onToggle={toggleSort} />
+              <SortTh label="状态" sortKey="status" current={sortKey} dir={sortDir} onToggle={toggleSort} />
+              <th>附件 / 采购文件</th>
+              <SortTh label="浏览" sortKey="viewCount" current={sortKey} dir={sortDir} onToggle={toggleSort} align="right" />
+              <th style={{ textAlign: 'center' }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <TableSkeleton cols={7} rows={5} />
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-16">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
+                      <FileText size={22} className="text-[var(--muted-foreground)]" />
+                    </div>
+                    <p className="text-sm text-[var(--muted-foreground)]">暂无信息</p>
+                    <button onClick={() => router.push('/notice/new')} className="neu-btn-soft"><PlusCircle size={15} /> 新建信息</button>
+                  </div>
+                </td>
+              </tr>
+            ) : rows.map(a => {
+              const tm = typeBadgeMeta[a.type] || typeBadgeMeta.PLATFORM;
+              const methodOf = (a as { metadata?: Record<string, unknown> }).metadata?.method;
+              const typeLabel = a.type === 'BID_NOTICE' && typeof methodOf === 'string' && methodOf.trim()
+                ? methodOf.trim()
+                : tm.label;
+              const sm = displayStatus(a);
+              const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
+              const isSel = selectedIds.has(a.id);
+              const hasAttachments = a.attachments && a.attachments.length > 0;
+              return (
+                <tr key={a.id} className="row-clickable" data-selected={isSel ? 'true' : 'false'} onClick={() => router.push(`/notice/${a.id}`)}>
+                  <td onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" className="neu-checkbox" checked={isSel} onChange={() => toggleRow(a.id)} aria-label={`选择 ${a.title}`} />
+                  </td>
+                  <td>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-[var(--foreground)]">{a.title}</span>
+                        {a.isTop && <StatusBadge tone="red" className="!text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
+                        {noBidDoc && (
+                          <span className="rounded-md bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]">未上传采购文件</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+                        {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
+                        {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
+                        {a.summary && (<><span aria-hidden>·</span><span className="max-w-[360px] truncate">{a.summary.slice(0, 40)}{a.summary.length > 40 ? '…' : ''}</span></>)}
+                      </div>
+                    </div>
+                  </td>
+                  <td><StatusBadge tone={tm.tone}>{typeLabel}</StatusBadge></td>
+                  <td><StatusBadge tone={sm.tone}>{sm.label}</StatusBadge></td>
+                  <td>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      {!hasAttachments && !a.bidDocument ? (<span className="text-[var(--muted-foreground)]">—</span>) : (<>
+                        {hasAttachments && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--muted)]/50 px-2 py-1 text-[11px] font-semibold text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6)]">
+                            <Paperclip size={11} /> {a.attachments!.length}
+                          </span>
+                        )}
+                        {a.bidDocument && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)]/60 px-2 py-1 text-[11px] font-semibold text-[var(--accent-strong)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6)]">
+                            <Lock size={11} /> 采购文件{a.bidDocument.requirePayment ? ' (¥)' : ''}
+                          </span>
+                        )}
+                      </>)}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right' }} className="tabular-nums font-semibold text-[var(--foreground)]">{a.viewCount}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                      {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标情况</button>}
+                      <button onClick={() => setHistoryAnnId(a.id)} className="neu-btn-xs"><HistoryIcon size={12} /> 历史</button>
+                      <button onClick={() => hideRow(a)} className="neu-btn-xs is-danger"><EyeOff size={12} /> 隐藏</button>
+                      <button onClick={() => takeOffline(a)} className="neu-btn-xs is-warning"><PackageX size={12} /> 下架</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
   const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
   const someSelected = selectableIds.some(id => selectedIds.has(id));
   const selectedCount = selectedIds.size;
@@ -216,7 +340,7 @@ export default function NoticePage() {
           </div>
 
           <div className="page-hero__right">
-            <CompanySelect value={companyId} onChange={setCompanyId} />
+            <CompanySelect value={companyId} onChange={setCompanyId} countMode="announcements" />
             <button onClick={() => setShowAllHistories(true)} className="neu-btn-soft">
               <HistoryIcon size={15} /> 公告历史
             </button>
@@ -292,117 +416,38 @@ export default function NoticePage() {
         </select>
       </div>
 
-      {/* 数据表格 */}
-      <div className="neu-table-card">
-        {selectedCount > 0 && (
-          <div className="neu-batch-bar">
-            <span className="neu-batch-bar-count">已选 <strong>{selectedCount}</strong> 条</span>
-            <div className="neu-batch-bar-spacer" />
-            <button onClick={() => runBatch('publish')} className="neu-btn-xs is-success"><Send size={13} /> 发布</button>
-            <button onClick={() => runBatch('offline')} className="neu-btn-xs is-warning"><PackageX size={13} /> 下架</button>
-            <button onClick={() => runBatch('hide')} className="neu-btn-xs is-danger"><EyeOff size={13} /> 隐藏</button>
-            <button onClick={clearSelection} className="neu-btn-xs"><X size={13} /> 取消选择</button>
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[760px]">
-            <thead>
-              <tr>
-                <th style={{ width: 44 }}>
-                  <input type="checkbox" className="neu-checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }} onChange={toggleAll} aria-label="全选" />
-                </th>
-                <th>标题</th>
-                <SortTh label="类型" sortKey="type" current={sortKey} dir={sortDir} onToggle={toggleSort} />
-                <SortTh label="状态" sortKey="status" current={sortKey} dir={sortDir} onToggle={toggleSort} />
-                <th>附件 / 采购文件</th>
-                <SortTh label="浏览" sortKey="viewCount" current={sortKey} dir={sortDir} onToggle={toggleSort} align="right" />
-                <th style={{ textAlign: 'center' }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <TableSkeleton cols={7} rows={5} />
-              ) : sortedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-16">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
-                        <FileText size={22} className="text-[var(--muted-foreground)]" />
-                      </div>
-                      <p className="text-sm text-[var(--muted-foreground)]">暂无信息</p>
-                      <button onClick={() => router.push('/notice/new')} className="neu-btn-soft"><PlusCircle size={15} /> 新建信息</button>
-                    </div>
-                  </td>
-                </tr>
-              ) : sortedItems.map(a => {
-                const tm = typeBadgeMeta[a.type] || typeBadgeMeta.PLATFORM;
-                // 采购公告的类型徽标显示具体采购方式（发布向导 canonical meta.method，如「询比采购」）；
-                // 无 method 的存量/手工公告回落到通用「采购公告」
-                const methodOf = (a as { metadata?: Record<string, unknown> }).metadata?.method;
-                const typeLabel = a.type === 'BID_NOTICE' && typeof methodOf === 'string' && methodOf.trim()
-                  ? methodOf.trim()
-                  : tm.label;
-                const sm = displayStatus(a);
-                const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
-                const isSel = selectedIds.has(a.id);
-                const hasAttachments = a.attachments && a.attachments.length > 0;
-                return (
-                  <tr key={a.id} className="row-clickable" data-selected={isSel ? 'true' : 'false'} onClick={() => router.push(`/notice/${a.id}`)}>
-                    <td onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" className="neu-checkbox" checked={isSel} onChange={() => toggleRow(a.id)} aria-label={`选择 ${a.title}`} />
-                    </td>
-                    <td>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-bold text-[var(--foreground)]">{a.title}</span>
-                          {a.isTop && <StatusBadge tone="red" className="!text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
-                          {noBidDoc && (
-                            <span className="rounded-md bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]">未上传采购文件</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
-                          {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
-                          {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
-                          {a.summary && (<><span aria-hidden>·</span><span className="max-w-[360px] truncate">{a.summary.slice(0, 40)}{a.summary.length > 40 ? '…' : ''}</span></>)}
-                        </div>
-                      </div>
-                    </td>
-                    <td><StatusBadge tone={tm.tone}>{typeLabel}</StatusBadge></td>
-                    <td><StatusBadge tone={sm.tone}>{sm.label}</StatusBadge></td>
-                    <td>
-                      <div className="flex flex-wrap items-center justify-center gap-1.5">
-                        {!hasAttachments && !a.bidDocument ? (<span className="text-[var(--muted-foreground)]">—</span>) : (<>
-                          {hasAttachments && (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--muted)]/50 px-2 py-1 text-[11px] font-semibold text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6)]">
-                              <Paperclip size={11} /> {a.attachments!.length}
-                            </span>
-                          )}
-                          {a.bidDocument && (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)]/60 px-2 py-1 text-[11px] font-semibold text-[var(--accent-strong)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6)]">
-                              <Lock size={11} /> 采购文件{a.bidDocument.requirePayment ? ' (¥)' : ''}
-                            </span>
-                          )}
-                        </>)}
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'right' }} className="tabular-nums font-semibold text-[var(--foreground)]">{a.viewCount}</td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <div className="flex flex-wrap justify-center gap-1.5">
-                        {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标情况</button>}
-                        <button onClick={() => setHistoryAnnId(a.id)} className="neu-btn-xs"><HistoryIcon size={12} /> 历史</button>
-                        <button onClick={() => takeOffline(a)} className="neu-btn-xs is-warning"><PackageX size={12} /> 下架</button>
-                        <button onClick={() => hideRow(a)} className="neu-btn-xs is-danger"><EyeOff size={12} /> 隐藏</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* 数据表格（admin 全部公司视图=按公司分组；单公司/非 admin=平铺）*/}
+      {selectedCount > 0 && (
+        <div className="neu-batch-bar">
+          <span className="neu-batch-bar-count">已选 <strong>{selectedCount}</strong> 条</span>
+          <div className="neu-batch-bar-spacer" />
+          <button onClick={() => runBatch('publish')} className="neu-btn-xs is-success"><Send size={13} /> 发布</button>
+          <button onClick={() => runBatch('offline')} className="neu-btn-xs is-warning"><PackageX size={13} /> 下架</button>
+          <button onClick={() => runBatch('hide')} className="neu-btn-xs is-danger"><EyeOff size={13} /> 隐藏</button>
+          <button onClick={clearSelection} className="neu-btn-xs"><X size={13} /> 取消选择</button>
         </div>
+      )}
+      {companyViewAll && !loading && sortedItems.length > 0 ? (
+        <div className="space-y-5">
+          {announcementGroups.map(g => (
+            <section key={g.name}>
+              <CompanySectionHeader name={g.name} count={g.fullCount} suffix={g.items.length < g.fullCount ? `本页 ${g.items.length}` : undefined} />
+              <div className="mt-3">{renderAnnouncementTable(g.items)}</div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <>
+          {isAdmin && companyId !== 'all' && selectedCompanyName && (
+            <div className="mb-3">
+              <CompanySectionHeader name={selectedCompanyName} count={data.total} />
+            </div>
+          )}
+          {renderAnnouncementTable(sortedItems)}
+        </>
+      )}
 
-        <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="neu-table-card-footer mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-[var(--muted-foreground)]">共 {data.total} 条，第 {page}/{totalPages} 页</span>
           <div className="flex items-center gap-2">
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-40">上一页</button>
@@ -421,7 +466,6 @@ export default function NoticePage() {
             <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-40">下一页</button>
           </div>
         </div>
-      </div>
 
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
       {historyAnnId && <AnnouncementHistoryModal announcementId={historyAnnId} onClose={() => setHistoryAnnId(null)} />}

@@ -236,14 +236,7 @@ export default function NotificationsPage() {
             <button key={t.key} type="button" className="neu-segment-btn" aria-pressed={tab === t.key}
               onClick={() => { setTab(t.key); setPage(1); }}>
               <t.icon size={13} strokeWidth={1.9} aria-hidden="true" /> {t.label}
-              {t.key !== 'all' && segmentCounts[t.key] > 0 && (
-                <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
-                  t.key === 'todo' || t.key === 'toread'
-                    ? 'bg-[var(--danger)] text-white'
-                    : 'bg-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)] text-[var(--muted-foreground)]'}`}>
-                  {segmentCounts[t.key] > 99 ? '99+' : segmentCounts[t.key]}
-                </span>
-              )}
+              {t.key !== 'all' && segmentCounts[t.key] > 0 && <span className={`neu-segment-count${t.key === 'todo' || t.key === 'toread' ? ' neu-segment-count--danger' : ''}`}>{segmentCounts[t.key] > 99 ? '99+' : segmentCounts[t.key]}</span>}
             </button>
           ))}
         </div>
