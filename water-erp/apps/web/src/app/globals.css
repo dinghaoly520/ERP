@@ -2975,8 +2975,11 @@ a {
   display: inline-flex;
 }
 
+/* 键盘通道用 :focus-visible——Modal 打开时 focus-trap 程序化聚焦标题 ？锚点
+   （2026-09-27 实录：应用模板弹窗一开气泡自动弹出）：focus-within 会连带显示，
+   focus-visible 仅键盘 Tab 聚焦才显示，程序化/鼠标聚焦不触发 */
 .pm-help-anchor:hover .pm-help-tip,
-.pm-help-anchor:focus-within .pm-help-tip {
+.pm-help-anchor:focus-visible .pm-help-tip {
   opacity: 1;
   transform: translateY(0);
 }
