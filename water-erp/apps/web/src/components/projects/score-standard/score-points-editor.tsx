@@ -114,11 +114,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
       const sorted = [...list].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
       setSuggestions(sorted.map((s) => ({ ...s, selected: !s.duplicate })));
       if (list.length === 0) {
-        if (item.category === 'PRICE') {
-          setExtractError('价格分类别的得分点不适用 AI 提取——价格分按评标口径计分（公式自动或专家手填）。');
-        } else {
-          setExtractError('AI 未从采购文件提取到得分点建议。');
-        }
+        setExtractError('AI 未从采购文件提取到得分点建议。');
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.name 判 AbortError + e?.message 回退
     } catch (e: any) {
@@ -280,7 +276,9 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
           </div>
         ) : <span />}
         <div className="flex items-center gap-2">
-          {!isPrice && !locked && (
+        {/* AI 补充建议对价格项同样开放（2026-09-28：与批量「AI 全部提取」对齐——后端 E5 撤除
+            PRICE 排除后批量已含价格项；得分点名称/评审要点仍需 AI 代拟，计分方式与此无关） */}
+          {!locked && (
           <button
             onClick={handleExtract}
             disabled={extracting}
