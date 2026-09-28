@@ -132,11 +132,20 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const passFailCount = items.length - items.filter((i) => Number(i.maxScore) > 0).length;
   const sumOk = scoredTotal === 100;
   const sumDiff = 100 - scoredTotal;
-  const missingPointsCount = items.filter((i) => Number(i.maxScore) > 0 && !(i.points && i.points.length > 0)).length;
+  // 得分点未配满（2026-09-28 与后端 POINTS_SUM_BELOW_MAX 同口径）：无得分点，或 ΣfullScore ≠ 项满分
+  // （容差 0.05）——差额未分配时有效满分 <100，Σ=100 的表象下校验也必须拦
+  const pointsIncomplete = items.filter((i) => {
+    if (!(Number(i.maxScore) > 0)) return false;
+    const pts = i.points ?? [];
+    if (pts.length === 0) return true;
+    const s = pts.reduce((acc, p) => acc + Number(p.fullScore), 0);
+    return Math.abs(s - Number(i.maxScore)) > 0.05;
+  });
+  const pointsIncompleteCount = pointsIncomplete.length;
   const gateWarnText = !sumOk
     ? (sumDiff > 0 ? `差 ${sumDiff} 分` : `超 ${-sumDiff} 分`)
-    : missingPointsCount > 0
-      ? `${missingPointsCount} 项缺得分点`
+    : pointsIncompleteCount > 0
+      ? `${pointsIncompleteCount} 项得分点未配满`
       : null;
 
   // 得分点增删改后刷新 items（含 points 字段）+ 同步阶段/校验态（修改会作废已校验状态）并通知父组件
@@ -164,9 +173,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       return;
     }
     const scoredSum = items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0);
-    const incomplete = items.filter((i) => Number(i.maxScore) > 0 && (!i.points || i.points.length === 0));
-    if (scoredSum !== 100 || incomplete.length > 0) {
-      toast.error(`校验未通过:打分项满分合计须=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
+    if (scoredSum !== 100 || pointsIncompleteCount > 0) {
+      // 未配满明细点名前两项（与后端 POINTS_SUM_BELOW_MAX/EXCEEDS 同口径）
+      const detail = pointsIncomplete.slice(0, 2).map((i) => {
+        const s = (i.points ?? []).reduce((acc, p) => acc + Number(p.fullScore), 0);
+        return `「${i.name}」${(i.points ?? []).length === 0 ? '无得分点' : `得分点合计 ${s}/${i.maxScore}`}`;
+      }).join('、');
+      toast.error(`校验未通过:打分项满分合计须=100(当前 ${scoredSum}),且每个打分项的得分点须配满${detail ? `（${detail}）` : ''}`);
       return;
     }
     try {
@@ -426,11 +439,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         {items.length > 0 && (
           <span
             className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)]"
-            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项≥1 得分点）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
+            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项得分点配满——Σ得分点满分=项满分）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
           >
             打分合计
             <span
-              className={`font-mono text-sm font-bold ${sumOk && !missingPointsCount ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}
+              className={`font-mono text-sm font-bold ${sumOk && !pointsIncompleteCount ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}
             >
               {scoredTotal}
             </span>

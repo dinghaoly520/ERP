@@ -276,7 +276,7 @@ export function OfficialTenderWizard({
             {step === 1
               ? '关闭即取消，本阶段状态不变'
               : scoreStatus === 'incomplete'
-                ? <span className="font-semibold text-[oklch(0.55_0.08_75)]">评分标准未配置完整——请在右侧完成配置（满分合计 100 且每项有得分点）后再确认</span>
+                ? <span className="font-semibold text-[oklch(0.55_0.08_75)]">评分标准未配置完整——请在右侧完成配置（满分合计 100 且每项得分点配满）后再确认</span>
                 : '确认后本阶段完成、进入下一步骤；评分标准此后仍可在开标前修改'}
           </div>
           <div className="flex shrink-0 items-center gap-2">

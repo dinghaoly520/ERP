@@ -11,8 +11,14 @@ describe('ScoreStandardValidator', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // P0-A：assertScoreStandardComplete 现会聚合每项 ΣfullScore；默认返回 0 使既有「通过」用例保持合法
-    prisma.bidScorePoint.aggregate.mockResolvedValue({ _sum: { fullScore: 0 } });
+    // 2026-09-28 配满口径：assertScoreStandardComplete 要求 ΣfullScore = maxScore——
+    // 默认 mock 按「最近一次 findMany 结果 + id 匹配」全额配分，使「通过」用例免逐项覆写
+    prisma.bidScorePoint.aggregate.mockImplementation(async ({ where }: any) => {
+      // mockResolvedValue 下 results[].value 是 Promise，须 await 取数组
+      const items = (await prisma.bidScoreItem.findMany.mock.results.at(-1)?.value ?? []) as Array<{ id?: string; maxScore: number }>;
+      const it = items.find((x) => x.id === where?.scoreItemId);
+      return { _sum: { fullScore: it ? Number(it.maxScore) : 0 } };
+    });
     validator = new ScoreStandardValidator(prisma);
   });
 
@@ -53,13 +59,13 @@ describe('ScoreStandardValidator', () => {
   });
 
   describe('assertScoreStandardComplete', () => {
-    it('打分类 Σ=100 + 全打分类项有点 + 通过性项无点 → 通过', async () => {
+    it('打分类 Σ=100 + 全打分类项配满 + 通过性项无点 → 通过', async () => {
       prisma.bidScoreItem.findMany.mockResolvedValue([
-        { category: 'QUALIFICATION', maxScore: 0, name: '资格', _count: { points: 0 } },
-        { category: 'RESPONSIVE', maxScore: 0, name: '响应', _count: { points: 0 } },
-        { category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
-        { category: 'TECHNICAL', maxScore: 50, name: '技术', _count: { points: 5 } },
-        { category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
+        { id: 'q1', category: 'QUALIFICATION', maxScore: 0, name: '资格', _count: { points: 0 } },
+        { id: 'r1', category: 'RESPONSIVE', maxScore: 0, name: '响应', _count: { points: 0 } },
+        { id: 'b1', category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
+        { id: 't1', category: 'TECHNICAL', maxScore: 50, name: '技术', _count: { points: 5 } },
+        { id: 'p1', category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
       ]);
       await expect(validator.assertScoreStandardComplete('p1')).resolves.toBeUndefined();
     });
@@ -74,13 +80,12 @@ describe('ScoreStandardValidator', () => {
       });
     });
 
-    it('P2：ΣmaxScore 浮点容差（33.3+33.3+33.4≈100 通过）', async () => {
+    it('P2：ΣmaxScore 浮点容差（33.3+33.3+33.4≈100 通过；Σpoints=各项满分亦浮点配满）', async () => {
       prisma.bidScoreItem.findMany.mockResolvedValue([
         { id: 'i1', category: 'BUSINESS', maxScore: 33.3, name: 'a', _count: { points: 1 } },
         { id: 'i2', category: 'TECHNICAL', maxScore: 33.3, name: 'b', _count: { points: 1 } },
         { id: 'i3', category: 'PRICE', maxScore: 33.4, name: 'c', _count: { points: 1 } },
       ]);
-      prisma.bidScorePoint.aggregate.mockResolvedValue({ _sum: { fullScore: 10 } }); // 各项 Σpoints ≤ maxScore
       await expect(validator.assertScoreStandardComplete('p1')).resolves.toBeUndefined();
     });
     it('打分类项无点 → 409 SCORE_ITEM_HAS_NO_POINTS', async () => {
@@ -95,10 +100,10 @@ describe('ScoreStandardValidator', () => {
     });
     it('通过性项无点(走 passed 裁定)→ 通过', async () => {
       prisma.bidScoreItem.findMany.mockResolvedValue([
-        { category: 'QUALIFICATION', maxScore: 0, name: '资格', _count: { points: 0 } },
-        { category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
-        { category: 'TECHNICAL', maxScore: 50, name: '技术', _count: { points: 5 } },
-        { category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
+        { id: 'q1', category: 'QUALIFICATION', maxScore: 0, name: '资格', _count: { points: 0 } },
+        { id: 'b1', category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
+        { id: 't1', category: 'TECHNICAL', maxScore: 50, name: '技术', _count: { points: 5 } },
+        { id: 'p1', category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
       ]);
       await expect(validator.assertScoreStandardComplete('p1')).resolves.toBeUndefined();
     });
@@ -109,13 +114,41 @@ describe('ScoreStandardValidator', () => {
         { id: 'i2', category: 'TECHNICAL', maxScore: 30, name: '技术', _count: { points: 2 } },
         { id: 'i3', category: 'PRICE', maxScore: 50, name: '价格', _count: { points: 1 } },
       ]);
-      // 技术项满分已被降到 30，但其得分点合计仍为 50 → 不变量被破坏
+      // 技术项满分已被降到 30，但其得分点合计仍为 50 → 不变量被破坏（其余项保持配满，
+      // 避免被 2026-09-28 新增的下界检查抢先报错）
       prisma.bidScorePoint.aggregate.mockImplementation(async ({ where }: any) =>
-        where.scoreItemId === 'i2' ? { _sum: { fullScore: 50 } } : { _sum: { fullScore: 10 } },
+        where.scoreItemId === 'i2' ? { _sum: { fullScore: 50 } } : { _sum: { fullScore: where.scoreItemId === 'i1' ? 20 : 50 } },
       );
       await expect(validator.assertScoreStandardComplete('p1')).rejects.toMatchObject({
         response: { code: 'POINTS_SUM_EXCEEDS_MAX' },
       });
+    });
+
+    it('2026-09-28：Σ得分点满分 < 该项满分（差额未分配）→ 409 POINTS_SUM_BELOW_MAX', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'i1', category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
+        { id: 'i2', category: 'TECHNICAL', maxScore: 50, name: '技术', _count: { points: 14 } },
+        { id: 'i3', category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
+      ]);
+      // 实测案例：技术 14 个得分点合计 49，差额 1 未分配 → 有效满分 99 ≠ 100，校验直报
+      prisma.bidScorePoint.aggregate.mockImplementation(async ({ where }: any) =>
+        where.scoreItemId === 'i2' ? { _sum: { fullScore: 49 } } : { _sum: { fullScore: where.scoreItemId === 'i1' ? 20 : 30 } },
+      );
+      await expect(validator.assertScoreStandardComplete('p1')).rejects.toMatchObject({
+        response: { code: 'POINTS_SUM_BELOW_MAX' },
+      });
+    });
+
+    it('2026-09-28：Σpoints 浮点容差内（50-0.04=49.96）→ 通过', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'i1', category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
+        { id: 'i2', category: 'TECHNICAL', maxScore: 50, name: '技术', _count: { points: 3 } },
+        { id: 'i3', category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
+      ]);
+      prisma.bidScorePoint.aggregate.mockImplementation(async ({ where }: any) =>
+        where.scoreItemId === 'i2' ? { _sum: { fullScore: 49.96 } } : { _sum: { fullScore: where.scoreItemId === 'i1' ? 20 : 30 } },
+      );
+      await expect(validator.assertScoreStandardComplete('p1')).resolves.toBeUndefined();
     });
 
     it('N10：打分类评分项满分为 0 → SCORE_ITEM_ZERO_MAX（「法」式空项拦截，先于 Σ=100 检查）', async () => {

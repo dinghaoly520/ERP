@@ -532,9 +532,15 @@ export function ProjectDetailPanel({
     if (!items) return 'unknown';
     const scoring = items.filter((it) => !isPassFailCategory(it.category));
     const sum = scoring.reduce((s, it) => s + Number(it.maxScore), 0);
-    const noPoints = scoring.some((it) => !(it.points && it.points.length > 0));
+    // 2026-09-28 与后端配满口径同步：无得分点，或 Σ得分点满分 ≠ 项满分（容差 0.05）均算未配齐
+    const pointsIncomplete = scoring.some((it) => {
+      const pts = it.points ?? [];
+      if (pts.length === 0) return true;
+      const s = pts.reduce((acc, p) => acc + Number(p.fullScore), 0);
+      return Math.abs(s - Number(it.maxScore)) > 0.05;
+    });
     // 容差 0.05 与服务端 ScoreStandardValidator 同口径（Decimal 十分位求和浮点误差）
-    if (scoring.length === 0 || Math.abs(sum - 100) > 0.05 || noPoints) return 'incomplete';
+    if (scoring.length === 0 || Math.abs(sum - 100) > 0.05 || pointsIncomplete) return 'incomplete';
     return 'ok';
   }, [bpRefs, bpDetails, bpScoreItems]);
 
