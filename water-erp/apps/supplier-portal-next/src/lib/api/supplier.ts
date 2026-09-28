@@ -44,7 +44,11 @@ export const supplierApi = {
   listMyCerts() {
     return api.get<any[]>("/supplier-portal/profile/cert");
   },
-  bindCert(data: { certSn: string; certDn: string; publicKey: string; alg?: string; notBefore?: string; expiresAt?: string }) {
+  /** 绑定 PoP 挑战：一次性 nonce（Redis 300s TTL），客户端 adapter.sign 后随绑定提交 */
+  certBindChallenge() {
+    return api.get<{ nonce: string; expiresIn: number }>("/supplier-portal/profile/cert/challenge");
+  },
+  bindCert(data: { certSn?: string; certDn?: string; publicKey?: string; alg?: string; notBefore?: string; expiresAt?: string; rawCert?: string; popNonce?: string; popSignature?: string }) {
     return api.post<any>("/supplier-portal/profile/cert", data);
   },
   revokeCert(certId: string) {

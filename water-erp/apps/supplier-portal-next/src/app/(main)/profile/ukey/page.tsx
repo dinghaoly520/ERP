@@ -23,6 +23,8 @@ import { openUkey } from "@/utils/ukey-factory";
 import { extractCn, formatCertDn, isOwnCert } from "@/utils/ukey-cert-match";
 import { useUkeyHealth } from "@/utils/use-ukey-health";
 import { supplierApi } from "@/lib/api/supplier";
+import { ApiError } from "@/lib/api";
+import { bindCertWithPop } from "@/utils/ukey-pop-bind";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpPagination } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import { CaSelftestDialog } from "@/components/profile/ca-selftest-dialog";
@@ -55,7 +57,7 @@ const UKEY_GUIDE: Array<{ icon: ComponentType<{ size?: number | string; classNam
   { icon: FileLock, title: "投标递交加密", desc: "双信封加密投递：技术与商务文件、报价分别密封，私钥全程不出 U盾。" },
   { icon: Unlock, title: "开标在线解密", desc: "开标大厅在线解密唱标；已投递标书依赖绑定时证书解密，请妥善保管介质。" },
   { icon: PenLine, title: "评标澄清签名", desc: "评标委员会发出澄清要求时，答复须经 U盾 电子签名后在线提交。" },
-  { icon: CalendarClock, title: "证书到期提醒", desc: "到期前 30/7 天站内两档提醒；换证绑定自动撤销旧证，旧证解密依赖请留介质。" },
+  { icon: CalendarClock, title: "证书到期提醒", desc: "到期前 30/7 天站内两档提醒；换证绑定自动撤销旧证，旧证解密依赖旧介质，请妥善保留。" },
 ];
 
 function readBound(): BoundInfo | null {
@@ -218,13 +220,11 @@ export default function UkeyManagePage() {
   // ── 绑定 ──
   async function handleBind(cert: CertInfo) {
     if (!cert.publicKey) { toast.error("证书缺少公钥，无法绑定"); return; }
+    if (!ukey) { toast.warning("请先解锁 U盾，再进行证书绑定"); return; }
     setBinding(true);
     try {
-      const res: any = await supplierApi.bindCert({
-        certSn: cert.certSn, certDn: cert.certDn, publicKey: cert.publicKey, alg: cert.alg ?? "SM2",
-        ...(cert.notBefore ? { notBefore: cert.notBefore } : {}),
-        ...(cert.notAfter ? { expiresAt: cert.notAfter } : {}),
-      });
+      // PoP 绑定：取挑战 → 盾内签名(nonce) → 带证明提交（后端 b43c77e4 契约）
+      const res: any = await bindCertWithPop(supplierApi, ukey, cert);
       // 换证语义：绑定新证时服务端自动把旧 ACTIVE 置 REVOKED——对旧证做幂等 revoke 查询
       // 依赖旧 certSn 的未开标提交数，警示保留旧介质
       const prevActive = serverCerts.find((c) => c.bindingStatus === "ACTIVE" && c.certSn !== cert.certSn);
@@ -244,8 +244,9 @@ export default function UkeyManagePage() {
           }
         } catch { /* 幂等查询失败不阻断换证流程 */ }
       }
-    } catch {
-      /* 错误提示已由 API 层统一弹出（Vue 版此处读 axios response.data.error） */
+    } catch (e) {
+      /* HTTP 层错误已由 API 层统一弹出；此处只兜底盾内签名等适配器错误 */
+      if (!(e instanceof ApiError)) toast.error(e instanceof Error && e.message ? e.message : "U盾签名失败，请确认U盾已解锁后重试");
     } finally { setBinding(false); }
   }
 
