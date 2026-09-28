@@ -266,15 +266,8 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
   return (
     // 内凹井（P2 迁移：外侧框线撤销——层次感改由井影+半透底表达）
     <div className="mt-2 rounded-xl bg-[oklch(0.972_0.01_258_/_0.55)] p-3 shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258_/_0.09),inset_-1px_-1px_2px_oklch(1_0_0_/_0.5)]">
-      {/* 价格项职责说明（2026-09-28 方案 B 定稿）：本面板=分配价格分总分，计分方式与此无关——
-          显式解耦，防「手填/自动」被误读为影响此处配置 */}
-      {isPrice && (
-        <p className="mb-2 rounded-[10px] bg-[oklch(1_0_0_/_0.45)] px-2.5 py-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
-          此处分配价格分总分（如 50 分）：新增得分点使合计等于该项满分即可；不从采购文件 AI 提取——
-          计分方式（公式自动/专家手填）在上方「价格分计算方式」中选择，与此处分配无关
-        </p>
-      )}
-      {/* 合计提示 + AI 提取按钮 */}
+      {/* 合计提示 + AI 提取按钮（2026-09-28 终版：可 AI 提取才显示按钮；价格项不支持——
+          按钮与文案均不出现，分配引导交给井头活合计「X / 满分 Y · 差额」行） */}
       <div className="mb-2 flex items-center justify-between gap-2">
         {!isPassFail ? (
           <div className="text-xs text-[var(--muted-foreground)]">
