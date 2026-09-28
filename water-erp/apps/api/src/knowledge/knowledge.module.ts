@@ -7,6 +7,7 @@ import { DocumentParserService } from './services/document-parser.service';
 import { TextSplitterService } from './services/text-splitter.service';
 import { VectorSearchService } from './services/vector-search.service';
 import { VectorInitService } from './services/vector-init.service';
+import { VectorDbService } from './services/vector-db.service';
 
 @Module({
   imports: [LocalAiModule, AuthModule],
@@ -17,6 +18,7 @@ import { VectorInitService } from './services/vector-init.service';
     TextSplitterService,
     VectorSearchService,
     VectorInitService,
+    VectorDbService,
   ],
   exports: [
     KnowledgeService,
