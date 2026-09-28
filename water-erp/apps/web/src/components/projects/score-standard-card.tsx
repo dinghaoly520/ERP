@@ -98,7 +98,8 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
       ) : (
         <div className="space-y-4">
           {/* ① 评标口径：评标办法 + 最高限价 + 价格分计算方式（2026-09-26 公式表单化并入本块；EVALUATING 起锁定）。
-              块标题「评标办法与最高限价」2026-09-28 二次裁定删除（与卡标题语义重复），保存按钮独占卡内容区右上角。 */}
+              块标题「评标办法与最高限价」2026-09-28 二次裁定删除（与卡标题语义重复）；保存按钮
+              与「评分去极值」同行右对齐（三次裁定终版，位于块底）。 */}
           <EvaluationBasisFields detail={detail ?? bidProject} onChanged={onChanged} priceItemCount={priceItemCount} />
           {/* ② 评分项与得分点（OPENING 起锁定；校验通过后开标前仍可改，改即作废校验）。
               2026-09-28 用户裁定：① 块标题删除后本节标题升格为主分节——加图标 + 放大字体（text-sm）。 */}

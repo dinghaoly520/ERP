@@ -9,8 +9,8 @@
  *   - 后端 updatePriceConfig 同步加值校验（PRICE_FORMULA_INVALID / PRICE_CONFIG_INVALID）
  * 写径共用 PATCH /bid/projects/:id/price-config（undefined=不更新；EVALUATING/ARCHIVED 后端 409
  * PRICE_CONFIG_LOCKED——锁定态如实前置：输入禁用+锁定文案）。载荷来源 BidProjectDetail。
- * 2026-09-28 「保存配置」自块底右下角移至卡内容区右上角；同日二次裁定删除块标题
- * 「评标办法与最高限价」（与卡标题语义重复），按钮独占保存行右侧。
+ * 2026-09-28 「保存配置」按钮位置三次裁定终版：与「评分去极值」同行右对齐（块底）；
+ * 同日删除块标题「评标办法与最高限价」（与卡标题语义重复）。
  */
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
@@ -217,19 +217,6 @@ export function EvaluationBasisFields({
 
   return (
     <div className="space-y-3">
-      {/* 保存行（2026-09-28 用户裁定：保存配置自块底右下角移至卡内容区右上角；同日二次裁定
-          删除块标题「评标办法与最高限价」——与卡标题语义重复，按钮独占本行右侧） */}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className="neu-btn-primary !h-[34px] !text-xs"
-          disabled={saving || !detail || !dirty || softLocked}
-          title={softLocked ? '评标/归档阶段配置已锁定' : !dirty ? '无修改' : undefined}
-          onClick={save}
-        >
-          {saving ? "保存中…" : "保存配置"}
-        </button>
-      </div>
       {softLocked && (
         <div className="wb-alert wb-alert--warning flex items-center gap-2 text-xs">
           <Lock size={13} /> {LOCKED_NOTICE}
@@ -318,25 +305,38 @@ export function EvaluationBasisFields({
           )}
         </>
       )}
-      <label className={`flex items-center gap-2.5 ${softLocked ? 'opacity-60' : 'cursor-pointer'}`}>
-        <input
-          type="checkbox"
-          checked={scoreTrim}
-          onChange={(e) => setScoreTrim(e.target.checked)}
-          disabled={softLocked}
-          className="neu-checkbox shrink-0"
-        />
-        {/* 单行标题 + ？hover 气泡（2026-09-26 定稿：说明移入气泡，标题行 20px=选择框高精确居中） */}
-        <span className="flex items-center gap-1.5 text-xs font-semibold leading-5 text-[var(--foreground)]">
-          评分去极值
-          <span className="pm-help-anchor" tabIndex={0}>
-            <span className="pm-help-dot" aria-label="评分去极值说明" role="img">?</span>
-            <span className="pm-help-tip" role="tooltip">
-              ≥5 位专家时去掉 1 个最高分、1 个最低分后取平均（评标实务惯例）；关闭后全额均分
+      {/* 评分去极值 + 保存同行（2026-09-28 三次裁定：保存按钮回归块底，与「评分去极值」文案对齐——
+          左勾选项、右按钮；提示条继续排在本行之下） */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className={`flex items-center gap-2.5 ${softLocked ? 'opacity-60' : 'cursor-pointer'}`}>
+          <input
+            type="checkbox"
+            checked={scoreTrim}
+            onChange={(e) => setScoreTrim(e.target.checked)}
+            disabled={softLocked}
+            className="neu-checkbox shrink-0"
+          />
+          {/* 单行标题 + ？hover 气泡（2026-09-26 定稿：说明移入气泡，标题行 20px=选择框高精确居中） */}
+          <span className="flex items-center gap-1.5 text-xs font-semibold leading-5 text-[var(--foreground)]">
+            评分去极值
+            <span className="pm-help-anchor" tabIndex={0}>
+              <span className="pm-help-dot" aria-label="评分去极值说明" role="img">?</span>
+              <span className="pm-help-tip" role="tooltip">
+                ≥5 位专家时去掉 1 个最高分、1 个最低分后取平均（评标实务惯例）；关闭后全额均分
+              </span>
             </span>
           </span>
-        </span>
-      </label>
+        </label>
+        <button
+          type="button"
+          className="neu-btn-primary !h-[34px] !text-xs"
+          disabled={saving || !detail || !dirty || softLocked}
+          title={softLocked ? '评标/归档阶段配置已锁定' : !dirty ? '无修改' : undefined}
+          onClick={save}
+        >
+          {saving ? "保存中…" : "保存配置"}
+        </button>
+      </div>
       {!softLocked && !evalMethodDirty && detail?.evaluationMethod == null && (
         <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
           未显式设置——当前按采购方式默认执行「{EVAL_METHOD_OPTIONS.find(o => o.value === evaluationMethod)?.label}」，保存后落为显式值。
