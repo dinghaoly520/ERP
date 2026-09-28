@@ -370,6 +370,9 @@ REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker �
 OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
 BID_DUAL_ENVELOPE=true            # 双信封新轨总开关（=false 全局退回旧轨 KMS 信封投递；默认开，灰度/应急双向可退）
+TRUSTED_CA_DIR=...                 # X.509 链校验信任锚目录（PEM/DER；空=跳过链闸，mock 兼容期默认空；真 CA 根证书落此即启用，apps/api/src/common/crypto/x509/）
+CERT_CHAIN_ENFORCE=true            # 链闸失败语义：默认拒绝；false=告警放行（灰度）
+CERT_POP_REQUIRED=false            # mock 轨（无 rawCert）PoP 强制开关；rawCert 轨恒强制
 ADMIN_KEYSTORE_DIR=...            # 管理方加密证书私钥落盘目录（默认 apps/api/.data/admin-keystore；轮转后旧 adminCertId 私钥仍按 id 定位）
 VECTOR_DATABASE_URL=postgresql://... # 可选：向量检索独立库（金仓/国产化形态配 sidecar：docker compose --profile vector-sidecar up -d pgvector @:5434；缺省回退 DIRECT_URL→主库；迁移走 scripts/db-migrate-kingbase.sh）
 
