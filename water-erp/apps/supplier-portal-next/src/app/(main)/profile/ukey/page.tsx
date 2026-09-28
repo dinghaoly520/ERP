@@ -23,7 +23,7 @@ import { openUkey } from "@/utils/ukey-factory";
 import { extractCn, formatCertDn, isOwnCert } from "@/utils/ukey-cert-match";
 import { useUkeyHealth } from "@/utils/use-ukey-health";
 import { supplierApi } from "@/lib/api/supplier";
-import { LoadingBlock, SpButton, SpInput } from "@/components/ui";
+import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpPagination } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import { CaSelftestDialog } from "@/components/profile/ca-selftest-dialog";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -93,6 +93,10 @@ export default function UkeyManagePage() {
   const [serverCerts, setServerCerts] = useState<ServerCertRow[]>([]);
   const [binding, setBinding] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  // 绑定记录弹窗（查看全部 + 10 条/页翻页）
+  const [allOpen, setAllOpen] = useState(false);
+  const [allPage, setAllPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── 绑定公开信息缓存 ──
   const [boundInfo, setBoundInfo] = useState<BoundInfo | null>(null);
@@ -415,7 +419,24 @@ export default function UkeyManagePage() {
         <div className="neu-card ukey-card">
           <div className="card-header">
             <span className="card-title">平台绑定记录</span>
-            <SpButton variant="link" onClick={() => void refreshServerCerts()}>刷新</SpButton>
+            <div className="flex items-center gap-2">
+              {serverCerts.length > 3 && (
+                <SpButton onClick={() => { setAllOpen(true); setAllPage(1); }}>查看全部</SpButton>
+              )}
+              <SpButton
+                loading={refreshing}
+                onClick={async () => {
+                  setRefreshing(true);
+                  try {
+                    await refreshServerCerts();
+                  } catch {
+                    /* api 层已 toast */
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+              >刷新</SpButton>
+            </div>
           </div>
 
           {serverCerts.length === 0 ? (
@@ -424,7 +445,7 @@ export default function UkeyManagePage() {
             </div>
           ) : (
             <div className="cert-list">
-              {serverCerts.map((row) => (
+              {serverCerts.slice(0, 3).map((row) => (
                 <div key={row.id} className="cert-row server">
                   <div className="cert-main">
                     <span className="cert-sn">{row.certSn}</span>
@@ -468,6 +489,56 @@ export default function UkeyManagePage() {
           ))}
         </div>
       </div>
+
+      {/* ═══ 平台绑定记录——查看全部（分页弹窗）═══ */}
+      <SpDialog
+        open={allOpen}
+        onClose={() => setAllOpen(false)}
+        title="平台绑定记录"
+        subtitle={`共 ${serverCerts.length} 条记录`}
+        width={680}
+      >
+        <div className="cert-list" style={{ gap: 10 }}>
+          {serverCerts.slice((allPage - 1) * 10, allPage * 10).map((row) => (
+            <div key={row.id} className="cert-row server">
+              <div className="cert-main">
+                <span className="cert-sn">{row.certSn}</span>
+                <span className="cert-dn" title={row.certDn}>{formatCertDn(row.certDn)}</span>
+                <span className="cert-time">
+                  {row.bindingStatus === "ACTIVE"
+                    ? `绑定于 ${dayjs(row.boundAt).format("YYYY-MM-DD HH:mm")}`
+                    : `撤销于 ${row.revokedAt ? dayjs(row.revokedAt).format("YYYY-MM-DD HH:mm") : "--"}`}
+                </span>
+                <span className="cert-time">{certValidityText(row.expiresAt) ?? "有效期：长期（证书未携带）"}</span>
+              </div>
+              <div className="cert-actions">
+                <span className={`ukey-tag ${row.bindingStatus === "ACTIVE" ? "ukey-tag--success" : "ukey-tag--info"}`}>
+                  {row.bindingStatus === "ACTIVE" ? "生效中" : "已撤销"}
+                </span>
+                {row.bindingStatus === "ACTIVE" && (
+                  <SpButton
+                    danger
+                    loading={revoking}
+                    disabled={!ukey}
+                    onClick={async () => {
+                      await handleRevoke(row);
+                      await refreshServerCerts();
+                    }}
+                  >解绑</SpButton>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <SpPagination
+            page={allPage}
+            pageSize={10}
+            total={serverCerts.length}
+            onChange={(p) => setAllPage(p)}
+          />
+        </div>
+      </SpDialog>
 
       {dialog}
 

@@ -171,11 +171,11 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   // 按固定 tab 分组：全部=合并全部类型按日期倒序；中标=中标公告+预成交公示合并；
   // 空类型保留 tab（items 为空时内容区显示空态）——只展示数据库真实数据，不使用本地兜底
   const announceData = useMemo(() => HOME_ANNOUNCE_TABS.map(tab => {
-    // v2（2026-09-26）：已下线标题壳不进首页轮播/侧栏（完整清单在「全部公告」页留标题）——
-    const src = (tab.types ? fetchedAnnouncements.filter(a => tab.types!.includes(a.type)) : fetchedAnnouncements)
-      .filter(a => !a.titleOnly);
+    // v2 修订（2026-09-28 用户裁定）：公示期满的已下线标题壳**仍进首页轮播/侧栏**——
+    // 标题可见、灰态不可点、正文不可查看（版式口径同「全部公告」页标题壳）
+    const src = tab.types ? fetchedAnnouncements.filter(a => tab.types!.includes(a.type)) : fetchedAnnouncements;
     const items = [...src].sort((a, b) => (a.date < b.date ? 1 : -1))
-      .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel }));
+      .map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id, deadlineLabel: a.deadlineLabel, titleOnly: a.titleOnly === true }));
     return {
       key: tab.key,
       label: tab.label,
@@ -466,8 +466,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               {/* Featured card — spans 2 cols (div + onClick 导航，标题内嵌 <a> 保证 SEO/右键) */}
               <div
                 className="announce-featured lg:col-span-2 group"
-                style={{ '--card-color': currentAnnounce.color } as React.CSSProperties}
-                onClick={() => { saveHomeScroll(); router.push(`/announcements/${featuredItem.id}?from=home`); }}
+                style={{ '--card-color': currentAnnounce.color, ...(featuredItem.titleOnly ? { opacity: 0.72 } : {}) } as React.CSSProperties}
+                onClick={() => { if (featuredItem.titleOnly) return; saveHomeScroll(); router.push(`/announcements/${featuredItem.id}?from=home`); }}
                 role="article">
                 <div className="announce-featured-border" />
                 <div className="announce-featured-inner">
@@ -475,6 +475,9 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   <div className="flex items-center gap-2.5 mb-4">
                     <span className="announce-tag" style={{ backgroundColor: currentAnnounce.color }}>{featuredItem.tag}</span>
                     <span className="text-xs text-[#999]">{featuredItem.date}</span>
+                    {featuredItem.titleOnly && (
+                      <span className="text-xs bg-[#eef1f6] text-[#8a96aa] px-2 py-0.5 rounded-full font-bold">已下线</span>
+                    )}
                     {featuredItem.urgent && (
                       <span className="announce-tag-urgent">
                         <span className="announce-tag-urgent-dot" />
@@ -482,17 +485,23 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       </span>
                     )}
                   </div>
-                  {/* 标题 — 内嵌 <a> 提供真实链接（SEO + 右键新窗口） */}
+                  {/* 标题 — 内嵌 <a> 提供真实链接（SEO + 右键新窗口）；已下线壳灰态纯文本不可点 */}
                   <h3 key={featuredItem.id} className="announce-featured-title" style={{ animation: 'announceContentIn 0.4s ease' }}>
+                    {featuredItem.titleOnly ? (
+                      <span style={{ color: '#8a96aa', cursor: 'default' }}>{featuredItem.title}</span>
+                    ) : (
                     <a href={`/announcements/${featuredItem.id}?from=home`}
                       onClick={(e) => { e.stopPropagation(); saveHomeScroll(); }}
                       className="announce-featured-title-link">
                       {featuredItem.title}
                     </a>
+                    )}
                   </h3>
                   {/* 正文预览 */}
                   <p key={`content-${featuredItem.id}`} className="announce-featured-content-preview" style={{ animation: 'announceContentIn 0.4s ease 0.05s both' }}>
-                    {featuredItem.aiSummary || featuredItem.desc || featuredItem.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320)}
+                    {featuredItem.titleOnly
+                      ? '该公告公示期已满，正文已下线，不可查看详情。'
+                      : (featuredItem.aiSummary || featuredItem.desc || featuredItem.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320))}
                   </p>
                   {/* 底部元信息 */}
                   <div className="flex items-center justify-between mt-auto">
@@ -502,7 +511,9 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                         <span className="announce-meta">{currentAnnounce.deadlineLabel} <em className="announce-deadline">{featuredItem.deadline}</em></span>
                       )}
                     </div>
-                    <span className="announce-detail-btn">查看详情</span>
+                    {featuredItem.titleOnly
+                      ? <span className="text-xs font-semibold text-[#8a96aa]">公示期满 · 已下线</span>
+                      : <span className="announce-detail-btn">查看详情</span>}
                   </div>
                   {/* 轮播进度指示器 — stopPropagation 阻止冒泡到 div onClick */}
                   {currentAnnounce.items.length > 1 && (
@@ -531,6 +542,17 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   {/* 侧栏只列最新 3 条（featured 轮播展示其余；完整清单走「全部公告」页） */}
                   {currentAnnounce.items.filter((_, i) => i !== featuredIndex).slice(0, 3).map((item, idx, arr) => (
                     <React.Fragment key={item.id}>
+                      {item.titleOnly ? (
+                        /* 已下线标题壳：灰态不可点（2026-09-28 裁定——仍展示，仅不可看详情） */
+                        <div className="announce-side-item group" aria-disabled="true" title="该公告已下线"
+                          style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': '#b6c0cf', opacity: 0.65, cursor: 'default' } as React.CSSProperties}>
+                          <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
+                          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                            <span className="text-[13px] text-[#aaa]">{item.date.slice(5)}</span>
+                            <span className="announce-side-item-title" style={{ color: '#8a96aa' }}>{item.title}</span>
+                          </div>
+                        </div>
+                      ) : (
                       <a href={`/announcements/${item.id}?from=home`}
                         className="announce-side-item group"
                         onClick={saveHomeScroll}
@@ -541,6 +563,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                           <span className="announce-side-item-title">{item.title}</span>
                         </div>
                       </a>
+                      )}
                       {idx < arr.length - 1 && <div className="announce-side-divider" aria-hidden="true" />}
                     </React.Fragment>
                   ))}

@@ -44,7 +44,7 @@
 
 /* 详情链接 — 原生导航语义、清晰焦点与稳定触控面积 */
 .opportunity-detail-link {
-  min-width: 78px; min-height: 44px;
+  min-width: 64px;
   display: inline-flex; align-items: center; justify-content: center;
   color: var(--brand); text-decoration: none;
 }

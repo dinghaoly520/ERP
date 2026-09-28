@@ -464,8 +464,8 @@ export default function ProfilePage() {
         sub="基本信息、联系人、银行账户、资质与主体业绩管理"
         actions={(
           <span className="neu-btn-group">
-            <SpButton variant="primary" className="!h-[38px]" icon={PenLine} onClick={openCrDlg} disabled={changeLocked}>申请资料变更</SpButton>
-            <SpButton className="!h-[38px]" icon={History} onClick={() => setRecordsOpen(true)}>变更记录</SpButton>
+            <SpButton variant="primary" water icon={PenLine} onClick={openCrDlg} disabled={changeLocked}>申请资料变更</SpButton>
+            <SpButton icon={History} onClick={() => setRecordsOpen(true)}>变更记录</SpButton>
           </span>
         )}
       />

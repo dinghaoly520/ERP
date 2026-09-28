@@ -133,7 +133,7 @@ export default function ObjectionsPage() {
         icon={MessageSquareWarning}
         title="异议与投诉"
         sub="对采购文件、资格预审结果、采购结果有异议的，按公告约定在线提出"
-        actions={<SpButton variant="primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> 提出异议</SpButton>}
+        actions={<SpButton variant="primary" water icon={Plus} className="!h-[38px] !px-5" onClick={() => setDialogOpen(true)}>提出异议</SpButton>}
       />
 
       {/* ═══ 状态分段切换（cgzxui .neu-segment：与「成交履约」同款——hero 下独立一行）═══ */}

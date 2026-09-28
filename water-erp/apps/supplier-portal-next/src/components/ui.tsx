@@ -16,6 +16,7 @@ export function SpButton({
   danger,
   success,
   warning,
+  water,
   loading,
   icon: Icon,
   className,
@@ -26,11 +27,13 @@ export function SpButton({
   danger?: boolean;
   success?: boolean;
   warning?: boolean;
+  /** 水主题青绿色调（替代深蓝品牌色，cgzxui --water） */
+  water?: boolean;
   loading?: boolean;
   icon?: ComponentType<{ size?: number | string; className?: string; strokeWidth?: number }>;
 }) {
   const base = variant === "primary" ? "neu-btn-primary" : variant === "xs" ? "neu-btn-xs" : variant === "link" ? "neu-btn-link" : "neu-btn-soft";
-  const tone = danger ? " is-danger" : success ? " is-success" : warning ? " is-warning" : "";
+  const tone = danger ? " is-danger" : success ? " is-success" : warning ? " is-warning" : water ? " is-water" : "";
   return (
     <button
       type="button"
