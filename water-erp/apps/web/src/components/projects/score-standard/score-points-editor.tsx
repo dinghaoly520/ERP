@@ -17,6 +17,7 @@ import {
 } from '@/lib/api/bid';
 import { Modal } from '@/components/workbench';
 import { SuggestionRow } from './suggestion-row';
+import { PRICE_CALC_OPTIONS } from '../price-config-card';
 
 // Phase 1：条款类别标签（与 requirement-matcher 的 category 一致）
 const REQ_CAT_LABEL: Record<string, string> = { qualification: '资格', technical: '技术', commercial: '商务' };
@@ -42,6 +43,9 @@ interface Props {
    *  单文件/已选源直接返回；多文件未选时弹同一选择器，选定落定、取消返回 null（中止提取）。
    *  null 返回后不再静默走后端「该轮最新附件」兜底。 */
   resolveSource?: () => Promise<{ attachmentId: string; fileName: string } | null>;
+  /** 价格分计算方式（2026-09-28：价格项提示随实际口径联动，不再写死「按报价公式」；
+   *  ''=详情未就绪，退回通用文案） */
+  priceFormulaCalc?: string;
 }
 
 /**
@@ -49,7 +53,7 @@ interface Props {
  * 全部收编——行=半透白凸面、按钮=neu-btn-xs、输入=workbench-input 紧凑变体、
  * 两弹窗=workbench Modal（token 蒙层+focus trap+Esc；z-[600] 盖过 z-[500] 评分面板）。
  */
-export function ScorePointsEditor({ projectId, item, points, onChanged, locked, extractSource, resolveSource }: Props) {
+export function ScorePointsEditor({ projectId, item, points, onChanged, locked, extractSource, resolveSource, priceFormulaCalc }: Props) {
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
   const isPrice = item.category === 'PRICE'; // 价格分按公式计算,不提取得分点
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
@@ -115,7 +119,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
       setSuggestions(sorted.map((s) => ({ ...s, selected: !s.duplicate })));
       if (list.length === 0) {
         if (item.category === 'PRICE') {
-          setExtractError('价格分类别的得分点由报价公式计算,无需 AI 提取。');
+          setExtractError('价格分类别的得分点不适用 AI 提取——价格分按评标口径计分（公式自动或专家手填）。');
         } else {
           setExtractError('AI 未从采购文件提取到得分点建议。');
         }
@@ -279,7 +283,16 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
           </div>
         ) : <span />}
         <div className="flex items-center gap-2">
-          {isPrice && <span className="text-xs text-[var(--muted-foreground)]">价格分按报价公式,无需提取得分点</span>}
+          {/* 2026-09-28：随「价格分计算方式」联动（原写死「按报价公式」与所选口径不符） */
+          isPrice && (
+            <span className="text-xs text-[var(--muted-foreground)]">
+              {priceFormulaCalc === 'manual'
+                ? '价格分为专家手填（未启用公式自动计算），无需 AI 提取得分点'
+                : priceFormulaCalc
+                  ? `价格分按「${PRICE_CALC_OPTIONS.find((o) => o.value === priceFormulaCalc)?.label ?? priceFormulaCalc}」公式自动计算，无需 AI 提取得分点`
+                  : '价格分按评标口径计分（公式自动或专家手填），无需 AI 提取得分点'}
+            </span>
+          )}
           {!isPrice && !locked && (
           <button
             onClick={handleExtract}

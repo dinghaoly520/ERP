@@ -47,7 +47,7 @@ const EVAL_METHOD_NOTES: Record<string, string> = {
 
 /** 价格分计算方式（镜像自 apps/api/src/bid/price-formula.service.ts PRICE_FORMULA_OPTIONS——
  *  web 不可跨包 import，改公式语义须两侧同步）；manual=专家手填（保存 priceFormulaConfig=null） */
-const PRICE_CALC_OPTIONS: { value: string; label: string; hint: string }[] = [
+export const PRICE_CALC_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: "benchmark_deviation", label: "基准价偏离法", hint: "基准价=限价×K，双向偏离线性扣分（防高价也防恶意低价）" },
   { value: "lowest_price", label: "最低评标价法", hint: "最低有效报价=满分，其余按最低报价÷该报价×满分折算" },
   { value: "ratio", label: "比例法", hint: "限价÷报价×满分，报价越低分越高（不惩罚异常低价）" },
@@ -77,7 +77,7 @@ const softLockedOf = (stage?: string) => stage === "EVALUATING" || stage === "AR
 
 /** 回显口径=引擎实际行为：config null→manual；formulaType 缺失/非法（含历史 {}）→ lowest_price
  *  （price-formula.service default 分支的真实回退），保存时写规范形态顺带治理脏数据 */
-function resolveFormulaCalc(cfg: Record<string, unknown> | null | undefined): string {
+export function resolveFormulaCalc(cfg: Record<string, unknown> | null | undefined): string {
   if (cfg == null) return "manual";
   const t = (cfg as Record<string, unknown>).formulaType;
   return LEGAL_FORMULA_TYPES.includes(t as string) ? (t as string) : "lowest_price";

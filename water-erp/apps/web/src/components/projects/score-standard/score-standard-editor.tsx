@@ -35,6 +35,7 @@ import {
 import type { ProjectManagementAttachment, ProjectManagementItem } from '@/lib/types/project-management';
 import { Modal, TableSkeleton } from '@/components/workbench';
 import { ScorePointsEditor } from './score-points-editor';
+import { PRICE_CALC_OPTIONS, resolveFormulaCalc } from '../price-config-card';
 import { SaveTemplateDialog } from './save-template-dialog';
 import { TemplateLibraryDialog } from './template-library-dialog';
 import { BulkExtractReviewDialog, type EditableGroup } from './bulk-extract-review-dialog';
@@ -51,6 +52,9 @@ type Props = {
   bidProject?: BidProjectRef | null;
   onChanged?: () => void;
   variant?: 'standalone' | 'embedded';
+  /** 价格分公式配置（2026-09-28：卡级 detail 下发——评标口径保存后面板重拉，编辑器据此
+   *  刷新价格项提示；undefined=standalone 等无 detail 场景，退回自加载值） */
+  priceFormulaConfig?: Record<string, unknown> | null;
   /** 提取源（2026-09-26 双入口分流）：
    *  - 显式对象 = 03 完成向导 Step2：固定提取正式盖章版采购文件（OCR，isOfficial=true）
    *  - undefined = 「评分标准」按钮面板：自动——唯一文件直用；多文件弹选择器由用户指定，
@@ -60,12 +64,20 @@ type Props = {
   tenderCandidates?: ProjectManagementAttachment[];
 };
 
-export function ScoreStandardEditor({ project, round, bidProject, onChanged, variant = 'standalone', extractSource, tenderCandidates }: Props) {
+export function ScoreStandardEditor({ project, round, bidProject, onChanged, variant = 'standalone', extractSource, tenderCandidates, priceFormulaConfig }: Props) {
   const [bpId, setBpId] = useState<string | null>(bidProject?.id ?? null);
   const [stage, setStage] = useState('');
   /** 最近一次通过完整性校验的版本时间戳（2026-09-28 用户裁定方案 A：scoreStandardPublishedAt
    *  前端语义重释义为「已校验」——发布动作无任何下游消费/锁定效力，降级为版本校验标记）。 */
   const [validatedAt, setValidatedAt] = useState<string | null>(null);
+  /** 价格分计算方式（回显口径与 EvaluationBasisFields 一致：manual=专家手填）——传给
+   *  ScorePointsEditor 渲染动态提示（2026-09-28：价格项提示不再写死「按报价公式」） */
+  const [priceFormulaCalc, setPriceFormulaCalc] = useState<string>('');
+  /* eslint-disable react-hooks/set-state-in-effect -- prop 下发的公式配置随卡级 detail 重拉刷新 */
+  useEffect(() => {
+    if (priceFormulaConfig !== undefined) setPriceFormulaCalc(resolveFormulaCalc(priceFormulaConfig));
+  }, [priceFormulaConfig]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   const [items, setItems] = useState<BidScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -106,6 +118,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         setBpId(bp.id);
         setStage(detail.stage);
         setValidatedAt(detail.scoreStandardPublishedAt ?? null);
+        setPriceFormulaCalc(resolveFormulaCalc(detail.priceFormulaConfig));
         setTplDims({ procurementMethod: detail.procurementMethod || '', projectCategory: project.procurementCategory || '' });
         setItems(its);
       } catch {
@@ -164,6 +177,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       setItems(refreshed);
       setStage(detail.stage);
       setValidatedAt(detail.scoreStandardPublishedAt ?? null);
+      setPriceFormulaCalc(resolveFormulaCalc(detail.priceFormulaConfig));
     } catch {
       /* 保留旧数据 */
     }
@@ -648,6 +662,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                             locked={locked}
                             extractSource={extractSource ?? pickedSource}
                             resolveSource={resolveSourceForItem}
+                            priceFormulaCalc={priceFormulaCalc}
                           />
                         </td>
                       </tr>

@@ -117,6 +117,7 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
               variant="embedded"
               extractSource={extractSource}
               tenderCandidates={tenderCandidates}
+              priceFormulaConfig={detail?.priceFormulaConfig}
             />
           </div>
           {/* ③ 价格分公式参数——已于 2026-09-26 表单化并入①（原裸 JSON 高级区撤销） */}
