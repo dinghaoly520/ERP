@@ -148,6 +148,13 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
 
   async function add() {
     if (!draft.name.trim()) return;
+    // 前端预检（2026-09-28）：合计将超大类满分直接 toast 拦下——此前裸 try/finally 无 catch，
+    // ApiError 冒成未处理拒绝弹 Next.js dev 错误浮层（用户实测 20.5 > 20 即此路径）
+    const nextTotal = total + (isPassFail ? 0 : Number(draft.fullScore));
+    if (!isPassFail && nextTotal > max) {
+      toast.error(`得分点满分合计 ${nextTotal} 将超过大类满分 ${max}，请调整后再添加`);
+      return;
+    }
     setBusy(true);
     try {
       const created = await createScorePoint(projectId, item.id, {
@@ -159,6 +166,9 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
       setLocalPoints((prev) => [...prev, created]);
       setDraft({ name: '', fullScore: 0, evidenceHint: '', objective: true });
       onChanged();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.message 回退提示
+    } catch (e: any) {
+      toast.error(e?.message ?? '添加得分点失败，请重试');
     } finally {
       setBusy(false);
     }
@@ -166,20 +176,48 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
 
   async function toggleObjective(p: BidScorePoint) {
     setLocalPoints((prev) => prev.map((x) => (x.id === p.id ? { ...x, objective: !p.objective } : x)));
-    await updateScorePoint(projectId, item.id, p.id, { objective: !p.objective });
-    onChanged();
+    try {
+      await updateScorePoint(projectId, item.id, p.id, { objective: !p.objective });
+      onChanged();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 失败回滚乐观更新
+    } catch (e: any) {
+      setLocalPoints((prev) => prev.map((x) => (x.id === p.id ? { ...x, objective: p.objective } : x)));
+      toast.error(e?.message ?? '切换客观/主观失败，请重试');
+    }
   }
 
   async function remove(p: BidScorePoint) {
     setLocalPoints((prev) => prev.filter((x) => x.id !== p.id));
-    await deleteScorePoint(projectId, item.id, p.id);
-    onChanged();
+    try {
+      await deleteScorePoint(projectId, item.id, p.id);
+      onChanged();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 失败回滚乐观更新
+    } catch (e: any) {
+      setLocalPoints((prev) => [...prev, p]);
+      toast.error(e?.message ?? '删除得分点失败，请重试');
+    }
   }
 
-  async function editFullScore(p: BidScorePoint, v: number) {
+  async function editFullScore(p: BidScorePoint, v: number, input: HTMLInputElement) {
+    // uncontrolled 输入被拒时命令式还原显值（state 回滚同值不会触发重渲染）
+    const revertInput = () => { input.value = String(Number(p.fullScore)); };
+    // 前端预检：本项新值 + 其余项合计不得超过大类满分（与后端 assertPointsSumWithinMax 同口径）
+    const others = total - Number(p.fullScore);
+    if (!isPassFail && others + v > max) {
+      toast.error(`得分点满分合计 ${others + v} 将超过大类满分 ${max}`);
+      revertInput();
+      return;
+    }
     setLocalPoints((prev) => prev.map((x) => (x.id === p.id ? { ...x, fullScore: String(v) } : x)));
-    await updateScorePoint(projectId, item.id, p.id, { fullScore: v });
-    onChanged();
+    try {
+      await updateScorePoint(projectId, item.id, p.id, { fullScore: v });
+      onChanged();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 失败回滚乐观更新+输入显值
+    } catch (e: any) {
+      setLocalPoints((prev) => prev.map((x) => (x.id === p.id ? { ...x, fullScore: p.fullScore } : x)));
+      revertInput();
+      toast.error(e?.message ?? '修改得分点满分失败，请重试');
+    }
   }
 
   // ── Phase 1：得分点↔招标条款映射（独立于发布锁；lazy-load 条款列表）──
@@ -322,7 +360,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
                       min={0}
                       step={0.5}
                       defaultValue={Number(p.fullScore)}
-                      onBlur={(e) => editFullScore(p, Number(e.target.value))}
+                      onBlur={(e) => void editFullScore(p, Number(e.target.value), e.currentTarget)}
                       className="workbench-input !h-7 w-[4.5rem] shrink-0 !px-1.5 !text-xs text-right tabular-nums"
                     />
                   )}
