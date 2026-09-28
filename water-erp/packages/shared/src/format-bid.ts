@@ -33,6 +33,19 @@ export function parseAmountToYuan(raw: string | number | null | undefined, opts?
   return null;
 }
 
+/**
+ * 万元输出口径（2026-09-28 辅助评标·合规性审查报价分布图）：与 parseAmountToYuan 同一套
+ * 解析/unitHint 语义，仅输出单位为万元（围标证据文本、开标记录侧语境均为万元）。
+ * 万元↔元桥接只准经本文件（format-bid.ts），读取端禁止自行裸 ÷/×10000。
+ */
+export function parseAmountToWan(
+  raw: string | number | null | undefined,
+  opts?: ParseAmountOpts,
+): number | null {
+  const yuan = parseAmountToYuan(raw, opts);
+  return yuan == null ? null : yuan / 10_000;
+}
+
 export function formatBidPrice(
   raw: string | number | null | undefined,
   opts?: { prefix?: string; unitHint?: string | null },

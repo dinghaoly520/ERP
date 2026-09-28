@@ -1,7 +1,7 @@
 // packages/shared/src/__tests__/format-bid.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAmountToYuan, formatBidPrice } from '../format-bid';
+import { parseAmountToYuan, parseAmountToWan, formatBidPrice } from '../format-bid';
 
 test('parseAmountToYuan：万元字符串', () => {
   assert.equal(parseAmountToYuan('1150万元'), 11_500_000);
@@ -35,6 +35,29 @@ test('parseAmountToYuan：unitHint 与文本自带单位并存时文本单位优
   assert.equal(parseAmountToYuan('1150万元', { unitHint: '万元' }), 11_500_000);
   // 不可解析自由文本（面议）带 unitHint 仍 null——宁缺勿猜
   assert.equal(parseAmountToYuan('面议', { unitHint: '万元' }), null);
+});
+
+// 2026-09-28 辅助评标·合规性审查报价分布图：万元输出口径（围标语境/开标记录侧均为万元）
+test('parseAmountToWan：与 parseAmountToYuan 同解析、输出万元', () => {
+  assert.equal(parseAmountToWan('1150万元'), 1150);
+  assert.equal(parseAmountToWan('1080 万元'), 1080);
+  // dual-v2 唱标裸数字（万元戳）原值直出
+  assert.equal(parseAmountToWan('153.95', { unitHint: '万元' }), 153.95);
+  assert.equal(parseAmountToWan('153.8998', { unitHint: '万元' }), 153.8998);
+  // 无提示裸数字=旧语义元 → 换算万元
+  assert.equal(parseAmountToWan('1,485,000'), 148.5);
+  assert.equal(parseAmountToWan(1485000), 148.5);
+  assert.equal(parseAmountToWan('1260.5'), 0.12605);
+  // 无「万元」提示不改变语义（同 parseAmountToYuan；÷10000 舍入差 1 ulp，容差比较）
+  assert.ok(Math.abs((parseAmountToWan('153.95', { unitHint: null }) ?? 0) - 0.015395) < 1e-12);
+});
+
+test('parseAmountToWan：不可解析与空值（宁缺勿猜，同源语义）', () => {
+  assert.equal(parseAmountToWan('面议'), null);
+  assert.equal(parseAmountToWan('面议', { unitHint: '万元' }), null);
+  assert.equal(parseAmountToWan(''), null);
+  assert.equal(parseAmountToWan(null), null);
+  assert.equal(parseAmountToWan(undefined), null);
 });
 
 test('formatBidPrice：可解析格式化、不可解析回原文、空值占位', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3, Download, ShieldAlert } from 'lucide-react';
+import { BarChart3, Download } from 'lucide-react';
 import type { AssistCompareResponse } from '@water-erp/shared';
 import { api } from '@/lib/api';
 import { RankBadge } from './shared/rank-badge';
@@ -12,6 +12,7 @@ import { QuoteHistoryPanel } from '../quote-history-panel';
 import { ScoreBarChart } from './charts/score-bar-chart';
 import type { ScoreBarChartData } from './charts/score-bar-chart';
 import { PriceComparisonChart } from './charts/price-comparison-chart';
+import { FraudReviewCard } from './fraud-review-card';
 
 const SCORE_CATEGORIES = ['BUSINESS', 'TECHNICAL', 'PRICE'];
 
@@ -132,6 +133,12 @@ export function CrossBidderLayer({
       }
     }
   }
+
+  // 开标唱标价（万元，升序）——合规性审查报价分布图；无开标记录/不可解析的家不进图
+  const openingPriceData = sorted
+    .filter((b) => b.openingAmountWan != null)
+    .map((b) => ({ name: b.supplierName, price: b.openingAmountWan as number }))
+    .sort((a, b) => a.price - b.price);
 
   return (
     <div className="space-y-4">
@@ -258,35 +265,15 @@ export function CrossBidderLayer({
         </div>
       )}
 
-      {/* 项目级围标风险摘要 */}
-      {data?.projectFraudSummary && (
-        <div className="neu-card-static p-4">
-          <div className="mb-1 flex items-center gap-2">
-            <ShieldAlert size={14} className="text-[var(--warning)]" />
-            <span className="text-sm font-bold">本项目围标风险</span>
-            <span
-              className="exp-pill"
-              style={{
-                '--c':
-                  data.projectFraudSummary.riskLevel === 'high' ? 'var(--danger)'
-                  : data.projectFraudSummary.riskLevel === 'medium' ? 'var(--warning)'
-                  : 'var(--success)',
-              } as React.CSSProperties}
-            >
-              {data.projectFraudSummary.riskLevel === 'high'
-                ? '高'
-                : data.projectFraudSummary.riskLevel === 'medium'
-                  ? '中'
-                  : '低'}
-            </span>
-            <span className="text-[11px] text-[var(--muted-foreground)]">
-              · {data.projectFraudSummary.indicatorCount} 项指标
-            </span>
-          </div>
-          <p className="text-[11px] text-[var(--muted-foreground)]">
-            详情仅管理端可见，此处展示风险摘要供参考。
-          </p>
-        </div>
+      {/* 合规性审查（围标串标风险检测）——完整详情（2026-09-28 起本端为唯一查看入口） */}
+      {data?.projectFraud && (
+        <FraudReviewCard
+          fraud={data.projectFraud}
+          priceData={openingPriceData}
+          ceilingPriceWan={data.ceilingPriceWan}
+          highlightName={sorted.find((b) => b.supplierId === activeSupplier)?.supplierName}
+          bidderCount={sorted.length}
+        />
       )}
 
       {/* 导出 AI 分析报告 */}

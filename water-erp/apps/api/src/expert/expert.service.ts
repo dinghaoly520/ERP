@@ -33,6 +33,7 @@ import { SignatureService } from '../common/crypto/signature.service';
 import { ERR_PUBLIC_KEY_INVALID } from '../common/error-codes';
 import { lockAndReassertStage } from '../bid/bid-state';
 import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
+import { parseAmountToWan } from '@water-erp/shared';
 import { closeSignLoopIfDone } from '../bid/sign-loop.util';
 import { buildExpertEsignCanonical } from './expert-esign.util';
 import type { ExpertEsignatureRecord } from './expert-esign.util';
@@ -1218,9 +1219,11 @@ export class ExpertService {
       where: { projectId },
       select: { id: true },
     });
-    if (!task) return { bidders: [], projectFraudSummary: null, reportDocxUrl: null };
+    // 权威限价（元）→ 万元（合规性审查报价分布图限价线）；万元↔元桥接只准经 shared/format-bid
+    const ceilingPriceWan = project.ceilingPrice != null ? parseAmountToWan(Number(project.ceilingPrice)) : null;
+    if (!task) return { bidders: [], projectFraud: null, reportDocxUrl: null, ceilingPriceWan };
 
-    const [results, report] = await Promise.all([
+    const [results, report, openingRecs, amountUnitMap] = await Promise.all([
       this.prisma.aiBidderResult.findMany({
         where: { taskId: task.id, status: 'COMPLETED' },
         include: { bidSupplier: { select: { supplierName: true } } },
@@ -1229,16 +1232,32 @@ export class ExpertService {
         where: { taskId: task.id },
         select: { fraudIndicators: true, docxFileId: true },
       }),
+      // 开标记录报价（权威源，同 bid.service 价格分批量口径）：万元直通报价分布对比图
+      this.prisma.bidOpeningRecord.findMany({
+        where: { projectId },
+        select: { bidSupplierId: true, amount: true, amountUnit: true },
+      }),
+      resolveOpeningAmountUnitMap(this.prisma, projectId),
     ]);
 
-    let projectFraudSummary: { riskLevel: string; indicatorCount: number } | null = null;
-    if (report?.fraudIndicators) {
-      const fi = report.fraudIndicators as { riskLevel?: string; summary?: { totalCount?: number }; indicators?: unknown[] };
-      projectFraudSummary = {
-        riskLevel: fi.riskLevel ?? 'low',
-        indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0,
-      };
+    // 唱标金额单位：单位戳优先、无戳回退轨道推导（同 getAssistData C3 注入口径）
+    const openingWanBySupplier = new Map<string, number>();
+    for (const rec of openingRecs) {
+      if (!rec.bidSupplierId || !rec.amount) continue;
+      const unit = rec.amountUnit ?? amountUnitMap.get(rec.bidSupplierId) ?? null;
+      const wan = parseAmountToWan(rec.amount, { unitHint: unit });
+      if (wan != null) openingWanBySupplier.set(rec.bidSupplierId, wan);
     }
+
+    // 合规性审查（串通检测）完整直通——:3006 辅助评标 tab 底部合规性审查卡（2026-09-28，
+    // 旧 :3005 /bid-analysis fraud tab 已删且无任何管理端视图，此为唯一查看入口）
+    const projectFraud = (report?.fraudIndicators as {
+      riskLevel?: string;
+      summary?: { highCount?: number; mediumCount?: number; lowCount?: number; totalCount?: number };
+      overallAssessment?: string;
+      indicators?: unknown[];
+    } | null) ?? null;
+
     // bid_expert 无该 AI 报告 FileAsset 的访问权（canAccessFile 仅放行投标文件），
     // 返回 URL 恒为 403 死链且泄露内部 fileId → 置 null（前端按可空处理）。
     const reportDocxUrl = null;
@@ -1251,9 +1270,11 @@ export class ExpertService {
         categoryTotals: (r.categoryTotals as Record<string, { score: number; max: number }>) ?? {},
         qualificationStatus: r.qualificationStatus ?? '待审查',
         riskLevel: r.riskLevel ?? 'low',
+        openingAmountWan: openingWanBySupplier.get(r.bidSupplierId) ?? null,
       })),
-      projectFraudSummary,
+      projectFraud,
       reportDocxUrl,
+      ceilingPriceWan,
     };
   }
 

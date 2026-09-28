@@ -638,6 +638,39 @@ export type DisputesBySupplier = Record<string, Record<string, DisputeDetail[]>>
 
 /* ── 辅助评标对比视图 ── */
 
+/** 合规性审查（串通检测）证据明细 —— AiBidReport.fraudIndicators.indicators[].evidenceItems */
+export interface FraudEvidenceItemView {
+  type: string;
+  label: string;
+  value: string;
+  bidders: string[];
+  explanation: string;
+}
+
+/** 合规性审查风险指标 —— AiBidReport.fraudIndicators.indicators[]（2026-09-28 :3006 合规性审查卡） */
+export interface FraudIndicatorDetail {
+  type: string;
+  ruleCode?: string;
+  severity: 'low' | 'medium' | 'high' | string;
+  confidence?: number;
+  description: string;
+  evidence: string;
+  evidenceItems?: FraudEvidenceItemView[];
+  affectedBidders: string[];
+  involvedBidders?: Array<{ id: string; name: string }>;
+  similarityScore?: number;
+  recommendation: string;
+  reviewAction?: string;
+}
+
+/** 项目级合规性审查（串通检测）—— AiBidReport.fraudIndicators 完整直通 */
+export interface ProjectFraudDetail {
+  riskLevel: 'low' | 'medium' | 'high' | string;
+  summary?: { highCount?: number; mediumCount?: number; lowCount?: number; totalCount?: number };
+  overallAssessment?: string;
+  indicators?: FraudIndicatorDetail[];
+}
+
 export interface AssistCompareBidder {
   supplierId: string;
   supplierName: string;
@@ -645,10 +678,14 @@ export interface AssistCompareBidder {
   categoryTotals: Record<string, { score: number; max: number }>;
   qualificationStatus: string;
   riskLevel: string;
+  /** 开标记录报价（万元，权威源经 parseAmountToWan；无开标记录/不可解析为 null） */
+  openingAmountWan: number | null;
 }
 
 export interface AssistCompareResponse {
   bidders: AssistCompareBidder[];
-  projectFraudSummary: { riskLevel: string; indicatorCount: number } | null;
+  projectFraud: ProjectFraudDetail | null;
   reportDocxUrl: string | null;
+  /** 权威限价（万元，BidProject.ceilingPrice 换算；未设置为 null） */
+  ceilingPriceWan: number | null;
 }

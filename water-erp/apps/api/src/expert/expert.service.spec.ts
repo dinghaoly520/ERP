@@ -467,7 +467,7 @@ describe('ExpertService', () => {
   });
 
   describe('getAssistCompare', () => {
-    it('返回 bidders + projectFraudSummary（reportDocxUrl 对 bid_expert 恒 null）', async () => {
+    it('返回 bidders + 完整 projectFraud 直通 + dual-v2 回退推导的万元报价（reportDocxUrl 对 bid_expert 恒 null）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1' }) };
@@ -475,16 +475,73 @@ describe('ExpertService', () => {
         { bidSupplierId: 's1', totalScore: 80, categoryTotals: {}, qualificationStatus: '通过', riskLevel: 'low',
           bidSupplier: { supplierName: '甲' } },
       ]);
+      // 开标价（万元）——dual-v2 回退推导：s1 无单位戳、投递轨道 dual-v2 → 裸数字按万元
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 's1', supplierId: 'sup-1' }]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 'sup-1', envelopeVersion: 'dual-v2' }]);
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', amount: '152.9', amountUnit: null },
+      ]);
       prisma.aiBidReport = { findUnique: jest.fn().mockResolvedValue({
-        fraudIndicators: { riskLevel: 'medium', summary: { totalCount: 3 } },
+        fraudIndicators: {
+          riskLevel: 'high',
+          summary: { highCount: 1, mediumCount: 0, lowCount: 0, totalCount: 1 },
+          overallAssessment: '发现 1 项需重点关注。',
+          indicators: [
+            { type: 'price_concentration', ruleCode: 'PRICE_CONCENTRATION_HIGH', severity: 'high', confidence: 0.51,
+              description: '报价离散度过低', evidence: '平均价: 153.58万元', evidenceItems: [],
+              affectedBidders: ['甲'], involvedBidders: [{ id: 's1', name: '甲' }],
+              recommendation: '核实报价依据', reviewAction: 'verify_pricing_basis' },
+          ],
+        },
         docxFileId: 'doc-1',
       }) };
 
       const out = await service.getAssistCompare('u1', 'proj-1');
       expect(out.bidders).toHaveLength(1);
-      expect(out.bidders[0]).toMatchObject({ supplierId: 's1', supplierName: '甲', totalScore: 80 });
-      expect(out.projectFraudSummary).toEqual({ riskLevel: 'medium', indicatorCount: 3 });
+      expect(out.bidders[0]).toMatchObject({ supplierId: 's1', supplierName: '甲', totalScore: 80, openingAmountWan: 152.9 });
+      expect(out.projectFraud).toMatchObject({ riskLevel: 'high', overallAssessment: '发现 1 项需重点关注。' });
+      expect(out.projectFraud?.indicators).toHaveLength(1);
+      expect(out.ceilingPriceWan).toBeNull();
       expect(out.reportDocxUrl).toBeNull(); // P1-2：bid_expert 无该 FileAsset 访问权，恒 null
+    });
+
+    it('openingAmountWan：单位戳优先于轨道回退；无戳无投递按旧语义元换算；不可解析为 null', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1' }) };
+      prisma.aiBidderResult.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', totalScore: 80, categoryTotals: {}, qualificationStatus: '通过', riskLevel: 'low', bidSupplier: { supplierName: '甲' } },
+        { bidSupplierId: 's2', totalScore: 75, categoryTotals: {}, qualificationStatus: '通过', riskLevel: 'low', bidSupplier: { supplierName: '乙' } },
+        { bidSupplierId: 's3', totalScore: 70, categoryTotals: {}, qualificationStatus: '通过', riskLevel: 'low', bidSupplier: { supplierName: '丙' } },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 's1', supplierId: 'sup-1' }, { id: 's2', supplierId: 'sup-2' }, { id: 's3', supplierId: 'sup-3' },
+      ]);
+      // 仅 sup-1 是 dual-v2 新轨；s2 旧轨；s3 有单位戳
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 'sup-1', envelopeVersion: 'dual-v2' }]);
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', amount: '153.95', amountUnit: null },   // 回退 dual-v2 → 万元直出
+        { bidSupplierId: 's2', amount: '1,539,500', amountUnit: null }, // 旧轨裸数字=元 → 153.95 万元
+        { bidSupplierId: 's3', amount: '面议', amountUnit: '万元' },    // 带戳但不可解析 → null
+      ]);
+      prisma.aiBidReport = { findUnique: jest.fn().mockResolvedValue(null) };
+
+      const out = await service.getAssistCompare('u1', 'proj-1');
+      expect(out.bidders.find((b: any) => b.supplierId === 's1')?.openingAmountWan).toBe(153.95);
+      expect(out.bidders.find((b: any) => b.supplierId === 's2')?.openingAmountWan).toBe(153.95);
+      expect(out.bidders.find((b: any) => b.supplierId === 's3')?.openingAmountWan).toBeNull();
+      expect(out.projectFraud).toBeNull();
+    });
+
+    it('ceilingPriceWan：权威限价取 BidProject.ceilingPrice（元）经 parseAmountToWan 换算', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', ceilingPrice: 1540000 });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', expertRole: '正选', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1' }) };
+      prisma.aiBidderResult.findMany.mockResolvedValue([]);
+      prisma.aiBidReport = { findUnique: jest.fn().mockResolvedValue(null) };
+
+      const out = await service.getAssistCompare('u1', 'proj-1');
+      expect(out.ceilingPriceWan).toBe(154);
     });
 
     it('无 task 时返回空 bidders + null 摘要', async () => {
@@ -493,8 +550,9 @@ describe('ExpertService', () => {
       prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue(null) };
       const out = await service.getAssistCompare('u1', 'proj-1');
       expect(out.bidders).toEqual([]);
-      expect(out.projectFraudSummary).toBeNull();
+      expect(out.projectFraud).toBeNull();
       expect(out.reportDocxUrl).toBeNull();
+      expect(out.ceilingPriceWan).toBeNull();
     });
   });
 
