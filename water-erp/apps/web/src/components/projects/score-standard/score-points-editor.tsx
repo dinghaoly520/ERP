@@ -26,7 +26,7 @@ const objPillCls = (objective: boolean) =>
   `shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
     objective
       ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent-strong)]'
-      : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[oklch(0.52_0.13_70)]'
+      : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--danger)]'
   }`;
 
 interface Props {
@@ -274,7 +274,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
             <span className={`font-mono font-semibold ${total > max ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'}`}>{total}</span> / 大类满分 {max}
             {total > max && <span className="ml-1 text-[var(--danger)]">（已超出大类满分）</span>}
             {total < max && (
-              <span className="ml-1 text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">差额 {max - total} 未分配</span>
+              <span className="ml-1 text-[var(--danger)]">差额 {max - total} 未分配</span>
             )}
           </div>
         ) : <span />}
@@ -521,7 +521,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
                         onChange={() => setLinkDraft((prev) => ({ ...prev, [r.requirementId]: !prev[r.requirementId] }))}
                       />
                       <span className="text-[var(--foreground)]">
-                        {r.isStarred && <span className="mr-1 font-bold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">★</span>}
+                        {r.isStarred && <span className="mr-1 font-bold text-[var(--danger)]">★</span>}
                         {r.tenderContent || <span className="text-[var(--muted-foreground)]">（无内容）</span>}
                       </span>
                     </label>

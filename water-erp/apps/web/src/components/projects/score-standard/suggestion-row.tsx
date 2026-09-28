@@ -16,14 +16,14 @@ const objPillCls = (objective: boolean) =>
   `rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
     objective
       ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent-strong)]'
-      : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[oklch(0.52_0.13_70)]'
+      : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--danger)]'
   }`;
 
 /** AI 提取得分点建议行：单项审核弹窗与一键提取分组弹窗共用。
  *  2026-09-28 P2 cgzxui 迁移：描边容器→色调底、emoji→Lucide、hex 色板→token。 */
 export function SuggestionRow({ suggestion: s, onToggleSelected, onChange }: Props) {
   const conf = s.confidence ?? 0;
-  const confColor = conf >= 0.8 ? 'text-[var(--success)]' : conf >= 0.5 ? 'text-[oklch(0.52_0.13_70)]' : 'text-[var(--danger)]';
+  const confColor = conf >= 0.8 ? 'text-[var(--success)]' : conf >= 0.5 ? 'text-[var(--danger)]' : 'text-[var(--danger)]';
   return (
     <div
       className={`rounded-[10px] px-2 py-2 text-sm ${
@@ -50,7 +50,7 @@ export function SuggestionRow({ suggestion: s, onToggleSelected, onChange }: Pro
           onChange={(e) => onChange({ fullScore: Number(e.target.value) })}
         />
         {s.adjusted && (
-          <TriangleAlert size={12} className="shrink-0 text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]" aria-label="分数被等比缩放" />
+          <TriangleAlert size={12} className="shrink-0 text-[var(--danger)]" aria-label="分数被等比缩放" />
         )}
         <button
           onClick={() => onChange({ objective: !s.objective })}

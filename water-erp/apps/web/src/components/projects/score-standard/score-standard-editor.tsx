@@ -451,13 +451,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           >
             打分合计
             <span
-              className={`font-mono text-sm font-bold ${sumOk && !pointsIncompleteCount ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}
+              className={`font-mono text-sm font-bold ${sumOk && !pointsIncompleteCount ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}
             >
               {scoredTotal}
             </span>
             /100
             {gateWarnText ? (
-              <span className="font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
+              <span className="font-semibold text-[var(--danger)]">
                 · {gateWarnText}
               </span>
             ) : (
@@ -573,7 +573,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                               (() => {
                                 if (points.length === 0) {
                                   return (
-                                    <span className="text-[11px] font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
+                                    <span className="text-[11px] font-semibold text-[var(--danger)]">
                                       未设得分点
                                     </span>
                                   );
@@ -582,7 +582,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                                 const short = Math.abs(s - Number(it.maxScore)) > 0.05;
                                 return (
                                   <span
-                                    className={`text-[11px] ${short ? 'font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]' : 'text-[var(--muted-foreground)]/80'}`}
+                                    className={`text-[11px] ${short ? 'font-semibold text-[var(--danger)]' : 'text-[var(--muted-foreground)]/80'}`}
                                   >
                                     {points.length} 个得分点{short ? ` · 合计 ${s}/${it.maxScore}` : ''}
                                   </span>
