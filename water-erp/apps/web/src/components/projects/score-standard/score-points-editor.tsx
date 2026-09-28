@@ -25,7 +25,7 @@ interface Props {
   item: BidScoreItem;
   points: BidScorePoint[];
   onChanged: () => void; // 增删改后通知父组件刷新
-  locked?: boolean; // 评分标准已发布/项目已进 EVALUATING/ARCHIVED 时禁用修改
+  locked?: boolean; // 项目已进 OPENING/EVALUATING/ARCHIVED 时禁用修改（校验标记不锁编辑，锁编辑的是阶段闸）
   /** 提取源（2026-09-26）：完成向导=正式盖章版（isOfficial）；「评分标准」面板=用户多文件时
    *  选定的源（isOfficial 缺省——非正式文件时文案不得冒称"正式盖章版"） */
   extractSource?: { attachmentId: string; fileName: string; isOfficial?: boolean } | null;

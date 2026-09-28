@@ -193,7 +193,10 @@ export function deleteScorePoint(bidProjectId: string, itemId: string, pointId: 
   return api.delete<{ deleted?: boolean }>(`/bid/projects/${bidProjectId}/score-items/${itemId}/points/${pointId}`);
 }
 
-/** 发布评分标准（定稿标记：置 scoreStandardPublishedAt；开标前仍可修改，修改即作废发布需重新发布）。后端校验打分类 Σ=100 且每项 ≥1 得分点，不满足 → 409；开标后锁定 → 409。*/
+/** 校验评分标准（2026-09-28 方案 A 重释义：原「发布」动作无任何下游消费/锁定效力，前端一律按
+ *  「版本完整性校验」叙事——置 scoreStandardPublishedAt=最近一次校验通过时间戳；开标前仍可修改，
+ *  修改即作废需重新校验）。后端校验打分类 Σ=100 且每项 ≥1 得分点，不满足 → 409；开标后锁定 → 409。
+ *  端点路径/字段名维持原状（零后端改动）。 */
 export function publishScoreStandard(bidProjectId: string) {
   return api.post<BidProjectDetail>(`/bid/projects/${bidProjectId}/score-items/publish`, {});
 }

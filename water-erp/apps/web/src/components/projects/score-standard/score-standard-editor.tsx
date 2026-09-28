@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Save,
+  ShieldCheck,
   Sparkles,
   Trash2,
   X,
@@ -33,7 +34,6 @@ import {
 } from '@/lib/api/bid';
 import type { ProjectManagementAttachment, ProjectManagementItem } from '@/lib/types/project-management';
 import { Modal, TableSkeleton } from '@/components/workbench';
-import { useConfirm } from '@/components/workbench/use-confirm';
 import { ScorePointsEditor } from './score-points-editor';
 import { SaveTemplateDialog } from './save-template-dialog';
 import { TemplateLibraryDialog } from './template-library-dialog';
@@ -63,12 +63,13 @@ type Props = {
 export function ScoreStandardEditor({ project, round, bidProject, onChanged, variant = 'standalone', extractSource, tenderCandidates }: Props) {
   const [bpId, setBpId] = useState<string | null>(bidProject?.id ?? null);
   const [stage, setStage] = useState('');
-  const [publishedAt, setPublishedAt] = useState<string | null>(null);
+  /** 最近一次通过完整性校验的版本时间戳（2026-09-28 用户裁定方案 A：scoreStandardPublishedAt
+   *  前端语义重释义为「已校验」——发布动作无任何下游消费/锁定效力，降级为版本校验标记）。 */
+  const [validatedAt, setValidatedAt] = useState<string | null>(null);
   const [items, setItems] = useState<BidScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [draft, setDraft] = useState<{ category: ScoreCategory; name: string; maxScore: number }>({ category: 'TECHNICAL', name: '', maxScore: 0 });
-  const { confirm, dialog } = useConfirm();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ category: ScoreCategory; name: string; maxScore: number }>({ category: 'TECHNICAL', name: '', maxScore: 0 });
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
@@ -104,7 +105,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         if (cancelled) return;
         setBpId(bp.id);
         setStage(detail.stage);
-        setPublishedAt(detail.scoreStandardPublishedAt ?? null);
+        setValidatedAt(detail.scoreStandardPublishedAt ?? null);
         setTplDims({ procurementMethod: detail.procurementMethod || '', projectCategory: project.procurementCategory || '' });
         setItems(its);
       } catch {
@@ -120,7 +121,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   }, [project.id, round, bidProject?.id, bidProject?.stage]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // 开标（OPENING）后锁定；发布不再锁定——发布后开标前仍可修改（修改即作废发布，需重新发布）
+  // 开标（OPENING）后锁定；校验不锁定——通过后开标前仍可修改（修改即作废校验标记，需重新校验）
   const locked = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
   const totalMax = useMemo(() => items.reduce((s, i) => s + Number(i.maxScore), 0), [items]);
   const scoredTotal = useMemo(
@@ -128,23 +129,25 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     [items],
   );
 
-  // 得分点增删改后刷新 items（含 points 字段）+ 同步阶段/发布态（修改会作废已发布状态）并通知父组件
+  // 得分点增删改后刷新 items（含 points 字段）+ 同步阶段/校验态（修改会作废已校验状态）并通知父组件
   const reloadItems = useCallback(async () => {
     if (!bpId) return;
     try {
       const [refreshed, detail] = await Promise.all([listScoreItems(bpId), getBidProjectDetail(bpId)]);
       setItems(refreshed);
       setStage(detail.stage);
-      setPublishedAt(detail.scoreStandardPublishedAt ?? null);
+      setValidatedAt(detail.scoreStandardPublishedAt ?? null);
     } catch {
       /* 保留旧数据 */
     }
     onChanged?.();
   }, [bpId, onChanged]);
 
-  const handlePublish = async () => {
+  /** 校验评分标准（2026-09-28 方案 A：原「发布」重释义——复用 publishScoreStandard 端点做
+   *  完整性校验并盖时间戳，纯前端语义调整，零后端改动；校验非破坏性，无需确认框）。 */
+  const handleValidate = async () => {
     if (!bpId) return;
-    // N10：打分类 0 满分「空项」不得随标准发布锁定（英雄项目「法」）
+    // N10：打分类 0 满分「空项」不得通过校验（英雄项目「法」）
     const zeroMaxScored = items.find((i) => !isPassFailCategory(i.category) && Number(i.maxScore) <= 0);
     if (zeroMaxScored) {
       toast.error(ZERO_MAX_SCORE_MSG(zeroMaxScored.name));
@@ -153,17 +156,16 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     const scoredSum = items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0);
     const incomplete = items.filter((i) => Number(i.maxScore) > 0 && (!i.points || i.points.length === 0));
     if (scoredSum !== 100 || incomplete.length > 0) {
-      toast.error(`发布前请确保:打分项满分合计=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
+      toast.error(`校验未通过:打分项满分合计须=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
       return;
     }
-    if (!(await confirm({ message: '发布后开标前仍可修改，但修改后原发布作废、需重新发布。确认发布?' }))) return;
     try {
       const res = await publishScoreStandard(bpId);
-      setPublishedAt(res.scoreStandardPublishedAt ?? null);
-      toast.success('评分标准已发布');
+      setValidatedAt(res.scoreStandardPublishedAt ?? null);
+      toast.success('评分标准校验通过');
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '发布失败');
+      toast.error(e instanceof Error ? e.message : '校验失败');
     }
   };
 
@@ -312,7 +314,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       setItems((prev) => [...prev, created]);
       setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 });
       setShowAdd(false);
-      setPublishedAt(null); // 修改作废已发布状态，需重新发布
+      setValidatedAt(null); // 修改作废已校验状态，需重新校验
       toast.success('评分项已新增');
       onChanged?.();
     } catch (e) {
@@ -344,7 +346,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       });
       setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
       setEditingId(null);
-      setPublishedAt(null); // 修改作废已发布状态，需重新发布
+      setValidatedAt(null); // 修改作废已校验状态，需重新校验
       toast.success('已保存');
       onChanged?.();
     } catch (e) {
@@ -358,7 +360,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     try {
       await deleteScoreItem(bpId, id);
       setItems((prev) => prev.filter((i) => i.id !== id));
-      setPublishedAt(null); // 修改作废已发布状态，需重新发布
+      setValidatedAt(null); // 修改作废已校验状态，需重新校验
       toast.success('已删除');
       onChanged?.();
     } catch (e) {
@@ -407,23 +409,24 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           </button>
         )}
       </div>
-      {/* 右侧：发布与新增（发布后开标前仍可编辑，修改后需重新发布） */}
+      {/* 右侧：校验与新增（校验通过后开标前仍可修改，修改后需重新校验——2026-09-28 方案 A：
+          原「发布评分标准」重释义为版本校验标记，无发布/锁定效力，故降为软按钮与新增同权重） */}
       {!locked && (
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }} className="neu-btn-soft gap-1.5">
             <Plus size={14} />新增评分项
           </button>
-          {publishedAt ? (
+          {validatedAt ? (
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
               style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
-              title="开标前仍可修改；修改后原发布作废，需重新发布"
+              title={`当前版本已通过完整性校验（${new Date(validatedAt).toLocaleString('zh-CN')}）；开标前仍可修改，修改后需重新校验`}
             >
-              <Check size={12} /> 已发布 · 开标前可修改
+              <Check size={12} /> 已校验 · 开标前可修改
             </span>
           ) : (
-            <button onClick={handlePublish} className="neu-btn-primary !h-[38px] !text-xs gap-1.5">
-              <Check size={14} />发布评分标准
+            <button onClick={handleValidate} className="neu-btn-soft gap-1.5">
+              <ShieldCheck size={14} />校验评分标准
             </button>
           )}
         </div>
@@ -655,8 +658,8 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)', color: 'oklch(0.55 0.08 75)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)' }}>
           <Lock size={14} />
           <span>
-            {publishedAt
-              ? `评分标准已发布(${new Date(publishedAt).toLocaleString('zh-CN')}),项目已进入「${STAGE_LABEL[stage] || stage}」阶段,锁定不可修改。`
+            {validatedAt
+              ? `评分标准最后校验通过于 ${new Date(validatedAt).toLocaleString('zh-CN')},项目已进入「${STAGE_LABEL[stage] || stage}」阶段,锁定不可修改。`
               : `项目处于「${STAGE_LABEL[stage] || stage}」阶段,评分标准已锁定,不可修改。${stage === 'EVALUATING' ? ' 专家已开始打分。' : ''}`}
           </span>
         </div>
@@ -724,8 +727,8 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           projectCategory={tplDims.projectCategory}
           onChanged={(updated) => {
             setItems(updated);
-            // 应用模板可能作废已发布状态，回读详情同步
-            getBidProjectDetail(bpId).then((d) => setPublishedAt(d.scoreStandardPublishedAt ?? null)).catch(() => {});
+            // 应用模板可能作废已校验状态，回读详情同步
+            getBidProjectDetail(bpId).then((d) => setValidatedAt(d.scoreStandardPublishedAt ?? null)).catch(() => {});
             onChanged?.();
           }}
         />
@@ -768,7 +771,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           }}
         />
       )}
-      {dialog}
     </div>
   );
 }
