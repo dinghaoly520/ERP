@@ -383,8 +383,8 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     const color = CATEGORY_COLOR[category] || '#94a3b8';
     return (
       <span
-        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
-        style={{ color, backgroundColor: `${color}18` }}
+        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold text-[var(--cat-color)] bg-[color-mix(in_oklch,var(--cat-color)_12%,transparent)]"
+        style={{ '--cat-color': color } as React.CSSProperties}
       >
         {CATEGORY_LABEL[category] || category}
       </span>
@@ -430,8 +430,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           >
             打分合计
             <span
-              className="font-mono text-sm font-bold"
-              style={{ color: sumOk && !missingPointsCount ? 'var(--success)' : 'var(--warning)' }}
+              className={`font-mono text-sm font-bold ${sumOk && !missingPointsCount ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}
             >
               {scoredTotal}
             </span>
@@ -452,8 +451,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             </button>
             {validatedAt ? (
               <span
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
-                style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
                 title={`当前版本已通过完整性校验（${new Date(validatedAt).toLocaleString('zh-CN')}）；开标前仍可修改，修改后需重新校验`}
               >
                 <Check size={12} /> 已校验 · 开标前可修改
@@ -685,8 +683,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   return (
     <div className={variant === 'embedded' ? 'space-y-4' : 'space-y-6'}>
       {locked && (
-        <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
-          style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)', color: 'oklch(0.55 0.08 75)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)' }}>
+        <div className="wb-alert wb-alert--warning flex items-center gap-2 !text-sm !font-semibold">
           <Lock size={14} />
           <span>
             {validatedAt
