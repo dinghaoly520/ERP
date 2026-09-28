@@ -97,13 +97,9 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
         )
       ) : (
         <div className="space-y-4">
-          {/* ① 评标口径：评标办法 + 最高限价 + 价格分计算方式（2026-09-26 公式表单化并入本块；EVALUATING 起锁定） */}
-          <div>
-            <h4 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-              评标办法与最高限价
-            </h4>
-            <EvaluationBasisFields detail={detail ?? bidProject} onChanged={onChanged} priceItemCount={priceItemCount} />
-          </div>
+          {/* ① 评标口径：评标办法 + 最高限价 + 价格分计算方式（2026-09-26 公式表单化并入本块；EVALUATING 起锁定）。
+              块标题 2026-09-28 随「保存配置」按钮一并移入 EvaluationBasisFields（按钮自块底右下角移至块顶右上角）。 */}
+          <EvaluationBasisFields detail={detail ?? bidProject} onChanged={onChanged} priceItemCount={priceItemCount} />
           {/* ② 评分项与得分点（OPENING 起锁定；发布后开标前仍可改，改即作废发布） */}
           <hr className="wb-section-rule" />
           <div>
