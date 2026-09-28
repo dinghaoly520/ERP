@@ -9,8 +9,8 @@
  *   - 后端 updatePriceConfig 同步加值校验（PRICE_FORMULA_INVALID / PRICE_CONFIG_INVALID）
  * 写径共用 PATCH /bid/projects/:id/price-config（undefined=不更新；EVALUATING/ARCHIVED 后端 409
  * PRICE_CONFIG_LOCKED——锁定态如实前置：输入禁用+锁定文案）。载荷来源 BidProjectDetail。
- * 2026-09-28 块标题「评标办法与最高限价」自 score-standard-card 移入本组件——保存配置按钮
- * 自块底右下角移至块顶右上角（与唱标字段配置卡工具行同款布局）。
+ * 2026-09-28 「保存配置」自块底右下角移至卡内容区右上角；同日二次裁定删除块标题
+ * 「评标办法与最高限价」（与卡标题语义重复），按钮独占保存行右侧。
  */
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
@@ -217,12 +217,9 @@ export function EvaluationBasisFields({
 
   return (
     <div className="space-y-3">
-      {/* 块标题行 + 保存（2026-09-28 用户裁定：保存配置自块底右下角移至块顶右上角——
-          与唱标字段配置卡「工具行：… + 保存（脏检查）」同款；标题自 score-standard-card 移入本组件 */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-          评标办法与最高限价
-        </h4>
+      {/* 保存行（2026-09-28 用户裁定：保存配置自块底右下角移至卡内容区右上角；同日二次裁定
+          删除块标题「评标办法与最高限价」——与卡标题语义重复，按钮独占本行右侧） */}
+      <div className="flex justify-end">
         <button
           type="button"
           className="neu-btn-primary !h-[34px] !text-xs"
