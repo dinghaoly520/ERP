@@ -11,7 +11,7 @@ import * as JSZip from 'jszip';
 import * as mammoth from 'mammoth';
 import pdfParse = require('pdf-parse');
 import * as XLSX from 'xlsx';
-import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto } from './tender-write.dto';
+import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto, ExportDirectFilingDto } from './tender-write.dto';
 import { buildStandardFileName } from '@water-erp/shared';
 import {
   buildCompetitiveNegotiationReplacementPlan,
@@ -24,6 +24,7 @@ import {
   buildFailedBidAnnouncementPlan,
   buildWinningBidAnnouncementPlan,
   buildNotificationLetterPlan,
+  buildDirectFilingPlan,
   COMPETITIVE_NEGOTIATION_TEMPLATE_FILE,
   SINGLE_SOURCE_TEMPLATE_FILE,
   INQUIRY_PURCHASE_TEMPLATE_FILE,
@@ -36,6 +37,7 @@ import {
   FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,
   WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE,
   NOTIFICATION_LETTER_TEMPLATE_FILE,
+  DIRECT_FILING_TEMPLATE_FILE,
   renderTemplateXml,
   type AnnouncementCategory,
 } from './tender-write.template';
@@ -802,6 +804,44 @@ export class TenderWriteService {
       code: dto.projectCode,
       name: dto.projectName,
       docType: '中标通知书',
+    });
+
+    return {
+      buffer: await zip.generateAsync({ type: 'nodebuffer' }),
+      fileName,
+    };
+  }
+
+  /**
+   * 生成《直接采购备案表》docx（集团采购管理办法 附件6）——项目管理 09 步骤
+   * 「备案表编写」弹窗消费：渲染模板后由前端上传到 DIRECT_PURCHASE_FILING 阶段。
+   */
+  async buildDirectFiling(dto: ExportDirectFilingDto) {
+    const templatePath = path.resolve(PROJECT_ROOT, DIRECT_FILING_TEMPLATE_FILE);
+
+    const exists = await fs
+      .access(templatePath)
+      .then(() => true)
+      .catch(() => false);
+    if (!exists) {
+      throw new NotFoundException(`Template not found: ${templatePath}`);
+    }
+
+    const originalBuffer = await fs.readFile(templatePath);
+    const zip = await JSZip.loadAsync(originalBuffer);
+    const documentXml = await zip.file('word/document.xml')?.async('string');
+    if (!documentXml) {
+      throw new NotFoundException('Invalid DOCX template: missing word/document.xml');
+    }
+
+    const updatedXml = renderTemplateXml(documentXml, buildDirectFilingPlan(dto));
+    zip.file('word/document.xml', updatedXml);
+
+    // 统一命名：{项目编号}-{项目名称}-直接采购备案表-{YYYYMMDD}.docx
+    const fileName = buildStandardFileName({
+      code: dto.projectCode,
+      name: dto.projectName,
+      docType: '直接采购备案表',
     });
 
     return {

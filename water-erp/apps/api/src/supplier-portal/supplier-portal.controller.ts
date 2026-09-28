@@ -272,9 +272,22 @@ export class SupplierPortalController {
   // C6：异议/投诉（GB/T 43711 4.2.2 供应商在线提交）
 
   @Get('objections')
-  async listMyObjections(@Request() req: any) {
+  async listMyObjections(
+    @Request() req: any,
+    @Query() q: { page?: string; pageSize?: string; status?: string },
+  ) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.objectionService.listMine(supplierId);
+    // 非数字/NaN 一律回退默认（Number('abc')=NaN 会穿透 Math.max/min 钳制成 Prisma 500）
+    const toInt = (raw: string | undefined): number | undefined => {
+      if (!raw) return undefined;
+      const n = Number(raw);
+      return Number.isFinite(n) ? Math.trunc(n) : undefined;
+    };
+    return this.objectionService.listMine(supplierId, {
+      page: toInt(q.page),
+      pageSize: toInt(q.pageSize),
+      status: q.status && q.status !== 'all' ? q.status : undefined,
+    });
   }
 
   @Post('objections')

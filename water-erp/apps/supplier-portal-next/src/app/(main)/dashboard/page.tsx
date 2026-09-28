@@ -15,9 +15,12 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  FileCheck,
   Folder,
+  KeyRound,
   Landmark,
   Medal,
+  MessageSquareWarning,
   Phone,
   TriangleAlert,
   Trophy,
@@ -393,6 +396,27 @@ export default function DashboardPage() {
             {/* 下横线收底（2026-09-18 对齐 :3005 账号管理 page-hero__divider 与 SpPageHero） */}
             <div className="page-hero__divider" />
           </div>
+
+          {/* 快捷入口（2026-09-28）：工作台此前只有 3 个跳转出口，核心模块不可点达——
+              补齐 我的投标/成交履约/异议投诉/公告中心/证书与U盾 五个瓷片直达 */}
+          <nav className="db-quick" aria-label="快捷入口">
+            {[
+              { href: "/my-bids", icon: FileCheck, label: "我的投标", desc: "跟踪投标与合作历史" },
+              { href: "/award-letters", icon: Trophy, label: "成交履约", desc: "通知书、合同与框架协议" },
+              { href: "/objections", icon: MessageSquareWarning, label: "异议投诉", desc: "在线提出异议并查看答复" },
+              { href: "/announcements", icon: Bell, label: "公告中心", desc: "公告与政策" },
+              { href: "/profile/ukey", icon: KeyRound, label: "证书与U盾", desc: "投标加密证书管理" },
+            ].map(({ href, icon: Icon, label, desc }) => (
+              <button key={href} type="button" className="db-quick-tile" onClick={() => router.push(href)}>
+                <span className="db-quick-icon" aria-hidden="true"><Icon size={17} strokeWidth={1.8} /></span>
+                <span className="db-quick-copy">
+                  <span className="db-quick-label">{label}</span>
+                  <span className="db-quick-desc">{desc}</span>
+                </span>
+                <ArrowRight size={14} aria-hidden="true" className="db-quick-arrow" />
+              </button>
+            ))}
+          </nav>
 
           {/* 供应商侧统一待办：由资料、项目、通知书与合同履约状态聚合 */}
           <section className="sp-module db-task-panel" aria-labelledby="supplier-task-title">

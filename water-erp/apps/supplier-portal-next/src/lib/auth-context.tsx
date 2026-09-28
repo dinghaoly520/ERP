@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { authApi } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
+import { rememberSupplierSession, clearSupplierToken } from "@/lib/session-store";
 
 export type LoginResult = "ok" | "invalid" | "pending" | "expired" | "frozen";
 
@@ -20,7 +21,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** 游客/公开路由：这些页面不主动探测会话（等价 Vue 版仅在有缓存时 init） */
+/** 游客/公开路由：这些页面不主动探测会话（等价 Vue 版仅在有缓存时 init）。
+ *  /login 是纯登录表单——打开它不做任何会话探测/跳转，只有用户点击「登录」才轮换会话
+ *  （顶掉旧会话）。登录页探测会话会导致「打开登录页即影响其他会话」的副作用。 */
 const GUEST_PATHS = ["/login", "/register", "/register-temporary", "/rsvp"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -56,6 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await authApi.login({ username, password });
       if (res?.access_token || res) {
+        // tab 级 token（2026-09-28）：本 tab 自持会话 token，同浏览器他 tab 再登录时
+        // 本 tab 的旧 sid 失效 → 401 SESSION_REPLACED 有感知被顶（点登录才顶语义）
+        if (res?.access_token) rememberSupplierSession(res.access_token);
         await refresh();
         return "ok";
       }
@@ -86,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await authApi.logout();
     } catch { /* 后端不可达也照常清本地态 */ }
+    clearSupplierToken();
     setUser(null);
     window.location.href = "/login";
   }, []);

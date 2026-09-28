@@ -4,8 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { Check, LogIn } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { cloneElement, Fragment, isValidElement, useLayoutEffect, useState, type ReactNode } from "react";
-import { resolveLoginBg, preloadLoginBg } from "@/lib/login-bg";
+import { cloneElement, Fragment, isValidElement, type ReactNode } from "react";
 
 export type RegistrationStep = {
   label: string;
@@ -148,16 +147,9 @@ export function RegistrationShell({
   maxVisitedStep = 0,
   onStepChange,
 }: RegistrationShellProps) {
-  const [bg, setBg] = useState<string>("");
-  useLayoutEffect(() => {
-    // paint 前同步沿用会话背景（sessionStorage 共享）；预加载池中全部图防白闪
-    setBg(resolveLoginBg());
-    preloadLoginBg();
-  }, []);
-
   return (
     <main className={`reg reg-page reg--supplier${className ? ` ${className}` : ""}`}>
-      <div className="reg-bg" aria-hidden="true" suppressHydrationWarning style={{ backgroundImage: `url(${bg})` }} />
+      <div className="reg-bg" aria-hidden="true" />
 
       <Link className="reg-brand" href="/login" aria-label="返回供应商门户登录页">
         <Image src="/logo.png" alt="" width={54} height={54} className="reg-brand-mark" priority />

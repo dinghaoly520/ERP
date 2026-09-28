@@ -1,4 +1,4 @@
-import { api } from "../api";
+import { api, qs } from "../api";
 
 /**
  * C6（GB/T 43711 4.2.2）：供应商异议/投诉。
@@ -21,8 +21,11 @@ export interface SupplierObjection {
 }
 
 export const objectionApi = {
-  listMine() {
-    return api.get<SupplierObjection[]>("/supplier-portal/objections");
+  /** 我的异议（后端分页 + 状态筛选；status 传 "all" 表示全部） */
+  listMine(params: { page?: number; pageSize?: number; status?: string } = {}) {
+    return api.get<{ items: SupplierObjection[]; total: number }>(
+      `/supplier-portal/objections${qs({ page: params.page, pageSize: params.pageSize, status: params.status })}`,
+    );
   },
   create(payload: { announcementId?: string; projectCode?: string; phase: string; title: string; content: string }) {
     return api.post<SupplierObjection>("/supplier-portal/objections", payload);

@@ -42,6 +42,9 @@
   --stage-award-soft: color-mix(in oklch, var(--stage-award) 10%, transparent);
   --stage-contract: oklch(0.50 0.10 228);
   --stage-contract-soft: color-mix(in oklch, var(--stage-contract) 12%, transparent);
+  /* 09 直接采购备案表（2026-09-28）：青灰蓝，与合同同族但可区分 */
+  --stage-filing: oklch(0.46 0.09 205);
+  --stage-filing-soft: color-mix(in oklch, var(--stage-filing) 12%, transparent);
   --stage-default: var(--muted-foreground);
   --stage-default-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
   --shadow-soft: 0 16px 34px rgba(50, 83, 141, 0.08);
@@ -2391,6 +2394,7 @@ a {
 .pm-stage-accent--bid_evaluation { color: var(--stage-evaluation); }
 .pm-stage-accent--award_decision { color: var(--stage-award); }
 .pm-stage-accent--contract { color: var(--stage-contract); }
+.pm-stage-accent--direct_purchase_filing { color: var(--stage-filing); }
 .pm-stage-accent--archive { color: oklch(0.58 0.14 88); }
 
 .pm-stage-card[data-selected='true'] .pm-stage-card__title {

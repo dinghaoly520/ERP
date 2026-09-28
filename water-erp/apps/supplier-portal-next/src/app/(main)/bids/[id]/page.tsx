@@ -243,7 +243,8 @@ function BidDetailInner() {
       setProfile(prof);
       loadBidDoc();
       loadOverview();
-      // A-101 回执卡：仅已入库供应商拉本人递交记录（临时供应商无 Supplier 行，跳过避免噪音）
+      // A-101 回执卡：仅已入库（APPROVED）供应商拉本人递交记录——临时/待审供应商
+      // 虽有 Supplier 行但尚未入库，无递交记录可展示（2026-09-28 修正注释：此前误写「临时供应商无 Supplier 行」）
       if (prof?.status === "APPROVED") void reloadSubmission();
     } catch {
       setError(true);

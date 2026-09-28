@@ -10,6 +10,10 @@
  *
  * 离线判定去抖：连续 OFFLINE_MISS_THRESHOLD 次未命中才置离线（防 300ms 探测
  * 偶发超时闪跳）；恢复在线即时。初始为 null（首个探测周期完成前）。
+ *
+ * 离线指数退避（2026-09-28）：中间件进程未跑时每次 probe 都是注定失败的 fetch，
+ * 浏览器会对连接拒绝逐条打控制台日志——判定离线后轮询间隔逐级放大（×4 → ×15 封顶），
+ * 恢复在线立即回到基础间隔。中间件上线最多一个封顶周期（30s）内即恢复监护。
  */
 import { useEffect, useRef, useState } from "react";
 import { VendorUKeyAdapter } from "@water-erp/ukey";
@@ -23,28 +27,34 @@ export interface UkeyHealthState {
 }
 
 const OFFLINE_MISS_THRESHOLD = 3;
+/** 离线退避乘数：基础 pollMs → ×4 → ×15 封顶（默认 2s → 8s → 30s） */
+const OFFLINE_BACKOFF_MULTS = [1, 4, 15];
 
 export function useUkeyHealth(pollMs = 2000): UkeyHealthState | null {
   const [state, setState] = useState<UkeyHealthState | null>(null);
   const missRef = useRef(0);
   useEffect(() => {
     let alive = true;
+    let timer: number | undefined;
+    let backoffStage = 0;
     const tick = async () => {
       const h = await VendorUKeyAdapter.probe();
       if (!alive) return;
       if (h) {
         missRef.current = 0;
+        backoffStage = 0;
         setState({ online: true, version: h.version ?? null, shields: h.shields, unlocked: h.unlocked });
       } else if (missRef.current + 1 >= OFFLINE_MISS_THRESHOLD) {
         missRef.current = 0;
+        backoffStage = Math.min(backoffStage + 1, OFFLINE_BACKOFF_MULTS.length - 1);
         setState({ online: false, version: null, shields: 0, unlocked: 0 });
       } else {
         missRef.current += 1;
       }
+      timer = window.setTimeout(tick, pollMs * OFFLINE_BACKOFF_MULTS[backoffStage]);
     };
     void tick();
-    const timer = setInterval(tick, pollMs);
-    return () => { alive = false; clearInterval(timer); };
+    return () => { alive = false; window.clearTimeout(timer); };
   }, [pollMs]);
   return state;
 }

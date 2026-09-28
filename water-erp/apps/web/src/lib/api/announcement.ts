@@ -444,6 +444,58 @@ export type NotificationLetterDraft = {
   remark: string;
 };
 
+// ── 直接采购备案表（集团采购管理办法 附件6，2026-09-28）：09 步骤「备案表编写」───
+
+export type DirectFilingDraft = {
+  projectCode: string;
+  projectName: string;
+  purchaserName: string;
+  /** 备案时间（YYYY-MM-DD） */
+  filingDate: string;
+  /** 中标金额（元，小写） */
+  amount: string;
+  amountChinese: string;
+  approvalsComplete: '是' | '否';
+  hasNegotiationReport: '有' | '无';
+  hasWinnerConfirmation: '有' | '无';
+  hasNotificationLetter: '有' | '无';
+  hasContract: '有' | '无';
+  filingOpinion: '同意' | '不同意';
+  signatory: string;
+  remark: string;
+};
+
+/** 生成备案表 docx（后端模板渲染）——返回 blob 供上传到 DIRECT_PURCHASE_FILING 阶段 */
+export async function buildDirectFiling(
+  draft: DirectFilingDraft,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await apiFetch(`${API_BASE}/tender-write/build-direct-filing`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(draft),
+  });
+
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(await response.text()));
+  }
+
+  const { bufferBase64, fileName } = (await response.json()) as {
+    bufferBase64: string;
+    fileName: string;
+  };
+
+  const binary = atob(bufferBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return {
+    blob: new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
+    fileName,
+  };
+}
+
 export async function extractNotificationData(
   file: File,
 ): Promise<NotificationExtractedData> {

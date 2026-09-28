@@ -152,6 +152,8 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
     { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
+    // 09 直接采购备案表（2026-09-28，《集团采购管理办法》附件6）：合同后、归档前备案
+    { key: 'DIRECT_PURCHASE_FILING', label: '直接采购备案表' },
   ],
   邀请招标: [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
@@ -352,7 +354,11 @@ export class ProjectManagementService {
     // 阶段集：全套 + 方法过滤（与 create 流程同口径）
     const needsPublicAnnouncement = ['竞价采购', '直接采购', '邀请招标'].includes(dto.procurementMethod);
     const stagesToCreate = PROJECT_WORKFLOW_STAGES.filter(
-      (s) => needsPublicAnnouncement || s.key !== 'PUBLIC_ANNOUNCEMENT',
+      (s) =>
+        (needsPublicAnnouncement || s.key !== 'PUBLIC_ANNOUNCEMENT')
+        // 09 备案表为直接采购专属（2026-09-28）：其余方式不得带入（末阶段归档闸门按最后阶段判定，
+        // 带入后该方式将永远无法完成归档）
+        && (s.key !== 'DIRECT_PURCHASE_FILING' || dto.procurementMethod === '直接采购'),
     );
     // 公告直建=前置链路（需求/立项/采购文件/公告公示/供应商邀请）以公告为准补记 COMPLETED
     const completedKeys = new Set(['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'SUPPLIER_INVITATION']);
@@ -3694,9 +3700,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('仅进行中的项目可以归档。');
     }
 
-    // allowIncomplete：流标归档等场景，跳过"合同完成"校验
-    if (!dto.allowIncomplete && project.currentStage !== 'CONTRACT') {
-      throw new BadRequestException('只有合同阶段完成后才允许归档。');
+    // allowIncomplete：流标归档等场景，跳过"最后阶段完成"校验
+    if (!dto.allowIncomplete && project.currentStage !== 'CONTRACT' && project.currentStage !== 'DIRECT_PURCHASE_FILING') {
+      throw new BadRequestException('只有合同（直接采购含备案表）阶段完成后才允许归档。');
     }
 
     const stages = await this.prisma.projectManagementStage.findMany({
@@ -3705,12 +3711,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
       orderBy: { stageOrder: 'asc' },
     });
 
-    const contractStage = stages.find((stage) => stage.stageKey === 'CONTRACT');
+    // 归档闸门按「最后一个阶段完成」判定（2026-09-28）：直接采购在合同后新增 09 备案表，
+    // 末阶段随之变为 DIRECT_PURCHASE_FILING；其余方式末阶段仍是 CONTRACT，口径不变。
+    const lastStage = stages[stages.length - 1];
     if (
       !dto.allowIncomplete &&
-      (!contractStage || contractStage.status !== PROJECT_STAGE_STATUS.COMPLETED)
+      (!lastStage || lastStage.status !== PROJECT_STAGE_STATUS.COMPLETED)
     ) {
-      throw new BadRequestException('合同阶段尚未完成。');
+      throw new BadRequestException(`「${lastStage?.stageName ?? '最后'}」阶段尚未完成，不能归档。`);
     }
 
     const archivedAt = new Date();

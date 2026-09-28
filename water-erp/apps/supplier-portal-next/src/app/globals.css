@@ -2,20 +2,12 @@
 
 :root {
   --background: oklch(0.975 0.01 248);
-  --foreground: oklch(0.29 0.03 248);
   --muted: oklch(0.935 0.013 244);
-  --muted-foreground: oklch(0.55 0.028 244);
-  --surface: color-mix(in oklch, white 82%, #dce9ff 18%);
   --surface-strong: color-mix(in oklch, white 72%, #d6e5ff 28%);
   --surface-contrast: color-mix(in oklch, white 62%, #d2e1ff 38%);
   --border: color-mix(in oklch, #bfd0eb 70%, white 30%);
   --card: color-mix(in oklch, white 85%, #dce9ff 15%);
-  --accent: oklch(0.63 0.128 247);
-  --accent-strong: oklch(0.56 0.153 251);
   --accent-soft: oklch(0.905 0.04 243);
-  --success: oklch(0.71 0.112 164);
-  --warning: oklch(0.78 0.122 83);
-  --danger: oklch(0.66 0.175 27);
   --gold: oklch(0.8 0.114 84);
   --gold-soft: oklch(0.93 0.03 90);
   --success-soft: color-mix(in oklch, var(--success) 12%, transparent);
@@ -370,75 +362,11 @@ a {
   pointer-events: none;
 }
 
-.sidebar-sheen {
-  position: relative;
-  overflow: hidden;
-  min-height: 0;
-}
 
-.sidebar-sheen::after {
-  display: none;
-}
 
-/* ============================================================
-   Sidebar card — 半透明毛玻璃 + 凸起边缘 + 光晕
-   ============================================================ */
-.sidebar-card {
-  /* 基底 — 半透明玻璃面板，让页面 flow-glow 水彩光晕透出 */
-  background:
-    linear-gradient(
-      175deg,
-      oklch(0.985 0.008 258 / 0.7) 0%,
-      oklch(0.99 0.004 258 / 0.58) 45%,
-      oklch(0.975 0.012 258 / 0.52) 100%
-    );
-  backdrop-filter: blur(26px) saturate(130%);
-  -webkit-backdrop-filter: blur(26px) saturate(130%);
-  /* 凸起边框 — 加深描边，增强立体轮廓 */
-  border: 1.5px solid oklch(0.50 0.10 258 / 0.30);
-  box-shadow:
-    /* 上缘内高光 — 面板顶部的细白亮线 */
-    inset 0 1px 0 oklch(1 0 0 / 0.88),
-    /* 右下暗影 — 模拟光源从左上方打来的投影 */
-    3px 3px 10px oklch(0.52 0.04 258 / 0.22),
-    /* 左上亮影 — 面向光源的反射面 */
-    -3px -3px 8px oklch(1 0 0 / 0.94),
-    /* 边缘光晕 — 柔和的蓝色氛围光包裹面板 */
-    0 0 30px oklch(0.58 0.14 258 / 0.16);
-  transition: box-shadow 0.4s ease;
-}
 
-/* ============================================================
-   AppShell sidebar — collapse (3D fold) + angle / perspective
-   ============================================================ */
 
-/* 3D fold: sidebar swings shut around its left edge like a hinged door */
-.sidebar-3d {
-  transform-origin: left center;
-  transform-style: preserve-3d;
-  will-change: transform, width, margin, opacity;
-  transition:
-    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
-    margin 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
-    opacity 0.36s ease 0.08s;
-}
-.sidebar-3d[data-hidden="true"] {
-  transform: perspective(1500px) rotateY(-95deg) translateX(-6px);
-  width: 0;
-  margin-right: 0;
-  opacity: 0;
-  pointer-events: none;
-}
 
-/* Brand orb — 悬停时 360° 旋转 */
-.brand-orb-3d {
-  transform-style: preserve-3d;
-  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.brand-orb-3d:hover {
-  transform: perspective(700px) rotateY(360deg) scale(1.08);
-}
 
 /* Diagonal light band — angled motion accent.
    Rendered as a child span (uses ::before) so it never collides with the
@@ -478,52 +406,7 @@ a {
   border-radius: 999px;
 }
 
-/* Sidebar nav item — 未选中白色凸起 / 选中灰色凹陷 */
-.sidebar-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: left;
-  border-radius: 10px;
-  cursor: pointer;
-  text-decoration: none;
-  color: var(--muted-foreground);
-  background: #fff;
-  border: none;
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.78),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
-    -1px -1px 3px oklch(1 0 0 / 0.92);
-  transition: all 0.3s ease;
-}
-.sidebar-nav-item:hover {
-  color: var(--foreground);
-  background: #f5f6f8;
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.8),
-    2px 2px 6px oklch(0.55 0.03 258 / 0.18),
-    -1px -1px 4px oklch(1 0 0 / 0.94);
-}
-/* Active — 灰色底色 + 凹陷内阴影 */
-.sidebar-nav-item[data-active="true"] {
-  color: var(--foreground);
-  background: #e8ecf2;
-  box-shadow:
-    inset 2px 2px 6px oklch(0.55 0.03 258 / 0.20),
-    inset -2px -2px 5px oklch(1 0 0 / 0.60);
-}
 
-/* Press feedback — 像真实按钮被按下 */
-.sidebar-nav-item:active {
-  transform: scale(0.96);
-  box-shadow:
-    inset 2px 2px 6px oklch(0.55 0.03 258 / 0.26),
-    inset -2px -2px 5px oklch(1 0 0 / 0.68);
-}
 
 /* Active indicator pulse — 倾斜蓝条呼吸脉动 */
 .nav-active-skew {
@@ -534,60 +417,21 @@ a {
   50%      { box-shadow: 0 6px 22px oklch(0.6 0.181 265 / 0.42); opacity: 0.85; }
 }
 
-/* Group expand/collapse — grid-rows 平滑展开收起 */
-.sidebar-group-panel {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.sidebar-group-panel.is-open {
-  grid-template-rows: 1fr;
-}
-.sidebar-group-panel > * {
-  overflow: hidden;
-  min-height: 0;
-}
+
 
 /* Edge tabs — 点击不位移，仅颜色交互 */
 
-/* Group header — neumorphic hover raise, deeper with increased opacity */
-.sidebar-nav .sidebar-group-header:hover {
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.78),
-    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
-    -1px -1px 3px oklch(1 0 0 / 0.92);
-  background: var(--neu-raised-bg);
-}
+
 
 /* Angled corner bevel (clip-path) for small chips / toggle buttons */
 .angle-clip {
   clip-path: polygon(0 0, 100% 0, 100% 68%, 84% 100%, 0 100%);
 }
 
-/* Sidebar nav — visible themed scrollbar + smooth scrolling */
-.sidebar-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(123, 156, 220, 0.5) transparent;
-  scroll-behavior: smooth;
-  overscroll-behavior: contain;
-}
-.sidebar-scroll::-webkit-scrollbar { width: 6px; }
-.sidebar-scroll::-webkit-scrollbar-track { background: transparent; margin: 8px 0; }
-.sidebar-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(123, 156, 220, 0.5), rgba(99, 133, 200, 0.32));
-  border-radius: 999px;
-}
-.sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(123, 156, 220, 0.75), rgba(99, 133, 200, 0.55));
-}
+
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar-3d {
-    transition: width 0.2s ease, margin 0.2s ease, opacity 0.15s ease;
-  }
-  .sidebar-3d[data-hidden="true"] { transform: none; }
   .angle-sweep-band::before { animation: none; opacity: 0; }
-  .brand-orb-3d:hover { transform: none; }
   .nav-active-skew { animation: none; }
   .sidebar-group-panel { transition: none; }
 }
@@ -10157,19 +10001,11 @@ select.workbench-input {
 
 :root {
   /* Primary palette — Sichuan Water / procurement trust */
-  --sp-primary: #064ea2;
-  --sp-primary-light: #0b63ce;
-  --sp-primary-lighter: #eff6ff;
-  --sp-primary-dark: #054280;
 
   /* Water brand accents */
-  --sp-cyan: #06a8c9;
   --sp-cyan-light: #d8f7ff;
-  --sp-green: #059669;
   --sp-green-light: #dff8ec;
-  --sp-orange: #d97706;
   --sp-orange-light: #fff3d6;
-  --sp-red: #dc2626;
   --sp-red-light: #ffe4e6;
   --sp-purple: #7c3aed;
   --sp-purple-light: #ede9fe;
@@ -10187,11 +10023,7 @@ select.workbench-input {
   --sp-white: #ffffff;
 
   /* Surfaces */
-  --sp-bg: #f0f4fb;
-  --sp-surface: #ffffff;
   --sp-surface-hover: #f8fafc;
-  --sp-border: #dce6f3;
-  --sp-border-light: #edf2f7;
 
   /* Radius — rounded-xl/rounded-2xl (matching 3004 mall-management style) */
   --sp-radius-sm: 10px;
@@ -10205,12 +10037,20 @@ select.workbench-input {
   --sp-duration-fast: 120ms;
   --sp-duration-normal: 200ms;
   --sp-duration-slow: 300ms;
+
+  /* 2026-09-28 token 收敛：同名变量（accent/foreground/danger/success/warning/surface/
+     sp-* 全系）已统一由文件末「cgzxui :root」单点定义，此块仅保留未重复的独有变量，
+     消除「同名双定义靠书写顺序定胜负」的隐性冲突。 */
 }
 
 /* ─── Layout: page wrapper ─── */
 .page-container {
   width: 100%;
   animation: spFadeIn var(--sp-duration-normal) var(--sp-ease);
+
+  /* 2026-09-28 token 收敛：同名变量（accent/foreground/danger/success/warning/surface/
+     sp-* 全系）已统一由文件末「cgzxui :root」单点定义，此块仅保留未重复的独有变量，
+     消除「同名双定义靠书写顺序定胜负」的隐性冲突。 */
 }
 
 /* ─── Page hero card (matching 3004 PageHero: rounded-2xl card + badge eyebrow) ─── */
@@ -11367,14 +11207,6 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5) !important;
 }
 
-.sp-sidebar { border: 1.5px solid oklch(0.78 0.05 250 / 0.5) !important; }
-.sp-sidebar::before { content: none !important; }
-
-/* P0-4: make the nav scrollbar VISIBLE so truncated items are reachable */
-.sp-nav { scrollbar-width: thin !important; scrollbar-color: oklch(0.7 0.03 258 / 0.5) transparent !important; }
-.sp-nav::-webkit-scrollbar { width: 6px !important; }
-.sp-nav::-webkit-scrollbar-thumb { background: oklch(0.7 0.03 258 / 0.45) !important; border-radius: 3px !important; }
-.sp-nav::-webkit-scrollbar-thumb:hover { background: oklch(0.6 0.05 258 / 0.6) !important; }
 
 
 .sp-brand-title {
@@ -11559,8 +11391,15 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-sidebar > * { position: relative; z-index: 1; }
 .sp-sidebar.collapsed { width: 64px; }
 .sp-sidebar.collapsed { padding-right: 0; margin-right: 10px; }
-.sp-nav { flex: 1; min-height: 0; overflow-y: auto; margin-top: 6px; padding: 16px 8px 4px; }
-.sp-nav::-webkit-scrollbar { width: 0; }
+.sp-nav {
+  flex: 1; min-height: 0; overflow-y: auto; margin-top: 6px; padding: 16px 8px 4px;
+  /* P0-4（2026-09 裁定保持）：滚动条可见，防菜单超高截断不可达 */
+  scrollbar-width: thin; scrollbar-color: oklch(0.7 0.03 258 / 0.5) transparent;
+  scroll-behavior: smooth; overscroll-behavior: contain;
+}
+.sp-nav::-webkit-scrollbar { width: 6px; }
+.sp-nav::-webkit-scrollbar-thumb { background: oklch(0.7 0.03 258 / 0.45); border-radius: 3px; }
+.sp-nav::-webkit-scrollbar-thumb:hover { background: oklch(0.6 0.05 258 / 0.6); }
 
 /* ══ 分组（对齐 :3005 sidebar-group-header / group-panel）══ */
 .sidebar-group-header {
@@ -11852,7 +11691,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 /* Water-texture atmosphere (kept as hero backdrop; tinted brand-blue via --hue) */
 .lp-bg {
   position: absolute; inset: 0; z-index: -3;
-  background-image: url('/bg-hydro-hero-7.png');
+  background-image: var(--login-bg, url('/bg-hydro-hero-7.png'));
   background-position: center; background-size: cover;
   filter: saturate(0.7) contrast(0.92) brightness(1.02);
   transform: scale(1.04);
@@ -12026,20 +11865,21 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 }
 
 /* bg-3 中签 → 整幅镜像：登录卡、磨砂 scrim、tint 渐变、品牌角标全部换到左侧，
-   把画面让给照片右侧主体（桌面专属；≤860px 单列布局无左右之分） */
+   把画面让给照片右侧主体（桌面专属；≤860px 单列布局无左右之分）。
+   html 挂 .bg-panel-left（layout 按 cookie 注入），SSR 首帧即生效，无面板左右跳变。 */
 @media (min-width: 861px) {
-  .lp--panel-left { grid-template-columns: 640px minmax(0, 1fr); }
-  .lp--panel-left .lp-panel { grid-column: 1; align-items: flex-start; padding: 96px 32px 40px 150px; }
-  .lp--panel-left::before {
+  .bg-panel-left .lp { grid-template-columns: 640px minmax(0, 1fr); }
+  .bg-panel-left .lp-panel { grid-column: 1; align-items: flex-start; padding: 96px 32px 40px 150px; }
+  .bg-panel-left .lp::before {
     -webkit-mask-image: linear-gradient(270deg, transparent 0%, rgba(0,0,0,0.03) 40%, rgba(0,0,0,0.3) 68%, rgba(0,0,0,0.85) 92%, #000 100%);
     mask-image: linear-gradient(270deg, transparent 0%, rgba(0,0,0,0.03) 40%, rgba(0,0,0,0.3) 68%, rgba(0,0,0,0.85) 92%, #000 100%);
   }
-  .lp--panel-left::after {
+  .bg-panel-left .lp::after {
     background:
       linear-gradient(270deg, transparent 0%, color-mix(in oklch, var(--tint) 5%, transparent) 42%, color-mix(in oklch, var(--tint) 40%, transparent) 70%, color-mix(in oklch, var(--tint) 94%, white) 100%),
       radial-gradient(circle at 14% 46%, color-mix(in oklch, white 26%, transparent), transparent 42%);
   }
-  .lp--panel-left .lp-brand { left: auto; right: 6vw; }
+  .bg-panel-left .lp-brand { left: auto; right: 6vw; }
 }
 
 /* Pending / register-status callout (semantic warning surface) */
@@ -12147,7 +11987,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
   position: fixed;
   inset: 0;
   z-index: -3;
-  background-image: url('/bg-hydro-hero-7.png');
+  background-image: var(--login-bg, url('/bg-hydro-hero-7.png'));
   background-position: center;
   background-size: cover;
   filter: saturate(0.7) contrast(0.92) brightness(1.02);

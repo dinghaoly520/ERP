@@ -2064,6 +2064,7 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE =
 export const FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/流标公示模板.docx';
 export const WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE = '模板文件/中标公告模板.docx';
 export const NOTIFICATION_LETTER_TEMPLATE_FILE = '模板文件/中标通知书模板.docx';
+export const DIRECT_FILING_TEMPLATE_FILE = '模板文件/直接采购备案表模板.docx';
 
 export type AnnouncementCategory =
   | 'procurement_document'
@@ -2325,5 +2326,63 @@ export function buildNotificationLetterPlan(
     { targetText: '联系电话', replacementText: draft.contactPhone?.trim() || ' ', highlight: false },
     { targetText: '联系邮箱', replacementText: draft.contactEmail?.trim() || ' ', highlight: false },
     { targetText: '落款日期', replacementText: chineseDate || ' ', highlight: false },
+  ];
+}
+
+// ─── 直接采购备案表（集团采购管理办法 附件6，2026-09-28）───
+
+export type DirectFilingDraft = {
+  /** 项目编号（统一命名用） */
+  projectCode?: string;
+  projectName?: string;
+  /** 采购人名称 */
+  purchaserName?: string;
+  /** 备案时间（ISO/中文日期均可，渲染归一为中文日期） */
+  filingDate?: string;
+  /** 中标金额（元，小写） */
+  amount?: string;
+  /** 中标金额大写 */
+  amountChinese?: string;
+  /** 审批资料是否齐全：是/否 */
+  approvalsComplete?: string;
+  /** 商谈报告：有/无 */
+  hasNegotiationReport?: string;
+  /** 中选供应商确认单：有/无 */
+  hasWinnerConfirmation?: string;
+  /** 中选通知书：有/无 */
+  hasNotificationLetter?: string;
+  /** 合同书：有/无 */
+  hasContract?: string;
+  /** 备案意见：同意/不同意 */
+  filingOpinion?: string;
+  /** 签字（经办人） */
+  signatory?: string;
+  remark?: string;
+};
+
+/** 勾选框渲染：'是' → 是☑ 否□；值缺省/非法 → 双空框 */
+function toCheckBox(value: string | undefined, yes: string, no: string): string {
+  if (value === yes) return `${yes} ☑　${no} □`;
+  if (value === no) return `${yes} □　${no} ☑`;
+  return `${yes} □　${no} □`;
+}
+
+export function buildDirectFilingPlan(draft: DirectFilingDraft): TemplateReplacement[] {
+  const filingDate = formatAnnouncementDateToChinese(draft.filingDate || '');
+  const amount = draft.amount?.trim();
+  return [
+    { targetText: '备案时间', replacementText: filingDate || ' ', highlight: false },
+    { targetText: '采购人名称', ...buildReplacement('采购人名称', draft.purchaserName) },
+    { targetText: '项目名称', ...buildReplacement('项目名称', draft.projectName) },
+    { targetText: '中标金额小写', replacementText: amount ? `${amount}元` : ' ', highlight: false },
+    { targetText: '中标金额大写', ...buildReplacement('中标金额大写', draft.amountChinese) },
+    { targetText: '审批资料是否齐全', replacementText: toCheckBox(draft.approvalsComplete, '是', '否'), highlight: false },
+    { targetText: '商谈报告', replacementText: toCheckBox(draft.hasNegotiationReport, '有', '无'), highlight: false },
+    { targetText: '中选供应商确认单', replacementText: toCheckBox(draft.hasWinnerConfirmation, '有', '无'), highlight: false },
+    { targetText: '中选通知书', replacementText: toCheckBox(draft.hasNotificationLetter, '有', '无'), highlight: false },
+    { targetText: '合同书', replacementText: toCheckBox(draft.hasContract, '有', '无'), highlight: false },
+    { targetText: '备案意见', replacementText: toCheckBox(draft.filingOpinion, '同意', '不同意'), highlight: false },
+    { targetText: '备案签字', replacementText: draft.signatory?.trim() || ' ', highlight: false },
+    { targetText: '备注', replacementText: draft.remark?.trim() || ' ', highlight: false },
   ];
 }

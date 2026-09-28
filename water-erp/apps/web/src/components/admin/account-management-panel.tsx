@@ -9,6 +9,7 @@ import {
   EyeOff,
   KeyRound,
   Fingerprint,
+  Globe,
   LogOut,
   Loader2,
   Pencil,
@@ -33,7 +34,9 @@ import {
   deleteAccount,
   fetchAccounts,
   fetchCompanyOptions,
+  fetchLoginIps,
   fetchPendingSummary,
+  fetchSharedIps,
   fetchSupplierAccounts,
   freezeAccount,
   revealAccountPassword,
@@ -43,6 +46,8 @@ import {
   updateSupplierCompany,
   type AdminAccount,
   type CompanyOption,
+  type LoginIpEntry,
+  type SharedIpGroup,
   type SupplierAccount,
 } from "@/lib/api/accounts";
 
@@ -69,6 +74,13 @@ function permissionLabel(role: AuthRole): string {
 }
 
 const inputCls = "neu-input w-full text-sm";
+
+/** IP/时间列显示格式：无记录「—」；IP 换行 + 相对友好的短时间（MM-DD HH:mm） */
+function formatLoginAt(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 function statusOf(account: AdminAccount): "frozen" | "pending" | "active" {
   if (account.isFrozen) return "frozen";
@@ -116,6 +128,9 @@ export function AccountManagementPanel() {
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [revealed, setRevealed] = useState<Record<string, string | null>>({});
   const [revealingId, setRevealingId] = useState<string | null>(null);
+  // 登录 IP 存证（2026-09-28）：单账号「查看全部 IP」弹窗 + 跨供应商串号检测弹窗
+  const [ipTarget, setIpTarget] = useState<SupplierAccount | null>(null);
+  const [sharedIpsOpen, setSharedIpsOpen] = useState(false);
 
   const [formState, setFormState] = useState<
     { mode: "create" } | { mode: "edit"; account: AdminAccount } | null
@@ -421,6 +436,17 @@ export function AccountManagementPanel() {
             <p className="text-xs text-[color:var(--muted-foreground)]">
               {listView === "staff" ? "采购中心工作人员账号 · 审批管理" : "各公司供应商账号 · 只读视图"}
             </p>
+            {listView === "supplier" && (
+              <button
+                type="button"
+                onClick={() => setSharedIpsOpen(true)}
+                className="neu-btn-xs !h-8"
+                title="检测不同供应商是否登录过相同 IP（串号预警）"
+              >
+                <Globe size={13} strokeWidth={1.9} />
+                IP 串号检测
+              </button>
+            )}
             {listView === "staff" && unassignedCount > 0 && (
               <span
                 className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
@@ -568,6 +594,7 @@ export function AccountManagementPanel() {
                 <th className="px-4 py-3 font-medium">手机</th>
                 <th className="px-4 py-3 font-medium">状态</th>
                 <th className="px-4 py-3 font-medium">归属公司</th>
+                <th className="px-4 py-3 font-medium">最近登录 IP</th>
                 <th className="px-4 py-3 font-medium" style={{ width: 200 }}>密码</th>
               </tr>
             </thead>
@@ -575,7 +602,7 @@ export function AccountManagementPanel() {
               {supplierGroups.map(([groupName, rows]) => (
                 <Fragment key={groupName}>
                   <tr className="border-b border-white/55 bg-[color-mix(in_oklch,var(--accent)_5%,transparent)]">
-                    <td colSpan={7} className="px-4 py-2 text-left text-xs font-semibold tracking-wide text-[color:var(--accent)]">
+                    <td colSpan={8} className="px-4 py-2 text-left text-xs font-semibold tracking-wide text-[color:var(--accent)]">
                       <Building2 size={12} strokeWidth={2} className="mr-1 inline-block align-[-1px]" />
                       {groupName}
                       <span className="ml-1.5 font-normal text-[color:var(--muted-foreground)]">{rows.length} 个账号</span>
@@ -609,6 +636,25 @@ export function AccountManagementPanel() {
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {s.lastLogin?.ip ? (
+                          <button
+                            type="button"
+                            onClick={() => setIpTarget(s)}
+                            className="group inline-flex flex-col items-center gap-0.5 rounded-[10px] px-2 py-1 transition hover:bg-white/70"
+                            title="查看该账号登录过的所有 IP"
+                          >
+                            <span className="font-mono text-xs font-medium text-[color:var(--foreground)] group-hover:text-[color:var(--accent)]">
+                              {s.lastLogin.ip}
+                            </span>
+                            <span className="text-[10px] leading-none text-[color:var(--muted-foreground)]">
+                              {formatLoginAt(s.lastLogin.at)}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[color:var(--muted-foreground)]">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="inline-flex items-center gap-2 whitespace-nowrap">
@@ -689,6 +735,17 @@ export function AccountManagementPanel() {
             refresh();
           }}
         />
+      ) : null}
+
+      {/* 登录 IP 存证（2026-09-28）：单账号全部登录 IP / 跨供应商串号检测 */}
+      {ipTarget ? (
+        <LoginIpModal
+          account={ipTarget}
+          onClose={() => setIpTarget(null)}
+        />
+      ) : null}
+      {sharedIpsOpen ? (
+        <SharedIpModal onClose={() => setSharedIpsOpen(false)} />
       ) : null}
       </>
       )}
@@ -1111,5 +1168,186 @@ function PendingBadge({ count }: { count: number }) {
     >
       {count > 99 ? "99+" : count}
     </span>
+  );
+}
+
+/** UA 摘要：取平台/浏览器核心词，避免长串刷屏 */
+function uaSummary(ua: string | null): string {
+  if (!ua) return "—";
+  const m = ua.match(/(Windows NT [\d.]+|Mac OS X [\d_]+|Linux[^;)]*|Android [\d.]+|iPhone|iPad)/);
+  const os = m?.[1]?.replace(/_/g, ".") ?? "";
+  const b = /Edg\//.test(ua) ? "Edge"
+    : /Chrome\//.test(ua) ? "Chrome"
+    : /Firefox\//.test(ua) ? "Firefox"
+    : /Safari\//.test(ua) ? "Safari" : "";
+  return [os, b].filter(Boolean).join(" · ") || ua.slice(0, 40);
+}
+
+/** 单账号「登录过的所有 IP」弹窗：按 IP 聚合（首末次时间/次数/最近设备） */
+function LoginIpModal({
+  account,
+  onClose,
+}: {
+  account: SupplierAccount;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [ips, setIps] = useState<LoginIpEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchLoginIps(account.id)
+      .then((r) => { if (alive) setIps(r.ips); })
+      .catch((e) => { if (alive) setError(friendlyError(e, "获取登录 IP 记录失败。")); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [account.id]);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]">
+            <Globe size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
+          </span>
+          登录 IP 记录
+        </span>
+      }
+      description={
+        <span>
+          {account.supplier?.name ?? account.displayName ?? account.username}
+          <span className="ml-2 font-mono text-xs text-[color:var(--muted-foreground)]">{account.username}</span>
+        </span>
+      }
+      size="lg"
+      footer={
+        <button type="button" onClick={onClose} className="neu-btn-soft !h-9 !text-xs">
+          关闭
+        </button>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={16} className="animate-spin text-[color:var(--muted-foreground)]" />
+        </div>
+      ) : error ? (
+        <p className="text-sm text-[color:var(--danger)]">{error}</p>
+      ) : ips.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          <Globe size={22} strokeWidth={1.6} className="mb-2 text-[color:var(--muted-foreground)]" />
+          <div className="text-sm text-[color:var(--foreground)]">暂无登录记录</div>
+          <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">该账号自上线以来尚未成功登录</div>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-[14px] border border-white/60 bg-white/55">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-white/70 text-center text-xs text-[color:var(--muted-foreground)]">
+                <th className="px-3 py-2.5 font-medium">IP 地址</th>
+                <th className="px-3 py-2.5 font-medium">登录次数</th>
+                <th className="px-3 py-2.5 font-medium">首次登录</th>
+                <th className="px-3 py-2.5 font-medium">最近登录</th>
+                <th className="px-3 py-2.5 font-medium">最近设备</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ips.map((e) => (
+                <tr key={e.ip} className="border-b border-white/55 last:border-0">
+                  <td className="px-3 py-2.5 text-center font-mono text-xs font-medium text-[color:var(--foreground)]">{e.ip}</td>
+                  <td className="px-3 py-2.5 text-center text-xs text-[color:var(--muted-foreground)]">{e.count} 次</td>
+                  <td className="px-3 py-2.5 text-center text-xs text-[color:var(--muted-foreground)]">{formatLoginAt(e.firstAt)}</td>
+                  <td className="px-3 py-2.5 text-center text-xs text-[color:var(--foreground)]">{formatLoginAt(e.lastAt)}</td>
+                  <td className="px-3 py-2.5 text-center text-xs text-[color:var(--muted-foreground)]">{uaSummary(e.lastUserAgent)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/** 跨供应商同 IP 检测弹窗（串号预警）：不同供应商登录过相同 IP */
+function SharedIpModal({ onClose }: { onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<SharedIpGroup[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchSharedIps()
+      .then((r) => { if (alive) setGroups(r.shared); })
+      .catch((e) => { if (alive) setError(friendlyError(e, "检测失败。")); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]">
+            <ShieldCheck size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
+          </span>
+          IP 串号检测
+        </span>
+      }
+      description="检测不同供应商是否登录过相同 IP 地址（串号 / 围标串标线索）"
+      size="lg"
+      footer={
+        <button type="button" onClick={onClose} className="neu-btn-soft !h-9 !text-xs">
+          关闭
+        </button>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={16} className="animate-spin text-[color:var(--muted-foreground)]" />
+        </div>
+      ) : error ? (
+        <p className="text-sm text-[color:var(--danger)]">{error}</p>
+      ) : groups.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          <CircleCheck size={22} strokeWidth={1.6} className="mb-2 text-[#1d7a5f]" />
+          <div className="text-sm font-medium text-[color:var(--foreground)]">未发现共享 IP</div>
+          <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
+            各供应商登录 IP 互不重叠（127.0.0.1 本地回环已排除）
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5">
+            <AlertTriangle size={13} strokeWidth={1.9} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+            <span className="text-xs leading-5 text-[color:var(--muted-foreground)]">
+              发现 <strong className="text-[color:var(--foreground)]">{groups.length}</strong> 个 IP 被多家供应商登录过——同一 IP 可能是同一自然人/办公网络操控多家账号，建议结合投标行为进一步核查。
+            </span>
+          </div>
+          {groups.map((g) => (
+            <div key={g.ip} className="overflow-hidden rounded-[14px] border border-white/60 bg-white/55">
+              <div className="border-b border-white/60 bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] px-4 py-2 text-left">
+                <span className="font-mono text-sm font-semibold text-[color:var(--accent)]">{g.ip}</span>
+                <span className="ml-2 text-xs text-[color:var(--muted-foreground)]">{g.suppliers.length} 家供应商</span>
+              </div>
+              <div className="divide-y divide-white/55">
+                {g.suppliers.map((s) => (
+                  <div key={s.name} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="text-sm font-medium text-[color:var(--foreground)]">{s.name}</span>
+                    <span className="text-xs text-[color:var(--muted-foreground)]">
+                      {formatLoginAt(s.firstAt)} ~ {formatLoginAt(s.lastAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }

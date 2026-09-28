@@ -19,6 +19,7 @@ const STAGE_ACCENT_VARS: Record<string, string> = {
   bid_evaluation: 'var(--stage-evaluation)',
   award_decision: 'var(--stage-award)',
   contract: 'var(--stage-contract)',
+  direct_purchase_filing: 'var(--stage-filing)',
 };
 
 type TimelineEntryBase = {
@@ -83,6 +84,7 @@ const STAGE_ACTION_LABELS: Record<string, string> = {
   BID_EVALUATION: '开标确认',
   AWARD_DECISION: '文件制作',
   CONTRACT: '合同编制',
+  DIRECT_PURCHASE_FILING: '备案表编写',
 };
 
 export function ProjectStageTimeline({

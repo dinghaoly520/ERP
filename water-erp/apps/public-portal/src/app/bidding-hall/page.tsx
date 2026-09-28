@@ -26,7 +26,7 @@ export default function BiddingHallPage() {
   // portalURL SSR 阶段无 window → 返回 localhost，须等客户端挂载后再取值。
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const SUPPLIER_LOGIN_URL = process.env.NEXT_PUBLIC_SUPPLIER_PORTAL_URL ?? portalURL('supplier', '/login?forceLogin=1');
+  const SUPPLIER_LOGIN_URL = process.env.NEXT_PUBLIC_SUPPLIER_PORTAL_URL ?? portalURL('supplier', '/login');
   const SUPPLIER_REGISTER_URL = portalURL('supplier', '/register');
 
   return (

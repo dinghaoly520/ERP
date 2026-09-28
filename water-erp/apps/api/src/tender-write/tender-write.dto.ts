@@ -113,3 +113,63 @@ export class ExportNotificationLetterDto {
   @IsOptional()
   remark?: string;
 }
+
+/** 直接采购备案表（集团采购管理办法 附件6）：生成备案表 docx（上传至 09 阶段） */
+export class ExportDirectFilingDto {
+  @IsString()
+  @IsOptional()
+  projectCode?: string;
+
+  @IsString()
+  @IsOptional()
+  projectName?: string;
+
+  @IsString()
+  @IsOptional()
+  purchaserName?: string;
+
+  @IsString()
+  @IsOptional()
+  filingDate?: string;
+
+  /** 中标金额（元，小写） */
+  @IsString()
+  @IsOptional()
+  amount?: string;
+
+  @IsString()
+  @IsOptional()
+  amountChinese?: string;
+
+  @IsIn(['是', '否'])
+  @IsOptional()
+  approvalsComplete?: string;
+
+  @IsIn(['有', '无'])
+  @IsOptional()
+  hasNegotiationReport?: string;
+
+  @IsIn(['有', '无'])
+  @IsOptional()
+  hasWinnerConfirmation?: string;
+
+  @IsIn(['有', '无'])
+  @IsOptional()
+  hasNotificationLetter?: string;
+
+  @IsIn(['有', '无'])
+  @IsOptional()
+  hasContract?: string;
+
+  @IsIn(['同意', '不同意'])
+  @IsOptional()
+  filingOpinion?: string;
+
+  @IsString()
+  @IsOptional()
+  signatory?: string;
+
+  @IsString()
+  @IsOptional()
+  remark?: string;
+}

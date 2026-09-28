@@ -53,6 +53,8 @@ export const PROCUREMENT_METHOD_STAGES: Record<ProcurementMethod, StageConfig[]>
     { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
+    // 09 直接采购备案表（2026-09-28，《集团采购管理办法》附件6）：合同后、归档前备案
+    { key: 'DIRECT_PURCHASE_FILING', label: '直接采购备案表' },
   ],
   '邀请招标': [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
@@ -86,6 +88,8 @@ export const PROJECT_WORKFLOW_STAGES_ALL: StageConfig[] = [
   { key: 'BID_EVALUATION', label: '开标评标' },
   { key: 'AWARD_DECISION', label: '定标' },
   { key: 'CONTRACT', label: '合同' },
+  // 直接采购专属（09 备案表）：仅直接采购模板包含；放全集只为 StageKey 联合类型覆盖
+  { key: 'DIRECT_PURCHASE_FILING', label: '直接采购备案表' },
 ];
 
 export type ProjectWorkflowStageKey = (typeof PROJECT_WORKFLOW_STAGES_ALL)[number]['key'];

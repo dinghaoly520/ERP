@@ -106,9 +106,9 @@ export class AccountAdminController {
   }
 
   @Get('suppliers')
-  @ApiOperation({ summary: '供应商账号列表（只读视图，账号管理按公司分组用）' })
-  listSuppliers() {
-    return this.prisma.user.findMany({
+  @ApiOperation({ summary: '供应商账号列表（只读视图，账号管理按公司分组用；带最近登录 IP）' })
+  async listSuppliers() {
+    const users = await this.prisma.user.findMany({
       where: { role: 'supplier' },
       select: {
         id: true,
@@ -132,6 +132,93 @@ export class AccountAdminController {
       },
       orderBy: { createdAt: 'asc' },
     });
+    // 最近一次登录的 IP（AuditLog action=LOGIN 取最新一条）：列表「IP 地址」列 + 串号预警
+    const logs = await this.prisma.auditLog.findMany({
+      where: { userId: { in: users.map((u) => u.id) }, action: 'LOGIN' },
+      select: { userId: true, ipAddress: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const lastLoginMap = new Map<string, { ip: string | null; at: string }>();
+    for (const log of logs) {
+      if (!lastLoginMap.has(log.userId)) {
+        lastLoginMap.set(log.userId, { ip: log.ipAddress, at: log.createdAt.toISOString() });
+      }
+    }
+    return users.map((u) => ({ ...u, lastLogin: lastLoginMap.get(u.id) ?? null }));
+  }
+
+  /** 单账号登录过的全部 IP（去重聚合 + 首末次时间）——「查看全部 IP」弹窗数据源 */
+  @Get('login-ips/:id')
+  @ApiOperation({ summary: '账号登录过的所有 IP（去重聚合）' })
+  async loginIps(@Param('id') id: string) {
+    const account = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, username: true, displayName: true, role: true, supplier: { select: { name: true } } },
+    });
+    if (!account) throw new BadRequestException({ error: '账号不存在', code: 'ACCOUNT_NOT_FOUND' });
+    const logs = await this.prisma.auditLog.findMany({
+      where: { userId: id, action: 'LOGIN', ipAddress: { not: null } },
+      select: { ipAddress: true, userAgent: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    // 按 IP 聚合：首末次登录时间 + 登录次数 + 最近 UA
+    const byIp = new Map<string, { ip: string; firstAt: string; lastAt: string; count: number; lastUserAgent: string | null }>();
+    for (const log of logs) {
+      const ip = log.ipAddress as string;
+      const entry = byIp.get(ip);
+      if (entry) {
+        entry.count += 1;
+        entry.firstAt = log.createdAt.toISOString(); // logs 按 desc 遍历，越靠后越早
+      } else {
+        byIp.set(ip, { ip, firstAt: log.createdAt.toISOString(), lastAt: log.createdAt.toISOString(), count: 1, lastUserAgent: log.userAgent });
+      }
+    }
+    return { account, ips: [...byIp.values()].sort((a, b) => b.lastAt.localeCompare(a.lastAt)) };
+  }
+
+  /** 跨供应商同 IP 检测（2026-09-28）：不同供应商登录过相同 IP → 串号预警。
+   *  排除 127.0.0.1（本地/代理回环——开发环境全员同 IP，无预警意义）。 */
+  @Get('shared-ips')
+  @ApiOperation({ summary: '跨供应商同 IP 登录检测（串号预警）' })
+  async sharedIps() {
+    const suppliers = await this.prisma.user.findMany({
+      where: { role: 'supplier' },
+      select: { id: true, username: true, displayName: true, supplier: { select: { name: true, isTemporary: true } } },
+    });
+    const nameOf = new Map(suppliers.map((s) => [s.id, s.supplier?.name ?? s.displayName ?? s.username]));
+    const idSet = new Set(suppliers.map((s) => s.id));
+    const logs = await this.prisma.auditLog.findMany({
+      where: { userId: { in: [...idSet] }, action: 'LOGIN', ipAddress: { not: null, notIn: ['127.0.0.1'] } },
+      select: { userId: true, ipAddress: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    // ip → 供应商集合 + 时间
+    const byIp = new Map<string, { suppliers: Map<string, { name: string; firstAt: string; lastAt: string }> }>();
+    for (const log of logs) {
+      const ip = log.ipAddress as string;
+      if (!idSet.has(log.userId)) continue;
+      let entry = byIp.get(ip);
+      if (!entry) {
+        entry = { suppliers: new Map() };
+        byIp.set(ip, entry);
+      }
+      const su = entry.suppliers.get(log.userId);
+      if (su) {
+        su.firstAt = log.createdAt.toISOString(); // desc 遍历，越后越早
+      } else {
+        entry.suppliers.set(log.userId, { name: nameOf.get(log.userId) ?? log.userId, firstAt: log.createdAt.toISOString(), lastAt: log.createdAt.toISOString() });
+      }
+    }
+    // 只保留 ≥2 个不同供应商共享的 IP
+    return {
+      shared: [...byIp.entries()]
+        .filter(([, v]) => v.suppliers.size >= 2)
+        .map(([ip, v]) => ({
+          ip,
+          suppliers: [...v.suppliers.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        }))
+        .sort((a, b) => b.suppliers.length - a.suppliers.length),
+    };
   }
 
   @Get(':id/password')

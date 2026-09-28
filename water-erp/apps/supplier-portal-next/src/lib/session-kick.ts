@@ -2,26 +2,31 @@
  * :3004 供应商门户单设备登录——被顶下线 / 账号冻结 提示（2026-09-18，移植自 :3005）。
  *
  * 后端 AuthGuard 对失效会话返回 401：
- *  - SESSION_REPLACED：该账号已在其他设备/浏览器登录（后登录者顶掉先登录者）。弹窗询问
+ *  - SESSION_REPLACED：该账号已在其他设备/浏览器/标签页登录（后登录者顶掉先登录者）。弹窗询问
  *    「是否反馈」，点是 → POST /auth/security-feedback 通知管理员处理，再回登录页；
  *  - ACCOUNT_FROZEN：账号被管理员冻结，单按钮提示。
  * DOM 直插全屏遮罩（不经 React，任何页面状态下都能弹出），不可关闭。
- * 与 :3005 的差异：纯 cookie 会话（无 X-Web-Token 头），反馈请求经 Next 代理自动带
- * token_supplier cookie——被踢设备的 cookie 仍是自己的旧 token，后端验签确认反馈人身份。
+ * 会话体系（2026-09-28 tab 级 token）：请求优先带本 tab 的 X-Supplier-Token（sessionStorage）。
+ * 反馈身份取该旧 token（签名仍有效，仅 sid 被顶）——同浏览器场景下 cookie 已被新登录者
+ * 覆盖，带 cookie 反馈会冒名成新登录者；跨设备场景 cookie 仍是自己的旧 token，两头皆准。
  */
+
+import { getSupplierToken, clearSupplierToken } from "./session-store";
 
 let shown = false;
 
 function goToLogin() {
+  clearSupplierToken();
   if (window.location.pathname !== "/login") window.location.href = "/login";
 }
 
-/** 反馈给管理员：身份取 token_supplier cookie 里的旧 token（签名仍有效，仅会话被顶） */
+/** 反馈给管理员：身份取本 tab 旧 token（签名仍有效，仅会话被顶）；无则回退 cookie */
 function sendSecurityFeedback() {
+  const token = getSupplierToken();
   return fetch("/api/auth/security-feedback", {
     method: "POST",
     credentials: "include",
-    headers: { "X-Portal": "supplier" },
+    headers: { "X-Portal": "supplier", ...(token ? { "X-Supplier-Token": token } : {}) },
   }).catch(() => {
     /* 反馈失败不阻塞回登录页 */
   });
@@ -77,11 +82,30 @@ function renderOverlay(spec: OverlaySpec) {
   btnRow.className = "neu-btn-group";
   btnRow.style.cssText = "margin-top:20px;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;";
 
+  // 两个按钮统一白瓷片设计（cgzxui 白瓷片语义）：纯白底 + 顶部内高光 + 方向性双影。
+  // 主次区分不再靠底色，而靠字重（primary=700 / secondary=600）与文字色（主=品牌蓝 / 次=muted）。
+  // inline style 直接覆盖——overlay 是 DOM 直插，CSS 类级联在特定加载时序下可能不生效。
   const makeBtn = (text: string, primary: boolean, onClick: () => void) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = primary ? "neu-btn-primary" : "neu-btn-soft";
+    btn.style.cssText =
+      "display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 20px;border:none;border-radius:9px;cursor:pointer;font:inherit;font-size:13px;white-space:nowrap;" +
+      (primary
+        ? "font-weight:700;color:var(--accent-strong,var(--brand,#064ea2));"
+        : "font-weight:600;color:var(--fg-2,#5a6d8a);") +
+      "background:oklch(1 0 0);box-shadow:inset 0 1px 0 oklch(1 0 0/0.95),2px 2px 6px oklch(0.55 0.03 258/0.16),-1px -1px 2px oklch(1 0 0/0.95);transition:transform 0.2s ease,box-shadow 0.2s ease;";
     btn.textContent = text;
+    // hover 三态：inline style 不支持 :hover，用事件切换 box-shadow + transform
+    const baseShadow = "inset 0 1px 0 oklch(1 0 0/0.95),2px 2px 6px oklch(0.55 0.03 258/0.16),-1px -1px 2px oklch(1 0 0/0.95)";
+    const hoverShadow = "inset 0 1px 0 oklch(1 0 0/0.95),3px 3px 8px oklch(0.55 0.03 258/0.2),-2px -2px 4px oklch(1 0 0/0.98)";
+    btn.addEventListener("mouseenter", () => {
+      btn.style.transform = "translateY(-1px)";
+      btn.style.boxShadow = hoverShadow;
+    });
+    btn.addEventListener("mouseleave", () => {
+      btn.style.transform = "";
+      btn.style.boxShadow = baseShadow;
+    });
     btn.addEventListener("click", onClick);
     return btn;
   };

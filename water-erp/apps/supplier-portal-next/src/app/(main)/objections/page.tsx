@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import {
   CheckCircle2,
@@ -16,7 +16,7 @@ import { objectionApi, type SupplierObjection } from "@/lib/api/objection";
 import { bidApi } from "@/lib/api/bid";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpSelect, SpTextarea } from "@/components/ui";
+import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput, SpPagination, SpSelect, SpTextarea } from "@/components/ui";
 import { toast } from "sonner";
 import "@/styles/pages/objections.css";
 import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
@@ -50,6 +50,8 @@ export default function ObjectionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [items, setItems] = useState<SupplierObjection[]>([]);
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | string>("all");
@@ -57,16 +59,38 @@ export default function ObjectionsPage() {
   // 项目编号下拉选项：与本供应商相关的项目（可投标 + 受邀），业务编号
   const [projectCodeOptions, setProjectCodeOptions] = useState<string[]>([]);
 
-  const fetchList = async () => {
-    setItems(await objectionApi.listMine());
+  const PAGE_SIZE = 10;
+
+  // 请求序号守卫：快速切换状态/翻页时丢弃过期响应，防止旧请求晚归覆盖新状态
+  const fetchSeqRef = useRef(0);
+
+  // 后端分页 + 状态筛选（2026-09-28 替换全量前端过滤——数据过百会静默丢失）
+  const fetchList = async (page = currentPage, status = statusFilter) => {
+    const seq = ++fetchSeqRef.current;
+    const res = await objectionApi.listMine({ page, pageSize: PAGE_SIZE, status });
+    if (seq !== fetchSeqRef.current) return; // 已有更新的请求，丢弃本次
+    setItems(res.items);
+    setTotal(res.total);
   };
 
   useEffect(() => {
     (async () => {
-      try { await fetchList(); } catch { setError(true); } finally { setLoading(false); }
+      try { await fetchList(1); } catch { setError(true); } finally { setLoading(false); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 状态切换：回第一页重查（筛选已下推后端）
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+    setCurrentPage(1);
+    void fetchList(1, value).catch(() => {});
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    void fetchList(page).catch(() => {});
+  };
 
   useEffect(() => {
     // 关联项目候选 = 我相关的投标项目 + 公告中的项目编号（relatedProjectCode/metadata.projectCode），合并去重
@@ -90,10 +114,8 @@ export default function ObjectionsPage() {
 
   const retry = async () => {
     setError(false); setLoading(true);
-    try { await fetchList(); } catch { setError(true); } finally { setLoading(false); }
+    try { await fetchList(1); setCurrentPage(1); } catch { setError(true); } finally { setLoading(false); }
   };
-
-  const visibleItems = statusFilter === "all" ? items : items.filter((o) => o.status === statusFilter);
 
   const submit = async () => {
     if (!form.title.trim() || !form.content.trim()) { toast.error("请填写异议标题与具体内容"); return; }
@@ -152,7 +174,7 @@ export default function ObjectionsPage() {
               type="button"
               className="neu-segment-btn"
               aria-pressed={statusFilter === tab.value}
-              onClick={() => setStatusFilter(tab.value)}
+              onClick={() => handleStatusChange(tab.value)}
             >
               <tab.icon size={13} strokeWidth={1.9} aria-hidden="true" />{tab.label}
             </button>
@@ -162,11 +184,11 @@ export default function ObjectionsPage() {
 
       {loading ? (
         <LoadingBlock text="正在加载异议记录…" />
-      ) : visibleItems.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState card icon={Inbox} title={statusFilter === "all" ? "暂无异议记录" : "该状态暂无记录"} desc={statusFilter === "all" ? "如对采购文件、资格预审结果或采购结果有异议，可点击右上角「提出异议」在线提交" : "切换其他状态或「全部」查看完整记录"} />
       ) : (
         <div className="obj-list">
-          {visibleItems.map(o => (
+          {items.map(o => (
             <div key={o.id} className="obj-card">
               <div className="obj-head">
                 <span className={`obj-status ${STATUS_LABEL[o.status]?.cls ?? ""}`}>{STATUS_LABEL[o.status]?.label ?? o.status}</span>
@@ -190,6 +212,9 @@ export default function ObjectionsPage() {
               )}
             </div>
           ))}
+          <div className="flex justify-center pt-4">
+            <SpPagination page={currentPage} pageSize={PAGE_SIZE} total={total} onChange={handlePageChange} />
+          </div>
         </div>
       )}
 

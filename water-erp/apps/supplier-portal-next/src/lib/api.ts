@@ -11,10 +11,18 @@
 import { createApiClient, ApiError } from "@water-erp/client";
 import { toast } from "sonner";
 import { showSessionReplacedOverlay, showFrozenOverlay } from "./session-kick";
+import { getSupplierToken } from "./session-store";
 
 const client = createApiClient({
   portal: "supplier",
   baseUrl: process.env.NEXT_PUBLIC_API_BASE || "/api",
+  // tab 级会话 token（2026-09-28，:3005 同款）：sessionStorage 各标签页独立，
+  // 登录轮换 sid 后旧标签页的旧 sid 失效 → 401 SESSION_REPLACED 有感知被顶；
+  // 无 token（新 tab 直访受保护页等）回退 cookie
+  extraHeaders: (): Record<string, string> => {
+    const token = getSupplierToken();
+    return token ? { "X-Supplier-Token": token } : {};
+  },
 });
 
 export { ApiError };
@@ -51,9 +59,13 @@ async function guard<T>(p: Promise<T>, path: string, opts: ReqOpts = {}): Promis
         if (!skip) {
           // 单设备登录（2026-09-18）：被顶下线/账号冻结走全屏遮罩（不受 silent 影响），
           // 由遮罩引导反馈管理员或回登录页；其余 401 维持 toast+跳转兜底。
-          if (code === "SESSION_REPLACED") {
+          const onLoginPage = typeof window !== "undefined" && window.location.pathname === "/login";
+          if (code === "SESSION_REPLACED" && !onLoginPage) {
+            // 仅已登录页面弹全屏遮罩；登录页残留旧 cookie（已被踢）时静默清态不弹窗。
+            // 本 tab 旧 token 此处不清——遮罩「反馈给管理员」还要带它确认反馈人身份
+            //（同浏览器 cookie 已被新登录覆盖，带 cookie 会冒名）；回登录页时统一清。
             showSessionReplacedOverlay(e.message);
-          } else if (code === "ACCOUNT_FROZEN") {
+          } else if (code === "ACCOUNT_FROZEN" && !onLoginPage) {
             showFrozenOverlay(e.message);
           } else {
             if (!opts.silent) toast.warning("登录已过期，请重新登录");

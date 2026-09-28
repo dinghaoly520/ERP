@@ -162,26 +162,27 @@ export function buildMenuItems(isTemporary: boolean | null | undefined): MenuIte
     },
   ];
 
+  // 信息维护分组：企业资料维护仅正式供应商（临时供应商转正走工作台弹窗）；
+  // 「证书与U盾」对临时供应商同样开放（2026-09-28 修正矛盾）——后端只拦有效期
+  // 过期的临时供应商、不过期即可投标，而投标强依赖 U盾证书，管理入口必须可达。
+  items.push({ divider: true, label: "信息维护", icon: Wrench });
+  if (!SUPPLY_WORKSPACE_HIDDEN) items.push(supplyWorkspaceEntry());
   if (canAccessRegularSupplierWorkspaces(isTemporary)) {
-    items.push({ divider: true, label: "信息维护", icon: Wrench });
-    if (!SUPPLY_WORKSPACE_HIDDEN) items.push(supplyWorkspaceEntry());
-    items.push(
-      {
-        path: "/profile",
-        title: "企业信息",
-        icon: Building2,
-        desc: "主体资料与变更记录",
-        // 基本资料/变更记录不进侧栏（单入口），变更记录经页面内入口进入
-        extraPaths: ["/change-records"],
-      },
-      {
-        path: "/profile/ukey",
-        title: "证书与U盾",
-        icon: KeyRound,
-        desc: "投标加密证书与U盾管理",
-      },
-    );
+    items.push({
+      path: "/profile",
+      title: "企业信息",
+      icon: Building2,
+      desc: "主体资料与变更记录",
+      // 基本资料/变更记录不进侧栏（单入口），变更记录经页面内入口进入
+      extraPaths: ["/change-records"],
+    });
   }
+  items.push({
+    path: "/profile/ukey",
+    title: "证书与U盾",
+    icon: KeyRound,
+    desc: "投标加密证书与U盾管理",
+  });
 
   items.push(
     { divider: true, label: "信息服务", icon: Rss },

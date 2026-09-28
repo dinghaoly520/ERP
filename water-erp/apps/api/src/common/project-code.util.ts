@@ -100,6 +100,7 @@ const STAGE_ABBR: Record<string, string> = {
   BID_EVALUATION: 'PB',
   AWARD_DECISION: 'DB',
   CONTRACT: 'HT',
+  DIRECT_PURCHASE_FILING: 'BA', // 直接采购备案表（2026-09-28）
 };
 
 /**

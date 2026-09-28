@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -8,7 +8,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, BellRing, Clock3, Eye, EyeOff, KeyRound, Lock, SearchCheck, ShieldCheck, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, type LoginResult } from "@/lib/auth-context";
-import { resolveLoginBg, preloadLoginBg } from "@/lib/login-bg";
 import { authApi } from "@/lib/api/auth";
 import { getErrorMessage, validateLoginCredentials } from "@/lib/registration-validation";
 import { PasswordResetRequestDialog } from "@/components/auth/password-reset-request-dialog";
@@ -29,14 +28,8 @@ const STATUS_TEXT: Record<string, string> = {
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const { login, logout, isLoggedIn } = useAuth();
+  const { login, isLoggedIn } = useAuth();
 
-  // SSR 首帧不设背景图（纯色兜底），客户端 paint 前同步确定会话图——避免「SSR 图 A → 客户端随机图 B」跳变。
-  const [bg, setBg] = useState<string>("");
-  useLayoutEffect(() => {
-    setBg(resolveLoginBg());
-    preloadLoginBg();
-  }, []);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -77,11 +70,9 @@ function LoginForm() {
   }, [showPasswordReset]);
 
   useEffect(() => {
-    if (params.get("forceLogin") === "1") {
-      logout();
-      return;
-    }
-    // 已登录访问 /login → 回工作台（对齐 Vue 路由守卫 guest 分支）
+    // 打开登录页绝不主动登出/顶掉现有会话（2026-09-28 用户拍板语义：只有点击「登录」
+    // 成功才轮换会话顶掉旧设备）。旧 forceLogin=1 挂载即 logout 的逻辑已删——
+    // 它让「从信息门户打开登录页」变成「顶掉正在使用的供应商」。
     if (isLoggedIn) router.replace("/dashboard");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -161,8 +152,8 @@ function LoginForm() {
   }
 
   return (
-    <main className={`lp lp--supplier ${bg === "/login-bg-3.jpg" ? "lp--panel-left" : ""}`}>
-      <div className="lp-bg" aria-hidden="true" suppressHydrationWarning style={{ backgroundImage: `url(${bg})` }} />
+    <main className="lp lp--supplier">
+      <div className="lp-bg" aria-hidden="true" />
 
       <div className="lp-brand" aria-label="蜀水云采 · 智慧水发">
         <Image src="/logo.png" alt="" width={54} height={54} className="lp-brand-mark" priority />

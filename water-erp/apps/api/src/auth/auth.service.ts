@@ -175,7 +175,10 @@ export class AuthService {
         return { pending: true as const, role: user.role, code: 'TEMPORARY_EXPIRED' };
       }
     }
-    return this.issueToken(user.id, user.username, user.role);
+    // 单设备登录（web/supplier/expert 门户）：每次登录轮换 webSessionId——旧设备 token
+    // 里的 sid 与库中新值不一致，AuthGuard 在下次请求时 401 SESSION_REPLACED（互踢）。
+    // bid/mall 门户不校验 sid（AuthGuard 只查 kick-enabled cookie 命名空间），轮换无副作用。
+    return this.rotatePortalSession(user.id, user.username, user.role);
   }
 
   async me(userId: string) {

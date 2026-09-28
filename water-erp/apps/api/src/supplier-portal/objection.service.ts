@@ -89,12 +89,22 @@ export class ObjectionService {
     });
   }
 
-  /** 供应商：我的异议列表 */
-  listMine(supplierId: string) {
-    return this.prisma.supplierObjection.findMany({
-      where: { supplierId },
-      orderBy: { createdAt: 'desc' },
-    });
+  /** 供应商：我的异议列表（分页 + 状态筛选；2026-09-28 替换全量返回） */
+  async listMine(supplierId: string, params: { page?: number; pageSize?: number; status?: string } = {}) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(50, Math.max(1, params.pageSize ?? 10));
+    const where: { supplierId: string; status?: string } = { supplierId };
+    if (params.status) where.status = params.status;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.supplierObjection.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.supplierObjection.count({ where }),
+    ]);
+    return { items, total };
   }
 
   /** 管理端：异议列表（可筛选） */

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
 import { getNotificationLabel } from "@water-erp/shared";
+import { getSupplierToken } from "@/lib/session-store";
 
 /**
  * 全局实时通知（2026-09-22）：WS 订阅 `notification:new`，新站内通知在
@@ -115,7 +116,14 @@ export function RealtimeNotifications() {
     e.stopPropagation();
     dismiss(n.id);
     try {
-      await fetch(`/api/notifications/${n.id}/read`, { method: "POST", credentials: "include", headers: { "X-Portal": "supplier" } });
+      // 带本 tab 的会话 token（2026-09-28）：同浏览器他 tab 登录会覆盖 cookie，裸 cookie
+      // 请求会以新登录者身份标已读（写操作串台）；无 tab token 回退 cookie（游客/新 tab）
+      const token = getSupplierToken();
+      await fetch(`/api/notifications/${n.id}/read`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-Portal": "supplier", ...(token ? { "X-Supplier-Token": token } : {}) },
+      });
       window.dispatchEvent(new CustomEvent("notification:received"));
     } catch { /* 已读标记失败不影响 */ }
   };

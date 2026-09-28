@@ -7,6 +7,25 @@ import { apiOrigin } from '@water-erp/config';
 // 以及游客路由（login / register / register-temporary / 公开回执页 rsvp）。
 const AUTH_COOKIE_NAME = 'token_supplier';
 const API_TARGET = process.env.API_SERVER_URL ?? apiOrigin();
+// 登录/注册页随机背景池 + cookie 名：随机结果持久化到 cookie（SSR 可读），首帧即最终图，无切换闪烁
+const BG_POOL = ['login-bg-1.jpg', 'login-bg-2.jpg', 'login-bg-3.jpg'];
+const BG_COOKIE = 'supplier_bg';
+const BG_PENDING = 'supplier_bg_pending';
+const GUEST_PAGES = ['/login', '/register', '/register-temporary', '/rsvp'];
+
+/** 是否为门户内登录/注册页之间的跳转（登录↔注册↔临时注册↔回执）——此类沿用同一背景，不重投。 */
+function isInFlowNavigation(request: NextRequest): boolean {
+  const referer = request.headers.get('referer');
+  if (!referer) return false;
+  try {
+    const u = new URL(referer);
+    // 同页刷新/同页再次加载视为新进入 → 重投；仅跨页跳转沿用
+    if (u.pathname === request.nextUrl.pathname) return false;
+    return GUEST_PAGES.some((p) => u.pathname === p || u.pathname.startsWith(p + '/'));
+  } catch {
+    return false;
+  }
+}
 
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough
@@ -63,6 +82,30 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  const pathname = request.nextUrl.pathname;
+  const isGuestPage = GUEST_PAGES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+
+  // 游客页（登录/注册）：SSR 首帧即渲染出随机背景（无「兜底图→随机图」闪烁）。
+  // 重投规则：每次「新进入门户」（新标签/地址栏/外部链接/同页刷新，或首次）重投随机；
+  // 门户内登录↔注册↔临时注册之间的跨页跳转沿用同一张，避免换页时背景突变。
+  if (isGuestPage) {
+    // 上次 307 携带的瞬态标记：清除后直接放行，避免重定向死循环
+    if (request.cookies.get(BG_PENDING)) {
+      const res = NextResponse.next();
+      res.cookies.delete(BG_PENDING);
+      return res;
+    }
+    const hasBg = !!request.cookies.get(BG_COOKIE);
+    if (hasBg && isInFlowNavigation(request)) {
+      return NextResponse.next();
+    }
+    const pick = BG_POOL[Math.floor(Math.random() * BG_POOL.length)];
+    const res = NextResponse.redirect(request.url);
+    res.cookies.set(BG_COOKIE, pick, { path: '/', httpOnly: true });
+    res.cookies.set(BG_PENDING, '1', { path: '/', httpOnly: true, maxAge: 60 });
+    return res;
+  }
+
   // ★ Auth gate: 非公开页面检查 token_supplier
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   if (!token) {
@@ -77,6 +120,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   // 游客/公开路由：login、register、register-temporary（正式+临时注册）、rsvp（回执公开页）
   matcher: [
-    '/((?!login|register|register-temporary|rsvp|_next|$|.*\\.(?:png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot)$).+)',
+    '/((?!_next|$|.*\\.(?:png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot)$).+)',
   ],
 };

@@ -80,6 +80,7 @@ export type SupplierAccount = {
     companyId: string | null;
     companyName: string | null;
   } | null;
+  lastLogin: LastLogin;
 };
 
 export type CompanyOption = { id: string; name: string };
@@ -114,4 +115,35 @@ export function revealAccountPassword(id: string) {
 
 export function updateSupplierCompany(id: string, companyId: string) {
   return api.patch(`/auth/admin/accounts/${id}/supplier-company`, { companyId });
+}
+
+// ── 2026-09-28 登录 IP 存证（账号管理）──
+
+/** 列表行内「最近登录 IP + 时间」 */
+export type LastLogin = { ip: string | null; at: string } | null;
+
+export type LoginIpEntry = {
+  ip: string;
+  firstAt: string;
+  lastAt: string;
+  count: number;
+  lastUserAgent: string | null;
+};
+
+/** 单账号登录过的全部 IP（去重聚合） */
+export function fetchLoginIps(id: string) {
+  return api.get<{
+    account: { id: string; username: string; displayName: string; role: AuthRole; supplier: { name: string } | null };
+    ips: LoginIpEntry[];
+  }>(`/auth/admin/accounts/login-ips/${id}`);
+}
+
+export type SharedIpGroup = {
+  ip: string;
+  suppliers: { name: string; firstAt: string; lastAt: string }[];
+};
+
+/** 跨供应商同 IP 检测（串号预警） */
+export function fetchSharedIps() {
+  return api.get<{ shared: SharedIpGroup[] }>("/auth/admin/accounts/shared-ips");
 }

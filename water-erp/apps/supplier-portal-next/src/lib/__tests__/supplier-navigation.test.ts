@@ -46,9 +46,15 @@ const REGULAR_ONLY_ROUTES = [
   "/catalog-applications",
   "/supply",
   "/profile",
-  "/profile/ukey",
   "/change-records",
 ] as const;
+
+test("temporary suppliers can resolve /profile/ukey (cert management is required for bidding)", () => {
+  const workspace = findWorkspaceForPath("/profile/ukey", buildMenuItems(true));
+
+  assert.equal(workspace?.title, "证书与U盾");
+  assert.equal(findWorkspaceTabForPath("/profile/ukey", workspace)?.path, "/profile/ukey");
+});
 
 test("regular-only workspaces require a confirmed non-temporary status", () => {
   assert.equal(typeof canAccessRegularSupplierWorkspaces, "function");
@@ -65,9 +71,11 @@ test("menu construction stays fail-closed while supplier status is unknown", () 
     isTemporary: boolean | null | undefined,
   ) => MenuItem[];
 
-  assert.equal(workspaces(buildForStatus(null)).length, 7);
-  assert.equal(workspaces(buildForStatus(undefined)).length, 7);
-  assert.equal(workspaces(buildForStatus(true)).length, 7);
+  // 状态未知/临时：资料维护 fail-closed（无企业信息），但证书与U盾可达（2026-09-28：
+  // 后端不拦未过期临时供应商投标，投标强依赖 U盾证书，入口必须无条件可见）
+  assert.equal(workspaces(buildForStatus(null)).length, 8);
+  assert.equal(workspaces(buildForStatus(undefined)).length, 8);
+  assert.equal(workspaces(buildForStatus(true)).length, 8);
   assert.equal(workspaces(buildForStatus(false)).length, 9);
 });
 
@@ -78,10 +86,10 @@ test("regular suppliers see the nine task-oriented workspaces in order", () => {
   );
 });
 
-test("temporary suppliers omit supply and company workspaces", () => {
+test("temporary suppliers keep ukey access while omitting supply and company workspaces", () => {
   assert.deepEqual(
     workspaces(buildMenuItems(true)).map((item) => item.title),
-    ["工作台", "项目机会", "我的投标", "成交履约", "消息中心", "公告中心", "异议投诉"],
+    ["工作台", "项目机会", "我的投标", "成交履约", "证书与U盾", "消息中心", "公告中心", "异议投诉"],
   );
 });
 
@@ -90,7 +98,8 @@ test("workspace menus retain section dividers", () => {
     items.filter((item) => "divider" in item).map((item) => item.label);
 
   assert.deepEqual(dividerLabels(buildMenuItems(false)), ["采购业务", "信息维护", "信息服务"]);
-  assert.deepEqual(dividerLabels(buildMenuItems(true)), ["采购业务", "信息服务"]);
+  // 临时供应商也渲染信息维护分组（仅含证书与U盾）
+  assert.deepEqual(dividerLabels(buildMenuItems(true)), ["采购业务", "信息维护", "信息服务"]);
 });
 
 test("only multi-route workspaces define tabs", () => {

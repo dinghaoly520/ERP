@@ -243,8 +243,10 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const SUPPLIER_URL = process.env.NEXT_PUBLIC_SUPPLIER_PORTAL_URL ?? portalURL('supplier', '/login?forceLogin=1');
-  const WEB_URL = process.env.NEXT_PUBLIC_WEB_PORTAL_URL ?? portalURL('web', '/login?forceLogin=1');
+  // 供应商入口不带 forceLogin=1（2026-09-28）：该参数曾让登录页挂载即登出、
+  // 顶掉正在使用的供应商会话——打开入口页不应有任何会话副作用，点「登录」成功才轮换。
+  const SUPPLIER_URL = process.env.NEXT_PUBLIC_SUPPLIER_PORTAL_URL ?? portalURL('supplier', '/login');
+  const WEB_URL = process.env.NEXT_PUBLIC_WEB_PORTAL_URL ?? portalURL('web', '/login');
 
   const features = [
     { icon: 'cart', title: '电子商城', desc: '办公集采、员工内购、大宗商品', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },

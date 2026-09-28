@@ -8,6 +8,8 @@ export const PROJECT_WORKFLOW_STAGES = [
   { key: 'BID_EVALUATION', label: '开标评标' },
   { key: 'AWARD_DECISION', label: '定标' },
   { key: 'CONTRACT', label: '合同' },
+  // 直接采购专属（09 备案表）：仅直接采购模板包含；放全集只为 StageKey 联合类型覆盖
+  { key: 'DIRECT_PURCHASE_FILING', label: '直接采购备案表' },
 ] as const;
 
 export const LOCKED_STAGES = new Set(

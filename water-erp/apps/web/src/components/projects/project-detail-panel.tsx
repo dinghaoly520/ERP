@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
@@ -40,6 +40,7 @@ import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
+import { DirectFilingDialog } from './direct-filing-dialog';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { ExpertExtractModal } from './expert-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
@@ -293,8 +294,11 @@ function getArchiveStepState(item: ProjectManagementItem): ArchiveStepState {
     return 'DONE';
   }
 
-  const contractStage = item.stages.find((stage) => stage.stageKey === 'CONTRACT');
-  if (contractStage?.status === 'COMPLETED') {
+  // 归档闸门按「最后一个阶段完成」判定（2026-09-28）：直接采购合同后新增 09 备案表，
+  // 末阶段随之变为 DIRECT_PURCHASE_FILING；其余方式末阶段仍是 CONTRACT，口径不变
+  // （与后端 complete 闸门同款）。
+  const lastStage = [...item.stages].sort((a, b) => a.stageOrder - b.stageOrder).at(-1);
+  if (lastStage?.status === 'COMPLETED') {
     return 'READY';
   }
 
@@ -322,6 +326,7 @@ const STAGE_HERO_VISUAL: Record<string, { Icon: StageIcon; colorVar: string }> =
   BID_EVALUATION: { Icon: Gavel, colorVar: 'var(--stage-evaluation)' },
   AWARD_DECISION: { Icon: Award, colorVar: 'var(--stage-award)' },
   CONTRACT: { Icon: ScrollText, colorVar: 'var(--stage-contract)' },
+  DIRECT_PURCHASE_FILING: { Icon: FileCheck2, colorVar: 'var(--stage-filing)' },
 };
 
 // ─── 阶段应提供资料清单：当前步骤 hero 标题下提示（与阶段提示卡/归档闸门口径一致）───
@@ -335,6 +340,7 @@ const STAGE_REQUIRED_MATERIALS: Record<string, string[]> = {
   BID_EVALUATION: ['开标记录', '评标报告及评标签字材料（回流包）'],
   AWARD_DECISION: ['评标报告', '定标审批表', '中标通知书'],
   CONTRACT: ['合同文件', '合同签署及履约资料'],
+  DIRECT_PURCHASE_FILING: ['直接采购备案表', '备案佐证资料（商谈报告/确认单/通知书/合同书）'],
 };
 
 export function ProjectDetailPanel({
@@ -582,6 +588,8 @@ export function ProjectDetailPanel({
   }, [autoOpenBidConfirm]);
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
   const [contractStageOpen, setContractStageOpen] = useState(false);
+  // 09 直接采购备案表编写弹窗（2026-09-28，附件6）
+  const [filingWriteOpen, setFilingWriteOpen] = useState(false);
   // 供应商参与（非谈判）：公告自动收集的参与供应商名单，优先于手动维护的 invitedSuppliers
   const [participantNames, setParticipantNames] = useState<string | null>(null);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
@@ -1332,6 +1340,8 @@ export function ProjectDetailPanel({
                   setAwardFileMakerOpen(true);
                 } else if (stageKey === 'CONTRACT') {
                   setContractStageOpen(true);
+                } else if (stageKey === 'DIRECT_PURCHASE_FILING') {
+                  setFilingWriteOpen(true);
                 }
               }}
               showArchiveStep={showArchiveStep}
@@ -1801,6 +1811,8 @@ export function ProjectDetailPanel({
                       ? '请上传评标报告和定标文件，确认中标单位信息。'
                     : selectedStage.stageKey === 'CONTRACT' && isCurrentStage
                       ? '请点击流程卡「合同订立」发起结构化合同（校验→内审→签署→公告→履行台账→验收）；亦可直接上传合同文件。'
+                    : selectedStage.stageKey === 'DIRECT_PURCHASE_FILING' && isCurrentStage
+                      ? '请点击流程卡「备案表编写」按附件6生成直接采购备案表（自动填入项目与合同信息），完成后即可归档。'
                     : readOnly
                       ? '项目已归档，本阶段材料仅供查阅。'
                     : selectedStage.status === 'COMPLETED'
@@ -2399,6 +2411,16 @@ export function ProjectDetailPanel({
         item={{ id: item.id, projectCode: item.projectCode || `PMI-${item.id.slice(-6)}`, awardedSupplier: item.awardedSupplier, contractAmount: item.contractAmount }}
         onUpdated={onUpdated}
       />
+
+      {/* 09 直接采购备案表编写（附件6，2026-09-28）：生成后自动上传到本步骤附件 */}
+      {filingWriteOpen && (
+        <DirectFilingDialog
+          isOpen
+          onClose={() => setFilingWriteOpen(false)}
+          project={localItem}
+          onUploaded={reloadItemAttachments}
+        />
+      )}
 
       {/* AI 提取结果弹窗（cgzxui Modal） */}
       {aiResult && (
