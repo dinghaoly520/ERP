@@ -34,7 +34,7 @@ export function SuggestionRow({ suggestion: s, onToggleSelected, onChange }: Pro
             : 'bg-[oklch(1_0_0_/_0.55)]'
       }`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input type="checkbox" className="neu-checkbox shrink-0" checked={s.selected} onChange={onToggleSelected} />
         <input
           className="workbench-input min-w-[120px] flex-1 !h-7 !px-1.5 !text-xs"

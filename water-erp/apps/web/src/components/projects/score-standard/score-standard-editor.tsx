@@ -474,8 +474,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       {/* ── Summary（P1-1，2026-09-28：摘要条撤销——项数/Σ/通过性计数并入工具行活合计与 title） ── */}
 
       <div className="overflow-x-auto">
+        {/* table-fixed（2026-09-28 宽度适配）：列宽由表头指定、内容不反推表宽——展开行内
+            得分点 flex 行的 nowrap 固有宽（Chrome 对 min-width:0 钳制在表格内在尺寸计算中
+            不生效）曾把 auto 表撑到 ~2100px 产生横向滚动；名称列吃剩余宽、长文换行 */}
         {loading ? (
-          <table className="neu-table w-full min-w-[640px]">
+          <table className="neu-table w-full table-fixed">
             <tbody>
               <TableSkeleton cols={5} rows={5} />
             </tbody>
@@ -488,14 +491,14 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             </p>
           </div>
         ) : (
-          <table className="neu-table w-full min-w-[640px]">
+          <table className="neu-table w-full table-fixed">
             <thead>
               <tr>
                 <th className="w-8 px-2 py-3"></th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">类别</th>
+                <th className="w-[120px] px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">类别</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">评分项名称</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">满分</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)]">操作</th>
+                <th className="w-[92px] px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">满分</th>
+                <th className="w-[104px] px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)]">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -520,7 +523,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                           <select
                             value={editDraft.category}
                             onChange={(e) => setEditDraft((d) => ({ ...d, category: e.target.value as ScoreCategory }))}
-                            className={`${inputCls} w-[140px]`}
+                            className={`${inputCls} w-full`}
                           >
                             {CATEGORY_OPTIONS.map((c) => (
                               <option key={c} value={c}>
@@ -567,7 +570,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                               step="0.1"
                               value={editDraft.maxScore}
                               onChange={(e) => setEditDraft((d) => ({ ...d, maxScore: Number(e.target.value) }))}
-                              className={`${inputCls} w-[100px] font-mono`}
+                              className={`${inputCls} w-full max-w-[100px] font-mono`}
                             />
                           )
                         ) : (
@@ -629,7 +632,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                     <select
                       value={draft.category}
                       onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value as ScoreCategory }))}
-                      className={`${inputCls} w-[140px]`}
+                      className={`${inputCls} w-full`}
                     >
                       {CATEGORY_OPTIONS.map((c) => (
                         <option key={c} value={c}>
@@ -657,7 +660,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                         step="0.1"
                         value={draft.maxScore}
                         onChange={(e) => setDraft((d) => ({ ...d, maxScore: Number(e.target.value) }))}
-                        className={`${inputCls} w-[100px] font-mono`}
+                        className={`${inputCls} w-full max-w-[100px] font-mono`}
                       />
                     )}
                   </td>
