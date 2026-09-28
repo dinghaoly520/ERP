@@ -142,10 +142,18 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     return Math.abs(s - Number(i.maxScore)) > 0.05;
   });
   const pointsIncompleteCount = pointsIncomplete.length;
+  // 得分点合计（打分类 Σpoints——「有效满分」）：Σ=100 但配不满时，100 只是申报值，
+  // 实际可得 = Σpoints（chip 自解释用：100/100 与「未配满」并列不再像矛盾）
+  const pointsTotal = useMemo(
+    () => items
+      .filter((i) => Number(i.maxScore) > 0)
+      .reduce((s, i) => s + (i.points ?? []).reduce((a, p) => a + Number(p.fullScore), 0), 0),
+    [items],
+  );
   const gateWarnText = !sumOk
     ? (sumDiff > 0 ? `差 ${sumDiff} 分` : `超 ${-sumDiff} 分`)
     : pointsIncompleteCount > 0
-      ? `${pointsIncompleteCount} 项得分点未配满`
+      ? `得分点合计 ${pointsTotal}/100（${pointsIncompleteCount} 项未配满）`
       : null;
 
   // 得分点增删改后刷新 items（含 points 字段）+ 同步阶段/校验态（修改会作废已校验状态）并通知父组件
@@ -439,7 +447,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         {items.length > 0 && (
           <span
             className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)]"
-            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项得分点配满——Σ得分点满分=项满分）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
+            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项得分点配满——Σ得分点满分=项满分；未配满行见名称列「合计 x/y」标示）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
           >
             打分合计
             <span
@@ -559,16 +567,27 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                         ) : (
                           <div className="flex flex-col">
                             <span className="text-sm font-medium text-[var(--foreground)]">{it.name}</span>
-                            {/* P1-3（2026-09-28）：得分点计数行内可见——不展开即知缺项；
-                                打分项 0 得分点 = 硬闸不满足，警示色 */}
+                            {/* 行内副行（2026-09-28 两级化）：完整=muted 计数；未配满=警示色并点名
+                                「合计 x/y」——chip 只报件数，哪一行短须不展开即可见 */}
                             {!isPassFailCategory(it.category) &&
-                              (points.length > 0 ? (
-                                <span className="text-[11px] text-[var(--muted-foreground)]/80">{points.length} 个得分点</span>
-                              ) : (
-                                <span className="text-[11px] font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
-                                  未设得分点
-                                </span>
-                              ))}
+                              (() => {
+                                if (points.length === 0) {
+                                  return (
+                                    <span className="text-[11px] font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
+                                      未设得分点
+                                    </span>
+                                  );
+                                }
+                                const s = points.reduce((acc, p) => acc + Number(p.fullScore), 0);
+                                const short = Math.abs(s - Number(it.maxScore)) > 0.05;
+                                return (
+                                  <span
+                                    className={`text-[11px] ${short ? 'font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]' : 'text-[var(--muted-foreground)]/80'}`}
+                                  >
+                                    {points.length} 个得分点{short ? ` · 合计 ${s}/${it.maxScore}` : ''}
+                                  </span>
+                                );
+                              })()}
                           </div>
                         )}
                       </td>
