@@ -95,6 +95,9 @@ export class BidScoreStandardService {
       await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       const item = await tx.bidScoreItem.create({
         data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
+        // 返回体含 points（与 listScoreItems 同序）——前端编辑后直接以响应替换 state，
+        // 缺关系会令行内「N 个得分点」与校验预检失真（2026-09-28 修）
+        include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
       });
       await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', result);
       return item;
@@ -138,6 +141,10 @@ export class BidScoreStandardService {
           ...(dto.name !== undefined && { name: dto.name }),
           ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
         },
+        // 返回体含 points（与 listScoreItems 同序）——updateScoreItem 不动 points，
+        // 前端以响应替换 state 时须带回存量关系，否则「N 个得分点」行内计数与
+        // 校验预检（每打分项≥1 得分点）在编辑后立即失真（2026-09-28 修，存量隐 bug）
+        include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
       });
       // P0-A：（降）满分后复查 Σ得分点满分 ≤ 新满分，违反不变量则整体回滚
       const newMax = dto.maxScore !== undefined ? Number(dto.maxScore) : Number(existing.maxScore);

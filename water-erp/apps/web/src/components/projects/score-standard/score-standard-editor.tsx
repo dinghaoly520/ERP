@@ -123,11 +123,21 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
   // 开标（OPENING）后锁定；校验不锁定——通过后开标前仍可修改（修改即作废校验标记，需重新校验）
   const locked = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
-  const totalMax = useMemo(() => items.reduce((s, i) => s + Number(i.maxScore), 0), [items]);
   const scoredTotal = useMemo(
     () => items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0),
     [items],
   );
+  // 活合计（P1-1/P1-2，2026-09-28：原摘要条 + 底部合计条合并入工具行；Σ 与得分点完整性
+  // 是 SCORE_STANDARD_REQUIRED / 启动评标 G9 硬闸口径，不达标就地显差额/缺项）
+  const passFailCount = items.length - items.filter((i) => Number(i.maxScore) > 0).length;
+  const sumOk = scoredTotal === 100;
+  const sumDiff = 100 - scoredTotal;
+  const missingPointsCount = items.filter((i) => Number(i.maxScore) > 0 && !(i.points && i.points.length > 0)).length;
+  const gateWarnText = !sumOk
+    ? (sumDiff > 0 ? `差 ${sumDiff} 分` : `超 ${-sumDiff} 分`)
+    : missingPointsCount > 0
+      ? `${missingPointsCount} 项缺得分点`
+      : null;
 
   // 得分点增删改后刷新 items（含 points 字段）+ 同步阶段/校验态（修改会作废已校验状态）并通知父组件
   const reloadItems = useCallback(async () => {
@@ -409,45 +419,59 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           </button>
         )}
       </div>
-      {/* 右侧：校验与新增（校验通过后开标前仍可修改，修改后需重新校验——2026-09-28 方案 A：
-          原「发布评分标准」重释义为版本校验标记，无发布/锁定效力，故降为软按钮与新增同权重） */}
-      {!locked && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }} className="neu-btn-soft gap-1.5">
-            <Plus size={14} />新增评分项
-          </button>
-          {validatedAt ? (
+      {/* 右侧：活合计 + 校验 + 新增（P1，2026-09-28：原摘要条与底部合计条并入此处——
+          Σ 硬闸口径就地可见（状态常显，锁定态也保留）；校验/新增动作仅未锁定时显示。
+          校验语义见方案 A：原「发布评分标准」重释义为版本校验标记，与新增同权重软按钮） */}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+        {items.length > 0 && (
+          <span
+            className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)]"
+            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项≥1 得分点）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
+          >
+            打分合计
             <span
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
-              style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
-              title={`当前版本已通过完整性校验（${new Date(validatedAt).toLocaleString('zh-CN')}）；开标前仍可修改，修改后需重新校验`}
+              className="font-mono text-sm font-bold"
+              style={{ color: sumOk && !missingPointsCount ? 'var(--success)' : 'var(--warning)' }}
             >
-              <Check size={12} /> 已校验 · 开标前可修改
+              {scoredTotal}
             </span>
-          ) : (
-            <button onClick={handleValidate} className="neu-btn-soft gap-1.5">
-              <ShieldCheck size={14} />校验评分标准
+            /100
+            {gateWarnText ? (
+              <span className="font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
+                · {gateWarnText}
+              </span>
+            ) : (
+              <Check size={12} strokeWidth={2.2} className="text-[var(--success)]" />
+            )}
+          </span>
+        )}
+        {!locked && (
+          <>
+            <button onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }} className="neu-btn-soft gap-1.5">
+              <Plus size={14} />新增评分项
             </button>
-          )}
-        </div>
-      )}
+            {validatedAt ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
+                style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
+                title={`当前版本已通过完整性校验（${new Date(validatedAt).toLocaleString('zh-CN')}）；开标前仍可修改，修改后需重新校验`}
+              >
+                <Check size={12} /> 已校验 · 开标前可修改
+              </span>
+            ) : (
+              <button onClick={handleValidate} className="neu-btn-soft gap-1.5">
+                <ShieldCheck size={14} />校验评分标准
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 
   const tableBlock = (
     <>
-      {/* ── Summary ── */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl neu-table-card-header px-4 py-3 text-sm">
-        <span className="text-[var(--muted-foreground)]">
-          评分项：<span className="font-mono font-bold text-[var(--foreground)]">{items.length}</span> 项
-        </span>
-        <span className="text-[var(--muted-foreground)]">
-          打分项满分合计：<span className="font-mono font-bold text-[var(--accent-strong)]">{scoredTotal}</span> 分
-        </span>
-        <span className="text-[var(--muted-foreground)]/70">
-          （含 {items.length - items.filter((i) => Number(i.maxScore) > 0).length} 项通过性审查）
-        </span>
-      </div>
+      {/* ── Summary（P1-1，2026-09-28：摘要条撤销——项数/Σ/通过性计数并入工具行活合计与 title） ── */}
 
       <div className="overflow-x-auto">
         {loading ? (
@@ -466,7 +490,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         ) : (
           <table className="neu-table w-full min-w-[640px]">
             <thead>
-              <tr style={{ background: "oklch(0.975 0.012 258 / 0.5)" }}>
+              <tr>
                 <th className="w-8 px-2 py-3"></th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">类别</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">评分项名称</th>
@@ -482,7 +506,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                 return (
                   <Fragment key={it.id}>
                     <tr
-                      className={`border-t oklch(0.6 0.04 258 / 0.08) ${isEdit ? '' : 'cursor-pointer hover:bg-[oklch(0.97_0.01_258_/_0.5)]'}`}
+                      className={`${isEdit ? '' : 'cursor-pointer hover:bg-[oklch(0.97_0.01_258_/_0.5)]'}`}
                       onClick={() => {
                         if (!isEdit) setExpanded((prev) => ({ ...prev, [it.id]: !prev[it.id] }));
                       }}
@@ -517,7 +541,19 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                             className={`${inputCls} w-full max-w-[360px]`}
                           />
                         ) : (
-                          <span className="text-sm font-medium text-[var(--foreground)]">{it.name}</span>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-[var(--foreground)]">{it.name}</span>
+                            {/* P1-3（2026-09-28）：得分点计数行内可见——不展开即知缺项；
+                                打分项 0 得分点 = 硬闸不满足，警示色 */}
+                            {!isPassFailCategory(it.category) &&
+                              (points.length > 0 ? (
+                                <span className="text-[11px] text-[var(--muted-foreground)]/80">{points.length} 个得分点</span>
+                              ) : (
+                                <span className="text-[11px] font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
+                                  未设得分点
+                                </span>
+                              ))}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -567,7 +603,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                       </td>
                     </tr>
                     {open && !isEdit && bpId && (
-                      <tr className="border-t oklch(0.6 0.04 258 / 0.08) bg-[oklch(0.985_0.003_265)]">
+                      <tr className="bg-[oklch(0.985_0.003_265)]">
                         <td colSpan={5} className="px-4 pb-4 pt-1">
                           <ScorePointsEditor
                             projectId={bpId}
@@ -587,7 +623,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
               {/* ── Add row ── */}
               {showAdd && (
-                <tr className="border-t-2 oklch(0.5 0.16 258) / 0.15">
+                <tr className="border-t-2 border-[oklch(0.5_0.16_258_/_0.15)]">
                   <td className="px-2 py-3"></td>
                   <td className="px-4 py-3">
                     <select
@@ -642,12 +678,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         )}
       </div>
 
-      {items.length > 0 && (
-        <div className="mt-4 flex items-center justify-end border-t oklch(0.6 0.04 258 / 0.08) pt-3 text-sm">
-          <span className="text-[var(--muted-foreground)]">满分合计</span>
-          <span className="ml-2 font-mono text-lg font-black text-[var(--accent-strong)]">{totalMax}</span>
-        </div>
-      )}
+      {/* 底部合计条（P1-1，2026-09-28：撤销——与摘要条/工具行活合计三处重复，保留工具行一处） */}
     </>
   );
 
