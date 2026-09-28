@@ -111,7 +111,7 @@ export function ProjectStageTimeline({
   canArchive?: boolean;
   /** 03 采购文件步骤的评分标准配置状态（按轮查；undefined=该轮无此步骤或数据未就绪）。
    *  2026-09-24 定稿：03 卡原「采购文件修改」按钮位改为「评分标准」入口，点击弹出评分标准面板。 */
-  /** 打开评分标准面板（round=被点 03 行轮次）；任何阶段可开（锁定态查看） */
+  /** 打开评分标准面板（round=被点 03 行轮次）；仅 03 步骤进行中可开——完成后隐藏，与「采购文件编写」一致（2026-09-28） */
   onOpenScoreStandard?: (round: number) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
@@ -370,8 +370,9 @@ export function ProjectStageTimeline({
                             </span>
                           )}
                           {/* 评分标准入口（2026-09-24 定稿：原「采购文件修改」按钮位）——
-                              任何阶段都可打开（已推进/已归档=锁定态查看），点击弹出评分标准面板 */}
-                          {stageKey === 'TENDER_DOCUMENT' && onOpenScoreStandard && (
+                              点击弹出评分标准面板。显隐与「采购文件编写」一致（2026-09-28 裁定）：
+                              仅进行中显示，标记完成后自动隐藏（重开步骤可再入） */}
+                          {stageKey === 'TENDER_DOCUMENT' && entry.isInProgress && onOpenScoreStandard && (
                             <span
                               role="button"
                               tabIndex={0}
