@@ -450,11 +450,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
               <Plus size={14} />新增评分项
             </button>
             {validatedAt ? (
+              /* 2026-09-28 用户裁定：校验后状态由彩色胶囊改软按钮态（neu-btn-soft is-success）——
+                  与「新增评分项」同几何同语言，工具行不再混入异形元素 */
               <span
-                className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
+                className="neu-btn-soft is-success !cursor-default"
                 title={`当前版本已通过完整性校验（${new Date(validatedAt).toLocaleString('zh-CN')}）；开标前仍可修改，修改后需重新校验`}
               >
-                <Check size={12} /> 已校验 · 开标前可修改
+                <Check size={14} strokeWidth={2} /> 已校验 · 开标前可修改
               </span>
             ) : (
               <button onClick={handleValidate} className="neu-btn-soft gap-1.5">
