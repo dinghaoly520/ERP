@@ -371,6 +371,7 @@ OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
 BID_DUAL_ENVELOPE=true            # 双信封新轨总开关（=false 全局退回旧轨 KMS 信封投递；默认开，灰度/应急双向可退）
 ADMIN_KEYSTORE_DIR=...            # 管理方加密证书私钥落盘目录（默认 apps/api/.data/admin-keystore；轮转后旧 adminCertId 私钥仍按 id 定位）
+VECTOR_DATABASE_URL=postgresql://... # 可选：向量检索独立库（金仓/国产化形态配 sidecar：docker compose --profile vector-sidecar up -d pgvector @:5434；缺省回退 DIRECT_URL→主库；迁移走 scripts/db-migrate-kingbase.sh）
 
 # ── AI / LLM ──
 DEEPSEEK_API_URL=https://api.deepseek.com   # 多数模块直接 process.env 读取，未走 LlmService（见模块表后注释）

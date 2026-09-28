@@ -67,7 +67,29 @@ services:
     volumes:
       - minio-data:/data
 
+  # 向量检索 sidecar（金仓/国产化形态用；纯 PG 形态不需要——VectorDbService 默认回退主库 DIRECT_URL）
+  # 启用：docker compose --profile vector-sidecar up -d pgvector
+  # API 侧配套：VECTOR_DATABASE_URL=postgresql://water_erp:water_erp_dev@localhost:5434/water_erp
+  pgvector:
+    profiles: ["vector-sidecar"]
+    image: pgvector/pgvector:pg16
+    container_name: water-erp-pgvector
+    environment:
+      POSTGRES_USER: water_erp
+      POSTGRES_PASSWORD: water_erp_dev
+      POSTGRES_DB: water_erp
+    ports:
+      - "5434:5432" # 生产可去掉宿主映射，仅内网访问
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U water_erp -d water_erp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   postgres-data:
   redis-data:
   minio-data:
+  pgvector-data:
