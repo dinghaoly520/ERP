@@ -20,6 +20,8 @@ import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
+import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
+import { TrustStore } from '../common/crypto/x509/trust-store';
 import { ERR_PUBLIC_KEY_INVALID_SUPPLIER } from '../common/error-codes';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { canonicalEnvelopeHash, sha256Hex } from '@water-erp/ukey';
@@ -687,38 +689,111 @@ export class SupplierPortalService {
    */
   async bindCert(
     supplierId: string,
-    input: { certSn: string; certDn: string; publicKey: string; alg?: string; notBefore?: string; expiresAt?: string },
+    input: {
+      certSn?: string; certDn?: string; publicKey?: string; alg?: string; notBefore?: string; expiresAt?: string;
+      /** X.509 真证书轨（阶段1）：DER base64——携带即切换为「DER 唯一事实源」分支 */
+      rawCert?: string;
+      /** PoP（证明持有私钥）：challenge 端点下发的 nonce + adapter.sign(nonce) 签名 hex */
+      popNonce?: string; popSignature?: string;
+    },
   ) {
-    const { certSn, certDn, publicKey, alg } = input;
+    let { certSn, certDn, publicKey } = input;
+    const { alg } = input;
+    let validityNotBefore: Date | undefined;
+    let validityExpiresAt: Date | undefined;
+    // X.509 轨落库增量列（mock 轨保持默认：null/'mock'）
+    let rawCert: string | null = null;
+    let issuerDn: string | null = null;
+    let certSource = 'mock';
+
+    if (input.rawCert) {
+      // ── X.509 真证书轨：DER 解析为唯一事实源，声明值仅交叉校验（防前端谎报） ──
+      let parsed;
+      try {
+        parsed = parseCertificate(Buffer.from(input.rawCert, 'base64'));
+      } catch {
+        throw new BadRequestException({ error: '证书解析失败（非法 DER/X.509 结构）', code: 'INVALID_CERT' });
+      }
+      if (parsed.spkiAlgOid !== OID_SM2_ECC) {
+        throw new BadRequestException({ error: `仅支持 SM2 证书（检测到公钥算法 OID ${parsed.spkiAlgOid}）`, code: 'CERT_ALG_UNSUPPORTED' });
+      }
+      if ((input.certSn && input.certSn !== parsed.serialHex) ||
+          (input.publicKey && input.publicKey.toLowerCase() !== parsed.publicKeyHex) ||
+          (input.certDn && input.certDn !== parsed.subjectDn)) {
+        throw new BadRequestException({ error: '声明证书字段与 DER 内容不一致', code: 'CERT_FIELDS_MISMATCH' });
+      }
+      certSn = parsed.serialHex;
+      certDn = parsed.subjectDn;
+      publicKey = parsed.publicKeyHex;
+      validityNotBefore = parsed.notBefore;
+      validityExpiresAt = parsed.notAfter;
+      rawCert = input.rawCert;
+      issuerDn = parsed.issuerDn;
+      certSource = 'x509';
+      if (validityExpiresAt && validityExpiresAt.getTime() <= Date.now()) {
+        throw new BadRequestException({
+          error: '该证书已过期，无法绑定——请换发新证书后在「U盾管理」页重新绑定',
+          code: 'BIND_CERT_EXPIRED',
+        });
+      }
+      // 链闸（有锚即校验；CERT_CHAIN_ENFORCE=false 降级为告警放行——灰度开关）
+      const store = SupplierPortalService.loadTrustStore();
+      if (!store.isEmpty) {
+        const r = store.verifyChain(parsed);
+        if (!r.ok) {
+          const err = { error: `证书链校验未通过：${r.message ?? r.code}`, code: 'CERT_UNTRUSTED' };
+          if (process.env.CERT_CHAIN_ENFORCE === 'false') {
+            this.logger.warn(`[cert-chain] 告警放行（CERT_CHAIN_ENFORCE=false）：${err.error}`);
+          } else {
+            throw new BadRequestException(err);
+          }
+        }
+      } else {
+        this.logger.log('[cert-chain] 信任锚目录为空，链校验未启用（mock 兼容期）');
+      }
+      // PoP 必备（真证书轨——堵声明式绑定漏洞）
+      await this.verifyCertPop(supplierId, publicKey!, input.popNonce, input.popSignature, true);
+    } else {
+      // ── mock 轨：声明式（存量行为，供应商 U盾管理页现状） ──
+      if (!certSn || !certDn || !publicKey) {
+        throw new BadRequestException({ error: '请填写完整证书信息', code: 'MISSING_FIELDS' });
+      }
+      // 公钥格式校验：复用注入的 SignatureService.isValidPublicKey（与验签同一口径，杜绝正则复制漂移）
+      if (!this.signatureService.isValidPublicKey(publicKey)) {
+        throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: ERR_PUBLIC_KEY_INVALID_SUPPLIER });
+      }
+
+      // D1v2/D2：证书有效期（可选——mock 新证书带 60 天，存量介质/旧中间件实例不带=长期）。
+      // 时点闸门①（绑定）：已过期证书拒绑；区间非法（非 ISO / notBefore>expiresAt）拒收。
+      const parseValidityDate = (v: string | undefined): Date | undefined => {
+        if (v === undefined || v === null || v === '') return undefined;
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) {
+          throw new BadRequestException({ error: '证书有效期格式非法（须为 ISO 8601）', code: 'INVALID_VALIDITY' });
+        }
+        return d;
+      };
+      validityNotBefore = parseValidityDate(input.notBefore);
+      validityExpiresAt = parseValidityDate(input.expiresAt);
+      if (validityExpiresAt && validityExpiresAt.getTime() <= Date.now()) {
+        throw new BadRequestException({
+          error: '该证书已过期，无法绑定——请换发新证书后在「U盾管理」页重新绑定',
+          code: 'BIND_CERT_EXPIRED',
+        });
+      }
+      if (validityNotBefore && validityExpiresAt && validityNotBefore.getTime() > validityExpiresAt.getTime()) {
+        throw new BadRequestException({ error: '证书有效期区间非法（起晚于止）', code: 'INVALID_VALIDITY' });
+      }
+      // PoP 可选：带 nonce 必验；CERT_POP_REQUIRED=true 时对 mock 轨也强制（前端切换后启用）
+      if (input.popNonce || input.popSignature || process.env.CERT_POP_REQUIRED === 'true') {
+        await this.verifyCertPop(supplierId, publicKey, input.popNonce, input.popSignature, process.env.CERT_POP_REQUIRED === 'true');
+      }
+    }
+    // 双轨汇合后的类型收口（两轨均已保证非空——mock 轨上面已抛，x509 轨来自 DER 解析）
     if (!certSn || !certDn || !publicKey) {
       throw new BadRequestException({ error: '请填写完整证书信息', code: 'MISSING_FIELDS' });
     }
-    // 公钥格式校验：复用注入的 SignatureService.isValidPublicKey（与验签同一口径，杜绝正则复制漂移）
-    if (!this.signatureService.isValidPublicKey(publicKey)) {
-      throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: ERR_PUBLIC_KEY_INVALID_SUPPLIER });
-    }
 
-    // D1v2/D2：证书有效期（可选——mock 新证书带 60 天，存量介质/旧中间件实例不带=长期）。
-    // 时点闸门①（绑定）：已过期证书拒绑；区间非法（非 ISO / notBefore>expiresAt）拒收。
-    const parseValidityDate = (v: string | undefined): Date | undefined => {
-      if (v === undefined || v === null || v === '') return undefined;
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) {
-        throw new BadRequestException({ error: '证书有效期格式非法（须为 ISO 8601）', code: 'INVALID_VALIDITY' });
-      }
-      return d;
-    };
-    const validityNotBefore = parseValidityDate(input.notBefore);
-    const validityExpiresAt = parseValidityDate(input.expiresAt);
-    if (validityExpiresAt && validityExpiresAt.getTime() <= Date.now()) {
-      throw new BadRequestException({
-        error: '该证书已过期，无法绑定——请换发新证书后在「U盾管理」页重新绑定',
-        code: 'BIND_CERT_EXPIRED',
-      });
-    }
-    if (validityNotBefore && validityExpiresAt && validityNotBefore.getTime() > validityExpiresAt.getTime()) {
-      throw new BadRequestException({ error: '证书有效期区间非法（起晚于止）', code: 'INVALID_VALIDITY' });
-    }
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
       select: { id: true, name: true },
@@ -758,6 +833,9 @@ export class SupplierPortalService {
                 notBefore: validityNotBefore ?? null,
                 expiresAt: validityExpiresAt ?? null,
                 expiryNotifyStage: 0,
+                rawCert,
+                issuerDn,
+                certSource,
               },
             })
           : await tx.supplierCert.create({
@@ -769,6 +847,9 @@ export class SupplierPortalService {
                 alg: alg ?? 'SM2',
                 notBefore: validityNotBefore,
                 expiresAt: validityExpiresAt,
+                rawCert,
+                issuerDn,
+                certSource,
               },
             });
         // 绑定即激活验签公钥（存量列）
@@ -784,6 +865,56 @@ export class SupplierPortalService {
       }
       throw err;
     }
+  }
+
+  /**
+   * PoP（Proof of Possession）：验证供应商持有证书对应私钥。
+   * 挑战 nonce 由 issueCertBindChallenge 下发（Redis 5min TTL），客户端经
+   * UKeyAdapter.sign(nonce) 签名后随绑定请求回传；一次性消费（del）。
+   * 签名验证走 SignatureService.verify——与盾 /sign 端点同参 {hash:true}，
+   * mock 中间件与真 CA 客户端同构。
+   */
+  private async verifyCertPop(
+    supplierId: string,
+    publicKey: string,
+    popNonce: string | undefined,
+    popSignature: string | undefined,
+    required: boolean,
+  ): Promise<void> {
+    if (!popNonce || !popSignature) {
+      if (required || popNonce || popSignature) {
+        throw new BadRequestException({ error: '缺少私钥持有证明（popNonce/popSignature）', code: 'POP_REQUIRED' });
+      }
+      return;
+    }
+    const key = `ukey:pop:${supplierId}:${popNonce}`;
+    const v = await this.redis.get(key).catch(() => null);
+    if (!v) {
+      throw new BadRequestException({ error: '挑战 nonce 不存在或已被使用', code: 'POP_NONCE_INVALID' });
+    }
+    await this.redis.del(key).catch(() => undefined);
+    if (!this.signatureService.verify(popNonce, popSignature, publicKey)) {
+      throw new BadRequestException({ error: '私钥持有证明失败：签名验证未通过', code: 'CERT_POP_FAILED' });
+    }
+  }
+
+  /** 绑定挑战 nonce（32 字节随机 hex，Redis 300s TTL，一次性消费） */
+  async issueCertBindChallenge(supplierId: string): Promise<{ nonce: string; expiresIn: number }> {
+    const nonce = crypto.randomBytes(32).toString('hex');
+    const expiresIn = 300;
+    await this.redis.set(`ukey:pop:${supplierId}:${nonce}`, '1', 'EX', expiresIn);
+    return { nonce, expiresIn };
+  }
+
+  /** 信任锚缓存（按目录路径键控——env 切换目录后自动重载；目录内容变更需重启） */
+  private static trustStoreCache: { dir: string; store: TrustStore } | null = null;
+  private static loadTrustStore(): TrustStore {
+    const dir = process.env.TRUSTED_CA_DIR ?? '';
+    if (!dir) return TrustStore.load('');
+    if (SupplierPortalService.trustStoreCache?.dir === dir) return SupplierPortalService.trustStoreCache.store;
+    const store = TrustStore.load(dir);
+    SupplierPortalService.trustStoreCache = { dir, store };
+    return store;
   }
 
   /**

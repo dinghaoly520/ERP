@@ -168,10 +168,20 @@ export class SupplierPortalController {
     return this.portalService.listMyCerts(supplierId);
   }
 
+  /** 绑定 PoP 挑战：下发一次性 nonce（Redis 300s TTL），客户端 adapter.sign 后随绑定请求回传 */
+  @Get('profile/cert/challenge')
+  async issueCertBindChallenge(@Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.issueCertBindChallenge(supplierId);
+  }
+
   @Post('profile/cert')
   async bindCert(
     @Request() req: any,
-    @Body() body: { certSn: string; certDn: string; publicKey: string; alg?: string; notBefore?: string; expiresAt?: string },
+    @Body() body: {
+      certSn?: string; certDn?: string; publicKey?: string; alg?: string; notBefore?: string; expiresAt?: string;
+      rawCert?: string; popNonce?: string; popSignature?: string;
+    },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.bindCert(supplierId, body);

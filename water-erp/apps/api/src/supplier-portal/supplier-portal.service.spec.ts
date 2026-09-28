@@ -68,6 +68,8 @@ describe('SupplierPortalService', () => {
   let prisma: any;
   let signature: { verify: jest.Mock; isValidPublicKey: jest.Mock };
   let bidBackup: { stageBackup: jest.Mock; persistBackup: jest.Mock; isEnabled: jest.Mock };
+  // REDIS_CLIENT mock——X.509 绑定轨 PoP（nonce 存取）与既有缓存用例共用
+  let redis: any;
 
   const mockSupplier = {
     id: 'supplier-1',
@@ -146,7 +148,7 @@ describe('SupplierPortalService', () => {
         { provide: BidBackupService, useValue: bidBackup },
         { provide: NotificationService, useValue: { sendToUser: jest.fn().mockResolvedValue({}), sendToRole: jest.fn() } },
         // SupplierPortalService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
-        { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
+        { provide: 'REDIS_CLIENT', useValue: (redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue('OK'), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() }) },
         // 构造器第 6 参（BidGateway 为 @Optional，无需提供；本 spec 不触达 LLM）
         { provide: LlmService, useValue: {} },
         // 终局即固化（A）：BidService 仅用 autoHandoverIfDone 钩子（no-op 桩，不触达真实移交）
@@ -3382,5 +3384,146 @@ describe('SupplierPortalService — 成交通知书签收闭环', () => {
     )).rejects.toMatchObject({ response: { code: 'AWARD_LETTER_VERSION_CHANGED' } });
 
     expect(notificationService.resolveActionableForUser).not.toHaveBeenCalled();
+  });
+});
+
+/* =================================================================
+   X.509 真证书绑定轨（rawCert 唯一事实源 + 链闸 + PoP）——真 CA 接入阶段1
+   夹具：test/fixtures/ca-chain（gen-test-ca-chain.sh 生成的 SM2 真链）
+   自包含 harness（Object.create 模式，同 P1-7 describe）——bindCert 触达面小
+   ================================================================= */
+describe('X.509 真证书绑定轨（rawCert+链闸+PoP）', () => {
+  const pathx = require('path');
+  const FX = pathx.resolve(__dirname, '../../test/fixtures/ca-chain');
+  const fsx = require('fs');
+  const osx = require('os');
+  const { parseCertificate } = require('../common/crypto/x509/x509-cert');
+  const leafDer = fsx.readFileSync(pathx.join(FX, 'leaf.der'));
+  const leaf = parseCertificate(leafDer);
+  const rawCertB64 = leafDer.toString('base64');
+  const POP_INPUT = { popNonce: 'a'.repeat(64), popSignature: 'b'.repeat(128) };
+
+  let svc: any;
+  let prisma: any;
+  let signature: any;
+  let redis: any;
+
+  const mkStoreDir = (files: string[]): string => {
+    const dir = fsx.mkdtempSync(pathx.join(osx.tmpdir(), 'bind-trust-'));
+    for (const f of files) fsx.copyFileSync(pathx.join(FX, f), pathx.join(dir, f));
+    return dir;
+  };
+  const mockHappyPath = () => {
+    prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+    prisma.supplierCert.findUnique.mockResolvedValue(null);
+    prisma.supplierCert.updateMany.mockResolvedValue({ count: 0 });
+    prisma.supplierCert.create.mockResolvedValue({ id: 'cert-x' });
+    prisma.supplier.update.mockResolvedValue({});
+  };
+
+  beforeEach(() => {
+    prisma = {
+      supplier: { findUnique: jest.fn(), update: jest.fn() },
+      supplierCert: { findUnique: jest.fn(), updateMany: jest.fn(), create: jest.fn(), update: jest.fn() },
+      $transaction: jest.fn((fn: any) => fn(prisma)),
+    };
+    signature = { verify: jest.fn().mockReturnValue(true), isValidPublicKey: jest.fn().mockReturnValue(true) };
+    redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue('OK'), del: jest.fn().mockResolvedValue(1) };
+    const instance: any = Object.create(SupplierPortalService.prototype);
+    instance.prisma = prisma;
+    instance.signatureService = signature;
+    instance.redis = redis;
+    instance.logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    svc = instance;
+  });
+
+  afterEach(() => {
+    delete process.env.TRUSTED_CA_DIR;
+    delete process.env.CERT_CHAIN_ENFORCE;
+  });
+
+  it('rawCert happy path：DER 为唯一事实源入库（serial/DN/公钥/有效期取自证书），PoP 通过', async () => {
+    process.env.TRUSTED_CA_DIR = mkStoreDir(['root.pem', 'inter.pem']);
+    mockHappyPath();
+    (redis.get as jest.Mock).mockResolvedValue('1');
+    await svc.bindCert('supplier-1', { rawCert: rawCertB64, ...POP_INPUT });
+    expect(prisma.supplierCert.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        certSn: leaf.serialHex,
+        certDn: leaf.subjectDn,
+        publicKey: leaf.publicKeyHex,
+        rawCert: rawCertB64,
+        issuerDn: leaf.issuerDn,
+        certSource: 'x509',
+        notBefore: leaf.notBefore,
+        expiresAt: leaf.notAfter,
+      }),
+    }));
+  });
+
+  it('声明字段与 DER 不一致 → 400 CERT_FIELDS_MISMATCH（防前端谎报）', async () => {
+    mockHappyPath();
+    await expect(svc.bindCert('supplier-1', {
+      certSn: 'NOT-THE-SERIAL', certDn: leaf.subjectDn, publicKey: leaf.publicKeyHex, rawCert: rawCertB64, ...POP_INPUT,
+    })).rejects.toMatchObject({ response: { code: 'CERT_FIELDS_MISMATCH' } });
+    expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+  });
+
+  it('链闸：锚目录只有错根 → 400 CERT_UNTRUSTED', async () => {
+    process.env.TRUSTED_CA_DIR = mkStoreDir(['wrong-root.pem']);
+    mockHappyPath();
+    await expect(svc.bindCert('supplier-1', { rawCert: rawCertB64, ...POP_INPUT }))
+      .rejects.toMatchObject({ response: { code: 'CERT_UNTRUSTED' } });
+  });
+
+  it('CERT_CHAIN_ENFORCE=false → 错根降级告警放行（灰度开关）', async () => {
+    process.env.TRUSTED_CA_DIR = mkStoreDir(['wrong-root.pem']);
+    process.env.CERT_CHAIN_ENFORCE = 'false';
+    mockHappyPath();
+    (redis.get as jest.Mock).mockResolvedValue('1');
+    await expect(svc.bindCert('supplier-1', { rawCert: rawCertB64, ...POP_INPUT })).resolves.toBeDefined();
+    expect(prisma.supplierCert.create).toHaveBeenCalled();
+  });
+
+  it('无锚目录 → 链闸跳过，rawCert 轨仍可绑定（mock 兼容期）', async () => {
+    mockHappyPath();
+    (redis.get as jest.Mock).mockResolvedValue('1');
+    await expect(svc.bindCert('supplier-1', { rawCert: rawCertB64, ...POP_INPUT })).resolves.toBeDefined();
+  });
+
+  it('PoP：rawCert 轨缺 nonce → POP_REQUIRED；nonce 不存在/已用 → POP_NONCE_INVALID；验签失败 → CERT_POP_FAILED', async () => {
+    mockHappyPath();
+    await expect(svc.bindCert('supplier-1', { rawCert: rawCertB64 }))
+      .rejects.toMatchObject({ response: { code: 'POP_REQUIRED' } });
+    (redis.get as jest.Mock).mockResolvedValue(null);
+    await expect(svc.bindCert('supplier-1', { rawCert: rawCertB64, ...POP_INPUT }))
+      .rejects.toMatchObject({ response: { code: 'POP_NONCE_INVALID' } });
+    (redis.get as jest.Mock).mockResolvedValue('1');
+    signature.verify.mockReturnValueOnce(false);
+    await expect(svc.bindCert('supplier-1', { rawCert: rawCertB64, ...POP_INPUT }))
+      .rejects.toMatchObject({ response: { code: 'CERT_POP_FAILED' } });
+    expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+  });
+
+  it('非法 DER → 400 INVALID_CERT；挑战端点下发 nonce 并写 Redis 300s', async () => {
+    mockHappyPath();
+    await expect(svc.bindCert('supplier-1', { rawCert: Buffer.from('not-a-cert').toString('base64'), ...POP_INPUT }))
+      .rejects.toMatchObject({ response: { code: 'INVALID_CERT' } });
+    const ch = await svc.issueCertBindChallenge('supplier-1');
+    expect(ch.nonce).toMatch(/^[0-9a-f]{64}$/);
+    expect(ch.expiresIn).toBe(300);
+    expect(redis.set).toHaveBeenCalledWith(
+      expect.stringContaining(`ukey:pop:supplier-1:${ch.nonce}`), '1', 'EX', 300,
+    );
+  });
+
+  it('mock 轨（无 rawCert）行为不变：不带 PoP 可绑定，不触发链闸', async () => {
+    mockHappyPath();
+    await expect(svc.bindCert('supplier-1', {
+      certSn: 'SN-MOCK', certDn: 'CN=四川水发建设有限公司,O=蜀水云采模拟CA,C=CN', publicKey: `04${'ef'.repeat(64)}`,
+    })).resolves.toBeDefined();
+    expect(prisma.supplierCert.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ certSource: 'mock' }),
+    }));
   });
 });

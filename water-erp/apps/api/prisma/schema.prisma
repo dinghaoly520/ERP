@@ -3700,6 +3700,10 @@ model SupplierCert {
   bindingStatus     String    @default("ACTIVE") // ACTIVE | REVOKED
   boundAt           DateTime  @default(now())
   revokedAt         DateTime?
+  // ── X.509 真证书轨（阶段1，2026-09-28）：DER 唯一事实源落库 ──
+  rawCert           String?   // DER base64 原文（null=存量/伪证书，mock 轨兼容）
+  issuerDn          String?   // 颁发者 DN（链校验/审计）
+  certSource        String    @default("mock") // mock=声明式轨 | x509=DER 解析轨
   supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@index([supplierId])
