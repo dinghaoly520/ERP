@@ -1,13 +1,13 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
+import { VectorDbService } from './vector-db.service';
 
 @Injectable()
 export class VectorInitService implements OnModuleInit {
   private readonly logger = new Logger(VectorInitService.name);
 
   constructor(
-    private prisma: PrismaService,
+    private vectorDb: VectorDbService,
     private config: ConfigService,
   ) {}
 
@@ -17,25 +17,42 @@ export class VectorInitService implements OnModuleInit {
       return;
     }
 
+    const pool = this.vectorDb.getPool();
     try {
-      await this.prisma.$executeRawUnsafe(
-        'CREATE EXTENSION IF NOT EXISTS vector',
+      await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+      this.logger.log(
+        `pgvector extension ensured @ ${this.vectorDb.describeTarget()}`,
       );
-      this.logger.log('pgvector extension ensured');
     } catch (e) {
       this.logger.error(
-        'Failed to create pgvector extension. Is pgvector installed?',
+        'Failed to create pgvector extension on vector DB. Check VECTOR_DATABASE_URL.',
         e,
       );
       return;
     }
 
-    await this.prisma.$executeRawUnsafe(`
+    // sidecar 形态：目标库可能为空库（金仓主库无此表）——幂等建全套
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "DocumentChunk" (
+          "id" TEXT NOT NULL,
+          "collectionName" TEXT NOT NULL,
+          "fileId" TEXT NOT NULL,
+          "content" TEXT NOT NULL,
+          "metadata" JSONB NOT NULL DEFAULT '{}',
+          "embedding" vector(1024),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "DocumentChunk_pkey" PRIMARY KEY ("id")
+      )`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS "DocumentChunk_collectionName_idx" ON "DocumentChunk"("collectionName")`,
+    );
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS "DocumentChunk_embedding_idx" ON "DocumentChunk"
       USING hnsw (embedding vector_cosine_ops)
-      WITH (m = 16, ef_construction = 64)
-    `);
+      WITH (m = 16, ef_construction = 64)`);
 
-    this.logger.log('HNSW embedding indexes ensured');
+    this.logger.log(
+      `HNSW embedding indexes ensured @ ${this.vectorDb.describeTarget()}`,
+    );
   }
 }

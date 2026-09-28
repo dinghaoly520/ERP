@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
 import { EmbeddingService } from '../../local-ai/embedding.service';
+import { VectorDbService } from './vector-db.service';
 import { createId } from '@paralleldrive/cuid2';
 
 export interface ChunkSearchResult {
@@ -22,7 +22,7 @@ export interface InsertChunk {
 @Injectable()
 export class VectorSearchService {
   constructor(
-    private prisma: PrismaService,
+    private vectorDb: VectorDbService,
     private embedding: EmbeddingService,
   ) {}
 
@@ -44,26 +44,23 @@ export class VectorSearchService {
     const [queryVector] = await this.embedding.embed([query]);
     const vectorStr = this.validateVector(queryVector);
 
-    const rows = await this.prisma.$queryRawUnsafe<
-      Array<{
-        id: string;
-        content: string;
-        metadata: Record<string, unknown>;
-        file_id: string;
-        score: number;
-      }>
-    >(
+    const res = await this.vectorDb.getPool().query<{
+      id: string;
+      content: string;
+      metadata: Record<string, unknown>;
+      file_id: string;
+      score: number;
+    }>(
       `SELECT id, content, metadata, "fileId" AS file_id,
               1 - (embedding <=> '${vectorStr}'::vector) AS score
        FROM "DocumentChunk"
        WHERE "collectionName" = $1
        ORDER BY embedding <=> '${vectorStr}'::vector
        LIMIT $2`,
-      collectionName,
-      topK,
+      [collectionName, topK],
     );
 
-    return rows.map((row) => ({
+    return res.rows.map((row) => ({
       id: row.id,
       content: row.content,
       metadata: row.metadata,
@@ -78,37 +75,33 @@ export class VectorSearchService {
       const vectorStr = this.validateVector(chunk.embedding);
       const metadataJson = JSON.stringify(chunk.metadata ?? {});
 
-      await this.prisma.$executeRawUnsafe(
+      await this.vectorDb.getPool().query(
         `INSERT INTO "DocumentChunk" (id, "collectionName", "fileId", content, metadata, embedding)
          VALUES ($1, $2, $3, $4, $5::jsonb, '${vectorStr}'::vector)`,
-        id,
-        chunk.collectionName,
-        chunk.fileId,
-        chunk.content,
-        metadataJson,
+        [id, chunk.collectionName, chunk.fileId, chunk.content, metadataJson],
       );
     }
   }
 
   async deleteByFileId(fileId: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(
-      `DELETE FROM "DocumentChunk" WHERE "fileId" = $1`,
-      fileId,
-    );
+    await this.vectorDb
+      .getPool()
+      .query(`DELETE FROM "DocumentChunk" WHERE "fileId" = $1`, [fileId]);
   }
 
   async deleteByCollection(collectionName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(
-      `DELETE FROM "DocumentChunk" WHERE "collectionName" = $1`,
-      collectionName,
-    );
+    await this.vectorDb
+      .getPool()
+      .query(`DELETE FROM "DocumentChunk" WHERE "collectionName" = $1`, [
+        collectionName,
+      ]);
   }
 
   async getChunkCountByFileId(fileId: string): Promise<number> {
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+    const res = await this.vectorDb.getPool().query<{ count: number }>(
       `SELECT COUNT(*)::int AS count FROM "DocumentChunk" WHERE "fileId" = $1`,
-      fileId,
+      [fileId],
     );
-    return Number(rows[0]?.count ?? 0);
+    return Number(res.rows[0]?.count ?? 0);
   }
 }
