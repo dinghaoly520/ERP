@@ -75,6 +75,8 @@ const BATCH_REVIEW_SYSTEM_PROMPT = `你是一个采购合规审查专家。你�
 
 @Injectable()
 export class SemanticReviewerService {
+  private readonly logger = new Logger(SemanticReviewerService.name);
+
   constructor(
     private llm: LlmService,
     private vectorSearch: VectorSearchService,
@@ -113,17 +115,29 @@ export class SemanticReviewerService {
 
     const clauses = this.clauseParser.parse(documentContent).clauses;
 
-    // 1. 预先收集每条规则的 KB 检索结果
+    // 1. 预先收集每条规则的 KB 检索结果（向量库不可用时软降级为无 RAG 上下文）
     const ruleSearchResults = new Map<number, ChunkSearchResult[]>();
+    let warnedVectorDown = false;
     for (let i = 0; i < rules.length; i++) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       const description =
         (rules[i].logicExpression.description as string) ?? rules[i].name;
-      const results = await this.vectorSearch.search(
-        description,
-        knowledgeBaseId,
-        5,
-      );
+      let results: ChunkSearchResult[] = [];
+      try {
+        results = await this.vectorSearch.search(
+          description,
+          knowledgeBaseId,
+          5,
+        );
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        if (!warnedVectorDown) {
+          this.logger.warn(
+            `向量检索不可用，语义审查退化为无 RAG 上下文（语义规则此时基本失效）：${String(err).slice(0, 200)}`,
+          );
+          warnedVectorDown = true;
+        }
+      }
       ruleSearchResults.set(i, results);
     }
 

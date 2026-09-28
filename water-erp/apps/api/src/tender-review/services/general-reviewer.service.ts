@@ -115,6 +115,7 @@ export class GeneralReviewerService {
     knowledgeBaseId: string,
     signal?: AbortSignal,
   ): Promise<GeneralReviewOutput> {
+    let warnedVectorDown = false;
     const sections = splitByChapters(documentContent, this.clauseParser);
     const issueResults: GeneralReviewResult[] = [];
     const seenContentHashes = new Set<string>();
@@ -124,11 +125,22 @@ export class GeneralReviewerService {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
       const searchQuery = this.sampleSectionText(section.content);
-      const searchResults = await this.vectorSearch.search(
-        searchQuery,
-        knowledgeBaseId,
-        25,
-      );
+      let searchResults: ChunkSearchResult[] = [];
+      try {
+        searchResults = await this.vectorSearch.search(
+          searchQuery,
+          knowledgeBaseId,
+          25,
+        );
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        if (!warnedVectorDown) {
+          new Logger(GeneralReviewerService.name).warn(
+            `向量检索不可用，通用审查退化为无 RAG 上下文：${String(err).slice(0, 200)}`,
+          );
+          warnedVectorDown = true;
+        }
+      }
 
       const uniqueClauses: string[] = [];
       for (const result of searchResults) {
