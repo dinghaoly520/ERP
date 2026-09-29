@@ -6,6 +6,7 @@ import { SupplierPortalService } from './supplier-portal.service';
 import { TenderClarificationService } from '../tender-clarification/tender-clarification.service';
 import { AskClarificationDto } from '../tender-clarification/dto/ask-clarification.dto';
 import { BidDocumentService } from '../announcement/bid-document.service';
+import { AnnouncementService } from '../announcement/announcement.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
@@ -33,6 +34,7 @@ export class SupplierPortalController {
     private portalService: SupplierPortalService,
     private prisma: PrismaService,
     private bidDocumentService: BidDocumentService,
+    private announcementService: AnnouncementService,
     private clarifications: TenderClarificationService,
     private objectionService: ObjectionService,
     private prequalService: PrequalService,
@@ -664,6 +666,23 @@ export class SupplierPortalController {
       throw new BadRequestException({ error: '新密码不少于6位', code: 'INVALID_PASSWORD' });
     }
     return this.portalService.changePassword(req.user.sub, body.oldPassword, body.newPassword);
+  }
+
+  /** 公告中心（2026-09-29 spec）：供应商视角——公开公告 ∪ 定向命中本供应商（RESTRICTED） */
+  @Get('announcements')
+  @ApiOperation({ summary: '供应商公告中心：公开 ∪ 定向命中本供应商（定向公告仅被选供应商可见）' })
+  async listAnnouncements(
+    @Request() req: any,
+    @Query('type') type?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.announcementService.supplierList(
+      { type, search, page: page ? Number(page) : undefined, pageSize: pageSize ? Number(pageSize) : undefined },
+      supplierId,
+    );
   }
 
   // 招标文件（加密 + 受控下载）

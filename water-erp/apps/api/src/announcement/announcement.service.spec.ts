@@ -745,3 +745,89 @@ describe('AnnouncementService — 正式盖章版引用校验（OFFICIAL_TENDER_
     expect(prisma.announcement.create).not.toHaveBeenCalled();
   });
 });
+
+describe('AnnouncementService — supplierList 供应商视角（公开 ∪ 定向命中，2026-09-29 spec）', () => {
+  let service: AnnouncementService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      announcement: { count: jest.fn(), findMany: jest.fn() },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AnnouncementAiService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  it('定向公告命中本供应商 → 出现且 visibility=RESTRICTED、剥 bidDocument、total 透传', async () => {
+    prisma.announcement.count.mockResolvedValue(1);
+    prisma.announcement.findMany.mockResolvedValue([{
+      id: 'a1', status: 'PUBLISHED', publicityEnd: null,
+      metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['S1'] },
+      content: '<p>正文</p>', bidDocument: { id: 'bd' },
+    }]);
+
+    const res = await service.supplierList({}, 'S1');
+
+    expect(res.total).toBe(1);
+    expect(res.items).toHaveLength(1);
+    expect(res.items[0].visibility).toBe('RESTRICTED');
+    expect(res.items[0].bidDocument).toBeUndefined();
+    expect(res.items[0].content).toContain('<p>');
+  });
+
+  it('公开公告（无 visibility 键的存量行）→ 照常出现且 visibility=PUBLIC', async () => {
+    prisma.announcement.count.mockResolvedValue(1);
+    prisma.announcement.findMany.mockResolvedValue([{
+      id: 'a2', status: 'PUBLISHED', publicityEnd: null,
+      metadata: { category: 'failed_bid' }, content: 'x', bidDocument: null,
+    }]);
+
+    const res = await service.supplierList({}, 'S1');
+
+    expect(res.items[0].visibility).toBe('PUBLIC');
+  });
+
+  it('公示期满的定向公告 → 仅标题壳（content 置空 + titleOnly=true）', async () => {
+    prisma.announcement.count.mockResolvedValue(1);
+    prisma.announcement.findMany.mockResolvedValue([{
+      id: 'a3', status: 'PUBLISHED', publicityEnd: new Date(Date.now() - 86400000),
+      metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['S1'] },
+      content: '<p>正文</p>', bidDocument: null,
+    }]);
+
+    const res = await service.supplierList({}, 'S1');
+
+    expect(res.items[0].titleOnly).toBe(true);
+    expect(res.items[0].content).toBe('');
+  });
+
+  it('查询闸：预取 RESTRICTED 集合判归属，主查询 notIn 排除不属于本人的定向；公开级 dataClass 口径保留', async () => {
+    // 预取返回两条定向：r1 给别家（应排除）、r2 含 S9（应保留）
+    prisma.announcement.findMany.mockImplementation((args: any) => {
+      // 第一次调用 = 预取定向集合（select 仅 id/metadata）；第二次 = 主查询
+      if (args?.select?.id) return [
+        { id: 'r1', metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['OTHER'] } },
+        { id: 'r2', metadata: { visibility: 'RESTRICTED', restrictedSupplierIds: ['S9', 'X'] } },
+      ];
+      return [];
+    });
+    prisma.announcement.count.mockResolvedValue(0);
+
+    await service.supplierList({ search: '钻机' }, 'S9');
+
+    const preWhere = prisma.announcement.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(preWhere)).toContain('RESTRICTED');
+    expect(preWhere.status).toEqual({ in: ['PUBLISHED', 'ARCHIVED'] });
+
+    const mainWhere = prisma.announcement.findMany.mock.calls[1][0].where;
+    expect(mainWhere.id).toEqual({ notIn: ['r1'] });          // 只排除不属于自己的
+    expect(mainWhere.status).toEqual({ in: ['PUBLISHED', 'ARCHIVED'] });
+    expect(JSON.stringify(mainWhere)).toContain('dataClass'); // publicVisibilityOnly 同口径
+  });
+});

@@ -206,7 +206,7 @@ export class AnnouncementService {
   async list(
     params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number },
     companyFilter: { companyId?: string } = {},
-    opts: { publicVisibilityOnly?: boolean } = {},
+    opts: { publicVisibilityOnly?: boolean; excludeIds?: string[] } = {},
   ) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -218,6 +218,11 @@ export class AnnouncementService {
     // 用 AND 组合——search 分支会覆写 where.OR，不能挂 OR 上
     if (opts.publicVisibilityOnly) {
       where.AND = [...(where.AND ?? []), { OR: [{ dataClass: { in: [...PUBLIC_VISIBLE_CLASSES] } }, { dataClass: null }] }];
+    }
+    // 供应商视角排除集（2026-09-29 spec，supplierList 预取后传入）：定向但不属于本人的公告 id。
+    // 不在 jsonb 层做"不等于"——Prisma path 过滤不支持 not，且 SQL NULL 语义会误伤无 visibility 键的存量行。
+    if (opts.excludeIds?.length) {
+      where.id = { notIn: opts.excludeIds };
     }
     if (params.type) {
       // 逗号分隔多类型（2026-09-09：「中标公告」tab 联合 WIN_BID_NOTICE + 历史存量 PRE_WIN_NOTICE）
@@ -295,6 +300,33 @@ export class AnnouncementService {
     return { ...res, items: res.items
       .filter((a: any) => a.metadata?.visibility !== 'RESTRICTED')
       .map((a: any) => this.isOfflined(a) ? this.titleOnlyStub(a) : this.stripForPublic(a)) };
+  }
+
+  /** 供应商视角列表（:3004 公告中心，2026-09-29 spec）——公开 ∪ 定向命中本供应商。
+   *  与 publicList 同口径（PUBLISHED/ARCHIVED、公开级 dataClass、脱敏/标题壳、排序），
+   *  但不剥离 RESTRICTED——定向公告对被选供应商可见；:3002 公开门户继续走 publicList 不受影响。
+   *  归属判定：预取 RESTRICTED 小集合（通常个位数）在 JS 判 restrictedSupplierIds 是否含本 id，
+   *  不属于本人的以 id notIn 排除——分页 total 与排序在主查询内保持真实。 */
+  async supplierList(
+    params: { type?: string; search?: string; page?: number; pageSize?: number },
+    supplierId: string,
+  ) {
+    const restricted = await this.prisma.announcement.findMany({
+      where: { status: { in: ['PUBLISHED', 'ARCHIVED'] }, metadata: { path: ['visibility'], equals: 'RESTRICTED' } },
+      select: { id: true, metadata: true },
+    });
+    const notMine = restricted
+      .filter((r: any) => !Array.isArray(r.metadata?.restrictedSupplierIds) || !r.metadata.restrictedSupplierIds.includes(supplierId))
+      .map((r: any) => r.id);
+    const res = await this.list(
+      { ...params, status: 'PUBLISHED,ARCHIVED' },
+      {},
+      { publicVisibilityOnly: true, ...(notMine.length ? { excludeIds: notMine } : {}) },
+    );
+    return { ...res, items: res.items.map((a: any) => {
+      const base = this.isOfflined(a) ? this.titleOnlyStub(a) : this.stripForPublic(a);
+      return { ...base, visibility: (a.metadata as Record<string, any>)?.visibility === 'RESTRICTED' ? 'RESTRICTED' : 'PUBLIC' };
+    }) };
   }
 
   /** 已下线判定：公示期满（有 publicityEnd 才会到期；政策/平台等无公示期永不过期）或存量 ARCHIVED */

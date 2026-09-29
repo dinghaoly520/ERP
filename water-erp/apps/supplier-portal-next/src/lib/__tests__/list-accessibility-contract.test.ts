@@ -51,3 +51,22 @@ test("list styles provide visible focus and narrow-screen card adaptations", () 
   assert.match(announcementStyles, /\.announcement-row:focus-visible/);
   assert.match(announcementStyles, /@media \(max-width:\s*720px\)[\s\S]*?\.announcement-row/);
 });
+
+test("announcement center: supplier-scoped list when logged in, restricted badge (2026-09-29 spec)", () => {
+  const announcements = source("../../app/(main)/announcements/page.tsx");
+  const api = source("../../lib/api/announcement.ts");
+  const css = source("../../styles/pages/announcements.css");
+
+  // 登录态（tab 级 token）→ 供应商视角端点（公开 ∪ 定向命中本供应商）；匿名回退公开列表
+  assert.match(announcements, /import \{ getSupplierToken \} from "@\/lib\/session-store"/);
+  assert.match(announcements, /getSupplierToken\(\)\s*\n?\s*\?\s*announcementApi\.supplierList\(params\)/);
+  assert.match(announcements, /: announcementApi\.publicList\(params\)/);
+  assert.match(api, /supplier-portal\/announcements\$\{qs\(params\)\}/);
+
+  // 定向徽章：仅 RESTRICTED 渲染（可点行与已下线标题壳行都要有）
+  assert.match(announcements, /restricted-badge/g);
+  assert.match(css, /\.restricted-badge \{/);
+
+  // 公开门户口径不受扰：publicList 仍指向 /announcements/public
+  assert.match(api, /\/announcements\/public\$\{qs\(params\)\}/);
+});

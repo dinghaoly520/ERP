@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { serverNowMs } from "@water-erp/shared";
 import { announcementApi } from "@/lib/api/announcement";
+import { getSupplierToken } from "@/lib/session-store";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpInput, SpPagination } from "@/components/ui";
 import "@/styles/pages/announcements.css";
@@ -53,6 +54,8 @@ const typeTagMap: Record<string, { label: string; type: string }> = {
 const NEW_WINDOW_MS = 48 * 3600 * 1000;
 
 interface AnnouncementListItem {
+  /** 2026-09-29 spec：RESTRICTED = 定向给本供应商（登录态列表才有值） */
+  visibility?: "PUBLIC" | "RESTRICTED";
   id: string;
   title: string;
   type: string;
@@ -97,12 +100,12 @@ export default function AnnouncementListPage() {
       setLoading(true);
       setError(false);
       try {
-        const res = (await announcementApi.publicList({
-          type: type || undefined,
-          search: s || undefined,
-          page,
-          pageSize: 10,
-        })) as AnnouncementListResponse;
+        // 登录态走供应商视角（公开 ∪ 定向命中本供应商）；匿名保持公开口径（2026-09-29 spec）
+        const params = { type: type || undefined, search: s || undefined, page, pageSize: 10 };
+        const res = (await (getSupplierToken()
+          ? announcementApi.supplierList(params)
+          : announcementApi.publicList(params)
+        )) as AnnouncementListResponse;
         setItems(res?.items || []);
         setTotal(res?.total || 0);
         const seenAt = serverNowMs();
@@ -221,6 +224,7 @@ export default function AnnouncementListPage() {
                 </div>
               </div>
               <div className="ann-row-right">
+                {a.visibility === "RESTRICTED" ? <span className="restricted-badge">定向</span> : null}
                 <span className="top-badge" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>已下线</span>
                 <span className="ann-row-date">{dayjs(a.publishDate || a.createdAt).format("YYYY-MM-DD")}</span>
               </div>
@@ -242,6 +246,7 @@ export default function AnnouncementListPage() {
                 </div>
               </div>
               <div className="ann-row-right">
+                {a.visibility === "RESTRICTED" ? <span className="restricted-badge">定向</span> : null}
                 {a.isTop ? <span className="top-badge">置顶</span> : null}
                 {isNew(a.publishDate || a.createdAt) ? <span className="new-badge">NEW</span> : null}
                 <span className="ann-row-date">{dayjs(a.publishDate || a.createdAt).format("YYYY-MM-DD")}</span>

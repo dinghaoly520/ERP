@@ -7,6 +7,10 @@ export const announcementApi = {
   getPublic(id: string) {
     return api.get<any>(`/announcements/public/${id}`);
   },
+  // 供应商视角（登录态，2026-09-29 spec）：公开 ∪ 定向命中本供应商（RESTRICTED 仅被选可见）
+  supplierList(params?: { type?: string; search?: string; page?: number; pageSize?: number }) {
+    return api.get<any>(`/supplier-portal/announcements${qs(params)}`);
+  },
   // 招标文件（供应商视角：权限/付费/下载）
   getBidDocument(announcementId: string) {
     return api.get<any>(`/supplier-portal/bid-documents/${announcementId}`);
