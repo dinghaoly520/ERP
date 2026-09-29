@@ -175,10 +175,14 @@ export class AuthService {
         return { pending: true as const, role: user.role, code: 'TEMPORARY_EXPIRED' };
       }
     }
-    // 单设备登录（web/supplier/expert 门户）：每次登录轮换 webSessionId——旧设备 token
-    // 里的 sid 与库中新值不一致，AuthGuard 在下次请求时 401 SESSION_REPLACED（互踢）。
-    // bid/mall 门户不校验 sid（AuthGuard 只查 kick-enabled cookie 命名空间），轮换无副作用。
-    return this.rotatePortalSession(user.id, user.username, user.role);
+    // 单设备登录（web 2026-08-21；supplier 2026-09-18；expert 2026-09-20）：轮换归
+    // auth.controller 的条件块（cookiePortal ∈ web/supplier/expert 时 rotatePortalSession
+    // ——旧设备 token 的 sid 与库中新值不一致，AuthGuard 401 SESSION_REPLACED 互踢）。
+    // 此前（93f4eaf8 起）此处无条件轮换——AuthGuard 对任何带 sid 的 token 都校验，
+    // mall/bid 被静默赋予互踢语义（违背「单设备=web/supplier/expert」文档化设计，
+    // auth e2e mall 用例实测抓出）；轮换还带穿命名空间副作用（任一门户登录即顶掉
+    // 同账号他门户带 sid 会话）。bid/mall 恢复 issueToken（无 sid、不互踢）。
+    return this.issueToken(user.id, user.username, user.role);
   }
 
   async me(userId: string) {
