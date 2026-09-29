@@ -275,7 +275,7 @@ export default function DashboardPage() {
   function onQualUploadSuccess(i: number, resp: any) {
     setConvertForm((f) => {
       const qs = [...f.qualifications];
-      qs[i] = { ...qs[i], fileUrl: resp?.id || resp?.url || "" };
+      qs[i] = { ...qs[i], fileUrl: resp?.url || "" };
       return { ...f, qualifications: qs };
     });
     toast.success("资质材料上传成功");

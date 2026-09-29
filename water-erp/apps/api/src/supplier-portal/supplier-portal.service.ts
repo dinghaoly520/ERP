@@ -1918,8 +1918,10 @@ export class SupplierPortalService {
     // flag 关但客户端按新轨投递（文件已是双层密文 + dual-v2 信封）：旧轨会因缺 clientDeks 以
     // 隐晦 MISSING_CLIENT_DEK 拒收，应急开关形同虚设——显式拒收并指引按旧流程投递。
     if (!dualOn && envelope?.version === 'dual-v2') {
+      // SUP-P2-03：供应商门户旧轨表单已下线（前端仅剩绑盾引导）——「按旧流程投递」无从执行，
+      // 文案改为应急指引；回退语义=API 侧放行旧轨 clientDeks，供应商投递需管理员线下引导。
       throw new BadRequestException({
-        error: '平台暂未启用双层信封，请按旧流程投递或联系管理员',
+        error: '平台双层信封服务维护中，请联系管理员处理投标事宜（应急通道）',
         code: 'DUAL_DISABLED',
       });
     }

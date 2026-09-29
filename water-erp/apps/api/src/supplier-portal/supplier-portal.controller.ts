@@ -14,6 +14,7 @@ import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dt
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { SaveBidDraftDto, SubmitBidDto } from './dto/bid-submission.dto';
 import { OpeningConfirmDto } from './dto/opening-confirm.dto';
+import { SubmitQuoteDto } from './dto/submit-quote.dto';
 import type { EnvelopeRole } from '@water-erp/ukey';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
@@ -850,7 +851,9 @@ export class SupplierPortalController {
   }
 
   @Post('projects/:projectId/rounds/:roundId/quote')
-  async submitQuote(@Request() req: any, @Param('projectId') projectId: string, @Param('roundId') roundId: string, @Body() body: { bidSupplierId: string; quotePrice: number }) {
+  async submitQuote(@Request() req: any, @Param('projectId') projectId: string, @Param('roundId') roundId: string, @Body() body: SubmitQuoteDto) {
+    // SUP-P2-04：DTO 校验（正数+两位小数）后规整，防 0/负数/多位小数入库参与排名
+    body.quotePrice = Math.round(body.quotePrice * 100) / 100;
     // 验证供应商属于该项目且属于当前登录用户
     const supplierTableId = await this.getSupplierId(req.user.sub);
     const bidSupplier = await this.prisma.bidSupplier.findFirst({

@@ -4,7 +4,8 @@
  * 供应商正式注册五步向导：
  * 1 身份与账号  2 企业与业务  3 联系人  4 资质与履历  5 确认提交
  *
- * useAutoSave('register') 将草稿存于当前浏览器的 localStorage，并从同一存储恢复。
+ * useAutoSave 本机草稿：登录用户按 userId 键、游客按固定匿名键（register:anonymous），
+ * 提交成功即清；登录态切回时匿名草稿由隐私清理 effect 移除（SUP-P2-07）。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -173,9 +174,10 @@ export default function RegisterPage() {
     basic, tags, contacts, banks, quals, perfs,
   }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs]);
   const recoverableDraftKey = getRegistrationDraftKey(user?.id);
-  const draft = useAutoSave(recoverableDraftKey ?? "register:disabled", draftData, {
-    enabled: Boolean(recoverableDraftKey),
-  });
+  // SUP-P2-07：游客（未登录）也启用本机草稿——固定匿名键；登录态切回时既有隐私清理
+  // effect 会移除匿名草稿。此前 enabled 仅登录用户可享，页头注释与恢复横幅承诺的
+  // 能力对主流程（游客注册，五步长表单）不可达，误关/崩溃即全丢。
+  const draft = useAutoSave(recoverableDraftKey ?? "register:anonymous", draftData, { enabled: true });
   const draftTimeLabel = draft.storedAt ? dayjs(draft.storedAt).format("MM月DD日 HH:mm") : "";
   const [showRecovery, setShowRecovery] = useState(false);
   const { restoreDraft } = draft;
