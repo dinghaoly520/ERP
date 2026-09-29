@@ -126,8 +126,8 @@ export function BulkExtractReviewDialog({ open, groups, locked, sourceLabel, onC
               <div key={g.itemId}>
                 <div className="mb-1.5 flex items-center gap-2 text-sm">
                   <span
-                    className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
-                    style={{ color, backgroundColor: `${color}18` }}
+                    className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold text-[var(--cat-color)] bg-[color-mix(in_oklch,var(--cat-color)_12%,transparent)]"
+                    style={{ '--cat-color': color } as React.CSSProperties}
                   >
                     {CATEGORY_LABEL[g.category] || g.category}
                   </span>

@@ -18,7 +18,7 @@ import { getClientIp } from '../common/client-ip.util';
 import { buildSessionMeta } from '../common/session-device.util';
 import { cookieNameForPortal, portalForRole, portalFromRequest, tokenFromRequest, LEGACY_COOKIE } from './portal-cookie';
 import { checkPortRole } from './port-roles';
-import { PORTS } from '@water-erp/config';
+import { PORTS, ROLE_PORTAL } from '@water-erp/config';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -146,6 +146,14 @@ export class AuthController {
     // :3006 登录分流：非 bid_expert 角色都写 token_bid（跳 :3007）
     // bid_expert 写 token_expert（留在 :3006）
     if (requestPortal === 'expert' && result.role !== 'bid_expert') {
+      cookiePortal = 'bid';
+    }
+
+    // X-P1-01（2026-09-29 审查修复）：admin 从公共门户（或任意非 web 门户）登录后按
+    // ROLE_PORTAL 落地 :3007（bid-portal proxy 只读 token_bid）——cookie 写 web 命名空间
+    // 会落地即 401 被弹回 :3006 重登（七角色唯独 admin 的「公共登录→角色门户」链路断裂）。
+    // admin 明确从 :3005（requestPortal==='web'）登录保持 token_web（账号管理等管理功能在 :3005）。
+    if (result.role === 'admin' && requestPortal !== 'web' && ROLE_PORTAL[result.role] === 'bid') {
       cookiePortal = 'bid';
     }
 

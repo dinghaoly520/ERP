@@ -225,7 +225,7 @@ export class BidOpeningRecordService {
       supplierId: bidSupplier.supplierId as string,
       supplierName: bidSupplier.supplierName,
       recordId: record.id,
-      amount: Number(dto.amount),
+      // X-P2-02：金额不带（dual-v2 万元裸数字易被按「元」误读）——读端 refresh 拉全量自含单位
       // A-113：广播带动态字段值，触发各家公开表动态列刷新（法定四列不在内）
       customFields,
     });

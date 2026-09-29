@@ -42,7 +42,8 @@ export class ScoreStandardValidator {
     }
   }
 
-  /** 评分标准整体完整:打分类 ΣmaxScore === 100;每个打分类项 ≥1 得分点(通过性项豁免)。 */
+  /** 评分标准整体完整:打分类 ΣmaxScore === 100;每个打分类项 ≥1 得分点(通过性项豁免)
+   *  且 ΣfullScore = maxScore（2026-09-28 双向化：未分配差额使有效满分 <100，校验/完成闸均不得放行）。 */
   async assertScoreStandardComplete(projectId: string): Promise<void> {
     const items = await this.prisma.bidScoreItem.findMany({
       where: { projectId },
@@ -85,6 +86,13 @@ export class ScoreStandardValidator {
         throw new ConflictException({
           error: `评分项「${i.name}」得分点满分合计 ${sum} 超过其满分 ${i.maxScore}`,
           code: 'POINTS_SUM_EXCEEDS_MAX',
+        });
+      }
+      // 2026-09-28 用户裁定补下界：得分点须配满——差额未分配时有效满分 <Σ=100，校验直报
+      if (Number(i.maxScore) - sum > 0.05) {
+        throw new ConflictException({
+          error: `评分项「${i.name}」得分点满分合计 ${sum} 未达其满分 ${i.maxScore}（差额 ${Number(i.maxScore) - sum} 未分配）`,
+          code: 'POINTS_SUM_BELOW_MAX',
         });
       }
     }

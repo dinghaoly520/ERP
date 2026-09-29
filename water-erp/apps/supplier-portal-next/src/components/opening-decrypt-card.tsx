@@ -15,6 +15,7 @@ import { sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson, type UKeyAdapter }
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { getOpeningPackage, decryptUpload, type OpeningPackage } from "@/lib/api/opening-package";
+import { formatOpeningAmount } from "@/lib/opening-fields";
 import { hexToUtf8, bytesToHex, hexToBytes } from "@/utils/dual-envelope-core";
 import { SpButton, SpDialog, SpInput } from "@/components/ui";
 
@@ -285,7 +286,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
               <div className="ann-alert-body">
                 <span className="ann-alert-title">解密成功，唱标字段已揭示并提交</span>
                 <div className="revealed">
-                  <span>报价：<b>{revealedFields.price}</b></span>
+                  <span>报价：<b>{formatOpeningAmount(revealedFields.price, "万元")}</b></span>
                   <span>工期：<b>{revealedFields.deliveryPeriod}</b></span>
                   <span>质量承诺：<b>{revealedFields.qualityCommitment}</b></span>
                 </div>

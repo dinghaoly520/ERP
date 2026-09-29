@@ -348,7 +348,7 @@ export function EvaluationBasisFields({
         </div>
       )}
       {!softLocked && formulaVisible && priceItemCount === 0 && (
-        <p className="text-[11px] leading-relaxed text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
+        <p className="text-[11px] leading-relaxed text-[var(--danger)]">
           当前评分项中暂无「价格」类项——价格分公式暂不参与计分（如需公式计分，请在下方评分项中添加价格类项）。
         </p>
       )}

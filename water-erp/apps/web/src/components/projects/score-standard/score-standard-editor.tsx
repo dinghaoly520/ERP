@@ -132,11 +132,28 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const passFailCount = items.length - items.filter((i) => Number(i.maxScore) > 0).length;
   const sumOk = scoredTotal === 100;
   const sumDiff = 100 - scoredTotal;
-  const missingPointsCount = items.filter((i) => Number(i.maxScore) > 0 && !(i.points && i.points.length > 0)).length;
+  // 得分点未配满（2026-09-28 与后端 POINTS_SUM_BELOW_MAX 同口径）：无得分点，或 ΣfullScore ≠ 项满分
+  // （容差 0.05）——差额未分配时有效满分 <100，Σ=100 的表象下校验也必须拦
+  const pointsIncomplete = items.filter((i) => {
+    if (!(Number(i.maxScore) > 0)) return false;
+    const pts = i.points ?? [];
+    if (pts.length === 0) return true;
+    const s = pts.reduce((acc, p) => acc + Number(p.fullScore), 0);
+    return Math.abs(s - Number(i.maxScore)) > 0.05;
+  });
+  const pointsIncompleteCount = pointsIncomplete.length;
+  // 得分点合计（打分类 Σpoints——「有效满分」）：Σ=100 但配不满时，100 只是申报值，
+  // 实际可得 = Σpoints（chip 自解释用：100/100 与「未配满」并列不再像矛盾）
+  const pointsTotal = useMemo(
+    () => items
+      .filter((i) => Number(i.maxScore) > 0)
+      .reduce((s, i) => s + (i.points ?? []).reduce((a, p) => a + Number(p.fullScore), 0), 0),
+    [items],
+  );
   const gateWarnText = !sumOk
     ? (sumDiff > 0 ? `差 ${sumDiff} 分` : `超 ${-sumDiff} 分`)
-    : missingPointsCount > 0
-      ? `${missingPointsCount} 项缺得分点`
+    : pointsIncompleteCount > 0
+      ? `得分点合计 ${pointsTotal}/100（${pointsIncompleteCount} 项未配满）`
       : null;
 
   // 得分点增删改后刷新 items（含 points 字段）+ 同步阶段/校验态（修改会作废已校验状态）并通知父组件
@@ -164,9 +181,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       return;
     }
     const scoredSum = items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0);
-    const incomplete = items.filter((i) => Number(i.maxScore) > 0 && (!i.points || i.points.length === 0));
-    if (scoredSum !== 100 || incomplete.length > 0) {
-      toast.error(`校验未通过:打分项满分合计须=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
+    if (scoredSum !== 100 || pointsIncompleteCount > 0) {
+      // 未配满明细点名前两项（与后端 POINTS_SUM_BELOW_MAX/EXCEEDS 同口径）
+      const detail = pointsIncomplete.slice(0, 2).map((i) => {
+        const s = (i.points ?? []).reduce((acc, p) => acc + Number(p.fullScore), 0);
+        return `「${i.name}」${(i.points ?? []).length === 0 ? '无得分点' : `得分点合计 ${s}/${i.maxScore}`}`;
+      }).join('、');
+      toast.error(`校验未通过:打分项满分合计须=100(当前 ${scoredSum}),且每个打分项的得分点须配满${detail ? `（${detail}）` : ''}`);
       return;
     }
     try {
@@ -383,8 +404,8 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     const color = CATEGORY_COLOR[category] || '#94a3b8';
     return (
       <span
-        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
-        style={{ color, backgroundColor: `${color}18` }}
+        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold text-[var(--cat-color)] bg-[color-mix(in_oklch,var(--cat-color)_12%,transparent)]"
+        style={{ '--cat-color': color } as React.CSSProperties}
       >
         {CATEGORY_LABEL[category] || category}
       </span>
@@ -426,18 +447,17 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         {items.length > 0 && (
           <span
             className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)]"
-            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项≥1 得分点）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
+            title={`打分项满分合计（硬闸口径：Σ=100 且每打分项得分点配满——Σ得分点满分=项满分；未配满行见名称列「合计 x/y」标示）。共 ${items.length} 项，含 ${passFailCount} 项通过性审查（不计分）`}
           >
             打分合计
             <span
-              className="font-mono text-sm font-bold"
-              style={{ color: sumOk && !missingPointsCount ? 'var(--success)' : 'var(--warning)' }}
+              className={`font-mono text-sm font-bold ${sumOk && !pointsIncompleteCount ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}
             >
               {scoredTotal}
             </span>
             /100
             {gateWarnText ? (
-              <span className="font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
+              <span className="font-semibold text-[var(--danger)]">
                 · {gateWarnText}
               </span>
             ) : (
@@ -451,12 +471,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
               <Plus size={14} />新增评分项
             </button>
             {validatedAt ? (
+              /* 2026-09-28 用户裁定：校验后状态由彩色胶囊改软按钮态（neu-btn-soft is-success）——
+                  与「新增评分项」同几何同语言，工具行不再混入异形元素 */
               <span
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
-                style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
+                className="neu-btn-soft is-success !cursor-default"
                 title={`当前版本已通过完整性校验（${new Date(validatedAt).toLocaleString('zh-CN')}）；开标前仍可修改，修改后需重新校验`}
               >
-                <Check size={12} /> 已校验 · 开标前可修改
+                <Check size={14} strokeWidth={2} /> 已校验 · 开标前可修改
               </span>
             ) : (
               <button onClick={handleValidate} className="neu-btn-soft gap-1.5">
@@ -474,8 +495,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       {/* ── Summary（P1-1，2026-09-28：摘要条撤销——项数/Σ/通过性计数并入工具行活合计与 title） ── */}
 
       <div className="overflow-x-auto">
+        {/* table-fixed（2026-09-28 宽度适配）：列宽由表头指定、内容不反推表宽——展开行内
+            得分点 flex 行的 nowrap 固有宽（Chrome 对 min-width:0 钳制在表格内在尺寸计算中
+            不生效）曾把 auto 表撑到 ~2100px 产生横向滚动；名称列吃剩余宽、长文换行 */}
         {loading ? (
-          <table className="neu-table w-full min-w-[640px]">
+          <table className="neu-table w-full table-fixed">
             <tbody>
               <TableSkeleton cols={5} rows={5} />
             </tbody>
@@ -488,14 +512,14 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             </p>
           </div>
         ) : (
-          <table className="neu-table w-full min-w-[640px]">
+          <table className="neu-table w-full table-fixed">
             <thead>
               <tr>
                 <th className="w-8 px-2 py-3"></th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">类别</th>
+                <th className="w-[120px] px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">类别</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">评分项名称</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">满分</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)]">操作</th>
+                <th className="w-[92px] px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">满分</th>
+                <th className="w-[104px] px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)]">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -520,7 +544,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                           <select
                             value={editDraft.category}
                             onChange={(e) => setEditDraft((d) => ({ ...d, category: e.target.value as ScoreCategory }))}
-                            className={`${inputCls} w-[140px]`}
+                            className={`${inputCls} w-full`}
                           >
                             {CATEGORY_OPTIONS.map((c) => (
                               <option key={c} value={c}>
@@ -543,16 +567,27 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                         ) : (
                           <div className="flex flex-col">
                             <span className="text-sm font-medium text-[var(--foreground)]">{it.name}</span>
-                            {/* P1-3（2026-09-28）：得分点计数行内可见——不展开即知缺项；
-                                打分项 0 得分点 = 硬闸不满足，警示色 */}
+                            {/* 行内副行（2026-09-28 两级化）：完整=muted 计数；未配满=警示色并点名
+                                「合计 x/y」——chip 只报件数，哪一行短须不展开即可见 */}
                             {!isPassFailCategory(it.category) &&
-                              (points.length > 0 ? (
-                                <span className="text-[11px] text-[var(--muted-foreground)]/80">{points.length} 个得分点</span>
-                              ) : (
-                                <span className="text-[11px] font-semibold text-[color-mix(in_oklch,var(--warning)_82%,var(--foreground))]">
-                                  未设得分点
-                                </span>
-                              ))}
+                              (() => {
+                                if (points.length === 0) {
+                                  return (
+                                    <span className="text-[11px] font-semibold text-[var(--danger)]">
+                                      未设得分点
+                                    </span>
+                                  );
+                                }
+                                const s = points.reduce((acc, p) => acc + Number(p.fullScore), 0);
+                                const short = Math.abs(s - Number(it.maxScore)) > 0.05;
+                                return (
+                                  <span
+                                    className={`text-[11px] ${short ? 'font-semibold text-[var(--danger)]' : 'text-[var(--muted-foreground)]/80'}`}
+                                  >
+                                    {points.length} 个得分点{short ? ` · 合计 ${s}/${it.maxScore}` : ''}
+                                  </span>
+                                );
+                              })()}
                           </div>
                         )}
                       </td>
@@ -567,7 +602,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                               step="0.1"
                               value={editDraft.maxScore}
                               onChange={(e) => setEditDraft((d) => ({ ...d, maxScore: Number(e.target.value) }))}
-                              className={`${inputCls} w-[100px] font-mono`}
+                              className={`${inputCls} w-full max-w-[100px] font-mono`}
                             />
                           )
                         ) : (
@@ -629,7 +664,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                     <select
                       value={draft.category}
                       onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value as ScoreCategory }))}
-                      className={`${inputCls} w-[140px]`}
+                      className={`${inputCls} w-full`}
                     >
                       {CATEGORY_OPTIONS.map((c) => (
                         <option key={c} value={c}>
@@ -657,7 +692,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                         step="0.1"
                         value={draft.maxScore}
                         onChange={(e) => setDraft((d) => ({ ...d, maxScore: Number(e.target.value) }))}
-                        className={`${inputCls} w-[100px] font-mono`}
+                        className={`${inputCls} w-full max-w-[100px] font-mono`}
                       />
                     )}
                   </td>
@@ -685,8 +720,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   return (
     <div className={variant === 'embedded' ? 'space-y-4' : 'space-y-6'}>
       {locked && (
-        <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
-          style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)', color: 'oklch(0.55 0.08 75)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)' }}>
+        <div className="wb-alert wb-alert--warning flex items-center gap-2 !text-sm !font-semibold">
           <Lock size={14} />
           <span>
             {validatedAt

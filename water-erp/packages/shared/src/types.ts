@@ -79,6 +79,13 @@ export interface BidProject {
   contact?: string;
   roundMode?: string | null;
   currentRoundNo?: number;
+  /** W3 价格与评标办法（PATCH price-config；getProject include 随详情下发，null=未设置）——
+   *  :3007 生成规则文案/各端口径展示消费（summarizeEvaluationRules），口径见 evaluation-rules.ts */
+  ceilingPrice?: number | string | null;
+  evaluationMethod?: string | null;
+  priceFormulaConfig?: Record<string, unknown> | null;
+  /** 去极值开关（2026-09-26）：true=≥5 专家去 1 高 1 低后均分（默认）；false=全额均分 */
+  scoreTrimEnabled?: boolean;
   _count?: { suppliers: number };
 }
 

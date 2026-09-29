@@ -10,6 +10,7 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true, // node --test 原生 runner 需显式 .ts 扩展名（TDD 测试基建 2026-09-29）,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

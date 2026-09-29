@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3006",
     "lint": "eslint .",
+    "test": "node --test src/lib/__tests__/*.test.ts",
     "predev": "node scripts/copy-mediapipe.mjs",
     "prebuild": "node scripts/copy-mediapipe.mjs"
   },

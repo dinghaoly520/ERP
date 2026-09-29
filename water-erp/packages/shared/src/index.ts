@@ -15,3 +15,4 @@ export * from './gb-code';
 export * from './data-class';
 export * from './file-name';
 export * from './format-bid';
+export * from './evaluation-rules';

@@ -27,3 +27,11 @@ fi
 echo "[db-restore] 良性跳过（分区继承约束 DROP）$(grep -c 'cannot drop inherited constraint' "$ERR_LOG" || true) 处"
 rm -f "$ERR_LOG"
 echo "[db-restore] OK"
+
+# 加密对象可解密性校验（2026-09-29 事故防线）：旧备份回灌的 decryptKey 若与 MinIO
+# 现对象失配（对象在备份时刻之后被重建过——09-28 实录：09:44 备份 vs 10:01 重建），
+# 在此拦下。仅默认库跑（测试往返库不演示，且校验脚本连的是 .env 的 DATABASE_URL）。
+if [ "$TARGET_DB" = "water_erp" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  node "$SCRIPT_DIR/verify-encrypted-assets.js" || { echo "[db-restore] 加密对象校验未通过，请按上方指引修复后再演示"; exit 1; }
+fi

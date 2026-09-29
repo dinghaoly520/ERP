@@ -8,32 +8,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PORTS } from '@water-erp/config';
+import { tokenFromHandshake } from '../bid/bid.gateway';
 
 /**
  * 通知实时推送网关（2026-09-22）：站内通知创建后即时推送到目标账号的页面，
  * 前端右下角小窗弹出（10s 自动消失）——无需刷新页面。
  *
- * 鉴权：复用 portal-cookie 同链的握手 cookie 解析（token_web/token_supplier/token_expert/token_bid），
- * 连接后自动加入 `user:{userId}` 房间；推送按 userId 定向，跨门户互不可见。
+ * 鉴权：按握手 X-Portal 头 / Origin 端口判别来源门户，只读对应命名空间的 cookie
+ * （复用 bid.gateway 的 tokenFromHandshake 同链；2026-09-29 X-P1-03 修复——历史
+ * 无判别回退链 token_web→supplier→expert→bid 会让多门户共存浏览器串台身份：
+ * 供应商页以残留 token_web 的 staff 身份加入 user:{staffId} 房间收到他人通知）。
+ * 连接后自动加入 `user:{userId}` 房间；推送按 userId 定向。
  * 推送入口：`NotificationGateway.pushToUser(userId, payload)`（NotificationService.create 统一调用）。
  */
-
-function tokenFromHandshake(socket: Socket): string | undefined {
-  const raw = socket.handshake.headers.cookie;
-  if (!raw) return undefined;
-  const map = new Map<string, string>();
-  for (const part of raw.split(';')) {
-    const idx = part.indexOf('=');
-    if (idx > 0) map.set(part.slice(0, idx).trim(), part.slice(idx + 1).trim());
-  }
-  return (
-    map.get('token_web') ||
-    map.get('token_supplier') ||
-    map.get('token_expert') ||
-    map.get('token_bid') ||
-    map.get('token')
-  );
-}
 
 function wsCorsOrigin(): string | string[] | ((origin: string, cb: (err: Error | null, ok?: boolean) => void) => void) {
   if (process.env.NODE_ENV !== 'production') {

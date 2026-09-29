@@ -5,4 +5,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."   # → scripts/
-exec node demo-snapshot.js restore snapshots/JJ-2026091003-demo-0914.json
+node demo-snapshot.js restore snapshots/JJ-2026091003-demo-0914.json
+# 加密对象可解密性校验（2026-09-29 事故防线）：快照回灌的 decryptKey 若与 MinIO
+# 现对象失配（对象在快照拍摄后被重建过），在此拦下，勿带病演示。
+node verify-encrypted-assets.js

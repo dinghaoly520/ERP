@@ -146,7 +146,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const projectId = project.id;
   // 「前往采购管理工作台」跳转仅对能实际操作 :3005 的角色有意义——bid_host 登 :3005
   // 按 PORTAL_ROLE_PRIORITY.web 解析为 bid_host、采购功能 403，按钮对现场主持人是死链（分工告知文本保留）
-  // L2：解密/解外层/归因裁决/重新封标/暂停恢复等后端收口 @Roles('admin','bid_host')——
+  // L2：解密/一键解密(decrypt-all)/解外层/归因裁决/重新封标/暂停恢复等后端收口 @Roles('admin','bid_host')——
   // leader/staff 虽可登录本端但无现场执行权，对应按钮不再渲染（此前可见即点、点了 403 且单家解密静默无反馈）
   const me = useBidUser();
   const canGoWeb = me?.role !== 'bid_host';

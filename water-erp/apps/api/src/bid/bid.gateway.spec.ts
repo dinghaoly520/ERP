@@ -235,18 +235,19 @@ describe('BidGateway 唱标事件公开广播（opening:record:updated 合规口
     (gw as any).socketProjects.set('sock-sup1', 'p1');
     (gw as any).socketProjects.set('sock-sup2', 'p1');
 
-    gw.notifyOpeningRecordUpdated('p1', { supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1', amount: 980000 });
+    gw.notifyOpeningRecordUpdated('p1', { supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1' });
 
     const targets = emitted.filter(e => e.event === BID_EVENT.OPENING_RECORD_UPDATED).map(e => e.room);
     expect(targets).toEqual(['project:p1']); // 房间级广播——房内全体投标人均可接收（成员门控在 join:project）
-    expect(emitted[0].payload).toMatchObject({ projectId: 'p1', supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1', amount: 980000 });
+    expect(emitted[0].payload).toMatchObject({ projectId: 'p1', supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1' });
+    expect(emitted[0].payload).not.toHaveProperty('amount'); // X-P2-02：金额不入广播（万元裸数字易误读）
     expect(emitted[0].payload).not.toHaveProperty('sealedPrice'); // 密封报价原文永不入广播
   });
 
   it('payload 不含异议过程与密封字段（公开口径仍脱敏）', () => {
     const gw = makeGateway();
     const emitted = captureServer(gw);
-    gw.notifyOpeningRecordUpdated('p1', { supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1', amount: 980000 });
+    gw.notifyOpeningRecordUpdated('p1', { supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1' });
     const payload = emitted[0].payload;
     expect(payload).not.toHaveProperty('objectionReason');
     expect(payload).not.toHaveProperty('handleResult');

@@ -58,3 +58,4 @@ node scripts/demo-snapshot.js restore snapshots/JJ-2026091003-demo-0914.json
 - `backups/keep_water_erp_20260914_141321.sql.gz`：demo-0914 同时刻的**全库备份**（含快照不覆盖的 FileAsset 元数据行），`keep_` 前缀使其脱离 `water_erp_*.sql.gz` 剪枝匹配、不随 14 天保留期清除；整库回滚用它（`db-restore.sh` 传该路径），单项目回滚用快照。
 - 公告/招标文件按 `metadata.projectCode` 过滤归属（BidProject 与 PMI 编码同空间，防止误吞/误删同号他方项目数据）。
 - 快照不含 OperationLog/监督日志（审计留痕设计如此）。
+- **MinIO 对象重建后必须同步快照内 `BidDocument.decryptKey`**（2026-09-29 实录：09-28 全量恢复回灌了旧密钥，而招标文件对象 09-22 已用新 DEK 重建 → 专家端下载 500）。`restore-demo.sh` 与 `db-restore.sh` 末尾已链 `verify-encrypted-assets.js` 全量解密校验——「对象在线」≠「密钥配对」，红了先按脚本指引重建对象，再重拍/同步快照。

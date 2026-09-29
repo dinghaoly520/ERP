@@ -212,8 +212,8 @@ export interface OpeningRecordUpdatedPayload {
   supplierId: string;
   supplierName: string;
   recordId: string;
-  /** 唱标金额（元）。事件只带里程碑数据，不含密封报价原文；接收端自行 refresh 拉全量 */
-  amount: number;
+  // X-P2-02（2026-09-29）：不带 amount——开标记录侧金额为万元裸数字（amountUnit 戳），
+  // 事件只带里程碑触发语义，接收端自行 refresh 拉全量；历史注释「唱标金额（元）」与单位地图矛盾已删。
   /** A-113：动态唱标字段值（法定四列不在内；null=无动态字段）。接收端自行 refresh 拉全量 */
   customFields?: Record<string, string> | null;
   timestamp: number;
