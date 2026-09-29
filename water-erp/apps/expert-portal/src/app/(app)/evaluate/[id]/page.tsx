@@ -125,6 +125,8 @@ export default function ExpertEvaluatePage() {
   const assistSeqRef = useRef(0);
 
   const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
+    // EXP-P3-06：WS 重连补拉——断连窗口错过的草稿/提交等事件经全量刷新补偿
+    onReconnected: () => { loadProject(); },
     onExpertPresence: (d) => {
       // EXP-P2-02：本人候补→正选转正（或互换）即时刷新——myExpertRecord.expertRole 变化解锁签到
       if (d.milestone === 'role_changed') {
@@ -1020,25 +1022,29 @@ export default function ExpertEvaluatePage() {
 
   useEffect(() => { if (step === 'report') loadReport(); }, [step]);
 
-  const handleConfirmReport = async () => {
-    if (!confirm('确认后将锁定所有评分，不可再修改。是否继续？')) return;
+  // EXP-P3-01：原生 window.confirm → ConfirmDialog（本门户既定弹窗体系，平板端同动作早已如此）
+  const [confirmAction, setConfirmAction] = useState<'report' | 'cosign' | null>(null);
+  const handleConfirmReport = () => setConfirmAction('report');
+  const handleLeaderCoSign = () => setConfirmAction('cosign');
+  const runConfirmAction = async () => {
+    const kind = confirmAction;
+    setConfirmAction(null);
+    if (!kind) return;
     setBusy(true);
     try {
-      await api.post(`/expert/projects/${projectId}/report/confirm`, { comment: '确认完成评审' });
-      loadProject();
-      loadReport(); // 同步刷新 report——canConfirm 翻 false、按钮即时消失
-      toast.success('评审报告已确认');
+      if (kind === 'report') {
+        await api.post(`/expert/projects/${projectId}/report/confirm`, { comment: '确认完成评审' });
+        loadProject();
+        loadReport(); // 同步刷新 report——canConfirm 翻 false、按钮即时消失
+        toast.success('评审报告已确认');
+      } else {
+        // C2: 组长末签
+        await api.post(`/expert/projects/${projectId}/leader-cosign`, {});
+        loadProject();
+        toast.success('组长末签完成');
+      }
     }
-    catch (e: any) { toast.error(e.message || '确认失败'); }
-    setBusy(false);
-  };
-
-  // C2: 组长末签
-  const handleLeaderCoSign = async () => {
-    if (!confirm('末签后将锁定评审报告，可生成评标结果。是否继续？')) return;
-    setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/leader-cosign`, {}); loadProject(); toast.success('组长末签完成'); }
-    catch (e: any) { toast.error(e.message || '末签失败'); }
+    catch (e: any) { toast.error(e.message || (kind === 'report' ? '确认失败' : '末签失败')); }
     setBusy(false);
   };
   const isLead = !!expert?.isLead;
@@ -2316,7 +2322,7 @@ export default function ExpertEvaluatePage() {
 
           {/* 评审报告 */}
           {step === 'report' && (
-            <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport}
+            <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport} evaluationOverdue={evaluationOverdue}
               reportConfirmed={!!expert?.reportConfirmed}
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
               onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId}

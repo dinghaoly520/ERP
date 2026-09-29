@@ -23,7 +23,9 @@ const client = createApiClient({
     if (window.location.pathname === '/login' || window.location.pathname === '/tablet/claim') return; // claim 页的密码错 401 由表单就地呈现
     if (error.code === 'SESSION_REPLACED') { showSessionReplacedOverlay(error.message); return; }
     if (error.code === 'ACCOUNT_FROZEN') { showFrozenOverlay(error.message); return; }
-    window.location.href = '/login';
+    // EXP-P3-05：携带 redirect——会话过期后从深链（如通知里的 /invitation/:id）进来，
+    // 登录成功应回原页而非落首页（proxy 层页面级 redirect 已保留，此处为 API 层 401 补齐）
+    window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
   },
 });
 

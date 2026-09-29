@@ -26,6 +26,8 @@ interface ReportStepProps {
   report: EvaluationReport | null;
   busy: boolean;
   onConfirmReport: () => void;
+  /** EXP-P3-07：评标已超时（evaluationDeadline 过）——确认按钮禁用（后端 409 EVALUATION_OVERDUE，与评分提交按钮同口径） */
+  evaluationOverdue?: boolean;
   /** 本人已确认报告（BidExpert.reportConfirmed）——隐藏确认键、出已确认徽标 */
   reportConfirmed?: boolean;
   isLead?: boolean;
@@ -57,7 +59,7 @@ export type EsignBlockState = 'need-cert' | 'ready' | 'wait-packet' | 'done-or-r
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
-export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], projectId, esign, onCreateAndSign, onSign }: ReportStepProps) {
+export function ReportStep({ report, busy, onConfirmReport, evaluationOverdue = false, reportConfirmed, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], projectId, esign, onCreateAndSign, onSign }: ReportStepProps) {
   // 逐项明细折叠态（默认折叠，点击 item 行展开）
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const toggleItem = (key: string) => setExpandedItems(prev => {
@@ -101,8 +103,8 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
             </button>
           )}
           {report?.canConfirm && !reportConfirmed && (
-            <button onClick={onConfirmReport} disabled={busy} className="neu-btn-primary is-success">
-              {busy ? '确认中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />确认评审报告</span>}
+            <button onClick={onConfirmReport} disabled={busy || evaluationOverdue} className="neu-btn-primary is-success">
+              {busy ? '确认中...' : evaluationOverdue ? '评标已超时，确认已锁定' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />确认评审报告</span>}
             </button>
           )}
         </div>
@@ -227,7 +229,9 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
                     <div className="grid grid-cols-3 gap-3 p-5">
                       {Object.entries(ss.categoryScores).map(([cat, data]) => {
                         const passFail = isPassFailCategory(cat);
-                        const firstPassed = data.items[0]?.passed;
+                        // EXP-P3-03：多项聚合——此前只取 items[0].passed，一通过一不通过时
+                        // 汇总误显「通过」，误导确认报告的专家（逐项明细正确、仅汇总错）
+                        const anyFailed = data.items.some(i => i.passed === false);
                         const catColor = CATEGORY_COLOR[cat] || 'var(--accent-strong)';
                         return (
                           <div key={cat} className="exp-category-group !p-3">
@@ -236,8 +240,8 @@ export function ReportStep({ report, busy, onConfirmReport, reportConfirmed, isL
                               <span className="text-xs font-semibold text-[var(--foreground)]">{CATEGORY_LABEL[cat] || cat}</span>
                             </div>
                             {passFail ? (
-                              <div className={`text-lg font-bold ${firstPassed === false ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
-                                {firstPassed === false ? '不通过' : '通过'}
+                              <div className={`text-lg font-bold ${anyFailed ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
+                                {anyFailed ? '存在不通过' : '全部通过'}
                               </div>
                             ) : (
                               <div className={`text-lg font-bold ${data.total > data.max ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'}`}>{data.total} <span className="text-xs font-normal text-[var(--muted-foreground)]">/ {data.max}</span>{data.total > data.max && <span className="ml-1 text-[10px]">⚠ 超满分</span>}</div>

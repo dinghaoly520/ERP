@@ -46,7 +46,8 @@ export default function ExpertDashboardPage() {
   const load = () => {
     setLoading(true);
     Promise.allSettled([
-      fetch('/api/auth/me', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setUser),
+      // EXP-P3-05：补 X-Portal 头（与平板布局同款——裸 fetch 靠 Referer 兜底，剥 Referer 的代理形态会误判门户）
+      fetch('/api/auth/me', { credentials: 'include', headers: { 'X-Portal': 'expert' } }).then(r => r.ok ? r.json() : null).then(setUser),
       api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch((e) => toast.error(`加载项目失败: ${e.message}`)),
       api.get<MyTasks>('/expert/tasks').then(setTasks).catch(() => { /* 无待办不阻断 */ }),
     ]).finally(() => setLoading(false));

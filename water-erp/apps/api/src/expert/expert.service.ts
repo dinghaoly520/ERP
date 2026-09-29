@@ -203,17 +203,9 @@ export class ExpertService {
     const pendingProjects = records.filter(e => !e.signedIn).length;
     const averageScore = this.computeAverageScore(records);
 
-    // 获取专家名称用于查询监督日志；无项目分配时跳过查询避免全量泄露
-    const expertName = records.length > 0 ? records[0].expertName : '';
-    const recentActivity = expertName
-      ? await this.prisma.bidSupervisionLog.findMany({
-          where: { target: { contains: expertName } },
-          orderBy: { time: 'desc' },
-          take: 5,
-        })
-      : [];
-
-    return { totalProjects, completedProjects, signedInProjects, pendingProjects, averageScore, recentActivity };
+    // EXP-P3-02（2026-09-29 审查）：recentActivity 查询已删——按姓名 contains 匹配监督日志
+    // 会子串误命中他人（「王强」命中「王强斌」），且前端零消费，纯白查死载荷
+    return { totalProjects, completedProjects, signedInProjects, pendingProjects, averageScore };
   }
 
   /** 平均得分 = 该专家对每位供应商的总评分（按 supplierId 聚合）取平均；无评分返回 0 */
