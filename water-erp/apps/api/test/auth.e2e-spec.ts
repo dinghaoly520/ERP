@@ -67,6 +67,7 @@ describe('Auth (e2e)', () => {
       ['e2e-single-staff', 'staff'],
       ['e2e-single-mall', 'mall'],
       ['e2e-single-expert', 'bid_expert'],
+      ['e2e-admin-bid', 'admin'],
     ] as const) {
       await prisma.user.upsert({
         where: { username_role: { username, role } },
@@ -84,7 +85,7 @@ describe('Auth (e2e)', () => {
 
   afterAll(async () => {
     await prisma.user.deleteMany({
-      where: { username: { in: ['e2e-disabled-user', 'e2e-single-supplier', 'e2e-single-staff', 'e2e-single-mall', 'e2e-single-expert'] } },
+      where: { username: { in: ['e2e-disabled-user', 'e2e-single-supplier', 'e2e-single-staff', 'e2e-single-mall', 'e2e-single-expert', 'e2e-admin-bid'] } },
     });
     await app.close();
   });
@@ -198,6 +199,49 @@ describe('Auth (e2e)', () => {
         .set('Cookie', cookie)
         .set('X-Portal', 'expert')
         .expect(403);
+    });
+  });
+
+  /* ── admin 公共门户登录分流（X-P1-01 2026-09-29）── */
+
+  describe('admin 公共门户登录分流', () => {
+    it('admin 经 X-Portal: public 登录 → 写 token_bid（:3007 只读该命名空间，写 token_web 落地即 401 死环）', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('X-Portal', 'public')
+        .send({ username: 'e2e-admin-bid', password: 'Single@2026' })
+        .expect(200);
+
+      const setCookie = (res.headers['set-cookie'] as unknown as string[]).join('\n');
+      expect(setCookie).toContain('token_bid=');
+      expect(setCookie).not.toContain('token_web=');
+
+      // 该 cookie 以 bid 门户身份可用
+      const token = res.body.access_token as string;
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_bid=${token}`)
+        .set('X-Portal', 'bid')
+        .expect(200)
+        .expect((r) => expect(r.body.role).toBe('admin'));
+    });
+
+    it('回归：admin 经 X-Portal: web 登录 → 仍写 token_web（:3005 账号管理可用性不变）', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('X-Portal', 'web')
+        .send({ username: 'e2e-admin-bid', password: 'Single@2026' })
+        .expect(200);
+
+      const setCookie = (res.headers['set-cookie'] as unknown as string[]).join('\n');
+      expect(setCookie).toContain('token_web=');
+
+      const token = res.body.access_token as string;
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_web=${token}`)
+        .set('X-Portal', 'web')
+        .expect(200);
     });
   });
 
