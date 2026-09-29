@@ -279,10 +279,14 @@ export class AuthController {
       },
     });
 
-    // 登出即吊销（2026-09-18）：清空会话 ID 让登出者刚用的 token 立即失效，
-    // 防 cookie 被截获后在 JWT 7 天有效期内重放。单设备语义下登出时只有本处
-    // 一份活会话，置空不影响他人；无 sid 的其他门户会话本就不校验此列。
-    await this.prisma.user.update({
+    // 登出即吊销（2026-09-18；X-P1-02 2026-09-29 修正）：仅当登出者所用 token 带 sid
+    // （web/supplier/expert 单设备命名空间，rotatePortalSession 签发）才清会话 ID——
+    // token_bid（无 sid）登出不清 webSessionId：staff/leader 可同时活跃于 :3005（带 sid）
+    // 与 :3007（无 sid），:3007 登出若清此列会误杀 :3005 会话（跨命名空间互杀）。
+    // 无 sid 会话本就不校验此列；清 cookie 本身已阻断重放面。
+    const revokeToken = tokenFromRequest(req);
+    if (revokeToken && (await this.authService.shouldRevokeSession(revokeToken))) {
+      await this.prisma.user.update({
       where: { id: userId },
       data: { webSessionId: null },
     });
