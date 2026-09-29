@@ -142,3 +142,16 @@ export function validateSupplierScores(
   }
   return missing;
 }
+
+/**
+ * EXP-P0-01：价格分公式激活（priceFormulaConfig 非空）的项目，PRICE 项由系统公式
+ * 自动计算——不进专家校验、不进提交 payload、不进进度/汇总分母。
+ * 后端 PRICE_FORMULA_ACTIVE 拒收闸（expert.service.ts submitScores）保留作纵深。
+ */
+export function filterScorableItems<T extends { category: string }>(
+  scoreItems: T[],
+  priceFormulaActive: boolean,
+): T[] {
+  if (!priceFormulaActive) return scoreItems;
+  return scoreItems.filter((si) => si.category !== 'PRICE');
+}

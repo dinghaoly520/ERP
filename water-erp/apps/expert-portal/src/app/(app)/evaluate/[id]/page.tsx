@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
-import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
+import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Smartphone } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
@@ -248,6 +248,10 @@ export default function ExpertEvaluatePage() {
         reviews.find((r) => r.supplierId === s.id)?.status === 'verified',
     );
   };
+  // EXP-P0-01：价格分公式激活（priceFormulaConfig 非空）→ PRICE 项由系统公式自动计算，
+  // 不进专家校验/payload/进度与汇总分母（后端 PRICE_FORMULA_ACTIVE 拒收闸保留作纵深）。
+  const priceFormulaActive = !!project?.priceFormulaConfig;
+  const scorableItems = project ? filterScorableItems(project.scoreItems, priceFormulaActive) : [];
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return true;
@@ -935,7 +939,7 @@ export default function ExpertEvaluatePage() {
       return;
     }
     // 评分完整性校验（与平板端共用 validateSupplierScores）
-    const missing = validateSupplierScores(project.scoreItems, scores, activeSupplier, scoreKey).map(m => m.itemId);
+    const missing = validateSupplierScores(scorableItems, scores, activeSupplier, scoreKey).map(m => m.itemId);
     if (missing.length > 0) {
       setMissingReasons(new Set(missing));
       toast.warning(`有评分项未完成，已高亮标记，请补充后再提交`);
@@ -952,7 +956,7 @@ export default function ExpertEvaluatePage() {
       toast.warning(`以下类别有异议条款未核对：${unconfirmed.map((c) => CATEGORY_LABEL[c] || c).join('、')}`);
       return;
     }
-    const scoresPayload = project.scoreItems.map(si => {
+    const scoresPayload = scorableItems.map(si => {
       const entry = scores[scoreKey(activeSupplier, si.id)];
       const hasPoints = (si.points ?? []).length > 0;
       if (isPassFailCategory(si.category)) {
@@ -1480,10 +1484,8 @@ export default function ExpertEvaluatePage() {
               step === 'scoring'
                 ? Object.fromEntries(
                     project.suppliers.map((s) => {
-                      const supplierScoreItems = project.scoreItems.filter(
-                        () => true
-                      );
-                      const scored = project.scoreItems.filter(
+                      // EXP-P0-01：进度分母/计数基线均不含公式 PRICE 项（顺带移除 filter(()=>true) 死代码）
+                      const scored = scorableItems.filter(
                         (si) => {
                           const k = scoreKey(s.id, si.id);
                           const entry = scores[k];
@@ -1493,7 +1495,7 @@ export default function ExpertEvaluatePage() {
                           return (entry?.score ?? 0) > 0 || (entry?.reason || '').trim().length > 0;
                         }
                       ).length;
-                      return [s.id, { scored, total: project.scoreItems.length }];
+                      return [s.id, { scored, total: scorableItems.length }];
                     })
                   )
                 : undefined
@@ -2223,10 +2225,10 @@ export default function ExpertEvaluatePage() {
                         <h3 className="text-lg font-bold text-[var(--foreground)]">评分汇总 — {scoringSupplierName}</h3>
                         <div className="text-right">
                           <div className="text-3xl font-bold text-[var(--accent-strong)]">
-                            {project.scoreItems.reduce((s, si) => s + (scores[scoreKey(activeSupplier, si.id)]?.score ?? 0), 0)}
+                            {scorableItems.reduce((s, si) => s + (scores[scoreKey(activeSupplier, si.id)]?.score ?? 0), 0)}
                           </div>
                           <div className="text-sm text-[var(--muted-foreground)]">
-                            满分 {project.scoreItems.reduce((s, si) => s + Number(si.maxScore), 0)}
+                            满分 {scorableItems.reduce((s, si) => s + Number(si.maxScore), 0)}
                           </div>
                         </div>
                       </div>
