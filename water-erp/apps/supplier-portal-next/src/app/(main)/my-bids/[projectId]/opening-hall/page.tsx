@@ -324,7 +324,10 @@ export default function OpeningHallPage() {
       refresh().catch(() => {});
     },
     onDecryptStatus: (d) => {
-      if (d.supplierId === supplierId) setDecryptStatus(d.decryptStatus);
+      // SUP-P3-02：载荷 supplierId 是 BidSupplier 行 id——此前比对 Supplier.id（profile.id）
+      // 恒不相等、解密状态永不实时更新（只能靠 refresh 兜底）；本司行 id 从开标记录取
+      const myRowId = record?.bidSupplierId;
+      if (myRowId ? d.supplierId === myRowId : d.supplierId === supplierId) setDecryptStatus(d.decryptStatus);
     },
     onHallPresence: (d) => {
       setOnlineCount(d.onlineCount);

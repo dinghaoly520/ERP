@@ -899,8 +899,11 @@ function BidSubmitInner() {
                     <label className="b-required">提交方式</label>
                     <div className="b-form-content">
                       <div className="mode-selector">
-                        <button type="button" className={`neu-tab mode-tab ${submissionMode === "full" ? "active is-active" : ""}`} onClick={() => setSubmissionMode("full")}>完整标书</button>
-                        <button type="button" className={`neu-tab mode-tab ${submissionMode === "split" ? "active is-active" : ""}`} onClick={() => setSubmissionMode("split")}>拆分文件</button>
+                        {/* SUP-P3-01：切换时清另一模式残留 assetId——buildPayload 恒 ...form，
+                            切「拆分」后残留 fullBidFileAssetId 会被后端归到 technical 参检，
+                            而信封按拆分口径不含该角色 → 隐晦 ENVELOPE_INCOMPLETE 拒收不指明根因 */}
+                        <button type="button" className={`neu-tab mode-tab ${submissionMode === "full" ? "active is-active" : ""}`} onClick={() => { if (submissionMode !== "full") { setSubmissionMode("full"); setSplitCats((prev: any) => Object.fromEntries(Object.entries(prev).map(([k, v]: any) => [k, { ...v, files: [], uploading: false, progress: null }]))) as any; } }}>完整标书</button>
+                        <button type="button" className={`neu-tab mode-tab ${submissionMode === "split" ? "active is-active" : ""}`} onClick={() => { if (submissionMode !== "split") { setSubmissionMode("split"); updateForm({ fullBidFileAssetId: "" } as any); setFullBidMeta(null); setFullBidProgress(null); } }}>拆分文件</button>
                       </div>
                     </div>
                   </div>

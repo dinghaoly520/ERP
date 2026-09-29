@@ -151,7 +151,6 @@ describe('ExpertService', () => {
         { progress: 50, signedIn: true, totalScore: 165, expertName: '王建国', project: {}, scoreRecords: [{ score: 85, supplierId: 's4' }, { score: 80, supplierId: 's5' }] },
         { progress: 0, signedIn: false, totalScore: 0, expertName: '王建国', project: {}, scoreRecords: [] },
       ]);
-      prisma.bidSupervisionLog.findMany.mockResolvedValue([]);
 
       const stats = await service.getStatistics('user-1');
 
@@ -161,7 +160,7 @@ describe('ExpertService', () => {
       expect(stats.pendingProjects).toBe(1);
       // 平均分 = (255 + 165 + 0) / 5家供应商 = 84.0
       expect(stats.averageScore).toBe(84);
-      expect(stats.recentActivity).toBeDefined();
+      // recentActivity 已随 EXP-P3-02 删除（死载荷）
       // 统计应仅计算 OPENING+ 阶段的项目
       expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
         expect.objectContaining({

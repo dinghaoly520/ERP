@@ -449,13 +449,7 @@ export class SupplierPortalController {
     return this.portalService.getNegotiationFiles(id, supplierId);
   }
 
-  /** A-87：招标文件要点（READY/PENDING）——发布即前移提取的结构化清单（不含密文文件本体）；
-   *  邀请/指定项目（accessScope 非 OPEN）仅本项目名册内供应商可读 */
-  @Get('bid-projects/:id/tender-requirements')
-  async getTenderRequirements(@Param('id') id: string, @Request() req: any) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.getTenderRequirements(id, supplierId);
-  }
+  // A-87 招标文件要点端点已删（2026-09-29 SUP-P3-03：前后端零消费死代码，详情页 2026-09-11 已拍板移除该板块）
 
   // Bid Submissions
 
@@ -663,8 +657,10 @@ export class SupplierPortalController {
     if (!body.oldPassword || !body.newPassword) {
       throw new BadRequestException({ error: '请填写完整信息', code: 'MISSING_FIELDS' });
     }
-    if (body.newPassword.length < 6) {
-      throw new BadRequestException({ error: '新密码不少于6位', code: 'INVALID_PASSWORD' });
+    // SUP-P3-09：强度口径与注册轨对齐（≥8 位且含字母与数字）——此前门户自建通道 6 位、
+    // 注册轨 8 位字母+数字，同一账号两套强度
+    if (body.newPassword.length < 8 || !/[A-Za-z]/.test(body.newPassword) || !/\d/.test(body.newPassword)) {
+      throw new BadRequestException({ error: '新密码不少于8位，且须同时包含字母与数字', code: 'INVALID_PASSWORD' });
     }
     return this.portalService.changePassword(req.user.sub, body.oldPassword, body.newPassword);
   }
