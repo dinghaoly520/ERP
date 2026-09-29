@@ -39,6 +39,9 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
   // A4：候选人与金额表随评标结果生成即展示（评标进行中 detail.evaluationResults 为空数组，不泄露）；
   // 结果与回流包均无时不渲染（签字闸门警示由 ArchiveBlock 展示，此处不重复提示）
   const results = detail.evaluationResults ?? [];
+  // 列头口径随项目去极值配置（BidProject.scoreTrimEnabled，价格配置卡片写入）——trim 关闭时
+  // averageScore 为全额均分，静态「去极值」列名/排名依据与事实相反（2026-09-29，同 :3007 生成规则文案病）
+  const trimOn = detail.scoreTrimEnabled ?? true;
   if (results.length === 0 && !signData?.packet?.handoverFileAssetId) return null;
 
   return (
@@ -64,7 +67,11 @@ export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
                 <tr>
                   <th className="!text-left">名次</th>
                   <th className="!text-left">供应商</th>
-                  <th className="!text-right" title="排名依据：专家组 ≥5 人去 1 高 1 低后的均分（总分为全体原始分之和，两者口径不同）">去极值均分</th>
+                  <th className="!text-right" title={trimOn
+                    ? '排名依据：专家组 ≥5 人去 1 高 1 低后的均分（总分为全体原始分之和，两者口径不同）'
+                    : '排名依据：全部正选专家评分的均分（本项目已关闭去极值；总分为全体原始分之和，两者口径不同）'}>
+                    {trimOn ? '去极值均分' : '均分'}
+                  </th>
                   <th className="!text-right">报价</th>
                   <th className="!text-left">状态</th>
                 </tr>
