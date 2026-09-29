@@ -12,9 +12,11 @@ import { PORTS, type AppName } from '@water-erp/config';
  *
  * 命名说明：此映射与 `@water-erp/config` 的 `ROLE_PORTAL`（角色 → 登录后落地门户）
  * 语义不同——这里关心的是「该角色的登录 cookie 存在哪个命名空间」。
- * 例如 admin 登录后浏览器跳转到 bid 门户（config.ROLE_PORTAL.admin='bid'），
- * 但其 cookie 写在 token_web 命名空间（admin/bid_host 共用 token_web，无 token_bid）。
- * 故本表把 admin/leader/staff 都映射到 'web'。为避免与 config 端同名常量混淆，特此改名。
+ * X-P3-05（2026-09-29 注释更正，随 X-P1-01 修复后的现实）：本表是「web 入口登录」的
+ * 命名空间口径——admin 从 :3005 登录写 token_web（账号管理在 :3005）、bid_host 恒
+ * token_bid；admin 从非 web 门户登录时 auth.controller 按 ROLE_PORTAL 落地改写 token_bid
+ * （否则 bid-portal 只读 token_bid 会落地即 401）。「admin/bid_host 共用 token_web」
+ * 的旧说法已过时。为避免与 config 端同名常量混淆，特此改名。
  */
 export const ROLE_COOKIE_PORTAL: Record<string, string> = {
   admin: 'web',

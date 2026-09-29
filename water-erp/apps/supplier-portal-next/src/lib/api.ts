@@ -102,14 +102,14 @@ export const api = {
     guard<T>(client.post<T>(path, body, withTimeout(opts)), path, opts),
   postForm: <T>(path: string, body: FormData, opts: ReqOpts = {}) =>
     guard<T>(client.postForm<T>(path, body), path, opts),
-  // 注：@water-erp/client 的 put/patch/delete 签名不接受额外 init（无 signal 参数），
-  // 这三个方法沿用默认 fetch 超时语义（快速小请求，与原 15s 超时差异可忽略）
+  // X-P3-06：put/patch/delete 走 raw + withTimeout ——client 三方法签名不带 init/signal，
+  // 此前沿用默认 fetch 超时语义（挂起请求无超时保护）；行为等价（同 method + JSON body）
   put: <T>(path: string, body?: unknown, opts: ReqOpts = {}) =>
-    guard<T>(client.put<T>(path, body), path, opts),
+    guard<T>(client.raw(path, { method: 'PUT', body: body === undefined ? undefined : JSON.stringify(body) }) as Promise<T>, path, opts),
   patch: <T>(path: string, body?: unknown, opts: ReqOpts = {}) =>
-    guard<T>(client.patch<T>(path, body), path, opts),
+    guard<T>(client.raw(path, { method: 'PATCH', body: body === undefined ? undefined : JSON.stringify(body) }) as Promise<T>, path, opts),
   delete: <T>(path: string, opts: ReqOpts = {}) =>
-    guard<T>(client.delete<T>(path), path, opts),
+    guard<T>(client.raw(path, { method: 'DELETE' }) as Promise<T>, path, opts),
   /** 原始 fetch（blob 下载等），返回 Response，调用方自行处理 */
   raw: (path: string, opts: ReqOpts = {}) => client.raw(path, withTimeout(opts)),
 };

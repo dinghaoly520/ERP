@@ -32,7 +32,9 @@ const PROCUREMENT_EVAL_DEFAULT: Record<string, string> = {
   // 2026-09-26 默认改定：竞争性方式默认 manual（专家评审）；谈判/直接采购族为固有属性维持原值
   '邀请招标': 'manual', '询比采购': 'manual', '谈判采购': 'qualified_lowest_price',
   '竞价采购': 'manual', '直接采购': 'none',
-  '公开招标': 'manual', '直接委托': 'none', '续约': 'none', '直接签订合同': 'none',
+  // X-P3-07：删「直接签订合同」——BE evaluation-method.config 无此项（FALLBACK='manual'），
+  // FE 多出该项会在该值出现时回显「不评分」而系统实际按 manual 执行（两端推导分歧）
+  '公开招标': 'manual', '直接委托': 'none', '续约': 'none',
 };
 const deriveEvalMethod = (procurementMethod?: string | null) =>
   PROCUREMENT_EVAL_DEFAULT[procurementMethod ?? ''] ?? 'manual';

@@ -84,7 +84,12 @@ export function RealtimeNotifications() {
 
       socket.on("connect", () => { attempts = 0; });
       socket.on("notification:new", (n: PushNotification) => {
-        if (n?.id && n.title) open(n);
+        if (n?.id && n.title) {
+          open(n);
+          // X-P3-04：到达即广播 notification:received——与 :3006/:3007 铃铛刷新契约对齐
+          // （此前仅在点击/已读时派发，实时到达时角标/通知中心不刷新）
+          window.dispatchEvent(new CustomEvent("notification:received"));
+        }
       });
       socket.on("disconnect", (reason: string) => {
         if (reason === "io client disconnect") return;
