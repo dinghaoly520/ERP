@@ -149,33 +149,46 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   const [exporting, setExporting] = useState(false);
   const [editItem, setEditItem] = useState<CatalogItem | null>(null);
 
+  // 服务端分页/搜索/排序（2026-09-29 R5：此前全量拉取前端切片——目录增长后全量传输；
+  // 分页后跨页排序/搜索不可行，随之下沉服务端；搜索 300ms 防抖）
+  const [total, setTotal] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const { sortKey, sortDir, toggle } = useSort<CatalogItem>('code', 'asc');
+
   const load = async () => {
     setLoading(true);
     try {
-      const params: Record<string, string | number | undefined> = { status };
+      const params: Record<string, string | number | undefined> = {
+        status, page, pageSize: PAGE_SIZE, sortBy: sortKey, sortOrder: sortDir,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      };
       if (selectedCategoryId) params.categoryId = selectedCategoryId;
       // stats 与列表解耦：stats 挂掉（非内部角色 403 / 瞬时 500）时 KPI 显示「—」，
       // 列表照常渲染；只有列表本身失败才报错
       const [listRes, statsRes] = await Promise.allSettled([listCatalogItems(params), getCatalogStats()]);
       if (listRes.status === 'fulfilled') {
-        setItems(listRes.value);
+        const res = listRes.value;
+        if (Array.isArray(res)) { setItems(res); setTotal(res.length); } // 旧后端兜底
+        else { setItems(res.items); setTotal(res.total); }
       } else {
         toast.error(listRes.reason?.message ?? '目录加载失败');
       }
       setStats(statsRes.status === 'fulfilled' ? statsRes.value : null);
     } finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, [status, selectedCategoryId]);
+  useEffect(() => { load(); }, [status, selectedCategoryId, page, sortKey, sortDir, debouncedSearch]);
+  // 切排序/筛选回到第 1 页（分页后页码无意义延续）
+  useEffect(() => { setPage(1); }, [status, selectedCategoryId, sortKey, sortDir]);
 
-  const filtered = useMemo(() => {
-    const kw = search.trim().toLowerCase();
-    return items.filter(item => !kw || [item.code, item.name, item.specification, item.category, item.supplier].some(v => v.toLowerCase().includes(kw)));
-  }, [items, search]);
-  const { sortKey, sortDir, toggle, sorted } = useSort<CatalogItem>('code', 'asc');
-  const sortedItems = sorted(filtered);
+  const filtered = items;
+  const sortedItems = filtered;
   const PAGE_SIZE = 20;
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE));
-  const pagedItems = useMemo(() => sortedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [sortedItems, page]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pagedItems = sortedItems;
 
   const allPageSelected = pagedItems.length > 0 && pagedItems.every(i => selected.has(i.id));
   const somePageSelected = pagedItems.some(i => selected.has(i.id));
@@ -602,7 +615,7 @@ function CategoryTreeTab({ canManage }: { canManage: boolean }) {
     // 前置检查：叶子品类下若有目录项、或存在子品类，提示先迁移，避免误删导致目录项孤儿
     let itemCount = 0;
     if (node.isLeaf) {
-      try { itemCount = (await listCatalogItems({ categoryId: node.id })).length; } catch { /* 查询失败不阻塞，交给后端校验 */ }
+      try { const r = await listCatalogItems({ categoryId: node.id }); itemCount = Array.isArray(r) ? r.length : r.total; } catch { /* 查询失败不阻塞，交给后端校验 */ }
     }
     const childCount = node.children?.length ?? 0;
     if (itemCount > 0 || childCount > 0) {
@@ -1316,8 +1329,10 @@ function TrendsTab() {
     setLoading(true);
     setSeriesData([]); setOpportunity(null); setPredictionData([]); setItemCount(0);
     try {
-      const items = await listCatalogItems({ categoryId: id });
-      setItemCount(items.length);
+      const res = await listCatalogItems({ categoryId: id });
+      // 价格趋势需全量候选（跨页取 top5），此处不带分页参数 → 全量数组
+      const items: CatalogItem[] = Array.isArray(res) ? res : res.items;
+      setItemCount(Array.isArray(res) ? res.length : res.total);
       const candidates = items.filter(i => i.priceMin !== i.priceMax).slice(0, 5);
       if (candidates.length === 0) return;
       const series = await Promise.all(candidates.map(async (item, i) => {

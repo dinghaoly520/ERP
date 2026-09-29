@@ -74,7 +74,7 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
                 <td className="font-semibold">{t.name}</td>
                 <td>
                   {t.createdBySupplier?.name
-                    ? <a className="text-[var(--accent)] hover:underline" href={`/supplier/${t.createdBySupplier.supplierNo}`}>{t.createdBySupplier.name}</a>
+                    ? <a className="text-[var(--accent)] hover:underline" href={`/supplier/repository?search=${encodeURIComponent(t.createdBySupplier.name)}`} title="在供应商库中搜索">{t.createdBySupplier.name}</a>
                     : '—'}
                 </td>
                 <td className="text-xs">{new Date(t.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>

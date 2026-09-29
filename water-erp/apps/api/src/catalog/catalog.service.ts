@@ -120,6 +120,14 @@ export class CatalogService {
     search?: string;
     includeInactive?: boolean;
     categoryId?: number;
+    /** 可选服务端分页（2026-09-29 R5：:3005 目录管理页此前全量拉取前端切片）。
+     *  不带分页参数 = 返回全量数组（:3003 商城/导出等既有消费方零影响，向后兼容）；
+     *  带 page/pageSize = 返回 { items, total, page, pageSize }。 */
+    page?: number;
+    pageSize?: number;
+    /** 排序白名单（分页形态配套：客户端跨页排序不可行，排序随分页下沉服务端） */
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
   }, viewerRole?: string) {
     const filters: any[] = [];
     if (params.categoryId) {
@@ -150,9 +158,28 @@ export class CatalogService {
       }
     }
     const where = filters.length ? { AND: filters } : undefined;
+    const include = { attributes: { include: { template: true } }, categoryRel: true };
+    const SORTABLE = ['code', 'name', 'referencePrice', 'updatedAt', 'validUntil'];
+    const orderBy: any = { code: 'asc' };
+    if (params.sortBy && SORTABLE.includes(params.sortBy)) {
+      orderBy[params.sortBy] = params.sortOrder === 'desc' ? 'desc' : 'asc';
+    }
+    if (params.page && params.pageSize) {
+      const [items, total] = await Promise.all([
+        this.prisma.catalogItem.findMany({
+          where, orderBy, include,
+          skip: (params.page - 1) * params.pageSize,
+          take: params.pageSize,
+        }),
+        this.prisma.catalogItem.count({ where }),
+      ]);
+      return {
+        items: items.map(i => stripPricesForRole(serialize(i), viewerRole)),
+        total, page: params.page, pageSize: params.pageSize,
+      };
+    }
     const items = await this.prisma.catalogItem.findMany({
-      where, orderBy: { code: 'asc' },
-      include: { attributes: { include: { template: true } }, categoryRel: true },
+      where, orderBy: { code: 'asc' }, include,
     });
     return items.map(i => stripPricesForRole(serialize(i), viewerRole));
   }
@@ -431,8 +458,10 @@ export class CatalogService {
 
   async exportCatalog(userId: string, params: { category?: string; region?: string; status?: string; source?: string; search?: string; categoryId?: number }, viewerRole?: string): Promise<Buffer> {
     // categoryId 透传 list（2026-09-28 审计：此前导出端点未声明该参数被丢弃——按品类筛选后
-    // 导出的是该状态下全部品类，toast 却说"已导出当前筛选结果"）
-    const items = await this.list(params, viewerRole);
+    // 导出的是该状态下全部品类，toast 却说"已导出当前筛选结果"）。
+    // 导出不传分页参数 → list 返回全量数组；分页形态仅 :3005 列表用，此处归一化取数组
+    const res = await this.list(params, viewerRole);
+    const items: CatalogItemView[] = Array.isArray(res) ? res : res.items;
     const hidePrice = viewerRole === 'supplier';
     const wb = new Workbook();
     const ws = wb.addWorksheet('采购目录');

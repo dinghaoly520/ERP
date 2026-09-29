@@ -9,7 +9,7 @@ import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supp
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
-import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
+import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign } from 'lucide-react';
@@ -21,9 +21,7 @@ import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 
 type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'changes' | 'communications' | 'documents';
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: '待审核', RETURNED: '退回补正', APPROVED: '已入库', REJECTED: '审核不通过', DISABLED: '已停用', BLACKLIST: '黑名单',
-};
+const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 shared 口径（第五处分叉，2026-09-29 收编）
 const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> = {
   APPROVED: 'green', PENDING: 'blue', RETURNED: 'orange', REJECTED: 'red', DISABLED: 'gray', BLACKLIST: 'red',
 };
@@ -1129,7 +1127,9 @@ export default function SupplierDetailPage() {
                                 { action: '提交变更申请', actor: supplier.name, time: c.createdAt, note: c.reason, outcome: 'pending' as const },
                                 ...(c.status !== 'PENDING' ? [{
                                   action: c.status === 'APPROVED' ? '审批通过' : '审批拒绝',
-                                  actor: c.reviewedBy ?? undefined,
+                                  // S10（2026-09-29）：后端 reviewedBy 存的是 user id（cuid）非姓名对象——直出是一串
+                    // 无意义 UUID，形状守卫后隐藏；待后端 listChanges enrich displayName 后恢复
+                    actor: (typeof c.reviewedBy === 'string' && /^[a-z0-9]{20,}$/.test(c.reviewedBy)) ? undefined : (c.reviewedBy ?? undefined),
                                   time: c.reviewedAt ?? null,
                                   note: c.rejectReason ?? null,
                                   outcome: c.status === 'APPROVED' ? 'approved' as const : 'rejected' as const,

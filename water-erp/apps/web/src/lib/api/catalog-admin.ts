@@ -76,7 +76,8 @@ export function listCatalogItems(params: Record<string, string | number | undefi
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '全部') sp.set(key, String(value));
   });
-  return request<CatalogItem[]>(`/api/catalog?${sp.toString()}`);
+  // 带 page/pageSize → { items, total }（服务端分页，2026-09-29 R5）；不带 → 全量数组（旧路径）
+  return request<CatalogItem[] | { items: CatalogItem[]; total: number; page: number; pageSize: number }>(`/api/catalog?${sp.toString()}`);
 }
 
 export function getCatalogStats() {

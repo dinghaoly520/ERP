@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { AnnouncementHistoryModal, AllAnnouncementHistoriesModal } from '@/components/notice/announcement-history-modal';
 import { AnnouncementRecycleModal } from '@/components/notice/announcement-recycle-modal';
+import { ANN_TYPE_LABEL, ANN_TYPE_TONE, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 
 /* ── 类型/状态映射 ── */
 // 2026-09-09 拍板：公告类型入口收敛为 6 类（删中标公示/成交/合同/履行结果/流标/中标公告 tab，与公开端一致）；
@@ -52,26 +53,10 @@ const TYPE_TABS: Array<{ key: TypeTabKey; label: string }> = [
 ];
 
 /** 列表徽标完整映射（含被收敛 tab 的类型——历史数据在「全部」中仍正确标注） */
-const typeBadgeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
-  BID_NOTICE: { label: '采购公告', tone: 'blue' },
-  ADDENDUM: { label: '补遗公告', tone: 'orange' },
-  PREQUAL_NOTICE: { label: '资格预审公告', tone: 'blue' },
-  PRE_WIN_NOTICE: { label: '中标公告', tone: 'green' },
-  WIN_NOTICE: { label: '成交公告', tone: 'green' },
-  CONTRACT_NOTICE: { label: '合同公告', tone: 'blue' },
-  PERFORMANCE_NOTICE: { label: '履行结果公告', tone: 'green' },
-  POLICY: { label: '政策法规', tone: 'orange' },
-  PLATFORM: { label: '平台通知', tone: 'gray' },
-  FAILED_BID_NOTICE: { label: '流标公告', tone: 'orange' },
-  WIN_BID_NOTICE: { label: '中标公告', tone: 'green' },
-};
-const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'gray' }> = {
-  DRAFT: { label: '草稿', tone: 'gray' },
-  PUBLISHED: { label: '已发布', tone: 'green' },
-  ARCHIVED: { label: '已下线', tone: 'gray' },  // v2（2026-09-26）：公示期满=已下线（存量 ARCHIVED 同标）
-  HIDDEN: { label: '已隐藏', tone: 'gray' },  // 回收站态：主列表默认排除，仅供类型穷举/回收站复用
-  OFFLINE: { label: '已下架', tone: 'gray' },
-};
+const typeBadgeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> =
+  Object.fromEntries((Object.keys(ANN_TYPE_LABEL) as AnnouncementType[]).map(k => [k, { label: ANN_TYPE_LABEL[k], tone: ANN_TYPE_TONE[k] }])) as typeof typeBadgeMeta; // 统一 lib/announcement-meta（2026-09-29 R5）
+const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'gray' }> =
+  Object.fromEntries((Object.keys(ANN_STATUS_LABEL) as AnnouncementStatus[]).map(k => [k, { label: ANN_STATUS_LABEL[k], tone: ANN_STATUS_TONE[k] }])) as typeof statusMeta; // 统一 lib/announcement-meta
 
 /**
  * 2026-09-09 拍板：已发布公告的状态徽标按时间动态细分——

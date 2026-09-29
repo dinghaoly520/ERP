@@ -18,20 +18,16 @@ import { ArrowLeft, Pencil, X, EyeOff, PackageX, Megaphone, Upload, Sparkles } f
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
+import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 
 /* 类型/状态标签 */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
   BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green', WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray', FAILED_BID_NOTICE: 'orange', WIN_BID_NOTICE: 'green',
 };
-const typeLabel: Record<AnnouncementType, string> = {
-  BID_NOTICE: '采购公告', ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '中标公告', WIN_NOTICE: '成交公告', CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知', FAILED_BID_NOTICE: '流标公告', WIN_BID_NOTICE: '中标公告',
-};
-const statusTone: Record<AnnouncementStatus, 'green' | 'gray'> = {
-  DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray', HIDDEN: 'gray', OFFLINE: 'gray',
-};
-const statusLabel: Record<AnnouncementStatus, string> = {
-  DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已下线', HIDDEN: '已隐藏', OFFLINE: '已下架',
-};
+// 映射统一 lib/announcement-meta（2026-09-29 R5：4 份拷贝合并）；本地名保留为别名零改动引用
+const typeLabel = ANN_TYPE_LABEL;
+const statusTone = ANN_STATUS_TONE;
+const statusLabel = ANN_STATUS_LABEL;
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 const TYPE_META: Record<AnnouncementType, MetaField[]> = {

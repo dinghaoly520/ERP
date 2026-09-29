@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/announcement';
 import { toast } from 'sonner';
 import { EyeOff, PackageX, RotateCcw, FileText, ExternalLink, Trash2 } from 'lucide-react';
+import { ANN_TYPE_LABEL, ANN_STATUS_LABEL } from '@/lib/announcement-meta';
 
 const PAGE_SIZE = 15;
 
@@ -20,15 +21,10 @@ const TABS: Array<{ key: RecycleTab; label: string }> = [
 ];
 
 const FROM_STATUS_LABELS: Partial<Record<AnnouncementStatus, string>> = {
-  DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '已下线',
+  DRAFT: ANN_STATUS_LABEL.DRAFT, PUBLISHED: ANN_STATUS_LABEL.PUBLISHED, ARCHIVED: ANN_STATUS_LABEL.ARCHIVED,
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  BID_NOTICE: '采购公告', ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告',
-  PRE_WIN_NOTICE: '中标公告', WIN_NOTICE: '成交公告', CONTRACT_NOTICE: '合同公告',
-  PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知',
-  FAILED_BID_NOTICE: '流标公告', WIN_BID_NOTICE: '中标公告',
-};
+const TYPE_LABELS: Record<string, string> = ANN_TYPE_LABEL; // 统一 lib/announcement-meta（2026-09-29 R5）
 
 /**
  * 回收站（2026-09-26 v2）：分「已隐藏 / 已下架」两节。

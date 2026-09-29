@@ -34,6 +34,25 @@ export class CatalogAdminListQueryDto {
   @IsString()
   category?: string;
 
+  // 可选服务端分页（2026-09-29 R5）：不带=全量数组（向后兼容），带={items,total}
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  pageSize?: number;
+
+  @IsOptional()
+  @IsIn(['code', 'name', 'referencePrice', 'updatedAt', 'validUntil'])
+  sortBy?: string;
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortOrder?: 'asc' | 'desc';
+
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
