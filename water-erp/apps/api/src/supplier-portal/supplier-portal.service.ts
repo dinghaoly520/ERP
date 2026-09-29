@@ -1181,11 +1181,28 @@ export class SupplierPortalService {
     select: Prisma.AnnouncementSelect,
   ): Promise<T | null> {
     const codes = await this.resolveAnnouncementCodes(project);
-    let announcement = (await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: codes }, type: 'BID_NOTICE' },
+    // SUP-P1-05（2026-09-29 审查修复）：对齐 2026-09-26 v2 下线政策——OFFLINE/HIDDEN/DRAFT
+    // 完全不出；公示期满 PUBLISHED / 存量 ARCHIVED 正文不可看（本读端统一下发 null，三消费端
+    // ——详情正文/概览 AI 摘要/招标文件解析——的既有 null 分支自会走邀请书/回执兜底或空态）。
+    // 镜像 announcement.service isOfflined 口径：有 publicityEnd 才会到期（政策/平台类永不过期）。
+    const visibilityWhere = (extra?: Prisma.AnnouncementWhereInput): Prisma.AnnouncementWhereInput => ({
+      ...extra,
+      type: 'BID_NOTICE',
+      status: 'PUBLISHED',
+    });
+    // 探测列随查询携带（调用方 select 之外加 publicityEnd，返回前剥除）
+    const enrichedSelect = { ...select, publicityEnd: true } as Prisma.AnnouncementSelect;
+    const strip = (a: Record<string, unknown> | null): T | null => {
+      if (!a) return null;
+      if (a.publicityEnd && new Date(a.publicityEnd as string | Date).getTime() < Date.now()) return null;
+      const { publicityEnd: _pe, ...rest } = a;
+      return rest as T;
+    };
+    let announcement = strip(await this.prisma.announcement.findFirst({
+      where: visibilityWhere({ relatedProjectCode: { in: codes } }),
       orderBy: { createdAt: 'desc' },
-      select,
-    })) as T | null;
+      select: enrichedSelect,
+    }));
     if (announcement && project.projectManagementItemId) {
       const pm = await this.prisma.projectManagementItem.findUnique({
         where: { id: project.projectManagementItemId },
@@ -1193,10 +1210,10 @@ export class SupplierPortalService {
       });
       const metaPc = (announcement.metadata as Record<string, unknown> | null | undefined)?.projectCode;
       if (pm?.projectCode && metaPc && metaPc !== pm.projectCode) {
-        announcement = (await this.prisma.announcement.findFirst({
-          where: { type: 'BID_NOTICE', metadata: { path: ['projectCode'], equals: pm.projectCode } },
-          select,
-        })) as T | null;
+        announcement = strip(await this.prisma.announcement.findFirst({
+          where: visibilityWhere({ metadata: { path: ['projectCode'], equals: pm.projectCode } }),
+          select: enrichedSelect,
+        }));
       }
     }
     return announcement;
