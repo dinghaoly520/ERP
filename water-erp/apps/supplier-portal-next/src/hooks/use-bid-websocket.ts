@@ -18,6 +18,9 @@ import {
 } from "@water-erp/shared";
 
 export interface BidWsHandlers {
+  /** X-P2-09（2026-09-29 审查修复）：重连后回调——断连/后台窗口错过的开标事件无补拉，
+   *  大厅页据此全量 refresh 补偿（:3005/:3007 两版 hook 均有，本门户此前缺失） */
+  onReconnected?: () => void;
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
   onHallMessage?: (d: HallMessagePayload) => void;
@@ -57,6 +60,7 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
     let attempt = 0;
     let manualClose = false;
     let disposed = false;
+    let hasConnectedOnce = false; // X-P2-09：首次连接 vs 重连鉴别
 
     function clearTimers() {
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
@@ -73,9 +77,15 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
       socket = s;
 
       s.on("connect", () => {
+        const isReconnect = hasConnectedOnce; // X-P2-09
+        hasConnectedOnce = true;
         attempt = 0;
         setConnection("connected");
         s.emit("join:project", projectId);
+        if (isReconnect) {
+          setLastEventAt(Date.now());
+          handlersRef.current().onReconnected?.();
+        }
         heartbeatTimer = setInterval(() => {
           s.emit("ping", Date.now());
           if (pongTimer) clearTimeout(pongTimer);

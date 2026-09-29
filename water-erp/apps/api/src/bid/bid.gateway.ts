@@ -399,6 +399,11 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyExpertPresence(projectId: string, data: Omit<ExpertPresencePayload, 'timestamp'>) {
     const payload: ExpertPresencePayload = { ...data, timestamp: Date.now() };
     this.server.to(`host:${projectId}`).emit(BID_EVENT.EXPERT_PRESENCE, payload);
+    // EXP-P2-02（2026-09-29 审查修复）：递补/互换转正（role_changed）补发专家房——
+    // 候补专家停留的页面据此刷新解锁（此前只发 host 房，被转正者需手动重载才解除候补态）
+    if (data.milestone === 'role_changed') {
+      this.server.to(`experts:${projectId}`).emit(BID_EVENT.EXPERT_PRESENCE, payload);
+    }
     this.broadcastAggregatePresence(projectId).catch(() => {});
   }
 

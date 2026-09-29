@@ -6,7 +6,7 @@
  * 本页展示所有已归档/已流标项目，支持搜索、日期范围筛选，默认按归档时间降序，点击进入工作区回看。
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, Search, ChevronRight, ExternalLink, Ban, AlertTriangle, Archive } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
@@ -31,15 +31,19 @@ export default function BidArchivePage() {
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [page, setPage] = useState(1);
 
+  // BID-P3-04：并发防护（与任务板同款——自增序号丢弃过期响应）
+  const loadSeqRef = useRef(0);
   const load = useCallback(() => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     getProjectsDashboard()
-      .then(d => { setProjects(d.projects); setError(null); })
+      .then(d => { if (seq !== loadSeqRef.current) return; setProjects(d.projects); setError(null); })
       .catch((e: any) => {
+        if (seq !== loadSeqRef.current) return;
         // O6（2026-08-28）：不再把故障吞成「暂无已归档项目」空态误导排障（已有数据保留展示）
         setError(e?.message || '归档项目加载失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (seq === loadSeqRef.current) setLoading(false); });
   }, []);
 
   useEffect(() => { load(); }, [load]);

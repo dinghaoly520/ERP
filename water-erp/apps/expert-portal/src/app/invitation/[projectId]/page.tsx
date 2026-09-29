@@ -51,8 +51,11 @@ export default function InvitationConfirmPage() {
     setBusy(false);
   };
 
-  const doDecline = async () => {
-    if (!confirm('确认婉拒本次评审邀请？婉拒后如需参加请联系采购方。')) return;
+  // EXP-P3-01：原生 confirm → ConfirmDialog（本门户既定弹窗体系）
+  const [declineConfirm, setDeclineConfirm] = useState(false);
+  const doDecline = () => setDeclineConfirm(true);
+  const runDecline = async () => {
+    setDeclineConfirm(false);
     setBusy(true);
     try {
       const res = await declineMyInvitation(projectId);

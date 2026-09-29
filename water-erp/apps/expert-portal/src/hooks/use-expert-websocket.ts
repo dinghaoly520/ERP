@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload } from '@water-erp/shared';
+import type { ConnectionState, ExpertPresenceAggregatePayload, ExpertPresencePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
@@ -13,6 +13,9 @@ function wsUrl(): string {
 
 interface Handlers {
   onAggregatePresence?: (d: ExpertPresenceAggregatePayload) => void;
+  /** EXP-P2-02：个体在场里程碑（role_changed 等）——网关仅对 role_changed 补发专家房，
+   *  候补被递补转正时停留页面据此刷新解锁，无需手动重载 */
+  onExpertPresence?: (d: ExpertPresencePayload) => void;
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
   onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
@@ -51,6 +54,7 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
       });
     };
     on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, 'onAggregatePresence');
+    on(BID_EVENT.EXPERT_PRESENCE, 'onExpertPresence');
     on(BID_EVENT.DECRYPT_STATUS, 'onDecryptStatus');
     on(BID_EVENT.STAGE_CHANGE, 'onStageChange');
     on(BID_EVENT.CLARIFICATION_CREATED, 'onClarificationCreated');

@@ -12,11 +12,13 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { portalURL } from '@water-erp/config';
+import { SessionWatchdog } from './session-watchdog';
+import { expertLoginUrl } from '@/lib/session-guard';
 
 // 未登录/登出时跳转"在线开评标系统"统一登录入口（专家门户）。
-// 由 @water-erp/config 的 PORTS 派生，端口重分配后无需手动同步。
-const LOGIN_URL = portalURL('expert', '/login?forceLogin=1');
+// X-P2-01（2026-09-29）：改用 expertLoginUrl() 按当前访问主机构建——模块级 portalURL
+// 绝对常量求值恒 localhost，LAN 平板客户端跳转会打不开（224debd3 修过 proxy 同款，
+// 此为客户端侧残留同源修复）。
 
 interface NavItem {
   label: string;
@@ -48,10 +50,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [collapsed]);
 
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
+    fetch('/api/auth/me', { credentials: 'include', headers: { 'X-Portal': 'bid' } })
       .then(r => r.ok ? r.json() : null)
-      .then(u => { if (!u) window.location.href = LOGIN_URL; else setUser(u); })
-      .catch(() => { window.location.href = LOGIN_URL; });
+      .then(u => { if (!u) window.location.href = expertLoginUrl(); else setUser(u); })
+      .catch(() => { window.location.href = expertLoginUrl(); });
   }, []);
 
   // 用户菜单（复刻 :3004 sp-user-pill：点 pill 开下拉，点外部收起）
@@ -67,8 +69,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [userMenuOpen]);
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    window.location.href = LOGIN_URL;
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'bid' } });
+    window.location.href = expertLoginUrl();
   };
 
   // 单一入口：任务板(/bid) 与项目工作区(/bid/project/[id]) 均高亮
@@ -82,6 +84,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flow-page ambient-grid flex h-screen flex-col overflow-hidden">
+      {/* X-P2-01：会话心跳——冻结/失效 15s 内触发 on401 遮罩 */}
+      <SessionWatchdog />
       {/* cgzxui 水彩光晕 —— 五角 oklch 浅彩 bloom，作为玻璃面板背后漂移的色彩层 */}
       <div className="flow-glow" aria-hidden />
 

@@ -11,12 +11,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { KeyRound, ShieldCheck, ShieldX, CircleX, Info, TriangleAlert, CircleCheck } from "lucide-react";
-import { sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson, type UKeyAdapter } from "@water-erp/ukey";
+import { sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson, type UKeyAdapter, type EnvelopeRole } from "@water-erp/ukey";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
-import { getOpeningPackage, decryptUpload, type OpeningPackage } from "@/lib/api/opening-package";
+import { getOpeningPackage, decryptUpload, reuploadDual, type OpeningPackage } from "@/lib/api/opening-package";
 import { formatOpeningAmount } from "@/lib/opening-fields";
-import { hexToUtf8, bytesToHex, hexToBytes } from "@/utils/dual-envelope-core";
+import { hexToUtf8, bytesToHex, hexToBytes, reencryptDualFile, type AdminCertRef } from "@/utils/dual-envelope-core";
+import { supplierApi } from "@/lib/api/supplier";
 import { SpButton, SpDialog, SpInput } from "@/components/ui";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -65,6 +66,11 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
   const [decrypting, setDecrypting] = useState(false);
   const [decryptStage, setDecryptStage] = useState("");
   const [decryptError, setDecryptError] = useState("");
+  // SUP-P1-02：解密异常恢复——重新密封补传（reupload-dual 端点此前前端零调用，恢复闭环断链）
+  const [reuploadRole, setReuploadRole] = useState<"" | "technical" | "business" | "coverLetter">("");
+  const [reuploadFile, setReuploadFile] = useState<File | null>(null);
+  const [reuploadBusy, setReuploadBusy] = useState(false);
+  const [reuploadProgress, setReuploadProgress] = useState<number | null>(null);
   const [revealedFields, setRevealedFields] = useState<{ price: string; deliveryPeriod: string; qualityCommitment: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pubKeyRef = useRef(profileSm2PublicKey);
@@ -241,6 +247,54 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
     }
   }
 
+  /** SUP-P1-02（2026-09-29）：解密异常恢复——单文件双层重封补传。以「我的投递」载荷的
+   *  原 envelope 为底仅覆盖所选角色（sealedFields/fieldsCommit 逐字保留），服务端
+   *  reuploadDualEnvelope 四重防改价闸（SHA-256 明文锚点/fieldsCommit 冻结/验签/多角色保全）
+   *  在后端把关。密文损坏/错钥类异常经主持人重置后重试同一密文仍必失败，本通道是唯一出路。 */
+  async function handleReuploadDual() {
+    if (!ukeyAdapter || !ukeyCertSn) { setUkeyDialogVisible(true); return; }
+    if (!reuploadRole || !reuploadFile) { toast.warning("请选择补传角色与文件"); return; }
+    if (!profileSm2PublicKey) { toast.error("缺少证书公钥，请先在 U盾管理页完成绑定"); return; }
+    setReuploadBusy(true);
+    setReuploadProgress(0);
+    try {
+      const sub: any = await supplierApi.getBidSubmission(projectId);
+      const prevEnvelope = sub?.envelope;
+      if (!prevEnvelope?.files?.[reuploadRole]) {
+        throw new Error(`未找到「${ROLE_LABELS[reuploadRole]}」的原密封条目（该角色可能未投递）`);
+      }
+      const admin: AdminCertRef = await supplierApi.getAdminCert();
+      setReuploadProgress(2);
+      const sealed = await reencryptDualFile(
+        reuploadFile,
+        reuploadRole as EnvelopeRole,
+        ukeyAdapter,
+        ukeyCertSn,
+        profileSm2PublicKey,
+        admin,
+        prevEnvelope,
+        (pct) => setReuploadProgress(Math.max(2, Math.round(pct * 98))),
+      );
+      const form = new FormData();
+      form.append("file", sealed.file, `${reuploadRole}.outer.bin`);
+      form.append("role", reuploadRole);
+      form.append("envelope", JSON.stringify(sealed.envelope));
+      form.append("signature", sealed.signature);
+      setReuploadProgress(100);
+      await reuploadDual(projectId, form);
+      toast.success("已重新密封并补传，等待主持人重新触发解密");
+      setDecryptError("");
+      setReuploadRole("");
+      setReuploadFile(null);
+      onDecrypted?.();
+    } catch (e: any) {
+      toast.error(String((e?.data as any)?.error || e?.message || "重新密封补传失败"));
+    } finally {
+      setReuploadBusy(false);
+      setReuploadProgress(null);
+    }
+  }
+
   if (!isOpening || !submitted || isDualTrack === false) return null;
 
   return (
@@ -301,6 +355,35 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
                   <div className="ann-alert-body">
                     <span className="ann-alert-title">{decryptError}</span>
                     <div className="pkg-hint">解密失败已记录归因（投标人/平台/待裁决由主持人判定）。若为平台原因，可联系主持人「重置解密机会」后重试。</div>
+                {/* SUP-P1-02：密文损坏/错钥类异常重置后仍必失败——供应商端双层重封补传是唯一恢复通道 */}
+                <details className="mt-2">
+                  <summary className="pkg-hint cursor-pointer select-none">持续失败？重新密封补传（需 U盾；明文一致性由服务端防改价闸校验）</summary>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <select
+                      value={reuploadRole}
+                      onChange={(e) => setReuploadRole(e.target.value as typeof reuploadRole)}
+                      disabled={reuploadBusy}
+                      className="rounded-lg border border-[oklch(0.87_0.015_258)] bg-white px-2 py-1.5 text-xs"
+                    >
+                      <option value="">选择角色…</option>
+                      <option value="technical">技术标</option>
+                      <option value="business">商务标</option>
+                      <option value="coverLetter">投标函</option>
+                    </select>
+                    <input
+                      type="file"
+                      accept=".pdf,.zip,.rar"
+                      disabled={reuploadBusy}
+                      onChange={(e) => setReuploadFile(e.target.files?.[0] ?? null)}
+                      className="text-xs"
+                    />
+                    <SpButton variant="xs" loading={reuploadBusy} disabled={!reuploadRole || !reuploadFile} onClick={handleReuploadDual}>
+                      重新密封并补传
+                    </SpButton>
+                    {reuploadProgress !== null && <span className="pkg-hint">双层加密中 {Math.round(reuploadProgress)}%</span>}
+                  </div>
+                  <div className="pkg-hint mt-1">以原信封为底仅覆盖所选角色，唱标字段密封件逐字保留（开标期防改价）；补传后解密状态重置为待解密，等待主持人重新触发。</div>
+                </details>
                   </div>
                 </div>
               )}

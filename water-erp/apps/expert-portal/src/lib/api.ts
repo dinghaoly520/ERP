@@ -1,4 +1,4 @@
-import { createApiClient } from '@water-erp/client';
+import { createApiClient, ApiError } from '@water-erp/client';
 import type { ExpertMemo } from '@water-erp/shared';
 import { showSessionReplacedOverlay, showFrozenOverlay } from '@/lib/session-kick';
 
@@ -6,20 +6,11 @@ import { showSessionReplacedOverlay, showFrozenOverlay } from '@/lib/session-kic
  * expert-portal 专家门户 API 客户端 —— 基于 @water-erp/client 统一封装。
  * （2026-08 审计收敛：此前为本地复制的 fetchApi 副本之一。）
  *
- * 本门户的 ApiError 签名与共享包不同（message 在前 + data 附带错误体），
- * 为保持既有调用方的 instanceof/字段访问不变，保留本地类并做映射。
+ * X-P2-05（2026-09-29 审查修复）：本地 ApiError（message 在前、无 code 字段）改为
+ * re-export 共享类——两套同名类并存时，按共享包习惯 switch(e.code) 的调用方会恒
+ * undefined（on401 回调拿到的是共享实例，本地 instanceof 判定却可能失配）。
  */
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status?: number,
-    public readonly data?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+export { ApiError } from '@water-erp/client';
 
 const client = createApiClient({
   portal: 'expert',
@@ -32,7 +23,9 @@ const client = createApiClient({
     if (window.location.pathname === '/login' || window.location.pathname === '/tablet/claim') return; // claim 页的密码错 401 由表单就地呈现
     if (error.code === 'SESSION_REPLACED') { showSessionReplacedOverlay(error.message); return; }
     if (error.code === 'ACCOUNT_FROZEN') { showFrozenOverlay(error.message); return; }
-    window.location.href = '/login';
+    // EXP-P3-05：携带 redirect——会话过期后从深链（如通知里的 /invitation/:id）进来，
+    // 登录成功应回原页而非落首页（proxy 层页面级 redirect 已保留，此处为 API 层 401 补齐）
+    window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
   },
 });
 
@@ -48,9 +41,13 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Response body is not JSON — keep default message
     }
-    throw new ApiError(message, res.status, body);
+    // X-P2-05：构造共享 ApiError（携带后端 code，如 EVALUATION_OVERDUE）
+    throw new ApiError(res.status, String(body.code ?? 'UNKNOWN'), message, body);
   }
-  return res.json();
+  // X-P2-05：空体保护（204/空 body）——共享 client.fetchApi 有判空，本地版直走
+  // res.json() 会对空体抛 "Unexpected end of JSON input"（任何端点改 204 即触发）
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {

@@ -203,17 +203,9 @@ export class ExpertService {
     const pendingProjects = records.filter(e => !e.signedIn).length;
     const averageScore = this.computeAverageScore(records);
 
-    // 获取专家名称用于查询监督日志；无项目分配时跳过查询避免全量泄露
-    const expertName = records.length > 0 ? records[0].expertName : '';
-    const recentActivity = expertName
-      ? await this.prisma.bidSupervisionLog.findMany({
-          where: { target: { contains: expertName } },
-          orderBy: { time: 'desc' },
-          take: 5,
-        })
-      : [];
-
-    return { totalProjects, completedProjects, signedInProjects, pendingProjects, averageScore, recentActivity };
+    // EXP-P3-02（2026-09-29 审查）：recentActivity 查询已删——按姓名 contains 匹配监督日志
+    // 会子串误命中他人（「王强」命中「王强斌」），且前端零消费，纯白查死载荷
+    return { totalProjects, completedProjects, signedInProjects, pendingProjects, averageScore };
   }
 
   /** 平均得分 = 该专家对每位供应商的总评分（按 supplierId 聚合）取平均；无评分返回 0 */
@@ -1912,13 +1904,31 @@ export class ExpertService {
     // Verify expert is assigned to this project
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
-      select: { id: true },
+      // EXP-P2-06：回避供应商的澄清问答对回避专家不可见（documents/assist/compare/reviews/
+      // submitScores 四路均按 conflictedSupplierIds 拦截，唯澄清漏网——材料隔离一致性）
+      select: { id: true, conflictedSupplierIds: true },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
+    // 回避名单存 BidSupplier 行 id（前端勾选 sup.id 提交），澄清 FK 是 Supplier.id——先换算
+    const conflictedRowIds = parseConflictedIds(expert.conflictedSupplierIds);
+    let excludedSupplierIds: string[] = [];
+    if (conflictedRowIds.length > 0) {
+      const rows = await this.prisma.bidSupplier.findMany({
+        where: { projectId, id: { in: conflictedRowIds } },
+        select: { supplierId: true },
+      });
+      excludedSupplierIds = rows.map(r => r.supplierId).filter((x): x is string => !!x);
+    }
+
     // Lightweight query — only fetch clarifications, not the entire project
     return this.prisma.bidClarification.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(excludedSupplierIds.length > 0
+          ? { supplierId: { notIn: excludedSupplierIds } }
+          : {}),
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -1954,6 +1964,20 @@ export class ExpertService {
         where: { projectId, supplierName: dto.supplierName },
       });
       if (rowByName) clarSupplierId = rowByName.supplierId;
+    }
+
+    // EXP-P2-06：回避屏蔽——回避供应商不可被点名发起澄清（按行 id 与按名称寻址两路同拦）。
+    // clarSupplierId 已是 Supplier.id，回避名单（Json 列，经 parseConflictedIds 归一）存 BidSupplier
+    // 行 id——经行表换算后比对。
+    const conflictIds = parseConflictedIds(expert.conflictedSupplierIds);
+    if (clarSupplierId && conflictIds.length > 0) {
+      const conflictHit = await this.prisma.bidSupplier.findFirst({
+        where: { projectId, supplierId: clarSupplierId, id: { in: conflictIds } },
+        select: { id: true },
+      });
+      if (conflictHit) {
+        throw new ForbiddenException({ error: '该供应商在您的回避名单中，不可对其发起澄清', code: 'CONFLICTED_SUPPLIER' });
+      }
     }
 
     const created = await this.prisma.bidClarification.create({

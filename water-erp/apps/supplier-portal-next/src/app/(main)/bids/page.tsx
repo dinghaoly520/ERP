@@ -12,7 +12,7 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";;;
-import { serverNowMs } from "@water-erp/shared";
+import { serverNowMs, STAGE_LABEL } from "@water-erp/shared";
 import { bidApi } from "@/lib/api/bid";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { SpButton, SpPagination, EmptyState } from "@/components/ui";
@@ -40,12 +40,14 @@ function formatAcquireWindow(raw: string): string {
   return single ? `至 ${single}` : raw;
 }
 
+// X-P2-03：label 收敛 shared STAGE_LABEL + 补 ABORTED（流标徽标不再空白）
 const stageMap: Record<string, { label: string; color: string }> = {
-  DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)" },
-  SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)" },
-  OPENING: { label: "在线开标", color: "var(--bid-stage-opening)" },
-  EVALUATING: { label: "专家评标", color: "var(--bid-stage-evaluating)" },
-  ARCHIVED: { label: "已归档", color: "var(--bid-stage-archived)" },
+  DOWNLOAD: { label: STAGE_LABEL.DOWNLOAD, color: "var(--bid-stage-download)" },
+  SUBMIT: { label: STAGE_LABEL.SUBMIT, color: "var(--bid-stage-submit)" },
+  OPENING: { label: STAGE_LABEL.OPENING, color: "var(--bid-stage-opening)" },
+  EVALUATING: { label: STAGE_LABEL.EVALUATING, color: "var(--bid-stage-evaluating)" },
+  ABORTED: { label: STAGE_LABEL.ABORTED, color: "var(--danger)" },
+  ARCHIVED: { label: STAGE_LABEL.ARCHIVED, color: "var(--bid-stage-archived)" },
 };
 
 function isSubmitStage(stage: string) {

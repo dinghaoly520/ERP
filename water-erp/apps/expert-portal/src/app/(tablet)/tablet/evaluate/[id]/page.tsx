@@ -172,6 +172,8 @@ export default function TabletEvaluatePage() {
 
   // WS 实时同步：其他专家提交评分 / 对方设备保存草稿后自动刷新
   useExpertWebSocket(projectId, {
+    // EXP-P3-06：WS 重连补拉——断连窗口错过的草稿/提交等事件经全量刷新补偿
+    onReconnected: () => { loadProject(); },
     onScoresSubmitted: () => {
       // 平板从不提交评分——任何 scoresSubmitted 都来自桌面端或其他专家，都应刷新
       loadProject();
@@ -280,7 +282,19 @@ export default function TabletEvaluatePage() {
       const si = project?.scoreItems.find(s => s.id === itemId);
       const committedScore = committedRecordFor(project?.myScores, sid, itemId)?.score ?? null;
       const hasPartialPoints = v.points && Object.keys(v.points).length > 0;
-      norm[k] = si && hasPartialPoints ? { ...v, points: buildFullPoints(si, v, committedScore) } : v;
+      if (si && hasPartialPoints) {
+        const points = buildFullPoints(si, v, committedScore);
+        // EXP-P3-08：草稿可能缺 passed（旧版存档/中断保存）——通过性项从客观分点重导
+        // （与桌面端 restoreDraft 同规则），否则恢复后勾选全亮、项头却「未评」
+        let passed = v.passed;
+        if (typeof passed !== 'boolean' && isPassFailCategory(si.category)) {
+          const objectivePts = (si.points ?? []).filter((p: any) => p.objective);
+          if (objectivePts.length > 0) passed = objectivePts.every((p: any) => points[p.id]?.checked === true);
+        }
+        norm[k] = { ...v, points, ...(typeof passed === 'boolean' ? { passed } : {}) };
+      } else {
+        norm[k] = v;
+      }
     }
     return norm;
   }, [project]);
@@ -408,10 +422,13 @@ export default function TabletEvaluatePage() {
     !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!project?.myExpertRecord?.reportConfirmed;
   // 身份核验/回避/AI声明完成标志（后端仍强制；前端对齐桌面体验，避免专家填完才报错）
+  // EXP-P2-05：补齐后端五项核验中的保密承诺/评标纪律（与桌面同口径）
   const verificationComplete =
     !!project?.myExpertRecord?.signedIn &&
     !!project?.myExpertRecord?.avoidanceConfirmed &&
-    !!project?.myExpertRecord?.aiConsentConfirmed;
+    !!project?.myExpertRecord?.aiConsentConfirmed &&
+    !!project?.myExpertRecord?.confidentialityAgreed &&
+    !!project?.myExpertRecord?.disciplineAgreed;
   // 修改确认：拦截已有值的修改（平板防误触）
   const [pendingModify, setPendingModify] = useState<{
     scoreItemId: string;
@@ -581,8 +598,10 @@ export default function TabletEvaluatePage() {
   // 或 host 态核验登记后，本页自动解锁进入下一步，无需专家手动刷新。
   const hostLocked = project?.identityMode === 'host' && !meRecord?.identityVerified && !meRecord?.signedIn;
   const signInPending = !meRecord?.signedIn && !scoreLocked;
+  // EXP-P3-06：口令门页也纳入 10s 轮询——主持人侧停用/轮换口令后本页自动感知（桌面端已含）
+  const roomGatePendingHere = !!(project as any)?.roomCodeActive && !(project as any)?.roomCodeVerified && !scoreLocked;
   useEffect(() => {
-    if (!hostLocked && !signInPending) return;
+    if (!hostLocked && !signInPending && !roomGatePendingHere) return;
     const t = setInterval(() => loadProject(undefined, true), 10_000);
     return () => clearInterval(t);
   }, [hostLocked, signInPending, loadProject]);

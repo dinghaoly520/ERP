@@ -717,9 +717,15 @@ export class SupplierPortalService {
       if (parsed.spkiAlgOid !== OID_SM2_ECC) {
         throw new BadRequestException({ error: `仅支持 SM2 证书（检测到公钥算法 OID ${parsed.spkiAlgOid}）`, code: 'CERT_ALG_UNSUPPORTED' });
       }
-      if ((input.certSn && input.certSn !== parsed.serialHex) ||
+      // X-P2-08（2026-09-29 审查修复）：声明值交叉校验归一——DER 解析端 serialHex 强制大写、
+      // DN 为 RFC4514/序串/空格格式敏感原样输出，严格 === 会让真盾轨在 hex 大小写惯例或 DN
+      // 毫厘格式差上 CERT_FIELDS_MISMATCH 误拒（当前 CertInfo 无 rawCert 尚不可达，潜伏契约陷阱）。
+      // publicKey 已有 toLowerCase 先例，照此归一。
+      const normHex = (v: string) => v.trim().toLowerCase();
+      const normDn = (v: string) => v.trim().replace(/\s+/g, ' ');
+      if ((input.certSn && normHex(input.certSn) !== normHex(parsed.serialHex)) ||
           (input.publicKey && input.publicKey.toLowerCase() !== parsed.publicKeyHex) ||
-          (input.certDn && input.certDn !== parsed.subjectDn)) {
+          (input.certDn && normDn(input.certDn) !== normDn(parsed.subjectDn))) {
         throw new BadRequestException({ error: '声明证书字段与 DER 内容不一致', code: 'CERT_FIELDS_MISMATCH' });
       }
       certSn = parsed.serialHex;
@@ -1181,11 +1187,28 @@ export class SupplierPortalService {
     select: Prisma.AnnouncementSelect,
   ): Promise<T | null> {
     const codes = await this.resolveAnnouncementCodes(project);
-    let announcement = (await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: codes }, type: 'BID_NOTICE' },
+    // SUP-P1-05（2026-09-29 审查修复）：对齐 2026-09-26 v2 下线政策——OFFLINE/HIDDEN/DRAFT
+    // 完全不出；公示期满 PUBLISHED / 存量 ARCHIVED 正文不可看（本读端统一下发 null，三消费端
+    // ——详情正文/概览 AI 摘要/招标文件解析——的既有 null 分支自会走邀请书/回执兜底或空态）。
+    // 镜像 announcement.service isOfflined 口径：有 publicityEnd 才会到期（政策/平台类永不过期）。
+    const visibilityWhere = (extra?: Prisma.AnnouncementWhereInput): Prisma.AnnouncementWhereInput => ({
+      ...extra,
+      type: 'BID_NOTICE',
+      status: 'PUBLISHED',
+    });
+    // 探测列随查询携带（调用方 select 之外加 publicityEnd，返回前剥除）
+    const enrichedSelect = { ...select, publicityEnd: true } as Prisma.AnnouncementSelect;
+    const strip = (a: Record<string, unknown> | null): T | null => {
+      if (!a) return null;
+      if (a.publicityEnd && new Date(a.publicityEnd as string | Date).getTime() < Date.now()) return null;
+      const { publicityEnd: _pe, ...rest } = a;
+      return rest as T;
+    };
+    let announcement = strip(await this.prisma.announcement.findFirst({
+      where: visibilityWhere({ relatedProjectCode: { in: codes } }),
       orderBy: { createdAt: 'desc' },
-      select,
-    })) as T | null;
+      select: enrichedSelect,
+    }));
     if (announcement && project.projectManagementItemId) {
       const pm = await this.prisma.projectManagementItem.findUnique({
         where: { id: project.projectManagementItemId },
@@ -1193,10 +1216,10 @@ export class SupplierPortalService {
       });
       const metaPc = (announcement.metadata as Record<string, unknown> | null | undefined)?.projectCode;
       if (pm?.projectCode && metaPc && metaPc !== pm.projectCode) {
-        announcement = (await this.prisma.announcement.findFirst({
-          where: { type: 'BID_NOTICE', metadata: { path: ['projectCode'], equals: pm.projectCode } },
-          select,
-        })) as T | null;
+        announcement = strip(await this.prisma.announcement.findFirst({
+          where: visibilityWhere({ metadata: { path: ['projectCode'], equals: pm.projectCode } }),
+          select: enrichedSelect,
+        }));
       }
     }
     return announcement;
@@ -1901,8 +1924,10 @@ export class SupplierPortalService {
     // flag 关但客户端按新轨投递（文件已是双层密文 + dual-v2 信封）：旧轨会因缺 clientDeks 以
     // 隐晦 MISSING_CLIENT_DEK 拒收，应急开关形同虚设——显式拒收并指引按旧流程投递。
     if (!dualOn && envelope?.version === 'dual-v2') {
+      // SUP-P2-03：供应商门户旧轨表单已下线（前端仅剩绑盾引导）——「按旧流程投递」无从执行，
+      // 文案改为应急指引；回退语义=API 侧放行旧轨 clientDeks，供应商投递需管理员线下引导。
       throw new BadRequestException({
-        error: '平台暂未启用双层信封，请按旧流程投递或联系管理员',
+        error: '平台双层信封服务维护中，请联系管理员处理投标事宜（应急通道）',
         code: 'DUAL_DISABLED',
       });
     }

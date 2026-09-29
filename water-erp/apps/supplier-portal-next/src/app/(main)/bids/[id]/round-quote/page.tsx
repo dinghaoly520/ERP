@@ -84,7 +84,8 @@ export default function RoundQuotePage() {
 
   // el-input-number(min=0.01, precision=2) → 原生 number 输入 + parseFloat（空串视为未填）
   const quotePrice = quotePriceText.trim() === "" ? undefined : parseFloat(quotePriceText);
-  const quotePriceValid = quotePrice != null && Number.isFinite(quotePrice);
+  // SUP-P2-04：>0 前置（min=0.01 是 HTML 属性不设防；服务端 DTO 同口径）
+  const quotePriceValid = quotePrice != null && Number.isFinite(quotePrice) && quotePrice > 0;
 
   const currentOpenRound = rounds.find((r) => r.status === "open");
   const currentOpenMyQuote = currentOpenRound ? myQuotes[currentOpenRound.id] : undefined;
@@ -198,7 +199,9 @@ export default function RoundQuotePage() {
       // L4: P2002 唯一约束冲突（双 tab 并发）或后端 ALREADY_QUOTED → 友好提示
       const errMsg =
         e instanceof ApiError ? ((e.data as any)?.error ?? e.code) : undefined;
-      if (errMsg === "ALREADY_QUOTED" || (e instanceof ApiError && e.status === 400)) {
+      // SUP-P2-05：仅 ALREADY_QUOTED 显示「已提交」话术——此前一切 400（截止/不在名单/
+      // 已废标）都被误报成「本轮已提交报价」且与全局 toast 双弹
+      if (e instanceof ApiError && e.code === "ALREADY_QUOTED") {
         toast.warning("本轮已提交报价，不可重复提交");
       } else {
         toast.error(errMsg || "提交失败");

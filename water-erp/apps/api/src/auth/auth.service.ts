@@ -485,9 +485,20 @@ export class AuthService {
     return updated;
   }
 
+  /**
+   * X-P1-02（2026-09-29 审查修复）：登出吊销仅适用于带 sid 的单设备会话
+   * （web/supplier/expert 命名空间——rotatePortalSession 签发的 token 恒带 sid）。
+   * token_bid 等无 sid 会话登出返回 false：不得清 webSessionId，否则 :3007 登出
+   * 会误杀同账号在 :3005 的活会话（跨命名空间互杀）；无 sid 会话本就不校验此列。
+   * 验签失败（过期/伪造）保守返回 false——登出仍清 cookie，只是不动库。
+   */
+  async shouldRevokeSession(token: string): Promise<boolean> {
+    const payload = await this.jwt.verifyAsync<{ sid?: string }>(token).catch(() => null);
+    return !!payload?.sid;
+  }
+
   issueToken(sub: string, username: string, role: string, sid?: string) {
-    const access_token = this.jwt.sign({ sub, username, role, ...(sid ? { sid } : {}) });
-    return { access_token, role, username, userId: sub };
+    const access_token = this.jwt.sign({ sub, username, role, ...(sid ? { sid } : {}) });    return { access_token, role, username, userId: sub };
   }
 
   /**

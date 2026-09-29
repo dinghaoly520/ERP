@@ -1,3 +1,5 @@
+import { isTransferClaimed } from './transfer-claimed-flag';
+
 /**
  * :3006 专家门户单设备登录——被顶下线 / 账号冻结 提示（2026-09-20，移植自 :3004/:3005）。
  *
@@ -13,6 +15,12 @@
  */
 
 let shown = false;
+
+/** EXP-P2-07（2026-09-29）：中性「会话已移交」遮罩的关闭——移除元素并复位一次性旗标 */
+function dismissOverlay() {
+  shown = false;
+  document.getElementById('session-kick-overlay')?.remove();
+}
 
 function goToLogin() {
   if (window.location.pathname !== '/login') window.location.href = '/login';
@@ -43,6 +51,7 @@ function renderOverlay(spec: OverlaySpec) {
   shown = true;
 
   const overlay = document.createElement('div');
+  overlay.id = 'session-kick-overlay';
   overlay.setAttribute('role', 'alertdialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.cssText = [
@@ -108,6 +117,18 @@ function renderOverlay(spec: OverlaySpec) {
 
 /** 被顶下线：询问是否反馈管理员，两条路径都回登录页 */
 export function showSessionReplacedOverlay(message?: string) {
+  // EXP-P2-07（2026-09-29）：本端签发的工位迁移已被平板领取——桌面旧 token 失效是
+  // 预期结果：中性「会话已移交」终态文案，不发虚假安全反馈、不 20s 强跳登录
+  // （评标窗口内重登会被闸4 以 409 拒）。
+  if (isTransferClaimed()) {
+    renderOverlay({
+      title: '会话已移交',
+      desc: '本机评审会话已移交至打分平板，本页可安全关闭（无需重新登录）。',
+      primaryText: '知道了',
+      onPrimary: dismissOverlay,
+    });
+    return;
+  }
   renderOverlay({
     title: '登录已失效',
     desc: `${message && message.trim() ? message : '该账号已在其他设备登录'}。是否向管理员反馈？`,

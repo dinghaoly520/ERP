@@ -20,7 +20,7 @@ import {
   type ClientDek,
 } from "@/utils/bid-crypto";
 import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@water-erp/ukey";
-import { serverNowMs, syncServerClock } from "@water-erp/shared";
+import { serverNowMs, syncServerClock , formatBidPrice } from "@water-erp/shared";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
@@ -164,13 +164,9 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// bidPrice 存为字符串，可能以万元或元为单位。≥10000 视为元自动换算。
-function formatBidPrice(raw: string | number | null | undefined): string {
-  const n = Number(raw);
-  if (!raw || isNaN(n)) return "未填写";
-  if (n >= 10000) return `${(n / 10000).toFixed(2)} 万元`;
-  return `${n} 万元`;
-}
+// X-P2-04（2026-09-29）：本地「≥10000 视为元」启发式裸 ÷10000 已删——表单口径为万元
+// （placeholder「如：1260」），≥1 亿元（≥10000 万元）报价会被折成「1.20 万元」差一万倍，
+// 违反「万元↔元桥接只准经 shared format-bid.ts」铁律。改用 shared formatBidPrice(unitHint='万元')。
 
 function BidSubmitInner() {
   const router = useRouter();
@@ -275,6 +271,11 @@ function BidSubmitInner() {
   const draftKey = `bidsubmit:${projectId}:${profile?.userId || ''}`;
   const draft = useAutoSave(draftKey, form, { enabled: autoSaveReady });
   useLeaveGuard(draft.dirty);
+  // SUP-P1-04（2026-09-29）：draftKey 首渲染时 profile 尚为 null（userId 段为空）——
+  // 挂载 effect 闭包若直读 draftKey / draft 实例，会与 useAutoSave 内部（key 变化后
+  // 重跑）写入的带 userId 键永不相交，恢复横幅成不可达死 UI。经 ref 取最新键与最新实例。
+  const draftKeyRef = useRef(draftKey); draftKeyRef.current = draftKey;
+  const draftApiRef = useRef(draft); draftApiRef.current = draft;
 
   // E2EE: localStorage key for DEK persistence (separate from form draft)
   const dekStorageKey = `supplier_dek:bidsubmit:${projectId}:${profile?.userId || ''}`;
@@ -481,9 +482,10 @@ function BidSubmitInner() {
         }
         restoreDeks(); // E2EE: restore DEKs / dual entries from previous session
         // 预热管理方加密证书（新轨上传/提交需要；失败在上传时按需重试并报错）
-        if (profile?.sm2PublicKey) getAdminCertCached().catch(() => {});
-        const ts = readDraftTs(draftKey);
-        if (draft.restoreDraft() && ts && (!subLocal || ts > new Date(subLocal.updatedAt).getTime())) {
+        // SUP-P3-10：用 effect 内已加载的 prof——闭包里的 profile 是首渲染的 null，恒假死条件
+        if (prof?.sm2PublicKey) getAdminCertCached().catch(() => {});
+        const ts = readDraftTs(draftKeyRef.current);
+        if (draftApiRef.current.restoreDraft() && ts && (!subLocal || ts > new Date(subLocal.updatedAt).getTime())) {
           setRecoveryTs(ts);
           setShowRecovery(true);
         }
@@ -711,12 +713,13 @@ function BidSubmitInner() {
     } else {
       const total = splitCats.tech.files.length + splitCats.biz.files.length + splitCats.other.files.length;
       fileOk = total > 0;
-      fileDetail = fileOk ? `已上传 ${total} 个文件` : "未上传任何文件";
+      // SUP-P1-01：明示参检口径——信封/评分管道只取每类第 1 个文件
+      fileDetail = fileOk ? `已上传 ${total} 个文件（每类仅第 1 个参检）` : "未上传任何文件";
     }
     const items = [
       { label: "供应商资质", detail: isApproved ? "已入库，可投标" : "未通过审核，无法投标", ok: isApproved, required: true },
       { label: "U盾证书", detail: dualReady ? (ukeyAdapter ? `已解锁（${ukeyCertSn}）` : "已绑定，提交时校验证书口令") : "未绑定（请先绑定 U盾）", ok: true, required: false },
-      { label: "投标报价", detail: dualReady ? "密封进双层信封（开标时揭示）" : formatBidPrice(form.bidPrice), ok: !!form.bidPrice, required: true },
+      { label: "投标报价", detail: dualReady ? "密封进双层信封（开标时揭示）" : (form.bidPrice ? formatBidPrice(form.bidPrice, { prefix: "", unitHint: "万元" }) : "未填写"), ok: !!form.bidPrice, required: true },
       { label: "交货工期", detail: form.deliveryPeriod || "未填写", ok: !!form.deliveryPeriod, required: true },
       { label: "质量承诺", detail: form.qualityCommitment || "未填写", ok: !!form.qualityCommitment, required: false },
       { label: submissionMode === "full" ? "完整标书文件" : "拆分标书文件", detail: fileDetail, ok: fileOk, required: true },
@@ -927,7 +930,8 @@ function BidSubmitInner() {
                     </div>
                   )}
 
-                  {/* 拆分文件：三个分类，每类多文件 */}
+                  {/* 拆分文件：三个分类——每类仅第一个文件参检（collectDeclaredAssetIds/normalizeBidFileAssets
+                      同口径取每类首个），达 1 个即停加并明示，消除多文件静默丢弃（SUP-P1-01） */}
                   {submissionMode === "split" && SPLIT_KEYS.map((cat) => (
                     <div className="b-form-item" key={cat}>
                       <label className={cat === "tech" ? "b-required" : undefined}>{splitCats[cat].label}</label>
@@ -936,11 +940,14 @@ function BidSubmitInner() {
                           <div className="split-cat-head">
                             <AddFileButton
                               accept=".pdf,.zip,.rar"
-                              disabled={!canSubmit || splitCats[cat].uploading}
+                              disabled={!canSubmit || splitCats[cat].uploading || splitCats[cat].files.length >= 1}
                               uploading={splitCats[cat].uploading}
                               onFile={(f) => handleSplitUpload(cat, f)}
                             />
-                            <span className="file-hint">{splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB</span>
+                            <span className="file-hint">
+                              {splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB
+                              {splitCats[cat].files.length >= 1 ? " · 每类仅第一个文件参与评审与密封，多文件请合并后重新上传" : " · 每类仅第一个文件参检"}
+                            </span>
                             {splitCats[cat].progress !== null && <div className="w-[120px]"><SpProgress value={splitCats[cat].progress} /></div>}
                           </div>
                           {splitCats[cat].files.length > 0 && (

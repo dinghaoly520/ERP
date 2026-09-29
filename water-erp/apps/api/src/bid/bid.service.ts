@@ -1681,7 +1681,7 @@ export class BidService {
       }
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const txResult = await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, id, 'OPENING'); // C1: 事务内行锁后复查阶段（同阶段 OPENING→OPENING 幂等放行）
       let sessionUpserted = false;
       if (hasRequiredSessionFields) {
@@ -1721,6 +1721,15 @@ export class BidService {
         await this.syncPmStage(tx, { projectManagementItemId: project.projectManagementItemId, round: project.round }, 'IN_PROGRESS');
       }
 
+      // BID-P3-03（2026-09-29 审查修复）：WS 事件改在事务提交后发送（记录待发参数）——
+      // 事务内发射在 syncPmStage 等后续步骤抛错回滚时已把假成功事件发给客户端
+      // （bid-decrypt.service 同款反模式已修；completeOpening 亦为事务后通知模式）
+      return { updated, wsMeta: { sessionUpserted, action, result } };
+    });
+
+    // 事务已提交——在此发 WS（回滚不再产生假事件）
+    {
+      const { sessionUpserted, action, result } = txResult.wsMeta;
       this.gateway?.notifyStageChange(id, project.stage, 'OPENING', 'host');
       // 仅在真正 upsert 了会话时通知开标启动；裸推阶段（:3005 确定开标）不触发，
       // 否则 :3007 会收到 {host:'系统'} 事件误判会话已建（监督人选填，不再作为触发条件）
@@ -1728,9 +1737,9 @@ export class BidService {
         this.gateway?.notifyOpeningStarted(id, { host: dto.host, supervisor: dto.supervisor ?? null });
       }
       this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action, target: project.name, result, riskFlag: '无' });
+    }
 
-      return updated;
-    });
+    const updated = txResult.updated;
 
     // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发
     if (isTransitioning) {

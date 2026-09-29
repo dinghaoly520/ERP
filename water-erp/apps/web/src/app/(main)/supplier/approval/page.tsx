@@ -192,7 +192,8 @@ function SupplierApprovalPage() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
 
-  // 无审批权角色：就绪前空态防闪现，就绪后无权限卡（后端守卫兜底）
+  // 无审批权角色：就绪前空态防闪现，就绪后无权限卡（后端守卫兜底；
+  // 三角色口径=X-P2-07，与 supplier.controller @Roles 对齐）
   if (!roleReady) return null;
   if (myRole !== 'admin' && myRole !== 'leader' && myRole !== 'staff') {
     return (
@@ -201,7 +202,7 @@ function SupplierApprovalPage() {
           <ShieldCheck size={22} className="text-[var(--muted-foreground)]" />
         </div>
         <p className="text-sm font-bold text-[var(--foreground)]">供应商审批中心仅对管理权限账号开放</p>
-        <p className="text-xs text-[var(--muted-foreground)]">如有需要请联系管理员</p>
+        <p className="text-xs text-[var(--muted-foreground)]">新供应商的注册审批与邀请码由本公司的领导/管理员/采购经办处理，如有需要请联系管理员</p>
       </div>
     );
   }

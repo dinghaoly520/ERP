@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import { CloudOff, KeyRound, Lock, MessageSquareOff, ShieldCheck, User } from "lucide-react";
+import { CloudOff, KeyRound, Lock, MessageSquareOff, ShieldCheck, User, Wifi } from "lucide-react";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import type { UKeyAdapter } from "@water-erp/ukey";
@@ -313,7 +313,12 @@ export default function OpeningHallPage() {
 
   // 实时事件 → UI：阶段流转/唱标更新→refresh；解密仅认本司；在场计数直写；
   // 异议处理结果 toast（确认/退回）。handlers 每渲染取最新闭包（详见 use-bid-websocket.ts）
-  useBidWebSocket(projectId, () => ({
+  // X-P2-09/SUP-P3-06：接回 connection/reconnectNow——重连即全量补拉（断连窗口错过的事件
+  // 此前无任何补偿），顶栏渲染连接徽标与手动刷新按钮（对齐 :3007 任务板 O5/O6 口径）
+  const { connection: wsConnection, reconnectNow: wsReconnectNow } = useBidWebSocket(projectId, () => ({
+    onReconnected: () => {
+      refresh().catch(() => {});
+    },
     // refresh 内部已 try/catch（失败置标志、保留上次数据），.catch 仅作兜底，避免 unhandled rejection
     onStageChange: () => {
       refresh().catch(() => {});
@@ -388,6 +393,14 @@ export default function OpeningHallPage() {
                   <User size={14} strokeWidth={2} />
                   在线 <b className="num">{onlineCount}</b> 家
                 </span>
+                {/* X-P2-09/SUP-P3-06：连接状态徽标 + 手动刷新（断连期间数据静默陈旧，此前无任何指示） */}
+                <span className="presence" style={{ color: wsConnection === "connected" ? undefined : "var(--danger)" }}>
+                  <Wifi size={14} strokeWidth={2} />
+                  {wsConnection === "connected" ? "实时" : wsConnection === "reconnecting" ? "重连中…" : "离线"}
+                </span>
+                <button type="button" className="neu-btn-xs" onClick={() => { wsReconnectNow(); refresh().catch(() => {}); }}>
+                  刷新
+                </button>
               </div>
             </div>
           </header>
