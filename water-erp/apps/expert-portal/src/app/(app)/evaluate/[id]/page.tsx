@@ -9,6 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
+import { markTransferClaimed } from '@/lib/transfer-claimed-flag';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Smartphone } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
@@ -738,6 +739,12 @@ export default function ExpertEvaluatePage() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferTicket, setTransferTicket] = useState<{ ticket: string; ticketId: string; expiresInSeconds: number } | null>(null);
   const [transferStatus, setTransferStatus] = useState<'pending' | 'claimed' | 'expired'>('pending');
+  // EXP-P2-07：平板领取成功即打模块级标志——桌面 SessionWatchdog 停跳、SESSION_REPLACED
+  // 呈中性「会话已移交」终态（claimExpertTransfer 成功即轮换会话，桌面旧 token 必失效，
+  // 属自家迁移的预期结果，不该弹「异地登录疑似冒用」+虚假管理员反馈+20s 强跳）
+  useEffect(() => {
+    if (transferStatus === 'claimed') markTransferClaimed();
+  }, [transferStatus]);
   const [transferBusy, setTransferBusy] = useState(false);
   const [transferCountdown, setTransferCountdown] = useState(0);
   const openTransferDialog = async () => {
