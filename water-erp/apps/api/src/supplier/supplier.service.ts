@@ -806,8 +806,17 @@ export class SupplierService {
     if (params.evalLevel) {
       where.evaluations = { some: { finalGrade: params.evalLevel } };
     }
-    if (params.qualificationStatus) {
-      where.qualifications = { some: { status: params.qualificationStatus } };
+    // 资质状态筛选按 validTo 派生（2026-09-29 S4 终稿）：qualifications.status 字段
+    // 自创建后无人回写（默认'有效'恒不变）——此前选"已过期/即将过期"恒空；与资质预警
+    // 面板同口径（已过期=validTo<今；即将过期=今~+30天；有效=null 或 ≥+30天）
+    if (params.qualificationStatus === '已过期') {
+      where.qualifications = { some: { validTo: { lt: new Date() } } };
+    } else if (params.qualificationStatus === '即将过期') {
+      const soon = new Date(); soon.setDate(soon.getDate() + 30);
+      where.qualifications = { some: { validTo: { gte: new Date(), lt: soon } } };
+    } else if (params.qualificationStatus === '有效') {
+      const soon = new Date(); soon.setDate(soon.getDate() + 30);
+      where.qualifications = { some: { OR: [{ validTo: null }, { validTo: { gte: soon } }] } };
     }
     // 临时供应商筛选（凭邀请码注册、有效期由邀请码绑定）。与状态可叠加，如 isTemporary=true & status=APPROVED。
     if (params.isTemporary === true) where.isTemporary = true;
@@ -899,8 +908,25 @@ export class SupplierService {
     if (where.evaluations?.some?.level) {
       conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierEvaluation" e WHERE e."supplierId" = s.id AND e."finalGrade" = ${where.evaluations.some.level}::"ExpertLevel")`);
     }
-    if (where.qualifications?.some?.status) {
-      conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND q."status" = ${where.qualifications.some.status})`);
+    // 资质状态筛选（S4 终稿）：Prisma 路径产出的 validTo 派生形状三态翻译；
+    // 旧 status 形状保留兜底。raw 路径漏译即静默 no-op（:4099 实测两口径同返 12 的病根）
+    if (where.qualifications?.some) {
+      const q = where.qualifications.some;
+      if (q.validTo?.lt && !q.validTo.gte) {
+        // 已过期
+        conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND q."validTo" < ${q.validTo.lt})`);
+      } else if (q.validTo?.gte && q.validTo?.lt) {
+        // 即将过期（窗口 [gte, lt)）
+        conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND q."validTo" >= ${q.validTo.gte} AND q."validTo" < ${q.validTo.lt})`);
+      } else if (Array.isArray(q.OR)) {
+        // 有效（validTo IS NULL OR validTo >= 阈值）
+        const threshold = (q.OR.find((o: any) => o.validTo?.gte)?.validTo as any)?.gte;
+        if (threshold) {
+          conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND (q."validTo" IS NULL OR q."validTo" >= ${threshold}))`);
+        }
+      } else if (q.status) {
+        conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND q."status" = ${q.status})`);
+      }
     }
     if (where.isTemporary === true) {
       conditions.push(Prisma.sql`s."isTemporary" = TRUE`);
@@ -1559,10 +1585,20 @@ export class SupplierService {
   }
 
   async listChanges(supplierId: string) {
-    return this.prisma.supplierChangeRecord.findMany({
+    const rows = await this.prisma.supplierChangeRecord.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
     });
+    // enrich 审批人姓名（S10 终稿，2026-09-29）：reviewedBy 存 user id（标量列），
+    // 此前前端直出 cuid UUID——此处反查补 reviewedByName
+    const reviewerIds = [...new Set(rows.map(r => r.reviewedBy).filter((v): v is string => !!v))];
+    if (reviewerIds.length === 0) return rows;
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: reviewerIds } },
+      select: { id: true, displayName: true, username: true },
+    });
+    const nameOf = new Map(users.map(u => [u.id, u.displayName || u.username]));
+    return rows.map(r => ({ ...r, reviewedByName: r.reviewedBy ? nameOf.get(r.reviewedBy) ?? null : null }));
   }
 
   /** 审批中心右上角角标（2026-09-29）：当前登录人「待我审」数量

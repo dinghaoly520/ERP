@@ -801,11 +801,12 @@ export default function SupplierRepositoryPage() {
             <option value="">评价等级</option>
             {['A','B','C','D','E'].map(l => <option key={l} value={l}>{l} 级</option>)}
           </select>
-          {/* 2026-09-28 审计 S4 停用：后端按 qualifications.status 过滤，而该字段创建后无人回写
-              （资质预警面板自己都绕开它按 validTo 派生）——选"已过期/即将过期"恒空。待后端改按
-              validTo 派生后恢复。 */}
-          <select value="" disabled title="资质状态筛选待后端按有效期派生（当前字段无人维护，结果恒空）" className="workbench-input !w-auto !h-7 !text-[11px] opacity-50">
-            <option value="">资质状态（维护中）</option>
+          {/* S4 已修（2026-09-29 终稿）：后端改按 validTo 派生（与资质预警同口径），筛选恢复 */}
+          <select value={advQualStatus} onChange={e => { setAdvQualStatus(e.target.value); setPage(1); }} className="workbench-input !w-auto !h-7 !text-[11px]">
+            <option value="">资质状态</option>
+            <option value="有效">有效</option>
+            <option value="即将过期">即将过期</option>
+            <option value="已过期">已过期</option>
           </select>
         </div>
       )}

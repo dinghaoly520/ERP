@@ -86,7 +86,11 @@ export default function SupplierDetailPage() {
   const [evaluations, setEvaluations] = useState<SupplierEvaluation[]>([]);
   const [changes, setChanges] = useState<SupplierChangeRecord[]>([]);
   const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('info');
+  // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=qualifications 等
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    (typeof window !== 'undefined' && ['info', 'portrait', 'contacts', 'qualifications', 'evaluations', 'records', 'changes', 'communications', 'documents'].includes(new URL(window.location.href).searchParams.get('tab') || '')
+      ? new URL(window.location.href).searchParams.get('tab') as TabKey : 'info'),
+  );
   const [loading, setLoading] = useState(true);
 
   // 注册审批=归属公司管理账号（2026-09-26 改定；后端 @Roles + 公司域校验同步）
@@ -695,17 +699,30 @@ export default function SupplierDetailPage() {
                             <td className="font-medium tabular-nums text-[var(--foreground)]">{p.contractAmount || '—'}</td>
                             <td className="text-[var(--muted-foreground)] tabular-nums">{p.signDate ? new Date(p.signDate).toLocaleDateString('zh-CN') : '—'}</td>
                             <td>
-                              {Array.isArray(p.proofFiles) && p.proofFiles.length > 0 ? (
-                                <div className="flex flex-col gap-0.5">
-                                  {p.proofFiles.map((f, i) => (
-                                    <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline">
-                                      <Paperclip size={11} className="flex-shrink-0" />
-                                      <span className="truncate max-w-[160px]">{f.name || `证明材料 ${i + 1}`}</span>
-                                    </a>
-                                  ))}
-                                </div>
-                              ) : <span className="text-xs text-[var(--muted-foreground)]">—</span>}
+                              {Array.isArray(p.proofFiles) && p.proofFiles.length > 0 ? (() => {
+                                // kind 分组（2026-09-29 与注册表统一）：payment=银行汇款凭证，其余/旧数据=证明材料
+                                const files = p.proofFiles.filter((f: { url?: string }) => f?.url);
+                                const proofs = files.filter((f: { kind?: string }) => f.kind !== 'payment');
+                                const payments = files.filter((f: { kind?: string }) => f.kind === 'payment');
+                                return (
+                                  <div className="flex flex-col gap-0.5">
+                                    {proofs.map((f: { name?: string; url: string }, i: number) => (
+                                      <a key={`p-${i}`} href={f.url} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline">
+                                        <Paperclip size={11} className="flex-shrink-0" />
+                                        <span className="truncate max-w-[160px]">{f.name || `证明材料 ${i + 1}`}</span>
+                                      </a>
+                                    ))}
+                                    {payments.map((f: { name?: string; url: string }, i: number) => (
+                                      <a key={`y-${i}`} href={f.url} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs text-[var(--success)] hover:underline" title="银行汇款凭证">
+                                        <Landmark size={11} className="flex-shrink-0" />
+                                        <span className="truncate max-w-[160px]">{f.name || `汇款凭证 ${i + 1}`}</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                );
+                              })() : <span className="text-xs text-[var(--muted-foreground)]">—</span>}
                             </td>
                           </tr>
                         ))}
@@ -1127,9 +1144,8 @@ export default function SupplierDetailPage() {
                                 { action: '提交变更申请', actor: supplier.name, time: c.createdAt, note: c.reason, outcome: 'pending' as const },
                                 ...(c.status !== 'PENDING' ? [{
                                   action: c.status === 'APPROVED' ? '审批通过' : '审批拒绝',
-                                  // S10（2026-09-29）：后端 reviewedBy 存的是 user id（cuid）非姓名对象——直出是一串
-                    // 无意义 UUID，形状守卫后隐藏；待后端 listChanges enrich displayName 后恢复
-                    actor: (typeof c.reviewedBy === 'string' && /^[a-z0-9]{20,}$/.test(c.reviewedBy)) ? undefined : (c.reviewedBy ?? undefined),
+                                  // S10 终稿：后端已 enrich reviewedByName；reviewedBy（user id）仅作历史数据兜底经形状守卫隐藏
+                    actor: (c as any).reviewedByName ?? ((typeof c.reviewedBy === 'string' && /^[a-z0-9]{20,}$/.test(c.reviewedBy)) ? undefined : (c.reviewedBy ?? undefined)),
                                   time: c.reviewedAt ?? null,
                                   note: c.rejectReason ?? null,
                                   outcome: c.status === 'APPROVED' ? 'approved' as const : 'rejected' as const,
