@@ -152,14 +152,21 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   // 服务端分页/搜索/排序（2026-09-29 R5：此前全量拉取前端切片——目录增长后全量传输；
   // 分页后跨页排序/搜索不可行，随之下沉服务端；搜索 300ms 防抖）
   const [total, setTotal] = useState(0);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  // 初始值与 search 同源（终审 P2）：?q= 深链不再先发一次未过滤请求再闪现过滤结果
+  const [debouncedSearch, setDebouncedSearch] = useState(() => search.trim());
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 300);
     return () => clearTimeout(t);
   }, [search]);
   const { sortKey, sortDir, toggle } = useSort<CatalogItem>('code', 'asc');
+  // 终审 P1：toggle 不像 tab/品类/搜索那样内联 setPage(1)——page>1 点排序表头会
+  // 先以旧页码+新排序发请求、随后 setPage(1) 再发一次，双请求竞速旧响应晚到覆盖新状态
+  const handleSortToggle = (key: string) => { toggle(key); setPage(1); };
 
+  // 请求序号守卫（终审 P1）：快速切筛选/排序/翻页时丢弃过期响应，防旧数据覆盖新状态
+  const loadReqIdRef = useRef(0);
   const load = async () => {
+    const rid = ++loadReqIdRef.current;
     setLoading(true);
     try {
       const params: Record<string, string | number | undefined> = {
@@ -170,15 +177,23 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
       // stats 与列表解耦：stats 挂掉（非内部角色 403 / 瞬时 500）时 KPI 显示「—」，
       // 列表照常渲染；只有列表本身失败才报错
       const [listRes, statsRes] = await Promise.allSettled([listCatalogItems(params), getCatalogStats()]);
+      if (rid !== loadReqIdRef.current) return; // 过期响应直接丢弃
       if (listRes.status === 'fulfilled') {
         const res = listRes.value;
         if (Array.isArray(res)) { setItems(res); setTotal(res.length); } // 旧后端兜底
-        else { setItems(res.items); setTotal(res.total); }
+        else {
+          setItems(res.items); setTotal(res.total);
+          // 终审 P2：末页条目被下架/停用后 page>totalPages 会困在越界空页（footer 也消失）——回正
+          const tp = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
+          if (res.total > 0 && page > tp) setPage(tp);
+        }
       } else {
         toast.error(listRes.reason?.message ?? '目录加载失败');
       }
       setStats(statsRes.status === 'fulfilled' ? statsRes.value : null);
-    } finally { setLoading(false); }
+    } finally {
+      if (rid === loadReqIdRef.current) setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [status, selectedCategoryId, page, sortKey, sortDir, debouncedSearch]);
   // 切排序/筛选回到第 1 页（分页后页码无意义延续）
@@ -309,10 +324,10 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
                     onChange={toggleSelectPage} aria-label="全选当页" className="neu-checkbox" />
                 </th>
               )}
-              <SortableTh label="编码" field="code" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-              <SortableTh label="名称/规格" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+              <SortableTh label="编码" field="code" sortKey={sortKey} sortDir={sortDir} onToggle={handleSortToggle} />
+              <SortableTh label="名称/规格" field="name" sortKey={sortKey} sortDir={sortDir} onToggle={handleSortToggle} />
               <th className="text-center">品类</th>
-              <SortableTh label="参考价" field="referencePrice" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
+              <SortableTh label="参考价" field="referencePrice" sortKey={sortKey} sortDir={sortDir} onToggle={handleSortToggle} />
               <th className="text-center">供应商</th>
               <th className="text-center">状态</th>
               <th className="text-center">操作</th>
@@ -351,9 +366,10 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
             </tbody>
           </table>
         </div>
-        {sortedItems.length > 0 && (
+        {(total > 0 || sortedItems.length > 0) && (
           <div className="neu-table-card-footer flex justify-between items-center px-4 py-2 text-xs text-[var(--muted-foreground)]">
-            <span>共 <strong className="text-[var(--foreground)]">{sortedItems.length}</strong> 条 · 第 {page}/{totalPages} 页</span>
+            {/* 终审 P1：显示服务端全量 total（sortedItems 此=当页 ≤20） */}
+            <span>共 <strong className="text-[var(--foreground)]">{total}</strong> 条 · 第 {page}/{totalPages} 页</span>
             <div className="flex gap-1">
               <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} aria-label="上一页" className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-[-90deg]" /></button>
               <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} aria-label="下一页" className="neu-btn-xs disabled:opacity-30"><ChevronUp size={14} className="rotate-90" /></button>

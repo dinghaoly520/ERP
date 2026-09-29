@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -34,15 +35,19 @@ export class CatalogAdminListQueryDto {
   @IsString()
   category?: string;
 
-  // 可选服务端分页（2026-09-29 R5）：不带=全量数组（向后兼容），带={items,total}
+  // 可选服务端分页（2026-09-29 R5）：不带=全量数组（向后兼容），带={items,total}。
+  // 边界（终审 P2）：page≥1（负数会让 skip<0 → Prisma 500）；pageSize 上限 500 防巨量 take
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(1)
   page?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(1)
+  @Max(500)
   pageSize?: number;
 
   @IsOptional()
