@@ -159,10 +159,12 @@ export class CatalogService {
     }
     const where = filters.length ? { AND: filters } : undefined;
     const include = { attributes: { include: { template: true } }, categoryRel: true };
+    // 多字段排序必须数组形态（对象多键会被 Prisma 拒绝——Expected [] provided Object，
+    // :4099 实测 sortBy=name 炸 500）；请求字段为主序，code 升序作决胜消除翻页抖动
     const SORTABLE = ['code', 'name', 'referencePrice', 'updatedAt', 'validUntil'];
-    const orderBy: any = { code: 'asc' };
-    if (params.sortBy && SORTABLE.includes(params.sortBy)) {
-      orderBy[params.sortBy] = params.sortOrder === 'desc' ? 'desc' : 'asc';
+    const orderBy: any[] = [{ code: 'asc' }];
+    if (params.sortBy && SORTABLE.includes(params.sortBy) && params.sortBy !== 'code') {
+      orderBy.unshift({ [params.sortBy]: params.sortOrder === 'desc' ? 'desc' : 'asc' });
     }
     if (params.page && params.pageSize) {
       const [items, total] = await Promise.all([
