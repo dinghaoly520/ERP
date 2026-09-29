@@ -408,10 +408,13 @@ export default function TabletEvaluatePage() {
     !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!project?.myExpertRecord?.reportConfirmed;
   // 身份核验/回避/AI声明完成标志（后端仍强制；前端对齐桌面体验，避免专家填完才报错）
+  // EXP-P2-05：补齐后端五项核验中的保密承诺/评标纪律（与桌面同口径）
   const verificationComplete =
     !!project?.myExpertRecord?.signedIn &&
     !!project?.myExpertRecord?.avoidanceConfirmed &&
-    !!project?.myExpertRecord?.aiConsentConfirmed;
+    !!project?.myExpertRecord?.aiConsentConfirmed &&
+    !!project?.myExpertRecord?.confidentialityAgreed &&
+    !!project?.myExpertRecord?.disciplineAgreed;
   // 修改确认：拦截已有值的修改（平板防误触）
   const [pendingModify, setPendingModify] = useState<{
     scoreItemId: string;

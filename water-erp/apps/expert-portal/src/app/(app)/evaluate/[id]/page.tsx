@@ -10,7 +10,7 @@ import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationRep
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
 import { markTransferClaimed } from '@/lib/transfer-claimed-flag';
-import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Smartphone } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Smartphone, UserRoundCog } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
 import { QRCodeSVG } from 'qrcode.react';
@@ -125,6 +125,13 @@ export default function ExpertEvaluatePage() {
   const assistSeqRef = useRef(0);
 
   const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
+    onExpertPresence: (d) => {
+      // EXP-P2-02：本人候补→正选转正（或互换）即时刷新——myExpertRecord.expertRole 变化解锁签到
+      if (d.milestone === 'role_changed') {
+        toast.info('评审专家名单已变更，正在刷新…');
+        loadProject();
+      }
+    },
     onAggregatePresence: (d: any) => {
       setAggregatePresence(d);
       // notify when all experts have confirmed reports
@@ -256,10 +263,13 @@ export default function ExpertEvaluatePage() {
   const stepAccessible = (sKey: Step): boolean => {
     switch (sKey) {
       case 'verify': return true;
-      case 'documents': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
-      case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
-      case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
-      case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed;
+      // EXP-P2-05：与后端五项核验闸对齐（getDecryptedDocuments 等 403 VERIFICATION_REQUIRED 同口径）——
+      // 此前只查三项（漏保密承诺/评标纪律），协议 PATCH fire-and-forget 失败时本地勾选态已真、
+      // 专家可点进标书/AI/打分步，提交时才撞 403 五项清单
+      case 'documents': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
+      case 'assist': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
+      case 'compare': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
+      case 'scoring': return !!expert?.signedIn && !!expert?.avoidanceConfirmed && !!expert?.aiConsentConfirmed && !!expert?.confidentialityAgreed && !!expert?.disciplineAgreed;
       case 'verify-score': return (expert?.progress ?? 0) >= 100;
       case 'report': return !!expert?.reportConfirmed || (expert?.progress ?? 0) >= 100;
     }
@@ -662,6 +672,10 @@ export default function ExpertEvaluatePage() {
   }, [activeSupplier, projectId]);
 
   const expert = project?.myExpertRecord;
+  // EXP-P2-02：候补专家（expertRole!=='正选'）——R5 递补前非评标委员会成员（招标投标法第37条），
+  // 签到入口收口+待命横幅；被递补转正时 WS role_changed 里程碑触发 loadProject 自动解锁
+  const expertRole = (expert as { expertRole?: string } | undefined)?.expertRole;
+  const isSubstitute = !!expertRole && expertRole !== '正选';
 
   // 回避声明脏检查（2026-09-22）：已确认且勾选与服务端申报一致 → 按钮转「已确认」禁用，
   // 杜绝确认后反复点击（每次 POST 都会重写申报并新增一条监督日志）；勾选变化才重新激活
@@ -1404,7 +1418,9 @@ export default function ExpertEvaluatePage() {
               }}
               className="neu-select w-full !h-8 !text-xs">
               <option value="">选择供应商（必选）</option>
-              {project.suppliers.filter(s => s.bidValidity !== 'invalid').map(s => (
+              {project.suppliers.filter(s => s.bidValidity !== 'invalid'
+                // EXP-P2-06：回避供应商不下拉（回避名单=行 id，与勾选集合同键；后端 list/create 已拦）
+                && !conflictedSupplierIds.has(s.id)).map(s => (
                 <option key={s.id} value={s.id}>{s.supplierName}</option>
               ))}
             </select>
@@ -1559,6 +1575,16 @@ export default function ExpertEvaluatePage() {
                               {faceVerifying ? '正在签到…' : '签到完成'}
                             </p>
                           </div>
+                        </div>
+                      ) : isSubstitute ? (
+                        /* EXP-P2-02：候补专家待命卡——正选缺席被递补前不进委员会（R5：开标后/评标前/未签到可换），
+                           此前候补与正选看到完全相同的签到相机，拍照上传后才被 403 SUBSTITUTE_EXPERT 打断（照片成孤儿资产） */
+                        <div className="rounded-xl border border-dashed border-[var(--warning,#d99a2b)] bg-[oklch(0.97_0.03_90)] p-5 text-center">
+                          <UserRoundCog size={22} strokeWidth={1.5} className="mx-auto mb-2 text-[var(--accent-strong)]" />
+                          <p className="text-sm font-semibold">候补评审专家 · 待命中</p>
+                          <p className="mt-1 text-xs opacity-80 leading-relaxed">
+                            您当前为本项目候补专家，正选专家缺席时将按程序递补。递补转正后本页自动刷新，即可开始身份核验与签到；请保持页面开启或留意站内通知。
+                          </p>
                         </div>
                       ) : (
                         <SigninCamera

@@ -75,6 +75,13 @@ export default function ExpertProfilePage() {
     { label: '平均给分', value: profile.averageScore ?? 0, sub: '历史评分均值', sig: 'var(--accent)', sigLabel: '均值', Icon: TrendingUp },
   ];
 
+  /** EXP-P2-04：身份证号脱敏（前4后3；短串整段打码）——专家口令=身份证号，明文即展示登录密码 */
+  const maskIdNumber = (id?: string | null): string => {
+    if (!id) return '';
+    if (id.length < 8) return '*'.repeat(id.length);
+    return `${id.slice(0, 4)}${'*'.repeat(id.length - 7)}${id.slice(-3)}`;
+  };
+
   const infoFields: [string, string][] = [
     ['姓名', profile.displayName],
     ['用户名', profile.username],
@@ -82,8 +89,9 @@ export default function ExpertProfilePage() {
     ['邮箱', profile.email || '未设置'],
     ['专业', profile.expertProfile?.specialty || '未设置'],
     ['职称', profile.expertProfile?.title || '未设置'],
-    ['工作单位', profile.expertProfile?.employer || '未设置'],
-    ['身份证号', profile.expertProfile?.idNumber || '未设置'],
+    ['工作单位', profile.expertProfile?.employer || '未设置'],    // EXP-P2-04：身份证号脱敏——专家登录口令即身份证号，明文展示等于在页面上展示登录密码
+    // （现场他人/投屏/拍照即获口令，削弱「口令=身份证号」防冒名与闸4 工位锁）
+    ['身份证号', maskIdNumber(profile.expertProfile?.idNumber) || '未设置'],
     ['角色', '评审专家'],
   ];
 

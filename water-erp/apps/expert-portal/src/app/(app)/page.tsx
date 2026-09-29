@@ -17,6 +17,8 @@ const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对'
 interface MotionItem {
   id: string; projectId: string; projectName: string; projectStage: string;
   title: string; status: string; result?: string | null; myVote: string | null;
+  /** EXP-P2-03：动议发起人（行 id）——结束投票 per-project 判定用（组长或发起人） */
+  createdBy?: string;
   totalVoters?: number;
   /** P1 收口：voting 期仅 votedCount（防从众）；closed 后有三向计数；组长额外带 votes */
   votedCount?: number;
@@ -29,7 +31,10 @@ interface DisputeItem {
   id: string; projectId: string; projectName: string;
   title: string; status: string;
 }
-interface MyTasks { motions: MotionItem[]; disputes: DisputeItem[]; }
+interface MyTasks { motions: MotionItem[]; disputes: DisputeItem[];
+  /** EXP-P2-03：/expert/tasks 附带的项目身份行（myExpertId/isLead）——per-project 结束投票判定 */
+  projects?: { projectId: string; projectName: string; stage: string; myExpertId: string; isLead: boolean }[];
+}
 
 export default function ExpertDashboardPage() {
   const router = useRouter();
@@ -403,10 +408,16 @@ export default function ExpertDashboardPage() {
                                     className="neu-btn-soft !h-[24px] !text-[10px]">弃权</button>
                                 </div>
                               )}
-                              {isVoting && isLeadAnywhere && (
-                                <button onClick={() => handleCloseMotion(m.id)} disabled={busy}
-                                  className="neu-btn-soft is-warning !h-[24px] !text-[10px] ml-auto">结束投票·形成决议</button>
-                              )}
+                              {(() => {
+                                // EXP-P2-03：per-project 口径（对齐 /tasks 页）——仅该项目组长或动议发起人
+                                // 可结束投票；isLeadAnywhere（任一项目组长）会给其他项目的动议渲染必 403 的按钮
+                                const proj = tasks?.projects?.find(p => p.projectId === m.projectId);
+                                const canClose = isVoting && (proj?.isLead || proj?.myExpertId === m.createdBy);
+                                return canClose ? (
+                                  <button onClick={() => handleCloseMotion(m.id)} disabled={busy}
+                                    className="neu-btn-soft is-warning !h-[24px] !text-[10px] ml-auto">结束投票·形成决议</button>
+                                ) : null;
+                              })()}
                             </div>
                           </div>
                         </div>
