@@ -15,7 +15,6 @@ import {
   getConversation,
   deleteConversation,
   sendMessage,
-  generateTitle,
 } from "@/lib/api/assistant";
 import { type SpriteExpression, inferExpression } from "./sprite-images";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
@@ -296,20 +295,16 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             };
           });
 
-          // Auto-generate title for first message
+          // 首条消息标题：后端 chat() 已按首条消息自动落库（slice 0-30），
+          // 前端本地镜像同步列表显示——不再调 /title 端点（该端点后端从未实现，恒 404）
           if (isFirstMessage) {
-            console.log('[Assistant] Generating title for conversation:', activeConvId);
-            generateTitle(activeConvId).then((title) => {
-              console.log('[Assistant] Title generated:', title);
-              setChatState((s) => ({
-                ...s,
-                conversations: s.conversations.map((c) =>
-                  c.id === activeConvId ? { ...c, title } : c
-                ),
-              }));
-            }).catch((err) => {
-              console.error('[Assistant] Title generation failed:', err);
-            });
+            const title = content.slice(0, 30) || '新对话';
+            setChatState((s) => ({
+              ...s,
+              conversations: s.conversations.map((c) =>
+                c.id === activeConvId ? { ...c, title } : c
+              ),
+            }));
           }
 
           // Set expression based on response

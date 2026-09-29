@@ -209,7 +209,8 @@ export function WorkbenchStatDialog({
     if (openKey !== 'notif') return;
     let cancelled = false;
     setNotifLoading(true);
-    listNotifications('all', 1, 50)
+    // 「通知待办」弹窗按待办段取数——此前拉 all 段，标题叫待办、列表却是全部通知
+    listNotifications('todo', 1, 50)
       .then((res) => {
         if (cancelled) return;
         setNotifs(res.items);

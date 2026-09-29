@@ -25,6 +25,7 @@ import { QualificationAnalysisPanel } from '@/components/supplier/qualification-
 import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
 import { StepTrack } from '@/components/step-track';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
@@ -522,7 +523,7 @@ export function SupplierSelectionPage({
     setDetailData(null);
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/supplier/${r.supplierId}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
+      const res = await apiFetch(`/api/supplier/${r.supplierId}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
       if (res.ok) {
         setDetailData(await res.json());
       } else {
@@ -1385,7 +1386,7 @@ export function SupplierSelectionPage({
     for (const f of Array.from(files)) {
       try {
         const fd = new FormData(); fd.append('file', f);
-        const res = await fetch('/api/upload?category=general', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web' }, body: fd });
+        const res = await apiFetch('/api/upload?category=general', { method: 'POST', credentials: 'include', headers: { 'X-Portal': 'web' }, body: fd });
         if (res.ok) { const data = await res.json(); setAttachFiles(prev => [...prev, { id: data.id, name: data.originalName || f.name, size: data.size || f.size }]); }
       } catch { toast.error(`「${f.name}」上传失败`); }
     }

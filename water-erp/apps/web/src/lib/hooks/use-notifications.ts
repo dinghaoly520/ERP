@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { listNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead, type NotificationItem } from '@/lib/api/notification';
 import { getNotificationMeta } from '@water-erp/shared';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 const POLL_MS = 30_000;
 
@@ -28,9 +29,9 @@ export function useNotifications() {
 
       // 双源：stats 派生（兜底，确保不遗漏 SUPPLIER_PENDING 之外的待办）
       const [ss, cs, alerts] = await Promise.all([
-        fetch('/api/supplier/stats', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        fetch('/api/catalog/admin/stats', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        fetch('/api/alerts/overview', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        apiFetch('/api/supplier/stats', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        apiFetch('/api/catalog/admin/stats', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        apiFetch('/api/alerts/overview', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
       setDerivedTodo({
         supplierPending: ss?.pending ?? 0,

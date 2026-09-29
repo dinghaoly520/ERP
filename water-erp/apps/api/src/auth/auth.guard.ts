@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
+import { IS_OPTIONAL_AUTH_KEY } from '../common/decorators/optional-auth.decorator';
 import { tokenFromRequest, portalFromRequest } from './portal-cookie';
 import { checkPortRole } from './port-roles';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,9 +23,22 @@ export class AuthGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
+    // @OptionalAuth()：匿名请求放行（user=null，端点按访客语义自理）；
+    // 带 token 仍走完整校验——无效 token 不静默降级为匿名
+    const isOptionalAuth = this.reflector.getAllAndOverride<boolean>(IS_OPTIONAL_AUTH_KEY, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
+
     const req = ctx.switchToHttp().getRequest<Request>();
     const token = tokenFromRequest(req);
-    if (!token) throw new UnauthorizedException();
+    if (!token) {
+      if (isOptionalAuth) {
+        (req as any).user = null;
+        return true;
+      }
+      throw new UnauthorizedException();
+    }
     // 该 token 是否来自 token_web / token_supplier / token_expert cookie（单设备登录只约束这三类会话）
     const portalCookies = req.cookies as Record<string, string | undefined> | undefined;
     const fromWebCookie = portalCookies?.token_web === token;

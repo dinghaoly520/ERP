@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  createAnnouncement,
+  createAnnouncement, updateAnnouncement,
   listAttachments, addAttachment, removeAttachment, uploadFile,
 } from '@/lib/api/announcement';
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment } from '@/lib/api/announcement';
@@ -129,7 +129,12 @@ export default function NewNoticePage() {
     // （补遗计数 + 供应商定向通知）；其余类型供项目反查与列表关联
     if (PROJECT_LINKED_TYPES.includes(type) && meta.projectCode) payload.relatedProjectCode = meta.projectCode;
     try {
-      const saved = await createAnnouncement(payload);
+      // P0 修复（2026-09-28 审计）：已保存过草稿（annId 存在）时必须 update 原记录——
+      // 此前无条件 create，导致「保存草稿→传附件→发布」必产生孤儿草稿且附件滞留旧记录，
+      // 多次点「保存草稿」也会每点新建一条
+      const saved = annId
+        ? await updateAnnouncement(annId, payload)
+        : await createAnnouncement(payload);
       setAnnId(saved.id);
       return saved.id;
     } catch (e: any) { toast.error(e?.message || '保存失败'); return null; }

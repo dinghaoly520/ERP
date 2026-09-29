@@ -479,7 +479,7 @@ export async function selectOfficialTender(
   stageKey: 'TENDER_DOCUMENT',
   payload: { attachmentId: string; round: number },
 ) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/official-tender`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/official-tender`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -727,7 +727,7 @@ export interface PmBidProjectRefItem {
 }
 
 export async function fetchPmBidProjectRefs(pmId: string): Promise<PmBidProjectRefItem[]> {
-  const response = await fetch(`${API_BASE}/project-management/${pmId}/bid-project-refs`, {
+  const response = await apiFetch(`${API_BASE}/project-management/${pmId}/bid-project-refs`, {
     credentials: 'include',
     cache: 'no-store',
   });

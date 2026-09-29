@@ -562,17 +562,43 @@ export class ProjectManagementService {
 
     const maxRound = item.stages.reduce((m, s) => Math.max(m, s.round ?? 1), 1);
 
-    // 幂等：最新一轮（maxRound > 1）首个重采阶段仍 NOT_STARTED → 上次 reproc 尚未推进，拒绝重复开轮
-    // （防双击 / 多入口重复触发，避免插入 round+2、round+3… 脏数据）
+    // 幂等：最新一轮（maxRound > 1）仍处"刚开轮未推进"状态 → 上次 reproc 尚未开始，拒绝重复开轮
+    // （防双击 / 多入口重复触发，避免插入 round+2、round+3… 脏数据）。
+    // 判定信号（2026-09-28 修订）：首阶段开轮即置 IN_PROGRESS（见下方 createMany——
+    // NOT_STARTED 会被前端 stageLocked 判死锁，流标重采后无法推进），故"未开始"改以
+    // 「首阶段 IN_PROGRESS 且整轮无任何 COMPLETED」识别；一旦推进过任一阶段即允许再次开轮。
     if (maxRound > 1) {
-      const latestRoundFirst = item.stages.find(
-        (s) => s.round === maxRound && s.stageKey === segment[0].key,
-      );
-      if (latestRoundFirst?.status === 'NOT_STARTED') {
+      const latestRound = item.stages.filter((s) => s.round === maxRound);
+      const first = latestRound.find((s) => s.stageKey === segment[0].key);
+      const untouched =
+        !!first &&
+        first.status === PROJECT_STAGE_STATUS.IN_PROGRESS &&
+        first.completedAt === null &&
+        latestRound.every((s) => s.status !== 'COMPLETED');
+      if (untouched) {
         throw new BadRequestException({
           error: '已有新一轮采购等待开始，无需重复发起',
           code: 'REPROC_ALREADY_PENDING',
         });
+      }
+
+      // 存量自愈：历史 reproc 未激活首阶段（NOT_STARTED 死锁态，2026-09-28 审计 P1）
+      // 的项目，再次调用 reproc 时直接激活既有轮次，不再叠加新轮
+      const legacyStuck =
+        !!first &&
+        first.status === 'NOT_STARTED' &&
+        latestRound.every((s) => s.status !== 'COMPLETED');
+      if (legacyStuck) {
+        await this.prisma.projectManagementStage.update({
+          where: { id: first.id },
+          data: { status: PROJECT_STAGE_STATUS.IN_PROGRESS },
+        });
+        await this.prisma.projectManagementItem.update({
+          where: { id: itemId },
+          data: { currentStage: first.stageKey, currentRound: maxRound },
+        });
+        this.logger.log(`项目 ${itemId} 自愈激活第 ${maxRound} 轮首阶段 ${first.stageKey}（历史死锁数据）`);
+        return { round: maxRound, inserted: 0, activated: true };
       }
     }
 
@@ -607,7 +633,12 @@ export class ProjectManagementService {
           stageOrder: insertAt + i,
           round: newRound,
           stageCode: item.projectCode ? stageCodeFor(item.projectCode, s.key, newRound) : null,
-          status: 'NOT_STARTED',
+          // 首阶段开轮即激活：currentStage 指向的阶段必须 IN_PROGRESS——前端 stageLocked
+          // 把 NOT_STARTED 判为锁定（不可上传/不可完成），历史全 NOT_STARTED 导致流标
+          // 重采后新轮死锁（2026-09-28 审计 P1）。与创建期 BID_EVALUATION 激活同一口径。
+          status: i === 0
+            ? PROJECT_STAGE_STATUS.IN_PROGRESS
+            : PROJECT_STAGE_STATUS.NOT_STARTED,
         })),
       });
     });

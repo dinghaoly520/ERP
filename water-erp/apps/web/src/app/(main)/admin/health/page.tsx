@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, Database, HardDrive, RefreshCw, ScanText, Server, Download } from 'lucide-react';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /* ═══════════════════════════════════════════════════════════════
    系统健康（D6 · CTS 4.7~4.11 自我声明支撑）
@@ -20,7 +21,7 @@ type HealthData = {
 };
 
 async function api<T>(path: string): Promise<T> {
-  const res = await fetch(`/api/system-config${path}`, {
+  const res = await apiFetch(`/api/system-config${path}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },
   });

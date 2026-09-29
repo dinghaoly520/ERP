@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   getSupplierList, getSupplierStats, fetchSupplierCompanyCounts,
   updateSupplierStatus,
+  restoreSupplier,
   toggleFavorite, getFavorites,
   listInvitations, createInvitation, revokeInvitation,
 } from '@/lib/api/supplier';
@@ -33,6 +34,9 @@ export default function SupplierRepositoryPage() {
   // 邀请码管理仅管理权限账号（2026-09-24 用户裁定；后端 @Roles('admin') 已同步收紧）
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const isAdmin = currentUser?.role === 'admin';
+  // 注册审批=归属公司管理账号（2026-09-26 改定，与后端 @Roles('admin','leader','staff') 及
+  // 详情页审批栏对齐；2026-09-24 旧口径"审批仅 admin"已废弃——leader/staff 应见待审队列）
+  const canApprove = ['admin', 'leader', 'staff'].includes(currentUser?.role ?? '');
   useEffect(() => { fetchCurrentUser().then(setCurrentUser).catch(() => {/* ignore */}); }, []);
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0, temporaryApproved: 0 });
@@ -75,14 +79,14 @@ export default function SupplierRepositoryPage() {
   const STATUS_TABS: { key: string; label: string; status: string; isTemporary?: boolean; tone?: string; count?: number; badge?: 'danger' | 'warning' }[] = [
     { key: 'APPROVED', label: '已入库', status: 'APPROVED', tone: 'green' },
     { key: 'TEMPORARY', label: '临时供应商', status: 'APPROVED', isTemporary: true, tone: 'teal', count: stats.temporaryApproved, badge: 'warning' as const },
-    // 待审核入口仅管理账号（2026-09-24 用户裁定：审批是 admin 职责，办公账号不见待审队列）
-    ...(isAdmin ? [{ key: 'PENDING', label: '待审核', status: 'PENDING', tone: 'blue', count: stats.pending, badge: 'danger' as const }] : []),
+    // 待审核入口=归属公司管理账号（2026-09-26 改定，与后端审批 @Roles 对齐）
+    ...(canApprove ? [{ key: 'PENDING', label: '待审核', status: 'PENDING', tone: 'blue', count: stats.pending, badge: 'danger' as const }] : []),
     { key: 'RETURNED', label: '退回补正', status: 'RETURNED', tone: 'orange', count: stats.returned, badge: 'warning' as const },
     { key: 'DISABLED', label: '已停用', status: 'DISABLED', tone: 'gray' },
     { key: 'BLACKLIST', label: '黑名单', status: 'BLACKLIST', tone: 'red' },
   ];
-  // 兜底：非 admin 若停留在待审核视图（角色信息晚到），回落到已入库
-  useEffect(() => { if (!isAdmin && filterStatus === 'PENDING') { setFilterStatus('APPROVED'); setFilterIsTemporary(false); } }, [isAdmin, filterStatus]);
+  // 兜底：无审批权若停留在待审核视图（角色信息晚到），回落到已入库
+  useEffect(() => { if (!canApprove && filterStatus === 'PENDING') { setFilterStatus('APPROVED'); setFilterIsTemporary(false); } }, [canApprove, filterStatus]);
   const effectiveStatus = filterStatus;
   const activeTabKey = filterIsTemporary ? 'TEMPORARY' : filterStatus;
 
@@ -106,7 +110,7 @@ export default function SupplierRepositoryPage() {
     } catch {}
   };
 
-  const [statusModal, setStatusModal] = useState<{ type: 'disable' | 'blacklist'; supplier: Supplier } | null>(null);
+  const [statusModal, setStatusModal] = useState<{ type: 'disable' | 'blacklist' | 'restore'; supplier: Supplier } | null>(null);
   const [statusReason, setStatusReason] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
   // 评价弹窗（由操作列「评价」按钮触发）
@@ -229,8 +233,13 @@ export default function SupplierRepositoryPage() {
     if (!statusModal || !statusReason.trim()) { toast.error('请填写原因'); return; }
     setStatusLoading(true);
     try {
-      await updateSupplierStatus(statusModal.supplier.id, statusModal.type === 'disable' ? 'DISABLED' : 'BLACKLIST', statusReason);
-      toast.success(statusModal.type === 'disable' ? '已停用' : '已加入黑名单');
+      if (statusModal.type === 'restore') {
+        await restoreSupplier(statusModal.supplier.id, statusReason);
+        toast.success('已恢复入库');
+      } else {
+        await updateSupplierStatus(statusModal.supplier.id, statusModal.type === 'disable' ? 'DISABLED' : 'BLACKLIST', statusReason);
+        toast.success(statusModal.type === 'disable' ? '已停用' : '已加入黑名单');
+      }
       setStatusModal(null); setStatusReason(''); loadData();
     } catch (e: any) { toast.error(e?.message || '操作失败'); }
     setStatusLoading(false);
@@ -322,8 +331,14 @@ export default function SupplierRepositoryPage() {
                         <>
                           <button onClick={() => setEvalTarget(s)} className="neu-btn-xs is-info">评价</button>
                           <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }} className="neu-btn-xs is-warning">停用</button>
-                          <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
+                          {isAdmin && (
+                            <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
+                          )}
                         </>
+                      )}
+                      {/* 断头路接线（2026-09-28 审计 S2）：停用行补恢复入口（后端 restore 已建，前端原零接线） */}
+                      {s.status === 'DISABLED' && canApprove && (
+                        <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'restore', supplier: s }); }} className="neu-btn-xs is-success">恢复</button>
                       )}
                     </div>
                   </td>
@@ -369,7 +384,7 @@ export default function SupplierRepositoryPage() {
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         {/* admin 4 张 KPI 卡（含待审核）排 4 列；办公账号删待审核后剩 3 张，跟随收为 3 列避免留空格 */}
-        <div className={isAdmin ? 'grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch' : 'grid grid-cols-2 gap-2 sm:grid-cols-3 items-stretch'}>
+        <div className={canApprove ? 'grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch' : 'grid grid-cols-2 gap-2 sm:grid-cols-3 items-stretch'}>
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">供应商总数</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.total}</span>
@@ -380,7 +395,7 @@ export default function SupplierRepositoryPage() {
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.approved}</span>
             <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">正常运营</span>
           </div>
-          {isAdmin && (
+          {canApprove && (
           <button type="button" onClick={() => { setFilterStatus('PENDING'); setFilterIsTemporary(false); setPage(1); }} title="查看待审核供应商" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.pending}</span>
@@ -622,12 +637,12 @@ export default function SupplierRepositoryPage() {
         <Modal
           open
           onClose={() => setStatusModal(null)}
-          title={statusModal.type === 'disable' ? '停用供应商' : '加入黑名单'}
+          title={statusModal.type === 'disable' ? '停用供应商' : statusModal.type === 'blacklist' ? '加入黑名单' : '恢复供应商'}
           description={<>供应商：<strong className="text-[var(--foreground)]">{statusModal.supplier.name}</strong></>}
           footer={
             <>
               <button onClick={() => setStatusModal(null)} className="neu-btn-soft">取消</button>
-              <button onClick={handleStatusAction} disabled={statusLoading || !statusReason.trim()} className="neu-btn-soft is-danger">{statusLoading ? '处理中...' : '确认'}</button>
+              <button onClick={handleStatusAction} disabled={statusLoading || !statusReason.trim()} className={`neu-btn-soft ${statusModal.type === 'restore' ? 'is-success' : 'is-danger'}`}>{statusLoading ? '处理中...' : '确认'}</button>
             </>
           }
         >

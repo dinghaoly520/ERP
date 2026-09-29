@@ -48,6 +48,21 @@ function isNetworkError(e: unknown): boolean {
 /** sleep helper for backoff */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * 匿名访客键：本门户无登录，后端按此键隔离会话（P0 会话隔离，2026-09-28）。
+ * 首次访问生成 UUID 存 localStorage，此后所有请求随 X-Assistant-Guest 头携带。
+ */
+function guestKey(): string {
+  if (typeof window === 'undefined') return '';
+  const KEY = 'assistant-guest-key';
+  let key = window.localStorage.getItem(KEY);
+  if (!key || !/^[A-Za-z0-9_-]{8,64}$/.test(key)) {
+    key = crypto.randomUUID();
+    window.localStorage.setItem(KEY, key);
+  }
+  return key;
+}
+
 async function fetchApi<T>(
   path: string,
   init?: RequestInit,
@@ -76,6 +91,7 @@ async function fetchApi<T>(
         ...init,
         headers: {
           'X-Portal': PORTAL,
+          'X-Assistant-Guest': guestKey(),
           ...((init?.headers as Record<string, string>) || {}),
         },
       });

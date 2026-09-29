@@ -193,11 +193,15 @@ export class ProcurementsService {
       awardAmount: n(r.awardAmount), // 采购中标（成交）金额（元）
       procurementDate: d(r.procurementDate), // 采购日期（采购公告日期）
       awardDate: r.resultStatus === 'AWARDED' ? d(r.updatedAt) : '', // 中标日期（成交完成时点）
-      centralized: '是', // 是否集中采购（集团统一招采平台，可改）
-      salePeriodOk: '是', // 文件发售期是否满足要求
-      salePeriodNote: '无', // 发售期不满足要求详情（默认无）
-      publicityPeriodOk: '是', // 候选人公示期是否满足要求
-      publicityPeriodNote: '无', // 公示期不满足要求详情（默认无）
+      // 是否集中采购：PMI 组织形式真实推导（与进行中口径一致）；无 PMI 关联=待补录
+      centralized: (pmiByRound.get(r.id)?.procurementOrganizationForm ?? '').includes('集中') ? '是'
+        : pmiByRound.get(r.id) ? '否' : '',
+      // 合规检查四项无数据来源——留空由前端"待补录"（红底）人工补录后再导出
+      // （2026-09-28 审计 P1：此前硬编码"是/无"，导出即上报虚假达标值）
+      salePeriodOk: '', // 文件发售期是否满足要求
+      salePeriodNote: '', // 发售期不满足要求详情
+      publicityPeriodOk: '', // 候选人公示期是否满足要求
+      publicityPeriodNote: '', // 公示期不满足要求详情
       wonSupplierName: r.awardedSupplierName ?? r.awardedSupplier?.name ?? '', // 中标供应商名称
       wonSupplierCode: r.awardedSupplier?.creditCode ?? codeByName(r.awardedSupplierName), // 中标供应商代码：ID 关联优先，名称回查供应商库
       archived: r.resultStatus === 'AWARDED', // 分组依据（已归档/进行中）
@@ -242,10 +246,11 @@ export class ProcurementsService {
       procurementDate: (await this.procurementDateOfPmi(m.id)) ?? d(m.initiationDate),
       awardDate: '', // 进行中：无中标日期
       centralized: (m.procurementOrganizationForm ?? '').includes('集中') ? '是' : '否', // 组织形式→是否集中采购
-      salePeriodOk: '是',
-      salePeriodNote: '无', // 发售期不满足要求详情（默认无）
-      publicityPeriodOk: '是',
-      publicityPeriodNote: '无', // 公示期不满足要求详情（默认无）
+      // 合规检查四项无数据来源——留空由前端"待补录"人工补录（同已归档口径，2026-09-28 审计）
+      salePeriodOk: '',
+      salePeriodNote: '',
+      publicityPeriodOk: '',
+      publicityPeriodNote: '',
       wonSupplierName: m.awardedSupplier ?? '',
       wonSupplierCode: codeByName(m.awardedSupplier), // 中标供应商代码：名称回查供应商库
       archived: false,
@@ -410,11 +415,32 @@ export class ProcurementsService {
 
     const where = this.buildListWhere(query, companyFilter);
 
+    // 排序白名单（2026-09-28 审计 P1）：sortBy 原样透传进 orderBy，非法列名（如前端
+    // 「金额」选项的 'amount'——ProcurementRound 无该字段）会让 Prisma 抛校验错误 500，
+    // 整个列表加载失败。白名单收敛到真实列；'amount' 为「金额」别名 → 成交额。
+    const SORT_FIELD_ALIASES: Record<string, string> = {
+      procurementDate: 'procurementDate',
+      budgetAmount: 'budgetAmount',
+      controlAmount: 'controlAmount',
+      awardAmount: 'awardAmount',
+      createdAt: 'createdAt',
+      updatedAt: 'updatedAt',
+      roundNo: 'roundNo',
+      amount: 'awardAmount',
+    };
     const orderBy: any = {};
-    orderBy[sortBy ?? 'procurementDate'] = sortOrder ?? 'desc';
+    orderBy[SORT_FIELD_ALIASES[sortBy ?? ''] ?? 'procurementDate'] = sortOrder === 'asc' ? 'asc' : 'desc';
 
-    const [total, data] = await Promise.all([
+    // 异常全量计数（2026-09-28 审计 P2）：hero「异常 N」此前只数当前页 12 条，与旁边
+    // "共 total 条"（全量）并列口径打架。四态与前端 hero 定义一致，同一 where（含回收站视图）。
+    const abnormalWhere = {
+      ...where,
+      resultStatus: { in: ['FAILED_REVIEW', 'FILE_REVISION_REQUIRED', 'INVALID_RESPONSE', 'CANCELLED'] },
+    };
+
+    const [total, abnormalTotal, data] = await Promise.all([
       this.prisma.procurementRound.count({ where }),
+      this.prisma.procurementRound.count({ where: abnormalWhere }),
       this.prisma.procurementRound.findMany({
         where,
         orderBy,
@@ -479,6 +505,7 @@ export class ProcurementsService {
       data: data.map((round) =>
         this.formatRound(round, pmInfoMap[round.id]),
       ),
+      abnormalTotal,
       pagination: {
         page,
         pageSize,

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileDown, FileText, FileUp, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api/api-fetch';
 import { TenderWriteWorkspace } from '@/components/tender-write/tender-write-workspace';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
 import {
@@ -29,7 +30,7 @@ import {
 } from '@/lib/tender-write/prefill-from-project';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
 import TenderReviewWorkspace from '@/components/tender-review/tender-review-workspace';
-import { uploadReviewDocument, executeReview } from '@/lib/api/review';
+import { uploadReviewDocument, executeReview, getDownloadUrl } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
 import {
@@ -638,12 +639,35 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     }
   }, [selectedType, currentDraft]);
 
-  /** 审查完成 → 重新导出当前草稿，由用户决定是否上传至项目采购文件阶段。 */
-  const handleReviewComplete = useCallback(async (_task: ReviewTask) => {
+  /** 审查完成 → 取「已应用接受修改」的审查任务文件，由用户决定是否上传至项目采购文件阶段。
+   *  闭环修复（2026-09-28 审计 #15）：审查中逐条"接受"的修改由后端写入审查任务自己的
+   *  文件副本（task.objectKey）。此前这里无条件从当前编辑草稿重新导出再上传——用户
+   *  接受的修改进不了正式提交的文件。现优先下载审查任务最新文件（= 本次导出稿 + 已
+   *  接受修改；未接受任何修改时即原导出稿），仅在任务文件不可得时回退重新导出草稿。 */
+  const handleReviewComplete = useCallback(async (task: ReviewTask) => {
     if (!selectedType) return;
     try {
-      const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
-      reviewPendingFileRef.current = { blob: result.blob, fileName: result.fileName };
+      let blob: Blob | null = null;
+      let fileName = '';
+      try {
+        const res = await apiFetch(getDownloadUrl(task.id), { credentials: 'include' });
+        if (res.ok) {
+          blob = await res.blob();
+          if (blob.size > 0) {
+            const disp = res.headers.get('content-disposition') || '';
+            const m = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(disp);
+            fileName = m ? decodeURIComponent(m[1]) : `${(task as any).documentName || '采购文件'}.docx`;
+          } else {
+            blob = null;
+          }
+        }
+      } catch { /* 任务文件不可得 → 回退重导出 */ }
+      if (!blob) {
+        const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
+        blob = result.blob;
+        fileName = result.fileName;
+      }
+      reviewPendingFileRef.current = { blob, fileName };
       setShowReviewUploadDialog(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '导出失败');
@@ -1067,7 +1091,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               <button type="button" onClick={handleSkipReviewUpload} className="neu-btn-xs"><X size={16} /></button>
             </div>
             <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
-              是否将审查后的采购文件提交至项目采购文件阶段？
+              是否将审查后的采购文件提交至项目采购文件阶段？提交的文件已包含你在审查中「接受」的全部修改建议。
             </p>
             <div className="mt-5 flex gap-3">
               <button

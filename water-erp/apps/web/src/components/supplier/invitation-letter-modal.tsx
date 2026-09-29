@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Download, Loader2, RefreshCw, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { uploadProjectStageAttachment } from '@/lib/api/project-management';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /**
  * 采购邀请书（供应商邀请·第 5 步附件选择）：
@@ -106,7 +107,7 @@ export function InvitationLetterModal({
         project: result.project,
       });
       // 导出 Word 到本地
-      const dl = await fetch(res.url, { credentials: 'include', headers: { 'X-Portal': 'web' } });
+      const dl = await apiFetch(res.url, { credentials: 'include', headers: { 'X-Portal': 'web' } });
       let blob: Blob | null = null;
       if (dl.ok) {
         blob = await dl.blob();

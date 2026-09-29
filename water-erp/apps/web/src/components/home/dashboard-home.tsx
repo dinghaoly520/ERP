@@ -566,19 +566,23 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const hadr = useCallback(()=>{ld(startDate||undefined,endDate||undefined,companyId);setShowDP(false);},[startDate,endDate,companyId,ld]);
   const hrdr = useCallback(()=>{setStartDate("");setEndDate("");ld();setShowDP(false);},[ld]);
 
+  // 快捷日期即点即用（2026-09-28 审计 P2：此前只 set 状态不触发加载，点完必须再点"应用"）
+  const applyQuick=useCallback((s:string,e:string)=>{setStartDate(s);setEndDate(e);ld(s,e,companyId);setShowDP(false);},[ld,companyId]);
   const dp = {
-    tm:()=>{const d=new Date(),y=d.getFullYear(),m=d.getMonth()+1,ld2=new Date(y,m,0).getDate();setStartDate(`${y}-${String(m).padStart(2,"0")}-01`);setEndDate(`${y}-${String(m).padStart(2,"0")}-${ld2}`);},
-    tq:()=>{const d=new Date(),y=d.getFullYear(),q=Math.floor(d.getMonth()/3),sm=q*3+1,em=q*3+3,ld2=new Date(y,em,0).getDate();setStartDate(`${y}-${String(sm).padStart(2,"0")}-01`);setEndDate(`${y}-${String(em).padStart(2,"0")}-${ld2}`);},
-    fh:()=>{const y=new Date().getFullYear();setStartDate(`${y}-01-01`);setEndDate(`${y}-06-30`);},
-    fy:()=>{const y=new Date().getFullYear();setStartDate(`${y}-01-01`);setEndDate(`${y}-12-31`);},
-    lm:()=>{const d=new Date();d.setMonth(d.getMonth()-1);const y=d.getFullYear(),m=d.getMonth()+1,ld2=new Date(y,m,0).getDate();setStartDate(`${y}-${String(m).padStart(2,"0")}-01`);setEndDate(`${y}-${String(m).padStart(2,"0")}-${ld2}`);},
-    lq:()=>{const d=new Date(),y=d.getFullYear(),q=Math.floor(d.getMonth()/3);if(q===0){setStartDate(`${y-1}-10-01`);setEndDate(`${y-1}-12-31`);}else{const sm=(q-1)*3+1,em=q*3,ld2=new Date(y,em,0).getDate();setStartDate(`${y}-${String(sm).padStart(2,"0")}-01`);setEndDate(`${y}-${String(em).padStart(2,"0")}-${ld2}`);}},
+    tm:()=>{const d=new Date(),y=d.getFullYear(),m=d.getMonth()+1,ld2=new Date(y,m,0).getDate();applyQuick(`${y}-${String(m).padStart(2,"0")}-01`,`${y}-${String(m).padStart(2,"0")}-${ld2}`);},
+    tq:()=>{const d=new Date(),y=d.getFullYear(),q=Math.floor(d.getMonth()/3),sm=q*3+1,em=q*3+3,ld2=new Date(y,em,0).getDate();applyQuick(`${y}-${String(sm).padStart(2,"0")}-01`,`${y}-${String(em).padStart(2,"0")}-${ld2}`);},
+    fh:()=>{const y=new Date().getFullYear();applyQuick(`${y}-01-01`,`${y}-06-30`);},
+    fy:()=>{const y=new Date().getFullYear();applyQuick(`${y}-01-01`,`${y}-12-31`);},
+    lm:()=>{const d=new Date();d.setMonth(d.getMonth()-1);const y=d.getFullYear(),m=d.getMonth()+1,ld2=new Date(y,m,0).getDate();applyQuick(`${y}-${String(m).padStart(2,"0")}-01`,`${y}-${String(m).padStart(2,"0")}-${ld2}`);},
+    lq:()=>{const d=new Date(),y=d.getFullYear(),q=Math.floor(d.getMonth()/3);if(q===0){applyQuick(`${y-1}-10-01`,`${y-1}-12-31`);}else{const sm=(q-1)*3+1,em=q*3,ld2=new Date(y,em,0).getDate();applyQuick(`${y}-${String(sm).padStart(2,"0")}-01`,`${y}-${String(em).padStart(2,"0")}-${ld2}`);}},
   };
 
   useEffect(()=>{if(data&&!analysis&&!alLoading)hra(false);},[data,analysis,alLoading,hra]);
 
+  // 错误态先于加载态判断（2026-09-28 审计 P1：此前 loading||!data 在前，请求失败时 data
+  // 恒 null，页面永远停在"加载中"，错误卡不可达；重试按钮也未接 ld，点了会永久转圈）
+  if(loadErr)return <div className="flex h-[60vh] items-center justify-center"><div className="neu-card-static flex flex-col items-center gap-4 px-8 py-10 text-center"><p className="text-sm font-semibold text-[var(--danger)]">数据加载失败</p><p className="text-xs text-[var(--muted-foreground)]">{loadErr}</p><button type="button" onClick={()=>{ld(startDate||undefined,endDate||undefined,companyId);}} className="neu-btn-primary">重试</button></div></div>;
   if(loading||!data)return <div className="flex h-[60vh] items-center justify-center"><div className="flex flex-col items-center gap-3"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[color-mix(in_oklch,var(--accent)_30%,transparent)] border-t-[var(--accent)]"/><span className="text-sm text-[var(--muted-foreground)]">加载中...</span></div></div>;
-  if(loadErr)return <div className="flex h-[60vh] items-center justify-center"><div className="neu-card-static flex flex-col items-center gap-4 px-8 py-10 text-center"><p className="text-sm font-semibold text-[var(--danger)]">数据加载失败</p><p className="text-xs text-[var(--muted-foreground)]">{loadErr}</p><button type="button" onClick={()=>{setLoadErr(null);setLoading(true);}} className="neu-btn-primary">重试</button></div></div>;
 
   const cr = (data.summary.completedCount/Math.max(data.summary.totalCount,1))*100;
   const sr = (data.summary.totalSavings/Math.max(data.summary.awardedBudget,1))*100;
@@ -634,7 +638,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
           <KpiCard label="合同金额" value={data.summary.totalAwardLabel} signal="normal" index={4} reducedMotion={reducedMotion} showDivider="right"/>
           <KpiCard label="节约资金" value={data.summary.totalSavingsLabel} signal={data.summary.totalSavings>0?"success":"normal"} index={5} reducedMotion={reducedMotion}/>
           <KpiCard label="节资率" value={`${sr.toFixed(1)}%`} signal={sr>5?"success":"warning"} index={6} reducedMotion={reducedMotion} showDivider="right"/>
-          <KpiCard label="开评标项目" value={`${data.summary.completedCount}/${data.summary.totalCount}`} index={7} reducedMotion={reducedMotion}/>
+          <KpiCard label="已成交项目" value={`${data.summary.completedCount}/${data.summary.totalCount}`} index={7} reducedMotion={reducedMotion}/>
           <KpiCard label="项目推进率" value={`${cr.toFixed(0)}%`} signal={cr>=70?"success":cr>=50?"warning":"danger"} index={8} reducedMotion={reducedMotion}/>
         </div>
         </div>

@@ -19,6 +19,7 @@ import {
 import Folder from "@/components/Folder";
 import { Modal } from "@/components/workbench";
 import { analyzeProjectStep } from "@/lib/api/project-management";
+import { apiFetch } from '@/lib/api/api-fetch';
 
 // Animation utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -232,7 +233,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           `${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/project-management/archive/${procurementRoundId}`,
           { credentials: 'include' }
         );

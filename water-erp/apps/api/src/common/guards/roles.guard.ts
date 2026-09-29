@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ANY_ROLE_KEY } from '../decorators/any-role.decorator';
+import { IS_OPTIONAL_AUTH_KEY } from '../decorators/optional-auth.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -36,7 +37,13 @@ export class RolesGuard implements CanActivate {
 
     // 三者皆无（@Public/@AnyRole/@Roles）→ 默认拒绝（2026-08-26 Task 8 翻转）
     // 新路由必须显式标注其一；排障见 scripts/list-uncovered-routes.ts
+    // 例外：@OptionalAuth（不叠加 @Roles）——匿名/认证分层语义由端点自理，此处放行
     if (!requiredRoles || requiredRoles.length === 0) {
+      const hasOptionalAuth = this.reflector.getAllAndOverride<boolean>(IS_OPTIONAL_AUTH_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (hasOptionalAuth) return true;
       throw new ForbiddenException({
         error: '路由未配置角色元数据，默认拒绝',
         code: 'NO_ROLE_CONFIGURED',

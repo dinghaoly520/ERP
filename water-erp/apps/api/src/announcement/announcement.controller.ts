@@ -9,6 +9,7 @@ import { BidDocumentUploadDto, UpdateBidDocumentConfigDto } from './dto/bid-docu
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { OptionalAuth } from '../common/decorators/optional-auth.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
@@ -64,11 +65,11 @@ export class AnnouncementController {
   }
 
   @Get('public/:id')
-  @Public()
+  @OptionalAuth() // 匿名可读普通公告；RESTRICTED 定向公告需登录且为被选定供应商（service 内校验）
   @SkipThrottle()
   @ApiOperation({ summary: '公开公告详情' })
-  async getPublic(@Param('id') id: string) {
-    return this.announcementService.getPublic(id);
+  async getPublic(@Param('id') id: string, @Request() req: any) {
+    return this.announcementService.getPublic(id, req?.user);
   }
 
   // 管理接口

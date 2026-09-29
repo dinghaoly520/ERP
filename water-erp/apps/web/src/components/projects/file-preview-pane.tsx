@@ -9,6 +9,7 @@
 import { FileText, Loader2, ZoomIn, ZoomOut, File as FileIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ProjectManagementAttachment } from "@/lib/types/project-management";
+import { apiFetch } from '@/lib/api/api-fetch';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
@@ -54,7 +55,7 @@ export function FilePreviewPane({
     setLoadError('');
     (async () => {
       try {
-        const res = await fetch(fileUrl, { credentials: 'include' });
+        const res = await apiFetch(fileUrl, { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
         if (cancelled) return;

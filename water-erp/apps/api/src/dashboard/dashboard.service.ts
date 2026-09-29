@@ -97,8 +97,11 @@ export class DashboardService {
     const completedCount = rounds.filter(
       (item) => item.resultStatus === ResultStatus.AWARDED,
     ).length;
+    // 异常口径（2026-09-28 审计 P1）：非 AWARDED 即异常会把正常在途（PENDING）项目全算进
+    // "异常/风险/未成交"——与同页 resultStats 的 已成交/待定/未成交 三分类互相矛盾。
+    // 现剔除 PENDING：异常=真实异常态（审核未过/需修改文件/无效响应/取消/终止等）。
     const abnormalCount = rounds.filter(
-      (item) => item.resultStatus !== ResultStatus.AWARDED,
+      (item) => item.resultStatus !== ResultStatus.AWARDED && item.resultStatus !== ResultStatus.PENDING,
     ).length;
 
     const totalBudget = rounds.reduce((sum, item) => {
@@ -556,7 +559,8 @@ export class DashboardService {
         }
       }
 
-      if (round.resultStatus !== ResultStatus.AWARDED) {
+      if (round.resultStatus !== ResultStatus.AWARDED && round.resultStatus !== ResultStatus.PENDING) {
+        // 未成交原因分析（PENDING=在途不计入，2026-09-28 审计）。
         // 项目终止的轮次：分组用真实终止原因（resultText 只是「项目已终止」占位文案），
         // 原因各不相同 → 各自成组，符合「原因分析」按原因归类的语义。
         // resultText 短于 2 字（历史脏数据如 "1"）视为无效，回退通用文案
@@ -732,8 +736,9 @@ export class DashboardService {
       .slice(0, 8);
 
     const now = new Date();
+    // 风险预警同异常口径（2026-09-28）：PENDING=在途不算风险，避免全库在途项目刷屏
     const riskProjects = rounds
-      .filter((item) => item.resultStatus !== ResultStatus.AWARDED)
+      .filter((item) => item.resultStatus !== ResultStatus.AWARDED && item.resultStatus !== ResultStatus.PENDING)
       .map((item) => ({
         project: item.project.name,
         department: item.department?.name ?? '未归属部门',
@@ -745,9 +750,7 @@ export class DashboardService {
           item.resultStatus === ResultStatus.FAILED_REVIEW ||
           item.resultStatus === ResultStatus.FILE_REVISION_REQUIRED
             ? '高'
-            : item.resultStatus === ResultStatus.PENDING
-              ? '中'
-              : '低',
+            : '低',
       }))
       .sort((left, right) => right.pendingDays - left.pendingDays)
       .slice(0, 5);

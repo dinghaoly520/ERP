@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
@@ -107,7 +107,7 @@ export default function SupplierDetailPage() {
   const [approvalLoading, setApprovalLoading] = useState(false);
 
   // 状态操作弹窗（停用/黑名单/解除黑名单，保留 modal）
-  const [actionModal, setActionModal] = useState<{ type: 'disable' | 'blacklist' | 'unblacklist'; supplier: Supplier } | null>(null);
+  const [actionModal, setActionModal] = useState<{ type: 'disable' | 'blacklist' | 'unblacklist' | 'restore'; supplier: Supplier } | null>(null);
   // CTS A-213 奖惩记录
   const [rewardRecords, setRewardRecords] = useState<Array<{ id: string; projectName: string; recordType: string; recordNote: string | null; effectiveDate: string | null; clientName: string | null; createdAt: string }>>([]);
   const [recordForm, setRecordForm] = useState({ recordType: 'punishment' as 'reward' | 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
@@ -222,6 +222,9 @@ export default function SupplierDetailPage() {
       } else if (actionModal.type === 'blacklist') {
         await blacklistSupplier(actionModal.supplier.id, actionReason);
         toast.success('已加入黑名单并通知供应商');
+      } else if (actionModal.type === 'restore') {
+        await restoreSupplier(actionModal.supplier.id, actionReason);
+        toast.success('已恢复入库');
       } else {
         await unblacklistSupplier(actionModal.supplier.id, actionReason);
         toast.success('已解除黑名单，恢复入库');
@@ -383,7 +386,7 @@ export default function SupplierDetailPage() {
             {supplier.user?.isActive !== undefined && (
               <StatusBadge tone={supplier.user.isActive ? 'green' : 'red'}>{supplier.user.isActive ? '账户已激活' : '账户未激活'}</StatusBadge>
             )}
-            {supplier.status === 'APPROVED' && (
+            {supplier.status === 'APPROVED' && isAdmin && (
               <>
                 <button onClick={() => {
                   const currentTags = (supplier as any).tags || [];
@@ -391,12 +394,19 @@ export default function SupplierDetailPage() {
                   setTagsModal(true);
                 }} className="neu-btn-xs"><Pencil size={12} /> 业务标签</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
-                <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
+                {/* 黑名单走专用端点（@Roles admin/leader），staff 点必 403——按钮同步收敛 */}
+                {['admin', 'leader'].includes(currentUser?.role ?? '') && (
+                  <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
+                )}
               </>
             )}
-            {/* CTS A-215：黑名单状态提供解除入口（原因必填留痕） */}
-            {supplier.status === 'BLACKLIST' && (
+            {/* CTS A-215：黑名单状态提供解除入口（原因必填留痕，@Roles admin/leader） */}
+            {supplier.status === 'BLACKLIST' && ['admin', 'leader'].includes(currentUser?.role ?? '') && (
               <button onClick={() => { setActionReason(''); setActionModal({ type: 'unblacklist', supplier }); }} className="neu-btn-xs is-success">解除黑名单</button>
+            )}
+            {/* 断头路接线（2026-09-28 审计 S2）：停用状态恢复入口（后端 restore 已建） */}
+            {supplier.status === 'DISABLED' && isAdmin && (
+              <button onClick={() => { setActionReason(''); setActionModal({ type: 'restore', supplier }); }} className="neu-btn-xs is-success">恢复</button>
             )}
           </div>
         </div>
@@ -1330,14 +1340,17 @@ export default function SupplierDetailPage() {
         <Modal
           open
           onClose={() => setActionModal(null)}
-          title={actionModal.type === 'disable' ? '停用供应商' : '加入黑名单'}
+          title={actionModal.type === 'disable' ? '停用供应商'
+            : actionModal.type === 'blacklist' ? '加入黑名单'
+            : actionModal.type === 'unblacklist' ? '解除黑名单'
+            : '恢复供应商'}
           description={<>供应商：<strong className="text-[var(--foreground)]">{actionModal.supplier.name}</strong></>}
           footer={
             <>
               <button onClick={() => setActionModal(null)} className="neu-btn-soft">取消</button>
               <button onClick={handleStatusAction} disabled={actionLoading || !actionReason.trim()}
-                className={`neu-btn-soft ${actionModal.type === 'blacklist' ? 'is-danger' : 'is-warning'}`}>
-                {actionLoading ? '处理中...' : '确认'}
+                className={`neu-btn-soft ${actionModal.type === 'blacklist' ? 'is-danger' : actionModal.type === 'disable' ? 'is-warning' : 'is-success'}`}>
+                {actionLoading ? '处理中...' : actionModal.type === 'unblacklist' ? '确认解除' : actionModal.type === 'restore' ? '确认恢复' : '确认'}
               </button>
             </>
           }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Building2, Check, Pencil, RefreshCw, X } from 'lucide-react';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /* ═══════════════════════════════════════════════════════════════
    单位管理（D4 · CTS A-205~A-207 裁剪）——内部单位主数据维护 + 业绩视图
@@ -19,7 +20,7 @@ type CompanyRow = {
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/companies${path}`, {
+  const res = await apiFetch(`/api/companies${path}`, {
     ...init,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web', ...(init?.headers ?? {}) },

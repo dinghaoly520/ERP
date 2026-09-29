@@ -322,7 +322,7 @@ export class AnnouncementService {
     return announcement;
   }
 
-  async getPublic(id: string) {
+  async getPublic(id: string, user?: { sub?: string; role?: string }) {
     const announcement = await this.get(id);
     if (announcement.status !== 'PUBLISHED') {
       // v2（2026-09-26）：ARCHIVED=已下线（公示期满/存量下线）——与未发布区分提示
@@ -338,6 +338,26 @@ export class AnnouncementService {
     // A2（表 B.1）：与列表同口径——应保密/可公开（未发布到公开级）的公告详情不可按 id 直取
     if (announcement.dataClass && !(PUBLIC_VISIBLE_CLASSES as readonly string[]).includes(announcement.dataClass)) {
       throw new BadRequestException({ error: '公告不存在或不可公开', code: 'NOT_PUBLIC' });
+    }
+    // P1 收口（2026-09-28 审计）：RESTRICTED（部分供应商可见）详情此前不校验 visibility——
+    // 列表过滤了、任何未登录者拿 id 却可直读全文。放行集=被选定供应商本人
+    // （登录 token → Supplier.userId 反查 → restrictedSupplierIds 命中）。
+    const meta = (announcement.metadata ?? {}) as Record<string, unknown>;
+    if (meta.visibility === 'RESTRICTED') {
+      let eligible = false;
+      if (user?.sub) {
+        const supplier = await this.prisma.supplier.findUnique({
+          where: { userId: user.sub },
+          select: { id: true },
+        });
+        eligible =
+          !!supplier &&
+          Array.isArray(meta.restrictedSupplierIds) &&
+          (meta.restrictedSupplierIds as string[]).includes(supplier.id);
+      }
+      if (!eligible) {
+        throw new BadRequestException({ error: '公告不存在或不可公开', code: 'NOT_PUBLIC' });
+      }
     }
     await this.prisma.announcement.update({
       where: { id },
@@ -1176,14 +1196,23 @@ export class AnnouncementService {
   async getStats(companyFilter: { companyId?: string } = {}) {
     // 公司隔离：统计聚合在隔离后的数据集上计算
     const where = { ...companyFilter };
-    const [total, published, bidNotice, winNotice, policy] = await Promise.all([
+    // 本月起点（服务端口径——此前前端用"当前页 15 条"冒充全量统计，2026-09-28 审计 P1）
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const [total, published, bidNotice, winNotice, policy, drafts, publishedThisMonth, viewsAgg] = await Promise.all([
       this.prisma.announcement.count({ where }),
       this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'BID_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'WIN_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'POLICY', status: 'PUBLISHED' } }),
+      this.prisma.announcement.count({ where: { ...where, status: 'DRAFT' } }),
+      this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED', publishDate: { gte: monthStart } } }),
+      this.prisma.announcement.aggregate({ where: { ...where, status: 'PUBLISHED' }, _sum: { viewCount: true } }),
     ]);
-    return { total, published, bidNotice, winNotice, policy };
+    return {
+      total, published, bidNotice, winNotice, policy,
+      drafts, publishedThisMonth,
+      totalViews: viewsAgg._sum.viewCount ?? 0,
+    };
   }
 
   /** 运行时校验公告 metadata 字段类型，防止 typo 导致静默数据丢失 */

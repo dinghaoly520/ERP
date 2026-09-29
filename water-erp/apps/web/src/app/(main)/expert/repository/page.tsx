@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts } from '@/lib/api/expert';
+import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
 import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
@@ -313,6 +313,15 @@ export default function ExpertRepositoryPage() {
   const occupied = experts.filter(e => e.isActive && e.expertProfile?.availability === '占用').length;
   const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
   const totalEvals = experts.reduce((s, e) => s + e._count.expertEvaluations, 0);
+  // 服务端全量 KPI（与 /expert/statistics 同口径，公司隔离同参数）
+  const [expStats, setExpStats] = useState<Awaited<ReturnType<typeof getExpertStatistics>> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getExpertStatistics(companyId)
+      .then((s) => { if (alive) setExpStats(s); })
+      .catch(() => { if (alive) setExpStats(null); });
+    return () => { alive = false; };
+  }, [companyId, experts]);
   const gradeDistribution = useMemo(() => {
     const dist = { A: 0, B: 0, C: 0, D: 0, E: 0, '-': 0 };
     for (const e of experts) {
@@ -344,11 +353,13 @@ export default function ExpertRepositoryPage() {
         <div className="page-hero__divider">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 items-stretch">
           {[
-            ['专家总数', total, '录入总量'],
-            ['可用', available, '可参与抽取'],
-            ['占用中', occupied, '正参与评审'],
-            ['已停用', disabled, '退库/停用'],
-            ['总评价次数', totalEvals, '累计评价'],
+            // KPI 服务端全量口径（2026-09-28 审计 P2：此前由当前页 20 条近似计算，翻页即变；
+            // 统计未就绪时回退当前页推导值）
+            ['专家总数', expStats?.totalExperts ?? total, '全库口径'],
+            ['可用', expStats?.available ?? available, '可参与抽取'],
+            ['占用中', expStats?.occupied ?? occupied, '正参与评审'],
+            ['已停用', expStats?.disabled ?? disabled, '退库/停用'],
+            ['总评价次数', expStats?.evaluationStats.total ?? totalEvals, '累计评价'],
           ].map(([label, value, sub]) => (
             <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>

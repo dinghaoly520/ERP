@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 export interface OverviewAlerts { expiringQualifications: number; overloadedExperts: number; }
 export interface SupplierAlertQual { id: string; name: string; type: string; validTo: Date; daysLeft: number; }
@@ -10,7 +11,7 @@ export function useAlertsOverview() {
   const [data, setData] = useState<OverviewAlerts>({ expiringQualifications: 0, overloadedExperts: 0 });
   useEffect(() => {
     let active = true;
-    fetch('/api/alerts/overview', { credentials: 'include' })
+    apiFetch('/api/alerts/overview', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (active && d) setData(d); })
       .catch(() => {});
@@ -24,7 +25,7 @@ export function useSupplierAlerts(supplierId: string | undefined) {
   useEffect(() => {
     if (!supplierId) return;
     let active = true;
-    fetch(`/api/alerts/supplier/${supplierId}`, { credentials: 'include' })
+    apiFetch(`/api/alerts/supplier/${supplierId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (active && d) setData(d); })
       .catch(() => {});
@@ -38,7 +39,7 @@ export function useExpertAlerts(expertUserId: string | undefined) {
   useEffect(() => {
     if (!expertUserId) return;
     let active = true;
-    fetch(`/api/alerts/expert/${expertUserId}`, { credentials: 'include' })
+    apiFetch(`/api/alerts/expert/${expertUserId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (active && d) setData(d); })
       .catch(() => {});

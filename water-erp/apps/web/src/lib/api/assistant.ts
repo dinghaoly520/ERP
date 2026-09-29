@@ -39,25 +39,6 @@ export async function deleteConversation(id: string): Promise<void> {
   });
 }
 
-export async function generateTitle(conversationId: string): Promise<string> {
-  try {
-    const res = await apiFetch(`${API_BASE}/assistant/conversations/${conversationId}/title`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) {
-      console.warn(`[Assistant] Title generation failed with status ${res.status}`);
-      return '新对话';
-    }
-    const data = await res.json() as { title: string };
-    return data.title ?? '新对话';
-  } catch (err) {
-    console.error('[Assistant] Title generation network error:', err);
-    return '新对话';
-  }
-}
-
 // ---- Send message ----
 
 export type SendCallbacks = {

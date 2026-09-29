@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Check, ListChecks, Pencil, RefreshCw, Sparkles, X } from 'lucide-react';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /* ═══════════════════════════════════════════════════════════════
    合规规则配置（C4）——阶段合规审查要点在线维护（DB 覆盖层 + 内置回退）
@@ -21,7 +22,7 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/stage-compliance${path}`, {
+  const res = await apiFetch(`/api/stage-compliance${path}`, {
     ...init,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web', ...(init?.headers ?? {}) },

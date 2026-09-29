@@ -275,6 +275,17 @@ export function unblacklistSupplier(id: string, reason: string) {
   return api.post<Supplier>(`/supplier/${id}/unblacklist`, { reason });
 }
 
+/** 恢复/解禁供应商（DISABLED/BLACKLIST → APPROVED；黑名单解禁须填理由，后端校验）。
+ *  此前前端零接线——停用/黑名单后无任何恢复入口，形成断头路（2026-09-28 审计 S2）。 */
+export function restoreSupplier(id: string, reason?: string) {
+  return api.post<Supplier>(`/supplier/${id}/restore`, { reason });
+}
+
+/** 复活被拒绝的供应商（REJECTED → PENDING 重新进审，仅 admin——后端 @Roles('admin')） */
+export function reactivateSupplier(id: string) {
+  return api.post<Supplier>(`/supplier/${id}/reactivate`, {});
+}
+
 export type SupplierRewardPunishment = {
   id: string;
   projectName: string;

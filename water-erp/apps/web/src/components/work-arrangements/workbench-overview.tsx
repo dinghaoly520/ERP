@@ -69,12 +69,13 @@ export function WorkbenchOverview({
 
   const [notificationCount, setNotificationCount] = useState(0);
 
-  // 直接拉 50 条通知，确保和下方任务通知面板数据一致
+  // 「通知待办」徽章=真实待办数（todoCount）——此前误用 res.total（含已办/已阅的历史
+  // 累计总量），标签叫"待办"数字却是全部通知数（2026-09-28 审计 P1）
   useEffect(() => {
     let cancelled = false;
-    listNotifications('all', 1, 50).then((res) => {
+    listNotifications('all', 1, 1).then((res) => {
       if (!cancelled) {
-        setNotificationCount(res.total);
+        setNotificationCount(res.todoCount);
       }
     }).catch(() => {});
     return () => { cancelled = true; };

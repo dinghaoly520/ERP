@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ClipboardList, Clock, Inbox, RefreshCw } from 'lucide-react';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 /*
    流程中心（C1）— 五源审批统一收件箱（只读聚合，处理在原页面）
@@ -28,7 +29,7 @@ const STATUS_CLASS: Record<string, string> = {
 };
 
 async function api<T>(path: string): Promise<T> {
-  const res = await fetch(`/api/workflow${path}`, {
+  const res = await apiFetch(`/api/workflow${path}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },
   });

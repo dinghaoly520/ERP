@@ -41,28 +41,38 @@ export class ArchiveController {
 
   /** 卷列表（A.2e 组合查询：状态/类型/时间） */
   @Get('items')
-  @ApiOperation({ summary: '归档卷台账（PMI 一卷）' })
+  @ApiOperation({ summary: '归档卷台账（PMI 一卷；非 admin 仅本人项目，与项目管理页同口径）' })
   async items(
     @Query('exported') exported?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
-    return this.prisma.projectManagementItem.findMany({
-      where: {
-        ...(exported === 'yes' ? { archiveExportedAt: { not: null } } : {}),
-        ...(exported === 'no' ? { archiveExportedAt: null } : {}),
-        ...(status ? { status: status as never } : {}),
-        ...(search ? { title: { contains: search } } : {}),
-      },
-      select: {
-        id: true, title: true, projectCode: true, currentStage: true, status: true,
-        requesterDepartment: true, awardedSupplier: true, createdAt: true,
-        retentionPeriod: true, archiveExportedAt: true, archiveRegistrationKey: true,
-        stages: { select: { stageKey: true, status: true, attachments: { select: { id: true } } } },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 200,
-    });
+    // 数据口径对齐项目管理页（拍板 1C；2026-09-28 审计——此前无任何隔离，staff 可见全部卷台账）。
+    // user=undefined 属鉴权异常，空集不泄露数据。
+    const where: Record<string, unknown> = {
+      ...(user?.role !== 'admin' ? { createdById: user?.sub ?? '__no_user__' } : {}),
+      ...(exported === 'yes' ? { archiveExportedAt: { not: null } } : {}),
+      ...(exported === 'no' ? { archiveExportedAt: null } : {}),
+      ...(status ? { status: status as never } : {}),
+      ...(search ? { title: { contains: search } } : {}),
+    };
+    // 返回全量计数：take 200 只是传输上限，前端不再以 rows.length 冒充总量
+    const [items, total] = await Promise.all([
+      this.prisma.projectManagementItem.findMany({
+        where,
+        select: {
+          id: true, title: true, projectCode: true, currentStage: true, status: true,
+          requesterDepartment: true, awardedSupplier: true, createdAt: true,
+          retentionPeriod: true, archiveExportedAt: true, archiveRegistrationKey: true,
+          stages: { select: { stageKey: true, status: true, attachments: { select: { id: true } } } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 200,
+      }),
+      this.prisma.projectManagementItem.count({ where }),
+    ]);
+    return { items, total };
   }
 
   @Get('items/:pmiId/snapshot')

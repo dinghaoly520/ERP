@@ -2548,6 +2548,7 @@ model OperationLog {
 model AssistantConversation {
   id        String             @id @default(cuid())
   userId    String?
+  guestKey  String?
   title     String?            @default("新对话")
   summary   String?
   messages  AssistantMessage[]
@@ -2556,6 +2557,7 @@ model AssistantConversation {
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([guestKey])
   @@map("assistant_conversations")
 }
 

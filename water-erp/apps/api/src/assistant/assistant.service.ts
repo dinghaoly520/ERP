@@ -17,8 +17,43 @@ import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
 import { mapToChart } from './chart.mapper';
 
+/** 会话属主：认证用户（JWT）或匿名访客（X-Assistant-Guest 头） */
+export interface AssistantOwner {
+  /** 认证用户 id（有值即视为已认证——敏感工具仅此态可用） */
+  userId?: string;
+  /** 匿名访客键（:3008 localStorage 生成） */
+  guestKey?: string;
+  /** 认证用户角色（来自 JWT payload，不可由前端声明） */
+  role?: string;
+}
+
+/** 属主 → 会话表写入口径（认证记 userId，匿名记 guestKey；二者互斥，认证优先） */
+function ownerData(owner: AssistantOwner | null) {
+  if (!owner) return {};
+  if (owner.userId) return { userId: owner.userId };
+  if (owner.guestKey) return { guestKey: owner.guestKey };
+  return {};
+}
+
+/** 会话与属主是否匹配（无属主的存量会话对所有人不可见） */
+function ownedBy(
+  conv: { userId: string | null; guestKey: string | null },
+  owner: AssistantOwner | null,
+): boolean {
+  if (!owner) return false;
+  if (owner.userId) return conv.userId === owner.userId;
+  if (owner.guestKey) return conv.guestKey === owner.guestKey;
+  return false;
+}
+
 @Injectable()
 export class AssistantService {
+  /**
+   * 匿名（未认证）访客可用的工具：仅公开域数据（已发布公告/商城目录）。
+   * 供应商联系人、专家库、项目/通知等内部数据工具仅认证用户可用
+   * （P0 收口 2026-09-28：此前 @Public + 无隔离，任何人可经 chat 取 PII）。
+   */
+  private static readonly ANONYMOUS_TOOLS = new Set(['announcement', 'mall']);
   private readonly logger = new Logger(AssistantService.name);
 
   constructor(
@@ -50,9 +85,9 @@ export class AssistantService {
     this.toolRegistry.register(this.mallTool);
   }
 
-  async createConversation(title?: string) {
+  async createConversation(title?: string, owner: AssistantOwner | null = null) {
     const conv = await this.prisma.assistantConversation.create({
-      data: { title: title || '新对话' },
+      data: { title: title || '新对话', ...ownerData(owner) },
     });
     return {
       id: conv.id,
@@ -62,18 +97,20 @@ export class AssistantService {
     };
   }
 
-  async chat(dto: ChatDto) {
+  async chat(dto: ChatDto, owner: AssistantOwner | null = null) {
     const conversation = dto.conversationId
       ? await this.prisma.assistantConversation.findUnique({
           where: { id: dto.conversationId },
           include: { messages: { orderBy: { createdAt: 'asc' }, take: 20 } },
         })
       : await this.prisma.assistantConversation.create({
-          data: { title: dto.message.slice(0, 50) },
+          data: { title: dto.message.slice(0, 50), ...ownerData(owner) },
           include: { messages: { orderBy: { createdAt: 'asc' }, take: 0 } },
         });
 
-    if (!conversation) {
+    if (!conversation || (dto.conversationId && !ownedBy(conversation, owner))) {
+      // 他人会话与不存在同口径，不泄露存在性（P0 会话隔离）；
+      // 新建分支（无 conversationId）天然属本次调用——无属主=临时会话，列表不可见但可对话
       return {
         conversationId: '',
         answer: '抱歉，会话不存在，请刷新页面重试。',
@@ -92,12 +129,15 @@ export class AssistantService {
       content: m.content,
     })) || [];
 
+    // 工具门禁：认证用户全量；匿名访客仅公开域工具（服务端裁决，不信前端 context）
+    const allowedTools = owner?.userId ? null : AssistantService.ANONYMOUS_TOOLS;
     const toolList = this.toolRegistry.list()
+      .filter((t) => !allowedTools || allowedTools.has(t.name))
       .map((t) => `- ${t.name}: ${t.description}`)
       .join('\n');
 
-    // 从上下文提取用户身份信息，构建权限感知的系统提示
-    const userRole = dto.context?.userRole as string | undefined;
+    // 角色取 JWT（认证态）而非请求体——dto.context.userRole 可被任意伪造，仅作历史兼容字段
+    const userRole = owner?.userId ? owner.role : undefined;
     const roleContext = userRole
       ? `\n\n【当前用户的身份信息】\n用户的系统角色是"${userRole}"。${
           ['admin', 'bid_host', 'leader', 'staff'].includes(userRole)
@@ -142,10 +182,10 @@ ${toolList}
     try {
       if (directToolMatch) {
         answer = await this.handleDirectToolCall(
-          directToolMatch, messages, cards, citations,
+          directToolMatch, messages, cards, citations, allowedTools,
         );
       } else {
-        answer = await this.handleNormalChat(messages, cards, citations);
+        answer = await this.handleNormalChat(messages, cards, citations, allowedTools);
       }
     } catch (e) {
       answer = `抱歉，AI 服务暂时不可用：${(e as Error).message}。请检查 DeepSeek API Key 配置或稍后重试。`;
@@ -203,6 +243,7 @@ ${toolList}
     messages: ChatMessage[],
     cards: unknown[],
     citations: unknown[],
+    allowedTools: Set<string> | null = null,
   ): Promise<string> {
     const toolName = match[1];
     let toolArgs: Record<string, unknown> = {};
@@ -214,6 +255,11 @@ ${toolList}
     if (!tool) {
       const res = await this.model.chat(messages);
       return res.text;
+    }
+
+    if (allowedTools && !allowedTools.has(toolName)) {
+      this.logger.warn(`handleDirectToolCall: 匿名访客请求内部工具 ${toolName}，已拒绝`);
+      return '抱歉，该类数据需要登录采购管理系统后才能查询。您可以询问公开的采购公告、商城目录信息，或进行采购业务知识咨询。';
     }
 
     const result = await tool.execute(toolArgs);
@@ -245,7 +291,13 @@ ${toolList}
     messages: ChatMessage[],
     cards: unknown[],
     citations: unknown[],
+    allowedTools: Set<string> | null = null,
   ): Promise<string> {
+    // 匿名访客不允许注入内部全局概览（采购/招标/供应商/专家分布属内部运营数据）
+    if (allowedTools && !allowedTools.has('global_overview')) {
+      return '抱歉，该问题涉及系统内部数据，需要登录采购管理系统后才能查询。您可以询问公开的采购公告或商城目录信息。';
+    }
+
     // 执行 global_overview 获取真实统计数据
     const tool = this.toolRegistry.get('global_overview');
     if (tool) {
@@ -289,6 +341,7 @@ ${toolList}
     messages: ChatMessage[],
     cards: unknown[],
     citations: unknown[],
+    allowedTools: Set<string> | null = null,
   ): Promise<string> {
     const res = await this.model.chat(messages);
     let answer = res.text;
@@ -300,7 +353,7 @@ ${toolList}
       // 模型没有调用任何工具就直接回复了——这很可能是编造的数据。
       // 强行注入 global_overview 并对原回复做真实性核查。
       this.logger.warn('handleNormalChat: 模型未调用任何工具，强制注入 global_overview 并丢弃原回复');
-      return this.handleFallbackWithGlobalOverview(messages, cards, citations);
+      return this.handleFallbackWithGlobalOverview(messages, cards, citations, allowedTools);
     }
 
     this.logger.log(
@@ -313,7 +366,7 @@ ${toolList}
     // 保证每次数据查询都产出图表：若模型未调用 global_overview，自动补一个
     // global_overview 产出采购/招标/供应商/专家四张分布表 → 自动生成图表
     const toolNames = new Set(toolCalls.map((t) => t.tool));
-    if (!toolNames.has('global_overview')) {
+    if (!toolNames.has('global_overview') && (!allowedTools || allowedTools.has('global_overview'))) {
       toolCalls.unshift({ tool: 'global_overview', args: {} });
       this.logger.log('handleNormalChat: 自动补充 global_overview 调用以保证图表产出');
     }
@@ -325,6 +378,10 @@ ${toolList}
       const tool = this.toolRegistry.get(tc.tool);
       if (!tool) {
         this.logger.warn(`handleNormalChat: 未知工具 ${tc.tool}`);
+        continue;
+      }
+      if (allowedTools && !allowedTools.has(tc.tool)) {
+        this.logger.warn(`handleNormalChat: 匿名访客请求内部工具 ${tc.tool}，已跳过`);
         continue;
       }
       const result = await tool.execute(tc.args || {});
@@ -608,7 +665,29 @@ ${toolList}
     }
   }
 
-  async getQuickStats() {
+  async getQuickStats(authenticated = false) {
+    // 公共域聚合（两类调用方都要）
+    const [announcementPublished, catalogItemCount] = await Promise.all([
+      this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
+      this.prisma.catalogItem.count(),
+    ]);
+
+    // 匿名访客（:3008 公共助手）只返回公开域数字——内部审批/风险/未读等运营
+    // 数字不对未认证方暴露（P0 收口）；字段保形置 0，避免 :3008 前端解构缺键
+    if (!authenticated) {
+      return {
+        procurement: { total: 0, pending: 0 },
+        bid: { total: 0, active: 0 },
+        supplier: { total: 0, approved: 0, pending: 0, risk: 0 },
+        expert: { total: 0, available: 0 },
+        announcement: { published: announcementPublished },
+        catalog: { items: catalogItemCount },
+        notification: { unread: 0 },
+        focusAreas: [],
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
     const [
       procurementTotal,
       procurementPending,
@@ -620,8 +699,6 @@ ${toolList}
       supplierRisk,
       expertTotal,
       expertAvailable,
-      announcementPublished,
-      catalogItemCount,
       notificationUnread,
     ] = await Promise.all([
       this.prisma.procurementProject.count(),
@@ -634,8 +711,6 @@ ${toolList}
       this.prisma.supplier.count({ where: { status: { in: ['DISABLED', 'BLACKLIST'] } } }),
       this.prisma.expertProfile.count(),
       this.prisma.expertProfile.count({ where: { availability: '可用' } }),
-      this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
-      this.prisma.catalogItem.count(),
       this.prisma.notification.count({ where: { isRead: false } }),
     ]);
 
@@ -661,8 +736,11 @@ ${toolList}
     };
   }
 
-  async listConversations() {
+  async listConversations(owner: AssistantOwner | null = null) {
+    // 无属主（未认证且无访客键）不返回任何会话
+    if (!owner?.userId && !owner?.guestKey) return [];
     const conversations = await this.prisma.assistantConversation.findMany({
+      where: owner.userId ? { userId: owner.userId } : { guestKey: owner.guestKey },
       orderBy: { updatedAt: 'desc' },
       include: {
         messages: {
@@ -684,11 +762,13 @@ ${toolList}
     }));
   }
 
-  async getConversation(id: string) {
-    return this.prisma.assistantConversation.findUnique({
+  async getConversation(id: string, owner: AssistantOwner | null = null) {
+    const conv = await this.prisma.assistantConversation.findUnique({
       where: { id },
       include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
+    // 他人会话与不存在同口径返回 null（P0 会话隔离）
+    return conv && ownedBy(conv, owner) ? conv : null;
   }
 
   async confirmAction(id: string) {
@@ -714,7 +794,14 @@ ${toolList}
     return { status: 'success', message: '操作已取消' };
   }
 
-  async deleteConversation(id: string) {
+  async deleteConversation(id: string, owner: AssistantOwner | null = null) {
+    const conv = await this.prisma.assistantConversation.findUnique({
+      where: { id },
+      select: { userId: true, guestKey: true },
+    });
+    if (!conv || !ownedBy(conv, owner)) {
+      return { status: 'failed', message: '会话不存在或无权删除' };
+    }
     // Messages cascade-delete via onDelete: Cascade in schema
     await this.prisma.assistantConversation.delete({
       where: { id },

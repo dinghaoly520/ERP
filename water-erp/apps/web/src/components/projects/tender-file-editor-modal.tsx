@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock, FileUp, History, Loader2, Pencil, RotateCcw, Save, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDraftAutosave, loadDraft, clearDraft } from '../../hooks/projects/useDraftAutosave';
+import { apiFetch } from '@/lib/api/api-fetch';
 
 const API_BASE = '/api';
 
@@ -89,7 +90,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
   const openHistory = useCallback(async () => {
     setHistoryOpen(true); setHistoryLoading(true);
     try {
-      const r = await fetch(`${API_BASE}/project-management/${projectId}/attachment/${attachmentId}/versions`, { credentials: 'include' });
+      const r = await apiFetch(`${API_BASE}/project-management/${projectId}/attachment/${attachmentId}/versions`, { credentials: 'include' });
       if (!r.ok) throw new Error(`历史加载失败 (${r.status})`);
       const data = await r.json() as Array<any>;
       setHistoryItems((data || []).map(v => ({
@@ -149,7 +150,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     setHistoryVersion(0);
     setSearchOpen(false); setSearchQuery(''); setSearchCount(0); setSearchIndex(0);
     setReviewHtml(''); setReviewAnnotationCount(0); setReviewFileName('');
-    fetch(`${API_BASE}/project-management/${projectId}/attachment-html/${attachmentId}`, { credentials: 'include' })
+    apiFetch(`${API_BASE}/project-management/${projectId}/attachment-html/${attachmentId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() as Promise<{ fileName: string; html: string; originalHash: string }> : r.text().then(body => { let detail = `HTTP ${r.status}`; try { detail = (JSON.parse(body) as any).message || detail; } catch {} throw new Error(`加载失败（${detail}）`); }))
       .then(d => {
         setRawHtml(d.html); originalHtmlRef.current = d.html;
@@ -330,7 +331,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const r = await fetch(`${API_BASE}/project-management/${projectId}/import-review-file`, {
+      const r = await apiFetch(`${API_BASE}/project-management/${projectId}/import-review-file`, {
         method: 'POST', credentials: 'include', body: formData,
       });
       if (!r.ok) {
@@ -666,7 +667,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
 
     setSaving(true);
     try {
-      const r = await fetch(`${API_BASE}/project-management/${projectId}/save-attachment-html`, {
+      const r = await apiFetch(`${API_BASE}/project-management/${projectId}/save-attachment-html`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attachmentId, html: editedHtml, originalHash: originalHashRef.current }),
@@ -735,14 +736,14 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
 
   const openAiPanel = useCallback(() => {
     if (!aiData) return; setAiPhase('panel'); setAiData(p => p ? { ...p, suggesting: true } : null);
-    fetch(`${API_BASE}/project-management/${projectId}/attachment-ai-polish`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+    apiFetch(`${API_BASE}/project-management/${projectId}/attachment-ai-polish`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: aiData.selectedText, instruction: `请分析以下选中文字，给出一个简洁的修改方向建议（不超过30字）。不要只关注标点格式——着重分析语义表达、用词是否正式恰当、信息是否完整、逻辑是否连贯、是否与采购文件专业风格一致。直接输出建议，不要任何解释性文字。` }),
     }).then(r => r.ok ? r.json() : Promise.reject()).then((d: { polished: string }) => setAiData(p => p ? { ...p, instruction: (d.polished || '').replace(/^建议[：:]\s*/, '').trim(), suggesting: false } : null)).catch(() => setAiData(p => p ? { ...p, suggesting: false } : null));
   }, [aiData, projectId]);
 
   const handleAiPolish = useCallback(async () => {
     if (!aiData || aiData.busy) return; setAiData(p => p ? { ...p, busy: true } : null);
-    try { const r = await fetch(`${API_BASE}/project-management/${projectId}/attachment-ai-polish`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: aiData.selectedText, instruction: aiData.instruction || '优化文字表述' }) }); if (!r.ok) throw new Error('AI 修改失败'); const result = await r.json() as { polished: string }; setAiData(p => p ? { ...p, busy: false, polishedText: result.polished } : null); setEditorVersion(v => v + 1); setAiPhase('diff'); } catch (e) { toast.error(e instanceof Error ? e.message : 'AI 修改失败'); setAiData(p => p ? { ...p, busy: false } : null); }
+    try { const r = await apiFetch(`${API_BASE}/project-management/${projectId}/attachment-ai-polish`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: aiData.selectedText, instruction: aiData.instruction || '优化文字表述' }) }); if (!r.ok) throw new Error('AI 修改失败'); const result = await r.json() as { polished: string }; setAiData(p => p ? { ...p, busy: false, polishedText: result.polished } : null); setEditorVersion(v => v + 1); setAiPhase('diff'); } catch (e) { toast.error(e instanceof Error ? e.message : 'AI 修改失败'); setAiData(p => p ? { ...p, busy: false } : null); }
   }, [aiData, projectId]);
 
   const confirmAiPolish = useCallback(() => {

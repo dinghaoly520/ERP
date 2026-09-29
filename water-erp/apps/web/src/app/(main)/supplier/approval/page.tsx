@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier, getClassifications, setSupplierClassifications } from '@/lib/api/supplier';
+import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier, reactivateSupplier, getClassifications, setSupplierClassifications } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
@@ -47,6 +47,20 @@ function SupplierApprovalPage() {
   const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return'; supplier: Supplier } | null>(null);
   const [actionReason, setActionReason] = useState('');
+  // REJECTED 复活确认（仅 admin）
+  const [reactivateTarget, setReactivateTarget] = useState<Supplier | null>(null);
+  const [reactivating, setReactivating] = useState(false);
+  const handleReactivate = async () => {
+    if (!reactivateTarget) return;
+    setReactivating(true);
+    try {
+      await reactivateSupplier(reactivateTarget.id);
+      toast.success(`已复活「${reactivateTarget.name}」的注册申请，重新进入待审核`);
+      setReactivateTarget(null);
+      loadData(); loadCounts();
+    } catch (e: any) { toast.error(e?.message || '复活失败'); }
+    setReactivating(false);
+  };
 
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
 
@@ -142,16 +156,19 @@ function SupplierApprovalPage() {
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
   const activeTab = TABS.find(t => t.key === tab)!;
 
-  // 非 admin：就绪前渲染空态防闪现，就绪后给无权限卡（后端 @Roles('admin') 双保险）
+  // 无审批权（既非归属公司管理账号）：就绪前渲染空态防闪现，就绪后给无权限卡
+  // （2026-09-26 改定：审批=admin/leader/staff，与后端 @Roles('admin','leader','staff') 及
+  // 详情页审批栏/供应商库待审 tab 同口径——旧"仅 admin"口径曾致 leader/staff 详情页能审、
+  // 列表页却看不到队列的互相矛盾）
   if (!roleReady) return null;
-  if (currentUser?.role !== 'admin') {
+  if (!['admin', 'leader', 'staff'].includes(currentUser?.role ?? '')) {
     return (
       <div className="neu-card-static flex flex-col items-center justify-center gap-3 p-14 text-center">
         <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
           <ShieldCheck size={22} className="text-[var(--muted-foreground)]" />
         </div>
         <p className="text-sm font-bold text-[var(--foreground)]">供应商注册审批仅对管理权限账号开放</p>
-        <p className="text-xs text-[var(--muted-foreground)]">新供应商的注册审批与邀请码由系统管理员处理，如有需要请联系管理员</p>
+        <p className="text-xs text-[var(--muted-foreground)]">新供应商的注册审批由归属公司管理账号处理，如有需要请联系管理员</p>
       </div>
     );
   }
@@ -376,6 +393,12 @@ function SupplierApprovalPage() {
                             <button onClick={() => { setActionReason(''); setActionModal({ type: 'reject', supplier: s }); }} className="neu-btn-xs is-danger">拒绝</button>
                           </>
                         )}
+                        {/* 断头路接线（2026-09-28 审计 S2）：REJECTED → PENDING 复活（后端 @Roles('admin')） */}
+                        {tab === 'REJECTED' && currentUser?.role === 'admin' && (
+                          <button
+                            onClick={() => setReactivateTarget(s)}
+                            className="neu-btn-xs is-success">复活申请</button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -428,6 +451,28 @@ function SupplierApprovalPage() {
               className="neu-input w-full h-24 resize-none text-sm"
             />
           )}
+        </Modal>
+      )}
+
+      {/* REJECTED 复活确认（仅 admin；REJECTED → PENDING 重新进审） */}
+      {reactivateTarget && (
+        <Modal
+          open
+          onClose={() => setReactivateTarget(null)}
+          title="复活注册申请"
+          description={<>供应商：<strong className="text-[var(--foreground)]">{reactivateTarget.name}</strong></>}
+          footer={
+            <>
+              <button onClick={() => setReactivateTarget(null)} className="neu-btn-soft">取消</button>
+              <button onClick={handleReactivate} disabled={reactivating} className="neu-btn-soft is-success">
+                {reactivating ? '处理中...' : '确认复活'}
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-[var(--muted-foreground)]">
+            复活后该供应商状态将从「审核不通过」回到「待审核」，重新进入审批队列；原拒绝记录保留在操作历史中。
+          </p>
         </Modal>
       )}
 

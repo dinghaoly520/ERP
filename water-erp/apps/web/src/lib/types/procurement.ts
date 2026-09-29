@@ -61,6 +61,8 @@ export type PaginationInfo = {
 // 列表响应
 export type ProcurementsListResponse = {
   data: ProcurementRoundItem[];
+  /** 异常全量计数（与列表同筛选/公司/回收站视图；hero 展示用，2026-09-28） */
+  abnormalTotal?: number;
   pagination: PaginationInfo;
 };
 

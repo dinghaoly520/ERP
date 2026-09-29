@@ -308,8 +308,9 @@ export interface ExpertStatistics {
   recentAssigns7d: number; recentExtractions30d: number;
   monthlyEvalTrend: { labels: string[]; counts: number[] };
 }
-export function getExpertStatistics() {
-  return api.get<ExpertStatistics>('/expert-admin/statistics');
+export function getExpertStatistics(companyId?: string) {
+  const qs = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return api.get<ExpertStatistics>(`/expert-admin/statistics${qs}`);
 }
 
 /* 批量操作 */

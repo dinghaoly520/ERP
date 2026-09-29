@@ -6,7 +6,7 @@ import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/comp
 import { useRouter } from 'next/navigation';
 import {
   listAnnouncements, updateAnnouncement, hideAnnouncement, offlineAnnouncement,
-  getParticipants, fetchAnnouncementCompanyCounts,
+  getParticipants, fetchAnnouncementCompanyCounts, getAnnouncementStats,
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant, ParticipantsResult } from '@/lib/api/announcement';
 import { toast } from 'sonner';
@@ -97,6 +97,7 @@ export default function NoticePage() {
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<{ total: number; items: AnnouncementListItem[] }>({ total: 0, items: [] });
+  const [stats, setStats] = useState<{ drafts: number; published: number; publishedThisMonth: number; totalViews: number }>({ drafts: 0, published: 0, publishedThisMonth: 0, totalViews: 0 });
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('BID_NOTICE');
   const [filterStatus, setFilterStatus] = useState<AnnouncementStatus | ''>('');
@@ -122,6 +123,8 @@ export default function NoticePage() {
       const res = await listAnnouncements({ type: filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId });
       setData({ total: res.total, items: res.items });
     } catch { /* empty */ }
+    // KPI 全量口径与列表并行拉取，失败保持上次值（不阻塞列表）
+    getAnnouncementStats(companyId).then(setStats).catch(() => {});
     setLoading(false);
   }, [filterType, filterStatus, search, page, companyId]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
@@ -314,15 +317,12 @@ export default function NoticePage() {
   };
 
   /* ── 统计 ── */
-  const now = new Date();
-  const drafts = data.items.filter(i => i.status === 'DRAFT').length;
-  const published = data.items.filter(i => i.status === 'PUBLISHED').length;
-  const publishedThisMonth = data.items.filter(i => {
-    if (i.status !== 'PUBLISHED' || !i.publishDate) return false;
-    const d = new Date(i.publishDate);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).length;
-  const totalViews = data.items.reduce((sum, i) => sum + (i.viewCount || 0), 0);
+  // KPI 改用服务端全量口径（2026-09-28 审计 P1：此前从当前页 15 条派生"浏览总量/本月发布"，
+  // 翻页即变、与"共 total 条"并列自相矛盾）；stats 与列表同公司隔离
+  const drafts = stats.drafts;
+  const published = stats.published;
+  const publishedThisMonth = stats.publishedThisMonth;
+  const totalViews = stats.totalViews;
 
   return (
     <div className="flex flex-col gap-5">

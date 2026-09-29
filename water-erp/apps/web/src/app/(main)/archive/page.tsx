@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  Archive, ClipboardCheck, Download, FileArchive, History, PlayCircle, RefreshCw, ShieldCheck, Upload,
+  Archive, ClipboardCheck, Clock3, Download, FileArchive, History, PlayCircle, RefreshCw, ShieldCheck, Upload,
 } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { fetchCurrentUser } from '@/lib/api/auth';
@@ -99,7 +99,9 @@ function ArchivePageInner() {
     setLoading(true);
     setError(null);
     try {
-      setRows(await api<VolumeRow[]>(`/items${exportedFilter !== 'all' ? `?exported=${exportedFilter}` : ''}`));
+      const r = await api<{ items: VolumeRow[]; total: number }>(`/items${exportedFilter !== 'all' ? `?exported=${exportedFilter}` : ''}`);
+      setRows(r.items);
+      setTotalVolumes(r.total);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -120,11 +122,13 @@ function ArchivePageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusPmi, rows]);
 
+  // 服务端全量口径（2026-09-28 审计 P2：此前以 rows.length 冒充总量，take 200 截断后失真）
+  const [totalVolumes, setTotalVolumes] = useState(0);
   const stats = useMemo(() => ({
-    total: rows.length,
+    total: totalVolumes || rows.length,
     exported: rows.filter((r) => r.archiveExportedAt).length,
     pending: rows.filter((r) => !r.archiveExportedAt && (r.stages?.some((s) => ['AWARD_DECISION', 'CONTRACT'].includes(s.stageKey) && s.attachments.length > 0) ?? false)).length,
-  }), [rows]);
+  }), [rows, totalVolumes]);
 
   async function openInspect(row: VolumeRow) {
     setBusy(row.id);
@@ -177,13 +181,12 @@ function ArchivePageInner() {
     }
   }
 
-  async function exportAsip(pmiId: string) {
+  async function exportAsip(pmiId: string, retentionPeriod: VolumeRow['retentionPeriod'] = null) {
     setBusy(pmiId);
     try {
-      // M2：不硬编码期限——已划定的保留原值，未划定的默认 Y30（后端仅在有传参时更新）
-      const body = inspect && inspect.row.retentionPeriod
-        ? {}
-        : { retentionPeriod: 'Y30' as const };
+      // M2：不硬编码期限——已划定的保留原值（后端无参即不更新），未划定的默认 Y30。
+      // 修复（2026-09-28 审计 P1）：此前行内导出恒传 Y30，已划定 PERMANENT/Y10 的卷被静默改写。
+      const body = retentionPeriod ? {} : { retentionPeriod: 'Y30' as const };
       const r = await api<{ fileCount: number; zipSha256: string }>(`/items/${pmiId}/export-asip`, {
         method: 'POST',
         body: JSON.stringify(body),
@@ -200,6 +203,28 @@ function ArchivePageInner() {
 
   function download(pmiId: string) {
     window.open(`/api/archive/items/${pmiId}/package`, '_blank');
+  }
+
+  // 划定保管期限（§9.3 永久/30年/10年）——后端 PATCH /items/:pmiId/retention 此前前端零接线（2026-09-28 审计）
+  const [retentionEdit, setRetentionEdit] = useState<VolumeRow | null>(null);
+  const [retentionValue, setRetentionValue] = useState<'PERMANENT' | 'Y30' | 'Y10'>('Y30');
+  const [retentionSaving, setRetentionSaving] = useState(false);
+  async function saveRetention() {
+    if (!retentionEdit) return;
+    setRetentionSaving(true);
+    try {
+      await api<{ id: string; retentionPeriod: string }>(`/items/${retentionEdit.id}/retention`, {
+        method: 'PATCH',
+        body: JSON.stringify({ retentionPeriod: retentionValue }),
+      });
+      setToast(`已划定保管期限：${RETENTION_LABEL[retentionValue]}`);
+      setRetentionEdit(null);
+      void load();
+    } catch (e: any) {
+      setToast(e.message);
+    } finally {
+      setRetentionSaving(false);
+    }
   }
 
   return (
@@ -289,9 +314,16 @@ function ArchivePageInner() {
                             <PlayCircle size={13} /> 检测
                           </button>
                           {canExport && (
-                            <button className="neu-btn-xs is-success" disabled={busy === r.id} onClick={() => void exportAsip(r.id)}>
-                              <FileArchive size={13} /> 导出
-                            </button>
+                            <>
+                              {!r.retentionPeriod && (
+                                <button className="neu-btn-xs" disabled={busy === r.id} onClick={() => setRetentionEdit(r)}>
+                                  <Clock3 size={13} /> 划定期限
+                                </button>
+                              )}
+                              <button className="neu-btn-xs is-success" disabled={busy === r.id} onClick={() => void exportAsip(r.id, r.retentionPeriod)}>
+                                <FileArchive size={13} /> 导出
+                              </button>
+                            </>
                           )}
                           {r.archiveExportedAt && (
                             <button className="neu-btn-xs" onClick={() => download(r.id)}>
@@ -311,6 +343,40 @@ function ArchivePageInner() {
           </div>
         </div>
       </div>
+
+      {/* 划定保管期限弹窗（§9.3；此前后端端点零接线） */}
+      {retentionEdit && (
+        <Modal
+          open
+          onClose={() => setRetentionEdit(null)}
+          title="划定保管期限"
+          description={<>项目：<strong className="text-[var(--foreground)]">{retentionEdit.title}</strong>（{retentionEdit.projectCode ?? '—'}）</>}
+          footer={
+            <>
+              <button onClick={() => setRetentionEdit(null)} className="neu-btn-soft">取消</button>
+              <button onClick={() => void saveRetention()} disabled={retentionSaving} className="neu-btn-soft is-success">
+                {retentionSaving ? '保存中...' : '确认划定'}
+              </button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-[var(--muted-foreground)]">依据 DA/T 103-2024 §9.3 划定；划定后导出归档信息包将保留原值，不再默认 Y30。</p>
+            <div className="flex gap-2">
+              {(['PERMANENT', 'Y30', 'Y10'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setRetentionValue(v)}
+                  className={retentionValue === v ? 'neu-btn-xs is-info' : 'neu-btn-xs'}
+                >
+                  {RETENTION_LABEL[v]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* 质检弹窗（Modal 化，2026-09-18 cgzxui 表单弹窗范式） */}
       {inspect && (

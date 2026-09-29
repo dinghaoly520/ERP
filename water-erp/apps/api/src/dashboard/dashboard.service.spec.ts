@@ -117,7 +117,9 @@ describe('DashboardService', () => {
       totalSavingsLabel: '20.0 万',
       completedCount: 2,
       totalCount: 4,
-      abnormalCount: 2,
+      // 异常口径（2026-09-28 审计修订）：PENDING=正常在途不算异常——
+      // 测试集 4 轮 = 2 AWARDED + 1 PENDING + 1 FAILED_REVIEW → 异常仅 1
+      abnormalCount: 1,
     });
   });
 });

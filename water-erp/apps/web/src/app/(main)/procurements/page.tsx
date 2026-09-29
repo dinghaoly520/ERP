@@ -58,6 +58,7 @@ import { ArchiveDetailModal } from "@/components/procurements/archive-detail-mod
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { Modal } from "@/components/workbench";
 import { useConfirm } from "@/components/workbench/use-confirm";
+import { apiFetch } from '@/lib/api/api-fetch';
 
 // Animation Utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -138,6 +139,7 @@ function PageHero({
   onCompanyChange,
   onOpenExtract,
   isAdmin,
+  abnormalTotal,
 }: {
   filters: LedgerFilterState;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
@@ -153,8 +155,11 @@ function PageHero({
   onCompanyChange: (value: string) => void;
   onOpenExtract: () => void;
   isAdmin: boolean;
+  abnormalTotal?: number;
 }) {
-  const abnormalCount = data.filter(i =>
+  // 异常=服务端全量口径（2026-09-28 审计 P2：此前只数当前页 12 条，与"共 total 条"并列打架）；
+  // 旧后端无此字段时回退当前页推导
+  const abnormalCount = abnormalTotal ?? data.filter(i =>
     ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE", "CANCELLED"].includes(i.resultStatus)
   ).length;
 
@@ -1057,6 +1062,7 @@ export default function ProcurementsPage() {
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<ProcurementRoundItem[]>([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 12, total: 0, totalPages: 0 });
+  const [abnormalTotal, setAbnormalTotal] = useState<number | undefined>(undefined);
   const [methods, setMethods] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [ledgerStats, setLedgerStats] = useState<LedgerSummary | null>(null);
@@ -1073,7 +1079,7 @@ export default function ProcurementsPage() {
     category: null,
   });
 
-  const [sortBy, setSortBy] = useState<'procurementDate' | 'departmentId' | 'amount'>('procurementDate');
+  const [sortBy, setSortBy] = useState<'procurementDate' | 'amount'>('procurementDate');
 
   // Analysis states
   const [showAnalysisSelection, setShowAnalysisSelection] = useState(false);
@@ -1227,7 +1233,7 @@ export default function ProcurementsPage() {
       if (item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && !itemSummaries[itemId]) {
         setLoadingSummaries(prev => new Set(prev).add(itemId));
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/project-management/${item.projectManagementId}/summary`, {
+          const response = await apiFetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/project-management/${item.projectManagementId}/summary`, {
             credentials: 'include',
           });
           if (response.ok) {
@@ -1288,6 +1294,7 @@ export default function ProcurementsPage() {
       ]);
       setData(listRes.data);
       setPagination(listRes.pagination);
+      setAbnormalTotal(listRes.abnormalTotal);
       setMethods(methodsRes);
       if (statsRes) setLedgerStats(statsRes);
       setCompanyCounts(countsRes);
@@ -1465,6 +1472,7 @@ export default function ProcurementsPage() {
             companyId={companyId}
           onOpenExtract={() => setExtractOpen(true)}
           isAdmin={isAdmin}
+          abnormalTotal={abnormalTotal}
             onCompanyChange={setCompanyId}
           />
         </div>
