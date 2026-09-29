@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './notification/notification-bell';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '../lib/types';
@@ -51,28 +51,36 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [authError, setAuthError] = useState(false);
   const [authRetrying, setAuthRetrying] = useState(false);
+  // EXP-P1-02（2026-09-29，对齐平板 (tablet)/layout.tsx 同款）：非 401 的瞬时失败
+  // 走退避重试（最多 3 次），不再当作登出——评标窗口内被弹回登录页会被闸4 以
+  // 409 ACCOUNT_EVALUATING 拒绝（解锁须主持人），内存态（未自动保存的编辑）全丢。
+  const authRetryRef = useRef(0);
+  const AUTH_MAX_RETRIES = 3;
   const [contactInfo, setContactInfo] = useState<{ phone: string; email: string; displayName: string; contactConfirmedAt: string | null } | null>(null);
 
   const checkAuth = () => {
     setAuthRetrying(true);
-    fetch('/api/auth/me', { credentials: 'include' })
+    fetch('/api/auth/me', { credentials: 'include', headers: { 'X-Portal': 'expert' } })
       .then(r => {
         if (r.status === 401) { router.replace(LOGIN_URL); return null; }
-        return r.ok ? r.json() : null;
+        // 非 401 的失败（如瞬时 500/502）抛错走重试分支，不当作登出
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
       })
       .then(u => {
-        if (!u) { router.replace(LOGIN_URL); return; }
+        if (!u) return; // 401 已跳转登录
         setUser(u);
         setAuthError(false);
         setAuthRetrying(false);
+        authRetryRef.current = 0;
       })
       .catch(() => {
         setAuthError(true);
         setAuthRetrying(false);
-        // Auto-retry once after 3 seconds
-        setTimeout(() => {
-          if (!user) checkAuth();
-        }, 3000);
+        if (authRetryRef.current < AUTH_MAX_RETRIES) {
+          authRetryRef.current++;
+          setTimeout(checkAuth, 3000 * authRetryRef.current);
+        }
       });
   };
 
