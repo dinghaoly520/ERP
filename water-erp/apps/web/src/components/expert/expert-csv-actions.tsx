@@ -56,8 +56,19 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const lines = text.trim().split('\n');
+    // BOM 剥离（Excel 导出 CSV 常 带 ﻿，残留会让首个表头匹配失败）+ CRLF 行尾清理（四审加固）
+    const text = (await file.text()).replace(/^﻿/, '');
+    const rawLines = text.trim().split('\n').map(l => l.replace(/\r$/, ''));
+    // 跨行引号字段合并（四审 P2）：引号内含换行的字段此前被切断、后半段成独立行静默错位——
+    // 按引号数奇偶合并（"" 转义为偶数个，奇数=未闭合）
+    const lines: string[] = [];
+    for (let i = 0; i < rawLines.length; i++) {
+      let line = rawLines[i];
+      while ((line.match(/"/g)?.length ?? 0) % 2 === 1 && i + 1 < rawLines.length) {
+        line += '\n' + rawLines[++i];
+      }
+      lines.push(line);
+    }
     if (lines.length < 2) {
       toast.error('CSV 至少需要表头行和一数据行');
       e.target.value = '';

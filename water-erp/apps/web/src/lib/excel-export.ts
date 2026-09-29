@@ -163,7 +163,9 @@ export function exportSuppliersToExcel(suppliers: any[]) {
   headerRow.font = { bold: true, color: { argb: 'FF5E7EBD' }, size: 11 };
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF3FB' } };
 
-  const statusMap: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 shared 口径（2026-09-28 审计：本地副本 DISABLED='停用' 与他处 '已停用' 分叉）
+  // 统一 shared 口径（2026-09-28 审计：本地副本 DISABLED='停用' 与他处 '已停用' 分叉）；
+  // 浅拷贝防后续误写污染 shared 模块级常量（四审加固）
+  const statusMap: Record<string, string> = { ...SUPPLIER_STATUS_LABEL };
   const gradeText = (g?: string | null) => (g ? `${g}（${LEVEL_LABEL[g] ?? ''}）`.replace('（）', '') : '—');
 
   suppliers.forEach((s: any, idx: number) => {

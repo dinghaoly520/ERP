@@ -8835,13 +8835,7 @@ a {
   background: oklch(0.975 0.012 258);
 }
 
-.flow-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
+/* （已删 .flow-backdrop：组件 2026-09-29 清理，样式同步移除）*/
 
 /* ── cgzxui 水彩光晕（移植自 public-portal :3002 的 .flow-glow）
    浅彩水彩光晕 = fixed pastel blooms，是玻璃面板背后模糊掉的色彩来源。
@@ -8954,12 +8948,6 @@ a {
   flex-shrink: 0;
 }
 
-/* ── 流动粒子画布 ── */
-.flow-backdrop canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
 
 /* ── Flow 页面入场动画 ── */
 @keyframes flow-enter {

@@ -4,12 +4,17 @@
  * 新代码一律引用本模块；存量按"高可见不一致处"渐进收敛。
  */
 
-/** 日期 → `YYYY-MM-DD`（zh-CN 口径；无效值回退 `—`） */
+/** 日期 → `YYYY-MM-DD`（本地时区；无效值回退 `—`）。
+ *  注：zh-CN toLocaleDateString 实际输出斜杠分隔（2026/09/28），与全站短横线口径不符——
+ *  故手动拼装（四审 P2 修正） */
 export function formatDateCN(value: string | Date | null | undefined): string {
   if (!value) return '—';
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /** 日期时间 → `YYYY-MM-DD HH:mm`（zh-CN 口径） */
@@ -17,8 +22,9 @@ export function formatDateTimeCN(value: string | Date | null | undefined): strin
   if (!value) return '—';
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  const hm = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-  return `${formatDateCN(d)} ${hm}`;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${formatDateCN(d)} ${hh}:${mm}`;
 }
 
 /** 金额（元）→ 万元显示：≥1 万显示 `N.NN万`，不足 1 万显示 `N元`（统一两位小数） */
@@ -29,7 +35,8 @@ export function formatWan(
   const digits = opts?.digits ?? 2;
   const empty = opts?.empty ?? '—';
   if (amount === null || amount === undefined || amount === '') return empty;
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  // 字符串先剥千分位逗号再解析（'12,000' 此前静默截断为 12——四审 P2）
+  const num = typeof amount === 'string' ? parseFloat(amount.replace(/,/g, '')) : amount;
   if (!Number.isFinite(num)) return empty;
   return num >= 10000 ? `${(num / 10000).toFixed(digits)}万` : `${num.toFixed(0)}元`;
 }

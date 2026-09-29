@@ -1312,7 +1312,7 @@ export default function ProcurementsPage() {
           companyId,
         }),
         fetchProcurementMethods(),
-        fetchLedgerStats(undefined, undefined, companyId).catch(() => null),
+        fetchLedgerStats(filters.startDate || undefined, filters.endDate || undefined, companyId) /* 四审 P2：统计卡与列表同筛选，防同屏口径打架 */.catch(() => null),
         (isAdmin && companyId === 'all')
           ? fetchLedgerCompanyCounts({
               startDate: filters.startDate || undefined,
