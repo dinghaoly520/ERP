@@ -568,8 +568,9 @@ describe('BidOpeningRecordService — enterOpeningRecord 唱标事件公开广�
       supplierId: 's1',      // 旧实现误传 BidSupplier.id 'bs1'，两套 id 体系永不命中
       supplierName: '甲公司',
       recordId: 'r1',
-      amount: 980000,
     }));
+    // X-P2-02：事件载荷不再携带 amount（万元裸数字易被按「元」误读），读端 refresh 拉全量
+    expect((gatewayMock.notifyOpeningRecordUpdated as jest.Mock).mock.calls[0][1]).not.toHaveProperty('amount');
   });
 });
 describe('BidOpeningRecordService — getOpeningRecordDraft', () => {

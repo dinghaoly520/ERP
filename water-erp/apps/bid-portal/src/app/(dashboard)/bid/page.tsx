@@ -171,7 +171,7 @@ export default function BidTaskBoard() {
             </h2>
             {evaluating.length === 0 ? (
               <div className="neu-card-static px-6 py-8 text-center text-[12px] text-[color:var(--muted-foreground)]">
-                暂无评标中的项目。采购管理工作台启动评标后项目出现在此处，可在此只读查看评标进展。
+                暂无评标中的项目。在本工作区「评标管理」tab 完成启动评标后，项目会出现在此处，可查看评标进展（分工 v3：启动评标在本端）。
               </div>
             ) : (
               <div className="space-y-2.5">

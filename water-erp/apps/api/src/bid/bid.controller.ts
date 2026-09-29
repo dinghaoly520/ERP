@@ -536,6 +536,9 @@ export class BidController {
   }
 
   @Post('projects/:id/decrypt-all')
+  // BID-P1-01（2026-09-29 审查修复）：与单家解密/解外层/归因裁决同口径收口——批量代解密是
+  // 主持人现场执行动作，leader/staff 不得越 canHost 门直调（类级四角色放过、前端注释却自称已收口）。
+  @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
   @Throttle({ default: { ttl: 60000, limit: 2 } })
   decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.decrypt.decryptAllSuppliers(id, userId); }

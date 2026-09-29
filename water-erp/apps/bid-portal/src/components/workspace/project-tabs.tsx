@@ -28,7 +28,7 @@ export const TABS: TabDef[] = [
     // （分工 v3 后评标管理为 :3007 现场全操作），故 tab 不再于这些阶段灰显（避免"灰色打不开"）。
     // DOWNLOAD/SUBMIT 不可作为工作区入口，仍禁用。
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
-    stageHint: '评标尚未开始。当前阶段：{stage}。请等待采购管理工作台启动评标后进入评标管理。',
+    stageHint: '评标尚未开始。当前阶段：{stage}。请在本工作区「评标管理」tab 启动评标（BID-P3-02，分工 v3：启动评标在本端）。',
   },
   {
     key: 'standard',
