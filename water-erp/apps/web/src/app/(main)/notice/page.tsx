@@ -25,9 +25,11 @@ import { AnnouncementRecycleModal } from '@/components/notice/announcement-recyc
 
 /* ── 类型/状态映射 ── */
 // 2026-09-09 拍板：公告类型入口收敛为 6 类（删中标公示/成交/合同/履行结果/流标/中标公告 tab，与公开端一致）；
-// 被删类型的历史数据仍在「全部」中展示（列表类型徽标用 typeBadgeMeta 完整映射）
+// 被删类型的历史数据在「全部」中展示（列表类型徽标用 typeBadgeMeta 完整映射）
 // 公告入口包括采购、流标、中标、补遗、资格预审、政策和平台公告。
-type TypeTabKey = AnnouncementType | 'WIN_BID_NOTICE,PRE_WIN_NOTICE';
+// 「全部」（2026-09-28 审计 P1）：不传 type 过滤——成交/合同/履行结果公告（C1 流程自动
+// 派生 + 手工可建）无专属 tab，此前在管理列表永久不可见。
+type TypeTabKey = AnnouncementType | 'WIN_BID_NOTICE,PRE_WIN_NOTICE' | 'ALL';
 const typeMeta: Partial<Record<TypeTabKey, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }>> = {
   BID_NOTICE: { label: '采购公告', tone: 'blue' },
   FAILED_BID_NOTICE: { label: '流标公告', tone: 'orange' },
@@ -42,9 +44,12 @@ const tabAnchor = (t: string): string => t.split(',')[0];
 
 /** 类型分段切换（neu-segment，2026-09-18 对齐供应商门户公告公示同款）：顺序沿用 ANNOUNCEMENT_TYPE_ORDER。
  *  七段较宽，段内不带图标（:3005 该页 tab 原无图标），保右侧搜索/筛选同排一行 */
-const TYPE_TABS: Array<{ key: TypeTabKey; label: string }> = (Object.keys(typeMeta) as TypeTabKey[])
-  .sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(a) as AnnouncementType) - ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(b) as AnnouncementType))
-  .map((key) => ({ key, label: typeMeta[key]!.label }));
+const TYPE_TABS: Array<{ key: TypeTabKey; label: string }> = [
+  { key: 'ALL', label: '全部' },
+  ...(Object.keys(typeMeta) as TypeTabKey[])
+    .sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(a) as AnnouncementType) - ANNOUNCEMENT_TYPE_ORDER.indexOf(tabAnchor(b) as AnnouncementType))
+    .map((key) => ({ key, label: typeMeta[key]!.label })),
+];
 
 /** 列表徽标完整映射（含被收敛 tab 的类型——历史数据在「全部」中仍正确标注） */
 const typeBadgeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
@@ -120,7 +125,7 @@ export default function NoticePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await listAnnouncements({ type: filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId });
+      const res = await listAnnouncements({ type: filterType === 'ALL' ? undefined : filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId });
       setData({ total: res.total, items: res.items });
     } catch { /* empty */ }
     // KPI 全量口径与列表并行拉取，失败保持上次值（不阻塞列表）
@@ -132,7 +137,7 @@ export default function NoticePage() {
   // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径
   useEffect(() => {
     if (!isAdmin || companyId !== 'all') { setCompanyCounts(null); return; }
-    fetchAnnouncementCompanyCounts({ type: filterType, status: filterStatus || undefined, search: search || undefined })
+    fetchAnnouncementCompanyCounts({ type: filterType === 'ALL' ? undefined : filterType, status: filterStatus || undefined, search: search || undefined })
       .then(setCompanyCounts).catch(() => setCompanyCounts(null));
   }, [isAdmin, companyId, filterType, filterStatus, search]);
   useEffect(() => { load(); }, [load]);
@@ -373,7 +378,7 @@ export default function NoticePage() {
           className="neu-segment"
           role="group"
           aria-label="公告类型"
-          data-count="7"
+          data-count="8"
           data-index={String(TYPE_TABS.findIndex((t) => t.key === filterType))}
         >
           <span className="neu-segment-thumb" aria-hidden="true" />

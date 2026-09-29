@@ -589,14 +589,17 @@ export class ProjectManagementService {
         first.status === 'NOT_STARTED' &&
         latestRound.every((s) => s.status !== 'COMPLETED');
       if (legacyStuck) {
-        await this.prisma.projectManagementStage.update({
-          where: { id: first.id },
-          data: { status: PROJECT_STAGE_STATUS.IN_PROGRESS },
-        });
-        await this.prisma.projectManagementItem.update({
-          where: { id: itemId },
-          data: { currentStage: first.stageKey, currentRound: maxRound },
-        });
+        // 自愈两步同事务（2026-09-29 二审 P2）：避免"阶段已激活但项目指针未动"的半自愈态
+        await this.prisma.$transaction([
+          this.prisma.projectManagementStage.update({
+            where: { id: first.id },
+            data: { status: PROJECT_STAGE_STATUS.IN_PROGRESS },
+          }),
+          this.prisma.projectManagementItem.update({
+            where: { id: itemId },
+            data: { currentStage: first.stageKey, currentRound: maxRound },
+          }),
+        ]);
         this.logger.log(`项目 ${itemId} 自愈激活第 ${maxRound} 轮首阶段 ${first.stageKey}（历史死锁数据）`);
         return { round: maxRound, inserted: 0, activated: true };
       }

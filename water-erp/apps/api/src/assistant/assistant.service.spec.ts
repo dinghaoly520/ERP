@@ -374,7 +374,7 @@ describe('AssistantService', () => {
         message: '操作成功',
       });
 
-      const result = await service.confirmAction('act-1');
+      const result = await service.confirmAction('act-1', { sub: 'admin-1', role: 'admin' });
 
       expect(result.status).toBe('success');
     });
@@ -385,16 +385,22 @@ describe('AssistantService', () => {
         status: 'success',
       });
 
-      const result = await service.confirmAction('act-1');
+      const result = await service.confirmAction('act-1', { sub: 'admin-1', role: 'admin' });
 
       expect(result.status).toBe('failed');
       expect(result.message).toContain('已处理');
     });
 
+    it('P1 鉴权：匿名与非属主确认被拒（confirm 会执行真实写操作）', async () => {
+      const { UnauthorizedException, ForbiddenException } = await import('@nestjs/common');
+      await expect(service.confirmAction('act-1')).rejects.toThrow(UnauthorizedException);
+      await expect(service.confirmAction('act-1', { sub: 'user-other', role: 'staff' })).rejects.toThrow(ForbiddenException);
+    });
+
     it('不存在的日志确认应返回错误', async () => {
       prisma.assistantActionLog.findUnique.mockResolvedValue(null);
 
-      const result = await service.confirmAction('nonexistent');
+      const result = await service.confirmAction('nonexistent', { sub: 'admin-1', role: 'admin' });
 
       expect(result.status).toBe('failed');
       expect(result.message).toContain('不存在');
@@ -409,7 +415,7 @@ describe('AssistantService', () => {
       });
       prisma.assistantActionLog.update.mockResolvedValue({});
 
-      const result = await service.cancelAction('act-1');
+      const result = await service.cancelAction('act-1', { sub: 'admin-1', role: 'admin' });
 
       expect(result.status).toBe('success');
       expect(prisma.assistantActionLog.update).toHaveBeenCalledWith({

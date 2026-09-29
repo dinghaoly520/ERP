@@ -433,14 +433,24 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
     const m = /\/supplier\/([^/?]+)/.exec(item.link ?? '');
     return m?.[1] ?? null;
   }, [item.link]);
+  // 通知 link 携带的业务 id（如资料变更 requestId）——用于在待处理列表中直达本条
+  const linkRequestId = useMemo(() => {
+    const q = item.link?.split('?')[1];
+    return q ? new URLSearchParams(q).get('requestId') : null;
+  }, [item.link]);
 
   const isApproval = ['PROFILE_CHANGE_PENDING', 'USER_REGISTRATION_PENDING', 'SUPPLIER_PENDING'].includes(item.type);
   const isSupplier = item.type === 'SUPPLIER_PENDING';
 
-  // 拉取当前待处理项
+  // 拉取当前待处理项；link 带 requestId 时预选对应申请（2026-09-29：此前拉全量待审、
+  // 默认选第 1 条——点通知 A 实际审批的可能是通知 B 对应的申请）
   useEffect(() => {
     if (!isApproval) return;
-    const setter = (list: PendingRow[]) => { setRows(list); setSelected(0); };
+    const setter = (list: PendingRow[]) => {
+      setRows(list);
+      const hit = linkRequestId ? list.findIndex((r) => r.id === linkRequestId) : -1;
+      setSelected(hit >= 0 ? hit : 0);
+    };
     if (item.type === 'PROFILE_CHANGE_PENDING') {
       fetchPendingProfileChanges().then(rs => setter((rs as any[]).map(r => ({
         id: r.id,
@@ -460,7 +470,7 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
         sub: `信用代码 ${s.creditCode ?? '—'} · ${s.legalPerson ?? '—'} · 注册于 ${new Date(s.createdAt).toLocaleDateString('zh-CN')}`,
       }])).catch(() => setter([]));
     } else setter([]);
-  }, [item.type, supplierId]);
+  }, [item.type, supplierId, linkRequestId]);
 
   const act = async (fn: () => Promise<unknown>, okMsg: string) => {
     setBusy(true);

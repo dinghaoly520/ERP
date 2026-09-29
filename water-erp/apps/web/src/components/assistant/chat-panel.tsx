@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Minimize2, Maximize2, X, Plus, Mic } from "lucide-react";
+import { Minimize2, Maximize2, X, Plus } from "lucide-react";
 import { useAssistant } from "./assistant-provider";
 import { ChatMessage } from "./chat-message";
 import { ChatInput } from "./chat-input";
@@ -223,14 +223,6 @@ export function ChatPanel({ variant }: ChatPanelProps) {
                 setPageInputEmpty(el.value.trim() === "");
               }}
             />
-            <button
-              disabled={isStreaming}
-              className="asst-page-input-mic-btn"
-              aria-label="语音输入"
-              title="语音输入"
-            >
-              <Mic size={16} strokeWidth={1.5} />
-            </button>
             <button
               onClick={() => {
                 const ta = document.getElementById("asst-page-textarea") as HTMLTextAreaElement | null;

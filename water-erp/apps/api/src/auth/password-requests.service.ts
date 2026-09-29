@@ -339,7 +339,9 @@ export class PasswordRequestsService {
         type: 'PROFILE_CHANGE_PENDING',
         title: '资料变更待审批',
         content: `「${user.displayName}」提交了资料变更（${summary}），请前往账号管理审批。`,
-        link: '/admin/accounts?tab=password&section=profile',
+        // 带 requestId：审批时按精确 link 消音本申请的待办（2026-09-29——此前通用 link
+        // 使审批 1 条会批量消音全部待审待办，其余申请漏审）；处理窗也据此直达本申请
+        link: `/admin/accounts?tab=password&section=profile&requestId=${created.id}`,
       };
       // NotificationService.create = 落库 + WS 实时推送（右下角弹窗）；降级 prisma 直建
       await (this.notifications
@@ -407,10 +409,18 @@ export class PasswordRequestsService {
         } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
 
-    // 2026-09-26 五段状态：审批人待办消音（新旧 link 双口径）+ 操作留痕（操作历史/已办结果依据）
+    // 2026-09-26 五段状态：审批人待办消音 + 操作留痕（操作历史/已办结果依据）。
+    // 2026-09-29 精确消音：按 requestId 精确 link 只消本申请的待办——此前按通用 link
+    // 批量 resolve，审批 1 条会把所有审批人的全部待审待办一并消音（漏审风险）。
+    // 存量无 requestId 的旧待办仅在已无任何待审申请时统一清理（此时必为陈旧噪音）。
+    const legacyCleanup =
+      (await this.prisma.profileChangeRequest.count({ where: { status: 'PENDING' } })) === 0;
     await Promise.allSettled([
-      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts?tab=password&section=profile'),
-      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts'),
+      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', `/admin/accounts?tab=password&section=profile&requestId=${id}`),
+      ...(legacyCleanup ? [
+        this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts?tab=password&section=profile'),
+        this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts'),
+      ] : []),
       this.prisma.auditLog.create({ data: {
         userId: reviewerId, action: 'PROFILE_CHANGE_APPROVED',
         resourceType: '资料变更审批', resourceId: updated.username,
@@ -446,11 +456,16 @@ export class PasswordRequestsService {
         } })).catch(() => {});
     } catch { /* 通知失败不阻塞审批 */ }
 
-    // 2026-09-26 五段状态：审批人待办消音 + 操作留痕
+    // 2026-09-26 五段状态：审批人待办消音 + 操作留痕；2026-09-29 按 requestId 精确消音（同 approve 口径）
     const reqUser = await this.prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }).catch(() => null);
+    const legacyCleanupR =
+      (await this.prisma.profileChangeRequest.count({ where: { status: 'PENDING' } })) === 0;
     await Promise.allSettled([
-      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts?tab=password&section=profile'),
-      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts'),
+      this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', `/admin/accounts?tab=password&section=profile&requestId=${id}`),
+      ...(legacyCleanupR ? [
+        this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts?tab=password&section=profile'),
+        this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', '/admin/accounts'),
+      ] : []),
       this.prisma.auditLog.create({ data: {
         userId: reviewerId, action: 'PROFILE_CHANGE_REJECTED',
         resourceType: '资料变更审批', resourceId: reqUser?.username ?? req.userId,

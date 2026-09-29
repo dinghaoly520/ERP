@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '@/lib/api/api-fetch';
 import {
   AlertTriangle,
   Bot,
@@ -952,7 +953,7 @@ export function HandoverPreview({ downloadUrl }: { downloadUrl: string }) {
       loadingRef.current = true;
       setLoading(true);
       setError(null);
-      fetch(downloadUrl)
+      apiFetch(downloadUrl)
         .then(async (res) => {
           if (!res.ok) throw new Error(`回流包拉取失败（HTTP ${res.status}）`);
           return res.json() as Promise<HandoverPackage>;

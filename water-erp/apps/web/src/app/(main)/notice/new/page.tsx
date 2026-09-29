@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -28,7 +28,7 @@ type NoticeType =
   | 'PLATFORM';
 
 const typeLabel: Record<NoticeType, string> = {
-  ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '中标公示', WIN_NOTICE: '成交公告',
+  ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '中标公告', WIN_NOTICE: '成交公告',
   CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 
@@ -89,6 +89,9 @@ const Step = ({ n }: { n: number }) => (
 export default function NewNoticePage() {
   const router = useRouter();
   const [annId, setAnnId] = useState<string | null>(null);
+  // 已发布标记：publish 成功后 router.push 生效前的窗口期内，再点「保存草稿」会把
+  // 已发布公告降级回 DRAFT——用 ref 拦住（2026-09-29 健壮性复查补充）
+  const publishedRef = useRef(false);
   const [type, setType] = useState<NoticeType>('POLICY');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -141,7 +144,10 @@ export default function NewNoticePage() {
     finally { setBusy(false); }
   };
 
-  const saveDraft = async () => { const id = await saveNew('DRAFT'); if (id) { toast.success('草稿已保存，可上传附件'); loadExtras(); } };
+  const saveDraft = async () => {
+    if (publishedRef.current) { toast.error('公告已发布，如需调整请从详情页操作'); return; }
+    const id = await saveNew('DRAFT'); if (id) { toast.success('草稿已保存，可上传附件'); loadExtras(); }
+  };
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) {
       toast.error('请设置定时发布时间');
@@ -149,6 +155,7 @@ export default function NewNoticePage() {
     }
     const id = await saveNew('PUBLISHED');
     if (id) {
+      publishedRef.current = true;
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
       router.push(`/notice/${id}`);
     }

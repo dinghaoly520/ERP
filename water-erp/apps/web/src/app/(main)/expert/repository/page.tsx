@@ -321,7 +321,7 @@ export default function ExpertRepositoryPage() {
       .then((s) => { if (alive) setExpStats(s); })
       .catch(() => { if (alive) setExpStats(null); });
     return () => { alive = false; };
-  }, [companyId, experts]);
+  }, [companyId]); // 仅公司视野变化才重拉——experts 引用每页变会无谓重跑 8 个聚合（二审 P2）
   const gradeDistribution = useMemo(() => {
     const dist = { A: 0, B: 0, C: 0, D: 0, E: 0, '-': 0 };
     for (const e of experts) {

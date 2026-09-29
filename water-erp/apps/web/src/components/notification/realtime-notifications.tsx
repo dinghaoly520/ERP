@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch } from '@/lib/api/api-fetch';
+import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -149,14 +150,17 @@ export function RealtimeNotifications() {
               <p className="truncate text-[12.5px] font-bold text-[var(--foreground)]">{n.title}</p>
               <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">{n.content}</p>
               <div className="mt-1.5 flex items-center justify-between">
-                <span className="text-[9px] uppercase tracking-wider text-[color:var(--muted-foreground)]/60">{n.type}</span>
-                <button
-                  type="button"
-                  onClick={(e) => markRead(e, n)}
-                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent)] transition-colors hover:underline"
-                >
-                  <CheckCheck size={10} strokeWidth={2.2} /> 标为已读
-                </button>
+                <span className="text-[9px] uppercase tracking-wider text-[color:var(--muted-foreground)]/60">{getNotificationLabel(n.type) ?? n.type}</span>
+                {/* actionable 待办不提供"标为已读"——点开≠办结，标了会把待办误归已办（2026-09-29） */}
+                {!getNotificationMeta(n.type)?.actionable && (
+                  <button
+                    type="button"
+                    onClick={(e) => markRead(e, n)}
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent)] transition-colors hover:underline"
+                  >
+                    <CheckCheck size={10} strokeWidth={2.2} /> 标为已读
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -99,9 +99,10 @@ function ArchivePageInner() {
     setLoading(true);
     setError(null);
     try {
-      const r = await api<{ items: VolumeRow[]; total: number }>(`/items${exportedFilter !== 'all' ? `?exported=${exportedFilter}` : ''}`);
+      const r = await api<{ items: VolumeRow[]; total: number; exportedTotal?: number }>(`/items${exportedFilter !== 'all' ? `?exported=${exportedFilter}` : ''}`);
       setRows(r.items);
       setTotalVolumes(r.total);
+      setExportedVolumes(r.exportedTotal ?? null);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -124,11 +125,13 @@ function ArchivePageInner() {
 
   // 服务端全量口径（2026-09-28 审计 P2：此前以 rows.length 冒充总量，take 200 截断后失真）
   const [totalVolumes, setTotalVolumes] = useState(0);
+  const [exportedVolumes, setExportedVolumes] = useState<number | null>(null);
   const stats = useMemo(() => ({
     total: totalVolumes || rows.length,
-    exported: rows.filter((r) => r.archiveExportedAt).length,
+    // exported 服务端全量；pending 依赖卷内阶段明细，仅当前页推导（KPI 副标题口径）
+    exported: exportedVolumes ?? rows.filter((r) => r.archiveExportedAt).length,
     pending: rows.filter((r) => !r.archiveExportedAt && (r.stages?.some((s) => ['AWARD_DECISION', 'CONTRACT'].includes(s.stageKey) && s.attachments.length > 0) ?? false)).length,
-  }), [rows, totalVolumes]);
+  }), [rows, totalVolumes, exportedVolumes]);
 
   async function openInspect(row: VolumeRow) {
     setBusy(row.id);
@@ -316,7 +319,7 @@ function ArchivePageInner() {
                           {canExport && (
                             <>
                               {!r.retentionPeriod && (
-                                <button className="neu-btn-xs" disabled={busy === r.id} onClick={() => setRetentionEdit(r)}>
+                                <button className="neu-btn-xs" disabled={busy === r.id} onClick={() => { setRetentionValue('Y30'); setRetentionEdit(r); }}>
                                   <Clock3 size={13} /> 划定期限
                                 </button>
                               )}

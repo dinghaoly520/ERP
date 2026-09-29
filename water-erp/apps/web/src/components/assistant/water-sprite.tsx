@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAssistant } from "./assistant-provider";
 import { DINGDANG_IMAGES, type SpriteExpression } from "./sprite-images";
 
@@ -26,7 +27,8 @@ function pickNext(prev: number): number {
 }
 
 export function WaterSprite() {
-  const { isOpen, openChat, chatState, expression } = useAssistant();
+  const { isOpen, chatState, expression } = useAssistant();
+  const router = useRouter();
   const outerRef = useRef<HTMLSpanElement>(null);
   const midRef   = useRef<HTMLSpanElement>(null);
   const coreRef  = useRef<HTMLSpanElement>(null);
@@ -64,13 +66,18 @@ export function WaterSprite() {
 
   if (isOpen) return null;
 
+  // 全局悬浮精灵只在非 /assistant 页挂载，而完整聊天 UI 只存在于 /assistant 页——
+  // 此前 openChat 仅置 isOpen=true：本页没有聊天容器，点精灵=入口自毁且无面板弹出
+  // （2026-09-28 审计 P1）。现在点击直达助手页。
+  const openAssistant = () => router.push('/assistant');
+
   const curExpr = switching ? prevExpr : expr;
   const imgSrc = `/DingDang/${DINGDANG_IMAGES[curExpr]}_lg.webp`;
   const nextSrc = switching ? `/DingDang/${DINGDANG_IMAGES[expr]}_lg.webp` : undefined;
   const sfx = isStreaming ? "-active" : "-idle";
 
   return (
-    <button onClick={openChat} className="asst-sprite-btn" aria-label="打开水叮当助手">
+    <button onClick={openAssistant} className="asst-sprite-btn" aria-label="打开水叮当助手">
       {/* 光环和角色都是按钮的直接子元素，共用同一坐标系(0,0→80,80) */}
       <span ref={outerRef} className={`asst-sprite-halo-outer asst-sprite-halo-outer${sfx}`} />
       <span ref={midRef}   className={`asst-sprite-halo-mid   asst-sprite-halo-mid${sfx}`}   />

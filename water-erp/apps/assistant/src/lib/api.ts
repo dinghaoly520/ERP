@@ -52,15 +52,30 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 匿名访客键：本门户无登录，后端按此键隔离会话（P0 会话隔离，2026-09-28）。
  * 首次访问生成 UUID 存 localStorage，此后所有请求随 X-Assistant-Guest 头携带。
  */
+/** 非安全上下文（HTTP 局域网）crypto.randomUUID 不可用时的兜底生成器——
+ *  返回空串会让后端拒收访客键、会话沦为无主行（历史永不显示） */
+function randomGuestKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 function guestKey(): string {
   if (typeof window === 'undefined') return '';
   const KEY = 'assistant-guest-key';
-  let key = window.localStorage.getItem(KEY);
-  if (!key || !/^[A-Za-z0-9_-]{8,64}$/.test(key)) {
-    key = crypto.randomUUID();
-    window.localStorage.setItem(KEY, key);
+  try {
+    let key = window.localStorage.getItem(KEY);
+    if (!key || !/^[A-Za-z0-9_-]{8,64}$/.test(key)) {
+      key = randomGuestKey();
+      window.localStorage.setItem(KEY, key);
+    }
+    return key;
+  } catch {
+    // 隐私模式/存储被禁：会话内常量随机键（历史不可恢复，但对话与会话列表可用）
+    try { return randomGuestKey(); } catch { return ''; }
   }
-  return key;
 }
 
 async function fetchApi<T>(

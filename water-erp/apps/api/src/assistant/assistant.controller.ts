@@ -49,15 +49,15 @@ export class AssistantController {
   }
 
   @Post('actions/:id/confirm')
-  @ApiOperation({ summary: '确认执行操作预案' })
-  async confirmAction(@Param('id') id: string) {
-    return this.assistantService.confirmAction(id);
+  @ApiOperation({ summary: '确认执行操作预案（须登录且为会话属主）' })
+  async confirmAction(@Param('id') id: string, @Req() req: Request) {
+    return this.assistantService.confirmAction(id, (req as any).user);
   }
 
   @Post('actions/:id/cancel')
-  @ApiOperation({ summary: '取消操作预案' })
-  async cancelAction(@Param('id') id: string) {
-    return this.assistantService.cancelAction(id);
+  @ApiOperation({ summary: '取消操作预案（须登录且为会话属主）' })
+  async cancelAction(@Param('id') id: string, @Req() req: Request) {
+    return this.assistantService.cancelAction(id, (req as any).user);
   }
 
   @Delete('conversations/:id')

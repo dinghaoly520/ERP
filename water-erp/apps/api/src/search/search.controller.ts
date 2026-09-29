@@ -1,6 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { SearchService } from './search.service';
 
 @ApiTags('全局搜索')
@@ -10,8 +12,8 @@ export class SearchController {
 
   @Get()
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  @ApiOperation({ summary: '全局搜索（供应商/项目/专家/采购）' })
-  async search(@Query('q') q: string) {
-    return this.searchService.search(q);
+  @ApiOperation({ summary: '全局搜索（供应商/项目/专家/采购；项目/专家按登录人公司域收窄）' })
+  async search(@Query('q') q: string, @CurrentUser() user?: AuthenticatedUser) {
+    return this.searchService.search(q, user);
   }
 }

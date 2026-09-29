@@ -406,6 +406,13 @@ export class AnnouncementService {
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
     if (!announcement) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
 
+    // 已发布不可静默转回草稿（2026-09-29 二审 P2）：发布瞬间的联动（供应商通知、
+    // BidProject 关联、公示期起算）都已生效，回退草稿会让公开内容凭空消失且无留痕。
+    // 撤回请走下架（offline，进回收站、有审计）。
+    if (announcement.status === 'PUBLISHED' && dto.status === 'DRAFT') {
+      throw new BadRequestException({ error: '公告已发布，不能转回草稿；如需撤回请使用下架', code: 'PUBLISHED_NO_DEMOTE' });
+    }
+
     const title = dto.title ?? announcement.title;
     const type = dto.type ?? announcement.type;
     const content = dto.content ?? announcement.content;
@@ -1196,8 +1203,12 @@ export class AnnouncementService {
   async getStats(companyFilter: { companyId?: string } = {}) {
     // 公司隔离：统计聚合在隔离后的数据集上计算
     const where = { ...companyFilter };
-    // 本月起点（服务端口径——此前前端用"当前页 15 条"冒充全量统计，2026-09-28 审计 P1）
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    // 本月起点（服务端口径——此前前端用"当前页 15 条"冒充全量统计，2026-09-28 审计 P1）。
+    // 北京时间（UTC+8）月初：服务器跑 UTC 时 `new Date(y, m, 1)` 会漏计月初 8 小时（二审 P2）
+    const nowBeijing = new Date(Date.now() + 8 * 3600_000);
+    const monthStart = new Date(
+      Date.UTC(nowBeijing.getUTCFullYear(), nowBeijing.getUTCMonth(), 1) - 8 * 3600_000,
+    );
     const [total, published, bidNotice, winNotice, policy, drafts, publishedThisMonth, viewsAgg] = await Promise.all([
       this.prisma.announcement.count({ where }),
       this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED' } }),

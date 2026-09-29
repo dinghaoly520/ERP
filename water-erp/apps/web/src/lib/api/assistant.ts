@@ -33,10 +33,15 @@ export async function getConversation(id: string): Promise<{ messages: Message[]
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  await apiFetch(`${API_BASE}/assistant/conversations/${id}`, {
+  const res = await apiFetch(`${API_BASE}/assistant/conversations/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });
+  // 后端非属主/不存在返回 200 + {status:'failed'}——须读响应体，否则 UI 假报删除成功（二审 P2）
+  if (res.ok) {
+    const body = await res.json().catch(() => null);
+    if (body && body.status === 'failed') throw new Error(body.message || '删除失败');
+  }
 }
 
 // ---- Send message ----

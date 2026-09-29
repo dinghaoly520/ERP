@@ -656,13 +656,16 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           if (blob.size > 0) {
             const disp = res.headers.get('content-disposition') || '';
             const m = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(disp);
-            fileName = m ? decodeURIComponent(m[1]) : `${(task as any).documentName || '采购文件'}.docx`;
+            const docName = (task as any).documentName || '采购文件';
+            fileName = m ? decodeURIComponent(m[1]) : (docName.endsWith('.docx') ? docName : `${docName}.docx`);
           } else {
             blob = null;
           }
         }
       } catch { /* 任务文件不可得 → 回退重导出 */ }
       if (!blob) {
+        // 回退必须显式告知——静默回退时提交稿不含已接受的修改，而弹窗文案承诺包含（二审 P1）
+        toast.warning('审查文件获取失败，本次提交的将是当前编辑草稿（不含审查中接受的修改建议）');
         const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft, projectCode: project?.projectCode || undefined });
         blob = result.blob;
         fileName = result.fileName;

@@ -20,7 +20,7 @@ import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
 import { InvitationLetterModal } from '@/components/supplier/invitation-letter-modal';
-import { fetchDraft, saveDraft } from '@/lib/api/drafts';
+import { fetchDraft, saveDraft, deleteDraft } from '@/lib/api/drafts';
 import { QualificationAnalysisPanel } from '@/components/supplier/qualification-analysis-panel';
 import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
@@ -1419,7 +1419,7 @@ export function SupplierSelectionPage({
     setConfigSending(false);
   };
 
-  const reset = () => { setStepInner(1); setMaxStepReached(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setPaidAmount(''); setShowManualAdd(false); setShowRerunManualAdd(false); setAddMoreIds(new Set()); notifyAutoGenRef.current = false; try { localStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} };
+  const reset = () => { setStepInner(1); setMaxStepReached(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setPaidAmount(''); setShowManualAdd(false); setShowRerunManualAdd(false); setAddMoreIds(new Set()); notifyAutoGenRef.current = false; try { localStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} deleteDraft(`supplier-selection${project?.id ? `:${project.id}` : ''}`).catch(() => {}); };
 
   // 补选 handlers
   const openRerun = () => setShowRerunDialog(true);
@@ -1633,9 +1633,12 @@ export function SupplierSelectionPage({
     const summary = `已记录：${confirmedCount} 家确认 / ${declinedCount} 家放弃 / ${pendingCount} 家待确认`;
     toast.success(summary);
     setCompleted(true);
-    // 完成后清空会话，下次进入从第 1 步开始
+    // 完成后清空会话，下次进入从第 1 步开始（2026-09-28 审计 S6 修复：
+    // 此前删的是裸键（项目分桶键没删）、服务端草稿也没删——恢复逻辑取
+    // 「服务端 vs 本地」较新者，旧向导（含 completed/已通知/候选名单）重进即复活）
     setTimeout(() => {
-      localStorage.removeItem('supplier-selection-state');
+      try { localStorage.removeItem(sessionKey); } catch { /* ignore */ }
+      deleteDraft(draftKey).catch(() => { /* 草稿删除失败不阻塞完成 */ });
     }, 500);
   };
 

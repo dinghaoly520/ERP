@@ -307,6 +307,14 @@ export class NotificationService {
       throw new Error('通知不存在或不属于此用户');
     }
 
+    // 2026-09-29 对齐 markAllAsRead 语义（2026-09-27 修复时单条路径漏网）：
+    // actionable 且未办结的待办不落 isRead——五段模型里"已读兜底归已办"，点开查看
+    // 会让待办凭空跳进已办段（工作台/统计弹窗/实时弹窗三入口同害）。点开≠办结，
+    // 待办只在业务动作 resolveActionable 后离开待办段。
+    if (ACTIONABLE_TYPES.includes(notification.type) && !notification.resolvedAt) {
+      return notification;
+    }
+
     return this.prisma.notification.update({
       where: { id: notificationId },
       data: { isRead: true, readAt: new Date() },

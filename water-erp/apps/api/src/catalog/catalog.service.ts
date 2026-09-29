@@ -429,7 +429,9 @@ export class CatalogService {
     return result;
   }
 
-  async exportCatalog(userId: string, params: { category?: string; region?: string; status?: string; source?: string; search?: string }, viewerRole?: string): Promise<Buffer> {
+  async exportCatalog(userId: string, params: { category?: string; region?: string; status?: string; source?: string; search?: string; categoryId?: number }, viewerRole?: string): Promise<Buffer> {
+    // categoryId 透传 list（2026-09-28 审计：此前导出端点未声明该参数被丢弃——按品类筛选后
+    // 导出的是该状态下全部品类，toast 却说"已导出当前筛选结果"）
     const items = await this.list(params, viewerRole);
     const hidePrice = viewerRole === 'supplier';
     const wb = new Workbook();
@@ -965,7 +967,7 @@ export class CatalogService {
 
   async listAlertRules() { return this.prisma.priceAlertRule.findMany({ orderBy: { createdAt: 'desc' }, include: { category: { select: { id: true, name: true } } } }); }
   async createAlertRule(dto: any) { return this.prisma.priceAlertRule.create({ data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, alertType: dto.alertType, threshold: dto.threshold, enabled: dto.enabled ?? true, notifyRoles: dto.notifyRoles ?? ['admin', 'leader', 'staff'] } }); }
-  async updateAlertRule(id: number, dto: any) { const data: any = {}; if (dto.name) data.name = dto.name.trim(); if (dto.alertType) data.alertType = dto.alertType; if (dto.threshold !== undefined) data.threshold = dto.threshold; if (dto.enabled !== undefined) data.enabled = dto.enabled; if (dto.notifyRoles) data.notifyRoles = dto.notifyRoles; return this.prisma.priceAlertRule.update({ where: { id }, data }); }
+  async updateAlertRule(id: number, dto: any) { const data: any = {}; if (dto.name) data.name = dto.name.trim(); if (dto.alertType) data.alertType = dto.alertType; if (dto.threshold !== undefined) data.threshold = dto.threshold; if (dto.enabled !== undefined) data.enabled = dto.enabled; if (dto.notifyRoles) data.notifyRoles = dto.notifyRoles; if (dto.categoryId !== undefined) data.categoryId = dto.categoryId ?? null; return this.prisma.priceAlertRule.update({ where: { id }, data }); }
   async deleteAlertRule(id: number) { await this.prisma.priceAlertRule.delete({ where: { id } }); return { success: true }; }
   async toggleAlertRule(id: number) { const r = await this.prisma.priceAlertRule.findUnique({ where: { id } }); if (!r) throw new BadRequestException({ error: '规则不存在', code: 'NOT_FOUND' }); return this.prisma.priceAlertRule.update({ where: { id }, data: { enabled: !r.enabled } }); }
   async listAlerts(params: { isRead?: boolean; isResolved?: boolean }) { const where: any = {}; if (params.isRead !== undefined) where.isRead = params.isRead; if (params.isResolved !== undefined) where.isResolved = params.isResolved; return this.prisma.priceAlert.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, include: { catalogItem: { select: { id: true, code: true, name: true } }, rule: { select: { id: true, name: true } } } }); }

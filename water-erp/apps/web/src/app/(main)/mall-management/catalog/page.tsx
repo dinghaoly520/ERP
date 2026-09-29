@@ -474,10 +474,15 @@ function ItemEditDialog({ item, onClose, onSaved }: { item: CatalogItem; onClose
   const save = async () => {
     if (!form.name.trim()) { setError('名称不能为空'); return; }
     if (!form.referencePrice || Number(form.referencePrice) <= 0) { setError('请填写有效的参考价'); return; }
+    // 同录入口径：区间 0/0 自动以参考价补齐，填了区间则校验包含（后端硬校验，2026-09-28）
+    const ref = Number(form.referencePrice);
+    let { priceMin, priceMax } = form;
+    if (Number(priceMin) === 0 && Number(priceMax) === 0) { priceMin = ref; priceMax = ref; }
+    else if (ref < Number(priceMin) || ref > Number(priceMax)) { setError(`参考价须在 ${priceMin} ~ ${priceMax} 区间内`); return; }
     setSaving(true);
     try {
       const { id, createdAt, updatedAt, ...rest } = item;
-      await updateCatalogItem(id, { ...rest, ...form, validUntil: form.validUntil || null, remark: form.remark || null });
+      await updateCatalogItem(id, { ...rest, ...form, priceMin, priceMax, validUntil: form.validUntil || null, remark: form.remark || null });
       toast.success('目录已更新'); onSaved();
     } catch (e: any) { setError(e.message); } finally { setSaving(false); }
   };
@@ -769,6 +774,13 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
     if (form.priceMin < 0) e.priceMin = '价格下限不能为负';
     if (form.priceMax < 0) e.priceMax = '价格上限不能为负';
     if (form.priceMin > 0 && form.priceMax > 0 && form.priceMin > form.priceMax) e.priceMax = '价格上限不能低于下限';
+    // 后端硬校验"参考价 ∈ [价格下限, 价格上限]"（validatePriceRangeDto）——
+    // 区间留空(0/0)时自动以参考价补齐，填了区间则校验包含关系（2026-09-28 审计：
+    // 此前只填必填项提交必踩 400「参考价必须位于价格下限和价格上限之间」）
+    const ref = Number(form.referencePrice);
+    if (form.priceMin > 0 || form.priceMax > 0) {
+      if (ref < form.priceMin || ref > form.priceMax) e.priceMin = `参考价须在 ${form.priceMin} ~ ${form.priceMax} 区间内`;
+    }
     setFieldErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -778,7 +790,12 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
     if (!validate()) { toast.error('请修正表单中标红的必填项'); return; }
     setSaving(true);
     try {
-      const created = await createCatalogItem(form as any);
+      const payload = { ...form };
+      if (Number(payload.priceMin) === 0 && Number(payload.priceMax) === 0) {
+        payload.priceMin = Number(form.referencePrice);
+        payload.priceMax = Number(form.referencePrice);
+      }
+      const created = await createCatalogItem(payload as any);
       if (dynamicFields.length > 0) { const attrs = extractAttributeValues(dynamicFields); if (attrs.length) await setItemAttributes(created.id, attrs); }
       toast.success('目录已新增'); clearDraft(); setForm(INITIAL_FORM); setDynamicFields([]);
     } catch (e: any) { setServerError(e.message); } finally { setSaving(false); }
@@ -1088,7 +1105,10 @@ function ApprovalTab({ canManage }: { canManage: boolean }) {
           <EmptyHint icon={CheckCircle} text={statusFilter === 'PENDING' && !search.trim() ? '暂无待审批申请' : '无匹配申请记录'} />
         ) : filtered.map((app: any) => {
           const isOpen = expanded.has(app.id);
-          const canAct = ['PENDING', 'COUNTERED', 'RETURNED'].includes(app.status);
+          // 仅 PENDING 可操作（2026-09-28 审计：COUNTERED/RETURNED 时须等供应商重新提交/
+          // 接受议价回到 PENDING，后端 reviewApplication 恒拒——按钮点了必 400）
+          const canAct = app.status === 'PENDING';
+          const awaitingSupplier = ['COUNTERED', 'RETURNED'].includes(app.status);
           return (
             <div key={app.id}>
               <div className="flex items-center gap-4 px-5 py-4 cursor-pointer row-clickable" style={ROW_HAIRLINE}
@@ -1113,6 +1133,9 @@ function ApprovalTab({ canManage }: { canManage: boolean }) {
                     <button onClick={() => setReview({ app, action: 'return' })} className="neu-btn-xs is-warning">退回</button>
                     <button onClick={() => setReview({ app, action: 'reject' })} className="neu-btn-xs is-danger">拒绝</button>
                   </div>
+                )}
+                {canManage && awaitingSupplier && (
+                  <span className="ml-2 text-[11px] text-[var(--muted-foreground)]">等待供应商{app.status === 'COUNTERED' ? '回应议价' : '补正后重新提交'}</span>
                 )}
                 <ChevronUp size={16} className={`ml-1 text-[var(--muted-foreground)] transition-transform ${isOpen ? '' : 'rotate-180'}`} />
               </div>

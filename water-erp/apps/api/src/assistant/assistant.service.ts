@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
 import { ToolRegistry } from './tools/tool-registry';
@@ -49,11 +49,13 @@ function ownedBy(
 @Injectable()
 export class AssistantService {
   /**
-   * 匿名（未认证）访客可用的工具：仅公开域数据（已发布公告/商城目录）。
-   * 供应商联系人、专家库、项目/通知等内部数据工具仅认证用户可用
-   * （P0 收口 2026-09-28：此前 @Public + 无隔离，任何人可经 chat 取 PII）。
+   * 匿名/外部角色可用的工具：仅公开域数据（已发布公告/商城目录）。
+   * 供应商联系人、专家库、项目/通知等内部数据工具仅内部管理角色可用
+   * （P0 收口 2026-09-28；2026-09-29 二审收紧：认证≠授权——supplier/bid_expert/mall
+   * 等外部角色登录后同样不得经 AI 拉供应商联系人/专家证件等 PII）。
    */
-  private static readonly ANONYMOUS_TOOLS = new Set(['announcement', 'mall']);
+  private static readonly PUBLIC_TOOLS = new Set(['announcement', 'mall']);
+  private static readonly INTERNAL_ROLES = ['admin', 'leader', 'staff', 'bid_host'];
   private readonly logger = new Logger(AssistantService.name);
 
   constructor(
@@ -129,8 +131,12 @@ export class AssistantService {
       content: m.content,
     })) || [];
 
-    // 工具门禁：认证用户全量；匿名访客仅公开域工具（服务端裁决，不信前端 context）
-    const allowedTools = owner?.userId ? null : AssistantService.ANONYMOUS_TOOLS;
+    // 工具门禁：内部管理角色全量；匿名访客与外部角色（supplier/bid_expert/mall 等）
+    // 仅公开域工具（服务端按 JWT 角色裁决，不信前端 context）
+    const allowedTools =
+      owner?.userId && AssistantService.INTERNAL_ROLES.includes(owner.role ?? '')
+        ? null
+        : AssistantService.PUBLIC_TOOLS;
     const toolList = this.toolRegistry.list()
       .filter((t) => !allowedTools || allowedTools.has(t.name))
       .map((t) => `- ${t.name}: ${t.description}`)
@@ -771,7 +777,29 @@ ${toolList}
     return conv && ownedBy(conv, owner) ? conv : null;
   }
 
-  async confirmAction(id: string) {
+  /** 操作预案鉴权（2026-09-29 二审 P1）：confirm 会经 ActionExecutor 执行真实写操作
+   *  （供应商状态流转等）——须登录且为预案所属会话的属主（admin 直通）；匿名/他人一律拒。 */
+  private async assertActionOwnership(id: string, user?: { sub?: string; role?: string }) {
+    if (!user?.sub) {
+      throw new UnauthorizedException({ error: '请登录后操作', code: 'UNAUTHORIZED' });
+    }
+    if (user.role === 'admin') return;
+    const log = await this.prisma.assistantActionLog.findUnique({
+      where: { id },
+      select: { conversationId: true },
+    });
+    if (log?.conversationId) {
+      const conv = await this.prisma.assistantConversation.findUnique({
+        where: { id: log.conversationId },
+        select: { userId: true },
+      });
+      if (conv?.userId && conv.userId === user.sub) return;
+    }
+    throw new ForbiddenException({ error: '无权操作此预案', code: 'FORBIDDEN' });
+  }
+
+  async confirmAction(id: string, user?: { sub?: string; role?: string }) {
+    await this.assertActionOwnership(id, user);
     const log = await this.prisma.assistantActionLog.findUnique({ where: { id } });
     if (!log) return { status: 'failed', message: '操作记录不存在' };
     if (log.status !== 'pending') return { status: 'failed', message: '操作已处理，无需重复确认' };
@@ -783,7 +811,8 @@ ${toolList}
     return this.actionExecutor.execute(id);
   }
 
-  async cancelAction(id: string) {
+  async cancelAction(id: string, user?: { sub?: string; role?: string }) {
+    await this.assertActionOwnership(id, user);
     const log = await this.prisma.assistantActionLog.findUnique({ where: { id } });
     if (!log) return { status: 'failed', message: '操作记录不存在' };
 

@@ -75,7 +75,8 @@ export function WorkbenchOverview({
     let cancelled = false;
     listNotifications('all', 1, 1).then((res) => {
       if (!cancelled) {
-        setNotificationCount(res.todoCount);
+        // 与「通知待办」弹窗（todo 段=actionable 未办结）同口径——todoCount 含未读知会类，会"点徽章进空列表"
+        setNotificationCount(res.segmentCounts?.todo ?? res.todoCount);
       }
     }).catch(() => {});
     return () => { cancelled = true; };

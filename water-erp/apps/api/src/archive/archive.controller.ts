@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Param, Patch, Post, Query, Res, BadRequestException, UploadedFile, UseInterceptors,
+  Body, Controller, Get, Param, Patch, Post, Query, Res, BadRequestException, ForbiddenException, NotFoundException, UploadedFile, UseInterceptors,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -57,8 +57,9 @@ export class ArchiveController {
       ...(status ? { status: status as never } : {}),
       ...(search ? { title: { contains: search } } : {}),
     };
-    // 返回全量计数：take 200 只是传输上限，前端不再以 rows.length 冒充总量
-    const [items, total] = await Promise.all([
+    // 返回全量计数：take 200 只是传输上限，前端不再以 rows.length 冒充总量；
+    // exported 计数同步服务端化（二审 P2：前端按当前页推导，超 200 卷时欠计）
+    const [items, total, exportedTotal] = await Promise.all([
       this.prisma.projectManagementItem.findMany({
         where,
         select: {
@@ -71,25 +72,43 @@ export class ArchiveController {
         take: 200,
       }),
       this.prisma.projectManagementItem.count({ where }),
+      this.prisma.projectManagementItem.count({ where: { ...where, archiveExportedAt: { not: null } } }),
     ]);
-    return { items, total };
+    return { items, total, exportedTotal };
+  }
+
+  /** 卷级属主校验（2026-09-29 二审 P1）：列表已按创建人隔离，但快照/检测/导出/下载等
+   *  按 pmiId 直取的端点此前无校验——非 admin 凭 id 仍可读他人卷。与 PMI 1C 口径一致。 */
+  private async assertItemScope(pmiId: string, user?: AuthenticatedUser) {
+    if (user?.role === 'admin') return;
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: pmiId },
+      select: { createdById: true },
+    });
+    if (!item) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (item.createdById !== user?.sub) {
+      throw new ForbiddenException({ error: '无权访问此归档卷', code: 'FORBIDDEN' });
+    }
   }
 
   @Get('items/:pmiId/snapshot')
   @ApiOperation({ summary: '归档范围勾稽快照（35 项逐项比对 + 元数据捕获）' })
-  async snapshot(@Param('pmiId') pmiId: string) {
+  async snapshot(@Param('pmiId') pmiId: string, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     return this.scope.snapshot(pmiId, { enrichMeta: true });
   }
 
   @Post('items/:pmiId/check')
   @ApiOperation({ summary: '运行四性检测（完整性/可用性/安全性）' })
   async runCheck(@Param('pmiId') pmiId: string, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     return this.check.run(pmiId, user?.sub);
   }
 
   @Get('items/:pmiId/check-latest')
   @ApiOperation({ summary: '最近一次四性检测结果' })
-  async checkLatest(@Param('pmiId') pmiId: string) {
+  async checkLatest(@Param('pmiId') pmiId: string, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     return this.check.latest(pmiId);
   }
 
@@ -101,6 +120,7 @@ export class ArchiveController {
     @Body() body: { retentionPeriod?: 'PERMANENT' | 'Y30' | 'Y10' } | undefined,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    await this.assertItemScope(pmiId, user);
     const result = await this.exporter.exportAsip(pmiId, user?.sub, body?.retentionPeriod);
     await this.flow.resolveArchiveTodo(pmiId);
     return result;
@@ -108,7 +128,8 @@ export class ArchiveController {
 
   @Get('items/:pmiId/package')
   @ApiOperation({ summary: '下载已导出的归档信息包' })
-  async download(@Param('pmiId') pmiId: string, @Res() res: Response) {
+  async download(@Param('pmiId') pmiId: string, @Res() res: Response, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     const { buffer, fileName } = await this.exporter.downloadPackage(pmiId);
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
@@ -118,7 +139,8 @@ export class ArchiveController {
   @Patch('items/:pmiId/retention')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: '划定保管期限（§9.3 永久/30年/10年）' })
-  async setRetention(@Param('pmiId') pmiId: string, @Body() body: { retentionPeriod: 'PERMANENT' | 'Y30' | 'Y10' }) {
+  async setRetention(@Param('pmiId') pmiId: string, @Body() body: { retentionPeriod: 'PERMANENT' | 'Y30' | 'Y10' }, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     if (!body?.retentionPeriod || !['PERMANENT', 'Y30', 'Y10'].includes(body.retentionPeriod)) {
       throw new BadRequestException({ error: '保管期限必须是 PERMANENT/Y30/Y10', code: 'INVALID_RETENTION' });
     }
@@ -132,7 +154,8 @@ export class ArchiveController {
   @Post('items/:pmiId/unmark')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: '取消文件级已归档标记（A.2d 重新归档）' })
-  async unmark(@Param('pmiId') pmiId: string) {
+  async unmark(@Param('pmiId') pmiId: string, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     const r = await this.prisma.archiveMetadata.updateMany({
       where: { attachment: { projectManagementItemId: pmiId }, archivedAt: { not: null } },
       data: { archivedAt: null },
@@ -143,7 +166,8 @@ export class ArchiveController {
   // S2 归档审计视图（A.1g：归档过程操作跟踪）
   @Get('items/:pmiId/audit')
   @ApiOperation({ summary: '该卷的归档相关操作日志（快照/检测/导出/登记）' })
-  async audit(@Param('pmiId') pmiId: string) {
+  async audit(@Param('pmiId') pmiId: string, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     return this.prisma.operationLog.findMany({
       where: { path: { contains: `/archive/items/${pmiId}` } },
       orderBy: { createdAt: 'desc' },
@@ -165,6 +189,7 @@ export class ArchiveController {
     @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    await this.assertItemScope(pmiId, user);
     if (!file) throw new BadRequestException({ error: '请选择登记表扫描件', code: 'FILE_REQUIRED' });
     const item = await this.prisma.projectManagementItem.findUnique({ where: { id: pmiId }, select: { projectCode: true } });
     if (!item) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -179,7 +204,8 @@ export class ArchiveController {
 
   @Get('items/:pmiId/registration')
   @ApiOperation({ summary: '下载移交接收登记表扫描件' })
-  async downloadRegistration(@Param('pmiId') pmiId: string, @Res() res: Response) {
+  async downloadRegistration(@Param('pmiId') pmiId: string, @Res() res: Response, @CurrentUser() user?: AuthenticatedUser) {
+    await this.assertItemScope(pmiId, user);
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: pmiId },
       select: { archiveRegistrationKey: true, projectCode: true },

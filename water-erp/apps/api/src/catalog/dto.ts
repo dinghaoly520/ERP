@@ -192,6 +192,17 @@ export class CreateCatalogCategoryDto {
   @IsOptional()
   @IsString()
   icon?: string;
+
+  // B2（4.1.1.3）目录分级：此前 DTO 缺这两字段被全局 whitelist 静默剥掉，
+  // 前端表单发了也存不进——"需求归集"Tab 的分级/阈值永远显示默认值（2026-09-28 审计）
+  @IsOptional()
+  @IsIn(['centralized', 'decentralized'])
+  centralizedLevel?: string | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  centralizedThreshold?: number | null;
 }
 
 export class UpdateCatalogCategoryDto {
@@ -216,6 +227,15 @@ export class UpdateCatalogCategoryDto {
   @IsOptional()
   @IsString()
   icon?: string | null;
+
+  @IsOptional()
+  @IsIn(['centralized', 'decentralized'])
+  centralizedLevel?: string | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  centralizedThreshold?: number | null;
 }
 
 export class MoveCategoryDto {
@@ -356,6 +376,13 @@ export class UpdateAlertRuleDto {
   @IsArray()
   @IsString({ each: true })
   notifyRoles?: string[];
+
+  // 适用品类可编辑（2026-09-28 审计：此前编辑弹窗回填并提交 categoryId，但 DTO 缺字段
+  // 被剥掉、service 不处理——改品类保存"看似成功实际未变"）
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  categoryId?: number | null;
 }
 
 // ── 目录版本 ──

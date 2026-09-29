@@ -14,6 +14,8 @@ import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import type { SupplierInvitation } from '@/lib/api/supplier';
+import { approveSupplier, rejectSupplier, returnSupplier, getSupplier } from '@/lib/api/supplier';
+import { CheckCircle2, XCircle, RotateCcw, Loader2 } from 'lucide-react';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
@@ -88,6 +90,12 @@ export default function SupplierRepositoryPage() {
   // 兜底：无审批权若停留在待审核视图（角色信息晚到），回落到已入库
   useEffect(() => { if (!canApprove && filterStatus === 'PENDING') { setFilterStatus('APPROVED'); setFilterIsTemporary(false); } }, [canApprove, filterStatus]);
   const effectiveStatus = filterStatus;
+  // 待审核视图（PENDING）：专属表头（注册基本资料）+ 查看详情窗内三审
+  const isPendingView = filterStatus === 'PENDING';
+  const [detailSupplier, setDetailSupplier] = useState<Supplier | null>(null);
+  const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | 'return' | null>(null);
+  const [reviewReason, setReviewReason] = useState('');
+  const [reviewBusy, setReviewBusy] = useState(false);
   const activeTabKey = filterIsTemporary ? 'TEMPORARY' : filterStatus;
 
   const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -101,6 +109,48 @@ export default function SupplierRepositoryPage() {
     for (const id of selected) { try { await updateSupplierStatus(id, batchModal.type, batchReason); done++; } catch {} }
     toast.success(`已批量${batchModal.type === 'DISABLED' ? '停用' : '拉黑'} ${done} 个供应商`);
     setBatchModal(null); setBatchReason(''); setSelected(new Set()); setBatchLoading(false); loadData();
+  };
+
+  /** 打开待审核详情窗：拉取完整注册资料（列表接口只带主要联系人）。
+   *  健壮性（2026-09-29 自查）：404/403（已被他人处理/越权）→ 提示并关窗刷新；
+   *  其他失败 → 提示资料可能不全，保留行数据壳可继续审批。 */
+  const openPendingDetail = async (row: Supplier) => {
+    setDetailSupplier(row); // 先用行数据渲染壳
+    try {
+      const full = await getSupplier(row.id);
+      if (full.status !== 'PENDING') {
+        // 并发窗口期：他人已处理（已入库/退回/拒绝）——关窗提示，列表即刻刷新
+        toast.info(`「${row.name}」已被其他审批人处理（当前状态：${full.status === 'APPROVED' ? '已入库' : full.status === 'RETURNED' ? '退回补正' : '已处理'}）`);
+        setDetailSupplier(null);
+        loadData(); refreshMeta();
+        return;
+      }
+      setDetailSupplier(full);
+    } catch (e: any) {
+      toast.warning('完整资料加载失败，当前展示列表摘要（资质/银行账户等可能显示为未提交）');
+    }
+  };
+
+  const submitReview = async () => {
+    if (!detailSupplier || !reviewAction) return;
+    if (!reviewReason.trim()) { toast.error('请填写理由'); return; }
+    setReviewBusy(true);
+    try {
+      if (reviewAction === 'approve') await approveSupplier(detailSupplier.id);
+      else if (reviewAction === 'return') await returnSupplier(detailSupplier.id, reviewReason.trim());
+      else await rejectSupplier(detailSupplier.id, reviewReason.trim());
+      toast.success(reviewAction === 'approve' ? '已通过入库' : reviewAction === 'return' ? '已退回补正' : '已拒绝');
+      setDetailSupplier(null); setReviewAction(null); setReviewReason('');
+      // 健壮性：列表 + 统计（待审核角标/KPI 卡）同步刷新
+      loadData(); refreshMeta();
+    } catch (e: any) {
+      // 并发审批（乐观锁 409/状态校验 400）：提示后关窗刷新——他人先处理了
+      const msg = e?.response?.data?.error ?? e?.message ?? '操作失败';
+      toast.error(msg);
+      setDetailSupplier(null); setReviewAction(null); setReviewReason('');
+      loadData(); refreshMeta();
+    }
+    setReviewBusy(false);
   };
 
   const handleToggleFav = async (supplierId: string) => {
@@ -264,16 +314,32 @@ export default function SupplierRepositoryPage() {
         <table className="neu-table w-full min-w-[780px]">
           <thead>
             <tr>
-              <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === rows.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < rows.length; }} onChange={toggleAll} /></th>
-              <th style={{ width: 100 }}>企业名称</th>
-              <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
-              <th style={{ width: 140 }}>企业类型</th>
-              <th className="text-center" style={{ width: 84 }}>评价次数</th>
-              <th className="text-center" style={{ width: 96 }}>平均等级</th>
-              <th className="text-center" style={{ width: 96 }}>最近评价</th>
-              <th className="text-center" style={{ width: 96 }}>入库时间</th>
-              <th className="text-center" style={{ width: 100 }}>状态</th>
-              <th className="text-center" style={{ width: 240 }}>操作</th>
+              {isPendingView ? (
+                /* 待审核视图：注册基本资料表头（未入库，无评价/入库时间） */
+                <>
+                  <th style={{ width: 100 }}>企业名称</th>
+                  <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
+                  <th style={{ width: 130 }}>法定代表人</th>
+                  <th style={{ width: 120 }}>联系电话</th>
+                  <th style={{ width: 130 }}>所属行业</th>
+                  <th style={{ width: 110 }}>注册时间</th>
+                  <th className="text-center" style={{ width: 90 }}>状态</th>
+                  <th className="text-center" style={{ width: 110 }}>操作</th>
+                </>
+              ) : (
+                <>
+                  <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === rows.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < rows.length; }} onChange={toggleAll} /></th>
+                  <th style={{ width: 100 }}>企业名称</th>
+                  <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
+                  <th style={{ width: 140 }}>企业类型</th>
+                  <th className="text-center" style={{ width: 84 }}>评价次数</th>
+                  <th className="text-center" style={{ width: 96 }}>平均等级</th>
+                  <th className="text-center" style={{ width: 96 }}>最近评价</th>
+                  <th className="text-center" style={{ width: 96 }}>入库时间</th>
+                  <th className="text-center" style={{ width: 100 }}>状态</th>
+                  <th className="text-center" style={{ width: 240 }}>操作</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -289,6 +355,31 @@ export default function SupplierRepositoryPage() {
             ) : rows.map((s: Supplier) => {
               const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray' : s.status === 'BLACKLIST' ? 'red' : 'gray';
               const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
+
+              /* ── 待审核行：注册基本资料列 + 唯一按钮「查看详情」（窗内三审） ── */
+              if (isPendingView) {
+                const primary = s.contacts?.find(c => c.isPrimary);
+                return (
+                  <tr key={s.id} className="row-clickable" onClick={() => void openPendingDetail(s)}>
+                    <td>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{s.name[0]}</div>
+                        <span className="text-sm font-bold text-[var(--foreground)] truncate" title={s.name}>{s.name}</span>
+                      </div>
+                    </td>
+                    <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
+                    <td className="text-sm text-[var(--muted-foreground)] truncate">{s.legalPerson || '—'}</td>
+                    <td className="text-sm text-[var(--muted-foreground)] font-mono text-xs truncate">{primary?.phone || s.legalPersonPhone || '—'}</td>
+                    <td className="text-sm text-[var(--muted-foreground)] truncate">{s.industry || '—'}</td>
+                    <td className="text-center text-sm text-[var(--muted-foreground)] tabular-nums">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
+                    <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
+                    <td onClick={e => e.stopPropagation()} className="text-center">
+                      <button className="neu-btn-xs" onClick={() => void openPendingDetail(s)}>查看详情</button>
+                    </td>
+                  </tr>
+                );
+              }
+
               return (
                 <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
                   <td onClick={e => e.stopPropagation()} className="pl-3">
@@ -331,7 +422,8 @@ export default function SupplierRepositoryPage() {
                         <>
                           <button onClick={() => setEvalTarget(s)} className="neu-btn-xs is-info">评价</button>
                           <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }} className="neu-btn-xs is-warning">停用</button>
-                          {isAdmin && (
+                          {/* 与详情页/后端 @Roles 同口径 admin/leader（此前该页 admin-only，口径分裂） */}
+                          {['admin', 'leader'].includes(currentUser?.role ?? '') && (
                             <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
                           )}
                         </>
@@ -410,6 +502,151 @@ export default function SupplierRepositoryPage() {
         </div>
         </div>
       </div>
+
+      {/* ═══ 待审核供应商·注册资料详情窗（按注册六部分逻辑展示 + 底部三审） ═══ */}
+      {detailSupplier && (
+        <Modal
+          open
+          onClose={() => { setDetailSupplier(null); setReviewAction(null); setReviewReason(''); }}
+          size="2xl"
+          title={`注册资料审核 · ${detailSupplier.name}`}
+          description={`统一社会信用代码 ${detailSupplier.creditCode ?? '—'} · 提交于 ${new Date(detailSupplier.createdAt).toLocaleString('zh-CN')}`}
+          footer={
+            <>
+              <button className="neu-btn-soft" onClick={() => { setDetailSupplier(null); setReviewAction(null); setReviewReason(''); }}>关闭</button>
+              <button className="neu-btn-soft is-warning" disabled={reviewBusy} onClick={() => { setReviewReason(''); setReviewAction('return'); }}><RotateCcw size={14} /> 退回补正</button>
+              <button className="neu-btn-soft is-danger" disabled={reviewBusy} onClick={() => { setReviewReason(''); setReviewAction('reject'); }}><XCircle size={14} /> 拒绝</button>
+              <button className="neu-btn-primary !h-[38px]" disabled={reviewBusy} onClick={() => { setReviewReason(''); setReviewAction('approve'); }}><CheckCircle2 size={14} /> 通过</button>
+            </>
+          }
+        >
+          <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1">
+            {/* ① 企业工商信息 */}
+            <section>
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">① 企业工商信息</p>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                {[
+                  ['企业名称', detailSupplier.name],
+                  ['统一社会信用代码', detailSupplier.creditCode],
+                  ['企业类型', normalizeEnterpriseType(detailSupplier.enterpriseType)],
+                  ['法定代表人', detailSupplier.legalPerson],
+                  ['法人联系电话', detailSupplier.legalPersonPhone],
+                  ['国别', detailSupplier.country],
+                  ['所属行政区域', detailSupplier.region],
+                  ['注册资本', detailSupplier.registeredCapital],
+                  ['所属行业', detailSupplier.industry],
+                  ['成立日期', detailSupplier.establishedDate ? new Date(detailSupplier.establishedDate).toLocaleDateString('zh-CN') : null],
+                ].map(([l, v]) => (
+                  <div key={l as string} className="rounded-lg bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-2">
+                    <p className="text-[10px] font-semibold text-[var(--muted-foreground)]">{l}</p>
+                    <p className="mt-0.5 truncate text-[12px] font-bold text-[var(--foreground)]" title={(v as string) ?? ''}>{(v as string) || '—'}</p>
+                  </div>
+                ))}
+                <div className="col-span-full rounded-lg bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-2">
+                  <p className="text-[10px] font-semibold text-[var(--muted-foreground)]">注册地址</p>
+                  <p className="mt-0.5 text-[12px] text-[var(--foreground)]">{detailSupplier.registeredAddress || '—'}</p>
+                </div>
+                <div className="col-span-full rounded-lg bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-2">
+                  <p className="text-[10px] font-semibold text-[var(--muted-foreground)]">经营范围</p>
+                  <p className="mt-0.5 break-words text-[12px] leading-relaxed text-[var(--foreground)]">{detailSupplier.businessScope || '—'}</p>
+                </div>
+              </div>
+            </section>
+
+            {/* ② 联系人 */}
+            <section>
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">② 联系人</p>
+              {detailSupplier.contacts?.length ? (
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {detailSupplier.contacts.map(c => (
+                    <div key={c.id} className="rounded-lg bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-2">
+                      <p className="text-[12px] font-bold text-[var(--foreground)]">{c.name}{c.isPrimary && <span className="ml-1 text-[10px] text-[var(--accent)]">主要联系人</span>}{c.position ? ` · ${c.position}` : ''}</p>
+                      <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] font-mono">{c.phone || '—'}{c.email ? ` · ${c.email}` : ''}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-[12px] text-[var(--muted-foreground)]">未提交联系人</p>}
+            </section>
+
+            {/* ③ 银行账户 */}
+            <section>
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">③ 银行账户</p>
+              {detailSupplier.bankAccounts?.length ? (
+                <div className="space-y-1.5">
+                  {detailSupplier.bankAccounts.map((b, i) => (
+                    <div key={i} className="rounded-lg bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-2">
+                      <p className="text-[12px] font-bold text-[var(--foreground)]">{b.accountName} · {b.bankName}{b.bankBranch ? `（${b.bankBranch}）` : ''}{b.isDefault ? ' · 默认' : ''}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-[var(--muted-foreground)]">{b.accountNo}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-[12px] text-[var(--muted-foreground)]">未提交银行账户</p>}
+            </section>
+
+            {/* ④ 资质材料 */}
+            <section>
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">④ 资质材料</p>
+              {detailSupplier.qualifications?.length ? (
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {detailSupplier.qualifications.map(q => (
+                    <div key={q.id} className="rounded-lg bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-2">
+                      <p className="text-[12px] font-bold text-[var(--foreground)]">{q.name} <span className="ml-1 text-[10px] text-[var(--muted-foreground)]">{q.type}</span></p>
+                      <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
+                        {q.validFrom ? new Date(q.validFrom).toLocaleDateString('zh-CN') : '—'} ~ {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '长期'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-[12px] text-[var(--muted-foreground)]">未提交资质材料</p>}
+            </section>
+
+            {/* ⑤ 主体业绩 */}
+            <section>
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">⑤ 主体业绩</p>
+              {detailSupplier.performances?.length ? (
+                <div className="space-y-1.5">
+                  {detailSupplier.performances.map((pf, i) => (
+                    <div key={i} className="rounded-lg bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-3 py-2">
+                      <p className="text-[12px] font-bold text-[var(--foreground)]">{pf.projectName}{pf.clientName ? ` · ${pf.clientName}` : ''}</p>
+                      <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">{pf.contractAmount || '—'}{pf.signDate ? ` · ${new Date(pf.signDate).toLocaleDateString('zh-CN')}` : ''}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-[12px] text-[var(--muted-foreground)]">未提交主体业绩</p>}
+            </section>
+
+            {/* ⑥ 业务标签 */}
+            <section>
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">⑥ 业务标签</p>
+              {detailSupplier.tags?.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {detailSupplier.tags.map(t => <span key={t} className="biz-tag">{t}</span>)}
+                </div>
+              ) : <p className="text-[12px] text-[var(--muted-foreground)]">未提交</p>}
+            </section>
+
+            {/* 审批理由输入（选动作后出现） */}
+            {reviewAction && (
+              <section className="rounded-xl border border-dashed border-[color-mix(in_oklch,var(--muted-foreground)_30%,transparent)] p-3">
+                <p className="mb-1.5 text-[12px] font-bold text-[var(--foreground)]">
+                  {reviewAction === 'approve' ? '通过理由' : reviewAction === 'return' ? '退回补正理由' : '拒绝理由'}
+                  <span className="ml-1 text-[10px] font-semibold text-[var(--danger)]">（必填）</span>
+                </p>
+                <textarea value={reviewReason} onChange={e => setReviewReason(e.target.value)} rows={2} placeholder="填写理由…" className="neu-input w-full !text-xs" />
+                <div className="mt-2 flex justify-end gap-2">
+                  <button className="neu-btn-xs" onClick={() => { setReviewAction(null); setReviewReason(''); }}>取消</button>
+                  <button className={`neu-btn-xs ${reviewAction === 'approve' ? 'is-success' : reviewAction === 'return' ? 'is-warning' : 'is-danger'}`}
+                    disabled={reviewBusy}
+                    onClick={submitReview}>
+                    {reviewBusy ? <Loader2 size={11} className="animate-spin" /> : null}
+                    确认{reviewAction === 'approve' ? '通过' : reviewAction === 'return' ? '退回' : '拒绝'}
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {/* 临时供应商邀请码弹窗（标题栏「邀请码」按钮触发） */}
       {invModalOpen && (
