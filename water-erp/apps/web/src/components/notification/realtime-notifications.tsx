@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch } from '@/lib/api/api-fetch';
+import { notificationWsUrl } from '@water-erp/config';
 import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -25,11 +26,6 @@ interface PushNotification {
   createdAt: string;
 }
 
-function wsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, "");
-  if (process.env.NODE_ENV === "production") return `${window.location.origin}/api/notifications`;
-  return "http://localhost:4001/notifications";
-}
 
 export function RealtimeNotifications() {
   const router = useRouter();
@@ -75,7 +71,7 @@ export function RealtimeNotifications() {
     };
 
     const connect = () => {
-      const socket = io(wsUrl(), {
+      const socket = io(notificationWsUrl(), {
         withCredentials: true,
         reconnection: false,
         timeout: 8000,

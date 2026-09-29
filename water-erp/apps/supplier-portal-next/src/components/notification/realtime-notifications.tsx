@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { notificationWsUrl } from '@water-erp/config';
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
@@ -24,11 +25,6 @@ interface PushNotification {
   createdAt: string;
 }
 
-function wsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, "");
-  if (process.env.NODE_ENV === "production") return `${window.location.origin}/api/notifications`;
-  return "http://localhost:4001/notifications";
-}
 
 export function RealtimeNotifications() {
   const router = useRouter();
@@ -74,7 +70,7 @@ export function RealtimeNotifications() {
     };
 
     const connect = () => {
-      const socket = io(wsUrl(), {
+      const socket = io(notificationWsUrl(), {
         withCredentials: true,
         reconnection: false,
         timeout: 8000,
