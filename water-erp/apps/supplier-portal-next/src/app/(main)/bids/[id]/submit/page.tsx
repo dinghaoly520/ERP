@@ -275,6 +275,11 @@ function BidSubmitInner() {
   const draftKey = `bidsubmit:${projectId}:${profile?.userId || ''}`;
   const draft = useAutoSave(draftKey, form, { enabled: autoSaveReady });
   useLeaveGuard(draft.dirty);
+  // SUP-P1-04（2026-09-29）：draftKey 首渲染时 profile 尚为 null（userId 段为空）——
+  // 挂载 effect 闭包若直读 draftKey / draft 实例，会与 useAutoSave 内部（key 变化后
+  // 重跑）写入的带 userId 键永不相交，恢复横幅成不可达死 UI。经 ref 取最新键与最新实例。
+  const draftKeyRef = useRef(draftKey); draftKeyRef.current = draftKey;
+  const draftApiRef = useRef(draft); draftApiRef.current = draft;
 
   // E2EE: localStorage key for DEK persistence (separate from form draft)
   const dekStorageKey = `supplier_dek:bidsubmit:${projectId}:${profile?.userId || ''}`;
@@ -481,9 +486,10 @@ function BidSubmitInner() {
         }
         restoreDeks(); // E2EE: restore DEKs / dual entries from previous session
         // 预热管理方加密证书（新轨上传/提交需要；失败在上传时按需重试并报错）
-        if (profile?.sm2PublicKey) getAdminCertCached().catch(() => {});
-        const ts = readDraftTs(draftKey);
-        if (draft.restoreDraft() && ts && (!subLocal || ts > new Date(subLocal.updatedAt).getTime())) {
+        // SUP-P3-10：用 effect 内已加载的 prof——闭包里的 profile 是首渲染的 null，恒假死条件
+        if (prof?.sm2PublicKey) getAdminCertCached().catch(() => {});
+        const ts = readDraftTs(draftKeyRef.current);
+        if (draftApiRef.current.restoreDraft() && ts && (!subLocal || ts > new Date(subLocal.updatedAt).getTime())) {
           setRecoveryTs(ts);
           setShowRecovery(true);
         }
