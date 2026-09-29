@@ -717,7 +717,8 @@ function BidSubmitInner() {
     } else {
       const total = splitCats.tech.files.length + splitCats.biz.files.length + splitCats.other.files.length;
       fileOk = total > 0;
-      fileDetail = fileOk ? `已上传 ${total} 个文件` : "未上传任何文件";
+      // SUP-P1-01：明示参检口径——信封/评分管道只取每类第 1 个文件
+      fileDetail = fileOk ? `已上传 ${total} 个文件（每类仅第 1 个参检）` : "未上传任何文件";
     }
     const items = [
       { label: "供应商资质", detail: isApproved ? "已入库，可投标" : "未通过审核，无法投标", ok: isApproved, required: true },
@@ -933,7 +934,8 @@ function BidSubmitInner() {
                     </div>
                   )}
 
-                  {/* 拆分文件：三个分类，每类多文件 */}
+                  {/* 拆分文件：三个分类——每类仅第一个文件参检（collectDeclaredAssetIds/normalizeBidFileAssets
+                      同口径取每类首个），达 1 个即停加并明示，消除多文件静默丢弃（SUP-P1-01） */}
                   {submissionMode === "split" && SPLIT_KEYS.map((cat) => (
                     <div className="b-form-item" key={cat}>
                       <label className={cat === "tech" ? "b-required" : undefined}>{splitCats[cat].label}</label>
@@ -942,11 +944,14 @@ function BidSubmitInner() {
                           <div className="split-cat-head">
                             <AddFileButton
                               accept=".pdf,.zip,.rar"
-                              disabled={!canSubmit || splitCats[cat].uploading}
+                              disabled={!canSubmit || splitCats[cat].uploading || splitCats[cat].files.length >= 1}
                               uploading={splitCats[cat].uploading}
                               onFile={(f) => handleSplitUpload(cat, f)}
                             />
-                            <span className="file-hint">{splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB</span>
+                            <span className="file-hint">
+                              {splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB
+                              {splitCats[cat].files.length >= 1 ? " · 每类仅第一个文件参与评审与密封，多文件请合并后重新上传" : " · 每类仅第一个文件参检"}
+                            </span>
                             {splitCats[cat].progress !== null && <div className="w-[120px]"><SpProgress value={splitCats[cat].progress} /></div>}
                           </div>
                           {splitCats[cat].files.length > 0 && (
