@@ -287,9 +287,10 @@ export class AuthController {
     const revokeToken = tokenFromRequest(req);
     if (revokeToken && (await this.authService.shouldRevokeSession(revokeToken))) {
       await this.prisma.user.update({
-      where: { id: userId },
-      data: { webSessionId: null },
-    });
+        where: { id: userId },
+        data: { webSessionId: null },
+      });
+    }
 
     // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token。
     // clearCookie 须传与 set 一致的 path/secure/sameSite，浏览器才会匹配删除。
