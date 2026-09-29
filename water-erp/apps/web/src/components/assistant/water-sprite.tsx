@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAssistant } from "./assistant-provider";
 import { DINGDANG_IMAGES, type SpriteExpression } from "./sprite-images";
 
@@ -27,8 +27,11 @@ function pickNext(prev: number): number {
 }
 
 export function WaterSprite() {
-  const { isOpen, chatState, expression } = useAssistant();
+  const { chatState, expression } = useAssistant();
   const router = useRouter();
+  // /assistant 页已内嵌完整聊天 UI——精灵在该页叠加且点击跳转是 no-op（三审 P2），直接隐藏
+  const pathname = usePathname();
+  const onAssistantPage = pathname === '/assistant';
   const outerRef = useRef<HTMLSpanElement>(null);
   const midRef   = useRef<HTMLSpanElement>(null);
   const coreRef  = useRef<HTMLSpanElement>(null);
@@ -64,11 +67,10 @@ export function WaterSprite() {
     }
   }, [expr]);
 
-  if (isOpen) return null;
-
   // 全局悬浮精灵只在非 /assistant 页挂载，而完整聊天 UI 只存在于 /assistant 页——
   // 此前 openChat 仅置 isOpen=true：本页没有聊天容器，点精灵=入口自毁且无面板弹出
   // （2026-09-28 审计 P1）。现在点击直达助手页。
+  if (onAssistantPage) return null;
   const openAssistant = () => router.push('/assistant');
 
   const curExpr = switching ? prevExpr : expr;

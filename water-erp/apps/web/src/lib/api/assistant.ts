@@ -37,11 +37,14 @@ export async function deleteConversation(id: string): Promise<void> {
     method: 'DELETE',
     credentials: 'include',
   });
-  // 后端非属主/不存在返回 200 + {status:'failed'}——须读响应体，否则 UI 假报删除成功（二审 P2）
-  if (res.ok) {
+  // 401/500 等非 2xx 也要抛（apiFetch 是透传包装不自动抛）——否则 UI 假报删除成功（三审 P2）
+  if (!res.ok) {
     const body = await res.json().catch(() => null);
-    if (body && body.status === 'failed') throw new Error(body.message || '删除失败');
+    throw new Error(body?.error || `删除失败（${res.status}）`);
   }
+  // 后端非属主/不存在返回 200 + {status:'failed'}——须读响应体（二审 P2）
+  const body = await res.json().catch(() => null);
+  if (body && body.status === 'failed') throw new Error(body.message || '删除失败');
 }
 
 // ---- Send message ----

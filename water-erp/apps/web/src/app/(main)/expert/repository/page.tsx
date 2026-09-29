@@ -85,7 +85,7 @@ export default function ExpertRepositoryPage() {
     try {
       await updateExpertEntryStatus(e.id, { status: target, reason });
       toast.success('入库状态已更新');
-      load();
+      load(); void refreshExpStats();
     } catch (err: any) { toast.error(err?.message || '操作失败'); }
   };
 
@@ -129,7 +129,7 @@ export default function ExpertRepositoryPage() {
       await setExpertAvailability(target.id, !target.isActive);
       toast.success(target.isActive ? '已停用' : '已启用');
       setConfirmToggle(null);
-      load();
+      load(); void refreshExpStats();
     } catch (err: any) { toast.error(err?.message || '操作失败'); }
     setToggling(false);
   };
@@ -144,7 +144,7 @@ export default function ExpertRepositoryPage() {
     try {
       await batchOperation({ action: batchAction, ids: [...selectedIds], reason: batchAction === 'disable' && batchReason ? batchReason : undefined });
       toast.success(`${batchAction === 'enable' ? '启用' : '停用'} ${selectedIds.size} 位专家${batchAction === 'disable' && batchReason.trim() ? `（原因：${batchReason.trim()}）` : ''}，已记录至操作日志`);
-      setConfirmBatch(false); setSelectedIds(new Set()); setBatchMode(false); setBatchReason(''); load();
+      setConfirmBatch(false); setSelectedIds(new Set()); setBatchMode(false); setBatchReason(''); load(); void refreshExpStats();
     } catch (e: any) { toast.error(e?.message || '批量操作失败'); }
     setBatchSaving(false);
   };
@@ -315,13 +315,13 @@ export default function ExpertRepositoryPage() {
   const totalEvals = experts.reduce((s, e) => s + e._count.expertEvaluations, 0);
   // 服务端全量 KPI（与 /expert/statistics 同口径，公司隔离同参数）
   const [expStats, setExpStats] = useState<Awaited<ReturnType<typeof getExpertStatistics>> | null>(null);
-  useEffect(() => {
-    let alive = true;
+  // 仅公司视野变化重拉（experts 引用每页变，会无谓重跑 8 个聚合）；变更类操作后手动刷（三审 P2-3）
+  const refreshExpStats = useCallback(() => {
     getExpertStatistics(companyId)
-      .then((s) => { if (alive) setExpStats(s); })
-      .catch(() => { if (alive) setExpStats(null); });
-    return () => { alive = false; };
-  }, [companyId]); // 仅公司视野变化才重拉——experts 引用每页变会无谓重跑 8 个聚合（二审 P2）
+      .then(setExpStats)
+      .catch(() => setExpStats(null));
+  }, [companyId]);
+  useEffect(() => { refreshExpStats(); }, [refreshExpStats]);
   const gradeDistribution = useMemo(() => {
     const dist = { A: 0, B: 0, C: 0, D: 0, E: 0, '-': 0 };
     for (const e of experts) {

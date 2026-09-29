@@ -433,11 +433,16 @@ export class ProcurementsService {
 
     // 异常全量计数（2026-09-28 审计 P2）：hero「异常 N」此前只数当前页 12 条，与旁边
     // "共 total 条"（全量）并列口径打架。四态与前端 hero 定义一致，同一 where（含回收站视图）。
-    // 2026-09-29 二审修订：用户已显式按结果状态筛选（或 category 注入了状态）时不叠加
-    // 异常四态——否则 hero 与被过滤后的列表行口径打架。
+    // 状态筛选交集语义（2026-09-29 三审修订）：用户显式筛某状态时，异常数 = 该筛选 ∩ 异常四态
+    // ——筛 AWARDED 则异常为 0（不可能既成交又异常），筛 FAILED_REVIEW 则只数该状态。
+    const ABNORMAL_STATES = ['FAILED_REVIEW', 'FILE_REVISION_REQUIRED', 'INVALID_RESPONSE', 'CANCELLED'];
+    const userStatus = typeof where.resultStatus === 'string' ? where.resultStatus : undefined;
+    const abnormalStates = userStatus
+      ? ABNORMAL_STATES.filter((s) => s === userStatus)
+      : ABNORMAL_STATES;
     const abnormalWhere = {
       ...where,
-      ...(where.resultStatus ? {} : { resultStatus: { in: ['FAILED_REVIEW', 'FILE_REVISION_REQUIRED', 'INVALID_RESPONSE', 'CANCELLED'] } }),
+      resultStatus: { in: abnormalStates },
     };
 
     const [total, abnormalTotal, data] = await Promise.all([

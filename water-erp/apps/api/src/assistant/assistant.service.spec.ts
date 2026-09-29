@@ -305,6 +305,20 @@ describe('AssistantService', () => {
       expect(announcementTool.execute).toHaveBeenCalled();
       expect(result.conversationId).toBe('conv-1');
     });
+
+    it('认证≠授权：外部角色（supplier）登录后同样仅公开域工具（三审锁定）', async () => {
+      const owner = setupConv({ userId: 'user-supplier' });
+      const supplierTool = (service as any)['supplierTool'];
+      supplierTool.execute.mockClear();
+
+      const result = await service.chat(
+        { message: DIRECT_MSG },
+        { ...owner, role: 'supplier' },
+      );
+
+      expect(result.answer).toContain('登录');
+      expect(supplierTool.execute).not.toHaveBeenCalled();
+    });
   });
 
   describe('deleteConversation', () => {

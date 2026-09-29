@@ -433,10 +433,14 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
     const m = /\/supplier\/([^/?]+)/.exec(item.link ?? '');
     return m?.[1] ?? null;
   }, [item.link]);
-  // 通知 link 携带的业务 id（如资料变更 requestId）——用于在待处理列表中直达本条
+  // 通知 link 携带的业务 id——用于在待处理列表中直达本条：
+  // 资料变更带 requestId（password-requests.service）；注册待审带 userId
+  // （auth.service，PendingRegistration.id 即 userId）——只解析 requestId 会漏注册分支（三审 P1）
   const linkRequestId = useMemo(() => {
     const q = item.link?.split('?')[1];
-    return q ? new URLSearchParams(q).get('requestId') : null;
+    if (!q) return null;
+    const params = new URLSearchParams(q);
+    return params.get('requestId') ?? params.get('userId');
   }, [item.link]);
 
   const isApproval = ['PROFILE_CHANGE_PENDING', 'USER_REGISTRATION_PENDING', 'SUPPLIER_PENDING'].includes(item.type);

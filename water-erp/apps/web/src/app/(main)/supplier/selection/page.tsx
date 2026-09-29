@@ -1635,8 +1635,13 @@ export function SupplierSelectionPage({
     setCompleted(true);
     // 完成后清空会话，下次进入从第 1 步开始（2026-09-28 审计 S6 修复：
     // 此前删的是裸键（项目分桶键没删）、服务端草稿也没删——恢复逻辑取
-    // 「服务端 vs 本地」较新者，旧向导（含 completed/已通知/候选名单）重进即复活）
+    // 「服务端 vs 本地」较新者，旧向导（含 completed/已通知/候选名单）重进即复活）。
+    // 2026-09-29 三审 P1：setCompleted(true) 会触发 persist effect 重写 localStorage、
+    // 重灌 draftPayloadRef 并**重新调度 2s 防抖**——删完（500ms）后被 2s 定时器把
+    // completed 草稿原样写回服务端，复活。必须先掐掉定时器并清空 payload 再删。
     setTimeout(() => {
+      if (draftSyncRef.current) { clearTimeout(draftSyncRef.current); draftSyncRef.current = null; }
+      draftPayloadRef.current = '';
       try { localStorage.removeItem(sessionKey); } catch { /* ignore */ }
       deleteDraft(draftKey).catch(() => { /* 草稿删除失败不阻塞完成 */ });
     }, 500);

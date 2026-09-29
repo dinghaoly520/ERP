@@ -340,7 +340,7 @@ export default function NoticePage() {
             </div>
             <div>
               <div className="page-hero__title">公告发布中心</div>
-              <div className="page-hero__sub">采购公告、中标公示、成交公告、政策法规、平台通知的起草与发布管理</div>
+              <div className="page-hero__sub">采购公告、中标公告、成交公告、政策法规、平台通知的起草与发布管理</div>
             </div>
           </div>
 

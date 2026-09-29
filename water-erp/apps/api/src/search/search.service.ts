@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NO_COMPANY } from '../company/company-scope';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class SearchService {
 
     // 公司域收窄（2026-09-28 审计 P1：此前裸 prisma 绕过公司隔离，非 admin 经 ⌘K
     // 可见跨公司项目/专家）。JWT 不携带 companyId——非 admin 补一次反查。
+    // 未归属公司的账号：与 CompanyScopeService 同口径返回空集，绝不放行全量（三审 P2）。
     // 供应商库按既定口径不隔离（CLAUDE.md「供应商库/目录不隔离」）。
     let companyId: string | undefined;
     if (user && user.role !== 'admin') {
@@ -19,7 +21,7 @@ export class SearchService {
         where: { id: user.sub },
         select: { companyId: true },
       });
-      companyId = u?.companyId ?? undefined;
+      companyId = u?.companyId ?? NO_COMPANY;
     }
 
     const [suppliers, projects, experts, procurements] = await Promise.all([
@@ -51,7 +53,8 @@ export class SearchService {
         take: 5,
       }),
       this.prisma.procurementProject.findMany({
-        where: { projectCode: { contains: query, mode: 'insensitive' } },
+        // 台账列表对非 admin 有公司过滤——⌘K 同口径收窄（三审 P2：此前可跨公司检索）
+        where: { projectCode: { contains: query, mode: 'insensitive' } , ...(companyId ? { companyId } : {}) },
         select: { id: true, projectCode: true, status: true },
         take: 5,
       }),

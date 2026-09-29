@@ -301,10 +301,25 @@ export class PasswordRequestsService {
       throw new BadRequestException({ error: '姓名不能为空', code: 'NAME_REQUIRED' });
     }
 
+    // 自动关闭旧申请前先取 id——关闭后按其精确 link 消音待办（三审 P1-B）：
+    // 精确消音体系下这些旧待办不再被任何 approve/reject 命中（审批人只见新申请），
+    // 不消音将叠加"单条已读拒写"语义成为所有审批人永久红色待办
+    const stalePending = await this.prisma.profileChangeRequest.findMany({
+      where: { userId, status: 'PENDING' },
+      select: { id: true },
+    });
     await this.prisma.profileChangeRequest.updateMany({
       where: { userId, status: 'PENDING' },
       data: { status: 'REJECTED', decisionNote: '已提交新的资料变更申请，本条自动关闭', reviewedAt: new Date() },
     });
+    await Promise.allSettled(
+      stalePending.map((old) =>
+        this.notifications?.resolveActionable(
+          'PROFILE_CHANGE_PENDING',
+          `/admin/accounts?tab=password&section=profile&requestId=${old.id}`,
+        ),
+      ),
+    );
     const created = await this.prisma.profileChangeRequest.create({
       data: { userId, payload: changes },
       select: { id: true, status: true, requestedAt: true },
@@ -413,8 +428,10 @@ export class PasswordRequestsService {
     // 2026-09-29 精确消音：按 requestId 精确 link 只消本申请的待办——此前按通用 link
     // 批量 resolve，审批 1 条会把所有审批人的全部待审待办一并消音（漏审风险）。
     // 存量无 requestId 的旧待办仅在已无任何待审申请时统一清理（此时必为陈旧噪音）。
-    const legacyCleanup =
-      (await this.prisma.profileChangeRequest.count({ where: { status: 'PENDING' } })) === 0;
+    // 三审 P1-A：计数须排除本申请（此处它仍为 PENDING，恒 ≥1 会让兜底清理成死码，
+      // 存量无 requestId 旧待办将永久卡红）
+      const legacyCleanup =
+      (await this.prisma.profileChangeRequest.count({ where: { status: 'PENDING', id: { not: id } } })) === 0;
     await Promise.allSettled([
       this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', `/admin/accounts?tab=password&section=profile&requestId=${id}`),
       ...(legacyCleanup ? [
@@ -459,7 +476,7 @@ export class PasswordRequestsService {
     // 2026-09-26 五段状态：审批人待办消音 + 操作留痕；2026-09-29 按 requestId 精确消音（同 approve 口径）
     const reqUser = await this.prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }).catch(() => null);
     const legacyCleanupR =
-      (await this.prisma.profileChangeRequest.count({ where: { status: 'PENDING' } })) === 0;
+      (await this.prisma.profileChangeRequest.count({ where: { status: 'PENDING', id: { not: id } } })) === 0; // 同 approve：排除自身
     await Promise.allSettled([
       this.notifications?.resolveActionable('PROFILE_CHANGE_PENDING', `/admin/accounts?tab=password&section=profile&requestId=${id}`),
       ...(legacyCleanupR ? [

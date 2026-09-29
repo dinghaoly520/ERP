@@ -293,7 +293,11 @@ export class CatalogController {
     @Query('search') search?: string,
     @Query('categoryId') categoryId?: string,
   ) {
-    const buf = await this.catalogService.exportCatalog(req.user.sub, { category, region, status, source, search, categoryId: categoryId ? Number(categoryId) : undefined }, req.user?.role);
+    const buf = await this.catalogService.exportCatalog(req.user.sub, {
+      category, region, status, source, search,
+      // NaN 守卫（三审 P2）：?categoryId=abc 会让 Prisma 校验错 500，与列表端点 400 语义对齐
+      categoryId: categoryId && Number.isFinite(Number(categoryId)) ? Number(categoryId) : undefined,
+    }, req.user?.role);
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent('采购目录-' + new Date().toISOString().slice(0, 10) + '.xlsx')}`,
