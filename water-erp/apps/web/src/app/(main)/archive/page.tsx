@@ -398,7 +398,7 @@ function ArchivePageInner() {
               {' '}· <span className="font-mono">{inspect.row.projectCode ?? '—'}</span> · 卷内按阶段整理（DA/T 103-2024 §9.2）
               {inspect.check && (
                 <span className={`ml-2 font-semibold ${inspect.check.overall === 'PASSED' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-                  最近检测：{inspect.check.overall === 'PASSED' ? '通过' : `${inspect.check.failedCount} 项不合格`}（{new Date(inspect.check.ranAt).toLocaleString()}）
+                  最近检测：{inspect.check.overall === 'PASSED' ? '通过' : `${inspect.check.failedCount} 项不合格`}（{new Date(inspect.check.ranAt).toLocaleString('zh-CN', { hour12: false })}）
                 </span>
               )}
             </span>
@@ -498,7 +498,7 @@ function ArchivePageInner() {
                   <ul className="max-h-40 space-y-1 overflow-y-auto">
                     {auditRows.map((a, i) => (
                       <li key={i} className="flex items-baseline gap-2 text-[11px] text-[var(--muted-foreground)]">
-                        <span className="tabular-nums">{new Date(a.createdAt).toLocaleString()}</span>
+                        <span className="tabular-nums">{new Date(a.createdAt).toLocaleString('zh-CN', { hour12: false })}</span>
                         <span className="font-semibold text-[var(--foreground)]">{a.username ?? '—'}</span>
                         <span className="font-mono">{a.method} {a.path.replace(`/api/archive/items/${inspect.row.id}`, '…')}</span>
                         <span className={a.statusCode >= 400 ? 'font-bold text-[var(--danger)]' : 'text-[var(--success)]'}>{a.statusCode}</span>

@@ -26,7 +26,7 @@ import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-
 import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, ClipboardCheck, History } from 'lucide-react';
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
-import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
+import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
 
@@ -354,7 +354,8 @@ export default function SupplierRepositoryPage() {
               </td></tr>
             ) : rows.map((s: Supplier) => {
               const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray' : s.status === 'BLACKLIST' ? 'red' : 'gray';
-              const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
+              // 状态文案统一走 shared（2026-09-28 审计：四处分叉——本地副本/Excel/选取页各一套，未覆盖状态直出英文枚举）
+              const statusLabel = SUPPLIER_STATUS_LABEL[s.status] ?? s.status;
 
               /* ── 待审核行：注册基本资料列 + 唯一按钮「查看详情」（窗内三审） ── */
               if (isPendingView) {

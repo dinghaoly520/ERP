@@ -52,13 +52,14 @@ import {
   deleteProcurementPermanently,
   fetchLedgerCompanyCounts,
 } from "@/lib/api/procurements";
-import { fetchCurrentUser } from "@/lib/api/auth";
+import { fetchCurrentUser, fetchDepartments } from "@/lib/api/auth";
 import { canAccessCockpit } from "@/lib/login/login-routing";
 import { ArchiveDetailModal } from "@/components/procurements/archive-detail-modal";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { Modal } from "@/components/workbench";
 import { useConfirm } from "@/components/workbench/use-confirm";
 import { apiFetch } from '@/lib/api/api-fetch';
+import { formatWan } from '@/lib/format';
 
 // Animation Utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -140,6 +141,7 @@ function PageHero({
   onOpenExtract,
   isAdmin,
   abnormalTotal,
+  departments,
 }: {
   filters: LedgerFilterState;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
@@ -156,6 +158,7 @@ function PageHero({
   onOpenExtract: () => void;
   isAdmin: boolean;
   abnormalTotal?: number;
+  departments: Array<{ id: string; name: string }>;
 }) {
   // 异常=服务端全量口径（2026-09-28 审计 P2：此前只数当前页 12 条，与"共 total 条"并列打架）；
   // 旧后端无此字段时回退当前页推导
@@ -255,6 +258,36 @@ function PageHero({
             {methods.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
 
+          {/* 日期区间 + 部门筛选（2026-09-28 审计 P2：后端支持、前端零入口——台账无法按时间段查） */}
+          <input
+            type="date"
+            value={filters.startDate ?? ""}
+            onChange={(e) => onFilterChange("startDate", e.target.value || null)}
+            className="workbench-input workbench-input-sm !w-auto"
+            aria-label="采购日期起"
+            title="采购日期起"
+          />
+          <span className="text-[10px] text-[color:var(--muted-foreground)]">~</span>
+          <input
+            type="date"
+            value={filters.endDate ?? ""}
+            onChange={(e) => onFilterChange("endDate", e.target.value || null)}
+            className="workbench-input workbench-input-sm !w-auto"
+            aria-label="采购日期止"
+            title="采购日期止"
+          />
+          {departments.length > 0 && (
+            <select
+              value={filters.departmentId || ""}
+              onChange={(e) => onFilterChange("departmentId", e.target.value || null)}
+              className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
+              aria-label="部门"
+            >
+              <option value="">全部部门</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          )}
+
           {/* 状态+类型+回收站 合一（单选收窄，互斥）：cat:=类型项、recycle:=回收站。
               选项按实际使用频率排序：常用在前、罕见审查类状态殿后 */}
           <select
@@ -321,11 +354,9 @@ function LedgerRow({
     return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
   };
 
-  const formatAmount = (amount: number | null | string) => {
-    if (!amount) return "-";
-    const num = typeof amount === "string" ? parseFloat(amount) : amount;
-    return num >= 10000 ? `${(num / 10000).toFixed(2)}万` : `${num.toFixed(0)}元`;
-  };
+  // 统一金额口径（2026-09-28 审计：此前同页三处两套小数位）——走 lib/format
+  const formatAmount = (amount: number | null | string) =>
+    formatWan(amount, { digits: 2, empty: "-" });
 
   // 中标单位（已成交时显示）- 优先使用项目管理提取的中标单位
   const awardedSupplier = item.sourceType === "PROJECT_MANAGEMENT" && item.pmAwardedSupplier
@@ -615,11 +646,9 @@ function SimplifiedRow({
   isSelected: boolean;
   onToggle: () => void;
 }) {
-  const formatAmount = (amount: number | null | string) => {
-    if (!amount) return "-";
-    const num = typeof amount === "string" ? parseFloat(amount) : amount;
-    return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : `${num.toFixed(0)}元`;
-  };
+  // 统一金额口径（2026-09-28 审计：此前同页三处两套小数位）——走 lib/format
+  const formatAmount = (amount: number | null | string) =>
+    formatWan(amount, { digits: 2, empty: "-" });
 
   return (
     <div
@@ -755,7 +784,9 @@ function AnalysisResultModal({
   const pieRadius = 50;
   const pieCx = 60;
 
-  const formatAmount = (n: number) => n >= 10000 ? `${(n/10000).toFixed(1)}万` : `${n.toFixed(0)}元`;
+  // 统一金额口径（2026-09-28 审计：此前同页三处两套小数位）——走 lib/format
+  const formatAmount = (amount: number | null | string) =>
+    formatWan(amount, { digits: 2, empty: "-" });
 
   return (
     <Modal
@@ -1064,6 +1095,9 @@ export default function ProcurementsPage() {
   const [pagination, setPagination] = useState({ page: 1, pageSize: 12, total: 0, totalPages: 0 });
   const [abnormalTotal, setAbnormalTotal] = useState<number | undefined>(undefined);
   const [methods, setMethods] = useState<string[]>([]);
+  // 部门筛选数据源（端点不可用时隐藏该下拉，不阻塞台账）
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => { fetchDepartments().then(setDepartments).catch(() => setDepartments([])); }, []);
   const [loading, setLoading] = useState(false);
   const [ledgerStats, setLedgerStats] = useState<LedgerSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1473,7 +1507,8 @@ export default function ProcurementsPage() {
           onOpenExtract={() => setExtractOpen(true)}
           isAdmin={isAdmin}
           abnormalTotal={abnormalTotal}
-            onCompanyChange={setCompanyId}
+          departments={departments}
+            onCompanyChange={(v) => { setCompanyId(v); setPagination(prev => ({ ...prev, page: 1 })); }} /* 切公司重置页码（审计 P1-A：第 3 页切小公司显示误导性空态） */
           />
         </div>
 

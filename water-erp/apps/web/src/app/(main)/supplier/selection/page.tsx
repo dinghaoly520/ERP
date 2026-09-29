@@ -26,6 +26,7 @@ import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
 import { StepTrack } from '@/components/step-track';
 import { apiFetch } from '@/lib/api/api-fetch';
+import { SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
@@ -3586,7 +3587,7 @@ export function SupplierSelectionPage({
                       {detailData.status && (
                         <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-bold"
                           style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}>
-                          状态：{String(detailData.status) === 'APPROVED' ? '已入库' : String(detailData.status) === 'PENDING' ? '待审核' : String(detailData.status) === 'REJECTED' ? '已拒绝' : String(detailData.status)}
+                          状态：{SUPPLIER_STATUS_LABEL[String(detailData.status)] ?? String(detailData.status)}
                         </span>
                       )}
                       {detailData.classification?.name && (

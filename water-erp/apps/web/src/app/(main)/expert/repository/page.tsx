@@ -75,18 +75,33 @@ export default function ExpertRepositoryPage() {
   // 搜索竞态守卫：递增 requestId，过期响应直接丢弃，避免旧结果覆盖新结果
   const loadReqIdRef = useRef(0);
   // CTS A-218/222 入库状态操作（暂停/退库须事由；权限由后端 admin/leader 把关）
-  const handleEntryStatus = async (e: ExpertListItem, target: 'ACTIVE' | 'SUSPENDED' | 'RETIRED') => {
-    let reason: string | undefined;
-    if (target !== 'ACTIVE') {
-      const input = window.prompt(target === 'SUSPENDED' ? '请输入暂停事由：' : '请输入退库事由：');
-      if (!input || !input.trim()) return;
-      reason = input.trim();
-    }
+  // 2026-09-28 审计 E2：暂停/退库改 Modal（原生 prompt 与全站范式割裂）；退库标注不可逆
+  const [entryEdit, setEntryEdit] = useState<{ expert: ExpertListItem; target: 'SUSPENDED' | 'RETIRED' } | null>(null);
+  const [entryReason, setEntryReason] = useState('');
+  const [entryBusy, setEntryBusy] = useState(false);
+  const submitEntryStatus = async () => {
+    if (!entryEdit || !entryReason.trim()) { toast.error('请填写事由'); return; }
+    setEntryBusy(true);
     try {
-      await updateExpertEntryStatus(e.id, { status: target, reason });
-      toast.success('入库状态已更新');
+      await updateExpertEntryStatus(entryEdit.expert.id, { status: entryEdit.target, reason: entryReason.trim() });
+      toast.success(entryEdit.target === 'SUSPENDED' ? '已暂停（事由已留痕）' : '已退库（事由已留痕）');
+      setEntryEdit(null); setEntryReason('');
       load(); void refreshExpStats();
     } catch (err: any) { toast.error(err?.message || '操作失败'); }
+    setEntryBusy(false);
+  };
+  const handleEntryStatus = async (e: ExpertListItem, target: 'ACTIVE' | 'SUSPENDED' | 'RETIRED') => {
+    if (target === 'ACTIVE') {
+      // 恢复无需事由，保持直连
+      try {
+        await updateExpertEntryStatus(e.id, { status: target });
+        toast.success('入库状态已更新');
+        load(); void refreshExpStats();
+      } catch (err: any) { toast.error(err?.message || '操作失败'); }
+      return;
+    }
+    setEntryReason('');
+    setEntryEdit({ expert: e, target });
   };
 
   const load = useCallback(async () => {
@@ -544,6 +559,33 @@ export default function ExpertRepositoryPage() {
                 </div>
               </div>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {/* 入库状态操作弹窗（暂停/退库；2026-09-28 审计 E2 取代 window.prompt） */}
+      {entryEdit && (
+        <Modal
+          open
+          onClose={() => setEntryEdit(null)}
+          title={entryEdit.target === 'SUSPENDED' ? '暂停专家' : '退库专家'}
+          description={<>专家：<strong className="text-[var(--foreground)]">{entryEdit.expert.displayName}</strong>（{entryEdit.expert.expertProfile?.specialty ?? '—'}）</>}
+          footer={
+            <>
+              <button onClick={() => setEntryEdit(null)} className="neu-btn-soft">取消</button>
+              <button onClick={() => void submitEntryStatus()} disabled={entryBusy || !entryReason.trim()} className={`neu-btn-soft ${entryEdit.target === 'RETIRED' ? 'is-danger' : 'is-warning'}`}>
+                {entryBusy ? '处理中...' : entryEdit.target === 'SUSPENDED' ? '确认暂停' : '确认退库'}
+              </button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {entryEdit.target === 'SUSPENDED' ? '暂停期间专家不参与抽取；恢复后自动回到可用池。' : '退库为不可逆操作（需重新审核入库），事由将记入操作历史。'}
+            </p>
+            <textarea value={entryReason} onChange={(e) => setEntryReason(e.target.value)}
+              placeholder={entryEdit.target === 'SUSPENDED' ? '请填写暂停事由…' : '请填写退库事由…'}
+              className="neu-input w-full h-24 resize-none text-sm" />
           </div>
         </Modal>
       )}

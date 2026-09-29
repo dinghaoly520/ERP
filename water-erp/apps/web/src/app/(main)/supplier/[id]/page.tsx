@@ -419,7 +419,7 @@ export default function SupplierDetailPage() {
               ['评价等级', mostCommonGrade || '暂无', mostCommonGrade ? `${LEVEL_LABEL[mostCommonGrade] || mostCommonGrade}级` : '未见评价'],
               ['资质数量', qualifications.length, '已提交资质'],
               ['变更次数', changes.length, '历史变更'],
-              ['档案文件', supplier._count?.evaluations ?? evaluations.length, evaluations.length > 0 ? '评价记录' : '未见评价'],
+              ['评价记录', supplier._count?.evaluations ?? evaluations.length, evaluations.length > 0 ? '履约评价' : '未见评价'],
             ].map(([label, value, sub]) => (
               <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>

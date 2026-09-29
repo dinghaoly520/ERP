@@ -138,28 +138,9 @@ export async function reprocProject(projectId: string) {
   return parseJsonResponse<{ round: number; inserted: number }>(response);
 }
 
-/** CTS-EBS01 A-36/37 创建人递交项目送审（驳回后可重新递交） */
-export async function submitProjectForReview(projectId: string) {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/submit-review`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-  return parseJsonResponse<ProjectManagementItem>(response);
-}
-
-/** CTS-EBS01 A-36/37 受理审核（admin；驳回须填理由） */
-export async function reviewProjectSubmission(
-  projectId: string,
-  payload: { approve: boolean; comment?: string },
-) {
-  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/review`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-  return parseJsonResponse<ProjectManagementItem>(response);
-}
+// （已删）CTS-EBS01 A-36/37 submitProjectForReview / reviewProjectSubmission——调用的
+// /submit-review、/review 路由后端从未实现且无 UI 调用方（2026-09-28 审计死封装）；
+// 送审流落地时按后端实际路由重建。
 
 /** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
 export async function extractTenderFields(projectId: string, field?: string) {

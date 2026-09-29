@@ -29,6 +29,30 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
     URL.revokeObjectURL(url);
   };
 
+  /** 引号感知的 CSV 行解析（2026-09-28 审计 E5：此前 line.split(',') 把含逗号的
+   *  引号字段（如备注）整列错位，错误数据直接进库且无告警）。支持 "" 转义。 */
+  const splitCsvLine = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else inQuotes = false;
+        } else cur += ch;
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        out.push(cur.trim());
+        cur = '';
+      } else cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  };
+
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -39,9 +63,9 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
       e.target.value = '';
       return;
     }
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const headers = splitCsvLine(lines[0]);
     const rows = lines.slice(1).map(line => {
-      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const vals = splitCsvLine(line);
       const row: Record<string, string> = {};
       headers.forEach((h, i) => { row[h] = vals[i] || ''; });
       return row;

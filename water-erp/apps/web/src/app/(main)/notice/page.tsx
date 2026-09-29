@@ -367,7 +367,7 @@ export default function NoticePage() {
           <HeroStat label="已发布" value={published} sub="已生效可见" />
           <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布" : "全部已发布"} />
           <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
-          <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString()} />
+          <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString('zh-CN')} />
         </div>
         </div>
       </div>
@@ -506,7 +506,7 @@ function HeroStat({ label, value, sub, signal, valueStr }: {
       </div>
       {/* value — 始终渲染 */}
       <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">
-        {valueStr ?? (value >= 1000 ? value.toLocaleString() : value)}
+        {valueStr ?? (value >= 1000 ? value.toLocaleString('zh-CN') : value)}
       </span>
       {/* sub 行 — 固定 min-h 使得有/无 sub 时 value 位置一致 */}
       <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub || " "}</span>

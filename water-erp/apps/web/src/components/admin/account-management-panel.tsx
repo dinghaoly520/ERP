@@ -318,6 +318,11 @@ export function AccountManagementPanel() {
           </div>
 
           <div className="page-hero__right">
+            {/* 三个 admin 工具页入口（2026-09-28 审计：唯一可达路径 command-palette 从未挂载
+                已删——页面成了只能手输 URL 的孤岛，此处补 UI 入口） */}
+            <a href="/admin/companies" className="neu-btn-xs" title="公司主数据与归属管理">单位管理</a>
+            <a href="/admin/compliance-rules" className="neu-btn-xs" title="合规规则维护">合规规则</a>
+            <a href="/admin/health" className="neu-btn-xs" title="系统健康自声明数据包">系统健康</a>
             <button
               type="button"
               onClick={refresh}

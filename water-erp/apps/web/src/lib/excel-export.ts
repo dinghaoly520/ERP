@@ -1,6 +1,7 @@
 import { Workbook } from 'exceljs';
 import type { SupplierRecommendation } from '@/lib/api/supplier';
 import { LEVEL_LABEL } from '@water-erp/shared';
+import { SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
 
 export function exportShortlistToExcel(
   items: { item: SupplierRecommendation; note: string }[],
@@ -162,7 +163,7 @@ export function exportSuppliersToExcel(suppliers: any[]) {
   headerRow.font = { bold: true, color: { argb: 'FF5E7EBD' }, size: 11 };
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF3FB' } };
 
-  const statusMap: Record<string, string> = { PENDING: '待审核', RETURNED: '退回补正', APPROVED: '已入库', REJECTED: '审核不通过', DISABLED: '停用', BLACKLIST: '黑名单' };
+  const statusMap: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 shared 口径（2026-09-28 审计：本地副本 DISABLED='停用' 与他处 '已停用' 分叉）
   const gradeText = (g?: string | null) => (g ? `${g}（${LEVEL_LABEL[g] ?? ''}）`.replace('（）', '') : '—');
 
   suppliers.forEach((s: any, idx: number) => {
