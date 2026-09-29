@@ -19,12 +19,15 @@ import { useConfirm } from "@/components/use-confirm";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
+import { STAGE_LABEL } from "@water-erp/shared";
+
+// X-P2-03：label 收敛 shared STAGE_LABEL（ARCHIVED=「资料归档」与三门户同口径）
 const STAGES = [
-  { key: "DOWNLOAD", label: "文件下载", color: "var(--bid-stage-download)" },
-  { key: "SUBMIT", label: "加密投递", color: "var(--bid-stage-submit)" },
-  { key: "OPENING", label: "在线开标", color: "var(--bid-stage-opening)" },
-  { key: "EVALUATING", label: "专家评标", color: "var(--bid-stage-evaluating)" },
-  { key: "ARCHIVED", label: "已归档", color: "var(--bid-stage-archived)" },
+  { key: "DOWNLOAD", label: STAGE_LABEL.DOWNLOAD, color: "var(--bid-stage-download)" },
+  { key: "SUBMIT", label: STAGE_LABEL.SUBMIT, color: "var(--bid-stage-submit)" },
+  { key: "OPENING", label: STAGE_LABEL.OPENING, color: "var(--bid-stage-opening)" },
+  { key: "EVALUATING", label: STAGE_LABEL.EVALUATING, color: "var(--bid-stage-evaluating)" },
+  { key: "ARCHIVED", label: STAGE_LABEL.ARCHIVED, color: "var(--bid-stage-archived)" },
 ] as const;
 
 function stageIdx(stage: string): number {
@@ -59,6 +62,8 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 
 // bidPrice 存为字符串，可能填了"万元"也可能误填了"元"。统一格式化：
 // ≥10000 视为元 → 自动换算万元；否则直接作为万元展示。
+// X-P2-04 注：此为旧轨（legacy）提交值的既有 DTO 约定口径（仅 my-bids 历史行回显，
+// dual-v2 行走「已密封」分支不经此函数）——刻意保留，勿"统一"成 shared 元语义。
 function formatBidPrice(raw: string | number | null | undefined): string {
   const n = Number(raw);
   if (!raw || isNaN(n)) return "--";

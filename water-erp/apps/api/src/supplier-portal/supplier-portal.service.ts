@@ -717,9 +717,15 @@ export class SupplierPortalService {
       if (parsed.spkiAlgOid !== OID_SM2_ECC) {
         throw new BadRequestException({ error: `仅支持 SM2 证书（检测到公钥算法 OID ${parsed.spkiAlgOid}）`, code: 'CERT_ALG_UNSUPPORTED' });
       }
-      if ((input.certSn && input.certSn !== parsed.serialHex) ||
+      // X-P2-08（2026-09-29 审查修复）：声明值交叉校验归一——DER 解析端 serialHex 强制大写、
+      // DN 为 RFC4514/序串/空格格式敏感原样输出，严格 === 会让真盾轨在 hex 大小写惯例或 DN
+      // 毫厘格式差上 CERT_FIELDS_MISMATCH 误拒（当前 CertInfo 无 rawCert 尚不可达，潜伏契约陷阱）。
+      // publicKey 已有 toLowerCase 先例，照此归一。
+      const normHex = (v: string) => v.trim().toLowerCase();
+      const normDn = (v: string) => v.trim().replace(/\s+/g, ' ');
+      if ((input.certSn && normHex(input.certSn) !== normHex(parsed.serialHex)) ||
           (input.publicKey && input.publicKey.toLowerCase() !== parsed.publicKeyHex) ||
-          (input.certDn && input.certDn !== parsed.subjectDn)) {
+          (input.certDn && normDn(input.certDn) !== normDn(parsed.subjectDn))) {
         throw new BadRequestException({ error: '声明证书字段与 DER 内容不一致', code: 'CERT_FIELDS_MISMATCH' });
       }
       certSn = parsed.serialHex;

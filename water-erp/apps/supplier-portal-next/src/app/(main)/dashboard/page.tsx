@@ -45,7 +45,7 @@ import {
 import { ENTERPRISE_TYPES, QUAL_TYPE_OPTIONS } from "@/constants/supplier";
 import { ServerClock } from "@/components/server-clock";
 import { buildSupplierTasks } from "@/lib/supplier-tasks";
-import { serverNowMs, syncServerClock } from "@water-erp/shared";
+import { serverNowMs, syncServerClock, STAGE_LABEL } from "@water-erp/shared";
 
 import "@/styles/pages/dashboard.css";
 import "@/styles/pages/notifications.css"; // 通知详情弹窗 nd-*（原 dashboard.css 子集，去重归一后共用）
@@ -73,12 +73,13 @@ const NOTIF_COLORS: Record<string, { dot: string; glow: string }> = {
   SYSTEM: { dot: "#475569", glow: "rgba(71,85,105,0.18)" },
 };
 
+// X-P2-03：label 收敛 shared STAGE_LABEL（ARCHIVED=「资料归档」）
 const STAGES = [
-  { key: "DOWNLOAD", label: "文件下载", color: "var(--bid-stage-download)" },
-  { key: "SUBMIT", label: "加密投递", color: "var(--bid-stage-submit)" },
-  { key: "OPENING", label: "在线开标", color: "var(--bid-stage-opening)" },
-  { key: "EVALUATING", label: "专家评标", color: "var(--bid-stage-evaluating)" },
-  { key: "ARCHIVED", label: "已归档", color: "var(--bid-stage-archived)" },
+  { key: "DOWNLOAD", label: STAGE_LABEL.DOWNLOAD, color: "var(--bid-stage-download)" },
+  { key: "SUBMIT", label: STAGE_LABEL.SUBMIT, color: "var(--bid-stage-submit)" },
+  { key: "OPENING", label: STAGE_LABEL.OPENING, color: "var(--bid-stage-opening)" },
+  { key: "EVALUATING", label: STAGE_LABEL.EVALUATING, color: "var(--bid-stage-evaluating)" },
+  { key: "ARCHIVED", label: STAGE_LABEL.ARCHIVED, color: "var(--bid-stage-archived)" },
 ] as const;
 
 interface CatDim {

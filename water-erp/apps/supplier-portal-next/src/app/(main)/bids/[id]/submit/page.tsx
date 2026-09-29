@@ -20,7 +20,7 @@ import {
   type ClientDek,
 } from "@/utils/bid-crypto";
 import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@water-erp/ukey";
-import { serverNowMs, syncServerClock } from "@water-erp/shared";
+import { serverNowMs, syncServerClock , formatBidPrice } from "@water-erp/shared";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
@@ -164,13 +164,9 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// bidPrice 存为字符串，可能以万元或元为单位。≥10000 视为元自动换算。
-function formatBidPrice(raw: string | number | null | undefined): string {
-  const n = Number(raw);
-  if (!raw || isNaN(n)) return "未填写";
-  if (n >= 10000) return `${(n / 10000).toFixed(2)} 万元`;
-  return `${n} 万元`;
-}
+// X-P2-04（2026-09-29）：本地「≥10000 视为元」启发式裸 ÷10000 已删——表单口径为万元
+// （placeholder「如：1260」），≥1 亿元（≥10000 万元）报价会被折成「1.20 万元」差一万倍，
+// 违反「万元↔元桥接只准经 shared format-bid.ts」铁律。改用 shared formatBidPrice(unitHint='万元')。
 
 function BidSubmitInner() {
   const router = useRouter();
@@ -723,7 +719,7 @@ function BidSubmitInner() {
     const items = [
       { label: "供应商资质", detail: isApproved ? "已入库，可投标" : "未通过审核，无法投标", ok: isApproved, required: true },
       { label: "U盾证书", detail: dualReady ? (ukeyAdapter ? `已解锁（${ukeyCertSn}）` : "已绑定，提交时校验证书口令") : "未绑定（请先绑定 U盾）", ok: true, required: false },
-      { label: "投标报价", detail: dualReady ? "密封进双层信封（开标时揭示）" : formatBidPrice(form.bidPrice), ok: !!form.bidPrice, required: true },
+      { label: "投标报价", detail: dualReady ? "密封进双层信封（开标时揭示）" : (form.bidPrice ? formatBidPrice(form.bidPrice, { prefix: "", unitHint: "万元" }) : "未填写"), ok: !!form.bidPrice, required: true },
       { label: "交货工期", detail: form.deliveryPeriod || "未填写", ok: !!form.deliveryPeriod, required: true },
       { label: "质量承诺", detail: form.qualityCommitment || "未填写", ok: !!form.qualityCommitment, required: false },
       { label: submissionMode === "full" ? "完整标书文件" : "拆分标书文件", detail: fileDetail, ok: fileOk, required: true },

@@ -54,13 +54,17 @@ function boundCertSn(): string {
   } catch { return ""; }
 }
 
+import { STAGE_LABEL } from "@water-erp/shared";
+
 const STAGES = ["DOWNLOAD", "SUBMIT", "OPENING", "EVALUATING", "ARCHIVED"] as const;
+// X-P2-03：label 收敛 @water-erp/shared STAGE_LABEL（消除「已归档/资料归档」漂移），补 ABORTED（流标徽标不再空白）
 const stageMap: Record<string, { label: string; color: string; guide: string }> = {
-  DOWNLOAD: { label: "文件下载", color: "var(--bid-stage-download)", guide: "可下载采购文件、查看项目范围与资质要求，提前准备投标材料。" },
-  SUBMIT: { label: "加密投递", color: "var(--bid-stage-submit)", guide: "标书已开放投递，请在截止时间前完成标书文件加密上传与提交。" },
-  OPENING: { label: "在线开标", color: "var(--bid-stage-opening)", guide: "项目已进入开标流程，届时可在线参与开标确认，核实开标信息。" },
-  EVALUATING: { label: "专家评标", color: "var(--bid-stage-evaluating)", guide: "评标委员会正在对标书进行综合评审，请耐心等候评标结果公示。" },
-  ARCHIVED: { label: "已归档", color: "var(--bid-stage-archived)", guide: "招投标流程已完成并归档，可查看最终评标结果与中标公示。" },
+  DOWNLOAD: { label: STAGE_LABEL.DOWNLOAD, color: "var(--bid-stage-download)", guide: "可下载采购文件、查看项目范围与资质要求，提前准备投标材料。" },
+  SUBMIT: { label: STAGE_LABEL.SUBMIT, color: "var(--bid-stage-submit)", guide: "标书已开放投递，请在截止时间前完成标书文件加密上传与提交。" },
+  OPENING: { label: STAGE_LABEL.OPENING, color: "var(--bid-stage-opening)", guide: "项目已进入开标流程，届时可在线参与开标确认，核实开标信息。" },
+  EVALUATING: { label: STAGE_LABEL.EVALUATING, color: "var(--bid-stage-evaluating)", guide: "评标委员会正在对标书进行综合评审，请耐心等候评标结果公示。" },
+  ABORTED: { label: STAGE_LABEL.ABORTED, color: "var(--danger)", guide: "本项目已流标，请留意平台后续公告或联系采购中心。" },
+  ARCHIVED: { label: STAGE_LABEL.ARCHIVED, color: "var(--bid-stage-archived)", guide: "招投标流程已完成并归档，可查看最终评标结果与中标公示。" },
 };
 
 function fmtBudget(raw: any): string {
