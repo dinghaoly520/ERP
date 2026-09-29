@@ -1,114 +1,96 @@
 'use client';
 
+/**
+ * 供应商审批中心（2026-09-29 重设计）
+ *
+ * 入口：页面顶栏右上角「供应商审批」按钮（app-user-actions，带待我审角标）。
+ * 两个面板：
+ *  - 注册审批（三级）：同公司 staff 初审（须填同意缘由）→ 同公司 leader 复审（可见 staff 缘由）
+ *    → 平台 admin 终审确认 → 三级闭环才入库；任一级可驳回/退回补正（补正后回到退回的那一级）
+ *  - 信息更新审批：已入库供应商的资料变更（办公权限：同公司 leader/staff，admin 可见）
+ */
+
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplierList, approveSupplier, rejectSupplier, returnSupplier, reactivateSupplier, getClassifications, setSupplierClassifications } from '@/lib/api/supplier';
-import type { SupplierClassification } from '@/lib/types';
+import {
+  getSupplierList, approveSupplier, rejectSupplier, returnSupplier, reactivateSupplier,
+  getApprovalHistory, fetchPendingSupplierChanges, approveChange, rejectChange,
+  type ApprovalRecord, type SupplierChangePendingRow,
+} from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
-import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { TableSkeleton, Modal } from '@/components/workbench';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown, AlertTriangle, ShieldCheck, User } from 'lucide-react';
+import {
+  BadgeCheck, Building2, ChevronRight, FileClock, History, Loader2, RefreshCw,
+  ShieldCheck, Stamp,
+} from 'lucide-react';
 
-const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
-  { key: 'PENDING', label: '待审核', tone: 'blue' },
-  { key: 'RETURNED', label: '退回补正', tone: 'orange' },
-  { key: 'REJECTED', label: '审核不通过', tone: 'red' },
-];
+// ── 三级审批常量（与后端 SupplierService 同口径）──
+const STAGE_META: Record<string, { label: string; short: string; color: string }> = {
+  STAFF: { label: '初审（经办 staff）', short: '初审', color: 'var(--accent)' },
+  LEADER: { label: '复审（部门 leader）', short: '复审', color: 'oklch(0.58 0.12 188)' },
+  ADMIN: { label: '终审（管理员确认）', short: '终审', color: 'oklch(0.57 0.15 25)' },
+};
+
+const STATUS_TABS = [
+  { key: 'PENDING', label: '在审' },
+  { key: 'RETURNED', label: '退回补正' },
+  { key: 'REJECTED', label: '已驳回' },
+] as const;
 
 function SupplierApprovalPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const tabParam = params.get('status') as typeof TABS[number]['key'] | null;
-  const tab = (tabParam && TABS.some(t => t.key === tabParam)) ? tabParam : 'PENDING';
+  const panel = params.get('panel') === 'changes' ? 'changes' : 'registration';
+  const statusTab = (STATUS_TABS.find(t => t.key === params.get('status'))?.key ?? 'PENDING') as 'PENDING' | 'RETURNED' | 'REJECTED';
+  const stageFilter = ['ALL', 'STAFF', 'LEADER', 'ADMIN'].includes(params.get('stage') || '') ? (params.get('stage') as string) : 'ALL';
   const page = parseInt(params.get('page') || '1', 10) || 1;
-  const pageSize = parseInt(params.get('pageSize') || '20', 10) || 20;
-  const setTab = (t: typeof TABS[number]['key']) => { const q = new URLSearchParams(params); q.set('status', t); q.delete('page'); router.push(`?${q.toString()}`); };
-  const setPage = (p: number) => { const q = new URLSearchParams(params); q.set('page', String(p)); router.push(`?${q.toString()}`); };
-  const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
-  const [counts, setCounts] = useState<Record<string, number>>({ PENDING: 0, RETURNED: 0, REJECTED: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
+  const pageSize = 20;
+  const setParam = (k: string, v: string) => {
+    const q = new URLSearchParams(params);
+    q.set(k, v);
+    if (k !== 'page') q.delete('page');
+    router.push(`?${q.toString()}`);
+  };
 
-  // 注册审批仅管理权限账号（2026-09-24 用户裁定；后端 @Roles('admin') 已同步收紧）
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [roleReady, setRoleReady] = useState(false);
   useEffect(() => {
-    fetchCurrentUser()
-      .then(setCurrentUser)
-      .catch(() => { /* 拿不到角色按非 admin 处理，后端守卫仍兜底 */ })
-      .finally(() => setRoleReady(true));
+    fetchCurrentUser().then(setCurrentUser).catch(() => setCurrentUser(null)).finally(() => setRoleReady(true));
   }, []);
+  const myRole = currentUser?.role;
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [batchApproving, setBatchApproving] = useState(false);
-  const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
-  const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return'; supplier: Supplier } | null>(null);
+  // ── 注册审批（三级）──
+  const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
+  const [counts, setCounts] = useState<Record<string, number>>({ PENDING: 0, RETURNED: 0, REJECTED: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [actionReason, setActionReason] = useState('');
-  // REJECTED 复活确认（仅 admin）
-  const [reactivateTarget, setReactivateTarget] = useState<Supplier | null>(null);
-  const [reactivating, setReactivating] = useState(false);
-  const handleReactivate = async () => {
-    if (!reactivateTarget) return;
-    setReactivating(true);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return' | 'reactivate'; supplier: Supplier } | null>(null);
+  const [history, setHistory] = useState<ApprovalRecord[] | null>(null);
+
+  // ── 信息更新审批 ──
+  const [changes, setChanges] = useState<SupplierChangePendingRow[]>([]);
+  const [changesLoading, setChangesLoading] = useState(true);
+  const [changeModal, setChangeModal] = useState<{ row: SupplierChangePendingRow; type: 'approve' | 'reject' } | null>(null);
+  const [changeReason, setChangeReason] = useState('');
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
-      await reactivateSupplier(reactivateTarget.id);
-      toast.success(`已复活「${reactivateTarget.name}」的注册申请，重新进入待审核`);
-      setReactivateTarget(null);
-      loadData(); loadCounts();
-    } catch (e: any) { toast.error(e?.message || '复活失败'); }
-    setReactivating(false);
-  };
-
-  useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
-
-  const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleAll = () => {
-    if (selected.size === data.items.length) setSelected(new Set());
-    else setSelected(new Set(data.items.map(s => s.id)));
-  };
-  const allSelected = data.items.length > 0 && selected.size === data.items.length;
-  const someSelected = !allSelected && selected.size > 0;
-
-  const batchApprove = async () => {
-    if (selected.size === 0) return;
-    setBatchApproving(true);
-    let done = 0; const failed: string[] = [];
-    for (const id of selected) { try { await approveSupplier(id); done++; } catch { failed.push(id); } }
-    // 暴露失败项，而非静默吞错只报成功数。
-    if (failed.length > 0) toast.error(`${done} 个成功，${failed.length} 个失败（可能已被他人处理或状态变更），已自动刷新`);
-    else toast.success(`已批量通过 ${done} 个供应商`);
-    setSelected(new Set());
-    setBatchApproving(false);
-    setBatchApproveModal(false);
-    loadData(); loadCounts();
-  };
-
-  const [batchModal, setBatchModal] = useState<{ type: 'return' | 'reject'; ids: Set<string> } | null>(null);
-  const [batchApproveModal, setBatchApproveModal] = useState(false);
-  const [batchReason, setBatchReason] = useState('');
-
-  const executeBatchReturnReject = async () => {
-    if (!batchModal || !batchReason.trim()) { toast.error('请填写原因'); return; }
-    const { type, ids } = batchModal;
-    let done = 0; const failed: string[] = [];
-    for (const id of ids) {
-      try {
-        if (type === 'return') await returnSupplier(id, batchReason);
-        else await rejectSupplier(id, batchReason);
-        done++;
-      } catch { failed.push(id); }
-    }
-    // 暴露失败项。
-    if (failed.length > 0) toast.error(`${done} 个成功，${failed.length} 个失败（可能已被他人处理或状态变更），已自动刷新`);
-    else toast.success(`已批量${type === 'return' ? '退回' : '拒绝'} ${done} 个供应商`);
-    setBatchModal(null);
-    setBatchReason('');
-    setSelected(new Set());
-    loadData(); loadCounts();
-  };
+      const res = await getSupplierList({
+        status: statusTab, page, pageSize, sort: 'completeness',
+        ...(stageFilter !== 'ALL' ? { reviewStage: stageFilter } : {}),
+      });
+      setData(res);
+    } catch (e: unknown) { setError((e as Error)?.message || '审批列表加载失败'); }
+    setLoading(false);
+  }, [statusTab, page, stageFilter]);
 
   const loadCounts = useCallback(() => {
     Promise.all([
@@ -118,408 +100,486 @@ function SupplierApprovalPage() {
     ]).then(([p, r, j]) => setCounts({ PENDING: p.total, RETURNED: r.total, REJECTED: j.total })).catch(() => {});
   }, []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try { const res = await getSupplierList({ status: tab, page, pageSize, sort: 'completeness' }); setData(res); }
-    catch (e: any) { setError(e?.message || '审批列表加载失败'); } // B13 错误态
-    setLoading(false);
-  }, [tab, page, pageSize]);
+  const loadChanges = useCallback(() => {
+    setChangesLoading(true);
+    fetchPendingSupplierChanges().then(setChanges).catch(() => setChanges([])).finally(() => setChangesLoading(false));
+  }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- 页面数据加载（URL 参数驱动的标准拉取模式） */
   useEffect(() => { loadCounts(); }, [loadCounts]);
+  useEffect(() => { if (panel === 'registration') loadData(); }, [panel, loadData]);
+  useEffect(() => { if (panel === 'changes') loadChanges(); }, [panel, loadChanges]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { setSelected(new Set()); }, [tab, page]);
+  // 打开操作弹窗时拉取三级时间线（后级审批人查看前级同意缘由）
+  /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时的初始化重置，符合模态惯例 */
+  useEffect(() => {
+    if (!actionModal) { setHistory(null); setActionReason(''); return; }
+    setHistory(null);
+    getApprovalHistory(actionModal.supplier.id).then(setHistory).catch(() => setHistory([]));
+  }, [actionModal]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /** 我是否可能操作该供应商当前级（前端粗判给按钮；后端 assertStageApprover 是权威闸） */
+  const canActOnStage = (s: Supplier): boolean => {
+    if (myRole === 'admin') return s.reviewStage === 'ADMIN' || s.reviewStage === 'LEADER' || s.reviewStage === 'STAFF';
+    if (myRole === 'leader') return s.reviewStage === 'LEADER' || s.reviewStage === 'STAFF';
+    if (myRole === 'staff') return s.reviewStage === 'STAFF';
+    return false;
+  };
+
+  /** 弹窗内当前级（null 兜底 STAFF，与列表/后端口径一致） */
+  const modalStage = (am: { supplier: Supplier }) => (am.supplier.reviewStage ?? 'STAFF') as string;
 
   const handleAction = async () => {
     if (!actionModal) return;
-    if (actionModal.type !== 'approve' && !actionReason.trim()) { toast.error('请填写处理原因'); return; }
     const { type, supplier: s } = actionModal;
-    const reason = actionReason;
-    const label = type === 'approve' ? '已通过' : type === 'reject' ? '已拒绝' : '已退回补正';
-    const prevItems = data.items;
-    setData(d => ({ ...d, items: d.items.filter(x => (x as Supplier).id !== s.id) }));
-    setActionModal(null);
-    setActionReason('');
-    toast.success(`${label}「${s.name}」`);
-    try {
-      if (type === 'approve') await approveSupplier(s.id);
-      else if (type === 'reject') await rejectSupplier(s.id, reason);
-      else if (type === 'return') await returnSupplier(s.id, reason);
-    } catch (e: any) {
-      toast.error(e?.message || '操作失败');
-      setData(d => ({ ...d, items: prevItems }));
+    const stage = modalStage(actionModal);
+    const reason = actionReason.trim();
+    // staff/leader 级通过须填同意缘由（后级审批依据）；驳回/退回理由必填；admin 终审缘由可选
+    if (type === 'reject' || type === 'return') {
+      if (!reason) { toast.error('请填写处理理由'); return; }
+    } else if (type === 'approve' && stage !== 'ADMIN' && !reason) {
+      toast.error('请填写同意缘由（后级审批人将据此复核）');
+      return;
     }
-    loadCounts();
+    setActionBusy(true);
+    try {
+      if (type === 'approve') {
+        const res = await approveSupplier(s.id, reason || undefined);
+        toast.success(res.stage === 'DONE' ? `「${s.name}」三级审核全部通过，已正式入库` : `「${s.name}」已通过${STAGE_META[stage]?.short ?? ''}，流转至${STAGE_META[res.stage ?? '']?.short ?? '下一级'}`);
+      } else if (type === 'reject') {
+        await rejectSupplier(s.id, reason);
+        toast.success(`已驳回「${s.name}」（${STAGE_META[stage]?.short ?? ''}环节）`);
+      } else if (type === 'return') {
+        await returnSupplier(s.id, reason);
+        toast.success(`已退回「${s.name}」补正（补正后回到${STAGE_META[stage]?.short ?? ''}环节）`);
+      } else if (type === 'reactivate') {
+        await reactivateSupplier(s.id);
+        toast.success(`「${s.name}」已复活，重新进入三级审核`);
+      }
+      setActionModal(null);
+      loadData(); loadCounts();
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || '操作失败');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleChangeAction = async () => {
+    if (!changeModal) return;
+    const { row, type } = changeModal;
+    if (type === 'reject' && !changeReason.trim()) { toast.error('请填写拒绝理由'); return; }
+    setActionBusy(true);
+    try {
+      if (type === 'approve') {
+        await approveChange(row.id);
+        toast.success(`已通过「${row.supplier.name}」的${row.fieldLabel || row.fieldName}变更`);
+      } else {
+        await rejectChange(row.id, changeReason.trim());
+        toast.success(`已拒绝「${row.supplier.name}」的变更申请`);
+      }
+      setChangeModal(null);
+      setChangeReason('');
+      loadChanges();
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || '操作失败');
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
-  const activeTab = TABS.find(t => t.key === tab)!;
 
-  // 无审批权（既非归属公司管理账号）：就绪前渲染空态防闪现，就绪后给无权限卡
-  // （2026-09-26 改定：审批=admin/leader/staff，与后端 @Roles('admin','leader','staff') 及
-  // 详情页审批栏/供应商库待审 tab 同口径——旧"仅 admin"口径曾致 leader/staff 详情页能审、
-  // 列表页却看不到队列的互相矛盾）
+  // 无审批权角色：就绪前空态防闪现，就绪后无权限卡（后端守卫兜底）
   if (!roleReady) return null;
-  if (!['admin', 'leader', 'staff'].includes(currentUser?.role ?? '')) {
+  if (myRole !== 'admin' && myRole !== 'leader' && myRole !== 'staff') {
     return (
       <div className="neu-card-static flex flex-col items-center justify-center gap-3 p-14 text-center">
         <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
           <ShieldCheck size={22} className="text-[var(--muted-foreground)]" />
         </div>
-        <p className="text-sm font-bold text-[var(--foreground)]">供应商注册审批仅对管理权限账号开放</p>
-        <p className="text-xs text-[var(--muted-foreground)]">新供应商的注册审批由归属公司管理账号处理，如有需要请联系管理员</p>
+        <p className="text-sm font-bold text-[var(--foreground)]">供应商审批中心仅对管理权限账号开放</p>
+        <p className="text-xs text-[var(--muted-foreground)]">如有需要请联系管理员</p>
       </div>
     );
   }
 
+  const myStageHint = myRole === 'admin' ? '终审确认（ADMIN 级）' : myRole === 'leader' ? '复审（LEADER 级）' : '初审（STAFF 级）';
+
   return (
     <div className="flex flex-col gap-5">
-      {/* page-hero — 标题卡片 */}
-      <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
-            <div className="page-hero__icon">
-              <Building2 size={17} />
-            </div>
-            <div>
-              <div className="page-hero__title">供应商审批</div>
-              <div className="page-hero__sub">审核供应商注册申请，支持审核通过、退回补正和审核不通过</div>
-            </div>
-          </div>
-
-          <div className="page-hero__right">
-            <button onClick={loadData} disabled={loading} className="neu-btn-xs">
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
-          </div>
-        </div>
-
-        {/* hairline 分割线 + KPI 行 */}
-        <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 items-stretch">
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <div className="flex items-center justify-between gap-2 min-h-[18px]">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
-              {counts.PENDING > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)]">
-                  <span className="h-1 w-1 rounded-full shrink-0 bg-[var(--accent)]" />待处理
-                </span>
-              )}
-            </div>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{counts.PENDING}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">新注册申请</span>
-          </div>
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <div className="flex items-center justify-between gap-2 min-h-[18px]">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">退回补正</span>
-              {counts.RETURNED > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]">
-                  <span className="h-1 w-1 rounded-full shrink-0 bg-[var(--warning)]" />待补交
-                </span>
-              )}
-            </div>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{counts.RETURNED}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">待补正修改</span>
-          </div>
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <div className="flex items-center justify-between gap-2 min-h-[18px]">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">审核不通过</span>
-            </div>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{counts.REJECTED}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">已拒绝归档</span>
-          </div>
-        </div>
-        </div>
-      </div>
-
-      {/* B13 错误态 */}
-      {error && !loading && (
-        <div className="neu-card-static !rounded-2xl p-4 flex items-center gap-3" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
-          <AlertTriangle size={16} className="text-[var(--danger)] shrink-0" />
-          <span className="text-sm text-[var(--foreground)] flex-1">加载失败：{error}</span>
-          <button onClick={loadData} className="neu-btn-xs gap-1"><RefreshCw size={12} />重试</button>
-        </div>
-      )}
-
-      {/* 工具栏卡片（tab + 搜索） */}
-      <div className="wb-toolbar">
-        <div className="neu-tab-bar">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)} className={`neu-tab ${tab === t.key ? 'is-active' : ''}`}>
-              {t.label}
-              <span className="neu-tab-count">{counts[t.key]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 数据表格 */}
-      <div className="neu-table-card">
-        {selected.size > 0 && (
-          <div className="neu-batch-bar">
-            <span className="neu-batch-bar-count">已选 <strong>{selected.size}</strong> 条</span>
-            <div className="neu-batch-bar-spacer" />
-            {tab !== 'REJECTED' && (
-              <>
-                <button onClick={() => setBatchApproveModal(true)} disabled={batchApproving} className="neu-btn-xs is-success">
-                  <Check size={12} />{batchApproving ? '批量通过中...' : '批量通过'}
-                </button>
-                <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'return', ids: new Set(selected) }); }} className="neu-btn-xs is-warning">
-                  批量退回
-                </button>
-                <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'reject', ids: new Set(selected) }); }} className="neu-btn-xs is-danger">
-                  批量拒绝
-                </button>
-              </>
+      {/* 面板切换 */}
+      <div className="flex flex-wrap items-center gap-2">
+        {([
+          { key: 'registration', label: '注册审批（三级）', icon: Stamp },
+          { key: 'changes', label: '信息更新审批', icon: FileClock },
+        ] as const).map(p => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => { const q = new URLSearchParams(params); q.set('panel', p.key); q.delete('page'); router.push(`?${q.toString()}`); }}
+            className={[
+              'inline-flex items-center gap-2 rounded-[14px] px-4 py-2.5 text-sm font-bold transition-all',
+              panel === p.key
+                ? 'border border-[color-mix(in_oklch,var(--accent)_35%,transparent)] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)]'
+                : 'border border-[oklch(0.6_0.04_258_/_0.16)] bg-[oklch(1_0_0_/_0.5)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]',
+            ].join(' ')}
+          >
+            <p.icon size={15} strokeWidth={2} />
+            {p.label}
+            {p.key === 'registration' && counts.PENDING > 0 && (
+              <span className="ml-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-0.5 text-[10px] font-black text-[var(--accent)]">{counts.PENDING}</span>
             )}
-            <button onClick={() => setSelected(new Set())} className="neu-btn-xs"><X size={12} /> 取消选择</button>
-          </div>
-        )}
+            {p.key === 'changes' && changes.length > 0 && (
+              <span className="ml-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-0.5 text-[10px] font-black text-[var(--accent)]">{changes.length}</span>
+            )}
+          </button>
+        ))}
+        <span className="ml-auto text-xs text-[var(--muted-foreground)]">
+          我的角色：{myRole === 'admin' ? '管理员' : myRole === 'leader' ? '部门领导' : '经办'} · 主要负责 <b className="text-[var(--foreground)]">{myStageHint}</b>
+        </span>
+      </div>
 
+      {panel === 'registration' ? (
+        <>
+          {/* 状态 tab + 级筛选 */}
+          <div className="flex flex-wrap items-center gap-2">
+            {STATUS_TABS.map(t => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setParam('status', t.key)}
+                className={[
+                  'rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors',
+                  statusTab === t.key
+                    ? 'bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]',
+                ].join(' ')}
+              >
+                {t.label}（{counts[t.key] ?? 0}）
+              </button>
+            ))}
+            {statusTab !== 'REJECTED' && (
+              <span className="mx-1 h-4 w-px" style={{ background: 'oklch(0.6 0.04 258 / 0.18)' }} />
+            )}
+            {statusTab !== 'REJECTED' && (['ALL', 'STAFF', 'LEADER', 'ADMIN'] as const).map(sf => (
+              <button
+                key={sf}
+                type="button"
+                onClick={() => setParam('stage', sf)}
+                className={[
+                  'rounded-full px-3 py-1 text-[11px] font-bold transition-colors',
+                  stageFilter === sf
+                    ? 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]',
+                ].join(' ')}
+              >
+                {sf === 'ALL' ? '全部级' : STAGE_META[sf].short}
+              </button>
+            ))}
+            <button type="button" onClick={() => { loadData(); loadCounts(); }} className="neu-btn-xs ml-auto shrink-0"><RefreshCw size={12} />刷新</button>
+          </div>
+
+          {error && <div className="rounded-[12px] px-4 py-3 text-sm text-[var(--danger)]" style={{ background: 'color-mix(in oklch, var(--danger) 7%, transparent)' }}>{error}</div>}
+
+          <div className="overflow-x-auto">
+            <table className="neu-table w-full min-w-[880px]">
+              <thead>
+                <tr>
+                  <th>企业名称</th>
+                  <th style={{ textAlign: 'center' }}>统一社会信用代码</th>
+                  <th style={{ textAlign: 'center' }}>当前审核级</th>
+                  <th style={{ textAlign: 'center' }}>状态</th>
+                  <th style={{ textAlign: 'center' }}>申请时间</th>
+                  <th style={{ textAlign: 'center' }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <TableSkeleton cols={6} rows={5} />
+                ) : data.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-16">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
+                          <Building2 size={22} className="text-[var(--muted-foreground)]" />
+                        </div>
+                        <p className="text-sm text-[var(--muted-foreground)]">暂无{statusTab === 'PENDING' ? '在审' : statusTab === 'RETURNED' ? '退回补正' : '已驳回'}的申请</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : data.items.map((s: Supplier) => {
+                  // null 级（seed 直建/未回填存量）按首级 STAFF 兜底展示与操作（后端同口径）
+                  const stage = (statusTab === 'REJECTED' ? s.reviewStage : (s.reviewStage ?? 'STAFF')) as string | null;
+                  const meta = stage ? STAGE_META[stage] : null;
+                  const actable = statusTab !== 'REJECTED' && canActOnStage({ ...s, reviewStage: stage } as Supplier);
+                  return (
+                    <tr key={s.id} className="row-clickable" onClick={() => router.push(`/supplier/${s.id}`)}>
+                      <td>
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">
+                            {s.name[0]}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-[var(--foreground)] truncate">{s.name}</div>
+                            <div className="text-[11px] text-[var(--muted-foreground)]">{normalizeEnterpriseType(s.enterpriseType || '')}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="font-mono text-xs text-[var(--muted-foreground)]">{s.creditCode || '—'}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {meta ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black"
+                            style={{ background: `color-mix(in oklch, ${meta.color} 12%, transparent)`, color: meta.color }}
+                            title={meta.label}
+                          >
+                            <BadgeCheck size={10} />{meta.short}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[var(--muted-foreground)]">{statusTab === 'REJECTED' ? '—' : '—'}</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={['text-xs font-bold', s.status === 'PENDING' ? 'text-[var(--accent)]' : s.status === 'RETURNED' ? 'text-[var(--warning)]' : 'text-[var(--danger)]'].join(' ')}>
+                          {s.status === 'PENDING' ? '审核中' : s.status === 'RETURNED' ? '退回补正' : s.status === 'REJECTED' ? '已驳回' : s.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }} className="text-xs text-[var(--muted-foreground)]">
+                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString('zh-CN') : '—'}
+                      </td>
+                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                        {statusTab === 'REJECTED' ? (
+                          myRole === 'admin' ? (
+                            <button type="button" className="neu-btn-xs" onClick={() => setActionModal({ type: 'reactivate', supplier: s })}>复活重审</button>
+                          ) : <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                        ) : actable ? (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button type="button" className="neu-btn-xs is-success" onClick={() => setActionModal({ type: 'approve', supplier: s })}>通过</button>
+                            <button type="button" className="neu-btn-xs" onClick={() => setActionModal({ type: 'return', supplier: s })}>退回</button>
+                            <button type="button" className="neu-btn-xs is-danger" onClick={() => setActionModal({ type: 'reject', supplier: s })}>驳回</button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-[var(--muted-foreground)]" title="当前级非本人负责（后端按级校验）">
+                            待{meta?.short ?? '其他'}级
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-end gap-2 text-sm">
+              <button type="button" className="neu-btn-xs" disabled={page <= 1} onClick={() => setParam('page', String(page - 1))}>上一页</button>
+              <span className="text-xs text-[var(--muted-foreground)]">{page} / {totalPages}（共 {data.total} 条）</span>
+              <button type="button" className="neu-btn-xs" disabled={page >= totalPages} onClick={() => setParam('page', String(page + 1))}>下一页</button>
+            </div>
+          )}
+        </>
+      ) : (
+        /* ── 信息更新审批（办公权限：同公司 leader/staff；admin 全部可见）── */
         <div className="overflow-x-auto">
           <table className="neu-table w-full min-w-[760px]">
             <thead>
               <tr>
-                <th style={{ width: 44 }}>
-                  <input type="checkbox" className="neu-checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected; }} onChange={toggleAll} aria-label="全选" />
-                </th>
-                <th>企业名称</th>
-                <th style={{ textAlign: 'center' }}>统一社会信用代码</th>
-                <th>企业类型</th>
-                <th className="text-center">资料</th>
-                <th style={{ textAlign: 'center' }}>状态</th>
+                <th>供应商</th>
+                <th style={{ textAlign: 'center' }}>变更字段</th>
+                <th>原值 → 新值</th>
                 <th style={{ textAlign: 'center' }}>申请时间</th>
                 <th style={{ textAlign: 'center' }}>操作</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <TableSkeleton cols={8} rows={5} />
-              ) : data.items.length === 0 ? (
+              {changesLoading ? (
+                <TableSkeleton cols={5} rows={4} />
+              ) : changes.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16">
+                  <td colSpan={5} className="px-4 py-16">
                     <div className="flex flex-col items-center gap-3">
                       <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
-                        <Building2 size={22} className="text-[var(--muted-foreground)]" />
+                        <FileClock size={22} className="text-[var(--muted-foreground)]" />
                       </div>
-                      <p className="text-sm text-[var(--muted-foreground)]">
-                        {`暂无${activeTab.label}申请`}
-                      </p>
+                      <p className="text-sm text-[var(--muted-foreground)]">暂无待审的信息更新申请</p>
                     </div>
                   </td>
                 </tr>
-              ) : data.items.map((s: Supplier) => {
-                const isSel = selected.has(s.id);
-                return (
-                  <tr key={s.id} className="row-clickable" data-selected={isSel ? 'true' : 'false'} onClick={() => router.push(`/supplier/${s.id}`)}>
-                    <td onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" className="neu-checkbox" checked={isSel} onChange={() => toggleSelect(s.id)} aria-label={`选择 ${s.name}`} />
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">
-                          {s.name[0]}
-                        </div>
-                        <span className="text-sm font-bold text-[var(--foreground)] truncate">{s.name}</span>
+              ) : changes.map(row => (
+                <tr key={row.id}>
+                  <td>
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">
+                        {row.supplier.name[0]}
                       </div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className="font-mono text-xs text-[var(--muted-foreground)]">{s.creditCode || '—'}</span>
-                    </td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
-                    <td className="text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {((s as any)._count?.qualifications ?? 0) > 0 && (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--accent)]" title="资质材料数量">
-                            <ShieldCheck size={10} />{(s as any)._count.qualifications}
-                          </span>
-                        )}
-                        {((s as any)._count?.contacts ?? 0) > 0 && (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--success)]" title="联系人数量">
-                            <User size={10} />{(s as any)._count.contacts}
-                          </span>
-                        )}
-                        {((s as any)._count?.qualifications ?? 0) === 0 && ((s as any)._count?.contacts ?? 0) === 0 && (
-                          <span className="text-[10px] text-[var(--muted-foreground)]">—</span>
-                        )}
+                      <div>
+                        <div className="text-sm font-bold text-[var(--foreground)]">{row.supplier.name}</div>
+                        <div className="font-mono text-[10px] text-[var(--muted-foreground)]">{row.supplier.supplierNo}</div>
                       </div>
-                    </td>
-                    <td>
-                      <div className="flex flex-col items-center gap-0.5">
-                        <StatusBadge tone={s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : 'red'}>
-                          {s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : '审核不通过'}
-                        </StatusBadge>
-                        {s.status === 'RETURNED' && s.returnReason && (
-                          <span className="text-[10px] text-[var(--warning)]">退回：{s.returnReason}</span>
-                        )}
-                        {s.status === 'REJECTED' && s.rejectReason && (
-                          <span className="text-[10px] text-[var(--danger)]">原因：{s.rejectReason}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <time className="text-[0.8rem] tabular-nums text-[var(--muted-foreground)] whitespace-nowrap">
-                        {new Date(s.createdAt).toLocaleDateString('zh-CN')}
-                      </time>
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <div className="flex flex-wrap items-center justify-center gap-1">
-                        <button onClick={() => router.push(`/supplier/${s.id}`)} className="neu-btn-xs is-info">详情</button>
-                        {tab !== 'REJECTED' && (
-                          <>
-                            {classifications.length > 0 && (
-                              <select
-                                value={s.classificationId || ''}
-                                onChange={async (ev) => {
-                                  const cid = ev.target.value;
-                                  if (!cid) return;
-                                  try {
-                                    await setSupplierClassifications(s.id, [cid]);
-                                    toast.success(`已为「${s.name}」分配分类`);
-                                  } catch (err: any) { toast.error(err?.message || '分配失败'); }
-                                }}
-                                onClick={e => e.stopPropagation()}
-                                className="neu-input !h-7 !text-[11px] !px-2 !py-0 !w-auto"
-                              >
-                                <option value="">分配分类</option>
-                                {classifications.map(c => (
-                                  <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                              </select>
-                            )}
-                            <button onClick={() => setActionModal({ type: 'approve', supplier: s })} className="neu-btn-xs is-success">通过</button>
-                            <button onClick={() => { setActionReason(''); setActionModal({ type: 'return', supplier: s }); }} className="neu-btn-xs is-warning">退回</button>
-                            <button onClick={() => { setActionReason(''); setActionModal({ type: 'reject', supplier: s }); }} className="neu-btn-xs is-danger">拒绝</button>
-                          </>
-                        )}
-                        {/* 断头路接线（2026-09-28 审计 S2）：REJECTED → PENDING 复活（后端 @Roles('admin')） */}
-                        {tab === 'REJECTED' && currentUser?.role === 'admin' && (
-                          <button
-                            onClick={() => setReactivateTarget(s)}
-                            className="neu-btn-xs is-success">复活申请</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center' }} className="text-sm font-bold text-[var(--foreground)]">{row.fieldLabel || row.fieldName}</td>
+                  <td className="max-w-[320px]">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="truncate text-[var(--muted-foreground)] line-through" title={row.oldValue ?? ''}>{row.oldValue || '（空）'}</span>
+                      <ChevronRight size={12} className="shrink-0 text-[var(--muted-foreground)]" />
+                      <span className="truncate font-bold text-[var(--foreground)]" title={row.newValue ?? ''}>{row.newValue || '（空）'}</span>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center' }} className="text-xs text-[var(--muted-foreground)]">{new Date(row.createdAt).toLocaleDateString('zh-CN')}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button type="button" className="neu-btn-xs is-success" onClick={() => setChangeModal({ row, type: 'approve' })}>通过</button>
+                      <button type="button" className="neu-btn-xs is-danger" onClick={() => setChangeModal({ row, type: 'reject' })}>拒绝</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+      )}
 
-        {data.total > 0 && (
-          <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">
-              共 <strong className="font-semibold text-[var(--foreground)]">{data.total}</strong> 条 · 第 {page}/{totalPages} 页
-            </span>
-            <div className="flex gap-1.5">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="neu-btn-xs disabled:opacity-30">
-                <ChevronUp size={14} className="rotate-[-90deg]" />
-              </button>
-              <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="neu-btn-xs disabled:opacity-30">
-                <ChevronUp size={14} className="rotate-90" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 处理弹窗 */}
+      {/* ── 注册审批操作弹窗：三级时间线 + 缘由 ── */}
       {actionModal && (
         <Modal
           open
-          onClose={() => setActionModal(null)}
-          title={actionModal.type === 'approve' ? '确认审核通过' : actionModal.type === 'reject' ? '审核不通过' : '退回补正'}
-          description={<>供应商：<strong className="text-[var(--foreground)]">{actionModal.supplier.name}</strong></>}
+          onClose={() => { if (!actionBusy) setActionModal(null); }}
+          title={
+            actionModal.type === 'approve' ? `通过${STAGE_META[modalStage(actionModal)]?.short ?? ''} — ${actionModal.supplier.name}`
+            : actionModal.type === 'reject' ? `驳回申请 — ${actionModal.supplier.name}`
+            : actionModal.type === 'return' ? `退回补正 — ${actionModal.supplier.name}`
+            : `复活重审 — ${actionModal.supplier.name}`
+          }
+          description={actionModal.type === 'approve' && modalStage(actionModal) === 'ADMIN' ? '管理员终审确认：通过后供应商正式入库' : undefined}
           footer={
             <>
-              <button onClick={() => setActionModal(null)} className="neu-btn-soft">取消</button>
+              <button type="button" className="neu-btn-soft" onClick={() => setActionModal(null)} disabled={actionBusy}>取消</button>
               <button
-                onClick={handleAction}
-                disabled={actionModal.type !== 'approve' && !actionReason.trim()}
-                className={`neu-btn-soft ${actionModal.type === 'approve' ? 'is-success' : actionModal.type === 'return' ? 'is-warning' : 'is-danger'}`}
-              >确认</button>
+                type="button"
+                className={[
+                  'neu-btn-primary',
+                  actionModal.type === 'reject' ? 'is-danger' : actionModal.type === 'return' ? 'is-warning' : 'is-success',
+                ].join(' ')}
+                onClick={() => void handleAction()}
+                disabled={actionBusy}
+              >
+                {actionBusy ? <Loader2 size={13} className="animate-spin" /> : null}
+                {actionModal.type === 'approve' ? (modalStage(actionModal) === 'ADMIN' ? '确认通过并入库' : `通过并流转至${STAGE_META[modalStage(actionModal) === 'STAFF' ? 'LEADER' : 'ADMIN']?.short}`) : actionModal.type === 'reject' ? '确认驳回' : actionModal.type === 'return' ? '确认退回' : '确认复活'}
+              </button>
             </>
           }
         >
-          {actionModal.type !== 'approve' && (
-            <textarea
-              value={actionReason}
-              onChange={e => setActionReason(e.target.value)}
-              placeholder={actionModal.type === 'return' ? '请填写退回补正原因...' : '请填写不通过原因...'}
-              className="neu-input w-full h-24 resize-none text-sm"
-            />
+          <div className="flex flex-col gap-4">
+            {/* 三级进度时间线（含前级同意缘由） */}
+            <div className="rounded-[14px] px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7)' }}>
+              <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                <History size={12} />三级审核进度
+              </div>
+              {history === null ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-[var(--muted-foreground)]"><Loader2 size={12} className="animate-spin" />加载审核记录…</div>
+              ) : (
+                <div className="space-y-2">
+                  {(['STAFF', 'LEADER', 'ADMIN'] as const).map(st => {
+                    const rec = history.find(h => h.stage === st && h.action === 'APPROVED');
+                    const stage = modalStage(actionModal);
+                    const done = !!rec;
+                    const current = stage === st;
+                    const meta = STAGE_META[st];
+                    return (
+                      <div key={st} className="flex items-start gap-2.5">
+                        <span
+                          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black"
+                          style={{
+                            background: done ? `color-mix(in oklch, var(--success) 16%, transparent)` : current ? `color-mix(in oklch, ${meta.color} 16%, transparent)` : 'oklch(0.9 0.005 258)',
+                            color: done ? 'var(--success)' : current ? meta.color : 'var(--muted-foreground)',
+                          }}
+                        >
+                          {done ? '✓' : current ? '•' : '○'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[var(--foreground)]">{meta.label}</span>
+                            {current && <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-1.5 py-0 text-[9px] font-black text-[var(--warning)]">当前级</span>}
+                          </div>
+                          {rec && (
+                            <div className="mt-0.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                              {rec.reviewer?.displayName || '—'} · {new Date(rec.createdAt).toLocaleString('zh-CN')}
+                              {rec.reason && <span className="ml-1 text-[var(--foreground)]">缘由：{rec.reason}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {actionModal.type !== 'reactivate' && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-bold text-[var(--foreground)]">
+                  {actionModal.type === 'approve'
+                    ? modalStage(actionModal) === 'ADMIN' ? '终审意见（可选）' : '同意缘由（必填，后级审批人将据此复核）'
+                    : actionModal.type === 'reject' ? '驳回理由（必填，将通知供应商）' : '退回补正说明（必填，供应商补正后回到本级）'}
+                </span>
+                <textarea
+                  value={actionReason}
+                  onChange={e => setActionReason(e.target.value)}
+                  rows={3}
+                  className="workbench-input !text-sm"
+                  placeholder={actionModal.type === 'approve' ? '如：证照齐全、经营范围与采购需求匹配…' : '请填写具体理由…'}
+                />
+              </label>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* ── 信息更新审批弹窗 ── */}
+      {changeModal && (
+        <Modal
+          open
+          onClose={() => { if (!actionBusy) setChangeModal(null); }}
+          title={`${changeModal.type === 'approve' ? '通过' : '拒绝'}信息更新 — ${changeModal.row.supplier.name}`}
+          description={changeModal.type === 'approve' ? `${changeModal.row.fieldLabel || changeModal.row.fieldName}：${changeModal.row.oldValue || '（空）'} → ${changeModal.row.newValue || '（空）'}` : undefined}
+          footer={
+            <>
+              <button type="button" className="neu-btn-soft" onClick={() => setChangeModal(null)} disabled={actionBusy}>取消</button>
+              <button
+                type="button"
+                className={['neu-btn-primary', changeModal.type === 'reject' ? 'is-danger' : 'is-success'].join(' ')}
+                onClick={() => void handleChangeAction()}
+                disabled={actionBusy}
+              >
+                {actionBusy ? <Loader2 size={13} className="animate-spin" /> : null}
+                {changeModal.type === 'approve' ? '确认通过' : '确认拒绝'}
+              </button>
+            </>
+          }
+        >
+          {changeModal.type === 'reject' && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold text-[var(--foreground)]">拒绝理由（必填）</span>
+              <textarea value={changeReason} onChange={e => setChangeReason(e.target.value)} rows={3} className="workbench-input !text-sm" placeholder="请填写拒绝理由…" />
+            </label>
           )}
-        </Modal>
-      )}
-
-      {/* REJECTED 复活确认（仅 admin；REJECTED → PENDING 重新进审） */}
-      {reactivateTarget && (
-        <Modal
-          open
-          onClose={() => setReactivateTarget(null)}
-          title="复活注册申请"
-          description={<>供应商：<strong className="text-[var(--foreground)]">{reactivateTarget.name}</strong></>}
-          footer={
-            <>
-              <button onClick={() => setReactivateTarget(null)} className="neu-btn-soft">取消</button>
-              <button onClick={handleReactivate} disabled={reactivating} className="neu-btn-soft is-success">
-                {reactivating ? '处理中...' : '确认复活'}
-              </button>
-            </>
-          }
-        >
-          <p className="text-sm text-[var(--muted-foreground)]">
-            复活后该供应商状态将从「审核不通过」回到「待审核」，重新进入审批队列；原拒绝记录保留在操作历史中。
-          </p>
-        </Modal>
-      )}
-
-      {/* 批量退回/拒绝弹窗 */}
-      {batchModal && (
-        <Modal
-          open
-          onClose={() => setBatchModal(null)}
-          title={batchModal.type === 'return' ? '批量退回补正' : '批量审核不通过'}
-          description={<>将对选中的 <strong>{batchModal.ids.size}</strong> 个供应商统一处理</>}
-          footer={
-            <>
-              <button onClick={() => setBatchModal(null)} className="neu-btn-soft">取消</button>
-              <button onClick={executeBatchReturnReject} disabled={!batchReason.trim()}
-                className={`neu-btn-soft ${batchModal.type === 'return' ? 'is-warning' : 'is-danger'}`}>确认</button>
-            </>
-          }
-        >
-          <textarea value={batchReason} onChange={e => setBatchReason(e.target.value)}
-            placeholder={batchModal.type === 'return' ? '请填写批量退回补正原因...' : '请填写批量不通过原因...'}
-            className="neu-input w-full h-24 resize-none text-sm" />
-        </Modal>
-      )}
-
-      {/* 批量通过确认弹窗 */}
-      {batchApproveModal && (
-        <Modal
-          open
-          onClose={() => setBatchApproveModal(false)}
-          title="确认批量通过"
-          description={<>将对选中的 <strong className="text-[var(--foreground)]">{selected.size}</strong> 个供应商统一审核通过，通过后供应商将入库并激活账户。</>}
-          footer={
-            <>
-              <button onClick={() => setBatchApproveModal(false)} className="neu-btn-soft">取消</button>
-              <button onClick={batchApprove} disabled={batchApproving} className="neu-btn-soft is-success">
-                {batchApproving ? '审核中...' : '确认通过'}
-              </button>
-            </>
-          }
-        >
-          {null}
         </Modal>
       )}
     </div>
   );
 }
 
-export default function SupplierApprovalPageWrapper() {
-  return <Suspense><SupplierApprovalPage /></Suspense>;
+export default function SupplierApprovalPageWithSuspense() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">加载中…</div>}>
+      <SupplierApprovalPage />
+    </Suspense>
+  );
 }

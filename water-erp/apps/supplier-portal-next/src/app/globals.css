@@ -11903,6 +11903,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-secondary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .lp-query__result { margin-top: 10px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.5; }
 .lp-query__reason { color: var(--muted); }
+.lp-query__stage { display: block; margin-top: 4px; font-size: 12px; color: oklch(0.45 0.09 228); font-weight: 600; }
 .lp-query__reviewed { color: oklch(0.5 0.03 258); font-variant-numeric: tabular-nums; }
 .lp-query__urge {
   display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;

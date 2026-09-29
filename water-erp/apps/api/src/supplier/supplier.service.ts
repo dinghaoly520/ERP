@@ -80,6 +80,76 @@ export class SupplierService {
     throw new ForbiddenException({ error: '供应商审批仅限其归属公司的管理账号（或平台管理员）', code: 'COMPANY_APPROVER_ONLY' });
   }
 
+  // ── 三级注册审批（2026-09-29 用户设计）：同公司 staff 初审 → 同公司 leader 复审 → 平台 admin 终审。
+  //    Supplier.reviewStage 记录当前待审级；每级动作落 SupplierApprovalRecord（含 stage + 缘由），
+  //    后级审批人可查看前级同意缘由；任一级可驳回（终态）或退回补正（补正后回到退回的那一级）。──
+
+  static readonly REVIEW_STAGES = ['STAFF', 'LEADER', 'ADMIN'] as const;
+  static readonly REVIEW_STAGE_LABELS: Record<string, string> = {
+    STAFF: '初审（经办 staff）',
+    LEADER: '复审（部门 leader）',
+    ADMIN: '终审（管理员确认）',
+  };
+
+  /** 公司内是否有指定角色的在编账号（IsActive）——用于无 staff/leader 公司的代审放行 */
+  private async companyHasActiveRole(role: 'staff' | 'leader', companyId: string | null): Promise<boolean> {
+    if (!companyId) return false;
+    const c = await this.prisma.user.count({ where: { role, isActive: true, companyId } });
+    return c > 0;
+  }
+
+  /** 三级审批的级权限断言：
+   *  STAFF 级 = 同公司 staff（公司无 staff 时同公司 leader 代初审）
+   *  LEADER 级 = 同公司 leader（公司无 leader 时平台 admin 代复审）
+   *  ADMIN 级 = 平台 admin（最终确认） */
+  private async assertStageApprover(
+    stage: string | null,
+    reviewer: { id: string; role: string; companyId: string | null } | null,
+    supplierCompanyId: string | null,
+  ): Promise<void> {
+    if (!reviewer) return; // 系统触发（seed 等）不拦
+    const sameCompany = reviewer.role !== 'admin' && !!supplierCompanyId && reviewer.companyId === supplierCompanyId;
+    if (stage === 'STAFF') {
+      if (reviewer.role === 'staff' && sameCompany) return;
+      if (reviewer.role === 'leader' && sameCompany && !(await this.companyHasActiveRole('staff', supplierCompanyId))) return;
+    } else if (stage === 'LEADER') {
+      if (reviewer.role === 'leader' && sameCompany) return;
+      if (reviewer.role === 'admin' && !(await this.companyHasActiveRole('leader', supplierCompanyId))) return;
+    } else if (stage === 'ADMIN') {
+      if (reviewer.role === 'admin') return;
+    }
+    throw new ForbiddenException({
+      error: `当前为${SupplierService.REVIEW_STAGE_LABELS[stage ?? ''] ?? '本级'}，须由该级审批人操作`,
+      code: 'REVIEW_STAGE_MISMATCH',
+    });
+  }
+
+  /** 按级解析审批待办收件人（逐级流转：staff → leader → admin；各级无人时向上回退防悬空） */
+  private async resolveStageApprovers(stage: string, companyId: string | null | undefined): Promise<string[]> {
+    const pick = async (where: object) => (await this.prisma.user.findMany({ where, select: { id: true } })).map(u => u.id);
+    if (stage === 'STAFF' && companyId) {
+      const staff = await pick({ role: 'staff', isActive: true, companyId });
+      if (staff.length) return staff;
+      const leaders = await pick({ role: 'leader', isActive: true, companyId });
+      if (leaders.length) return leaders;
+    }
+    if (stage === 'LEADER' && companyId) {
+      const leaders = await pick({ role: 'leader', isActive: true, companyId });
+      if (leaders.length) return leaders;
+    }
+    return pick({ role: 'admin', isActive: true });
+  }
+
+  /** 按级发送审批待办（三级流转通知主入口） */
+  private async notifyStageApprovers(
+    stage: string,
+    companyId: string | null | undefined,
+    payload: { type: string; title: string; content: string; link: string },
+  ): Promise<void> {
+    const ids = await this.resolveStageApprovers(stage, companyId);
+    await Promise.allSettled(ids.map(id => this.notificationService.create({ userId: id, ...payload })));
+  }
+
   /** 归属公司审批人解析（2026-09-26 用户裁定：供应商审批归归属公司的管理权限账号）：
    *  该公司 leader+staff（IsActive）；公司无人可审时回退平台 admin（防待办悬空）。
    *  admin 不在主路径——平台 admin 只管管理端账号注册/修改。 */
@@ -296,6 +366,8 @@ export class SupplierService {
       const supplier = await tx.supplier.create({
         data: {
           userId: user.id,
+          // 三级注册审批（2026-09-29）：新注册从首级 STAFF 起走
+          reviewStage: 'STAFF',
           supplierNo,
           name: dto.name,
           normalizedName: dto.name.trim().toLowerCase(),
@@ -392,11 +464,12 @@ export class SupplierService {
     const { passwordHash: _omit, ...safeUser } = user;
     void _omit;
 
-    await this.notifyCompanyApprovers(supplier.companyId, {
+    // 三级审批：注册通知发首级（STAFF）审批人；后级由上一级通过时逐级流转
+    await this.notifyStageApprovers('STAFF', supplier.companyId, {
       type: 'SUPPLIER_PENDING',
-      title: '新供应商注册待审批',
-      content: `${supplier.name} 提交了注册申请，信用代码 ${supplier.creditCode}，请前往审批。`,
-      link: `/supplier/${supplier.id}`,
+      title: '新供应商注册待初审',
+      content: `${supplier.name} 提交了注册申请，信用代码 ${supplier.creditCode}，请前往初审。`,
+      link: '/supplier/approval',
     });
 
     // 含自创业务标签时，额外提醒到供应商管理中心审核标签入池
@@ -563,6 +636,8 @@ export class SupplierService {
       const supplier = await tx.supplier.create({
         data: {
           userId: user.id,
+          // 三级注册审批（2026-09-29）：临时注册同样从 STAFF 起走（仍需审核）
+          reviewStage: 'STAFF',
           name: dto.name,
           normalizedName,
           creditCode: dto.creditCode.trim(),
@@ -619,11 +694,11 @@ export class SupplierService {
 
     const expireLabel = inv.expiresAt.toISOString().slice(0, 10);
     const { passwordHash: _omit, ...safeUser } = user; void _omit;
-    await this.notifyCompanyApprovers(supplier.companyId, {
+    await this.notifyStageApprovers('STAFF', supplier.companyId, {
       type: 'SUPPLIER_PENDING',
-      title: '新临时供应商注册待审批',
-      content: `${supplier.name}（临时供应商，有效期至 ${expireLabel}）提交了注册申请，请前往审批。`,
-      link: `/supplier/${supplier.id}`,
+      title: '新临时供应商注册待初审',
+      content: `${supplier.name}（临时供应商，有效期至 ${expireLabel}）提交了注册申请，请前往初审。`,
+      link: '/supplier/approval',
     });
 
     // 含自创业务标签时，额外提醒到供应商管理中心审核标签入池
@@ -697,7 +772,7 @@ export class SupplierService {
     return result;
   }
 
-  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; scopeUserId?: string; companyId?: string; actor?: AuthenticatedUser }) {
+  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; reviewStage?: string; scopeUserId?: string; companyId?: string; actor?: AuthenticatedUser }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
@@ -736,6 +811,8 @@ export class SupplierService {
     }
     // 临时供应商筛选（凭邀请码注册、有效期由邀请码绑定）。与状态可叠加，如 isTemporary=true & status=APPROVED。
     if (params.isTemporary === true) where.isTemporary = true;
+    // 三级审批当前级筛选（2026-09-29，审批中心分列）：STAFF / LEADER / ADMIN
+    if (params.reviewStage) where.reviewStage = params.reviewStage;
     if (params.search) {
       where.OR = [
         { name: { contains: params.search, mode: 'insensitive' } },
@@ -940,19 +1017,19 @@ export class SupplierService {
   async getRegisterStatus(userId: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { userId },
-      select: { id: true, name: true, status: true, returnReason: true, rejectReason: true },
+      select: { id: true, name: true, status: true, returnReason: true, rejectReason: true, reviewStage: true },
     });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
-    return supplier;
+    return { ...supplier, reviewStageLabel: supplier.reviewStage ? SupplierService.REVIEW_STAGE_LABELS[supplier.reviewStage] : null };
   }
 
   /** 公开：按统一社会信用代码查审核进度（注册后/审批前用）。不返回 id 等内部字段。 */
   async getRegisterStatusByCreditCode(creditCode: string) {
     const supplier = await this.prisma.supplier.findFirst({
       where: { creditCode },
-      select: { id: true, name: true, status: true, rejectReason: true, returnReason: true, urgedAt: true },
+      select: { id: true, name: true, status: true, rejectReason: true, returnReason: true, urgedAt: true, reviewStage: true },
     });
     if (!supplier) {
       // 不区分「不存在」与「无记录」，避免被用于枚举信用代码是否注册。
@@ -972,6 +1049,11 @@ export class SupplierService {
       found: true as const,
       name: supplier.name,
       status: supplier.status,
+      // 三级审批进度（2026-09-29）：在审返回当前级标签；已入库/被拒为 null
+      reviewStage: supplier.status === 'PENDING' ? (supplier.reviewStage ?? null) : null,
+      reviewStageLabel: supplier.status === 'PENDING' && supplier.reviewStage
+        ? SupplierService.REVIEW_STAGE_LABELS[supplier.reviewStage]
+        : null,
       reason,
       reviewedAt: reviewed?.at ?? null,
       reviewedAction: reviewed?.action ?? null,
@@ -1049,7 +1131,7 @@ export class SupplierService {
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true, action: true, reason: true, snapshot: true, createdAt: true,
+        id: true, action: true, stage: true, reason: true, snapshot: true, createdAt: true,
         reviewer: { select: { id: true, displayName: true, username: true } },
       },
     });
@@ -1195,54 +1277,89 @@ export class SupplierService {
   }
 
   /** 写入不可变审核历史（approve/reject/return 调用）。失败不阻断审核流程但记录告警。 */
-  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED', reviewerUserId: string | undefined, reason?: string) {
+  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED', reviewerUserId: string | undefined, reason?: string, stage?: string) {
     const snapshot = await this.buildApprovalSnapshot(supplierId);
     if (!snapshot) return;
     await this.prisma.supplierApprovalRecord.create({
-      data: { supplierId, action, reviewerUserId: reviewerUserId ?? null, reason: reason ?? null, snapshot },
+      data: { supplierId, action, stage: stage ?? null, reviewerUserId: reviewerUserId ?? null, reason: reason ?? null, snapshot },
     }).catch((err: any) => console.error(`[approval-record] 写入失败 supplier=${supplierId} action=${action}`, err?.message ?? err));
   }
 
-  async approve(id: string, userId?: string) {
+  /** 三级注册审批·通过（2026-09-29）：
+   *  reviewStage=STAFF（同公司 staff，通过须填同意缘由）→ LEADER（同公司 leader，可见 staff 缘由，须填缘由）
+   *  → ADMIN（平台 admin 终审确认）→ APPROVED + 账号激活。
+   *  STAFF/LEADER 通过仅推进级；ADMIN 通过才落终态。乐观锁按当前级防并发双审。 */
+  async approve(id: string, userId?: string, reason?: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id }, include: { user: true } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
-    // 2026-09-26 审批权限=归属公司管理账号：非 admin 操作者须与供应商同公司（跨公司 403）
-    await this.assertCompanyApprover(userId, supplier.companyId);
-
     if (supplier.status !== 'PENDING' && supplier.status !== 'RETURNED') {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
-    // 更新供应商状态和用户激活状态（乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转出）
-    await this.prisma.$transaction(async (tx) => {
-      const claimed = await tx.supplier.updateMany({
-        where: { id, status: { in: ['PENDING', 'RETURNED'] } },
-        data: { status: 'APPROVED', returnReason: null, rejectReason: null },
+    const stage = supplier.reviewStage ?? 'STAFF'; // 存量无级数据兜底从首级走
+    const reviewer = userId
+      ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } })
+      : null;
+    await this.assertStageApprover(stage, reviewer, supplier.companyId);
+
+    // staff/leader 通过须填同意缘由（后级审批依据）；admin 终审缘由可选
+    const trimmed = (reason ?? '').trim();
+    if (stage !== 'ADMIN' && !trimmed) {
+      throw new BadRequestException({ error: `请填写${SupplierService.REVIEW_STAGE_LABELS[stage]}的同意缘由（后级审批人将据此复核）`, code: 'REVIEW_REASON_REQUIRED' });
+    }
+
+    if (stage === 'ADMIN') {
+      // 终审通过：落终态 + 激活账号（三级闭环才入库）
+      await this.prisma.$transaction(async (tx) => {
+        const claimed = await tx.supplier.updateMany({
+          where: { id, status: { in: ['PENDING', 'RETURNED'] }, reviewStage: supplier.reviewStage },
+          data: { status: 'APPROVED', reviewStage: null, returnReason: null, rejectReason: null },
+        });
+        if (claimed.count === 0) {
+          throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+        }
+        await tx.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
       });
-      if (claimed.count === 0) {
-        throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
-      }
-      await tx.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
+      await this.clearSupplierPendingTodos(id);
+      await this.notificationService.create({
+        userId: supplier.userId,
+        type: 'SUPPLIER_APPROVED',
+        title: '供应商审核通过',
+        content: `您的供应商注册申请已通过三级审核（初审/复审/终审）正式入库，企业名称：${supplier.name}`,
+        link: `/dashboard`,
+      });
+      if (userId) await this.audit(userId, 'SUPPLIER_APPROVED', id, { name: supplier.name, stage });
+      await this.recordApproval(id, 'APPROVED', userId, trimmed, stage);
+      return { success: true, stage: 'DONE' as const };
+    }
+
+    // STAFF/LEADER 通过：仅推进级，通知下一级审批人（乐观锁带当前级防越级/双审）
+    const nextStage = stage === 'STAFF' ? 'LEADER' : 'ADMIN';
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id, status: { in: ['PENDING', 'RETURNED'] }, reviewStage: supplier.reviewStage },
+      data: { reviewStage: nextStage, returnReason: null },
     });
-
-    // 待办清零：resolve SUPPLIER_PENDING
-    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
-
-    // 发送通知给供应商
-    await this.notificationService.create({
-      userId: supplier.userId,
-      type: 'SUPPLIER_APPROVED',
-      title: '供应商审核通过',
-      content: `您的供应商注册申请已审核通过，企业名称：${supplier.name}`,
-      link: `/dashboard`,
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    await this.clearSupplierPendingTodos(id);
+    await this.notifyStageApprovers(nextStage, supplier.companyId, {
+      type: 'SUPPLIER_PENDING',
+      title: `供应商注册待${nextStage === 'LEADER' ? '复审' : '终审'}`,
+      content: `${supplier.name} 已通过${SupplierService.REVIEW_STAGE_LABELS[stage]}（缘由：${trimmed}），请前往${nextStage === 'LEADER' ? '复审' : '终审确认'}。`,
+      link: '/supplier/approval',
     });
+    if (userId) await this.audit(userId, `SUPPLIER_REVIEW_PASSED_${stage}`, id, { name: supplier.name, reason: trimmed, nextStage });
+    await this.recordApproval(id, 'APPROVED', userId, trimmed, stage);
+    return { success: true, stage: nextStage };
+  }
 
-    if (userId) await this.audit(userId, 'SUPPLIER_APPROVED', id, { name: supplier.name });
-    await this.recordApproval(id, 'APPROVED', userId);
-
-    return { success: true };
+  /** 清该供应商的注册审批待办（历史 link 两种都清，防残留） */
+  private async clearSupplierPendingTodos(id: string) {
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`).catch(() => {});
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', '/supplier/approval').catch(() => {});
   }
 
   async reject(id: string, reason: string, userId?: string) {
@@ -1250,16 +1367,22 @@ export class SupplierService {
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
-    // 2026-09-26 审批权限=归属公司管理账号：非 admin 操作者须与供应商同公司（跨公司 403）
-    await this.assertCompanyApprover(userId, supplier.companyId);
+    // 三级审批（2026-09-29）：按当前级断言审批人（驳回可发生在任一级）
+    const stage = supplier.reviewStage ?? 'STAFF';
+    const reviewer = userId
+      ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } })
+      : null;
+    await this.assertStageApprover(stage, reviewer, supplier.companyId);
 
     if (supplier.status !== 'PENDING' && supplier.status !== 'RETURNED') {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
-    // 乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转为 REJECTED。
+    // 乐观锁：并发双审时仅一方成功——where 带当前级，防「通过已推进级」与「驳回」交错
+    //（reviewStage 保留=记录被拒于哪一级）。
     const claimed = await this.prisma.supplier.updateMany({
-      where: { id, status: { in: ['PENDING', 'RETURNED'] } },
+      // where 用读到的原始 reviewStage（存量 null 匹配 null；stage 变量为断言用兜底值）
+      where: { id, status: { in: ['PENDING', 'RETURNED'] }, reviewStage: supplier.reviewStage },
       data: { status: 'REJECTED', rejectReason: reason },
     });
     if (claimed.count === 0) {
@@ -1267,19 +1390,18 @@ export class SupplierService {
     }
     const result = await this.prisma.supplier.findUnique({ where: { id } });
 
-    // 待办清零：resolve SUPPLIER_PENDING
-    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
+    await this.clearSupplierPendingTodos(id);
 
     // 发送通知给供应商
     await this.notificationService.create({
       userId: supplier.userId,
       type: 'SUPPLIER_REJECTED',
       title: '供应商审核不通过',
-      content: `您的供应商注册申请审核不通过，原因：${reason}`,
+      content: `您的供应商注册申请在${SupplierService.REVIEW_STAGE_LABELS[stage]}环节审核不通过，原因：${reason}`,
     });
 
-    if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason });
-    await this.recordApproval(id, 'REJECTED', userId, reason);
+    if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason, stage });
+    await this.recordApproval(id, 'REJECTED', userId, reason, stage);
 
     return result;
   }
@@ -1293,12 +1415,17 @@ export class SupplierService {
       throw new BadRequestException({ error: '供应商状态不允许退回', code: 'INVALID_STATUS' });
     }
 
+    // 三级审批（2026-09-29）：按当前级断言；退回不重置 reviewStage——补正后回到被退回的那一级
+    const stage = supplier.reviewStage ?? 'STAFF';
+    const reviewer = userId
+      ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, companyId: true } })
+      : null;
+    await this.assertStageApprover(stage, reviewer, supplier.companyId);
+
     // P1-17 乐观锁：return 仅允许 PENDING→RETURNED，并发时仅一方成功。
-    // 2026-09-26 审批权限=归属公司管理账号：非 admin 操作者须与供应商同公司（跨公司 403）
-    await this.assertCompanyApprover(userId, supplier.companyId);
 
     const claimed = await this.prisma.supplier.updateMany({
-      where: { id, status: 'PENDING' },
+      where: { id, status: 'PENDING', reviewStage: supplier.reviewStage },
       data: { status: 'RETURNED', returnReason: reason },
     });
     if (claimed.count === 0) {
@@ -1306,20 +1433,19 @@ export class SupplierService {
     }
     const result = await this.prisma.supplier.findUnique({ where: { id } });
 
-    // 待办清零：resolve SUPPLIER_PENDING
-    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
+    await this.clearSupplierPendingTodos(id);
 
     // 发送通知给供应商
     await this.notificationService.create({
       userId: supplier.userId,
       type: 'SUPPLIER_RETURNED',
       title: '供应商注册退回补正',
-      content: `您的供应商注册申请需补充修改，原因：${reason}`,
+      content: `您的供应商注册申请在${SupplierService.REVIEW_STAGE_LABELS[stage]}环节被退回补正，原因：${reason}；补正后将从该环节继续审核。`,
       link: `/profile`,
     });
 
-    if (userId) await this.audit(userId, 'SUPPLIER_RETURNED', id, { name: supplier.name, reason });
-    await this.recordApproval(id, 'RETURNED', userId, reason);
+    if (userId) await this.audit(userId, 'SUPPLIER_RETURNED', id, { name: supplier.name, reason, stage });
+    await this.recordApproval(id, 'RETURNED', userId, reason, stage);
 
     return result;
   }
@@ -1376,7 +1502,7 @@ export class SupplierService {
   async resubmit(supplierId: string, userId: string, note?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, name: true, status: true, userId: true, companyId: true },
+      select: { id: true, name: true, status: true, userId: true, companyId: true, reviewStage: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
     if (supplier.userId !== userId) {
@@ -1392,11 +1518,13 @@ export class SupplierService {
     if (claimed.count === 0) {
       throw new BadRequestException({ error: '状态已变更，请刷新后重试', code: 'CONFLICT' });
     }
-    void this.notifyCompanyApprovers(supplier.companyId, {
+    // 重新提交回到退回的那一级继续（reviewStage 未重置）；通知该级审批人
+    const stage = supplier.reviewStage ?? 'STAFF';
+    void this.notifyStageApprovers(stage, supplier.companyId, {
       type: 'SUPPLIER_PENDING',
-      title: '供应商重新提交审核',
-      content: `${supplier.name} 已补正资料重新提交${note ? `（说明：${note}）` : ''}，请前往审核。`,
-      link: `/supplier/${supplierId}`,
+      title: '供应商补正后重新提交',
+      content: `${supplier.name} 已补正资料重新提交${note ? `（说明：${note}）` : ''}，请继续${SupplierService.REVIEW_STAGE_LABELS[stage]}。`,
+      link: '/supplier/approval',
     });
     await this.audit(userId, 'SUPPLIER_RESUBMITTED', supplierId, { name: supplier.name, note: note ?? null });
     return { success: true };
@@ -1406,7 +1534,7 @@ export class SupplierService {
   async reactivate(id: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
-      select: { id: true, name: true, status: true },
+      select: { id: true, name: true, status: true, companyId: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
     if (supplier.status !== 'REJECTED') {
@@ -1414,11 +1542,18 @@ export class SupplierService {
     }
     const claimed = await this.prisma.supplier.updateMany({
       where: { id, status: 'REJECTED' },
-      data: { status: 'PENDING' },
+      // 三级审批（2026-09-29）：复活重走全流程（首级 STAFF），并清理上次的拒绝原因
+      data: { status: 'PENDING', reviewStage: 'STAFF', rejectReason: null },
     });
     if (claimed.count === 0) {
       throw new BadRequestException({ error: '状态已变更，请刷新后重试', code: 'CONFLICT' });
     }
+    void this.notifyStageApprovers('STAFF', supplier.companyId, {
+      type: 'SUPPLIER_PENDING',
+      title: '供应商申请已复活，待初审',
+      content: `${supplier.name} 的被拒申请已由管理员复活，重新进入三级审核。`,
+      link: '/supplier/approval',
+    });
     if (userId) await this.audit(userId, 'SUPPLIER_REACTIVATED', id, { name: supplier.name });
     return { success: true };
   }
@@ -1428,6 +1563,41 @@ export class SupplierService {
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** 审批中心右上角角标（2026-09-29）：当前登录人「待我审」数量
+   *  注册审批 = 我所在级的在审数（staff→STAFF 级·本公司；leader→LEADER 级·本公司 + 本公司无 staff 时的 STAFF 级；admin→ADMIN 级·全部）
+   *  信息更新审批 = 待审变更数（办公权限：leader/staff·本公司；admin 全部可见） */
+  async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number }> {
+    const regWhere: any = { status: 'PENDING' };
+    if (actor.role === 'admin') {
+      regWhere.reviewStage = 'ADMIN';
+      if (companyIdFilter) regWhere.companyId = companyIdFilter;
+    } else if (actor.role === 'leader' || actor.role === 'staff') {
+      // JWT payload 不携带 companyId（AuthenticatedUser 仅 sub/role/username）——查库取归属公司
+      const me = await this.prisma.user.findUnique({ where: { id: actor.sub }, select: { companyId: true } });
+      const myCompany = companyIdFilter ?? me?.companyId ?? null;
+      if (!myCompany) return { registration: 0, changes: 0 }; // 无归属公司 → 无域内待审
+      const stageList = ['LEADER'];
+      if (actor.role === 'staff') {
+        stageList.length = 0;
+        stageList.push('STAFF');
+      } else if (!(await this.companyHasActiveRole('staff', myCompany))) {
+        stageList.push('STAFF'); // 本公司无 staff：leader 兼初审
+      }
+      regWhere.reviewStage = { in: stageList };
+      regWhere.companyId = myCompany;
+    } else {
+      return { registration: 0, changes: 0 }; // supplier 等角色无审批待办
+    }
+    const registration = await this.prisma.supplier.count({ where: regWhere });
+    const changes = await this.prisma.supplierChangeRecord.count({
+      where: {
+        status: 'PENDING',
+        ...(actor.role !== 'admin' ? { supplier: { companyId: regWhere.companyId } } : {}),
+      },
+    });
+    return { registration, changes };
   }
 
   /** 审批中心：全部待审的供应商资料变更（:3004 供应商门户提交，跨供应商） */

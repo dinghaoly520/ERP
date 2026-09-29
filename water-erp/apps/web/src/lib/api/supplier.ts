@@ -70,7 +70,7 @@ export interface SupplierSelectionResult {
 }
 
 // 供应商列表
-export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; companyId?: string }) {
+export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; reviewStage?: string; companyId?: string }) {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
   if (params?.classificationId) query.set('classificationId', params.classificationId);
@@ -243,9 +243,9 @@ export function getSupplier(id: string) {
   return api.get<Supplier>(`/supplier/${id}`);
 }
 
-// 审核通过
-export function approveSupplier(id: string) {
-  return api.post<{ success: boolean }>(`/supplier/${id}/approve`, {});
+// 审核通过（三级审批 2026-09-29：staff/leader 级同意缘由必填，admin 终审可选）
+export function approveSupplier(id: string, reason?: string) {
+  return api.post<{ success: boolean; stage?: string }>(`/supplier/${id}/approve`, { reason });
 }
 
 // 审核不通过
@@ -418,6 +418,8 @@ export interface ApprovalSnapshot {
 }
 export interface ApprovalRecord {
   id: string; action: 'APPROVED' | 'REJECTED' | 'RETURNED';
+  /** 三级审批发生级（2026-09-29）：STAFF/LEADER/ADMIN；null=旧数据 */
+  stage?: string | null;
   reason: string | null; snapshot: ApprovalSnapshot; createdAt: string;
   reviewer: { id: string; displayName: string; username: string } | null;
 }
@@ -641,6 +643,12 @@ export interface SupplierChangePendingRow {
 export function fetchPendingSupplierChanges() {
   return api.get<SupplierChangePendingRow[]>('/supplier/changes/pending');
 }
+
+// 审批中心角标（2026-09-29）：待我审的注册数 + 信息更新数
+export function fetchMyPendingReviewCount(companyId?: string) {
+  return api.get<{ registration: number; changes: number }>(`/supplier/approvals/my-pending-count${companyId ? `?companyId=${companyId}` : ''}`);
+}
+
 
 export function approveSupplierChange(id: string) {
   return api.post(`/supplier/changes/${id}/approve`, {});

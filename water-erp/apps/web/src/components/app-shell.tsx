@@ -29,6 +29,7 @@ import { Bell,
   ChevronsRight,
 } from "lucide-react";
 import { AppUserActions } from "@/components/app-user-actions";
+import { ReviewCenterButton } from "@/components/app-user-actions";
 import { UnifiedHeader } from "@/components/workbench/unified-header";
 import { GlobalSearch } from "@/components/global-search";
 import { fetchCurrentUser, type AuthRole, type AuthUser } from "@/lib/api/auth";
@@ -353,6 +354,12 @@ export function AppShell({
             </button>
           </div>
         </aside>
+
+        {/* 右上角常驻入口（紧凑图标+角标）：占位最小化，避免与页面 hero 右上操作按钮（新建项目等）重叠；
+              完整文字版入口见侧栏底部 */}
+            <div className="pointer-events-none fixed right-3.5 top-3.5 z-[90]">
+              <ReviewCenterButton className="pointer-events-auto relative flex h-9 w-9 items-center justify-center rounded-[12px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.92),rgba(241,246,255,0.85))] shadow-[0_8px_20px_rgba(69,99,158,0.16)] transition-all hover:-translate-y-px hover:bg-white/95 [&>span]:hidden" />
+            </div>
 
         <section className="min-h-0 min-w-0 flex flex-1 overflow-visible px-1 h-full">
           <main id="app-main" className="relative z-10 h-full min-h-0 min-w-0 flex flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">

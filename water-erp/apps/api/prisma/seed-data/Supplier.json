@@ -14895,7 +14895,8 @@
       "工程施工与装修"
     ],
     "createdAt": "2026-06-17T02:48:19.361Z",
-    "updatedAt": "2026-08-12T06:45:30.023Z"
+    "updatedAt": "2026-08-12T06:45:30.023Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "c7562bf161b1d39b7075dd2",
@@ -14939,7 +14940,8 @@
       "货物进出口及技术进出口"
     ],
     "createdAt": "2026-06-17T02:48:19.361Z",
-    "updatedAt": "2026-08-12T06:45:30.024Z"
+    "updatedAt": "2026-08-12T06:45:30.024Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "ce3a956466cb5b10e626ce5",
@@ -14983,7 +14985,8 @@
       "信息技术与软件"
     ],
     "createdAt": "2026-06-17T02:48:19.361Z",
-    "updatedAt": "2026-08-12T06:45:30.024Z"
+    "updatedAt": "2026-08-12T06:45:30.024Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "cmqbysdkb001lkoh1lif07y1g",
@@ -15412,7 +15415,8 @@
       "工程施工与装修"
     ],
     "createdAt": "2026-06-15T03:20:00.000Z",
-    "updatedAt": "2026-08-12T06:45:30.025Z"
+    "updatedAt": "2026-08-12T06:45:30.025Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "cmqq17h0el0sl7cwo4c",
@@ -15453,7 +15457,8 @@
       "工程施工与装修"
     ],
     "createdAt": "2026-06-13T02:00:00.000Z",
-    "updatedAt": "2026-08-12T06:45:30.026Z"
+    "updatedAt": "2026-08-12T06:45:30.026Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "cmqq17h0ga0xfczvi7v",
@@ -15493,7 +15498,8 @@
       "设备与物资"
     ],
     "createdAt": "2026-06-12T08:30:00.000Z",
-    "updatedAt": "2026-08-12T06:45:30.027Z"
+    "updatedAt": "2026-08-12T06:45:30.027Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "cmqq17h0ichrfgvt0jj5",
@@ -20007,7 +20013,8 @@
       "环保设备制造与销售"
     ],
     "createdAt": "2026-06-17T02:48:19.361Z",
-    "updatedAt": "2026-08-12T06:45:30.023Z"
+    "updatedAt": "2026-08-12T06:45:30.023Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "cc3801b0a615504db8a92e9",
@@ -20051,7 +20058,8 @@
       "工程测量及测绘服务"
     ],
     "createdAt": "2026-06-17T02:48:19.361Z",
-    "updatedAt": "2026-08-12T06:45:30.025Z"
+    "updatedAt": "2026-08-12T06:45:30.025Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "cmqq17h0cibprvvfme3m",
@@ -20093,7 +20101,8 @@
       "设备与物资"
     ],
     "createdAt": "2026-06-14T06:10:00.000Z",
-    "updatedAt": "2026-08-12T06:45:30.026Z"
+    "updatedAt": "2026-08-12T06:45:30.026Z",
+    "reviewStage": "STAFF"
   },
   {
     "id": "cmqq17h0m4rn552wkhvd",

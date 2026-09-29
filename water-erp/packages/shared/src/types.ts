@@ -400,6 +400,8 @@ export interface Supplier {
   registeredAddress: string;
   businessScope: string;
   status: SupplierStatus;
+  /** 三级注册审批当前级（2026-09-29）：STAFF/LEADER/ADMIN；null=非注册审批流程（已入库/被拒/存量） */
+  reviewStage?: string | null;
   classificationId?: string;
   rejectReason?: string;
   returnReason?: string;

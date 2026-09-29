@@ -115,6 +115,36 @@ export class WorkArrangementsService {
     });
   }
 
+  /** 项目简报数据源（2026-09-29 隔离修复）：与项目管理个人隔离（1C）同口径——
+   *  董事长/admin 简报看全量（集团/管理视角），其余 leader/staff 仅本人创建的项目。
+   *  此前三处调用点均裸查全库非归档项目，导致零项目的新账号在工作台简报里
+   *  "看到"全库活跃项目数（如"当前共有10个活跃项目"）。 */
+  private async loadBriefProjects(
+    userId: string,
+    role?: string | null,
+    username?: string | null,
+  ) {
+    const globalView = role === 'admin' || username === 'Swhi-CGZX-00';
+    const rows = await this.prisma.projectManagementItem.findMany({
+      where: {
+        status: { notIn: [ProjectManagementStatus.ARCHIVED] },
+        ...(globalView ? {} : { createdById: userId }),
+      },
+      orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+      select: {
+        id: true, title: true, currentStage: true, status: true,
+        procurementMethod: true, budgetAmount: true,
+        contractAmount: true, awardedSupplier: true,
+        requesterDepartment: true,
+      },
+    });
+    return rows.map((p) => ({
+      ...p,
+      budgetAmount: p.budgetAmount ? Number(p.budgetAmount) : null,
+      contractAmount: p.contractAmount ? Number(p.contractAmount) : null,
+    }));
+  }
+
   /**
    * 后台异步刷新每日计划 —— fire-and-forget，不阻塞当前请求。
    * 同一用户同一天同时最多一个刷新任务，避免请求风暴导致重复调用 AI。
@@ -152,14 +182,11 @@ export class WorkArrangementsService {
         // 董事长/领导模式
         const isChairman = user?.username === 'Swhi-CGZX-00';
         const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
-        let allProjects: any[] | undefined;
-        if (needsProjectBrief) {
-          allProjects = await this.prisma.projectManagementItem.findMany({
-            where: { status: { notIn: [ProjectManagementStatus.ARCHIVED] } },
-            orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
-            select: { id: true, title: true, currentStage: true, status: true, procurementMethod: true, budgetAmount: true, contractAmount: true, awardedSupplier: true, requesterDepartment: true },
-          });
-        }
+        // 2026-09-29 隔离修复：简报数据源改为按人隔离（非 admin/董事长仅本人项目），
+        // 原全量查询会让零项目的新账号在简报里"看到"全库活跃项目
+        const allProjects = needsProjectBrief
+          ? await this.loadBriefProjects(userId, user?.role, user?.username)
+          : undefined;
 
         const result = await this.aiService.analyzeWorkArrangementDailyPlan({
           date: dayStart.toISOString(),
@@ -562,31 +589,12 @@ export class WorkArrangementsService {
     // 至少有一个缓存过期，需要调 AI
     let result;
 
-    // 董事长/领导/管理员：查询全量项目数据
+    // 董事长/领导/管理员：附带项目简报数据（loadBriefProjects 已按人隔离，2026-09-29）
     const isChairman = user?.username === 'Swhi-CGZX-00';
     const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
-    let allProjects: Array<{
-      id: string; title: string; currentStage: string; status: string;
-      procurementMethod: string; budgetAmount: number | null;
-      contractAmount: number | null; awardedSupplier: string | null;
-      requesterDepartment: string;
-    }> | undefined;
-
-    if (needsProjectBrief) {
-      allProjects = (await this.prisma.projectManagementItem.findMany({
-        where: { status: { notIn: [ProjectManagementStatus.ARCHIVED] } },
-        orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
-        select: {
-          id: true, title: true, currentStage: true, status: true,
-          procurementMethod: true, budgetAmount: true,
-          contractAmount: true, awardedSupplier: true,
-          requesterDepartment: true,
-        },
-      })).map((p) => ({
-        ...p, budgetAmount: p.budgetAmount ? Number(p.budgetAmount) : null,
-        contractAmount: p.contractAmount ? Number(p.contractAmount) : null,
-      }));
-    }
+    const allProjects = needsProjectBrief
+      ? await this.loadBriefProjects(userId, user?.role, user?.username)
+      : undefined;
 
     try {
       const basePayload = {
@@ -682,14 +690,10 @@ export class WorkArrangementsService {
 
     const isChairman = user?.username === 'Swhi-CGZX-00';
     const needsProjectBrief = isChairman || user?.role === 'leader' || user?.role === 'admin';
-    let allProjects: any[] | undefined;
-    if (needsProjectBrief) {
-      allProjects = (await this.prisma.projectManagementItem.findMany({
-        where: { status: { notIn: [ProjectManagementStatus.ARCHIVED] } },
-        orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
-        select: { id: true, title: true, currentStage: true, status: true, procurementMethod: true, budgetAmount: true, contractAmount: true, awardedSupplier: true, requesterDepartment: true },
-      })).map((p) => ({ ...p, budgetAmount: p.budgetAmount ? Number(p.budgetAmount) : null, contractAmount: p.contractAmount ? Number(p.contractAmount) : null }));
-    }
+    // 2026-09-29 隔离修复：简报数据源改为按人隔离（非 admin/董事长仅本人项目）
+    const allProjects = needsProjectBrief
+      ? await this.loadBriefProjects(userId, user?.role, user?.username)
+      : undefined;
 
     let result;
     try {

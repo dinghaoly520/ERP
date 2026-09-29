@@ -25,6 +25,13 @@ const STATUS_TEXT: Record<string, string> = {
   BLACKLIST: "账号已列入不良供应商名单，如有异议请联系采购中心申诉。",
 };
 
+// 三级审批阶段文案（2026-09-29）：PENDING 状态下展示当前所处环节
+const REVIEW_STAGE_TEXT: Record<string, string> = {
+  STAFF: "初审（公司经办审核）",
+  LEADER: "复审（部门领导审核）",
+  ADMIN: "终审（管理员确认）",
+};
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -43,7 +50,7 @@ function LoginForm() {
   const [showQuery, setShowQuery] = useState(() => params.get("registered") === "1");
   const [queryCode, setQueryCode] = useState("");
   const [querying, setQuerying] = useState(false);
-  const [queryResult, setQueryResult] = useState<{ found: boolean; name?: string | null; status?: string | null; reason?: string | null; reviewedAt?: string | null; reviewedAction?: string | null; urgedAt?: string | null } | null>(null);
+  const [queryResult, setQueryResult] = useState<{ found: boolean; name?: string | null; status?: string | null; reason?: string | null; reviewedAt?: string | null; reviewedAction?: string | null; urgedAt?: string | null; reviewStage?: string | null; reviewStageLabel?: string | null } | null>(null);
   const [urging, setUrging] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -241,6 +248,12 @@ function LoginForm() {
                     <>
                       <strong>{queryResult.name}</strong>
                       <span>，{STATUS_TEXT[queryResult.status as string] || queryResult.status}</span>
+                      {queryResult.status === "PENDING" && queryResult.reviewStage && (
+                        <span className="lp-query__stage">
+                          当前进度：{REVIEW_STAGE_TEXT[queryResult.reviewStage] || queryResult.reviewStage}
+                          （初审 → 复审 → 终审 三级审核）
+                        </span>
+                      )}
                       {queryResult.reviewedAt && (
                         <span className="lp-query__reviewed">
                           审核时间：{new Date(queryResult.reviewedAt).toLocaleString("zh-CN", { hour12: false })}

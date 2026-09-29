@@ -14,6 +14,7 @@ import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
 import { CompareProfilesDto } from './dto/compare-profiles.dto';
 import { UpdateContactPersonnelDto } from './dto/update-contact-personnel.dto';
 import { UpdateSupplierStatusDto } from './dto/update-supplier-status.dto';
+import { ApproveSupplierDto } from './dto/approve-supplier.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { ApproveChangeDto } from './dto/approve-change.dto';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
@@ -169,6 +170,13 @@ export class SupplierController {
     @Query('contactIdCard') contactIdCard?: string,
   ) {
     return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard });
+  }
+
+  @Get('approvals/my-pending-count')
+  @Roles('admin', 'leader', 'staff') // 三级审批角标：按当前人角色/公司算「待我审」数
+  @ApiOperation({ summary: '审批中心角标：待我审的注册数与信息更新数' })
+  async myPendingReviewCount(@Request() req: any, @Query('companyId') companyId?: string) {
+    return this.supplierService.myPendingReviewCount(req.user, companyId ?? null);
   }
 
   @Get('changes/pending')
@@ -450,14 +458,14 @@ export class SupplierController {
   }
 
   @Post(':id/approve')
-  @Roles('admin', 'leader', 'staff') // 2026-09-26 改定：供应商审批=归属公司管理账号（service 校验公司域，平台 admin 豁免）
-  @ApiOperation({ summary: '审核通过' })
-  async approve(@Param('id') id: string, @Request() req: any) {
-    return this.supplierService.approve(id, req.user?.sub);
+  @Roles('admin', 'leader', 'staff') // 三级审批（2026-09-29）：service 按级断言（staff 初审/leader 复审/admin 终审）
+  @ApiOperation({ summary: '三级审核通过（按当前级推进；staff/leader 须填同意缘由）' })
+  async approve(@Param('id') id: string, @Body() dto: ApproveSupplierDto, @Request() req: any) {
+    return this.supplierService.approve(id, req.user?.sub, dto.reason);
   }
 
   @Post(':id/reject')
-  @Roles('admin', 'leader', 'staff') // 同 approve：归属公司管理账号
+  @Roles('admin', 'leader', 'staff') // 同 approve：按级断言，任一级可驳回
   @ApiOperation({ summary: '审核不通过' })
   async reject(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
     return this.supplierService.reject(id, dto.reason, req.user?.sub);
