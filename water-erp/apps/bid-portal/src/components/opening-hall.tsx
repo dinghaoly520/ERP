@@ -755,10 +755,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">已确定开标，等待组建开标会话</h2>
             <p className="text-xs text-[oklch(0.5_0.1_70)]">请主持人与监督人填写主持人、监督人与解密窗口，随后即可开始解密 / 唱标 / 异议处理。阶段推进由采购管理工作台统一管理，开标会话仅在此组建。</p>
           </div>
-          <button type="button" onClick={() => setStartOpen(true)}
-            className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
-            <Shield size={13} /> 组建开标会话
-          </button>
+          {/* BID-P3-01：组建会话=现场执行动作，按 canHost 收口（与同屏暂停/恢复同口径） */}
+          {canHost && (
+            <button type="button" onClick={() => setStartOpen(true)}
+              className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
+              <Shield size={13} /> 组建开标会话
+            </button>
+          )}
         </div>
       )}
 
@@ -818,6 +821,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             {remaining > 0 && <RingCountdown remaining={remaining} />}
             {session && remaining > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
+                {/* BID-P3-01：延长窗口=改写解密窗口，现场执行动作按 canHost 收口 */}
+                {canHost && (
                 <button
                   type="button"
                   className="neu-btn-soft text-xs"
@@ -836,6 +841,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     } catch (e: any) { toast.error(e?.message || '延长失败'); }
                   }}
                 ><Clock size={13} className="mr-1 inline" />延长 +15分钟</button>
+                )}
                 {canHost && (!session.pausedAt ? (
                   <button
                     type="button"

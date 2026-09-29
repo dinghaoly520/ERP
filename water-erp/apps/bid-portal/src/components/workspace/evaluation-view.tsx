@@ -260,10 +260,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     finally { setAnnotationLoading(false); }
   };
 
+  const [resultsFailed, setResultsFailed] = useState(false);
   const loadResults = useCallback(() => {
     listEvaluationResults(projectId)
-      .then(r => { setResults(r); })
-      .catch(() => setResults([]));
+      .then(r => { setResults(r); setResultsFailed(false); })
+      // 审查存疑-7（2026-09-29 裁定补告警）：已生成结果拉取失败不再静默置空——
+      // 排名区无声回退均分序会误导向导（对照 liveFailed 同款可见化）
+      .catch(() => { setResults([]); setResultsFailed(true); });
   }, [projectId]);
 
   // F12：官方口径实时排名预览（结果未生成时排名区主数据源）——与生成同源聚合
@@ -1238,6 +1241,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   : '实时均分参考（未生成官方结果）'}
             </span>
           </div>
+          {/* 评标结果拉取失败可见化（存疑-7）——已生成结果的读取失败不再无声回退预览序 */}
+          {resultsFailed && (
+            <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>评标结果读取失败——当前展示为实时预览排名，请刷新重试；若持续失败请联系管理员。</span>
+            </div>
+          )}
           {/* 官方口径预览拉取失败可见化——此前 catch→null 静默回退客户端均分序，两次刷新数据源/量纲切换无感知 */}
           {liveFailed && results.length === 0 && (
             <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">

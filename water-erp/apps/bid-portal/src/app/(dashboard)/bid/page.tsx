@@ -6,7 +6,7 @@
  * 项目全生命周期管理与全部阶段流转归 :3005 采购管理工作台。
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
@@ -41,15 +41,20 @@ export default function BidTaskBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // BID-P3-04：并发防护——30s 轮询/回前台/手动重试可并发 in-flight，慢响应后到
+  // 整体覆盖 projects 会把新数据短暂回退旧计数（自增序号丢弃过期响应）
+  const loadSeqRef = useRef(0);
   const load = useCallback(() => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     getProjectsDashboard()
-      .then(d => { setProjects(d.projects); setError(null); })
+      .then(d => { if (seq !== loadSeqRef.current) return; setProjects(d.projects); setError(null); })
       .catch((e: any) => {
+        if (seq !== loadSeqRef.current) return;
         // O6：不再把故障吞成「暂无项目」空态误导排障（已有数据保留展示）
         setError(e?.message || '开标任务加载失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (seq === loadSeqRef.current) setLoading(false); });
   }, []);
 
   useEffect(() => { load(); }, [load]);
