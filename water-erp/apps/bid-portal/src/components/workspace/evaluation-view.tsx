@@ -39,7 +39,7 @@ import {
   type ScoreCategory,
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
-import { EXPERT_ROLE, formatBidPrice } from '@water-erp/shared';
+import { EXPERT_ROLE, formatBidPrice, summarizeEvaluationRules } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
 import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
@@ -455,6 +455,23 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
   /* 派生数据 */
   const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
+
+  // 生成规则口径（2026-09-29）：随 :3005 配置走（scoreTrimEnabled/priceFormulaConfig/evaluationMethod/
+  // ceilingPrice 随项目详情下发）——规则文案与排名区口径标签共用，与 generateEvaluationResults 同源
+  const evalRules = useMemo(() => summarizeEvaluationRules({
+    scoreTrimEnabled: project?.scoreTrimEnabled ?? null,
+    priceFormulaConfig: project?.priceFormulaConfig ?? null,
+    evaluationMethod: project?.evaluationMethod ?? null,
+    procurementMethod: project?.procurementMethod ?? null,
+    ceilingPrice: project?.ceilingPrice ?? null,
+    hasPriceScoreItems: (project?.scoreItems ?? []).some(si => si.category === 'PRICE'),
+  }), [project]);
+  /** 聚合口径短标签（排名区/预览提示共用）：去极值 · 公式价格分 · 废标置后——按实际配置取舍 */
+  const evalAggTokens = [
+    evalRules.trimEnabled && '去极值',
+    evalRules.formulaActive && '公式价格分',
+    '废标置后',
+  ].filter(Boolean).join(' · ');
 
   // F12：官方口径预览的拉取签名——project 引用随 socket 高频更换（loadResults 同款坑），不能直接
   // 进依赖；签名 = 各专家对全部供应商的 totalScore 合计拼接，仅在实际分数变化时改变（防抖拉取）。
@@ -1215,9 +1232,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <span className="text-[11px] font-bold text-[var(--foreground)]">供应商排名</span>
             <span className="text-[10px] text-[var(--muted-foreground)]">
               {results.length > 0
-                ? '官方评标结果（去极值 · 废标置后）'
+                ? `官方评标结果（${evalAggTokens}）`
                 : liveOfficial
-                  ? '官方口径实时预览（去极值 · 公式价格分 · 废标置后）'
+                  ? `官方口径实时预览（${evalAggTokens}）`
                   : '实时均分参考（未生成官方结果）'}
             </span>
           </div>
@@ -1237,7 +1254,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               </div>
             ) : liveOfficial ? (
               <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
-                官方口径实时预览——与「生成评标结果」同一聚合（≥5 位专家去 1 高 1 低、公式价格分、废标置后）；评分仍在进行，最终以生成为准
+                官方口径实时预览——与「生成评标结果」同一聚合（{[
+                  evalRules.trimEnabled && '≥5 位专家去 1 高 1 低',
+                  evalRules.formulaActive && '公式价格分',
+                  '废标置后',
+                ].filter(Boolean).join('、')}）；评分仍在进行，最终以生成为准
               </div>
             ) : (
               <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
@@ -1387,7 +1408,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
               {wizardStep === 1 && (
                 <div className="space-y-2 text-xs">
-                  <p className="leading-5 text-[var(--muted-foreground)]">以下评分与全体均分偏差超过 {ANOMALY_THRESHOLD}%，生成前请确认无异常（生成时按规则去极值）：</p>
+                  <p className="leading-5 text-[var(--muted-foreground)]">以下评分与全体均分偏差超过 {ANOMALY_THRESHOLD}%，生成前请确认无异常{evalRules.trimEnabled ? '（生成时按规则去极值）' : ''}：</p>
                   {anomalies.length === 0 ? (
                     <div className="eval-check-item flex items-center gap-2 rounded-[12px] px-3.5 py-3 font-semibold" data-ok="true">
                       <CheckCircle2 size={14} /> 未发现异常偏差评分。
@@ -1411,12 +1432,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
               {wizardStep === 2 && (
                 <div className="space-y-2.5 text-xs leading-5 text-[var(--muted-foreground)]">
-                  <p>确认生成评标结果？生成规则：</p>
+                  <p>确认生成评标结果？生成规则（与 :3005 评分标准/评标办法配置一致）：</p>
                   <ul className="list-inside list-disc space-y-1 pl-1">
                     <li>仅纳入解密成功、已确认且未撤回的供应商</li>
                     <li>通过性审查（资格/响应性）不通过票<span className="font-semibold text-[var(--foreground)]">严格过半即废标</span>，废标置后</li>
-                    <li>专家组 ≥5 人时去掉 1 个最高分与 1 个最低分后求均分</li>
-                    <li>第 1 名推荐为中标候选人；完整归档后自动生成中标公示草稿（在采购管理工作台信息发布中心发布）</li>
+                    {evalRules.ruleLines.map(line => <li key={line}>{line}</li>)}
                   </ul>
                   <p className="font-semibold text-[var(--foreground)]">结果生成后可再次生成覆盖（专家报告确认状态不变）。</p>
                 </div>
