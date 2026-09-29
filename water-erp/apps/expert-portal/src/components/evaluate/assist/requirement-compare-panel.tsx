@@ -1,6 +1,7 @@
 // requirement-compare-panel.tsx
 'use client';
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, Gavel, BarChart3 } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview, BidScoreItem } from '@water-erp/shared';
@@ -202,10 +203,12 @@ export function RequirementComparePanel({
         note: next.note,
       });
       onReviewChanged?.(); // P3（2026-09-21）：标注落库后通知父组件刷新联动数据
-    } catch {
+    } catch (e: any) {
       // 回滚到点击前的 verdict —— 否则 UI 显示新值而 server 仍是旧值，专家以为标注成功实为数据丢失
       setLocal((cur) => ({ ...cur, [item.id]: prevReview }));
-      /* toast 由全局拦截器处理 */
+      // EXP-P1-01（2026-09-29 审查修复）：本门户 lib/api.ts 并无「全局 toast 拦截器」——
+      // 静默回滚=保存失败无声无息，就地报错并保持 touched 促使重同步
+      toast.error(e?.message || '标注保存失败，已回滚');
     }
   };
 
@@ -228,8 +231,11 @@ export function RequirementComparePanel({
         verdict: r.verdict,
         note: r.note,
       });
-    } catch {
-      /* toast 由全局拦截器处理 */
+    } catch (e: any) {
+      // EXP-P1-01：此前 catch 静默——本地保留新值、服务端无值、touchedRef 阻止回同步，
+      // 刷新后备注无声消失（异议备注是打分理由「插入异议」与报告披露的数据源）
+      toast.error(e?.message || '备注保存失败，请重试');
+      touchedRef.current.add(item.id);
     }
   };
 
