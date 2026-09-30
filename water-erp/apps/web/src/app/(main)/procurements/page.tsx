@@ -38,6 +38,7 @@ import {
   Trash2,
   RotateCcw,
   ClipboardCheck,
+  FileArchive,
 } from "lucide-react";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
 import type { ProcurementRoundItem, ResultStatusKey, LedgerFilterState } from "@/lib/types/procurement";
@@ -55,6 +56,7 @@ import {
 import { fetchCurrentUser, fetchDepartments } from "@/lib/api/auth";
 import { canAccessCockpit } from "@/lib/login/login-routing";
 import { ArchiveDetailModal } from "@/components/procurements/archive-detail-modal";
+import { ArchiveVolumeModal } from "@/components/procurements/archive-volume-modal";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { Modal } from "@/components/workbench";
 import { useConfirm } from "@/components/workbench/use-confirm";
@@ -329,10 +331,12 @@ function LedgerRow({
   projectSummary,
   summaryLoading,
   onViewArchive,
+  onViewVolume,
   onMoveToRecycleBin,
   onRestore,
   onDeletePermanently,
   isAdmin,
+  canManageVolume = false,
   showCompany = false,
 }: {
   item: ProcurementRoundItem;
@@ -341,10 +345,14 @@ function LedgerRow({
   projectSummary: string | null;
   summaryLoading: boolean;
   onViewArchive?: () => void;
+  /** 打开归档卷弹窗（DA/T 103：勾稽/检测/ASIP 导出）——终态卡片 */
+  onViewVolume?: () => void;
   onMoveToRecycleBin?: () => void;
   onRestore?: () => void;
   onDeletePermanently?: () => void;
   isAdmin: boolean;
+  /** admin 或 PMI 属主（后端 assertItemScope 同口径）——显示「归档卷」按钮 */
+  canManageVolume?: boolean;
   /** admin 全部公司视图：展示采购单位（创建人所属公司）标签 */
   showCompany?: boolean;
 }) {
@@ -475,15 +483,31 @@ function LedgerRow({
               <span className="ml-1.5 text-[0.85rem] font-bold text-[rgba(92,181,150,1)]">{formatAmount(finalAwardAmount)}</span>
             </div>
           )}
-          {/* 右下角：展开详情按钮（归档/终止 → 归档详情弹窗同款；其余 → 展开） */}
+          {/* 右下角：PM 终态卡片 → ASIP 徽标 + 归档卷 + 归档详情（两弹窗并存）；其余 → 展开 */}
           {item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && (item.resultStatus === "AWARDED" || (item.resultStatus === "CANCELLED" && item.terminationReason)) ? (
-            <button
-              onClick={onViewArchive}
-              className={`ml-auto flex items-center gap-1.5 neu-btn-xs ${item.resultStatus === "CANCELLED" ? "!text-[var(--danger)]" : "!text-[rgba(92,181,150,1)]"}`}
-            >
-              <FolderOpen size={14} />
-              {item.resultStatus === "CANCELLED" ? "终止详情" : "归档详情"}
-            </button>
+            <div className="ml-auto flex items-center gap-1.5">
+              {item.archiveExportedAt && (
+                <span
+                  className="rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]"
+                  title={`归档信息包导出于 ${new Date(item.archiveExportedAt).toLocaleString("zh-CN", { hour12: false })}`}
+                >
+                  ASIP 已导出
+                </span>
+              )}
+              {canManageVolume && onViewVolume && (
+                <button onClick={onViewVolume} className="flex items-center gap-1.5 neu-btn-xs">
+                  <FileArchive size={14} />
+                  归档卷
+                </button>
+              )}
+              <button
+                onClick={onViewArchive}
+                className={`flex items-center gap-1.5 neu-btn-xs ${item.resultStatus === "CANCELLED" ? "!text-[var(--danger)]" : "!text-[rgba(92,181,150,1)]"}`}
+              >
+                <FolderOpen size={14} />
+                {item.resultStatus === "CANCELLED" ? "终止详情" : "归档详情"}
+              </button>
+            </div>
           ) : (
             <button
               onClick={onExpand}
@@ -1133,6 +1157,13 @@ export default function ProcurementsPage() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [selectedArchiveRoundId, setSelectedArchiveRoundId] = useState<string | null>(null);
 
+  // 归档卷弹窗（DA/T 103：范围勾稽/四性检测/ASIP 导出）+ 深链/提示
+  const [volumeItem, setVolumeItem] = useState<ProcurementRoundItem | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [pendingArchivePmi, setPendingArchivePmi] = useState<string | null>(null);
+  const [ledgerToast, setLedgerToast] = useState<string | null>(null);
+  const dataLoadedOnceRef = useRef(false); // 深链匹配须等首帧数据就绪（loading 初值 false 的竞态）
+
   // Admin check + 驾驶舱权限守卫（办公权限 staff 重定向到工作台）
   const [isAdmin, setIsAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -1161,6 +1192,7 @@ export default function ProcurementsPage() {
           return;
         }
         setIsAdmin(user.role === 'admin');
+        setCurrentUserId(user.id); // 归档卷属主判定（后端 assertItemScope 同口径）
       } catch {
         setIsAdmin(false);
       } finally {
@@ -1179,6 +1211,17 @@ export default function ProcurementsPage() {
   const handleViewArchive = (item: ProcurementRoundItem) => {
     setSelectedArchiveRoundId(item.id);
     setShowArchiveModal(true);
+  };
+
+  // 归档卷入口门控：后端 archive assertItemScope 限 PMI 属主与 admin（snapshot/check/audit/导出
+  // 全部按 pmiId 校验），与旧 /archive 页对非 admin 只列本人卷的口径一致；pmCreatedById 为 PMI
+  // 属主（round 的 createdById 是归档操作人，代归档时错位），取不到时回退 round 创建人
+  const canManageArchive = (item: ProcurementRoundItem) =>
+    isAdmin || (item.pmCreatedById ?? item.createdById) === currentUserId;
+
+  const handleOpenVolume = (item: ProcurementRoundItem) => {
+    if (!item.projectManagementId) return;
+    setVolumeItem(item);
   };
 
   const handleMoveToRecycleBin = (item: ProcurementRoundItem) => {
@@ -1336,6 +1379,7 @@ export default function ProcurementsPage() {
       setLoadError(err instanceof Error ? err.message : '加载采购台账失败，请稍后重试');
     } finally {
       setLoading(false);
+      dataLoadedOnceRef.current = true; // 归档深链匹配门控（首帧数据就绪）
     }
   }, [pagination.page, pagination.pageSize, filters, sortBy, companyId]);
 
@@ -1348,6 +1392,27 @@ export default function ProcurementsPage() {
       setFilters((prev) => ({ ...prev, category: c, resultStatus: null }));
     }
   }, []);
+
+  // 归档待办直达：/archive?pmi= 已重定向到本页，消费 archivePmi 自动开「归档卷」弹窗
+  useEffect(() => {
+    const pmi = new URLSearchParams(window.location.search).get('archivePmi');
+    if (pmi) setPendingArchivePmi(pmi);
+  }, []);
+  useEffect(() => {
+    if (!pendingArchivePmi || loading || !authChecked || !dataLoadedOnceRef.current) return;
+    const item = data.find((i) => i.projectManagementId === pendingArchivePmi);
+    if (item && canManageArchive(item)) handleOpenVolume(item);
+    else if (item) setLedgerToast('该归档卷仅创建人或管理员可操作');
+    else setLedgerToast('未在当前页找到该归档卷，请清除筛选或翻页后从通知重新进入');
+    setPendingArchivePmi(null); // 一次性消费：清 state + 清 URL 参（防翻页后误开）
+    const url = new URL(window.location.href);
+    url.searchParams.delete('archivePmi');
+    window.history.replaceState(null, '', url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingArchivePmi, data, loading, authChecked, isAdmin, currentUserId]);
+  useEffect(() => {
+    if (ledgerToast) { const t = setTimeout(() => setLedgerToast(null), 4000); return () => clearTimeout(t); }
+  }, [ledgerToast]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1558,6 +1623,8 @@ export default function ProcurementsPage() {
                             projectSummary={itemSummaries[item.id] || null}
                             summaryLoading={loadingSummaries.has(item.id)}
                             onViewArchive={() => handleViewArchive(item)}
+                            onViewVolume={() => handleOpenVolume(item)}
+                            canManageVolume={canManageArchive(item)}
                             onMoveToRecycleBin={() => handleMoveToRecycleBin(item)}
                             onRestore={() => handleRestoreFromRecycleBin(item)}
                             onDeletePermanently={() => handleDeletePermanently(item)}
@@ -1579,6 +1646,8 @@ export default function ProcurementsPage() {
                     projectSummary={itemSummaries[item.id] || null}
                     summaryLoading={loadingSummaries.has(item.id)}
                     onViewArchive={() => handleViewArchive(item)}
+                    onViewVolume={() => handleOpenVolume(item)}
+                    canManageVolume={canManageArchive(item)}
                     onMoveToRecycleBin={() => handleMoveToRecycleBin(item)}
                     onRestore={() => handleRestoreFromRecycleBin(item)}
                     onDeletePermanently={() => handleDeletePermanently(item)}
@@ -1649,6 +1718,30 @@ export default function ProcurementsPage() {
               setSelectedArchiveRoundId(null);
             }}
           />
+        )}
+
+        {/* 归档卷弹窗（DA/T 103：范围勾稽/四性检测/补传/划定期限/ASIP 导出）——卸载即复位全部内部 state */}
+        {volumeItem && volumeItem.projectManagementId && (
+          <ArchiveVolumeModal
+            target={{
+              pmiId: volumeItem.projectManagementId,
+              title: volumeItem.projectName,
+              projectCode: volumeItem.projectCode || null,
+              retentionPeriod: volumeItem.retentionPeriod ?? null,
+              archiveExportedAt: volumeItem.archiveExportedAt ?? null,
+              archiveRegistrationKey: volumeItem.archiveRegistrationKey ?? null,
+            }}
+            canManage={canManageArchive(volumeItem)}
+            onClose={() => setVolumeItem(null)}
+            onExported={() => void loadData()} // 刷「ASIP 已导出」徽标
+            onRetentionSaved={() => void loadData()} // 刷 retentionPeriod（下次导出保留原值）
+          />
+        )}
+
+        {ledgerToast && (
+          <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-[var(--foreground)] px-4 py-2.5 text-sm text-[var(--background)] shadow-[2px_3px_8px_oklch(0.45_0.05_258/0.25),-1px_-1px_3px_oklch(1_0_0/0.15)]">
+            {ledgerToast}
+          </div>
         )}
         {dialog}
         <SasacExtractModal open={extractOpen} onClose={() => setExtractOpen(false)} companyId={companyId} />
