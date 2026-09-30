@@ -69,13 +69,12 @@ interface TaskNotificationCenterProps {
   refreshingPlan: boolean;
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
-  onAddToCalendar: (items: PlannedItem[]) => void;
   hasActiveTasks?: boolean;
 }
 
 export function TaskNotificationCenter({
   dailyPlan, refreshingPlan,
-  onRefreshPlan, onSelectTimeBlock, onAddToCalendar,
+  onRefreshPlan, onSelectTimeBlock,
   hasActiveTasks = true,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
@@ -94,10 +93,6 @@ export function TaskNotificationCenter({
 
   useEffect(() => { load(tab); }, [tab]);
 
-  const onAck = (id: string) => {
-    // 标已读后刷新当前段（该条从待办/待阅转入已办/已阅）
-    markNotificationRead(id).then(() => load(tab)).catch(() => load(tab));
-  };
 
   const shown = items.slice(0, 8);
 

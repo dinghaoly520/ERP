@@ -128,9 +128,15 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
         </div>
         <div className="kpi-card flex h-full flex-col gap-1 p-3">
           <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">安全状态</span>
-          <span className="flex items-center gap-1 text-[13px] font-semibold text-[var(--success)]">
-            <ShieldCheck size={12} strokeWidth={1.8} />正常
-          </span>
+          {user.isFrozen ? (
+            <span className="flex items-center gap-1 text-[13px] font-semibold text-[var(--danger)]">
+              <ShieldCheck size={12} strokeWidth={1.8} />已冻结
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[13px] font-semibold text-[var(--success)]">
+              <ShieldCheck size={12} strokeWidth={1.8} />正常
+            </span>
+          )}
         </div>
       </div>
 

@@ -284,6 +284,56 @@ export function WorkTaskEditorDrawer({
               className="workbench-input"
             />
           </label>
+
+          {/* R7-1①（2026-09-30 审计）：三字段贯穿类型/回填/提交、展示端齐备，
+              但全站无录入 UI——补依赖任务、完成摘要、心得反思 */}
+          {availableDependencies && availableDependencies.length > 0 && (
+            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+              <span className="font-medium">依赖任务</span>
+              <select
+                multiple
+                value={editor.dependencyIds}
+                onChange={(event) =>
+                  onChange((current) => ({
+                    ...current,
+                    dependencyIds: Array.from(event.target.selectedOptions, (o) => o.value),
+                  }))
+                }
+                className="workbench-input h-24"
+              >
+                {availableDependencies.map((d) => (
+                  <option key={d.id} value={d.id}>{d.title}</option>
+                ))}
+              </select>
+              <span className="text-[10px] text-[var(--muted-foreground)]">按住 Ctrl/Cmd 多选；完成前会提示先完成依赖项</span>
+            </label>
+          )}
+
+          <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">完成摘要</span>
+            <textarea
+              value={editor.completionSummary}
+              onChange={(event) =>
+                onChange((current) => ({ ...current, completionSummary: event.target.value }))
+              }
+              rows={2}
+              placeholder="完成任务时填写：成果与结论（标记完成时引导填写）"
+              className="neu-input text-sm"
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+            <span className="font-medium">心得反思</span>
+            <textarea
+              value={editor.reflectionSummary}
+              onChange={(event) =>
+                onChange((current) => ({ ...current, reflectionSummary: event.target.value }))
+              }
+              rows={2}
+              placeholder="可复用的经验、踩过的坑"
+              className="neu-input text-sm"
+            />
+          </label>
       </div>
     </Modal>
   );

@@ -48,7 +48,7 @@ export function ReminderBanner({
                   onClick={() => onView(firstReminder.taskId)}
                   className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-200"
                 >
-                  查看全部
+                  查看首条（共 {reminders.length} 条）
                 </button>
               ) : (
                 <>
