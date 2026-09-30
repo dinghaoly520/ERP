@@ -68,11 +68,15 @@ export class DashboardService {
     // 公司隔离：where 注入 companyId，轮次主查询与附件统计（经 procurementRound 关联）同时生效
     const where = {
       ...companyFilter,
-      ...(startDate && endDate
+      // R6-6②（2026-09-30 审计 A1）：单边日期也生效（与台账 buildListWhere 对齐）——
+      // 此前 && 才拼过滤，用户只填起始日点"应用"→后端完全不过滤，按钮却显示已过滤区间。
+      // 日期口径注明：此过滤只作用于 procurementDate；趋势分桶宣称"缺省回退立项日"
+      // 仅在桶内成立——无采购日的轮次带日期条件即从全部统计消失（已知口径限制）。
+      ...((startDate || endDate)
         ? {
             procurementDate: {
-              gte: startOfDay(startDate),
-              lte: endOfDay(endDate),
+              ...(startDate ? { gte: startOfDay(startDate) } : {}),
+              ...(endDate ? { lte: endOfDay(endDate) } : {}),
             },
           }
         : {}),
@@ -255,9 +259,19 @@ export class DashboardService {
       }
       return item;
     };
+    // R6-6③（2026-09-30 审计 A2）：归档节点改用 PMI 真实 archivedAt——轮次 updatedAt
+    // 会被事后编辑（改成交额/回收站翻转）bump，归档柱漂移到操作日；无关联回退 updatedAt
+    const pmiArchivedByRound = new Map<string, Date | null>(
+      (await this.prisma.projectManagementItem.findMany({
+        where: { archivedProcurementRoundId: { in: rounds.map(r => r.id) } },
+        select: { archivedProcurementRoundId: true, archivedAt: true },
+      })).map(m => [m.archivedProcurementRoundId as string, m.archivedAt]),
+    );
     for (const round of rounds) {
-      // 归档节点：已成交轮次的完成时点（updatedAt 作为台账归档时点；未成交=无归档节点）
       const archivedAt =
+        round.resultStatus === ResultStatus.AWARDED
+          ? (pmiArchivedByRound.get(round.id) ?? round.updatedAt)
+          : null;
         round.resultStatus === ResultStatus.AWARDED ? round.updatedAt : null;
       // 主桶：采购日缺省回退立项日（项目立项时间兜底，消灭「未填」）
       const fallbackDate = round.procurementDate ?? round.project.createdAt;

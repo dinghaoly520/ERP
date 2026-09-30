@@ -76,6 +76,10 @@ describe('DashboardService', () => {
       procurementRound: {
         findMany: jest.fn().mockResolvedValue(rounds),
       },
+      // R6-6③：归档时点映射查 PMI（无关联轮次回退 updatedAt——空映射表等价旧行为）
+      projectManagementItem: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       attachment: {
         groupBy: jest.fn().mockResolvedValue([]),
       },

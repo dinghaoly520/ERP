@@ -60,6 +60,7 @@ import { Modal } from "@/components/workbench";
 import { useConfirm } from "@/components/workbench/use-confirm";
 import { apiFetch } from '@/lib/api/api-fetch';
 import { formatWan } from '@/lib/format';
+import { toast } from "sonner";
 
 // Animation Utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -1377,15 +1378,29 @@ export default function ProcurementsPage() {
   const handleAnalyze = async () => {
     if (!filters.searchKeyword) return;
     try {
+      // R6-6⑥（2026-09-30 审计 B5）：带上当前筛选与公司视野——此前只传关键词，
+      // 分析选集与所见列表脱节（回收站 tab 下分析的是 ACTIVE 数据）；截断显式提示
       const res = await fetchProcurements({
         page: 1,
         pageSize: 100,
         searchKeyword: filters.searchKeyword,
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+        procurementMethod: filters.procurementMethod || undefined,
+        departmentId: filters.departmentId || undefined,
+        resultStatus: filters.resultStatus || undefined,
+        category: filters.category || undefined,
+        recycleStatus: filters.recycleStatus || undefined,
+        companyId,
       });
       setMatchedItems(res.data);
+      if (res.data.length >= 100) {
+        toast.info('匹配结果超过 100 条，仅载入前 100 条参与分析；可收窄筛选后重试');
+      }
       setSelectedAnalysisIds(new Set());
       setShowAnalysisSelection(true);
     } catch (err) {
+      toast.error(err instanceof Error ? err.message : '分析数据加载失败');
       console.error("Failed to fetch for analysis:", err);
     }
   };
