@@ -73,6 +73,7 @@ export function ArchiveVolumeModal({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastDownload, setToastDownload] = useState<string | null>(null); // 导出成功 → toast 内联下载链接
   const [auditRows, setAuditRows] = useState<AuditRow[] | null>(null);
   const [registrationKey, setRegistrationKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +92,10 @@ export function ArchiveVolumeModal({
   const [retentionSaving, setRetentionSaving] = useState(false);
 
   useEffect(() => {
-    if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }
+    if (toast) {
+      const t = setTimeout(() => { setToast(null); setToastDownload(null); }, 4000);
+      return () => clearTimeout(t);
+    }
   }, [toast]);
 
   // 挂载即拉（弹窗先开、内部 loading）；audit 懒加载失败不阻塞（原 openInspect 同款）
@@ -161,6 +165,7 @@ export function ArchiveVolumeModal({
       });
       setLocalExportedAt(new Date().toISOString());
       setToast(`归档信息包已导出（${r.fileCount} 件，指纹 ${r.zipSha256.slice(0, 12)}…）`);
+      setToastDownload(`/api/archive/items/${target.pmiId}/package`);
       onExported?.();
       void load(); // 重拉快照/检测/审计
     } catch (e) {
@@ -382,6 +387,11 @@ export function ArchiveVolumeModal({
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-[var(--foreground)] px-4 py-2.5 text-sm text-[var(--background)] shadow-[2px_3px_8px_oklch(0.45_0.05_258/0.25),-1px_-1px_3px_oklch(1_0_0/0.15)]">
           {toast}
+          {toastDownload && toast.includes('归档信息包已导出') && (
+            <a href={toastDownload} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center gap-1 font-semibold underline underline-offset-2">
+              <Download size={12} /> 立即下载
+            </a>
+          )}
         </div>
       )}
     </>
