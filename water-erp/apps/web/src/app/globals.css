@@ -9665,6 +9665,9 @@ select.workbench-input {
 /* 多段扩展（2026-09-18，与供应商门户 shared.css 同规则集）：data-count 声明段数（默认 2），
    translate 为拇指自身宽度百分比、天然按段数缩放；消费方：公告发布中心类型切换（七段） */
 .neu-segment[data-count="3"] .neu-segment-thumb { width: calc((100% - 8px) / 3); }
+.neu-segment[data-count="4"] .neu-segment-thumb { width: calc((100% - 8px) / 4); }
+.neu-segment[data-count="9"] .neu-segment-thumb { width: calc((100% - 8px) / 9); }
+.neu-segment[data-count="10"] .neu-segment-thumb { width: calc((100% - 8px) / 10); }
 .neu-segment[data-count="5"] .neu-segment-thumb { width: calc((100% - 8px) / 5); }
 .neu-segment[data-count="6"] .neu-segment-thumb { width: calc((100% - 8px) / 6); }
 .neu-segment[data-count="7"] .neu-segment-thumb { width: calc((100% - 8px) / 7); }
@@ -11435,3 +11438,128 @@ select.workbench-input {
 .pm-archived-readonly .lucide-pencil { display: none !important; }
 .pm-archived-readonly .ai-inline-btn,
 .pm-archived-readonly [data-ai-btn="1"] { display: none !important; }
+
+/* ═══ 供应商审批中心（2026-09-29，cgzxui/impeccable 规范层）═══
+   三级审核徽章 / 弹窗时间线卡 / 级筛选 chip——方向性双影，无外侧框线 */
+.rc-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: color-mix(in oklch, var(--rc-accent, var(--accent)) 12%, transparent);
+  color: var(--rc-accent, var(--accent));
+}
+.rc-cur-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  background: color-mix(in oklch, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+.rc-timeline-card {
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: oklch(1 0 0 / 0.5);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 3px oklch(0.55 0.03 258 / 0.08), -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+.rc-stage-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+  background: color-mix(in oklch, var(--rc-accent, var(--accent)) 14%, transparent);
+  color: var(--rc-accent, var(--accent));
+}
+.rc-stage-dot--done { background: color-mix(in oklch, var(--success) 16%, transparent); color: var(--success); }
+.rc-stage-dot--idle { background: oklch(0.93 0.006 258); color: var(--muted-foreground); }
+.rc-stage-chip-group { display: inline-flex; align-items: center; gap: 6px; }
+.rc-stage-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  background: oklch(1 0 0 / 0.45);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 1px 3px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.7);
+  transition: all 0.25s ease;
+}
+.rc-stage-chip-btn:hover { color: var(--foreground); transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 2px 5px oklch(0.55 0.03 258 / 0.13), -1px -1px 3px oklch(1 0 0 / 0.8); }
+.rc-stage-chip-btn:active { transform: none; box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 3px oklch(1 0 0 / 0.6); }
+.rc-stage-chip-btn[data-active='true'] {
+  color: var(--warning);
+  background: color-mix(in oklch, var(--warning) 9%, oklch(1 0 0 / 0.5));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 1px 1px 3px oklch(0.5 0.1 83 / 0.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-stage-chip-btn, .rc-stage-chip-btn:hover { transition: none; transform: none; }
+}
+
+/* ═══ 审批中心窗口 · 双栏布局（rc-split）═══ */
+.rc-split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 14px;
+  min-height: 520px;
+  max-height: min(66vh, 640px);
+}
+@media (max-width: 900px) {
+  .rc-split { grid-template-columns: 1fr; max-height: none; }
+}
+.rc-split-list {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: 18px;
+  background: oklch(1 0 0 / 0.42);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 3px oklch(0.55 0.03 258 / 0.08), -1px -1px 2px oklch(1 0 0 / 0.65);
+}
+.rc-split-detail {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+/* 左栏列表行：方向性双影、选中抬升、待我审高亮 */
+.rc-list-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  background: oklch(1 0 0 / 0.55);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 1px 3px oklch(0.55 0.03 258 / 0.07), -1px -1px 2px oklch(1 0 0 / 0.6);
+  transition: all 0.22s ease;
+}
+.rc-list-row:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.72), 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -1px -1px 3px oklch(1 0 0 / 0.75); }
+.rc-list-row:active { transform: none; box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 3px oklch(1 0 0 / 0.6); }
+.rc-list-row.is-selected {
+  background: color-mix(in oklch, var(--accent) 8%, oklch(1 0 0 / 0.6));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 2px 6px oklch(0.5 0.08 258 / 0.14), -1px -1px 3px oklch(1 0 0 / 0.8);
+}
+.rc-list-row[data-mine='true'] { background: color-mix(in oklch, var(--success) 5%, oklch(1 0 0 / 0.55)); }
+.rc-list-row[data-mine='true']:hover { background: color-mix(in oklch, var(--success) 8%, oklch(1 0 0 / 0.6)); }
+@media (prefers-reduced-motion: reduce) {
+  .rc-list-row, .rc-list-row:hover { transition: none; transform: none; }
+}
+
+/* 审批中心右栏滚动区 */
+.rc-detail-scroll { overflow-y: auto; padding-right: 2px; }

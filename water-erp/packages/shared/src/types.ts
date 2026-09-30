@@ -470,6 +470,8 @@ export interface SupplierContact {
 export interface FileLink {
   name: string;
   url: string;
+  /** 材料类别（2026-09-29 注册业绩支撑材料）：payment=银行汇款凭证；缺省=证明材料（旧数据兼容） */
+  kind?: string;
 }
 
 export interface SupplierQualification {

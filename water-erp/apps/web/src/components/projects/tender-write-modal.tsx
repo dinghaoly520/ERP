@@ -45,6 +45,8 @@ import {
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
 import { SupplierSelectModal } from '@/components/tender-write/supplier-select-modal';
+import { ImportAutofillDialog } from '@/components/tender-write/import-autofill-dialog';
+import type { ImportAutofillFieldResult } from '@/lib/types/tender-write-import';
 import { buildTenderSectionProgress } from '@/lib/tender-write/progress';
 import type {
   ReadyTenderDocumentType,
@@ -433,51 +435,20 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     toast.success(`已填入 ${emptyFields.length} 个字段`);
   }, [selectedType, project, updateDraft]);
 
-  // ── 导入识别 ──
-  const importInputRef = useRef<HTMLInputElement | null>(null);
-  const [importing, setImporting] = useState(false);
-  const handleImportRecognize = useCallback(() => {
-    importInputRef.current?.click();
-  }, []);
-  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !project || !selectedType) return;
-    setImporting(true);
-    try {
-      // 上传文件到 TENDER_DOCUMENT 阶段并触发提取
-      const result = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
-      if (result.extractedInfo) {
-        // 将提取的信息合并到 draft 中
-        const extracted = result.extractedInfo as unknown as Record<string, string>;
-        const patch: Record<string, string> = {};
-        if (extracted.projectOverview) patch.projectOverview = extracted.projectOverview;
-        if (extracted.bidOpeningTime) patch.submissionAndNegotiationTime = extracted.bidOpeningTime;
-        if (extracted.documentAcquireTime) patch.documentAcquireTime = extracted.documentAcquireTime;
-        if (Object.keys(patch).length > 0) {
-          setDrafts((prev) => {
-            const typeKey = selectedType as keyof TenderDraftsState;
-            const emptyFn = {
-              COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
-              SINGLE_SOURCE: createEmptySingleSourceDraft,
-              INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
-              INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
-              INVITED_BIDDING: createEmptyInvitedBiddingDraft,
-            }[selectedType];
-            return { ...prev, [typeKey]: { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}), ...patch } };
-          });
-        }
+  // ── 导入识别：多文件(.docx/.pdf/.md/.txt) AI 识别后勾选回填（纯分析，不上传/不落库）──
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const handleImportConfirm = useCallback((selectedFields: ImportAutofillFieldResult[]) => {
+    for (const field of selectedFields) {
+      if (!field.value) continue;
+      updateDraft(field.key as TenderFieldKey, field.value);
+      // 报价表字段同步转表格——预览/导出按 quotationLetterTable 渲染（与 AI 生成路径同构）
+      if (field.key === 'quotationLetter') {
+        updateDraftTable(parseQuotationTextToTable(field.value) ?? undefined);
       }
-      onAttachmentUploaded?.(result);
-      toast.success('文件已上传并提取信息');
-      // 触发 AI 填充剩余空字段
-      setTimeout(() => handleAutoFillAll(), 500);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '导入识别失败');
-    } finally {
-      setImporting(false);
-      if (importInputRef.current) importInputRef.current.value = '';
     }
-  }, [project, selectedType, onAttachmentUploaded, handleAutoFillAll]);
+    setImportDialogOpen(false);
+    toast.success(`已回填 ${selectedFields.length} 个字段`);
+  }, [updateDraft, updateDraftTable]);
 
   // ── 保存当前：本地缓存 + 服务器当前草稿 + 服务器历史版本（三处一致）──
   const handleSaveCurrent = useCallback(() => {
@@ -834,11 +805,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
 
           <div className="flex items-center gap-1.5 shrink-0">
             {/* 导入识别 */}
-            <button type="button" onClick={handleImportRecognize} disabled={importing} className="neu-btn-xs gap-1" title="上传 DOCX 文件并自动提取字段信息">
-              {importing ? <Loader2 size={13} className="animate-spin" /> : <FileUp size={13} />}
+            <button type="button" onClick={() => setImportDialogOpen(true)} disabled={!selectedType} className="neu-btn-xs gap-1" title="上传资料文件，AI 自动识别可填写的字段（支持 .docx / .pdf / .md / .txt）">
+              <FileUp size={13} />
               导入识别
             </button>
-            <input ref={importInputRef} type="file" accept=".docx" onChange={(e) => { void handleImportFile(e); }} className="sr-only" />
 
             {/* 保存当前 */}
             <button type="button" onClick={handleSaveCurrent} className="neu-btn-xs gap-1" title="手动保存当前草稿">
@@ -1203,6 +1173,15 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             </div>
           </div>
         </div>
+      )}
+
+      {/* 导入识别：多文件 AI 识别回填 */}
+      {importDialogOpen && selectedType && (
+        <ImportAutofillDialog
+          documentType={selectedType as ReadyTenderDocumentType}
+          onConfirm={handleImportConfirm}
+          onClose={() => setImportDialogOpen(false)}
+        />
       )}
     </div>
   );

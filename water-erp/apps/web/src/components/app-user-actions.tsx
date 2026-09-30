@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { BadgeCheck, Loader2, UserRound } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 import { fetchMyPendingReviewCount } from "@/lib/api/supplier";
+
+const ReviewCenterModal = lazy(() => import("@/components/supplier/review-center-modal").then(m => ({ default: m.ReviewCenterModal })));
 
 type AppUserActionsProps = {
   layout?: "header" | "sidebar";
@@ -12,10 +14,21 @@ type AppUserActionsProps = {
 
 /** 供应商审批中心右上角按钮（2026-09-29 三级审批）：仅内部审批角色可见，角标=待我审数（30s 轮询）。
  *  被 UnifiedHeader（页面顶栏常驻）与 AppUserActions（窄屏 page-header）两处复用。 */
-export function ReviewCenterButton({ className }: { className?: string }) {
-  const router = useRouter();
+/** 全局事件：任意入口（供应商库「审批」按钮等）打开审批中心窗口 */
+export const OPEN_REVIEW_CENTER_EVENT = 'open-review-center';
+
+export function ReviewCenterButton({ className, withModal = false }: { className?: string; withModal?: boolean }) {
+  const [open, setOpen] = useState(false);
   const [count, setCount] = useState<number | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
+
+  // 其它入口经事件打开（Modal 宿主唯一，避免多实例）
+  useEffect(() => {
+    if (!withModal) return;
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_REVIEW_CENTER_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_REVIEW_CENTER_EVENT, onOpen);
+  }, [withModal]);
 
   // 常驻渲染于 UnifiedHeader：角色自查（非审批角色不显示；bid_host/mall 等）
   useEffect(() => {
@@ -39,9 +52,10 @@ export function ReviewCenterButton({ className }: { className?: string }) {
   if (myRole !== 'admin' && myRole !== 'leader' && myRole !== 'staff') return null;
 
   return (
+    <>
     <button
       type="button"
-      onClick={() => router.push("/supplier/approval")}
+      onClick={() => { if (withModal) setOpen(true); else window.dispatchEvent(new Event(OPEN_REVIEW_CENTER_EVENT)); }}
       title="供应商审批中心（注册三级审核 · 信息更新审批）"
       className={className}
     >
@@ -56,6 +70,12 @@ export function ReviewCenterButton({ className }: { className?: string }) {
         </span>
       )}
     </button>
+    {withModal && (
+      <Suspense fallback={null}>
+        <ReviewCenterModal open={open} onClose={() => setOpen(false)} />
+      </Suspense>
+    )}
+    </>
   );
 }
 

@@ -303,7 +303,8 @@ export default function ProfilePage() {
     const perfs: PerfDraft[] = (Array.isArray(p.performances) ? p.performances : []).map((x: any) => ({
       projectName: x.projectName ?? "", clientName: x.clientName ?? "", contractAmount: x.contractAmount ?? "",
       signDate: x.signDate ? dayjs(x.signDate).format("YYYY-MM-DD") : "", description: x.description ?? "",
-      proofFiles: Array.isArray(x.proofFiles) ? x.proofFiles.filter((f: any) => f?.url).map((f: any) => ({ name: f.name ?? "", url: f.url })) : [],
+      // kind 随行保留（2026-09-29）：汇款凭证与证明材料在展示端按 kind 区分，编辑回读不丢标记
+      proofFiles: Array.isArray(x.proofFiles) ? x.proofFiles.filter((f: any) => f?.url).map((f: any) => ({ name: f.name ?? "", url: f.url, ...(f.kind ? { kind: f.kind } : {}) })) : [],
     }));
     setCrPerfs(perfs);
     setCrPerfsOrig(JSON.stringify(perfs.map(normPerf)));
@@ -650,21 +651,36 @@ export default function ProfilePage() {
                         <span className="perf-meta-item"><span className="perf-meta-l">签订日期</span>{p.signDate ? dayjs(p.signDate).format("YYYY-MM-DD") : "—"}</span>
                       </div>
                       {p.description && <p className="perf-desc">{p.description}</p>}
-                      <div className="perf-files">
-                        <span className="perf-files-l">证明材料</span>
-                        {Array.isArray(p.proofFiles) && p.proofFiles.length > 0 ? (
-                          p.proofFiles.map((f: any, i: number) => (
-                            f?.url ? (
-                              <a key={`pf-${i}`} className="perf-file-link" href={f.url} target="_blank" rel="noopener noreferrer">
-                                <Paperclip size={13} />
-                                <span>{f.name || `附件${i + 1}`}</span>
-                              </a>
-                            ) : null
-                          ))
-                        ) : (
-                          <span className="prof-muted">暂无</span>
-                        )}
-                      </div>
+                      {/* 材料按 kind 分组（2026-09-29 与注册表单统一）：payment=银行汇款凭证，其余/旧数据=证明材料 */}
+                      {(() => {
+                        const files = Array.isArray(p.proofFiles) ? p.proofFiles.filter((f: any) => f?.url) : [];
+                        const proofs = files.filter((f: any) => f.kind !== "payment");
+                        const payments = files.filter((f: any) => f.kind === "payment");
+                        return (
+                          <>
+                            <div className="perf-files">
+                              <span className="perf-files-l">证明材料</span>
+                              {proofs.length > 0 ? proofs.map((f: any, i: number) => (
+                                <a key={`pf-${i}`} className="perf-file-link" href={f.url} target="_blank" rel="noopener noreferrer">
+                                  <Paperclip size={13} />
+                                  <span>{f.name || `附件${i + 1}`}</span>
+                                </a>
+                              )) : <span className="prof-muted">暂无</span>}
+                            </div>
+                            {payments.length > 0 && (
+                              <div className="perf-files">
+                                <span className="perf-files-l">银行汇款凭证</span>
+                                {payments.map((f: any, i: number) => (
+                                  <a key={`py-${i}`} className="perf-file-link" href={f.url} target="_blank" rel="noopener noreferrer">
+                                    <Landmark size={13} />
+                                    <span>{f.name || `凭证${i + 1}`}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </article>
                   ))}
                 </div>

@@ -1339,11 +1339,21 @@ export class AnnouncementService {
           select: { id: true, title: true, projectCode: true, currentStage: true, bidOpeningTime: true },
         });
         if (pmi) {
+          // 项目解析走 PMI 外键（2026-09-29）：此前按标题全局匹配 BidProject，同名项目会把
+          // 别家名册串进本公告参与列表——实测 SWHI-JJ-2026092902（竞价）详情「供应商参与」
+          // 显示的竟是 TP-2026092901（谈判）的受邀供应商。外键未关联的存量老项目再按标题兜底。
           bp = await this.prisma.bidProject.findFirst({
-            where: { name: pmi.title },
+            where: { projectManagementItemId: pmi.id },
             select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ round: 'desc' }, { createdAt: 'desc' }],
           });
+          if (!bp) {
+            bp = await this.prisma.bidProject.findFirst({
+              where: { name: pmi.title },
+              select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
+              orderBy: { createdAt: 'desc' },
+            });
+          }
           if (!bp) {
             project = {
               id: pmi.id,

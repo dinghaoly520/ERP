@@ -31,7 +31,7 @@ import "@/styles/pages/register2.css";
 interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
 interface BankRow { accountName: string; bankName: string; bankBranch: string; accountNo: string; isDefault: boolean }
 interface QualRow { type: string; name: string; fileUrl: string; attachments: { name: string; url: string }[]; validFrom: string; validTo: string }
-interface PerfRow { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string }[] }
+interface PerfRow { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string }[]; paymentProofs: { name: string; url: string }[] }
 interface FileAsset { url: string; originalName: string }
 
 const STEPS = [
@@ -41,7 +41,11 @@ const STEPS = [
   { label: "资质与履历", description: "补充账户、证照与业绩" },
   { label: "确认提交", description: "核对资料并提交审核" },
 ] satisfies RegistrationStep[];
-const QUAL_TYPES = ["营业执照", "资质证书", "安全生产许可证", "质量管理体系认证", "环境管理体系认证", "其他"];
+const QUAL_TYPES = [
+  "资质证书", "代理证书", "授权委托书", "安全生产许可证", "质量管理体系认证",
+  "环境管理体系认证", "职业健康管理体系认证", "检验检测报告", "荣誉证书",
+  "税务登记证明", "社保缴纳证明", "其他",
+];
 
 /* 多文件上传（附加材料 / 业绩证明） */
 function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
@@ -144,6 +148,8 @@ export default function RegisterPage() {
   });
   const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
   const logoPreviewUrlRef = useRef("");
+  // 法定代表人身份证扫描件（2026-09-29）：必传支撑材料，随资质列表落库（type=法定代表人身份证）
+  const [legalIdFile, setLegalIdFile] = useState("");
   // 业务标签：以标签库选择为主（自创标签提交后进入待审核，审核通过入池）
   const [tags, setTags] = useState<string[]>([]);
   const [tagOptions, setTagOptions] = useState<{ id: string; name: string }[]>([]);
@@ -172,7 +178,8 @@ export default function RegisterPage() {
     step,
     registrationPhone,
     basic, tags, contacts, banks, quals, perfs,
-  }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs]);
+    legalIdFile,
+  }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs, legalIdFile]);
   const recoverableDraftKey = getRegistrationDraftKey(user?.id);
   // SUP-P2-07：游客（未登录）也启用本机草稿——固定匿名键；登录态切回时既有隐私清理
   // effect 会移除匿名草稿。此前 enabled 仅登录用户可享，页头注释与恢复横幅承诺的
@@ -223,7 +230,8 @@ export default function RegisterPage() {
     setContacts(d.contacts?.length ? d.contacts.map((c: ContactRow) => ({ ...c })) : contacts);
     setBanks(d.banks?.length ? d.banks.map((b: BankRow) => ({ ...b })) : []);
     setQuals(d.quals?.length ? d.quals.map((q: QualRow) => ({ ...q, attachments: q.attachments ?? [] })) : quals);
-    setPerfs(d.perfs?.length ? d.perfs.map((p: PerfRow) => ({ ...p, proofFiles: p.proofFiles ?? [] })) : []);
+    setPerfs(d.perfs?.length ? d.perfs.map((p: PerfRow) => ({ ...p, proofFiles: p.proofFiles ?? [], paymentProofs: p.paymentProofs ?? [] })) : []);
+    if (d.legalIdFile) setLegalIdFile(d.legalIdFile);
     const recoveredStep = Math.min(Number(d.step) || 0, STEPS.length - 1);
     setStep(recoveredStep);
     setMaxVisitedStep(recoveredStep);
@@ -328,6 +336,7 @@ export default function RegisterPage() {
       if (!basic.legalPerson.trim()) e.legalPerson = "请输入法定代表人姓名";
       if (!basic.legalPersonIdCard.trim()) e.legalPersonIdCard = "请输入法定代表人身份证号";
       else if (!/^\d{17}[\dXx]$/.test(basic.legalPersonIdCard.trim())) e.legalPersonIdCard = "请输入18位身份证号";
+      if (!legalIdFile) e.legalIdFile = "请上传法定代表人身份证扫描件";
       if (basic.legalPersonPhone && !/^1[3-9]\d{9}$/.test(basic.legalPersonPhone.trim())) e.legalPersonPhone = "法人电话须为11位手机号";
       if (basic.companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(basic.companyEmail.trim())) e.companyEmail = "公司邮箱格式不正确";
       const normalizedTags = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
@@ -372,7 +381,7 @@ export default function RegisterPage() {
         if (q.validFrom && q.validTo && q.validFrom > q.validTo) e[`qual-${i}-validTo`] = "有效期止须晚于有效期起";
       });
       perfs.forEach((p, i) => {
-        if (!p.projectName.trim() && !p.clientName.trim() && !p.contractAmount.trim() && !p.signDate && !p.description.trim() && p.proofFiles.length === 0) return; // 全空行提交时过滤
+        if (!p.projectName.trim() && !p.clientName.trim() && !p.contractAmount.trim() && !p.signDate && !p.description.trim() && p.proofFiles.length === 0 && p.paymentProofs.length === 0) return; // 全空行提交时过滤
         if (!p.projectName.trim()) e[`perf-${i}-projectName`] = "项目名称必填";
         if (p.proofFiles.length === 0) e[`perf-${i}-proofFiles`] = "须上传至少 1 份证明材料";
       });
@@ -462,19 +471,28 @@ export default function RegisterPage() {
             name: c.name.trim(), gender: c.gender || undefined, phone: c.phone.trim(),
             idCard: c.idCard.trim(), email: c.email || undefined, position: c.position || undefined, isPrimary: c.isPrimary,
           })),
-        qualifications: quals.filter((q, i) => i === 0 || q.type || q.name.trim() || q.fileUrl || q.validFrom || q.validTo || q.attachments.length > 0).map((q) => ({
-          type: q.type, name: q.name.trim(), fileUrl: q.fileUrl,
-          attachments: q.attachments.length ? q.attachments : undefined,
-          validFrom: q.validFrom || undefined, validTo: q.validTo || undefined,
-        })),
+        qualifications: [
+          // 法人身份证扫描件（2026-09-29 必传）：作为一条材料随资质列表落库，审核端按材料清单直接可见
+          { type: "法定代表人身份证", name: `${basic.legalPerson.trim()}·身份证扫描件`, fileUrl: legalIdFile },
+          ...quals.filter((q, i) => i === 0 || q.type || q.name.trim() || q.fileUrl || q.validFrom || q.validTo || q.attachments.length > 0).map((q) => ({
+            type: q.type, name: q.name.trim(), fileUrl: q.fileUrl,
+            attachments: q.attachments.length ? q.attachments : undefined,
+            validFrom: q.validFrom || undefined, validTo: q.validTo || undefined,
+          })),
+        ],
         bankAccounts: banks.filter((b) => b.accountName.trim() || b.bankName.trim() || b.bankBranch.trim() || b.accountNo.trim()).map((b) => ({
           accountName: b.accountName.trim(), bankName: b.bankName.trim(), bankBranch: b.bankBranch.trim() || undefined,
           accountNo: b.accountNo.trim(), isDefault: b.isDefault,
         })),
-        performances: perfs.filter((p) => p.projectName.trim() || p.clientName.trim() || p.contractAmount.trim() || p.signDate || p.description.trim() || p.proofFiles.length > 0).map((p) => ({
+        performances: perfs.filter((p) => p.projectName.trim() || p.clientName.trim() || p.contractAmount.trim() || p.signDate || p.description.trim() || p.proofFiles.length > 0 || p.paymentProofs.length > 0).map((p) => ({
           projectName: p.projectName.trim(), clientName: p.clientName.trim() || undefined,
           contractAmount: p.contractAmount.trim() || undefined, signDate: p.signDate || undefined,
-          description: p.description.trim() || undefined, proofFiles: p.proofFiles,
+          description: p.description.trim() || undefined,
+          // 证明材料 + 银行汇款凭证（2026-09-29）合并存 proofFiles，kind 标记区分（读取端按 name/url 渲染，kind 为增强字段向后兼容）
+          proofFiles: [
+            ...p.proofFiles.map((f) => ({ ...f, kind: "proof" })),
+            ...p.paymentProofs.map((f) => ({ ...f, kind: "payment" })),
+          ],
         })),
       });
       draft.clearDraft();
@@ -692,6 +710,16 @@ export default function RegisterPage() {
                   {item("legalPersonIdCard", "身份证号", inp(basic.legalPersonIdCard, (s) => setBasic((b) => ({ ...b, legalPersonIdCard: s })), "18位身份证号", { maxLength: 18, onBlur: checkLegalIdCard }), true)}
                   {item("legalPersonPhone", "联系电话", inp(basic.legalPersonPhone, (s) => setBasic((b) => ({ ...b, legalPersonPhone: s })), "11位手机号", { maxLength: 11 }))}
                 </div>
+                {/* 身份证扫描件（2026-09-29 必传）：与身份证号配套的主体核验材料，随资质列表落库 */}
+                <div className={`reg-item${errors.legalIdFile ? " has-error" : ""}`}>
+                  <label className="reg-label">身份证扫描件 <i className="not-italic text-danger">*</i></label>
+                  <SingleFile
+                    url={legalIdFile}
+                    credentials={{ phone: registrationPhone, code: registrationCode }}
+                    onPicked={(a) => setLegalIdFile(a?.url || "")}
+                  />
+                  {errors.legalIdFile && <span className="reg-error-text" role="alert">{errors.legalIdFile}</span>}
+                </div>
           </RegistrationSection>
 
           <RegistrationSection icon={Mail} title="公司联系方式" hint="选填，用于平台沟通">
@@ -792,14 +820,14 @@ export default function RegisterPage() {
                 ))}
               </section>
 
-            {/* 资质信息 */}
+            {/* 资质 / 代理证书等材料（2026-09-29）：类型放开 + 每项必传文件 */}
               <section className="reg-block">
                 <div className="reg-block-head">
-                  <h2 className="reg-block-title">资质材料</h2>
-                  <span className="reg-hint">营业执照必填，其余可添加；均可附加多份材料</span>
+                  <h2 className="reg-block-title">资质 / 代理证书等材料</h2>
+                  <span className="reg-hint">营业执照必填；其余任意种类材料可自由添加，每项均须上传文件</span>
                   <button type="button" className="reg-btn reg-btn--ghost-sm"
                     onClick={() => setQuals((qs) => [...qs, { type: "", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "" }])}>
-                    <Plus size={13} />添加资质
+                    <Plus size={13} />添加材料
                   </button>
                 </div>
                 {quals.map((q, i) => (
@@ -818,7 +846,7 @@ export default function RegisterPage() {
                           </>
                         )}
                       </select>
-                      <input id={`qual-${i}-name`} className={`reg-inp reg-row-input${errCls(`qual-${i}-name`)}`} aria-label={`资质 ${i + 1} 名称`} aria-invalid={Boolean(errors[`qual-${i}-name`])} aria-describedby={errors[`qual-${i}-name`] || (i === 0 && errors.license) ? `qual-${i}-errors` : undefined} placeholder={i === 0 ? "营业执照名称（必填）" : "资质名称"} value={q.name}
+                      <input id={`qual-${i}-name`} className={`reg-inp reg-row-input${errCls(`qual-${i}-name`)}`} aria-label={`材料 ${i + 1} 名称`} aria-invalid={Boolean(errors[`qual-${i}-name`])} aria-describedby={errors[`qual-${i}-name`] || (i === 0 && errors.license) ? `qual-${i}-errors` : undefined} placeholder={i === 0 ? "营业执照名称（必填）" : "材料名称（如：XX品牌代理证书）"} value={q.name}
                         onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
                       <input type="date" className="reg-date reg-row-date" value={q.validFrom} aria-label="有效期起" onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validFrom: e.target.value } : x)))} />
                       <input id={`qual-${i}-validTo`} type="date" className={`reg-date reg-row-date${errCls(`qual-${i}-validTo`)}`} value={q.validTo} aria-label="有效期止" aria-invalid={Boolean(errors[`qual-${i}-validTo`])} aria-describedby={errors[`qual-${i}-validTo`] ? `qual-${i}-errors` : undefined} onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validTo: e.target.value } : x)))} />
@@ -850,13 +878,13 @@ export default function RegisterPage() {
                 ))}
               </section>
 
-            {/* 主体业绩 */}
+            {/* 主体业绩（2026-09-29 明确选填；汇款凭证作支撑材料） */}
               <section className="reg-block">
                 <div className="reg-block-head">
                   <h2 className="reg-block-title">主体业绩</h2>
-                  <span className="reg-hint">选填；每项须上传证明材料</span>
+                  <span className="reg-hint">整个板块选填，可不填任何业绩；填写后项目名称与证明材料必填，银行汇款凭证可佐证合同履行</span>
                   <button type="button" className="reg-btn reg-btn--ghost-sm"
-                    onClick={() => setPerfs((ps) => [...ps, { projectName: "", clientName: "", contractAmount: "", signDate: "", description: "", proofFiles: [] }])}>
+                    onClick={() => setPerfs((ps) => [...ps, { projectName: "", clientName: "", contractAmount: "", signDate: "", description: "", proofFiles: [], paymentProofs: [] }])}>
                     <Plus size={13} />添加业绩
                   </button>
                 </div>
@@ -894,6 +922,16 @@ export default function RegisterPage() {
                         label="上传证明材料"
                       />
                       {errors[`perf-${i}-proofFiles`] && <span className="reg-error-text" role="alert">{errors[`perf-${i}-proofFiles`]}</span>}
+                    </div>
+                    {/* 银行汇款凭证（2026-09-29 选填支撑材料）：佐证业绩真实性，存 proofFiles 并带 kind 标记 */}
+                    <div className="reg-item">
+                      <label className="reg-label">银行汇款凭证</label>
+                      <MultiFiles
+                        value={p.paymentProofs}
+                        credentials={{ phone: registrationPhone, code: registrationCode }}
+                        onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, paymentProofs: v } : x)))}
+                        label="上传汇款凭证"
+                      />
                     </div>
                   </div>
                 ))}
@@ -941,15 +979,16 @@ export default function RegisterPage() {
                 ))}
               </div>
               <div className="reg-ov-sec">
-                <h4>资质与履历 · 资质材料（{quals.filter((q) => q.name.trim()).length}）</h4>
+                <h4>资质与履历 · 资质/代理证书等材料（{quals.filter((q) => q.name.trim()).length}）</h4>
+                <p className="reg-ov-line">法定代表人身份证扫描件{legalIdFile ? " · 已上传" : " · 未上传"}</p>
                 {quals.filter((q) => q.name.trim()).map((q, i) => (
                   <p key={i} className="reg-ov-line">{q.type} · {q.name}{q.fileUrl ? " · 已上传" : ""}{q.attachments.length ? ` · 附加 ${q.attachments.length} 份` : ""}</p>
                 ))}
               </div>
               <div className="reg-ov-sec">
-                <h4>资质与履历 · 主体业绩（{perfs.filter((p) => p.projectName.trim()).length}）</h4>
-                {perfs.filter((p) => p.projectName.trim()).map((p, i) => (
-                  <p key={i} className="reg-ov-line">{p.projectName}{p.clientName ? ` · ${p.clientName}` : ""}{p.contractAmount ? ` · ${p.contractAmount}` : ""} · 证明 {p.proofFiles.length} 份</p>
+                <h4>资质与履历 · 主体业绩（{perfs.filter((p) => p.projectName.trim()).length}，选填）</h4>
+                {perfs.length === 0 ? <p className="reg-ov-line">未填写（业绩为选填）</p> : perfs.filter((p) => p.projectName.trim()).map((p, i) => (
+                  <p key={i} className="reg-ov-line">{p.projectName}{p.clientName ? ` · ${p.clientName}` : ""}{p.contractAmount ? ` · ${p.contractAmount}` : ""} · 证明 {p.proofFiles.length} 份{p.paymentProofs.length ? ` · 汇款凭证 ${p.paymentProofs.length} 份` : ""}</p>
                 ))}
               </div>
 

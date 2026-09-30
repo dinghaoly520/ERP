@@ -413,6 +413,7 @@ export class ProjectManagementService {
       select: {
         id: true,
         title: true,
+        projectCode: true,
         procurementMethod: true,
         budgetAmount: true,
         bidOpeningTime: true,
@@ -431,16 +432,6 @@ export class ProjectManagementService {
 
     const targetRound = round ?? item.currentRound ?? 1;
 
-    // 关联的招标公告发布时间（投递时间范围起点）：按项目标题匹配 BID_NOTICE
-    const announcement = await this.prisma.announcement.findFirst({
-      where: { title: item.title, type: 'BID_NOTICE' },
-      orderBy: { publishDate: 'desc' },
-      select: { publishDate: true },
-    });
-    const publishTimeIso = announcement?.publishDate
-      ? announcement.publishDate.toISOString()
-      : null;
-
     // 多轮：按 (projectManagementItemId, round) 查当前轮的 BidProject
     const existing = await this.prisma.bidProject.findFirst({
       where: { projectManagementItemId: itemId, round: targetRound },
@@ -454,6 +445,27 @@ export class ProjectManagementService {
         deadline: true,
       },
     });
+    // 关联的招标公告发布时间（投递时间范围起点；2026-09-29 收紧匹配——此前仅按标题精确
+    // 匹配，公告标题带「竞价采购公告 — 」等前缀时匹配不到，已发布公告被开标确认误读为
+    // 「待发布」）：先按 relatedProjectCode 匹配（新链路=PMI 项目编号 SWHI-*；存量老公告
+    // =BidProject 编码），标题仅作历史兜底。
+    const noticeByCode = await this.prisma.announcement.findFirst({
+      where: {
+        type: 'BID_NOTICE',
+        relatedProjectCode: { in: [item.projectCode, existing?.projectCode].filter((c): c is string => !!c) },
+      },
+      orderBy: { publishDate: 'desc' },
+      select: { publishDate: true },
+    });
+    const announcement = noticeByCode ?? (await this.prisma.announcement.findFirst({
+      where: { title: item.title, type: 'BID_NOTICE' },
+      orderBy: { publishDate: 'desc' },
+      select: { publishDate: true },
+    }));
+    const publishTimeIso = announcement?.publishDate
+      ? announcement.publishDate.toISOString()
+      : null;
+
     if (existing) {
       // 2026-07 重构：棘轮状态机 + 投递放宽后，DOWNLOAD 阶段即可投递（以公告发布为权威闸门），
       // 不再自动裸推 DOWNLOAD→SUBMIT；阶段推进统一由 :3005 人工确认驱动，返回真实 stage

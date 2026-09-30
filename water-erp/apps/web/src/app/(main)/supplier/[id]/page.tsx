@@ -181,7 +181,11 @@ export default function SupplierDetailPage() {
   // 审批操作（乐观更新 + 撤销 toast）
   const handleApproval = async () => {
     if (!supplier || !approvalMode) return;
-    if (approvalMode !== 'approve' && !approvalReason.trim()) { toast.error('请填写原因'); return; }
+    // 三级审批：staff/leader 级通过须填同意缘由（终审可选）；驳回/退回理由必填
+    const modalStage = supplier.reviewStage ?? 'STAFF';
+    if (approvalMode === 'approve') {
+      if (modalStage !== 'ADMIN' && !approvalReason.trim()) { toast.error(`请填写${modalStage === 'STAFF' ? '初审' : '复审'}的同意缘由（后级审批人将据此复核）`); return; }
+    } else if (!approvalReason.trim()) { toast.error('请填写原因'); return; }
 
     const label = approvalMode === 'approve' ? '已通过' : approvalMode === 'return' ? '已退回补正' : '已拒绝';
     const prevStatus = supplier.status as string;
@@ -205,7 +209,7 @@ export default function SupplierDetailPage() {
 
     setApprovalLoading(true);
     try {
-      if (approvalMode === 'approve') await approveSupplier(supplier.id);
+      if (approvalMode === 'approve') await approveSupplier(supplier.id, approvalReason.trim() || undefined);
       else if (approvalMode === 'reject') await rejectSupplier(supplier.id, approvalReason);
       else if (approvalMode === 'return') await returnSupplier(supplier.id, approvalReason);
       loadAll();
@@ -1294,17 +1298,21 @@ export default function SupplierDetailPage() {
                   <span className="text-xs text-[var(--muted-foreground)]">选择审批意见，处理该供应商的注册申请</span>
                 ) : (
                   <span className="text-xs font-semibold" style={{ color: approvalMode === 'approve' ? 'var(--success)' : approvalMode === 'return' ? 'var(--warning)' : 'var(--danger)' }}>
-                    {approvalMode === 'approve' ? '审核通过 — 供应商入库，账户激活' : approvalMode === 'return' ? '退回补正 — 供应商可修改后重新提交' : '审核不通过 — 拒绝注册申请'}
+                    {approvalMode === 'approve'
+                      ? (supplier?.reviewStage === 'ADMIN' ? '终审通过 — 三级闭环，供应商入库、账户激活' : `通过 — 推进至${supplier?.reviewStage === 'STAFF' ? '复审（leader）' : '终审（admin）'}`)
+                      : approvalMode === 'return' ? '退回补正 — 供应商可修改后回到本级继续' : '审核不通过 — 拒绝注册申请'}
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                {approvalMode !== null && approvalMode !== 'approve' && (
+                {approvalMode !== null && (
                   <input
                     value={approvalReason}
                     onChange={e => setApprovalReason(e.target.value)}
-                    placeholder={approvalMode === 'return' ? '退回补正原因（供供应商修改）...' : '不通过原因...'}
-                    className="neu-input w-64"
+                    placeholder={approvalMode === 'approve'
+                      ? (supplier?.reviewStage === 'ADMIN' ? '终审意见（可选）...' : `同意缘由（${supplier?.reviewStage === 'LEADER' ? '复审' : '初审'}必填，后级据此复核）...`)
+                      : approvalMode === 'return' ? '退回补正原因（供供应商修改）...' : '不通过原因...'}
+                    className="neu-input w-72"
                   />
                 )}
                 {approvalMode === null ? (
