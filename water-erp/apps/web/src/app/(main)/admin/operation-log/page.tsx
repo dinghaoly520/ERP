@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, useRef } from 'react';
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, RotateCcw, ScrollText, Search, X } from 'lucide-react';
 import { fetchOperationLogs, type OperationLogRow } from '@/lib/api/operation-log';
 import { TableSkeleton } from '@/components/workbench';
@@ -62,6 +62,7 @@ function statusColor(code: number): string {
 
 export default function OperationLogPage() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const loadReqIdRef = useRef(0);
   const [rows, setRows] = useState<OperationLogRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -76,16 +77,19 @@ export default function OperationLogPage() {
     const lim = opts?.limit ?? limit;
     const off = opts?.offset ?? offset;
     const f = opts?.filters ?? filters;
+    const rid = ++loadReqIdRef.current; // R7-4② 请求序守卫
     setLoading(true);
     setError(null);
     try {
       const r = await fetchOperationLogs(buildParams(f, lim, off));
+      if (rid !== loadReqIdRef.current) return;
       setRows(r.items);
       setTotal(r.total);
       setLimit(lim);
       setOffset(off);
       setExpandedId(null);
     } catch (e) {
+      if (rid !== loadReqIdRef.current) return;
       setError((e as Error)?.message ?? '查询失败');
     } finally {
       setLoading(false);

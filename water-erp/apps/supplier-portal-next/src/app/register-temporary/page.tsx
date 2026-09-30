@@ -20,7 +20,7 @@ export default function RegisterTemporaryPage() {
   const [form, setForm] = useState({
     invitationCode: "", name: "", creditCode: "",
     legalPerson: "", legalPersonIdCard: "",
-    displayName: "", phone: "", password: "", registrationCode: "",
+    displayName: "", phone: "", password: "", confirmPassword: "", registrationCode: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tags, setTags] = useState<string[]>([]);
@@ -149,8 +149,13 @@ export default function RegisterTemporaryPage() {
     else if (codeStatus === "bad") e.registrationCode = "验证码不正确，请核对后重新输入";
     if (tags.length < 2) e.tags = "请至少选择 2 个业务标签";
     else if (tags.length > 8) e.tags = "最多选择 8 个业务标签";
+    // B1-4（2026-09-30）：对齐后端强口令策略（common/validators/password-strength.ts，
+    // CTS-EBS01 4.8）——此前只校验 ≥6 位，弱口令提交必被后端 400 拒绝；并补确认密码框
+    //（本门户找回密码走管理员审核制，口令录错代价极高）。
     if (!form.password) e.password = "请输入密码";
-    else if (form.password.length < 6) e.password = "密码不少于 6 位";
+    else if (form.password.length < 8 || !/(?=.*[A-Za-z])(?=.*\d)/.test(form.password)) e.password = "密码须≥8位且同时包含字母和数字";
+    if (!form.confirmPassword) e.confirmPassword = "请再次输入密码";
+    else if (form.confirmPassword !== form.password) e.confirmPassword = "两次输入的密码不一致";
     if (!belongCompany) e.belongCompanyId = "请选择归属公司：须正确选择，否则将影响投标";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -260,7 +265,15 @@ export default function RegisterTemporaryPage() {
               value={form.password}
               onChange={(password) => set("password", password)}
               error={errors.password}
-              placeholder="不少于 6 位"
+              placeholder="至少 8 位，须同时包含字母和数字"
+              required
+            />
+            <PasswordField
+              label="确认密码"
+              value={form.confirmPassword}
+              onChange={(confirmPassword) => set("confirmPassword", confirmPassword)}
+              error={errors.confirmPassword}
+              placeholder="再次输入登录密码"
               required
             />
           </div>

@@ -109,6 +109,10 @@ describe('Opening Hall (e2e)', () => {
     const stray = await prisma.user.findFirst({
       where: {
         role: 'bid_expert', isActive: true,
+        // 排除本套件 L99 已登录的专家：stray 登录会轮换其 sid（单设备登录），
+        // L582 授权收口断言随即 401——findFirst 无 orderBy 顺序无保证，
+        // CI 曾两次挑中刘苡池（本地恰好挑中别人，故不可复现）
+        username: { not: '刘苡池' },
         ...(heroAssignedIds.length ? { id: { notIn: heroAssignedIds } } : {}),
       },
       select: { id: true, username: true },

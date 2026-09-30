@@ -192,7 +192,10 @@ export class ProcurementsService {
       budgetAmount: n(r.budgetAmount), // 采购预算金额（元）
       awardAmount: n(r.awardAmount), // 采购中标（成交）金额（元）
       procurementDate: d(r.procurementDate), // 采购日期（采购公告日期）
-      awardDate: r.resultStatus === 'AWARDED' ? d(r.updatedAt) : '', // 中标日期（成交完成时点）
+      // R6-6③：中标日期优先 PMI 真实归档时点——updatedAt 会被事后编辑/回收站翻转 bump，
+      // 上报的"中标日期"漂移成操作日（审计 A2）；无 PMI 关联回退 updatedAt（无更优来源）
+      awardDate: r.resultStatus === 'AWARDED'
+        ? (d(pmiByRound.get(r.id)?.archivedAt) || d(r.updatedAt)) : '',
       // 是否集中采购：PMI 组织形式真实推导（与进行中口径一致）；无 PMI 关联=待补录
       centralized: (pmiByRound.get(r.id)?.procurementOrganizationForm ?? '').includes('集中') ? '是'
         : pmiByRound.get(r.id) ? '否' : '',

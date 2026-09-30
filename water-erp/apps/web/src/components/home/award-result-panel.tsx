@@ -54,20 +54,37 @@ const fmtDate = (v: string | null | undefined) => {
 
 
 /** CTS-EBS01 A-203：标段（包）与中标信息关联查询（项目 → 中标供应商/合同金额 明细） */
-export function AwardResultPanel() {
+export function AwardResultPanel({ startDate, endDate }: { startDate?: string; endDate?: string }) {
   const [items, setItems] = useState<ProjectManagementItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [allOpen, setAllOpen] = useState(false);
   const [detail, setDetail] = useState<ProjectManagementItem | null>(null);
 
+  // R6-6④（2026-09-30 审计 B1）：随页头日期筛选联动——此前零参全量拉，
+  // 切日期/公司后其余面板全变、这两块不变；companyId 暂不传（该接口按创建人隔离，
+  // 与页头公司视野语义不同，传了反而更矛盾——待后端支持公司过滤后再接）
   useEffect(() => {
     fetchProjectManagementList()
-      .then((all) => setItems(all.filter((i) => i.awardedSupplier)))
+      .then((all) => {
+        // R6-6④：按页头日期区间客户端过滤（定标时点 archivedAt 口径，缺省回退 createdAt）——
+        // 该接口无日期参数，全量拉一次后本地过滤；切换区间只重算 memo 不重发请求
+        setItems(all.filter((i) => i.awardedSupplier));
+      })
       .catch((e) => setError(e instanceof Error ? e.message : '加载失败'));
   }, []);
 
-  const preview = useMemo(() => (items ?? []).slice(0, PREVIEW_ROWS), [items]);
-  const overflow = (items?.length ?? 0) > PREVIEW_ROWS;
+  // 日期区间过滤（定标时点口径；单边生效）
+  const filtered = useMemo(() => {
+    if (!items) return null;
+    return items.filter((i) => {
+      const t = (i.archivedAt ? new Date(i.archivedAt) : new Date(i.createdAt ?? 0)).getTime();
+      if (startDate && t < new Date(`${startDate}T00:00:00+08:00`).getTime()) return false;
+      if (endDate && t > new Date(`${endDate}T23:59:59+08:00`).getTime()) return false;
+      return true;
+    });
+  }, [items, startDate, endDate]);
+  const preview = useMemo(() => (filtered ?? []).slice(0, PREVIEW_ROWS), [filtered]);
+  const overflow = (filtered?.length ?? 0) > PREVIEW_ROWS;
 
   return (
     <section className="wb-panel mb-3">
@@ -78,7 +95,7 @@ export function AwardResultPanel() {
           <span className="text-[10px] font-normal text-[color:var(--muted-foreground)]">CTS A-203 · 标段与中标信息关联</span>
         </span>
         <span className="flex items-center gap-2">
-          {items && <span className="text-[11px] text-[color:var(--muted-foreground)]">共 {items.length} 项已定标</span>}
+          {items && <span className="text-[11px] text-[color:var(--muted-foreground)]">共 {filtered?.length ?? 0} 项已定标</span>}
           {overflow && (
             <button onClick={() => setAllOpen(true)} className="neu-btn-xs">
               <List size={12} /> 显示全部
@@ -90,7 +107,7 @@ export function AwardResultPanel() {
         <p className="px-5 py-8 text-center text-xs text-[color:var(--danger)]">{error}</p>
       ) : items === null ? (
         <p className="px-5 py-8 text-center text-xs text-[color:var(--muted-foreground)]">加载中…</p>
-      ) : items.length === 0 ? (
+      ) : (filtered?.length ?? 0) === 0 ? (
         <p className="px-5 py-8 text-center text-xs text-[color:var(--muted-foreground)]">暂无已定标项目</p>
       ) : (
         <>
@@ -119,7 +136,7 @@ export function AwardResultPanel() {
             全部项目中标结果
           </span>
         }
-        description={`CTS A-203 · 标段与中标信息关联 · 共 ${items?.length ?? 0} 项已定标 · 点击任一行查看详情`}
+        description={`CTS A-203 · 标段与中标信息关联 · 共 ${filtered?.length ?? 0} 项已定标 · 点击任一行查看详情`}
       >
         <div className="neu-table-card">
           <div className="overflow-x-auto">

@@ -63,7 +63,7 @@ export function NotificationHubDialog({
                   中标通知书编制
                 </div>
                 <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
-                  上传定标审批表，自动识别中标信息，生成中标通知书并写入台账。
+                  上传定标审批表，自动识别中标信息并生成中标通知书（台账为本次导出留档，重开不保留）。
                 </div>
               </div>
             </button>

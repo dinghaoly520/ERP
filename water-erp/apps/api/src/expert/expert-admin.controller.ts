@@ -370,6 +370,7 @@ export class ExpertAdminController {
   }
 
   @Post(':id/retire')
+  @Roles('admin', 'leader') // R6-7 B7：与 @Patch(:id/status) 同权限面（此前无角色限，staff/bid_host 可退库）
   @ApiOperation({ summary: '人工确认专家退库（公司隔离）' })
   confirmRetire(@Param('id') id: string, @Body() dto: ConfirmRetireDto, @Request() req: any) {
     return this.expertAdminService.confirmRetire(id, dto.reason, req.user?.sub, req.user);

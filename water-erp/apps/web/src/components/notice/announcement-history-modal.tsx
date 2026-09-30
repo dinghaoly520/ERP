@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2, RefreshCw, CalendarDays, Lock, Search, ChevronLeft, ChevronRight, EyeOff, PackageX, RotateCcw } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import {
@@ -168,9 +168,12 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reqIdRef = useRef(0);
   const pageSize = 50;
 
   const doLoad = useCallback(async (p: number, action: string, df: string, dt: string, kw: string) => {
+    const rid = ++reqIdRef.current;
     setLoading(true);
     try {
       const res = await fetchAllAnnouncementHistories({
@@ -180,6 +183,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
         dateTo: dt || undefined,
         search: kw || undefined,
       });
+      if (rid !== reqIdRef.current) return;
       setData({ items: res.items, total: res.total });
       setPage(res.page);
     } catch (e) {
@@ -190,6 +194,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
   }, [pageSize]);
 
   useEffect(() => { doLoad(1, "", "", "", ""); }, [doLoad]);
+  useEffect(() => () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); }, []); // R7 终审：卸载清定时器
 
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
 
@@ -235,7 +240,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
             <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">操作类型</span>
             <select
               value={actionFilter}
-              onChange={e => { const v = e.target.value; setActionFilter(v); doLoad(1, v, dateFrom, dateTo, search); }}
+              onChange={e => { const v = e.target.value; setActionFilter(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); doLoad(1, v, dateFrom, dateTo, search); }}
               className="workbench-input !w-auto !h-7 !text-[11px] min-w-[110px]"
             >
               <option value="">全部</option>
@@ -250,14 +255,14 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
             <input
               type="date"
               value={dateFrom}
-              onChange={e => { const v = e.target.value; setDateFrom(v); doLoad(1, actionFilter, v, dateTo, search); }}
+              onChange={e => { const v = e.target.value; setDateFrom(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); doLoad(1, actionFilter, v, dateTo, search); }}
               className="workbench-input !w-auto !h-7 !text-[11px]"
             />
             <span className="text-[11px] text-[var(--muted-foreground)]">至</span>
             <input
               type="date"
               value={dateTo}
-              onChange={e => { const v = e.target.value; setDateTo(v); doLoad(1, actionFilter, dateFrom, v, search); }}
+              onChange={e => { const v = e.target.value; setDateTo(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); doLoad(1, actionFilter, dateFrom, v, search); }}
               className="workbench-input !w-auto !h-7 !text-[11px]"
             />
 
@@ -267,7 +272,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
                 type="text"
                 placeholder="搜索标题…"
                 value={search}
-                onChange={e => { const v = e.target.value; setSearch(v); doLoad(1, actionFilter, dateFrom, dateTo, v); }}
+                onChange={e => { const v = e.target.value; setSearch(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); searchDebounceRef.current = setTimeout(() => doLoad(1, actionFilter, dateFrom, dateTo, v), 300); }}
                 className="workbench-input !h-7 !text-[11px] !pl-8"
               />
             </div>

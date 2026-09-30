@@ -5,7 +5,7 @@ import { CheckCircle2, ClipboardList, Clock, Inbox, RefreshCw } from 'lucide-rea
 import { apiFetch } from '@/lib/api/api-fetch';
 
 /*
-   流程中心（C1）— 五源审批统一收件箱（只读聚合，处理在原页面）
+   流程中心（C1）— 多源审批统一收件箱（只读聚合，处理在原页面；源清单见 workflow.service）
    数据管理页标准三层：page-hero + 工具栏 + neu-table-card
  */
 
@@ -129,7 +129,7 @@ export default function WorkflowPage() {
             <div className="page-hero__icon"><ClipboardList size={17} /></div>
             <div>
               <div className="page-hero__title">流程中心</div>
-              <div className="page-hero__sub">五源审批统一收件箱：注册审核 · 安全审批 · 供应商变更 · 商城审批</div>
+              <div className="page-hero__sub">审批统一收件箱：注册审核（供应商/管理端账号） · 安全审批 · 资料变更 · 供应商变更 · 商城审批</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -156,7 +156,7 @@ export default function WorkflowPage() {
               </span>
             </div>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{pending.length}</span>
-            <span className="text-[10px] font-medium text-[var(--muted-foreground)]">按登录角色聚合五源</span>
+            <span className="text-[10px] font-medium text-[var(--muted-foreground)]">按登录角色聚合各审批源</span>
           </div>
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
             <div className="flex items-center justify-between gap-2">

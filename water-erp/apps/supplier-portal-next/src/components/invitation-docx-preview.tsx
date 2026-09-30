@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download, Loader2, TriangleAlert } from "lucide-react";
+import { fetchAuthedFile, downloadAuthedFile } from "@/lib/authed-file";
 
 /**
  * 采购邀请书 DOCX 在线预览（移植 :3005 stage-file-list 的 docx-preview 模式）。
- * - fetch（带 cookie 鉴权）→ renderAsync 渲染公文原文
+ * - fetch（cookie + 本 tab X-Supplier-Token，B1-2）→ renderAsync 渲染公文原文
  * - 清理 docx 内嵌 @font-face 字体子集（缺字劫持系统字体 → 画成空白），回退系统 CJK 字体
  */
 export function InvitationDocxPreview({ url, fileName }: { url: string; fileName: string }) {
@@ -19,9 +20,9 @@ export function InvitationDocxPreview({ url, fileName }: { url: string; fileName
     setError("");
     (async () => {
       try {
-        const res = await fetch(url, { credentials: "include" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = await res.arrayBuffer();
+        // B1-2（2026-09-30）：仅凭 cookie 时同浏览器他 tab 登录会以新身份取文件 → 403
+        const blob = await fetchAuthedFile(url);
+        const buffer = await blob.arrayBuffer();
         if (cancelled) return;
         const container = containerRef.current;
         if (!container) return;
@@ -54,13 +55,7 @@ export function InvitationDocxPreview({ url, fileName }: { url: string; fileName
 
   async function download() {
     try {
-      const res = await fetch(url, { credentials: "include" });
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = fileName || "采购邀请书.docx";
-      a.click();
-      URL.revokeObjectURL(a.href);
+      await downloadAuthedFile(url, fileName || "采购邀请书.docx");
     } catch { /* 全局层提示 */ }
   }
 

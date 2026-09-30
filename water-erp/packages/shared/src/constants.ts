@@ -45,6 +45,21 @@ export const STAGE_COLOR: Record<string, string> = {
   ABORTED: '#e74c3c',
 };
 
+/* ── 项目管理（PMI）阶段（R7-4①：此前 6 份逐字拷贝分驻 archive/compliance/progress/
+ *   recycle-bin-drawer/project-stage-timeline/项目类型——单一源收敛）── */
+export const PMI_STAGE_LABEL: Record<string, string> = {
+  PROCUREMENT_DEMAND: '采购需求',
+  INITIATION: '采购立项',
+  TENDER_DOCUMENT: '采购文件',
+  SUPPLIER_INVITATION: '供应商邀请',
+  PUBLIC_ANNOUNCEMENT: '公告公示',
+  EXPERT_SELECTION: '专家抽取',
+  BID_EVALUATION: '开标评标',
+  AWARD_DECISION: '定标',
+  CONTRACT: '合同',
+  ARCHIVED: '已归档',
+};
+
 /* ── 供应商状态 ── */
 
 export const SUPPLIER_STATUS_LABEL: Record<string, string> = {

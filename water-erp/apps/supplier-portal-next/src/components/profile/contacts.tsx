@@ -89,6 +89,10 @@ export function ContactPanel({ editing, onSaved, onClose }: {
     email: editing?.email || "",
     position: editing?.position || "",
     isPrimary: editing?.isPrimary ?? false,
+    // B4-2（2026-09-30）：注册口径字段补录入口——完整度按「全员有性别/身份证号」各计 2 分，
+    // 此前仅注册可写，维护端新增的联系人永久拉低完整度且表格列恒空
+    gender: editing?.gender || "",
+    idCard: editing?.idCard || "",
   });
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -103,6 +107,7 @@ export function ContactPanel({ editing, onSaved, onClose }: {
   const handleSubmit = async () => {
     if (!form.name || !form.phone) { toast.warning("请填写姓名和手机号"); return; }
     if (!/^1[3-9]\d{9}$/.test(form.phone)) { toast.warning("请输入正确的11位手机号"); return; }
+    if (form.idCard && !/^\d{17}[\dXx]$/.test(form.idCard)) { toast.warning("身份证号须为 18 位"); return; } // B4-2
     setLoading(true);
     try {
       if (isEdit) {
@@ -176,6 +181,30 @@ export function ContactPanel({ editing, onSaved, onClose }: {
                   onChange={(e) => { setForm((f) => ({ ...f, position: e.target.value })); markDirty(); }}
                   placeholder="请输入职位/职务"
                   maxLength={50}
+                />
+              </div>
+            </div>
+            <div className="ct-panel-row mt-3.5">
+              <div className="ct-panel-field">
+                <label className="ct-panel-label ct-panel-label--opt">性别</label>
+                <select
+                  className="ct-panel-input"
+                  value={form.gender}
+                  onChange={(e) => { setForm((f) => ({ ...f, gender: e.target.value })); markDirty(); }}
+                >
+                  <option value="">未选择</option>
+                  <option value="男">男</option>
+                  <option value="女">女</option>
+                </select>
+              </div>
+              <div className="ct-panel-field">
+                <label className="ct-panel-label ct-panel-label--opt">身份证号</label>
+                <input
+                  className="ct-panel-input"
+                  value={form.idCard}
+                  onChange={(e) => { setForm((f) => ({ ...f, idCard: e.target.value.toUpperCase() })); markDirty(); }}
+                  placeholder="18 位身份证号（选填）"
+                  maxLength={18}
                 />
               </div>
             </div>

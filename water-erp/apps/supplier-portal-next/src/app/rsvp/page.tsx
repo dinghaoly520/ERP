@@ -135,8 +135,10 @@ function RsvpInner() {
                 <p className="rv-warn">该回执链接已超过24小时有效期，已自动视为放弃。如有疑问请致电四川水发集团采购中心。</p>
               )}
 
-              {/* 已回执 / 提交后：展示结果 */}
-              {done || view.status !== "PENDING" ? (
+              {/* 已回执 / 提交后：展示结果（B2-3：与操作区解耦——此前已回执即整体隐藏
+                  按钮组，文案却承诺「可再次点击链接修改」，而再点回来还是这个无入口的
+                  结果面板；后端 respond 本就是覆盖式幂等更新，未过期应恒给修改入口） */}
+              {(done || view.status !== "PENDING") && (
                 <div className={`rv-done ${done?.status === "DECLINED" || view.status === "DECLINED" ? "is-declined" : "is-accepted"}`}>
                   <div className="rv-done-badge">
                     {(done?.status || view.status) === "ACCEPTED" ? "✓ 已确认参加" : "✕ 已确认无法参加"}
@@ -150,11 +152,12 @@ function RsvpInner() {
                         ? new Date(view.respondedAt).toLocaleString("zh-CN")
                         : "—"}
                   </p>
-                  {!view.expired && <p className="rv-hint">如需变更，可于响应截止前再次点击通知中的链接修改。</p>}
+                  {!view.expired && <p className="rv-hint">如需变更，可在下方直接修改回执（响应截止前有效）。</p>}
                 </div>
-              ) : (
+              )}
+              {!view.expired && (
                 <div className="rv-actions">
-                  <p className="rv-prompt">请确认贵司是否参加本次采购邀请：</p>
+                  <p className="rv-prompt">{done || view.status !== "PENDING" ? "变更回执——请重新确认贵司是否参加：" : "请确认贵司是否参加本次采购邀请："}</p>
                   <div className="rv-btns">
                     <button type="button" className="rv-btn rv-btn--accept" disabled={submitting} onClick={() => submit("ACCEPTED")}>确认参加</button>
                     <button type="button" className="rv-btn rv-btn--decline" disabled={submitting} onClick={() => submit("DECLINED")}>无法参加</button>

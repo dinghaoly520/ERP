@@ -8,7 +8,7 @@ import type { WorkArrangementItem } from '@/lib/types/work-arrangements';
 export function SchedulePanel({ selectedDate, items, tasksForSelectedDate, unscheduledItems, selectedItemId, highlightedTaskIds, overdueCount, isOverview, onDateSelect, onSelectTask, onCreateNew, onShowHistory, onShowOverdue, onToggleOverview }: {
   selectedDate: Date; items: WorkArrangementItem[]; tasksForSelectedDate: WorkArrangementItem[];
   unscheduledItems: WorkArrangementItem[]; selectedItemId: string | null; highlightedTaskIds: string[];
-  overdueCount: number; isOverview: boolean; onDateSelect: (d: Date) => void; onSelectTask: (id: string) => void; onCreateNew: () => void; onShowHistory: () => void; onShowOverdue: () => void; onToggleOverview: () => void;
+  overdueCount: number; isOverview: boolean; onDateSelect: (d: Date) => void; onSelectTask: (id: string) => void; onCreateNew: () => void; onShowHistory?: () => void; onShowOverdue: () => void; onToggleOverview: () => void;
 }) {
   const m = selectedDate.getMonth()+1, d = selectedDate.getDate();
   const w = ['周日','周一','周二','周三','周四','周五','周六'][selectedDate.getDay()];
@@ -33,7 +33,7 @@ export function SchedulePanel({ selectedDate, items, tasksForSelectedDate, unsch
               <AlertTriangle size={12}/><span>逾期 {overdueCount}</span>
             </button>
           )}
-          <button type="button" onClick={onShowHistory} className="neu-btn-xs"><History size={12}/><span>历史</span></button>
+          {onShowHistory && <button type="button" onClick={onShowHistory} className="neu-btn-xs"><History size={12}/><span>历史</span></button>}
         </div>
       </div>
       <div className="wb-panel-body flex flex-col gap-4">

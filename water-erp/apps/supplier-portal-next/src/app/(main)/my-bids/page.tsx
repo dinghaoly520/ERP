@@ -36,6 +36,9 @@ function stageIdx(stage: string): number {
 }
 
 function stageColor(stage: string): string {
+  // B4-1（2026-09-30）：ABORTED 不在 STAGES 进度模型，但徽标/文案须有落点（与 /bids 列表页
+  // stageMap 同口径：流标 + danger），此前徽标显示「-」、进度 0%
+  if (stage === "ABORTED") return "var(--danger)";
   return STAGES.find((s) => s.key === stage)?.color || "var(--stage-default)";
 }
 
@@ -97,10 +100,12 @@ function overdueLabel(row: any) {
 // ── Per-card stage progress (for submitted with known stage) ──
 function cardProgress(row: any): number {
   if (row.status !== "submitted" || !row.project?.stage) return 0;
+  if (row.project?.stage === "ABORTED") return 100; // B4-1：流标=终态，进度满格（红）
   const idx = stageIdx(row.project.stage);
   return idx < 0 ? 0 : Math.round(((idx + 1) / STAGES.length) * 100);
 }
 function cardStageLabel(row: any): string {
+  if (row.project?.stage === "ABORTED") return STAGE_LABEL.ABORTED; // B4-1：流标徽标不再空白
   return STAGES.find((s) => s.key === row.project?.stage)?.label || "-";
 }
 

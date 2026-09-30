@@ -438,9 +438,6 @@ export function AccountManagementPanel() {
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs text-[color:var(--muted-foreground)]">
-              {listView === "staff" ? "采购中心工作人员账号 · 审批管理" : "各公司供应商账号 · 只读视图"}
-            </p>
             {listView === "supplier" && (
               <button
                 type="button"
@@ -1303,7 +1300,6 @@ function SharedIpModal({ onClose }: { onClose: () => void }) {
           IP 串号检测
         </span>
       }
-      description="检测不同供应商是否登录过相同 IP 地址（串号 / 围标串标线索）"
       size="lg"
       footer={
         <button type="button" onClick={onClose} className="neu-btn-soft !h-9 !text-xs">

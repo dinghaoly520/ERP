@@ -71,8 +71,9 @@ export const bidApi = {
   getMyQuotes(projectId: string) {
     return api.get<any[]>(`/supplier-portal/projects/${projectId}/my-quotes`);
   },
-  submitQuote(projectId: string, roundId: string, data: { bidSupplierId: string; quotePrice: number }) {
-    return api.post<any>(`/supplier-portal/projects/${projectId}/rounds/${roundId}/quote`, data);
+  submitQuote(projectId: string, roundId: string, data: { bidSupplierId: string; quotePrice: number }, opts?: { silent?: boolean }) {
+    // B4-1：silent 透传——调用方按业务码分流提示（ALREADY_QUOTED 专用话术），避免与全局拦截器双弹
+    return api.post<any>(`/supplier-portal/projects/${projectId}/rounds/${roundId}/quote`, data, opts);
   },
   getRoundQuotes(projectId: string, roundId: string) {
     return api.get<any[]>(`/supplier-portal/projects/${projectId}/rounds/${roundId}/quotes`);

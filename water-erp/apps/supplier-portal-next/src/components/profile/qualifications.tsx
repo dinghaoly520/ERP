@@ -28,22 +28,13 @@ import { uploadFile, type FileAssetResponse } from "@/lib/api/upload";
 import { cn } from "@/lib/utils";
 import "@/styles/pages/profile.css";
 
-/* ═══ 资质类型与配色（与 CompanyInfo.vue 一致）═══ */
-export const QUAL_TYPES = [
-  "营业执照",
-  "资质证书",
-  "代理证书",
-  "授权委托书",
-  "安全生产许可证",
-  "质量管理体系认证",
-  "环境管理体系认证",
-  "职业健康安全管理体系认证",
-  "检验检测报告",
-  "荣誉证书",
-  "税务登记证明",
-  "社保缴纳证明",
-  "其他",
-];
+import { QUAL_TYPE_OPTIONS } from "@/constants/supplier";
+
+/* ═══ 资质类型（B3-1：收敛至 constants/supplier 单一来源，三处口径一致）═══ */
+export const QUAL_TYPES = [...QUAL_TYPE_OPTIONS];
+
+/** 入驻必传材料（B4-2）：后端删除保护同款——前端直接不渲染删除按钮 */
+export const REQUIRED_QUAL_TYPES = new Set(["营业执照", "法定代表人身份证"]);
 
 export type QualTypeMeta = { token: string; value: string; icon: LucideIcon };
 const QUAL_TYPE_TOKENS: Record<string, QualTypeMeta> = {
@@ -167,9 +158,11 @@ export function QualsTab({ qualifications, onDelete }: {
                   </div>
                   <div className="qual-card-head-right">
                     <span className={cn("qual-status-badge", qualStatusInfo(q).cls)}>{qualStatusInfo(q).label}</span>
-                    <button type="button" className="neu-btn-xs qual-delete-btn" onClick={() => onDelete(q.id)} title="删除">
-                      <Trash2 size={14} />
-                    </button>
+                    {!REQUIRED_QUAL_TYPES.has(q.type) && (
+                      <button type="button" className="neu-btn-xs qual-delete-btn" onClick={() => onDelete(q.id)} title="删除">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <h3 className="qual-name">{q.name}</h3>
@@ -266,8 +259,14 @@ export function QualAddPanel({ onAdded, onClose }: {
   };
 
   const qCustomUpload = async (file: File) => {
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("文件不能超过50MB");
+    // B3-3（2026-09-30）：与注册材料同口径（10MB + PDF/JPG/PNG）——此前维护端放行 50MB
+    // Office/ZIP，同一"资质材料"在注册与维护两条通道规格不一致，审批端拿到的材料不可预期
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("文件不能超过10MB");
+      return;
+    }
+    if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) {
+      toast.error("仅支持 PDF、JPG 或 PNG 文件");
       return;
     }
     setUploading(true);
@@ -374,12 +373,12 @@ export function QualAddPanel({ onAdded, onClose }: {
                 <div className="add-panel-upload-drop">
                   <span className="add-panel-upload-drop-icon"><CloudUpload size={28} /></span>
                   <p className="add-panel-upload-drop-text">拖拽文件到此处，或点击下方按钮</p>
-                  <p className="add-panel-upload-drop-hint">支持 PDF、图片、Office、ZIP 格式，不超过 50 MB</p>
+                  <p className="add-panel-upload-drop-hint">支持 PDF、JPG、PNG 格式，不超过 10MB（与注册材料口径一致）</p>
                   <input
                     ref={fileInputRef}
                     type="file"
                     className="sp-file-hidden"
-                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
                       e.target.value = "";
@@ -402,7 +401,7 @@ export function QualAddPanel({ onAdded, onClose }: {
                     ref={fileInputRef}
                     type="file"
                     className="sp-file-hidden"
-                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
                       e.target.value = "";
@@ -459,9 +458,11 @@ export function QualCompactCard({ q, onDelete, onQualAttach }: {
         </div>
         <div className="qc-hr">
           <span className={cn("qc-st", qualStatusInfo(q).cls)}>{qualStatusInfo(q).label}</span>
-          <button type="button" className="neu-btn-xs qc-del" onClick={() => onDelete(q.id)} title="删除">
-            <Trash2 size={14} />
-          </button>
+          {!REQUIRED_QUAL_TYPES.has(q.type) && (
+            <button type="button" className="neu-btn-xs qc-del" onClick={() => onDelete(q.id)} title="删除">
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
       <h3 className="qc-nm">{q.name}</h3>

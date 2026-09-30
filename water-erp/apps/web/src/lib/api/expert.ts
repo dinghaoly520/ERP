@@ -275,7 +275,7 @@ export interface BidProjectDetail {
   procurementMethod: string; openTime: string; deadline: string; riskNote?: string | null;
   budget?: string | number | null;
   projectManagementItemId?: string | null;
-  suppliers: { supplierId: string | null; supplierName: string; confirmStatus?: string }[];
+  suppliers: { supplierId: string | null; supplierName: string; confirmStatus?: string; submitStatus?: string }[];
   experts: { userId: string; expertName: string; major: string }[];
 }
 export function getBidProjectDetail(id: string) {

@@ -457,7 +457,7 @@ const EXPERT_SPECS: NotificationTypeSpec[] = [
 const LEGACY = (note: string): NotificationAudience[] => [{ kind: 'LEGACY', note }];
 
 const SUPPLIER_SPECS: NotificationTypeSpec[] = [
-  { code: 'SUPPLIER_PENDING', label: '供应商审批', domain: 'supplier', icon: 'UserCheck', tone: 'blue', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP }, // 2026-09-26 已实施：归属公司 leader+staff，无人回退 admin
+  { code: 'SUPPLIER_PENDING', label: '供应商审批', domain: 'supplier', icon: 'UserCheck', tone: 'blue', actionable: true, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP }, // 三级逐级流转（2026-09-30）：实际投递按 notifyStageApprovers 逐级（staff→leader→admin），audience 为类型快照；入口=窗口式审批中心
   { code: 'SUPPLIER_APPROVED', label: '供应商入库', domain: 'supplier', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_REJECTED', label: '供应商驳回', domain: 'supplier', icon: 'XCircle', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_RETURNED', label: '退回补正', domain: 'supplier', icon: 'RotateCcw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },

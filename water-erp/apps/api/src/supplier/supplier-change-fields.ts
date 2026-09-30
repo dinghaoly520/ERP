@@ -12,6 +12,9 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
   'name',
   'enterpriseType',
   'legalPerson',
+  // B2-4（2026-09-30）：法人身份证号随姓名可变更（注册必传字段；姓名可改而证件号
+  // 永不可改会导致改名后证件与姓名失配）
+  'legalPersonIdCard',
   'registeredAddress',
   'businessScope',
   'tags',

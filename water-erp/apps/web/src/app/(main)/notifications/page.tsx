@@ -13,9 +13,8 @@ import {
   fetchPendingProfileChanges, approveProfileChange, rejectProfileChange,
   fetchPendingRegistrations, approveRegistration, rejectRegistration,
 } from '@/lib/api/auth';
-import { getSupplier, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
+import { getSupplier, getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
-import type { Supplier } from '@/lib/types';
 import {
   Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen,
   RefreshCw, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
@@ -193,9 +192,28 @@ export default function NotificationsPage() {
     setItems(xs => xs.map(x => (x.id === id ? { ...x, isRead: true, readAt: new Date().toISOString() } : x)));
   };
 
+  /** 从通知 link 解析 supplierId（新 link=/supplier/approval?supplierId=…，2026-09-30） */
+  const supplierIdFromLink = (link?: string | null): string | null => {
+    if (!link) return null;
+    const m = link.match(/supplierId=([A-Za-z0-9_-]+)/);
+    return m ? m[1] : null;
+  };
+  const openReviewCenter = (n: NotificationItem) => {
+    const sid = supplierIdFromLink(n.link);
+    window.dispatchEvent(new CustomEvent('open-review-center', { detail: { supplierId: sid ?? undefined } }));
+  };
+
   const handleRowClick = (n: NotificationItem) => {
-    if (itemState(n) === 'todo') setHandleItem(n);
-    else openDetail(n);
+    if (itemState(n) === 'todo') {
+      // 供应商审批（三级）已收敛到窗口式审批中心（2026-09-30）：直达审批中心窗口，
+      // 不再内嵌简化审批（与审批中心双入口曾导致无级过滤、缺缘由/stepper 的不一致）。
+      if (n.type === 'SUPPLIER_PENDING') {
+        void markNotificationRead(n.id).catch(() => {});
+        openReviewCenter(n);
+        return;
+      }
+      setHandleItem(n);
+    } else openDetail(n);
   };
 
   /* ════════════ 渲染 ════════════ */
@@ -282,7 +300,12 @@ export default function NotificationsPage() {
                     <td style={{ textAlign: 'center' }}><StateChip state={st} /></td>
                     <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
                       {st === 'todo' ? (
-                        <button className="neu-btn-xs" onClick={() => setHandleItem(n)}>处理</button>
+                        <button className="neu-btn-xs" onClick={() => {
+                          if (n.type === 'SUPPLIER_PENDING') {
+                            void markNotificationRead(n.id).catch(() => {});
+                            openReviewCenter(n);
+                          } else setHandleItem(n);
+                        }}>处理</button>
                       ) : (
                         <button className="neu-btn-xs" onClick={() => openDetail(n)}>查看</button>
                       )}
@@ -420,7 +443,7 @@ function ViewBody({ n, acts }: { n: NotificationItem; acts: AuditActivity[] }) {
 }
 
 /* ════════════ 处理窗：窗内直接处理（审批类通过/拒绝+原因必填；反馈类底部跳转） ════════════ */
-type PendingRow = { id: string; title: string; sub: string };
+type PendingRow = { id: string; title: string; sub: string; stage?: string }; // stage=供应商三级审批当前级（R6-2）
 
 function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClose: () => void; onDone: () => void }) {
   const router = useRouter();
@@ -431,8 +454,14 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
 
   const supplierId = useMemo(() => {
     const m = /\/supplier\/([^/?]+)/.exec(item.link ?? '');
-    return m?.[1] ?? null;
+    const seg = m?.[1] ?? null;
+    // R6-2（2026-09-30 审计 B-2）：三级审批新政后注册通知 link=/supplier/approval（无 id），
+    // 'approval' 被当供应商 id 直查必败、伪装"已被其他审批人处理"。识别非 id 段 → 列表模式。
+    if (!seg || seg === 'approval' || seg === 'repository') return null;
+    return seg;
   }, [item.link]);
+  // 三级审批级名（与审批中心同口径）
+  const STAGE_LABEL: Record<string, string> = { STAFF: '初审', LEADER: '复审', ADMIN: '终审' };
   // 通知 link 携带的业务 id——用于在待处理列表中直达本条：
   // 资料变更带 requestId（password-requests.service）；注册待审带 userId
   // （auth.service，PendingRegistration.id 即 userId）——只解析 requestId 会漏注册分支（三审 P1）
@@ -440,7 +469,7 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
     const q = item.link?.split('?')[1];
     if (!q) return null;
     const params = new URLSearchParams(q);
-    return params.get('requestId') ?? params.get('userId');
+    return params.get('requestId') ?? params.get('userId') ?? params.get('supplierId'); // R6 终审 P2-2：供应商注册通知 link 带 supplierId
   }, [item.link]);
 
   const isApproval = ['PROFILE_CHANGE_PENDING', 'USER_REGISTRATION_PENDING', 'SUPPLIER_PENDING'].includes(item.type);
@@ -467,18 +496,27 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
         title: `${r.displayName ?? r.username}${r.company ? `（${r.company}）` : ''}`,
         sub: '申请管理端账号',
       })))).catch(() => setter([]));
+    } else if (item.type === 'SUPPLIER_PENDING') {
+      // 无直达 id（新政 link=/supplier/approval 或旧 link=/supplier）→ 在审供应商列表
+      getSupplierList({ status: 'PENDING', page: 1, pageSize: 20 }).then(rs => setter((rs.items as any[]).map(r => ({
+        id: r.id,
+        title: r.name,
+        sub: `${r.creditCode ?? '—'} · 当前级：${STAGE_LABEL[(r as any).reviewStage] ?? '初审'}`,
+        stage: (r as any).reviewStage ?? 'STAFF',
+      })))).catch(() => setter([]));
     } else if (supplierId) {
       getSupplier(supplierId).then(s => setter([{
         id: supplierId,
         title: s.name,
         sub: `信用代码 ${s.creditCode ?? '—'} · ${s.legalPerson ?? '—'} · 注册于 ${new Date(s.createdAt).toLocaleDateString('zh-CN')}`,
+        stage: (s as any).reviewStage ?? 'STAFF',
       }])).catch(() => setter([]));
     } else setter([]);
   }, [item.type, supplierId, linkRequestId]);
 
   const act = async (fn: () => Promise<unknown>, okMsg: string) => {
     setBusy(true);
-    try { await fn(); toast.success(okMsg); onDone(); }
+    try { await fn(); if (okMsg) toast.success(okMsg); onDone(); } // 空消息=fn 内已按结果区分 toast
     catch (e: any) { toast.error(e?.message ?? '操作失败'); }
     setBusy(false);
   };
@@ -489,7 +527,21 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
     if (!cur) return;
     if (item.type === 'PROFILE_CHANGE_PENDING') return void act(() => approveProfileChange(cur.id), '已通过');
     if (item.type === 'USER_REGISTRATION_PENDING') return void act(() => approveRegistration(cur.id), '已通过');
-    return void act(() => approveSupplier(cur.id), '已通过入库');
+    // R6-2：三级审批——staff/leader 级通过须填同意缘由（后端 REVIEW_REASON_REQUIRED），
+    // admin 终审可选；文案按后端返回 stage 区分"入库"与"流转下一级"
+    const stage = (cur as any).stage as string | undefined;
+    if (isSupplier && stage !== 'ADMIN' && !reason.trim()) { toast.error('请填写同意缘由（后级审批人将据此复核）'); return; }
+    return void act(
+      () => approveSupplier(cur.id, reason.trim() || undefined).then(res => {
+        // R7 终检：消息统一在此按流转结果区分（此前非终审会弹两条矛盾 toast——
+        // fn 内"流转至下一级"+act 固定"三级全部通过"）
+        toast.success(res?.stage === 'DONE'
+          ? '三级审核全部通过，已正式入库'
+          : `已通过${STAGE_LABEL[stage ?? 'STAFF'] ?? '本级'}，流转至${STAGE_LABEL[res?.stage ?? ''] ?? '下一级'}`);
+        return res;
+      }),
+      '',
+    );
   };
   const doReject = () => {
     if (!cur) return;
@@ -516,6 +568,7 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
               {isSupplier && <button className="neu-btn-soft" disabled={busy || !cur} onClick={doReturn}><RotateCcw size={14} /> 退回补正</button>}
               <button className="neu-btn-soft is-danger" disabled={busy || !cur} onClick={doReject}><XCircle size={14} /> 拒绝</button>
               <button className="neu-btn-soft is-success !h-[38px]" disabled={busy || !cur} onClick={doApprove}><CheckCircle2 size={14} /> 通过</button>
+              {item.link && <button className="neu-btn-soft !h-[38px]" onClick={() => { onClose(); router.push(item.link!); }}>前往审批中心</button>}
             </>
           ) : (
             <>
@@ -547,7 +600,7 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
                 ))}
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-bold text-[var(--muted-foreground)]">审批原因（拒绝{isSupplier ? ' / 退回' : ''}时必填）</label>
+                <label className="mb-1 block text-[11px] font-bold text-[var(--muted-foreground)]">审批原因（拒绝{isSupplier ? ' / 退回 / 非终审通过' : ''}时必填）</label>
                 <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="填写原因…" className="neu-input w-full !text-xs" />
               </div>
             </>

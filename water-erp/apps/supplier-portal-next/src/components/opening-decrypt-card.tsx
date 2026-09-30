@@ -15,6 +15,7 @@ import { sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson, type UKeyAdapter, 
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import { getOpeningPackage, decryptUpload, reuploadDual, type OpeningPackage } from "@/lib/api/opening-package";
+import { authedHeaders } from "@/lib/authed-file";
 import { formatOpeningAmount } from "@/lib/opening-fields";
 import { hexToUtf8, bytesToHex, hexToBytes, reencryptDualFile, type AdminCertRef } from "@/utils/dual-envelope-core";
 import { supplierApi } from "@/lib/api/supplier";
@@ -84,7 +85,9 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
       results[f.role] = "pending";
       setSealResults({ ...results });
       try {
-        const res = await fetch(f.downloadUrl, { credentials: "include" });
+        // B1-2（2026-09-30）：C_inner 密文下载带本 tab token——cookie 被他 tab 登录覆盖后
+        // 裸 cookie 会 403/串主体，密封核验误判 unavailable
+        const res = await fetch(f.downloadUrl, { credentials: "include", headers: authedHeaders() });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const bytes = new Uint8Array(await res.arrayBuffer());
         const digest = await sha256Hex(bytes);
@@ -186,7 +189,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
         const cached = cachedInnerRef.current[f.role];
         let bytes: Uint8Array | null = cached && cached.assetId === f.assetId ? cached.bytes : null;
         if (!bytes) {
-          const res = await fetch(f.downloadUrl, { credentials: "include" });
+          const res = await fetch(f.downloadUrl, { credentials: "include", headers: authedHeaders() });
           if (!res.ok) throw new Error(`解密包下载失败（HTTP ${res.status}）`);
           bytes = new Uint8Array(await res.arrayBuffer());
         }
@@ -398,6 +401,9 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
                 <SpButton variant="primary" loading={decrypting} disabled={sealChecking || !!pkg.paused || Object.values(sealResults).includes("fail")} onClick={handleDecryptUpload}>
                   {decrypting ? (decryptStage || "解密中…") : "U盾解密并上传"}
                 </SpButton>
+                {Object.values(sealResults).includes("fail") && (
+                  <p className="text-xs mt-1.5 text-[var(--danger)]">存在密封不符的文件，已禁用解密——请先联系主持人处理</p>
+                )}
               </div>
             </>
           )}

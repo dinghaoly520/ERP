@@ -1,5 +1,6 @@
 import { api } from "../api";
 import { UPLOAD_BASE } from "./upload";
+import { getSupplierToken } from "../session-store";
 
 /* ═══ 双信封 v2 供应商解密包（T17，§5.3）═══
    - GET opening-package：C_inner 下载凭证 + kselfByRole + sealedFields + 窗口状态。
@@ -22,6 +23,16 @@ async function throwIfNotOk(res: Response, fallback: string): Promise<void> {
   err.status = res.status;
   err.data = body;
   throw err;
+}
+
+/** multipart 直连 fetch 的公共头（2026-09-30 第二轮审计 B1-1）：开标解密上传/补传是
+ *  投标关键写操作，仅凭 cookie 会在同浏览器他 tab 登录（cookie 被覆盖）后以他人身份
+ *  发出——带上本 tab 的 X-Supplier-Token；无 token（无头客户端）回退 cookie。 */
+function supplierHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "X-Portal": "supplier" };
+  const tabToken = getSupplierToken();
+  if (tabToken) headers["X-Supplier-Token"] = tabToken;
+  return headers;
 }
 
 export interface OpeningPackageFile {
@@ -55,7 +66,7 @@ export async function decryptUpload(projectId: string, form: FormData): Promise<
   const res = await fetch(`${UPLOAD_BASE}/supplier-portal/bid-submissions/${projectId}/decrypt-upload`, {
     method: "POST",
     credentials: "include",
-    headers: { "X-Portal": "supplier" },
+    headers: supplierHeaders(),
     body: form,
   });
   await throwIfNotOk(res, "解密上传失败");
@@ -69,7 +80,7 @@ export async function reuploadDual(projectId: string, form: FormData): Promise<u
   const res = await fetch(`${UPLOAD_BASE}/supplier-portal/bid-submissions/${projectId}/reupload-dual`, {
     method: "POST",
     credentials: "include",
-    headers: { "X-Portal": "supplier" },
+    headers: supplierHeaders(),
     body: form,
   });
   await throwIfNotOk(res, "重新密封补传失败");

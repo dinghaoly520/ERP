@@ -10,12 +10,18 @@ import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import "@/styles/pages/announcements.css";
 
+// B4-4（2026-09-30）：与列表页 typeTagMap 全量对齐——此前缺 PREQUAL_NOTICE（详情徽标渲染
+// 英文枚举）且 ADDENDUM/CONTRACT_NOTICE/PERFORMANCE_NOTICE 无配色（降级 info，与列表不一致）
 const typeLabel: Record<string, string> = {
-  BID_NOTICE: "采购公告", ADDENDUM: "补遗公告", PRE_WIN_NOTICE: "中标公告", WIN_NOTICE: "成交公告",
+  BID_NOTICE: "采购公告", ADDENDUM: "补遗公告", PREQUAL_NOTICE: "资格预审公告", PRE_WIN_NOTICE: "中标公告", WIN_NOTICE: "成交公告",
   CONTRACT_NOTICE: "合同公告", PERFORMANCE_NOTICE: "履行结果公告", POLICY: "政策法规", PLATFORM: "平台通知",
   FAILED_BID_NOTICE: "流标公告", WIN_BID_NOTICE: "中标公告",
 };
-const typeTagType: Record<string, string> = { BID_NOTICE: "primary", PRE_WIN_NOTICE: "success", WIN_NOTICE: "success", POLICY: "warning", PLATFORM: "info", FAILED_BID_NOTICE: "warning", WIN_BID_NOTICE: "success" };
+const typeTagType: Record<string, string> = {
+  BID_NOTICE: "primary", ADDENDUM: "warning", PREQUAL_NOTICE: "primary", PRE_WIN_NOTICE: "success", WIN_NOTICE: "success",
+  CONTRACT_NOTICE: "primary", PERFORMANCE_NOTICE: "success", POLICY: "warning", PLATFORM: "info",
+  FAILED_BID_NOTICE: "warning", WIN_BID_NOTICE: "success",
+};
 
 // ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）──
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
@@ -68,7 +74,10 @@ function metaLabelColor(f: MetaField): string {
   return "var(--muted-foreground)";
 }
 function scopeHint(scope: string): string {
-  if (scope === "DESIGNATED") return "仅指定供应商可下载";
+  // B4-4（2026-09-30）：DESIGNATED+密码下载链路前后端均为半成品（详情页无密码 UI、后端无
+  // eligible 分支，一旦出现该类文档恒「未知访问模式」且不可下载）——文案改为线下发放指引，
+  // 待链路补全（前端密码框 + checkEligibility 分支）后再恢复在线口径
+  if (scope === "DESIGNATED") return "指定供应商专供：请通过采购中心线下渠道获取文件";
   if (scope === "INVITED") return "仅受邀供应商可下载";
   return "全库供应商可下载";
 }

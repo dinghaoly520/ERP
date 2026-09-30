@@ -461,10 +461,10 @@ export function WorkArrangementsPageChairman({
       <div className="relative flex min-h-0 gap-4 items-start">
         <div className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:block" aria-hidden />
         <div className="absolute left-0 top-0 bottom-0 w-[calc(40%-0.5rem)] hidden xl:block">
-          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
+          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
         </div>
         <div className="w-full xl:hidden">
-          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
+          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-4">
           <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} />
@@ -498,7 +498,7 @@ export function WorkArrangementsPageChairman({
         selectedItemTitle={selectedItem?.title ?? null}
         editor={editor}
         projects={projects}
-        availableDependencies={allItems}
+        availableDependencies={allItems.filter((i: any) => i.id !== selectedItemId)}
         onClose={() => { setCreating(false); setShowFullEditor(false); }}
         onSave={() => void handleSave()}
         onDelete={() => void handleDelete()}

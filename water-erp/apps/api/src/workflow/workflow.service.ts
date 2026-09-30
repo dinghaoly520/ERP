@@ -6,7 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
  * 各审批源实现保持原样（延续账号管理「三合一」先例），本服务只做统一出参与排序。
  *
  * 源清单（deepLink 指向既有处理页）：
- * - supplier_registration 供应商注册审核（admin）      → /admin/accounts
+ * - supplier_registration 供应商注册审核（admin 终审级） → /supplier/approval
+ * - internal_registration 管理端账号注册审核（admin）    → /admin/accounts?tab=registration
  * - password_change     修改密码申请（admin）           → /admin/accounts
  * - password_reset      忘记密码重置（admin）           → /admin/accounts
  * - profile_change      资料变更申请（admin）           → /admin/accounts
@@ -16,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export type WorkflowSource =
   | 'supplier_registration'
+  | 'internal_registration'
   | 'password_change'
   | 'password_reset'
   | 'profile_change'
@@ -73,11 +75,29 @@ export class WorkflowService {
         }),
       ]);
 
+      // R6-3（2026-09-30 审计 A1）：deepLink 原指 /admin/accounts——该页注册审核 tab 审的是
+      // 管理端账号（internal_user），供应商项在彼处不存在，点进死胡同；正确目标为审批中心。
       for (const s of regs) {
         items.push({
           source: 'supplier_registration', sourceId: s.id, category: '注册审核',
           title: `供应商注册：${s.name}`, applicant: s.name,
-          submittedAt: s.createdAt, deepLink: '/admin/accounts', status: 'PENDING',
+          submittedAt: s.createdAt, deepLink: '/supplier/approval', status: 'PENDING',
+        });
+      }
+      // 管理端账号注册（internal_user 待激活）——done() 消费 RegistrationReview 却无对应
+      // 待办源（待办不进箱、已办一直在），与通知中心 USER_REGISTRATION_PENDING 三处口径打架
+      const pendingInternalRegs = await this.prisma.user.findMany({
+        where: { role: 'internal_user', isActive: false },
+        select: { id: true, username: true, displayName: true, createdAt: true },
+        orderBy: { createdAt: 'desc' }, take: 50,
+      });
+      for (const u of pendingInternalRegs) {
+        items.push({
+          source: 'internal_registration', sourceId: u.id, category: '注册审核',
+          title: `账号注册：${u.displayName ?? u.username}`, applicant: u.displayName ?? u.username,
+          submittedAt: u.createdAt,
+          deepLink: `/admin/accounts?tab=registration&userId=${u.id}`,
+          status: 'PENDING',
         });
       }
       for (const r of pwChanges) {
@@ -204,9 +224,9 @@ export class WorkflowService {
     const items: WorkflowItem[] = [];
     for (const r of regReviews) {
       items.push({
-        source: 'supplier_registration', sourceId: r.id, category: '注册审核',
+        source: 'internal_registration', sourceId: r.id, category: '注册审核',
         title: `注册审核：${r.displayName ?? r.username}`, applicant: r.displayName ?? r.username,
-        submittedAt: r.reviewedAt ?? r.createdAt, deepLink: '/admin/accounts', status: r.decision,
+        submittedAt: r.reviewedAt ?? r.createdAt, deepLink: '/admin/accounts?tab=registration', status: r.decision,
       });
     }
     for (const r of pwChanges) {

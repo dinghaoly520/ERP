@@ -142,6 +142,7 @@ export class PasswordRequestsService {
         passwordHash: req.requestedPasswordHash,
         // 旧申请（无副本字段）不清空已有 vault；审批通过后保持「最新版可查看」
         ...(req.requestedPasswordVault ? { passwordVault: req.requestedPasswordVault } : {}),
+        passwordChangedAt: new Date(), // R6 终审 P1-1：改密审批通过也须落戳（漏此路径 token_bid 旧会话残留 7 天）
         webSessionId: null,
         sessionMeta: Prisma.DbNull,
       },
@@ -227,6 +228,7 @@ export class PasswordRequestsService {
       data: {
         passwordHash: req.requestedPasswordHash,
         ...(req.requestedPasswordVault ? { passwordVault: req.requestedPasswordVault } : {}),
+        passwordChangedAt: new Date(), // R6-5①：全命名空间旧 token 立即失效
         webSessionId: null,
         sessionMeta: Prisma.DbNull,
       },

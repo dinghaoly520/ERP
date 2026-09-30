@@ -54,6 +54,7 @@ model User {
   companyRef     Company?    @relation(fields: [companyId], references: [id])
   avatar         String?
   passwordHash   String?
+  passwordChangedAt DateTime? // 密码变更时点（R6-5①）：AuthGuard 校验 JWT iat 早于它即 401——重置/改密后全命名空间旧 token 立即失效（token_bid 无 sid 此前不拦，UI 承诺与实现不符）
   passwordVault  String? // 2026-09-14 admin 密码查看：AES-256-GCM 加密副本（仅供应商账号，改密同步更新；工作人员密码仍仅 bcrypt 哈希）
   role           String      @default("internal_user")
   isActive       Boolean     @default(true)
@@ -1430,6 +1431,7 @@ model Supplier {
 
   @@index([status])
   @@index([creditCode])
+  @@index([reviewStage]) // 对账 2026-09-30：dev 库已有此索引（db push 产物）但 schema 未声明——收编
 }
 
 // ── 供应商审核历史（不可变留痕）──
@@ -1441,6 +1443,9 @@ model SupplierApprovalRecord {
   stage          String? // 三级审批发生级（2026-09-29）：STAFF/LEADER/ADMIN；null=旧数据或非分级动作
   reviewerUserId String? // 验证/审核人员
   reason         String? // 同意/拒绝/退回的理由
+  // 审核意见附件（2026-09-30）：该级审批人随意见上传的佐证材料（FileAsset id 集合），
+  // 详情/历史留痕页展示下载链接
+  attachmentIds  String[] @default([])
   snapshot       Json // 审核时点申请完整信息快照（企业/法人/联系人/资质等）
   createdAt      DateTime @default(now())
 

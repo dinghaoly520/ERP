@@ -93,13 +93,15 @@ export function fetchAnnouncementCompanyCounts(params?: { type?: string; status?
   return api.get<Array<{ name: string; count: number }>>(`/announcements/company-counts?${q.toString()}`);
 }
 
-export function listAnnouncements(params?: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; companyId?: string }) {
+export function listAnnouncements(params?: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc'; companyId?: string }) {
   const q = new URLSearchParams();
   if (params?.type) q.set('type', params.type);
   if (params?.status) q.set('status', params.status);
   if (params?.search) q.set('search', params.search);
   if (params?.page) q.set('page', String(params.page));
   if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+  if (params?.sortBy) q.set('sortBy', params.sortBy);
+  if (params?.sortOrder) q.set('sortOrder', params.sortOrder);
   if (params?.companyId && params.companyId !== 'all') q.set('companyId', params.companyId);
   return api.get<AnnouncementListResponse>(`/announcements?${q.toString()}`);
 }

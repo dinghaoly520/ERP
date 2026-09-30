@@ -150,6 +150,21 @@ export function TabWorkPortrait() {
         </>
       )}
 
+      {/* ══ 画像指标（R7-1⑩：此前仅 peakDay 脚注，其余四项丢弃） ══ */}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { label: '审批总数', value: metrics.totalApprovals ?? 0 },
+          { label: '平均响应(时)', value: metrics.avgResponseHours != null ? Number(metrics.avgResponseHours).toFixed(1) : '—' },
+          { label: '连续完成(天)', value: metrics.completionStreak ?? 0 },
+          { label: '高峰时段', value: metrics.peakPeriod || '—' },
+        ].map((m) => (
+          <div key={m.label} className="kpi-card flex flex-col gap-1 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{m.label}</span>
+            <span className="text-[1.15rem] font-black tabular-nums text-[var(--foreground)]">{m.value}</span>
+          </div>
+        ))}
+      </div>
+
       {/* ══ 高峰日脚注 ══ */}
       {metrics.peakDay && (
         <div className="mt-4 flex items-center gap-1.5 text-[10px] text-[color:var(--muted-foreground)]">

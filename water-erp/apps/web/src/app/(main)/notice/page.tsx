@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { useRouter } from 'next/navigation';
@@ -89,6 +89,7 @@ export default function NoticePage() {
   const [data, setData] = useState<{ total: number; items: AnnouncementListItem[] }>({ total: 0, items: [] });
   const [stats, setStats] = useState<{ drafts: number; published: number; publishedThisMonth: number; totalViews: number }>({ drafts: 0, published: 0, publishedThisMonth: 0, totalViews: 0 });
   const [loading, setLoading] = useState(true);
+  const loadReqIdRef = useRef(0);
   const [filterType, setFilterType] = useState<string>('BID_NOTICE');
   const [filterStatus, setFilterStatus] = useState<AnnouncementStatus | ''>('');
   const [search, setSearch] = useState('');
@@ -108,15 +109,17 @@ export default function NoticePage() {
   const selectedCompanyName = useCompanyName(companyId);
 
   const load = useCallback(async () => {
+    const rid = ++loadReqIdRef.current; // R7-4② 请求序守卫（快速切筛选/排序/翻页丢过期响应）
     setLoading(true);
     try {
-      const res = await listAnnouncements({ type: filterType === 'ALL' ? undefined : filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId });
+      const res = await listAnnouncements({ type: filterType === 'ALL' ? undefined : filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId, sortBy: sortKey ?? undefined, sortOrder: sortKey ? sortDir : undefined });
+      if (rid !== loadReqIdRef.current) return;
       setData({ total: res.total, items: res.items });
-    } catch { /* empty */ }
+    } catch (e: any) { if (rid === loadReqIdRef.current) toast.error(e?.message || '公告列表加载失败'); } // R7-3⑥：接口挂不再伪装成空态
     // KPI 全量口径与列表并行拉取，失败保持上次值（不阻塞列表）
     getAnnouncementStats(companyId).then(setStats).catch(() => {});
     setLoading(false);
-  }, [filterType, filterStatus, search, page, companyId]);
+  }, [filterType, filterStatus, search, page, sortKey, sortDir, companyId]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   useEffect(() => { void fetchCurrentUser().then(u => setIsAdmin(u.role === 'admin')).catch(() => setIsAdmin(false)); }, []);
   // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径
@@ -130,25 +133,14 @@ export default function NoticePage() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / 15));
 
-  const sortedItems = useMemo(() => {
-    if (!sortKey) return data.items;
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...data.items].sort((a, b) => {
-      let av: string | number = '', bv: string | number = '';
-      if (sortKey === 'viewCount') { av = a.viewCount; bv = b.viewCount; }
-      else if (sortKey === 'publishDate') { av = a.publishDate || a.createdAt; bv = b.publishDate || b.createdAt; }
-      else if (sortKey === 'type') { av = a.type; bv = b.type; }
-      else if (sortKey === 'status') { av = a.status; bv = b.status; }
-      if (av < bv) return -1 * dir;
-      if (av > bv) return 1 * dir;
-      return 0;
-    });
-  }, [data.items, sortKey, sortDir]);
+  // R7-3：排序下沉服务端——此前对当前页 15 条客户端排序，跨页结果错误且表头暗示全局语义
+  const sortedItems = data.items;
 
   const toggleSort = (key: SortKey) => {
     if (sortKey !== key) { setSortKey(key); setSortDir('desc'); }
     else if (sortDir === 'desc') setSortDir('asc');
     else { setSortKey(null); setSortDir('desc'); }
+    setPage(1); // 服务端排序：换序回第 1 页
   };
 
   const selectableIds = sortedItems.map(i => i.id);
@@ -275,6 +267,19 @@ export default function NoticePage() {
     const label = action === 'publish' ? '发布' : action === 'hide' ? '隐藏' : '下架';
     // v2（2026-09-26）：下架/隐藏对任意状态可用；旧「下线（→ARCHIVED 结束公示）」动作移除——公示期满自动显示已下线
     const target = Array.from(selectedIds);
+    // R6-5③（2026-09-30 审计 #12）：批量发布补确认（最重的动作此前唯一无确认）+
+    // RESTRICTED 空供应商名单拦截（单条新建页有校验、批量路径没有——可发出无人可见的公告）
+    if (action === 'publish') {
+      const badRestricted = data.items
+        .filter(i => target.includes(i.id) && (i.metadata as any)?.visibility === 'RESTRICTED'
+          && (!Array.isArray((i.metadata as any)?.restrictedSupplierIds) || (i.metadata as any).restrictedSupplierIds.length === 0))
+        .map(i => i.title);
+      if (badRestricted.length > 0) {
+        toast.error(`以下公告为「部分供应商可见」但未选择任何供应商，无法发布：${badRestricted.slice(0, 3).join('、')}${badRestricted.length > 3 ? ' 等' : ''}`);
+        return;
+      }
+      if (!(await confirm({ message: `确认发布选中的 ${target.length} 条信息？发布后立即对供应商门户可见。` }))) return;
+    }
     if (action !== 'publish' && !(await confirm({ message: action === 'offline'
       ? `确认下架选中的 ${target.length} 条信息？下架后进入回收站且不可恢复。`
       : `确认隐藏选中的 ${target.length} 条信息？操作后进入回收站，可在回收站中恢复。`, danger: action === 'offline' }))) return;
@@ -519,7 +524,14 @@ function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
 function ParticipantsModal({ announcement, onClose }: { announcement: AnnouncementListItem; onClose: () => void }) {
   const [result, setResult] = useState<ParticipantsResult | null>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { getParticipants(announcement.id).then(setResult).catch(() => setResult(null)).finally(() => setLoading(false)); }, [announcement.id]);
+  const loadReqIdRef = useRef(0); // R7 终审：接上守卫（此前声明未用）
+  useEffect(() => {
+    const rid = ++loadReqIdRef.current;
+    getParticipants(announcement.id)
+      .then(r => { if (rid === loadReqIdRef.current) setResult(r); })
+      .catch(() => { if (rid === loadReqIdRef.current) setResult(null); })
+      .finally(() => { if (rid === loadReqIdRef.current) setLoading(false); });
+  }, [announcement.id]);
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
   const downloadCount = result?.suppliers.filter(s => s.downloadCount > 0).length ?? 0;
 

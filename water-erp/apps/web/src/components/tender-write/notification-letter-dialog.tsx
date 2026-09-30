@@ -15,6 +15,7 @@ import {
   Send,
   CheckCircle2,
   Clock,
+  Info,
 } from "lucide-react";
 import type { ReadyTenderDraft, ReadyTenderDocumentType } from "@/lib/types/tender-write";
 import { Modal } from "@/components/workbench";
@@ -202,7 +203,11 @@ export function NotificationLetterDialog({
   }, [step, project]);
 
   const handlePublish = async () => {
-    if (!project?.id) return;
+    // R6-8①（2026-09-30 审计①）：独立页无项目上下文——此前静默 return（按钮点了无反应）
+    if (!project?.id) {
+      setPublishError('当前为独立编制入口，未关联项目。中标通知书请从项目「定标」步骤发起，以自动回填项目信息与公示状态。');
+      return;
+    }
     setPublishing(true);
     setPublishError(null);
     try {
@@ -232,7 +237,8 @@ export function NotificationLetterDialog({
           ...(draft.winnerPrice ? { winnerPrice: draft.winnerPrice } : {}),
         },
       });
-      // 4. 台账留档（非关键，失败不阻塞）
+      // 4. 台账导出留档（R6-8②：后端仅内存加工模板返回下载流、不回写——此前此处
+      // 连返回的 blob 都丢弃，是纯浪费调用且"写入台账"承诺失实；真持久化待产品拍板后做）
       try { await exportNotificationLedger(draft); } catch {}
       onPublished?.();
       onClose();
@@ -388,6 +394,13 @@ export function NotificationLetterDialog({
   ];
 
   const filledCount = fields.filter((f) => draft[f.key]?.trim()).length;
+  // R6 终审 P2-7：无项目上下文时打开即提示（此前只在 publish 步按钮拦截，前期产出白做）
+  const noProjectBanner = !project?.id ? (
+    <div className="mb-3 flex items-start gap-2 rounded-lg bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-2 text-xs text-[var(--warning)]">
+      <Info size={13} className="mt-0.5 shrink-0" />
+      <span>当前为独立编制入口，未关联项目：可完成起草与导出留档，但公示状态查询与正式发布需从项目「定标」步骤发起。</span>
+    </div>
+  ) : null;
 
   const commonInputClass =
     "mt-2 w-full rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]";
@@ -404,6 +417,7 @@ export function NotificationLetterDialog({
         footer={
           step === "publish" ? (
             <>
+        {noProjectBanner}
               <button
                 type="button"
                 onClick={() => { setStep("edit"); setPublishError(null); }}
@@ -467,8 +481,8 @@ export function NotificationLetterDialog({
               <button
                 type="button"
                 onClick={() => { setStep("publish"); setPublishError(null); }}
-                disabled={!draft.winnerName?.trim()}
-                title={!draft.winnerName?.trim() ? '请先填写中标单位名称' : undefined}
+                disabled={!draft.winnerName?.trim() || !project?.id}
+                title={!draft.winnerName?.trim() ? '请先填写中标单位名称' : !project?.id ? '独立编制入口未关联项目，请从项目定标步骤发起' : undefined}
                 className="tender-btn tender-btn--export disabled:cursor-not-allowed"
               >
                 <span className="tb-icon tb-anim-bob">
@@ -565,8 +579,11 @@ export function NotificationLetterDialog({
                   <span className="text-xs font-bold text-[color:var(--muted-foreground)] uppercase tracking-[0.1em]">公示期状态</span>
                 </div>
                 {publicity === null ? (
+                  // R6-8①：无项目时显式空态，不再永久转圈（project 缺失时 effect 恒 return）
                   <div className="mt-2 flex items-center gap-2 text-sm text-[color:var(--muted-foreground)]">
-                    <Loader2 size={13} className="animate-spin" /> 正在查询公示状态…
+                    {!project?.id
+                      ? <><Info size={13} /> 独立编制入口未关联项目，无法查询公示状态</>
+                      : <><Loader2 size={13} className="animate-spin" /> 正在查询公示状态…</>}
                   </div>
                 ) : publicity.canIssueAward ? (
                   <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--success)]">

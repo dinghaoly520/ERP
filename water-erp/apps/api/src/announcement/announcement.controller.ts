@@ -83,12 +83,14 @@ export class AnnouncementController {
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
     @Request() req?: any,
   ) {
     const scope = await this.companyScope.resolveScope(req?.user, companyId);
     return this.announcementService.list(
-      { type, status, search, page, pageSize },
+      { type, status, search, page, pageSize, sortBy, sortOrder },
       this.companyScope.filter(scope),
     );
   }
@@ -134,7 +136,10 @@ export class AnnouncementController {
   @Get(':id/attachments')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '公告附件列表' })
-  async listAttachments(@Param('id') id: string) {
+  async listAttachments(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
+    // R6-5②（2026-09-30 审计 #13）：附件族唯一漏调越权校验的端点——他公司可枚举
+    // 任意公告附件元数据（文件名/大小），破坏既定公司隔离；与 add/remove 同口径补齐
+    await this.assertAnnouncementScope(id, user);
     return this.attachmentService.list(id);
   }
 

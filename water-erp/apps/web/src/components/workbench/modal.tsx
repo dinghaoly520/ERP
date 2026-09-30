@@ -17,6 +17,8 @@ type ModalProps = {
   size?: ModalSize;
   closeOnBackdrop?: boolean;
   closeOnEsc?: boolean;
+  /** 标题栏右侧附加（渲染在关闭按钮左侧，如「审核历史」按钮） */
+  headerExtra?: React.ReactNode;
   /** Extra classes on the dialog surface (rarely needed). */
   className?: string;
 };
@@ -35,6 +37,7 @@ export function Modal({
   closeOnBackdrop = true,
   closeOnEsc = true,
   className = '',
+  headerExtra,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
@@ -63,6 +66,10 @@ export function Modal({
   const onKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (closeOnEsc && e.key === 'Escape') {
+        // 嵌套 Modal（如审批窗口内再开审核历史）：ESC 只关闭最顶层 dialog——
+        // 否则同挂 document 的多个监听器会连锁关闭底层窗口（实测 dialog 2→0）。
+        const dialogs = document.querySelectorAll('[role="dialog"]');
+        if (dialogs.length > 0 && dialogs[dialogs.length - 1] !== dialogRef.current) return;
         e.stopPropagation();
         onClose();
         return;
@@ -134,9 +141,12 @@ export function Modal({
               </p>
             )}
           </div>
-          <button onClick={onClose} className="neu-btn-xs" aria-label="关闭">
-            <X size={16} />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {headerExtra}
+            <button onClick={onClose} className="neu-btn-xs" aria-label="关闭">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* 内容区 — 仅此处滚动 */}

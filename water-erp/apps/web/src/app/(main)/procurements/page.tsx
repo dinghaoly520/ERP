@@ -62,6 +62,7 @@ import { Modal } from "@/components/workbench";
 import { useConfirm } from "@/components/workbench/use-confirm";
 import { apiFetch } from '@/lib/api/api-fetch';
 import { formatWan } from '@/lib/format';
+import { toast } from "sonner";
 
 // Animation Utilities
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -1117,6 +1118,7 @@ export default function ProcurementsPage() {
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<ProcurementRoundItem[]>([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 12, total: 0, totalPages: 0 });
+  const loadReqIdRef = useRef(0);
   const [abnormalTotal, setAbnormalTotal] = useState<number | undefined>(undefined);
   const [methods, setMethods] = useState<string[]>([]);
   // 部门筛选数据源（端点不可用时隐藏该下拉，不阻塞台账）
@@ -1335,6 +1337,7 @@ export default function ProcurementsPage() {
 
   // Load data
   const loadData = useCallback(async () => {
+    const rid = ++loadReqIdRef.current; // R7-4② 请求序守卫
     setLoading(true);
     setLoadError(null);
     try {
@@ -1369,7 +1372,8 @@ export default function ProcurementsPage() {
             }).catch(() => null)
           : Promise.resolve(null),
       ]);
-      setData(listRes.data);
+      if (rid !== loadReqIdRef.current) return;
+      setData(listRes.data); // R7 终审 P2：setData 原在守卫前——过期响应覆盖表格与新分页混合态
       setPagination(listRes.pagination);
       setAbnormalTotal(listRes.abnormalTotal);
       setMethods(methodsRes);
@@ -1442,15 +1446,29 @@ export default function ProcurementsPage() {
   const handleAnalyze = async () => {
     if (!filters.searchKeyword) return;
     try {
+      // R6-6⑥（2026-09-30 审计 B5）：带上当前筛选与公司视野——此前只传关键词，
+      // 分析选集与所见列表脱节（回收站 tab 下分析的是 ACTIVE 数据）；截断显式提示
       const res = await fetchProcurements({
         page: 1,
         pageSize: 100,
         searchKeyword: filters.searchKeyword,
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+        procurementMethod: filters.procurementMethod || undefined,
+        departmentId: filters.departmentId || undefined,
+        resultStatus: filters.resultStatus || undefined,
+        category: filters.category || undefined,
+        recycleStatus: filters.recycleStatus || undefined,
+        companyId,
       });
       setMatchedItems(res.data);
+      if (res.data.length >= 100) {
+        toast.info('匹配结果超过 100 条，仅载入前 100 条参与分析；可收窄筛选后重试');
+      }
       setSelectedAnalysisIds(new Set());
       setShowAnalysisSelection(true);
     } catch (err) {
+      toast.error(err instanceof Error ? err.message : '分析数据加载失败');
       console.error("Failed to fetch for analysis:", err);
     }
   };

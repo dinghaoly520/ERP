@@ -25,11 +25,11 @@ const NOTIF_GROUPS: { group: string; items: NotifToggle[] }[] = [
   {
     group: '招投标与公告',
     items: [
-      { type: 'BID_PUBLISHED', label: '招标公告', desc: '新招标项目发布通知', icon: FileText },
-      { type: 'BID_OPENING', label: '开标通知', desc: '开标时间确认与提醒', icon: Bell },
+      { type: 'BID_PUBLISHED', label: '招标公告（已停用）', desc: '该类型已停止产生，设置仅作历史保留', icon: FileText },
     ],
   },
-];
+]; // R7-1⑦：移除注册表不存在的 BID_OPENING；BID_PUBLISHED 已 deprecated 停止产生
+
 
 export function TabPreferences() {
   const { settings, loading, updateSettings } = useUserSettings();
@@ -143,6 +143,7 @@ export function TabPreferences() {
       </div>
 
       {/* ══ 通知偏好 ══ */}
+      <p className="text-xs text-[var(--muted-foreground)]">部分通知偏好已接入投递过滤；未接入项为展示预留，正式接入前不影响实际接收。</p>
       {NOTIF_GROUPS.map(group => (
         <div key={group.group} className="wb-panel p-6">
           <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">

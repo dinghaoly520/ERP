@@ -4,21 +4,10 @@ import { useState } from 'react';
 import { AlertTriangle, Loader2, Recycle, RotateCcw, Trash2, X } from 'lucide-react';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
+import { PMI_STAGE_LABEL } from '@water-erp/shared';
 
 function getStageLabel(stageKey: string) {
-  return (
-    {
-      PROCUREMENT_DEMAND: '采购需求',
-      INITIATION: '采购立项',
-      TENDER_DOCUMENT: '采购文件',
-      SUPPLIER_INVITATION: '供应商邀请',
-      PUBLIC_ANNOUNCEMENT: '采购公告公示',
-      EXPERT_SELECTION: '专家抽取',
-      BID_EVALUATION: '开标评标',
-      AWARD_DECISION: '定标',
-      CONTRACT: '合同',
-    }[stageKey] ?? stageKey
-  );
+  return PMI_STAGE_LABEL[stageKey] ?? stageKey;
 }
 
 export function RecycleBinDrawer({

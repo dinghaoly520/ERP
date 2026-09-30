@@ -37,9 +37,16 @@ export default function ClarificationNoticePage() {
   const publish = async () => {
     setSaving(true);
     try {
-      await updateClarificationNotice(content);
-      await updateObjectionContact(objectionContact);
-      toast.success('澄清说明与异议联系方式已发布');
+      // R7-3 澄清③：两 PUT 串行——第一个成功第二个失败会半保存，改 Promise.allSettled 报告各自动态
+      const [r1, r2] = await Promise.allSettled([
+        updateClarificationNotice(content),
+        updateObjectionContact(objectionContact),
+      ]);
+      if (r1.status === 'fulfilled' && r2.status === 'fulfilled') toast.success('澄清说明与异议联系方式已发布');
+      else {
+        const failed = [r1.status === 'rejected' ? '澄清说明' : '', r2.status === 'rejected' ? '异议联系方式' : ''].filter(Boolean).join('、');
+        toast.error(`部分保存失败：${failed}（其余已保存）`);
+      }
     } catch (e: any) {
       toast.error(e?.message || '发布失败');
     } finally {
@@ -58,7 +65,7 @@ export default function ClarificationNoticePage() {
             </div>
             <div>
               <div className="page-hero__title">澄清说明</div>
-              <div className="page-hero__sub">
+              <div className="page-hero__sub">（全平台生效，非公司维度）
                 编辑供应商门户「澄清答疑」区块展示的说明文案与异议联系方式；保存即发布
               </div>
             </div>

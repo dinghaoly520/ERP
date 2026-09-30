@@ -45,16 +45,15 @@ import {
 import { ENTERPRISE_TYPES, QUAL_TYPE_OPTIONS } from "@/constants/supplier";
 import { ServerClock } from "@/components/server-clock";
 import { buildSupplierTasks } from "@/lib/supplier-tasks";
-import { serverNowMs, syncServerClock, STAGE_LABEL } from "@water-erp/shared";
+import { serverNowMs, syncServerClock, STAGE_LABEL, SUPPLIER_STATUS_LABEL } from "@water-erp/shared";
 
 import "@/styles/pages/dashboard.css";
 import "@/styles/pages/notifications.css"; // 通知详情弹窗 nd-*（原 dashboard.css 子集，去重归一后共用）
 
 /* ─── 常量（与 Vue 版一致） ─── */
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: "待审核", RETURNED: "退回补正", APPROVED: "已入库",
-  REJECTED: "审核不通过", DISABLED: "已停用", BLACKLIST: "黑名单",
-};
+// B3-4（2026-09-30）：状态文案收编 shared 单一来源——原本地副本 RETURNED 写作「退回补正」，
+// 与 shared 的「已退回补正」分叉（:3005 已收编，此处跟进）
+const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL;
 const STATUS_TYPE: Record<string, string> = {
   PENDING: "pending", RETURNED: "returned", APPROVED: "approved",
   REJECTED: "rejected", DISABLED: "disabled", BLACKLIST: "disabled",
@@ -247,6 +246,9 @@ export default function DashboardPage() {
   const [convertForm, setConvertForm] = useState({
     enterpriseType: "有限责任公司",
     legalPerson: "",
+    // B2-4（2026-09-30）：与正式注册同口径——法人身份证号 + 扫描件（必传）
+    legalPersonIdCard: "",
+    legalIdFile: "",
     registeredAddress: "",
     businessScope: "",
     creditCode: "",
@@ -289,6 +291,8 @@ export default function DashboardPage() {
       setConvertForm({
         enterpriseType: profile.enterpriseType || "有限责任公司",
         legalPerson: profile.legalPerson || "",
+        legalPersonIdCard: (profile.legalPersonIdCard as string) || "",
+        legalIdFile: "",
         registeredAddress: profile.registeredAddress || "",
         businessScope: profile.businessScope || "",
         creditCode: profile.creditCode || "",
@@ -305,10 +309,14 @@ export default function DashboardPage() {
   async function submitConvert() {
     const f = convertForm;
     if ([f.enterpriseType, f.legalPerson, f.registeredAddress, f.businessScope].some((v) => !v.trim())) { toast.warning("请填写完整企业信息"); return; }
+    // B2-4：身份证号必填 18 位 + 扫描件必传（对齐正式注册与后端 approveConvertToRegular 闸）
+    if (!/^\d{17}[\dXx]$/.test(f.legalPersonIdCard.trim())) { toast.warning("法定代表人身份证号须为 18 位"); return; }
+    if (!f.legalIdFile) { toast.warning("请上传法定代表人身份证扫描件"); return; }
     if (!/^[0-9A-Z]{18}$/.test(f.creditCode.trim())) { toast.warning("统一社会信用代码须为 18 位数字与大写字母"); return; }
     if (f.contacts.some((c) => !c.name.trim() || !c.phone.trim())) { toast.warning("请填写完整联系人信息"); return; }
     if (f.qualifications.length === 0) { toast.warning("请至少添加一项资质材料"); return; }
     if (f.qualifications.some((q) => !q.type || !q.name.trim())) { toast.warning("请填写完所有资质信息（类型与名称必填）"); return; }
+    if (f.qualifications.some((q) => !q.fileUrl)) { toast.warning("每项资质材料均须上传文件（与注册口径一致）"); return; } // 审计自查：转正曾允许无文件资质入库
     const filledTags = f.tags.filter((t) => t.trim());
     if (filledTags.length < 2) { toast.warning("请至少填写 2 个业务标签"); return; }
     setConvertLoading(true);
@@ -316,6 +324,8 @@ export default function DashboardPage() {
       const payload = {
         enterpriseType: f.enterpriseType,
         legalPerson: f.legalPerson.trim(),
+        legalPersonIdCard: f.legalPersonIdCard.trim(),
+        legalIdFileUrl: f.legalIdFile,
         registeredAddress: f.registeredAddress.trim(),
         businessScope: f.businessScope.trim(),
         creditCode: f.creditCode.trim(),
@@ -499,11 +509,13 @@ export default function DashboardPage() {
 
             {/* RIGHT: profile + notifications stack */}
             <div className="db-right-stack">
-              {/* RIGHT TOP: 资料完整度 */}
+              {/* RIGHT TOP: 资料完整度（B3-2：临时供应商的补全出口=转正弹窗，别引向侧栏不存在的企业信息页） */}
               <section className="sp-module db-panel-comp">
                 <div className="sp-module-header">
                   <h2 className="sp-module-title">资料完善</h2>
-                  <button className="neu-btn-xs" onClick={() => router.push("/profile")}>完善<ArrowRight size={12} /></button>
+                  <button className="neu-btn-xs" onClick={() => (statusInfo.isTemporary ? void openConvertDialog() : router.push("/profile"))}>
+                    {statusInfo.isTemporary ? "转正" : "完善"}<ArrowRight size={12} />
+                  </button>
                 </div>
                 {/* Ring + total score */}
                 <div className="db-comp-top">
@@ -546,7 +558,7 @@ export default function DashboardPage() {
                     {completenessCats.map((cat) => (
                       <span key={`m-${cat.key}`} style={{ "--c": cat.color } as React.CSSProperties}>
                         {cat.missing.map((m) => (
-                          <button type="button" key={m} className="db-comp-missing-tag" onClick={() => router.push("/profile")}>
+                          <button type="button" key={m} className="db-comp-missing-tag" onClick={() => (statusInfo.isTemporary ? void openConvertDialog() : router.push("/profile"))}>
                             <span className="db-comp-missing-dot" />
                             {m}
                           </button>
@@ -647,6 +659,43 @@ export default function DashboardPage() {
                     placeholder="请输入法定代表人"
                     onChange={(e) => setConvertForm((f) => ({ ...f, legalPerson: e.target.value }))}
                   />
+                </div>
+              </div>
+              {/* B2-4：身份证号+扫描件（与正式注册同口径，注册必传材料的转正采集） */}
+              <div className="cv-form-item">
+                <label>法定代表人身份证号</label>
+                <div className="cv-form-ctrl">
+                  <SpInput
+                    value={convertForm.legalPersonIdCard}
+                    maxLength={18}
+                    placeholder="18 位身份证号"
+                    onChange={(e) => setConvertForm((f) => ({ ...f, legalPersonIdCard: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="cv-form-item">
+                <label>身份证扫描件</label>
+                <div className="cv-form-ctrl flex items-center gap-2">
+                  <label className="cv-upload">
+                    <input
+                      type="file"
+                      hidden
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.currentTarget.value = "";
+                        if (file) {
+                          uploadFile(file, "qualification")
+                            .then((resp) => { setConvertForm((f) => ({ ...f, legalIdFile: resp.url })); toast.success("身份证扫描件上传成功"); })
+                            .catch(() => { /* uploadFile 已全局 toast 错误 */ });
+                        }
+                      }}
+                    />
+                    <span className="neu-btn-xs">{convertForm.legalIdFile ? "重新上传" : "上传扫描件"}</span>
+                  </label>
+                  {convertForm.legalIdFile && (
+                    <a className="neu-btn-xs is-info" href={convertForm.legalIdFile} target="_blank" rel="noopener noreferrer">查看</a>
+                  )}
                 </div>
               </div>
               <div className="cv-form-item">
@@ -821,14 +870,17 @@ export default function DashboardPage() {
                   <input
                     type="file"
                     hidden
+                    accept=".pdf,.jpg,.jpeg,.png"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       e.currentTarget.value = "";
-                      if (file) {
-                        uploadFile(file, "qualification")
-                          .then((resp) => onQualUploadSuccess(i, resp))
-                          .catch(() => { /* uploadFile 已全局 toast 错误 */ });
-                      }
+                      if (!file) return;
+                      // B3-3：与注册/维护端资质材料同口径（10MB + PDF/JPG/PNG）
+                      if (file.size > 10 * 1024 * 1024) { toast.error("文件不能超过10MB"); return; }
+                      if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) { toast.error("仅支持 PDF、JPG 或 PNG 文件"); return; }
+                      uploadFile(file, "qualification")
+                        .then((resp) => onQualUploadSuccess(i, resp))
+                        .catch(() => { /* uploadFile 已全局 toast 错误 */ });
                     }}
                   />
                   <span className="neu-btn-xs">上传</span>

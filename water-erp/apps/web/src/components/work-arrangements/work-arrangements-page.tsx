@@ -5,7 +5,6 @@ import { WorkbenchOverview } from "@/components/work-arrangements/workbench-over
 import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
 import { TaskNotificationCenter } from "@/components/work-arrangements/task-notification-center";
 import { TaskDetailModal } from "@/components/work-arrangements/task-detail-modal";
-import type { PlannedItem } from "@/components/work-arrangements/task-notification-center";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
 import { HistoryDrawer } from "@/components/work-arrangements/history-drawer";
 import { ReminderBanner } from "@/components/work-arrangements/reminder-banner";
@@ -691,12 +690,20 @@ export function WorkArrangementsPage({
     if (!selectedItemId) {
       return;
     }
+    // R6-4（2026-09-30 审计②）：删除不可逆且此前无确认（误触即永久删除）
+    if (!window.confirm("确认删除该工作安排？此操作不可恢复。")) {
+      return;
+    }
 
     setSaving(true);
     setErrorMessage(null);
     try {
       await deleteWorkArrangement(selectedItemId);
+      // R6-4：删除成功必须关抽屉——否则 loadWorkspace 会重选 tasks[0] 并
+      // syncEditorToTask 把表单静默切成另一条任务，再点保存会把改动写错对象
       setSelectedItemId(null);
+      setShowFullEditor(false);
+      setCreating(false);
       await loadWorkspace(false, true); // 删除任务：完整刷新（含 AI 排程）
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "删除工作安排失败。");
@@ -846,54 +853,7 @@ export function WorkArrangementsPage({
     setSelectedDate(date);
   };
 
-  const handleAddToCalendar = async (plannedItems: PlannedItem[]) => {
-    setSaving(true);
-    setErrorMessage(null);
-    let createdCount = 0;
-    try {
-      for (const item of plannedItems) {
-        const now = new Date();
-        const startHour = 10 + Math.floor(createdCount * 0.5);
-        const startMinute = (createdCount * 30) % 60;
-        const blockStart = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          startHour,
-          startMinute,
-        );
-        const blockEnd = new Date(
-          blockStart.getTime() + item.estimatedMinutes * 60 * 1000,
-        );
-        await createWorkArrangement({
-          title: `[待办] ${item.title}`,
-          type: 'FOLLOW_UP',
-          urgency: 'HIGH',
-          status: 'TODO',
-          dueAt: blockEnd.toISOString(),
-          reminderAt: blockStart.toISOString(),
-          estimatedMinutes: item.estimatedMinutes,
-          isAllDay: false,
-          customTags: ['AI安排'],
-          recurrence: 'NONE',
-          projectManagementItemId: null,
-          dependencyIds: [],
-          completionSummary: null,
-          reflectionSummary: null,
-        });
-        createdCount++;
-      }
-      const { toast } = await import('sonner');
-      toast.success(`已添加 ${createdCount} 个事项到今日日程`);
-      await loadWorkspace(false, true);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '添加日程失败。');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 处理提醒 Banner 的操作
+  // （已删 handleAddToCalendar：R7-1③——AiPlanningPanel 不接收 onAddToCalendar，此函数不可达）
   const handleReminderView = (taskId: string) => {
     handleSelectTask(taskId);
     setActiveReminders(prev => prev.filter(r => r.taskId !== taskId));
@@ -1002,7 +962,6 @@ export function WorkArrangementsPage({
                 const id = taskIds[0];
                 if (id) handleSelectTask(id);
               }}
-              onAddToCalendar={handleAddToCalendar}
               hasActiveTasks={hasActiveTasks}
             />
           </div>
@@ -1014,7 +973,7 @@ export function WorkArrangementsPage({
         )}
 
         {errorMessage ? (
-          <div className="flex items-center justify-between px-4 py-3 text-sm text-[color:var(--danger)]">
+          <div className="fixed left-1/2 top-4 z-[110] -translate-x-1/2 flex items-center justify-between gap-3 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-4 py-3 text-sm text-[color:var(--danger)] shadow-[0_8px_24px_rgba(0,0,0,0.15)]">
             <span>{errorMessage}</span>
             <button
               type="button"

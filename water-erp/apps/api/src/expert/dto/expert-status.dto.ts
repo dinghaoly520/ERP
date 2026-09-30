@@ -1,4 +1,4 @@
-import { IsBoolean, IsString } from 'class-validator';
+import { IsBoolean, IsString, IsNotEmpty} from 'class-validator';
 
 /**
  * 启用/停用专家。
@@ -13,5 +13,6 @@ export class SetAvailabilityDto {
 /** 人工确认专家退库 */
 export class ConfirmRetireDto {
   @IsString()
+  @IsNotEmpty({ message: '退库事由不能为空' }) // R6-7 B7：与 updateExpertStatusDto REASON_REQUIRED 同口径（此前空事由可直调 API）
   reason!: string;
 }

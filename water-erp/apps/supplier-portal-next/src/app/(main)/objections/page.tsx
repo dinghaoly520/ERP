@@ -80,16 +80,24 @@ export default function ObjectionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 状态切换：回第一页重查（筛选已下推后端）
+  // 状态切换：回第一页重查（筛选已下推后端）；失败回滚+提示（B4-4：此前 .catch 静默吞，
+  // 页码指示器已指向新页而数据停留旧页，用户无感知）
   const handleStatusChange = (value: string) => {
+    const prevStatus = statusFilter;
     setStatusFilter(value);
     setCurrentPage(1);
-    void fetchList(1, value).catch(() => {});
+    fetchList(1, value).catch(() => {
+      setStatusFilter(prevStatus);
+      toast.error("筛选失败，请稍后重试");
+    });
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    void fetchList(page).catch(() => {});
+    fetchList(page).catch(() => {
+      setCurrentPage((p) => (p === page ? currentPage : p));
+      toast.error("加载失败，请稍后重试");
+    });
   };
 
   useEffect(() => {
@@ -97,12 +105,12 @@ export default function ObjectionsPage() {
     (async () => {
       const codes = new Set<string>();
       try {
-        const res: any = await bidApi.listProjects({ page: 1, pageSize: 100 });
+        const res: any = await bidApi.listProjects({ page: 1, pageSize: 500 });
         const items = Array.isArray(res) ? res : res?.items || [];
         for (const x of items) if (x.projectCode) codes.add(x.projectCode);
       } catch { /* 静默 */ }
       try {
-        const ann: any = await announcementApi.publicList({ page: 1, pageSize: 100 });
+        const ann: any = await announcementApi.publicList({ page: 1, pageSize: 500 });
         for (const a of ann?.items || []) {
           const c = a.relatedProjectCode || a.metadata?.projectCode;
           if (c) codes.add(c);
@@ -235,10 +243,18 @@ export default function ObjectionsPage() {
           </label>
           <label className="obj-field">
             <span>关联项目</span>
-            <SpSelect value={form.projectCode} onChange={e => setForm({ ...form, projectCode: e.target.value })}>
-              <option value="">不关联项目（通用投诉）</option>
-              {projectCodeOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-            </SpSelect>
+            {/* B4-4（2026-09-30）：纯下拉只含两侧各前 100 条候选——对第 101+ 条之后的老公告/未列入
+                投标列表的项目提异议时编号选不到（五类 phase 必填）构成提交死锁。改 datalist 组合框：
+                候选可速选，任意编号可手输 */}
+            <SpInput
+              value={form.projectCode}
+              onChange={e => setForm({ ...form, projectCode: e.target.value })}
+              placeholder="从列表选择，或直接输入项目编号（通用投诉可留空）"
+              list="obj-project-codes"
+            />
+            <datalist id="obj-project-codes">
+              {projectCodeOptions.map((c) => <option key={c} value={c} />)}
+            </datalist>
           </label>
           <label className="obj-field">
             <span>异议标题</span>

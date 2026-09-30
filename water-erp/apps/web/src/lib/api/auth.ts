@@ -44,6 +44,7 @@ export type AuthUser = {
   company?: string | null;
   avatar?: string | null;
   isActive?: boolean;
+  isFrozen?: boolean;
   createdAt?: string | null;
   department?: { id: string; name: string; code: string | null } | null;
 };

@@ -244,8 +244,17 @@ export function getDashboardStats() {
 export function logSearch(keyword: string) {
   return request<{ success: boolean }>('/api/catalog/admin/search-log', { method: 'POST', body: JSON.stringify({ keyword }) });
 }
-export function toggleSubscribe(itemId: string) {
-  return request<{ subscribed: boolean }>(`/api/catalog/${itemId}/subscribe`, { method: 'POST' });
+export async function toggleSubscribe(itemId: string, currentlySubscribed = false) {
+  // R7-2②：后端 DELETE :id/subscribe 存在但前端从未调用——此前恒 POST，永远只能订阅
+  return currentlySubscribed
+    ? request<{ subscribed: boolean }>(`/api/catalog/${itemId}/subscribe`, { method: 'DELETE' })
+    : request<{ subscribed: boolean }>(`/api/catalog/${itemId}/subscribe`, { method: 'POST' });
+}
+
+/** 当前账号订阅的目录项 id 集合（R7-2②：按钮据此决定订阅/取消） */
+export async function fetchMySubscriptions(): Promise<Set<string>> {
+  const rows = await request<Array<{ catalogItemId: string }>>('/api/catalog/admin/subscriptions');
+  return new Set(rows.map(r => r.catalogItemId));
 }
 export interface PricePrediction { opportunity: string | null; predictions: { price: number }[] }
 export async function getPricePrediction(itemId: string): Promise<PricePrediction | null> {

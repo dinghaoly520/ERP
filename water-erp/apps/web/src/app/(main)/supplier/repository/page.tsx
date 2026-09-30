@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -9,6 +9,7 @@ import {
   restoreSupplier,
   toggleFavorite, getFavorites,
   listInvitations, createInvitation, revokeInvitation,
+  fetchMyPendingReviewCount,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
@@ -41,6 +42,7 @@ export default function SupplierRepositoryPage() {
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0, temporaryApproved: 0 });
   const [loading, setLoading] = useState(true);
+  const loadReqIdRef = useRef(0);
   const [error, setError] = useState<string>('');
 
   const [sortMode, setSortMode] = useState<'completeness' | 'createdAt'>('completeness');
@@ -157,6 +159,7 @@ export default function SupplierRepositoryPage() {
   };
 
   const loadData = useCallback(async () => {
+    const rid = ++loadReqIdRef.current; // R7-4② 请求序守卫
     setLoading(true);
     setError('');
     try {
@@ -171,6 +174,7 @@ export default function SupplierRepositoryPage() {
       if (advEvalLevel) params.evalLevel = advEvalLevel;
       if (advQualStatus) params.qualificationStatus = advQualStatus;
       const res = await getSupplierList({ ...params, companyId });
+      if (rid !== loadReqIdRef.current) return;
       setData(res);
     } catch (e: any) {
       // B13：区分「真空」与「接口挂掉」——失败时显示错误态+重试，而非静默显示空表。
@@ -179,8 +183,12 @@ export default function SupplierRepositoryPage() {
     setLoading(false);
   }, [effectiveStatus, filterStatus, filterIsTemporary, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus, companyId]);
 
+  // 「待我审」注册数（2026-09-30）：角标/KPI 与审批中心同口径（按级过滤），
+  // 不再用 stats.pending（全局 PENDING 总数，对 admin 等会与实际待审不符）
+  const [myPending, setMyPending] = useState(0);
   const refreshMeta = useCallback(() => {
     getSupplierStats(companyId).then(setStats).catch(() => {});
+    fetchMyPendingReviewCount().then(c => setMyPending(c.registration ?? 0)).catch(() => setMyPending(0));
     getFavorites().then(fs => setFavIds(new Set(fs.map(f => f.supplierId)))).catch(() => {});
   }, [companyId]);
 
@@ -372,7 +380,7 @@ export default function SupplierRepositoryPage() {
           <div className="page-hero__right">
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
-            <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title="供应商审批中心：注册三级审核 · 信息更新审批"><BadgeCheck size={15} />审批{stats.pending > 0 ? `（${stats.pending}）` : ''}</button>
+            <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title="供应商审批中心：注册三级审核 · 信息更新审批"><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
@@ -397,8 +405,8 @@ export default function SupplierRepositoryPage() {
           {canApprove && (
           <button type="button" onClick={() => router.push('/supplier/approval')} title="前往供应商审批中心（三级注册审核）" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.pending}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">审批中心 · 点击前往</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{myPending}</span>
+            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight group-hover:text-[var(--accent)]">待我审 · 点击前往</span>
           </button>
           )}
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">

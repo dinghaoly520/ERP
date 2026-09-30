@@ -914,17 +914,17 @@ function BidSubmitInner() {
                       <label className="b-required">标书文件</label>
                       <div className="b-form-content">
                         <div className="file-area">
-                          <UploadZone accept=".pdf,.zip,.rar" disabled={!canSubmit} onFile={handleFullBidUpload} label="上传完整标书" />
+                          <UploadZone accept=".pdf,.zip,.rar" disabled={formDisabled} onFile={handleFullBidUpload} label="上传完整标书" />
                           <span className="file-hint">PDF/ZIP（Office 请先转 PDF），≤{maxUploadSizeMB}MB</span>
                           {fullBidMeta ? (
                             <span className="file-chip">
                               {fullBidMeta.originalName}（{formatSize(fullBidMeta.size)}）
-                              <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => { updateForm({ fullBidFileAssetId: "" }); setFullBidMeta(null); }}>×</button>
+                              <button type="button" className="file-chip-remove" disabled={formDisabled} onClick={() => { updateForm({ fullBidFileAssetId: "" }); setFullBidMeta(null); }}>×</button>
                             </span>
                           ) : form.fullBidFileAssetId ? (
                             <span className="file-chip">
                               已上传
-                              <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => updateForm({ fullBidFileAssetId: "" })}>×</button>
+                              <button type="button" className="file-chip-remove" disabled={formDisabled} onClick={() => updateForm({ fullBidFileAssetId: "" })}>×</button>
                             </span>
                           ) : null}
                           {fullBidProgress !== null && <div className="w-[200px]"><SpProgress value={fullBidProgress} /></div>}
@@ -943,7 +943,7 @@ function BidSubmitInner() {
                           <div className="split-cat-head">
                             <AddFileButton
                               accept=".pdf,.zip,.rar"
-                              disabled={!canSubmit || splitCats[cat].uploading || splitCats[cat].files.length >= 1}
+                              disabled={formDisabled || splitCats[cat].uploading || splitCats[cat].files.length >= 1}
                               uploading={splitCats[cat].uploading}
                               onFile={(f) => handleSplitUpload(cat, f)}
                             />
@@ -959,7 +959,7 @@ function BidSubmitInner() {
                                 <div key={f.id} className="split-file-row">
                                   <span className="split-file-name">{f.name}</span>
                                   <span className="split-file-size">{formatSize(f.size)}</span>
-                                  <button type="button" className="neu-btn-xs is-danger" disabled={!canSubmit} onClick={() => removeSplitFile(cat, idx)}>
+                                  <button type="button" className="neu-btn-xs is-danger" disabled={formDisabled} onClick={() => removeSplitFile(cat, idx)}>
                                     <Trash2 size={11} strokeWidth={1.75} />
                                   </button>
                                 </div>
@@ -977,17 +977,17 @@ function BidSubmitInner() {
                       <label className="b-required">保证金凭证</label>
                       <div className="b-form-content">
                         <div className="file-area">
-                          <UploadZone accept=".pdf,.jpg,.png" disabled={!canSubmit} onFile={handleBondUpload} label="上传保证金缴纳凭证" />
+                          <UploadZone accept=".pdf,.jpg,.png" disabled={formDisabled} onFile={handleBondUpload} label="上传保证金缴纳凭证" />
                           <span className="file-hint">银行回单/保函，PDF/JPG ≤{maxUploadSizeMB}MB</span>
                           {bondFileMeta ? (
                             <span className="file-chip">
                               {bondFileMeta.originalName}（{formatSize(bondFileMeta.size)}）
-                              <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => { updateForm({ bidBondAssetId: "" }); setBondFileMeta(null); }}>×</button>
+                              <button type="button" className="file-chip-remove" disabled={formDisabled} onClick={() => { updateForm({ bidBondAssetId: "" }); setBondFileMeta(null); }}>×</button>
                             </span>
                           ) : form.bidBondAssetId ? (
                             <span className="file-chip">
                               已上传
-                              <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => updateForm({ bidBondAssetId: "" })}>×</button>
+                              <button type="button" className="file-chip-remove" disabled={formDisabled} onClick={() => updateForm({ bidBondAssetId: "" })}>×</button>
                             </span>
                           ) : null}
                           {bondUploadProgress !== null && <div className="w-[200px]"><SpProgress value={bondUploadProgress} /></div>}
@@ -1009,17 +1009,17 @@ function BidSubmitInner() {
                           <SpTextarea rows={4} value={form.coverLetter} disabled={formDisabled} onChange={(e) => updateForm({ coverLetter: e.target.value })} placeholder="请输入投标函内容（选填）" />
                         ) : (
                           <div className="file-area">
-                            <UploadZone accept=".pdf" disabled={!canSubmit} onFile={handleCoverLetterUpload} label="上传投标函文件" />
+                            <UploadZone accept=".pdf" disabled={formDisabled} onFile={handleCoverLetterUpload} label="上传投标函文件" />
                             <span className="file-hint">PDF（Office 请先转 PDF），≤{maxUploadSizeMB}MB</span>
                             {coverLetterMeta ? (
                               <span className="file-chip">
                                 {coverLetterMeta.originalName}（{formatSize(coverLetterMeta.size)}）
-                                <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => { updateForm({ coverLetterFileAssetId: "" }); setCoverLetterMeta(null); }}>×</button>
+                                <button type="button" className="file-chip-remove" disabled={formDisabled} onClick={() => { updateForm({ coverLetterFileAssetId: "" }); setCoverLetterMeta(null); }}>×</button>
                               </span>
                             ) : form.coverLetterFileAssetId ? (
                               <span className="file-chip">
                                 已上传
-                                <button type="button" className="file-chip-remove" disabled={!canSubmit} onClick={() => updateForm({ coverLetterFileAssetId: "" })}>×</button>
+                                <button type="button" className="file-chip-remove" disabled={formDisabled} onClick={() => updateForm({ coverLetterFileAssetId: "" })}>×</button>
                               </span>
                             ) : null}
                             {coverLetterProgress !== null && <div className="w-[200px]"><SpProgress value={coverLetterProgress} /></div>}

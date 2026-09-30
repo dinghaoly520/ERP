@@ -25,7 +25,7 @@ import { UnitSearchSelect } from "@/components/registration/unit-search-select";
 import { PasswordField } from "@/components/registration/password-field";
 import { RegistrationField, RegistrationSection, RegistrationShell, type RegistrationStep } from "@/components/registration/registration-shell";
 import { SpSwitch } from "@/components/ui";
-import { ENTERPRISE_TYPES, INDUSTRY_GROUPS, COMPANY_PROFILE_MAX } from "@/constants/supplier";
+import { ENTERPRISE_TYPES, INDUSTRY_GROUPS, COMPANY_PROFILE_MAX, QUAL_TYPE_OPTIONS } from "@/constants/supplier";
 import "@/styles/pages/register2.css";
 
 interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
@@ -41,11 +41,9 @@ const STEPS = [
   { label: "资质与履历", description: "补充账户、证照与业绩" },
   { label: "确认提交", description: "核对资料并提交审核" },
 ] satisfies RegistrationStep[];
-const QUAL_TYPES = [
-  "资质证书", "代理证书", "授权委托书", "安全生产许可证", "质量管理体系认证",
-  "环境管理体系认证", "职业健康管理体系认证", "检验检测报告", "荣誉证书",
-  "税务登记证明", "社保缴纳证明", "其他",
-];
+// B3-1：词表收敛至 constants/supplier 单一来源（旧本地表把「职业健康安全管理体系认证」
+// 误写为「职业健康管理体系认证」入库）；营业执照为首行 type 固定的必填资质行，下拉不重复提供
+const QUAL_TYPES = QUAL_TYPE_OPTIONS.filter((t) => t !== "营业执照");
 
 /* 多文件上传（附加材料 / 业绩证明） */
 function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
@@ -179,7 +177,8 @@ export default function RegisterPage() {
     registrationPhone,
     basic, tags, contacts, banks, quals, perfs,
     legalIdFile,
-  }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs, legalIdFile]);
+    belongCompany, // 步骤 0 必填（B1-3，2026-09-30）：漏存会导致恢复后静默丢失、须自查重选
+  }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs, legalIdFile, belongCompany]);
   const recoverableDraftKey = getRegistrationDraftKey(user?.id);
   // SUP-P2-07：游客（未登录）也启用本机草稿——固定匿名键；登录态切回时既有隐私清理
   // effect 会移除匿名草稿。此前 enabled 仅登录用户可享，页头注释与恢复横幅承诺的
@@ -192,8 +191,11 @@ export default function RegisterPage() {
     () => restoreDraft() as Partial<typeof draftData> | null,
     [restoreDraft],
   );
+  // 隐私清理（B1-3 修正，2026-09-30）：仅登录态访问 /register 时移除匿名草稿（登录用户
+  // 不该残留游客期草稿）。此前条件写反（未登录才删）——/register 是游客路由 user 恒
+  // null，等于每次挂载/刷新先删掉草稿，SUP-P2-07 的游客草稿保障完全失效。
   useEffect(() => {
-    if (user?.id) return;
+    if (!user?.id) return;
     try {
       localStorage.removeItem("supplier_draft:register:anonymous");
     } catch {
@@ -210,8 +212,10 @@ export default function RegisterPage() {
       .then(setCompanyOptions)
       .catch(() => setCompanyOptions([]));
   }, []);
+  // 恢复检测（B1-3 修正，2026-09-30）：游客键同样要检测——此前 recoverableDraftKey 为
+  // null（游客）时提前 return，恢复横幅对主流程（游客注册）是死代码；restoreDraft 绑定
+  // 的就是上方 useAutoSave 实例（游客=匿名键），直接调用即可。
   useEffect(() => {
-    if (!recoverableDraftKey) return;
     const timer = window.setTimeout(() => {
       const recovered = restoreRegistrationDraft();
       if (recovered && (recovered.basic?.name || recovered.basic?.creditCode)) {
@@ -219,7 +223,7 @@ export default function RegisterPage() {
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [recoverableDraftKey, restoreRegistrationDraft]);
+  }, [restoreRegistrationDraft]);
 
   function acceptRecovery() {
     const d = restoreRegistrationDraft();
@@ -232,6 +236,7 @@ export default function RegisterPage() {
     setQuals(d.quals?.length ? d.quals.map((q: QualRow) => ({ ...q, attachments: q.attachments ?? [] })) : quals);
     setPerfs(d.perfs?.length ? d.perfs.map((p: PerfRow) => ({ ...p, proofFiles: p.proofFiles ?? [], paymentProofs: p.paymentProofs ?? [] })) : []);
     if (d.legalIdFile) setLegalIdFile(d.legalIdFile);
+    if (d.belongCompany) setBelongCompany(d.belongCompany); // B1-3：归属公司一并恢复
     const recoveredStep = Math.min(Number(d.step) || 0, STEPS.length - 1);
     setStep(recoveredStep);
     setMaxVisitedStep(recoveredStep);

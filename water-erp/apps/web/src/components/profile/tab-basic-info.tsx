@@ -127,7 +127,7 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
     e.preventDefault(); setPwdError(null); setPwdSuccess(null);
     if (!currentPassword) { setPwdError('请输入当前密码'); return; }
     if (!newPassword) { setPwdError('请输入新密码'); return; }
-    if (newPassword.length < 6) { setPwdError('新密码至少需要 6 位'); return; }
+    if (newPassword.length < 8 || !/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) { setPwdError('新密码至少 8 位，且须同时包含字母与数字'); return; }
     if (newPassword !== confirmPassword) { setPwdError('两次输入的新密码不一致'); return; }
     setPwdSubmitting(true);
     try {
@@ -246,7 +246,7 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
         <form id="pwd-form" onSubmit={handlePasswordSubmit} noValidate className="mt-1 flex flex-col">
           {[
             { label: '当前密码', val: currentPassword, set: setCurrentPassword, show: showCurrent, toggle: setShowCurrent, placeholder: '请输入当前密码', auto: 'current-password' as const },
-            { label: '新密码', val: newPassword, set: setNewPassword, show: showNew, toggle: setShowNew, placeholder: '不少于 6 位', auto: 'new-password' as const },
+            { label: '新密码', val: newPassword, set: setNewPassword, show: showNew, toggle: setShowNew, placeholder: '至少 8 位，含字母与数字', auto: 'new-password' as const },
             { label: '确认密码', val: confirmPassword, set: setConfirmPassword, show: showConfirm, toggle: setShowConfirm, placeholder: '再次输入新密码', auto: 'new-password' as const },
           ].map((f, idx) => (
             <div key={f.label}>
