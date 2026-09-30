@@ -23,7 +23,7 @@ import {
   markAlertRead, markAlertResolved,
   listVersions, createVersion, changeVersionStatus, compareVersions,
   getSupplierCoverage, getSupplierPriceComparison,
-  logSearch, toggleSubscribe, getPriceHistory, getPricePrediction,
+  logSearch, toggleSubscribe, fetchMySubscriptions, getPriceHistory, getPricePrediction,
   listApplications, reviewCatalogApplication,
   getPriceRadar, getSearchInsights,
   listCatalogAuditLogs,
@@ -144,6 +144,9 @@ type AiHint =
 function ItemsTab({ canManage }: { canManage: boolean }) {
   const searchParams = useSearchParams();
   const [items, setItems] = useState<CatalogItem[]>([]);
+  // R7-2②：当前账号订阅集合——按钮据此订阅/取消（后端恒 POST 前端未接 DELETE 的老问题）
+  const [subscribedIds, setSubscribedIds] = useState<Set<string>>(new Set());
+  useEffect(() => { fetchMySubscriptions().then(setSubscribedIds).catch(() => {}); }, []);
   const [stats, setStats] = useState<CatalogStats | null>(null);
   const [status, setStatus] = useState('全部');
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
@@ -292,7 +295,7 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {[['目录总数', stats?.total ?? '—', '当前目录项总数'], ['有效', stats?.active ?? '—', '状态为有效的目录项'], ['下架/停用', stats?.inactive ?? '—', '已下架或停用的目录项'], ['待复核', stats?.review ?? '—', '待复核状态的目录项'], ['本月更新', stats?.updatedThisMonth ?? '—', '本月内有价格变更、字段编辑或状态变更的目录项数']].map(([label, value, hint]) => (
+        {[['目录总数', stats?.total ?? '—', '当前目录项总数'], ['有效', stats?.active ?? '—', '状态为有效的目录项'], ['下架/停用', stats?.inactive ?? '—', '已下架或停用的目录项'], ['待复核', stats?.review ?? '—', '待复核状态的目录项'], ['本月更新', stats?.updatedThisMonth ?? '—', '本月内有价格变更、字段编辑或状态变更的目录项数'], ['待审批申请', stats?.pendingApplications ?? '—', '供货申请待审批数（R7-2⑨ 补展示）']].map(([label, value, hint]) => (
           <div key={label} title={hint as string} className="kpi-card p-3 rounded-xl flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</span>
             <span className="text-[1.4rem] font-black tabular-nums text-[var(--foreground)]">{value}</span>
@@ -368,7 +371,7 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
                             <button onClick={() => setItemStatus(item, '停用')} className="neu-btn-xs is-danger ml-1">停用</button>
                           </>
                         : <button onClick={() => setItemStatus(item, '有效')} className="neu-btn-xs is-success ml-1">启用</button>)}
-                      <button onClick={async (e) => { e.stopPropagation(); try { const d = await toggleSubscribe(item.id); toast.success(d.subscribed ? '已订阅变更通知' : '已取消订阅'); } catch { toast.error('操作失败'); } }} aria-label="订阅或取消订阅变更通知" className="neu-btn-xs ml-1" title="订阅/取消订阅"><Bell size={11}/></button>
+                      <button onClick={async (e) => { e.stopPropagation(); try { const was = subscribedIds.has(item.id); const d = await toggleSubscribe(item.id, was); setSubscribedIds(prev => { const n = new Set(prev); d.subscribed ? n.add(item.id) : n.delete(item.id); return n; }); toast.success(d.subscribed ? '已订阅变更通知' : '已取消订阅'); } catch { toast.error('操作失败'); } }} aria-label="订阅或取消订阅变更通知" className="neu-btn-xs ml-1" title={subscribedIds.has(item.id) ? '取消订阅' : '订阅变更通知'}><Bell size={11} fill={subscribedIds.has(item.id) ? 'currentColor' : 'none'} /></button>
                     </td>
                   </tr>
                 ))}
@@ -671,7 +674,9 @@ function CategoryTreeTab({ canManage }: { canManage: boolean }) {
     else await createCategory({ ...data, parentId: formParentId });
     toast.success(formMode === 'edit' ? '已更新' : '已创建'); refresh();
   };
-  const ct = selectedNode?.attributeTemplates ?? [];
+  // R7-2①（2026-09-30 审计 #1）：模板列表须用 attrNode（编辑器操作对象）而非
+  // selectedNode——从行菜单打开时会错显示/错删另一品类的模板
+  const ct = attrNode?.attributeTemplates ?? selectedNode?.attributeTemplates ?? [];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4" style={{ minHeight: 'calc(100vh - 340px)' }}>
@@ -818,6 +823,12 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
     const ref = Number(form.referencePrice);
     if (form.priceMin > 0 || form.priceMax > 0) {
       if (ref < form.priceMin || ref > form.priceMax) e.priceMin = `参考价须在 ${form.priceMin} ~ ${form.priceMax} 区间内`;
+    }
+    // R7-2⑥（2026-09-30 审计 #6）：属性模板标「必填」但前后端均不校验——补前端校验
+    const missingRequired = dynamicFields.filter(f => f.required && !f.value.trim());
+    if (missingRequired.length > 0) {
+      toast.error(`必填属性未填写：${missingRequired.map(f => f.name).join('、')}`);
+      return false;
     }
     setFieldErrors(e);
     return Object.keys(e).length === 0;
@@ -1361,18 +1372,21 @@ function TrendsTab() {
       // 价格趋势需全量候选（跨页取 top5），此处不带分页参数 → 全量数组
       const items: CatalogItem[] = Array.isArray(res) ? res : res.items;
       setItemCount(Array.isArray(res) ? res.length : res.total);
-      const candidates = items.filter(i => i.priceMin !== i.priceMax).slice(0, 5);
-      if (candidates.length === 0) return;
-      const series = await Promise.all(candidates.map(async (item, i) => {
-        try {
-          const h = await getPriceHistory(item.id);
-          if (!Array.isArray(h) || h.length < 2) return null;
-          return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map(p => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
-        } catch { return null; }
+      // R7-2⑦（2026-09-30 审计 #7）：按价格历史数筛选而非 priceMin!==priceMax——
+      // 区间留空会被补成 min=max=ref，恰有趋势数据的项反被系统性排除
+      const withHistory = await Promise.all(items.map(async i => {
+        try { const h = await getPriceHistory(i.id); return Array.isArray(h) && h.length >= 2 ? { i, h } : null; } catch { return null; }
       }));
+      const candidates = withHistory.filter(Boolean).slice(0, 5);
+      if (candidates.length === 0) return;
+      const series = (await Promise.all(candidates.map(async (c, i) => {
+        if (!c) return null;
+        const { i: item, h } = c as { i: CatalogItem; h: Array<{ recordedAt?: string; price?: number | string }> };
+        return { name: item.name, color: PALETTE[i % PALETTE.length], data: h.map(p => ({ date: (p.recordedAt || '').slice(0, 10), price: Number(p.price) || 0 })) };
+      }))).filter(Boolean);
       setSeriesData(series.filter((s): s is NonNullable<typeof s> => s != null));
       // 仅在确有候选时，拉取首项预测作为采购时机提示
-      const pred = await getPricePrediction(candidates[0].id);
+      const pred = await getPricePrediction((candidates[0] as any).i.id);
       if (pred) {
         setOpportunity(pred.opportunity);
         if (pred.predictions?.length) {
@@ -1619,6 +1633,10 @@ function VersionsTab({ canManage }: { canManage: boolean }) {
     catch (e: any) { toast.error(e.message); } finally { setConfirming(false); }
   };
   const requestArchive = async (v: CatalogVersionData) => {
+    // R7-2④（2026-09-30 审计 #4）：唯一生效版本不可直接归档——否则目录陷入零生效版本
+    if (v.status === 'ACTIVE' && !versions.some(x => x.status === 'ACTIVE' && x.id !== v.id)) {
+      toast.error('该版本是当前唯一生效版本，不能归档；请先生效另一个版本'); return;
+    }
     if (!await confirmDialog({ message: `确认归档版本「${v.name}」？归档后不再参与生效流转。`, confirmText: '归档' })) return;
     try { await changeVersionStatus(v.id, 'ARCHIVED'); toast.success('已归档'); load(); }
     catch (e: any) { toast.error(e.message); }
@@ -1643,7 +1661,7 @@ function VersionsTab({ canManage }: { canManage: boolean }) {
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowCreate(false)} className="neu-btn-soft">取消</button>
-              <button onClick={async () => { if (!form.name.trim() || !form.version.trim()) { toast.error('请填写版本名称和版本号'); return; } setSaving(true); try { await createVersion(form); toast.success('已创建'); setShowCreate(false); setForm({ name: '', version: '', effectiveAt: '', description: '' }); load(); } catch (e: any) { toast.error(e.message); } finally { setSaving(false); } }} disabled={saving} className="neu-btn-primary is-info">{saving ? '创建中...' : '创建快照'}</button>
+              <button onClick={async () => { if (!form.name.trim() || !form.version.trim()) { toast.error('请填写版本名称和版本号'); return; } if (!form.effectiveAt) { toast.error('请填写生效日期'); return; } setSaving(true); try { await createVersion(form); toast.success('已创建'); setShowCreate(false); setForm({ name: '', version: '', effectiveAt: '', description: '' }); load(); } catch (e: any) { toast.error(e.message); } finally { setSaving(false); } }} disabled={saving} className="neu-btn-primary is-info">{saving ? '创建中...' : '创建快照'}</button>
             </div>
           </div>
         </div>
