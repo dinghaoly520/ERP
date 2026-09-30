@@ -2,10 +2,27 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Megaphone, Search } from 'lucide-react';
+import { Eye, Megaphone, Search } from 'lucide-react';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
+
+/** 浏览量人性化：≥1万折「万」保留一位小数（整数不带小数点），以下原样 */
+function formatViews(n: number): string {
+  if (n < 10000) return String(n);
+  const w = n / 10000;
+  return `${w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)}万`;
+}
+
+/** 公告卡右上角浏览量徽标 */
+function ViewsBadge({ count }: { count: number }) {
+  return (
+    <span className="announce-views" title="浏览量" aria-label={`浏览量 ${count}`}>
+      <Eye size={13} strokeWidth={1.8} />
+      {formatViews(count)}
+    </span>
+  );
+}
 
 function AnnouncementsContent() {
   const router = useRouter();
@@ -14,27 +31,6 @@ function AnnouncementsContent() {
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [items, setItems] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // ── KPI 统计（公众端口径：全部/采购/中标精确 total；本月发布按全部前 100 条过滤，月量超 100 时为下限值）──
-  const [stats, setStats] = useState({ all: 0, bid: 0, win: 0, month: 0 });
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetchPublicAnnouncements({ pageSize: 1 }),
-      fetchPublicAnnouncements({ type: 'BID_NOTICE', pageSize: 1 }),
-      fetchPublicAnnouncements({ type: 'WIN_BID_NOTICE', pageSize: 1 }),
-      fetchPublicAnnouncements({ type: 'PRE_WIN_NOTICE', pageSize: 1 }),
-      fetchPublicAnnouncements({ pageSize: 100 }),
-    ]).then(([allR, bidR, winR, preR, monthR]) => {
-      if (cancelled) return;
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      const month = monthR.items.filter(a => new Date(`${a.date}T00:00:00`).getTime() >= monthStart.getTime()).length;
-      setStats({ all: allR.total, bid: bidR.total, win: winR.total + preR.total, month });
-    }).catch(() => { /* KPI 静默降级为 0，不阻塞列表 */ });
-    return () => { cancelled = true; };
-  }, []);
 
   // 同步 URL 参数到搜索框
   useEffect(() => {
@@ -74,7 +70,7 @@ function AnnouncementsContent() {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
           返回首页
         </a>
-        {/* ═══ 页面标题卡（复刻 :3005 公告发布中心：hero + 下横线 + KPI 瓷片行）═══ */}
+        {/* ═══ 页面标题卡（复刻 :3005 公告发布中心：hero + 下横线）═══ */}
         <div className="page-hero mb-4">
           <div className="page-hero__row">
             <div className="page-hero__left">
@@ -86,20 +82,6 @@ function AnnouncementsContent() {
             </div>
           </div>
           <div className="page-hero__divider" />
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
-            {([
-              ['全部公告', stats.all, '公开发布'],
-              ['采购公告', stats.bid, '招标信息'],
-              ['中标公告', stats.win, '成交结果'],
-              ['本月发布', stats.month, '本月新增公告'],
-            ] as const).map(([label, value, sub]) => (
-              <div key={label} className="kpi-card flex h-full flex-col gap-1.5 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--fg-2)] leading-none">{label}</span>
-                <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--ink)]">{value}</span>
-                <span className="min-h-[14px] text-[10px] font-medium text-[var(--fg-2)] leading-tight">{sub}</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* ═══ 工具行：类型分段切换（左）+ 搜索（右，固定 280px）═══ */}
@@ -154,6 +136,7 @@ function AnnouncementsContent() {
                   <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ color: a.color, backgroundColor: a.color + '18' }}>{a.tag}</span>
                   <span className="text-xs bg-[#eef1f6] text-[#8a96aa] px-2 py-0.5 rounded-full font-bold">已下线</span>
                   <span className="text-[15px] font-bold text-[#8a96aa] flex-1 truncate">{a.title}</span>
+                  <ViewsBadge count={a.viewCount ?? 0} />
                 </div>
                 <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">
                   <span>{a.date}</span>
@@ -167,6 +150,7 @@ function AnnouncementsContent() {
                   <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ color: a.color, backgroundColor: a.color + '18' }}>{a.tag}</span>
                   {a.urgent && <span className="text-xs bg-[#fff1f0] text-[#d43030] px-2 py-0.5 rounded-full font-bold">重要</span>}
                   <span className="text-[15px] font-bold text-[#18243a] flex-1">{a.title}</span>
+                  <ViewsBadge count={a.viewCount ?? 0} />
                 </div>
                 <p className="text-xs text-[#5a6d8a] ml-1 mb-2 line-clamp-2">{a.desc}</p>
                 <div className="flex items-center gap-4 text-xs text-[#8a96aa] ml-1">

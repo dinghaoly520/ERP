@@ -1959,6 +1959,21 @@ a.group:hover::after {
 }
 @media (prefers-reduced-motion: reduce) { .neu-segment-thumb { transition: none; } }
 
+/* ── 公告卡浏览量（文字级元素——排版语言，不加 neumorphic 阴影/框线）── */
+.announce-views {
+  display: inline-flex; align-items: center; gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+  transition: color 0.25s ease;
+}
+.announce-views svg { display: block; opacity: 0.85; }
+.glass:hover .announce-views { color: var(--brand); }
+.glass:hover .announce-views svg { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .announce-views { transition: none; } }
+
 /* ── 全部公告链接 ── */
 .announce-view-all {
   display: inline-flex;
@@ -3093,4 +3108,196 @@ a.group:hover::after {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   可搜索单位选择器 uss-*（2026-09-30 自 :3005 login/unit-search-select 完全复刻移植）
+   变量映射：--accent→--brand / --foreground→--fg / --muted-foreground→--fg-3 /
+   --surface→oklch(0.99 0.004 258)。触发器 44px 对齐 .neu-input 表单行。
+   铁律：① 面板 padding 无顶值（sticky 贴顶防透字）② 滚动关闭须过滤面板内滚动
+   ③ portal 到 body + 显式 z-700 ④ 程序化滚动用原生 addEventListener。
+   消费方：/contact/visitor 访问单位。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 内凹触发器（与 neu-input 同语言；打开态提亮 + chevron 旋转）── */
+.uss-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  width: 100%; height: 44px; padding: 0 14px;
+  border: 1px solid oklch(0.78 0.03 258 / 0.45);
+  border-radius: 9px;
+  font-size: 14px; text-align: left; outline: none; cursor: pointer;
+  color: var(--fg);
+  background: oklch(0.99 0.004 258);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: all 0.2s ease;
+}
+.uss-trigger .uss-value {
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.uss-trigger .uss-value.is-empty { color: #bcc6d4; }
+.uss-trigger .uss-chev { flex-shrink: 0; color: var(--fg-3); transition: transform 0.2s ease; }
+.uss-trigger.is-open {
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  background: oklch(0.985 0.005 258);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08),
+    inset -2px -2px 4px oklch(1 0 0 / 0.5),
+    0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+}
+.uss-trigger.is-open .uss-chev { transform: rotate(180deg); }
+
+/* ── portal 面板：145° 白→浅灰渐变瓷片 + 方向性双影（无外框线）── */
+.uss-panel {
+  padding: 0 6px 6px; /* 铁律①：无顶 padding */
+  border: none;
+  border-radius: 16px;
+  overflow-y: auto;
+  background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
+  box-shadow: 6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9);
+}
+
+/* ── sticky 搜索行：同渐变不透明底 + hairline 分隔 ── */
+.uss-search-wrap {
+  position: sticky; top: 0; z-index: 10;
+  margin-bottom: 4px; padding: 6px 4px;
+  background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 2px 4px -2px oklch(0.55 0.03 258 / 0.18);
+}
+.uss-search-input {
+  position: relative;
+  height: 34px; width: 100%;
+  padding: 0 8px 0 30px;
+  border: none; border-radius: 10px;
+  font-size: 12.5px; color: var(--fg); outline: none;
+  background: oklch(0.99 0.004 258);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85);
+}
+.uss-search-input::placeholder { color: #bcc6d4; }
+
+/* ── 选项：hover 品牌蓝 6% 淡染 ── */
+.uss-opt {
+  width: 100%; padding: 7px 10px;
+  border: none; border-radius: 8px;
+  font-size: 12px; text-align: left; color: var(--fg); outline: none; cursor: pointer;
+  background: transparent;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.uss-opt:hover { background: color-mix(in oklch, var(--brand) 6%, transparent); }
+
+/* ── 当前值：白瓷片凸起 + 品牌蓝粗体 + 对勾（neu-tab v2 激活语义）── */
+.uss-opt.is-current {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 2px;
+  border-radius: 10px;
+  font-weight: 700; color: var(--brand);
+  background: oklch(1 0 0);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9);
+}
+.uss-opt.is-current:hover { background: oklch(1 0 0); }
+.uss-opt.is-current .uss-opt-label {
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+
+/* ── 自定义名称行 / 空态 ── */
+.uss-custom {
+  width: 100%; margin-top: 4px; padding: 6px 8px;
+  border: none; border-radius: 8px;
+  font-size: 12px; text-align: left; color: var(--brand); outline: none; cursor: pointer;
+  background: transparent;
+}
+.uss-custom:hover { background: color-mix(in oklch, var(--brand) 6%, transparent); }
+.uss-empty { padding: 8px; text-align: center; font-size: 10px; color: var(--fg-3); }
+
+/* ── neu-card 静态变体（表单容器等无需 hover 抬升的场景）── */
+.neu-card.neu-card--static,
+.neu-card.neu-card--static:hover {
+  transform: none;
+  border-color: oklch(0.55, 0.08, 258 / 0.35);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85);
+  transition: none;
+}
+
+/* ── 顶栏导航瓷片 nav-pill（「集团简介」「联系我们」下拉入口，2026-09-30）
+   凸起玻璃瓷片（footer-link 同语言）：默认凸起 → hover 抬升 → 按下/菜单展开=按住内凹；
+   chevron 色随态；面板近实底白玻璃 + 方向性双影（替代原扁平 rgba 阴影灰面板）── */
+.flow-nav-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  border-radius: 11px;
+  font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--ink); white-space: nowrap;
+  background: oklch(1 0 0 / 0.55);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, color 0.25s ease, background 0.25s ease;
+}
+.flow-nav-pill svg { color: var(--fg-3); transition: color 0.25s ease, transform 0.3s ease; }
+.flow-nav-pill:hover {
+  color: var(--brand);
+  background: oklch(1 0 0 / 0.72);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.92);
+}
+.flow-nav-pill:hover svg { color: var(--brand); }
+/* 按下 / 菜单展开 — 内凹按住（aria-expanded 驱动）*/
+.flow-nav-pill:active,
+.flow-nav-pill[aria-expanded="true"] {
+  color: var(--brand);
+  background: oklch(1 0 0 / 0.38);
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -2px -2px 4px oklch(1 0 0 / 0.6);
+}
+.flow-nav-pill[aria-expanded="true"] svg { color: var(--brand); }
+
+/* 下拉面板 — 近实底白玻璃（小文字下不透字）+ 方向性双影 */
+.flow-nav-menu {
+  min-width: 156px;
+  padding: 6px;
+  border-radius: 14px;
+  background: linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.004 258 / 0.95));
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    4px 4px 12px oklch(0.45 0.08 258 / 0.12),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+.flow-nav-menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 13px; font-weight: 500;
+  color: var(--fg);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.flow-nav-menu-item:hover {
+  color: var(--brand);
+  background: color-mix(in oklch, var(--brand) 7%, transparent);
+}
+.flow-nav-menu-item:active { transform: scale(0.98); }
+.flow-nav-menu-arrow {
+  color: var(--fg-3);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+.flow-nav-menu-item:hover .flow-nav-menu-arrow { color: var(--brand); transform: translate(1px, -1px); }
+@media (prefers-reduced-motion: reduce) {
+  .flow-nav-pill, .flow-nav-pill svg, .flow-nav-menu-item, .flow-nav-menu-arrow { transition: none; }
+  .flow-nav-pill:hover, .flow-nav-menu-item:active, .flow-nav-menu-item:hover .flow-nav-menu-arrow { transform: none; }
+}
+
+/* ── 机构名标宋 brand-wordmark（顶栏「四川水发集团」，2026-09-30）
+   思源宋体 900（webfont，中文分片按需加载）→ 系统宋体栈回退；
+   政务/国企机构名的正统衬线排印，替代粗黑体 ── */
+.brand-wordmark {
+  font-family: 'Noto Serif SC', 'Songti SC', 'STZhongsong', 'SimSun', '宋体', serif;
+  font-weight: 900;
 }

@@ -18,6 +18,8 @@ export interface AnnouncementItem {
   content: string;
   aiSummary?: string;
   metadata?: Record<string, any>;
+  /** 浏览量（后端 viewCount 透传，公开详情页访问自增） */
+  viewCount?: number;
   /** 已下线标题壳（2026-09-26 v2）：公示期满/存量下线——仅标题可见，不可点开看内容 */
   titleOnly?: boolean;
 }
@@ -116,6 +118,7 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     content: a.titleOnly ? '' : (a.content || ''),
     aiSummary: a.titleOnly ? undefined : (a.aiSummary || undefined),
     metadata: a.metadata || {},
+    viewCount: typeof a.viewCount === 'number' ? a.viewCount : 0,
     titleOnly: a.titleOnly === true,
   };
 }

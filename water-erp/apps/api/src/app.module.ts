@@ -15,6 +15,7 @@ import { PlatformPushModule } from './platform-push/platform-push.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { NotificationModule } from './notification/notification.module';
 import { UploadModule } from './upload/upload.module';
+import { VisitorModule } from './visitor/visitor.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { SupplierPortalModule } from './supplier-portal/supplier-portal.module';
 import { ContractModule } from './contract/contract.module';
@@ -85,6 +86,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     SupplierModule,
     NotificationModule,
     UploadModule,
+    VisitorModule,
     AnnouncementModule,
     SupplierPortalModule,
     ContractModule,

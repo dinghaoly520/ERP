@@ -252,7 +252,7 @@ export function UnifiedHeader({
             <img src="/assets/logo.png" alt="四川水发集团" className="h-[45px] w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong
-                className="whitespace-nowrap text-[27px] font-black leading-tight tracking-[0.10em] text-[#0a2540]"
+                className="brand-wordmark whitespace-nowrap text-[27px] leading-tight tracking-[0.10em] text-[#0a2540]"
               >
                 四川水发集团
               </strong>
@@ -389,7 +389,7 @@ export function UnifiedHeader({
         </div>
 
         {/* 右侧：导航菜单 */}
-        <div className="flex flex-1 items-center justify-end">
+        <div className="flex flex-1 items-center justify-end gap-4">
           {/* ── 集团简介 ── */}
           <div
             ref={aboutRef}
@@ -398,14 +398,14 @@ export function UnifiedHeader({
             onMouseLeave={handleMenuLeave}
           >
             <button
-              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#0a2540] hover:text-[#1d5fa8] transition-colors duration-200 whitespace-nowrap"
+              className="flow-nav-pill"
               aria-expanded={activeMenu === 'about'}
             >
               集团简介
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`mt-px transition-transform duration-300 ${activeMenu === 'about' ? 'rotate-180 text-[#2563ae]' : 'text-[#b0bcc9]'}`}
+                className={`mt-px ${activeMenu === 'about' ? 'rotate-180' : ''}`}
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -414,18 +414,16 @@ export function UnifiedHeader({
             {/* 下拉面板 — Portal 到 body 以越过 header 层叠上下文 */}
             {activeMenu === 'about' && mounted && createPortal(
               <div
-                className="fixed min-w-[140px] rounded-lg bg-[#f2f4f6] py-1 shadow-[0_12px_40px_rgba(15,35,65,.08)] z-[9999]"
+                className="flow-nav-menu fixed z-[9999]"
                 style={{ top: aboutMenuPos.top, left: aboutMenuPos.left }}
               >
-                <a href="/about" target="_blank" rel="noopener noreferrer"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
-                >
+                <a href="/about" target="_blank" rel="noopener noreferrer" className="flow-nav-menu-item">
                   集团概况
+                  <svg className="flow-nav-menu-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
                 </a>
-                <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
-                >
+                <a href="https://www.scsfjt.com/" target="_blank" rel="noopener noreferrer" className="flow-nav-menu-item">
                   集团官网
+                  <svg className="flow-nav-menu-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
                 </a>
               </div>,
               document.body,
@@ -440,14 +438,14 @@ export function UnifiedHeader({
             onMouseLeave={handleMenuLeave}
           >
             <button
-              className="flex items-center gap-1 px-4 py-2 text-[14px] font-semibold tracking-wide text-[#0a2540] hover:text-[#1d5fa8] transition-colors duration-200 whitespace-nowrap"
+              className="flow-nav-pill"
               aria-expanded={activeMenu === 'contact'}
             >
               联系我们
               <svg
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`mt-px transition-transform duration-300 ${activeMenu === 'contact' ? 'rotate-180 text-[#2563ae]' : 'text-[#b0bcc9]'}`}
+                className={`mt-px ${activeMenu === 'contact' ? 'rotate-180' : ''}`}
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -456,18 +454,16 @@ export function UnifiedHeader({
             {/* 下拉面板 — Portal 到 body */}
             {activeMenu === 'contact' && mounted && createPortal(
               <div
-                className="fixed min-w-[140px] rounded-lg bg-[#f2f4f6] py-1 shadow-[0_12px_40px_rgba(15,35,65,.08)] z-[9999]"
+                className="flow-nav-menu fixed z-[9999]"
                 style={{ top: contactMenuPos.top, left: contactMenuPos.left }}
               >
-                <a href="/contact"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
-                >
+                <a href="/contact" className="flow-nav-menu-item">
                   联系方式
+                  <svg className="flow-nav-menu-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
                 </a>
-                <a href="/contact/visitor"
-                  className="block px-4 py-2 text-[13px] font-medium text-[#18243a] hover:bg-[#e8ebf0] hover:text-[#2563ae] transition-colors duration-150 text-center"
-                >
-                  来访接待
+                <a href="/contact/visitor" className="flow-nav-menu-item">
+                  供应商来访接待
+                  <svg className="flow-nav-menu-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
                 </a>
               </div>,
               document.body,
