@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Clock3, Download, FileArchive, History, ShieldCheck, Upload } from "lucide-react";
+import { AlertTriangle, Clock3, Download, FileArchive, History, ShieldCheck, Upload } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import { apiFetch } from "@/lib/api/api-fetch";
 
@@ -90,6 +90,7 @@ export function ArchiveVolumeModal({
   const [retentionOpen, setRetentionOpen] = useState(false);
   const [retentionValue, setRetentionValue] = useState<"PERMANENT" | "Y30" | "Y10">("Y30");
   const [retentionSaving, setRetentionSaving] = useState(false);
+  const [reExportConfirm, setReExportConfirm] = useState(false); // 重导出覆盖旧包前的确认
 
   useEffect(() => {
     if (toast) {
@@ -247,10 +248,10 @@ export function ArchiveVolumeModal({
                     type="button"
                     className="neu-btn-soft !h-9 !text-xs"
                     disabled={busy}
-                    onClick={() => void exportAsip()}
+                    onClick={() => setReExportConfirm(true)}
                     title="重新封卷将覆盖旧包：整包指纹与导出时间更新，旧指纹失效"
                   >
-                    <FileArchive size={13} /> 重新导出
+                    <FileArchive size={13} /> 重新导出 ASIP
                   </button>
                 )}
               </>
@@ -394,6 +395,34 @@ export function ArchiveVolumeModal({
                 </button>
               ))}
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* 重新导出确认：覆盖旧包（整包指纹与导出时间更新）——防误触靠确认而非隐藏 */}
+      {reExportConfirm && (
+        <Modal
+          open
+          onClose={() => setReExportConfirm(false)}
+          title="重新导出归档信息包"
+          description={<>项目：<strong className="text-[var(--foreground)]">{target.title}</strong>（{target.projectCode ?? "—"}）</>}
+          footer={
+            <>
+              <button onClick={() => setReExportConfirm(false)} className="neu-btn-soft">取消</button>
+              <button
+                onClick={() => { setReExportConfirm(false); void exportAsip(); }}
+                className="neu-btn-soft is-success"
+              >
+                确认重导
+              </button>
+            </>
+          }
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+            <p className="text-sm leading-relaxed text-[color:var(--foreground)]">
+              将覆盖当前归档信息包：整包指纹与导出时间更新，已下发的旧包指纹将失效。材料无变化时请直接「下载归档包」。
+            </p>
           </div>
         </Modal>
       )}
