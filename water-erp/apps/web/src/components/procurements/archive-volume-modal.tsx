@@ -213,7 +213,7 @@ export function ArchiveVolumeModal({
         description={
           <span>
             <span className="font-semibold text-[color:var(--foreground)]">{target.title}</span>
-            {" "}· <span className="font-mono">{target.projectCode ?? "—"}</span> · 卷内按阶段整理（§9.2）
+            {" "}· <span className="font-mono">{target.projectCode ?? "—"}</span>
             {" "}· 保管期限 {localRetention ? RETENTION_LABEL[localRetention] : "未划定"}
             {localExportedAt && (
               <span className="ml-1 font-semibold text-[var(--success)]">已导出 {new Date(localExportedAt).toLocaleDateString()}</span>
