@@ -169,6 +169,7 @@ jobs:
             curl -fL --retry 3 -o /tmp/weed.tar.gz \
               https://github.com/seaweedfs/seaweedfs/releases/download/4.48/linux_amd64.tar.gz
             tar -xzf /tmp/weed.tar.gz -C /tmp/
+            mkdir -p /tmp/weed-data  # weed 不自动建 -dir，缺则启动即 Fatal（2026-09-30 CI 实录）
             nohup /tmp/weed server -dir=/tmp/weed-data -ip=127.0.0.1 -s3 -s3.port=9000 >/tmp/weed.log 2>&1 &
           fi
           # 就绪探测对 HTTP 状态宽容（S3 网关未签名 GET 常 403，仅验证端口已监听）
