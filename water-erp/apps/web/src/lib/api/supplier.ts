@@ -84,6 +84,7 @@ export function getSupplierList(params?: { status?: string; classificationId?: s
   if (params?.evalLevel) query.set('evalLevel', params.evalLevel);
   if (params?.qualificationStatus) query.set('qualificationStatus', params.qualificationStatus);
   if (params?.isTemporary) query.set('isTemporary', 'true');
+  if (params?.reviewStage) query.set('reviewStage', params.reviewStage); // 三级审批当前级（2026-09-30）
   if (params?.companyId && params.companyId !== 'all') query.set('companyId', params.companyId);
   return api.get<SupplierListResponse>(`/supplier/list?${query.toString()}`);
 }
@@ -244,18 +245,18 @@ export function getSupplier(id: string) {
 }
 
 // 审核通过（三级审批 2026-09-29：staff/leader 级同意缘由必填，admin 终审可选）
-export function approveSupplier(id: string, reason?: string) {
-  return api.post<{ success: boolean; stage?: string }>(`/supplier/${id}/approve`, { reason });
+export function approveSupplier(id: string, reason?: string, attachmentIds?: string[]) {
+  return api.post<{ success: boolean; stage?: string }>(`/supplier/${id}/approve`, { reason, attachmentIds });
 }
 
 // 审核不通过
-export function rejectSupplier(id: string, reason: string) {
-  return api.post<Supplier>(`/supplier/${id}/reject`, { reason });
+export function rejectSupplier(id: string, reason: string, attachmentIds?: string[]) {
+  return api.post<Supplier>(`/supplier/${id}/reject`, { reason, attachmentIds });
 }
 
 // 退回补正
-export function returnSupplier(id: string, reason: string) {
-  return api.post<Supplier>(`/supplier/${id}/return`, { reason });
+export function returnSupplier(id: string, reason: string, attachmentIds?: string[]) {
+  return api.post<Supplier>(`/supplier/${id}/return`, { reason, attachmentIds });
 }
 
 // 更新状态
@@ -420,11 +421,28 @@ export interface ApprovalRecord {
   id: string; action: 'APPROVED' | 'REJECTED' | 'RETURNED';
   /** 三级审批发生级（2026-09-29）：STAFF/LEADER/ADMIN；null=旧数据 */
   stage?: string | null;
+  /** 意见附件（2026-09-30）：FileAsset id 集合 */
+  attachmentIds?: string[];
   reason: string | null; snapshot: ApprovalSnapshot; createdAt: string;
   reviewer: { id: string; displayName: string; username: string } | null;
 }
 export function getApprovalHistory(id: string) {
   return api.get<ApprovalRecord[]>(`/supplier/${id}/approval-history`);
+}
+
+/** 全量审批记录（admin only，2026-09-30）：跨供应商全流程（三级通过+驳回+退回补正） */
+export interface AllApprovalRecord {
+  id: string;
+  action: 'APPROVED' | 'REJECTED' | 'RETURNED';
+  stage?: string | null;
+  reason?: string | null;
+  attachmentIds?: string[];
+  createdAt: string;
+  reviewer: { id: string; displayName: string; username: string; role: string } | null;
+  supplier: { id: string; name: string; creditCode: string | null; status: string; reviewStage: string | null; companyName: string | null };
+}
+export function listAllApprovalRecords() {
+  return api.get<AllApprovalRecord[]>('/supplier/approval-records/all');
 }
 
 // 资质预警
@@ -645,6 +663,19 @@ export function fetchPendingSupplierChanges() {
 }
 
 // 审批中心角标（2026-09-29）：待我审的注册数 + 信息更新数
+/** 审批留痕附件解析（2026-09-30）：id → 文件名/大小 */
+export interface ApprovalAttachment { id: string; name: string; size: number; mimeType: string }
+export function resolveApprovalAttachments(ids: string[]) {
+  return api.post<ApprovalAttachment[]>('/supplier/approval-attachments/resolve', { ids });
+}
+
+/** 上传审核意见附件（FileAsset） */
+export function uploadReviewAttachment(file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.postForm<{ id: string; url: string; originalName: string; size: number }>(`/upload?category=general`, fd);
+}
+
 export function fetchMyPendingReviewCount(companyId?: string) {
   return api.get<{ registration: number; changes: number }>(`/supplier/approvals/my-pending-count${companyId ? `?companyId=${companyId}` : ''}`);
 }

@@ -37,7 +37,12 @@ function LoginForm() {
   const params = useSearchParams();
   const { login, isLoggedIn } = useAuth();
 
-  const [username, setUsername] = useState("");
+  // B4-3：注册完成跳转 ?registered=1&creditCode=... 预填账号（注册用户名=统一社会信用代码）
+  const [username, setUsername] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const v = new URL(window.location.href).searchParams.get("creditCode");
+    return v && v.trim() ? v.trim() : "";
+  });
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -92,7 +97,11 @@ function LoginForm() {
     try {
       const result: LoginResult = await login(username, password);
       if (result === "ok") {
-        router.push("/dashboard");
+        // B4-3（2026-09-30）：消费登录门禁写入的 ?redirect= 深链（proxy.ts:110 写入但全站无人读，
+        // 受保护页登录后回不到原页）；仅放行站内相对路径，防开放重定向
+        const redirect = params.get("redirect") || "";
+        const safeRedirect = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard";
+        router.push(safeRedirect);
       } else if (result === "invalid") {
         toast.error("用户名或密码错误");
       } else if (result === "frozen") {

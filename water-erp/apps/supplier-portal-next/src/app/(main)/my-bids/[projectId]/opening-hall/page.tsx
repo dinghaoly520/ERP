@@ -219,7 +219,12 @@ export default function OpeningHallPage() {
 
   async function loadPresence() {
     const res = await openingHallApi.presence(projectId).catch(() => null);
-    if (res) setOnlineCount(res.onlineCount ?? 0);
+    if (res) {
+      setOnlineCount(res.onlineCount ?? 0);
+      // B4-1（2026-09-30）：签到状态服务端权威——此前仅本地 state，刷新/重进大厅徽标丢失、
+      // 按钮重现（后端 presence 已下发 myCheckInAt）
+      if (res.myCheckInAt) setCheckedInAt(res.myCheckInAt);
+    }
   }
 
   async function checkIn() {
@@ -618,7 +623,7 @@ export default function OpeningHallPage() {
 
       <div className="right">
         {supplierId ? (
-          <ChatPanel projectId={projectId} supplierId={supplierId} supplierName={supplierName} userId={auth.user?.id ?? ""} />
+          <ChatPanel projectId={projectId} supplierId={supplierId} supplierName={supplierName} userId={auth.user?.id ?? ""} stage={stage} />
         ) : profileError ? (
           <section className="hall-card">
             <div className="hall-card__body">

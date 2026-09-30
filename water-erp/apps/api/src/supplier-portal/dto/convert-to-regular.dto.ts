@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MaxLength, IsArray, ValidateNested, IsOptional, IsBoolean, ArrayMinSize, ArrayMaxSize } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsArray, ValidateNested, IsOptional, IsBoolean, ArrayMinSize, ArrayMaxSize, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class ConvertContactDto {
@@ -41,6 +41,14 @@ export class ConvertToRegularDto {
 
   @IsString() @IsNotEmpty() @MaxLength(50)
   legalPerson: string;
+
+  /** B2-4（2026-09-30）：与正式注册同口径——法定代表人身份证号（18 位）+ 扫描件；
+   *  此前转正链路不采集，临时转正供应商永久缺这份「注册必传」材料。 */
+  @IsString() @IsNotEmpty() @Matches(/^\d{17}[\dXx]$/, { message: '法定代表人身份证号须为 18 位' })
+  legalPersonIdCard: string;
+
+  @IsString() @IsNotEmpty()
+  legalIdFileUrl: string; // 法定代表人身份证扫描件（上传后落资质行 type=法定代表人身份证）
 
   @IsString() @IsNotEmpty()
   registeredAddress: string;

@@ -68,8 +68,22 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
       if (pongTimer) { clearTimeout(pongTimer); pongTimer = null; }
     }
 
+    // 会话被顶/冻结即停连（2026-09-30 B1-2）：重连 handshake 携带的是覆盖者 cookie，
+    // 会以他人身份订阅本项目开标事件；session-kick 遮罩弹出时广播本事件。
+    // sessionStopped 独立于 manualClose——onVisibility 复位 manualClose 后仍不得复活。
+    let sessionStopped = false;
+    const onSessionInvalid = () => {
+      sessionStopped = true;
+      manualClose = true;
+      clearTimers();
+      socket?.removeAllListeners();
+      socket?.disconnect();
+      setConnection("disconnected");
+    };
+    window.addEventListener("supplier:session-invalid", onSessionInvalid);
+
     function connect() {
-      if (disposed || socket?.connected) return;
+      if (disposed || sessionStopped || socket?.connected) return;
       manualClose = false;
       setConnection((c) => (c === "connected" ? c : "reconnecting"));
 
@@ -146,6 +160,7 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
     }
 
     const onVisibility = () => {
+      if (sessionStopped) return; // B1-2：会话已失效，回前台也不得以覆盖者 cookie 复活
       if (document.hidden) teardown();
       else { manualClose = false; connect(); }
     };
@@ -157,6 +172,7 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
       disposed = true;
       teardown();
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("supplier:session-invalid", onSessionInvalid);
     };
   }, [projectId, nonce]);
 

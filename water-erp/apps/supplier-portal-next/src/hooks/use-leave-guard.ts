@@ -53,9 +53,18 @@ export function useLeaveGuard(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const guardedReplace = guardNav(origReplace as (...args: unknown[]) => void) as typeof history.replaceState;
 
+    // B4-1（2026-09-30）：抑制「拒绝后回弹」触发的第二次 popstate——此前 forward() 回到原位
+    // 会再触发一次 onPopState：一次 Back 要连按两次取消，且第二次点「确定（离开）」时
+    // 实际已 forward 回原位（确认语义失效）。
+    let suppressBouncePop = false;
     const onPopState = () => {
+      if (suppressBouncePop) {
+        suppressBouncePop = false;
+        return;
+      }
       if (isDirty() && !window.confirm(message)) {
         // 拒绝后回弹：把用户按回原位置（前进到被拒绝的目的地再退回）
+        suppressBouncePop = true;
         history.forward();
       }
     };

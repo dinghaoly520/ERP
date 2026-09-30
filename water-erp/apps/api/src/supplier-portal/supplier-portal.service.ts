@@ -1003,7 +1003,24 @@ export class SupplierPortalService {
     });
   }
 
+  /** B3-2（2026-09-30）：临时供应商资料维护守卫——资料补全须走工作台「转为正式供应商」
+   *  审批链（convertToRegular）。此前仅侧栏菜单隐藏：直敲 URL 即可经散点 CRUD/变更申请
+   *  绕过转正审核写入联系人/资质，脏数据进入投标评审依据。 */
+  private async assertNotTemporary(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { isTemporary: true },
+    });
+    if (supplier?.isTemporary) {
+      throw new BadRequestException({
+        error: '临时供应商请通过工作台「转为正式供应商」提交并完善资料',
+        code: 'TEMPORARY_USE_CONVERT',
+      });
+    }
+  }
+
   async addContact(supplierId: string, dto: CreateContactDto) {
+    await this.assertNotTemporary(supplierId); // B3-2
     return this.prisma.supplierContact.create({
       data: {
         supplierId,
@@ -1012,11 +1029,14 @@ export class SupplierPortalService {
         email: dto.email,
         isPrimary: dto.isPrimary,
         position: dto.position,
+        gender: dto.gender,        // B4-2：维护端补写（完整度 +2）
+        idCard: dto.idCard,        // B4-2：维护端补写（完整度 +2）
       },
     });
   }
 
   async updateContact(supplierId: string, contactId: string, dto: Partial<CreateContactDto>) {
+    await this.assertNotTemporary(supplierId); // B3-2
     const contact = await this.prisma.supplierContact.findUnique({ where: { id: contactId } });
     if (!contact || contact.supplierId !== supplierId) {
       throw new BadRequestException({ error: '联系人不存在', code: 'NOT_FOUND' });
@@ -1029,11 +1049,14 @@ export class SupplierPortalService {
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.isPrimary !== undefined && { isPrimary: dto.isPrimary }),
         ...(dto.position !== undefined && { position: dto.position }),
+        ...(dto.gender !== undefined && { gender: dto.gender }),      // B4-2
+        ...(dto.idCard !== undefined && { idCard: dto.idCard }),      // B4-2
       },
     });
   }
 
   async deleteContact(supplierId: string, contactId: string) {
+    await this.assertNotTemporary(supplierId); // B3-2
     const contact = await this.prisma.supplierContact.findUnique({ where: { id: contactId } });
     if (!contact || contact.supplierId !== supplierId) {
       throw new BadRequestException({ error: '联系人不存在', code: 'NOT_FOUND' });
@@ -1051,6 +1074,7 @@ export class SupplierPortalService {
   }
 
   async addQualification(supplierId: string, dto: CreateQualificationDto) {
+    await this.assertNotTemporary(supplierId); // B3-2
     return this.prisma.supplierQualification.create({
       data: {
         supplierId,
@@ -1064,11 +1088,20 @@ export class SupplierPortalService {
   }
 
   async deleteQualification(supplierId: string, qualificationId: string) {
+    await this.assertNotTemporary(supplierId); // B3-2
     const qualification = await this.prisma.supplierQualification.findUnique({
       where: { id: qualificationId },
     });
     if (!qualification || qualification.supplierId !== supplierId) {
       throw new BadRequestException({ error: '资质材料不存在', code: 'NOT_FOUND' });
+    }
+    // B4-2（2026-09-30）：注册必传材料删除保护——资质修改不走审核（即删即生效），
+    // 此前营业执照/法人身份证扫描件可一键删除，且「法定代表人身份证」不在维护端词表、删后永不可补
+    if (['营业执照', '法定代表人身份证'].includes(qualification.type)) {
+      throw new BadRequestException({
+        error: `「${qualification.type}」为入驻必传材料，不可删除；如需更新请上传新件后联系管理员替换`,
+        code: 'REQUIRED_QUAL_PROTECTED',
+      });
     }
     return this.prisma.supplierQualification.delete({ where: { id: qualificationId } });
   }
@@ -1087,6 +1120,8 @@ export class SupplierPortalService {
     if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     if (supplier.userId !== userId) throw new ForbiddenException({ error: '无权操作', code: 'FORBIDDEN' });
     if (supplier.status !== 'APPROVED') throw new BadRequestException({ error: '只有已入库供应商可以提交变更', code: 'INVALID_STATUS' });
+    // B3-2：临时供应商 status=APPROVED，但其资料补全走转正审批链
+    if (supplier.isTemporary) throw new BadRequestException({ error: '临时供应商请通过工作台「转为正式供应商」提交并完善资料', code: 'TEMPORARY_USE_CONVERT' });
 
     // 字段白名单校验
     if (!isSupplierChangeAllowedField(dto.fieldName)) {
@@ -1351,7 +1386,10 @@ export class SupplierPortalService {
     if (supplierId) {
       if (invitedIds.length > 0) {
         const ids = scopeIds ? invitedIds.filter(id => scopeIds.includes(id)) : invitedIds;
-        if (ids.length > 0) orBranches.push({ id: { in: ids }, stage: { in: ['DOWNLOAD', 'SUBMIT'] } });
+        // B4-1（2026-09-30）：受邀分支补 deadline 闸——公开分支有 `deadline gt` 而受邀没有，
+        // 受邀项目截标后（阶段未流转）继续以「项目机会」形态出现：倒计时显示「已截止」、
+        // 详情「不可投标」，与本列表「只含未截标项目」的自我口径矛盾
+        if (ids.length > 0) orBranches.push({ id: { in: ids }, deadline: { gt: now }, stage: { in: ['DOWNLOAD', 'SUBMIT'] } });
       }
       if (openIds.length > 0) {
         const ids = scopeIds ? openIds.filter(id => scopeIds.includes(id)) : openIds;
@@ -2936,7 +2974,10 @@ export class SupplierPortalService {
       select: { name: true },
     });
     const submissions = await this.prisma.supplierBidSubmission.findMany({
-      where: { supplierId, status: { not: 'draft' } },
+      // B2-2（2026-09-30）：草稿一并返回——草稿仅在供应商显式「保存草稿」时创建（有截止
+      // 闸门），此前全滤导致「我的投标」看不到已保存草稿（前端草稿徽标/提示是死代码，
+      // 页面显示「暂无投标记录」误导用户以为保存失败）。
+      where: { supplierId },
       orderBy: { createdAt: 'desc' },
       include: {
         project: {
@@ -3943,6 +3984,9 @@ export class SupplierPortalService {
         newValue: JSON.stringify({
           enterpriseType: dto.enterpriseType,
           legalPerson: dto.legalPerson,
+          // B2-4（2026-09-30）：转正采集法人身份证号+扫描件（与正式注册同口径）
+          legalPersonIdCard: dto.legalPersonIdCard,
+          legalIdFileUrl: dto.legalIdFileUrl,
           registeredAddress: dto.registeredAddress,
           businessScope: dto.businessScope,
           creditCode: dto.creditCode,

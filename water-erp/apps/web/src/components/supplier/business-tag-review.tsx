@@ -47,10 +47,14 @@ export function BusinessTagReview({ onChanged }: { onChanged?: () => void }) {
   return (
     <div className="neu-table-card !p-0">
       <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Tags size={15} strokeWidth={1.75} className="text-[var(--accent)]" />
-          <span className="text-sm font-bold">业务标签审核</span>
-          <span className="text-xs text-[var(--muted-foreground)]">供应商注册自创标签，通过后进入标签库供后续注册选择</span>
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[var(--accent)]" style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>
+            <Tags size={14} strokeWidth={1.9} />
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[0.95rem] font-bold tracking-tight text-[var(--foreground)]">业务标签审核</span>
+            <span className="text-[11px] text-[var(--muted-foreground)]">供应商注册自创标签，通过后进入标签库供后续注册选择</span>
+          </div>
         </div>
         {pending !== null && pending.length > 0 && <span className="neu-tab-count">{pending.length} 待审</span>}
       </div>

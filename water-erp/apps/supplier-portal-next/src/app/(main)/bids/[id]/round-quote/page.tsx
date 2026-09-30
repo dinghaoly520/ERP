@@ -123,8 +123,13 @@ export default function RoundQuotePage() {
     }
   }
 
+  // B4-1（2026-09-30）：非项目成员显式无权态——此前 403 NOT_PROJECT_MEMBER 被当成
+  // 「无轮次」空态渲染 + toast「加载失败」，把「无权查看」伪装成「没有轮次」
+  const [noAccess, setNoAccess] = useState(false);
+
   async function fetchData() {
     setLoading(true);
+    setNoAccess(false);
     try {
       const res = await bidApi.listRounds(projectId);
       const list = (res ?? []) as Round[];
@@ -152,8 +157,9 @@ export default function RoundQuotePage() {
           }
         }
       }
-    } catch {
-      toast.error("加载失败");
+    } catch (e: unknown) {
+      if (e instanceof ApiError && (e.data as any)?.code === "NOT_PROJECT_MEMBER") setNoAccess(true);
+      // 其余失败全局层已统一 toast；无权不弹错（成员资格本就可能无）
     } finally {
       setLoading(false);
     }
@@ -176,7 +182,8 @@ export default function RoundQuotePage() {
   );
 
   async function handleSubmit() {
-    if (!currentOpenRound || !myBidSupplierId || !quotePriceValid) return;
+    if (!currentOpenRound || !quotePriceValid) return;
+    if (!myBidSupplierId) { toast.warning("未取得本项目投标资格，无法提交报价"); return; } // B4-1：静默 return → 明确反馈
     const price = Math.round(quotePrice! * 100) / 100; // precision=2
 
     // 提交前确认弹窗——提醒供应商仔细核对价格（已迁移 useConfirm）
@@ -190,7 +197,7 @@ export default function RoundQuotePage() {
       await bidApi.submitQuote(projectId, currentOpenRound.id, {
         bidSupplierId: myBidSupplierId,
         quotePrice: price,
-      });
+      }, { silent: true }); // B4-1：错误由本 catch 单一出口提示，避免与全局拦截器双弹
       toast.success("报价已提交(密封)，不可修改");
       setQuotePriceText("");
       // 刷新我的报价状态
@@ -223,7 +230,10 @@ export default function RoundQuotePage() {
           </SpButton>
         </div>
 
-        {!loading && rounds.length === 0 ? (
+        {!loading && noAccess ? (
+          // B4-1：无权≠没有轮次——此前 403 被渲染成下方空态误导非成员以为无轮次
+          <EmptyState icon={Inbox} title="您不是本项目的报价成员" desc="多轮报价仅对本项目受邀/已投递供应商开放，如有疑问请联系采购中心。" />
+        ) : !loading && rounds.length === 0 ? (
           <EmptyState icon={Inbox} title="暂无报价轮次" />
         ) : (
           <div className="space-y-4">
@@ -260,7 +270,15 @@ export default function RoundQuotePage() {
                   ) : (
                     <>
                       {/* 未提交：报价输入 */}
-                      <div className="rq-alert rq-alert--warning mb-4">
+                      {deadlinePassed && (
+                        // B4-1（2026-09-30）：截止只灰按钮不给原因——卡片仍显「报价中」+可输入框+灰按钮，
+                        // 用户无从得知为何提交不了（主持人未封轮时 round 仍 open，前端倒计时已过）
+                        <div className="rq-alert rq-alert--warning mb-4">
+                          <AlertTriangle size={16} className="shrink-0" />
+                          <span className="text-sm">本轮报价已截止（{formatTime(currentOpenRound?.deadline ?? null)}），无法再提交，等待主持人封轮/公布。</span>
+                        </div>
+                      )}
+                      <div className={`rq-alert rq-alert--warning mb-4${deadlinePassed ? " hidden" : ""}`}>
                         <AlertTriangle size={16} className="shrink-0" />
                         <span className="text-sm">报价提交后不可修改，请仔细核对金额后再提交。</span>
                       </div>

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Inject, Logger } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,6 +56,8 @@ function computeFinalGrade(
 
 @Injectable()
 export class SupplierService {
+  private readonly logger = new Logger(SupplierService.name);
+
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
@@ -86,9 +88,9 @@ export class SupplierService {
 
   static readonly REVIEW_STAGES = ['STAFF', 'LEADER', 'ADMIN'] as const;
   static readonly REVIEW_STAGE_LABELS: Record<string, string> = {
-    STAFF: '初审（经办 staff）',
-    LEADER: '复审（部门 leader）',
-    ADMIN: '终审（管理员确认）',
+    STAFF: '初审',
+    LEADER: '复审',
+    ADMIN: '终审',
   };
 
   /** 公司内是否有指定角色的在编账号（IsActive）——用于无 staff/leader 公司的代审放行 */
@@ -469,7 +471,7 @@ export class SupplierService {
       type: 'SUPPLIER_PENDING',
       title: '新供应商注册待初审',
       content: `${supplier.name} 提交了注册申请，信用代码 ${supplier.creditCode}，请前往初审。`,
-      link: '/supplier/approval',
+      link: `/supplier/approval?supplierId=${supplier.id}`,
     });
 
     // 含自创业务标签时，额外提醒到供应商管理中心审核标签入池
@@ -698,7 +700,7 @@ export class SupplierService {
       type: 'SUPPLIER_PENDING',
       title: '新临时供应商注册待初审',
       content: `${supplier.name}（临时供应商，有效期至 ${expireLabel}）提交了注册申请，请前往初审。`,
-      link: '/supplier/approval',
+      link: `/supplier/approval?supplierId=${supplier.id}`,
     });
 
     // 含自创业务标签时，额外提醒到供应商管理中心审核标签入池
@@ -822,6 +824,19 @@ export class SupplierService {
     if (params.isTemporary === true) where.isTemporary = true;
     // 三级审批当前级筛选（2026-09-29，审批中心分列）：STAFF / LEADER / ADMIN
     if (params.reviewStage) where.reviewStage = params.reviewStage;
+    // 退回补正/已驳回可见性（2026-09-30 用户裁定）：admin 全见；同公司 leader（公司管理员）全见
+    // （公司域由 companyScope 已注入）；同公司 staff 仅见自己经手的（退回/驳回动作 reviewer=本人）。
+    if (
+      (params.status === 'RETURNED' || params.status === 'REJECTED') &&
+      !params.reviewStage
+    ) {
+      // admin 不可见（2026-09-30 用户裁定）：退回/驳回仅归公司管理账号（leader 全见、staff 见自己经手）
+      if (params.actor?.role === 'admin') {
+        where.id = { in: [] }; // 恒空
+      } else if (params.actor && params.actor.role === 'staff') {
+        where.approvalRecords = { some: { action: params.status, reviewerUserId: params.actor.sub } };
+      }
+    }
     if (params.search) {
       where.OR = [
         { name: { contains: params.search, mode: 'insensitive' } },
@@ -886,6 +901,17 @@ export class SupplierService {
         conditions.push(Prisma.sql`s."status" = ${where.status}::"SupplierStatus"`);
       }
     }
+      // 三级审批当前级（2026-09-30）：raw 路径须与 ORM 路径同口径（此前漏配致过滤失效）
+      if (where.reviewStage) conditions.push(Prisma.sql`s."reviewStage" = ${where.reviewStage}`);
+      // admin 对退回/驳回不可见（同 ORM 口径）：恒空条件
+      if (where.id && Array.isArray(where.id.in) && where.id.in.length === 0) {
+        conditions.push(Prisma.sql`false`);
+      }
+      // 退回/驳回经手过滤（同 ORM 路径口径；staff 仅见自己经手的）
+      if (where.approvalRecords?.some) {
+        const ar = where.approvalRecords.some;
+        conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierApprovalRecord" r WHERE r."supplierId" = s.id AND r."action" = ${ar.action} AND r."reviewerUserId" = ${ar.reviewerUserId})`);
+      }
     if (where.classificationId) conditions.push(Prisma.sql`"classificationId" = ${where.classificationId}`);
     if (where.OR) {
       // search: name ILIKE or creditCode contains
@@ -1157,8 +1183,38 @@ export class SupplierService {
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true, action: true, stage: true, reason: true, snapshot: true, createdAt: true,
+        id: true, action: true, stage: true, reason: true, attachmentIds: true, snapshot: true, createdAt: true,
         reviewer: { select: { id: true, displayName: true, username: true } },
+      },
+    });
+    return records;
+  }
+
+  /** 审批留痕附件解析（2026-09-30）：FileAsset id → 文件名/大小（历史与 stepper 展示用） */
+  async resolveApprovalAttachments(ids: string[]) {
+    if (!ids.length) return [];
+    ids = [...new Set(ids)].slice(0, 200); // 加固：去重 + 上限
+    const assets = await this.prisma.fileAsset.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, originalName: true, size: true, mimeType: true },
+    });
+    const map = new Map(assets.map(a => [a.id, a]));
+    return ids
+      .map(id => map.get(id))
+      .filter((a): a is { id: string; originalName: string; size: number; mimeType: string } => !!a)
+      .map(a => ({ id: a.id, name: a.originalName, size: a.size, mimeType: a.mimeType }));
+  }
+
+  /** 全量审批记录（2026-09-30 用户裁定，admin only）：跨供应商全流程记录，
+   *  含三级通过（STAFF/LEADER/ADMIN）+ 驳回 + 退回补正；倒序（最新在前）。 */
+  async listAllApprovalRecords() {
+    const records = await this.prisma.supplierApprovalRecord.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+      select: {
+        id: true, action: true, stage: true, reason: true, attachmentIds: true, createdAt: true,
+        reviewer: { select: { id: true, displayName: true, username: true, role: true } },
+        supplier: { select: { id: true, name: true, creditCode: true, status: true, reviewStage: true, companyName: true } },
       },
     });
     return records;
@@ -1303,11 +1359,19 @@ export class SupplierService {
   }
 
   /** 写入不可变审核历史（approve/reject/return 调用）。失败不阻断审核流程但记录告警。 */
-  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED', reviewerUserId: string | undefined, reason?: string, stage?: string) {
+  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED', reviewerUserId: string | undefined, reason?: string, stage?: string, rawAttachmentIds: string[] = []) {
     const snapshot = await this.buildApprovalSnapshot(supplierId);
     if (!snapshot) return;
+    // 附件加固（2026-09-30）：去重 + 上限 10 + 校验 FileAsset 真实存在（防伪造 id 入留痕）
+    const unique = [...new Set(rawAttachmentIds)].slice(0, 10);
+    const attachmentIds = unique.length
+      ? (await this.prisma.fileAsset.findMany({ where: { id: { in: unique } }, select: { id: true } })).map(a => a.id)
+      : [];
+    if (attachmentIds.length < unique.length) {
+      this.logger.warn(`[approval-record] 附件 id 部分无效（${unique.length - attachmentIds.length} 个），已过滤`);
+    }
     await this.prisma.supplierApprovalRecord.create({
-      data: { supplierId, action, stage: stage ?? null, reviewerUserId: reviewerUserId ?? null, reason: reason ?? null, snapshot },
+      data: { supplierId, action, stage: stage ?? null, reviewerUserId: reviewerUserId ?? null, reason: reason ?? null, attachmentIds, snapshot },
     }).catch((err: any) => console.error(`[approval-record] 写入失败 supplier=${supplierId} action=${action}`, err?.message ?? err));
   }
 
@@ -1315,7 +1379,7 @@ export class SupplierService {
    *  reviewStage=STAFF（同公司 staff，通过须填同意缘由）→ LEADER（同公司 leader，可见 staff 缘由，须填缘由）
    *  → ADMIN（平台 admin 终审确认）→ APPROVED + 账号激活。
    *  STAFF/LEADER 通过仅推进级；ADMIN 通过才落终态。乐观锁按当前级防并发双审。 */
-  async approve(id: string, userId?: string, reason?: string) {
+  async approve(id: string, userId?: string, reason?: string, attachmentIds: string[] = []) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id }, include: { user: true } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
@@ -1357,7 +1421,7 @@ export class SupplierService {
         link: `/dashboard`,
       });
       if (userId) await this.audit(userId, 'SUPPLIER_APPROVED', id, { name: supplier.name, stage });
-      await this.recordApproval(id, 'APPROVED', userId, trimmed, stage);
+      await this.recordApproval(id, 'APPROVED', userId, trimmed, stage, attachmentIds);
       return { success: true, stage: 'DONE' as const };
     }
 
@@ -1375,20 +1439,22 @@ export class SupplierService {
       type: 'SUPPLIER_PENDING',
       title: `供应商注册待${nextStage === 'LEADER' ? '复审' : '终审'}`,
       content: `${supplier.name} 已通过${SupplierService.REVIEW_STAGE_LABELS[stage]}（缘由：${trimmed}），请前往${nextStage === 'LEADER' ? '复审' : '终审确认'}。`,
-      link: '/supplier/approval',
+      link: `/supplier/approval?supplierId=${id}`,
     });
     if (userId) await this.audit(userId, `SUPPLIER_REVIEW_PASSED_${stage}`, id, { name: supplier.name, reason: trimmed, nextStage });
-    await this.recordApproval(id, 'APPROVED', userId, trimmed, stage);
+    await this.recordApproval(id, 'APPROVED', userId, trimmed, stage, attachmentIds);
     return { success: true, stage: nextStage };
   }
 
-  /** 清该供应商的注册审批待办（历史 link 两种都清，防残留） */
+  /** 清该供应商的注册审批待办（精确到本供应商，2026-09-30 稳健性修复：
+   *  旧 resolveActionable('/supplier/approval') 是无 id 批量 updateMany，会把所有供应商
+   *  待办一并标记已办——现改按带 supplierId 的 link 精确清零，保留旧 link 兜底。 */
   private async clearSupplierPendingTodos(id: string) {
     await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`).catch(() => {});
-    await this.notificationService.resolveActionable('SUPPLIER_PENDING', '/supplier/approval').catch(() => {});
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/approval?supplierId=${id}`).catch(() => {});
   }
 
-  async reject(id: string, reason: string, userId?: string) {
+  async reject(id: string, reason: string, userId?: string, attachmentIds: string[] = []) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
@@ -1427,12 +1493,12 @@ export class SupplierService {
     });
 
     if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason, stage });
-    await this.recordApproval(id, 'REJECTED', userId, reason, stage);
+    await this.recordApproval(id, 'REJECTED', userId, reason, stage, attachmentIds);
 
     return result;
   }
 
-  async return(id: string, reason: string, userId?: string) {
+  async return(id: string, reason: string, userId?: string, attachmentIds: string[] = []) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
@@ -1471,7 +1537,7 @@ export class SupplierService {
     });
 
     if (userId) await this.audit(userId, 'SUPPLIER_RETURNED', id, { name: supplier.name, reason, stage });
-    await this.recordApproval(id, 'RETURNED', userId, reason, stage);
+    await this.recordApproval(id, 'RETURNED', userId, reason, stage, attachmentIds);
 
     return result;
   }
@@ -1550,7 +1616,7 @@ export class SupplierService {
       type: 'SUPPLIER_PENDING',
       title: '供应商补正后重新提交',
       content: `${supplier.name} 已补正资料重新提交${note ? `（说明：${note}）` : ''}，请继续${SupplierService.REVIEW_STAGE_LABELS[stage]}。`,
-      link: '/supplier/approval',
+      link: `/supplier/approval?supplierId=${supplierId}`,
     });
     await this.audit(userId, 'SUPPLIER_RESUBMITTED', supplierId, { name: supplier.name, note: note ?? null });
     return { success: true };
@@ -1578,7 +1644,7 @@ export class SupplierService {
       type: 'SUPPLIER_PENDING',
       title: '供应商申请已复活，待初审',
       content: `${supplier.name} 的被拒申请已由管理员复活，重新进入三级审核。`,
-      link: '/supplier/approval',
+      link: `/supplier/approval?supplierId=${id}`,
     });
     if (userId) await this.audit(userId, 'SUPPLIER_REACTIVATED', id, { name: supplier.name });
     return { success: true };
@@ -1843,12 +1909,19 @@ export class SupplierService {
     } catch {
       throw new BadRequestException({ error: '转正资料解析失败', code: 'INVALID_PAYLOAD' });
     }
-    const { enterpriseType, legalPerson, registeredAddress, businessScope, creditCode, contacts = [], qualifications = [], tags = [] } = payload;
+    const { enterpriseType, legalPerson, registeredAddress, businessScope, creditCode, contacts = [], qualifications = [], tags = [], legalPersonIdCard, legalIdFileUrl } = payload;
     if (![enterpriseType, legalPerson, registeredAddress, businessScope].every((v: any) => v && String(v).trim())) {
       throw new BadRequestException({ error: '转正资料不完整，无法通过审批', code: 'INCOMPLETE_DATA' });
     }
     if (!creditCode || !/^[0-9A-Z]{18}$/.test(String(creditCode))) {
       throw new BadRequestException({ error: '统一社会信用代码格式不正确', code: 'INVALID_CREDIT_CODE' });
+    }
+    // B2-4（2026-09-30）：法人身份证号+扫描件为注册必传口径——缺失/格式不对即资料不完整
+    if (!legalPersonIdCard || !/^\d{17}[\dXx]$/.test(String(legalPersonIdCard))) {
+      throw new BadRequestException({ error: '法定代表人身份证号缺失或格式不正确，无法通过审批', code: 'INVALID_LEGAL_ID_CARD' });
+    }
+    if (!legalIdFileUrl || !String(legalIdFileUrl).trim()) {
+      throw new BadRequestException({ error: '缺少法定代表人身份证扫描件，无法通过审批', code: 'MISSING_LEGAL_ID_SCAN' });
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -1876,6 +1949,8 @@ export class SupplierService {
         data: {
           enterpriseType,
           legalPerson,
+          // B2-4：转正补全法人身份证号（注册必传口径）
+          legalPersonIdCard: String(legalPersonIdCard),
           registeredAddress,
           businessScope,
           ...(creditCode ? { creditCode: String(creditCode) } : {}),
@@ -1918,6 +1993,20 @@ export class SupplierService {
               validFrom: q.validFrom ? new Date(q.validFrom) : null,
               validTo: q.validTo ? new Date(q.validTo) : null,
             })),
+        });
+      }
+      // 3.1) B2-4：法定代表人身份证扫描件——与正式注册同款落资质行（type=法定代表人身份证）；
+      //      payload 资质里已手动录入同类型行则跳过，防重复
+      const hasLegalIdQual = Array.isArray(qualifications)
+        && qualifications.some((q: any) => q && String(q.type).trim() === '法定代表人身份证');
+      if (!hasLegalIdQual && legalIdFileUrl) {
+        await tx.supplierQualification.create({
+          data: {
+            supplierId: change.supplierId,
+            type: '法定代表人身份证',
+            name: `${String(legalPerson).trim()}·身份证扫描件`,
+            fileUrl: String(legalIdFileUrl).trim(),
+          },
         });
       }
     });

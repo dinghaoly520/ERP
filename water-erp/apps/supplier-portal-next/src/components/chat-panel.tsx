@@ -13,7 +13,8 @@ import { useBidWebSocket } from "@/hooks/use-bid-websocket";
  */
 type Msg = { id: string; senderId: string; senderRole: string; senderName: string; content: string; createdAt: string; roomType: string };
 
-export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId }: {
+export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId, stage }: {
+  stage?: string;
   projectId: string;
   supplierId: string;
   supplierName: string;
@@ -27,7 +28,9 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [exchangeControl, setExchangeControl] = useState<"OPEN" | "MUTED" | "CLOSED">("OPEN");
-  const [stageClosed, setStageClosed] = useState(false); // R4：stage:change 离开 OPENING 后关闭互动
+  // R4：stage:change 离开 OPENING 后关闭互动；B4-1（2026-09-30）：初始化即按传入 stage 判定
+  // ——评标中/归档后从「开标记录」进大厅回看时不会再收到 stage:change，此前输入框可发送但必被后端 403 拒
+  const [stageClosed, setStageClosed] = useState(() => !!stage && stage !== "OPENING");
   const hydratedRef = useRef(false); // R3：首次加载完成后才在重连时做 REST 补齐
   const wasConnectedRef = useRef(false); // R3：区分首连与断线重连——首连的补齐由挂载 hydrate 覆盖，不重复拉取
   const listEl = useRef<HTMLDivElement | null>(null);

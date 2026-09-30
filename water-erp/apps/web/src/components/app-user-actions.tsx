@@ -16,6 +16,8 @@ type AppUserActionsProps = {
  *  被 UnifiedHeader（页面顶栏常驻）与 AppUserActions（窄屏 page-header）两处复用。 */
 /** 全局事件：任意入口（供应商库「审批」按钮等）打开审批中心窗口 */
 export const OPEN_REVIEW_CENTER_EVENT = 'open-review-center';
+/** 打开审批中心时可携带预选 supplierId（通知直达精确预选该供应商，2026-09-30） */
+export type OpenReviewCenterDetail = { supplierId?: string };
 
 export function ReviewCenterButton({ className, withModal = false }: { className?: string; withModal?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -25,7 +27,11 @@ export function ReviewCenterButton({ className, withModal = false }: { className
   // 其它入口经事件打开（Modal 宿主唯一，避免多实例）
   useEffect(() => {
     if (!withModal) return;
-    const onOpen = () => setOpen(true);
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<OpenReviewCenterDetail>).detail;
+      if (detail?.supplierId) sessionStorage.setItem('review-center-preselect', detail.supplierId);
+      setOpen(true);
+    };
     window.addEventListener(OPEN_REVIEW_CENTER_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_REVIEW_CENTER_EVENT, onOpen);
   }, [withModal]);

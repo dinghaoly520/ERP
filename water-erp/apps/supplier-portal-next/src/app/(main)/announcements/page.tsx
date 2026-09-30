@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dayjs from "dayjs";
 import {
@@ -92,8 +92,13 @@ export default function AnnouncementListPage() {
   const [lastVisit] = useState(readLastVisit);
   const [currentTime, setCurrentTime] = useState(0);
 
+  // B4-4（2026-09-30）：翻页/切类型/搜索竞态守卫——快速切换分段时旧响应晚归会覆盖新筛选
+  // （表现：选着「流标公告」却显示「采购公告」数据），与消息中心/异议页同款序号守卫
+  const fetchSeqRef = useRef(0);
+
   const fetchData = useCallback(
     async (opts?: { type?: string; search?: string; page?: number }) => {
+      const seq = ++fetchSeqRef.current;
       const type = opts?.type ?? activeType;
       const s = opts?.search ?? search;
       const page = opts?.page ?? currentPage;
@@ -106,15 +111,17 @@ export default function AnnouncementListPage() {
           ? announcementApi.supplierList(params)
           : announcementApi.publicList(params)
         )) as AnnouncementListResponse;
+        if (seq !== fetchSeqRef.current) return; // 已有更新的请求，丢弃本次结果
         setItems(res?.items || []);
         setTotal(res?.total || 0);
         const seenAt = serverNowMs();
         setCurrentTime(seenAt);
         localStorage.setItem("supplier_announce_visit", String(seenAt));
       } catch {
+        if (seq !== fetchSeqRef.current) return;
         setError(true);
       } finally {
-        setLoading(false);
+        if (seq === fetchSeqRef.current) setLoading(false);
       }
     },
     [activeType, search, currentPage],

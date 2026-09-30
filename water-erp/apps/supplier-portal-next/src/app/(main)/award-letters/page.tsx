@@ -14,7 +14,7 @@ import {
   FileSignature,
   FileText,
   Trophy,
-} from "lucide-react";;;
+} from "lucide-react";
 import {
   awardLetterApi,
   awardLetterFileUrl,
@@ -23,6 +23,7 @@ import {
   prioritizeAwardLetters,
   type AwardLetterDelivery,
 } from "@/lib/api/award-letter";
+import { authedFileAction } from "@/lib/authed-file";
 import { SpPageHero } from "@/components/sp-page-hero";
 import ContractsPage from "../contracts/page";
 import FrameworksPage from "../frameworks/page";
@@ -169,24 +170,23 @@ function AwardLetterListContent() {
 
                   <div className="mt-4 flex flex-wrap justify-end gap-2">
                     {awardLetterFileUrl(letter.letterAssetId) ? (
+                      /* B1-2（2026-09-30）：裸 <a> 只凭 cookie，同浏览器他 tab 登录后必 403——
+                         改带 X-Supplier-Token 的 blob 预览/下载（authed-file），保留查看登记副作用 */
                       <>
-                        <a
+                        <button
+                          type="button"
                           className="neu-btn-soft inline-flex min-h-11 items-center gap-1.5"
-                          href={awardLetterFileUrl(letter.letterAssetId)!}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => void handleView(letter)}
+                          onClick={() => { void handleView(letter); authedFileAction(awardLetterFileUrl(letter.letterAssetId)!, "view"); }}
                         >
                           <Eye size={14} aria-hidden="true" />查看通知书
-                        </a>
-                        <a
+                        </button>
+                        <button
+                          type="button"
                           className="neu-btn-soft inline-flex min-h-11 items-center gap-1.5"
-                          href={awardLetterFileUrl(letter.letterAssetId)!}
-                          download={letter.letterAsset?.originalName || "成交通知书"}
-                          onClick={() => void handleView(letter)}
+                          onClick={() => { void handleView(letter); authedFileAction(awardLetterFileUrl(letter.letterAssetId)!, "download", letter.letterAsset?.originalName || "成交通知书"); }}
                         >
                           <Download size={14} aria-hidden="true" />下载
-                        </a>
+                        </button>
                       </>
                     ) : (
                       <span className="text-sm text-amber-700">采购端尚未附加通知书文件，暂不可签收</span>

@@ -100,7 +100,10 @@ export function CaSelftestDialog({
     if (ukey) {
       setAdapter(ukey);
       setProviderId("local-sm2");
-      void enumerate(ukey);
+      // P3（2026-09-30 第二轮审计）：共享解锁会话路径补异常兜底——解锁成功与会话失效之间
+      // 拔盾/TTL 到期时 listCertificates 抛错，此前 unhandled rejection 静默失败、弹窗停在
+      // 「请先初始化CA」无任何提示（handleInit 路径本就有 catch）
+      void enumerate(ukey).catch(() => toast.error("枚举证书失败：U盾可能已拔出或会话过期，请重新初始化"));
     } else {
       setAdapter(null);
       void defaultProviderId().then(setProviderId);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Lock, View, X } from "lucide-react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/registration-validation";
 import { supplierApi } from "@/lib/api/supplier";
 import { SpButton } from "@/components/ui";
 
@@ -50,8 +51,11 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
       await supplierApi.changePassword(form.old, form.newPwd);
       toast.success("密码修改成功");
       onClose();
-    } catch {
-      toast.error("密码修改失败");
+    } catch (e: unknown) {
+      // B4-3（2026-09-30）：透传后端明确原因（如「原密码不正确」WRONG_PASSWORD）——
+      // changePassword 走 {silent:true} 全局不弹，此处再吞掉具体原因只剩「修改失败」，
+      // 用户分不清是旧密码错还是系统错
+      toast.error(getErrorMessage(e, "密码修改失败"));
     } finally {
       setLoading(false);
     }

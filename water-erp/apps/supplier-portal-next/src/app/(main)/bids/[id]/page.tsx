@@ -165,7 +165,9 @@ function BidDetailInner() {
   const canSubmit = !!project && isApproved
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
     && new Date(project.deadline).getTime() > serverNowMs();
-  const stageIdx = Math.max(0, STAGES.indexOf((project?.stage || "DOWNLOAD") as (typeof STAGES)[number]));
+  // B4-1（2026-09-30）：去掉 Math.max 兜底——ABORTED（-1）曾被吞成 0，进度条把「下载中」
+  // 点亮为当前阶段，与同卡下方 stage-msg 的「本项目已流标」自相矛盾；流标时各步全灰更准确
+  const stageIdx = STAGES.indexOf((project?.stage || "DOWNLOAD") as (typeof STAGES)[number]);
   const showSupplierCount = ["OPENING", "EVALUATING", "ARCHIVED"].includes(project?.stage || "");
   const supplierCount = project?._count?.suppliers || 0;
 
@@ -483,8 +485,9 @@ function BidDetailInner() {
                     >
                       <Upload size={14} strokeWidth={1.75} />{canSubmit ? "提交标书" : "不可投标"}
                     </button>
-                    {/* 2c: 多轮报价入口——仅谈判采购（roundMode=negotiation）；竞价采购 sealed_auction 为单轮唱标模式 */}
-                    {project.roundMode === "negotiation" && (
+                    {/* 2c: 多轮报价入口——仅谈判采购（roundMode=negotiation）；竞价采购 sealed_auction 为单轮唱标模式。
+                        B4-1（2026-09-30）：加成员/参与门槛——非参与供应商点了只会看到 403 空态 */}
+                    {project.roundMode === "negotiation" && (canSubmit || submission?.status === "submitted") && (
                       <button type="button" className="neu-btn-soft !h-10 !px-5" onClick={() => router.push(`/bids/${projectId}/round-quote`)}>
                         多轮报价
                       </button>
@@ -637,8 +640,12 @@ function BidDetailInner() {
                 )}
               </div>
 
-              {/* ═══ 招标文件 + 书面交流（非列表模式）═══ */}
-              {!isListMode && (
+              {/* ═══ 招标文件 + 书面交流 ═══
+                  B2-1（2026-09-30）：不再按 isListMode 隐藏——「项目机会」列表与工作台均
+                  带 ?from=list 进入，首次投标的供应商正是在这条主路径上需要下载采购文件、
+                  发起澄清提问（后端提问闸恰要求「已获取招标文件」）；此前整块隐藏 = 主路径
+                  断头。紧凑模式下仅保留阶段条/关键信息的隐藏。 */}
+              {
                 <div className="bottom-grid">
                   {/* 招标文件 */}
                   <div className="neu-card bottom-card">
@@ -838,7 +845,7 @@ function BidDetailInner() {
                     </div>
                   )}
                 </div>
-              )}
+              }
             </>
           ) : null}
         </>

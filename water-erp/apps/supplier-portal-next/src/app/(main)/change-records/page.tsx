@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import type { LucideIcon } from "lucide-react";
+import { summarizeChangeValue } from "@/lib/change-value";
 import {
   ArrowRight,
   CheckCircle2,
@@ -104,12 +105,12 @@ export default function ChangeRecordsPage() {
                   <div className="cr-diff">
                     <div className="cr-diff-o">
                       <span className="cr-diff-lbl">原值</span>
-                      <span className="cr-diff-v">{r.oldValue || "—"}</span>
+                      <span className="cr-diff-v">{summarizeChangeValue(r.fieldName, r.oldValue)}</span>
                     </div>
                     <div className="cr-diff-ar"><ArrowRight size={16} /></div>
                     <div className="cr-diff-n">
                       <span className="cr-diff-lbl">新值</span>
-                      <span className="cr-diff-v">{r.newValue}</span>
+                      <span className="cr-diff-v">{summarizeChangeValue(r.fieldName, r.newValue)}</span>
                     </div>
                   </div>
                   {r.reason && (

@@ -297,7 +297,10 @@ export class OpeningHallService {
       checkInAt: r.checkInAt, online: online.has(r.supplierId as string),
     }));
     if (actor.role === 'supplier') {
-      return { onlineCount: list.filter(x => x.online).length };
+      // B4-1（2026-09-30）：下发本人签到时间——此前只回 onlineCount，供应商刷新/重进大厅后
+      // 「已签到」徽标丢失、签到按钮重现（签到状态实际持久在 BidSupplier.checkInAt）
+      const mine = actor.supplierId ? list.find(x => x.supplierId === actor.supplierId) : undefined;
+      return { onlineCount: list.filter(x => x.online).length, myCheckInAt: mine?.checkInAt ?? null };
     }
     return { suppliers: list, onlineCount: list.filter(x => x.online).length };
   }

@@ -12,6 +12,7 @@ import {
   Upload,
 } from "lucide-react";;
 import { contractApi, contractAssetUrl, type SpContract, type SpContractFulfillment } from "@/lib/api/contract";
+import { authedFileAction } from "@/lib/authed-file";
 import { EmptyState, LoadingBlock, SpButton, SpTabPanel, SpTabs } from "@/components/ui";
 import { toast } from "sonner";
 import { OwnArchivesPanel } from "@/components/own-archives-panel";
@@ -111,9 +112,11 @@ export default function ContractsPage() {
                     {c.signedAssetId && (
                       <div className="mt-3 flex flex-wrap gap-2" aria-label={`${c.contractCode}合同文件`}>
                         {contractAssetUrl(c.signedAssetId) && (
-                          <a className="neu-btn-soft inline-flex min-h-11 items-center gap-1.5" href={contractAssetUrl(c.signedAssetId)!} target="_blank" rel="noopener noreferrer">
+                          /* B1-2（2026-09-30）：裸 <a> 只凭 cookie，同浏览器他 tab 登录后必 403——
+                             改带 X-Supplier-Token 的 blob 预览（authed-file） */
+                          <button type="button" className="neu-btn-soft inline-flex min-h-11 items-center gap-1.5" onClick={() => authedFileAction(contractAssetUrl(c.signedAssetId)!, "view")}>
                             <FileDown size={14} aria-hidden="true" />查看签署版合同
-                          </a>
+                          </button>
                         )}
                       </div>
                     )}
@@ -133,7 +136,7 @@ export default function ContractsPage() {
                               {f.dueDate && <span className="text-[var(--muted-foreground)]">期限 {dayjs(f.dueDate).format("YYYY-MM-DD")}</span>}
                               {f.proofAssetId ? (
                                 <>
-                                  <a className="neu-btn-link min-h-11" href={`/api/upload/files/${encodeURIComponent(f.proofAssetId)}`} target="_blank" rel="noopener noreferrer">查看证明</a>
+                                  <button type="button" className="neu-btn-link min-h-11" onClick={() => authedFileAction(`/api/upload/files/${encodeURIComponent(f.proofAssetId!)}`, "view")}>查看证明</button>
                                   {canAttachFulfillmentProof(c.status, f.status) && (
                                     <SpButton icon={RefreshCcw} onClick={() => setProofTarget({ contract: c, fulfillment: f })}>替换证明</SpButton>
                                   )}

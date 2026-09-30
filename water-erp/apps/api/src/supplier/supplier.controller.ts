@@ -123,6 +123,20 @@ export class SupplierController {
     return this.supplierService.verifyInvitationCode(code);
   }
 
+  @Post('approval-attachments/resolve')
+  @Roles('admin', 'leader', 'staff') // 审批中心 stepper/历史附件展示（2026-09-30）
+  @ApiOperation({ summary: '审批留痕附件解析：FileAsset id → 文件名/大小' })
+  async resolveApprovalAttachments(@Body() dto: { ids: string[] }) {
+    return this.supplierService.resolveApprovalAttachments(dto.ids ?? []);
+  }
+
+  @Get('approval-records/all')
+  @Roles('admin') // 全量审批记录仅管理员可见（2026-09-30 用户裁定）
+  @ApiOperation({ summary: '全量审批记录（admin）：跨供应商全流程（三级通过+驳回+退回补正）' })
+  async listAllApprovalRecords() {
+    return this.supplierService.listAllApprovalRecords();
+  }
+
   @Get(':id/approval-history')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商审核历史（不可变留痕）' })
@@ -259,6 +273,7 @@ export class SupplierController {
     @Query('evalLevel') evalLevel?: string,
     @Query('qualificationStatus') qualificationStatus?: string,
     @Query('isTemporary') isTemporary?: string,
+    @Query('reviewStage') reviewStage?: string, // 三级审批当前级筛选（2026-09-30）：STAFF/LEADER/ADMIN
     @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
   ) {
     // #18 status 枚举校验：非法值会让 Prisma/raw cast 抛 500；支持 `exclude:A,B` 形式。
@@ -274,6 +289,7 @@ export class SupplierController {
       enterpriseTypes: enterpriseTypes ? enterpriseTypes.split(',').filter(Boolean) : undefined,
       dateFrom, dateTo, evalLevel, qualificationStatus,
       // 临时供应商筛选：仅 'true' 视为真，其余（'false'/缺省）均不加该过滤，避免误判。
+      reviewStage: ['STAFF', 'LEADER', 'ADMIN'].includes(reviewStage ?? '') ? reviewStage : undefined,
       isTemporary: isTemporary === 'true' ? true : undefined,
       scopeUserId: req?.user?.role === 'supplier' ? req.user.sub : undefined,
       companyId,
@@ -461,21 +477,21 @@ export class SupplierController {
   @Roles('admin', 'leader', 'staff') // 三级审批（2026-09-29）：service 按级断言（staff 初审/leader 复审/admin 终审）
   @ApiOperation({ summary: '三级审核通过（按当前级推进；staff/leader 须填同意缘由）' })
   async approve(@Param('id') id: string, @Body() dto: ApproveSupplierDto, @Request() req: any) {
-    return this.supplierService.approve(id, req.user?.sub, dto.reason);
+    return this.supplierService.approve(id, req.user?.sub, dto.reason, dto.attachmentIds);
   }
 
   @Post(':id/reject')
   @Roles('admin', 'leader', 'staff') // 同 approve：按级断言，任一级可驳回
   @ApiOperation({ summary: '审核不通过' })
   async reject(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
-    return this.supplierService.reject(id, dto.reason, req.user?.sub);
+    return this.supplierService.reject(id, dto.reason, req.user?.sub, dto.attachmentIds);
   }
 
   @Post(':id/return')
   @Roles('admin', 'leader', 'staff') // 同 approve：归属公司管理账号
   @ApiOperation({ summary: '退回补正' })
   async return(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
-    return this.supplierService.return(id, dto.reason, req.user?.sub);
+    return this.supplierService.return(id, dto.reason, req.user?.sub, dto.attachmentIds);
   }
 
   @Patch(':id/status')

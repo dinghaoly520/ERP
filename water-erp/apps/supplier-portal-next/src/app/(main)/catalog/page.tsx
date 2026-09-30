@@ -9,7 +9,7 @@
  *  - 有进行中申请（PENDING/COUNTERED/RETURNED）→ 「审核中」标签
  *  - 其余（已准入）→ 「已准入」标签
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -43,7 +43,9 @@ export default function CatalogListPage() {
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
   const [myApplications, setMyApplications] = useState<CatalogApplication[]>([]);
   const [mySupply, setMySupply] = useState<CatalogSupply[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string>("工程材料");
+  // B4-4（2026-09-30）：默认组随 categoryTree 自适应——此前硬编码「工程材料」，组名调整或
+  // 新部署无此组时首屏「暂无匹配」且侧栏无高亮，无法自愈
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [search, setSearch] = useState("");
   const [dialogVisible, setDialogVisible] = useState(false);
@@ -59,23 +61,40 @@ export default function CatalogListPage() {
       setCategoryTree(tree as CategoryNode[]);
       setMyApplications(apps as CatalogApplication[]);
       setMySupply(supply as CatalogSupply[]);
-      await loadItems();
+      // 首次进入默认选首个分组（与侧栏高亮一致）；有查询串则不预设。
+      // B4-4 加固：setSelectedGroup 是异步的，紧随 loadItems() 读的是旧闭包（""）会误拉
+      // 「全部」而非首个分组——须把派生出的默认组显式传入，保证首屏列表与侧栏高亮一致
+      const defaultGroup = selectedGroup === "" && Array.isArray(tree) && tree.length > 0 && !search ? tree[0].group : selectedGroup;
+      setSelectedGroup(defaultGroup);
+      await loadItems({ group: defaultGroup, category: "", search });
     } catch { setError(true); }
     finally { setLoading(false); setFirstLoad(false); }
   }
 
+  // B4-4（2026-09-30）：竞态守卫 + 加载态——快速点组别/类别时旧结果晚归会覆盖新筛选，
+  // 且此前无加载反馈（列表闪变）。序号守卫与通知/公告页同款。
+  const loadSeqRef = useRef(0);
+  const [itemsLoading, setItemsLoading] = useState(false);
   async function loadItems(ovr?: { group?: string; category?: string; search?: string }) {
+    const seq = ++loadSeqRef.current;
     const group = ovr?.group ?? selectedGroup;
     const category = ovr?.category ?? selectedCategory;
     const q = ovr?.search ?? search;
+    setItemsLoading(true);
     try {
       const list = await catalogApi.listItems({
         group: group || undefined,
         category: category || undefined,
         search: q.trim() || undefined,
       });
+      if (seq !== loadSeqRef.current) return;
       setItems(list as CatalogItem[]);
-    } catch { setError(true); }
+    } catch {
+      if (seq !== loadSeqRef.current) return;
+      setError(true);
+    } finally {
+      if (seq === loadSeqRef.current) setItemsLoading(false);
+    }
   }
 
   function retryLoad() { loadAll(); }
@@ -97,12 +116,18 @@ export default function CatalogListPage() {
   }
 
   function itemStatus(item: CatalogItem) {
-    const active = mySupply.find((s) => s.catalogItemId === item.id);
+    // 供货关系三态（2026-09-30 第二轮审计 B1-6）：listSupply 返回全部状态行，而后端
+    // JOIN_EXISTING 对任何已存在供货行 400 ALREADY_SUPPLYING、UPDATE_QUOTE 仅 ACTIVE
+    // 放行——非 ACTIVE 行既不能重新申请也不能改价，须显式提示「停用」，而非伪装成
+    // 「已准入」（点改报价必 400）或放开申请入口（点申请同样 400）。
+    const supply = mySupply.find((s) => s.catalogItemId === item.id);
+    const active = supply?.status === "ACTIVE" ? supply : undefined;
     const inProgress = myApplications.find((a) => a.catalogItemId === item.id && IN_PROGRESS.includes(a.status));
     return {
       hasActiveSupply: !!active,
+      supplySuspended: !!supply && !active,
       inProgress,
-      canApplyJoin: !active && !inProgress,
+      canApplyJoin: !supply && !inProgress,
       canUpdateQuote: !!active && !inProgress,
     };
   }
@@ -148,7 +173,7 @@ export default function CatalogListPage() {
             <div className="cat-loading-mask"><Loader2 size={22} strokeWidth={1.75} /></div>
           )}
           <SpPageHero icon={LayoutGrid} title="集中采购目录" sub="集中采购品目与价格信息浏览">
-            <div className="page-hero__stat"><strong>{items.length}</strong><span>目录条目</span></div>
+            <div className="page-hero__stat"><strong>{items.length}</strong><span>当前筛选条目</span></div>
             <div className="page-hero__stat"><strong>{categoryTree.length}</strong><span>品类大组</span></div>
           </SpPageHero>
 
@@ -232,7 +257,9 @@ export default function CatalogListPage() {
                     ? { label: "审核中", cls: "pending" }
                     : st.hasActiveSupply
                       ? { label: "已准入", cls: "approved" }
-                      : { label: "未准入", cls: "disabled" };
+                      : st.supplySuspended
+                        ? { label: "供货已停用", cls: "returned" }
+                        : { label: "未准入", cls: "disabled" };
                   return (
                     <article key={row.id} className="cat-card">
                       <div className="cat-card-top">
@@ -255,6 +282,8 @@ export default function CatalogListPage() {
                           <Link href="/catalog-applications" className="cat-card-link">
                             查看进度<ArrowRight size={13} strokeWidth={1.75} />
                           </Link>
+                        ) : st.supplySuspended ? (
+                          <span className="text-[11px] text-[var(--muted-foreground)]">供货关系已停用，请联系采购管理员</span>
                         ) : null}
                       </div>
                     </article>

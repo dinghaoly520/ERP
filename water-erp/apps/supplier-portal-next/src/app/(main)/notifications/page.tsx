@@ -66,7 +66,12 @@ export default function NotificationListPage() {
   const pageRef = useRef(1);
   const groupRef = useRef<NotificationGroup | "all">("all");
 
+  // 竞态守卫（2026-09-30 第二轮审计 B1-7）：切分组/翻页/30s 轮询会让请求重叠，
+  // 旧分组的慢响应晚归会覆盖新分组已渲染的数据——序号过期即丢弃（同 objections 页模式）。
+  const fetchSeqRef = useRef(0);
+
   const fetchData = useCallback(async (page = 1, group = groupRef.current) => {
+    const seq = ++fetchSeqRef.current;
     pageRef.current = page;
     groupRef.current = group;
     setCurrentPage(page);
@@ -80,12 +85,14 @@ export default function NotificationListPage() {
         tab: group === "todo" ? "todo" : "all",
         types: types.length ? types.join(",") : undefined,
       });
+      if (seq !== fetchSeqRef.current) return;
       setItems(response.items ?? []);
       setTotal(response.total ?? 0);
     } catch {
+      if (seq !== fetchSeqRef.current) return;
       setError(true);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -161,12 +168,15 @@ export default function NotificationListPage() {
         icon={Bell}
         title="消息中心"
         sub="按待办、项目、审批和合同分类查看业务消息。"
-        actions={(
-          <button type="button" className="neu-btn-xs" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
-            <Check size={13} strokeWidth={2.2} aria-hidden="true" />
-            全部标为已读{unreadCount > 0 ? `（${unreadCount}）` : ""}
-          </button>
-        )}
+        actions={
+          groupFilter !== "todo" ? (
+            /* B4-4（2026-09-30）：待办组不提供「全部标为已读」——待办项的唯一出口是「去完成」 */
+            <button type="button" className="neu-btn-xs" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
+              <Check size={13} strokeWidth={2.2} aria-hidden="true" />
+              全部标为已读{unreadCount > 0 ? `（${unreadCount}）` : ""}
+            </button>
+          ) : null
+        }
       />
 
       {/* 分类分段切换（cgzxui .neu-segment：与「成交履约」同款——hero 下独立一行） */}
@@ -227,7 +237,10 @@ export default function NotificationListPage() {
                         {meta.actionLabel}
                       </button>
                     )}
-                    {!notification.isRead && (
+                    {!notification.isRead && groupFilter !== "todo" && (
+                      /* B4-4（2026-09-30）：仅非待办组提供「标为已读」——待办组是可操作事项的唯一
+                         归属分类（后端 todo 段只回未读），标读会让待签收通知书等从唯一分类消失、
+                         行动按钮也没了；待办项应点「去完成」而非读掉 */
                       <button type="button" className="nd-btn nd-btn--xs nd-btn--danger" onClick={() => void markRead(notification.id)}>标为已读</button>
                     )}
                   </div>

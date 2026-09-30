@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { authedFileAction } from "@/lib/authed-file";
 import dayjs from "dayjs";
 import {
   ArrowRight,
@@ -177,7 +178,18 @@ export default function BidListPage() {
       } else if (res.downloadMode === "paid" && res.paidAmount) {
         toast.info(`付费文件，金额：¥${res.paidAmount}`);
       }
-      res.files.forEach((f: any) => window.open(f.url, "_blank", "noopener"));
+      // B4-1（2026-09-30）：非用户手势触发的第二个及以后 window.open 会被浏览器弹窗拦截静默
+      // 丢弃——多文件项目只开出第一个。改为逐个经 authed-file 带 token 下载（还能顺带解决
+      // 同浏览器他 tab 登录后 cookie 串身份的 403）。
+      const files = (res.files ?? []) as Array<{ url?: string; name?: string }>;
+      if (files.length === 1 && files[0].url) {
+        window.open(files[0].url, "_blank", "noopener");
+      } else {
+        for (const f of files) {
+          if (f.url) authedFileAction(f.url, "download", f.name || undefined);
+        }
+        if (files.length > 0) toast.success(`已开始下载 ${files.length} 个谈判文件`);
+      }
     } catch {
       /* API 层已全局错误 toast */
     } finally {

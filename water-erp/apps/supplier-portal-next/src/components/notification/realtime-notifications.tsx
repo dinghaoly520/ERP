@@ -61,15 +61,17 @@ export function RealtimeNotifications() {
   useEffect(() => {
     let attempts = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false; // 会话被顶/冻结后彻底停连（B1-2）：重连会以覆盖者 cookie 订阅他人通知
 
     const scheduleReconnect = () => {
-      if (attempts >= 5) return;
+      if (stopped || attempts >= 5) return;
       attempts += 1;
       const delay = Math.min(30_000, 2_000 * 2 ** (attempts - 1));
       retryTimer = setTimeout(connect, delay);
     };
 
     const connect = () => {
+      if (stopped) return;
       const socket = io(notificationWsUrl(), {
         withCredentials: true,
         reconnection: false,
@@ -94,9 +96,19 @@ export function RealtimeNotifications() {
       socket.on("connect_error", () => { socket.close(); scheduleReconnect(); });
     };
 
+    // session-kick 遮罩弹出即停（2026-09-30 B1-2）
+    const onSessionInvalid = () => {
+      stopped = true;
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      socketRef.current?.removeAllListeners();
+      socketRef.current?.disconnect();
+    };
+    window.addEventListener("supplier:session-invalid", onSessionInvalid);
+
     connect();
 
     return () => {
+      window.removeEventListener("supplier:session-invalid", onSessionInvalid);
       if (retryTimer) clearTimeout(retryTimer);
       socketRef.current?.removeAllListeners();
       socketRef.current?.disconnect();

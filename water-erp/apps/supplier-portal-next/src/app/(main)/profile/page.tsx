@@ -40,7 +40,8 @@ import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { QualAddPanel, QualCompactCard, QualsTab } from "@/components/profile/qualifications";
 import { ContactPanel, ContactsTab } from "@/components/profile/contacts";
-import { INDUSTRY_GROUPS, COMPANY_PROFILE_MAX } from "@/constants/supplier";
+import { INDUSTRY_GROUPS, COMPANY_PROFILE_MAX, ENTERPRISE_TYPES } from "@/constants/supplier";
+import { summarizeChangeValue } from "@/lib/change-value";
 import "@/styles/pages/register2.css";
 import "@/styles/pages/profile.css";
 import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
@@ -50,7 +51,10 @@ const STATUS_TEXT: Record<string, string> = {
   PENDING: "待审核", APPROVED: "已入库", REJECTED: "不通过", RETURNED: "退回补正", DISABLED: "已停用", BLACKLIST: "黑名单",
 };
 const CR_FIELDS = [
-  "name", "enterpriseType", "legalPerson", "registeredAddress", "businessScope",
+  "name", "enterpriseType", "legalPerson",
+  // B2-4（2026-09-30）：法人身份证号可随姓名变更（注册必传；后端白名单同步放行）
+  "legalPersonIdCard",
+  "registeredAddress", "businessScope",
   // 注册 2.0 扩展字段
   "logoUrl", "country", "region", "detailedAddress",
   "registeredCapital", "industry", "legalPersonPhone", "companyEmail", "companyWebsite",
@@ -58,7 +62,7 @@ const CR_FIELDS = [
   "establishedDate", "companyProfile",
 ] as const;
 const CR_FIELD_LABELS: Record<string, string> = {
-  name: "企业名称", enterpriseType: "企业类型", legalPerson: "法定代表人", registeredAddress: "注册地址", businessScope: "主要经营业务范围", tags: "业务标签",
+  name: "企业名称", enterpriseType: "企业类型", legalPerson: "法定代表人", legalPersonIdCard: "法定代表人身份证号", registeredAddress: "注册地址", businessScope: "主要经营业务范围", tags: "业务标签",
   logoUrl: "公司logo", country: "国别", region: "所属行政区域", detailedAddress: "详细地址",
   registeredCapital: "注册资金", industry: "所属的国民经济行业", legalPersonPhone: "法人联系电话", companyEmail: "公司邮箱", companyWebsite: "公司官网",
   establishedDate: "企业注册成立日期", companyProfile: "企业简介",
@@ -82,7 +86,7 @@ function changeLockHint(st: string): string {
 
 /* 银行账户 / 主体业绩 变更草稿（提交时 JSON.stringify 整体替换） */
 type BankDraft = { accountName: string; bankName: string; bankBranch: string; accountNo: string; isDefault: boolean };
-type PerfDraft = { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string }[] };
+type PerfDraft = { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string; kind?: string }[] };
 const emptyBank = (): BankDraft => ({ accountName: "", bankName: "", bankBranch: "", accountNo: "", isDefault: false });
 const emptyPerf = (): PerfDraft => ({ projectName: "", clientName: "", contractAmount: "", signDate: "", description: "", proofFiles: [] });
 /** 归一化草稿行，保证 JSON 比较与提交载荷键序稳定 */
@@ -188,6 +192,8 @@ export default function ProfilePage() {
       { label: "统一社会信用代码", value: p.creditCode },
       { label: "企业类型", value: p.enterpriseType },
       { label: "法定代表人", value: p.legalPerson },
+      // B2-4：注册必传口径的身份证号在基本信息可见（此前仅注册采集、维护端零展示）
+      { label: "法定代表人身份证号", value: p.legalPersonIdCard },
       { label: "注册时间", value: dayjs(p.createdAt).format("YYYY-MM-DD") },
       // 注册 2.0 扩展字段
       { label: "机构代码（统一社会信用代码）", value: p.creditCode ?? p.organizationCode },
@@ -237,13 +243,20 @@ export default function ProfilePage() {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
-    if (f.size > 50 * 1024 * 1024) { toast.error("文件不能超过50MB"); return; }
+    if (f.size > 10 * 1024 * 1024) { toast.error("文件不能超过10MB"); return; } // B3-3：与资质材料口径一致
     toast.warning("附件上传功能即将上线");
   };
 
   /* 变更申请弹窗逻辑 */
+  // B1-5（2026-09-30）：清空可选字段（移除 logo、清空邮箱/官网等）是合法变更意图——
+  // 此后被 `trim() !== ""` 过滤静默丢弃：UI 标「已修改」、提交却不产生任何变更申请。
+  // 核心必填五字段（企业名/类型/法人/地址/经营范围）清空视为未完成输入，不计入变更。
+  const CR_CORE_FIELDS = new Set(["name", "enterpriseType", "legalPerson", "registeredAddress", "businessScope"]);
   const crFieldChanged = useMemo(
-    () => CR_FIELDS.filter((k) => (crForm[k] ?? "") !== (crOrig[k] ?? "") && (crForm[k] ?? "").trim() !== ""),
+    () => CR_FIELDS.filter((k) => {
+      if ((crForm[k] ?? "") === (crOrig[k] ?? "")) return false;
+      return (crForm[k] ?? "").trim() !== "" || !CR_CORE_FIELDS.has(k);
+    }),
     [crForm, crOrig],
   );
   const crHasTagsChanges = useMemo(() => {
@@ -267,6 +280,11 @@ export default function ProfilePage() {
 
   const openCrDlg = () => {
     // 禁改门控：与后端 createChangeRequest「仅 APPROVED 可提交」一致（PENDING/RETURNED 等状态 banner + toast 拦截）
+    if (profile && (profile as any).isTemporary) {
+      // B3-2（2026-09-30）：临时供应商资料补全走工作台「转为正式供应商」审批链（后端同款守卫）
+      toast.warning("临时供应商请通过工作台「转为正式供应商」完善资料（企业信息页暂不开放变更）");
+      return;
+    }
     if (profile && profile.status !== "APPROVED") {
       toast.warning(changeLockHint(profile.status) || "当前状态暂不能申请资料变更");
       return;
@@ -337,8 +355,10 @@ export default function ProfilePage() {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
-    if (!f.type.startsWith("image/")) { toast.error("请选择图片文件"); return; }
-    if (f.size > 50 * 1024 * 1024) { toast.error("文件不能超过50MB"); return; }
+    // B3-3（2026-09-30）：与注册 logo 口径一致（5MB JPG/PNG）——原 image/* + 50MB 连 svg
+    // 都放行，同源直开 SVG 有脚本执行面，且与注册通道（5MB png/jpg）两套规则互相矛盾
+    if (!/\.(jpe?g|png)$/i.test(f.name) || !f.type.startsWith("image/")) { toast.error("logo 仅支持 JPG 或 PNG 图片"); return; }
+    if (f.size > 5 * 1024 * 1024) { toast.error("logo 不能超过5MB"); return; }
     setLogoUploading(true);
     try {
       const res = await uploadFile(f, "profile");
@@ -361,19 +381,21 @@ export default function ProfilePage() {
     setCrPerfs((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const crPerfAdd = () => setCrPerfs((rows) => [...rows, emptyPerf()]);
   const crPerfRemove = (i: number) => setCrPerfs((rows) => rows.filter((_, j) => j !== i));
-  const crPerfRemoveFile = (i: number, fi: number) =>
-    setCrPerfs((rows) => rows.map((r, j) => (j === i ? { ...r, proofFiles: r.proofFiles.filter((_, k) => k !== fi) } : r)));
-  const crPerfUpload = async (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const crPerfRemoveFile = (i: number, url: string) =>
+    setCrPerfs((rows) => rows.map((r, j) => (j === i ? { ...r, proofFiles: r.proofFiles.filter((f) => f.url !== url) } : r)));
+  const crPerfUpload = async (i: number, e: React.ChangeEvent<HTMLInputElement>, kind?: "payment") => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (files.length === 0) return;
     setPerfUploadingIdx(i);
     try {
       for (const f of files) {
-        if (f.size > 50 * 1024 * 1024) { toast.error(`「${f.name}」超过50MB，已跳过`); continue; }
+        // B3-3：与注册业绩证明同口径（10MB + PDF/JPG/PNG）
+        if (f.size > 10 * 1024 * 1024) { toast.error(`「${f.name}」超过10MB，已跳过`); continue; }
+        if (!/\.(pdf|jpe?g|png)$/i.test(f.name)) { toast.error(`「${f.name}」非 PDF/JPG/PNG，已跳过`); continue; }
         try {
           const res = await uploadFile(f, "qualification");
-          setCrPerfs((rows) => rows.map((r, j) => (j === i ? { ...r, proofFiles: [...r.proofFiles, { name: res.originalName || f.name, url: res.url }] } : r)));
+          setCrPerfs((rows) => rows.map((r, j) => (j === i ? { ...r, proofFiles: [...r.proofFiles, { name: res.originalName || f.name, url: res.url, ...(kind ? { kind } : {}) }] } : r)));
         } catch { /* 单个文件失败不阻断其余 */ }
       }
     } finally { setPerfUploadingIdx(null); }
@@ -399,7 +421,11 @@ export default function ProfilePage() {
       } else {
         const rows = crPerfs.map(normPerf);
         if (rows.some((p) => !p.projectName)) { toast.warning("业绩项目名称为必填项"); return; }
-        if (rows.some((p) => p.proofFiles.length === 0)) { toast.warning("每项业绩须至少上传一份证明材料"); return; }
+        // B4-2（2026-09-30）：证明材料按 kind 区分——汇款凭证（payment）不充当证明材料，
+        // 此前用 proofFiles.length 判定，只剩汇款凭证、零证明的业绩也能过审
+        if (rows.some((p) => !(p.proofFiles ?? []).some((f) => f.kind !== "payment"))) {
+          toast.warning("每项业绩须至少上传一份证明材料（银行汇款凭证不作为证明材料）"); return;
+        }
         if (!(await confirm({ message: `将提交「主体业绩」整体变更（共 ${rows.length} 项业绩），审批通过后现有业绩将被本次提交替换。\n\n———\n变更原因：${crReason}` }))) return;
         setCrSub(true);
         try {
@@ -413,8 +439,12 @@ export default function ProfilePage() {
     }
     if (crMode === "basic") {
       if (!crReason.trim()) { toast.warning("请填写变更原因"); return; }
+      // B2-4：身份证号格式守卫（18 位；仅在有值/有变更时拦截，存量空值走补填）
+      if (crForm.legalPersonIdCard && !/^\d{17}[\dXx]$/.test(crForm.legalPersonIdCard.trim())) {
+        toast.warning("法定代表人身份证号须为 18 位"); return;
+      }
       const changeCount = crFieldChanged.length + (crHasTagsChanges ? 1 : 0);
-      const lines = crFieldChanged.map((k) => `${CR_FIELD_LABELS[k]}\n${crOrig[k] || "（空）"} → ${crForm[k]}`);
+      const lines = crFieldChanged.map((k) => `${CR_FIELD_LABELS[k]}\n${crOrig[k] || "（空）"} → ${crForm[k] || "（清除）"}`);
       if (crHasTagsChanges) lines.push(`业务标签\n${crTags.filter((t) => t.trim()).join("、")}`);
       // 变更摘要使用纯文本，whitespace-pre-line 保留换行。
       if (!(await confirm({ message: `将提交 ${changeCount} 项变更：\n\n${lines.join("\n\n")}\n\n———\n变更原因：${crReason}` }))) return;
@@ -450,12 +480,14 @@ export default function ProfilePage() {
   /* 变更记录弹窗 */
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [records, setRecords] = useState<any[] | null>(null);
+  // B4-2（2026-09-30）：每次打开重拉——此前 records!==null 直接跳过，本页刚提交的变更
+  // 申请在弹窗里看不到，用户会误以为提交失败
   useEffect(() => {
-    if (!recordsOpen || records !== null) return;
+    if (!recordsOpen) return;
     supplierApi.listChangeRecords()
       .then(setRecords)
-      .catch(() => { toast.error("变更记录加载失败"); setRecords([]); });
-  }, [recordsOpen, records]);
+      .catch(() => { toast.error("变更记录加载失败"); setRecords((r) => r ?? []); });
+  }, [recordsOpen]);
 
   return (
     <>
@@ -728,8 +760,19 @@ export default function ProfilePage() {
         </>
       ) : null}
 
-      {/* 资质弹窗（挂载即重置） */}
-      {qualDialogOpen && (
+      {/* B3-2：临时供应商引导横幅——直链进入本页时明确出口（侧栏不提供本入口） */}
+      {(profile as any)?.isTemporary && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-[14px] border border-[color-mix(in_oklch,var(--warning)_35%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3">
+          <TriangleAlert size={15} className="mt-0.5 flex-shrink-0 text-[var(--warning)]" />
+          <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+            当前为<strong className="mx-1 text-[var(--warning)]">临时供应商</strong>账号：联系人 / 资质 / 资料变更在本页暂不开放，
+            请前往<strong className="mx-1">工作台 → 转为正式供应商</strong>一次性提交全部资料并经管理员审批。
+          </p>
+        </div>
+      )}
+
+      {/* 资质弹窗（挂载即重置；B3-2：临时供应商不挂载） */}
+      {qualDialogOpen && !(profile as any)?.isTemporary && (
         <QualAddPanel
           onAdded={async () => {
             setQualDialogOpen(false);
@@ -739,8 +782,8 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* 联系人弹窗 */}
-      {ctPanel.open && (
+      {/* 联系人弹窗（B3-2：临时供应商不挂载） */}
+      {ctPanel.open && !(profile as any)?.isTemporary && (
         <ContactPanel
           editing={ctPanel.editing}
           onSaved={async () => {
@@ -817,6 +860,20 @@ export default function ProfilePage() {
                             value={crForm[k]}
                             onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
                           />
+                        ) : k === "enterpriseType" ? (
+                          /* B4-2（2026-09-30）：注册侧是 11 项受控下拉，变更弹窗此前是自由文本——
+                             随手可写脏值直接入 supplier.enterpriseType */
+                          <select
+                            className="workbench-input"
+                            value={crForm[k]}
+                            onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
+                          >
+                            <option value="">请选择企业类型</option>
+                            {ENTERPRISE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                            {crOrig[k] && !ENTERPRISE_TYPES.includes(crOrig[k] as never) && (
+                              <option value={crOrig[k]}>（原值）{crOrig[k]}</option>
+                            )}
+                          </select>
                         ) : k === "industry" ? (
                           <select
                             className="workbench-input"
@@ -1027,13 +1084,13 @@ export default function ProfilePage() {
                           </div>
                         </div>
                         <div className="crp-cell crp-cell-wide">
-                          <label>证明材料 <i>*</i></label>
+                          <label>证明材料 <i>*</i><span className="ml-1.5 text-[10px] font-normal text-[var(--muted-foreground)]">（银行汇款凭证须从右侧入口上传）</span></label>
                           <div className="crp-files">
-                            {p.proofFiles.map((f, fi) => (
-                              <span key={"crpf" + fi} className="crp-file-chip">
+                            {p.proofFiles.filter((f) => f.kind !== "payment").map((f) => (
+                              <span key={"crpf" + f.url} className="crp-file-chip">
                                 <Paperclip size={12} />
-                                <span className="crp-file-name">{f.name || `附件${fi + 1}`}</span>
-                                <button type="button" className="crp-file-x" onClick={() => crPerfRemoveFile(i, fi)} title="移除">
+                                <span className="crp-file-name">{f.name || "证明材料"}</span>
+                                <button type="button" className="crp-file-x" onClick={() => crPerfRemoveFile(i, f.url)} title="移除">
                                   <X size={11} />
                                 </button>
                               </span>
@@ -1043,10 +1100,36 @@ export default function ProfilePage() {
                                 type="file"
                                 hidden
                                 multiple
-                                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                                accept=".pdf,.jpg,.jpeg,.png"
                                 onChange={(e) => void crPerfUpload(i, e)}
                               />
                               {perfUploadingIdx === i ? "上传中…" : "+ 上传证明"}
+                            </label>
+                          </div>
+                        </div>
+                        {/* B4-2（2026-09-30）：汇款凭证独立分区——此前单一列表混排无标识、
+                            删掉 payment 文件后无法再补回该类（注册端是两个独立上传区） */}
+                        <div className="crp-cell crp-cell-wide">
+                          <label>银行汇款凭证 <span className="text-[10px] font-normal text-[var(--muted-foreground)]">（选填，作为业绩支撑材料）</span></label>
+                          <div className="crp-files">
+                            {p.proofFiles.filter((f) => f.kind === "payment").map((f) => (
+                              <span key={"crpy" + f.url} className="crp-file-chip" title="银行汇款凭证">
+                                <Landmark size={12} className="text-[var(--success)]" />
+                                <span className="crp-file-name">{f.name || "汇款凭证"}</span>
+                                <button type="button" className="crp-file-x" onClick={() => crPerfRemoveFile(i, f.url)} title="移除">
+                                  <X size={11} />
+                                </button>
+                              </span>
+                            ))}
+                            <label className="neu-btn-xs crp-file-add">
+                              <input
+                                type="file"
+                                hidden
+                                multiple
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={(e) => void crPerfUpload(i, e, "payment")}
+                              />
+                              + 补传汇款凭证
                             </label>
                           </div>
                         </div>
@@ -1199,9 +1282,9 @@ export default function ProfilePage() {
                       <span className="cr-pill"><PillIcon size={13} />{stMeta.label}</span>
                     </div>
                     <div className="cr-diff">
-                      <div className="cr-diff-o"><span className="cr-diff-lbl">原值</span><span className="cr-diff-v">{r.oldValue || "—"}</span></div>
+                      <div className="cr-diff-o"><span className="cr-diff-lbl">原值</span><span className="cr-diff-v">{summarizeChangeValue(r.fieldName, r.oldValue)}</span></div>
                       <div className="cr-diff-ar"><ArrowRight size={16} /></div>
-                      <div className="cr-diff-n"><span className="cr-diff-lbl">新值</span><span className="cr-diff-v">{r.newValue}</span></div>
+                      <div className="cr-diff-n"><span className="cr-diff-lbl">新值</span><span className="cr-diff-v">{summarizeChangeValue(r.fieldName, r.newValue)}</span></div>
                     </div>
                     {r.reason && (
                       <div className="cr-why"><MessageSquare size={13} className="cr-why-icon" /><span>{r.reason}</span></div>

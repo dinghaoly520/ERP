@@ -55,8 +55,8 @@ export function TenderClarificationCard({
       setQuestion("");
       toast.success("澄清提问已提交");
       await reload();
-    } catch (e: unknown) {
-      toast.error((e as Error)?.message || "提交失败");
+    } catch {
+      // B4-1：失败已由全局 API 层统一 toast（本地再弹即双弹）
     } finally {
       setBusy(false);
     }
@@ -69,8 +69,8 @@ export function TenderClarificationCard({
       if (r.fileUrl) window.open(r.fileUrl, "_blank");
       toast.success("下载成功，已递交回执");
       await reload();
-    } catch (e: unknown) {
-      toast.error((e as Error)?.message || "下载失败");
+    } catch {
+      // B4-1：失败已由全局 API 层统一 toast
     } finally {
       setBusy(false);
     }

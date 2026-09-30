@@ -44,6 +44,9 @@ interface OverlaySpec {
 function renderOverlay(spec: OverlaySpec) {
   if (typeof window === "undefined" || shown) return;
   shown = true;
+  // 广播会话失效（2026-09-30 B1-2）：实时通知 / 开标 WS 收到后立即断开并停止重连——
+  // 否则重连 handshake 携带的是覆盖者的 cookie，旧 tab 会继续弹出他人账号的通知内容。
+  window.dispatchEvent(new Event("supplier:session-invalid"));
 
   const overlay = document.createElement("div");
   overlay.setAttribute("role", "alertdialog");
