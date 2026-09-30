@@ -233,13 +233,27 @@ export function ArchiveVolumeModal({
                 <Clock3 size={13} /> 划定期限
               </button>
             )}
-            {canManage && (
+            {/* 状态驱动主按钮：未导出=封卷；已导出=取件为主、重新封卷降级为次要动作 */}
+            {canManage && !localExportedAt && (
               <button type="button" className="neu-btn-soft !h-9 !text-xs is-success" disabled={busy} onClick={() => void exportAsip()}>
                 <FileArchive size={13} /> 导出 ASIP
               </button>
             )}
             {localExportedAt && (
-              <button type="button" className="neu-btn-soft !h-9 !text-xs" onClick={download}><Download size={13} /> 下载包</button>
+              <>
+                <button type="button" className="neu-btn-soft !h-9 !text-xs is-success" onClick={download}><Download size={13} /> 下载归档包</button>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="neu-btn-soft !h-9 !text-xs"
+                    disabled={busy}
+                    onClick={() => void exportAsip()}
+                    title="重新封卷将覆盖旧包：整包指纹与导出时间更新，旧指纹失效"
+                  >
+                    <FileArchive size={13} /> 重新导出
+                  </button>
+                )}
+              </>
             )}
             <button type="button" className="neu-btn-soft !h-9 !text-xs" disabled={busy} onClick={() => void runCheck()}><ShieldCheck size={13} strokeWidth={1.9} /> 运行检测</button>
             <button type="button" className="neu-btn-soft !h-9 !text-xs" onClick={onClose}>关闭</button>
