@@ -31,6 +31,10 @@ describe('OperationLog (e2e)', () => {
     // 动态取一个 bid_expert 账号（口令统一 18个1（ExpertProfile 快照 idNumber），见 CLAUDE.md 种子表），避免硬编码姓名
     const expert = await prisma.user.findFirst({ where: { role: 'bid_expert', isActive: true } });
     expect(expert).not.toBeNull();
+    // 闸4 工位锁定（2026-09-20）：专家「活动会话+开放评标窗口」时新登录 409
+    // ACCOUNT_EVALUATING——前置套件（opening-hall 签到等）可能留下该状态。
+    // 登录前清会话解锁（窗口仍在也不锁：闸4 需两者同时成立）
+    await prisma.user.update({ where: { id: expert!.id }, data: { webSessionId: null } });
     expertUsername = expert!.username;
     expertCookie = await loginAs(app, expert!.username, '111111111111111111', 'expert');
   });
