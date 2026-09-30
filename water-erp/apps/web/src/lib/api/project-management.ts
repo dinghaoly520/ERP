@@ -440,9 +440,13 @@ export async function uploadProjectStageAttachment(
   projectId: string,
   stageKey: ProjectWorkflowStageKey,
   file: File,
+  /** 轮次（R6-1）：多轮项目每轮各有一行同 stageKey 阶段——不带 round 会错挂第一轮。
+   *  缺省时后端按 currentRound 定位（兼容既有调用）。 */
+  round?: number,
 ) {
   const formData = new FormData();
   formData.append('file', file);
+  if (typeof round === 'number') formData.append('round', String(round));
 
   const response = await apiFetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/attachments`, {
     method: 'POST',

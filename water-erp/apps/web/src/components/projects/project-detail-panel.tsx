@@ -874,6 +874,7 @@ export function ProjectDetailPanel({
           item.id,
           selectedStage.stageKey,
           selectedFiles[i],
+          selectedStage.round ?? 1, // R6-1: 显式 round——多轮项目同 stageKey 各一行，防错挂第一轮
         );
         // 立即注入本地附件列表（不等父组件刷新）
         if (result.objectKey) {

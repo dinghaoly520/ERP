@@ -1249,9 +1249,22 @@ ${shortlist}
     stageKey: string,
     file: Express.Multer.File,
     uploadedById?: string,
+    round?: number,
   ) {
+    // R6-1（2026-09-30 审计⑤升级为硬死锁）：多轮项目每轮各有一行同 stageKey 阶段——
+    // 此前 findFirst 无 round 过滤，round-2 上传必落 round-1 行，selectOfficialTender
+    // 校验 projectManagementStageId 必拒"该文件不属于本步骤"→流标重采后 03 无法完成。
+    // 显式 round 优先；缺省回退 item.currentRound（兼容不带 round 的存量调用方）。
+    // （对照 updateStage :3347 同款修复早已有注释警示，唯独此处漏网。）
+    const targetRound = round ?? (
+      await this.prisma.projectManagementItem.findUnique({
+        where: { id: projectId },
+        select: { currentRound: true },
+      })
+    )?.currentRound ?? 1;
+
     const stage = await this.prisma.projectManagementStage.findFirst({
-      where: { projectManagementItemId: projectId, stageKey },
+      where: { projectManagementItemId: projectId, stageKey, round: targetRound },
       include: { attachments: true },
     });
 

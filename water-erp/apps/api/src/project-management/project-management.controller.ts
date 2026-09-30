@@ -177,6 +177,10 @@ export class ProjectManagementController {
     @Param('stageKey') stageKey: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() user: AuthenticatedUser | undefined,
+    /** 轮次（R6-1 修复）：多轮项目每轮各有一行同 stageKey 阶段，不带 round 会错挂
+     *  任意行（实测 round-2 上传必落 round-1，selectOfficialTender 校验必拒→死锁）。
+     *  缺省时后端按 item.currentRound 定位（兼容存量调用）。 */
+    @Body() body?: { round?: number },
   ) {
     if (!file) {
       throw new BadRequestException('请上传阶段文件。');
@@ -187,6 +191,7 @@ export class ProjectManagementController {
       stageKey,
       file,
       user?.sub,
+      typeof body?.round === 'number' ? body.round : undefined,
     );
   }
 

@@ -103,7 +103,7 @@ export function OfficialTenderWizard({
   async function handleUpload(file: File) {
     setUploading(true);
     try {
-      const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+      const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file, round); // R6-1: 显式 round 防错挂
       toast.success('已上传至「采购文件」步骤');
       await onChanged(); // 抽屉重拉 → attachments 注入新文件
       if (uploaded?.id) {

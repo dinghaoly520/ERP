@@ -691,12 +691,20 @@ export function WorkArrangementsPage({
     if (!selectedItemId) {
       return;
     }
+    // R6-4（2026-09-30 审计②）：删除不可逆且此前无确认（误触即永久删除）
+    if (!window.confirm("确认删除该工作安排？此操作不可恢复。")) {
+      return;
+    }
 
     setSaving(true);
     setErrorMessage(null);
     try {
       await deleteWorkArrangement(selectedItemId);
+      // R6-4：删除成功必须关抽屉——否则 loadWorkspace 会重选 tasks[0] 并
+      // syncEditorToTask 把表单静默切成另一条任务，再点保存会把改动写错对象
       setSelectedItemId(null);
+      setShowFullEditor(false);
+      setCreating(false);
       await loadWorkspace(false, true); // 删除任务：完整刷新（含 AI 排程）
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "删除工作安排失败。");

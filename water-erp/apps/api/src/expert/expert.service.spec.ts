@@ -161,7 +161,7 @@ describe('ExpertService', () => {
       expect(stats.pendingProjects).toBe(1);
       // 平均分 = (255 + 165 + 0) / 5家供应商 = 84.0
       expect(stats.averageScore).toBe(84);
-      expect(stats.recentActivity).toBeDefined();
+      // recentActivity 断言已随 EXP-P3-02 死载荷删除移除（831b2416 漏改本处致套件红）
       // 统计应仅计算 OPENING+ 阶段的项目
       expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
