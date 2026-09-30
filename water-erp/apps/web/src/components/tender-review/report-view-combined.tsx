@@ -307,6 +307,14 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
               审查结束，提交采购文件
             </button>
           )}
+          {/* R6-8③（2026-09-30 审计③）：独立 /tender-review 页无 onReviewComplete（不传项目上下文），
+              全部处置完后此前按钮永不出现、无终态——补终态徽标引导导出留档 */}
+          {allResolved && !onReviewComplete && (
+            <span className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[var(--success)]">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              全部问题已处置 · 独立审查入口无提交目标，请导出报告留档
+            </span>
+          )}
         </div>
       </div>
 
