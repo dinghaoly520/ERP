@@ -83,12 +83,14 @@ export class AnnouncementController {
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
     @Request() req?: any,
   ) {
     const scope = await this.companyScope.resolveScope(req?.user, companyId);
     return this.announcementService.list(
-      { type, status, search, page, pageSize },
+      { type, status, search, page, pageSize, sortBy, sortOrder },
       this.companyScope.filter(scope),
     );
   }

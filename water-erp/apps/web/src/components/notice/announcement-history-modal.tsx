@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2, RefreshCw, CalendarDays, Lock, Search, ChevronLeft, ChevronRight, EyeOff, PackageX, RotateCcw } from "lucide-react";
 import { Modal } from "@/components/workbench";
 import {
@@ -168,9 +168,12 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reqIdRef = useRef(0);
   const pageSize = 50;
 
   const doLoad = useCallback(async (p: number, action: string, df: string, dt: string, kw: string) => {
+    const rid = ++reqIdRef.current;
     setLoading(true);
     try {
       const res = await fetchAllAnnouncementHistories({
@@ -180,6 +183,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
         dateTo: dt || undefined,
         search: kw || undefined,
       });
+      if (rid !== reqIdRef.current) return;
       setData({ items: res.items, total: res.total });
       setPage(res.page);
     } catch (e) {
@@ -267,7 +271,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
                 type="text"
                 placeholder="搜索标题…"
                 value={search}
-                onChange={e => { const v = e.target.value; setSearch(v); doLoad(1, actionFilter, dateFrom, dateTo, v); }}
+                onChange={e => { const v = e.target.value; setSearch(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); searchDebounceRef.current = setTimeout(() => doLoad(1, actionFilter, dateFrom, dateTo, v), 300); }}
                 className="workbench-input !h-7 !text-[11px] !pl-8"
               />
             </div>

@@ -204,7 +204,7 @@ export class AnnouncementService {
   }
 
   async list(
-    params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number },
+    params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
     companyFilter: { companyId?: string } = {},
     opts: { publicVisibilityOnly?: boolean; excludeIds?: string[] } = {},
   ) {
@@ -244,13 +244,22 @@ export class AnnouncementService {
       ];
     }
 
+    // R7-3：排序下沉服务端（白名单：浏览/类型/状态/发布日期；isTop 恒置顶）——
+    // 此前前端对当前页 15 条客户端排序，跨页结果错误且表头暗示全局语义
+    const SORTABLE: Record<string, string> = { publishDate: 'publishDate', viewCount: 'viewCount', type: 'type', status: 'status', createdAt: 'createdAt' };
+    const orderBy: any[] = [{ isTop: 'desc' }];
+    if (params.sortBy && SORTABLE[params.sortBy]) {
+      orderBy.push({ [SORTABLE[params.sortBy]]: params.sortOrder === 'asc' ? 'asc' : 'desc' });
+    }
+    orderBy.push({ publishDate: 'desc' }, { createdAt: 'desc' });
+
     const [total, items] = await Promise.all([
       this.prisma.announcement.count({ where }),
       this.prisma.announcement.findMany({
         where,
         skip,
         take: pageSize,
-        orderBy: [{ isTop: 'desc' }, { publishDate: 'desc' }, { createdAt: 'desc' }],
+        orderBy,
         include: {
           attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } },
           bidDocument: { select: { id: true, title: true, accessScope: true, requirePayment: true, price: true, downloadCount: true } },
@@ -785,7 +794,7 @@ export class AnnouncementService {
     return this.applyRecycle(id, 'HIDDEN', operator);
   }
 
-  /** 下架：仅已发布可下架 → OFFLINE，进回收站（撤下公开门户） */
+  /** 下架：任意状态 → OFFLINE 终态，进回收站（v2 拍板：不再限定仅已发布） */
   async offline(id: string, operator: RecycleOperator = {}) {
     return this.applyRecycle(id, 'OFFLINE', operator);
   }

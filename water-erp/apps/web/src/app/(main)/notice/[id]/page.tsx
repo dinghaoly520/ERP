@@ -517,9 +517,9 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           </div>
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">状态</label>
-            <select value={status} onChange={e => setStatus(e.target.value as AnnouncementStatus)} className="neu-input">
-              <option value="DRAFT">草稿</option><option value="PUBLISHED">已发布</option><option value="ARCHIVED">已下线</option>
-            </select>
+            {/* R7-3③：状态下拉是死控件（save 用保存/发布按钮决定的状态，此处从不被读取）——
+                改只读展示，状态变更请用下方「保存草稿/发布/下架」按钮 */}
+            <span className="neu-input inline-flex items-center px-3 text-sm text-[var(--muted-foreground)]">{ANN_STATUS_LABEL[status] ?? status}</span>
           </div>
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">发布日期</label>

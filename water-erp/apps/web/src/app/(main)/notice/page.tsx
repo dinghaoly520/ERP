@@ -110,13 +110,13 @@ export default function NoticePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await listAnnouncements({ type: filterType === 'ALL' ? undefined : filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId });
+      const res = await listAnnouncements({ type: filterType === 'ALL' ? undefined : filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId, sortBy: sortKey ?? undefined, sortOrder: sortKey ? sortDir : undefined });
       setData({ total: res.total, items: res.items });
-    } catch { /* empty */ }
+    } catch (e: any) { toast.error(e?.message || '公告列表加载失败'); } // R7-3⑥：接口挂不再伪装成空态
     // KPI 全量口径与列表并行拉取，失败保持上次值（不阻塞列表）
     getAnnouncementStats(companyId).then(setStats).catch(() => {});
     setLoading(false);
-  }, [filterType, filterStatus, search, page, companyId]);
+  }, [filterType, filterStatus, search, page, sortKey, sortDir, companyId]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   useEffect(() => { void fetchCurrentUser().then(u => setIsAdmin(u.role === 'admin')).catch(() => setIsAdmin(false)); }, []);
   // admin 全部公司视图：拉后端全量分组计数（与列表同筛选），分组标题用全量口径
@@ -130,25 +130,14 @@ export default function NoticePage() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / 15));
 
-  const sortedItems = useMemo(() => {
-    if (!sortKey) return data.items;
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...data.items].sort((a, b) => {
-      let av: string | number = '', bv: string | number = '';
-      if (sortKey === 'viewCount') { av = a.viewCount; bv = b.viewCount; }
-      else if (sortKey === 'publishDate') { av = a.publishDate || a.createdAt; bv = b.publishDate || b.createdAt; }
-      else if (sortKey === 'type') { av = a.type; bv = b.type; }
-      else if (sortKey === 'status') { av = a.status; bv = b.status; }
-      if (av < bv) return -1 * dir;
-      if (av > bv) return 1 * dir;
-      return 0;
-    });
-  }, [data.items, sortKey, sortDir]);
+  // R7-3：排序下沉服务端——此前对当前页 15 条客户端排序，跨页结果错误且表头暗示全局语义
+  const sortedItems = data.items;
 
   const toggleSort = (key: SortKey) => {
     if (sortKey !== key) { setSortKey(key); setSortDir('desc'); }
     else if (sortDir === 'desc') setSortDir('asc');
     else { setSortKey(null); setSortDir('desc'); }
+    setPage(1); // 服务端排序：换序回第 1 页
   };
 
   const selectableIds = sortedItems.map(i => i.id);
