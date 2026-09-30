@@ -5,4 +5,4 @@
 
   注：手工迁移（db execute + migrate resolve）——沿用 assistant_guest_key 配方。
 */
-ALTER TABLE "users" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
