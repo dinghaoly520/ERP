@@ -394,6 +394,13 @@ export function NotificationLetterDialog({
   ];
 
   const filledCount = fields.filter((f) => draft[f.key]?.trim()).length;
+  // R6 终审 P2-7：无项目上下文时打开即提示（此前只在 publish 步按钮拦截，前期产出白做）
+  const noProjectBanner = !project?.id ? (
+    <div className="mb-3 flex items-start gap-2 rounded-lg bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-2 text-xs text-[var(--warning)]">
+      <Info size={13} className="mt-0.5 shrink-0" />
+      <span>当前为独立编制入口，未关联项目：可完成起草与导出留档，但公示状态查询与正式发布需从项目「定标」步骤发起。</span>
+    </div>
+  ) : null;
 
   const commonInputClass =
     "mt-2 w-full rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]";
@@ -410,6 +417,7 @@ export function NotificationLetterDialog({
         footer={
           step === "publish" ? (
             <>
+        {noProjectBanner}
               <button
                 type="button"
                 onClick={() => { setStep("edit"); setPublishError(null); }}

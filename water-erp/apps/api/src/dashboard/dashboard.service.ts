@@ -272,7 +272,6 @@ export class DashboardService {
         round.resultStatus === ResultStatus.AWARDED
           ? (pmiArchivedByRound.get(round.id) ?? round.updatedAt)
           : null;
-        round.resultStatus === ResultStatus.AWARDED ? round.updatedAt : null;
       // 主桶：采购日缺省回退立项日（项目立项时间兜底，消灭「未填」）
       const fallbackDate = round.procurementDate ?? round.project.createdAt;
       const dateKey = fallbackDate.toISOString().slice(0, 10);

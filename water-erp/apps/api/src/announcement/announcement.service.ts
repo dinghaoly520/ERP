@@ -251,7 +251,11 @@ export class AnnouncementService {
     if (params.sortBy && SORTABLE[params.sortBy]) {
       orderBy.push({ [SORTABLE[params.sortBy]]: params.sortOrder === 'asc' ? 'asc' : 'desc' });
     }
-    orderBy.push({ publishDate: 'desc' }, { createdAt: 'desc' });
+    // 决胜键去重：sortBy=publishDate 时不重复追加（数组重复键 Prisma 可能拒收）
+    if (!params.sortBy || SORTABLE[params.sortBy] !== 'publishDate') {
+      orderBy.push({ publishDate: 'desc' });
+    }
+    orderBy.push({ createdAt: 'desc' });
 
     const [total, items] = await Promise.all([
       this.prisma.announcement.count({ where }),

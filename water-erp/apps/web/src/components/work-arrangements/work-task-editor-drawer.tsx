@@ -304,8 +304,14 @@ export function WorkTaskEditorDrawer({
                 {availableDependencies.map((d) => (
                   <option key={d.id} value={d.id}>{d.title}</option>
                 ))}
+                {/* R7 终审：项目域视图下依赖项可能不在当前列表——为已选 id 渲染禁用项防静默丢失 */}
+                {editor.dependencyIds
+                  .filter((id) => !availableDependencies.some((d) => d.id === id))
+                  .map((id) => (
+                    <option key={id} value={id} disabled>（不在当前列表的依赖项 · {id.slice(0, 8)}）</option>
+                  ))}
               </select>
-              <span className="text-[10px] text-[var(--muted-foreground)]">按住 Ctrl/Cmd 多选；完成前会提示先完成依赖项</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">按住 Ctrl/Cmd 多选，标记本任务的前置任务</span>
             </label>
           )}
 

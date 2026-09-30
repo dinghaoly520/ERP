@@ -498,7 +498,7 @@ export function WorkArrangementsPageChairman({
         selectedItemTitle={selectedItem?.title ?? null}
         editor={editor}
         projects={projects}
-        availableDependencies={allItems}
+        availableDependencies={allItems.filter((i: any) => i.id !== selectedItemId)}
         onClose={() => { setCreating(false); setShowFullEditor(false); }}
         onSave={() => void handleSave()}
         onDelete={() => void handleDelete()}

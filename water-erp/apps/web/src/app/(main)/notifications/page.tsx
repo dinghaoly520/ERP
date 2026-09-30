@@ -15,7 +15,6 @@ import {
 } from '@/lib/api/auth';
 import { getSupplier, getSupplierList, approveSupplier, rejectSupplier, returnSupplier } from '@/lib/api/supplier';
 import { Modal } from '@/components/workbench';
-import type { Supplier } from '@/lib/types';
 import {
   Bell, CheckCheck, Clock, History, Inbox, ClipboardList, CircleCheck, BookOpen,
   RefreshCw, Loader2, CheckCircle2, XCircle, RotateCcw, UserPlus, IdCard,
@@ -193,9 +192,28 @@ export default function NotificationsPage() {
     setItems(xs => xs.map(x => (x.id === id ? { ...x, isRead: true, readAt: new Date().toISOString() } : x)));
   };
 
+  /** 从通知 link 解析 supplierId（新 link=/supplier/approval?supplierId=…，2026-09-30） */
+  const supplierIdFromLink = (link?: string | null): string | null => {
+    if (!link) return null;
+    const m = link.match(/supplierId=([A-Za-z0-9_-]+)/);
+    return m ? m[1] : null;
+  };
+  const openReviewCenter = (n: NotificationItem) => {
+    const sid = supplierIdFromLink(n.link);
+    window.dispatchEvent(new CustomEvent('open-review-center', { detail: { supplierId: sid ?? undefined } }));
+  };
+
   const handleRowClick = (n: NotificationItem) => {
-    if (itemState(n) === 'todo') setHandleItem(n);
-    else openDetail(n);
+    if (itemState(n) === 'todo') {
+      // 供应商审批（三级）已收敛到窗口式审批中心（2026-09-30）：直达审批中心窗口，
+      // 不再内嵌简化审批（与审批中心双入口曾导致无级过滤、缺缘由/stepper 的不一致）。
+      if (n.type === 'SUPPLIER_PENDING') {
+        void markNotificationRead(n.id).catch(() => {});
+        openReviewCenter(n);
+        return;
+      }
+      setHandleItem(n);
+    } else openDetail(n);
   };
 
   /* ════════════ 渲染 ════════════ */
@@ -282,7 +300,12 @@ export default function NotificationsPage() {
                     <td style={{ textAlign: 'center' }}><StateChip state={st} /></td>
                     <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
                       {st === 'todo' ? (
-                        <button className="neu-btn-xs" onClick={() => setHandleItem(n)}>处理</button>
+                        <button className="neu-btn-xs" onClick={() => {
+                          if (n.type === 'SUPPLIER_PENDING') {
+                            void markNotificationRead(n.id).catch(() => {});
+                            openReviewCenter(n);
+                          } else setHandleItem(n);
+                        }}>处理</button>
                       ) : (
                         <button className="neu-btn-xs" onClick={() => openDetail(n)}>查看</button>
                       )}
@@ -446,7 +469,7 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
     const q = item.link?.split('?')[1];
     if (!q) return null;
     const params = new URLSearchParams(q);
-    return params.get('requestId') ?? params.get('userId');
+    return params.get('requestId') ?? params.get('userId') ?? params.get('supplierId'); // R6 终审 P2-2：供应商注册通知 link 带 supplierId
   }, [item.link]);
 
   const isApproval = ['PROFILE_CHANGE_PENDING', 'USER_REGISTRATION_PENDING', 'SUPPLIER_PENDING'].includes(item.type);
@@ -493,7 +516,7 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
 
   const act = async (fn: () => Promise<unknown>, okMsg: string) => {
     setBusy(true);
-    try { await fn(); toast.success(okMsg); onDone(); }
+    try { await fn(); if (okMsg) toast.success(okMsg); onDone(); } // 空消息=fn 内已按结果区分 toast
     catch (e: any) { toast.error(e?.message ?? '操作失败'); }
     setBusy(false);
   };
@@ -510,11 +533,14 @@ function HandleModal({ item, onClose, onDone }: { item: NotificationItem; onClos
     if (isSupplier && stage !== 'ADMIN' && !reason.trim()) { toast.error('请填写同意缘由（后级审批人将据此复核）'); return; }
     return void act(
       () => approveSupplier(cur.id, reason.trim() || undefined).then(res => {
-        if (res?.stage === 'DONE') return res;
-        toast.success(`已通过${STAGE_LABEL[stage ?? 'STAFF'] ?? '本级'}，流转至${STAGE_LABEL[res?.stage ?? ''] ?? '下一级'}`);
+        // R7 终检：消息统一在此按流转结果区分（此前非终审会弹两条矛盾 toast——
+        // fn 内"流转至下一级"+act 固定"三级全部通过"）
+        toast.success(res?.stage === 'DONE'
+          ? '三级审核全部通过，已正式入库'
+          : `已通过${STAGE_LABEL[stage ?? 'STAFF'] ?? '本级'}，流转至${STAGE_LABEL[res?.stage ?? ''] ?? '下一级'}`);
         return res;
       }),
-      '三级审核全部通过，已正式入库',
+      '',
     );
   };
   const doReject = () => {

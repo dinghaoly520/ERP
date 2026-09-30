@@ -191,7 +191,9 @@ export class ProjectManagementController {
       stageKey,
       file,
       user?.sub,
-      typeof body?.round === 'number' ? body.round : undefined,
+      // R6 终审 P1-2：multipart 文本字段到达时是字符串 "2"——typeof number 恒 false，
+    // 显式 round 被静默丢弃（详情面板/向导传的 round 全部失效）。Number()+NaN 守卫。
+    Number.isFinite(Number(body?.round)) && Number(body?.round) > 0 ? Number(body?.round) : undefined,
     );
   }
 

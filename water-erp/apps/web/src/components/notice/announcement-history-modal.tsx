@@ -194,6 +194,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
   }, [pageSize]);
 
   useEffect(() => { doLoad(1, "", "", "", ""); }, [doLoad]);
+  useEffect(() => () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); }, []); // R7 终审：卸载清定时器
 
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
 
@@ -239,7 +240,7 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
             <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">操作类型</span>
             <select
               value={actionFilter}
-              onChange={e => { const v = e.target.value; setActionFilter(v); doLoad(1, v, dateFrom, dateTo, search); }}
+              onChange={e => { const v = e.target.value; setActionFilter(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); doLoad(1, v, dateFrom, dateTo, search); }}
               className="workbench-input !w-auto !h-7 !text-[11px] min-w-[110px]"
             >
               <option value="">全部</option>
@@ -254,14 +255,14 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
             <input
               type="date"
               value={dateFrom}
-              onChange={e => { const v = e.target.value; setDateFrom(v); doLoad(1, actionFilter, v, dateTo, search); }}
+              onChange={e => { const v = e.target.value; setDateFrom(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); doLoad(1, actionFilter, v, dateTo, search); }}
               className="workbench-input !w-auto !h-7 !text-[11px]"
             />
             <span className="text-[11px] text-[var(--muted-foreground)]">至</span>
             <input
               type="date"
               value={dateTo}
-              onChange={e => { const v = e.target.value; setDateTo(v); doLoad(1, actionFilter, dateFrom, v, search); }}
+              onChange={e => { const v = e.target.value; setDateTo(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); doLoad(1, actionFilter, dateFrom, v, search); }}
               className="workbench-input !w-auto !h-7 !text-[11px]"
             />
 

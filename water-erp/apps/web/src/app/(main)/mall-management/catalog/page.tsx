@@ -1372,12 +1372,18 @@ function TrendsTab() {
       // 价格趋势需全量候选（跨页取 top5），此处不带分页参数 → 全量数组
       const items: CatalogItem[] = Array.isArray(res) ? res : res.items;
       setItemCount(Array.isArray(res) ? res.length : res.total);
-      // R7-2⑦（2026-09-30 审计 #7）：按价格历史数筛选而非 priceMin!==priceMax——
-      // 区间留空会被补成 min=max=ref，恰有趋势数据的项反被系统性排除
-      const withHistory = await Promise.all(items.map(async i => {
-        try { const h = await getPriceHistory(i.id); return Array.isArray(h) && h.length >= 2 ? { i, h } : null; } catch { return null; }
-      }));
-      const candidates = withHistory.filter(Boolean).slice(0, 5);
+      // R7-2⑦ + R7 终审：按价格历史数筛选而非 priceMin!==priceMax——区间留空会被补成
+      // min=max=ref 恰有趋势数据的项反被排除；顺序探测（非全量并发）取满 5 个即停，
+      // 探测上限 30 防大品类 N+1 洪泛
+      const withHistory: Array<{ i: CatalogItem; h: Array<{ recordedAt?: string; price?: number | string }> }> = [];
+      for (const it of items.slice(0, 30)) {
+        if (withHistory.length >= 5) break;
+        try {
+          const h = await getPriceHistory(it.id);
+          if (Array.isArray(h) && h.length >= 2) withHistory.push({ i: it, h });
+        } catch { /* 单项失败继续探测 */ }
+      }
+      const candidates = withHistory;
       if (candidates.length === 0) return;
       const series = (await Promise.all(candidates.map(async (c, i) => {
         if (!c) return null;
@@ -1386,7 +1392,7 @@ function TrendsTab() {
       }))).filter(Boolean);
       setSeriesData(series.filter((s): s is NonNullable<typeof s> => s != null));
       // 仅在确有候选时，拉取首项预测作为采购时机提示
-      const pred = await getPricePrediction((candidates[0] as any).i.id);
+      const pred = await getPricePrediction(candidates[0].i.id);
       if (pred) {
         setOpportunity(pred.opportunity);
         if (pred.predictions?.length) {

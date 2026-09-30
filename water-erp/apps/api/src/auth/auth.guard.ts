@@ -67,7 +67,8 @@ export class AuthGuard implements CanActivate {
       // 此前仅清 webSessionId（只拦带 sid 的 web/supplier/expert token），token_bid
       // 无 sid 也不校验——重置密码后 :3007 会话照活到 7 天 JWT 过期，与"所有已登录
       // 会话立即失效"承诺相反。iat 为 JWT 标准声明（秒），全命名空间统一拦截。
-      if (user.passwordChangedAt && typeof payload.iat === 'number' && payload.iat * 1000 < user.passwordChangedAt.getTime()) {
+      // 截到整秒比较：同秒内"改密→立即登录"的新 token 不误杀（iat 秒级 floor 无毫秒可辨）
+      if (user.passwordChangedAt && typeof payload.iat === 'number' && payload.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
         throw new UnauthorizedException({ error: '密码已变更，请使用新密码重新登录', code: 'PASSWORD_CHANGED' });
       }
       if (payload.sid) {

@@ -89,6 +89,7 @@ export default function OperationLogPage() {
       setOffset(off);
       setExpandedId(null);
     } catch (e) {
+      if (rid !== loadReqIdRef.current) return;
       setError((e as Error)?.message ?? '查询失败');
     } finally {
       setLoading(false);

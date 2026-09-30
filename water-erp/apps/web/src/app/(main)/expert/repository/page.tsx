@@ -363,7 +363,7 @@ export default function ExpertRepositoryPage() {
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="experts" />
             <Link href="/expert/ranking" className="neu-btn-soft"><Trophy size={15} />排名</Link>
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
-            <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>
+            {canManageStatus && <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>}
             <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
             <button onClick={load} disabled={loading} className="neu-btn-xs"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>

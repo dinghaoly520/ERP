@@ -266,7 +266,8 @@ export class ExpertAdminService {
     const gradeCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
     for (const e of evaluations) gradeCounts[e.overallGrade] = (gradeCounts[e.overallGrade] ?? 0) + 1;
 
-    return { ...user, assignments, evaluations, statistics: { totalProjects, completedProjects, signedInProjects, evalCount: evaluations.length, gradeCounts } };
+    // R6 终审 P2-5：计数/分布按全量算，但响应明细限最近 20 条（几百条评价时详情响应线性膨胀）
+    return { ...user, assignments, evaluations: evaluations.slice(0, 20), statistics: { totalProjects, completedProjects, signedInProjects, evalCount: evaluations.length, gradeCounts } };
   }
 
   /** 专家参与的评审项目列表（公司隔离） */

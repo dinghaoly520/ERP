@@ -1329,8 +1329,8 @@ export default function ProcurementsPage() {
             }).catch(() => null)
           : Promise.resolve(null),
       ]);
-      setData(listRes.data);
       if (rid !== loadReqIdRef.current) return;
+      setData(listRes.data); // R7 终审 P2：setData 原在守卫前——过期响应覆盖表格与新分页混合态
       setPagination(listRes.pagination);
       setAbnormalTotal(listRes.abnormalTotal);
       setMethods(methodsRes);

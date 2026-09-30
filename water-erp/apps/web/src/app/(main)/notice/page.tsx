@@ -524,8 +524,14 @@ function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
 function ParticipantsModal({ announcement, onClose }: { announcement: AnnouncementListItem; onClose: () => void }) {
   const [result, setResult] = useState<ParticipantsResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const loadReqIdRef = useRef(0);
-  useEffect(() => { getParticipants(announcement.id).then(setResult).catch(() => setResult(null)).finally(() => setLoading(false)); }, [announcement.id]);
+  const loadReqIdRef = useRef(0); // R7 终审：接上守卫（此前声明未用）
+  useEffect(() => {
+    const rid = ++loadReqIdRef.current;
+    getParticipants(announcement.id)
+      .then(r => { if (rid === loadReqIdRef.current) setResult(r); })
+      .catch(() => { if (rid === loadReqIdRef.current) setResult(null); })
+      .finally(() => { if (rid === loadReqIdRef.current) setLoading(false); });
+  }, [announcement.id]);
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
   const downloadCount = result?.suppliers.filter(s => s.downloadCount > 0).length ?? 0;
 
