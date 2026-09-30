@@ -159,13 +159,16 @@ async function main() {
   const regBodies: Record<string, any> = {}
   const supplierIds: Record<string, string> = {}
   // 归属公司（83205cf0 注册链路必填 + COMPANY_NOT_FOUND 强校验）：seed 重建 Company 时
-  // id 每次新生成、不可硬编码——运行时从公开端点取真实 id（注册页 companyOptions 同款）
+  // id 每次新生成、不可硬编码——从经办 staff 自己的 /auth/me 取（三级审批 STAFF/LEADER 级
+  // 同公司断言，注册公司必须与审批人一致）；me 无 companyId 时回退公开公司选项首项
+  const staffWeb = await login('Swhi-CGZX-05', 'Swhi-CGZX-05@2026', 'web')
+  const staffMe = await call('GET', '/api/auth/me', { portal: 'web', session: staffWeb })
   const companyOptions = await call('GET', '/api/auth/companies/options')
   assert.ok(
     companyOptions.status < 300 && Array.isArray(companyOptions.data) && companyOptions.data.length > 0,
     `公司选项拉取失败 → HTTP ${companyOptions.status} ${JSON.stringify(companyOptions.data)}`,
   )
-  const companyId = companyOptions.data[0].id as string
+  const companyId = (staffMe.data?.companyId as string | undefined) || (companyOptions.data[0].id as string)
   let seq = 0
   for (const who of parties) {
     const credit = String(90 + (++seq % 9)).padStart(1, '9') + (Date.now() + seq).toString().padStart(16, '0').slice(-16)
@@ -205,15 +208,26 @@ async function main() {
       tags: ['岩土工程', '勘察设计'],
     }
   }
-  const staffWeb = await login('Swhi-CGZX-05', 'Swhi-CGZX-05@2026', 'web')
+  // 三级审批（2026-09-29）：staff 初审(须缘由) → leader 复审(须缘由) → admin 终审，
+  // 逐级推进（assertStageApprover 按级断言），admin 终审通过才激活账号入库
+  const leaderWeb = await login('Swhi-CGZX-01', 'Swhi-CGZX-01@2026', 'web')
+  const adminWeb = await login('Swhi-CGZX-admin', 'Swhi-CGZX-admin@2026', 'web')
   for (const who of parties) {
     const reg = await call('POST', '/api/supplier/register', { json: regBodies[who.username] })
     const ok = reg.status === 201 || reg.status === 200
     supplierIds[who.username] = reg.data?.supplier?.id as string
     record(`注册+审核（${who.name}）`, ok, `HTTP ${reg.status}`)
     if (!ok) throw new Error(`register ${who.name} failed: ${JSON.stringify(reg.data)}`)
-    const ap = await call('POST', `/api/supplier/${supplierIds[who.username]}/approve`, { portal: 'web', session: staffWeb })
-    assert.ok(ap.status < 300, `approve ${who.name} → ${ap.status} ${JSON.stringify(ap.data)}`)
+    for (const [stage, session, label] of [
+      ['staff', staffWeb, '初审'],
+      ['leader', leaderWeb, '复审'],
+      ['admin', adminWeb, '终审'],
+    ] as const) {
+      const ap = await call('POST', `/api/supplier/${supplierIds[who.username]}/approve`, {
+        portal: 'web', session, json: { reason: `双信封冒烟${label}通过` },
+      })
+      assert.ok(ap.status < 300, `approve[${stage}] ${who.name} → ${ap.status} ${JSON.stringify(ap.data)}`)
+    }
   }
 
   const sessions: Record<string, string> = {}
