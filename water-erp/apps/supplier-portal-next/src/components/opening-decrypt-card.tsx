@@ -363,7 +363,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
                       value={reuploadRole}
                       onChange={(e) => setReuploadRole(e.target.value as typeof reuploadRole)}
                       disabled={reuploadBusy}
-                      className="rounded-lg border border-[oklch(0.87_0.015_258)] bg-white px-2 py-1.5 text-xs"
+                      className="rounded-lg border border-[oklch(0.87_0.015_258)] bg-[oklch(0.99_0.004_258)] px-2 py-1.5 text-xs"
                     >
                       <option value="">选择角色…</option>
                       <option value="technical">技术标</option>
