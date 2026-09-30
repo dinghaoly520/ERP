@@ -1431,6 +1431,7 @@ model Supplier {
 
   @@index([status])
   @@index([creditCode])
+  @@index([reviewStage]) // 对账 2026-09-30：dev 库已有此索引（db push 产物）但 schema 未声明——收编
 }
 
 // ── 供应商审核历史（不可变留痕）──
