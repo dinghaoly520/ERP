@@ -141,28 +141,42 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: water-erp/pnpm-lock.yaml
 
-      - name: Start MinIO
+      - name: Start MinIO (S3 兼容存储)
         run: |
-          # Docker Hub 匿名限流会间歇性 pull denied（2026-09-14 实录）——重试 + quay.io 官方镜像兜底
+          # 三层兜底（2026-09-30 实录：Docker Hub 匿名拉取 deny + quay.io 401 双挂、
+          # dl.min.io 亦 410——MinIO 社区分发收紧，CI 连续两 run 死于此）：
+          #   docker hub → quay.io → SeaweedFS 官方二进制（GitHub release，runner 原生可达；
+          #   S3 网关任意凭据可连，仅 CI 冒烟用途。StorageService 只用标准 S3 面，
+          #   本地 minio client 7 操作兼容性已实测通过——含预签名 URL 实际拉取）
+          run_minio_container() {
+            docker run -d --name minio -p 9000:9000 \
+              -e MINIO_ROOT_USER=$MINIO_ROOT_USER \
+              -e MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD \
+              "$1" server /data
+          }
           IMG=minio/minio
           for i in 1 2 3; do
             docker pull "$IMG" && break
             echo "pull $IMG failed, retry #$i"; sleep 5
           done
-          if ! docker image inspect "$IMG" >/dev/null 2>&1; then
-            echo "Docker Hub 不可用，回退 quay.io/minio/minio"
-            IMG=quay.io/minio/minio
-            docker pull "$IMG"
+          if docker image inspect "$IMG" >/dev/null 2>&1; then
+            run_minio_container "$IMG"
+          elif docker pull quay.io/minio/minio 2>/dev/null; then
+            echo "Docker Hub 不可用，已回退 quay.io/minio/minio"
+            run_minio_container quay.io/minio/minio
+          else
+            echo "镜像源均不可用，回退 SeaweedFS 官方二进制（S3 网关）"
+            curl -fL --retry 3 -o /tmp/weed.tar.gz \
+              https://github.com/seaweedfs/seaweedfs/releases/download/4.48/linux_amd64.tar.gz
+            tar -xzf /tmp/weed.tar.gz -C /tmp/
+            nohup /tmp/weed server -dir=/tmp/weed-data -ip=127.0.0.1 -s3 -s3.port=9000 >/tmp/weed.log 2>&1 &
           fi
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=$MINIO_ROOT_USER \
-            -e MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD \
-            "$IMG" server /data
+          # 就绪探测对 HTTP 状态宽容（S3 网关未签名 GET 常 403，仅验证端口已监听）
           for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && echo "minio up" && break
+            curl -s -o /dev/null http://localhost:9000/ && echo "s3 gateway up" && break
             sleep 2
           done
-          curl -sf http://localhost:9000/minio/health/live || { echo "minio 未就绪"; docker logs minio | tail -20; exit 1; }
+          curl -s -o /dev/null http://localhost:9000/ || { echo "S3 未就绪"; docker logs minio 2>/dev/null | tail -20; tail -20 /tmp/weed.log 2>/dev/null; exit 1; }
 
       - name: Write CI .env
         working-directory: water-erp/apps/api
