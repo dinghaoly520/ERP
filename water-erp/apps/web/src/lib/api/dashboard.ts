@@ -1,3 +1,4 @@
+import { toApiError } from '@water-erp/client';
 import { apiFetch } from './api-fetch';
 const API_BASE = '/api';
 
@@ -160,8 +161,7 @@ export async function fetchDashboardData(
 
   const response = await apiFetch(url, { credentials: 'include' });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch dashboard data: ${errorText}`);
+    throw await toApiError(response, '加载仪表盘数据失败');
   }
 
   return response.json();

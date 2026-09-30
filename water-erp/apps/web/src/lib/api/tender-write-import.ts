@@ -1,13 +1,9 @@
 import type { ReadyTenderDocumentType } from '@/lib/types/tender-write';
 import type { ImportAutofillResult } from '@/lib/types/tender-write-import';
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
-
-function parseErrorMessage(text: string) {
-  const trimmed = text.trim();
-  return trimmed || '分析失败，请稍后重试。';
-}
 
 export async function importAutofill(
   documentType: ReadyTenderDocumentType,
@@ -31,7 +27,7 @@ export async function importAutofill(
   });
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '分析失败，请稍后重试。');
   }
 
   return response.json();

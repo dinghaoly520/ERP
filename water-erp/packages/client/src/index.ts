@@ -65,17 +65,31 @@ function mergeHeaders(init: RequestInit | undefined, extra: Record<string, strin
   return { ...extra, ...base };
 }
 
-/** 解析错误响应为 ApiError（尽量提取后端规范体的 code/error 字段） */
-async function toApiError(res: Response): Promise<ApiError> {
+/**
+ * 解析错误响应为 ApiError（尽量提取后端规范体的 code/error 字段）。
+ *
+ * message 取值优先级：body.error（后端规范体中文消息）→ body.message（Nest 旧
+ * 格式，ValidationPipe 数组取首条）→ fallback（调用方语境中文，如「加载仪表盘
+ * 数据失败」）→ `请求失败 (status)`。完整原始错误体挂 ApiError.data 供排查——
+ * **不得把响应体原文塞进 message 直出用户**（2026-09-30 P2022 裸 JSON 事件起，
+ * 各门户 lib/api 统一经此函数构造错误）。
+ */
+export async function toApiError(res: Response, fallback?: string): Promise<ApiError> {
   let code = 'UNKNOWN';
-  let message = `请求失败 (${res.status})`;
+  let message = fallback ?? `请求失败 (${res.status})`;
   let data: unknown;
   try {
     data = await res.json();
     if ((data as any)?.code) code = (data as any).code;
-    if ((data as any)?.error) message = String((data as any).error);
+    if ((data as any)?.error) {
+      message = String((data as any).error);
+    } else if ((data as any)?.message) {
+      const raw = (data as any).message;
+      message = Array.isArray(raw) ? String(raw[0] ?? '') : String(raw);
+      if (!message) message = fallback ?? `请求失败 (${res.status})`;
+    }
   } catch {
-    // 响应体非 JSON，保留默认消息
+    // 响应体非 JSON，保留 fallback/默认消息
   }
   return new ApiError(res.status, code, message, data);
 }

@@ -9,6 +9,7 @@
  * （credentials 默认 include），作为无头/SSR 场景的后端回退路径。
  * 签名与原生 fetch 兼容：URL/init 原样透传，仅补头与默认 credentials。
  */
+import { ApiError } from '@water-erp/client';
 import { getWebToken } from '@/lib/session-store';
 
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
@@ -16,5 +17,13 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
   const headers = new Headers(init.headers);
   headers.set('X-Portal', 'web');
   if (token) headers.set('X-Web-Token', token);
-  return fetch(input, { ...init, credentials: init.credentials ?? 'include', headers });
+  try {
+    return await fetch(input, { ...init, credentials: init.credentials ?? 'include', headers });
+  } catch (err) {
+    // 调用方主动取消（AbortController.abort）原样放行，保持 AbortError 语义
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    // 断网/超时（fetch 直接 reject 的 TypeError "Failed to fetch"）翻译为中文，
+    // 与 @water-erp/client 的 doFetch 同款——避免英文浏览器原生报错直出用户
+    throw new ApiError(0, 'NETWORK_ERROR', '网络异常或请求超时，请检查网络');
+  }
 }

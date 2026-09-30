@@ -8,6 +8,7 @@ import type {
   FieldComparison,
 } from '@/lib/types/project-management';
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 
 // Use /api proxy by default so LAN clients do not resolve localhost on their own machine.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
@@ -59,44 +60,10 @@ export type InitiationFields = {
   riskMeasures?: string;
 };
 
-function parseErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message.trim()) {
-    const normalized = error.message.trim().toLowerCase();
-    if (normalized === 'the string did not match the expected pattern.') {
-      return '上传文件失败，请重新选择 PDF 文件后重试。';
-    }
-    if (normalized === 'internal server error') {
-      return '服务处理失败，请稍后重试。';
-    }
-    return error.message;
-  }
-
-  return '请求失败，请稍后重试。';
-}
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const fallbackMessage = '请求失败，请稍后重试。';
-    const contentType = response.headers.get('content-type') ?? '';
-
-    if (contentType.includes('application/json')) {
-      try {
-        // 后端错误两代格式：HttpExceptionFilter 规范 {error}（业务文案在此）与 Nest 默认 {message}
-        const body = (await response.json()) as { message?: string | string[]; error?: string | string[] };
-        const raw = body.error ?? body.message;
-        const message = Array.isArray(raw) ? raw[0] : raw;
-        throw new Error(message || fallbackMessage);
-      } catch (error) {
-        throw new Error(parseErrorMessage(error) || fallbackMessage);
-      }
-    }
-
-    const text = (await response.text()).trim();
-    if (text === 'Internal Server Error') {
-      throw new Error('服务处理失败，请稍后重试。');
-    }
-
-    throw new Error(text || fallbackMessage);
+    // 后端错误两代格式（HttpExceptionFilter 规范 {error} / Nest 默认 {message}）由共享 toApiError 统一提取
+    throw await toApiError(response, '请求失败，请稍后重试。');
   }
 
   return response.json() as Promise<T>;

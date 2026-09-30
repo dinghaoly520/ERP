@@ -12,39 +12,14 @@ import type {
   WorkArrangementUrgency,
 } from '@/lib/types/work-arrangements';
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 
 // Use relative /api path to leverage Next.js rewrites for cookie handling
 const API_BASE = '/api';
 
-function parseErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message.trim()) {
-    const normalized = error.message.trim().toLowerCase();
-    if (normalized === 'internal server error') {
-      return '服务处理失败，请稍后重试。';
-    }
-    return error.message;
-  }
-
-  return '请求失败，请稍后重试。';
-}
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const fallbackMessage = '请求失败，请稍后重试。';
-    const contentType = response.headers.get('content-type') ?? '';
-
-    if (contentType.includes('application/json')) {
-      try {
-        const body = (await response.json()) as { message?: string | string[] };
-        const message = Array.isArray(body.message) ? body.message[0] : body.message;
-        throw new Error(message || fallbackMessage);
-      } catch (error) {
-        throw new Error(parseErrorMessage(error) || fallbackMessage);
-      }
-    }
-
-    const text = (await response.text()).trim();
-    throw new Error(parseErrorMessage(new Error(text)) || fallbackMessage);
+    throw await toApiError(response, '请求失败，请稍后重试。');
   }
 
   return response.json() as Promise<T>;

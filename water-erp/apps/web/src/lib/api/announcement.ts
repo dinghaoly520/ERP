@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { toApiError } from '@water-erp/client';
 import { apiFetch } from './api-fetch';
 
 /* ── 信息发布中心视图模型 ── */
@@ -317,11 +318,6 @@ import type { ReadyTenderDocumentType } from "@/lib/types/tender-write";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
-function parseErrorMessage(text: string) {
-  const trimmed = text.trim();
-  return trimmed || "导出失败，请稍后重试。";
-}
-
 function parseFileName(disposition: string | null) {
   if (!disposition) return null;
   const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -344,7 +340,7 @@ export async function exportAnnouncementDocument(payload: {
   });
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '导出公告文件失败，请稍后重试。');
   }
 
   return {
@@ -370,7 +366,7 @@ export async function buildAnnouncement(payload: {
   });
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '生成公告失败，请稍后重试。');
   }
 
   const { bufferBase64, fileName, textContent } = (await response.json()) as {
@@ -411,7 +407,7 @@ export async function importWinningBidFromPdf(file: File): Promise<
   );
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '导入中标结果失败，请稍后重试。');
   }
 
   return response.json();
@@ -480,7 +476,7 @@ export async function buildDirectFiling(
   });
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '生成直接采购备案失败，请稍后重试。');
   }
 
   const { bufferBase64, fileName } = (await response.json()) as {
@@ -515,7 +511,7 @@ export async function extractNotificationData(
   );
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '提取中标通知书数据失败，请稍后重试。');
   }
 
   return response.json();
@@ -535,7 +531,7 @@ export async function exportNotificationLetter(
   );
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '导出中标通知书失败，请稍后重试。');
   }
 
   return {
@@ -560,7 +556,7 @@ export async function exportNotificationLedger(
   );
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '导出台账失败，请稍后重试。');
   }
 
   return {
@@ -580,7 +576,7 @@ export async function fetchNotificationLedger(): Promise<string[][]> {
   });
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '加载中标台账失败，请稍后重试。');
   }
 
   return response.json();
@@ -595,7 +591,7 @@ export async function updateNotificationLedger(rows: unknown[][]) {
   });
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '保存中标台账失败，请稍后重试。');
   }
 
   return {

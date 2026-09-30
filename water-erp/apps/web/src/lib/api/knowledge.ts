@@ -3,10 +3,11 @@ const API_BASE = '/api';
 
 import type { KnowledgeBase, KnowledgeFile } from '../types/tender-review';
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 
 export async function fetchKnowledgeBases(): Promise<KnowledgeBase[]> {
   const res = await apiFetch(`${API_BASE}/knowledge`, { credentials: 'include' });
-  if (!res.ok) throw new Error('Failed to fetch knowledge bases');
+  if (!res.ok) throw await toApiError(res, '加载知识库列表失败');
   return res.json();
 }
 
@@ -40,8 +41,7 @@ export async function updateKnowledgeBase(
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Failed to update knowledge base');
+    throw await toApiError(res, '更新知识库失败');
   }
   return res.json();
 }
@@ -83,9 +83,8 @@ export async function deleteKnowledgeFile(
     credentials: 'include',
   });
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    console.error('Delete file error:', res.status, errorData);
-    throw new Error(errorData.message || 'Failed to delete file');
+    console.error('Delete file error:', res.status);
+    throw await toApiError(res, '删除文件失败');
   }
 }
 
@@ -94,5 +93,5 @@ export async function reindexKnowledgeBase(kbId: string): Promise<void> {
     method: 'POST',
     credentials: 'include',
   });
-  if (!res.ok) throw new Error('Failed to reindex knowledge base');
+  if (!res.ok) throw await toApiError(res, '重建知识库索引失败，请稍后重试');
 }

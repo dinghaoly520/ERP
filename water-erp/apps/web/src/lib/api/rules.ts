@@ -4,21 +4,15 @@ const API_BASE = '/api/tender-review';
 
 import type { ComplianceRule } from '../types/tender-review';
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    let message = `请求失败 (${res.status})`;
+    // 403 的后端 error 体多为笼统 'Forbidden'，特例覆盖为可行动的中文提示
     if (res.status === 403) {
-      message = '无权限执行此操作，需要管理员权限';
-    } else {
-      try {
-        const data = await res.json();
-        message = data.message || data.error || message;
-      } catch {
-        // ignore json parse error
-      }
+      throw new Error('无权限执行此操作，需要管理员权限');
     }
-    throw new Error(message);
+    throw await toApiError(res);
   }
   return res.json();
 }
@@ -30,7 +24,7 @@ export async function fetchRules(
     ? `?knowledgeBaseId=${knowledgeBaseId}`
     : '';
   const res = await apiFetch(`${API_BASE}/rules${params}`, { credentials: 'include' });
-  if (!res.ok) throw new Error('Failed to fetch rules');
+  if (!res.ok) throw await toApiError(res, '加载合规规则失败');
   return res.json();
 }
 
@@ -130,10 +124,9 @@ export async function updateRule(
 export async function deleteRule(id: string): Promise<void> {
   const res = await apiFetch(`${API_BASE}/rules/${id}`, { method: 'DELETE', credentials: 'include' });
   if (!res.ok) {
-    let message = 'Failed to delete rule';
     if (res.status === 403) {
-      message = '无权限删除规则，需要管理员权限';
+      throw new Error('无权限删除规则，需要管理员权限');
     }
-    throw new Error(message);
+    throw await toApiError(res, '删除规则失败');
   }
 }

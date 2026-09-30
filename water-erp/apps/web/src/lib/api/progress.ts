@@ -1,4 +1,5 @@
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 export interface ProjectProgress {
@@ -79,8 +80,7 @@ export async function fetchProgressStats(
 
   const response = await apiFetch(url, { credentials: 'include' });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch progress stats: ${errorText}`);
+    throw await toApiError(response, '加载进度统计失败');
   }
 
   return response.json();
@@ -92,8 +92,7 @@ export async function fetchProgressAiInsights(companyId?: string): Promise<Progr
 
   const response = await apiFetch(url, { credentials: 'include' });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch AI insights: ${errorText}`);
+    throw await toApiError(response, '加载 AI 分析失败');
   }
 
   return response.json();
