@@ -23,7 +23,6 @@ import { Bell,
   Megaphone,
   MessageSquare,
   ShoppingBag,
-  FileArchive,
   House,
   ChevronDown,
   ChevronsLeft,
@@ -86,8 +85,6 @@ const navGroups: NavGroup[] = [
       { key: "projects", label: "项目管理", href: "/projects", icon: FolderOpen, meta: "项目全生命周期" },
       { key: "tender-write", label: "采购文件编写", href: "/tender-write", icon: FileEdit, meta: "AI辅助编写" },
       { key: "tender-review", label: "采购文件审查", href: "/tender-review", icon: FileSearch, meta: "合规性审查" },
-      // 角色对齐 ArchiveController 基线（admin/leader/staff；ASIP 导出生成限 admin/leader，入口仍对 staff 开放）
-      { key: "archive", label: "归档管理", href: "/archive", icon: FileArchive, meta: "卷台账/四性检测/ASIP", roles: ["admin", "leader", "staff"] },
     ],
   },
   {
