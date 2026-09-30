@@ -495,6 +495,11 @@ export class ProcurementsService {
           contractNumber: true,
           demandContractNumber: true,
           archivedAt: true,
+          // 归档卷（DA/T 103-2024）：/archive 独立页并入台账卡片后由台账 DTO 带出
+          retentionPeriod: true,
+          archiveExportedAt: true,
+          archiveRegistrationKey: true,
+          createdById: true, // PMI 属主（archive assertItemScope 同口径），供前端门控「归档卷」入口
           procurementOrganizationForm: true,
         },
       });
@@ -902,6 +907,11 @@ export class ProcurementsService {
       contractAmount: pmInfo?.contractAmount || null,
       contractNumber: pmInfo?.contractNumber || pmInfo?.demandContractNumber || null,
       archivedAt: pmInfo?.archivedAt?.toISOString().split('T')[0] || null,
+      // 归档卷（DA/T 103-2024）：/archive 独立页并入台账卡片后由台账 DTO 带出（findOne 不传 pmInfo → null，无害）
+      retentionPeriod: pmInfo?.retentionPeriod ?? null,
+      archiveExportedAt: pmInfo?.archiveExportedAt?.toISOString() ?? null,
+      archiveRegistrationKey: pmInfo?.archiveRegistrationKey ?? null,
+      pmCreatedById: pmInfo?.createdById ?? null,
       procurementOrganizationForm: pmInfo?.procurementOrganizationForm || null,
     };
   }
