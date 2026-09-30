@@ -227,6 +227,7 @@ export class PasswordRequestsService {
       data: {
         passwordHash: req.requestedPasswordHash,
         ...(req.requestedPasswordVault ? { passwordVault: req.requestedPasswordVault } : {}),
+        passwordChangedAt: new Date(), // R6-5①：全命名空间旧 token 立即失效
         webSessionId: null,
         sessionMeta: Prisma.DbNull,
       },

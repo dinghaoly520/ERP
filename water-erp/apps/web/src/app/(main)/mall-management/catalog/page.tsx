@@ -55,7 +55,16 @@ const ALERT_TYPE_LABELS: Record<string, string> = { PRICE_SURGE: '涨幅预警',
 /** 预警通知可选角色（与后端 @Roles 放行集对齐；bid_expert/supplier 不在目录管理域） */
 const ALERT_ROLES = ['admin', 'leader', 'staff'] as const;
 const ROLE_LABELS: Record<string, string> = { admin: '管理员', leader: '负责人', staff: '专员' };
-const LOG_LABELS: Record<string, string> = { CATALOG_CREATED: '新增目录', CATALOG_UPDATED: '编辑目录', CATALOG_PRICE_CHANGED: '价格调整', CATALOG_STATUS_CHANGED: '状态变更', CATALOG_IMPORTED: '批量导入', CATALOG_TEMPLATE_DOWNLOADED: '模板下载', CATALOG_EXPORTED: '目录导出' };
+// 动作→中文（R6-5④：与后端 adminAuditLogs 18 动作集对齐，此前 7 种其余裸显英文码）
+const LOG_LABELS: Record<string, string> = {
+  CATALOG_CREATED: '新增目录', CATALOG_UPDATED: '编辑目录', CATALOG_PRICE_CHANGED: '价格调整', CATALOG_STATUS_CHANGED: '状态变更',
+  CATALOG_IMPORTED: '批量导入', CATALOG_TEMPLATE_DOWNLOADED: '模板下载', CATALOG_EXPORTED: '目录导出',
+  CATALOG_APPLICATION_APPROVED: '供货审批 · 通过', CATALOG_APPLICATION_REJECTED: '供货审批 · 拒绝',
+  CATALOG_APPLICATION_RETURNED: '供货审批 · 退回', CATALOG_APPLICATION_COUNTERED: '供货审批 · 议价',
+  CATEGORY_CREATED: '新增品类', CATEGORY_UPDATED: '编辑品类', CATEGORY_DELETED: '删除品类',
+  CATEGORY_STATUS_CHANGED: '品类启停', CATEGORY_MOVED: '品类移动',
+  ATTR_TEMPLATE_CREATED: '新增属性模板', ATTR_TEMPLATE_DELETED: '删除属性模板',
+};
 
 /** 内部岗位（与后端写接口 @Roles 放行集对齐）；其余角色只读浏览 */
 const INTERNAL_ROLES = ['admin', 'leader', 'staff'] as const;
@@ -1259,7 +1268,10 @@ function ReviewDialog({ app, action, onClose, onDone }: { app: CatalogApplicatio
     }
     if (action === 'approve' && isNewItem) {
       if (!refPrice || refPrice <= 0) { setError('请填写有效的参考价'); return; }
-      body.referencePrice = refPrice; body.priceMin = priceMin; body.priceMax = priceMax;
+      body.referencePrice = refPrice;
+      // R6-5④（2026-09-30 审计 #10）：区间留空(0/0)时不传字段——后端 ref 兜底才会生效；
+      // 此前恒传 0/0 → 目录项落库 ref>0 而 min=max=0，违反「参考价∈[min,max]」且被趋势候选永久排除
+      if (priceMin > 0 || priceMax > 0) { body.priceMin = priceMin; body.priceMax = priceMax; }
       if (validUntil) body.validUntil = validUntil;
       if (code.trim()) body.code = code.trim();
       if (categoryId != null) body.categoryId = categoryId;

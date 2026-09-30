@@ -382,7 +382,16 @@ export class CatalogService {
   }
 
   async adminAuditLogs() {
-    const actions = ['CATALOG_CREATED', 'CATALOG_UPDATED', 'CATALOG_PRICE_CHANGED', 'CATALOG_STATUS_CHANGED', 'CATALOG_IMPORTED', 'CATALOG_TEMPLATE_DOWNLOADED', 'CATALOG_EXPORTED'];
+    // R6-5④（2026-09-30 审计 #5）：动作集对齐全文件实际写入的 16 种——此前只查 7 种
+    // CATALOG_*，品类/属性模板/供货审批动作全隐；审批 tab 恰好消费被滤掉的
+    // CATALOG_APPLICATION_COUNTERED → 议价历史永远为空（一处 where 病两头）
+    const actions = [
+      'CATALOG_CREATED', 'CATALOG_UPDATED', 'CATALOG_PRICE_CHANGED', 'CATALOG_STATUS_CHANGED',
+      'CATALOG_IMPORTED', 'CATALOG_TEMPLATE_DOWNLOADED', 'CATALOG_EXPORTED',
+      'CATALOG_APPLICATION_APPROVED', 'CATALOG_APPLICATION_REJECTED', 'CATALOG_APPLICATION_RETURNED', 'CATALOG_APPLICATION_COUNTERED',
+      'CATEGORY_CREATED', 'CATEGORY_UPDATED', 'CATEGORY_DELETED', 'CATEGORY_STATUS_CHANGED', 'CATEGORY_MOVED',
+      'ATTR_TEMPLATE_CREATED', 'ATTR_TEMPLATE_DELETED',
+    ];
     const rows = await this.prisma.auditLog.findMany({
       where: { action: { in: actions } },
       orderBy: { createdAt: 'desc' },

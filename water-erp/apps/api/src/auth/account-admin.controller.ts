@@ -358,6 +358,7 @@ export class AccountAdminController {
         // 密码副本同步（2026-09-18 根因修复）：改密弹窗「原密码」读 vault 解密，
         // 此前重置只写 hash → 弹窗回显的是重置前的旧密码
         passwordVault: encryptPasswordVault(dto.password) ?? null,
+        passwordChangedAt: new Date(), // R6-5①：全命名空间旧 token 立即失效
         webSessionId: null,
         sessionMeta: Prisma.DbNull,
       },

@@ -50,7 +50,7 @@ export class AuthGuard implements CanActivate {
       // 此处即时止损，避免退役/停用用户的 JWT 在自然过期前继续有效。
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { isActive: true, isFrozen: true, webSessionId: true },
+        select: { isActive: true, isFrozen: true, webSessionId: true, passwordChangedAt: true },
       });
       if (!user || !user.isActive) throw new UnauthorizedException();
       // 冻结账号即时止损：已签发的 token 立刻失效，登录端另行提示 ACCOUNT_FROZEN。
@@ -63,6 +63,13 @@ export class AuthGuard implements CanActivate {
       // sid 与库中 User.webSessionId 不一致 = 该账号已在别处重新登录，本会话被顶下线。
       // 校验依据是 JWT 内 sid 本身（不可通过省略请求头绕过）；无 sid 的 token 属其他
       // 门户或本功能上线前的存量会话——后者（来自对应门户 cookie）统一失效重登。
+      // R6-5①（2026-09-30 审计 A-1）：token 签发早于最近一次密码变更 → 立即失效。
+      // 此前仅清 webSessionId（只拦带 sid 的 web/supplier/expert token），token_bid
+      // 无 sid 也不校验——重置密码后 :3007 会话照活到 7 天 JWT 过期，与"所有已登录
+      // 会话立即失效"承诺相反。iat 为 JWT 标准声明（秒），全命名空间统一拦截。
+      if (user.passwordChangedAt && typeof payload.iat === 'number' && payload.iat * 1000 < user.passwordChangedAt.getTime()) {
+        throw new UnauthorizedException({ error: '密码已变更，请使用新密码重新登录', code: 'PASSWORD_CHANGED' });
+      }
       if (payload.sid) {
         if (payload.sid !== user.webSessionId) {
           // 会话 ID 已轮换（他处重新登录）→「其他设备登录」；已清空（登出/改密吊销）→「已失效」

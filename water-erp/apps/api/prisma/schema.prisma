@@ -54,6 +54,7 @@ model User {
   companyRef     Company?    @relation(fields: [companyId], references: [id])
   avatar         String?
   passwordHash   String?
+  passwordChangedAt DateTime? // 密码变更时点（R6-5①）：AuthGuard 校验 JWT iat 早于它即 401——重置/改密后全命名空间旧 token 立即失效（token_bid 无 sid 此前不拦，UI 承诺与实现不符）
   passwordVault  String? // 2026-09-14 admin 密码查看：AES-256-GCM 加密副本（仅供应商账号，改密同步更新；工作人员密码仍仅 bcrypt 哈希）
   role           String      @default("internal_user")
   isActive       Boolean     @default(true)

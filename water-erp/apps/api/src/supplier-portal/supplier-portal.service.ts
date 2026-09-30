@@ -3981,7 +3981,7 @@ export class SupplierPortalService {
     }
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: hashSync(newPassword, 10), passwordVault: encryptPasswordVault(newPassword) ?? null },
+      data: { passwordHash: hashSync(newPassword, 10), passwordVault: encryptPasswordVault(newPassword) ?? null, passwordChangedAt: new Date() }, // R6-5①
     })
     return { success: true }
   }

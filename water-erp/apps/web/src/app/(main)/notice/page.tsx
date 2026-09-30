@@ -275,6 +275,19 @@ export default function NoticePage() {
     const label = action === 'publish' ? '发布' : action === 'hide' ? '隐藏' : '下架';
     // v2（2026-09-26）：下架/隐藏对任意状态可用；旧「下线（→ARCHIVED 结束公示）」动作移除——公示期满自动显示已下线
     const target = Array.from(selectedIds);
+    // R6-5③（2026-09-30 审计 #12）：批量发布补确认（最重的动作此前唯一无确认）+
+    // RESTRICTED 空供应商名单拦截（单条新建页有校验、批量路径没有——可发出无人可见的公告）
+    if (action === 'publish') {
+      const badRestricted = data.items
+        .filter(i => target.includes(i.id) && (i.metadata as any)?.visibility === 'RESTRICTED'
+          && (!Array.isArray((i.metadata as any)?.restrictedSupplierIds) || (i.metadata as any).restrictedSupplierIds.length === 0))
+        .map(i => i.title);
+      if (badRestricted.length > 0) {
+        toast.error(`以下公告为「部分供应商可见」但未选择任何供应商，无法发布：${badRestricted.slice(0, 3).join('、')}${badRestricted.length > 3 ? ' 等' : ''}`);
+        return;
+      }
+      if (!(await confirm({ message: `确认发布选中的 ${target.length} 条信息？发布后立即对供应商门户可见。` }))) return;
+    }
     if (action !== 'publish' && !(await confirm({ message: action === 'offline'
       ? `确认下架选中的 ${target.length} 条信息？下架后进入回收站且不可恢复。`
       : `确认隐藏选中的 ${target.length} 条信息？操作后进入回收站，可在回收站中恢复。`, danger: action === 'offline' }))) return;
