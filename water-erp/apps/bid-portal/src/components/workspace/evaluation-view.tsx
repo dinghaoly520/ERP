@@ -10,12 +10,14 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck, Copy, Crown,
-  Clock, Eye, EyeOff, FileCheck, KeyRound, MessageSquare, MonitorSmartphone, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
+  AlertTriangle, BellRing, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck, Copy, Crown,
+  Clock, Eye, EyeOff, FileCheck, KeyRound, MessageSquare, MonitorSmartphone, Play, RotateCcw, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
 } from 'lucide-react';
 import {
   extendEvaluation,
   generateEvaluationResults,
+  nudgeExperts,
+  reopenExpertScoring,
   getExpertMemoInkUrlForAdmin,
   getExpertVerification,
   getLiveOfficialScores,
@@ -217,9 +219,19 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const [extendHours, setExtendHours] = useState(DEFAULT_EXTEND_HOURS);
   const [extendReason, setExtendReason] = useState('');
   const [extendBusy, setExtendBusy] = useState(false);
+  // 催促专家（签到/评分）+ 重开评审确认（受控数据更正，admin/bid_host）
+  const [nudgeBusy, setNudgeBusy] = useState<null | 'signin' | 'score'>(null);
+  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [reopenScope, setReopenScope] = useState<string>('all');
+  const [reopenReason, setReopenReason] = useState('');
+  const [reopenBusy, setReopenBusy] = useState(false);
+  // 开弹窗时刻的时限过期快照（事件回调内计算，避免渲染期 Date.now 纯度告警）
+  const [reopenDeadlineExpired, setReopenDeadlineExpired] = useState(false);
   const me = useBidUser();
   /** 评标延期审批 leader/admin/bid_host 可见（与后端 @Roles('leader','admin','bid_host') 对齐） */
   const canApproveExtend = me?.role === 'leader' || me?.role === 'admin' || me?.role === 'bid_host';
+  /** 重开评审确认 admin/bid_host（与后端 @Roles('admin','bid_host') 对齐——受控数据更正，同签字包重开治理级别） */
+  const canReopenScoring = me?.role === 'admin' || me?.role === 'bid_host';
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
@@ -664,6 +676,38 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     }
   }
 
+  async function handleNudgeExperts(reason: 'signin' | 'score') {
+    setNudgeBusy(reason);
+    try {
+      const r = await nudgeExperts(projectId, reason);
+      showToast(r.reached > 0 ? `已通知 ${r.reached} 位专家` : '当前没有待催办的专家');
+      onChanged();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '催促发送失败', 'err');
+    } finally {
+      setNudgeBusy(null);
+    }
+  }
+
+  async function handleReopenScoring() {
+    if (!reopenReason.trim()) {
+      showToast('请填写书面重开理由（入监督日志留痕）', 'err');
+      return;
+    }
+    setReopenBusy(true);
+    try {
+      const r = await reopenExpertScoring(projectId, { reason: reopenReason.trim(), expertId: reopenScope === 'all' ? undefined : reopenScope });
+      setReopenDialogOpen(false);
+      setReopenReason('');
+      showToast(`已重开评审确认：${r.reopenedExpertNames}（评分保留，可改分后重新确认）`);
+      onChanged();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '重开评审确认失败', 'err');
+    } finally {
+      setReopenBusy(false);
+    }
+  }
+
   async function handleGenerate() {
     setBusy(true);
     try {
@@ -1044,9 +1088,50 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       <div className="space-y-3">
         {/* 专家状态卡 */}
         <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
-          <div className="border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
-            <span className="text-[11px] font-bold text-[var(--foreground)]">专家状态</span>
-            <HelpTip text="评标期间专家实名仅主持人/管理员可见，用于签到、签字与现场沟通；评分明细按下方的匿名编号矩阵呈现。" className="ml-1.5" />
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">
+            <span className="flex items-center">
+              <span className="text-[11px] font-bold text-[var(--foreground)]">专家状态</span>
+              <HelpTip text="评标期间专家实名仅主持人/管理员可见，用于签到、签字与现场沟通；评分明细按下方的匿名编号矩阵呈现。" className="ml-1.5" />
+            </span>
+            {stage === 'EVALUATING' && (
+              <span className="flex flex-wrap items-center gap-1.5">
+                {/* 催促专家（后端 nudge-experts：站内信+Email，5 次/分钟节流）——跨天评标催签到/催交分 */}
+                <button
+                  type="button"
+                  onClick={() => void handleNudgeExperts('signin')}
+                  disabled={nudgeBusy !== null || regularExperts.length - signedIn <= 0}
+                  title="向未签到正选专家发送签到催促（站内信+邮件）"
+                  className="neu-btn-soft !h-[28px] !text-[11px] shrink-0 disabled:opacity-40"
+                >
+                  <BellRing size={12} /> {nudgeBusy === 'signin' ? '发送中…' : `催促签到${regularExperts.length - signedIn > 0 ? `（${regularExperts.length - signedIn}）` : ''}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleNudgeExperts('score')}
+                  disabled={nudgeBusy !== null || regularExperts.length - reportsDone <= 0}
+                  title="向评分未完成的专家发送评分催促（站内信+邮件）"
+                  className="neu-btn-soft !h-[28px] !text-[11px] shrink-0 disabled:opacity-40"
+                >
+                  <BellRing size={12} /> {nudgeBusy === 'score' ? '发送中…' : `催促评分${regularExperts.length - reportsDone > 0 ? `（${regularExperts.length - reportsDone}）` : ''}`}
+                </button>
+                {canReopenScoring && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReopenScope('all');
+                      setReopenReason('');
+                      setReopenDeadlineExpired(project?.evaluationDeadline ? new Date(project.evaluationDeadline).getTime() < Date.now() : false);
+                      setReopenDialogOpen(true);
+                    }}
+                    disabled={reportsDone <= 0}
+                    title={reportsDone <= 0 ? '尚无已确认报告的专家，无需重开' : '受控数据更正：解锁已确认报告的专家评分（书面理由必填，评分历史保留）'}
+                    className="neu-btn-soft !h-[28px] !text-[11px] shrink-0 disabled:opacity-40"
+                  >
+                    <RotateCcw size={12} /> 重开评审确认{reportsDone > 0 ? `（${reportsDone}）` : ''}
+                  </button>
+                )}
+              </span>
+            )}
           </div>
           {experts.length === 0 ? (
             <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">
@@ -1885,6 +1970,57 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <button type="button" onClick={() => setExtendDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void handleExtendEvaluation()} disabled={extendBusy || !extendReason.trim()} className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40">
                 <CalendarClock size={13} /> {extendBusy ? '审批中…' : '确认延期'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 重开评审确认（受控数据更正，admin/bid_host）：书面理由+范围选择，后端高风险监督日志+审计留痕 */}
+      {reopenDialogOpen && stage === 'EVALUATING' && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[480px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">重开评审确认（数据更正）</h2>
+              <button type="button" onClick={() => setReopenDialogOpen(false)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-3 text-xs leading-5 text-[var(--muted-foreground)]">
+                解锁已确认报告的专家评分：该专家可修改评分并重新确认；<span className="font-semibold text-[var(--foreground)]">全员正选重新确认后</span>方可重新生成评标结果。
+                已提交评分<span className="font-semibold text-[var(--foreground)]">完整保留</span>（改分留痕），本操作写入高风险监督日志与审计日志。
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">重开范围</label>
+              <select value={reopenScope} onChange={(e) => setReopenScope(e.target.value)} className="workbench-input w-full">
+                <option value="all">全部已确认正选（{reportsDone} 人）</option>
+                {regularExperts.filter(e => e.reportConfirmed).map(e => (
+                  <option key={e.id} value={e.id}>{e.expertName}</option>
+                ))}
+              </select>
+              {reopenDeadlineExpired && (
+                <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold leading-4 text-[var(--danger)]">
+                  <AlertTriangle size={12} /> 评标已超时——重开后专家无法提交评分，请先办理评标延期审批
+                </p>
+              )}
+              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">书面重开理由</label>
+              <textarea
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                rows={3}
+                placeholder="请填写数据更正理由（必填，入监督日志留痕）…"
+                className="workbench-input w-full resize-none"
+              />
+              <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                重开即时生效并通知受影响专家；签字包已闭环须先由系统管理员重开签字包
+                <HelpTip text="签字包闭环后重开评审确认将被后端拒绝（REOPEN_SIGN_PACKET_CLOSED）——先重开签字包（签字登记全部回「待签」），再重开评审确认。" />
+              </p>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setReopenDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleReopenScoring()} disabled={reopenBusy || !reopenReason.trim()} className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40">
+                <RotateCcw size={13} /> {reopenBusy ? '重开中…' : '确认重开'}
               </button>
             </div>
           </div>

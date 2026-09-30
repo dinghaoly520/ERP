@@ -41,6 +41,17 @@ export function extendEvaluation(bidProjectId: string, dto: { extendHours: numbe
   return api.post<{ evaluationDeadline: string }>(`/bid/projects/${bidProjectId}/extend-evaluation`, dto);
 }
 
+/** 催促专家签到/评分（站内信+Email 多通道；后端 5 次/分钟节流）。reason=signin 仅催未签到者；score 仅催评分未完成者 */
+export function nudgeExperts(bidProjectId: string, reason: 'signin' | 'score') {
+  return api.post<{ reached: number }>(`/bid/projects/${bidProjectId}/nudge-experts`, { reason });
+}
+
+/** 重开专家评审确认（受控数据更正，admin/bid_host）：书面理由必填；解锁后可改分，须重新全员确认后重生成结果。
+ *  expertId 缺省=全部已确认正选；签字包已闭环须先走签字包重开。 */
+export function reopenExpertScoring(bidProjectId: string, dto: { reason: string; expertId?: string }) {
+  return api.post<{ reopenedExpertIds: string[]; reopenedExpertNames: string }>(`/bid/projects/${bidProjectId}/reopen-expert-scoring`, dto);
+}
+
 export interface BidEvaluationResultInfo {
   id: string;
   supplierId: string;

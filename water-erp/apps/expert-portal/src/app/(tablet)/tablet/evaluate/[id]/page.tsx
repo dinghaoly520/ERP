@@ -88,6 +88,11 @@ export default function TabletEvaluatePage() {
   // A2：草稿检查一次性守卫——本 effect 的 deps 含 project 身份（WS 刷新会重跑），只允许检查一次
   const draftCheckedRef = useRef(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 未落盘评分改动标记（断点续评加固，与桌面端同款）：驱动 beforeunload 原生防误关——
+  // 关页/刷新弹浏览器确认，回调内同步补写 localStorage（服务端槽位由 2s 防抖兜底）
+  const scoresRef = useRef<Record<string, ScoreEntry>>({});
+  const unflushedRef = useRef(false);
+  const [hasUnflushed, setHasUnflushed] = useState(false);
   const draftStorageKey = useMemo(() => {
     const expertId = project?.myExpertRecord?.id;
     return expertId ? `expert-draft-tablet:${projectId}:${expertId}` : '';
@@ -236,9 +241,23 @@ export default function TabletEvaluatePage() {
       .catch(() => { setDraftCheckDone(true); /* 服务端草稿可选 — ignore */ });
   }, [draftStorageKey, project, projectId]);
 
+  // pending-only 草稿构建（对齐桌面）：与已提交记录等价（三字段+有效得分点映射）的条目不入草稿；
+  // 原按键成员过滤会静默丢弃「已提交项再修改」，改为值感知（隐藏缺陷一并修复）
+  const buildPendingTabletDraft = useCallback((source: Record<string, ScoreEntry>): Record<string, ScoreEntry> => {
+    const draftScores: Record<string, ScoreEntry> = {};
+    for (const [k, v] of Object.entries(source)) {
+      const [sid, itemId] = k.split(':');
+      const rec = committedRecordFor(project?.myScores, sid, itemId);
+      const si = project?.scoreItems.find(s => s.id === itemId);
+      if (!rec || !si || !isCommittedEquivalent(v, rec, si)) draftScores[k] = v;
+    }
+    return draftScores;
+  }, [project]);
+
   // 草稿自动暂存（scores 变化后 2 秒防抖）
   useEffect(() => {
     if (!draftStorageKey) return;
+    scoresRef.current = scores; // beforeunload 同步补写取最新值
     // 草稿检查未完成或仍有待处理草稿横幅时暂停自动保存，避免覆盖待恢复草稿；
     // 悬置期间清掉已排定的定时器（A3）
     if (!draftCheckDone || draftAvailable !== null) {
@@ -246,17 +265,14 @@ export default function TabletEvaluatePage() {
       return;
     }
     if (draftTimer.current) clearTimeout(draftTimer.current);
+    // 改动已发生但 2s 防抖未落盘——挂起 beforeunload 防误关
+    unflushedRef.current = true;
+    setHasUnflushed(true);
     draftTimer.current = setTimeout(() => {
+      unflushedRef.current = false;
+      setHasUnflushed(false);
       try {
-        // 对齐桌面：pending-only——与已提交记录等价（三字段+有效得分点映射）的条目不入草稿；
-        // 原按键成员过滤会静默丢弃「已提交项再修改」，改为值感知（隐藏缺陷一并修复）
-        const draftScores: typeof scores = {};
-        for (const [k, v] of Object.entries(scores)) {
-          const [sid, itemId] = k.split(':');
-          const rec = committedRecordFor(project?.myScores, sid, itemId);
-          const si = project?.scoreItems.find(s => s.id === itemId);
-          if (!rec || !si || !isCommittedEquivalent(v, rec, si)) draftScores[k] = v;
-        }
+        const draftScores = buildPendingTabletDraft(scores);
         if (Object.keys(draftScores).length > 0) {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
           // 同步草稿到服务端（与桌面端一致，跨设备恢复）
@@ -271,7 +287,30 @@ export default function TabletEvaluatePage() {
     return () => {
       if (draftTimer.current) clearTimeout(draftTimer.current);
     };
-  }, [scores, draftStorageKey, project, draftAvailable, draftCheckDone]);
+  }, [scores, draftStorageKey, project, draftAvailable, draftCheckDone, buildPendingTabletDraft]);
+
+  // 防误关加固（与桌面端同款）：有未落盘改动时关页/刷新弹浏览器原生确认；确认离开前同步补写 localStorage
+  //（beforeunload 内无异步机会，服务端槽位靠 2s 防抖兜底——最坏丢服务端同步，本地草稿已保住）。
+  useEffect(() => {
+    if (!hasUnflushed) return;
+    const flushLocalSync = () => {
+      if (!unflushedRef.current || !draftStorageKey) return;
+      try {
+        const pending = buildPendingTabletDraft(scoresRef.current);
+        if (Object.keys(pending).length > 0) {
+          localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
+        }
+      } catch { /* quota — ignore */ }
+    };
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!unflushedRef.current) return;
+      flushLocalSync();
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnflushed, draftStorageKey, buildPendingTabletDraft]);
 
   // 草稿操作
   // 防御：恢复时把存量部分映射草稿补全为完整映射（缺失点按 passed/提交分回退）

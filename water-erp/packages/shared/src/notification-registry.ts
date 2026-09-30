@@ -432,6 +432,22 @@ const EXPERT_SPECS: NotificationTypeSpec[] = [
   { code: 'EXPERT_RETIRE_CANDIDATE', label: '专家退库预警', domain: 'expert', icon: 'UserMinus', tone: 'orange', actionable: true,
     // 2026-09-26 超界修复：专家库管理事件归 :3005（leader+staff 复核），不进 bid_host/admin；link 指 :3005 退库复核页
     audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/expert/retirement' },
+  // 报告确认重开（受控数据更正）：主持人/管理员书面理由解锁，评分历史保留、须重新确认后重生成结果
+  {
+    code: 'EVALUATION_REOPEN',
+    label: '评审重开',
+    domain: 'expert',
+    icon: 'RotateCcw',
+    tone: 'orange',
+    actionable: false,
+    audiences: [{ kind: 'SUBJECT_USER' }],
+    channels: IN_APP,
+    render: ctx => ({
+      title: `项目${ctx.projectName}评审报告已重开`,
+      content: String(ctx.content),
+    }),
+    link: ctx => LINKS.expertEvaluate(String(ctx.projectId)),
+  },
 ];
 
 /* ═══════════════════════════════════════════════════════════

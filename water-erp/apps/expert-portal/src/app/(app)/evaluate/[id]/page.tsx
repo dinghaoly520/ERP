@@ -308,6 +308,11 @@ export default function ExpertEvaluatePage() {
   // 草稿检查完成前暂停自动保存，避免挂载时以空值或旧 scores 覆盖待恢复草稿。
   const [draftCheckDone, setDraftCheckDone] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 未落盘评分改动标记（断点续评加固）：驱动 beforeunload 原生防误关——关页/刷新弹浏览器确认，
+  // 回调内同步补写 localStorage（beforeunload 无异步机会，服务端槽位由 2s 防抖兜底）
+  const scoresRef = useRef<Record<string, ScoreEntry>>({});
+  const unflushedRef = useRef(false);
+  const [hasUnflushed, setHasUnflushed] = useState(false);
 
   // Composite key helper — keeps the per-supplier invariant explicit at every call site.
   const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
@@ -444,6 +449,7 @@ export default function ExpertEvaluatePage() {
   // E4/G3: 双写 localStorage（快速离线恢复）+ 服务端 scoreDraft API（跨设备持久化）
   useEffect(() => {
     if (!draftStorageKey || step !== 'scoring') return;
+    scoresRef.current = scores; // beforeunload 同步补写取最新值
     // 草稿检查未完成或仍有待处理草稿横幅时，暂停自动保存（防止进入
     // 打分步以空/旧 scores 覆写待恢复草稿）；悬置期间清掉已排定的定时器（A3）
     if (!draftCheckDone || draftAvailable !== null) {
@@ -453,7 +459,12 @@ export default function ExpertEvaluatePage() {
     const entries = Object.keys(scores).length;
     if (entries === 0) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
+    // 改动已发生但 2s 防抖未落盘——挂起 beforeunload 防误关
+    unflushedRef.current = true;
+    setHasUnflushed(true);
     draftTimer.current = setTimeout(() => {
+      unflushedRef.current = false;
+      setHasUnflushed(false);
       const pending = buildPendingDraft(scores);
       if (Object.keys(pending).length === 0) {
         // 全部等价已提交：主动清理幽灵草稿（本地 + 服务端槽），下次进入不再出现误导横幅
@@ -469,6 +480,46 @@ export default function ExpertEvaluatePage() {
     }, 2000);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
   }, [scores, draftStorageKey, step, projectId, draftAvailable, draftCheckDone, buildPendingDraft]);
+
+  // 切离打分步：防抖窗口内（最后 2s）的改动立即落盘——effect cleanup 只清定时器不落盘，
+  // 此前点「下一步」会静默丢最近几秒编辑（与 beforeunload 同根源的断点续评洞）。
+  const prevStepRef = useRef(step);
+  useEffect(() => {
+    if (prevStepRef.current === 'scoring' && step !== 'scoring' && unflushedRef.current && draftStorageKey) {
+      const pending = buildPendingDraft(scoresRef.current);
+      if (Object.keys(pending).length > 0) {
+        try {
+          localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
+        } catch { /* quota / private mode — ignore */ }
+        api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() }).catch(() => {});
+      }
+      unflushedRef.current = false;
+      setHasUnflushed(false);
+    }
+    prevStepRef.current = step;
+  }, [step, draftStorageKey, buildPendingDraft, projectId]);
+
+  // 防误关加固：评分步有未落盘改动时，关页/刷新弹浏览器原生确认；确认离开前同步补写 localStorage
+  //（beforeunload 内无异步机会，服务端槽位靠 2s 防抖兜底——最坏丢服务端同步，本地草稿已保住）。
+  useEffect(() => {
+    if (!hasUnflushed) return;
+    const flushLocalSync = () => {
+      if (!unflushedRef.current || !draftStorageKey) return;
+      const pending = buildPendingDraft(scoresRef.current);
+      if (Object.keys(pending).length === 0) return;
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
+      } catch { /* quota / private mode — ignore */ }
+    };
+    const handler = (e: BeforeUnloadEvent) => {
+      if (step !== 'scoring' || !unflushedRef.current) return;
+      flushLocalSync();
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnflushed, draftStorageKey, buildPendingDraft, step]);
 
   const restoreDraft = async () => {
     if (!draftStorageKey) return;
@@ -528,6 +579,9 @@ export default function ExpertEvaluatePage() {
       toast.warning('有未处理的评分草稿，请先恢复或丢弃');
       return;
     }
+    // 手动保存=立即落盘，撤销 beforeunload 防误关挂起
+    unflushedRef.current = false;
+    setHasUnflushed(false);
     const pending = buildPendingDraft(snapshot ?? scores);
     if (Object.keys(pending).length === 0) {
       // 全部等价已提交：清空而非新写
@@ -2481,3 +2535,4 @@ export default function ExpertEvaluatePage() {
       </div>
   );
 }
+

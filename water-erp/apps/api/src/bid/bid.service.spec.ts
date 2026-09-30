@@ -5249,3 +5249,149 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     });
 
 });
+
+/* ── reopenExpertScoring：评审确认重开（受控数据更正，2026-09-30）──
+   闸门语义锁死：书面理由必填 / 仅 EVALUATING 阶段 / 签字包闭环先重开 /
+   指定专家须正选且已确认 / 全部范围须有已确认正选；成功路径=解锁+高分险留痕+审计+通知。 */
+describe('BidService — reopenExpertScoring', () => {
+  let service: BidService;
+  let prisma: any;
+  const notificationSvc = { sendToRole: jest.fn(), create: jest.fn().mockResolvedValue({}) };
+
+  const CONFIRMED_EXPERTS = [
+    { id: 'e1', userId: 'u1', expertName: '专家甲' },
+    { id: 'e2', userId: 'u2', expertName: '专家乙' },
+  ];
+
+  beforeEach(async () => {
+    notificationSvc.create.mockClear();
+    prisma = {
+      bidProject: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'p1', name: '测试项目', stage: 'EVALUATING', projectCode: 'GK-TEST' }),
+      },
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ closedAt: null }) },
+      bidExpert: {
+        findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue(CONFIRMED_EXPERTS),
+        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+      bidScoreDelta: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'bid_host' }) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: notificationSvc },
+        { provide: ClarificationAiService, useValue: { summarizeReply: jest.fn().mockResolvedValue(null) } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+      ],
+    }).compile();
+
+    service = module.get<BidService>(BidService);
+  });
+
+  it('空白理由 → 400 REOPEN_REASON_REQUIRED（书面理由入监督日志，不可省略）', async () => {
+    await expect(service.reopenExpertScoring('p1', '   ', undefined, 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'REOPEN_REASON_REQUIRED' } });
+    expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('非评标阶段（ARCHIVED 终态证据不可动）→ 409 REOPEN_STAGE_REQUIRED', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', stage: 'ARCHIVED', projectCode: 'GK-TEST' });
+    await expect(service.reopenExpertScoring('p1', '评分复核', undefined, 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'REOPEN_STAGE_REQUIRED' } });
+    expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('签字包已闭环 → 409 REOPEN_SIGN_PACKET_CLOSED（须先由 admin 重开签字包）', async () => {
+    prisma.bidSignPacket.findUnique.mockResolvedValue({ closedAt: new Date() });
+    await expect(service.reopenExpertScoring('p1', '评分复核', undefined, 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'REOPEN_SIGN_PACKET_CLOSED' } });
+    expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('指定专家不属于本项目 → 400 EXPERT_NOT_IN_PROJECT', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue(null);
+    await expect(service.reopenExpertScoring('p1', '评分复核', 'e-x', 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_NOT_IN_PROJECT' } });
+  });
+
+  it('指定专家为候补 → 400 SIGN_EXPERT_NOT_FORMAL（候补不参与评审确认）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e3', userId: 'u3', expertName: '候补丙', expertRole: '候补', reportConfirmed: true });
+    await expect(service.reopenExpertScoring('p1', '评分复核', 'e3', 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'SIGN_EXPERT_NOT_FORMAL' } });
+  });
+
+  it('指定专家尚未确认报告 → 409 EXPERT_NOT_CONFIRMED（无需重开）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', userId: 'u1', expertName: '专家甲', expertRole: '正选', reportConfirmed: false });
+    await expect(service.reopenExpertScoring('p1', '评分复核', 'e1', 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_NOT_CONFIRMED' } });
+  });
+
+  it('全部范围且无已确认正选 → 409 NO_CONFIRMED_EXPERTS', async () => {
+    prisma.bidExpert.findMany.mockResolvedValue([]);
+    await expect(service.reopenExpertScoring('p1', '评分复核', undefined, 'actor-1'))
+      .rejects.toMatchObject({ response: { code: 'NO_CONFIRMED_EXPERTS' } });
+  });
+
+  it('成功（全部范围）：解锁全部已确认正选 + 高分险监督日志 + 审计 + 通知受影响专家', async () => {
+    const r = await service.reopenExpertScoring('p1', '评分复核', undefined, 'actor-1');
+
+    expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['e1', 'e2'] } },
+      data: { reportConfirmed: false, reportConfirmedAt: null },
+    });
+    expect(prisma.bidScoreDelta.updateMany).toHaveBeenCalledWith({
+      where: { expertId: { in: ['e1', 'e2'] }, projectId: 'p1' },
+      data: { expertReportConfirmed: false },
+    });
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: 'p1',
+        action: '重开评审确认（数据更正）',
+        riskFlag: '高风险',
+        operatorId: 'actor-1',
+        operatorRole: 'bid_host',
+        result: expect.stringContaining('理由：评分复核'),
+      }),
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'actor-1',
+        action: 'EVALUATION_REOPEN',
+        resourceType: 'BidProject:p1',
+        details: expect.objectContaining({ reason: '评分复核', expertIds: ['e1', 'e2'] }),
+      }),
+    });
+    expect(notificationSvc.create).toHaveBeenCalledTimes(2);
+    expect(notificationSvc.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1', type: 'EVALUATION_REOPEN' }));
+    expect(r).toEqual({ reopenedExpertIds: ['e1', 'e2'], reopenedExpertNames: '专家甲、专家乙' });
+  });
+
+  it('成功（指定专家）：仅解锁该专家、只通知一人', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', userId: 'u1', expertName: '专家甲', expertRole: '正选', reportConfirmed: true });
+    const r = await service.reopenExpertScoring('p1', '评分复核', 'e1', 'actor-1');
+
+    expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['e1'] } },
+      data: { reportConfirmed: false, reportConfirmedAt: null },
+    });
+    expect(prisma.bidScoreDelta.updateMany).toHaveBeenCalledWith({
+      where: { expertId: { in: ['e1'] }, projectId: 'p1' },
+      data: { expertReportConfirmed: false },
+    });
+    expect(notificationSvc.create).toHaveBeenCalledTimes(1);
+    expect(r).toEqual({ reopenedExpertIds: ['e1'], reopenedExpertNames: '专家甲' });
+  });
+});

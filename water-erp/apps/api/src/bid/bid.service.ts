@@ -6180,6 +6180,105 @@ export class BidService {
     return { evaluationDeadline: newDeadline };
   }
 
+  /**
+   * 重开专家评审确认（受控数据更正）：解锁已确认报告的专家评分（reportConfirmed→false），
+   * 专家可修改评分后重新确认；全员正选重新确认后方可重新生成评标结果。
+   * 合规要点：书面理由必填 + 高风险监督日志 + AuditLog + 通知受影响专家 +
+   * 评分记录不删除（改分历史入 BidScoreRecordHistory）+ 仅评标阶段可重开
+   * （ARCHIVED 终态证据不可动，与签字包重开同口径）；签字包已闭环须先走签字包重开（admin）。
+   * expertId 缺省=全部已确认正选。
+   */
+  async reopenExpertScoring(projectId: string, reason: string, expertId: string | undefined, actorId: string) {
+    const trimmed = (reason ?? '').trim();
+    if (!trimmed) {
+      throw new BadRequestException({ error: '重开评审确认须书面说明数据更正理由（入监督日志留痕）', code: 'REOPEN_REASON_REQUIRED' });
+    }
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, stage: true, projectCode: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new ConflictException({ error: '仅评标阶段可重开评审确认（ARCHIVED 终态证据不可动）', code: 'REOPEN_STAGE_REQUIRED' });
+    }
+    // 签字包已闭环=签字证据锁死：改分后重生成结果会被 SIGN_PACKET_CLOSED 拒收，
+    // 须先由 admin 重开签字包（全员回 PENDING），避免签字与分数脱节。
+    const packet = await this.prisma.bidSignPacket.findUnique({ where: { projectId }, select: { closedAt: true } });
+    if (packet?.closedAt) {
+      throw new ConflictException({ error: '签字包已闭环，重开评审确认前须先由系统管理员重开签字包（签字登记将全部回「待签」）', code: 'REOPEN_SIGN_PACKET_CLOSED' });
+    }
+    // 目标专家解析：指定=该专家须为正选且已确认；缺省=全部已确认正选
+    let targets: { id: string; userId: string | null; expertName: string }[];
+    if (expertId) {
+      const expert = await this.prisma.bidExpert.findFirst({
+        where: { id: expertId, projectId },
+        select: { id: true, userId: true, expertName: true, expertRole: true, reportConfirmed: true },
+      });
+      if (!expert) throw new BadRequestException({ error: '专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' });
+      if (expert.expertRole !== '正选') throw new BadRequestException({ error: '候补专家不参与评审确认，无需重开', code: 'SIGN_EXPERT_NOT_FORMAL' });
+      if (!expert.reportConfirmed) throw new ConflictException({ error: '该专家尚未确认评审报告，无需重开', code: 'EXPERT_NOT_CONFIRMED' });
+      targets = [expert];
+    } else {
+      targets = await this.prisma.bidExpert.findMany({
+        where: { projectId, expertRole: '正选', reportConfirmed: true },
+        select: { id: true, userId: true, expertName: true },
+      });
+      if (targets.length === 0) throw new ConflictException({ error: '没有已确认报告的正选专家，无需重开', code: 'NO_CONFIRMED_EXPERTS' });
+    }
+    const names = targets.map(t => t.expertName).join('、');
+    const actorRole = actorId
+      ? await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } }).catch(() => null)
+      : null;
+
+    await this.prisma.$transaction(async (tx) => {
+      await lockAndReassertStage(tx, projectId, 'EVALUATING'); // 事务内行锁复查阶段（防并发归档偷跑）
+      await tx.bidExpert.updateMany({
+        where: { id: { in: targets.map(t => t.id) } },
+        data: { reportConfirmed: false, reportConfirmedAt: null },
+      });
+      // 评分增量统计口径同步回退（confirmReport 置 true；重开后可重新统计）
+      await tx.bidScoreDelta.updateMany({
+        where: { expertId: { in: targets.map(t => t.id) }, projectId },
+        data: { expertReportConfirmed: false },
+      }).catch(() => {});
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '采购管理', target: project.name,
+          action: '重开评审确认（数据更正）',
+          result: `理由：${trimmed}；${names} 的报告确认已解锁，可修改评分后重新确认（已提交评分完整保留，改分留痕）`,
+          riskFlag: '高风险',
+          operatorId: actorId, operatorRole: actorRole?.role ?? 'bid_host',
+        },
+      });
+    });
+
+    // 通知受影响专家（失败不阻塞重开）
+    try {
+      const tpl = renderNotificationPayload('EVALUATION_REOPEN', {
+        projectId,
+        projectName: project.name,
+        content: `项目【${project.name}】的评审报告确认已被采购管理端重开。您的评分记录已保留，可登录专家门户修改评分并重新确认报告。重开理由：${trimmed}`,
+      })!;
+      await this.notifyParticipants(
+        targets.map(t => t.userId).filter((u): u is string => !!u),
+        { type: 'EVALUATION_REOPEN', ...tpl },
+      );
+    } catch { /* 通知失败不阻塞重开 */ }
+
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'EVALUATION_REOPEN',
+          resourceType: `BidProject:${projectId}`,
+          details: { reason: trimmed, expertIds: targets.map(t => t.id), expertNames: names },
+        },
+      });
+    } catch { /* 审计失败不阻断 */ }
+
+    return { reopenedExpertIds: targets.map(t => t.id), reopenedExpertNames: names };
+  }
+
   /** A-143：主持端核验供应商在线答复签名（重算 canonical + SM2 验签；验真刷新 verifiedAt） */
   async verifyClarificationReply(projectId: string, cid: string) {
     const clar = await this.prisma.bidClarification.findFirst({ where: { id: cid, projectId } });

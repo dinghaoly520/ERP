@@ -46,6 +46,7 @@ import { BidCompanyScopeGuard } from './bid-company-scope.guard';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
+import { ReopenExpertScoringDto } from './dto/reopen-expert-scoring.dto';
 import { UpsertBondLedgerDto } from './dto/bond-ledger.dto';
 import { ReportNotesDto } from './dto/report-notes.dto';
 import { SupplierBondReturnDto } from './dto/supplier-bond-return.dto';
@@ -1128,5 +1129,16 @@ export class BidController {
     @CurrentUser('sub') userId: string,
   ) {
     return this.bidService.extendEvaluationDeadline(id, dto.extendHours, dto.reason, userId);
+  }
+
+  @Post('projects/:id/reopen-expert-scoring')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '重开专家评审确认（受控数据更正：解锁报告确认允许改分；书面理由+监督/审计留痕，评分历史保留）' })
+  reopenExpertScoring(
+    @Param('id') id: string,
+    @Body() dto: ReopenExpertScoringDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.bidService.reopenExpertScoring(id, dto.reason, dto.expertId, userId);
   }
 }
