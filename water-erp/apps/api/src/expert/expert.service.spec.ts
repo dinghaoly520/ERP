@@ -151,7 +151,6 @@ describe('ExpertService', () => {
         { progress: 50, signedIn: true, totalScore: 165, expertName: '王建国', project: {}, scoreRecords: [{ score: 85, supplierId: 's4' }, { score: 80, supplierId: 's5' }] },
         { progress: 0, signedIn: false, totalScore: 0, expertName: '王建国', project: {}, scoreRecords: [] },
       ]);
-      prisma.bidSupervisionLog.findMany.mockResolvedValue([]);
 
       const stats = await service.getStatistics('user-1');
 

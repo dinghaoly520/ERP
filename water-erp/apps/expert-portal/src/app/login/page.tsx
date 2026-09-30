@@ -102,7 +102,16 @@ function ExpertLoginPage() {
             router.push(returnTo);
           }
         }
-        else toast.error('非专家账户，请使用专家账号登录');
+        else {
+          // 非专家角色在「专家登录」tab 登录：后端已 200 并按角色写好门户 cookie
+          // （bid_host/admin→token_bid、leader/staff→token_web）——原提示留页=死路，
+          // 引导至各自工作门户（与「管理员登录」tab 同去处；2026-09-30 验收发现的 UX 断头路）
+          const dest = (role === 'bid_host' || role === 'admin')
+            ? portalURL('bid', '/bid')
+            : portalURL('web', '/');
+          toast.info('正在前往对应工作系统…');
+          setTimeout(() => { window.location.href = dest; }, 600);
+        }
       } else if (WEB_ROLES.includes(role)) {
         // 管理员 Tab = 开评标管理端(:3007) 入口：无论具体 web 端角色，统一跳 :3007/bid。
         // 与 bid-portal proxy.ts 的 ALLOWED_ROLES 对齐（admin/bid_host/leader/staff）。

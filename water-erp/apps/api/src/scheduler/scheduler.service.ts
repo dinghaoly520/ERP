@@ -94,8 +94,11 @@ export class SchedulerService {
 
       const type = days >= overdueDays ? 'ARCHIVE_OVERDUE' : days >= dueDays ? 'ARCHIVE_TRANSFER_DUE' : null;
       if (!type) continue;
-      const link = `/archive?pmi=${item.id}`;
-      const pending = await this.prisma.notification.count({ where: { type, link, resolvedAt: null } });
+      const link = `/procurements?archivePmi=${item.id}`; // 2026-09-30：归档页并入台账卡片
+      // 幂等含旧链接存量（改链前生成的 pending），否则每个临期项目会重复插一条
+      const pending = await this.prisma.notification.count({
+        where: { type, link: { in: [link, `/archive?pmi=${item.id}`] }, resolvedAt: null },
+      });
       if (pending > 0) continue; // 幂等
 
       const isOverdue = type === 'ARCHIVE_OVERDUE';
@@ -271,7 +274,7 @@ export class SchedulerService {
         type: 'ARCHIVE_INTEGRITY_ALERT',
         title: '档案完整性抽检告警',
         content: `月度抽检发现 ${mismatches} 个归档项目指纹链不匹配（GB/T 43711 8.3 不可更改要求）——详情见各项目监督日志，请立即核查。`,
-        link: '/archive',
+        link: '/procurements', // 2026-09-30：/archive 已并入采购台账
       }).catch(() => {});
       this.logger.warn(`[D2] 档案指纹抽检：${mismatches}/${archived.length} 项不匹配`);
     } else {

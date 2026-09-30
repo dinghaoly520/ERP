@@ -31,16 +31,17 @@ export class ArchiveFlowService {
       const terminal = item.stages.some((s) => s.attachments.length > 0);
       if (!terminal) return;
 
-      const link = `/archive?pmi=${pmiId}`;
+      const link = `/procurements?archivePmi=${pmiId}`; // 2026-09-30：归档页并入台账卡片（/archive 仅留重定向）
+      // 幂等含旧链接存量（改链前生成的 pending），否则每个临期项目会重复插一条
       const pending = await this.prisma.notification.count({
-        where: { type: ARCHIVE_TODO_TYPE, link, resolvedAt: null },
+        where: { type: ARCHIVE_TODO_TYPE, link: { in: [link, `/archive?pmi=${pmiId}`] }, resolvedAt: null },
       });
       if (pending > 0) return; // 幂等
 
       const dto = {
         type: ARCHIVE_TODO_TYPE,
         title: '项目流程终结，待归档',
-        content: `「${item.title}」已到定标/合同节点（DA/T 103-2024 §8.1），请前往归档管理完成四性检测并导出归档信息包。`,
+        content: `「${item.title}」已到定标/合同节点（DA/T 103-2024 §8.1），请前往采购台账该项目卡片完成四性检测并导出归档信息包。`,
         link,
       };
       await this.notification.sendToRole('leader', dto); // 2026-09-26：业务通知不进 admin（admin 只收账号域）
@@ -51,11 +52,14 @@ export class ArchiveFlowService {
 
   /** 归档导出完成 → 消解该项目全部归档待办（H3：含 D2 临期/逾期督办，否则已归档项目通知永挂） */
   async resolveArchiveTodo(pmiId: string): Promise<void> {
-    const link = `/archive?pmi=${pmiId}`;
+    // 兼容一个迁移周期：历史 pending 通知的 link 仍是 /archive?pmi=（改链前生成），新旧都消解
+    const links = [`/procurements?archivePmi=${pmiId}`, `/archive?pmi=${pmiId}`];
     try {
-      await this.notification.resolveActionable(ARCHIVE_TODO_TYPE, link);
-      await this.notification.resolveActionable('ARCHIVE_TRANSFER_DUE', link);
-      await this.notification.resolveActionable('ARCHIVE_OVERDUE', link);
+      for (const link of links) {
+        await this.notification.resolveActionable(ARCHIVE_TODO_TYPE, link);
+        await this.notification.resolveActionable('ARCHIVE_TRANSFER_DUE', link);
+        await this.notification.resolveActionable('ARCHIVE_OVERDUE', link);
+      }
     } catch (err) {
       this.logger.warn(`归档待办消解失败: ${err}`);
     }

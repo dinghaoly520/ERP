@@ -57,7 +57,9 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   if (!token) {
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
+    // 带上 search（登录后回跳原样 push）——深链 query 不丢：?category= 筛选直达、
+    // /archive?pmi= 重定向后的 ?archivePmi= 归档卷直达（此前只保 pathname，query 全丢）
+    loginUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 

@@ -76,11 +76,22 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
       await prisma.bidExpert.deleteMany({ where: { id: { in: danglingIds } } });
     }
 
-    // leader 角色管理账号（web 门户可登录）
+    // leader 角色管理账号（web 门户可登录）。
+    // 公司隔离（2026-09-24）落地后必须带公司归属：无公司 = 空视野——列表恒空、
+    // 单资源 assertInScope 403、抽取候选池 400 NO_ELIGIBLE_EXPERTS（CI 2026-09-30 全链复现）。
+    // 动态取种子专家的公司（种子 187 名专家同属一家，稳定），库内无带公司专家时自建公司兜底。
+    const expertCompany = await prisma.user.findFirst({
+      where: { role: 'bid_expert', companyId: { not: null } },
+      select: { companyId: true, company: true },
+    });
+    const leaderCompanyId =
+      expertCompany?.companyId ??
+      (await prisma.company.create({ data: { name: 'E2E测试公司' } })).id;
+    const leaderCompanyName = expertCompany?.company ?? 'E2E测试公司';
     await prisma.user.upsert({
       where: { username_role: { username: E2E_ADMIN, role: 'leader' } },
-      update: { isActive: true, passwordHash: hashSync('abc123', 10) },
-      create: { username: E2E_ADMIN, displayName: 'E2E专家管理员', passwordHash: hashSync('abc123', 10), role: 'leader', isActive: true },
+      update: { isActive: true, passwordHash: hashSync('abc123', 10), companyId: leaderCompanyId, company: leaderCompanyName },
+      create: { username: E2E_ADMIN, displayName: 'E2E专家管理员', passwordHash: hashSync('abc123', 10), role: 'leader', isActive: true, companyId: leaderCompanyId, company: leaderCompanyName },
     });
     cookies = await loginAs(app, E2E_ADMIN, 'abc123', 'web');
     const me = await authGet('/api/auth/me');

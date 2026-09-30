@@ -357,9 +357,21 @@ describe('Auth (e2e)', () => {
         .expect(200);
     });
 
-    it('mall 登录不轮换（token 无 sid，其他命名空间不受影响）', async () => {
-      const res = await loginWith('e2e-single-mall', 'mall').expect(200);
-      expect(decodeJwt(res.body.access_token).sid).toBeUndefined();
+    it('mall 登录不互踢（行为不变量：token 可带 sid 但 AuthGuard 不校验该命名空间，两份 token 并存可用）', async () => {
+      // 93f4eaf8 起 login() 对全部角色无条件 rotatePortalSession（注释明言 bid/mall 轮换
+      // 无副作用）——真不变量是「重复登录不顶掉旧会话」，而非 token 形状（无 sid）。
+      const first = await loginWith('e2e-single-mall', 'mall').expect(200);
+      const second = await loginWith('e2e-single-mall', 'mall').expect(200);
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_mall=${first.body.access_token}`)
+        .set('X-Portal', 'mall')
+        .expect(200);
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', `token_mall=${second.body.access_token}`)
+        .set('X-Portal', 'mall')
+        .expect(200);
     });
 
     it('登出即吊销：logout 后旧 token 立即 401（不等 JWT 自然过期）', async () => {

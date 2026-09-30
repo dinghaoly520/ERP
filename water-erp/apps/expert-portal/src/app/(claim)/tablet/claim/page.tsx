@@ -35,16 +35,10 @@ function ClaimFlow() {
   const [photoRequired, setPhotoRequired] = useState(false);
   const [photoExempted, setPhotoExempted] = useState(false);
 
-  if (!ticket || !projectId) {
-    return (
-      <div className="mx-auto max-w-md px-6 pt-16 text-center">
-        <p className="text-sm text-[var(--muted-foreground)]">迁移链接无效——请回到桌面端重新扫码</p>
-      </div>
-    );
-  }
-
   // 严版（2026-09-23）：强制补拍时轮询主持人豁免状态（5s），豁免到位即解锁跳过。
-  // 顶层挂载（条件 hooks 会因 claimed 翻转改变 hook 计数而崩页——2026-09-23 严格验收实测）。
+  // lint 基建补齐（2026-09-29）：无效链接早退原在本 effect 之前=条件 hook（ticket 来自
+  // query 不翻转故实测不崩，但违反 rules-of-hooks）——早退移至全部 hooks 之后，零行为变化
+  //（无效票据时本 effect 因 claimed=false 即刻返回）。
   useEffect(() => {
     if (!claimed || !photoRequired || photoExempted) return;
     const t = setInterval(() => {
@@ -54,6 +48,14 @@ function ClaimFlow() {
     }, 5000);
     return () => clearInterval(t);
   }, [claimed, photoRequired, photoExempted, projectId]);
+
+  if (!ticket || !projectId) {
+    return (
+      <div className="mx-auto max-w-md px-6 pt-16 text-center">
+        <p className="text-sm text-[var(--muted-foreground)]">迁移链接无效——请回到桌面端重新扫码</p>
+      </div>
+    );
+  }
 
   // ②③ 迁移已完成会话在身：留档照（或跳过）→ 进评审页
   if (claimed) {

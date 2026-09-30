@@ -1,5 +1,6 @@
 import type { TenderFieldKey } from '@/lib/types/tender-write';
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 
 const API_BASE = '/api';
 
@@ -28,7 +29,7 @@ export async function fetchFieldSamples(
     headers: { 'X-Portal': 'web' },
   });
   if (!response.ok) {
-    throw new Error('Failed to fetch field samples');
+    throw await toApiError(response, '加载字段样本失败');
   }
   return response.json();
 }
@@ -111,25 +112,9 @@ export async function generateFieldContent(payload: {
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    // 把服务端真实错误透传出来，避免永远显示笼统的"AI 生成失败"
-    // 让用户/开发者能区分 DeepSeek 限流、超时、JSON 解析失败等不同原因
-    let detail = '';
-    try {
-      const body = await response.json();
-      // 后端 HttpExceptionFilter 归一化错误体为 { statusCode, code, error }（无 message 字段）；
-      // message 仅作 ValidationPipe 等少数场景的兼容回退
-      detail = Array.isArray(body?.message)
-        ? body.message[0]
-        : body?.error ?? body?.message ?? '';
-    } catch {
-      try {
-        detail = (await response.text()).trim();
-      } catch {
-        /* ignore */
-      }
-    }
-    const suffix = detail ? `（${detail.slice(0, 120)}）` : '';
-    throw new Error(`AI 生成失败，请稍后重试${suffix}`);
+    // toApiError 透传服务端真实错误（.error 优先），可区分 DeepSeek 限流、超时、
+    // JSON 解析失败等不同原因；无错误体时回落语境中文
+    throw await toApiError(response, 'AI 生成失败，请稍后重试');
   }
   return response.json();
 }

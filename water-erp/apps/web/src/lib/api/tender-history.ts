@@ -4,13 +4,9 @@ import type {
   TenderDraftRecord,
 } from '@/lib/types/tender-write';
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
-
-function parseErrorMessage(text: string) {
-  const trimmed = text.trim();
-  return trimmed || '保存历史记录失败';
-}
 
 export async function createTenderHistory(payload: {
   documentType: TenderDocumentType;
@@ -25,8 +21,7 @@ export async function createTenderHistory(payload: {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(parseErrorMessage(text));
+    throw await toApiError(response, '保存历史记录失败');
   }
 
   return response.json();

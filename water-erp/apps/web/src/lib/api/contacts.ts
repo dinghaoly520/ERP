@@ -1,4 +1,5 @@
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 export type Contact = {
   id: string;
   name: string;
@@ -16,7 +17,7 @@ export async function fetchContacts(): Promise<Contact[]> {
   });
 
   if (!response.ok) {
-    throw new Error('获取联系人列表失败');
+    throw await toApiError(response, '获取联系人列表失败');
   }
 
   return response.json();
@@ -35,7 +36,7 @@ export async function createContact(data: {
   });
 
   if (!response.ok) {
-    throw new Error('创建联系人失败');
+    throw await toApiError(response, '创建联系人失败');
   }
 
   return response.json();
@@ -53,7 +54,7 @@ export async function updateContact(
   });
 
   if (!response.ok) {
-    throw new Error('更新联系人失败');
+    throw await toApiError(response, '更新联系人失败');
   }
 
   return response.json();
@@ -66,7 +67,7 @@ export async function deleteContact(id: string): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new Error('删除联系人失败');
+    throw await toApiError(response, '删除联系人失败');
   }
 }
 

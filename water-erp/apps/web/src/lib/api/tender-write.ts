@@ -1,4 +1,5 @@
 import { apiFetch } from './api-fetch';
+import { toApiError } from '@water-erp/client';
 import type {
   ReadyTenderDocumentType,
   ReadyTenderDraft,
@@ -6,11 +7,6 @@ import type {
 } from "@/lib/types/tender-write";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
-
-function parseErrorMessage(text: string) {
-  const trimmed = text.trim();
-  return trimmed || "导出失败，请稍后重试。";
-}
 
 function parseFileName(disposition: string | null) {
   if (!disposition) {
@@ -41,7 +37,7 @@ export async function exportTenderDocument(payload: {
   });
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(await response.text()));
+    throw await toApiError(response, '导出采购文件失败，请稍后重试。');
   }
 
   return {

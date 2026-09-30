@@ -53,12 +53,6 @@ export const bidApi = {
   getNegotiationFiles(projectId: string) {
     return api.get<any>(`/supplier-portal/bid-projects/${projectId}/negotiation-files`);
   },
-  // A-87（P1 波4）：招标文件要点（READY/PENDING；真零条款项目也显 PENDING）
-  getTenderRequirements(projectId: string) {
-    return api.get<{ status: "READY" | "PENDING"; requirements: TenderRequirementsSummary | null }>(
-      `/supplier-portal/bid-projects/${projectId}/tender-requirements`,
-    );
-  },
   // 澄清说明文案（只读，由采购管理端编辑发布）
   getClarificationNotice() {
     return api.get<any>("/system-config/clarification-notice");

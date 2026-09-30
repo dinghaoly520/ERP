@@ -189,12 +189,17 @@ function BidDetailInner() {
     return fields;
   })();
 
+  // SUP-P3-08：加载失败保留原因——此前一切失败折叠成「暂无采购文件」空态，
+  // 截止已过/临时过期等 400 与「确实没有」不可区分
+  const [bidDocError, setBidDocError] = useState<string | null>(null);
   const loadBidDoc = useCallback(async () => {
     setBidDocLoading(true);
+    setBidDocError(null);
     try {
       setBidDoc(await bidApi.getProjectBidDocument(projectId));
-    } catch {
+    } catch (e: any) {
       setBidDoc(null);
+      setBidDocError(e?.message || "采购文件暂时无法获取，请稍后重试");
     }
     setBidDocLoading(false);
   }, [projectId]);
@@ -664,7 +669,7 @@ function BidDetailInner() {
                     ) : bidDocLoading ? (
                       <LoadingBlock />
                     ) : (
-                      <div className="bc-empty">暂无采购文件</div>
+                      <div className="bc-empty">{bidDocError ? `采购文件不可获取：${bidDocError}` : "暂无采购文件"}</div>
                     )}
                   </div>
 

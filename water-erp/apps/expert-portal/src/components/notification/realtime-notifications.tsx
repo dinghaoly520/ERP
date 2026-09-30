@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { notificationWsUrl } from '@water-erp/config';
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
@@ -22,11 +23,6 @@ interface PushNotification {
   createdAt: string;
 }
 
-function wsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, "");
-  if (process.env.NODE_ENV === "production") return `${window.location.origin}/api/notifications`;
-  return "http://localhost:4001/notifications";
-}
 
 /** 本门户可跳转路径前缀（专家门户路由）；绝对链接走外链；其余（供应商/管理端路径）不跳转 */
 const EXPERT_LINK_PREFIXES = ["/evaluate", "/tasks", "/projects", "/profile", "/rsvp", "/invitation"];
@@ -84,7 +80,7 @@ export function RealtimeNotifications() {
     };
 
     const connect = () => {
-      const socket = io(wsUrl(), {
+      const socket = io(notificationWsUrl(), {
         withCredentials: true,
         reconnection: false,
         timeout: 8000,

@@ -48,6 +48,12 @@ export type ProcurementRoundItem = {
   contractAmount: number | string | null;
   contractNumber: string | null;
   archivedAt: string | null;
+  // 归档卷（DA/T 103-2024）：/archive 独立页并入台账卡片后由台账 DTO 带出
+  retentionPeriod?: "PERMANENT" | "Y30" | "Y10" | null;
+  archiveExportedAt?: string | null;
+  archiveRegistrationKey?: string | null;
+  /** PMI 属主（后端 archive assertItemScope 同口径）；旧数据回退 createdById */
+  pmCreatedById?: string | null;
 };
 
 // 分页信息

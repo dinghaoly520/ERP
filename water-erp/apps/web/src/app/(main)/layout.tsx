@@ -20,7 +20,6 @@ const routeToKey: Record<string, string> = {
   "/profile": "personal-center",
   "/tender-write": "tender-write",
   "/tender-review": "tender-review",
-  "/archive": "archive",
   "/assistant": "assistant",
   "/admin/password-requests": "accounts",
   "/admin/accounts": "accounts",

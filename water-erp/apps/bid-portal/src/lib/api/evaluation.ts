@@ -5,7 +5,9 @@ import { api } from '@/lib/api';
    项目/专家/供应商等实体类型的真身在 @/lib/types（派生自 @water-erp/shared），
    本文件只保留评标管理链路的响应类型与函数（F19 清理：删除了零消费的旧详情副本类型）。 */
 
-export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED' | 'ABORTED';
+// X-P3-02：本地重复定义收敛——真身在 @water-erp/shared（枚举扩展时不再漂移）
+import type { BidStage as SharedBidStage } from '@water-erp/shared';
+export type BidStage = SharedBidStage;
 export type ScoreCategory = 'QUALIFICATION' | 'RESPONSIVE' | 'BUSINESS' | 'TECHNICAL' | 'PRICE';
 
 /* ── 开标决策 ── */

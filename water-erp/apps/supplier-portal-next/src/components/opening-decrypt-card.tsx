@@ -363,7 +363,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
                       value={reuploadRole}
                       onChange={(e) => setReuploadRole(e.target.value as typeof reuploadRole)}
                       disabled={reuploadBusy}
-                      className="rounded-lg border border-[oklch(0.87_0.015_258)] bg-white px-2 py-1.5 text-xs"
+                      className="rounded-lg border border-[oklch(0.87_0.015_258)] bg-[oklch(0.99_0.004_258)] px-2 py-1.5 text-xs"
                     >
                       <option value="">选择角色…</option>
                       <option value="technical">技术标</option>
@@ -393,7 +393,9 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
                 ) : (
                   <span className="ukey-hint">需使用投递时的 U盾证书（或导入的备份）解密</span>
                 )}
-                <SpButton variant="primary" loading={decrypting} disabled={sealChecking || !!pkg.paused} onClick={handleDecryptUpload}>
+                {/* SUP-P3-05：任一角色密封核验不符即禁用——警示文案说「请勿解密」，按钮却仍可点，
+                     无视警示继续解密会落 DANGER 且归因记到投标人侧 */}
+                <SpButton variant="primary" loading={decrypting} disabled={sealChecking || !!pkg.paused || Object.values(sealResults).includes("fail")} onClick={handleDecryptUpload}>
                   {decrypting ? (decryptStage || "解密中…") : "U盾解密并上传"}
                 </SpButton>
               </div>

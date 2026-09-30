@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { notificationWsUrl } from '@water-erp/config';
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
@@ -24,11 +25,6 @@ interface PushNotification {
   createdAt: string;
 }
 
-function wsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, "");
-  if (process.env.NODE_ENV === "production") return `${window.location.origin}/api/notifications`;
-  return "http://localhost:4001/notifications";
-}
 
 export function RealtimeNotifications() {
   const router = useRouter();
@@ -74,7 +70,7 @@ export function RealtimeNotifications() {
     };
 
     const connect = () => {
-      const socket = io(wsUrl(), {
+      const socket = io(notificationWsUrl(), {
         withCredentials: true,
         reconnection: false,
         timeout: 8000,
@@ -84,7 +80,12 @@ export function RealtimeNotifications() {
 
       socket.on("connect", () => { attempts = 0; });
       socket.on("notification:new", (n: PushNotification) => {
-        if (n?.id && n.title) open(n);
+        if (n?.id && n.title) {
+          open(n);
+          // X-P3-04：到达即广播 notification:received——与 :3006/:3007 铃铛刷新契约对齐
+          // （此前仅在点击/已读时派发，实时到达时角标/通知中心不刷新）
+          window.dispatchEvent(new CustomEvent("notification:received"));
+        }
       });
       socket.on("disconnect", (reason: string) => {
         if (reason === "io client disconnect") return;

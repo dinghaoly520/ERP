@@ -42,6 +42,17 @@ export const ROLE_PORTAL: Record<string, AppName> = {
   mall: 'mall',
 };
 
+/**
+ * 通知网关 WS 地址（X-P3-03 2026-09-29 上收——四门户 realtime-notifications 原样四份复制）：
+ * NEXT_PUBLIC_WS_URL 覆盖（去尾斜杠）；生产=同源 /api/notifications（Next 代理升级 WS）；
+ * 开发=直连 API origin。须在浏览器端调用（读 window.location.origin）。
+ */
+export function notificationWsUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production') return `${window.location.origin}/api/notifications`;
+  return 'http://localhost:4001/notifications';
+}
+
 /** 获取指定角色登陆后应跳转的完整门户 URL */
 export function landingURL(role: string): string {
   const app = ROLE_PORTAL[role] || 'public';

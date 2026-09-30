@@ -19,7 +19,8 @@ import { useConfirm } from "@/components/use-confirm";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
 
-import { STAGE_LABEL } from "@water-erp/shared";
+import { STAGE_LABEL, serverNowMs } from "@water-erp/shared";
+import { formatOpeningAmount } from "@/lib/opening-fields";
 
 // X-P2-03：label 收敛 shared STAGE_LABEL（ARCHIVED=「资料归档」与三门户同口径）
 const STAGES = [
@@ -71,8 +72,12 @@ function formatBidPrice(raw: string | number | null | undefined): string {
   return `${n} 万元`;
 }
 
+// SUP-P3-11：补截止时点——投标截止后依法不得撤回（招标投标法第29条），此前按钮仍可点、
+// 点了才收后端 409 失败 toast；页面有 serverNowMs 服务器时钟设施，据此对齐按钮态
 function canWithdraw(row: any) {
-  return row.status === "submitted" && ["DOWNLOAD", "SUBMIT"].includes(row.project?.stage);
+  if (row.status !== "submitted" || !["DOWNLOAD", "SUBMIT"].includes(row.project?.stage)) return false;
+  const dl = row.project?.deadline ? new Date(row.project.deadline).getTime() : null;
+  return dl == null || serverNowMs() < dl;
 }
 // 开标确认入口已删（与「开标大厅」同页——opening-confirm 旧路由只剩 replace 重定向，卡片双按钮重复）；
 // OPENING 阶段未确认一律走「开标大厅」入内确认（大厅页含确认/异议 + U盾签名）
@@ -282,6 +287,13 @@ export default function MyBidsPage() {
                           <span className="mb-card-meta-item">
                             <span className="mb-card-meta-label">报价</span>
                             {formatBidPrice(row.bidPrice)}
+                          </span>
+                        ) : row.envelopeVersion === "dual-v2" && row.decryptedPrice != null && ["EVALUATING", "ARCHIVED", "ABORTED"].includes(row.project?.stage ?? "") ? (
+                          // SUP-P3-07：开标已揭示（阶段过 OPENING）——载荷本就带 decryptedPrice
+                          // （dual-v2=万元口径），此前恒显「已密封」误导回看
+                          <span className="mb-card-meta-item">
+                            <span className="mb-card-meta-label">报价</span>
+                            {formatOpeningAmount(row.decryptedPrice, "万元")}
                           </span>
                         ) : row.envelopeVersion === "dual-v2" ? (
                           // dual-v2：报价已密封进双层信封，服务端不回传明文（开标唱标时揭示）
