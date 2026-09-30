@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { useRouter } from 'next/navigation';
@@ -89,6 +89,7 @@ export default function NoticePage() {
   const [data, setData] = useState<{ total: number; items: AnnouncementListItem[] }>({ total: 0, items: [] });
   const [stats, setStats] = useState<{ drafts: number; published: number; publishedThisMonth: number; totalViews: number }>({ drafts: 0, published: 0, publishedThisMonth: 0, totalViews: 0 });
   const [loading, setLoading] = useState(true);
+  const loadReqIdRef = useRef(0);
   const [filterType, setFilterType] = useState<string>('BID_NOTICE');
   const [filterStatus, setFilterStatus] = useState<AnnouncementStatus | ''>('');
   const [search, setSearch] = useState('');
@@ -108,11 +109,13 @@ export default function NoticePage() {
   const selectedCompanyName = useCompanyName(companyId);
 
   const load = useCallback(async () => {
+    const rid = ++loadReqIdRef.current; // R7-4② 请求序守卫（快速切筛选/排序/翻页丢过期响应）
     setLoading(true);
     try {
       const res = await listAnnouncements({ type: filterType === 'ALL' ? undefined : filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId, sortBy: sortKey ?? undefined, sortOrder: sortKey ? sortDir : undefined });
+      if (rid !== loadReqIdRef.current) return;
       setData({ total: res.total, items: res.items });
-    } catch (e: any) { toast.error(e?.message || '公告列表加载失败'); } // R7-3⑥：接口挂不再伪装成空态
+    } catch (e: any) { if (rid === loadReqIdRef.current) toast.error(e?.message || '公告列表加载失败'); } // R7-3⑥：接口挂不再伪装成空态
     // KPI 全量口径与列表并行拉取，失败保持上次值（不阻塞列表）
     getAnnouncementStats(companyId).then(setStats).catch(() => {});
     setLoading(false);
@@ -521,6 +524,7 @@ function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
 function ParticipantsModal({ announcement, onClose }: { announcement: AnnouncementListItem; onClose: () => void }) {
   const [result, setResult] = useState<ParticipantsResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadReqIdRef = useRef(0);
   useEffect(() => { getParticipants(announcement.id).then(setResult).catch(() => setResult(null)).finally(() => setLoading(false)); }, [announcement.id]);
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
   const downloadCount = result?.suppliers.filter(s => s.downloadCount > 0).length ?? 0;

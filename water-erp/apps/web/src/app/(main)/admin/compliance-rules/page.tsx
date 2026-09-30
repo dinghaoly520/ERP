@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Check, ListChecks, Pencil, RefreshCw, Sparkles, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api/api-fetch';
+import { PMI_STAGE_LABEL } from '@water-erp/shared';
 
 /* ═══════════════════════════════════════════════════════════════
    合规规则配置（C4）——阶段合规审查要点在线维护（DB 覆盖层 + 内置回退）
@@ -15,11 +16,7 @@ type RuleRow = {
 };
 type StageData = { source: 'db' | 'builtin'; rows: RuleRow[] };
 
-const STAGE_LABEL: Record<string, string> = {
-  PROCUREMENT_DEMAND: '采购需求', INITIATION: '采购立项', TENDER_DOCUMENT: '采购文件',
-  SUPPLIER_INVITATION: '供应商邀请', PUBLIC_ANNOUNCEMENT: '公告公示', EXPERT_SELECTION: '专家抽取',
-  BID_EVALUATION: '开标评标', AWARD_DECISION: '定标', CONTRACT: '合同',
-};
+const STAGE_LABEL: Record<string, string> = PMI_STAGE_LABEL; // R7-4① 单一源
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await apiFetch(`/api/stage-compliance${path}`, {

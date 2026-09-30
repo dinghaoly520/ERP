@@ -1094,6 +1094,7 @@ export default function ProcurementsPage() {
   const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<ProcurementRoundItem[]>([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 12, total: 0, totalPages: 0 });
+  const loadReqIdRef = useRef(0);
   const [abnormalTotal, setAbnormalTotal] = useState<number | undefined>(undefined);
   const [methods, setMethods] = useState<string[]>([]);
   // 部门筛选数据源（端点不可用时隐藏该下拉，不阻塞台账）
@@ -1293,6 +1294,7 @@ export default function ProcurementsPage() {
 
   // Load data
   const loadData = useCallback(async () => {
+    const rid = ++loadReqIdRef.current; // R7-4② 请求序守卫
     setLoading(true);
     setLoadError(null);
     try {
@@ -1328,6 +1330,7 @@ export default function ProcurementsPage() {
           : Promise.resolve(null),
       ]);
       setData(listRes.data);
+      if (rid !== loadReqIdRef.current) return;
       setPagination(listRes.pagination);
       setAbnormalTotal(listRes.abnormalTotal);
       setMethods(methodsRes);

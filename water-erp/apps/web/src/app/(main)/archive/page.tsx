@@ -8,6 +8,7 @@ import {
 import { Modal } from '@/components/workbench';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { apiFetch } from '@/lib/api/api-fetch';
+import { PMI_STAGE_LABEL } from '@water-erp/shared';
 
 /* ═══════════════════════════════════════════════════════════════
    归档管理（DA/T 103-2024）— 卷台账 / 四性检测 / ASIP 导出
@@ -47,11 +48,7 @@ type AuditRow = {
 };
 
 const RETENTION_LABEL: Record<string, string> = { PERMANENT: '永久', Y30: '30 年', Y10: '10 年' };
-const STAGE_LABEL: Record<string, string> = {
-  PROCUREMENT_DEMAND: '采购需求', INITIATION: '采购立项', TENDER_DOCUMENT: '采购文件',
-  SUPPLIER_INVITATION: '供应商邀请', PUBLIC_ANNOUNCEMENT: '公告公示', EXPERT_SELECTION: '专家抽取',
-  BID_EVALUATION: '开标评标', AWARD_DECISION: '定标', CONTRACT: '合同', ARCHIVED: '已归档',
-};
+const STAGE_LABEL: Record<string, string> = PMI_STAGE_LABEL; // R7-4① 单一源
 const SOURCE_LABEL: Record<string, string> = {
   attachment: '系统附件', fileAsset: '回流件', manual: '人工补传', generated: '系统生成',
 };
