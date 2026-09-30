@@ -2015,7 +2015,7 @@ export function ExpertExtractPage({
                     {pd.riskNote && <span className="text-[var(--warning)] max-w-[360px] truncate" title={pd.riskNote}>风险提示：{pd.riskNote}</span>}
                   </div>
                 )}
-                {(pd?.suppliers?.filter(s => s.confirmStatus === 'CONFIRMED')?.length ?? 0) > 0 && <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 已确认参与的供应商（将自动回避）：{pd!.suppliers!.filter(s => s.confirmStatus === 'CONFIRMED').map(s => s.supplierName).join('、')}</div>}
+                {(() => { const avoided = pd?.suppliers?.filter(s => s.submitStatus === '已提交' || s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION') ?? []; return avoided.length > 0 ? <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 已投标参与的供应商（将自动回避）：{avoided.map(s => s.supplierName).join('、')}</div> : null; })()}
               </div>
             )}
 

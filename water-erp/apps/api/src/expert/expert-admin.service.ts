@@ -251,11 +251,13 @@ export class ExpertAdminService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // R6-7③（2026-09-30 审计 A1）：获评次数此前 take:10 封顶——库页 _count 显示 15、
+    // 详情显示 10、分布也只按最近 10 条算，同数两页矛盾。取全量算真实计数与分布，
+    // 明细列表另限展示条数。
     const evaluations = await this.prisma.expertEvaluation.findMany({
       where: { expertUserId: userId },
       include: { evaluator: { select: { id: true, displayName: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 10,
     });
 
     const totalProjects = assignments.length;
@@ -452,6 +454,16 @@ export class ExpertAdminService {
     if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+
+    // R6-7（2026-09-30 审计 B5）：已退库/暂停的专家禁止经编辑资料把 availability 改回
+    // '可用'——退库时落 availability='停用'+entryStatus=RETIRED，此入口可单方面改回可用
+    // 造矛盾档案（抽取虽按 entryStatus 拦，但统计/档案失真）
+    if (dto.availability !== undefined) {
+      const profile = await this.prisma.expertProfile.findUnique({ where: { userId }, select: { entryStatus: true } });
+      if (profile && (profile.entryStatus === 'RETIRED' || profile.entryStatus === 'SUSPENDED') && dto.availability === '可用') {
+        throw new BadRequestException({ error: '已退库/暂停的专家不能直接改为可用，请先恢复入库状态', code: 'EXPERT_STATUS_LOCKED' });
+      }
+    }
 
     // 部门：按名称查找已有记录，不存在则新建
     let departmentId: string | null | undefined;
@@ -1467,9 +1479,8 @@ export class ExpertAdminService {
       this.prisma.expertEvaluation.findMany({
         where: { expertUserId: userId },
         orderBy: { createdAt: 'desc' },
-        take: 10,
         select: { overallGrade: true, createdAt: true },
-      }),
+      }), // R6-7③：去 take:10 封顶，gradeCounts 按全量真实分布
     ]);
 
     const deviations = computeExpertMeanDeviations(
@@ -1637,7 +1648,7 @@ export class ExpertAdminService {
                 ...(profile.retiredAt !== null ? { availability: '可用' } : {}),
               }
             : {}),
-          ...(dto.status === 'RETIRED' ? { retiredAt: new Date(), retireReason: dto.reason!.trim() } : {}),
+          ...(dto.status === 'RETIRED' ? { retiredAt: new Date(), retireReason: dto.reason!.trim(), availability: '停用' } : {}), // R6-7 三分叉：退库须落停用，否则统计"可用"虚高（confirmRetire 同款已置）
         },
       }),
     ];

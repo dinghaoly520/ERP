@@ -33,6 +33,9 @@ export default function ExpertRepositoryPage() {
   // 公司级数据隔离（2026-09-24）：admin 右上角 CompanySelect 切换视野，全部公司=按公司分组；
   // 非 admin 无选择器，后端强制本公司
   const [isAdmin, setIsAdmin] = useState(false);
+  // 入库状态操作权限（R6-7 B7）：后端 @Patch(:id/status)+:id/retire 均 admin/leader——
+  // 此前按钮对所有角色渲染，staff 点必 403
+  const [canManageStatus, setCanManageStatus] = useState(false);
   const [companyId, setCompanyId] = useState('all');
   const [companyCounts, setCompanyCounts] = useState<Array<{ name: string; count: number }> | null>(null);
   const selectedCompanyName = useCompanyName(companyId);
@@ -126,7 +129,7 @@ export default function ExpertRepositoryPage() {
   }, [query, specialty, page, companyId]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
-  useEffect(() => { void fetchCurrentUser().then(u => setIsAdmin(u.role === 'admin')).catch(() => {}); }, []);
+  useEffect(() => { void fetchCurrentUser().then(u => { setIsAdmin(u.role === 'admin'); setCanManageStatus(u.role === 'admin' || u.role === 'leader'); }).catch(() => {}); }, []);
   useEffect(() => { listSpecialties(companyId).then(setSpecialties).catch(() => {}); }, [companyId]);
   // admin 全部公司视图：拉后端全量分组计数（与列表同 where），分组标题用全量口径不因分页失真
   useEffect(() => {
@@ -299,8 +302,8 @@ export default function ExpertRepositoryPage() {
                       <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
                         <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
                         <button onClick={() => setConfirmToggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>
-                        {/* CTS A-218/222 入库状态操作（领导/管理员） */}
-                        {(() => {
+                        {/* CTS A-218/222 入库状态操作（领导/管理员；按钮按权限收敛防 staff 403 面） */}
+                        {canManageStatus && (() => {
                           const es = (e.expertProfile?.entryStatus ?? 'ACTIVE');
                           if (es === 'PENDING') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">审核入库</button>;
                           if (es === 'SUSPENDED') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">恢复</button>;
