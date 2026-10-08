@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
 };
 
-export default function SigningTab({ projectId, stage }: { projectId: string; stage: string }) {
+export default function SigningTab({ projectId, stage, refreshSignal }: { projectId: string; stage: string; refreshSignal?: number }) {
   const [data, setData] = useState<SignPacketResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -182,7 +182,9 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
     }
   }, [projectId]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  // P2-8：接页级刷新信号（评分/签到/评标启动/移交/重连等里程碑）——电子签名后端自动闭环后
+  // 「生成回流包」（归档闸门件）入口不再须切 tab / F5 才可见
+  useEffect(() => { void refresh(); }, [refresh, refreshSignal]);
 
   const run = useCallback(async (label: string, fn: () => Promise<SignPacketResponse>) => {
     setBusy(label);
@@ -201,7 +203,15 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
     return <div className="p-8 text-sm text-[var(--muted-foreground)]">加载签字状态…</div>;
   }
   if (!data) {
-    return <div className="p-8 text-sm text-[var(--muted-foreground)]">{error ?? '无法加载签字状态'}</div>;
+    // P2-8：首载失败给出重试入口，不再只留一行不可恢复的错误文案
+    return (
+      <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+        <p>{error ?? '无法加载签字状态'}</p>
+        <button type="button" className="neu-btn-soft mt-3" onClick={() => void refresh()}>
+          重试
+        </button>
+      </div>
+    );
   }
 
   // 引导空态：评标结果未生成（开标记录签字若未闭环，仍给合并办理入口——打印时机在评标结束，此处即可提前/一并处理）
