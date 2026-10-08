@@ -697,9 +697,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟！
         </div>
       )}
-      {/* 窗口已过期且仍有未到终局态的供应商——给出两条出路指引 */}
+      {/* 窗口已过期且仍有未到终局态的供应商——给出两条出路指引（P1-4：仅参标家——
+          未投递名册行 decrypt 恒 PENDING，旧口径令横幅永真且与完成开标横幅同屏矛盾，
+          指引还指向已被收口隐藏的按钮=死路；终审 Important#2） */}
       {session && remaining <= 0 && project.stage === 'OPENING'
-        && project.suppliers.some(s => s.submitStatus !== '已撤回' && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER') && (
+        && project.suppliers.some(s => s.submitStatus === '已提交' && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER') && (
         <div className="space-y-1 rounded-xl bg-[oklch(0.66_0.175_27_/_0.12)] px-4 py-3 text-sm font-bold text-[var(--danger)]">
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} /> 解密窗口已过期，仍有供应商未到终局态。
@@ -831,8 +833,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   type="button"
                   className="neu-btn-soft text-xs"
                   onClick={async () => {
-                    // 在当前窗口截止时间上顺延 15 分钟（勿写成 now+15min——那会把剩余时间重置为 15 分钟）
-                    const newEnd = new Date(new Date(session.decryptWindowEnd).getTime() + 15 * 60 * 1000).toISOString();
+                    // 在当前窗口截止时间上顺延 15 分钟；窗口已过期时从 now 起算
+                    // （纯 end+15min 在过期≥15min 时恒撞后端 DECRYPT_WINDOW_IN_PAST 硬闸 400，
+                    //  P1-3 恢复链在第一步就断——终审 Important#1。开窗期内 max(end,now)=end，
+                    //  不会把剩余时间重置为 15 分钟）
+                    const base = Math.max(new Date(session.decryptWindowEnd).getTime(), Date.now());
+                    const newEnd = new Date(base + 15 * 60 * 1000).toISOString();
                     try {
                       await startOpening(projectId, {
                         host: session.host,
