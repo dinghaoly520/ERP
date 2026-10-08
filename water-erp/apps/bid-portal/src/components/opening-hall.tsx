@@ -354,16 +354,16 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     return { total, success, danger, running, pending, pct: total > 0 ? (success + danger) / total : 0 };
   }, [project]);
 
-  // 双信封 v2（T17）：分轨操作集
-  // dualOuterPending：外层待解（§5.2 批量候选；已撤回排除）
+  // 双信封 v2（T17）：分轨操作集——批量候选只含参标家（已投递；P1-4 防「全部解密」计数污染）
+  // dualOuterPending：外层待解（§5.2 批量候选）
   const dualOuterPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
-    s.envelopeVersion === 'dual-v2' && !s.outerDecryptedAt && s.submitStatus !== '已撤回'), [project]);
+    s.envelopeVersion === 'dual-v2' && !s.outerDecryptedAt && s.submitStatus === '已提交'), [project]);
   // legacyPending：旧轨批量解密候选（主持端代解密仍走 decryptSupplier；与既有 decryptProgress.pending
   // 口径一致——仅 PENDING 计数展示与入列，DANGER/RUNNING 行不入批量）
   const legacyPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
     s.envelopeVersion !== 'dual-v2'
     && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER' && s.decryptStatus !== 'RUNNING'
-    && s.submitStatus !== '已撤回'), [project]);
+    && s.submitStatus === '已提交'), [project]);
 
   const sortedRecords = useMemo(() => {
     if (!project) return [];
@@ -383,14 +383,15 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const entryFields = recordDraft.fieldConfig.length ? recordDraft.fieldConfig : tableFields;
 
   /** 开标完成判定（口径对齐后端可评供应商过滤集 bid.service.ts）：
-   *  - 已撤回供应商排除出全集；
+   *  - 参标家 = 已投递（submitStatus='已提交'）——未投递（待提交）与已撤回均排除出全集，
+   *    与后端 H4 isSubmittedRow 同口径（P1-4：旧镜像只排撤回，受邀未投满时完成开标横幅永不出现）；
    *  - 解密"已处理" = SUCCESS 或 DANGER（DANGER 为解密异常但已处理，不参与评标）；
    *  - 唱标覆盖全部解密成功供应商；
    *  - 确认闭环仅对 SUCCESS 供应商要求 CONFIRMED（已确认）或 EXCEPTION（异议已退回处理）；
    *  - 无 DISPUTED 悬置异议。 */
   const openingDone = useMemo(() => {
     if (!project) return false;
-    const active = project.suppliers.filter(s => s.submitStatus !== '已撤回');
+    const active = project.suppliers.filter(s => s.submitStatus === '已提交');
     if (active.length === 0) return false;
     const successSuppliers = active.filter(s => s.decryptStatus === 'SUCCESS');
     const allDecryptResolved = active.every(s => s.decryptStatus === 'SUCCESS' || s.decryptStatus === 'DANGER');
@@ -819,7 +820,10 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{sessionStatus ?? session.status}</div>
             </div>
             {remaining > 0 && <RingCountdown remaining={remaining} />}
-            {session && remaining > 0 && (
+            {/* P1-3：恢复入口不得随窗口过期消失——后端 startOpeningInternal 明确允许重组/延长已过期窗口
+                （「已过期窗口的重组=延长恢复通道，放行」），纯前端 remaining>0 门曾把延长/暂停/恢复整体藏死。
+                暂停/恢复仍限窗口期内（暂停对已过期窗口无意义）；延长在 OPENING 全程可用 */}
+            {session && project.stage === 'OPENING' && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {/* BID-P3-01：延长窗口=改写解密窗口，现场执行动作按 canHost 收口 */}
                 {canHost && (
@@ -842,7 +846,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   }}
                 ><Clock size={13} className="mr-1 inline" />延长 +15分钟</button>
                 )}
-                {canHost && (!session.pausedAt ? (
+                {canHost && remaining > 0 && (!session.pausedAt ? (
                   <button
                     type="button"
                     className="neu-btn-soft text-xs text-[var(--warning)]"
@@ -993,6 +997,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 // 双信封 v2（T17）：新轨分派（envelopeVersion 由项目详情派生下发）
                 const isDual = s.envelopeVersion === 'dual-v2';
                 const outerDone = !!s.outerDecryptedAt;
+                // P1-4：参标=已投递——未投递/已撤回名册行的行级操作收口（见操作列）
+                const isSubmitted = s.submitStatus === '已提交';
                 const attribution = s.dangerAttribution ?? null;
                 const isOuterDecrypting = outerDecrypting.has(s.id);
                 const canAct = !!session && project.stage === 'OPENING' && !session.pausedAt;
@@ -1077,6 +1083,14 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
+                        {/* P1-4：未投递/已撤回家不是参标家（后端 H4 已按 isSubmittedRow 排除出开标完成度）——
+                            行级操作（解密/唱标/定性/裁决等）一律收口，防把从未投标的家定性为解密异常 */}
+                        {!isSubmitted ? (
+                          <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
+                            {s.submitStatus === '已撤回' ? '已撤回 · 不参与开标' : '未投递 · 不参与开标'}
+                          </span>
+                        ) : (
+                        <>
                         {/* 旧轨：主持端代解密（dual-v2 行改用「解外层」） */}
                         {!!session && canHost && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
                           <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting || !!session.pausedAt}
@@ -1184,6 +1198,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--danger)]">
                             <AlertTriangle size={12} strokeWidth={1.5} /> 文件已损坏
                           </span>
+                        )}
+                        </>
                         )}
                       </div>
                     </td>

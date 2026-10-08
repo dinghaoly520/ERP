@@ -577,8 +577,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const unconfirmed = regularExperts.filter(e => !e.reportConfirmed);
   const canGenerate = regularExperts.length > 0 && unconfirmed.length === 0;
 
-  // H4: 开标完成度（与后端 startEvaluation 守卫同口径）——未撤回供应商须全部到终局态
-  const activeSuppliers = suppliers.filter(s => s.submitStatus !== '已撤回');
+  // H4: 开标完成度（与后端 startEvaluation 守卫同口径）——参标（已投递）供应商须全部到终局态；
+  // 未投递/已撤回家不入完成度（后端 H4 isSubmittedRow 同口径，P1-4 前端镜像补齐）
+  const activeSuppliers = suppliers.filter(s => s.submitStatus === '已提交');
   const notReadySuppliers = activeSuppliers.filter(s =>
     s.decryptStatus !== 'DANGER' &&
     (s.decryptStatus !== 'SUCCESS' || (s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION'))
