@@ -92,6 +92,15 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
     if (!response) { showToast(status === 'resolved' ? '请填写采纳回复' : '请填写驳回理由', 'err'); return; }
     const invalidateBidSupplierId = withInvalidate ? invalidateById[disputeId] : undefined;
     if (withInvalidate && !invalidateBidSupplierId) { showToast('请先选择要废标的供应商', 'err'); return; }
+    // P3（中断审查）：「废标并采纳」为不可逆重操作——补 danger 确认弹窗（与流标/重生成同专批口径），
+    // 防误触直接打穿家数线
+    if (withInvalidate) {
+      const target = validSuppliers.find(s => s.id === invalidateBidSupplierId);
+      if (!(await confirm({
+        message: `采纳该异议并将【${target?.supplierName ?? '所选供应商'}】置为废标？废标即时生效、计入开标记录与监督日志，将不可逆地影响有效家数（< ${minBidders} 家须流标）。确认执行？`,
+        danger: true,
+      }))) return;
+    }
     setBusyId(disputeId);
     try {
       await resolveExpertDispute(bidProjectId, disputeId, { response, status, invalidateBidSupplierId });
