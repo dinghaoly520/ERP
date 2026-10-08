@@ -1318,7 +1318,8 @@ export class SupplierService {
       where: status ? { status } : undefined,
       select: {
         id: true, name: true, status: true, source: true, createdAt: true, reviewedAt: true,
-        createdBySupplier: { select: { name: true, supplierNo: true } },
+        // id（2026-10-08）：审核面板按来源供应商合并分组的分组键
+        createdBySupplier: { select: { id: true, name: true, supplierNo: true } },
         reviewedBy: { select: { displayName: true } },
       },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],

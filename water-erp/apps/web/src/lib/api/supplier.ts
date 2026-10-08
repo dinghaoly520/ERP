@@ -598,7 +598,8 @@ export interface BusinessTagRow {
   source: string;
   createdAt: string;
   reviewedAt: string | null;
-  createdBySupplier?: { name: string; supplierNo: string } | null;
+  /** id（2026-10-08）：审核面板按来源供应商合并分组的分组键 */
+  createdBySupplier?: { id: string; name: string; supplierNo: string } | null;
   reviewedBy?: { displayName: string } | null;
 }
 
