@@ -115,6 +115,45 @@ describe('recomputeExpertProgress', () => {
     expect(r.totalScore).toBe(10); // (10+20) / 3 活跃供应商 = 10
   });
 
+  it('P1-5（中断审查）：分母排除该专家申报回避的供应商（可评集合=活跃−回避）——评完其余家即 100', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) },
+      bidScoreRecord: {
+        count: jest.fn().mockResolvedValue(4), // a、b 各 2 项已评（c 回避不可评不可计）
+        findMany: jest.fn().mockResolvedValue([{ score: 10 }, { score: 20 }, { score: 30 }, { score: 40 }]),
+      },
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1', ['c']);
+    expect(r.progress).toBe(100); // 4 / (2 项 × 2 可评家) —— 回避家不入分母
+    expect(tx.bidScoreRecord.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ supplierId: { in: ['a', 'b'] } }),
+    }));
+  });
+
+  it('P1-6（中断审查）：分母排除废标家（bidValidity=invalid）——未评分废标家的专家可达 100', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b', bidValidity: 'invalid' }]) },
+      bidScoreRecord: {
+        count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([{ score: 10 }]),
+      },
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(100); // 1 / (1 项 × 1 可评家)
+    expect(r.totalScore).toBe(10); // 均分只跨可评家
+  });
+
+  it('P1-5：conflictedSupplierIds 缺省 []（既有调用零变化）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }]) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([{ score: 10 }]) },
+    };
+    expect((await recomputeExpertProgress(tx, 'exp1', 'p1')).progress).toBe(100);
+  });
+
   it('totalItems=0 → progress=0', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
