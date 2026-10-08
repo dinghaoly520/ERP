@@ -3178,6 +3178,9 @@ export class BidService {
         riskFlag: '无',
       },
     }).catch(() => {});
+    // P2-10（中断审查）：广播轮换里程碑（不含口令本体）——在场专家刷新后口令门 UI
+    // 重现重验，不再只见 403 toast 须 F5；被锁者换新口令仍须等满锁定期（防爆破语义不变）
+    this.gateway?.notifyRoomCodeRotated(projectId, { projectId, timestamp: Date.now() });
     return { roomCode, roomCodeAt: new Date().toISOString() };
   }
 
@@ -6177,6 +6180,14 @@ export class BidService {
         details: { extendHours, reason, newDeadline },
       },
     }).catch(() => {});
+    // P2-9（中断审查）：广播延期里程碑——专家端陈旧「已截止/已锁定」态据此重拉解锁
+    // （事件只带时限，不带任何评审内容）
+    this.gateway?.notifyEvaluationExtended(projectId, {
+      projectId,
+      evaluationDeadline: newDeadline.toISOString(),
+      extendHours,
+      timestamp: Date.now(),
+    });
     return { evaluationDeadline: newDeadline };
   }
 
@@ -6275,6 +6286,13 @@ export class BidService {
         },
       });
     } catch { /* 审计失败不阻断 */ }
+
+    // P2-11（中断审查）：广播重开里程碑——专家端陈旧「已确认/已锁定」态据此重拉解锁
+    this.gateway?.notifyScoringReopened(projectId, {
+      projectId,
+      expertId: expertId ?? null,
+      timestamp: Date.now(),
+    });
 
     return { reopenedExpertIds: targets.map(t => t.id), reopenedExpertNames: names };
   }

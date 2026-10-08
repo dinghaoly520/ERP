@@ -4976,6 +4976,70 @@ describe('BidService — extendEvaluationDeadline 上限校验', () => {
     expect(r.evaluationDeadline).toBeTruthy();
     expect(prisma.bidProject.update).toHaveBeenCalled();
   });
+
+  it('P2-9（中断审查）：延期成功 → WS 广播 evaluation:extended（专家端「已截止/已锁定」陈旧态自动解锁）', async () => {
+    (service as any).gateway = { notifyEvaluationExtended: jest.fn() };
+    const r = await service.extendEvaluationDeadline('p1', 24, '现场延期', 'u1');
+    expect((service as any).gateway.notifyEvaluationExtended).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({
+        projectId: 'p1',
+        evaluationDeadline: new Date(r.evaluationDeadline).toISOString(),
+        extendHours: 24,
+      }),
+    );
+  });
+});
+
+/* ── P2-10（中断审查）：评标室口令轮换须广播——在场专家只见 403 toast 不见口令输入 UI 须 F5 ── */
+describe('BidService — rotateRoomCode 广播', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: {
+        findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: 'P', projectCode: 'GK-T' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('口令轮换成功 → WS 广播 room:code:rotated 且载荷不含口令本体（口令仅现场口头传递）', async () => {
+    (service as any).gateway = { notifyRoomCodeRotated: jest.fn() };
+    await service.rotateRoomCode('p1', { id: 'host-1', username: '主持人' });
+    const gw = (service as any).gateway;
+    expect(gw.notifyRoomCodeRotated).toHaveBeenCalledTimes(1);
+    const [roomId, payload] = gw.notifyRoomCodeRotated.mock.calls[0];
+    expect(roomId).toBe('p1');
+    // 铁律（bid-events.ts）：事件只带活动里程碑——口令本体绝不出现在载荷
+    expect(payload).not.toHaveProperty('roomCode');
+    expect(payload).not.toHaveProperty('code');
+  });
+
+  it('非 EVALUATING → 409 NOT_EVALUATING 且不广播', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', projectCode: 'GK-T' });
+    (service as any).gateway = { notifyRoomCodeRotated: jest.fn() };
+    await expect(service.rotateRoomCode('p1', { id: 'host-1', username: '主持人' }))
+      .rejects.toMatchObject({ response: { code: 'NOT_EVALUATING' } });
+    expect((service as any).gateway.notifyRoomCodeRotated).not.toHaveBeenCalled();
+  });
 });
 
 /* ── A-151（P1 波4）：评标报告章节附注存取（签字包生成前编辑，docx 渲染；重新生成取最新值） ── */
@@ -5305,6 +5369,15 @@ describe('BidService — reopenExpertScoring', () => {
     await expect(service.reopenExpertScoring('p1', '   ', undefined, 'actor-1'))
       .rejects.toMatchObject({ response: { code: 'REOPEN_REASON_REQUIRED' } });
     expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('P2-11（中断审查）：重开成功 → WS 广播 scoring:reopened（专家端陈旧「已确认/已锁定」态自动解锁）', async () => {
+    (service as any).gateway = { notifyScoringReopened: jest.fn() };
+    await service.reopenExpertScoring('p1', '评分复核', undefined, 'actor-1');
+    expect((service as any).gateway.notifyScoringReopened).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({ projectId: 'p1' }),
+    );
   });
 
   it('非评标阶段（ARCHIVED 终态证据不可动）→ 409 REOPEN_STAGE_REQUIRED', async () => {
