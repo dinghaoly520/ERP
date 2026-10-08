@@ -424,7 +424,8 @@ export interface ApprovalRecord {
   /** 意见附件（2026-09-30）：FileAsset id 集合 */
   attachmentIds?: string[];
   reason: string | null; snapshot: ApprovalSnapshot; createdAt: string;
-  reviewer: { id: string; displayName: string; username: string } | null;
+  /** 审批人角色（2026-10-08 A 方案）：LEADER 级=admin → 代复审、STAFF 级=leader → 代初审 徽标依据 */
+  reviewer: { id: string; displayName: string; username: string; role?: string } | null;
 }
 export function getApprovalHistory(id: string) {
   return api.get<ApprovalRecord[]>(`/supplier/${id}/approval-history`);

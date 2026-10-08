@@ -55,6 +55,13 @@ export function ApprovalHistory({ supplierId }: { supplierId: string }) {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold" style={{ color: meta.color }}>{meta.label}</span>
                   <span className="text-xs text-[var(--muted-foreground)]">验证人：{r.reviewer?.displayName || r.reviewer?.username || '—'}</span>
+                  {/* 代审徽标（A 方案 2026-10-08）：公司无在编 leader→admin 代复审、无在编 staff→leader 代初审 */}
+                  {r.stage === 'LEADER' && r.reviewer?.role === 'admin' && (
+                    <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-px text-[9px] font-bold text-[var(--accent)]" title="归属公司无在编 leader，平台 admin 代复审">代复审</span>
+                  )}
+                  {r.stage === 'STAFF' && r.reviewer?.role === 'leader' && (
+                    <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-px text-[9px] font-bold text-[var(--accent)]" title="归属公司无在编 staff，同公司 leader 代初审">代初审</span>
+                  )}
                 </div>
                 <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
                   {new Date(r.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}

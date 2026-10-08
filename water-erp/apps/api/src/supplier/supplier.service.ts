@@ -822,8 +822,13 @@ export class SupplierService {
     }
     // 临时供应商筛选（凭邀请码注册、有效期由邀请码绑定）。与状态可叠加，如 isTemporary=true & status=APPROVED。
     if (params.isTemporary === true) where.isTemporary = true;
-    // 三级审批当前级筛选（2026-09-29，审批中心分列）：STAFF / LEADER / ADMIN
-    if (params.reviewStage) where.reviewStage = params.reviewStage;
+    // 三级审批当前级筛选（2026-09-29，审批中心分列）：STAFF / LEADER / ADMIN。
+    // admin 查 ADMIN 级时同步带上「归属公司无在编 leader」的 LEADER 级代复审件（2026-10-08 A 方案，
+    // 与 myPendingReviewCount/assertStageApprover 同口径）：raw 路径按 __delegatedExpand 标记翻译 SQL，
+    // ORM 路径在查询前展开并剥离标记（标记不得泄入 Prisma 参数）。
+    const delegatedExpand = params.actor?.role === 'admin' && params.reviewStage === 'ADMIN';
+    if (params.reviewStage && !delegatedExpand) where.reviewStage = params.reviewStage;
+    if (delegatedExpand) (where as any).__delegatedExpand = true;
     // 退回补正/已驳回可见性（2026-09-30 用户裁定）：admin 全见；同公司 leader（公司管理员）全见
     // （公司域由 companyScope 已注入）；同公司 staff 仅见自己经手的（退回/驳回动作 reviewer=本人）。
     if (
@@ -848,13 +853,27 @@ export class SupplierService {
 
     // 资料完整度排序：关键字段填充计数降序，同分按时间降序
     if (sortMode === 'completeness') {
-      return this.listByCompleteness(where, { page, pageSize });
+      const res = await this.listByCompleteness(where, { page, pageSize });
+      if (delegatedExpand) this.markDelegatedReview(res.items);
+      return res;
+    }
+
+    // admin 代复审展开（A 方案）：__delegatedExpand 标记 → ORM where 的 AND/OR 结构
+    const ormWhere: any = where;
+    if ((where as any).__delegatedExpand) {
+      delete ormWhere.__delegatedExpand;
+      ormWhere.AND = [...(Array.isArray(where.AND) ? where.AND : []), {
+        OR: [
+          { reviewStage: 'ADMIN' },
+          { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
+        ],
+      }];
     }
 
     const [total, items] = await Promise.all([
-      this.prisma.supplier.count({ where }),
+      this.prisma.supplier.count({ where: ormWhere }),
       this.prisma.supplier.findMany({
-        where,
+        where: ormWhere,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -873,8 +892,17 @@ export class SupplierService {
 
     // 批量附平均评分
     await this.attachAvgScores(items);
+    if (delegatedExpand) this.markDelegatedReview(items);
 
     return { total, page, pageSize, items };
+  }
+
+  /** admin 代复审件标记（A 方案 2026-10-08）：展开查询（reviewStage=ADMIN OR 无 leader 公司的 LEADER 级）
+   *  结果中的 LEADER 级项即代审件——where 已限定公司无在编 leader，前端据此亮「待我审」。 */
+  private markDelegatedReview(items: any[]) {
+    for (const it of items) {
+      if (it.reviewStage === 'LEADER') it.delegatedReview = true;
+    }
   }
 
   /** 按资料完整度排序（PostgreSQL raw query — 4 项关键字段各计 1 分） */
@@ -903,6 +931,11 @@ export class SupplierService {
     }
       // 三级审批当前级（2026-09-30）：raw 路径须与 ORM 路径同口径（此前漏配致过滤失效）
       if (where.reviewStage) conditions.push(Prisma.sql`s."reviewStage" = ${where.reviewStage}`);
+      // admin 代复审展开（A 方案 2026-10-08）：ADMIN 级 + 「无在编 leader 公司」的 LEADER 级，
+      // 与 list() ORM 路径同口径；User.role 为 text 列无需枚举 cast。
+      if ((where as any).__delegatedExpand) {
+        conditions.push(Prisma.sql`(s."reviewStage" = 'ADMIN' OR (s."reviewStage" = 'LEADER' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."role" = 'leader' AND u."isActive" = TRUE)))`);
+      }
       // admin 对退回/驳回不可见（同 ORM 口径）：恒空条件
       if (where.id && Array.isArray(where.id.in) && where.id.in.length === 0) {
         conditions.push(Prisma.sql`false`);
@@ -1184,7 +1217,9 @@ export class SupplierService {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, action: true, stage: true, reason: true, attachmentIds: true, snapshot: true, createdAt: true,
-        reviewer: { select: { id: true, displayName: true, username: true } },
+        // role（2026-10-08 A 方案）：LEADER 级被 admin 完成=代复审、STAFF 级被 leader 完成=代初审，
+        // 留痕展示侧据此加徽标，杜绝「采购中心管理员担任复审」的误读。
+        reviewer: { select: { id: true, displayName: true, username: true, role: true } },
       },
     });
     return records;
@@ -1673,7 +1708,14 @@ export class SupplierService {
   async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number }> {
     const regWhere: any = { status: 'PENDING' };
     if (actor.role === 'admin') {
-      regWhere.reviewStage = 'ADMIN';
+      // A 方案（2026-10-08）：终审件 + 「归属公司无在编 leader」的 LEADER 级代复审件都计入
+      // admin 待办——assertStageApprover 本就放行代审，角标口径须与之对齐（此前能审却看不见）。
+      regWhere.AND = [{
+        OR: [
+          { reviewStage: 'ADMIN' },
+          { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
+        ],
+      }];
       if (companyIdFilter) regWhere.companyId = companyIdFilter;
     } else if (actor.role === 'leader' || actor.role === 'staff') {
       // JWT payload 不携带 companyId（AuthenticatedUser 仅 sub/role/username）——查库取归属公司
