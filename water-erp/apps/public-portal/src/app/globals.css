@@ -536,6 +536,10 @@ body {
    浅色画布 + 浅彩水彩光晕 + 毛玻璃横向流程管线
    ═══════════════════════════════════════════════════════════════ */
 
+/* 设计令牌同时挂 :root —— portal 到 document.body 的浮层（顶栏「集团简介/联系我们」
+   flow-nav-menu 下拉、uss-* 单位选择面板）不在 .flow-page DOM 子树内，
+   变量须全局可解析，否则 var(--fg/--brand/--fg-3) 解析失败、hover 设计全失效（2026-10-08）*/
+:root,
 .flow-page {
   --bg: oklch(0.975 0.012 258);
   --glass: oklch(0.995 0.004 258 / 0.5);
@@ -549,6 +553,9 @@ body {
   --brand-deep: oklch(0.42 0.16 258);
   --brand-soft: oklch(0.62 0.12 258);
   --water: oklch(0.5 0.12 175);
+}
+
+.flow-page {
   position: relative;
   min-height: 100vh;
   background: var(--bg);

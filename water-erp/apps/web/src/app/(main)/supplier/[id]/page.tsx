@@ -696,8 +696,8 @@ export default function SupplierDetailPage() {
                         {supplier.performances.map(p => (
                           <tr key={p.id}>
                             <td className="max-w-[260px]">
-                              <p className="font-semibold text-[var(--foreground)] truncate">{p.projectName}</p>
-                              {p.description && <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate">{p.description}</p>}
+                              <p className="font-semibold break-words text-[var(--foreground)]">{p.projectName}</p>
+                              {p.description && <p className="mt-0.5 text-[11px] leading-relaxed break-words text-[var(--muted-foreground)]">{p.description}</p>}
                             </td>
                             <td className="text-[var(--muted-foreground)]">{p.clientName || '—'}</td>
                             <td className="font-medium tabular-nums text-[var(--foreground)]">{p.contractAmount || '—'}</td>
@@ -714,14 +714,14 @@ export default function SupplierDetailPage() {
                                       <a key={`p-${i}`} href={f.url} target="_blank" rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline">
                                         <Paperclip size={11} className="flex-shrink-0" />
-                                        <span className="truncate max-w-[160px]">{f.name || `证明材料 ${i + 1}`}</span>
+                                        <span className="truncate max-w-[160px]" title={f.name}>{f.name || `证明材料 ${i + 1}`}</span>
                                       </a>
                                     ))}
                                     {payments.map((f: { name?: string; url: string }, i: number) => (
                                       <a key={`y-${i}`} href={f.url} target="_blank" rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 text-xs text-[var(--success)] hover:underline" title="银行汇款凭证">
                                         <Landmark size={11} className="flex-shrink-0" />
-                                        <span className="truncate max-w-[160px]">{f.name || `汇款凭证 ${i + 1}`}</span>
+                                        <span className="truncate max-w-[160px]" title={f.name}>{f.name || `汇款凭证 ${i + 1}`}</span>
                                       </a>
                                     ))}
                                   </div>

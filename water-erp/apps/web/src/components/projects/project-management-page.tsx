@@ -425,8 +425,13 @@ export function ProjectManagementPage() {
                 <span className="text-sm text-[color:var(--muted-foreground)]">正在加载项目...</span>
               </div>
             </div>
-          ) : null}
-          {companyViewAll ? (
+          ) : displayItems.length === 0 ? (
+            <div className="wb-panel p-4">
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无项目</div>
+              </div>
+            </div>
+          ) : companyViewAll ? (
             <div className="space-y-5">
               {companyGroups.map((g) => (
                 <section key={g.name}>
@@ -461,34 +466,28 @@ export function ProjectManagementPage() {
               {currentUser?.role === 'admin' && selectedCompanyName && (
                 <CompanySectionHeader name={selectedCompanyName} count={filteredItems.length} />
               )}
-              {displayItems.length === 0 ? (
-            <div className="wb-panel p-10 flex items-center justify-center">
-              <span className="text-sm text-[color:var(--muted-foreground)]">{activeTab === 'active' ? '当前没有进行中的项目。' : activeTab === 'terminated' ? '当前没有已终止的项目。' : '当前没有已完成的项目。'}</span>
-            </div>
-          ) : (
-            <div className="grid gap-4 xl:grid-cols-2">
-              {displayItems.map((item) => (
-                <ProjectCard
-                  key={item.id}
-                  item={item}
-                  variant={activeTab === 'archived' ? 'archived' : activeTab === 'terminated' ? 'terminated' : 'active'}
-                  onOpen={() => {
-                    setSelectedItemId(item.id);
-                    setPageContext({
-                      selectedItemId: item.id,
-                      selectedItemType: "project",
-                      selectedItemData: {
-                        title: item.title,
-                        currentStage: item.currentStage,
-                        status: item.status,
-                        requesterDepartment: item.requesterDepartment,
-                      },
-                    });
-                  }}
-                />
-              ))}
-            </div>
-          )}
+              <div className="grid gap-4 xl:grid-cols-2">
+                {displayItems.map((item) => (
+                  <ProjectCard
+                    key={item.id}
+                    item={item}
+                    variant={activeTab === 'archived' ? 'archived' : activeTab === 'terminated' ? 'terminated' : 'active'}
+                    onOpen={() => {
+                      setSelectedItemId(item.id);
+                      setPageContext({
+                        selectedItemId: item.id,
+                        selectedItemType: "project",
+                        selectedItemData: {
+                          title: item.title,
+                          currentStage: item.currentStage,
+                          status: item.status,
+                          requesterDepartment: item.requesterDepartment,
+                        },
+                      });
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
