@@ -2,14 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnnouncementService } from './announcement.service';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { sealField } from '../common/crypto/field-crypto';
+import { sealPii } from '../common/crypto/sm-field-crypto';
 import { minioClient } from '../upload/minio.client';
 
-// 解密门控断言依赖 KMS_SECRET（openField 拆封密封 bidPrice）。
+// 解密门控断言环境自洽（FIELD_ENC_SECRET，bidPrice 国密密封）。
 const ANN_SPEC_KMS = 'test-kms-secret-from-announcement-spec';
-const ANN_SPEC_ORIG_KMS = process.env.KMS_SECRET;
-beforeAll(() => { process.env.KMS_SECRET = ANN_SPEC_KMS; });
-afterAll(() => { if (ANN_SPEC_ORIG_KMS !== undefined) process.env.KMS_SECRET = ANN_SPEC_ORIG_KMS; else delete process.env.KMS_SECRET; });
+const ANN_SPEC_ORIG_KMS = process.env.FIELD_ENC_SECRET;
+beforeAll(() => { process.env.FIELD_ENC_SECRET = ANN_SPEC_KMS; });
+afterAll(() => { if (ANN_SPEC_ORIG_KMS !== undefined) process.env.FIELD_ENC_SECRET = ANN_SPEC_ORIG_KMS; else delete process.env.FIELD_ENC_SECRET; });
 
 describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公告）', () => {
   let service: AnnouncementService;
@@ -158,7 +158,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
     prisma.bidSupplier.findMany.mockResolvedValue([
       { supplierId: 'su1', supplierName: '甲公司', decryptStatus: 'PENDING', submitStatus: '已提交', supplier: { classification: { name: 'A' } } },
     ]);
-    const sealed = sealField('980000', ANN_SPEC_KMS);
+    const sealed = sealPii('980000');
     prisma.supplierBidSubmission.findMany.mockResolvedValue([
       { supplierId: 'su1', status: 'submitted', submittedAt: new Date(), bidPrice: sealed },
     ]);
@@ -175,7 +175,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
     prisma.bidSupplier.findMany.mockResolvedValue([
       { supplierId: 'su1', supplierName: '甲公司', decryptStatus: 'SUCCESS', submitStatus: '已提交', supplier: { classification: { name: 'A' } } },
     ]);
-    const sealed = sealField('1234567', ANN_SPEC_KMS);
+    const sealed = sealPii('1234567');
     prisma.supplierBidSubmission.findMany.mockResolvedValue([
       { supplierId: 'su1', status: 'submitted', submittedAt: new Date(), bidPrice: sealed },
     ]);
@@ -184,7 +184,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
     expect(result.suppliers[0]).not.toHaveProperty('bidPrice');
   });
 
-  it('旧明文 bidPrice（无 v1: 前缀）也不应经 legacy 路径回归暴露', async () => {
+  it('明文 bidPrice（无 sm1: 前缀）也不应被本端点暴露', async () => {
     prisma.announcement.findUnique.mockResolvedValue({ type: 'BID_NOTICE', relatedProjectCode: 'C1' });
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'C1', stage: 'EVALUATING', deadline: new Date() });
     prisma.bidSupplier.findMany.mockResolvedValue([

@@ -18,7 +18,7 @@ import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields
 import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
-import { sealField, openField } from '../common/crypto/field-crypto';
+import { sealPii, openPii } from '../common/crypto/sm-field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
 import { TrustStore } from '../common/crypto/x509/trust-store';
@@ -89,7 +89,7 @@ function pickBidSubmissionFields(data: BidSubmissionData) {
   return {
     // bidPrice 入库即密封（防采购管理人员在开标解密前从 DB/工作台读到封存报价）。
     // deliveryPeriod 不加密，但下游暴露点统一按 decryptStatus==='SUCCESS' 门控。
-    bidPrice: data.bidPrice ? sealField(data.bidPrice, process.env.KMS_SECRET!) : null,
+    bidPrice: data.bidPrice ? sealPii(data.bidPrice) : null,
     deliveryPeriod: data.deliveryPeriod,
     qualityCommitment: data.qualityCommitment,
     technicalFile: data.technicalFile,
@@ -2945,7 +2945,7 @@ export class SupplierPortalService {
     return rows.map((r) => {
       const award = awardMap.get(r.projectId);
       const sub = subMap.get(r.projectId);
-      const myPrice = sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null;
+      const myPrice = sub?.bidPrice ? openPii(sub.bidPrice) : null;
       return {
         projectId: r.projectId,
         projectCode: r.project.projectCode,
@@ -3003,7 +3003,7 @@ export class SupplierPortalService {
       for (const s of submissions) {
         (s as any).confirmStatus = confirmMap[s.projectId] || null;
         // 本人报价回显解封（bidPrice 入库密封防采购侧窥视；供应商看自己的报价是明文权利）
-        if (s.bidPrice) (s as any).bidPrice = openField(s.bidPrice, process.env.KMS_SECRET!) ?? s.bidPrice;
+        if (s.bidPrice) (s as any).bidPrice = openPii(s.bidPrice) ?? s.bidPrice;
       }
     }
     // 展示编号统一为项目管理业务编号（与可投标项目列表一致）
@@ -3022,7 +3022,7 @@ export class SupplierPortalService {
       (sub as any).fullBidFileAssetId = sub.technicalFileAssetId;
       (sub as any).coverLetterFileAssetId = sub.coverLetterAssetId;
       // 本人报价回显解封（回读草稿时报价可编辑的前提）
-      if (sub.bidPrice) (sub as any).bidPrice = openField(sub.bidPrice, process.env.KMS_SECRET!) ?? sub.bidPrice;
+      if (sub.bidPrice) (sub as any).bidPrice = openPii(sub.bidPrice) ?? sub.bidPrice;
     }
     if (!sub) return null;
     // A-101：回执编号 TB-yyyymmdd-NNN 存于 BidSupplier（名册级，投递时生成/继承），SupplierBidSubmission 无此列——
@@ -3128,7 +3128,7 @@ export class SupplierPortalService {
     const isDualV2 = submission?.envelopeVersion === 'dual-v2';
     const submittedBidPrice = isDualV2
       ? (submission?.decryptedPrice ?? null)
-      : (submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null);
+      : (submission?.bidPrice ? openPii(submission.bidPrice) : null);
     const submittedUnit = isDualV2 ? '万元' : null;
     // 投递报价显示归一为元（与唱标总表「报价」单位统一；投递表单万元/元口径）。
     // dual-v2：以单位标记换算（153.95 万元 → 1539500），不再走旧轨锚点启发式（锚点同为

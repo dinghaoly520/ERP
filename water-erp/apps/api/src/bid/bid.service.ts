@@ -32,7 +32,7 @@ import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
-import { openField } from '../common/crypto/field-crypto';
+import { openPii } from '../common/crypto/sm-field-crypto';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { generateProjectCode } from '../common/project-code.util';
@@ -616,7 +616,7 @@ export class BidService {
           supplierId: submission.supplierId,
           status: submission.status,
           submittedAt: submission.submittedAt,
-          bidPrice: isUnsealed && submission.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null,
+          bidPrice: isUnsealed && submission.bidPrice ? openPii(submission.bidPrice) : null,
           deliveryPeriod: isUnsealed ? submission.deliveryPeriod : null,
         }
         : null;
