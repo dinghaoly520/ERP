@@ -35,7 +35,8 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 type SupplierWithParts = Supplier & {
   contacts?: Array<{ id: string; name: string; phone: string; position?: string | null; isPrimary?: boolean }>;
   qualifications?: Array<{ id: string; type: string; name: string; fileUrl?: string | null; validFrom?: string | null; validTo?: string | null }>;
-  /** admin 代复审件标记（A 方案 2026-10-08）：后端展开查询（ADMIN 级 OR 无 leader 公司的 LEADER 级）时对 LEADER 级项落标 */
+  /** admin 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿）：后端展开查询（ADMIN 级
+   *  OR 无 leader 公司的 LEADER 级 OR 无 staff 无 leader 公司的 STAFF 级）时对 LEADER/STAFF 级项落标 */
   delegatedReview?: boolean;
 };
 
@@ -259,11 +260,12 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   /** 严格本级判定（2026-09-30 用户裁定）：「待我审」标记与操作区只对我本人的级亮起——
    *  admin=终审(ADMIN)、leader=复审(LEADER)、staff=初审(STAFF)。
    *  代审兜底（公司无 staff/leader）由后端 assertStageApprover 放行，前端不预亮，防错位标记——
-   *  例外（2026-10-08 A 方案）：admin 对「公司无在编 leader」的 LEADER 级代审件亮起，
-   *  依据后端 delegatedReview 标记（列表/角标已同口径展开），对齐「能审就可见」。 */
+   *  例外（2026-10-08 A 方案；2026-10-09 扩 STAFF 孤儿）：admin 对代审件亮起（无 leader 公司
+   *  的 LEADER 级=代复审、无办公账号公司的 STAFF 级=代初审），依据后端 delegatedReview
+   *  标记（列表/角标已同口径展开），对齐「能审就可见」。 */
   const isMyStage = (s: Supplier): boolean => {
     const st = (s.reviewStage ?? 'STAFF') as string;
-    if (myRole === 'admin') return st === 'ADMIN' || (st === 'LEADER' && !!(s as SupplierWithParts).delegatedReview);
+    if (myRole === 'admin') return st === 'ADMIN' || !!(s as SupplierWithParts).delegatedReview;
     if (myRole === 'leader') return st === 'LEADER';
     if (myRole === 'staff') return st === 'STAFF';
     return false;
@@ -369,8 +371,10 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     {meta && (
                       <span className="rc-stage-chip" style={{ '--rc-accent': meta.color } as React.CSSProperties}
-                        title={(s as SupplierWithParts).delegatedReview ? '归属公司无在编 leader，平台 admin 代复审' : undefined}>
-                        {(s as SupplierWithParts).delegatedReview ? '复审·代审' : meta.short}
+                        title={(s as SupplierWithParts).delegatedReview
+                          ? (st === 'STAFF' ? '归属公司无在编办公账号，平台 admin 代初审' : '归属公司无在编 leader，平台 admin 代复审')
+                          : undefined}>
+                        {(s as SupplierWithParts).delegatedReview ? (st === 'STAFF' ? '初审·代审' : '复审·代审') : meta.short}
                       </span>
                     )}
                     {mine && <span className="text-[9px] font-bold text-[var(--success)]">待我审</span>}
@@ -461,8 +465,9 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                               {rec && rec.stage === 'LEADER' && rec.reviewer?.role === 'admin' && (
                                 <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-px text-[9px] font-bold text-[var(--accent)]" title="归属公司无在编 leader，平台 admin 代复审">代复审</span>
                               )}
-                              {rec && rec.stage === 'STAFF' && rec.reviewer?.role === 'leader' && (
-                                <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-px text-[9px] font-bold text-[var(--accent)]" title="归属公司无在编 staff，同公司 leader 代初审">代初审</span>
+                              {rec && rec.stage === 'STAFF' && (rec.reviewer?.role === 'leader' || rec.reviewer?.role === 'admin') && (
+                                <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-px text-[9px] font-bold text-[var(--accent)]"
+                                  title={rec.reviewer?.role === 'leader' ? '归属公司无在编 staff，同公司 leader 代初审' : '归属公司无在编办公账号，平台 admin 代初审'}>代初审</span>
                               )}
                               {current && <span className="rc-cur-badge">当前级</span>}
                               {rejectedHere && <span className="text-[9px] font-bold text-[var(--danger)]">在此级被驳回</span>}

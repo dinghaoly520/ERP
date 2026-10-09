@@ -83,12 +83,13 @@ const toneCls: Record<string, string> = {
   neutral: 'text-[var(--muted-foreground)] bg-[color-mix(in_oklch,var(--foreground)_6%,transparent)]',
 };
 
-/** 代审徽标（A 方案）：公司无在编 leader 时 admin 代复审、无在编 staff 时 leader 代初审 */
+/** 代审徽标（A 方案）：公司无在编 leader 时 admin 代复审；无在编 staff 时 leader 代初审、
+ *  公司无在编办公账号（无 staff 且无 leader）时 admin 代初审（2026-10-09 扩）。 */
 function SubstitutionBadge({ stage, reviewerRole }: { stage?: string | null; reviewerRole?: string }) {
   if (stage === 'LEADER' && reviewerRole === 'admin') {
     return <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-px text-[9px] font-bold text-[var(--accent)]">代复审</span>;
   }
-  if (stage === 'STAFF' && reviewerRole === 'leader') {
+  if (stage === 'STAFF' && (reviewerRole === 'leader' || reviewerRole === 'admin')) {
     return <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1.5 py-px text-[9px] font-bold text-[var(--accent)]">代初审</span>;
   }
   return null;

@@ -101,7 +101,7 @@ export class SupplierService {
   }
 
   /** 三级审批的级权限断言：
-   *  STAFF 级 = 同公司 staff（公司无 staff 时同公司 leader 代初审）
+   *  STAFF 级 = 同公司 staff（公司无 staff 时同公司 leader 代初审；公司连 leader 也没有时平台 admin 代初审）
    *  LEADER 级 = 同公司 leader（公司无 leader 时平台 admin 代复审）
    *  ADMIN 级 = 平台 admin（最终确认） */
   private async assertStageApprover(
@@ -114,6 +114,13 @@ export class SupplierService {
     if (stage === 'STAFF') {
       if (reviewer.role === 'staff' && sameCompany) return;
       if (reviewer.role === 'leader' && sameCompany && !(await this.companyHasActiveRole('staff', supplierCompanyId))) return;
+      // 公司完全无办公账号（无 staff 且无 leader）：平台 admin 代初审（2026-10-09 方案 A）——
+      // 通知侧 resolveStageApprovers 本就回退 admin，此处对齐，防「admin 收到待办却 403」死锁
+      if (
+        reviewer.role === 'admin' &&
+        !(await this.companyHasActiveRole('staff', supplierCompanyId)) &&
+        !(await this.companyHasActiveRole('leader', supplierCompanyId))
+      ) return;
     } else if (stage === 'LEADER') {
       if (reviewer.role === 'leader' && sameCompany) return;
       if (reviewer.role === 'admin' && !(await this.companyHasActiveRole('leader', supplierCompanyId))) return;
@@ -865,7 +872,9 @@ export class SupplierService {
       ormWhere.AND = [...(Array.isArray(where.AND) ? where.AND : []), {
         OR: [
           { reviewStage: 'ADMIN' },
-          { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
+          // companyId=null 分支同 myPendingReviewCount：未归属件归 admin 代审（与 raw/权限断言同口径）
+          { reviewStage: 'LEADER', OR: [{ companyId: null }, { company: { users: { none: { role: 'leader', isActive: true } } } }] },
+          { reviewStage: 'STAFF', OR: [{ companyId: null }, { company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } }] },
         ],
       }];
     }
@@ -897,11 +906,12 @@ export class SupplierService {
     return { total, page, pageSize, items };
   }
 
-  /** admin 代复审件标记（A 方案 2026-10-08）：展开查询（reviewStage=ADMIN OR 无 leader 公司的 LEADER 级）
-   *  结果中的 LEADER 级项即代审件——where 已限定公司无在编 leader，前端据此亮「待我审」。 */
+  /** admin 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿）：展开查询（ADMIN 级 OR
+   *  无 leader 公司的 LEADER 级 OR 无 staff 无 leader 公司的 STAFF 级）结果中的 LEADER/STAFF
+   *  级项即代审件——where 已限定公司无对应级审批人，前端据此亮「待我审」。 */
   private markDelegatedReview(items: any[]) {
     for (const it of items) {
-      if (it.reviewStage === 'LEADER') it.delegatedReview = true;
+      if (it.reviewStage === 'LEADER' || it.reviewStage === 'STAFF') it.delegatedReview = true;
     }
   }
 
@@ -931,10 +941,11 @@ export class SupplierService {
     }
       // 三级审批当前级（2026-09-30）：raw 路径须与 ORM 路径同口径（此前漏配致过滤失效）
       if (where.reviewStage) conditions.push(Prisma.sql`s."reviewStage" = ${where.reviewStage}`);
-      // admin 代复审展开（A 方案 2026-10-08）：ADMIN 级 + 「无在编 leader 公司」的 LEADER 级，
-      // 与 list() ORM 路径同口径；User.role 为 text 列无需枚举 cast。
+      // admin 代审展开（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿）：ADMIN 级 + 「无在编
+      // leader 公司」的 LEADER 级（admin 代复审）+ 「无 staff 且无 leader 公司」的 STAFF 级
+      // （admin 代初审），与 list() ORM 路径同口径；User.role 为 text 列无需枚举 cast。
       if ((where as any).__delegatedExpand) {
-        conditions.push(Prisma.sql`(s."reviewStage" = 'ADMIN' OR (s."reviewStage" = 'LEADER' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."role" = 'leader' AND u."isActive" = TRUE)))`);
+        conditions.push(Prisma.sql`(s."reviewStage" = 'ADMIN' OR (s."reviewStage" = 'LEADER' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."role" = 'leader' AND u."isActive" = TRUE)) OR (s."reviewStage" = 'STAFF' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."isActive" = TRUE AND (u."role" = 'staff' OR u."role" = 'leader'))))`);
       }
       // admin 对退回/驳回不可见（同 ORM 口径）：恒空条件
       if (where.id && Array.isArray(where.id.in) && where.id.in.length === 0) {
@@ -1709,12 +1720,16 @@ export class SupplierService {
   async myPendingReviewCount(actor: AuthenticatedUser, companyIdFilter?: string | null): Promise<{ registration: number; changes: number }> {
     const regWhere: any = { status: 'PENDING' };
     if (actor.role === 'admin') {
-      // A 方案（2026-10-08）：终审件 + 「归属公司无在编 leader」的 LEADER 级代复审件都计入
-      // admin 待办——assertStageApprover 本就放行代审，角标口径须与之对齐（此前能审却看不见）。
+      // A 方案（2026-10-08；2026-10-09 扩 STAFF 孤儿）：终审件 + 「无在编 leader」的 LEADER 级
+      // 代复审件 + 「无 staff 且无 leader」的 STAFF 级代初审件都计入 admin 待办——
+      // assertStageApprover 本就放行代审，角标口径须与之对齐（此前能审却看不见）。
       regWhere.AND = [{
         OR: [
           { reviewStage: 'ADMIN' },
-          { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
+          // 未归属公司（companyId=null）本就不属任何公司的管理账号 → 与 raw/权限断言同口径归 admin 代审；
+          // ORM 对 null to-one 关系的 none 不命中，须显式补 companyId: null 分支（2026-10-09 真库冒烟抓到的口径分歧）
+          { reviewStage: 'LEADER', OR: [{ companyId: null }, { company: { users: { none: { role: 'leader', isActive: true } } } }] },
+          { reviewStage: 'STAFF', OR: [{ companyId: null }, { company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } }] },
         ],
       }];
       if (companyIdFilter) regWhere.companyId = companyIdFilter;
