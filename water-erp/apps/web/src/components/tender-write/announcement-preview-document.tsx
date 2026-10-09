@@ -9,6 +9,13 @@ import type {
   AnnouncementFieldKey,
 } from "../../lib/types/announcement";
 import type { TenderDocumentType } from "../../lib/types/tender-write";
+import {
+  DEFAULT_SUPERVISION_ADDRESS,
+  DEFAULT_SUPERVISION_PHONE,
+} from "../../lib/tender-write/announcement-templates";
+
+/** 平台主公司名——当前用户公司未知时的预览兜底（与导出端模板原值口径一致） */
+const OWNER_COMPANY_FALLBACK = "四川水发勘测设计研究有限公司";
 
 const CHINESE_NUMBERS = ["〇", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const CHINESE_TENS = ["", "十", "二十", "三十"];
@@ -197,15 +204,20 @@ function PreviewValue({
 function InvitedOrInternalBiddingAnnouncementPreview({
   draft,
   tenderType,
+  companyName,
   onValueChange,
 }: {
   draft: InvitedBiddingAnnouncementDraft;
   tenderType: TenderDocumentType;
+  companyName?: string;
   onValueChange?: (fieldKey: AnnouncementFieldKey, value: string) => void;
 }) {
   const PV = (value: string, placeholder: string, fieldKey: AnnouncementFieldKey, multiline = false) => (
     <PreviewValue value={value} placeholder={placeholder} fieldKey={fieldKey} multiline={multiline} onValueChange={onValueChange} />
   );
+
+  // 当前用户公司（2026-10-09）：模板固定公司名改为按登录账号公司展示；未知时按平台主公司兜底
+  const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
 
   const docLabel =
     tenderType === "INQUIRY_PURCHASE"
@@ -228,7 +240,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
 
       <div className="text-[0.92rem] leading-8 text-[color:var(--foreground)]">
         <p className="indent-8">
-          四川水发勘测设计研究有限公司采用
+          {company}采用
           {tenderType === "INQUIRY_PURCHASE"
             ? "询比采购"
             : tenderType === "INVITED_BIDDING"
@@ -245,7 +257,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           一、项目信息
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>采 购 人：四川水发勘测设计研究有限公司</p>
+          <p>采 购 人：{company}</p>
           <p>
             项目名称：{PV(draft.projectName, "{{项目名称}}", "projectName")}采购
           </p>
@@ -315,7 +327,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           六、联系方式
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>采购人：四川水发勘测设计研究有限公司</p>
+          <p>采购人：{company}</p>
           <p>联系人：{PV(draft.contactName, "{{联系人}}", "contactName")}</p>
           <p>联系电话：{PV(draft.contactPhone, "{{联系电话}}", "contactPhone")}</p>
           <p>电子邮箱：{PV(draft.contactEmail, "{{联系邮箱}}", "contactEmail")}</p>
@@ -328,16 +340,16 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           七、监督举报
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>监督部门：四川水发勘测设计研究有限公司纪检监察部</p>
-          <p>地址：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼</p>
-          <p>联系人：王先生、徐先生</p>
-          <p>监督电话：028-81753276</p>
+          <p>监督部门：{PV(draft.supervisionDepartment || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
       {/* 落款 */}
       <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
-        <div>四川水发勘测设计研究有限公司</div>
+        <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>
     </div>
@@ -348,14 +360,18 @@ function InvitedOrInternalBiddingAnnouncementPreview({
 
 function SingleSourceAnnouncementPreview({
   draft,
+  companyName,
   onValueChange,
 }: {
   draft: SingleSourceAnnouncementDraft;
+  companyName?: string;
   onValueChange?: (fieldKey: AnnouncementFieldKey, value: string) => void;
 }) {
   const PV = (value: string, placeholder: string, fieldKey: AnnouncementFieldKey, multiline = false) => (
     <PreviewValue value={value} placeholder={placeholder} fieldKey={fieldKey} multiline={multiline} onValueChange={onValueChange} />
   );
+
+  const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
 
   return (
     <div className="mx-auto max-w-[72ch] space-y-5">
@@ -372,7 +388,7 @@ function SingleSourceAnnouncementPreview({
           一、项目信息
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>采购人： 四川水发勘测设计研究有限公司</p>
+          <p>采购人： {company}</p>
           <p>项目名称：{PV(draft.projectName, "{{项目名称}}", "projectName")}</p>
         </div>
       </div>
@@ -444,16 +460,16 @@ function SingleSourceAnnouncementPreview({
           七、监督举报
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>四川水发勘测设计研究有限公司纪检监察部</p>
-          <p>地址：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼</p>
-          <p>联系人：王先生</p>
-          <p>监督电话：028-81753276</p>
+          <p>{PV(draft.supervisionDepartment || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || "王先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
       {/* 落款 */}
       <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
-        <div>四川水发勘测设计研究有限公司</div>
+        <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>
     </div>
@@ -464,14 +480,18 @@ function SingleSourceAnnouncementPreview({
 
 function FailedBidAnnouncementPreview({
   draft,
+  companyName,
   onValueChange,
 }: {
   draft: FailedBidAnnouncementDraft;
+  companyName?: string;
   onValueChange?: (fieldKey: AnnouncementFieldKey, value: string) => void;
 }) {
   const PV = (value: string, placeholder: string, fieldKey: AnnouncementFieldKey, multiline = false) => (
     <PreviewValue value={value} placeholder={placeholder} fieldKey={fieldKey} multiline={multiline} onValueChange={onValueChange} />
   );
+
+  const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
 
   return (
     <div className="mx-auto max-w-[72ch] space-y-5">
@@ -516,16 +536,16 @@ function FailedBidAnnouncementPreview({
         {/* 六 */}
         <div>
           <p>六、监督举报</p>
-          <p>四川水发勘测设计研究有限公司纪检监察部</p>
-          <p>地址：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼</p>
-          <p>联系人：王先生、徐先生</p>
-          <p>监督电话：028-81753276</p>
+          <p>{PV(draft.supervisionDepartment || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
       {/* 落款 */}
       <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
-        <div>四川水发勘测设计研究有限公司</div>
+        <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>
     </div>
@@ -536,14 +556,18 @@ function FailedBidAnnouncementPreview({
 
 function WinningBidAnnouncementPreview({
   draft,
+  companyName,
   onValueChange,
 }: {
   draft: WinningBidAnnouncementDraft;
+  companyName?: string;
   onValueChange?: (fieldKey: AnnouncementFieldKey, value: string) => void;
 }) {
   const PV = (value: string, placeholder: string, fieldKey: AnnouncementFieldKey, multiline = false) => (
     <PreviewValue value={value} placeholder={placeholder} fieldKey={fieldKey} multiline={multiline} onValueChange={onValueChange} />
   );
+
+  const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
 
   // Build dynamic bidder rows from draft
   const rankLabels = ["第一名", "第二名", "第三名", "第四名", "第五名", "第六名", "第七名", "第八名", "第九名", "第十名"];
@@ -683,16 +707,16 @@ function WinningBidAnnouncementPreview({
         {/* 八 */}
         <div>
           <p>八、监督举报</p>
-          <p>四川水发勘测设计研究有限公司</p>
-          <p>地址：成都市天府新区红莲街383号B栋9楼</p>
-          <p>联系人：王先生、徐先生</p>
-          <p>监督电话：028-81753276</p>
+          <p>{PV(draft.supervisionDepartment || company, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || "成都市天府新区红莲街383号B栋9楼", "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
       {/* 落款 */}
       <div className="flex justify-between pt-4 text-[0.92rem] leading-8">
-        <div>四川水发勘测设计研究有限公司</div>
+        <div>{company}</div>
         <div>{PV(formatDateToChinese(draft.signatureDate), "{{落款日期}}", "signatureDate")}</div>
       </div>
     </div>
@@ -705,11 +729,14 @@ export function AnnouncementPreviewDocument({
   tenderType,
   category,
   draft,
+  companyName,
   onValueChange,
 }: {
   tenderType: TenderDocumentType;
   category: AnnouncementCategory;
   draft: AnnouncementDraft;
+  /** 当前用户公司名（2026-10-09）：预览固定公司名按登录账号公司展示 */
+  companyName?: string;
   onValueChange?: (fieldKey: AnnouncementFieldKey, value: string) => void;
 }) {
   if (category === "procurement_document") {
@@ -717,6 +744,7 @@ export function AnnouncementPreviewDocument({
       return (
         <SingleSourceAnnouncementPreview
           draft={draft as SingleSourceAnnouncementDraft}
+          companyName={companyName}
           onValueChange={onValueChange}
         />
       );
@@ -725,6 +753,7 @@ export function AnnouncementPreviewDocument({
       <InvitedOrInternalBiddingAnnouncementPreview
         draft={draft as InvitedBiddingAnnouncementDraft}
         tenderType={tenderType}
+        companyName={companyName}
         onValueChange={onValueChange}
       />
     );
@@ -734,6 +763,7 @@ export function AnnouncementPreviewDocument({
     return (
       <FailedBidAnnouncementPreview
         draft={draft as FailedBidAnnouncementDraft}
+        companyName={companyName}
         onValueChange={onValueChange}
       />
     );
@@ -743,6 +773,7 @@ export function AnnouncementPreviewDocument({
     return (
       <WinningBidAnnouncementPreview
         draft={draft as WinningBidAnnouncementDraft}
+        companyName={companyName}
         onValueChange={onValueChange}
       />
     );

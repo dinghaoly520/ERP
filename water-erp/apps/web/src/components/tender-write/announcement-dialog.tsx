@@ -41,6 +41,7 @@ import { TenderFieldSampleDialog } from "./tender-field-sample-drawer";
 import { ContactPickerDialog } from "./contact-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
 import { findContactByName } from "@/lib/api/contacts";
+import { fetchCurrentUser } from "@/lib/api/auth";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
 import { checkSupplierChange, updateProjectExtractedInfo } from "@/lib/api/project-management";
 import { getSupplierList } from "@/lib/api/supplier";
@@ -99,6 +100,11 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   "scheduleRequirementsType",
   "bidder1Remark",
   "bidder1RemarkType",
+  // 监督信息（2026-10-09）：无 AI/样本语义
+  "supervisionDepartment",
+  "supervisionAddress",
+  "supervisionContact",
+  "supervisionPhone",
 ]);
 
 /** Read dynamic bidder entries from the draft record */
@@ -263,6 +269,7 @@ function AnnouncementFieldEditor({
   onSampleOpen,
   onAiGenerate,
   onContactOpen,
+  onSupervisorOpen,
   onSupplierCheck,
   supplierChecking,
 }: {
@@ -277,6 +284,8 @@ function AnnouncementFieldEditor({
   onSampleOpen: (fieldKey: AnnouncementFieldKey, fieldLabel: string) => void;
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
+  /** 监督人字段（supervisionContact）专属：打开联系人多选（2026-10-09） */
+  onSupervisorOpen?: () => void;
   /** 拟定供应商名称专属：核对采购文件中供应商是否已更换（替代 AI 内容优化） */
   onSupplierCheck?: () => void;
   supplierChecking?: boolean;
@@ -288,6 +297,7 @@ function AnnouncementFieldEditor({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hideActions = FIELDS_WITHOUT_ACTIONS.has(field.key);
   const isContactField = field.key === "contactName";
+  const isSupervisionContactField = field.key === "supervisionContact";
 
   // Composite field state
   const compositeConfig = field.composite;
@@ -329,6 +339,8 @@ function AnnouncementFieldEditor({
               onFavoriteToggle={() => onFavoriteToggle(field.key, value)}
               onAiGenerate={() => onAiGenerate(field.key, field.label, value, field.aiPrompt)}
               onContactOpen={onContactOpen}
+              isSupervisionContactField={isSupervisionContactField}
+              onSupervisorOpen={onSupervisorOpen}
               aiOverride={field.key === 'supplierName' && onSupplierCheck ? {
                 title: '核对供应商：重新解析采购文件，检查拟定供应商是否已更换',
                 label: '核对供应商',
@@ -522,6 +534,23 @@ export function AnnouncementDialog({
     fieldLabel: string;
   } | null>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  // 监督人多选（2026-10-09）：公告监督块「联系人」行从本公司联系人多选
+  const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
+  // 当前用户公司名（预览公司名与监督部门默认值用）——取不到时预览按平台主公司口径展示
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchCurrentUser()
+      .then((u) => {
+        if (alive) setCompanyName(u.company?.trim() || null);
+      })
+      .catch(() => {
+        /* 取不到不影响编写——预览回退平台主公司口径 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [aiError, setAiError] = useState<string | null>(null);
   const [importingBidders, setImportingBidders] = useState(false);
 
@@ -985,6 +1014,11 @@ export function AnnouncementDialog({
     handleFieldChange("contactPhone", contact.phone);
   };
 
+  // 监督人多选确认（2026-10-09）：选中联系人姓名顿号拼接进 supervisionContact（清空选择=清空字段）
+  const handleSupervisorConfirm = (contacts: { name: string; email: string; phone: string }[]) => {
+    handleFieldChange("supervisionContact", contacts.map((c) => c.name).join("、"));
+  };
+
   // ★ 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
   // 与字段值比对——相同则确认未更换（顺带把误填的长文本截成纯名字），不同则提示并确认更新。
   const [supplierChecking, setSupplierChecking] = useState(false);
@@ -1335,6 +1369,7 @@ export function AnnouncementDialog({
                       onSampleOpen={handleSampleOpen}
                       onAiGenerate={handleAiGenerate}
                       onContactOpen={() => setContactPickerOpen(true)}
+                      onSupervisorOpen={() => setSupervisorPickerOpen(true)}
                       onSupplierCheck={handleSupplierCheck}
                       supplierChecking={supplierChecking}
                     />
@@ -1365,6 +1400,7 @@ export function AnnouncementDialog({
                       tenderType={tenderType}
                       category={category!}
                       draft={draft}
+                      companyName={companyName ?? undefined}
                       onValueChange={handlePreviewValueChange}
                     />
                   )}
@@ -1451,6 +1487,21 @@ export function AnnouncementDialog({
           isOpen={contactPickerOpen}
           onSelect={handleContactSelect}
           onClose={() => setContactPickerOpen(false)}
+        />
+      )}
+
+      {/* 监督人多选（2026-10-09）：本公司联系人（已按公司隔离）多选，顿号拼接 */}
+      {supervisorPickerOpen && (
+        <ContactPickerDialog
+          isOpen={supervisorPickerOpen}
+          onSelect={() => undefined}
+          onClose={() => setSupervisorPickerOpen(false)}
+          multiple
+          selectedNames={(draftRecord.supervisionContact || "")
+            .split(/[、,，]/)
+            .map((s) => s.trim())
+            .filter(Boolean)}
+          onConfirmMultiple={handleSupervisorConfirm}
         />
       )}
 

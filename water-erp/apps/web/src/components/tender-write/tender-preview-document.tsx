@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
 import type {
   CompetitiveNegotiationDraft,
   InquiryPurchaseDraft,
@@ -15,6 +15,21 @@ import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 
 const CHINESE_NUMBERS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const CHINESE_TENS = ['', '十', '二十', '三十'];
+
+/** 平台主公司名——当前用户公司未知时的预览兜底（与导出端模板原值口径一致） */
+const OWNER_COMPANY_FALLBACK = '四川水发勘测设计研究有限公司';
+
+/**
+ * 当前用户公司名 Context（2026-10-09）：模板固定「四川水发勘测设计研究有限公司」
+ * 改为按登录账号公司展示。子组件统一用 <OwnerCompanyName /> 渲染，避免逐层穿透 props；
+ * Provider 由主入口 TenderPreviewDocument 挂 companyName 提供。
+ */
+const OwnerCompanyContext = createContext(OWNER_COMPANY_FALLBACK);
+
+function OwnerCompanyName() {
+  const company = useContext(OwnerCompanyContext);
+  return <>{company}</>;
+}
 
 function numberToChinese(num: number): string {
   if (num < 10) {
@@ -304,54 +319,65 @@ export function TenderPreviewDocument({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  companyName,
 }: {
   documentType: ReadyTenderDocumentType;
   draft: ReadyTenderDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  /** 当前用户公司名（2026-10-09）：预览固定公司名按登录账号公司展示 */
+  companyName?: string;
 }) {
-  if (documentType === 'SINGLE_SOURCE') {
-    return (
-      <SingleSourcePreview
-        draft={draft as SingleSourceDraft}
-        activeSectionKey={activeSectionKey}
-        onSectionClick={onSectionClick}
-        onValueChange={onValueChange}
-      />
-    );
-  }
+  const content = (() => {
+    if (documentType === 'SINGLE_SOURCE') {
+      return (
+        <SingleSourcePreview
+          draft={draft as SingleSourceDraft}
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+          onValueChange={onValueChange}
+        />
+      );
+    }
 
-  if (documentType === 'INQUIRY_PURCHASE') {
-    return (
-      <InquiryPurchasePreview
-        draft={draft as InquiryPurchaseDraft}
-        activeSectionKey={activeSectionKey}
-        onSectionClick={onSectionClick}
-        onValueChange={onValueChange}
-      />
-    );
-  }
+    if (documentType === 'INQUIRY_PURCHASE') {
+      return (
+        <InquiryPurchasePreview
+          draft={draft as InquiryPurchaseDraft}
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+          onValueChange={onValueChange}
+        />
+      );
+    }
 
-  if (documentType === 'INTERNAL_BIDDING' || documentType === 'INVITED_BIDDING') {
+    if (documentType === 'INTERNAL_BIDDING' || documentType === 'INVITED_BIDDING') {
+      return (
+        <InternalBiddingPreview
+          isInvited={documentType === 'INVITED_BIDDING'}
+          draft={draft as InternalBiddingDraft}
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+          onValueChange={onValueChange}
+        />
+      );
+    }
+
     return (
-      <InternalBiddingPreview
-        isInvited={documentType === 'INVITED_BIDDING'}
-        draft={draft as InternalBiddingDraft}
+      <CompetitiveNegotiationPreview
+        draft={draft as CompetitiveNegotiationDraft}
         activeSectionKey={activeSectionKey}
         onSectionClick={onSectionClick}
         onValueChange={onValueChange}
       />
     );
-  }
+  })();
 
   return (
-    <CompetitiveNegotiationPreview
-      draft={draft as CompetitiveNegotiationDraft}
-      activeSectionKey={activeSectionKey}
-      onSectionClick={onSectionClick}
-      onValueChange={onValueChange}
-    />
+    <OwnerCompanyContext.Provider value={companyName?.trim() || OWNER_COMPANY_FALLBACK}>
+      {content}
+    </OwnerCompanyContext.Provider>
   );
 }
 
@@ -399,7 +425,7 @@ function CompetitiveNegotiationPreview({
               谈判采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
-              采 购 人：四川水发勘测设计研究有限公司
+              采 购 人：<OwnerCompanyName />
             </div>
             <div className="mt-2 text-sm text-[color:var(--foreground)]">
               日　　期：<PreviewValue value={formatDateToChinese(draft.coverDate)} placeholder="{{封面时间}}" fieldKey="coverDate" onValueChange={onValueChange} />
@@ -466,7 +492,7 @@ function CompetitiveNegotiationPreview({
               五、监督举报
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>监督部门：四川水发勘测设计研究有限公司纪检监察部</p>
+              <p>监督部门：<OwnerCompanyName />纪检监察部</p>
               <p>地　　址：四川省成都市天府新区红莲街三段383号</p>
               <p>联 系 人：王先生、徐先生</p>
               <p>电　　话：028-81753276</p>
@@ -477,7 +503,7 @@ function CompetitiveNegotiationPreview({
               六、联系人及联系电话
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>采 购 人：四川水发勘测设计研究有限公司</p>
+              <p>采 购 人：<OwnerCompanyName /></p>
               <p>地　　址：成都市天府新区红莲街三段383号</p>
               <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
               <p>电　　话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} /></p>
@@ -571,7 +597,7 @@ function CompetitiveNegotiationPreview({
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>联系方式</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       接受询问和异议的联系方式：
-                      <br />联系部门：四川水发勘测设计研究有限公司采购中心
+                      <br />联系部门：<OwnerCompanyName />采购中心
                       <br />联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
                       <br />联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
                       <br />通讯地址：四川省成都市天府新区红莲街三段383号
@@ -724,7 +750,7 @@ function SingleSourcePreview({
               直接采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
-              采 购 人：四川水发勘测设计研究有限公司
+              采 购 人：<OwnerCompanyName />
             </div>
             <div className="mt-2 text-sm text-[color:var(--foreground)]">
               日　　期：<PreviewValue value={formatDateToChinese(draft.coverDate)} placeholder="{{封面时间}}" fieldKey="coverDate" onValueChange={onValueChange} />
@@ -843,7 +869,7 @@ function SingleSourcePreview({
               三、联系方式
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>采 购 人：四川水发勘测设计研究有限公司</p>
+              <p>采 购 人：<OwnerCompanyName /></p>
               <p>地　　址：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座</p>
               <p>
                 联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
@@ -894,7 +920,7 @@ function SingleSourcePreview({
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">2</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">采购人</td>
-                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">四川水发勘测设计研究有限公司</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm"><OwnerCompanyName /></td>
                   </tr>
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">3</td>
@@ -1075,7 +1101,7 @@ function InquiryPurchasePreview({
               询比采购文件
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
-              采 购 人：四川水发勘测设计研究有限公司
+              采 购 人：<OwnerCompanyName />
             </div>
             <div className="mt-2 text-sm text-[color:var(--foreground)]">
               日　　期：<PreviewValue value={formatDateToChinese(draft.coverDate)} placeholder="{{封面时间}}" fieldKey="coverDate" onValueChange={onValueChange} />
@@ -1100,7 +1126,7 @@ function InquiryPurchasePreview({
                     询价单位
                   </td>
                   <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
-                    四川水发勘测设计研究有限公司
+                    <OwnerCompanyName />
                   </td>
                 </tr>
                 <tr>
@@ -1208,7 +1234,7 @@ function InquiryPurchasePreview({
               报价函
             </div>
             <div className="mt-4 text-sm leading-7 text-[color:var(--foreground)]">
-              <p className="indent-8">四川水发勘测设计研究有限公司：</p>
+              <p className="indent-8"><OwnerCompanyName />：</p>
               <p className="mt-3 indent-8">根据<PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />询价文件要求，现郑重承诺如下：</p>
               <p className="mt-3 indent-8">我方已认真阅读并接受本询价文件的所有要求。</p>
               <p className="mt-3 indent-8">我方对上述承诺的内容事项真实性负责。如经查实上述承诺的内容事项存在虚假，我方愿意接受以提供虚假材料的法律责任。</p>
@@ -1303,7 +1329,7 @@ function InternalBiddingPreview({
               {T.docTitle}
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
-              {T.buyer}：四川水发勘测设计研究有限公司
+              {T.buyer}：<OwnerCompanyName />
             </div>
             <div className="mt-2 text-sm text-[color:var(--foreground)]">
               日　　期：<PreviewValue value={formatDateToChinese(draft.coverDate)} placeholder="{{封面时间}}" fieldKey="coverDate" onValueChange={onValueChange} />
@@ -1380,7 +1406,7 @@ function InternalBiddingPreview({
               五、发布公告的媒介
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              四川水发勘测设计研究有限公司官网(https://www.scswhi.com.cn/)。
+              <OwnerCompanyName />官网(https://www.scswhi.com.cn/)。
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -1388,7 +1414,7 @@ function InternalBiddingPreview({
               六、监督举报
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>监督部门：四川水发勘测设计研究有限公司纪检监察部</p>
+              <p>监督部门：<OwnerCompanyName />纪检监察部</p>
               <p>地　　址：四川省成都市天府新区红莲街三段383号</p>
               <p>联 系 人：王先生、徐先生</p>
               <p>电　　话：028-81753276</p>
@@ -1399,7 +1425,7 @@ function InternalBiddingPreview({
               七、联系人及联系电话
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>{T.buyer}：四川水发勘测设计研究有限公司</p>
+              <p>{T.buyer}：<OwnerCompanyName /></p>
               <p>地　　址：成都市天府新区红莲街三段383号</p>
               <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
               <p>电　　话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} /></p>

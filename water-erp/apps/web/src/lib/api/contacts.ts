@@ -5,6 +5,9 @@ export type Contact = {
   name: string;
   email: string | null;
   phone: string | null;
+  /** 归属公司（2026-10-09 联系人公司隔离）：列表按当前账号公司过滤 */
+  companyId?: string | null;
+  companyName?: string | null;
   createdAt: string;
   updatedAt: string;
 };
