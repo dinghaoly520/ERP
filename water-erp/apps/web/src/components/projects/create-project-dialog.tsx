@@ -325,12 +325,19 @@ export function CreateProjectDialog({
       demandProject: attr.name,
       demandContractNumber: attr.contractNumber || prev.demandContractNumber,
     }));
+    // 同步比较项：demandProject 有自动预选值，不同步则选中值被弹回（见 handleReviewFieldChange 注释）
+    setFieldComparisons((prev) =>
+      prev.map((c) => (c.fieldName === 'demandProject' ? { ...c, selectedValue: attr.name } : c)),
+    );
     setAttributionSearch(attr.name);
     setShowAttributionDropdown(false);
   };
 
   const handleAttributionInputChange = (value: string) => {
     setDemandFields((prev) => ({ ...prev, demandProject: value }));
+    setFieldComparisons((prev) =>
+      prev.map((c) => (c.fieldName === 'demandProject' ? { ...c, selectedValue: value } : c)),
+    );
     setAttributionSearch(value);
     setShowAttributionDropdown(true);
   };
@@ -356,6 +363,18 @@ export function CreateProjectDialog({
       prev.map((c) =>
         c.fieldName === fieldName ? { ...c, selectedValue: value } : c,
       ),
+    );
+  };
+
+  /** 评审页字段编辑：同时写 initiationFields 与 compare 步 selectedValue。
+   *  compareFields 对每字段自动预选 selectedValue（initiationValue || demandValue），
+   *  而 getSelectedFieldValue 优先读它——onChange 只写 initiationFields 的话手填值会被旧
+   *  预选值弹回（立项日期抽出非 ISO 串时日期框空白且无法选择；e798639a 曾为 budgetAmount
+   *  单独修过同病，此处推广到全部评审字段与项目归属两条路径）。 */
+  const handleReviewFieldChange = (fieldName: string, value: string) => {
+    setInitiationFields((prev) => ({ ...prev, [fieldName]: value }));
+    setFieldComparisons((prev) =>
+      prev.map((c) => (c.fieldName === fieldName ? { ...c, selectedValue: value } : c)),
     );
   };
 
@@ -698,7 +717,7 @@ export function CreateProjectDialog({
           <input
             type="text"
             value={getSelectedFieldValue('requesterName', initiationFields.requesterName || demandFields.requesterName || '')}
-            onChange={(e) => setInitiationFields((prev) => ({ ...prev, requesterName: e.target.value }))}
+            onChange={(e) => handleReviewFieldChange('requesterName', e.target.value)}
             className="workbench-input w-full"
           />
         </div>
@@ -707,7 +726,7 @@ export function CreateProjectDialog({
           <input
             type="text"
             value={getSelectedFieldValue('requesterDepartment', initiationFields.requesterDepartment || demandFields.requesterDepartment || '')}
-            onChange={(e) => setInitiationFields((prev) => ({ ...prev, requesterDepartment: e.target.value }))}
+            onChange={(e) => handleReviewFieldChange('requesterDepartment', e.target.value)}
             className="workbench-input w-full"
           />
         </div>
@@ -716,7 +735,7 @@ export function CreateProjectDialog({
           <input
             type="date"
             value={getSelectedFieldValue('initiationDate', initiationFields.initiationDate || demandFields.initiationDate || '')}
-            onChange={(e) => setInitiationFields((prev) => ({ ...prev, initiationDate: e.target.value }))}
+            onChange={(e) => handleReviewFieldChange('initiationDate', e.target.value)}
             className="workbench-input w-full"
           />
         </div>
@@ -725,7 +744,7 @@ export function CreateProjectDialog({
           <input
             type="text"
             value={getSelectedFieldValue('procurementTitle', initiationFields.procurementTitle || demandFields.procurementTitle || '')}
-            onChange={(e) => setInitiationFields((prev) => ({ ...prev, procurementTitle: e.target.value }))}
+            onChange={(e) => handleReviewFieldChange('procurementTitle', e.target.value)}
             className="workbench-input w-full"
           />
         </div>
@@ -733,7 +752,7 @@ export function CreateProjectDialog({
           <label className="text-xs font-semibold text-[color:var(--foreground)]">采购类别</label>
           <select
             value={getSelectedFieldValue('procurementCategory', initiationFields.procurementCategory || demandFields.procurementCategory || '')}
-            onChange={(e) => setInitiationFields((prev) => ({ ...prev, procurementCategory: e.target.value }))}
+            onChange={(e) => handleReviewFieldChange('procurementCategory', e.target.value)}
             className="workbench-input w-full"
           >
             <option value="">请选择采购类别</option>
@@ -1066,7 +1085,7 @@ export function CreateProjectDialog({
           </div>
           <textarea
             value={getSelectedFieldValue('projectReason', initiationFields.projectReason || demandFields.projectReason || '')}
-            onChange={(e) => setInitiationFields((prev) => ({ ...prev, projectReason: e.target.value }))}
+            onChange={(e) => handleReviewFieldChange('projectReason', e.target.value)}
             rows={3}
             className="neu-input text-sm min-h-[80px] resize-y"
           />
@@ -1090,7 +1109,7 @@ export function CreateProjectDialog({
           </div>
           <textarea
             value={getSelectedFieldValue('supplierRequirements', initiationFields.supplierRequirements || demandFields.supplierRequirements || '')}
-            onChange={(e) => setInitiationFields((prev) => ({ ...prev, supplierRequirements: e.target.value }))}
+            onChange={(e) => handleReviewFieldChange('supplierRequirements', e.target.value)}
             rows={3}
             className="neu-input text-sm min-h-[80px] resize-y"
           />
