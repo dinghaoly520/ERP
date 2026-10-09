@@ -1,5 +1,9 @@
 import {
   applyTenantTokens,
+  buildTenantPlaceholderReplacements,
+  DEFAULT_SUPERVISION_ADDRESS,
+  DEFAULT_SUPERVISION_CONTACT,
+  DEFAULT_SUPERVISION_PHONE,
   replaceTextAcrossRuns,
   TENANT_OWNER_COMPANY_TOKEN,
 } from './tenant-tokens';
@@ -136,5 +140,40 @@ describe('applyTenantTokens', () => {
     const out = applyTenantTokens(xml, '甲公司', { contact: '钱先生、孙先生' });
     expect(out).toContain('钱先生、孙先生');
     expect(out).not.toContain('徐先生');
+  });
+});
+
+describe('buildTenantPlaceholderReplacements（显式占位符填充，2026-10-09 二期）', () => {
+  it('公司名优先当前用户公司；未归属回退平台主公司', () => {
+    expect(buildTenantPlaceholderReplacements('甲公司')).toContainEqual({
+      targetText: '采购人名称',
+      replacementText: '甲公司',
+      highlight: false,
+    });
+    expect(buildTenantPlaceholderReplacements(null)).toContainEqual({
+      targetText: '采购人名称',
+      replacementText: TENANT_OWNER_COMPANY_TOKEN,
+      highlight: false,
+    });
+  });
+
+  it('监督块留空回退统一默认值（部门 = {公司}纪检监察部）', () => {
+    const plan = buildTenantPlaceholderReplacements('甲公司');
+    expect(plan).toContainEqual({ targetText: '监督部门', replacementText: '甲公司纪检监察部', highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督地址', replacementText: DEFAULT_SUPERVISION_ADDRESS, highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督人', replacementText: DEFAULT_SUPERVISION_CONTACT, highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督电话', replacementText: DEFAULT_SUPERVISION_PHONE, highlight: false });
+  });
+
+  it('表单监督值优先于默认值', () => {
+    const plan = buildTenantPlaceholderReplacements('甲公司', { department: '甲公司审计部', contact: '李女士' });
+    expect(plan).toContainEqual({ targetText: '监督部门', replacementText: '甲公司审计部', highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督人', replacementText: '李女士', highlight: false });
+  });
+
+  it('includeCompany=false 跳过公司项（备案表模板自有 {{采购人名称}}，防先到先得覆盖）', () => {
+    const plan = buildTenantPlaceholderReplacements('甲公司', undefined, false);
+    expect(plan.find((r) => r.targetText === '采购人名称')).toBeUndefined();
+    expect(plan).toHaveLength(4);
   });
 });

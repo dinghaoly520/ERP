@@ -11,6 +11,7 @@ import type {
 import type { TenderDocumentType } from "../../lib/types/tender-write";
 import {
   DEFAULT_SUPERVISION_ADDRESS,
+  DEFAULT_SUPERVISION_CONTACT,
   DEFAULT_SUPERVISION_PHONE,
 } from "../../lib/tender-write/announcement-templates";
 
@@ -462,7 +463,7 @@ function SingleSourceAnnouncementPreview({
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>{PV(draft.supervisionDepartment || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
           <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || "王先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>联系人：{PV(draft.supervisionContact || DEFAULT_SUPERVISION_CONTACT, "{{监督人}}", "supervisionContact")}</p>
           <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
@@ -708,7 +709,7 @@ function WinningBidAnnouncementPreview({
         <div>
           <p>八、监督举报</p>
           <p>{PV(draft.supervisionDepartment || company, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || "成都市天府新区红莲街383号B栋9楼", "{{监督地址}}", "supervisionAddress")}</p>
+          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
           <p>联系人：{PV(draft.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
           <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>

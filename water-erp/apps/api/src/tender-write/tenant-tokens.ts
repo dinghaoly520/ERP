@@ -1,16 +1,24 @@
 /**
- * 租户令牌替换（2026-10-09）：docx 模板中的固定「四川水发勘测设计研究有限公司」与
- * 监督块固定串（纪检监察部 / 地址 / 王先生、徐先生 / 监督电话 028-81753276）在导出时
- * 按当前用户公司与公告表单值替换。模板 docx 本身不动——模板由用户手工维护、随时可能
- * 重导入（git 历史即有手工改名/删除），运行时替换对模板变更免疫。
- *
- * 应用位置：renderTemplateXml 之后（与本轮 {{占位符}} 体系无字符交集，互不干扰）。
- * 顺序敏感：监督块整串（含公司名）先替换，公司名兜底放最后——否则监督部门会被
- * 公司名替换拼成「{新公司}纪检监察部」，覆盖不了用户显式填写的监督部门值。
+ * 租户占位体系（2026-10-09，二期用户拍板显式占位符化）：
+ * - 主轨：模板固定串已由 scripts/convert-templates-to-placeholders.ts 一次性转为
+ *   {{采购人名称}}/{{监督部门}}/{{监督地址}}/{{监督人}}/{{监督电话}} 显式占位符，
+ *   渲染计划经 buildTenantPlaceholderReplacements 追加填充项（公司=当前用户公司，
+ *   监督块=公告表单值，留空回退统一默认值）。
+ * - 安全网：applyTenantTokens 在 renderTemplateXml 之后兜底——若重导入了带固定串的
+ *   旧式模板（用户手工维护、git 历史即有重命名/删除），固定串仍被替换，不漏印。
+ *   顺序敏感：监督块整串（含公司名）先替换，公司名兜底放最后。
  */
+
+import type { TemplateReplacement } from './tender-write.template';
 
 /** 平台主公司名——模板内作为「采购人」固定串出现，导出时替换为当前用户公司 */
 export const TENANT_OWNER_COMPANY_TOKEN = '四川水发勘测设计研究有限公司';
+
+/** 监督块统一兜底值（模板占位符化后表单留空时的导出/预览共用口径） */
+export const DEFAULT_SUPERVISION_ADDRESS =
+  '四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼';
+export const DEFAULT_SUPERVISION_CONTACT = '王先生、徐先生';
+export const DEFAULT_SUPERVISION_PHONE = '028-81753276';
 
 export interface SupervisionTokens {
   /** 监督部门（公告表单可改；缺省时由公司名兜底拼出「{公司}纪检监察部」） */
@@ -131,7 +139,34 @@ export function replaceTextAcrossRuns(
 }
 
 /**
- * 导出兜底替换入口：
+ * 显式占位符计划项（2026-10-09 二期，用户拍板模板显式占位符化）：模板固定串已转为
+ * {{采购人名称}}/{{监督部门}}/{{监督地址}}/{{监督人}}/{{监督电话}} 占位符——渲染计划
+ * 追加这五项填充：
+ * - 公司名：当前用户公司；未归属回退平台主公司（模板原值已不在模板内，必须兜底）
+ * - 监督块：表单值优先，留空回退统一默认值（与预览端口径一致）
+ * 注意：直接采购备案表模板自有 {{采购人名称}}（buildDirectFilingPlan 已填），传
+ * includeCompany=false 跳过公司项避免先到先得覆盖。
+ */
+export function buildTenantPlaceholderReplacements(
+  ownerCompanyName: string | null | undefined,
+  supervision?: SupervisionTokens,
+  includeCompany = true,
+): TemplateReplacement[] {
+  const company = ownerCompanyName?.trim() || TENANT_OWNER_COMPANY_TOKEN;
+  return [
+    ...(includeCompany
+      ? [{ targetText: '采购人名称', replacementText: company, highlight: false }]
+      : []),
+    { targetText: '监督部门', replacementText: supervision?.department?.trim() || `${company}纪检监察部`, highlight: false },
+    { targetText: '监督地址', replacementText: supervision?.address?.trim() || DEFAULT_SUPERVISION_ADDRESS, highlight: false },
+    { targetText: '监督人', replacementText: supervision?.contact?.trim() || DEFAULT_SUPERVISION_CONTACT, highlight: false },
+    { targetText: '监督电话', replacementText: supervision?.phone?.trim() || DEFAULT_SUPERVISION_PHONE, highlight: false },
+  ];
+}
+
+/**
+ * 导出兜底替换入口（安全网：模板占位符化后正常路径不再命中；若重导入了带固定串的
+ * 旧式模板仍能兜住）：
  * 1. 监督块四类固定串 → 表单值（提供的字段才替换；空值保留模板原样）
  * 2. 裸公司名 → 当前用户公司（无归属公司或恰为主公司则不动，等同旧行为）
  */
