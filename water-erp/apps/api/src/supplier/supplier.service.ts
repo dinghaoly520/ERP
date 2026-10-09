@@ -28,6 +28,7 @@ import { createHash } from 'crypto';
 import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
 import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { isSealedFieldSm } from '../common/crypto/sm-field-crypto';
+import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { openChangeValue, maskChangeValue } from './change-record-pii';
 import { maskPhone, maskIdNumber, maskEmail, maskBankAccount } from '../common/pii-mask';
 
@@ -3428,5 +3429,62 @@ export class SupplierService {
     }
 
     return { total, created, skipped, errors };
+  }
+
+  /* ── PII 明文揭示（等保+密评：管理端默认掩码，明文走此处并留痕）── */
+
+  private static readonly REVEAL_FIELDS: Record<string, { entity: string; fields: string[] }> = {
+    supplier: { entity: 'Supplier', fields: ['legalPersonIdCard', 'legalPersonPhone'] },
+    contact: { entity: 'SupplierContact', fields: ['phone', 'idCard', 'email'] },
+    bankAccount: { entity: 'SupplierBankAccount', fields: ['accountNo'] },
+  };
+
+  /**
+   * 揭示供应商 PII 明文（admin/leader/staff）。公司隔离同 get()；子记录按
+   * { id, supplierId } 反查归属（防跨企枚举）；每次揭示写 SensitiveAccessLog。
+   */
+  async revealField(
+    id: string,
+    body: { entity: string; targetId?: string; field: string },
+    actor: AuthenticatedUser | undefined,
+    ip?: string,
+  ): Promise<{ entity: string; targetId: string; field: string; value: string | null }> {
+    const cfg = SupplierService.REVEAL_FIELDS[body.entity];
+    if (!cfg || !cfg.fields.includes(body.field)) {
+      throw new BadRequestException({ error: '该字段不允许揭示', code: 'FIELD_NOT_REVEALABLE' });
+    }
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id },
+      select: { id: true, companyId: true, legalPersonIdCard: true, legalPersonPhone: true },
+    });
+    if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    if (actor && actor.role !== 'supplier') {
+      const scope = await this.companyScope.resolveScope(actor);
+      this.companyScope.assertInScope(supplier.companyId, scope);
+    }
+
+    let value: string | null;
+    let targetId = id;
+    if (body.entity === 'supplier') {
+      value = openPii(body.field === 'legalPersonIdCard' ? supplier.legalPersonIdCard : supplier.legalPersonPhone);
+    } else if (body.entity === 'contact') {
+      const row = await this.prisma.supplierContact.findFirst({
+        where: { id: body.targetId, supplierId: id },
+        select: { id: true, phone: true, idCard: true, email: true },
+      });
+      if (!row) throw new NotFoundException({ error: '联系人不存在', code: 'NOT_FOUND' });
+      targetId = row.id;
+      value = openPii(row[body.field as 'phone' | 'idCard' | 'email']);
+    } else {
+      const row = await this.prisma.supplierBankAccount.findFirst({
+        where: { id: body.targetId, supplierId: id },
+        select: { id: true, accountNo: true },
+      });
+      if (!row) throw new NotFoundException({ error: '银行账户不存在', code: 'NOT_FOUND' });
+      targetId = row.id;
+      value = openPii(row.accountNo);
+    }
+    await logSensitiveAccess(this.prisma, actor, cfg.entity, targetId, body.field, ip);
+    return { entity: body.entity, targetId, field: body.field, value };
   }
 }

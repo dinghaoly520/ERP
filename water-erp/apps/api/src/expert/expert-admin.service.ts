@@ -7,6 +7,7 @@ import { Prisma, ExpertLevel } from '@prisma/client';
 import { portalOrigin } from '@water-erp/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { sealPii, openPii } from '../common/crypto/sm-field-crypto';
+import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { maskPhone, maskIdNumber, maskEmail, maskLicenseNo } from '../common/pii-mask';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EmbeddingService } from '../local-ai/embedding.service';
@@ -2511,5 +2512,40 @@ ${combined}`,
     ]);
 
     return { total, page, pageSize, items };
+  }
+
+  /* ── PII 明文揭示（等保+密评：管理端默认掩码，明文走此处并留痕）── */
+
+  private static readonly REVEALABLE_EXPERT_FIELDS = ['idNumber', 'phone', 'licenseNo'] as const;
+
+  /**
+   * 揭示专家 PII 明文（admin/leader/staff，controller 方法级 @Roles 收窄）。
+   * 公司隔离同详情端点；每次揭示写 SensitiveAccessLog（append-only 审计）。
+   */
+  async revealExpertField(
+    userId: string,
+    field: string,
+    actor: AuthenticatedUser | undefined,
+    ip?: string,
+  ): Promise<{ field: string; value: string | null }> {
+    if (!(ExpertAdminService.REVEALABLE_EXPERT_FIELDS as readonly string[]).includes(field)) {
+      throw new BadRequestException({ error: '该字段不允许揭示', code: 'FIELD_NOT_REVEALABLE' });
+    }
+    await this.assertExpertInScope(userId, actor);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true, role: true, companyId: true, phone: true,
+        expertProfile: { select: { phone: true, idNumber: true, licenseNo: true } },
+      },
+    });
+    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+    // 密文列拆封：phone 走 档案优先→账号回退
+    const raw = field === 'phone'
+      ? (user.expertProfile?.phone ?? user.phone)
+      : (user.expertProfile?.[field as 'idNumber' | 'licenseNo'] ?? null);
+    const value = openPii(raw);
+    await logSensitiveAccess(this.prisma, actor, 'ExpertProfile', userId, field, ip);
+    return { field, value };
   }
 }

@@ -15,6 +15,7 @@ import { UpdateExpertStatusDto } from './dto/update-expert-status.dto';
 import { CommitteeAssignmentDto } from '../bid/dto/committee-assignment.dto';
 import {
   UpdateExpertProfileDto,
+  RevealExpertFieldDto,
   GenerateNotificationDto,
   BatchOperationDto,
   ImportCsvDto,
@@ -307,6 +308,13 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '专家详情（公司隔离：他人公司专家 → 403）' })
   getExpert(@Param('id') id: string, @Request() req: any = {}) {
     return this.expertAdminService.getExpert(id, req.user);
+  }
+
+  @Post(':id/reveal')
+  @Roles('admin', 'leader', 'staff') // 方法级收窄（类默认含 bid_host）：密评最小授权，明文揭示仅工作台角色
+  @ApiOperation({ summary: '专家 PII 明文揭示（默认掩码，明文走此处；SensitiveAccessLog 留痕）' })
+  revealField(@Param('id') id: string, @Body() dto: RevealExpertFieldDto, @Request() req: any) {
+    return this.expertAdminService.revealExpertField(id, dto.field, req.user, req.ip);
   }
 
   @Patch(':id/availability')
