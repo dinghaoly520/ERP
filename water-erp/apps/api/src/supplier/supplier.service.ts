@@ -27,7 +27,7 @@ import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
 import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
 import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
-import { isSealedFieldSm } from '../common/crypto/sm-field-crypto';
+import { isSealedFieldSm, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { openChangeValue, maskChangeValue } from './change-record-pii';
 import { maskPhone, maskIdNumber, maskEmail, maskBankAccount } from '../common/pii-mask';
@@ -773,7 +773,7 @@ export class SupplierService {
         ),
         contacts: ((s as any).contacts ?? []).map((c: { name: string; phone: string; isPrimary: boolean }) => ({
           name: c.name,
-          phone: maskPhone(c.phone), // 管理端出口脱敏（等保+密评）
+          phone: maskPhone(openPiiForMask(c.phone)), // 管理端出口脱敏（等保+密评）
           isPrimary: c.isPrimary,
         })),
         evaluation: evals.length > 0 ? { level: evals[0].finalGrade || '', count: evals.length } : undefined,
@@ -1121,11 +1121,11 @@ export class SupplierService {
     }
     return {
       ...supplier,
-      user: supplier.user ? { ...supplier.user, email: maskEmail(supplier.user.email) } : supplier.user,
-      legalPersonIdCard: maskIdNumber(supplier.legalPersonIdCard),
-      legalPersonPhone: maskPhone(supplier.legalPersonPhone),
-      contacts: supplier.contacts.map(c => ({ ...c, phone: maskPhone(c.phone), idCard: maskIdNumber(c.idCard), email: maskEmail(c.email) })),
-      bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: maskBankAccount(b.accountNo) })),
+      user: supplier.user ? { ...supplier.user, email: maskEmail(openPiiForMask(supplier.user.email)) } : supplier.user,
+      legalPersonIdCard: maskIdNumber(openPiiForMask(supplier.legalPersonIdCard)),
+      legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),
+      contacts: supplier.contacts.map(c => ({ ...c, phone: maskPhone(openPiiForMask(c.phone)), idCard: maskIdNumber(openPiiForMask(c.idCard)), email: maskEmail(openPiiForMask(c.email)) })),
+      bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: maskBankAccount(openPiiForMask(b.accountNo)) })),
       changeRecords: supplier.changeRecords.map(r => ({ ...r, oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) })),
     };
   }
@@ -1402,8 +1402,8 @@ export class SupplierService {
       supplierNo: supplier.supplierNo,
       enterpriseType: supplier.enterpriseType,
       legalPerson: supplier.legalPerson,
-      legalPersonIdCard: maskIdNumber(supplier.legalPersonIdCard), // 审批快照出口脱敏（等保+密评）
-      legalPersonPhone: maskPhone(supplier.legalPersonPhone),
+      legalPersonIdCard: maskIdNumber(openPiiForMask(supplier.legalPersonIdCard)), // 审批快照出口脱敏（等保+密评）
+      legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),
       registeredAddress: supplier.registeredAddress,
       detailedAddress: supplier.detailedAddress,
       businessScope: supplier.businessScope,
@@ -1417,10 +1417,10 @@ export class SupplierService {
       companyWebsite: supplier.companyWebsite,
       tags: supplier.tags,
       isTemporary: supplier.isTemporary,
-      account: { username: supplier.user?.username, displayName: supplier.user?.displayName, email: maskEmail(supplier.user?.email) },
-      contacts: supplier.contacts.map(c => ({ name: c.name, gender: c.gender, phone: maskPhone(c.phone), idCard: maskIdNumber(c.idCard), email: maskEmail(c.email), position: c.position, isPrimary: c.isPrimary })),
+      account: { username: supplier.user?.username, displayName: supplier.user?.displayName, email: maskEmail(openPiiForMask(supplier.user?.email)) },
+      contacts: supplier.contacts.map(c => ({ name: c.name, gender: c.gender, phone: maskPhone(openPiiForMask(c.phone)), idCard: maskIdNumber(openPiiForMask(c.idCard)), email: maskEmail(openPiiForMask(c.email)), position: c.position, isPrimary: c.isPrimary })),
       qualifications: supplier.qualifications.map(q => ({ type: q.type, name: q.name, fileUrl: q.fileUrl, attachments: q.attachments, validFrom: q.validFrom, validTo: q.validTo })),
-      bankAccounts: supplier.bankAccounts.map(b => ({ id: b.id, accountName: b.accountName, bankName: b.bankName, bankBranch: b.bankBranch, accountNo: maskBankAccount(b.accountNo), isDefault: b.isDefault })),
+      bankAccounts: supplier.bankAccounts.map(b => ({ id: b.id, accountName: b.accountName, bankName: b.bankName, bankBranch: b.bankBranch, accountNo: maskBankAccount(openPiiForMask(b.accountNo)), isDefault: b.isDefault })),
       performances: supplier.performances.map(p => ({ id: p.id, projectName: p.projectName, clientName: p.clientName, contractAmount: p.contractAmount, signDate: p.signDate, description: p.description, proofFiles: p.proofFiles })),
     };
   }

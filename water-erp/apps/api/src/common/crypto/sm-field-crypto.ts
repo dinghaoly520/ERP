@@ -128,6 +128,16 @@ export function sealPii(plain: string | null | undefined): string | null {
   return sealFieldSm(plain, activeSecret());
 }
 
+/**
+ * 展示掩码专用宽容拆封：密封则拆封、无前缀明文则原样直通（不抛错）。
+ * 仅供「出口掩码」链路使用——单行坏数据不应 500 整个列表；
+ * 功能性解密（揭示/审计/通知取号）必须用 openPii 严格拆封。
+ */
+export function openPiiForMask(stored: string | null | undefined): string | null {
+  if (stored == null || stored === '') return stored ?? null;
+  return isSealedFieldSm(stored) ? openPii(stored) : stored;
+}
+
 /** 拆封（FIELD_ENC_SECRET + 可选 FIELD_ENC_SECRET_OLD 轮转旧钥） */
 export function openPii(stored: string | null | undefined): string | null {
   const secrets = [activeSecret()];

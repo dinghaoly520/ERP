@@ -8,6 +8,7 @@ import {
   openPii,
   blindIndexPii,
   assertFieldSecretForProduction,
+  openPiiForMask,
   FIELD_ENC_MIN_LEN,
 } from './sm-field-crypto';
 
@@ -102,6 +103,24 @@ describe('sm-field-crypto (SM4-CBC + HMAC-SM3, sm1:keyId: 格式)', () => {
       expect(fieldKeyId(SECRET)).toMatch(/^[0-9a-f]{8}$/);
       expect(fieldKeyId(SECRET)).toBe(fieldKeyId(SECRET));
       expect(fieldKeyId(OLD_SECRET)).not.toBe(fieldKeyId(SECRET));
+    });
+  });
+
+  describe('openPiiForMask（展示掩码专用宽容拆封）', () => {
+    it('密封值 → 拆封明文', () => {
+      expect(openPiiForMask(sealPii('13812345678'))).toBe('13812345678');
+    });
+    it('无前缀明文 → 原样直通不抛错（坏数据不 500 列表）', () => {
+      expect(openPiiForMask('13812345678')).toBe('13812345678');
+      expect(openPiiForMask('v1:legacy-blob')).toBe('v1:legacy-blob');
+    });
+    it('null/空串原样返回', () => {
+      expect(openPiiForMask(null)).toBeNull();
+      expect(openPiiForMask('')).toBe('');
+    });
+    it('跨钥密封值仍抛错（密钥错误不该被宽容成明文透出）', () => {
+      const sealed = sealFieldSm('x', OLD_SECRET)!;
+      expect(() => openPiiForMask(sealed)).toThrow(/无对应密钥/);
     });
   });
 

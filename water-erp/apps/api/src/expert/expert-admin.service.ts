@@ -6,7 +6,7 @@ import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { portalOrigin } from '@water-erp/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { sealPii, openPii } from '../common/crypto/sm-field-crypto';
+import { sealPii, openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { maskPhone, maskIdNumber, maskEmail, maskLicenseNo } from '../common/pii-mask';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -200,12 +200,12 @@ export class ExpertAdminService {
     // 管理端列表默认脱敏（等保+密评）：PII 密文列出口掩码
     const items = (users as any[]).map(u => ({
       ...u,
-      email: maskEmail(u.email),
+      email: maskEmail(openPiiForMask(u.email)),
       expertProfile: u.expertProfile ? {
         ...u.expertProfile,
-        phone: maskPhone(u.expertProfile.phone),
-        idNumber: maskIdNumber(u.expertProfile.idNumber),
-        licenseNo: maskLicenseNo(u.expertProfile.licenseNo),
+        phone: maskPhone(openPiiForMask(u.expertProfile.phone)),
+        idNumber: maskIdNumber(openPiiForMask(u.expertProfile.idNumber)),
+        licenseNo: maskLicenseNo(openPiiForMask(u.expertProfile.licenseNo)),
       } : u.expertProfile,
     }));
     return { total, page, pageSize, items };
@@ -284,12 +284,12 @@ export class ExpertAdminService {
     // 管理端默认脱敏（等保+密评）：明文走 reveal 端点（入 SensitiveAccessLog 审计）
     return {
       ...user,
-      email: maskEmail(user.email),
+      email: maskEmail(openPiiForMask(user.email)),
       expertProfile: user.expertProfile ? {
         ...user.expertProfile,
-        phone: maskPhone(user.expertProfile.phone),
-        idNumber: maskIdNumber(user.expertProfile.idNumber),
-        licenseNo: maskLicenseNo(user.expertProfile.licenseNo),
+        phone: maskPhone(openPiiForMask(user.expertProfile.phone)),
+        idNumber: maskIdNumber(openPiiForMask(user.expertProfile.idNumber)),
+        licenseNo: maskLicenseNo(openPiiForMask(user.expertProfile.licenseNo)),
       } : user.expertProfile,
       assignments,
       evaluations: evaluations.slice(0, 20),
@@ -358,8 +358,17 @@ export class ExpertAdminService {
         },
         include: { expertProfile: true, department: { select: { id: true, name: true } } },
       });
-      // 剥离密码哈希，避免敏感字段外泄
+      // 剥离密码哈希，避免敏感字段外泄；PII 密文列出口掩码（等保+密评，口径同列表/详情）
       const { passwordHash, ...safeUser } = user;
+      if (safeUser.expertProfile) {
+        (safeUser as any).expertProfile = {
+          ...safeUser.expertProfile,
+          phone: maskPhone(openPiiForMask(safeUser.expertProfile.phone)),
+          idNumber: maskIdNumber(openPiiForMask(safeUser.expertProfile.idNumber)),
+          licenseNo: maskLicenseNo(openPiiForMask(safeUser.expertProfile.licenseNo)),
+        };
+      }
+      if (safeUser.email) (safeUser as any).email = maskEmail(openPiiForMask(safeUser.email));
       // 审计留痕：单条录入（CSV 导入与种子导入不在此列，各自单独记账）
       await this.auditExpert(operatorId, 'EXPERT_CREATE', user.id, {
         expertName: normalizedName, specialty: dto.specialty, employer: dto.employer ?? null,
@@ -693,7 +702,7 @@ export class ExpertAdminService {
     const pending = records.filter(r => r.invitationStatus === 'pending').length;
     const candidates = records.filter(r => r.expertRole === '候补' && r.invitationStatus === 'pending');
     return {
-      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, phone: maskPhone(openPii(r.user?.expertProfile?.phone ?? r.user?.phone ?? null)), rsvpNo: r.id.slice(-8).toUpperCase() })),
+      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, phone: maskPhone(openPiiForMask(r.user?.expertProfile?.phone ?? r.user?.phone ?? null)), rsvpNo: r.id.slice(-8).toUpperCase() })),
       summary: {
         total: records.length,
         confirmed,
@@ -1901,9 +1910,9 @@ export class ExpertAdminService {
       工作单位: u.expertProfile?.employer ?? '',
       所属公司: u.company ?? '',
       部门: u.department?.name ?? '',
-      手机号: maskPhone(u.expertProfile?.phone ?? null) ?? '', // 导出脱敏（等保+密评）
-      身份证号: maskIdNumber(u.expertProfile?.idNumber ?? null) ?? '',
-      邮箱: maskEmail(u.email) ?? '',
+      手机号: maskPhone(openPiiForMask(u.expertProfile?.phone ?? null)) ?? '', // 导出脱敏（等保+密评）
+      身份证号: maskIdNumber(openPiiForMask(u.expertProfile?.idNumber ?? null)) ?? '',
+      邮箱: maskEmail(openPiiForMask(u.email)) ?? '',
       状态: u.isActive ? '可用' : '已停用',
       入库时间: u.createdAt.toISOString().slice(0, 10),
     }));
