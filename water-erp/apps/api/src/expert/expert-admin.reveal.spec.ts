@@ -73,6 +73,15 @@ describe('ExpertAdminService.revealExpertField（明文揭示 + 审计）', () =
     expect(fallback.value).toBe('13900000000');
   });
 
+  it('揭示账号邮箱（User.email 密文列）', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'u1', role: 'bid_expert', companyId: 'co-1', email: sealPii('liu@example.com'),
+      expertProfile: { phone: null, idNumber: null, licenseNo: null },
+    });
+    const result = await service.revealExpertField('u1', 'email', actor as any);
+    expect(result.value).toBe('liu@example.com');
+  });
+
   it('不可揭示字段 → 400 FIELD_NOT_REVEALABLE（不写审计）', async () => {
     await expect(service.revealExpertField('u1', 'passwordHash', actor as any)).rejects.toMatchObject({
       response: { code: 'FIELD_NOT_REVEALABLE' },

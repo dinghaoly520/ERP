@@ -2516,7 +2516,7 @@ ${combined}`,
 
   /* ── PII 明文揭示（等保+密评：管理端默认掩码，明文走此处并留痕）── */
 
-  private static readonly REVEALABLE_EXPERT_FIELDS = ['idNumber', 'phone', 'licenseNo'] as const;
+  private static readonly REVEALABLE_EXPERT_FIELDS = ['idNumber', 'phone', 'licenseNo', 'email'] as const;
 
   /**
    * 揭示专家 PII 明文（admin/leader/staff，controller 方法级 @Roles 收窄）。
@@ -2535,15 +2535,17 @@ ${combined}`,
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true, role: true, companyId: true, phone: true,
+        id: true, role: true, companyId: true, phone: true, email: true,
         expertProfile: { select: { phone: true, idNumber: true, licenseNo: true } },
       },
     });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    // 密文列拆封：phone 走 档案优先→账号回退
+    // 密文列拆封：phone 走 档案优先→账号回退；email 取 User 列
     const raw = field === 'phone'
       ? (user.expertProfile?.phone ?? user.phone)
-      : (user.expertProfile?.[field as 'idNumber' | 'licenseNo'] ?? null);
+      : field === 'email'
+        ? user.email
+        : (user.expertProfile?.[field as 'idNumber' | 'licenseNo'] ?? null);
     const value = openPii(raw);
     await logSensitiveAccess(this.prisma, actor, 'ExpertProfile', userId, field, ip);
     return { field, value };
