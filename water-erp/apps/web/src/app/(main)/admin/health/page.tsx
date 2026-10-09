@@ -1,15 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, AlertTriangle, Database, Download, HardDrive, RefreshCw, ScanText, Server } from 'lucide-react';
+import { Activity, AlertTriangle, Database, HardDrive, RefreshCw, ScanText, Server } from 'lucide-react';
 import { apiFetch } from '@/lib/api/api-fetch';
 import { TableSkeleton } from '@/components/workbench';
 
 /* ═══════════════════════════════════════════════════════════════
    系统健康（D6 · CTS 4.7~4.11 自我声明支撑）
-   组件探活 + 24h 接口指标 + AI 队列深度 + 30 天自声明数据包下载
+   组件探活 + 24h 接口指标 + AI 队列深度
    数据管理页标准三层：page-hero(含 KPI 探活瓷片) + neu-table-card ×2
-   2026-10-09：自账号管理弹窗迁出，独立页挂侧栏「系统管理」组（leader/admin）
+   2026-10-09：自账号管理弹窗迁出，独立页挂侧栏「系统管理」组（leader/admin）；
+   同日删 30 天自声明数据包下载（按钮+端点，佐证数据走 API/DB 自取）
    ═══════════════════════════════════════════════════════════════ */
 
 type Probe = { ok: boolean; latencyMs: number; error?: string; label?: string };
@@ -82,21 +83,6 @@ export default function HealthPage() {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const downloadAssessment = async () => {
-    try {
-      const pkg = await api<Record<string, unknown>>('/health/self-assessment');
-      const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `self-assessment-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-
   const probes = data ? [data.components.db, data.components.redis, data.components.minio, data.components.ocr] : [];
   const okCount = probes.filter(p => p?.ok).length;
   const failCount = probes.length - okCount;
@@ -121,9 +107,6 @@ export default function HealthPage() {
                   : <>组件 {okCount}/{probes.length} 正常</>}
               </span>
             )}
-            <button onClick={() => void downloadAssessment()} className="neu-btn-xs" title="下载近 30 天自声明 JSON（第三方测评证据材料）">
-              <Download size={13} /> 30 天自声明数据包
-            </button>
             <button onClick={() => void reload()} disabled={loading} className="neu-btn-xs" aria-label="刷新">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>

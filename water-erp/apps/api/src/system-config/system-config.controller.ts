@@ -64,37 +64,6 @@ export class SystemConfigController {
     };
   }
 
-  /** D6：30 天自声明数据包（性能/可靠性佐证，CTS 认证自我声明材料） */
-  @Get('health/self-assessment')
-  @Roles('admin')
-  @ApiOperation({ summary: '30 天性能/可靠性自声明数据包（JSON 下载）' })
-  async selfAssessment() {
-    const agg30d = await this.prisma.$queryRaw<Array<{ total: number; errors: number; p95ms: number; p99ms: number; avgms: number }>>`
-      SELECT COUNT(*)::int AS total,
-             COUNT(*) FILTER (WHERE "statusCode" >= 400)::int AS errors,
-             COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY "durationMs"), 0)::int AS p95ms,
-             COALESCE(percentile_cont(0.99) WITHIN GROUP (ORDER BY "durationMs"), 0)::int AS p99ms,
-             COALESCE(AVG("durationMs"), 0)::int AS avgms
-      FROM "OperationLog" WHERE "createdAt" > now() - interval '30 days'`;
-    const a = agg30d[0] ?? { total: 0, errors: 0, p95ms: 0, p99ms: 0, avgms: 0 };
-    return {
-      生成依据: 'CTS-EBS01-2016 4.7 性能 / 4.9 可靠性 —— 交易平台自我声明佐证数据',
-      统计窗口: '近 30 天（OperationLog 全量请求）',
-      请求总数: a.total,
-      错误数: a.errors,
-      错误率: a.total > 0 ? `${Math.round((a.errors / a.total) * 10000) / 100}%` : '0%',
-      平均耗时ms: a.avgms,
-      P95耗时ms: a.p95ms,
-      P99耗时ms: a.p99ms,
-      运行环境: {
-        nodeVersion: process.version,
-        platform: `${process.platform}/${process.arch}`,
-        env: process.env.NODE_ENV ?? 'development',
-      },
-      生成时间: new Date().toISOString(),
-    };
-  }
-
   // 澄清说明文案：供应商端公开读取（非敏感信息，与公告 public 端点一致）
   @Get('clarification-notice')
   @Public()
