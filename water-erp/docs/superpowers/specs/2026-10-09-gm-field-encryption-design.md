@@ -15,12 +15,12 @@
 | 驱动 | 等保三级 + 密评（密评强制国密） |
 | 算法 | SM4-CBC + HMAC-SM3（Encrypt-then-MAC，GB/T 36624 可鉴别加密）；盲索引 HMAC-SM3 |
 | 落点 | 应用层字段级加密（扩展 `field-crypto` 模式；pgcrypto 无 SM4、TDE 防不了拖库，均否决） |
-| 存量 | **不迁移、不沿用**：种子重建，全新数据走密封写入；旧 `v1:` AES 密文随重建消失 |
-| AES 版 field-crypto | 随 bidPrice 一并切换国密后删除 |
+| 存量 | **不迁移、不沿用**：种子重建，全新数据走密封写入 |
+| 范围边界（2026-10-09 用户裁定） | **bidPrice 与在线评标域一律不动**：AES 版 `field-crypto`（bidPrice 密封）保持现状，与国密 `sm-field-crypto` 并存；本期只做供应商信息、专家信息、账号信息的 PII 加密 |
 
 ## 密码方案
 
-新建 `apps/api/src/common/crypto/sm-field-crypto.ts`：
+新建 `apps/api/src/common/crypto/sm-field-crypto.ts`（与 AES 版 `field-crypto.ts` 并存——后者继续服务 bidPrice 密封，不迁移）：
 
 - 加密：SM4-CBC（随机 16B IV，PKCS7）——Node 原生 `sm4-cbc`（本机已验证可用；`sm4-gcm` 不可用）
 - 完整性：HMAC-SM3（EtM，覆盖 `iv‖ciphertext`，32B tag）
