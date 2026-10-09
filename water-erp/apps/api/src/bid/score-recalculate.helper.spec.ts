@@ -1,4 +1,4 @@
-import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
+import { recomputeExpertProgress, recomputeItemFromDecisions, filterEvaluableSuppliers, recomputeAllExpertsProgress } from './score-recalculate.helper';
 
 describe('recomputeItemFromDecisions', () => {
   it('score = Σ awardedScore；非通过性 passed=null', () => {
@@ -115,6 +115,45 @@ describe('recomputeExpertProgress', () => {
     expect(r.totalScore).toBe(10); // (10+20) / 3 活跃供应商 = 10
   });
 
+  it('P1-5（中断审查）：分母排除该专家申报回避的供应商（可评集合=活跃−回避）——评完其余家即 100', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) },
+      bidScoreRecord: {
+        count: jest.fn().mockResolvedValue(4), // a、b 各 2 项已评（c 回避不可评不可计）
+        findMany: jest.fn().mockResolvedValue([{ score: 10 }, { score: 20 }, { score: 30 }, { score: 40 }]),
+      },
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1', ['c']);
+    expect(r.progress).toBe(100); // 4 / (2 项 × 2 可评家) —— 回避家不入分母
+    expect(tx.bidScoreRecord.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ supplierId: { in: ['a', 'b'] } }),
+    }));
+  });
+
+  it('P1-6（中断审查）：分母排除废标家（bidValidity=invalid）——未评分废标家的专家可达 100', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b', bidValidity: 'invalid' }]) },
+      bidScoreRecord: {
+        count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([{ score: 10 }]),
+      },
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(100); // 1 / (1 项 × 1 可评家)
+    expect(r.totalScore).toBe(10); // 均分只跨可评家
+  });
+
+  it('P1-5：conflictedSupplierIds 缺省 []（既有调用零变化）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }]) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([{ score: 10 }]) },
+    };
+    expect((await recomputeExpertProgress(tx, 'exp1', 'p1')).progress).toBe(100);
+  });
+
   it('totalItems=0 → progress=0', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
@@ -205,5 +244,42 @@ describe('recomputeExpertProgress', () => {
     const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
     expect(r.progress).toBe(100);
     expect(r.totalScore).toBe(76); // 语义修正：跨供应商均分，非总分 228
+  });
+});
+
+describe('filterEvaluableSuppliers（P1-5/P1-6 单一口径·终审补）', () => {
+  it('可评集合 = 活跃行 − 回避 − 废标', () => {
+    const rows = [
+      { id: 'a', bidValidity: 'valid' },
+      { id: 'b', bidValidity: null },
+      { id: 'c-inv', bidValidity: 'invalid' },
+      { id: 'd-conf' },
+    ];
+    expect(filterEvaluableSuppliers(rows, ['d-conf']).map(s => s.id)).toEqual(['a', 'b']);
+    // 缺省无回避：仅排废标
+    expect(filterEvaluableSuppliers(rows).map(s => s.id)).toEqual(['a', 'b', 'd-conf']);
+  });
+});
+
+describe('recomputeAllExpertsProgress（host 侧废标处置后全量重算·终审补）', () => {
+  it('逐正选专家按可评集合重算并落库（各自的回避集独立排除）', async () => {
+    const prisma: any = {
+      bidExpert: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'e1', conflictedSupplierIds: ['s-c'] },
+          { id: 'e2', conflictedSupplierIds: null },
+        ]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([
+        { id: 's-a', bidValidity: 'valid' }, { id: 's-b', bidValidity: 'valid' }, { id: 's-c' }, { id: 's-inv', bidValidity: 'invalid' },
+      ]) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(4), findMany: jest.fn().mockResolvedValue([{ score: 10 }, { score: 20 }, { score: 30 }, { score: 40 }]) },
+    };
+    await recomputeAllExpertsProgress(prisma, 'p1');
+    // e1（回避 s-c）：分母 2×2=4，count=4 → 100；e2：分母 2×3=6，count=4 → 66
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: expect.objectContaining({ progress: 100 }) });
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'e2' }, data: expect.objectContaining({ progress: 66 }) });
   });
 });

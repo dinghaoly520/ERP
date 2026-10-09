@@ -317,12 +317,19 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
   // 评标室口令（2026-09-20 spec §4）：EVALUATING 时拉取——明文仅 bid_host/admin
   //（leader/staff 请求 403 静默不渲染卡片；主持人/管理员口径见 getRoomCode @Roles）
-  useEffect(() => {
-    if (!projectId || project?.stage !== 'EVALUATING') return;
+  // P3（中断审查）：拉取失败与「确认未启用」区分——误显「未启用」会令主持人以为口令闸没开而漏传口令
+  const [roomCodeError, setRoomCodeError] = useState(false);
+  const loadRoomCode = useCallback(() => {
+    if (!projectId) return;
+    setRoomCodeError(false);
     getRoomCode(projectId)
       .then(r => setRoomCodeInfo({ roomCode: r.roomCode, roomCodeAt: r.roomCodeAt }))
-      .catch(() => { /* 非主持人或未启用——静默 */ });
-  }, [projectId, project?.stage]);
+      .catch(() => { setRoomCodeError(true); });
+  }, [projectId]);
+  useEffect(() => {
+    if (!projectId || project?.stage !== 'EVALUATING') return;
+    loadRoomCode();
+  }, [projectId, project?.stage, loadRoomCode]);
 
   // host 态：主持人核验登记（人↔证件↔名单三对照）
   const handleVerifyIdentity = async () => {
@@ -577,8 +584,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const unconfirmed = regularExperts.filter(e => !e.reportConfirmed);
   const canGenerate = regularExperts.length > 0 && unconfirmed.length === 0;
 
-  // H4: 开标完成度（与后端 startEvaluation 守卫同口径）——未撤回供应商须全部到终局态
-  const activeSuppliers = suppliers.filter(s => s.submitStatus !== '已撤回');
+  // H4: 开标完成度（与后端 startEvaluation 守卫同口径）——参标（已投递）供应商须全部到终局态；
+  // 未投递/已撤回家不入完成度（后端 H4 isSubmittedRow 同口径，P1-4 前端镜像补齐）
+  const activeSuppliers = suppliers.filter(s => s.submitStatus === '已提交');
   const notReadySuppliers = activeSuppliers.filter(s =>
     s.decryptStatus !== 'DANGER' &&
     (s.decryptStatus !== 'SUCCESS' || (s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION'))
@@ -892,6 +900,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     <Copy size={12} strokeWidth={1.7} />
                   </button>
                 </span>
+              ) : roomCodeInfo === null ? (
+                /* P3（中断审查）：拉取未返回/失败与「确认未启用」区分——主持人不得被误显「未启用」误导
+                   （误以为口令闸没开而漏传口令，专家端却在 403） */
+                roomCodeError ? (
+                  <button type="button" onClick={() => loadRoomCode()} className="neu-btn-xs !h-[24px] !px-2 !text-[10px] text-[var(--danger)]">
+                    加载失败 · 重试
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center text-[11px] text-[var(--muted-foreground)]">加载中…</span>
+                )
               ) : (
                 <span className="inline-flex items-center text-[11px] text-[var(--muted-foreground)]">
                   未启用
@@ -1003,7 +1021,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       已登记异常
                     </span>
                   )}
-                  {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && (
+                  {!row.signedIn && row.expertRole === EXPERT_ROLE.REGULAR && (me?.role === 'bid_host' || me?.role === 'admin') && (
                     <button
                       type="button"
                       onClick={() => setManualFor({ id: row.id, expertName: row.expertName })}

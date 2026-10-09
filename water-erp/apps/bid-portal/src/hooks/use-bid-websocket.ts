@@ -32,6 +32,9 @@ import {
   type ClarificationCreatedPayload,
   type ClarificationRepliedPayload,
   type ScoresSubmittedPayload,
+  type EvaluationExtendedPayload,
+  type RoomCodeRotatedPayload,
+  type ScoringReopenedPayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -61,6 +64,10 @@ export interface BidWsHandlers {
   onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
   onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
   onScoresSubmitted?: (d: ScoresSubmittedPayload) => void;
+  /** 终审补（P2-9/10/11）：host 房同名广播的主持端消费口——多屏 :3007/:3005 视图即时刷新 */
+  onEvaluationExtended?: (d: EvaluationExtendedPayload) => void;
+  onRoomCodeRotated?: (d: RoomCodeRotatedPayload) => void;
+  onScoringReopened?: (d: ScoringReopenedPayload) => void;
   /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
   onReconnected?: () => void;
 }
@@ -188,6 +195,9 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.CLARIFICATION_CREATED, 'onClarificationCreated');
     on(BID_EVENT.CLARIFICATION_REPLIED, 'onClarificationReplied');
     on(BID_EVENT.SCORES_SUBMITTED, 'onScoresSubmitted');
+    on(BID_EVENT.EVALUATION_EXTENDED, 'onEvaluationExtended');
+    on(BID_EVENT.ROOM_CODE_ROTATED, 'onRoomCodeRotated');
+    on(BID_EVENT.SCORING_REOPENED, 'onScoringReopened');
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {

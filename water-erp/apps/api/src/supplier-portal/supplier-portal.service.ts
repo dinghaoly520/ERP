@@ -2062,6 +2062,14 @@ export class SupplierPortalService {
         for (const path of newlySealedPaths) {
           try { await minioClient.removeObject(MINIO_BUCKET, path); } catch (_) { /* best-effort cleanup */ }
         }
+        // P1-7（第三波）：C_outer 本体缺失给明确 400（撤回后遗留引用/存储侧丢失）——
+        // 旧实现裸 rethrow 500，供应商端无「请重传」指引，反复提交反复 500
+        if (err && typeof err === 'object' && (err as { code?: string }).code === 'NoSuchKey') {
+          throw new BadRequestException({
+            error: '投标密封件已不存在（可能是撤回后遗留的文件引用），请重新上传投标文件后再提交',
+            code: 'SEALED_OBJECT_MISSING',
+          });
+        }
         throw err;
       }
     } else {
@@ -3108,18 +3116,9 @@ export class SupplierPortalService {
       return result;
     });
 
-    // 事务后异步清理 MinIO 密封文件（best-effort，不阻塞）
-    if (assetIds.length > 0) {
-      const assets = await this.prisma.fileAsset.findMany({
-        where: { id: { in: assetIds } },
-        select: { sealedPath: true },
-      }).catch(() => [] as { sealedPath: string | null }[]);
-      for (const a of assets) {
-        if (a.sealedPath) {
-          try { await minioClient.removeObject(MINIO_BUCKET, a.sealedPath); } catch (_) { /* best-effort */ }
-        }
-      }
-    }
+    // P1-7（第三波）：撤回不再删除 MinIO 密封对象（sealedPath=asset.key 即 C_outer 本体）——
+    // dual-v2 重投时 submitBid 备份 staging 需重读该对象，删本体即反复 500 死胡同（回显「已上传」
+    // 诱导直接提交）。撤回的保密边界由下载授权链收口（withdrawn 后无下载授权），密文本体留存供重投。
 
     return updated;
   }

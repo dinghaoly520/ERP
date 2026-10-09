@@ -64,11 +64,14 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
     setTimeout(() => setFeedback(null), FEEDBACK_AUTOHIDE_MS);
   };
 
+  // P3（中断审查）：拉取失败不得伪装空态（违背「无 mock 兜底」约定）——错误横幅+重试，
+  // 失败保留上次成功数据
+  const [loadError, setLoadError] = useState(false);
   const load = useCallback(() => {
     setLoading(true);
     listClarifications(bidProjectId)
-      .then(setItems)
-      .catch(() => setItems([]))
+      .then(r => { setItems(r); setLoadError(false); })
+      .catch(() => { setLoadError(true); })
       .finally(() => setLoading(false));
   }, [bidProjectId]);
 
@@ -200,6 +203,12 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
         <div className="py-8 text-center text-xs text-[var(--muted-foreground)]">加载澄清数据…</div>
       ) : (
         <div className="space-y-3">
+          {loadError && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3.5 py-2.5 text-[11px] text-[var(--danger)]">
+              <span className="flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={1.7} /> 澄清台账拉取失败——下方内容可能非最新，且不代表「暂无记录」。</span>
+              <button type="button" onClick={() => load()} className="neu-btn-xs !h-[24px] shrink-0">重试</button>
+            </div>
+          )}
           {/* 书面来函 */}
           <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
             <div className="border-b border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.5)] px-3.5 py-2.5">

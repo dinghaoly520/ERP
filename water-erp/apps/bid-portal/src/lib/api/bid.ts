@@ -290,6 +290,11 @@ export function acceptSupplierDanger(projectId: string, supplierId: string, reas
   return api.post(`/bid/projects/${projectId}/suppliers/${supplierId}/accept-danger`, { reason });
 }
 
+/** P1-1（第三波）：缺席视为无异议确认——解密成功但拒不/无法确认唱标家的现场出口（admin/leader+书面理由+高风险留痕） */
+export function overrideDispute(projectId: string, supplierId: string, reason: string, target: 'confirmed' | 'exception' = 'confirmed') {
+  return api.post(`/bid/projects/${projectId}/suppliers/${supplierId}/override-dispute`, { reason, target });
+}
+
 export function pauseOpening(projectId: string, reason?: string) {
   return api.post(`/bid/projects/${projectId}/pause`, reason ? { reason } : {});
 }

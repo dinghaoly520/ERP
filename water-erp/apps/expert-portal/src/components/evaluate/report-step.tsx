@@ -367,6 +367,12 @@ export function ReportStep({ report, busy, onConfirmReport, evaluationOverdue = 
               <p className="!text-sm">请先完成所有供应商的评分后再确认报告</p>
             </div>
           )}
+          {report.evaluableEmpty && (
+            <div className="exp-alert exp-alert--danger flex items-center gap-3 !p-4">
+              <AlertTriangle size={14} strokeWidth={1.5} className="shrink-0" />
+              <p className="!text-sm">全部活跃供应商均被您回避或已废标——无可评对象。请核对回避申报是否有误，或联系主持人按流标/补选程序处置</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="py-12 text-center text-[var(--muted-foreground)]">加载报告数据...</div>

@@ -36,6 +36,9 @@ import {
   type RoundStatusChangePayload,
   type ScoresSubmittedPayload,
   type DraftSavedPayload,
+  type EvaluationExtendedPayload,
+  type RoomCodeRotatedPayload,
+  type ScoringReopenedPayload,
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
@@ -335,6 +338,25 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyEvaluationStarted(projectId: string) {
     const payload: EvaluationStartedPayload = { projectId, timestamp: Date.now() };
     this.server.to(`project:${projectId}`).emit(BID_EVENT.EVALUATION_STARTED, payload);
+  }
+
+  /** P2-9（中断审查）：评标时限延长——专家端陈旧「已截止/已锁定」态据此重拉解锁 */
+  notifyEvaluationExtended(projectId: string, payload: EvaluationExtendedPayload) {
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.EVALUATION_EXTENDED, payload);
+    this.server.to(`host:${projectId}`).emit(BID_EVENT.EVALUATION_EXTENDED, payload);
+  }
+
+  /** P2-10（中断审查）：评标室口令轮换——仅里程碑（口令本体绝不出现在载荷），
+   *  在场专家刷新后口令门 UI 重现，不再只见 403 toast 须 F5 */
+  notifyRoomCodeRotated(projectId: string, payload: RoomCodeRotatedPayload) {
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.ROOM_CODE_ROTATED, payload);
+    this.server.to(`host:${projectId}`).emit(BID_EVENT.ROOM_CODE_ROTATED, payload);
+  }
+
+  /** P2-11（中断审查）：评审确认重开——专家端陈旧「已确认/已锁定」态据此重拉解锁 */
+  notifyScoringReopened(projectId: string, payload: ScoringReopenedPayload) {
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.SCORING_REOPENED, payload);
+    this.server.to(`host:${projectId}`).emit(BID_EVENT.SCORING_REOPENED, payload);
   }
 
   notifySubmissionOpened(projectId: string) {

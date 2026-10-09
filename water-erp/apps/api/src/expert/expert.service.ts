@@ -25,7 +25,7 @@ import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto'
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
-import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
+import { recomputeExpertProgress, recomputeItemFromDecisions, filterEvaluableSuppliers, recomputeAllExpertsProgress } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
@@ -662,6 +662,14 @@ export class ExpertService {
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
         action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: resolvedConflicts.length > 0 ? '中' : '无' },
     }).catch(() => {});
+    // P1-5（中断审查）：回避申报改变可评集合 → 本专家 progress 即时重算（分母收缩），
+    // 否则分母含回避家、评不出即永远 <100 → 报告确认死锁（不再依赖下次提交触发）
+    try {
+      const { progress, totalScore } = await recomputeExpertProgress(this.prisma, expert.id, projectId, resolvedConflicts);
+      await this.prisma.bidExpert.update({ where: { id: expert.id }, data: { progress, totalScore } });
+      updated.progress = progress;
+      (updated as any).totalScore = totalScore; // 列为 Prisma Decimal，行内镜像赋值走 any
+    } catch { /* 重算失败不阻塞回避确认（confirmReport 有活体重算自愈兜底） */ }
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'avoidance_confirmed', progressPercent: updated.progress ?? 0,
     });
@@ -1609,7 +1617,8 @@ export class ExpertService {
       }
 
       // Recalculate progress and totalScore within the same transaction
-      const { progress, totalScore } = await recomputeExpertProgress(tx, expert.id, projectId);
+      // P1-5（中断审查）：分母排除本专家回避家（可评集合口径）
+      const { progress, totalScore } = await recomputeExpertProgress(tx, expert.id, projectId, expertConflicts);
       await tx.bidExpert.update({
         where: { id: expert.id },
         data: { progress, totalScore },
@@ -1647,6 +1656,7 @@ export class ExpertService {
     });
 
     // phase ④：实时废标判定（事务已提交，数据可读；放事务外避免长事务）
+    let validityFlipped = false; // P1-6：废标状态翻转（新增/恢复）→ 触发全体专家 progress 重算
     try {
       const passFailTouched = dto.scores.filter(s => {
         const m = itemMeta.get(s.scoreItemId);
@@ -1657,6 +1667,7 @@ export class ExpertService {
         for (const itemId of Array.from(new Set(items))) {
           const verdict = await evaluateInvalidBid(this.prisma, projectId, s, itemId);
           if (verdict.disqualified) {
+            validityFlipped = true;
             // #1: 旧 unique 约束已移除 → findFirst + create/update
             const existingRec = await this.prisma.bidInvalidBid.findFirst({
               where: { projectId, supplierId: s, scoreItemId: itemId },
@@ -1676,6 +1687,7 @@ export class ExpertService {
             // 不过半：若之前 invalid 现恢复（票数变化，决策 B 接受跳变）
             const existing = await this.prisma.bidInvalidBid.findFirst({ where: { projectId, supplierId: s, scoreItemId: itemId } });
             if (existing?.status === 'invalid') {
+              validityFlipped = true;
               await this.prisma.bidInvalidBid.update({ where: { id: existing.id }, data: { status: 'revoked', revokedAt: new Date() } });
               this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'revoked' });
             }
@@ -1687,6 +1699,17 @@ export class ExpertService {
       }
     } catch (e) {
       this.logger.error('实时废标判定失败（不阻塞评分主流程）', e instanceof Error ? e.message : String(e));
+    }
+
+    // P1-6（中断审查）：可评集合变化（废标翻转）→ 全体正选专家 progress 按新分母重算。
+    // 否则尚未评分该家的专家 progress 永卡 N-1/N（提交按钮已被前端锁死、无从自行触发重算）
+    // → confirmReport 死锁。含提交者本人（事务内重算先于判废，分母可能已变）。
+    if (validityFlipped) {
+      try {
+        await recomputeAllExpertsProgress(this.prisma, projectId);
+      } catch (e) {
+        this.logger.error('废标翻转后全体专家进度重算失败（不阻塞评分主流程）', e instanceof Error ? e.message : String(e));
+      }
     }
 
     // Emit WebSocket events after successful commit
@@ -2107,11 +2130,21 @@ export class ExpertService {
     });
     const reviewBySupplier = new Map(reviewRecords.map(r => [r.supplierId, r]));
 
-    // 与 confirmReport gate 一致：active = decryptStatus SUCCESS + submitStatus != 已撤回
+    // P1-5/P1-6（终审补）：与 confirmReport gate 同口径——可评集合 = 活跃 − 本专家回避 − 废标。
+    // 旧全活跃口径令回避/废标家未核对时 canConfirm 恒 false → 报告步确认按钮永不出现，
+    // confirmReport 的活体自愈反因按钮不可达而失效——报告确认死锁的最后一环
     const activeSuppliers = project.suppliers.filter(
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回',
     );
-    const allVerified = activeSuppliers.length > 0 && activeSuppliers.every(s => reviewBySupplier.get(s.id)?.status === 'verified');
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
+    const evaluableSuppliers = filterEvaluableSuppliers(activeSuppliers, conflictedIds);
+    const allVerified = evaluableSuppliers.length > 0 && evaluableSuppliers.every(s => reviewBySupplier.get(s.id)?.status === 'verified');
+    // 存量 progress 陈旧偏低（host 侧废标/回避申报后无提交动作触发重算的竞态）时活体重算供闸门——
+    // GET 无副作用不落库（落库由写路径触发）
+    let progressForGate = expert.progress ?? 0;
+    if (progressForGate < 100) {
+      progressForGate = (await recomputeExpertProgress(this.prisma, expert.id, projectId, conflictedIds)).progress;
+    }
 
     // 证据链：查 pointDecisions + 得分点元数据，供报告展示逐点明细（复用 getMyScores 的查询模式）
     const [pointDecisions, scorePoints] = await Promise.all([
@@ -2196,8 +2229,10 @@ export class ExpertService {
       supplierScores,
       scoreItems: project.scoreItems,
       // 已确认报告不可再确认——缺此闸门则前端按钮永续可点、重复确认
-      canConfirm: !expert.reportConfirmed && expert.progress >= 100 && allVerified,
-      overallComplete: expert.progress >= 100,
+      canConfirm: !expert.reportConfirmed && progressForGate >= 100 && allVerified,
+      overallComplete: progressForGate >= 100,
+      // 第三波：可评集合空诊断标志（前端报告步显示处置指引，替代笼统的「未完成评分」表象）
+      evaluableEmpty: evaluableSuppliers.length === 0 && activeSuppliers.length > 0,
       myDisputedReviews,
     };
   }
@@ -2220,24 +2255,46 @@ export class ExpertService {
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
-    if (expert.progress < 100) throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
+    // P1-5/P1-6（中断审查）：存量 progress 偏低不再一票否决——回避申报/废标翻转后分母已收缩
+    // 但重算触发点竞态时会陈旧；事务内按可评集合活体重算自愈，活体仍 <100 才是真实未评完
+    const storedProgressShort = (expert.progress ?? 0) < 100;
 
     // 事务化——事务内重读核对状态并原子确认，消除与 submitScores（重置 review 为 draft）的 TOCTOU
     const updated = await this.prisma.$transaction(async (tx) => {
       // 行锁 BidExpert，消除与 submitScores 的 TOCTOU 竞态
       await tx.$queryRaw`SELECT id FROM "BidExpert" WHERE id = ${expert.id} FOR UPDATE`;
 
-      // phase ③：所有活跃供应商必须已核对（事务内重读）
+      // P1-5/P1-6：可评集合 = 活跃 − 本专家回避 − 废标（filterEvaluableSuppliers 单一口径）——
+      // 回避家无评分记录无从核对、废标家已置后不参与排名，均不再强制核对
+      const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
       const activeSuppliers = await tx.bidSupplier.findMany({
         where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
-        select: { id: true },
+        select: { id: true, bidValidity: true },
       });
+      const evaluableSuppliers = filterEvaluableSuppliers(activeSuppliers, conflictedIds);
+
+      // 第三波：可评集合为空（全部被回避/废标）→ 明确诊断码，不再伪装 SCORING_INCOMPLETE 死锁表象。
+      // 出口=调整回避申报 / 流标 / 补选通道（P2-1 设计中）
+      if (evaluableSuppliers.length === 0 && activeSuppliers.length > 0) {
+        throw new BadRequestException({
+          error: '全部活跃供应商均被您回避或已废标，无可评对象——请核对回避申报是否有误，或联系主持人按流标/补选程序处置',
+          code: 'EVALUABLE_SET_EMPTY',
+        });
+      }
+
+      if (storedProgressShort) {
+        const { progress } = await recomputeExpertProgress(tx, expert.id, projectId, conflictedIds);
+        if (progress < 100) {
+          throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
+        }
+      }
+
       const verifiedReviews = await tx.bidScoreReview.findMany({
         where: { expertId: expert.id, projectId, status: 'verified' },
         select: { supplierId: true },
       });
       const verifiedSet = new Set(verifiedReviews.map(r => r.supplierId));
-      const unverified = activeSuppliers.filter(s => !verifiedSet.has(s.id));
+      const unverified = evaluableSuppliers.filter(s => !verifiedSet.has(s.id));
       if (unverified.length > 0) {
         throw new BadRequestException({ error: `有 ${unverified.length} 个供应商评分未核对`, code: 'REVIEW_PENDING' });
       }

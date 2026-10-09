@@ -55,6 +55,11 @@ function WorkspaceInner() {
   // F6：评标结果刷新信号——异议裁决联动废标等操作会删除评标结果，
   // 递增即驱动 EvaluationView 重拉（结果仅挂载拉取一次，否则排名区显示已删除的旧结果）
   const [resultsSignal, setResultsSignal] = useState(0);
+  // P2-8：签字 tab 刷新信号——签字类 WS 事件尚不存在（「状态变更无广播」系统性缺口），
+  // 以页级里程碑事件（评分/签到/评标启动/移交/重连 + 主持端评标区动作）驱动签字 tab 重拉，
+  // 电子签名自动闭环后「生成回流包」入口不再须切 tab/F5 才可见
+  const [signSignal, setSignSignal] = useState(0);
+  const bumpSign = useCallback(() => setSignSignal(v => v + 1), []);
 
   // Audio（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）
   const sfx = useOpeningSfx();
@@ -111,7 +116,8 @@ function WorkspaceInner() {
   const onEvalChanged = useCallback(() => {
     loadProject();
     setResultsSignal(v => v + 1);
-  }, [loadProject]);
+    bumpSign();
+  }, [loadProject, bumpSign]);
 
   // 解密倒计时提示音（补回旧开标大厅行为）：大厅 tab 且解密窗口在计时时，剩余 ≤60s 每秒 tick、
   // 剩余 300s 时 warning 一次。tab / decryptWindowEnd 变化即 clearInterval 重建，卸载清除；
@@ -182,10 +188,11 @@ function WorkspaceInner() {
       scheduleRefresh();
     },
     // 专家签到/回避/报告确认/进度里程碑（host 房定向）
-    onExpertPresence: () => { scheduleRefresh(); },
-    onExpertPresenceAggregate: () => { scheduleRefresh(); },
+    onExpertPresence: () => { scheduleRefresh(); bumpSign(); },
+    onExpertPresenceAggregate: () => { scheduleRefresh(); bumpSign(); },
     onEvaluationStarted: () => {
       loadProject();
+      bumpSign();
       toast.success('评标已启动，专家端进入评分');
     },
     // 澄清答疑：远程发起/供应商回复 → 列表重拉 + 提醒（project 房广播）
@@ -203,8 +210,17 @@ function WorkspaceInner() {
     onReconnected: () => {
       loadProject();
       setClarSignal(v => v + 1);
+      bumpSign();
       toast.success('实时连接已恢复，数据已刷新');
     },
+    // 终审补：host 房三事件——多屏 :3007 视图（监督/第二主持屏）即时刷新，
+    // 不再依赖操作者本机 HTTP 响应（发射见 bid.service 三处 notify*）
+    onEvaluationExtended: (d) => {
+      scheduleRefresh();
+      toast.success(`评标时限已延长 ${d.extendHours} 小时`);
+    },
+    onRoomCodeRotated: () => { scheduleRefresh(); },
+    onScoringReopened: () => { scheduleRefresh(); bumpSign(); },
     // 监督日志与异常事件：不限 tab 常驻累积，供监督视图消费
     onSupervisionLog: (data) => {
       setLiveLogs(prev => [data as unknown as SupervisionLog, ...prev].slice(0, 100));
@@ -270,7 +286,7 @@ function WorkspaceInner() {
           )}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}
           {current === 'quotes' && <RoundBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />}
-          {current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} />}
+          {current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} refreshSignal={signSignal} />}
         </>
       )}
     </div>

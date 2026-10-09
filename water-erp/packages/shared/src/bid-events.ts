@@ -37,6 +37,12 @@ export const BID_EVENT = {
   /** 评分已提交（不含分数值——仅里程碑通知，接收端自行刷新获取数据） */
   SCORES_SUBMITTED: 'scores:submitted',
   DRAFT_SAVED: 'draft:saved',
+  /** 评标时限已延长（P2-9 中断审查）：专家端陈旧「已截止/已锁定」态据此重拉解锁 */
+  EVALUATION_EXTENDED: 'evaluation:extended',
+  /** 评标室口令已轮换（P2-10）：仅里程碑——口令本体绝不出现在载荷（现场口头传递） */
+  ROOM_CODE_ROTATED: 'room:code:rotated',
+  /** 评审确认已重开（P2-11）：专家端陈旧「已确认/已锁定」态据此重拉解锁 */
+  SCORING_REOPENED: 'scoring:reopened',
 } as const;
 
 // ── 载荷类型 ──
@@ -248,5 +254,27 @@ export interface DraftSavedPayload {
   projectId: string;
   expertId: string;
   device: 'tablet' | 'desktop';
+  timestamp: number;
+}
+
+/** 评标时限已延长（P2-9）：仅时限里程碑，不含任何评审内容 */
+export interface EvaluationExtendedPayload {
+  projectId: string;
+  /** 新截止时间（ISO） */
+  evaluationDeadline: string;
+  extendHours: number;
+  timestamp: number;
+}
+
+/** 评标室口令已轮换（P2-10）：不含口令本体——口令仅现场口头传递，接收端刷新后重验 */
+export interface RoomCodeRotatedPayload {
+  projectId: string;
+  timestamp: number;
+}
+
+/** 评审确认已重开（P2-11）：expertId=null 表示全部已确认正选 */
+export interface ScoringReopenedPayload {
+  projectId: string;
+  expertId: string | null;
   timestamp: number;
 }
