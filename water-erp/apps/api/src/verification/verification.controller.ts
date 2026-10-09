@@ -46,10 +46,15 @@ export class VerificationController {
     return this.verificationService.sendRegistrationCode(dto.phone, clientIp, dto.scene);
   }
 
+  /**
+   * 步骤 0「下一步」时消费验证码并签发注册会话 token（30 分钟滑动续期）。
+   * 六步向导后续上传/最终提交凭 token，不再要求验证码存活（2026-10-09 修复上传营业执照报验证码过期）。
+   */
   @Post('verify-registration-code')
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   verifyRegistrationCode(@Body() dto: VerifyRegistrationCodeDto) {
-    return this.verificationService.verifyRegistrationCode(dto.phone, dto.code);
+    return this.verificationService.verifyAndStartRegistrationSession(dto.phone, dto.code);
   }
 
   /** 验证码预检（不消费）：注册页输满 6 位即时反馈；错误同样计入 5 次尝试上限。 */

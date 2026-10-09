@@ -208,11 +208,21 @@ export class SupplierService {
   }
 
   async register(dto: RegisterSupplierDto) {
-    // 注册实名核验——主联系人手机号短信验证码前置校验（verifyRegistrationCode 消费后失效）。
-    // 内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
+    // 注册实名核验——主联系人手机号验证前置校验。内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
+    // 双轨（2026-10-09）：token 轨=步骤 0 已消费验证码换发的注册会话；旧轨=验证码非消费校验（最终消费）。
     const isInternalImport = dto.registrationCode === '__INTERNAL_IMPORT__';
     if (!isInternalImport) {
-      await this.verificationService.assertRegistrationCodeForUpload(dto.registrationPhone, dto.registrationCode);
+      if (dto.registrationToken) {
+        const session = await this.verificationService.assertRegistrationSession(dto.registrationToken);
+        if (session.phone !== dto.registrationPhone.trim()) {
+          throw new BadRequestException({
+            error: '验证会话与注册手机号不一致',
+            code: 'REGISTRATION_PHONE_SESSION_MISMATCH',
+          });
+        }
+      } else {
+        await this.verificationService.assertRegistrationCodeForUpload(dto.registrationPhone, dto.registrationCode);
+      }
 
       const primaryContacts = (dto.contacts ?? []).filter((contact) => contact.isPrimary);
       if (primaryContacts.length !== 1) {
@@ -338,9 +348,14 @@ export class SupplierService {
       }
     }
 
-    // 所有字段和附件通过校验后再消费短信码，减少校验错误导致验证码无谓失效。
+    // 所有字段和附件通过校验后再消费验证凭据，减少校验错误导致凭据无谓失效。
+    // token 轨消费注册会话（一次性）；旧轨消费短信码（e2e/兼容路径不变）。
     if (!isInternalImport) {
-      await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
+      if (dto.registrationToken) {
+        await this.verificationService.consumeRegistrationSession(dto.registrationToken);
+      } else {
+        await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
+      }
     }
 
     const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);

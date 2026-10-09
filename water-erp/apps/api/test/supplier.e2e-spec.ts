@@ -25,6 +25,9 @@ describe('Supplier (e2e)', () => {
   let prisma: PrismaService;
   let supplierCookie: string[];
   let dupCreditCode: string;
+  /** 注册会话 token 轨 e2e 信用代码（afterAll 清理对应账号） */
+  let tokenCreditA: string;
+  let tokenCreditB: string;
   /** A-94 投标草稿 DTO 校验临时项目（种子项目 deadline 均已过，须新建未来截标的 DOWNLOAD 项目） */
   let draftProjectId: string;
   const orphanUsername = `e2e-orph-${Date.now()}`;
@@ -68,6 +71,7 @@ describe('Supplier (e2e)', () => {
       await prisma.bidProject.delete({ where: { id: draftProjectId } }).catch(() => {});
     }
     await prisma.user.deleteMany({ where: { username: orphanUsername } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { username: { in: [tokenCreditA, tokenCreditB].filter(Boolean) } } }).catch(() => {});
     await app.close();
   });
 
@@ -128,6 +132,72 @@ describe('Supplier (e2e)', () => {
     // 关键：失败后 user 表不应留下孤立记录
     const orphan = await prisma.user.findUnique({ where: { username_role: { username: orphanUsername, role: 'supplier' } } });
     expect(orphan).toBeNull();
+  });
+
+  // ── 注册会话 token 轨（2026-10-09）：步骤 0 验证一次换发 token，上传与注册全程凭 token ──
+
+  it('注册会话 token 轨：验证换发 token → 凭 token 上传附件 → 带 token 注册成功，且 token 一次性', async () => {
+    const phone = '13800000001';
+    const t = Date.now().toString().slice(-13); // 13 位时间戳，信用代码 18 位可重跑
+    tokenCreditA = `9151${t}X`;
+    tokenCreditB = `9151${t}Y`;
+
+    // 1. 验证消费短信码（bypass）并换发注册会话 token
+    const verify = await request(app.getHttpServer())
+      .post('/api/verification/verify-registration-code')
+      .set('X-Portal', 'public')
+      .send({ phone, code: '123456' })
+      .expect(201);
+    expect(String(verify.body.token)).toMatch(/^[0-9a-f]{64}$/);
+    const token = verify.body.token as string;
+
+    // 2. 凭 token 上传注册附件（不携带 phone+code）
+    const upload = await request(app.getHttpServer())
+      .post('/api/upload/registration')
+      .set('X-Portal', 'public')
+      .field('token', token)
+      .field('category', 'qualification')
+      .attach('file', Buffer.from('%PDF-1.7\ne2e token track license'), {
+        filename: 'license.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+    const fileUrl = `/api/upload/files/${upload.body.id}`;
+
+    const base = {
+      companyId: (await prisma.company.findFirst({ where: {}, select: { id: true } }))?.id,
+      name: 'E2E Token 轨注册公司',
+      creditCode: tokenCreditA,
+      enterpriseType: '有限责任公司',
+      legalPerson: '王五',
+      legalPersonIdCard: '510104198808080001',
+      registeredAddress: '成都市高新区',
+      businessScope: '水利工程',
+      displayName: 'E2E Token 轨',
+      password: 'Test1234',
+      registrationPhone: phone,
+      registrationCode: '123456', // bypass 码；token 轨时不再消费
+      registrationToken: token,
+      contacts: [{ name: '联系人甲', phone, idCard: '510104198808080002', isPrimary: true }],
+      qualifications: [{ type: '营业执照', name: '企业法人营业执照', fileUrl }],
+      tags: ['物资供应', '工程服务'],
+    };
+
+    // 3. 带 token 注册成功（SMS 码记录早已消费，不依赖其存活——修复点）
+    await request(app.getHttpServer())
+      .post('/api/supplier/register')
+      .set('X-Portal', 'public')
+      .send(base)
+      .expect(201);
+    expect(await prisma.supplier.findUnique({ where: { creditCode: tokenCreditA } })).toBeTruthy();
+
+    // 4. token 一次性：注册成功后再用同 token → 400 REGISTRATION_SESSION_EXPIRED
+    const res = await request(app.getHttpServer())
+      .post('/api/supplier/register')
+      .set('X-Portal', 'public')
+      .send({ ...base, creditCode: tokenCreditB })
+      .expect(400);
+    expect(res.body.code).toBe('REGISTRATION_SESSION_EXPIRED');
   });
 
   // ── A-94：投标草稿/递交 DTO 服务端格式校验 ──

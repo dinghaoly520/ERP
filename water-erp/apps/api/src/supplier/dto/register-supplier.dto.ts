@@ -97,6 +97,13 @@ export class RegisterSupplierDto {
   @IsString() @IsNotEmpty() @Length(6, 6)
   registrationCode: string;
 
+  /**
+   * 注册会话 token（2026-10-09 主轨）：步骤 0 已验证消费验证码后签发，向导上传与最终提交凭它走完。
+   * 与 registrationCode 二选一；两者都缺省走既有验证码轨（e2e/内部导入兼容）。
+   */
+  @IsString() @IsOptional() @MaxLength(128)
+  registrationToken?: string;
+
   @IsArray() @ValidateNested({ each: true }) @Type(() => CreateQualificationDto)
   qualifications: CreateQualificationDto[];
 
