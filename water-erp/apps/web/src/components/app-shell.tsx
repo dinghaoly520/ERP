@@ -17,6 +17,8 @@ import { Bell,
   UserCog,
   ShieldCheck,
   ScrollText,
+  ListChecks,
+  Activity,
   Building2,
   Users,
   Boxes,
@@ -126,8 +128,12 @@ const navGroups: NavGroup[] = [
       // 加密管理（2026-08-28 自 :3007 迁入）：管理方加密证书轮转——投递期管理动作归 :3005
       { key: "crypto", label: "加密管理", href: "/admin/crypto", icon: ShieldCheck, meta: "投标加密证书", roles: ["admin"] },
       { key: "operation-log", label: "操作日志", href: "/admin/operation-log", icon: ScrollText, meta: "全站API操作审计", roles: ["admin"] },
+      // 合规规则/系统健康（2026-10-09 自账号管理弹窗迁出）：与账号业务无关的 admin 工具归位侧栏；
+      // 两项后端本就 @Roles('leader','admin')，入口可见性对齐授权（普通 leader 可见，受限导航白名单不受影响）
+      { key: "compliance-rules", label: "合规规则", href: "/admin/compliance-rules", icon: ListChecks, meta: "阶段合规审查要点", roles: ["admin", "leader"] },
+      { key: "health", label: "系统健康", href: "/admin/health", icon: Activity, meta: "探活·指标·自声明", roles: ["admin", "leader"] },
     ],
-    roles: ["admin"],
+    roles: ["admin", "leader"],
   },
 ];
 

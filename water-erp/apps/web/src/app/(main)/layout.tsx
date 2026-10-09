@@ -26,6 +26,8 @@ const routeToKey: Record<string, string> = {
   "/admin/registration-review": "accounts",
   "/admin/crypto": "crypto",
   "/admin/operation-log": "operation-log",
+  "/admin/compliance-rules": "compliance-rules",
+  "/admin/health": "health",
   // 公告管理
   "/notice": "notice",
   "/clar-notice": "clar-notice",
@@ -63,6 +65,8 @@ const routeToModule: Record<string, string> = {
   "/admin/accounts": "账号管理",
   "/admin/crypto": "加密管理",
   "/admin/operation-log": "操作日志",
+  "/admin/compliance-rules": "合规规则",
+  "/admin/health": "系统健康",
   "/notice": "公告发布中心",
   "/clar-notice": "澄清说明",
   "/notifications": "通知中心",

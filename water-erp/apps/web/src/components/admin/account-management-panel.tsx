@@ -29,8 +29,6 @@ import { RegistrationReviewPanel } from "@/components/admin/registration-review-
 import { UnitSearchSelect } from "@/components/login/unit-search-select";
 import { PasswordRequestsPanel } from "@/components/admin/password-requests-panel";
 import { CompaniesModal } from "@/components/admin/companies-modal";
-import { ComplianceRulesModal } from "@/components/admin/compliance-rules-modal";
-import { HealthModal } from "@/components/admin/health-modal";
 import { ROLE_LABELS } from "@/lib/role-labels";
 import {
   createAccount,
@@ -134,8 +132,9 @@ export function AccountManagementPanel() {
   // 登录 IP 存证（2026-09-28）：单账号「查看全部 IP」弹窗 + 跨供应商串号检测弹窗
   const [ipTarget, setIpTarget] = useState<SupplierAccount | null>(null);
   const [sharedIpsOpen, setSharedIpsOpen] = useState(false);
-  // admin 工具窗口（2026-10-09）：单位管理 / 合规规则 / 系统健康由独立页迁为弹窗展示
-  const [toolView, setToolView] = useState<"companies" | "rules" | "health" | null>(null);
+  // admin 工具窗口（2026-10-09）：单位管理（与账号语义相邻，留弹窗）；
+  // 合规规则/系统健康同日迁出为独立页挂侧栏「系统管理」组，不再由本页承载
+  const [toolView, setToolView] = useState<"companies" | null>(null);
 
   const [formState, setFormState] = useState<
     { mode: "create" } | { mode: "edit"; account: AdminAccount } | null
@@ -323,11 +322,9 @@ export function AccountManagementPanel() {
           </div>
 
           <div className="page-hero__right">
-            {/* 三个 admin 工具入口（2026-09-28 审计补 UI 入口；2026-10-09 由独立页迁为窗口展示，
-                原 /admin/{companies,compliance-rules,health} 页面已删——本按钮是其唯一入口） */}
+            {/* 单位管理（2026-10-09）：单位=账号归属容器，语义相邻留在本页弹窗；
+                合规规则/系统健康已迁侧栏「系统管理」组独立页 */}
             <button type="button" onClick={() => setToolView("companies")} className="neu-btn-xs" title="公司主数据与归属管理">单位管理</button>
-            <button type="button" onClick={() => setToolView("rules")} className="neu-btn-xs" title="合规规则维护">合规规则</button>
-            <button type="button" onClick={() => setToolView("health")} className="neu-btn-xs" title="系统健康自声明数据包">系统健康</button>
             <button
               type="button"
               onClick={refresh}
@@ -757,7 +754,7 @@ export function AccountManagementPanel() {
       </>
       )}
 
-      {/* admin 工具窗口：单位管理 / 合规规则 / 系统健康（从页头按钮打开，与 tab 无关） */}
+      {/* admin 工具窗口：单位管理（从页头按钮打开，与 tab 无关） */}
       {toolView === "companies" ? (
         <CompaniesModal
           onClose={() => setToolView(null)}
@@ -769,8 +766,6 @@ export function AccountManagementPanel() {
           }}
         />
       ) : null}
-      {toolView === "rules" ? <ComplianceRulesModal onClose={() => setToolView(null)} /> : null}
-      {toolView === "health" ? <HealthModal onClose={() => setToolView(null)} /> : null}
     </div>
   );
 }
