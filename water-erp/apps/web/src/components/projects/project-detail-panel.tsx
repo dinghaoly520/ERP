@@ -19,6 +19,8 @@ import {
   uploadProjectStageAttachment,
   optimizeInitiationFields,
   fetchProjectManagementList,
+  auditStageCompliance,
+  type ComplianceAuditResponse,
   type ExtractedInfo,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
@@ -754,15 +756,49 @@ export function ProjectDetailPanel({
       });
   }, [item.id, selectedStage.stageKey, selectedStage.status, isStepAnalysisStage]);
 
+  // 阶段合规审查（C4 前端接线 2026-10-09）：LLM 对照合规规则（/admin/compliance-rules 维护的审查要点）
+  // 逐项核查当前阶段。后端按指纹缓存（文件/名单变更自动失效），重跑传 force；首次调用即 LLM 生成，
+  // 故不随挂载自动触发，由用户点「开始审查」——与步骤分析的自动加载策略不同。
+  const complianceSeqRef = useRef(0);
+  const [complianceAudit, setComplianceAudit] = useState<ComplianceAuditResponse | null>(null);
+  const [complianceLoading, setComplianceLoading] = useState(false);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
+  const resetComplianceAudit = useCallback(() => {
+    setComplianceAudit(null);
+    setComplianceError(null);
+    complianceSeqRef.current++;
+  }, []);
+  const loadComplianceAudit = useCallback((force = false) => {
+    // 与步骤分析同口径：仅「已完成」阶段可审——进行中阶段资料未定型，审查结论无意义
+    if (selectedStage.status !== 'COMPLETED') return;
+    const seq = ++complianceSeqRef.current;
+    setComplianceLoading(true);
+    setComplianceError(null);
+    auditStageCompliance(item.id, selectedStage.stageKey, force)
+      .then((res) => {
+        if (seq !== complianceSeqRef.current) return; // 已切换步骤：旧响应丢弃
+        setComplianceAudit(res);
+      })
+      .catch((error) => {
+        if (seq !== complianceSeqRef.current) return;
+        setComplianceError(error instanceof Error ? error.message : '合规审查暂不可用。');
+      })
+      .finally(() => {
+        if (seq !== complianceSeqRef.current) return;
+        setComplianceLoading(false);
+      });
+  }, [item.id, selectedStage.stageKey, selectedStage.status]);
+
   useEffect(() => {
     setStepAnalysisContent('');
     setStepAnalysisEmpty(false);
     setStepAnalysisError(null);
     // 切换阶段回到默认 Tab：文件分析在前（用户更关注阶段文件内容）
     setStepAnalysisTab('file');
+    // 阶段合规审查：清空上一阶段结果（后端缓存留存，回到该阶段重新点按钮即指纹秒回）
+    resetComplianceAudit();
     loadStepAnalysis();
-  }, [loadStepAnalysis]);
-
+  }, [loadStepAnalysis, resetComplianceAudit]);
 
   /** 完成链主体（markStageCompleted 与 03 完成向导确认共用）：updateStage + 推进 + 豁免对话框。
    *  返回结果供向导前台反馈（面板错误区在向导 overlay 后面，向导须自行 toast）。 */
@@ -2119,6 +2155,78 @@ export function ProjectDetailPanel({
                   )}
                 </>
               )}
+
+              {/* 阶段合规审查（C4 前端接线 2026-10-09）：AI 对照 /admin/compliance-rules 维护的
+                  审查要点逐项核查；结果按指纹后端缓存，重跑传 force */}
+              <hr className="wb-section-rule" />
+
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">
+                    阶段合规审查 · {selectedStage.stageName}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {complianceAudit && !complianceLoading && (
+                      <span className="text-[11px] font-semibold whitespace-nowrap">
+                        <span className="text-[var(--success)]">通过 {complianceAudit.results.filter(r => r.verdict === '通过').length}</span>
+                        <span className="text-[color:var(--muted-foreground)]"> · </span>
+                        <span className="text-[var(--warning)]">警告 {complianceAudit.results.filter(r => r.verdict === '警告').length}</span>
+                        <span className="text-[color:var(--muted-foreground)]"> · </span>
+                        <span className="text-[var(--danger)]">违规 {complianceAudit.results.filter(r => r.verdict === '违规').length}</span>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={complianceLoading || selectedStage.status !== 'COMPLETED'}
+                      onClick={() => loadComplianceAudit(Boolean(complianceAudit))}
+                      className="neu-btn-xs is-info"
+                      title={selectedStage.status !== 'COMPLETED' ? '完成本阶段后才能进行合规审查' : '首次审查由 AI 逐项核查（约数十秒），重跑强制刷新'}
+                    >
+                      <Shield size={12} /> {complianceAudit ? '重新审查' : '开始审查'}
+                    </button>
+                  </div>
+                </div>
+
+                {selectedStage.status !== 'COMPLETED' ? (
+                  <div className="flex flex-col items-center justify-center gap-2 rounded-lg px-4 py-6 text-center"
+                    style={{ border: '1px dashed color-mix(in oklch, var(--muted-foreground) 30%, transparent)' }}>
+                    <Shield size={22} strokeWidth={1.6} className="text-[var(--muted-foreground)] opacity-60" />
+                    <div className="text-sm font-semibold text-[color:var(--foreground)]">本阶段尚未完成</div>
+                    <div className="max-w-[420px] text-[11px] leading-5 text-[color:var(--muted-foreground)]">
+                      「{selectedStage.stageName}」阶段完成后才能进行合规审查——审查要点对照的是已定型的阶段资料与过程数据。
+                    </div>
+                  </div>
+                ) : complianceError ? (
+                  <div className="rounded-lg px-4 py-4 text-sm leading-6" style={{background:"color-mix(in oklch,var(--danger) 8%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>{complianceError}</div>
+                ) : complianceLoading ? (
+                  <div className="rounded-lg px-4 py-4 text-sm leading-6" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                    <Loader2 size={14} className="animate-spin inline mr-2 text-[color:var(--accent)]" />正在对照审查要点逐项核查（AI 审查，稍候）...
+                  </div>
+                ) : complianceAudit ? (
+                  <div className="space-y-2">
+                    <div className="rounded-lg px-4 py-3 text-sm leading-6 text-[color:var(--foreground)] whitespace-pre-wrap" style={{background:"color-mix(in oklch,var(--accent-soft) 12%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>
+                      {complianceAudit.summary}
+                    </div>
+                    <div className="max-h-[360px] overflow-y-auto pr-1 space-y-2">
+                      {complianceAudit.results.map((r, i) => (
+                        <div key={`${r.checkpoint}-${i}`} className="rounded-lg px-3.5 py-3" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[13px] font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">{r.checkpoint}</span>
+                            <span className={`text-[11px] font-bold ${r.verdict === '通过' ? 'text-[var(--success)]' : r.verdict === '警告' ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}`}>{r.verdict}</span>
+                          </div>
+                          <div className="mt-1.5 text-[11px] leading-5 text-[color:var(--foreground)]">{r.evidence}</div>
+                          {r.suggestion && <div className="mt-1 text-[11px] leading-5 text-[color:var(--accent)]">建议：{r.suggestion}</div>}
+                          {r.regulationRef && <div className="mt-1 text-[10px] leading-4 text-[color:var(--muted-foreground)]">依据：{r.regulationRef}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                    尚未审查——点击「开始审查」，AI 将对照「{selectedStage.stageName}」阶段的合规审查要点逐项核查。
+                  </div>
+                )}
+              </div>
 
           </div>
         </div>
