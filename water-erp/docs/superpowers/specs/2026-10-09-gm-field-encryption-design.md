@@ -96,3 +96,17 @@
 - **RSVP 催促接线**（收编并行会话改动）：列表 phone 出口掩码 + 前端逐行「明文」按钮（走 reveal 端点留痕）。
 - **e2e setup** 显式 `SMS_DEBUG_BYPASS`（测试自洽，不依赖本机 .env 状态）。
 - 已知遗留：① git 历史仍含旧真实 PII 快照（不回改，如需另行裁定）；② 密钥丢失=数据不可恢复，`FIELD_ENC_SECRET` 须纳入密钥备份（与 ADMIN_KEYSTORE_DIR 同级）；③ 轮转任务（FIELD_ENC_SECRET_OLD 批量翻新）接口已留未实现。
+
+## 复核记录（2026-10-09 二次复核，diff 复审 + 全仓密封列触点扫描）
+
+复核发现并修复 8 项漏接（提交 707289f6 + 联系人 CRUD 补漏）：
+
+1. account-admin 建/改号 phone/email 明文落库 + 六个返回点裸吐密文
+2. password-requests：三审批列表 user PII 裸吐；资料变更 diff 与密封列直比恒误判「有变化」；payload email/phone 明文 Json；approve 缺 phoneIdx 同步；忘记密码 applicantContact 明文
+3. expert-extraction 候选池 phone 裸吐
+4. OperationLog 请求体脱敏缺 accountNo/email 键（注册类 DTO 明文 PII 曾入审计日志）
+5. supplier-portal getMyProfile 密文直吐本人页面
+6. dashboard 完整度手机正则对密文恒失配
+7. 供应商门户 addContact/updateContact 明文写 + listContacts 密文直吐
+
+复核后基线：单测 2523 绿 / e2e 154 绿 / tsc·lint 零错。教训入记忆：**PII 加密改造的复核必须按「密封列全触点」扫描（grep 列名）而非按模块回忆**——本次漏掉的 8 处全部在「低频管理端点/门户口 CRUD/审批载荷」这类边缘路径。
