@@ -48,6 +48,7 @@ model User {
   displayName    String
   email          String?
   phone          String?
+  phoneIdx       String? // 手机号 HMAC-SM3 盲索引（加密后等值占用校验；明文 phone 列存国密密文）
   officeLocation String?     @map("office_location")
   company        String? // 展示快照（公司改名不影响历史展示）
   companyId      String? // 数据隔离依据 → Company 主数据
@@ -124,6 +125,7 @@ model User {
   assignedBidProjects BidProject[] @relation("BidProjectAssignedHost")
 
   @@unique([username, role])
+  @@index([phoneIdx])
 }
 
 // ── 开评标 ──
@@ -1361,8 +1363,9 @@ model Supplier {
   subjectCode        String? // A1（B.4.2）：国标交易主体编码（B+统一社会信用代码；无信用代码走 C 类平台赋码）
   enterpriseType     String
   legalPerson        String
-  legalPersonIdCard  String? // 法定代表人身份证号（注册必填，存量数据可空）
-  legalPersonPhone   String? // 法人联系电话
+  legalPersonIdCard  String? // 法定代表人身份证号（注册必填，存量数据可空；存国密密文）
+  legalPersonPhone   String? // 法人联系电话（存国密密文）
+  legalPersonIdCardIdx String? // 法人身份证号 HMAC-SM3 盲索引（加密后等值唯一性校验）
   registeredAddress  String
   detailedAddress    String? // 详细地址
   businessScope      String
@@ -1432,6 +1435,7 @@ model Supplier {
   @@index([status])
   @@index([creditCode])
   @@index([reviewStage]) // 对账 2026-09-30：dev 库已有此索引（db push 产物）但 schema 未声明——收编
+  @@index([legalPersonIdCardIdx]) // 国密加密后等值唯一性校验（盲索引）
 }
 
 // ── 供应商审核历史（不可变留痕）──
@@ -1483,8 +1487,9 @@ model SupplierContact {
   supplierId    String
   name          String
   gender        String? // 性别（男/女）
-  phone         String
-  idCard        String? // 联系人身份证号（注册必填，存量数据可空）
+  phone         String // 联系电话（存国密密文）
+  idCard        String? // 联系人身份证号（注册必填，存量数据可空；存国密密文）
+  idCardIdx     String? // 联系人身份证号 HMAC-SM3 盲索引（加密后等值冲突校验）
   email         String?
   position      String? // 部门职务
   personnelType String? // CTS A-216 人员类别：法人代表/项目经理/技术负责人/质量安全负责人/持证人员/普通联系人
@@ -1496,6 +1501,7 @@ model SupplierContact {
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@index([supplierId])
+  @@index([idCardIdx]) // 国密加密后等值冲突校验（盲索引）
 }
 
 // ── 供应商自有档案（:3004 我的合同/框架协议页自建留存：线下历史合同、自有履约证明等）──
@@ -3810,4 +3816,19 @@ model ExpertCert {
   revokedAt     DateTime?
 
   @@index([userId, bindingStatus])
+}
+
+// ── 敏感字段明文揭示审计（等保三级+密评：解密访问留痕，append-only 不挂关系防连带删除）──
+model SensitiveAccessLog {
+  id          String   @id @default(cuid())
+  actorUserId String
+  actorName   String? // 操作人姓名快照（防账号删除后不可读）
+  entity      String // ExpertProfile | Supplier | SupplierContact | SupplierBankAccount | User
+  targetId    String // 揭示目标记录 id
+  field       String // idNumber | phone | legalPersonIdCard | idCard | accountNo | email …
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([entity, targetId])
 }
