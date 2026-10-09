@@ -31,6 +31,7 @@ import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from 
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
+import { resolveProjectCreatorId, resolveActiveUserId } from './bid-project-notify.util';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { openField } from '../common/crypto/field-crypto';
 import { parseFlexibleDate } from '../common/parse-date.util';
@@ -44,7 +45,7 @@ import { Prisma, AiBidderStatus } from '@prisma/client';
 import { classifyUserAgent } from '../common/session-device.util';
 import { pendingBondReturnWhere } from './bond-pending.util';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
-import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
+import { recomputeAllExpertsProgress } from './score-recalculate.helper';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
@@ -1110,11 +1111,11 @@ export class BidService {
       handoverAssetId: session.handoverAssetId ?? '',
     });
     this.gateway?.notifySupervisionLog(id, { role: existing.host, action: '完成开标·资料移交', target: project.name, result: `${opts?.auto ? `[自动固化·${opts.trigger ?? '终局'}] ` : ''}开标文件包已生成并移交采购管理工作台`, riskFlag: '无' });
-    const pmLink = project.projectManagementItemId
-      ? `/projects?projectId=${project.projectManagementItemId}&panel=bid-confirm`
-      : '/projects';
-    for (const role of ['leader', 'staff']) {
-      try {
+    // 2026-10-09 串号修复：只发项目创建人（原按 leader/staff 全平台广播，串到建设/投资公司账号；
+    // 且 /projects 个人隔离，非创建人打不开链接）。解析失败不发送（用户裁定）。
+    try {
+      const creatorId = await resolveProjectCreatorId(this.prisma, project.projectManagementItemId);
+      if (creatorId) {
         // 文案/链接走 shared 注册表模板（notification-registry）
         const tpl = renderNotificationPayload('BID_OPENING_HANDED_OVER', {
           projectName: project.name,
@@ -1122,8 +1123,11 @@ export class BidService {
           trigger: opts?.trigger,
           projectManagementItemId: project.projectManagementItemId ?? undefined,
         })!;
-        await this.notificationService.sendToRole(role, { type: 'BID_OPENING_HANDED_OVER', ...tpl });
-      } catch { /* 通知失败不阻塞移交 */ }
+        await this.notificationService.sendToUser(creatorId, ['in_app'], { type: 'BID_OPENING_HANDED_OVER', ...tpl });
+      }
+    } catch (e) {
+      // 吞错但留痕——「创建人没收到移交通知」排障线索
+      this.logger.warn(`开标移交通知发送失败 project=${id}: ${String(e)}`);
     }
 
     return {
@@ -1371,7 +1375,7 @@ export class BidService {
   async abortBidProject(id: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, name: true, stage: true, procurementMethod: true, _count: { select: { suppliers: true } } },
+      select: { id: true, name: true, stage: true, procurementMethod: true, assignedHostUserId: true, _count: { select: { suppliers: true } } },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
@@ -1404,14 +1408,18 @@ export class BidService {
       return result;
     });
 
-    // 通知 bid_host 流标
+    // 通知该项目指派的主持人流标（2026-10-09 串号修复：原按 bid_host 全平台广播；
+    // 开标前流标未指派主持人时无收件人，不发送——不回退广播。主持人停用同不发送）
     try {
-      await this.notificationService.sendToRole('bid_host', {
-        type: 'BID_ABORTED',
-        title: `项目${project.name}已流标`,
-        content: `招标方式：${project.procurementMethod}，投标供应商 ${supplierCount} 家`,
-        link: `/bid/project/${id}`, // :3007 工作区直达（原 /bid?id= 落任务板不定位）
-      });
+      const hostId = await resolveActiveUserId(this.prisma, project.assignedHostUserId);
+      if (hostId) {
+        await this.notificationService.sendToUser(hostId, ['in_app'], {
+          type: 'BID_ABORTED',
+          title: `项目${project.name}已流标`,
+          content: `招标方式：${project.procurementMethod}，投标供应商 ${supplierCount} 家`,
+          link: `/bid/project/${id}`, // :3007 工作区直达（原 /bid?id= 落任务板不定位）
+        });
+      }
     } catch { /* 通知失败不阻塞流标 */ }
 
     // 通知已分配的评审专家（N9：仅已确认正选——候补/已婉拒/未确认不再收流标通知）
@@ -1741,11 +1749,16 @@ export class BidService {
 
     const updated = txResult.updated;
 
-    // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发
+    // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发。
+    // 2026-10-09 串号修复：只发该项目指派主持人（R2 闸门保证推进时必已指派；停用不发送），
+    // 不再按 bid_host 全平台广播。
     if (isTransitioning) {
       try {
-        const tpl = renderNotificationPayload('BID_OPENING_CONFIRMED', { projectName: project.name, projectId: id })!;
-        await this.notificationService.sendToRole('bid_host', { type: 'BID_OPENING_CONFIRMED', ...tpl });
+        const hostId = await resolveActiveUserId(this.prisma, project.assignedHostUserId);
+        if (hostId) {
+          const tpl = renderNotificationPayload('BID_OPENING_CONFIRMED', { projectName: project.name, projectId: id })!;
+          await this.notificationService.sendToUser(hostId, ['in_app'], { type: 'BID_OPENING_CONFIRMED', ...tpl });
+        }
       } catch { /* 通知失败不阻塞阶段流转 */ }
 
       // 通知所有已投递的供应商——开标已启动，请前往开标大厅
@@ -1999,19 +2012,26 @@ export class BidService {
       }
     }
 
-    // 通知主持人
+    // 通知该项目指派的主持人（2026-10-09 串号修复：原按 bid_host 全平台广播；未指派/停用则不发送）
     try {
-      const disputeTpl = renderNotificationPayload('BID_DISPUTE_TIMEOUT', {
-        names, timeoutMinutes: session.disputeTimeoutMinutes, projectId,
-      })!;
-      await this.notificationService.sendToRole('bid_host', { type: 'BID_DISPUTE_TIMEOUT', ...disputeTpl });
+      const bp = await this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { assignedHostUserId: true },
+      });
+      const hostId = await resolveActiveUserId(this.prisma, bp?.assignedHostUserId);
+      if (hostId) {
+        const disputeTpl = renderNotificationPayload('BID_DISPUTE_TIMEOUT', {
+          names, timeoutMinutes: session.disputeTimeoutMinutes, projectId,
+        })!;
+        await this.notificationService.sendToUser(hostId, ['in_app'], { type: 'BID_DISPUTE_TIMEOUT', ...disputeTpl });
+      }
     } catch { /* 通知失败不阻塞 */ }
   }
 
   async startEvaluation(id: string, actorId?: string, evaluationHours?: number) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true },
+      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true, priceFormulaConfig: true, ceilingPrice: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     // F17：同阶段早退——阶段棘轮 EVALUATING→EVALUATING 幂等放行后旧实现会全流程重跑
@@ -2093,6 +2113,20 @@ export class BidService {
 
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
+
+    // P1-2（第三波）：价格公式限价前置校验——与 generateEvaluationResults 的 CEILING_PRICE_REQUIRED
+    // 同口径。旧实现不预检，专家全部评完点「生成评标结果」才炸 400，而 EVALUATING 期配置又已锁定
+    // （改配置 409）= 死局；死局前移到启动评标，此时补设/改公式都还来得及
+    {
+      const config = project.priceFormulaConfig as { formulaType?: string } | null;
+      const ceiling = project.ceilingPrice ? Number(project.ceilingPrice) : null;
+      if ((config?.formulaType === 'benchmark_deviation' || config?.formulaType === 'ratio') && !(ceiling && ceiling > 0)) {
+        throw new BadRequestException({
+          error: '价格分公式为基准价偏离法/比例法，但项目未设置最高限价——启动评标前请先在采购管理工作台（:3005）项目设置中补设最高限价，或将价格分公式改为最低评标价法',
+          code: 'CEILING_PRICE_REQUIRED',
+        });
+      }
+    }
 
     // R-2：启动评标前扫描投标供应商中的临时过期标记（不阻塞，写入监管日志供主持人确认）
     const expiredTemps = await this.prisma.bidSupplier.findMany({
@@ -3178,6 +3212,9 @@ export class BidService {
         riskFlag: '无',
       },
     }).catch(() => {});
+    // P2-10（中断审查）：广播轮换里程碑（不含口令本体）——在场专家刷新后口令门 UI
+    // 重现重验，不再只见 403 toast 须 F5；被锁者换新口令仍须等满锁定期（防爆破语义不变）
+    this.gateway?.notifyRoomCodeRotated(projectId, { projectId, timestamp: Date.now() });
     return { roomCode, roomCodeAt: new Date().toISOString() };
   }
 
@@ -4180,14 +4217,21 @@ export class BidService {
     dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean },
     actorId?: string,
   ) {
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true } });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true, ceilingPrice: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
     // P2-17（二轮审查收尾）：评标/归档阶段锁定价格与评标办法配置——评标办法在招标文件确定，
-    // 评标中变更评标办法/最高限价/价格分公式会改变评分与排名口径（合规风险）；更正须走法定程序
-    if ((project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')
+    // 评标中变更评标办法/最高限价/价格分公式会改变评分与排名口径（合规风险）；更正须走法定程序。
+    // P1-2（第三波）窄口例外：EVALUATING 且现值缺失时允许【仅补设】ceilingPrice——修复
+    // 「生成 400 引导补设 → 补设又 409」的三重死局；已有值调价/改公式仍锁（口径不变）
+    const dtoKeys = Object.entries(dto).filter(([, v]) => v !== undefined).map(([k]) => k);
+    const ceilingBackfillOnly = project.stage === 'EVALUATING'
+      && dtoKeys.length === 1 && dtoKeys[0] === 'ceilingPrice'
+      && (project.ceilingPrice === null || project.ceilingPrice === undefined);
+    if (!ceilingBackfillOnly
+      && (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')
       && (dto.evaluationMethod !== undefined || dto.ceilingPrice !== undefined || dto.priceFormulaConfig !== undefined || dto.scoreTrimEnabled !== undefined)) {
-      throw new ConflictException({ error: '评标已开始，价格与评标办法配置已锁定；如需更正请按法定程序办理', code: 'PRICE_CONFIG_LOCKED' });
+      throw new ConflictException({ error: '评标已开始，价格与评标办法配置已锁定；如需更正请按法定程序办理（仅允许补设此前缺失的最高限价）', code: 'PRICE_CONFIG_LOCKED' });
     }
 
     // 值校验（2026-09-26 价格分公式表单化设计 §3）：此前透传零校验——formulaType 拼错会在
@@ -4298,7 +4342,7 @@ export class BidService {
   ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { name: true, projectCode: true },
+      select: { name: true, projectCode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
@@ -4513,17 +4557,24 @@ export class BidService {
         if (pending.length > 0) {
           const names = pending.slice(0, 5).map(s => s.supplierName).join('、');
           try {
-            await this.notificationService.sendToRole('staff', {
-              type: 'BOND_REFUND_DUE',
-              title: '响应担保待逐家退还提醒',
-              content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
-              link: `/projects?projectId=${projectId}`,
-            });
-            await this.prisma.systemConfig.upsert({
-              where: { key: markerKey },
-              update: { value: new Date().toISOString() },
-              create: { key: markerKey, value: new Date().toISOString() },
-            });
+            // 2026-10-09 串号修复：退还经办=项目创建人，定向提醒（原按 staff 全平台广播）。
+            // 解析失败不发送也不占坑（marker 仅在成功发送后写入，同「失败不占坑」语义）
+            const creatorId = await resolveProjectCreatorId(this.prisma, project.projectManagementItemId);
+            if (creatorId) {
+              await this.notificationService.sendToUser(creatorId, ['in_app'], {
+                type: 'BOND_REFUND_DUE',
+                title: '响应担保待逐家退还提醒',
+                content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
+                // 深链 ID 空间修正（2026-10-09 复核）：/projects?projectId= 按 PMI id 匹配，
+                // 原传 BidProject id 面板永不定位（旧广播同病，现唯一收件人恰是点击人，必须修）
+                link: project.projectManagementItemId ? `/projects?projectId=${project.projectManagementItemId}` : '/projects',
+              });
+              await this.prisma.systemConfig.upsert({
+                where: { key: markerKey },
+                update: { value: new Date().toISOString() },
+                create: { key: markerKey, value: new Date().toISOString() },
+              });
+            }
           } catch (e) {
             this.logger.warn(`A-105 定标提醒发送失败 project=${projectId}: ${String(e)}`);
           }
@@ -4697,6 +4748,12 @@ export class BidService {
       return tx.expertDispute.findUnique({ where: { id: disputeId } });
     });
 
+    // 终审补（P1-6）：废标联动后口径收缩——全体专家 progress 重算 + WS 里程碑
+    if (invalidateTarget) {
+      await this.recomputeExpertsAfterValidityChange(projectId);
+      this.gateway?.notifyBidValidity?.(projectId, { supplierId: invalidateTarget.id, failCount: 0, totalCount: 0, status: 'invalid' });
+    }
+
     // 通知专家异议裁决结果（fire-and-forget）
     try {
       const expert = await this.prisma.bidExpert.findUnique({ where: { id: dispute.expertId }, select: { userId: true } });
@@ -4789,7 +4846,21 @@ export class BidService {
       // 形成「已签字的法定文件与废标事实并存」的矛盾并绕过 spec §10 闭环不可更正语义。
       await this.invalidateEvaluationResultsAndPacket(tx, projectId, supplier.supplierName);
     });
+    // 终审补（P1-6）：host 侧废标写入后口径收缩——全体正选专家 progress 重算
+    // （投票翻转路径在 ExpertService.submitScores 内同款）+ WS 里程碑（专家端置灰与进度即时更新）
+    await this.recomputeExpertsAfterValidityChange(projectId);
+    this.gateway?.notifyBidValidity?.(projectId, { supplierId, failCount: 0, totalCount: 0, status: 'invalid' });
     return { invalidated: true };
+  }
+
+  /** 终审补（P1-6）：废标状态变更（host 侧处置）后全体正选专家按可评集合重算 progress。
+   *  不在此重算则未评分该家的专家存量 progress 永卡 N-1/N，报告确认闸（getReport/confirmReport）连锁卡死 */
+  private async recomputeExpertsAfterValidityChange(projectId: string) {
+    try {
+      await recomputeAllExpertsProgress(this.prisma, projectId);
+    } catch (e) {
+      this.logger.error('废标状态变更后全体专家进度重算失败（不阻塞主流程）', e instanceof Error ? e.message : String(e));
+    }
   }
 
   /** B1: 撤销手动废标（恢复 bidValidity='valid'） */
@@ -4825,6 +4896,8 @@ export class BidService {
     this.gateway?.notifyBidValidity?.(projectId, {
       supplierId, failCount: 0, totalCount: 0, status: 'revoked',
     });
+    // 终审补（P1-6）：恢复有效后口径扩回——专家分母回收该家，progress 重算
+    await this.recomputeExpertsAfterValidityChange(projectId);
 
     return { revoked: true };
   }
@@ -6018,6 +6091,8 @@ export class BidService {
       totalCount: rec.totalCount,
       status: 'revoked',
     });
+    // 终审补（P1-6）：恢复有效后口径扩回——专家分母回收该家，progress 重算
+    await this.recomputeExpertsAfterValidityChange(projectId);
 
     // 监督日志：复核撤销废标
     await this.prisma.bidSupervisionLog.create({
@@ -6177,6 +6252,14 @@ export class BidService {
         details: { extendHours, reason, newDeadline },
       },
     }).catch(() => {});
+    // P2-9（中断审查）：广播延期里程碑——专家端陈旧「已截止/已锁定」态据此重拉解锁
+    // （事件只带时限，不带任何评审内容）
+    this.gateway?.notifyEvaluationExtended(projectId, {
+      projectId,
+      evaluationDeadline: newDeadline.toISOString(),
+      extendHours,
+      timestamp: Date.now(),
+    });
     return { evaluationDeadline: newDeadline };
   }
 
@@ -6275,6 +6358,13 @@ export class BidService {
         },
       });
     } catch { /* 审计失败不阻断 */ }
+
+    // P2-11（中断审查）：广播重开里程碑——专家端陈旧「已确认/已锁定」态据此重拉解锁
+    this.gateway?.notifyScoringReopened(projectId, {
+      projectId,
+      expertId: expertId ?? null,
+      timestamp: Date.now(),
+    });
 
     return { reopenedExpertIds: targets.map(t => t.id), reopenedExpertNames: names };
   }

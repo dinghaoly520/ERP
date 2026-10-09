@@ -348,7 +348,7 @@ export class BidEvaluationResultsService {
         if ((config.formulaType === 'benchmark_deviation' || config.formulaType === 'ratio')
             && !(ceilingPrice && ceilingPrice > 0)) {
           throw new BadRequestException({
-            error: '价格分公式为基准价偏离法/比例法，但项目未设置最高限价，价格分将无法计算。请先在采购管理工作台（:3005）项目设置中填写最高限价，或将价格分公式改为最低评标价法',
+            error: '价格分公式为基准价偏离法/比例法，但项目未设置最高限价，价格分将无法计算。请先在采购管理工作台（:3005）项目设置中补设最高限价（评标中允许补设此前缺失的限价），或将价格分公式改为最低评标价法',
             code: 'CEILING_PRICE_REQUIRED',
           });
         }

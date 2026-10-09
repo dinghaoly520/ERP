@@ -368,7 +368,7 @@ export function declineInvitation(projectId: string, userId: string) {
 
 export function getProjectInvitations(projectId: string) {
   return api.get<{
-    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; reviewGroup?: string | null; dutyRole?: string | null; title?: string | null; employer?: string | null; phone?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
     summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
   }>(`/expert-admin/invitations/${projectId}`);
 }
@@ -440,4 +440,9 @@ export function getExpertOperationHistory(params?: { expertId?: string; action?:
   if (params?.pageSize) q.set('pageSize', String(params.pageSize ?? 20));
   const qs = q.toString();
   return api.get<{ total: number; page: number; pageSize: number; items: ExpertOperationHistoryItem[] }>(`/expert-admin/operation-history${qs ? '?' + qs : ''}`);
+}
+
+/** PII 明文揭示（等保+密评）：列表/详情默认掩码，明文走此处；后端写 SensitiveAccessLog 审计 */
+export function revealExpertField(userId: string, field: 'idNumber' | 'phone' | 'licenseNo' | 'email') {
+  return api.post<{ field: string; value: string | null }>(`/expert-admin/${userId}/reveal`, { field });
 }

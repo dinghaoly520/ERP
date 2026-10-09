@@ -43,10 +43,13 @@ function boundCertSn(): string {
   } catch { return ""; }
 }
 
-export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2PublicKey, onDecrypted }: {
+export function OpeningDecryptCard({ projectId, isOpening, submitted, recordError, onRetry, profileSm2PublicKey, onDecrypted }: {
   projectId: string;
   isOpening: boolean;
   submitted: boolean;
+  /** P1-8：开标记录拉取失败（≠确无记录——正常无记录是 200/null）——首载失败时渲染错误态而非静默消失 */
+  recordError?: boolean;
+  onRetry?: () => void;
   profileSm2PublicKey: string;
   onDecrypted?: () => void;
 }) {
@@ -298,7 +301,28 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
     }
   }
 
-  if (!isOpening || !submitted || isDualTrack === false) return null;
+  if (!isOpening || isDualTrack === false) return null;
+  // P1-8：拉取失败且投递态未知（首载失败）时不得整卡静默消失——错误态 + 重试。
+  // 开标瞬间网络抖动曾令供应商失去解密入口、零提示干等，主持人只能电话指挥刷新
+  if (recordError && !submitted) {
+    return (
+      <div className="sp-module decrypt-card">
+        <div className="sp-module-header">
+          <h2 className="sp-module-title">解密我的投标</h2>
+          <span className="sp-module-title !text-xs !font-medium !text-muted-foreground">状态加载失败</span>
+        </div>
+        <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
+          <TriangleAlert size={28} strokeWidth={1.5} className="text-muted-foreground" />
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            开标信息加载失败，暂时无法确认您的投标状态。
+            <br />请点击重试；若持续失败请联系开标主持人。
+          </p>
+          <SpButton onClick={() => onRetry?.()}>重新加载</SpButton>
+        </div>
+      </div>
+    );
+  }
+  if (!submitted) return null;
 
   return (
     <div className="sp-module decrypt-card">

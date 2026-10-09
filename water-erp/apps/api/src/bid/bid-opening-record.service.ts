@@ -423,9 +423,16 @@ export class BidOpeningRecordService {
       select: { id: true, supplierName: true, confirmStatus: true, decryptStatus: true },
     });
     if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+    // P1-1（第三波）：解密成功但拒不/无法确认唱标（PENDING）→ 开标永久卡死的现场出口——
+    // 「缺席视为无异议」确认通道（admin/leader + 书面理由 + 高风险留痕）。
+    // 缺席只能视为无异议：不得反向定性异常（定性异常走 accept-danger 的既有语义）
+    const isAbsentConfirm = bidSupplier.decryptStatus === 'SUCCESS' && bidSupplier.confirmStatus === 'PENDING';
     // 扩展接受 DISPUTED 和 EXCEPTION（CONFIRMED 无需覆盖）
-    if (!['DISPUTED', 'EXCEPTION'].includes(bidSupplier.confirmStatus)) {
+    if (!['DISPUTED', 'EXCEPTION'].includes(bidSupplier.confirmStatus) && !isAbsentConfirm) {
       throw new BadRequestException({ error: '仅异议中（DISPUTED）或异常（EXCEPTION）的供应商可被强制裁决', code: 'NOT_OVERRIDABLE' });
+    }
+    if (isAbsentConfirm && target !== 'confirmed') {
+      throw new BadRequestException({ error: '解密成功但未确认的家只能视为无异议确认（缺席视为确认）；如需定性异常请走「确认接受解密失败」通道', code: 'ABSENT_CONFIRM_ONLY' });
     }
 
     const targetStatus = target === 'confirmed' ? 'CONFIRMED' : 'EXCEPTION';
@@ -436,7 +443,15 @@ export class BidOpeningRecordService {
       const record = await tx.bidOpeningRecord.findFirst({
         where: { projectId, bidSupplierId: supplierId },
       });
-      if (record && ['供应商提出异议', '异议已处理-退回', '异议已处理-确认'].includes(record.confirmStatus)) {
+      if (isAbsentConfirm) {
+        // 缺席视为确认：记录新态「缺席视为确认」（非供应商本意，法定留痕区分）
+        if (record) {
+          await tx.bidOpeningRecord.update({
+            where: { id: record.id },
+            data: { confirmStatus: '缺席视为确认', handleResult: `[缺席视为确认] ${reason}`, handledAt: now, handledBy: actorId ?? null },
+          });
+        }
+      } else if (record && ['供应商提出异议', '异议已处理-退回', '异议已处理-确认'].includes(record.confirmStatus)) {
         await tx.bidOpeningRecord.update({
           where: { id: record.id },
           data: { confirmStatus: recordConfirmStatus, handleResult: `[强制裁决] ${reason}`, handledAt: now, handledBy: actorId ?? null },
@@ -449,7 +464,11 @@ export class BidOpeningRecordService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: now, role: '监督人', target: bidSupplier.supplierName,
-          action: `强制裁决→${targetStatus}`, result: `${bidSupplier.confirmStatus}→${targetStatus}：${reason}`, riskFlag: '高风险',
+          action: isAbsentConfirm ? `缺席视为确认→${targetStatus}` : `强制裁决→${targetStatus}`,
+          result: isAbsentConfirm
+            ? `供应商解密成功但未确认唱标（缺席/失联），经书面理由视为无异议：${reason}`
+            : `${bidSupplier.confirmStatus}→${targetStatus}：${reason}`,
+          riskFlag: '高风险',
         },
       });
       if (actorId) {

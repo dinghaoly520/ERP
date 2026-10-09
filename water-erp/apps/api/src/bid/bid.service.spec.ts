@@ -146,7 +146,7 @@ describe('BidService — stage transitions', () => {
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }), delete: jest.fn().mockResolvedValue({}) },
       fileAsset: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       notification: { create: jest.fn(), createMany: jest.fn() },
-      user: { findMany: jest.fn() },
+      user: { findMany: jest.fn(), findUnique: jest.fn().mockResolvedValue({ isActive: true }) },
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
       expertDispute: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
@@ -177,7 +177,7 @@ describe('BidService — stage transitions', () => {
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
         { provide: ClarificationAiService, useValue: { summarizeReply: jest.fn().mockResolvedValue(null) } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
@@ -783,6 +783,74 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  // ── 2026-10-09 串号修复：项目相关的 bid_host 通知只发项目指派主持人（assignedHostUserId），
+  // 不再按角色全平台广播（现仅设计公司有 bid_host 账号故未显形，多公司主持人一上线即复现）。──
+  describe('bid_host 通知定向收窄（2026-10-09 串号修复）', () => {
+    it('abortBidProject：BID_ABORTED 只发项目指派主持人，不再全平台 bid_host 广播', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', procurementMethod: '谈判采购', assignedHostUserId: 'host-1', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      await service.abortBidProject('p1', 'u1');
+
+      const notification = (service as any).notificationService;
+      expect(notification.sendToRole).not.toHaveBeenCalled();
+      const abortCalls = notification.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BID_ABORTED');
+      expect(abortCalls).toHaveLength(1);
+      expect(abortCalls[0][0]).toBe('host-1');
+    });
+
+    it('abortBidProject：未指派主持人（开标前流标）→ 不发 bid_host 通知（不广播兜底）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD', name: 'P', procurementMethod: '谈判采购', assignedHostUserId: null, _count: { suppliers: 0 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      await service.abortBidProject('p1', 'u1');
+
+      const notification = (service as any).notificationService;
+      expect(notification.sendToRole).not.toHaveBeenCalled();
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+    });
+
+    it('abortBidProject：指派主持人已停用（isActive=false）→ 不发送（防死信，同 sendToRole 原 isActive 口径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', procurementMethod: '谈判采购', assignedHostUserId: 'host-off', _count: { suppliers: 2 } });
+      prisma.user.findUnique.mockResolvedValue({ isActive: false });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      await service.abortBidProject('p1', 'u1');
+
+      const notification = (service as any).notificationService;
+      expect(notification.sendToRole).not.toHaveBeenCalled();
+      expect(notification.sendToUser).not.toHaveBeenCalled();
+    });
+
+    it('startOpening：确定开标（阶段推进）时 BID_OPENING_CONFIRMED 只发指派主持人（R2 闸门保证推进时必已指派）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'SUBMIT', name: 'P', procurementMethod: '公开招标',
+        openTime: new Date(Date.now() - 2 * 3600_000), deadline: new Date(Date.now() - 3600_000),
+        projectManagementItemId: 'pm1', round: 1, assignedHostUserId: 'host-9',
+      });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.projectManagementStage.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.startOpening('p1', undefined, 'u1');
+
+      const notification = (service as any).notificationService;
+      const confirmedCalls = notification.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BID_OPENING_CONFIRMED');
+      expect(confirmedCalls).toHaveLength(1);
+      expect(confirmedCalls[0][0]).toBe('host-9');
+      // 不再有全平台 bid_host 广播
+      const hostBroadcast = notification.sendToRole.mock.calls.filter((c: any[]) => c[0] === 'bid_host');
+      expect(hostBroadcast).toHaveLength(0);
+    });
+  });
+
   describe('reopenFromAborted — N5 重启时间兜底', () => {
     beforeEach(() => {
       // findUnique 双用途：按 id 查返回原项目；按 projectCode 查（generateProjectCode 查重）返回 null
@@ -1135,6 +1203,26 @@ describe('BidService — stage transitions', () => {
       );
     });
 
+    it('P1-2（第三波）：基准价偏离法激活但缺最高限价 → 启动评标即 400 CEILING_PRICE_REQUIRED（死局前移，不再等专家评完点生成才炸）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'OPENING', name: '测试项目',
+        priceFormulaConfig: { formulaType: 'benchmark_deviation' }, ceilingPrice: null,
+      });
+      await expect(service.startEvaluation('p1', 'u1'))
+        .rejects.toMatchObject({ response: { code: 'CEILING_PRICE_REQUIRED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('P1-2：最低评标价法不依赖限价 → 不触发预检（后续家数闸另拦）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'OPENING', name: '测试项目',
+        priceFormulaConfig: { formulaType: 'lowest_price' }, ceilingPrice: null,
+      });
+      // 不因 CEILING_PRICE_REQUIRED 拒绝即证明预检未误伤（家数不足是另一码事）
+      await expect(service.startEvaluation('p1', 'u1'))
+        .rejects.not.toMatchObject({ response: { code: 'CEILING_PRICE_REQUIRED' } });
+    });
+
     it('E2：自定义评标时长——evaluationHours 生效，缺省回退 72h', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
@@ -1430,8 +1518,8 @@ describe('BidService — stage transitions', () => {
   });
 
   describe('updatePriceConfig 阶段闸（P2-17）', () => {
-    it('EVALUATING：变更任一配置键 → 409 PRICE_CONFIG_LOCKED', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+    it('EVALUATING：变更任一配置键 → 409 PRICE_CONFIG_LOCKED（第三波窄口例外：现值缺失时仅补设 ceilingPrice 放行——本例已有值再改仍锁）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', ceilingPrice: 50 });
       await expect(service.updatePriceConfig('p1', { ceilingPrice: 100 }, 'u1'))
         .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
       expect(prisma.bidProject.update).not.toHaveBeenCalled();
@@ -2056,7 +2144,7 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }) },
       fileAsset: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       notification: { create: jest.fn(), createMany: jest.fn() },
-      user: { findMany: jest.fn() },
+      user: { findMany: jest.fn(), findUnique: jest.fn().mockResolvedValue({ isActive: true }) },
       auditLog: { create: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (callbackOrOps: any) => {
@@ -2100,7 +2188,7 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
       ],
     }).compile();
     service = module.get<BidService>(BidService);
@@ -2157,7 +2245,7 @@ describe('BidService — createProject 字段写入', () => {
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
         { provide: BidGateway, useValue: {} },
       ],
     }).compile();
@@ -2208,7 +2296,7 @@ describe('截标↔开标 24h（P0-2）', () => {
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -2494,7 +2582,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
         { provide: BidGateway, useValue: { notifyBidValidity: jest.fn() } },
       ],
     }).compile();
@@ -3485,7 +3573,7 @@ describe('createRound — 谈判采购评标完成闸门（先评标→再报价
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn(), getOverCeilingSuppliers: jest.fn() } },
         { provide: StorageService, useValue: {} },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -3563,7 +3651,7 @@ describe('submitQuote — 准入校验', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn(), getOverCeilingSuppliers: jest.fn() } },
         { provide: StorageService, useValue: {} },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -3633,14 +3721,19 @@ describe('getMinBidders procurement-method-aware', () => {
 describe('checkDisputeTimeout', () => {
   let service: BidService;
   let prisma: any;
+  let notification: any;
 
   beforeEach(async () => {
     prisma = {
       bidOpeningSession: { findUnique: jest.fn() },
       bidSupplier: { findMany: jest.fn() },
-      bidSupervisionLog: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      // 2026-10-09 串号修复：超时通知定向解析指派主持人（bidProject.assignedHostUserId + isActive 闸）
+      bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+      user: { findUnique: jest.fn().mockResolvedValue({ isActive: true }) },
       $queryRaw: jest.fn(), $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
+    notification = { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
@@ -3651,7 +3744,7 @@ describe('checkDisputeTimeout', () => {
         { provide: ScoreStandardValidator, useValue: {} },
         { provide: PriceFormulaService, useValue: {} },
         { provide: StorageService, useValue: {} },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: notification },
         { provide: ClarificationAiService, useValue: {} },
         { provide: BidGateway, useValue: {} },
       ],
@@ -3682,6 +3775,40 @@ describe('checkDisputeTimeout', () => {
     prisma.bidSupplier.findMany.mockResolvedValueOnce([]);
     await (service as any).checkDisputeTimeout('p1');
     expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  // 2026-10-09 串号修复：超时告警只发本项目指派主持人（原按 bid_host 全平台广播）
+  const TIMED_OUT_SESSION = {
+    disputeTimeoutMinutes: 30,
+    disputedSince: new Date(Date.now() - 60 * 60 * 1000),
+  };
+
+  it('超时 + 已指派主持人 → BID_DISPUTE_TIMEOUT 定向发送（不再全平台 bid_host 广播）', async () => {
+    prisma.bidOpeningSession.findUnique.mockResolvedValueOnce(TIMED_OUT_SESSION);
+    prisma.bidSupplier.findMany.mockResolvedValueOnce([
+      { id: 'bs1', supplierName: '甲公司' },
+    ]);
+    prisma.bidProject.findUnique.mockResolvedValue({ assignedHostUserId: 'host-1' });
+
+    await (service as any).checkDisputeTimeout('p1');
+
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).toHaveBeenCalledTimes(1);
+    expect(notification.sendToUser).toHaveBeenCalledWith('host-1', ['in_app'], expect.objectContaining({ type: 'BID_DISPUTE_TIMEOUT' }));
+  });
+
+  it('超时 + 未指派主持人 → 不发送（不回退广播）', async () => {
+    prisma.bidOpeningSession.findUnique.mockResolvedValueOnce(TIMED_OUT_SESSION);
+    prisma.bidSupplier.findMany.mockResolvedValueOnce([
+      { id: 'bs1', supplierName: '甲公司' },
+    ]);
+    prisma.bidProject.findUnique.mockResolvedValue({ assignedHostUserId: null });
+
+    await (service as any).checkDisputeTimeout('p1');
+
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
   });
 
 describe('BidService — syncFromAnnouncement 时间合理性校验（P1-15/走查⑤）', () => {
@@ -4812,7 +4939,7 @@ describe('autoHandoverIfDone / startEvaluation 移交兜底', () => {
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn(), sendToUser: jest.fn(), create: jest.fn() } },
         { provide: BidGateway, useValue: { notifySupervisionLog: jest.fn() } },
       ],
     }).compile();
@@ -4976,6 +5103,116 @@ describe('BidService — extendEvaluationDeadline 上限校验', () => {
     expect(r.evaluationDeadline).toBeTruthy();
     expect(prisma.bidProject.update).toHaveBeenCalled();
   });
+
+  it('P2-9（中断审查）：延期成功 → WS 广播 evaluation:extended（专家端「已截止/已锁定」陈旧态自动解锁）', async () => {
+    (service as any).gateway = { notifyEvaluationExtended: jest.fn() };
+    const r = await service.extendEvaluationDeadline('p1', 24, '现场延期', 'u1');
+    expect((service as any).gateway.notifyEvaluationExtended).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({
+        projectId: 'p1',
+        evaluationDeadline: new Date(r.evaluationDeadline).toISOString(),
+        extendHours: 24,
+      }),
+    );
+  });
+});
+
+/* ── P2-10（中断审查）：评标室口令轮换须广播——在场专家只见 403 toast 不见口令输入 UI 须 F5 ── */
+describe('BidService — rotateRoomCode 广播', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: {
+        findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: 'P', projectCode: 'GK-T' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('口令轮换成功 → WS 广播 room:code:rotated 且载荷不含口令本体（口令仅现场口头传递）', async () => {
+    (service as any).gateway = { notifyRoomCodeRotated: jest.fn() };
+    await service.rotateRoomCode('p1', { id: 'host-1', username: '主持人' });
+    const gw = (service as any).gateway;
+    expect(gw.notifyRoomCodeRotated).toHaveBeenCalledTimes(1);
+    const [roomId, payload] = gw.notifyRoomCodeRotated.mock.calls[0];
+    expect(roomId).toBe('p1');
+    // 铁律（bid-events.ts）：事件只带活动里程碑——口令本体绝不出现在载荷
+    expect(payload).not.toHaveProperty('roomCode');
+    expect(payload).not.toHaveProperty('code');
+  });
+
+  it('非 EVALUATING → 409 NOT_EVALUATING 且不广播', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', projectCode: 'GK-T' });
+    (service as any).gateway = { notifyRoomCodeRotated: jest.fn() };
+    await expect(service.rotateRoomCode('p1', { id: 'host-1', username: '主持人' }))
+      .rejects.toMatchObject({ response: { code: 'NOT_EVALUATING' } });
+    expect((service as any).gateway.notifyRoomCodeRotated).not.toHaveBeenCalled();
+  });
+});
+
+/* ── P1-2（第三波）：EVALUATING 期「仅补设缺失 ceilingPrice」窄口——修复三重死局（400→409 无路） ── */
+describe('BidService — updatePriceConfig 限价补设窄口', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('EVALUATING 且现值为空 → 仅含 ceilingPrice 的 dto 放行补设', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', ceilingPrice: null });
+    await service.updatePriceConfig('p1', { ceilingPrice: 1500000 }, 'u1');
+    expect(prisma.bidProject.update).toHaveBeenCalled();
+  });
+
+  it('EVALUATING 已有限价再改 → 仍 409 PRICE_CONFIG_LOCKED（窄口只允许补缺失，不允许调价）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', ceilingPrice: 100 });
+    await expect(service.updatePriceConfig('p1', { ceilingPrice: 200 }, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
+  });
+
+  it('EVALUATING 改公式类型 → 仍 409（评标办法锁定不动）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', ceilingPrice: null });
+    await expect(service.updatePriceConfig('p1', { priceFormulaConfig: { formulaType: 'lowest_price' } }, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
+  });
 });
 
 /* ── A-151（P1 波4）：评标报告章节附注存取（签字包生成前编辑，docx 渲染；重新生成取最新值） ── */
@@ -5080,7 +5317,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
       supplier: { findUnique: jest.fn(), findMany: jest.fn() },
       contract: { findFirst: jest.fn().mockResolvedValue(null) },
       contractFulfillment: { findFirst: jest.fn().mockResolvedValue(null) },
-      projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+      projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
       announcement: { findFirst: jest.fn() },
       systemConfig: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
       // C2 三写事务化：事务直通（tx 即 prisma mock）
@@ -5105,8 +5342,10 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     (service as any).resolveAnnouncementCodes = jest.fn(async () => ['GK-1']);
   });
 
-  it('定标联动：sendToRole(staff 两参) resolve 后才写 marker + marker 幂等（marker 已在则不再提醒）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+  it('定标联动：sendToUser(创建人) resolve 后才写 marker + marker 幂等（marker 已在则不再提醒）', async () => {
+    // 2026-10-09 串号修复：BOND_REFUND_DUE 从 staff 全平台广播改为只发项目创建人（PMI.createdById）
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -5118,14 +5357,15 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
 
     await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
 
-    // sendToRole 两参签名（同 scheduler 口径）：('staff', { type:'SYSTEM', title, content })
-    expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.objectContaining({ type: 'BOND_REFUND_DUE', link: '/projects?projectId=p1' }));
-    expect(notification.sendToRole.mock.calls[0]).toHaveLength(2);
+    // 定向（不再按角色广播）：sendToUser(creator-1, ['in_app'], { type:'BOND_REFUND_DUE', ... })
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    // 深链 ID 空间（2026-10-09 复核修正）：/projects?projectId= 按 PMI id 匹配（非 BidProject id）
+    expect(notification.sendToUser).toHaveBeenCalledWith('creator-1', ['in_app'], expect.objectContaining({ type: 'BOND_REFUND_DUE', link: '/projects?projectId=pm1' }));
     expect(prisma.systemConfig.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { key: 'bond_return_reminder_award:p1' } }),
     );
-    // 调序（P2 C1）：marker 只在 sendToRole resolve 之后写——失败不占坑，日调度 bond_return_reminded:* 兜底可重发
-    expect(notification.sendToRole.mock.invocationCallOrder[0]).toBeLessThan(
+    // 调序（P2 C1）：marker 只在 sendToUser resolve 之后写——失败不占坑，日调度 bond_return_reminded:* 兜底可重发
+    expect(notification.sendToUser.mock.invocationCallOrder[0]).toBeLessThan(
       prisma.systemConfig.upsert.mock.invocationCallOrder[0],
     );
     // 终审 Critical#2：pending 查询走共享谓词——三键（已提交+未退还+无不予退还终局）+ winner 排除
@@ -5139,15 +5379,16 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     });
 
     // 幂等：marker 已存在 → 二次发放不再提醒
-    notification.sendToRole.mockClear();
+    notification.sendToUser.mockClear();
     prisma.systemConfig.upsert.mockClear();
     prisma.systemConfig.findUnique.mockResolvedValue({ key: 'bond_return_reminder_award:p1' });
     await service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1');
+    expect(notification.sendToUser).not.toHaveBeenCalled();
     expect(notification.sendToRole).not.toHaveBeenCalled();
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
   });
 
-  it('定标联动：无待退还（pending=0）→ 不 sendToRole 不写 marker（零副作用）', async () => {
+  it('定标联动：无待退还（pending=0）→ 不发送不写 marker（零副作用）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -5160,10 +5401,50 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1')).resolves.toEqual({ id: 'd1' });
 
     expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
   });
 
-  it('定标联动：sendToRole 失败 → marker 不写（不占坑）+ warn 留痕，不阻塞通知书', async () => {
+  it('定标联动：sendToUser 失败 → marker 不写（不占坑）+ warn 留痕，不阻塞通知书', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
+    prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
+    prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+    prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+    prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
+    prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }]);
+    notification.sendToUser.mockRejectedValue(new Error('通知服务不可用'));
+    const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
+
+    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1')).resolves.toEqual({ id: 'd1' });
+
+    // 失败不占坑——marker 未写，本次发送失败后日调度 bond_return_reminded:* 通道仍可补发
+    expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/A-105 定标提醒发送失败 project=p1:/));
+  });
+
+  it('定标联动：创建人已停用（isActive=false）→ 不发送且不占坑（法定提醒通道不被死信空耗）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: false } });
+    prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
+    prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
+    prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
+    prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-1', mimeType: 'application/pdf', size: 1024 });
+    prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
+    prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
+    prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }]);
+
+    await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1')).resolves.toEqual({ id: 'd1' });
+
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BOND_REFUND_DUE')).toHaveLength(0);
+    expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it('定标联动：创建人不可解析（无宿主 PMI）→ 不发送且不占坑（不回退广播）', async () => {
+    // 2026-10-09 串号修复口径：解析失败宁可不发，marker 也不写——日调度兜底通道仍可补发
     prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -5172,14 +5453,12 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     prisma.awardLetterDelivery.findUnique.mockResolvedValue(null);
     prisma.awardLetterDelivery.create.mockResolvedValue({ id: 'd1' });
     prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }]);
-    notification.sendToRole.mockRejectedValue(new Error('通知服务不可用'));
-    const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
 
     await expect(service.deliverAwardLetter('p1', { winnerName: '中标公司', letterAssetId: 'letter-1' }, 'actor-1')).resolves.toEqual({ id: 'd1' });
 
-    // 失败不占坑——marker 未写，本次发送失败后日调度 bond_return_reminded:* 通道仍可补发
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser.mock.calls.filter((c: any[]) => c[2]?.type === 'BOND_REFUND_DUE')).toHaveLength(0);
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/A-105 定标提醒发送失败 project=p1:/));
   });
     it('P1-6：定标即定向通知未中标投标人（法45条）——BID_AWARD_RESULT 含中标人名称 + marker 幂等', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
@@ -5307,6 +5586,15 @@ describe('BidService — reopenExpertScoring', () => {
     expect(prisma.bidExpert.updateMany).not.toHaveBeenCalled();
   });
 
+  it('P2-11（中断审查）：重开成功 → WS 广播 scoring:reopened（专家端陈旧「已确认/已锁定」态自动解锁）', async () => {
+    (service as any).gateway = { notifyScoringReopened: jest.fn() };
+    await service.reopenExpertScoring('p1', '评分复核', undefined, 'actor-1');
+    expect((service as any).gateway.notifyScoringReopened).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({ projectId: 'p1' }),
+    );
+  });
+
   it('非评标阶段（ARCHIVED 终态证据不可动）→ 409 REOPEN_STAGE_REQUIRED', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '测试项目', stage: 'ARCHIVED', projectCode: 'GK-TEST' });
     await expect(service.reopenExpertScoring('p1', '评分复核', undefined, 'actor-1'))
@@ -5393,5 +5681,78 @@ describe('BidService — reopenExpertScoring', () => {
     });
     expect(notificationSvc.create).toHaveBeenCalledTimes(1);
     expect(r).toEqual({ reopenedExpertIds: ['e1'], reopenedExpertNames: '专家甲' });
+  });
+});
+
+/* ── 终审补：host 侧异议裁决废标 → 全体专家 progress 重算 + WS 里程碑 ── */
+describe('BidService — resolveExpertDispute 废标联动重算', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    const validity: Record<string, string> = {};
+    prisma = {
+      expertDispute: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: 'open', expertId: 'ex1', title: '资质异议', expertName: '王' }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
+      bidSupplier: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'sup1', supplierName: '甲' }),
+        // 重算分母查询——行携带可变废标镜像（事务内 update 写入后重算须读到 invalid）
+        findMany: jest.fn().mockImplementation(() => Promise.resolve([
+          { id: 'sup1', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: validity.sup1 },
+          { id: 'sup2', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'valid' },
+        ])),
+        update: jest.fn().mockImplementation((a: any) => {
+          if (a.data?.bidValidity) validity[a.where.id] = a.data.bidValidity;
+          return Promise.resolve({});
+        }),
+      },
+      bidInvalidBid: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0), deleteMany: jest.fn() },
+      bidSignPacket: { findUnique: jest.fn() },
+      bidExpert: {
+        findUnique: jest.fn().mockResolvedValue(null), // 裁决通知：无 userId 跳过 sendToUser
+        findMany: jest.fn().mockResolvedValue([{ id: 'e1', conflictedSupplierIds: [] }]),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1', category: 'TECHNICAL' }]) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([{ score: 80 }]) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('废标采纳（resolved+invalidate）→ 全体正选专家按可评集合重算 progress + 广播 bid:validity:change', async () => {
+    (service as any).gateway = { notifyBidValidity: jest.fn() };
+    await service.resolveExpertDispute('p1', 'd1', { response: '采纳，资质不符', status: 'resolved', invalidateBidSupplierId: 'sup1' }, 'actor-1');
+    // 供重算用的成员清单查询（正选、含回避集）
+    expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectId: 'p1', expertRole: '正选' }),
+    }));
+    // e1 重算：1 项 × 1 可评家（sup1 已 invalid），已评 1 → 100
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: expect.objectContaining({ progress: 100 }) });
+    expect((service as any).gateway.notifyBidValidity).toHaveBeenCalledWith('p1', expect.objectContaining({ supplierId: 'sup1', status: 'invalid' }));
+  });
+
+  it('仅驳回（无废标联动）→ 不重算不广播', async () => {
+    (service as any).gateway = { notifyBidValidity: jest.fn() };
+    await service.resolveExpertDispute('p1', 'd1', { response: '驳回，理由不成立', status: 'rejected' }, 'actor-1');
+    expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'e1' } }));
+    expect((service as any).gateway.notifyBidValidity).not.toHaveBeenCalled();
   });
 });

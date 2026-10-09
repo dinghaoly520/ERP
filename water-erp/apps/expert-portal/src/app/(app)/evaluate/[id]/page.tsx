@@ -127,6 +127,19 @@ export default function ExpertEvaluatePage() {
   const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
     // EXP-P3-06：WS 重连补拉——断连窗口错过的草稿/提交等事件经全量刷新补偿
     onReconnected: () => { loadProject(); },
+    // P2-9/10/11（中断审查）：延期/口令轮换/重开确认广播——陈旧锁定态自动解锁，不再须 F5
+    onEvaluationExtended: (d) => {
+      toast.success(`评标时限已延长 ${d.extendHours} 小时，截止时间已更新`);
+      loadProject();
+    },
+    onRoomCodeRotated: () => {
+      toast.warning('评标室口令已轮换，请向主持人获取新口令后重新验证进入');
+      loadProject();
+    },
+    onScoringReopened: (d) => {
+      if (!d.expertId) toast.info('评审确认已被重开，您可修改评分并重新确认报告');
+      loadProject();
+    },
     onExpertPresence: (d) => {
       // EXP-P2-02：本人候补→正选转正（或互换）即时刷新——myExpertRecord.expertRole 变化解锁签到
       if (d.milestone === 'role_changed') {
@@ -1000,6 +1013,10 @@ export default function ExpertEvaluatePage() {
     if ((step === 'assist' || step === 'compare') && activeSupplier) loadAssist(activeSupplier);
   }, [step, activeSupplier, project]);
 
+  /** P1-6（中断审查）改票逃生口：本人已投过票的废标家仍可改票——改票可恢复误废标
+   *  （evaluateInvalidBid 票数变化即 revoke）；未投过票者不得新开评分废标家。平板端只读不提交，无此口 */
+  const hasCommittedScoresFor = (sid: string) => (project?.myScores ?? []).some((rec: { supplierId: string }) => rec.supplierId === sid);
+
   const handleSubmitScores = async () => {
     if (!project || !activeSupplier) return;
     if (expert?.reportConfirmed) { toast.warning('评审报告已确认，评分已锁定'); return; }
@@ -1009,8 +1026,8 @@ export default function ExpertEvaluatePage() {
     // also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
     && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)
-    // block if supplier is currently 废标 (invalid)
-    && !invalidSupplierIds.has(activeSupplier);
+    // block if supplier is currently 废标 (invalid) —— 已投过票者例外（改票可恢复误废标）
+    && (!invalidSupplierIds.has(activeSupplier) || hasCommittedScoresFor(activeSupplier));
     if (!canScoreActiveSupplier) {
       toast.warning('该投标单位未解密成功、已撤回或已废标，不能评分');
       return;
@@ -1276,8 +1293,8 @@ export default function ExpertEvaluatePage() {
     // also block if expert declared conflict with this supplier
     && !conflictedSupplierIds.has(activeSupplier)
     && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)
-    // block if supplier is currently 废标 (invalid)
-    && !invalidSupplierIds.has(activeSupplier);
+    // block if supplier is currently 废标 (invalid) —— 已投过票者例外（改票可恢复误废标，见上方逃生口注释）
+    && (!invalidSupplierIds.has(activeSupplier) || hasCommittedScoresFor(activeSupplier));
   const scoreLocked = !!expert?.reportConfirmed;
   // P3（2026-09-21 审查）：超时态统一口径——横幅与提交按钮/文案共用（此前按钮可点但服务端必 409）
   const evaluationOverdue = !!(

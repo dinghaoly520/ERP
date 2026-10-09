@@ -5,6 +5,8 @@ import * as cookieParser from 'cookie-parser';
 import { hashSync } from 'bcryptjs';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { maskLicenseNo } from '../src/common/pii-mask';
+import { openPii, isSealedFieldSm } from '../src/common/crypto/sm-field-crypto';
 import { ExpertExtractionAiService } from '../src/expert/expert-extraction-ai.service';
 
 /**
@@ -174,7 +176,8 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
     expect(testExpertId).toBeTruthy();
     expect(create.body?.expertProfile?.ethnicity).toBe('汉族');
     expect(create.body?.expertProfile?.education).toBe('硕士');
-    expect(create.body?.expertProfile?.licenseNo).toBe('ZS-E2E-001');
+    // PII 出口默认掩码（等保+密评）；真实落库由下方 DB 直查验证
+    expect(create.body?.expertProfile?.licenseNo).toBe(maskLicenseNo('ZS-E2E-001'));
     expect(create.body?.passwordHash).toBeUndefined();
 
     // 回读确认真实落库（返回值对 ≠ 落库对）
@@ -182,8 +185,12 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
     expect(detail.status).toBe(200);
     expect(detail.body?.expertProfile?.ethnicity).toBe('汉族');
     expect(detail.body?.expertProfile?.education).toBe('硕士');
-    expect(detail.body?.expertProfile?.licenseNo).toBe('ZS-E2E-001');
+    expect(detail.body?.expertProfile?.licenseNo).toBe(maskLicenseNo('ZS-E2E-001'));
     expect(detail.body?.passwordHash).toBeUndefined();
+    // 真实落库验证：DB 直查应为 sm1: 密文且可拆封回原文（与 API 同进程同密钥）
+    const rawProfile = await prisma.expertProfile.findUnique({ where: { userId: testExpertId }, select: { licenseNo: true } });
+    expect(isSealedFieldSm(rawProfile?.licenseNo)).toBe(true);
+    expect(openPii(rawProfile?.licenseNo)).toBe('ZS-E2E-001');
   });
 
   it('履职评价：对录入的专家发起评价应成功并正确定级', async () => {

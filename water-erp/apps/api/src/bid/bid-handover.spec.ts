@@ -38,6 +38,8 @@ function makePrismaMock() {
     bidOpeningSession: { findUnique: jest.fn() },
     bidSupplier: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn() },
     bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+    // 2026-10-09 串号修复：移交通知定向解析创建人（宿主 PMI.createdById）；默认 null=解析失败
+    projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
     // §5.5b（Task 18）：buildHandoverPackage 解密明文指纹段查 submission（默认空 → 旧项目零变化）
     supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
     bidSupervisionLog: { findMany: jest.fn().mockResolvedValue([]) },
@@ -57,7 +59,7 @@ async function buildService(prisma: any) {
       BidScoreStandardService,
       { provide: PrismaService, useValue: prisma },
       { provide: GbCodeService, useValue: { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } },
-      { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue(undefined) } },
+      { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue(undefined), sendToUser: jest.fn().mockResolvedValue(undefined), create: jest.fn() } },
       { provide: ScoreStandardValidator, useValue: { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
       // 与 bid.service.spec.ts 同口径（BidService 构造器第 4 参）
       { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
@@ -220,5 +222,70 @@ describe('completeOpening / assertOpeningDone', () => {
     const pkg = JSON.parse((storage.upload.mock.calls[0][1] as Buffer).toString('utf8'));
     expect(pkg.packageVersion).toBe(2);
     expect('hallMessages' in pkg).toBe(false);
+  });
+
+  // ── 2026-10-09 串号修复：移交通知只发项目创建人（不再按 leader/staff 全平台广播）──
+  // 背景：sendToRole 无公司过滤，多公司账号上线后设计公司项目的移交通知串到建设/投资公司账号；
+  // 且 :3005 /projects 个人隔离，非创建人收到通知也打不开链接。口径（用户裁定）：
+  // 只发创建人（=宿主 PMI.createdById），解析失败不发送。
+  async function setupNormalHandover(prisma: any, project: any = OPENING_PROJECT) {
+    prisma.bidProject.findUnique.mockResolvedValue(project);
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
+    prisma.__tx.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
+    prisma.__tx.fileAsset.upsert.mockResolvedValue({ id: 'asset_1', key: 'bid-opening-handover/p1.json' });
+    prisma.__tx.bidOpeningSession.update.mockResolvedValue({ ...SESSION, status: '开标完成', handoverAt: new Date(), handoverAssetId: 'asset_1' });
+    prisma.__tx.bidProject.findUnique.mockResolvedValue(project);
+  }
+
+  it('BID_OPENING_HANDED_OVER 只发项目创建人，不再按 leader/staff 全平台广播', async () => {
+    const prisma = makePrismaMock();
+    const svc = await buildService(prisma);
+    await setupNormalHandover(prisma);
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
+
+    await svc.completeOpening('p1', 'user1');
+
+    const notification = (svc as any).notificationService;
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).toHaveBeenCalledTimes(1);
+    expect(notification.sendToUser).toHaveBeenCalledWith('creator-1', ['in_app'], expect.objectContaining({ type: 'BID_OPENING_HANDED_OVER' }));
+  });
+
+  it('创建人已停用（isActive=false）→ 不发送（同 sendToRole 原 isActive 过滤口径，防死信）', async () => {
+    const prisma = makePrismaMock();
+    const svc = await buildService(prisma);
+    await setupNormalHandover(prisma);
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: false } });
+
+    await svc.completeOpening('p1', 'user1');
+
+    const notification = (svc as any).notificationService;
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('创建人不可解析（宿主 PMI 无 createdById）→ 不发送（不回退广播）', async () => {
+    const prisma = makePrismaMock();
+    const svc = await buildService(prisma);
+    await setupNormalHandover(prisma);
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: null });
+
+    await svc.completeOpening('p1', 'user1');
+
+    const notification = (svc as any).notificationService;
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('无宿主 PMI（projectManagementItemId=null）→ 不发送', async () => {
+    const prisma = makePrismaMock();
+    const svc = await buildService(prisma);
+    await setupNormalHandover(prisma, { ...OPENING_PROJECT, projectManagementItemId: null });
+
+    await svc.completeOpening('p1', 'user1');
+
+    const notification = (svc as any).notificationService;
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
   });
 });

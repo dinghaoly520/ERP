@@ -133,6 +133,10 @@ export function EvaluationBasisFields({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const softLocked = softLockedOf(detail?.stage);
+  /** 第三波（P1-2）窄口：EVALUATING 且现值缺失时仅「最高限价」允许补设——与后端
+   *  updatePriceConfig 同口径（载荷仅含 ceilingPrice 且现值为空才放行）；ARCHIVED 恒锁。
+   *  save() 按字段 dirty 构造载荷，其余键在锁定期输入禁用不可能 dirty → 载荷必然窄口合规 */
+  const ceilingBackfillable = detail?.stage === "EVALUATING" && detail?.ceilingPrice == null;
   const formulaVisible = evaluationMethod !== "" && !FORMULA_HIDDEN_METHODS.has(evaluationMethod);
 
   // 当前表单的规范 config 形态（供 dirty 对比与保存复用；显式填写的参数才入 config）
@@ -221,7 +225,9 @@ export function EvaluationBasisFields({
     <div className="space-y-3">
       {softLocked && (
         <div className="wb-alert wb-alert--warning flex items-center gap-2 text-xs">
-          <Lock size={13} /> {LOCKED_NOTICE}
+          <Lock size={13} /> {ceilingBackfillable
+            ? "项目已进入评标阶段——评标办法与价格分公式已锁定；此前未设置最高限价，仍可补设（基准价偏离法/比例法生成评标结果所必需）"
+            : LOCKED_NOTICE}
         </div>
       )}
       {/* 三项主控件一行三列等宽（2026-09-26 用户裁定：限价/办法/公式同层级排列清晰） */}
@@ -231,7 +237,7 @@ export function EvaluationBasisFields({
           <input
             type="number" min="0" step="0.01" inputMode="decimal"
             value={ceilingPrice} onChange={(e) => setCeilingPrice(e.target.value)}
-            placeholder="未设置" disabled={softLocked}
+            placeholder="未设置" disabled={softLocked && !ceilingBackfillable}
             className="workbench-input mt-1 w-full !text-[13px] tabular-nums"
           />
         </label>
@@ -332,8 +338,8 @@ export function EvaluationBasisFields({
         <button
           type="button"
           className="neu-btn-primary !h-[34px] !text-xs"
-          disabled={saving || !detail || !dirty || softLocked}
-          title={softLocked ? '评标/归档阶段配置已锁定' : !dirty ? '无修改' : undefined}
+          disabled={saving || !detail || !dirty || (softLocked && !ceilingBackfillable)}
+          title={softLocked && !ceilingBackfillable ? '评标/归档阶段配置已锁定' : !dirty ? '无修改' : undefined}
           onClick={save}
         >
           {saving ? "保存中…" : "保存配置"}

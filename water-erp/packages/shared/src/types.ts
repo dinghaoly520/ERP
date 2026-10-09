@@ -345,6 +345,8 @@ export interface AssistData {
 }
 
 export interface EvaluationReport {
+  /** 第三波：全部活跃供应商被回避/废标（可评集合空）——提示核对回避申报或走流标/补选 */
+  evaluableEmpty?: boolean;
   projectName: string;
   projectCode: string;
   expertName: string;

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem } from '@/lib/api/expert';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin } from 'lucide-react';
@@ -38,7 +38,7 @@ function InfoField({
   full = false,
   copyable = false,
 }: {
-  label: string;
+  label: React.ReactNode; // 允许 PII 揭示按钮随标签内联
   value?: React.ReactNode;
   mono?: boolean;
   full?: boolean;
@@ -145,6 +145,29 @@ export default function ExpertDetailPage() {
   // 编辑资料弹窗
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '', regionCode: '', expertLevel: '' });
+  // PII 明文揭示（等保+密评）：详情默认掩码；点「明文」调 reveal 端点（后端 SensitiveAccessLog 留痕）
+  const [revealedPii, setRevealedPii] = useState<Record<string, string>>({});
+  const [revealingPii, setRevealingPii] = useState<string | null>(null);
+  const toggleRevealPii = async (field: 'idNumber' | 'phone' | 'email') => {
+    if (revealedPii[field] !== undefined) {
+      setRevealedPii(prev => { const n: Record<string, string> = { ...prev }; delete n[field]; return n; });
+      return;
+    }
+    setRevealingPii(field);
+    try {
+      const r = await revealExpertField(expertId, field);
+      const v = r.value;
+      if (v) { setRevealedPii(prev => ({ ...prev, [field]: v })); toast.success('已揭示（本次揭示已留审计日志）'); }
+      else toast.error('该字段暂无值');
+    } catch (e: any) { toast.error(e?.message || '揭示失败'); }
+    setRevealingPii(null);
+  };
+  const PiiRevealBtn = ({ field }: { field: 'idNumber' | 'phone' | 'email' }) => (
+    <button onClick={() => toggleRevealPii(field)} disabled={revealingPii === field}
+      className="neu-btn-xs is-ghost ml-1.5 !px-2 !py-0.5 !text-[10px] shrink-0" title="揭示明文（写入审计日志）">
+      {revealingPii === field ? '…' : revealedPii[field] !== undefined ? '复原' : '明文'}
+    </button>
+  );
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
@@ -229,18 +252,19 @@ export default function ExpertDetailPage() {
   const openEditProfile = () => {
     if (!expert) return;
     const p = expert.expertProfile;
+    // PII 字段不回填（详情值为掩码，回填保存会把掩码串写回库）——留空=保持不变
     setEditForm({
       displayName: expert.displayName || '',
-      email: expert.email || '',
+      email: '',
       specialty: p?.specialty || '',
       title: p?.title || '',
       employer: p?.employer || '',
       departmentName: expert.department?.name || '',
-      phone: p?.phone || '',
-      idNumber: p?.idNumber || '',
+      phone: '',
+      idNumber: '',
       ethnicity: p?.ethnicity || '',
       education: p?.education || '',
-      licenseNo: p?.licenseNo || '',
+      licenseNo: '',
       availability: (p?.availability as '可用' | '占用' | '停用') || '可用',
       notes: p?.notes || '',
       regionCode: p?.regionCode || '',
@@ -260,7 +284,14 @@ export default function ExpertDetailPage() {
     setEditSaving(true);
     try {
       // A-129 档案维度：空值提交 null=显式清除（后端 null 语义），清空保存即清除
-      await updateExpertProfile(expertId, { ...editForm, regionCode: editForm.regionCode.trim() || null, expertLevel: editForm.expertLevel || null });
+      // PII（email/phone/idNumber/licenseNo）留空=不修改：剥离空值（后端 undefined 即跳过）
+      const { email, phone, idNumber, licenseNo, ...rest } = editForm;
+      const payload: Record<string, unknown> = { ...rest, regionCode: editForm.regionCode.trim() || null, expertLevel: editForm.expertLevel || null };
+      if (email.trim()) payload.email = email.trim();
+      if (phone.trim()) payload.phone = phone.trim();
+      if (idNumber.trim()) payload.idNumber = idNumber.trim();
+      if (licenseNo.trim()) payload.licenseNo = licenseNo.trim();
+      await updateExpertProfile(expertId, payload as Parameters<typeof updateExpertProfile>[1]);
       toast.success('专家资料已保存');
       setShowEditModal(false);
       reload();
@@ -392,11 +423,11 @@ export default function ExpertDetailPage() {
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
                 <FieldGroup label="身份" />
                 <InfoField label="姓名" value={expert.displayName} />
-                <InfoField label="身份证号" value={p.idNumber} mono copyable />
+                <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn field="idNumber" /></span>} value={revealedPii.idNumber ?? p.idNumber} mono />
                 <InfoField label="民族" value={p.ethnicity} />
                 <FieldGroup label="联系" />
-                <InfoField label="手机号码" value={p.phone} mono copyable />
-                <InfoField label="邮箱" value={expert.email} copyable />
+                <InfoField label={<span className="inline-flex items-center">手机号码<PiiRevealBtn field="phone" /></span>} value={revealedPii.phone ?? p.phone} mono />
+                <InfoField label={<span className="inline-flex items-center">邮箱<PiiRevealBtn field="email" /></span>} value={revealedPii.email ?? expert.email} />
                 <InfoField label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
               </div>
             </section>

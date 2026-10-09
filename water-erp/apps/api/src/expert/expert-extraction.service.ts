@@ -4,6 +4,8 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException, 
 import { randomInt } from 'node:crypto';
 import { ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { openPiiForMask } from '../common/crypto/sm-field-crypto';
+import { maskPhone } from '../common/pii-mask';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { computeExpertMeanDeviations } from '../common/scoring/expert-deviation';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
@@ -197,7 +199,7 @@ export class ExpertExtractionService {
         regionCode: u.expertProfile?.regionCode ?? undefined,
         expertLevel: u.expertProfile?.expertLevel ?? undefined,
         department: u.department?.name ?? undefined,
-        phone: u.expertProfile?.phone ?? undefined,
+        phone: maskPhone(openPiiForMask(u.expertProfile?.phone)) ?? undefined, // PII 出口掩码（等保+密评）
         pastProjects: u._count.bidExperts,
         evaluationLevel: latest?.level,
         attendanceGrade: latest?.attendanceGrade,

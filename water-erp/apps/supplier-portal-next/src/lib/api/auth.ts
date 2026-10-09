@@ -12,7 +12,10 @@ export interface RegisterParams {
   companyId?: string;
   /** 归属公司名称（62 家名单；未命中主数据时后端建档） */
   companyName?: string;
-  registrationCode: string;
+  /** 旧轨：短信验证码直发（e2e/兼容；正式流程已由 registrationToken 取代） */
+  registrationCode?: string;
+  /** 注册会话 token（主轨，2026-10-09）：步骤 0 验证消费验证码后签发，向导上传与最终提交凭它走完全程 */
+  registrationToken?: string;
   username?: string;
   displayName: string;
   password: string;
@@ -84,6 +87,18 @@ export const authApi = {
   /** 注册验证码预检（不消费；输满 6 位即时反馈 ✓/✗）*/
   checkRegistrationCode(phone: string, code: string) {
     return api.post<any>("/verification/check-registration-code", { phone, code }, { silent: true });
+  },
+
+  /**
+   * 步骤 0「下一步」：消费验证码并签发注册会话 token（30 分钟滑动续期）。
+   * 六步向导后续上传与最终提交凭 token，验证码使命就此完成（2026-10-09）。
+   */
+  verifyRegistrationCode(phone: string, code: string) {
+    return api.post<{ ok: boolean; token: string; expiresIn: number }>(
+      "/verification/verify-registration-code",
+      { phone, code },
+      { silent: true },
+    );
   },
 
   /** 公司选项（id+name）：注册选择归属公司用 */

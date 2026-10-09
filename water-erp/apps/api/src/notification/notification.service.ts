@@ -6,6 +6,7 @@ import { NotificationGateway, type NotificationPushPayload } from './notificatio
 import { EmailChannel } from './channels/email.channel';
 import { SmsChannel } from './channels/sms.channel';
 import { PhoneChannel } from './channels/phone.channel';
+import { openPii } from '../common/crypto/sm-field-crypto';
 import { shouldDispatch } from './channels/notification-channel.interface';
 
 /** 可操作（待办类）类型集合——五段状态视图的 todo/done 判定依据（注册表派生） */
@@ -64,7 +65,10 @@ export class NotificationService {
         select: { contacts: { where: { isPrimary: true }, select: { phone: true }, take: 1 } },
       }).catch(() => null),
     ]);
-    const contact = { email: user?.email ?? null, phone: profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null };
+    const contact = {
+      email: openPii(user?.email ?? null), // 密文列拆封（内部链路，非人视不入揭示审计）
+      phone: openPii(profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null),
+    };
     const tasks: Promise<unknown>[] = [];
     if (shouldDispatch('email', contact)) {
       tasks.push(
@@ -103,7 +107,10 @@ export class NotificationService {
         select: { contacts: { where: { isPrimary: true }, select: { phone: true }, take: 1 } },
       }).catch(() => null),
     ]);
-    const contact = { email: user?.email ?? null, phone: profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null };
+    const contact = {
+      email: openPii(user?.email ?? null), // 密文列拆封（内部链路，非人视不入揭示审计）
+      phone: openPii(profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null),
+    };
 
     // 站内信
     let notificationId: string | null = null;

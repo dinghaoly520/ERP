@@ -18,6 +18,40 @@ describe('registration upload', () => {
     );
   });
 
+  it('会话 token 轨：凭 token 上传，namespace 以会话绑定手机号为准（不碰验证码）', async () => {
+    const uploadService = { upload: jest.fn().mockResolvedValue({ id: 'asset-2' }) };
+    const verification = {
+      assertRegistrationCodeForUpload: jest.fn().mockResolvedValue({ ok: true }),
+      assertRegistrationSession: jest.fn().mockResolvedValue({ phone: '13800138000' }),
+    };
+    const controller = new (UploadController as any)(uploadService, verification);
+    const file = { originalname: '营业执照.pdf', mimetype: 'application/pdf', size: 100, buffer: Buffer.from('%PDF-1.7\nlicense') };
+
+    await expect(controller.uploadRegistration(file, {
+      token: 't'.repeat(64), category: 'qualification',
+    })).resolves.toEqual({ id: 'asset-2' });
+
+    expect(verification.assertRegistrationSession).toHaveBeenCalledWith('t'.repeat(64));
+    expect(verification.assertRegistrationCodeForUpload).not.toHaveBeenCalled();
+    expect(uploadService.upload).toHaveBeenCalledWith(
+      file, 'qualification', undefined, false, undefined, registrationUploadNamespace('13800138000'),
+    );
+  });
+
+  it('token 与 phone+code 均缺省 → REGISTRATION_CODE_REQUIRED（不落盘）', async () => {
+    const uploadService = { upload: jest.fn() };
+    const verification = {
+      assertRegistrationCodeForUpload: jest.fn(),
+      assertRegistrationSession: jest.fn(),
+    };
+    const controller = new (UploadController as any)(uploadService, verification);
+    const file = { originalname: '营业执照.pdf', mimetype: 'application/pdf', size: 100, buffer: Buffer.from('%PDF-1.7\nlicense') };
+
+    await expect(controller.uploadRegistration(file, { category: 'qualification' }))
+      .rejects.toMatchObject({ response: { code: 'REGISTRATION_CODE_REQUIRED' } });
+    expect(uploadService.upload).not.toHaveBeenCalled();
+  });
+
   it('rejects non-registration categories before writing a file', async () => {
     const uploadService = { upload: jest.fn() };
     const verification = { assertRegistrationCodeForUpload: jest.fn().mockResolvedValue({ ok: true }) };

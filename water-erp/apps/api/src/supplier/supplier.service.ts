@@ -26,6 +26,11 @@ import { CompanyScopeService } from '../company/company-scope';
 import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
 import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
+import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
+import { isSealedFieldSm, openPiiForMask } from '../common/crypto/sm-field-crypto';
+import { logSensitiveAccess } from '../common/sensitive-access.util';
+import { openChangeValue, maskChangeValue } from './change-record-pii';
+import { maskPhone, maskIdNumber, maskEmail, maskBankAccount } from '../common/pii-mask';
 
 // 等级→数值映射（与 expert-admin.service.ts 共享语义，ExpertLevel: A=5 B=4 C=3 D=2 E=1）
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -210,11 +215,21 @@ export class SupplierService {
   }
 
   async register(dto: RegisterSupplierDto) {
-    // 注册实名核验——主联系人手机号短信验证码前置校验（verifyRegistrationCode 消费后失效）。
-    // 内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
+    // 注册实名核验——主联系人手机号验证前置校验。内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
+    // 双轨（2026-10-09）：token 轨=步骤 0 已消费验证码换发的注册会话；旧轨=验证码非消费校验（最终消费）。
     const isInternalImport = dto.registrationCode === '__INTERNAL_IMPORT__';
     if (!isInternalImport) {
-      await this.verificationService.assertRegistrationCodeForUpload(dto.registrationPhone, dto.registrationCode);
+      if (dto.registrationToken) {
+        const session = await this.verificationService.assertRegistrationSession(dto.registrationToken);
+        if (session.phone !== dto.registrationPhone.trim()) {
+          throw new BadRequestException({
+            error: '验证会话与注册手机号不一致',
+            code: 'REGISTRATION_PHONE_SESSION_MISMATCH',
+          });
+        }
+      } else {
+        await this.verificationService.assertRegistrationCodeForUpload(dto.registrationPhone, dto.registrationCode);
+      }
 
       const primaryContacts = (dto.contacts ?? []).filter((contact) => contact.isPrimary);
       if (primaryContacts.length !== 1) {
@@ -267,7 +282,7 @@ export class SupplierService {
     // 法定代表人身份证号查重（软约束：同一法人身份证号不允许重复注册）
     if (dto.legalPersonIdCard) {
       const existingLegal = await this.prisma.supplier.findFirst({
-        where: { legalPersonIdCard: dto.legalPersonIdCard },
+        where: { legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? undefined }, // 密文列等值查重走盲索引
         select: { id: true },
       });
       if (existingLegal) {
@@ -279,7 +294,7 @@ export class SupplierService {
     const contactIdCards = dto.contacts.map(c => c.idCard?.trim()).filter((x): x is string => !!x);
     if (contactIdCards.length > 0) {
       const existingContact = await this.prisma.supplierContact.findFirst({
-        where: { idCard: { in: contactIdCards } },
+        where: { idCardIdx: { in: contactIdCards.map(c => blindIndexPii(c)).filter((x): x is string => !!x) } },
         select: { id: true },
       });
       if (existingContact) {
@@ -340,9 +355,14 @@ export class SupplierService {
       }
     }
 
-    // 所有字段和附件通过校验后再消费短信码，减少校验错误导致验证码无谓失效。
+    // 所有字段和附件通过校验后再消费验证凭据，减少校验错误导致凭据无谓失效。
+    // token 轨消费注册会话（一次性）；旧轨消费短信码（e2e/兼容路径不变）。
     if (!isInternalImport) {
-      await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
+      if (dto.registrationToken) {
+        await this.verificationService.consumeRegistrationSession(dto.registrationToken);
+      } else {
+        await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
+      }
     }
 
     const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);
@@ -353,7 +373,7 @@ export class SupplierService {
         data: {
           username, // = 机构代码
           displayName: dto.displayName,
-          email: dto.email,
+          email: sealPii(dto.email) ?? null, // PII 国密密封（等保+密评）
           passwordHash: hashSync(dto.password, 10),
           passwordVault: encryptPasswordVault(dto.password) ?? null,
           role: 'supplier',
@@ -384,8 +404,9 @@ export class SupplierService {
           subjectCode: buildSubjectCode(dto.creditCode), // A1（B.4.2）：B+统一社会信用代码
           enterpriseType: dto.enterpriseType,
           legalPerson: dto.legalPerson,
-          legalPersonIdCard: dto.legalPersonIdCard || null,
-          legalPersonPhone: dto.legalPersonPhone || null,
+          legalPersonIdCard: sealPii(dto.legalPersonIdCard || null) ?? null, // PII 国密密封（等保+密评）
+          legalPersonPhone: sealPii(dto.legalPersonPhone || null) ?? null,
+          legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? null,
           registeredAddress: dto.registeredAddress,
           detailedAddress: dto.detailedAddress || null,
           businessScope: dto.businessScope,
@@ -406,9 +427,10 @@ export class SupplierService {
             create: dto.contacts.map(c => ({
               name: c.name,
               gender: c.gender || null,
-              phone: c.phone,
-              idCard: c.idCard,
-              email: c.email,
+              phone: sealPii(c.phone) as string, // PII 国密密封（等保+密评）
+              idCard: sealPii(c.idCard) ?? null,
+              idCardIdx: blindIndexPii(c.idCard) ?? null,
+              email: sealPii(c.email) ?? null,
               isPrimary: c.isPrimary,
               position: c.position,
             })),
@@ -428,7 +450,7 @@ export class SupplierService {
               accountName: b.accountName,
               bankName: b.bankName,
               bankBranch: b.bankBranch || null,
-              accountNo: b.accountNo,
+              accountNo: sealPii(b.accountNo) as string, // 银行账号国密密封（等保+密评）
               isDefault: b.isDefault ?? false,
             })),
           } : undefined,
@@ -635,7 +657,8 @@ export class SupplierService {
         data: {
           username,
           displayName: dto.displayName,
-          phone: dto.phone,
+          phone: sealPii(dto.phone) as string, // PII 国密密封（等保+密评）
+          phoneIdx: blindIndexPii(dto.phone) ?? null,
           passwordHash: hashSync(dto.password, 10),
           passwordVault: encryptPasswordVault(dto.password) ?? null,
           role: 'supplier',
@@ -656,7 +679,8 @@ export class SupplierService {
           // 临时注册 2.0：法人三件套与地址随注册写入（此前留空串占位）；
           // enterpriseType/businessScope 仍留空，审批通过后由供应商在企业信息中自行补全。
           legalPerson: dto.legalPerson.trim(),
-          legalPersonIdCard: dto.legalPersonIdCard.trim(),
+          legalPersonIdCard: sealPii(dto.legalPersonIdCard.trim()) as string, // PII 国密密封（等保+密评）
+          legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard.trim()) ?? null,
           registeredAddress: dto.registeredAddress?.trim() || '',
           region: dto.region?.trim() || null,
           enterpriseType: '',
@@ -667,7 +691,7 @@ export class SupplierService {
           companyId: companyRef.id,
           companyName: companyRef.name,
           invitation: { connect: { id: inv.id } },
-          contacts: { create: [{ name: dto.displayName, phone: dto.phone, email: dto.email || null, isPrimary: true, position: '联系人' }] },
+          contacts: { create: [{ name: dto.displayName, phone: sealPii(dto.phone) as string, email: sealPii(dto.email || null) ?? null, isPrimary: true, position: '联系人' }] },
         },
         include: { contacts: true },
       });
@@ -771,7 +795,7 @@ export class SupplierService {
         ),
         contacts: ((s as any).contacts ?? []).map((c: { name: string; phone: string; isPrimary: boolean }) => ({
           name: c.name,
-          phone: c.phone,
+          phone: maskPhone(openPiiForMask(c.phone)), // 管理端出口脱敏（等保+密评）
           isPrimary: c.isPrimary,
         })),
         evaluation: evals.length > 0 ? { level: evals[0].finalGrade || '', count: evals.length } : undefined,
@@ -1107,7 +1131,29 @@ export class SupplierService {
       const scope = await this.companyScope.resolveScope(actor);
       this.companyScope.assertInScope(supplier.companyId, scope);
     }
-    return supplier;
+    if (!supplier) return null;
+    // PII 出口（等保+密评）：supplier 本人自视明文（归属校验在 controller，跨企访问 403 于响应前拦截）；
+    // 管理端（admin/leader/staff）默认脱敏，明文走 reveal 端点（SensitiveAccessLog 审计）。
+    if (actor?.role === 'supplier') {
+      return {
+        ...supplier,
+        user: supplier.user ? { ...supplier.user, email: openPii(supplier.user.email) } : supplier.user,
+        legalPersonIdCard: openPii(supplier.legalPersonIdCard),
+        legalPersonPhone: openPii(supplier.legalPersonPhone),
+        contacts: supplier.contacts.map(c => ({ ...c, phone: openPii(c.phone), idCard: openPii(c.idCard), email: openPii(c.email) })),
+        bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: openPii(b.accountNo) })),
+        changeRecords: supplier.changeRecords.map(r => ({ ...r, oldValue: openChangeValue(r.fieldName, r.oldValue), newValue: openChangeValue(r.fieldName, r.newValue) })),
+      };
+    }
+    return {
+      ...supplier,
+      user: supplier.user ? { ...supplier.user, email: maskEmail(openPiiForMask(supplier.user.email)) } : supplier.user,
+      legalPersonIdCard: maskIdNumber(openPiiForMask(supplier.legalPersonIdCard)),
+      legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),
+      contacts: supplier.contacts.map(c => ({ ...c, phone: maskPhone(openPiiForMask(c.phone)), idCard: maskIdNumber(openPiiForMask(c.idCard)), email: maskEmail(openPiiForMask(c.email)) })),
+      bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: maskBankAccount(openPiiForMask(b.accountNo)) })),
+      changeRecords: supplier.changeRecords.map(r => ({ ...r, oldValue: maskChangeValue(r.fieldName, r.oldValue), newValue: maskChangeValue(r.fieldName, r.newValue) })),
+    };
   }
 
   async getRegisterStatus(userId: string) {
@@ -1287,7 +1333,7 @@ export class SupplierService {
     const legalPersonIdCard = (fields.legalPersonIdCard ?? '').trim();
     if (legalPersonIdCard) {
       const hit = await this.prisma.supplier.findFirst({
-        where: { legalPersonIdCard },
+        where: { legalPersonIdCardIdx: blindIndexPii(legalPersonIdCard) ?? undefined }, // 密文列等值查重走盲索引
         select: { id: true },
       });
       result.legalPersonIdCard = !!hit;
@@ -1296,7 +1342,7 @@ export class SupplierService {
     const contactIdCard = (fields.contactIdCard ?? '').trim();
     if (contactIdCard) {
       const hit = await this.prisma.supplierContact.findFirst({
-        where: { idCard: contactIdCard },
+        where: { idCardIdx: blindIndexPii(contactIdCard) ?? undefined },
         select: { id: true },
       });
       result.contactIdCard = !!hit;
@@ -1382,8 +1428,8 @@ export class SupplierService {
       supplierNo: supplier.supplierNo,
       enterpriseType: supplier.enterpriseType,
       legalPerson: supplier.legalPerson,
-      legalPersonIdCard: supplier.legalPersonIdCard,
-      legalPersonPhone: supplier.legalPersonPhone,
+      legalPersonIdCard: maskIdNumber(openPiiForMask(supplier.legalPersonIdCard)), // 审批快照出口脱敏（等保+密评）
+      legalPersonPhone: maskPhone(openPiiForMask(supplier.legalPersonPhone)),
       registeredAddress: supplier.registeredAddress,
       detailedAddress: supplier.detailedAddress,
       businessScope: supplier.businessScope,
@@ -1397,10 +1443,10 @@ export class SupplierService {
       companyWebsite: supplier.companyWebsite,
       tags: supplier.tags,
       isTemporary: supplier.isTemporary,
-      account: { username: supplier.user?.username, displayName: supplier.user?.displayName, email: supplier.user?.email },
-      contacts: supplier.contacts.map(c => ({ name: c.name, gender: c.gender, phone: c.phone, idCard: c.idCard, email: c.email, position: c.position, isPrimary: c.isPrimary })),
+      account: { username: supplier.user?.username, displayName: supplier.user?.displayName, email: maskEmail(openPiiForMask(supplier.user?.email)) },
+      contacts: supplier.contacts.map(c => ({ name: c.name, gender: c.gender, phone: maskPhone(openPiiForMask(c.phone)), idCard: maskIdNumber(openPiiForMask(c.idCard)), email: maskEmail(openPiiForMask(c.email)), position: c.position, isPrimary: c.isPrimary })),
       qualifications: supplier.qualifications.map(q => ({ type: q.type, name: q.name, fileUrl: q.fileUrl, attachments: q.attachments, validFrom: q.validFrom, validTo: q.validTo })),
-      bankAccounts: supplier.bankAccounts.map(b => ({ id: b.id, accountName: b.accountName, bankName: b.bankName, bankBranch: b.bankBranch, accountNo: b.accountNo, isDefault: b.isDefault })),
+      bankAccounts: supplier.bankAccounts.map(b => ({ id: b.id, accountName: b.accountName, bankName: b.bankName, bankBranch: b.bankBranch, accountNo: maskBankAccount(openPiiForMask(b.accountNo)), isDefault: b.isDefault })),
       performances: supplier.performances.map(p => ({ id: p.id, projectName: p.projectName, clientName: p.clientName, contractAmount: p.contractAmount, signDate: p.signDate, description: p.description, proofFiles: p.proofFiles })),
     };
   }
@@ -1711,7 +1757,13 @@ export class SupplierService {
       select: { id: true, displayName: true, username: true },
     });
     const nameOf = new Map(users.map(u => [u.id, u.displayName || u.username]));
-    return rows.map(r => ({ ...r, reviewedByName: r.reviewedBy ? nameOf.get(r.reviewedBy) ?? null : null }));
+    // 管理端展示脱敏（等保+密评）：变更值 PII 拆封后掩码
+    return rows.map(r => ({
+      ...r,
+      oldValue: maskChangeValue(r.fieldName, r.oldValue),
+      newValue: maskChangeValue(r.fieldName, r.newValue),
+      reviewedByName: r.reviewedBy ? nameOf.get(r.reviewedBy) ?? null : null,
+    }));
   }
 
   /** 审批中心右上角角标（2026-09-29）：当前登录人「待我审」数量
@@ -1861,7 +1913,10 @@ export class SupplierService {
         throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
       }
 
-      const data: Record<string, any> = { [change.fieldName]: change.newValue };
+      const data: Record<string, any> = { [change.fieldName]: change.newValue }; // PII 字段（法人身份证/电话）newValue 已密封落库，原样应用
+      if (change.fieldName === 'legalPersonIdCard') {
+        data.legalPersonIdCardIdx = blindIndexPii(openChangeValue('legalPersonIdCard', change.newValue)) ?? null;
+      }
       // establishedDate 为 Date 列：newValue（ISO 字符串或空）须转换
       if (change.fieldName === 'establishedDate') {
         data.establishedDate = change.newValue ? new Date(change.newValue) : null;
@@ -1911,7 +1966,8 @@ export class SupplierService {
               accountName: String(b.accountName),
               bankName: String(b.bankName),
               bankBranch: b.bankBranch ? String(b.bankBranch) : null,
-              accountNo: String(b.accountNo),
+              // JSON 内已密封（sealChangeValue）则透传；明文防御性补密封
+              accountNo: isSealedFieldSm(String(b.accountNo)) ? String(b.accountNo) : sealPii(String(b.accountNo)) as string,
               isDefault: !!b.isDefault,
             },
           });
@@ -1963,7 +2019,8 @@ export class SupplierService {
   private async approveConvertToRegular(change: any, reviewerId: string) {
     let payload: any = {};
     try {
-      payload = JSON.parse(change.newValue || '{}');
+      // PII 在 JSON 内密封落库——审批应用时拆封（校验/落列按明文口径，落列处再密封）
+      payload = JSON.parse(openChangeValue('convertToRegular', change.newValue) ?? '{}');
     } catch {
       throw new BadRequestException({ error: '转正资料解析失败', code: 'INVALID_PAYLOAD' });
     }
@@ -2007,8 +2064,9 @@ export class SupplierService {
         data: {
           enterpriseType,
           legalPerson,
-          // B2-4：转正补全法人身份证号（注册必传口径）
-          legalPersonIdCard: String(legalPersonIdCard),
+          // B2-4：转正补全法人身份证号（注册必传口径）；国密密封 + 盲索引
+          legalPersonIdCard: sealPii(String(legalPersonIdCard)) as string,
+          legalPersonIdCardIdx: blindIndexPii(String(legalPersonIdCard)) ?? null,
           registeredAddress,
           businessScope,
           ...(creditCode ? { creditCode: String(creditCode) } : {}),
@@ -2030,8 +2088,8 @@ export class SupplierService {
           data: contacts.map((c: any) => ({
             supplierId: change.supplierId,
             name: String(c.name).trim(),
-            phone: String(c.phone).trim(),
-            email: c.email ? String(c.email).trim() : null,
+            phone: sealPii(String(c.phone).trim()) as string, // PII 国密密封（等保+密评）
+            email: c.email ? sealPii(String(c.email).trim()) as string : null,
             isPrimary: !!c.isPrimary,
             position: c.position ? String(c.position).trim() : null,
           })),
@@ -3401,5 +3459,62 @@ export class SupplierService {
     }
 
     return { total, created, skipped, errors };
+  }
+
+  /* ── PII 明文揭示（等保+密评：管理端默认掩码，明文走此处并留痕）── */
+
+  private static readonly REVEAL_FIELDS: Record<string, { entity: string; fields: string[] }> = {
+    supplier: { entity: 'Supplier', fields: ['legalPersonIdCard', 'legalPersonPhone'] },
+    contact: { entity: 'SupplierContact', fields: ['phone', 'idCard', 'email'] },
+    bankAccount: { entity: 'SupplierBankAccount', fields: ['accountNo'] },
+  };
+
+  /**
+   * 揭示供应商 PII 明文（admin/leader/staff）。公司隔离同 get()；子记录按
+   * { id, supplierId } 反查归属（防跨企枚举）；每次揭示写 SensitiveAccessLog。
+   */
+  async revealField(
+    id: string,
+    body: { entity: string; targetId?: string; field: string },
+    actor: AuthenticatedUser | undefined,
+    ip?: string,
+  ): Promise<{ entity: string; targetId: string; field: string; value: string | null }> {
+    const cfg = SupplierService.REVEAL_FIELDS[body.entity];
+    if (!cfg || !cfg.fields.includes(body.field)) {
+      throw new BadRequestException({ error: '该字段不允许揭示', code: 'FIELD_NOT_REVEALABLE' });
+    }
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id },
+      select: { id: true, companyId: true, legalPersonIdCard: true, legalPersonPhone: true },
+    });
+    if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    if (actor && actor.role !== 'supplier') {
+      const scope = await this.companyScope.resolveScope(actor);
+      this.companyScope.assertInScope(supplier.companyId, scope);
+    }
+
+    let value: string | null;
+    let targetId = id;
+    if (body.entity === 'supplier') {
+      value = openPii(body.field === 'legalPersonIdCard' ? supplier.legalPersonIdCard : supplier.legalPersonPhone);
+    } else if (body.entity === 'contact') {
+      const row = await this.prisma.supplierContact.findFirst({
+        where: { id: body.targetId, supplierId: id },
+        select: { id: true, phone: true, idCard: true, email: true },
+      });
+      if (!row) throw new NotFoundException({ error: '联系人不存在', code: 'NOT_FOUND' });
+      targetId = row.id;
+      value = openPii(row[body.field as 'phone' | 'idCard' | 'email']);
+    } else {
+      const row = await this.prisma.supplierBankAccount.findFirst({
+        where: { id: body.targetId, supplierId: id },
+        select: { id: true, accountNo: true },
+      });
+      if (!row) throw new NotFoundException({ error: '银行账户不存在', code: 'NOT_FOUND' });
+      targetId = row.id;
+      value = openPii(row.accountNo);
+    }
+    await logSensitiveAccess(this.prisma, actor, cfg.entity, targetId, body.field, ip);
+    return { entity: body.entity, targetId, field: body.field, value };
   }
 }

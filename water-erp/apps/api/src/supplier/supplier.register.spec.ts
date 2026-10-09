@@ -48,6 +48,8 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
     verification = {
       assertRegistrationCodeForUpload: jest.fn().mockResolvedValue({ ok: true }),
       verifyRegistrationCode: jest.fn().mockResolvedValue({ ok: true }),
+      assertRegistrationSession: jest.fn().mockResolvedValue({ phone: '13800138000' }),
+      consumeRegistrationSession: jest.fn().mockResolvedValue({ ok: true }),
     };
     const { Test } = await import('@nestjs/testing');
     const module = await Test.createTestingModule({
@@ -77,6 +79,25 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
     prisma.supplier.create.mockResolvedValue({ id: 's1', userId: 'u1' });
     await expect(service.register(validDto)).resolves.toBeTruthy();
     expect(verification.verifyRegistrationCode).toHaveBeenCalledWith('13800138000', '123456');
+  });
+
+  it('registrationToken 轨（2026-10-09）：会话有效且手机号一致 → 注册成功并消费会话，不再碰短信码', async () => {
+    await expect(service.register({ ...validDto, registrationToken: 't'.repeat(64) })).resolves.toBeTruthy();
+
+    expect(verification.assertRegistrationSession).toHaveBeenCalledWith('t'.repeat(64));
+    expect(verification.consumeRegistrationSession).toHaveBeenCalledTimes(1);
+    expect(verification.verifyRegistrationCode).not.toHaveBeenCalled();
+    expect(verification.assertRegistrationCodeForUpload).not.toHaveBeenCalled();
+  });
+
+  it('registrationToken 轨：会话手机号与注册手机号不一致 → 400 REGISTRATION_PHONE_SESSION_MISMATCH（零创建）', async () => {
+    verification.assertRegistrationSession.mockResolvedValue({ phone: '13999999999' });
+
+    await expect(service.register({ ...validDto, registrationToken: 't'.repeat(64) }))
+      .rejects.toMatchObject({ response: { code: 'REGISTRATION_PHONE_SESSION_MISMATCH' } });
+
+    expect(verification.consumeRegistrationSession).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('自创业务标签通过 upsert 入池，避免并发唯一键冲突', async () => {

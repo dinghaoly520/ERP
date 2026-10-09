@@ -1,6 +1,6 @@
 import { Injectable, Inject, BadRequestException, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
-import { randomInt } from 'node:crypto';
+import { randomInt, randomBytes, createHash } from 'node:crypto';
 import { SmsProvider, resolveSmsProvider } from './sms-provider';
 
 interface VerificationRecord {
@@ -14,6 +14,9 @@ const CODE_TTL = 300;            // 5 minutes
 const COOLDOWN_TTL = 60;         // 60 seconds
 const MAX_ATTEMPTS = 5;
 const IP_RATE_LIMIT = 10;        // per minute
+// 注册会话 token（2026-10-09）：六步向导验证一次后凭 token 走完全程，30 分钟滑动续期。
+// 5 分钟 CODE_TTL 只覆盖「输码时效」；向导全程长寿由会话承担（修复上传营业执照报验证码过期）。
+const REGISTRATION_SESSION_TTL = 1800;
 
 // Dev bypass: set SMS_DEBUG_BYPASS=true to accept "123456" for any verification
 const DEBUG_BYPASS_CODE = '123456';
@@ -153,6 +156,66 @@ export class VerificationService {
 
   verifyRegistrationCode(phone: string, code: string) {
     return this.validateRegistrationCode(phone, code, true);
+  }
+
+  // ── 注册会话 token（2026-10-09）：验证一次即消费验证码，换发会话走完六步向导 ──
+
+  private regSessionKey(tokenHash: string) {
+    return `verification:registration:session:${tokenHash}`;
+  }
+
+  private regSessionByPhoneKey(phone: string) {
+    return `verification:registration:session:by-phone:${phone}`;
+  }
+
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private sessionExpiredError() {
+    return new BadRequestException({
+      code: 'REGISTRATION_SESSION_EXPIRED',
+      error: '验证会话已失效，请返回第一步重新验证手机号',
+    });
+  }
+
+  /** 步骤 0「下一步」时调用：消费短信码并签发 30 分钟注册会话 token。同手机号单活（重验吊销旧会话）。 */
+  async verifyAndStartRegistrationSession(phone: string, code: string) {
+    await this.validateRegistrationCode(phone, code, true);
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(token);
+
+    const oldHash = await this.redis.get(this.regSessionByPhoneKey(phone));
+    if (oldHash) {
+      try { await this.redis.del(this.regSessionKey(oldHash)); } catch { /* 吊销尽力而为 */ }
+    }
+
+    await this.redis.set(this.regSessionKey(tokenHash), JSON.stringify({ phone }), 'EX', REGISTRATION_SESSION_TTL);
+    await this.redis.set(this.regSessionByPhoneKey(phone), tokenHash, 'EX', REGISTRATION_SESSION_TTL);
+    return { ok: true, token, expiresIn: REGISTRATION_SESSION_TTL };
+  }
+
+  /** 向导内上传/提交前置校验：有效则滑动续期，返回绑定手机号（namespace 等以会话手机号为准）。 */
+  async assertRegistrationSession(token: string) {
+    const tokenHash = this.hashToken(token);
+    const raw = await this.redis.get(this.regSessionKey(tokenHash));
+    if (!raw) throw this.sessionExpiredError();
+    const { phone } = JSON.parse(raw) as { phone: string };
+    await this.redis.expire(this.regSessionKey(tokenHash), REGISTRATION_SESSION_TTL);
+    await this.redis.expire(this.regSessionByPhoneKey(phone), REGISTRATION_SESSION_TTL);
+    return { phone };
+  }
+
+  /** 最终注册消费会话（一次性，注册成功路径上删除两键）。 */
+  async consumeRegistrationSession(token: string) {
+    const tokenHash = this.hashToken(token);
+    const raw = await this.redis.get(this.regSessionKey(tokenHash));
+    if (!raw) throw this.sessionExpiredError();
+    const { phone } = JSON.parse(raw) as { phone: string };
+    await this.redis.del(this.regSessionKey(tokenHash));
+    await this.redis.del(this.regSessionByPhoneKey(phone));
+    return { ok: true };
   }
 
   /** 注册验证码预检（不消费）：前端输满 6 位即时反馈 ✓/✗ 用；沿用 attempts≤5 防爆破。 */

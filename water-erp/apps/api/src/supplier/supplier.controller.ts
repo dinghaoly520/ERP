@@ -8,6 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { AnyRole } from '../common/decorators/any-role.decorator';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
+import { RevealSupplierFieldDto } from './dto/reveal-supplier-field.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
@@ -460,6 +461,13 @@ export class SupplierController {
   }
 
   // 动态路由
+
+  @Post(':id/reveal')
+  @Roles('admin', 'leader', 'staff') // 密评最小授权：明文揭示仅工作台角色（supplier 本人自视明文走 get）
+  @ApiOperation({ summary: '供应商 PII 明文揭示（默认掩码，明文走此处；SensitiveAccessLog 留痕）' })
+  async reveal(@Param('id') id: string, @Body() dto: RevealSupplierFieldDto, @Request() req: any) {
+    return this.supplierService.revealField(id, dto, req?.user, req.ip);
+  }
 
   @Get(':id')
   @Roles('admin', 'leader', 'staff', 'supplier') // 补角色白名单；supplier 归属校验在方法体内

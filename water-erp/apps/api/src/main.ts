@@ -5,6 +5,7 @@ import * as cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { assertFieldSecretForProduction } from './common/crypto/sm-field-crypto';
 import { PORTS } from '@water-erp/config';
 
 // 全局未捕获异常/拒绝 —— 记录崩溃原因，避免静默退出
@@ -31,6 +32,9 @@ function corsOrigins(): string[] {
 }
 
 async function bootstrap() {
+  // 敏感字段国密加密主密钥守卫（等保+密评）：生产缺失/<32 字符拒绝启动（口径同 JWT_SECRET）
+  assertFieldSecretForProduction();
+
   // 关闭 NestJS 内置 bodyParser（默认 json 上限仅 100kb），改用显式上限，
   // 否则 OCR 证件识别等 base64 图片请求（>75KB 原图即超限）会在进入 handler 前被 413 拒绝。
   const app = await NestFactory.create(AppModule, { bodyParser: false });

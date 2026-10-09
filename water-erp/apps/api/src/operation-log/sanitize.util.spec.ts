@@ -25,6 +25,19 @@ describe('sanitizeBody', () => {
     });
   });
 
+  it('银行账号键（accountNo 扁平 / bankAccounts 整组）→ 不落明文', () => {
+    // 扁平 accountNo 键（注册 2.0 DTO 子对象内层键名）：前4后4 掩码
+    expect(sanitizeBody({ accountNo: '6222020200112233445' })).toEqual({ accountNo: '6222****3445' });
+    // 父键含 bankaccount 的整组值直接 ***（既有防泄漏语义：宁过度不遗漏）
+    expect(sanitizeBody({ bankAccounts: [{ accountNo: '6222020200112233445' }] })).toEqual({ bankAccounts: '***' });
+  });
+
+  it('邮箱 → 本地首字符+***+域名保留', () => {
+    expect(sanitizeBody({ email: 'zhangsan@example.com' })).toEqual({
+      email: 'z***@example.com',
+    });
+  });
+
   it('长度不足掩码时回退 ***', () => {
     expect(sanitizeBody({ phone: '123' })).toEqual({ phone: '***' });
   });

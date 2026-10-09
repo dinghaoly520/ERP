@@ -45,6 +45,9 @@ const STEPS = [
 // 误写为「职业健康管理体系认证」入库）；营业执照为首行 type 固定的必填资质行，下拉不重复提供
 const QUAL_TYPES = QUAL_TYPE_OPTIONS.filter((t) => t !== "营业执照");
 
+/* 注册会话 token 暂存键（tab 级；与密码同级的凭据不进 localStorage 草稿） */
+const REG_SESSION_KEY = "register:reg-session";
+
 /* 多文件上传（附加材料 / 业绩证明） */
 function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
   value: { name: string; url: string }[];
@@ -157,6 +160,10 @@ export default function RegisterPage() {
   const [codeSending, setCodeSending] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
   const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "ok" | "bad">("idle");
+  // 注册会话（2026-10-09）：步骤 0 验证消费验证码后服务端签发的 token，向导上传/最终提交凭它
+  // 走完全程——验证码使命在步骤 0 即完成，后续步骤不再受 5 分钟验证码时效约束
+  const [regSession, setRegSession] = useState<{ token: string; phone: string; code: string } | null>(null);
+  const [verifying, setVerifying] = useState(false);
   // 归属公司（账号管理按公司分组）：注册时选择
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string }[]>([]);
   const [belongCompany, setBelongCompany] = useState(""); // 归属公司名称（62 家名单选择；提交时随 companyId 传后端自动建档）
@@ -265,6 +272,37 @@ export default function RegisterPage() {
     }, 400);
     return () => clearTimeout(timer);
   }, [registrationCode, registrationPhone]);
+
+  /* 注册会话：持久化（tab 级）/ 恢复 / 防陈旧失效 */
+  const persistRegSession = useCallback((s: { token: string; phone: string; code: string } | null) => {
+    setRegSession(s);
+    try {
+      if (s) sessionStorage.setItem(REG_SESSION_KEY, JSON.stringify({ token: s.token, phone: s.phone }));
+      else sessionStorage.removeItem(REG_SESSION_KEY);
+    } catch { /* 存储失败不阻塞注册 */ }
+  }, []);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(REG_SESSION_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { token?: string; phone?: string };
+      if (saved.token && saved.phone) setRegSession({ token: saved.token, phone: saved.phone, code: "" });
+    } catch { /* 会话恢复失败不阻塞注册 */ }
+  }, []);
+  // 防陈旧：验证后改动手机号/验证码 → 会话作废，须回步骤 0 重新验证
+  //（空值=刷新/草稿恢复后未重输，不作废——sessionStorage 恢复的就是原会话）
+  useEffect(() => {
+    if (!regSession) return;
+    const phoneChanged = registrationPhone.trim() !== "" && registrationPhone.trim() !== regSession.phone;
+    const codeChanged = registrationCode.trim() !== "" && registrationCode.trim() !== regSession.code;
+    if (phoneChanged || codeChanged) persistRegSession(null);
+  }, [registrationPhone, registrationCode, regSession, persistRegSession]);
+  /* 上传凭证：会话 token 优先；未验证（步骤 0 传 logo）回落 phone+code（码新鲜可用） */
+  const regUploadCredentials = useCallback(
+    (): RegistrationUploadCredentials =>
+      regSession ? { token: regSession.token } : { phone: registrationPhone, code: registrationCode },
+    [regSession, registrationPhone, registrationCode],
+  );
 
   /* 注册短信验证码 */
   async function sendRegCode() {
@@ -397,12 +435,27 @@ export default function RegisterPage() {
     return true;
   }
 
-  function nextStep() {
+  async function nextStep() {
     if (step === 1) {
       if (creditCodeDuplicate) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
       if (legalIdCardDuplicate) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
     }
     if (!validate()) return;
+    // 步骤 0 门槛（2026-10-09）：服务端消费验证码并换发注册会话 token——后续步骤不再要求验证码
+    if (step === 0 && !regSession) {
+      setVerifying(true);
+      try {
+        const res = await authApi.verifyRegistrationCode(registrationPhone.trim(), registrationCode.trim());
+        persistRegSession({ token: res.token, phone: registrationPhone.trim(), code: registrationCode.trim() });
+      } catch (error: unknown) {
+        const message = getErrorMessage(error, "验证码校验失败，请稍后重试");
+        setErrors((e) => ({ ...e, registrationCode: message }));
+        toast.error(message);
+        return;
+      } finally {
+        setVerifying(false);
+      }
+    }
     setErrors({});
     setStep((current) => {
       const next = Math.min(current + 1, STEPS.length - 1);
@@ -446,7 +499,8 @@ export default function RegisterPage() {
         companyId: companyOptions.find((c) => c.name === belongCompany)?.id, // 主数据已有则传 id
         companyName: belongCompany || undefined, // 未命中主数据 → 后端按名称建档
         registrationPhone: registrationPhone.trim(),
-        registrationCode: registrationCode.trim(),
+        registrationCode: registrationCode.trim(), // 兼容轨兜底；token 轨时服务端优先 registrationToken
+        registrationToken: regSession?.token,
         // 账号展示名取主要联系人（第二步），邮箱同
         displayName: (contacts.find((c) => c.isPrimary && c.name.trim()) || contacts.find((c) => c.name.trim()))?.name.trim() || basic.legalPerson.trim(),
         password: account.password,
@@ -501,9 +555,18 @@ export default function RegisterPage() {
         })),
       });
       draft.clearDraft();
+      persistRegSession(null); // 会话已随注册消费，tab 内不留 token
       toast.success("注册申请已提交，请耐心等待采购中心审核（通常 3 个工作日内）");
       router.push(`/login?registered=1&creditCode=${encodeURIComponent(basic.creditCode)}`);
     } catch (error: unknown) {
+      // 验证凭据失效（会话过期/验证码过期）→ 引导回步骤 0 重新验证，其余错误就地展示
+      const errCode = (error as { code?: string })?.code;
+      if (errCode === "REGISTRATION_SESSION_EXPIRED" || errCode === "CODE_EXPIRED" || errCode === "REGISTRATION_CODE_REQUIRED") {
+        setSubmissionError("手机验证已失效，请返回第一步重新验证后提交");
+        toast.error("手机验证已失效，请返回第一步重新验证后提交");
+        setStep(0);
+        return;
+      }
       const message = getErrorMessage(error, "注册失败，请检查信息后重试");
       setSubmissionError(message);
       toast.error(message);
@@ -520,10 +583,7 @@ export default function RegisterPage() {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { toast.warning("logo 图片不能超过5MB"); return; }
     try {
-      const asset = await uploadRegistrationFile(file, "general", {
-        phone: registrationPhone,
-        code: registrationCode,
-      });
+      const asset = await uploadRegistrationFile(file, "general", regUploadCredentials());
       const nextPreviewUrl = replaceObjectUrlPreview(file, logoPreviewUrlRef.current);
       logoPreviewUrlRef.current = nextPreviewUrl;
       setLogoPreviewUrl(nextPreviewUrl);
@@ -571,8 +631,8 @@ export default function RegisterPage() {
       )}
       <span className="reg-actions-spacer" />
       {step < STEPS.length - 1 && (
-        <button type="button" className="reg-btn reg-btn--primary" onClick={nextStep}>
-          下一步<ArrowRight size={16} aria-hidden="true" />
+        <button type="button" className="reg-btn reg-btn--primary" disabled={verifying} onClick={nextStep}>
+          {verifying ? "验证中…" : "下一步"}<ArrowRight size={16} aria-hidden="true" />
         </button>
       )}
       {step === STEPS.length - 1 && (
@@ -720,7 +780,7 @@ export default function RegisterPage() {
                   <label className="reg-label">身份证扫描件 <i className="not-italic text-danger">*</i></label>
                   <SingleFile
                     url={legalIdFile}
-                    credentials={{ phone: registrationPhone, code: registrationCode }}
+                    credentials={regUploadCredentials()}
                     onPicked={(a) => setLegalIdFile(a?.url || "")}
                   />
                   {errors.legalIdFile && <span className="reg-error-text" role="alert">{errors.legalIdFile}</span>}
@@ -858,7 +918,7 @@ export default function RegisterPage() {
                       <span className={errors[`qual-${i}-fileUrl`] || (i === 0 && errors.license) ? "reg-file-err" : undefined}>
                         <SingleFile
                           url={q.fileUrl}
-                          credentials={{ phone: registrationPhone, code: registrationCode }}
+                          credentials={regUploadCredentials()}
                           onPicked={(a) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, fileUrl: a?.url || "" } : x)))}
                         />
                       </span>
@@ -871,7 +931,7 @@ export default function RegisterPage() {
                     <div className="reg-attach-wrap">
                       <MultiFiles
                         value={q.attachments}
-                        credentials={{ phone: registrationPhone, code: registrationCode }}
+                        credentials={regUploadCredentials()}
                         onChange={(v) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, attachments: v } : x)))}
                         label="附加材料"
                       />
@@ -922,7 +982,7 @@ export default function RegisterPage() {
                       <label className="reg-label">证明材料 <i className="not-italic text-danger">*</i></label>
                       <MultiFiles
                         value={p.proofFiles}
-                        credentials={{ phone: registrationPhone, code: registrationCode }}
+                        credentials={regUploadCredentials()}
                         onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, proofFiles: v } : x)))}
                         label="上传证明材料"
                       />
@@ -933,7 +993,7 @@ export default function RegisterPage() {
                       <label className="reg-label">银行汇款凭证</label>
                       <MultiFiles
                         value={p.paymentProofs}
-                        credentials={{ phone: registrationPhone, code: registrationCode }}
+                        credentials={regUploadCredentials()}
                         onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, paymentProofs: v } : x)))}
                         label="上传汇款凭证"
                       />

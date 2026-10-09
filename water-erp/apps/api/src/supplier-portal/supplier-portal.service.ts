@@ -19,6 +19,8 @@ import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
+import { sealChangeValue, openChangeValue } from '../supplier/change-record-pii';
+import { openPii, openPiiForMask, sealPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
 import { TrustStore } from '../common/crypto/x509/trust-store';
@@ -662,7 +664,15 @@ export class SupplierPortalService {
       },
     });
     if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'NOT_FOUND' });
-    return supplier;
+    // 本人自视明文（等保+密评）：PII 密文列拆封（本人数据本人可见，不入揭示审计）
+    return {
+      ...supplier,
+      user: supplier.user ? { ...supplier.user, email: openPii(supplier.user.email) } : supplier.user,
+      legalPersonIdCard: openPii(supplier.legalPersonIdCard),
+      legalPersonPhone: openPii(supplier.legalPersonPhone),
+      contacts: supplier.contacts.map(c => ({ ...c, phone: openPii(c.phone), idCard: openPii(c.idCard), email: openPii(c.email) })),
+      bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: openPii(b.accountNo) })),
+    };
   }
 
   async getMyStatus(userId: string) {
@@ -997,10 +1007,12 @@ export class SupplierPortalService {
   // Contacts
 
   async listContacts(supplierId: string) {
-    return this.prisma.supplierContact.findMany({
+    const rows = await this.prisma.supplierContact.findMany({
       where: { supplierId },
       orderBy: { isPrimary: 'desc' },
     });
+    // 本人自视明文（等保+密评）：PII 密文列拆封
+    return rows.map(c => ({ ...c, phone: openPii(c.phone), idCard: openPii(c.idCard), email: openPii(c.email) }));
   }
 
   /** B3-2（2026-09-30）：临时供应商资料维护守卫——资料补全须走工作台「转为正式供应商」
@@ -1021,18 +1033,21 @@ export class SupplierPortalService {
 
   async addContact(supplierId: string, dto: CreateContactDto) {
     await this.assertNotTemporary(supplierId); // B3-2
-    return this.prisma.supplierContact.create({
+    // PII 国密密封 + 盲索引（等保+密评）；返回本人自视明文
+    const created = await this.prisma.supplierContact.create({
       data: {
         supplierId,
         name: dto.name,
-        phone: dto.phone,
-        email: dto.email,
+        phone: sealPii(dto.phone) as string,
+        email: sealPii(dto.email) ?? null,
         isPrimary: dto.isPrimary,
         position: dto.position,
         gender: dto.gender,        // B4-2：维护端补写（完整度 +2）
-        idCard: dto.idCard,        // B4-2：维护端补写（完整度 +2）
+        idCard: sealPii(dto.idCard) ?? null,        // B4-2：维护端补写（完整度 +2）
+        idCardIdx: blindIndexPii(dto.idCard) ?? null,
       },
     });
+    return { ...created, phone: dto.phone, email: dto.email, idCard: dto.idCard ?? null };
   }
 
   async updateContact(supplierId: string, contactId: string, dto: Partial<CreateContactDto>) {
@@ -1041,18 +1056,20 @@ export class SupplierPortalService {
     if (!contact || contact.supplierId !== supplierId) {
       throw new BadRequestException({ error: '联系人不存在', code: 'NOT_FOUND' });
     }
-    return this.prisma.supplierContact.update({
+    const updated = await this.prisma.supplierContact.update({
       where: { id: contactId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.email !== undefined && { email: dto.email }),
+        ...(dto.phone !== undefined && { phone: sealPii(dto.phone) as string }),      // PII 国密密封
+        ...(dto.email !== undefined && { email: sealPii(dto.email) ?? null }),
         ...(dto.isPrimary !== undefined && { isPrimary: dto.isPrimary }),
         ...(dto.position !== undefined && { position: dto.position }),
         ...(dto.gender !== undefined && { gender: dto.gender }),      // B4-2
-        ...(dto.idCard !== undefined && { idCard: dto.idCard }),      // B4-2
+        ...(dto.idCard !== undefined && { idCard: sealPii(dto.idCard) ?? null, idCardIdx: dto.idCard ? blindIndexPii(dto.idCard) : null }),      // B4-2：密封+盲索引同步
       },
     });
+    // 本人自视明文回显
+    return { ...updated, phone: openPii(updated.phone), email: openPii(updated.email), idCard: openPii(updated.idCard) };
   }
 
   async deleteContact(supplierId: string, contactId: string) {
@@ -1109,10 +1126,12 @@ export class SupplierPortalService {
   // Change Requests
 
   async listChangeRecords(supplierId: string) {
-    return this.prisma.supplierChangeRecord.findMany({
+    const rows = await this.prisma.supplierChangeRecord.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
     });
+    // 本人自视明文（PII 值密封落库，展示时拆封；等保+密评）
+    return rows.map(r => ({ ...r, oldValue: openChangeValue(r.fieldName, r.oldValue), newValue: openChangeValue(r.fieldName, r.newValue) }));
   }
 
   async createChangeRequest(supplierId: string, userId: string, dto: CreateChangeRequestDto) {
@@ -1134,8 +1153,8 @@ export class SupplierPortalService {
         supplierId,
         fieldName: dto.fieldName,
         fieldLabel: dto.fieldLabel,
-        oldValue,
-        newValue: dto.newValue,
+        oldValue, // PII 字段列值本身已密封（与 newValue 同态落库）
+        newValue: sealChangeValue(dto.fieldName, dto.newValue) as string,
         reason: dto.reason,
         status: 'PENDING',
       },
@@ -2042,6 +2061,14 @@ export class SupplierPortalService {
         // Clean up any newly written backup objects on failure（不动 asset.key 原密文）
         for (const path of newlySealedPaths) {
           try { await minioClient.removeObject(MINIO_BUCKET, path); } catch (_) { /* best-effort cleanup */ }
+        }
+        // P1-7（第三波）：C_outer 本体缺失给明确 400（撤回后遗留引用/存储侧丢失）——
+        // 旧实现裸 rethrow 500，供应商端无「请重传」指引，反复提交反复 500
+        if (err && typeof err === 'object' && (err as { code?: string }).code === 'NoSuchKey') {
+          throw new BadRequestException({
+            error: '投标密封件已不存在（可能是撤回后遗留的文件引用），请重新上传投标文件后再提交',
+            code: 'SEALED_OBJECT_MISSING',
+          });
         }
         throw err;
       }
@@ -3089,18 +3116,9 @@ export class SupplierPortalService {
       return result;
     });
 
-    // 事务后异步清理 MinIO 密封文件（best-effort，不阻塞）
-    if (assetIds.length > 0) {
-      const assets = await this.prisma.fileAsset.findMany({
-        where: { id: { in: assetIds } },
-        select: { sealedPath: true },
-      }).catch(() => [] as { sealedPath: string | null }[]);
-      for (const a of assets) {
-        if (a.sealedPath) {
-          try { await minioClient.removeObject(MINIO_BUCKET, a.sealedPath); } catch (_) { /* best-effort */ }
-        }
-      }
-    }
+    // P1-7（第三波）：撤回不再删除 MinIO 密封对象（sealedPath=asset.key 即 C_outer 本体）——
+    // dual-v2 重投时 submitBid 备份 staging 需重读该对象，删本体即反复 500 死胡同（回显「已上传」
+    // 诱导直接提交）。撤回的保密边界由下载授权链收口（withdrawn 后无下载授权），密文本体留存供重投。
 
     return updated;
   }
@@ -3836,7 +3854,8 @@ export class SupplierPortalService {
     const contactFilled = contactCount;
     const contactTotal = Math.max(contactCount, 1);
     const contactMissing: string[] = [];
-    const hasCompleteContact = contacts.some((c) => c.name?.trim() && /^1\d{10}$/.test(c.phone?.trim() || ''));
+    // phone 列已国密密封——正则校验前宽容拆封（等保+密评；密文非手机格式会被判不完整）
+    const hasCompleteContact = contacts.some((c) => c.name?.trim() && /^1\d{10}$/.test(openPiiForMask(c.phone)?.trim() || ''));
     const contactHasPrimary = contacts.some((c) => c.isPrimary);
     if (hasCompleteContact) contactScore += 8; else contactMissing.push('联系人');
     if (contactHasPrimary) contactScore += 3; else contactMissing.push('主要联系人');
@@ -3981,7 +4000,8 @@ export class SupplierPortalService {
         supplierId: supplier.id,
         fieldName: 'convertToRegular',
         fieldLabel: '临时转正式',
-        newValue: JSON.stringify({
+        // PII（法人身份证/联系人手机邮箱）在 JSON 内密封落库（等保+密评）；审批应用端拆封
+        newValue: sealChangeValue('convertToRegular', JSON.stringify({
           enterpriseType: dto.enterpriseType,
           legalPerson: dto.legalPerson,
           // B2-4（2026-09-30）：转正采集法人身份证号+扫描件（与正式注册同口径）
@@ -3993,7 +4013,7 @@ export class SupplierPortalService {
           contacts: dto.contacts,
           qualifications: dto.qualifications,
           tags: dto.tags,
-        }),
+        })) as string,
         status: 'PENDING',
       },
     });

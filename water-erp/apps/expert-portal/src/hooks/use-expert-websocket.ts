@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { ConnectionState, ExpertPresenceAggregatePayload, ExpertPresencePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload } from '@water-erp/shared';
+import type { ConnectionState, ExpertPresenceAggregatePayload, ExpertPresencePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload, EvaluationExtendedPayload, RoomCodeRotatedPayload, ScoringReopenedPayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
@@ -29,6 +29,12 @@ interface Handlers {
   onScoresSubmitted?: (d: ScoresSubmittedPayload) => void;
   /** 草稿保存通知——对方设备保存了草稿，本端自行从服务端拉取合并 */
   onDraftSaved?: (d: DraftSavedPayload) => void;
+  /** P2-9（中断审查）：评标时限已延长——陈旧「已截止/已锁定」态据此重拉解锁 */
+  onEvaluationExtended?: (d: EvaluationExtendedPayload) => void;
+  /** P2-10（中断审查）：评标室口令已轮换（不含口令本体）——刷新后口令门重现重验 */
+  onRoomCodeRotated?: (d: RoomCodeRotatedPayload) => void;
+  /** P2-11（中断审查）：评审确认已重开——陈旧「已确认/已锁定」态据此重拉解锁 */
+  onScoringReopened?: (d: ScoringReopenedPayload) => void;
 }
 
 export function useExpertWebSocket(projectId: string | undefined, handlers: Handlers) {
@@ -63,6 +69,9 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     on(BID_EVENT.HALL_MESSAGE_NEW, 'onHallMessage');
     on(BID_EVENT.SCORES_SUBMITTED, 'onScoresSubmitted');
     on(BID_EVENT.DRAFT_SAVED, 'onDraftSaved');
+    on(BID_EVENT.EVALUATION_EXTENDED, 'onEvaluationExtended');
+    on(BID_EVENT.ROOM_CODE_ROTATED, 'onRoomCodeRotated');
+    on(BID_EVENT.SCORING_REOPENED, 'onScoringReopened');
   }
 
   const clearHeartbeatTimers = useCallback(() => {

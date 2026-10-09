@@ -179,6 +179,19 @@ export default function TabletEvaluatePage() {
   useExpertWebSocket(projectId, {
     // EXP-P3-06：WS 重连补拉——断连窗口错过的草稿/提交等事件经全量刷新补偿
     onReconnected: () => { loadProject(); },
+    // P2-9/10/11（中断审查）：延期/口令轮换/重开确认广播——陈旧锁定态自动解锁，不再须 F5
+    onEvaluationExtended: (d) => {
+      toast.success(`评标时限已延长 ${d.extendHours} 小时，截止时间已更新`);
+      loadProject();
+    },
+    onRoomCodeRotated: () => {
+      toast.warning('评标室口令已轮换，请向主持人获取新口令后重新验证进入');
+      loadProject();
+    },
+    onScoringReopened: () => {
+      toast.info('评审确认已被重开，评分已解锁');
+      loadProject();
+    },
     onScoresSubmitted: () => {
       // 平板从不提交评分——任何 scoresSubmitted 都来自桌面端或其他专家，都应刷新
       loadProject();

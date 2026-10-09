@@ -50,6 +50,70 @@ describe('VerificationService', () => {
       expect(redisMock.del).not.toHaveBeenCalled();
     });
 
+    // ── 注册会话 token（2026-10-09）：六步向导验证一次后凭 token 走完全程 ──
+
+    it('verifyAndStartRegistrationSession：消费验证码并签发 30 分钟会话（Redis 两键，sha256(token) 为键）', async () => {
+      const record = JSON.stringify({ code: '123456', phone: '13800138000', attempts: 0 });
+      redisMock.get.mockResolvedValueOnce(record); // validate 读取
+      redisMock.eval.mockResolvedValueOnce(1); // compare-and-delete 消费成功
+      redisMock.get.mockResolvedValueOnce(null); // by-phone 指针不存在（无旧会话）
+
+      const res = await service.verifyAndStartRegistrationSession('13800138000', '123456');
+
+      expect(res.ok).toBe(true);
+      expect(res.token).toMatch(/^[0-9a-f]{64}$/); // randomBytes(32).hex
+      expect(res.expiresIn).toBe(1800);
+      // 会话键 sha256(token) → { phone }，EX 1800
+      const sessionSet = redisMock.set.mock.calls.find((c: string[]) =>
+        c[0].startsWith('verification:registration:session:') && !c[0].includes('by-phone'));
+      expect(sessionSet).toBeTruthy();
+      expect(sessionSet![2]).toBe('EX');
+      expect(sessionSet![3]).toBe(1800);
+      expect(JSON.parse(sessionSet![1] as string)).toEqual({ phone: '13800138000' });
+      // by-phone 指针键 → sha256(token)
+      const pointerSet = redisMock.set.mock.calls.find((c: string[]) => c[0].includes('by-phone'));
+      expect(pointerSet).toBeTruthy();
+      expect(String(pointerSet![1])).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('verifyAndStartRegistrationSession：同手机号重验 → 旧 token 会话键被删除（单活会话）', async () => {
+      const record = JSON.stringify({ code: '654321', phone: '13800138000', attempts: 0 });
+      redisMock.get.mockResolvedValueOnce(record);
+      redisMock.eval.mockResolvedValueOnce(1);
+      redisMock.get.mockResolvedValueOnce('old-token-hash'); // by-phone 指针存在
+
+      await service.verifyAndStartRegistrationSession('13800138000', '654321');
+
+      expect(redisMock.del).toHaveBeenCalledWith('verification:registration:session:old-token-hash');
+    });
+
+    it('assertRegistrationSession：有效 → 返回绑定手机号并滑动续期（两键）', async () => {
+      redisMock.get.mockResolvedValue(JSON.stringify({ phone: '13800138000' }));
+
+      const res = await service.assertRegistrationSession('a'.repeat(64));
+
+      expect(res).toEqual({ phone: '13800138000' });
+      expect(redisMock.expire).toHaveBeenCalledTimes(2);
+    });
+
+    it('assertRegistrationSession：无效/过期 → 400 REGISTRATION_SESSION_EXPIRED', async () => {
+      redisMock.get.mockResolvedValue(null);
+
+      await expect(service.assertRegistrationSession('b'.repeat(64)))
+        .rejects.toMatchObject({ response: { code: 'REGISTRATION_SESSION_EXPIRED' } });
+    });
+
+    it('consumeRegistrationSession：消费即删两键；二次消费 → 400', async () => {
+      redisMock.get.mockResolvedValue(JSON.stringify({ phone: '13800138000' }));
+
+      await service.consumeRegistrationSession('c'.repeat(64));
+
+      expect(redisMock.del).toHaveBeenCalledTimes(2); // 会话键 + by-phone 指针
+      redisMock.get.mockResolvedValue(null);
+      await expect(service.consumeRegistrationSession('c'.repeat(64)))
+        .rejects.toMatchObject({ response: { code: 'REGISTRATION_SESSION_EXPIRED' } });
+    });
+
     it('最终注册以原子 compare-and-delete 消费验证码，并发请求只能成功一次', async () => {
       const record = JSON.stringify({ code: '123456', phone: '13800138000', attempts: 0 });
       redisMock.get.mockResolvedValue(record);

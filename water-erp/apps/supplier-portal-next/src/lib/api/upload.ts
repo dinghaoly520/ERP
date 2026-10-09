@@ -25,9 +25,15 @@ export interface FileAssetResponse {
   createdAt: string;
 }
 
+/**
+ * 注册上传凭证，二选一：
+ * - token（主轨）：步骤 0 验证消费验证码后签发的注册会话 token；
+ * - phone + code（兼容轨）：验证码新鲜时（步骤 0 上传 logo 等未过验证场景）。
+ */
 export interface RegistrationUploadCredentials {
-  phone: string;
-  code: string;
+  token?: string;
+  phone?: string;
+  code?: string;
 }
 
 /**
@@ -48,8 +54,12 @@ export function uploadFile(
     fd.append("file", file);
     const params = new URLSearchParams();
     if (registration) {
-      fd.append("phone", registration.phone.trim());
-      fd.append("code", registration.code.trim());
+      if (registration.token) {
+        fd.append("token", registration.token.trim());
+      } else {
+        fd.append("phone", (registration.phone ?? "").trim());
+        fd.append("code", (registration.code ?? "").trim());
+      }
       fd.append("category", category);
     } else {
       params.set("category", category);
@@ -109,7 +119,9 @@ export function uploadRegistrationFile(
   credentials: RegistrationUploadCredentials,
   onProgress?: (pct: number) => void,
 ) {
-  if (!/^1[3-9]\d{9}$/.test(credentials.phone.trim()) || !/^\d{6}$/.test(credentials.code.trim())) {
+  const tokenOk = !!credentials.token?.trim();
+  const legacyOk = /^1[3-9]\d{9}$/.test((credentials.phone ?? "").trim()) && /^\d{6}$/.test((credentials.code ?? "").trim());
+  if (!tokenOk && !legacyOk) {
     return Promise.reject(new Error("请先填写手机号并获取有效的 6 位验证码"));
   }
   return uploadFile(file, category, onProgress, false, undefined, credentials);

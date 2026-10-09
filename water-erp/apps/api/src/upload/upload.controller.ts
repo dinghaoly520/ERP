@@ -34,19 +34,24 @@ export class UploadController {
     private verificationService: VerificationService,
   ) {}
 
-  /** 注册页专用上传：短信码校验 + 手机哈希命名空间；验证码在最终注册时才消费。 */
+  /**
+   * 注册页专用上传：手机哈希命名空间，两轨鉴权（2026-10-09）：
+   * - 会话 token 轨（主）：步骤 0 已验证 → 凭 verify-registration-code 签发的 token 上传（30 分钟滑动续期）；
+   * - phone+code 轨（兼容）：验证码非消费校验，最终注册时才消费。
+   */
   @Post('registration')
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: '注册附件上传（需有效短信验证码，10MB）' })
+  @ApiOperation({ summary: '注册附件上传（会话 token 或有效短信验证码，10MB）' })
   async uploadRegistration(
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: { phone?: string; code?: string; category?: string },
+    @Body() body: { phone?: string; code?: string; token?: string; category?: string },
   ) {
     const phone = body.phone?.trim() ?? '';
     const code = body.code?.trim() ?? '';
+    const token = body.token?.trim() ?? '';
     const category = body.category?.trim() ?? '';
     if (!['qualification', 'general'].includes(category)) {
       throw new BadRequestException({ error: '注册附件分类不正确', code: 'REGISTRATION_UPLOAD_CATEGORY_INVALID' });
@@ -60,12 +65,22 @@ export class UploadController {
         code: 'REGISTRATION_UPLOAD_FILE_INVALID',
       });
     }
-    if (!/^1[3-9]\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
-      throw new BadRequestException({ error: '请先完成手机号验证码填写', code: 'REGISTRATION_CODE_REQUIRED' });
+    let verifiedPhone: string;
+    if (token) {
+      // token 轨：namespace 以会话绑定的手机号为准（不信客户端传参）
+      verifiedPhone = (await this.verificationService.assertRegistrationSession(token)).phone;
+      if (!/^1[3-9]\d{9}$/.test(verifiedPhone)) {
+        throw new BadRequestException({ error: '请先完成手机号验证码填写', code: 'REGISTRATION_CODE_REQUIRED' });
+      }
+    } else {
+      if (!/^1[3-9]\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
+        throw new BadRequestException({ error: '请先完成手机号验证码填写', code: 'REGISTRATION_CODE_REQUIRED' });
+      }
+      await this.verificationService.assertRegistrationCodeForUpload(phone, code);
+      verifiedPhone = phone;
     }
-    await this.verificationService.assertRegistrationCodeForUpload(phone, code);
     return this.uploadService.upload(
-      file, category, undefined, false, undefined, registrationUploadNamespace(phone),
+      file, category, undefined, false, undefined, registrationUploadNamespace(verifiedPhone),
     );
   }
 

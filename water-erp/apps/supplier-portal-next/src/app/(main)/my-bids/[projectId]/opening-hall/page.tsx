@@ -53,6 +53,7 @@ const OPENING_CONFIRM_LABELS: Record<string, string> = {
   "异议已处理-退回": "异议后退回",
   待确认: "待确认",
   PENDING: "待确认",
+  缺席视为确认: "缺席确认",
 };
 
 export default function OpeningHallPage() {
@@ -63,6 +64,9 @@ export default function OpeningHallPage() {
 
   const [project, setProject] = useState<any>(null);
   const [record, setRecord] = useState<any>(null);
+  // P1-8：开标记录「拉取失败」≠「确无记录」（正常无记录是 HTTP 200 + null）——
+  // 错误标志交解密卡展示错误态+重试，旧实现吞错为 null 令整卡静默消失
+  const [recordError, setRecordError] = useState(false);
   const [records, setRecords] = useState<OpeningRecordRow[]>([]);
   // A-113：本项目唱标字段配置（随公开唱标表端点附带；开标前端点 400 → null，渲染处回退默认四列）
   const [fieldConfig, setFieldConfig] = useState<OpeningFieldDef[] | null>(null);
@@ -165,14 +169,18 @@ export default function OpeningHallPage() {
   async function refresh() {
     // 失败保留上次成功数据，仅置标志；首屏（project 为空）时由错误态 + 重试展示
     try {
-      const [p, r, list] = await Promise.all([
+      const [p, recRes, list] = await Promise.all([
         bidApi.getProject(projectId),
-        supplierApi.getOpeningRecord(projectId).catch(() => null),
+        // P1-8：失败保留上次成功记录、仅置错误标志（勿抹成 null——那会让解密卡随
+        // submitted=false 静默消失且 10s 轮询停摆）；成功才覆盖
+        supplierApi.getOpeningRecord(projectId)
+          .then((r: unknown) => { setRecordError(false); return { ok: true as const, r }; })
+          .catch(() => { setRecordError(true); return { ok: false as const, r: null }; }),
         // 开标前端点返回 400 OPENING_NOT_STARTED——捕获后置空列表，页面不报错
         supplierApi.getOpeningRecords(projectId).catch(() => null),
       ]);
       setProject(p);
-      setRecord(r);
+      if (recRes.ok) setRecord(recRes.r);
       setRecords(list?.records ?? []);
       setFieldConfig(list?.fieldConfig?.fields ?? null);
       setLoadError(false);
@@ -549,6 +557,8 @@ export default function OpeningHallPage() {
           projectId={projectId}
           isOpening={isOpening}
           submitted={!!record?.submitted}
+          recordError={recordError}
+          onRetry={() => { refresh().catch(() => {}); }}
           profileSm2PublicKey={profileSm2PublicKey}
           onDecrypted={() => { refresh().catch(() => {}); }}
         />
