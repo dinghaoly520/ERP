@@ -2209,6 +2209,8 @@ export class ExpertService {
       // 已确认报告不可再确认——缺此闸门则前端按钮永续可点、重复确认
       canConfirm: !expert.reportConfirmed && progressForGate >= 100 && allVerified,
       overallComplete: progressForGate >= 100,
+      // 第三波：可评集合空诊断标志（前端报告步显示处置指引，替代笼统的「未完成评分」表象）
+      evaluableEmpty: evaluableSuppliers.length === 0 && activeSuppliers.length > 0,
       myDisputedReviews,
     };
   }
@@ -2248,6 +2250,15 @@ export class ExpertService {
         select: { id: true, bidValidity: true },
       });
       const evaluableSuppliers = filterEvaluableSuppliers(activeSuppliers, conflictedIds);
+
+      // 第三波：可评集合为空（全部被回避/废标）→ 明确诊断码，不再伪装 SCORING_INCOMPLETE 死锁表象。
+      // 出口=调整回避申报 / 流标 / 补选通道（P2-1 设计中）
+      if (evaluableSuppliers.length === 0 && activeSuppliers.length > 0) {
+        throw new BadRequestException({
+          error: '全部活跃供应商均被您回避或已废标，无可评对象——请核对回避申报是否有误，或联系主持人按流标/补选程序处置',
+          code: 'EVALUABLE_SET_EMPTY',
+        });
+      }
 
       if (storedProgressShort) {
         const { progress } = await recomputeExpertProgress(tx, expert.id, projectId, conflictedIds);

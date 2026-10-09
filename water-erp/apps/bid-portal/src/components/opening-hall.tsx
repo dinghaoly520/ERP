@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail, type OpeningFieldDef } from '@/lib/api';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, overrideDispute, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, listBondLedger, upsertBondLedger, removeBondLedger, type BondLedgerRow, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail, type OpeningFieldDef } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
@@ -1126,10 +1126,28 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                               <Volume2 size={12} strokeWidth={1.5} /> 唱标
                             </button>
                           ) : record.confirmStatus === '待供应商确认' ? (
-                            <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading}
-                              className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
-                              <PencilLine size={12} strokeWidth={1.5} /> 重录唱标
-                            </button>
+                            <>
+                              <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading}
+                                className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
+                                <PencilLine size={12} strokeWidth={1.5} /> 重录唱标
+                              </button>
+                              {/* P1-1（第三波）：缺席视为无异议——供应商解密成功后失联/拒不确认的现场出口
+                                  （后端 @Roles admin/leader；缺席只能视为无异议，不得反向定性异常） */}
+                              {(me?.role === 'admin' || me?.role === 'leader') && (
+                                <button type="button"
+                                  onClick={() => setReasonDialog({
+                                    title: `缺席视为确认 — ${s.supplierName}`,
+                                    placeholder: '如：电话多次未接、现场离席，经核实视为无异议',
+                                    minLen: 5,
+                                    submitLabel: '视为无异议确认',
+                                    description: '该供应商已解密成功但未确认唱标。缺席视为确认将置为「已确认」、开标记录记「缺席视为确认」，并写入高风险监督日志——请填写事实性理由。',
+                                    onSubmit: async (reason) => { await overrideDispute(project.id, s.id, reason, 'confirmed'); toast.success('已视为无异议确认'); onRefresh(); },
+                                  })}
+                                  className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--warning)] transition-colors hover:text-[var(--accent-strong)]">
+                                  <CheckCircle size={12} strokeWidth={1.5} /> 视为确认
+                                </button>
+                              )}
+                            </>
                           ) : (
                             <span className="flex items-center gap-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">
                               <CheckCircle size={12} strokeWidth={1.5} /> 已唱标

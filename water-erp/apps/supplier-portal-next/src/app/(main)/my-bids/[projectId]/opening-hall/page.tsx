@@ -53,6 +53,7 @@ const OPENING_CONFIRM_LABELS: Record<string, string> = {
   "异议已处理-退回": "异议后退回",
   待确认: "待确认",
   PENDING: "待确认",
+  缺席视为确认: "缺席确认",
 };
 
 export default function OpeningHallPage() {

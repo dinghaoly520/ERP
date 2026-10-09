@@ -1135,6 +1135,26 @@ describe('BidService — stage transitions', () => {
       );
     });
 
+    it('P1-2（第三波）：基准价偏离法激活但缺最高限价 → 启动评标即 400 CEILING_PRICE_REQUIRED（死局前移，不再等专家评完点生成才炸）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'OPENING', name: '测试项目',
+        priceFormulaConfig: { formulaType: 'benchmark_deviation' }, ceilingPrice: null,
+      });
+      await expect(service.startEvaluation('p1', 'u1'))
+        .rejects.toMatchObject({ response: { code: 'CEILING_PRICE_REQUIRED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('P1-2：最低评标价法不依赖限价 → 不触发预检（后续家数闸另拦）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'OPENING', name: '测试项目',
+        priceFormulaConfig: { formulaType: 'lowest_price' }, ceilingPrice: null,
+      });
+      // 不因 CEILING_PRICE_REQUIRED 拒绝即证明预检未误伤（家数不足是另一码事）
+      await expect(service.startEvaluation('p1', 'u1'))
+        .rejects.not.toMatchObject({ response: { code: 'CEILING_PRICE_REQUIRED' } });
+    });
+
     it('E2：自定义评标时长——evaluationHours 生效，缺省回退 72h', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
@@ -1430,8 +1450,8 @@ describe('BidService — stage transitions', () => {
   });
 
   describe('updatePriceConfig 阶段闸（P2-17）', () => {
-    it('EVALUATING：变更任一配置键 → 409 PRICE_CONFIG_LOCKED', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+    it('EVALUATING：变更任一配置键 → 409 PRICE_CONFIG_LOCKED（第三波窄口例外：现值缺失时仅补设 ceilingPrice 放行——本例已有值再改仍锁）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', ceilingPrice: 50 });
       await expect(service.updatePriceConfig('p1', { ceilingPrice: 100 }, 'u1'))
         .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
       expect(prisma.bidProject.update).not.toHaveBeenCalled();
@@ -5039,6 +5059,52 @@ describe('BidService — rotateRoomCode 广播', () => {
     await expect(service.rotateRoomCode('p1', { id: 'host-1', username: '主持人' }))
       .rejects.toMatchObject({ response: { code: 'NOT_EVALUATING' } });
     expect((service as any).gateway.notifyRoomCodeRotated).not.toHaveBeenCalled();
+  });
+});
+
+/* ── P1-2（第三波）：EVALUATING 期「仅补设缺失 ceilingPrice」窄口——修复三重死局（400→409 无路） ── */
+describe('BidService — updatePriceConfig 限价补设窄口', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('EVALUATING 且现值为空 → 仅含 ceilingPrice 的 dto 放行补设', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', ceilingPrice: null });
+    await service.updatePriceConfig('p1', { ceilingPrice: 1500000 }, 'u1');
+    expect(prisma.bidProject.update).toHaveBeenCalled();
+  });
+
+  it('EVALUATING 已有限价再改 → 仍 409 PRICE_CONFIG_LOCKED（窄口只允许补缺失，不允许调价）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', ceilingPrice: 100 });
+    await expect(service.updatePriceConfig('p1', { ceilingPrice: 200 }, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
+  });
+
+  it('EVALUATING 改公式类型 → 仍 409（评标办法锁定不动）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: 'P', ceilingPrice: null });
+    await expect(service.updatePriceConfig('p1', { priceFormulaConfig: { formulaType: 'lowest_price' } }, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'PRICE_CONFIG_LOCKED' } });
   });
 });
 

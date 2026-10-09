@@ -2011,7 +2011,7 @@ export class BidService {
   async startEvaluation(id: string, actorId?: string, evaluationHours?: number) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true },
+      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true, priceFormulaConfig: true, ceilingPrice: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     // F17：同阶段早退——阶段棘轮 EVALUATING→EVALUATING 幂等放行后旧实现会全流程重跑
@@ -2093,6 +2093,20 @@ export class BidService {
 
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
+
+    // P1-2（第三波）：价格公式限价前置校验——与 generateEvaluationResults 的 CEILING_PRICE_REQUIRED
+    // 同口径。旧实现不预检，专家全部评完点「生成评标结果」才炸 400，而 EVALUATING 期配置又已锁定
+    // （改配置 409）= 死局；死局前移到启动评标，此时补设/改公式都还来得及
+    {
+      const config = project.priceFormulaConfig as { formulaType?: string } | null;
+      const ceiling = project.ceilingPrice ? Number(project.ceilingPrice) : null;
+      if ((config?.formulaType === 'benchmark_deviation' || config?.formulaType === 'ratio') && !(ceiling && ceiling > 0)) {
+        throw new BadRequestException({
+          error: '价格分公式为基准价偏离法/比例法，但项目未设置最高限价——启动评标前请先在采购管理工作台（:3005）项目设置中补设最高限价，或将价格分公式改为最低评标价法',
+          code: 'CEILING_PRICE_REQUIRED',
+        });
+      }
+    }
 
     // R-2：启动评标前扫描投标供应商中的临时过期标记（不阻塞，写入监管日志供主持人确认）
     const expiredTemps = await this.prisma.bidSupplier.findMany({
@@ -4183,14 +4197,21 @@ export class BidService {
     dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> | null; scoreTrimEnabled?: boolean },
     actorId?: string,
   ) {
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true } });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true, ceilingPrice: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
     // P2-17（二轮审查收尾）：评标/归档阶段锁定价格与评标办法配置——评标办法在招标文件确定，
-    // 评标中变更评标办法/最高限价/价格分公式会改变评分与排名口径（合规风险）；更正须走法定程序
-    if ((project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')
+    // 评标中变更评标办法/最高限价/价格分公式会改变评分与排名口径（合规风险）；更正须走法定程序。
+    // P1-2（第三波）窄口例外：EVALUATING 且现值缺失时允许【仅补设】ceilingPrice——修复
+    // 「生成 400 引导补设 → 补设又 409」的三重死局；已有值调价/改公式仍锁（口径不变）
+    const dtoKeys = Object.entries(dto).filter(([, v]) => v !== undefined).map(([k]) => k);
+    const ceilingBackfillOnly = project.stage === 'EVALUATING'
+      && dtoKeys.length === 1 && dtoKeys[0] === 'ceilingPrice'
+      && (project.ceilingPrice === null || project.ceilingPrice === undefined);
+    if (!ceilingBackfillOnly
+      && (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')
       && (dto.evaluationMethod !== undefined || dto.ceilingPrice !== undefined || dto.priceFormulaConfig !== undefined || dto.scoreTrimEnabled !== undefined)) {
-      throw new ConflictException({ error: '评标已开始，价格与评标办法配置已锁定；如需更正请按法定程序办理', code: 'PRICE_CONFIG_LOCKED' });
+      throw new ConflictException({ error: '评标已开始，价格与评标办法配置已锁定；如需更正请按法定程序办理（仅允许补设此前缺失的最高限价）', code: 'PRICE_CONFIG_LOCKED' });
     }
 
     // 值校验（2026-09-26 价格分公式表单化设计 §3）：此前透传零校验——formulaType 拼错会在

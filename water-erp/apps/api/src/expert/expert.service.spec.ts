@@ -1442,6 +1442,19 @@ describe('ExpertService', () => {
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ reportConfirmed: true }) }));
     });
 
+    it('第三波：可评集合为空（全部回避/废标）→ 400 EVALUABLE_SET_EMPTY 诊断码（不再伪装成 SCORING_INCOMPLETE 死锁表象）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, id: 'exp1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, progress: 0, reportConfirmed: false, conflictedSupplierIds: ['sup-a'] });
+      // 活跃 2 家：1 回避 + 1 废标 → 可评集合空
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup-a', bidValidity: 'valid' },
+        { id: 'sup-b', bidValidity: 'invalid' },
+      ]);
+      await expect(service.confirmReport('user-1', 'p1'))
+        .rejects.toMatchObject({ response: { code: 'EVALUABLE_SET_EMPTY' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ reportConfirmed: true }) }));
+    });
+
     it('P1-5/P1-6（中断审查）：存量 progress 陈旧偏低时按可评集合活体重算自愈（回避+废标家同排除）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, id: 'exp1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, progress: 66, reportConfirmed: false, conflictedSupplierIds: ['sup-conflict'] });

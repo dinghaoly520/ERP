@@ -118,7 +118,9 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
     // F10：流标理由按有无未决异议动态化——无异议时「经异议裁决」名不副实（废标/撤回同样打穿家数线）
     const reasonBase = hasOpenDispute
       ? `存在 ${pendingCount} 条异议未裁决，有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），经评标委员会认定流标`
-      : `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），不足法定家数，经评标委员会认定流标`;
+      : validSuppliers.length < minBidders
+        ? `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），不足法定家数，经评标委员会认定流标`
+        : '经评标委员会认定流标（评标中现场裁量，须按法定程序公告）';
     const warn = resultsGenerated
       ? `${reasonBase}；已生成的官方评标结果将作废并高风险留痕。确认执行？此操作不可逆。`
       : `${reasonBase}。确认执行流标？此操作不可逆。`;
@@ -150,6 +152,19 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
             </span>
           )}
         </div>
+        {/* 第三波：:3007 通用流标入口——EVALUATING 常驻（P2-2），不再只在家数不足时露出；
+            后端 abortBidProject 已支持 EVALUATING+书面理由（N4c），danger 确认走 handleAbort */}
+        {stage === 'EVALUATING' && !archived && (
+          <button
+            type="button"
+            onClick={handleAbort}
+            disabled={busyId === '__abort__'}
+            className="neu-btn-soft is-danger !h-[28px] !text-xs shrink-0"
+            title="评标中通用流标（不可逆，须书面理由留痕；家数不足时上方横幅另有建议）"
+          >
+            {busyId === '__abort__' ? '流标中…' : '流标…'}
+          </button>
+        )}
       </div>
 
       <FeedbackBanner feedback={feedback} />
