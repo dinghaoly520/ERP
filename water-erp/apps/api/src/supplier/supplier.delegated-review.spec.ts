@@ -130,3 +130,83 @@ describe('SupplierService — admin 代审可见性（A 方案）', () => {
       .rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的直接证明）', () => {
+  let service: SupplierService;
+  let prisma: any;
+  let notificationService: any;
+
+  const SUPPLIER = {
+    id: 'sup-1', userId: 'sup-user-1', name: '无办公账号公司供应商',
+    status: 'PENDING', reviewStage: 'STAFF', companyId: 'co-none',
+  };
+
+  beforeEach(async () => {
+    notificationService = {
+      create: jest.fn().mockResolvedValue(undefined),
+      resolveActionable: jest.fn().mockResolvedValue(undefined),
+    };
+    prisma = {
+      supplier: {
+        // approve() 首查（include user）与 recordApproval→buildApprovalSnapshot 二查共用
+        findUnique: jest.fn().mockResolvedValue({
+          ...SUPPLIER,
+          user: { id: 'sup-user-1', username: 'u', displayName: 'd', email: null },
+          contacts: [], qualifications: [], bankAccounts: [], performances: [],
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }), // 乐观锁推进成功
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'admin-1', role: 'admin', companyId: null }), // admin 审批人
+        count: jest.fn().mockResolvedValue(0), // companyHasActiveRole(staff/leader) 均无 → STAFF 孤儿
+        findMany: jest.fn().mockResolvedValue([{ id: 'admin-9' }]), // 下一级收件人回退平台 admin
+      },
+      auditLog: { create: jest.fn().mockResolvedValue(undefined) },
+      fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
+      supplierApprovalRecord: { create: jest.fn().mockResolvedValue(undefined) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn(), filter: jest.fn().mockReturnValue({}) } },
+        SupplierService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: notificationService },
+        { provide: 'REDIS_CLIENT', useValue: {} },
+        { provide: LlmService, useValue: {} },
+        { provide: VerificationService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(SupplierService);
+  });
+
+  it('公司无 staff 无 leader：admin 可初审通过，推进至 LEADER 且留痕 stage=STAFF', async () => {
+    const res = await service.approve('sup-1', 'admin-1', '证照齐全，平台管理员代为初审');
+    expect(res).toEqual({ success: true, stage: 'LEADER' });
+    // 乐观锁推进：仅升级 reviewStage，不落终态
+    expect(prisma.supplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'sup-1', status: { in: ['PENDING', 'RETURNED'] }, reviewStage: 'STAFF' },
+      data: { reviewStage: 'LEADER', returnReason: null },
+    }));
+    // 不可变留痕：动作 APPROVED、发生级 STAFF（展示侧据此亮「代初审」徽标）
+    expect(prisma.supplierApprovalRecord.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        supplierId: 'sup-1', action: 'APPROVED', stage: 'STAFF',
+        reviewerUserId: 'admin-1', reason: '证照齐全，平台管理员代为初审',
+      }),
+    }));
+    // 下一级（LEADER）待办照常逐级流转（公司无 leader → 回退平台 admin）
+    expect(notificationService.create).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SUPPLIER_PENDING', title: '供应商注册待复审',
+    }));
+  });
+
+  it('同场景：驳回同样可达（此前驳回与通过同级断言一并堵死）', async () => {
+    await service.reject('sup-1', '材料不实', 'admin-1');
+    expect(prisma.supplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: 'REJECTED', rejectReason: '材料不实' },
+    }));
+    expect(prisma.supplierApprovalRecord.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'REJECTED', stage: 'STAFF', reviewerUserId: 'admin-1' }),
+    }));
+  });
+});
