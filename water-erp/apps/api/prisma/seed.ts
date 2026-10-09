@@ -27,6 +27,7 @@ import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from '../src/auth/password-vault.util';
+import { sealPii, openPii, blindIndexPii } from '../src/common/crypto/sm-field-crypto';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
@@ -308,6 +309,30 @@ async function main() {
   console.log('▶ 禁用外键检查（session_replication_role = replica）');
   await prisma.$executeRawUnsafe(`SET session_replication_role = replica;`);
 
+  // ═══ PII 国密密封（等保+密评，2026-10-09）═══
+  // 种子 JSON 的 PII 字段在 createMany 前统一密封落库 + 回填盲索引列，
+  // 重建后库内即全密文（存量清除裁定：无明文兼容路径）。合成化 PII 见 seed-data（零号段显假）。
+  const PII_SEAL_MAP: Record<string, Array<{ field: string; idx?: string }>> = {
+    User: [{ field: 'email' }, { field: 'phone', idx: 'phoneIdx' }],
+    ExpertProfile: [{ field: 'phone' }, { field: 'idNumber' }, { field: 'licenseNo' }],
+    Supplier: [{ field: 'legalPersonIdCard', idx: 'legalPersonIdCardIdx' }, { field: 'legalPersonPhone' }],
+    SupplierContact: [{ field: 'phone' }, { field: 'idCard', idx: 'idCardIdx' }, { field: 'email' }],
+  };
+  const sealSeedRows = (tableName: string, rows: Record<string, unknown>[]) => {
+    const map = PII_SEAL_MAP[tableName];
+    if (!map) return rows;
+    for (const row of rows) {
+      for (const { field, idx } of map) {
+        const v = row[field];
+        if (typeof v === 'string' && v !== '') {
+          row[field] = sealPii(v);
+          if (idx) row[idx] = blindIndexPii(v);
+        }
+      }
+    }
+    return rows;
+  };
+
   console.log('▶ 按外键依赖顺序写入快照');
   for (const [tableName, delegate] of SEED_ORDER) {
     // 跳过数据库中不存在的表（Prisma schema 新增但迁移未建）
@@ -321,11 +346,12 @@ async function main() {
       const rows = load(tableName) as Record<string, unknown>[];
       const roots = rows.filter((r: any) => r.parentId == null);
       const children = rows.filter((r: any) => r.parentId != null);
+      sealSeedRows(tableName, roots); sealSeedRows(tableName, children);
       if (roots.length > 0) { await (prisma[delegate] as any).createMany({ data: roots }); console.log(`    ${tableName} (roots): ${roots.length}`); }
       if (children.length > 0) { await (prisma[delegate] as any).createMany({ data: children }); console.log(`    ${tableName} (children): ${children.length}`); }
       continue;
     }
-    const rows = load(tableName) as Record<string, unknown>[];
+    const rows = sealSeedRows(tableName, load(tableName) as Record<string, unknown>[]);
     if (rows.length === 0) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (prisma[delegate] as any).createMany({ data: rows });
@@ -420,7 +446,8 @@ async function main() {
   let idNumberPw = 0;
   let fallbackPw = 0;
   for (const u of experts) {
-    const idNumber = (u.expertProfile?.idNumber ?? '').trim();
+    // idNumber 密文落库 → 口令源取拆封明文（占位串 111111111111111111 = 演示口令）
+    const idNumber = openPii(u.expertProfile?.idNumber ?? '')?.trim() ?? '';
     const password = idNumber || FALLBACK_EXPERT_PW;
     if (idNumber) idNumberPw++; else fallbackPw++;
     const pwHash = hashOf(password);
