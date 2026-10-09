@@ -28,6 +28,9 @@ import { fetchCurrentUser, type AuthRole } from "@/lib/api/auth";
 import { RegistrationReviewPanel } from "@/components/admin/registration-review-panel";
 import { UnitSearchSelect } from "@/components/login/unit-search-select";
 import { PasswordRequestsPanel } from "@/components/admin/password-requests-panel";
+import { CompaniesModal } from "@/components/admin/companies-modal";
+import { ComplianceRulesModal } from "@/components/admin/compliance-rules-modal";
+import { HealthModal } from "@/components/admin/health-modal";
 import { ROLE_LABELS } from "@/lib/role-labels";
 import {
   createAccount,
@@ -131,6 +134,8 @@ export function AccountManagementPanel() {
   // 登录 IP 存证（2026-09-28）：单账号「查看全部 IP」弹窗 + 跨供应商串号检测弹窗
   const [ipTarget, setIpTarget] = useState<SupplierAccount | null>(null);
   const [sharedIpsOpen, setSharedIpsOpen] = useState(false);
+  // admin 工具窗口（2026-10-09）：单位管理 / 合规规则 / 系统健康由独立页迁为弹窗展示
+  const [toolView, setToolView] = useState<"companies" | "rules" | "health" | null>(null);
 
   const [formState, setFormState] = useState<
     { mode: "create" } | { mode: "edit"; account: AdminAccount } | null
@@ -318,11 +323,11 @@ export function AccountManagementPanel() {
           </div>
 
           <div className="page-hero__right">
-            {/* 三个 admin 工具页入口（2026-09-28 审计：唯一可达路径 command-palette 从未挂载
-                已删——页面成了只能手输 URL 的孤岛，此处补 UI 入口） */}
-            <a href="/admin/companies" className="neu-btn-xs" title="公司主数据与归属管理">单位管理</a>
-            <a href="/admin/compliance-rules" className="neu-btn-xs" title="合规规则维护">合规规则</a>
-            <a href="/admin/health" className="neu-btn-xs" title="系统健康自声明数据包">系统健康</a>
+            {/* 三个 admin 工具入口（2026-09-28 审计补 UI 入口；2026-10-09 由独立页迁为窗口展示，
+                原 /admin/{companies,compliance-rules,health} 页面已删——本按钮是其唯一入口） */}
+            <button type="button" onClick={() => setToolView("companies")} className="neu-btn-xs" title="公司主数据与归属管理">单位管理</button>
+            <button type="button" onClick={() => setToolView("rules")} className="neu-btn-xs" title="合规规则维护">合规规则</button>
+            <button type="button" onClick={() => setToolView("health")} className="neu-btn-xs" title="系统健康自声明数据包">系统健康</button>
             <button
               type="button"
               onClick={refresh}
@@ -751,6 +756,21 @@ export function AccountManagementPanel() {
       ) : null}
       </>
       )}
+
+      {/* admin 工具窗口：单位管理 / 合规规则 / 系统健康（从页头按钮打开，与 tab 无关） */}
+      {toolView === "companies" ? (
+        <CompaniesModal
+          onClose={() => setToolView(null)}
+          onChanged={() => {
+            // 单位改名改变公司选项集，静默刷新账号表单/供应商归属下拉
+            startTransition(async () => {
+              await loadAccounts();
+            });
+          }}
+        />
+      ) : null}
+      {toolView === "rules" ? <ComplianceRulesModal onClose={() => setToolView(null)} /> : null}
+      {toolView === "health" ? <HealthModal onClose={() => setToolView(null)} /> : null}
     </div>
   );
 }

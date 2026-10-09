@@ -1,28 +1,29 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { Check, ListChecks, Pencil, RefreshCw, Sparkles, X } from 'lucide-react';
-import { apiFetch } from '@/lib/api/api-fetch';
-import { PMI_STAGE_LABEL } from '@water-erp/shared';
+import { useCallback, useEffect, useState } from "react";
+import { Check, ListChecks, Pencil, RefreshCw, Sparkles, X } from "lucide-react";
+import { Modal } from "@/components/workbench";
+import { apiFetch } from "@/lib/api/api-fetch";
+import { PMI_STAGE_LABEL } from "@water-erp/shared";
 
 /* ═══════════════════════════════════════════════════════════════
-   合规规则配置（C4）——阶段合规审查要点在线维护（DB 覆盖层 + 内置回退）
-   数据管理页标准三层：page-hero + 工具栏(tab) + neu-table-card
+   合规规则配置弹窗（C4）——阶段合规审查要点在线维护（DB 覆盖层 + 内置回退）
+   2026-10-09：由 /admin/compliance-rules 独立页迁入账号管理，窗口展示
    ═══════════════════════════════════════════════════════════════ */
 
 type RuleRow = {
   id: string; stageKey: string; name: string; dimension: string;
   criteria: string; regulationRef: string; enabled: boolean; sortOrder: number;
 };
-type StageData = { source: 'db' | 'builtin'; rows: RuleRow[] };
+type StageData = { source: "db" | "builtin"; rows: RuleRow[] };
 
 const STAGE_LABEL: Record<string, string> = PMI_STAGE_LABEL; // R7-4① 单一源
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await apiFetch(`/api/stage-compliance${path}`, {
     ...init,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'X-Portal': 'web', ...(init?.headers ?? {}) },
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-Portal": "web", ...(init?.headers ?? {}) },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -31,9 +32,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export default function ComplianceRulesPage() {
+export function ComplianceRulesModal({ onClose }: { onClose: () => void }) {
   const [stages, setStages] = useState<string[]>([]);
-  const [stage, setStage] = useState('');
+  const [stage, setStage] = useState("");
   const [data, setData] = useState<StageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,9 +42,9 @@ export default function ComplianceRulesPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<string[]>('/stages').then(keys => {
+    api<string[]>("/stages").then(keys => {
       setStages(keys);
-      setStage(k => k || keys[0] || '');
+      setStage(k => k || keys[0] || "");
     }).catch(e => setError((e as Error).message));
   }, []);
 
@@ -67,7 +68,7 @@ export default function ComplianceRulesPage() {
     setBusy(true);
     try {
       await api(`/rules/${editing.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify({ criteria: editing.criteria, regulationRef: editing.regulationRef }),
       });
       setEditing(null);
@@ -82,7 +83,7 @@ export default function ComplianceRulesPage() {
   const toggle = async (row: RuleRow) => {
     setBusy(true);
     try {
-      await api(`/rules/${row.id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !row.enabled }) });
+      await api(`/rules/${row.id}`, { method: "PATCH", body: JSON.stringify({ enabled: !row.enabled }) });
       void reload();
     } catch (e) {
       setError((e as Error).message);
@@ -94,7 +95,7 @@ export default function ComplianceRulesPage() {
   const initFromBuiltin = async () => {
     setBusy(true);
     try {
-      const r = await api<{ imported: number }>(`/init?stageKey=${stage}`, { method: 'POST' });
+      const r = await api<{ imported: number }>(`/init?stageKey=${stage}`, { method: "POST" });
       void reload();
       setError(null);
       window.alert(`已导入 ${r.imported} 条内置规则到数据库（已存在的项保持不变）`);
@@ -106,43 +107,49 @@ export default function ComplianceRulesPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 p-6">
-      {/* ═══ page-hero ═══ */}
-      <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
-            <div className="page-hero__icon"><ListChecks size={17} /></div>
-            <div>
-              <div className="page-hero__title">合规规则配置</div>
-              <div className="page-hero__sub">阶段合规审查要点在线维护（DB 覆盖层，空阶段回退内置规则表）</div>
-            </div>
-          </div>
-          <div className="page-hero__right">
-            {data?.source === 'builtin' && (
-              <button onClick={() => void initFromBuiltin()} className="neu-btn-soft text-xs" disabled={busy}>
-                <Sparkles size={13} /> 从内置初始化
-              </button>
-            )}
-            <button onClick={() => void reload()} className="neu-btn-xs" title="刷新">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]">
+            <ListChecks size={14} strokeWidth={1.9} className="text-[var(--accent)]" />
+          </span>
+          合规规则配置
+        </span>
+      }
+      description="阶段合规审查要点在线维护（DB 覆盖层，空阶段回退内置规则表）"
+      size="2xl"
+      headerExtra={
+        <>
+          {data?.source === "builtin" && (
+            <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy}>
+              <Sparkles size={13} /> 从内置初始化
             </button>
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)', paddingTop: '1rem' }} />
-
-        <div className="neu-tab-bar flex flex-wrap">
-          {stages.map(k => (
-            <button key={k} onClick={() => setStage(k)} className={`neu-tab ${stage === k ? 'is-active' : ''}`}>
-              {STAGE_LABEL[k] ?? k}
-            </button>
-          ))}
-        </div>
+          )}
+          <button onClick={() => void reload()} className="neu-btn-xs" title="刷新">
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+        </>
+      }
+      footer={
+        <button type="button" onClick={onClose} className="neu-btn-soft !h-9 !text-xs">
+          关闭
+        </button>
+      }
+    >
+      {/* 阶段切换（原 page-hero 内 tab） */}
+      <div className="neu-tab-bar flex flex-wrap">
+        {stages.map(k => (
+          <button key={k} onClick={() => setStage(k)} className={`neu-tab ${stage === k ? "is-active" : ""}`}>
+            {STAGE_LABEL[k] ?? k}
+          </button>
+        ))}
       </div>
 
-      {error && <p className="px-1 text-xs text-[var(--danger)]">{error}</p>}
-      {data?.source === 'builtin' && (
-        <p className="px-1 text-xs text-[var(--muted-foreground)]">
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
+      {data?.source === "builtin" && (
+        <p className="text-xs text-[var(--muted-foreground)]">
           当前展示内置规则快照（只读）——点「从内置初始化」入库后即可在线编辑/停用。
         </p>
       )}
@@ -154,7 +161,7 @@ export default function ComplianceRulesPage() {
             <span className="neu-tab-count ml-2">{data?.rows.length ?? 0}</span>
           </span>
           <span className="text-xs text-[var(--muted-foreground)]">
-            规则来源：{data?.source === 'db' ? '数据库（生效中）' : '内置表（回退）'}
+            规则来源：{data?.source === "db" ? "数据库（生效中）" : "内置表（回退）"}
           </span>
         </div>
         <div className="overflow-x-auto">
@@ -187,18 +194,18 @@ export default function ComplianceRulesPage() {
                     <td className="max-w-[340px] truncate text-xs" title={r.criteria}>{r.criteria}</td>
                     <td className="max-w-[220px] truncate text-xs text-[var(--muted-foreground)]" title={r.regulationRef}>{r.regulationRef}</td>
                     <td>
-                      <span className={`text-xs font-medium ${r.enabled ? 'text-emerald-700' : 'text-[var(--muted-foreground)]'}`}>
-                        {r.enabled ? '生效' : '已停用'}
+                      <span className={`text-xs font-medium ${r.enabled ? "text-emerald-700" : "text-[var(--muted-foreground)]"}`}>
+                        {r.enabled ? "生效" : "已停用"}
                       </span>
                     </td>
                     <td className="text-right">
-                      {data?.source === 'db' && (
+                      {data?.source === "db" && (
                         <div className="flex justify-end gap-1.5">
                           <button onClick={() => setEditing({ id: r.id, criteria: r.criteria, regulationRef: r.regulationRef })} className="neu-btn-xs" disabled={busy}>
                             <Pencil size={12} /> 编辑
                           </button>
-                          <button onClick={() => void toggle(r)} className={`neu-btn-xs ${r.enabled ? 'is-warning' : 'is-success'}`} disabled={busy}>
-                            {r.enabled ? '停用' : '启用'}
+                          <button onClick={() => void toggle(r)} className={`neu-btn-xs ${r.enabled ? "is-warning" : "is-success"}`} disabled={busy}>
+                            {r.enabled ? "停用" : "启用"}
                           </button>
                         </div>
                       )}
@@ -213,6 +220,6 @@ export default function ComplianceRulesPage() {
           </table>
         </div>
       </section>
-    </div>
+    </Modal>
   );
 }
