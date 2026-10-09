@@ -7,7 +7,7 @@ const CREDENTIAL_KEYS = [
 /** 个人信息类字段 —— 部分掩码（保留可识别性） */
 const PHONE_KEYS = ['phone', 'mobile', 'telephone'];
 const IDCARD_KEYS = ['idcard', 'idnumber'];
-const BANK_KEYS = ['bankcard', 'cardno', 'bankaccount'];
+const BANK_KEYS = ['bankcard', 'cardno', 'bankaccount', 'accountno']; // accountNo：注册 2.0 银行账号键名
 
 const includesAny = (key: string, words: string[]): boolean => {
   const k = key.toLowerCase();
@@ -32,6 +32,16 @@ function maskBank(value: unknown): string {
   return `${d.slice(0, 4)}****${d.slice(-4)}`;
 }
 
+/** 邮箱键（PII，等保+密评 2026-10 补） */
+const EMAIL_KEYS = ['email'];
+
+function maskEmailValue(value: unknown): string {
+  const s = String(value);
+  const at = s.lastIndexOf('@');
+  if (at <= 0) return '***';
+  return `${s.slice(0, 1)}***${s.slice(at)}`;
+}
+
 /** 按字段名对单个值脱敏（不递归；嵌套由 sanitizeObject 处理） */
 export function sanitizeValue(key: string, value: unknown): unknown {
   if (value === null || value === undefined) return value;
@@ -39,6 +49,7 @@ export function sanitizeValue(key: string, value: unknown): unknown {
   if (includesAny(key, PHONE_KEYS)) return maskPhone(value);
   if (includesAny(key, IDCARD_KEYS)) return maskIdCard(value);
   if (includesAny(key, BANK_KEYS)) return maskBank(value);
+  if (includesAny(key, EMAIL_KEYS)) return maskEmailValue(value);
   if (typeof value === 'object') return sanitizeObject(value);
   return value;
 }

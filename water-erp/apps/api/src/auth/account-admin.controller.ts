@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { hashSync } from 'bcryptjs';
+import { sealPii, openPiiForMask, blindIndexPii } from '../common/crypto/sm-field-crypto';
+import { maskPhone, maskEmail } from '../common/pii-mask';
 import { decryptPasswordVault, encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -52,6 +54,14 @@ class SupplierCompanyDto {
   companyId: string;
 }
 
+/** 账号 PII 出口掩码（等保+密评）：列表/建号/改号返回一律掩码；明文走揭示类流程 */
+function maskAccount<T extends { phone?: string | null; email?: string | null }>(user: T): T {
+  return { ...user, phone: maskPhone(openPiiForMask(user.phone)), email: maskEmail(openPiiForMask(user.email)) };
+}
+function maskAccounts<T extends { phone?: string | null; email?: string | null }>(users: T[]): T[] {
+  return users.map(maskAccount);
+}
+
 const ACCOUNT_SELECT = {
   id: true,
   username: true,
@@ -81,7 +91,7 @@ export class AccountAdminController {
       where: { role: { in: [...INTERNAL_ROLES] } },
       select: ACCOUNT_SELECT,
       orderBy: { createdAt: 'asc' },
-    });
+    }).then(maskAccounts);
   }
 
   /** 待审批汇总（2026-09-22）：账号管理侧栏红标 + tab 红色角标数据源（注册/改密/重置/资料变更/安全反馈） */
@@ -291,12 +301,13 @@ export class AccountAdminController {
         company: companyRec?.name ?? null,
         companyId: companyRec?.id ?? null,
         departmentName: dto.departmentName ?? null,
-        phone: dto.phone ?? null,
-        email: dto.email ?? null,
+        phone: sealPii(dto.phone) ?? null, // PII 国密密封（等保+密评）
+        phoneIdx: blindIndexPii(dto.phone) ?? null,
+        email: sealPii(dto.email) ?? null,
         isActive: true,
       },
       select: ACCOUNT_SELECT,
-    });
+    }).then(maskAccount);
   }
 
   @Patch(':id')
@@ -322,12 +333,12 @@ export class AccountAdminController {
             ? { company: companyRec!.name, companyId: companyRec!.id }
             : { company: null, companyId: null })),
           ...(dto.departmentName !== undefined && { departmentName: dto.departmentName || null }),
-          ...(dto.phone !== undefined && { phone: dto.phone || null }),
-          ...(dto.email !== undefined && { email: dto.email || null }),
+          ...(dto.phone !== undefined && { phone: sealPii(dto.phone || null) ?? null, phoneIdx: dto.phone ? blindIndexPii(dto.phone) : null }), // PII 密封+盲索引同步
+          ...(dto.email !== undefined && { email: sealPii(dto.email || null) ?? null }),
           ...(dto.officeLocation !== undefined && { officeLocation: dto.officeLocation || null }),
         },
         select: ACCOUNT_SELECT,
-      });
+      }).then(maskAccount);
     } catch (e: any) {
       if (e?.code === 'P2002') {
         throw new ConflictException({ error: '同名同角色账号已存在', code: 'USERNAME_ROLE_CONFLICT' });
@@ -366,7 +377,7 @@ export class AccountAdminController {
     });
     // 重置密码 = 对「异地登录反馈」采取了实质安全处置 → 相关提醒自动消（无需逐条点击）
     await this.resolveSecurityFeedback(updated.username);
-    return updated;
+    return maskAccount(updated);
   }
 
   @Post(':id/freeze')
@@ -381,7 +392,7 @@ export class AccountAdminController {
     });
     // 冻结 = 对「异地登录反馈」采取了实质安全处置 → 相关提醒自动消
     await this.resolveSecurityFeedback(updated.username);
-    return updated;
+    return maskAccount(updated);
   }
 
   @Post(':id/unfreeze')
@@ -392,7 +403,7 @@ export class AccountAdminController {
       where: { id },
       data: { isFrozen: false },
       select: ACCOUNT_SELECT,
-    });
+    }).then(maskAccount);
   }
 
   @Delete(':id')

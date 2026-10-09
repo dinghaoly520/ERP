@@ -20,6 +20,7 @@ import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { sealChangeValue, openChangeValue } from '../supplier/change-record-pii';
+import { openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
 import { TrustStore } from '../common/crypto/x509/trust-store';
@@ -663,7 +664,15 @@ export class SupplierPortalService {
       },
     });
     if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'NOT_FOUND' });
-    return supplier;
+    // 本人自视明文（等保+密评）：PII 密文列拆封（本人数据本人可见，不入揭示审计）
+    return {
+      ...supplier,
+      user: supplier.user ? { ...supplier.user, email: openPii(supplier.user.email) } : supplier.user,
+      legalPersonIdCard: openPii(supplier.legalPersonIdCard),
+      legalPersonPhone: openPii(supplier.legalPersonPhone),
+      contacts: supplier.contacts.map(c => ({ ...c, phone: openPii(c.phone), idCard: openPii(c.idCard), email: openPii(c.email) })),
+      bankAccounts: supplier.bankAccounts.map(b => ({ ...b, accountNo: openPii(b.accountNo) })),
+    };
   }
 
   async getMyStatus(userId: string) {
@@ -3839,7 +3848,8 @@ export class SupplierPortalService {
     const contactFilled = contactCount;
     const contactTotal = Math.max(contactCount, 1);
     const contactMissing: string[] = [];
-    const hasCompleteContact = contacts.some((c) => c.name?.trim() && /^1\d{10}$/.test(c.phone?.trim() || ''));
+    // phone 列已国密密封——正则校验前宽容拆封（等保+密评；密文非手机格式会被判不完整）
+    const hasCompleteContact = contacts.some((c) => c.name?.trim() && /^1\d{10}$/.test(openPiiForMask(c.phone)?.trim() || ''));
     const contactHasPrimary = contacts.some((c) => c.isPrimary);
     if (hasCompleteContact) contactScore += 8; else contactMissing.push('联系人');
     if (contactHasPrimary) contactScore += 3; else contactMissing.push('主要联系人');

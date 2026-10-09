@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { sealPii, openPii, openPiiForMask, blindIndexPii } from '../common/crypto/sm-field-crypto';
+import { maskPhone, maskEmail } from '../common/pii-mask';
 import { PASSWORD_PATTERN } from '../common/validators/password-strength';
 import { VerificationService } from '../verification/verification.service';
 import { NotificationService } from '../notification/notification.service';
@@ -64,7 +66,8 @@ export class PasswordRequestsService {
 
   /** 忘记密码重置申请（登录页，匿名）：不泄露账号是否存在，统一返回成功 */
   async submitReset(username: string, applicantName: string, applicantContact: string, verificationCode: string, newPassword: string) {
-    await this.verificationService.verifyRegistrationCode(applicantContact, verificationCode);
+    await this.verificationService.verifyRegistrationCode(applicantContact, verificationCode); // 验证按原文（Redis 键，不落库）
+    const sealedContact = sealPii(applicantContact) as string; // PII 国密密封落库（等保+密评）
     const normalized = hashSync(newPassword, 10);
     const matched = await this.prisma.user.findFirst({
       where: { username, isActive: true },
@@ -74,7 +77,7 @@ export class PasswordRequestsService {
       data: {
         requestedUsername: username,
         applicantName,
-        applicantContact,
+        applicantContact: sealedContact,
         matchedUserId: matched?.id ?? null,
         requestedPasswordHash: normalized,
         requestedPasswordVault: encryptPasswordVault(newPassword) ?? null,
@@ -100,7 +103,10 @@ export class PasswordRequestsService {
           select: { id: true, username: true, displayName: true, email: true, phone: true, role: true, company: true },
         },
       },
-    });
+    }).then(rows => rows.map(r => ({
+      ...r,
+      user: r.user ? { ...r.user, email: maskEmail(openPiiForMask(r.user.email)), phone: maskPhone(openPiiForMask(r.user.phone)) } : r.user, // PII 出口掩码（等保+密评）
+    })));
   }
 
   /** 列表口径：supplier = 仅匹配到供应商账号的重置申请（:3005 供应商管理中心审批）；
@@ -128,7 +134,12 @@ export class PasswordRequestsService {
           select: { id: true, username: true, displayName: true, email: true, phone: true, role: true, company: true },
         },
       },
-    });
+    }).then(rows => rows.map(r => ({
+      ...r,
+      // applicantContact 密文落库，审批操作必需明文（联系申请人发临时密码）——此处拆封；低频管理端
+      applicantContact: openPii(r.applicantContact) ?? r.applicantContact,
+      matchedUser: r.matchedUser ? { ...r.matchedUser, email: maskEmail(openPiiForMask(r.matchedUser.email)), phone: maskPhone(openPiiForMask(r.matchedUser.phone)) } : r.matchedUser,
+    })));
   }
 
   /** 批准改密：新密码生效并吊销该账号全部 web 会话 */
@@ -288,13 +299,19 @@ export class PasswordRequestsService {
     });
     if (!user) throw new NotFoundException({ error: '账号不存在', code: 'NOT_FOUND' });
 
-    // 只保留白名单内、且与当前值不同的字段
+    // 只保留白名单内、且与当前值不同的字段。
+    // PII（email/phone）列已国密密封——比对须拆封，否则恒判「有变化」；
+    // 且 payload 中的 PII 值密封落库（Json 列，等保+密评），审批应用端对称拆封。
     const changes: Record<string, string | null> = {};
     for (const field of PasswordRequestsService.PROFILE_FIELDS) {
       if (!(field in payload)) continue;
       const next = payload[field];
-      const current = user[field] ?? '';
-      if ((next ?? '') !== current) changes[field] = next;
+      const rawCurrent = user[field as 'email'] ?? '';
+      const current = field === 'email' || field === 'phone' ? (openPiiForMask(rawCurrent as string | null) ?? '') : (rawCurrent as string);
+      const differs = (next ?? '') !== current;
+      if (differs) {
+        changes[field] = field === 'email' || field === 'phone' ? (next == null ? null : sealPii(next) as string) : next;
+      }
     }
     if (Object.keys(changes).length === 0) {
       throw new BadRequestException({ error: '资料没有发生变化', code: 'NO_CHANGES' });
@@ -376,7 +393,7 @@ export class PasswordRequestsService {
       orderBy: { requestedAt: 'asc' },
       select: {
         id: true,
-        payload: true,
+        payload: true, // email/phone 值已密封落库——返回前掩码
         status: true,
         requestedAt: true,
         decisionNote: true,
@@ -389,7 +406,17 @@ export class PasswordRequestsService {
           },
         },
       },
-    });
+    }).then(rows => rows.map(r => {
+      // PII 出口掩码（等保+密评）：payload 内 email/phone 与 user 现值均掩码
+      const payload = { ...((r.payload ?? {}) as Record<string, string | null>) };
+      if (typeof payload.email === 'string' && payload.email) payload.email = maskEmail(openPiiForMask(payload.email));
+      if (typeof payload.phone === 'string' && payload.phone) payload.phone = maskPhone(openPiiForMask(payload.phone));
+      return {
+        ...r,
+        payload,
+        user: r.user ? { ...r.user, email: maskEmail(openPiiForMask(r.user.email)), phone: maskPhone(openPiiForMask(r.user.phone)) } : r.user,
+      };
+    }));
   }
 
   /** 批准资料变更：白名单字段应用到 User（null = 清除），并通知申请人 */
@@ -401,7 +428,10 @@ export class PasswordRequestsService {
     const payload = (req.payload ?? {}) as Record<string, string | null>;
     const data: Record<string, string | null> = {};
     for (const field of PasswordRequestsService.PROFILE_FIELDS) {
-      if (field in payload) data[field] = payload[field];
+      if (field in payload) data[field] = payload[field]; // PII（email/phone）payload 已密封，原样应用
+    }
+    if ('phone' in payload) {
+      data.phoneIdx = payload.phone ? blindIndexPii(openPii(payload.phone)) : null; // 盲索引同步（null=清除）
     }
     const updated = await this.prisma.user.update({
       where: { id: req.userId },
