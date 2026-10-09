@@ -6,7 +6,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, revealExpertField } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { StepTrack } from '@/components/step-track';
@@ -176,6 +176,37 @@ export function ExpertExtractPage({
   const [candidateNotifiedIds, setCandidateNotifiedIds] = useState<string[]>([]);
   // 工作人员代为操作的专家 userId 集合（确认参加/无法参加）
   const [staffActionIds, setStaffActionIds] = useState<Set<string>>(new Set());
+  // PII 明文揭示（等保+密评）：RSVP 列表手机号默认掩码；「明文」走 reveal 端点（SensitiveAccessLog 留痕）
+  const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({});
+  const [revealingPhone, setRevealingPhone] = useState<string | null>(null);
+  const phoneCell = (userId: string, masked?: string | null) => {
+    const shown = revealedPhones[userId] ?? masked;
+    return (
+      <span className="inline-flex items-center justify-center gap-1">
+        <span className="font-mono">{shown || '—'}</span>
+        {masked ? (
+          <button
+            onClick={async () => {
+              if (revealedPhones[userId]) { setRevealedPhones(prev => { const n: Record<string, string> = { ...prev }; delete n[userId]; return n; }); return; }
+              setRevealingPhone(userId);
+              try {
+                const r = await revealExpertField(userId, 'phone');
+                const v = r.value;
+                if (v) { setRevealedPhones(prev => ({ ...prev, [userId]: v })); toast.success('已揭示（本次揭示已留审计日志）'); }
+                else toast.error('该专家暂无联系方式');
+              } catch (err: any) { toast.error(err?.message || '揭示失败'); }
+              setRevealingPhone(null);
+            }}
+            disabled={revealingPhone === userId}
+            className="neu-btn-xs is-ghost !px-2 !py-0.5 !text-[10px] shrink-0"
+            title="揭示明文（写入审计日志）"
+          >
+            {revealingPhone === userId ? '…' : revealedPhones[userId] ? '复原' : '明文'}
+          </button>
+        ) : null}
+      </span>
+    );
+  };
   // 步骤5 组长选定/切换（从 DB isLead 恢复，关闭页面重进不丢失）
   const [step5LeaderId, setStep5LeaderId] = useState<string | null>(null);
   const [selectingLeader, setSelectingLeader] = useState(false);
@@ -2670,7 +2701,7 @@ export function ExpertExtractPage({
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">联系方式</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                     <tbody>
                       {invitationData.experts.filter(e=>e.expertRole==='正选' && originalConfirmedIdsRef.current.has(e.userId)).sort((a,b)=>(a.invitationStatus==='declined'?1:0)-(b.invitationStatus==='declined'?1:0)).map(e => (
                         <tr key={e.id}>
@@ -2678,6 +2709,7 @@ export function ExpertExtractPage({
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
+                          <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
                           <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
                           <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
                           <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
@@ -2722,7 +2754,7 @@ export function ExpertExtractPage({
                           </div>
                           {isAlt ? (
                             <table className="neu-table w-full table-fixed">
-                              <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th></tr></thead>
+                              <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">联系方式</th></tr></thead>
                               <tbody>
                                 {h.selected.map(s => (
                                   <tr key={s.userId}>
@@ -2730,13 +2762,14 @@ export function ExpertExtractPage({
                                     <td className="text-center text-sm text-[var(--muted-foreground)]">{s.specialty}</td>
                                     <td className="text-center text-xs text-[var(--muted-foreground)]">{s.title || '—'}</td>
                                     <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(s.userId) || '—'}</td>
+                                  <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(s.userId, (invitationData?.experts ?? []).find(x => x.userId === s.userId)?.phone)}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           ) : (
                           <table className="neu-table w-full table-fixed">
-                            <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
+                            <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">公司</th><th className="text-center">部门</th><th className="text-center">联系方式</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                             <tbody>
                               {experts.map(e => (
                                 <tr key={e.id}>
@@ -2744,6 +2777,7 @@ export function ExpertExtractPage({
                                   <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td><td className="text-center text-xs text-[var(--muted-foreground)]">{deptByUser.get(e.userId) || '—'}</td>
+                                  <td className="text-center text-xs font-mono text-[var(--muted-foreground)]">{phoneCell(e.userId, e.phone)}</td>
                                   <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
                                   <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
                                   <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel, revealSupplierField } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
@@ -37,7 +37,7 @@ function InfoField({
   full = false,
   copyable = false,
 }: {
-  label: string;
+  label: React.ReactNode; // 允许 PII 揭示按钮随标签内联
   value?: string | null;
   mono?: boolean;
   full?: boolean;
@@ -121,6 +121,30 @@ export default function SupplierDetailPage() {
   // 业务标签编辑弹窗
   const [tagsModal, setTagsModal] = useState(false);
   const [editTags, setEditTags] = useState<string[]>([]);
+  // PII 明文揭示（等保+密评）：详情默认掩码；点「明文」调 reveal 端点（后端 SensitiveAccessLog 留痕）
+  const [revealedPii, setRevealedPii] = useState<Record<string, string>>({});
+  const [revealingPii, setRevealingPii] = useState<string | null>(null);
+  const toggleRevealPii = async (entity: 'supplier' | 'contact' | 'bankAccount', targetId: string | undefined, field: string) => {
+    const key = `${entity}:${targetId ?? ''}:${field}`;
+    if (revealedPii[key] !== undefined) {
+      setRevealedPii(prev => { const n: Record<string, string> = { ...prev }; delete n[key]; return n; });
+      return;
+    }
+    setRevealingPii(key);
+    try {
+      const r = await revealSupplierField(id, { entity, targetId, field });
+      const v = r.value;
+      if (v) { setRevealedPii(prev => ({ ...prev, [key]: v })); toast.success('已揭示（本次揭示已留审计日志）'); }
+      else toast.error('该字段暂无值');
+    } catch (e: any) { toast.error(e?.message || '揭示失败'); }
+    setRevealingPii(null);
+  };
+  const PiiRevealBtn = ({ entity, targetId, field }: { entity: 'supplier' | 'contact' | 'bankAccount'; targetId?: string; field: string }) => (
+    <button onClick={() => toggleRevealPii(entity, targetId, field)} disabled={revealingPii === `${entity}:${targetId ?? ''}:${field}`}
+      className="neu-btn-xs is-ghost ml-1.5 !px-2 !py-0.5 !text-[10px] shrink-0" title="揭示明文（写入审计日志）">
+      {revealingPii === `${entity}:${targetId ?? ''}:${field}` ? '…' : revealedPii[`${entity}:${targetId ?? ''}:${field}`] !== undefined ? '复原' : '明文'}
+    </button>
+  );
   const [tagsSaving, setTagsSaving] = useState(false);
 
   const [barCollapsed, setBarCollapsed] = useState(false);
@@ -586,8 +610,8 @@ export default function SupplierDetailPage() {
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                 <FieldGroup label="法定代表人" />
                 <InfoField label="姓名" value={supplier.legalPerson} />
-                <InfoField label="身份证号" value={supplier.legalPersonIdCard} mono />
-                <InfoField label="联系电话" value={supplier.legalPersonPhone} mono copyable />
+                <InfoField label={<span className="inline-flex items-center">身份证号<PiiRevealBtn entity="supplier" field="legalPersonIdCard" /></span>} value={revealedPii["supplier::legalPersonIdCard"] ?? supplier.legalPersonIdCard} mono />
+                <InfoField label={<span className="inline-flex items-center">联系电话<PiiRevealBtn entity="supplier" field="legalPersonPhone" /></span>} value={revealedPii["supplier::legalPersonPhone"] ?? supplier.legalPersonPhone} mono />
                 <InfoField label="国别" value={supplier.country} />
 
                 <FieldGroup label="注册与资质" />
@@ -666,7 +690,7 @@ export default function SupplierDetailPage() {
                             <td className="font-semibold text-[var(--foreground)]">{b.accountName}</td>
                             <td className="text-[var(--muted-foreground)]">{b.bankName}</td>
                             <td className="text-[var(--muted-foreground)]">{b.bankBranch || '—'}</td>
-                            <td className="text-[var(--muted-foreground)] font-mono text-xs">{b.accountNo}</td>
+                            <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`bankAccount:${b.id}:accountNo`] ?? b.accountNo}<PiiRevealBtn entity="bankAccount" targetId={b.id} field="accountNo" /></span></td>
                             <td>{b.isDefault ? <StatusBadge tone="green">默认账户</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
                           </tr>
                         ))}
@@ -853,9 +877,9 @@ export default function SupplierDetailPage() {
                       <tr key={c.id}>
                         <td className="font-semibold text-[var(--foreground)]">{c.name}</td>
                         <td className="text-[var(--muted-foreground)]">{c.gender || '—'}</td>
-                        <td className="text-[var(--muted-foreground)] font-mono text-xs">{c.phone}</td>
-                        <td className="text-[var(--muted-foreground)] font-mono text-xs">{c.idCard || '—'}</td>
-                        <td className="text-[var(--muted-foreground)]">{c.email || '—'}</td>
+                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:phone`] ?? c.phone}<PiiRevealBtn entity="contact" targetId={c.id} field="phone" /></span></td>
+                        <td className="text-[var(--muted-foreground)] font-mono text-xs"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:idCard`] ?? c.idCard ?? '—'}{c.idCard ? <PiiRevealBtn entity="contact" targetId={c.id} field="idCard" /> : null}</span></td>
+                        <td className="text-[var(--muted-foreground)]"><span className="inline-flex items-center">{revealedPii[`contact:${c.id}:email`] ?? c.email ?? '—'}{c.email ? <PiiRevealBtn entity="contact" targetId={c.id} field="email" /> : null}</span></td>
                         <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
                         <td className="text-[var(--muted-foreground)]">{(c as any).personnelType || '—'}</td>
                         <td className="text-[var(--muted-foreground)]">{(c as any).certTitle || '—'}</td>

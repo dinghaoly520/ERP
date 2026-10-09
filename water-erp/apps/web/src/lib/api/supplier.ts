@@ -690,3 +690,11 @@ export function approveSupplierChange(id: string) {
 export function rejectSupplierChange(id: string, rejectReason?: string) {
   return api.post(`/supplier/changes/${id}/reject`, { rejectReason: rejectReason ?? '' });
 }
+
+/** PII 明文揭示（等保+密评）：列表/详情默认掩码，明文走此处；后端写 SensitiveAccessLog 审计 */
+export function revealSupplierField(
+  id: string,
+  body: { entity: 'supplier' | 'contact' | 'bankAccount'; targetId?: string; field: string },
+) {
+  return api.post<{ entity: string; targetId: string; field: string; value: string | null }>(`/supplier/${id}/reveal`, body);
+}
