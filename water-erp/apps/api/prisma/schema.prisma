@@ -26,6 +26,7 @@ model Company {
   procurementRounds   ProcurementRound[]
   bidProjects         BidProject[]
   announcements       Announcement[]
+  contacts            Contact[]
 
   @@map("companies")
 }
@@ -43,32 +44,32 @@ model Department {
 }
 
 model User {
-  id             String      @id @default(cuid())
-  username       String
-  displayName    String
-  email          String?
-  phone          String?
-  phoneIdx       String? // 手机号 HMAC-SM3 盲索引（加密后等值占用校验；明文 phone 列存国密密文）
-  officeLocation String?     @map("office_location")
-  company        String? // 展示快照（公司改名不影响历史展示）
-  companyId      String? // 数据隔离依据 → Company 主数据
-  companyRef     Company?    @relation(fields: [companyId], references: [id])
-  avatar         String?
-  passwordHash   String?
+  id                String      @id @default(cuid())
+  username          String
+  displayName       String
+  email             String?
+  phone             String?
+  phoneIdx          String? // 手机号 HMAC-SM3 盲索引（加密后等值占用校验；明文 phone 列存国密密文）
+  officeLocation    String?     @map("office_location")
+  company           String? // 展示快照（公司改名不影响历史展示）
+  companyId         String? // 数据隔离依据 → Company 主数据
+  companyRef        Company?    @relation(fields: [companyId], references: [id])
+  avatar            String?
+  passwordHash      String?
   passwordChangedAt DateTime? // 密码变更时点（R6-5①）：AuthGuard 校验 JWT iat 早于它即 401——重置/改密后全命名空间旧 token 立即失效（token_bid 无 sid 此前不拦，UI 承诺与实现不符）
-  passwordVault  String? // 2026-09-14 admin 密码查看：AES-256-GCM 加密副本（仅供应商账号，改密同步更新；工作人员密码仍仅 bcrypt 哈希）
-  role           String      @default("internal_user")
-  isActive       Boolean     @default(true)
-  webSessionId   String? // 单设备登录（web 2026-08 / supplier 2026-09）：每次登录轮换；JWT 里的 sid 与之不符即拒绝（旧设备被顶下线）。角色↔门户互斥，两门户共用一列
-  sessionMeta    Json? // 会话设备元数据（2026-09-22）：登录/轮换时写入 { deviceClass, uaSummary, ip, at }——主持人工位视图/解锁弹窗展示「当前在线设备」；webSessionId 清空时同步清空
-  isFrozen       Boolean     @default(false) // 管理员冻结：登录拦截（ACCOUNT_FROZEN）+ 守卫即时 401，区别于未激活 isActive=false
-  requestedRole  String?     @map("requested_role") // 注册申请权限：management | office（审批时映射为正式角色）
-  drafts         UserDraft[]
-  departmentName String?     @map("department_name") // 注册时填写的部门（自由文本，仅作申请信息留存）
-  departmentId   String?
-  department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  passwordVault     String? // 2026-09-14 admin 密码查看：AES-256-GCM 加密副本（仅供应商账号，改密同步更新；工作人员密码仍仅 bcrypt 哈希）
+  role              String      @default("internal_user")
+  isActive          Boolean     @default(true)
+  webSessionId      String? // 单设备登录（web 2026-08 / supplier 2026-09）：每次登录轮换；JWT 里的 sid 与之不符即拒绝（旧设备被顶下线）。角色↔门户互斥，两门户共用一列
+  sessionMeta       Json? // 会话设备元数据（2026-09-22）：登录/轮换时写入 { deviceClass, uaSummary, ip, at }——主持人工位视图/解锁弹窗展示「当前在线设备」；webSessionId 清空时同步清空
+  isFrozen          Boolean     @default(false) // 管理员冻结：登录拦截（ACCOUNT_FROZEN）+ 守卫即时 401，区别于未激活 isActive=false
+  requestedRole     String?     @map("requested_role") // 注册申请权限：management | office（审批时映射为正式角色）
+  drafts            UserDraft[]
+  departmentName    String?     @map("department_name") // 注册时填写的部门（自由文本，仅作申请信息留存）
+  departmentId      String?
+  department        Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   supplier               Supplier?
   notifications          Notification[]
@@ -335,7 +336,7 @@ model BidProject {
   ceilingPrice              Decimal?                   @db.Decimal(14, 2) // P1: 最高限价/控制价(逐项目可编辑)
   evaluationMethod          String? // P2: 评标办法 comprehensive|lowest_price|ratio|none
   priceFormulaConfig        Json? // P1: { formulaType, K, penaltyRate, noPenaltyRange }
-  scoreTrimEnabled          Boolean @default(true) // 去极值开关（2026-09-26）：true=≥5 专家去 1 高 1 低后均分（默认/法定实务）；false=全额均分
+  scoreTrimEnabled          Boolean                    @default(true) // 去极值开关（2026-09-26）：true=≥5 专家去 1 高 1 低后均分（默认/法定实务）；false=全额均分
   scope                     String?
   companyId                 String?
   companyName               String? // 写时快照（公司改名不扰历史）
@@ -585,12 +586,12 @@ model BidExpert {
   signedIn                  Boolean                 @default(false)
   // ── 身份核验（2026-09-18 身份核验设计 P1 预置；host 态使用，默认 self 态恒为 null）──
   // spec: docs/superpowers/specs/2026-09-18-expert-identity-verification-design.md §5
-  identityVerified       Boolean   @default(false) // host 态：主持人人证登记结果
-  identityVerifiedAt     DateTime?
-  identityVerifiedBy     String?   // 核验人 userId（主持人/admin）
-  identityVerifiedByName String?   // 核验人姓名快照（签字包证据自含）
-  identityDocType        String?   // 身份证 | 护照 | 其他（不存号码——最小化）
-  identityNote           String?   // 核验备注 / 撤销原因
+  identityVerified          Boolean                 @default(false) // host 态：主持人人证登记结果
+  identityVerifiedAt        DateTime?
+  identityVerifiedBy        String? // 核验人 userId（主持人/admin）
+  identityVerifiedByName    String? // 核验人姓名快照（签字包证据自含）
+  identityDocType           String? // 身份证 | 护照 | 其他（不存号码——最小化）
+  identityNote              String? // 核验备注 / 撤销原因
   avoidanceConfirmed        Boolean                 @default(false)
   aiConsentConfirmed        Boolean                 @default(false)
   aiConsentAt               DateTime?
@@ -1354,52 +1355,52 @@ enum ChangeStatus {
 }
 
 model Supplier {
-  id                 String         @id @default(cuid())
-  userId             String         @unique
-  supplierNo         String         @unique // 供应商编号（SUP-000001，由 PG 序列 supplier_no_seq 生成）
-  name               String
-  normalizedName     String
-  creditCode         String?        @unique
-  subjectCode        String? // A1（B.4.2）：国标交易主体编码（B+统一社会信用代码；无信用代码走 C 类平台赋码）
-  enterpriseType     String
-  legalPerson        String
-  legalPersonIdCard  String? // 法定代表人身份证号（注册必填，存量数据可空；存国密密文）
-  legalPersonPhone   String? // 法人联系电话（存国密密文）
+  id                   String         @id @default(cuid())
+  userId               String         @unique
+  supplierNo           String         @unique // 供应商编号（SUP-000001，由 PG 序列 supplier_no_seq 生成）
+  name                 String
+  normalizedName       String
+  creditCode           String?        @unique
+  subjectCode          String? // A1（B.4.2）：国标交易主体编码（B+统一社会信用代码；无信用代码走 C 类平台赋码）
+  enterpriseType       String
+  legalPerson          String
+  legalPersonIdCard    String? // 法定代表人身份证号（注册必填，存量数据可空；存国密密文）
+  legalPersonPhone     String? // 法人联系电话（存国密密文）
   legalPersonIdCardIdx String? // 法人身份证号 HMAC-SM3 盲索引（加密后等值唯一性校验）
-  registeredAddress  String
-  detailedAddress    String? // 详细地址
-  businessScope      String
+  registeredAddress    String
+  detailedAddress      String? // 详细地址
+  businessScope        String
   // ── 注册 2.0 扩展字段（存量数据可空）──
-  logoUrl            String? // 公司 logo
-  organizationCode   String? // 机构代码
-  country            String? // 国别
-  region             String? // 所属行政区域
-  registeredCapital  String? // 注册资本
-  industry           String? // 所属行业
-  companyEmail       String? // 公司邮箱
-  companyWebsite     String? // 公司官网地址
+  logoUrl              String? // 公司 logo
+  organizationCode     String? // 机构代码
+  country              String? // 国别
+  region               String? // 所属行政区域
+  registeredCapital    String? // 注册资本
+  industry             String? // 所属行业
+  companyEmail         String? // 公司邮箱
+  companyWebsite       String? // 公司官网地址
   // 2026-09-14 供应商按公司分组（账号管理）：归属的 ERP 公司（供应商是该公司的供应商，非全平台共享）
-  companyId          String?
-  companyName        String? // 写时快照（与公告公司口径一致）
-  company            Company?       @relation("SupplierCompany", fields: [companyId], references: [id])
-  status             SupplierStatus @default(PENDING)
-  classificationId   String?
-  rejectReason       String?
-  returnReason       String?
-  disableReason      String? // 停用/拉黑原因（B6：替代 returnReason 的语义错用）
-  eliminatedAt       DateTime? // 淘汰确认时间（B12：非空=经淘汰流程，区分手动停用）
-  sm2PublicKey       String? // @deprecated 2026-09-17（D5）：验签统一 ACTIVE SupplierCert；本列仅 bindCert 回填 + 旧轨验签/存量回执复验回退读
+  companyId            String?
+  companyName          String? // 写时快照（与公告公司口径一致）
+  company              Company?       @relation("SupplierCompany", fields: [companyId], references: [id])
+  status               SupplierStatus @default(PENDING)
+  classificationId     String?
+  rejectReason         String?
+  returnReason         String?
+  disableReason        String? // 停用/拉黑原因（B6：替代 returnReason 的语义错用）
+  eliminatedAt         DateTime? // 淘汰确认时间（B12：非空=经淘汰流程，区分手动停用）
+  sm2PublicKey         String? // @deprecated 2026-09-17（D5）：验签统一 ACTIVE SupplierCert；本列仅 bindCert 回填 + 旧轨验签/存量回执复验回退读
   // ── 临时供应商（凭邀请码注册，有效期由邀请码绑定）──
-  isTemporary        Boolean        @default(false)
-  temporaryExpiresAt DateTime?
-  urgedAt            DateTime? // 催促审核时间（非空=已催过，仅允许一次）
+  isTemporary          Boolean        @default(false)
+  temporaryExpiresAt   DateTime?
+  urgedAt              DateTime? // 催促审核时间（非空=已催过，仅允许一次）
   // 三级注册审批（2026-09-29）：当前待审级 STAFF→LEADER→ADMIN；null=非注册审批流程（已入库/被拒/存量）
-  reviewStage        String?
-  establishedDate    DateTime? // 企业注册成立日期（营业执照登记日期）
-  companyProfile     String? // 企业简介（≤1000 字）
-  tags               String[]       @default([])
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  reviewStage          String?
+  establishedDate      DateTime? // 企业注册成立日期（营业执照登记日期）
+  companyProfile       String? // 企业简介（≤1000 字）
+  tags                 String[]       @default([])
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   user                  User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
   classification        SupplierClassification?      @relation(fields: [classificationId], references: [id])
@@ -1787,8 +1788,8 @@ enum AnnouncementStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
-  HIDDEN   // 2026-09-26 回收站：隐藏（任意状态可入）
-  OFFLINE  // 2026-09-26 回收站：下架（仅已发布可下架）
+  HIDDEN // 2026-09-26 回收站：隐藏（任意状态可入）
+  OFFLINE // 2026-09-26 回收站：下架（仅已发布可下架）
 }
 
 model Announcement {
@@ -2784,33 +2785,33 @@ model Project {
 // ── 采购轮次（台账明细）──
 
 model ProcurementRound {
-  id                   String              @id @default(cuid())
-  projectId            String
-  roundNo              Int
-  procurementDate      DateTime?
-  procurementMethod    String
-  departmentId         String?
-  budgetAmount         Decimal?            @db.Decimal(14, 2)
-  controlAmount        Decimal?            @db.Decimal(14, 2)
-  awardedSupplierId    String?
-  awardAmount          Decimal?            @db.Decimal(14, 2)
-  resultStatus         ResultStatus        @default(PENDING)
-  resultText           String?
-  sourceType           SourceType          @default(MANUAL)
-  supplierText         String?
-  importBatchId        String?
-  isRecycled           Boolean             @default(false)
-  createdById          String?
-  companyId            String?
-  companyName          String? // 写时快照（公司改名不扰历史）
-  company              Company?            @relation(fields: [companyId], references: [id])
-  updatedById          String?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  awardedSupplierName  String?
-  expertInfo           String?
-  biddingUnits         String?
-  terminationReason    String? // 项目终止原因（sourceType=PROJECT_MANAGEMENT 且 resultStatus=CANCELLED 时）
+  id                  String       @id @default(cuid())
+  projectId           String
+  roundNo             Int
+  procurementDate     DateTime?
+  procurementMethod   String
+  departmentId        String?
+  budgetAmount        Decimal?     @db.Decimal(14, 2)
+  controlAmount       Decimal?     @db.Decimal(14, 2)
+  awardedSupplierId   String?
+  awardAmount         Decimal?     @db.Decimal(14, 2)
+  resultStatus        ResultStatus @default(PENDING)
+  resultText          String?
+  sourceType          SourceType   @default(MANUAL)
+  supplierText        String?
+  importBatchId       String?
+  isRecycled          Boolean      @default(false)
+  createdById         String?
+  companyId           String?
+  companyName         String? // 写时快照（公司改名不扰历史）
+  company             Company?     @relation(fields: [companyId], references: [id])
+  updatedById         String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  awardedSupplierName String?
+  expertInfo          String?
+  biddingUnits        String?
+  terminationReason   String? // 项目终止原因（sourceType=PROJECT_MANAGEMENT 且 resultStatus=CANCELLED 时）
 
   // ERP 采购项目关联（可选，桥接两个采购模型）
   procurementProjectId String?
@@ -2849,23 +2850,23 @@ model RoundParticipant {
 // ── 附件（采购中心）──
 
 model Attachment {
-  id                       String                  @id @default(cuid())
+  id                       String                   @id @default(cuid())
   projectId                String?
   procurementRoundId       String?
   attachmentType           AttachmentType
   fileName                 String
-  objectKey                String                  @unique
+  objectKey                String                   @unique
   mimeType                 String
   fileSize                 Int
   uploadedById             String?
-  createdAt                DateTime                @default(now())
+  createdAt                DateTime                 @default(now())
   projectManagementItemId  String?
   projectManagementStageId String?
-  procurementRound         ProcurementRound?       @relation(fields: [procurementRoundId], references: [id])
-  project                  Project?                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectManagementItem    ProjectManagementItem?  @relation("ProjectManagementAttachments", fields: [projectManagementItemId], references: [id])
-  projectManagementStage   ProjectManagementStage? @relation("ProjectManagementStageAttachments", fields: [projectManagementStageId], references: [id])
-  uploadedBy               User?                   @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+  procurementRound         ProcurementRound?        @relation(fields: [procurementRoundId], references: [id])
+  project                  Project?                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectManagementItem    ProjectManagementItem?   @relation("ProjectManagementAttachments", fields: [projectManagementItemId], references: [id])
+  projectManagementStage   ProjectManagementStage?  @relation("ProjectManagementStageAttachments", fields: [projectManagementStageId], references: [id])
+  uploadedBy               User?                    @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
   versions                 AttachmentVersion[]
   archiveMeta              ArchiveMetadata?
   /// 提取文本懒缓存（docx→mammoth / PDF→pdftotext / 扫描件→OCR 一次提取后落库；
@@ -2899,80 +2900,80 @@ model AttachmentVersion {
 // ── 项目管理（全生命周期）──
 
 model ProjectManagementItem {
-  id                          String                      @id @default(cuid())
-  title                       String
-  requesterName               String
-  requesterDepartment         String
-  procurementMethod           String
-  procurementCategory         String
-  procurementOrganizationForm String
-  budgetAmount                Decimal                     @db.Decimal(14, 2)
-  isAnnualBudget              Boolean
-  projectReason               String
-  supplierRequirements        String
-  currentStage                String
-  status                      ProjectManagementStatus     @default(ACTIVE)
-  archivedProcurementRoundId  String?
-  createdAt                   DateTime                    @default(now())
-  updatedAt                   DateTime                    @updatedAt
-  analysisSummary             String?
-  analysisUpdatedAt           DateTime?
-  createdById                 String?
-  companyId                   String?
-  companyName                 String? // 写时快照（公司改名不扰历史）
-  company                     Company?                    @relation(fields: [companyId], references: [id])
-  initiationDate              DateTime?
-  evaluationMethod            String?
-  expertInfo                  String?
-  biddingUnits                String?
-  awardedSupplier             String?
-  contractAmount              Decimal?                    @db.Decimal(14, 2)
+  id                           String                      @id @default(cuid())
+  title                        String
+  requesterName                String
+  requesterDepartment          String
+  procurementMethod            String
+  procurementCategory          String
+  procurementOrganizationForm  String
+  budgetAmount                 Decimal                     @db.Decimal(14, 2)
+  isAnnualBudget               Boolean
+  projectReason                String
+  supplierRequirements         String
+  currentStage                 String
+  status                       ProjectManagementStatus     @default(ACTIVE)
+  archivedProcurementRoundId   String?
+  createdAt                    DateTime                    @default(now())
+  updatedAt                    DateTime                    @updatedAt
+  analysisSummary              String?
+  analysisUpdatedAt            DateTime?
+  createdById                  String?
+  companyId                    String?
+  companyName                  String? // 写时快照（公司改名不扰历史）
+  company                      Company?                    @relation(fields: [companyId], references: [id])
+  initiationDate               DateTime?
+  evaluationMethod             String?
+  expertInfo                   String?
+  biddingUnits                 String?
+  awardedSupplier              String?
+  contractAmount               Decimal?                    @db.Decimal(14, 2)
   // ── B1（GB/T 43711 7.2.1.2 采购方案缺项补全）──
-  implementerName             String? // 采购实施人（授权/委托实施采购的单位/部门，3.2.2）
-  contractPricingType         String? // 合同计价类型（总价/单价/成本加酬金等）
-  sectionPlan                 String? // 标段（标包/份额）划分说明
-  activitySchedule            String? // 采购活动时间安排说明
-  riskMeasures                String? // 风险管控措施
-  gbProjectCode               String? // A1（B.4.3.2）：国标项目编码（18 位组合码，交易平台项目唯一标识）
-  archivedAt                  DateTime?
-  archiveHook                 String?
-  hasProcurementDemand        Boolean                     @default(false)
-  demandRequesterName         String?
-  demandDepartment            String?
-  demandProcurementTitle      String?
-  demandProjectReason         String?
-  demandSupplierReqs          String?
-  demandBudgetAmount          Decimal?                    @db.Decimal(14, 2)
-  demandProcurementCategory   String?
-  demandProcurementMethod     String?
-  demandProject               String?
-  demandContractNumber        String?
-  contractNumber              String?
-  departmentNumber            String?
-  projectCode                 String?                     @unique
-  projectOverview             String?
-  bidOpeningTime              String?
-  documentAcquireTime         String?
-  invitedSuppliers            String?
-  paymentPerformance          String?
-  attachments                 Attachment[]                @relation("ProjectManagementAttachments")
-  createdBy                   User?                       @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  implementerName              String? // 采购实施人（授权/委托实施采购的单位/部门，3.2.2）
+  contractPricingType          String? // 合同计价类型（总价/单价/成本加酬金等）
+  sectionPlan                  String? // 标段（标包/份额）划分说明
+  activitySchedule             String? // 采购活动时间安排说明
+  riskMeasures                 String? // 风险管控措施
+  gbProjectCode                String? // A1（B.4.3.2）：国标项目编码（18 位组合码，交易平台项目唯一标识）
+  archivedAt                   DateTime?
+  archiveHook                  String?
+  hasProcurementDemand         Boolean                     @default(false)
+  demandRequesterName          String?
+  demandDepartment             String?
+  demandProcurementTitle       String?
+  demandProjectReason          String?
+  demandSupplierReqs           String?
+  demandBudgetAmount           Decimal?                    @db.Decimal(14, 2)
+  demandProcurementCategory    String?
+  demandProcurementMethod      String?
+  demandProject                String?
+  demandContractNumber         String?
+  contractNumber               String?
+  departmentNumber             String?
+  projectCode                  String?                     @unique
+  projectOverview              String?
+  bidOpeningTime               String?
+  documentAcquireTime          String?
+  invitedSuppliers             String?
+  paymentPerformance           String?
+  attachments                  Attachment[]                @relation("ProjectManagementAttachments")
+  createdBy                    User?                       @relation("ProjectCreatedBy", fields: [createdById], references: [id])
   // ── 项目终止（2026-09-20）：终止原因 + 终止时点/所在阶段/终止人/资料快照；台账落 CANCELLED 轮次 ──
-  terminationReason           String?
-  terminatedAt                DateTime?
-  terminatedStage             String? // 终止时所在阶段名（快照，展示用）
+  terminationReason            String?
+  terminatedAt                 DateTime?
+  terminatedStage              String? // 终止时所在阶段名（快照，展示用）
   terminatedProcurementRoundId String?
-  terminatedById              String?
-  terminatedBy                User?                    @relation("ProjectTerminatedBy", fields: [terminatedById], references: [id])
-  terminationSnapshot         Json? // 终止时各阶段 + 已上传附件清单快照（不可变留痕，审计用）
-  stages                      ProjectManagementStage[]
-  workArrangements            WorkArrangement[]
-  currentRound                Int                         @default(1) // 当前采购轮次（再次采购递增）
-  bidProjects                 BidProject[]
-  planItems                   ProjectPlanItem[]
-  teamMembers                 ProjectTeamMember[]
-  tenderDraft                 ProjectTenderDraft?
-  tenderDraftVersions         ProjectTenderDraftVersion[]
+  terminatedById               String?
+  terminatedBy                 User?                       @relation("ProjectTerminatedBy", fields: [terminatedById], references: [id])
+  terminationSnapshot          Json? // 终止时各阶段 + 已上传附件清单快照（不可变留痕，审计用）
+  stages                       ProjectManagementStage[]
+  workArrangements             WorkArrangement[]
+  currentRound                 Int                         @default(1) // 当前采购轮次（再次采购递增）
+  bidProjects                  BidProject[]
+  planItems                    ProjectPlanItem[]
+  teamMembers                  ProjectTeamMember[]
+  tenderDraft                  ProjectTenderDraft?
+  tenderDraftVersions          ProjectTenderDraftVersion[]
 
   // ── DA/T 103-2024 归档（一卷单元）──
   retentionPeriod        ArchiveRetentionPeriod? // 保管期限（§9.3：永久/30年/10年）
@@ -3196,16 +3197,16 @@ model ProjectTeamMember {
 }
 
 model ProjectManagementStage {
-  id                      String                @id @default(cuid())
-  projectManagementItemId String
-  stageKey                String
-  stageName               String
-  stageOrder              Int
-  round                   Int                   @default(1)
-  stageCode               String?               @unique // 阶段唯一编号：<项目编号>-<阶段缩写>-R<轮次>，如 SWHI-TP-2026090901-GG-R1
-  status                  ProjectStageStatus    @default(NOT_STARTED)
-  note                    String?
-  completedAt             DateTime?
+  id                         String                @id @default(cuid())
+  projectManagementItemId    String
+  stageKey                   String
+  stageName                  String
+  stageOrder                 Int
+  round                      Int                   @default(1)
+  stageCode                  String?               @unique // 阶段唯一编号：<项目编号>-<阶段缩写>-R<轮次>，如 SWHI-TP-2026090901-GG-R1
+  status                     ProjectStageStatus    @default(NOT_STARTED)
+  note                       String?
+  completedAt                DateTime?
   /// 正式盖章版采购文件指针（2026-09-26 用户裁定：指针即真相——用户标记哪个附件是正式文件
   /// 就认哪个，不限类型）。03 完成强制闸（OFFICIAL_TENDER_REQUIRED，不可豁免）；
   /// 附件被删/被整体替换时 SetNull 自动回空 → 闸门重开须重选
@@ -3213,10 +3214,10 @@ model ProjectManagementStage {
   officialTenderAttachment   Attachment?           @relation("OfficialTenderAttachment", fields: [officialTenderAttachmentId], references: [id], onDelete: SetNull)
   /// 走完「选择正式文件 → 对照确认评分标准」向导、阶段完成落章的时间（留痕）
   officialTenderConfirmedAt  DateTime?
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  attachments             Attachment[]          @relation("ProjectManagementStageAttachments")
-  projectManagementItem   ProjectManagementItem @relation(fields: [projectManagementItemId], references: [id], onDelete: Cascade)
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  attachments                Attachment[]          @relation("ProjectManagementStageAttachments")
+  projectManagementItem      ProjectManagementItem @relation(fields: [projectManagementItemId], references: [id], onDelete: Cascade)
 
   @@unique([projectManagementItemId, stageKey, round])
   @@index([projectManagementItemId, stageOrder])
@@ -3349,37 +3350,37 @@ model WorkArrangementDependency {
 // ── 密码管理 ──
 
 model PasswordChangeRequest {
-  id                    String                      @id @default(cuid())
-  userId                String
-  requestedPasswordHash String
+  id                     String                      @id @default(cuid())
+  userId                 String
+  requestedPasswordHash  String
   requestedPasswordVault String? // admin 密码查看：请求时加密的新密码副本，批准时落 User.passwordVault
-  status                PasswordChangeRequestStatus @default(PENDING)
-  decisionNote          String?
-  requestedAt           DateTime                    @default(now())
-  reviewedAt            DateTime?
-  approvedById          String?
-  approvedBy            User?                       @relation("PasswordChangeRequestApprovedBy", fields: [approvedById], references: [id])
-  user                  User                        @relation("PasswordChangeRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  status                 PasswordChangeRequestStatus @default(PENDING)
+  decisionNote           String?
+  requestedAt            DateTime                    @default(now())
+  reviewedAt             DateTime?
+  approvedById           String?
+  approvedBy             User?                       @relation("PasswordChangeRequestApprovedBy", fields: [approvedById], references: [id])
+  user                   User                        @relation("PasswordChangeRequestUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
   @@index([status, requestedAt])
 }
 
 model PasswordResetRequest {
-  id                    String                      @id @default(cuid())
-  requestedUsername     String
-  applicantName         String
-  applicantContact      String
-  matchedUserId         String?
-  requestedPasswordHash String?
+  id                     String                      @id @default(cuid())
+  requestedUsername      String
+  applicantName          String
+  applicantContact       String
+  matchedUserId          String?
+  requestedPasswordHash  String?
   requestedPasswordVault String? // admin 密码查看：请求时加密的新密码副本，批准时落 User.passwordVault
-  status                PasswordChangeRequestStatus @default(PENDING)
-  decisionNote          String?
-  requestedAt           DateTime                    @default(now())
-  reviewedAt            DateTime?
-  reviewedById          String?
-  matchedUser           User?                       @relation("PasswordResetRequestUser", fields: [matchedUserId], references: [id])
-  reviewedBy            User?                       @relation("PasswordResetRequestReviewedBy", fields: [reviewedById], references: [id])
+  status                 PasswordChangeRequestStatus @default(PENDING)
+  decisionNote           String?
+  requestedAt            DateTime                    @default(now())
+  reviewedAt             DateTime?
+  reviewedById           String?
+  matchedUser            User?                       @relation("PasswordResetRequestUser", fields: [matchedUserId], references: [id])
+  reviewedBy             User?                       @relation("PasswordResetRequestReviewedBy", fields: [reviewedById], references: [id])
 
   @@index([requestedUsername, status])
   @@index([matchedUserId, status])
@@ -3565,14 +3566,20 @@ model TenderFieldSample {
 // ── 外部联系人 ──
 
 model Contact {
-  id        String   @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  // 2026-10-09 公司隔离：联系人按公司维护与可见（编写采购文件/公告只显示本公司联系人，
+  // 不再全平台共享一张表）；companyId=null 为存量未归属行，仅无归属公司账号（admin 管理视角）可见
+  companyId   String?
+  companyName String? // 写时快照（公司改名不扰历史）
+  company     Company? @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([name])
+  @@index([companyId])
 }
 
 // ── 标书版本历史 ──
@@ -3717,8 +3724,8 @@ model SupplierCert {
   boundAt           DateTime  @default(now())
   revokedAt         DateTime?
   // ── X.509 真证书轨（阶段1，2026-09-28）：DER 唯一事实源落库 ──
-  rawCert           String?   // DER base64 原文（null=存量/伪证书，mock 轨兼容）
-  issuerDn          String?   // 颁发者 DN（链校验/审计）
+  rawCert           String? // DER base64 原文（null=存量/伪证书，mock 轨兼容）
+  issuerDn          String? // 颁发者 DN（链校验/审计）
   certSource        String    @default("mock") // mock=声明式轨 | x509=DER 解析轨
   supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
