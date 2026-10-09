@@ -50,7 +50,10 @@ export const ROLE_PORTAL: Record<string, AppName> = {
 export function notificationWsUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, '');
   if (process.env.NODE_ENV === 'production') return `${window.location.origin}/api/notifications`;
-  return 'http://localhost:4001/notifications';
+  // 开发=直连 API 端口，按当前访问主机推导（localhost 本机 / 局域网 IP 自适应）——
+  // 硬编码 localhost 会让 LAN 设备连到客户端自己（2026-10-09 局域网缺口）。
+  if (typeof window === 'undefined') return `http://localhost:${PORTS.api}/notifications`;
+  return `${window.location.protocol}//${window.location.hostname}:${PORTS.api}/notifications`;
 }
 
 /** 获取指定角色登陆后应跳转的完整门户 URL */

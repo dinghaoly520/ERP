@@ -50,11 +50,14 @@ describe('TimelineService（B3 A-204）', () => {
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
     // BP.deadline 未登记但有开标时间 → 投标截止按「开标前 24 小时」自动推算，不再显示未登记
     expect(nodes.filter(n => n.time).map(n => n.key)).toEqual(['initiation', 'bidDeadline', 'bidOpening']);
-    // Prisma 裸值时间经 toIsoFromBare 按"本地时刻"输出——前端 new Date() 解析后应回到裸值日期
-    const initiationLocal = new Date(nodes.find(n => n.key === 'initiation')!.time!);
-    expect(`${initiationLocal.getFullYear()}-${initiationLocal.getMonth() + 1}-${initiationLocal.getDate()}`).toBe('2026-7-1');
+    // Prisma DateTime 为 instant 锚定（timestamp without tz 由驱动按 UTC 读写）——
+    // 时间轴 ISO 输出必须恒等。此前 toIsoFromBare 按「DB 裸值=本地时刻」假设 −8h 补偿，
+    // 与写侧本地构造口径双重折算：立项 2026-10-08 显示成 10-07 16:00（2026-10-09 实录）
+    expect(nodes.find(n => n.key === 'initiation')!.time).toBe('2026-07-01T00:00:00.000Z');
+    // 字符串开标时间按本地语义解析（10:00 本地）——本地渲染往返恒为 10 点，跨时区 runner 皆成立
     const openingLocal = new Date(nodes.find(n => n.key === 'bidOpening')!.time!);
     expect(`${openingLocal.getFullYear()}-${openingLocal.getMonth() + 1}-${openingLocal.getDate()}`).toBe('2026-8-2');
+    expect(openingLocal.getHours()).toBe(10);
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe('按开标时间推算（前24小时）');
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - 24 * 3600 * 1000).getTime());
@@ -70,8 +73,9 @@ describe('TimelineService（B3 A-204）', () => {
     );
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
     const init = nodes.find(n => n.key === 'initiation')!;
-    expect(init.time).toBeTruthy();
+    expect(init.time).toBe('2026-09-07T02:00:00.000Z'); // 建档时刻 instant 恒等输出
     expect(init.source).toBe('项目建档');
+    expect(nodes.find(n => n.key === 'archived')!.time).toBe('2026-09-07T06:00:00.000Z');
     const sign = nodes.find(n => n.key === 'contractSign')!;
     expect(sign.time).toBeTruthy();
     expect(sign.source).toBe('合同阶段完成');
