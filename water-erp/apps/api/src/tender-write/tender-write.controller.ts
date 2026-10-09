@@ -16,6 +16,7 @@ import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDt
 import { ImportAutofillDto } from './import-autofill.dto';
 import { TenderWriteService } from './tender-write.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Roles('leader', 'admin', 'staff')
 @Controller('tender-write')
@@ -23,8 +24,15 @@ export class TenderWriteController {
   constructor(private readonly tenderWriteService: TenderWriteService) {}
 
   @Post('export')
-  async export(@Body() dto: ExportTenderWriteDto, @Res() res: Response) {
-    const { buffer, fileName } = await this.tenderWriteService.exportDocument(dto);
+  async export(
+    @Body() dto: ExportTenderWriteDto,
+    @CurrentUser() user: { sub?: string },
+    @Res() res: Response,
+  ) {
+    const { buffer, fileName } = await this.tenderWriteService.exportDocument(
+      dto,
+      user,
+    );
     res.setHeader(
       'Content-Disposition',
       `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
@@ -39,10 +47,13 @@ export class TenderWriteController {
   @Post('export-announcement')
   async exportAnnouncement(
     @Body() dto: ExportAnnouncementDto,
+    @CurrentUser() user: { sub?: string },
     @Res() res: Response,
   ) {
-    const { buffer, fileName } =
-      await this.tenderWriteService.exportAnnouncement(dto);
+    const { buffer, fileName } = await this.tenderWriteService.exportAnnouncement(
+      dto,
+      user,
+    );
     res.setHeader(
       'Content-Disposition',
       `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
@@ -56,9 +67,12 @@ export class TenderWriteController {
 
   /** 生成公告 docx + 全文文本（供项目管理公告发布向导：正文取全文、docx 上传到阶段） */
   @Post('build-announcement')
-  async buildAnnouncement(@Body() dto: ExportAnnouncementDto) {
+  async buildAnnouncement(
+    @Body() dto: ExportAnnouncementDto,
+    @CurrentUser() user: { sub?: string },
+  ) {
     const { buffer, fileName, textContent } =
-      await this.tenderWriteService.buildAnnouncementWithContent(dto);
+      await this.tenderWriteService.buildAnnouncementWithContent(dto, user);
     return {
       bufferBase64: buffer.toString('base64'),
       fileName,
@@ -68,8 +82,14 @@ export class TenderWriteController {
 
   /** 生成《直接采购备案表》docx（附件6）：供 09 备案表编写弹窗渲染并上传到阶段 */
   @Post('build-direct-filing')
-  async buildDirectFiling(@Body() dto: ExportDirectFilingDto) {
-    const { buffer, fileName } = await this.tenderWriteService.buildDirectFiling(dto);
+  async buildDirectFiling(
+    @Body() dto: ExportDirectFilingDto,
+    @CurrentUser() user: { sub?: string },
+  ) {
+    const { buffer, fileName } = await this.tenderWriteService.buildDirectFiling(
+      dto,
+      user,
+    );
     return {
       bufferBase64: buffer.toString('base64'),
       fileName,
@@ -146,10 +166,11 @@ export class TenderWriteController {
   @Post('export-notification')
   async exportNotification(
     @Body() dto: ExportNotificationLetterDto,
+    @CurrentUser() user: { sub?: string },
     @Res() res: Response,
   ) {
     const { buffer, fileName } =
-      await this.tenderWriteService.exportNotificationLetter(dto);
+      await this.tenderWriteService.exportNotificationLetter(dto, user);
     res.setHeader(
       'Content-Disposition',
       `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
@@ -164,6 +185,7 @@ export class TenderWriteController {
   @Post('export-notification-ledger')
   async exportNotificationLedger(
     @Body() dto: ExportNotificationLetterDto,
+    @CurrentUser() user: { sub?: string },
     @Res() res: Response,
   ) {
     const { buffer, fileName } =
