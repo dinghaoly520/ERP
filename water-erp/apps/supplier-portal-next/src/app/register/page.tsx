@@ -62,7 +62,11 @@ function MultiFiles({ value, onChange, label = "上传附件", credentials, onPr
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
-  useEffect(() => () => { Object.values(localPreviews).forEach((u) => URL.revokeObjectURL(u)); }, [localPreviews]);
+  // 稳健性（2026-10-09 复查）：cleanup 挂整个 map 会在每次新增上传时把仍在引用的旧预览
+  // URL 一并 revoke（先前附件预览点开白图）。改为 ref 快照 + 卸载统一回收；移除条目即时回收。
+  const previewsRef = useRef(localPreviews);
+  previewsRef.current = localPreviews;
+  useEffect(() => () => { Object.values(previewsRef.current).forEach((u) => URL.revokeObjectURL(u)); }, []);
 
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -93,7 +97,17 @@ function MultiFiles({ value, onChange, label = "上传附件", credentials, onPr
               <Eye size={11} />
             </button>
           )}
-          <button type="button" className="reg-file-x" aria-label="移除附件" onClick={() => onChange(value.filter((_, j) => j !== i))}>
+          <button type="button" className="reg-file-x" aria-label="移除附件" onClick={() => {
+            const removedUrl = value[i].url;
+            onChange(value.filter((_, j) => j !== i));
+            setLocalPreviews((m) => {
+              if (!m[removedUrl]) return m;
+              const next = { ...m };
+              URL.revokeObjectURL(next[removedUrl]);
+              delete next[removedUrl];
+              return next;
+            });
+          }}>
             <X size={11} />
           </button>
         </span>
@@ -793,7 +807,7 @@ export default function RegisterPage() {
                           const dot = v.indexOf(".");
                           if (dot >= 0) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
                           const [i, d] = v.split(".");
-                          v = (i ?? "").slice(0, 12) + (d !== undefined ? "." + d.slice(0, 2) : "");
+                          v = (i ?? "").replace(/^0+(?=\d)/, "").slice(0, 12) + (d !== undefined ? "." + d.slice(0, 2) : "");
                           setBasic((b) => ({ ...b, registeredCapital: v }));
                         }} />
                       {basic.registeredCapital && /^\d+(\.\d{1,2})?$/.test(basic.registeredCapital) && Number(basic.registeredCapital) > 0 && (
