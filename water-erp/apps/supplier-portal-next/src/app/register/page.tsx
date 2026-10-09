@@ -931,7 +931,7 @@ export default function RegisterPage() {
               <section className="reg-block">
                 <div className="reg-block-head">
                   <h2 className="reg-block-title">银行账户信息</h2>
-                  <span className="reg-hint">选填；填写则户名/开户银行/账号必填</span>
+                  <span className="reg-hint">选填；填写账户名/开户银行/账号必填</span>
                   <button type="button" className="reg-btn reg-btn--ghost-sm"
                     onClick={() => setBanks((bs) => [...bs, { accountName: basic.name, bankName: "", bankBranch: "", accountNo: "", isDefault: bs.length === 0 }])}>
                     <Plus size={13} />添加账户
