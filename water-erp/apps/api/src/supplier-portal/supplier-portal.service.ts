@@ -20,7 +20,7 @@ import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { sealChangeValue, openChangeValue } from '../supplier/change-record-pii';
-import { openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
+import { openPii, openPiiForMask, sealPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
 import { TrustStore } from '../common/crypto/x509/trust-store';
@@ -1007,10 +1007,12 @@ export class SupplierPortalService {
   // Contacts
 
   async listContacts(supplierId: string) {
-    return this.prisma.supplierContact.findMany({
+    const rows = await this.prisma.supplierContact.findMany({
       where: { supplierId },
       orderBy: { isPrimary: 'desc' },
     });
+    // 本人自视明文（等保+密评）：PII 密文列拆封
+    return rows.map(c => ({ ...c, phone: openPii(c.phone), idCard: openPii(c.idCard), email: openPii(c.email) }));
   }
 
   /** B3-2（2026-09-30）：临时供应商资料维护守卫——资料补全须走工作台「转为正式供应商」
@@ -1031,18 +1033,21 @@ export class SupplierPortalService {
 
   async addContact(supplierId: string, dto: CreateContactDto) {
     await this.assertNotTemporary(supplierId); // B3-2
-    return this.prisma.supplierContact.create({
+    // PII 国密密封 + 盲索引（等保+密评）；返回本人自视明文
+    const created = await this.prisma.supplierContact.create({
       data: {
         supplierId,
         name: dto.name,
-        phone: dto.phone,
-        email: dto.email,
+        phone: sealPii(dto.phone) as string,
+        email: sealPii(dto.email) ?? null,
         isPrimary: dto.isPrimary,
         position: dto.position,
         gender: dto.gender,        // B4-2：维护端补写（完整度 +2）
-        idCard: dto.idCard,        // B4-2：维护端补写（完整度 +2）
+        idCard: sealPii(dto.idCard) ?? null,        // B4-2：维护端补写（完整度 +2）
+        idCardIdx: blindIndexPii(dto.idCard) ?? null,
       },
     });
+    return { ...created, phone: dto.phone, email: dto.email, idCard: dto.idCard ?? null };
   }
 
   async updateContact(supplierId: string, contactId: string, dto: Partial<CreateContactDto>) {
@@ -1051,18 +1056,20 @@ export class SupplierPortalService {
     if (!contact || contact.supplierId !== supplierId) {
       throw new BadRequestException({ error: '联系人不存在', code: 'NOT_FOUND' });
     }
-    return this.prisma.supplierContact.update({
+    const updated = await this.prisma.supplierContact.update({
       where: { id: contactId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.email !== undefined && { email: dto.email }),
+        ...(dto.phone !== undefined && { phone: sealPii(dto.phone) as string }),      // PII 国密密封
+        ...(dto.email !== undefined && { email: sealPii(dto.email) ?? null }),
         ...(dto.isPrimary !== undefined && { isPrimary: dto.isPrimary }),
         ...(dto.position !== undefined && { position: dto.position }),
         ...(dto.gender !== undefined && { gender: dto.gender }),      // B4-2
-        ...(dto.idCard !== undefined && { idCard: dto.idCard }),      // B4-2
+        ...(dto.idCard !== undefined && { idCard: sealPii(dto.idCard) ?? null, idCardIdx: dto.idCard ? blindIndexPii(dto.idCard) : null }),      // B4-2：密封+盲索引同步
       },
     });
+    // 本人自视明文回显
+    return { ...updated, phone: openPii(updated.phone), email: openPii(updated.email), idCard: openPii(updated.idCard) };
   }
 
   async deleteContact(supplierId: string, contactId: string) {
