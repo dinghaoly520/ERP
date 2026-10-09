@@ -83,3 +83,16 @@
 - Node/OpenSSL 各发行版 SM4 支持差异：本机与 CI 镜像已验证 `sm4-cbc`/`sm3`/HMAC-SM3 可用；若生产镜像缺 SM4（罕见，OpenSSL 1.1.1+ 标配），启动守卫会在自检时暴露
 - git 历史仍含旧真实 PII（`ExpertProfile.json`）——本轮不重写历史；如需彻底清除另行裁定
 - 密钥丢失 = 数据不可恢复（无迁移路径），`FIELD_ENC_SECRET` 必须纳入密钥备份策略（与 `ADMIN_KEYSTORE_DIR` 同级要求）
+
+## 落地记录（2026-10-09 实施，分支 feat/gm-field-encryption）
+
+全部落地，验证基线：单测 2513 绿 / e2e 154 绿 / tsc·lint 零错 / nest start 冒烟 200 / 种子重建后库内全密文（明文残留 0、盲索引齐回填）。
+
+实施补充（设计时未细化、落地时定型）：
+
+- **openPiiForMask**：出口掩码链路专用宽容拆封（密封→拆封、明文→直通不抛错）；单行脏数据不 500 整列表。功能性解密（本人自视/揭示/通知取号）保持严格 openPii——密钥错/篡改必须 fail-loud。
+- **变更申请载荷**（`change-record-pii.ts`）：oldValue/newValue 密封落库，本人自视拆封、管理端掩码；bankAccounts/convertToRegular 聚合 JSON 只处理其中的 PII 键。
+- **编辑表单防掩码回写**：专家编辑弹窗 PII 四字段不预填（详情值是掩码），留空=保持不变（后端 undefined 跳过）。
+- **RSVP 催促接线**（收编并行会话改动）：列表 phone 出口掩码 + 前端逐行「明文」按钮（走 reveal 端点留痕）。
+- **e2e setup** 显式 `SMS_DEBUG_BYPASS`（测试自洽，不依赖本机 .env 状态）。
+- 已知遗留：① git 历史仍含旧真实 PII 快照（不回改，如需另行裁定）；② 密钥丢失=数据不可恢复，`FIELD_ENC_SECRET` 须纳入密钥备份（与 ADMIN_KEYSTORE_DIR 同级）；③ 轮转任务（FIELD_ENC_SECRET_OLD 批量翻新）接口已留未实现。
