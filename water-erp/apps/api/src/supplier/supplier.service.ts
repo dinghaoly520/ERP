@@ -858,8 +858,14 @@ export class SupplierService {
     // 与 myPendingReviewCount/assertStageApprover 同口径）：raw 路径按 __delegatedExpand 标记翻译 SQL，
     // ORM 路径在查询前展开并剥离标记（标记不得泄入 Prisma 参数）。
     const delegatedExpand = params.actor?.role === 'admin' && params.reviewStage === 'ADMIN';
-    if (params.reviewStage && !delegatedExpand) where.reviewStage = params.reviewStage;
-    if (delegatedExpand) (where as any).__delegatedExpand = true;
+    // leader 查 LEADER 级时带上本公司 STAFF 级代初审件（2026-10-09）：公司无在编 staff 时
+    // leader 代初审——权限/通知/角标均已达成，唯列表不可见（角标有数、列表却空）。
+    // 前提：公司域已注入（where.companyId 非空），否则不展开——无归属 leader 不得拖全库 STAFF 件。
+    const leaderExpand = params.actor?.role === 'leader' && params.reviewStage === 'LEADER'
+      && !!where.companyId && !(await this.companyHasActiveRole('staff', where.companyId));
+    if (params.reviewStage && !delegatedExpand && !leaderExpand) where.reviewStage = params.reviewStage;
+    if (delegatedExpand) (where as any).__delegatedExpand = true; // raw 路径翻译为 SQL；ORM 路径在查询前展开并剥离
+    if (leaderExpand) (where as any).__leaderExpand = true; // 同上（两级 OR）
     // 退回补正/已驳回可见性（2026-09-30 用户裁定）：admin 全见；同公司 leader（公司管理员）全见
     // （公司域由 companyScope 已注入）；同公司 staff 仅见自己经手的（退回/驳回动作 reviewer=本人）。
     if (
@@ -886,10 +892,11 @@ export class SupplierService {
     if (sortMode === 'completeness') {
       const res = await this.listByCompleteness(where, { page, pageSize });
       if (delegatedExpand) this.markDelegatedReview(res.items);
+      else if (leaderExpand) this.markDelegatedReview(res.items, ['STAFF']);
       return res;
     }
 
-    // admin 代复审展开（A 方案）：__delegatedExpand 标记 → ORM where 的 AND/OR 结构
+    // 代审展开（A 方案）：内部标记 → ORM where 的 AND/OR 结构
     const ormWhere: any = where;
     if ((where as any).__delegatedExpand) {
       delete ormWhere.__delegatedExpand;
@@ -900,6 +907,13 @@ export class SupplierService {
           { reviewStage: 'LEADER', OR: [{ companyId: null }, { company: { users: { none: { role: 'leader', isActive: true } } } }] },
           { reviewStage: 'STAFF', OR: [{ companyId: null }, { company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } }] },
         ],
+      }];
+    } else if ((where as any).__leaderExpand) {
+      // leader 代初审展开（2026-10-09）：LEADER（本职）OR STAFF（本公司无 staff 的代审件）；
+      // 公司域由 companyScope 注入的 where.companyId 限定
+      delete ormWhere.__leaderExpand;
+      ormWhere.AND = [...(Array.isArray(where.AND) ? where.AND : []), {
+        OR: [{ reviewStage: 'LEADER' }, { reviewStage: 'STAFF' }],
       }];
     }
 
@@ -926,16 +940,18 @@ export class SupplierService {
     // 批量附平均评分
     await this.attachAvgScores(items);
     if (delegatedExpand) this.markDelegatedReview(items);
+    else if (leaderExpand) this.markDelegatedReview(items, ['STAFF']);
 
     return { total, page, pageSize, items };
   }
 
-  /** admin 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿）：展开查询（ADMIN 级 OR
-   *  无 leader 公司的 LEADER 级 OR 无 staff 无 leader 公司的 STAFF 级）结果中的 LEADER/STAFF
-   *  级项即代审件——where 已限定公司无对应级审批人，前端据此亮「待我审」。 */
-  private markDelegatedReview(items: any[]) {
+  /** 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿/leader 代初审）：
+   *  admin 展开（ADMIN 级 OR 无 leader 公司的 LEADER 级 OR 无 staff 无 leader 公司的 STAFF 级）
+   *  命中的 LEADER/STAFF 级项即代审件；leader 展开（LEADER OR 本公司 STAFF）仅 STAFF 级为代审——
+   *  where 已限定前提，前端据此亮「待我审」。 */
+  private markDelegatedReview(items: any[], stages: string[] = ['LEADER', 'STAFF']) {
     for (const it of items) {
-      if (it.reviewStage === 'LEADER' || it.reviewStage === 'STAFF') it.delegatedReview = true;
+      if (stages.includes(it.reviewStage)) it.delegatedReview = true;
     }
   }
 
@@ -970,6 +986,11 @@ export class SupplierService {
       // （admin 代初审），与 list() ORM 路径同口径；User.role 为 text 列无需枚举 cast。
       if ((where as any).__delegatedExpand) {
         conditions.push(Prisma.sql`(s."reviewStage" = 'ADMIN' OR (s."reviewStage" = 'LEADER' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."role" = 'leader' AND u."isActive" = TRUE)) OR (s."reviewStage" = 'STAFF' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."companyId" = s."companyId" AND u."isActive" = TRUE AND (u."role" = 'staff' OR u."role" = 'leader'))))`);
+      }
+      // leader 代初审展开（2026-10-09）：LEADER（本职）OR STAFF（本公司无 staff 的代审件）；
+      // 公司域由 where.companyId 翻译的既有条件限定，无需重复判 staff
+      if ((where as any).__leaderExpand) {
+        conditions.push(Prisma.sql`(s."reviewStage" = 'LEADER' OR s."reviewStage" = 'STAFF')`);
       }
       // admin 对退回/驳回不可见（同 ORM 口径）：恒空条件
       if (where.id && Array.isArray(where.id.in) && where.id.in.length === 0) {

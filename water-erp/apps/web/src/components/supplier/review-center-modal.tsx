@@ -24,6 +24,7 @@ import {
 } from '@/lib/api/supplier';
 import { BusinessTagReview } from './business-tag-review';
 import { ApprovalHistoryModal } from './approval-history-modal';
+import { FilePreviewModal, type FilePreviewTarget } from './file-preview-modal';
 import { CompanySectionHeader, buildCompanyCounts, NO_COMPANY } from '@/components/company/company-tag';
 import { SupplierPasswordResetPanel } from './password-reset-panel';
 import { ChangeReviewPanel } from './change-review-panel';
@@ -34,9 +35,10 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 
 type SupplierWithParts = Supplier & {
   contacts?: Array<{ id: string; name: string; phone: string; position?: string | null; isPrimary?: boolean }>;
-  qualifications?: Array<{ id: string; type: string; name: string; fileUrl?: string | null; validFrom?: string | null; validTo?: string | null }>;
-  /** admin 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿）：后端展开查询（ADMIN 级
-   *  OR 无 leader 公司的 LEADER 级 OR 无 staff 无 leader 公司的 STAFF 级）时对 LEADER/STAFF 级项落标 */
+  qualifications?: Array<{ id: string; type: string; name: string; fileUrl?: string | null; validFrom?: string | null; validTo?: string | null; attachments?: Array<{ name?: string; url: string } | null> | null }>;
+  /** 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿 + leader 代初审）：后端展开查询时
+   *  落标——admin 展开（ADMIN 级 OR 无 leader 公司的 LEADER 级 OR 无办公账号公司的 STAFF 级）对
+   *  LEADER/STAFF 级落标；leader 展开（LEADER 级 OR 本公司无 staff 的 STAFF 级）仅对 STAFF 级落标 */
   delegatedReview?: boolean;
 };
 
@@ -55,6 +57,8 @@ const PAGE_SIZE = 8;
 
 export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [panel, setPanel] = useState<'registration' | 'changes'>('registration');
+  // 文件窗口预览（2026-10-09）：查看文件/附件不再新开标签页
+  const [filePreview, setFilePreview] = useState<FilePreviewTarget>(null);
   // 通知直达预选（2026-09-30）：event detail supplierId → sessionStorage → 打开时预选该供应商
   const [preselectId, setPreselectId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -132,6 +136,9 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
 
       {/* 审核历史窗口（admin，全流程记录） */}
       {myRole === 'admin' && <ApprovalHistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />}
+
+      {/* 文件窗口预览（2026-10-09）：查看文件/附件在弹窗内渲染，不再新开标签页 */}
+      <FilePreviewModal target={filePreview} onClose={() => setFilePreview(null)} />
     </Modal>
   );
 }
@@ -260,13 +267,14 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   /** 严格本级判定（2026-09-30 用户裁定）：「待我审」标记与操作区只对我本人的级亮起——
    *  admin=终审(ADMIN)、leader=复审(LEADER)、staff=初审(STAFF)。
    *  代审兜底（公司无 staff/leader）由后端 assertStageApprover 放行，前端不预亮，防错位标记——
-   *  例外（2026-10-08 A 方案；2026-10-09 扩 STAFF 孤儿）：admin 对代审件亮起（无 leader 公司
-   *  的 LEADER 级=代复审、无办公账号公司的 STAFF 级=代初审），依据后端 delegatedReview
-   *  标记（列表/角标已同口径展开），对齐「能审就可见」。 */
+   *  例外一（2026-10-08 A 方案；扩 STAFF 孤儿）：admin 对代审件亮起（无 leader 公司的
+   *  LEADER 级=代复审、无办公账号公司的 STAFF 级=代初审）；例外二（2026-10-09 用户报告）：
+   *  leader 对本公司 STAFF 代审件亮起（公司无在编 staff 时 leader 代初审）。均依据后端
+   *  delegatedReview 标记（列表/角标已同口径展开），对齐「能审就可见」。 */
   const isMyStage = (s: Supplier): boolean => {
     const st = (s.reviewStage ?? 'STAFF') as string;
     if (myRole === 'admin') return st === 'ADMIN' || !!(s as SupplierWithParts).delegatedReview;
-    if (myRole === 'leader') return st === 'LEADER';
+    if (myRole === 'leader') return st === 'LEADER' || (st === 'STAFF' && !!(s as SupplierWithParts).delegatedReview);
     if (myRole === 'staff') return st === 'STAFF';
     return false;
   };
@@ -372,7 +380,9 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                     {meta && (
                       <span className="rc-stage-chip" style={{ '--rc-accent': meta.color } as React.CSSProperties}
                         title={(s as SupplierWithParts).delegatedReview
-                          ? (st === 'STAFF' ? '归属公司无在编办公账号，平台 admin 代初审' : '归属公司无在编 leader，平台 admin 代复审')
+                          ? (st === 'STAFF'
+                            ? (myRole === 'leader' ? '归属公司无在编 staff，由您（同公司 leader）代初审' : '归属公司无在编办公账号，平台 admin 代初审')
+                            : '归属公司无在编 leader，平台 admin 代复审')
                           : undefined}>
                         {(s as SupplierWithParts).delegatedReview ? (st === 'STAFF' ? '初审·代审' : '复审·代审') : meta.short}
                       </span>
@@ -482,12 +492,13 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                             {rec && (attachments[rec.id] ?? []).length > 0 && (
                               <div className="mt-1 flex flex-wrap gap-1.5">
                                 {attachments[rec.id].map(att => (
-                                  <a key={att.id} href={`/api/upload/files/${att.id}`} target="_blank" rel="noreferrer"
+                                  <button key={att.id} type="button"
+                                    onClick={() => setFilePreview({ src: `/api/upload/files/${att.id}`, name: att.name })}
                                     className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold text-[var(--accent)] hover:underline"
                                     style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 2px oklch(0.55 0.03 258 / 0.07)' }}
-                                    title={`${att.name} · ${(att.size / 1024).toFixed(0)}KB · 点击查看附件内容`}>
+                                    title={`${att.name} · ${(att.size / 1024).toFixed(0)}KB · 窗口预览附件内容`}>
                                     <Paperclip size={10} />{att.name}
-                                  </a>
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -547,7 +558,19 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                                 {q.validFrom ? new Date(q.validFrom).toLocaleDateString('zh-CN') : ''} ~ {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '长期'}
                               </span>
                             )}
-                            {q.fileUrl && <a href={q.fileUrl} target="_blank" rel="noreferrer" className="font-bold text-[var(--accent)] hover:underline">查看文件</a>}
+                            {q.fileUrl && (
+                              <button type="button" onClick={() => setFilePreview({ src: q.fileUrl!, name: q.name })}
+                                className="font-bold text-[var(--accent)] hover:underline" title="窗口预览">查看文件</button>
+                            )}
+                            {(q.attachments ?? []).filter((a) => a?.url).map((a, ai) => (
+                              <button key={`${q.id}-att-${ai}`} type="button"
+                                onClick={() => setFilePreview({ src: a.url, name: a.name || `${q.name}·附加材料${ai + 1}` })}
+                                className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-px font-bold text-[var(--accent)] hover:underline"
+                                style={{ background: 'oklch(1 0 0 / 0.55)' }}
+                                title="窗口预览附加材料">
+                                <Paperclip size={10} />{a.name || `附加材料${ai + 1}`}
+                              </button>
+                            ))}
                           </div>
                         ))}
                       </div>

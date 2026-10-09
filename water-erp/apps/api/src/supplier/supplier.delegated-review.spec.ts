@@ -210,3 +210,79 @@ describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的
     }));
   });
 });
+
+/** leader 的 STAFF 代审件（2026-10-09 用户报告）：公司有 leader 无 staff 时 STAFF 级归 leader
+ *  代初审——权限（assertStageApprover）/通知（resolveStageApprovers）/角标（myPendingReviewCount
+ *  leader 分支已含）均已达成，唯审批中心列表（scopedStage 硬编码 LEADER + list 严格标量）不可见：
+ *  角标有待审数、点开列表却空。锁定 list() 的 leader 展开口径。 */
+describe('SupplierService.list — leader 查 LEADER 级时带上本公司 STAFF 代审件', () => {
+  let service: SupplierService;
+  let prisma: any;
+  let companyScope: any;
+
+  const ACTOR_LEADER = { sub: 'leader-1', role: 'leader', username: 'Swhi-CGZX-01' };
+
+  beforeEach(async () => {
+    companyScope = {
+      resolveScope: jest.fn().mockResolvedValue({ all: false }),
+      filter: jest.fn().mockReturnValue({ companyId: 'co-1' }), // leader 公司域注入
+    };
+    prisma = {
+      supplier: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+      supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]) },
+      user: { findUnique: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: CompanyScopeService, useValue: companyScope },
+        SupplierService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: {} },
+        { provide: 'REDIS_CLIENT', useValue: {} },
+        { provide: LlmService, useValue: {} },
+        { provide: VerificationService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(SupplierService);
+  });
+
+  it('本公司无 staff：展开为 LEADER OR STAFF，STAFF 项落 delegatedReview（角标/列表口径对齐）', async () => {
+    prisma.user.count.mockResolvedValue(0); // companyHasActiveRole('staff','co-1') = false
+    prisma.supplier.findMany.mockResolvedValue([
+      { id: 'l1', reviewStage: 'LEADER', status: 'PENDING' },
+      { id: 's1', reviewStage: 'STAFF', status: 'PENDING' },
+    ]);
+    const res = await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any, sort: 'createdAt' });
+
+    const where = prisma.supplier.count.mock.calls[0][0].where;
+    expect(where.companyId).toBe('co-1');
+    expect(where.reviewStage).toBeUndefined();
+    expect(where.AND?.[0]?.OR).toEqual([{ reviewStage: 'LEADER' }, { reviewStage: 'STAFF' }]);
+    expect(res.items.find((i: any) => i.id === 'l1').delegatedReview).toBeUndefined(); // 复审是本职
+    expect(res.items.find((i: any) => i.id === 's1').delegatedReview).toBe(true);      // 代初审件
+  });
+
+  it('本公司有 staff：不展开（严格 LEADER——初审归同公司 staff）', async () => {
+    prisma.user.count.mockResolvedValue(1); // 有在编 staff
+    await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any, sort: 'createdAt' });
+    const where = prisma.supplier.count.mock.calls[0][0].where;
+    expect(where.reviewStage).toBe('LEADER');
+    expect(where.AND).toBeUndefined();
+  });
+
+  it('leader 无公司域（companyId 未注入）：不展开——防无归属 leader 拖全库 STAFF 件', async () => {
+    companyScope.filter.mockReturnValue({}); // 无公司域
+    await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any, sort: 'createdAt' });
+    const where = prisma.supplier.count.mock.calls[0][0].where;
+    expect(where.reviewStage).toBe('LEADER');
+    expect(where.AND).toBeUndefined();
+  });
+
+  it('completeness 默认路径（raw SQL）翻译为两级 OR 条件', async () => {
+    await service.list({ reviewStage: 'LEADER', actor: ACTOR_LEADER as any }); // sort 缺省 completeness
+    const sql = JSON.stringify(prisma.$queryRaw.mock.calls[0][1]);
+    expect(sql).toContain(`= 'LEADER' OR s.`);
+    expect(sql).toContain(`= 'STAFF'`);
+  });
+});
