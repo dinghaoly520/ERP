@@ -8,15 +8,20 @@ import { apiFetch } from "@/lib/api/api-fetch";
 /* ═══════════════════════════════════════════════════════════════
    单位管理弹窗（D4 · CTS A-205~A-207 裁剪）——内部单位主数据维护 + 业绩视图
    2026-10-09：由 /admin/companies 独立页迁入账号管理，窗口展示
+   2026-10-09②：账号数拆口径（在编/评审专家）、立项数剔除回收站条目、
+                新增公司编码与在办/已归档拆分展示
    ═══════════════════════════════════════════════════════════════ */
 
 type CompanyRow = {
   id: string;
   name: string;
   shortName: string | null;
+  code: string | null; // 公司编码（项目编号前缀段）
   createdAt: string;
-  _count: { users: number; pmItems: number };
-  archivedCount: number;
+  officeUsers: number; // 在编人员（admin/leader/staff/bid_host）
+  expertUsers: number; // 评审专家（专家库公司归属）
+  activeProjects: number; // 在办项目（ACTIVE）
+  archivedCount: number; // 已归档（ARCHIVED）
   contractTotal: number;
 };
 
@@ -31,6 +36,17 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(body?.error ?? `请求失败（${res.status}）`);
   }
   return res.json();
+}
+
+function KpiCard({ label, value, isMoney = false }: { label: string; value: number; isMoney?: boolean }) {
+  return (
+    <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</span>
+      <span className={`font-black tabular-nums ${isMoney ? "text-[1.2rem]" : "text-[1.55rem]"}`}>
+        {isMoney ? `￥${value.toLocaleString("zh-CN")}` : value}
+      </span>
+    </div>
+  );
 }
 
 export function CompaniesModal({
@@ -80,7 +96,9 @@ export function CompaniesModal({
   };
 
   const totals = {
-    users: rows.reduce((s, r) => s + r._count.users, 0),
+    office: rows.reduce((s, r) => s + r.officeUsers, 0),
+    experts: rows.reduce((s, r) => s + r.expertUsers, 0),
+    active: rows.reduce((s, r) => s + r.activeProjects, 0),
     archived: rows.reduce((s, r) => s + r.archivedCount, 0),
     contract: rows.reduce((s, r) => s + r.contractTotal, 0),
   };
@@ -97,7 +115,7 @@ export function CompaniesModal({
           单位管理
         </span>
       }
-      description="内部单位主数据维护 · 每单位项目业绩（CTS A-205~A-207）"
+      description="内部单位主数据维护 · 每单位账号构成与项目业绩（CTS A-205~A-207）"
       size="2xl"
       headerExtra={
         <button onClick={() => void reload()} className="neu-btn-xs" title="刷新">
@@ -111,23 +129,13 @@ export function CompaniesModal({
       }
     >
       {/* 指标行（原 page-hero KPI 区） */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">单位数</span>
-          <span className="text-[1.55rem] font-black tabular-nums">{rows.length}</span>
-        </div>
-        <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">在册账号</span>
-          <span className="text-[1.55rem] font-black tabular-nums">{totals.users}</span>
-        </div>
-        <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">已归档项目</span>
-          <span className="text-[1.55rem] font-black tabular-nums">{totals.archived}</span>
-        </div>
-        <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">合同额合计</span>
-          <span className="text-[1.2rem] font-black tabular-nums">￥{totals.contract.toLocaleString("zh-CN")}</span>
-        </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <KpiCard label="单位数" value={rows.length} />
+        <KpiCard label="在编人员" value={totals.office} />
+        <KpiCard label="评审专家" value={totals.experts} />
+        <KpiCard label="在办项目" value={totals.active} />
+        <KpiCard label="已归档项目" value={totals.archived} />
+        <KpiCard label="合同额合计" value={totals.contract} isMoney />
       </div>
 
       {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
@@ -140,13 +148,13 @@ export function CompaniesModal({
           <span className="text-xs text-[var(--muted-foreground)]">改名即时生效于新项目归属快照；历史快照不受影响</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[760px]">
+          <table className="neu-table w-full min-w-[820px]">
             <thead>
               <tr className="text-left">
-                <th>单位名称</th>
-                <th>简称</th>
-                <th>账号数</th>
-                <th>立项数</th>
+                <th>单位</th>
+                <th>在编人员</th>
+                <th>评审专家</th>
+                <th>在办项目</th>
                 <th>已归档</th>
                 <th>合同额合计</th>
                 <th>建档时间</th>
@@ -169,10 +177,16 @@ export function CompaniesModal({
                   </tr>
                 ) : (
                   <tr key={r.id} className="row-clickable">
-                    <td className="font-medium">{r.name}</td>
-                    <td className="text-[var(--muted-foreground)]">{r.shortName ?? "—"}</td>
-                    <td className="tabular-nums">{r._count.users}</td>
-                    <td className="tabular-nums">{r._count.pmItems}</td>
+                    <td>
+                      <div className="font-medium">{r.name}</div>
+                      <div className="font-mono text-xs text-[var(--muted-foreground)]">
+                        {r.code ?? "—"}
+                        {r.shortName ? ` · ${r.shortName}` : ""}
+                      </div>
+                    </td>
+                    <td className="tabular-nums">{r.officeUsers}</td>
+                    <td className="tabular-nums">{r.expertUsers}</td>
+                    <td className="tabular-nums">{r.activeProjects}</td>
                     <td className="tabular-nums">{r.archivedCount}</td>
                     <td className="font-mono tabular-nums text-xs">{r.contractTotal ? `￥${r.contractTotal.toLocaleString("zh-CN")}` : "—"}</td>
                     <td className="font-mono text-xs text-[var(--muted-foreground)]">{new Date(r.createdAt).toLocaleDateString("zh-CN")}</td>
@@ -189,6 +203,11 @@ export function CompaniesModal({
               )}
             </tbody>
           </table>
+        </div>
+        <div className="neu-table-card-footer">
+          <span className="text-xs text-[var(--muted-foreground)]">
+            统计口径：在编人员 = 管理/办公/开标主持账号，评审专家单列（专家库公司归属）；在办/已归档项目不含回收站与已终止条目
+          </span>
         </div>
       </section>
     </Modal>

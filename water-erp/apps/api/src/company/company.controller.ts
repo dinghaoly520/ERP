@@ -41,38 +41,55 @@ export class CompanyController {
     }));
   }
 
-  /** D4（A-205~A-207 裁剪）：单位管理视图——列表 + 每单位业绩（在办/已归档项目数、合同额合计） */
+  /** D4（A-205~A-207 裁剪）：单位管理视图——列表 + 每单位账号/项目业绩聚合 */
   @Get('management')
-  @ApiOperation({ summary: '单位管理视图（A-205~207）：主数据 + 项目业绩聚合' })
+  @ApiOperation({ summary: '单位管理视图（A-205~207）：主数据 + 账号/项目业绩聚合' })
   async management() {
-    const companies = await this.prisma.company.findMany({
-      select: {
-        id: true,
-        name: true,
-        shortName: true,
-        createdAt: true,
-        _count: { select: { users: true, pmItems: true } },
-      },
-      orderBy: { name: 'asc' },
-    });
-    // 业绩聚合：PMI 归属快照上的已归档数 + 合同额合计（Decimal 求和在 DB 侧算）
-    const [archivedAgg, amountAgg] = await Promise.all([
+    const [companies, roleCounts, pmCounts, amountAgg] = await Promise.all([
+      this.prisma.company.findMany({
+        select: { id: true, name: true, shortName: true, code: true, createdAt: true },
+        orderBy: { name: 'asc' },
+      }),
+      // 账号口径拆分（对齐 list() 2026-09-26 先例）：专家库公司隔离后专家也挂 companyId，
+      // 单一 users 计数会把「在编 15 + 专家 187」误读成 202 个在编——按角色分组
+      this.prisma.user.groupBy({ by: ['companyId', 'role'], _count: true }),
+      // 项目口径（对齐 companyCounts 先例）：ACTIVE=在办、ARCHIVED=已完成（RECYCLED/TERMINATED 不计），
+      // 此前的 pmItems 裸计数把回收站条目也计入立项数
       this.prisma.projectManagementItem.groupBy({
-        by: ['companyId'],
-        where: { companyId: { not: null }, archivedAt: { not: null } },
+        by: ['companyId', 'status'],
+        where: { companyId: { not: null }, status: { in: ['ACTIVE', 'ARCHIVED'] } },
         _count: { _all: true },
       }),
+      // 业绩聚合：合同额合计（Decimal 求和在 DB 侧算）
       this.prisma.projectManagementItem.groupBy({
         by: ['companyId'],
         where: { companyId: { not: null }, contractAmount: { not: null } },
         _sum: { contractAmount: true },
       }),
     ]);
-    const archivedMap = new Map(archivedAgg.map(g => [g.companyId, g._count._all]));
+    const byCompany = new Map<string, { office: number; expert: number }>();
+    for (const g of roleCounts) {
+      if (!g.companyId) continue;
+      const rec = byCompany.get(g.companyId) ?? { office: 0, expert: 0 };
+      if (['admin', 'leader', 'staff', 'bid_host'].includes(g.role)) rec.office += g._count;
+      if (g.role === 'bid_expert') rec.expert += g._count;
+      byCompany.set(g.companyId, rec);
+    }
+    const pmByCompany = new Map<string, { active: number; archived: number }>();
+    for (const g of pmCounts) {
+      if (!g.companyId) continue;
+      const rec = pmByCompany.get(g.companyId) ?? { active: 0, archived: 0 };
+      if (g.status === 'ACTIVE') rec.active += g._count._all;
+      if (g.status === 'ARCHIVED') rec.archived += g._count._all;
+      pmByCompany.set(g.companyId, rec);
+    }
     const amountMap = new Map(amountAgg.map(g => [g.companyId, Number(g._sum.contractAmount ?? 0)]));
     return companies.map(c => ({
       ...c,
-      archivedCount: archivedMap.get(c.id) ?? 0,
+      officeUsers: byCompany.get(c.id)?.office ?? 0,
+      expertUsers: byCompany.get(c.id)?.expert ?? 0,
+      activeProjects: pmByCompany.get(c.id)?.active ?? 0,
+      archivedCount: pmByCompany.get(c.id)?.archived ?? 0,
       contractTotal: amountMap.get(c.id) ?? 0,
     }));
   }
