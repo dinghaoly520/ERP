@@ -5468,3 +5468,76 @@ describe('BidService — reopenExpertScoring', () => {
     expect(r).toEqual({ reopenedExpertIds: ['e1'], reopenedExpertNames: '专家甲' });
   });
 });
+
+/* ── 终审补：host 侧异议裁决废标 → 全体专家 progress 重算 + WS 里程碑 ── */
+describe('BidService — resolveExpertDispute 废标联动重算', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    const validity: Record<string, string> = {};
+    prisma = {
+      expertDispute: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: 'open', expertId: 'ex1', title: '资质异议', expertName: '王' }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
+      bidSupplier: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'sup1', supplierName: '甲' }),
+        // 重算分母查询——行携带可变废标镜像（事务内 update 写入后重算须读到 invalid）
+        findMany: jest.fn().mockImplementation(() => Promise.resolve([
+          { id: 'sup1', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: validity.sup1 },
+          { id: 'sup2', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'valid' },
+        ])),
+        update: jest.fn().mockImplementation((a: any) => {
+          if (a.data?.bidValidity) validity[a.where.id] = a.data.bidValidity;
+          return Promise.resolve({});
+        }),
+      },
+      bidInvalidBid: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0), deleteMany: jest.fn() },
+      bidSignPacket: { findUnique: jest.fn() },
+      bidExpert: {
+        findUnique: jest.fn().mockResolvedValue(null), // 裁决通知：无 userId 跳过 sendToUser
+        findMany: jest.fn().mockResolvedValue([{ id: 'e1', conflictedSupplierIds: [] }]),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1', category: 'TECHNICAL' }]) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([{ score: 80 }]) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        BidOpeningRecordService,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, SIGNATURE_SVC, GB_CODE_SVC,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('废标采纳（resolved+invalidate）→ 全体正选专家按可评集合重算 progress + 广播 bid:validity:change', async () => {
+    (service as any).gateway = { notifyBidValidity: jest.fn() };
+    await service.resolveExpertDispute('p1', 'd1', { response: '采纳，资质不符', status: 'resolved', invalidateBidSupplierId: 'sup1' }, 'actor-1');
+    // 供重算用的成员清单查询（正选、含回避集）
+    expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectId: 'p1', expertRole: '正选' }),
+    }));
+    // e1 重算：1 项 × 1 可评家（sup1 已 invalid），已评 1 → 100
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: expect.objectContaining({ progress: 100 }) });
+    expect((service as any).gateway.notifyBidValidity).toHaveBeenCalledWith('p1', expect.objectContaining({ supplierId: 'sup1', status: 'invalid' }));
+  });
+
+  it('仅驳回（无废标联动）→ 不重算不广播', async () => {
+    (service as any).gateway = { notifyBidValidity: jest.fn() };
+    await service.resolveExpertDispute('p1', 'd1', { response: '驳回，理由不成立', status: 'rejected' }, 'actor-1');
+    expect(prisma.bidExpert.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'e1' } }));
+    expect((service as any).gateway.notifyBidValidity).not.toHaveBeenCalled();
+  });
+});

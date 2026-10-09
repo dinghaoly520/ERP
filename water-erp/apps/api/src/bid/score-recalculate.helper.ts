@@ -1,3 +1,37 @@
+import { parseConflictedIds } from '../common/scoring/expert.util';
+
+/** P1-5/P1-6 可评集合单一口径（终审补抽共享）：活跃行 − 回避 − 废标。
+ *  三处消费共用（recomputeExpertProgress 分母 / confirmReport 核对闸 / getReport canConfirm 闸）——
+ *  本批曾因 getReport 手抄漏改致 UI 确认按钮死锁，故收口单源（评审裁定） */
+export function filterEvaluableSuppliers<T extends { id: string; bidValidity?: string | null }>(
+  suppliers: T[],
+  conflictedSupplierIds: string[] = [],
+): T[] {
+  const conflictedSet = new Set(conflictedSupplierIds);
+  return suppliers.filter(s => s.bidValidity !== 'invalid' && !conflictedSet.has(s.id));
+}
+
+/** P1-6（终审补）：废标状态翻转后全体正选专家 progress 重算——投票翻转路径
+ *  （ExpertService.submitScores）与 host 侧处置路径（异议裁决/手动废标/撤销）共用 */
+export async function recomputeAllExpertsProgress(
+  prisma: {
+    bidScoreItem: { findMany: (args: any) => Promise<any[]> };
+    bidSupplier: { findMany: (args: any) => Promise<any[]> };
+    bidScoreRecord: { count: (args: any) => Promise<number>; findMany: (args: any) => Promise<any[]> };
+    bidExpert: { findMany: (args: any) => Promise<any[]>; update: (args: any) => Promise<unknown> };
+  },
+  projectId: string,
+): Promise<void> {
+  const members = await prisma.bidExpert.findMany({
+    where: { projectId, expertRole: '正选' },
+    select: { id: true, conflictedSupplierIds: true },
+  });
+  for (const m of members) {
+    const { progress, totalScore } = await recomputeExpertProgress(prisma, m.id, projectId, parseConflictedIds(m.conflictedSupplierIds));
+    await prisma.bidExpert.update({ where: { id: m.id }, data: { progress, totalScore } });
+  }
+}
+
 export async function recomputeExpertProgress(
   tx: {
     bidScoreItem: { findMany: (args: any) => Promise<any[]> };
@@ -6,8 +40,7 @@ export async function recomputeExpertProgress(
   },
   expertId: string,
   projectId: string,
-  /** P1-5（中断审查）：该专家申报回避的供应商——分母排除。可评集合单一来源：
-   *  活跃 − 本专家回避 − 废标（P1-6），三处消费（progress 分母/核对闸/报告确认）共用本口径 */
+  /** P1-5（中断审查）：该专家申报回避的供应商——分母排除（口径见 filterEvaluableSuppliers） */
   conflictedSupplierIds: string[] = [],
 ): Promise<{ progress: number; totalScore: number }> {
   const allScoreItems = await tx.bidScoreItem.findMany({ where: { projectId } });
@@ -21,10 +54,7 @@ export async function recomputeExpertProgress(
   });
   // P1-5/P1-6（中断审查）：旧口径分母含回避/废标家，而 submitScores 拒收回避家、
   // 前端锁死废标家 → 评不出即永远到不了 100 → confirmReport 死锁（两型同根）。
-  const conflictedSet = new Set(conflictedSupplierIds);
-  const activeIds = activeSuppliers
-    .filter((s: { id: string; bidValidity?: string | null }) => !conflictedSet.has(s.id) && s.bidValidity !== 'invalid')
-    .map((s: { id: string }) => s.id);
+  const activeIds = filterEvaluableSuppliers(activeSuppliers, conflictedSupplierIds).map(s => s.id);
   const totalItems = expertScorableItems.length * activeIds.length;
   const scoredItems = await tx.bidScoreRecord.count({
     // N8b：分子与分母同口径排 PRICE——手填价格分记录不得虚增进度（P1-12fix 分母已排）

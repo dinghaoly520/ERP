@@ -660,6 +660,62 @@ describe('ExpertService', () => {
       expect(result.supplierScores.map(s => s.invalid)).toEqual([false, true, false]);
     });
 
+    it('终审补：canConfirm 按可评集合（活跃−回避−废标）核对——回避/废标家未核对不再锁死确认按钮', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, signedIn: true, avoidanceConfirmed: true,
+        aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true,
+        progress: 100, conflictedSupplierIds: ['sup-c'],
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', displayName: '王建国' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', name: '测试项目', projectCode: 'SC-TEST-01',
+        suppliers: [
+          { id: 'sup-1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'valid' },
+          { id: 'sup-c', supplierName: '乙（回避）', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'valid' },
+          { id: 'sup-i', supplierName: '丙（废标）', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'invalid' },
+        ],
+        scoreItems: [],
+      });
+      // 仅核对了可评的 sup-1——旧口径 allVerified 恒 false → canConfirm false → 按钮永不出现
+      prisma.bidScoreReview.findMany.mockResolvedValue([{ supplierId: 'sup-1', status: 'verified', verifiedAt: new Date() }]);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+
+      const result = await service.getReport('user-1', 'proj-1');
+      expect(result.canConfirm).toBe(true);
+    });
+
+    it('终审补：存量 progress 陈旧偏低时 getReport 活体重算供闸门（不落库）——host 侧废标后无提交动作也可确认', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, signedIn: true, avoidanceConfirmed: true,
+        aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true,
+        progress: 66, conflictedSupplierIds: [],
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', displayName: '王建国' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'proj-1', name: '测试项目', projectCode: 'SC-TEST-01',
+        suppliers: [
+          { id: 'sup-1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'valid' },
+          { id: 'sup-i', supplierName: '丙（废标）', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'invalid' },
+        ],
+        scoreItems: [],
+      });
+      prisma.bidScoreReview.findMany.mockResolvedValue([{ supplierId: 'sup-1', status: 'verified', verifiedAt: new Date() }]);
+      // 活体重算原料（helper 查 bidSupplier.findMany 取活跃集）：1 项 × 1 可评家，已评 1 → 100
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', category: 'TECHNICAL' }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'valid' },
+        { id: 'sup-i', decryptStatus: 'SUCCESS', submitStatus: '已提交', bidValidity: 'invalid' },
+      ]);
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ score: 80 }]);
+
+      const result = await service.getReport('user-1', 'proj-1');
+      expect(result.canConfirm).toBe(true);
+      expect(result.overallComplete).toBe(true);
+      // 闸门活体值不回写存量列（GET 无副作用；落库由写路径触发）
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+
     it('P1-1：supplierScores 带 bidPriceUnit——唱标单位戳优先，无戳回退 envelopeVersion 推导 dual-v2=万元', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({
         ...mockExpert, signedIn: true, avoidanceConfirmed: true,

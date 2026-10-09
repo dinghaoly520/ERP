@@ -20,6 +20,9 @@ import {
   type ClarificationCreatedPayload,
   type ClarificationRepliedPayload,
   type ScoresSubmittedPayload,
+  type EvaluationExtendedPayload,
+  type RoomCodeRotatedPayload,
+  type ScoringReopenedPayload,
   type SupervisionLogPayload,
   type AnomalyDetectedPayload,
   type HallMessagePayload,
@@ -48,6 +51,10 @@ export interface BidWsHandlers {
   onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
   /** 评分提交里程碑（与 apps/bid-portal 版对称补齐；本端暂无消费者，占位） */
   onScoresSubmitted?: (d: ScoresSubmittedPayload) => void;
+  /** 终审补（P2-9/10/11）：与 :3007 hook 双份维护同步——host 房同名广播的消费口（本门户暂未接线） */
+  onEvaluationExtended?: (d: EvaluationExtendedPayload) => void;
+  onRoomCodeRotated?: (d: RoomCodeRotatedPayload) => void;
+  onScoringReopened?: (d: ScoringReopenedPayload) => void;
   onSupervisionLog?: (d: SupervisionLogPayload) => void;
   onAnomalyDetected?: (d: AnomalyDetectedPayload) => void;
   onHallMessage?: (d: HallMessagePayload) => void;
@@ -175,6 +182,9 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.CLARIFICATION_CREATED, 'onClarificationCreated');
     on(BID_EVENT.CLARIFICATION_REPLIED, 'onClarificationReplied');
     on(BID_EVENT.SCORES_SUBMITTED, 'onScoresSubmitted');
+    on(BID_EVENT.EVALUATION_EXTENDED, 'onEvaluationExtended');
+    on(BID_EVENT.ROOM_CODE_ROTATED, 'onRoomCodeRotated');
+    on(BID_EVENT.SCORING_REOPENED, 'onScoringReopened');
     on(BID_EVENT.SUPERVISION_LOG, 'onSupervisionLog');
     on(BID_EVENT.ANOMALY_DETECTED, 'onAnomalyDetected');
     on(BID_EVENT.HALL_MESSAGE_NEW, 'onHallMessage');

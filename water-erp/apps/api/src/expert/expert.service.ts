@@ -24,7 +24,7 @@ import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto'
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
-import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
+import { recomputeExpertProgress, recomputeItemFromDecisions, filterEvaluableSuppliers, recomputeAllExpertsProgress } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
@@ -1684,16 +1684,7 @@ export class ExpertService {
     // → confirmReport 死锁。含提交者本人（事务内重算先于判废，分母可能已变）。
     if (validityFlipped) {
       try {
-        const members = await this.prisma.bidExpert.findMany({
-          where: { projectId, expertRole: '正选' },
-          select: { id: true, conflictedSupplierIds: true },
-        });
-        for (const m of members) {
-          const { progress, totalScore } = await recomputeExpertProgress(
-            this.prisma, m.id, projectId, parseConflictedIds(m.conflictedSupplierIds),
-          );
-          await this.prisma.bidExpert.update({ where: { id: m.id }, data: { progress, totalScore } });
-        }
+        await recomputeAllExpertsProgress(this.prisma, projectId);
       } catch (e) {
         this.logger.error('废标翻转后全体专家进度重算失败（不阻塞评分主流程）', e instanceof Error ? e.message : String(e));
       }
@@ -2117,11 +2108,21 @@ export class ExpertService {
     });
     const reviewBySupplier = new Map(reviewRecords.map(r => [r.supplierId, r]));
 
-    // 与 confirmReport gate 一致：active = decryptStatus SUCCESS + submitStatus != 已撤回
+    // P1-5/P1-6（终审补）：与 confirmReport gate 同口径——可评集合 = 活跃 − 本专家回避 − 废标。
+    // 旧全活跃口径令回避/废标家未核对时 canConfirm 恒 false → 报告步确认按钮永不出现，
+    // confirmReport 的活体自愈反因按钮不可达而失效——报告确认死锁的最后一环
     const activeSuppliers = project.suppliers.filter(
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回',
     );
-    const allVerified = activeSuppliers.length > 0 && activeSuppliers.every(s => reviewBySupplier.get(s.id)?.status === 'verified');
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
+    const evaluableSuppliers = filterEvaluableSuppliers(activeSuppliers, conflictedIds);
+    const allVerified = evaluableSuppliers.length > 0 && evaluableSuppliers.every(s => reviewBySupplier.get(s.id)?.status === 'verified');
+    // 存量 progress 陈旧偏低（host 侧废标/回避申报后无提交动作触发重算的竞态）时活体重算供闸门——
+    // GET 无副作用不落库（落库由写路径触发）
+    let progressForGate = expert.progress ?? 0;
+    if (progressForGate < 100) {
+      progressForGate = (await recomputeExpertProgress(this.prisma, expert.id, projectId, conflictedIds)).progress;
+    }
 
     // 证据链：查 pointDecisions + 得分点元数据，供报告展示逐点明细（复用 getMyScores 的查询模式）
     const [pointDecisions, scorePoints] = await Promise.all([
@@ -2206,8 +2207,8 @@ export class ExpertService {
       supplierScores,
       scoreItems: project.scoreItems,
       // 已确认报告不可再确认——缺此闸门则前端按钮永续可点、重复确认
-      canConfirm: !expert.reportConfirmed && expert.progress >= 100 && allVerified,
-      overallComplete: expert.progress >= 100,
+      canConfirm: !expert.reportConfirmed && progressForGate >= 100 && allVerified,
+      overallComplete: progressForGate >= 100,
       myDisputedReviews,
     };
   }
@@ -2239,15 +2240,14 @@ export class ExpertService {
       // 行锁 BidExpert，消除与 submitScores 的 TOCTOU 竞态
       await tx.$queryRaw`SELECT id FROM "BidExpert" WHERE id = ${expert.id} FOR UPDATE`;
 
-      // P1-5/P1-6：可评集合 = 活跃 − 本专家回避 − 废标（与 recomputeExpertProgress 单一口径）——
+      // P1-5/P1-6：可评集合 = 活跃 − 本专家回避 − 废标（filterEvaluableSuppliers 单一口径）——
       // 回避家无评分记录无从核对、废标家已置后不参与排名，均不再强制核对
       const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
-      const conflictedSet = new Set(conflictedIds);
       const activeSuppliers = await tx.bidSupplier.findMany({
         where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
         select: { id: true, bidValidity: true },
       });
-      const evaluableSuppliers = activeSuppliers.filter(s => s.bidValidity !== 'invalid' && !conflictedSet.has(s.id));
+      const evaluableSuppliers = filterEvaluableSuppliers(activeSuppliers, conflictedIds);
 
       if (storedProgressShort) {
         const { progress } = await recomputeExpertProgress(tx, expert.id, projectId, conflictedIds);

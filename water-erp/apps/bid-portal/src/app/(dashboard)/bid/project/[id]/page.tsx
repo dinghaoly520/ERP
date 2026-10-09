@@ -213,6 +213,14 @@ function WorkspaceInner() {
       bumpSign();
       toast.success('实时连接已恢复，数据已刷新');
     },
+    // 终审补：host 房三事件——多屏 :3007 视图（监督/第二主持屏）即时刷新，
+    // 不再依赖操作者本机 HTTP 响应（发射见 bid.service 三处 notify*）
+    onEvaluationExtended: (d) => {
+      scheduleRefresh();
+      toast.success(`评标时限已延长 ${d.extendHours} 小时`);
+    },
+    onRoomCodeRotated: () => { scheduleRefresh(); },
+    onScoringReopened: () => { scheduleRefresh(); bumpSign(); },
     // 监督日志与异常事件：不限 tab 常驻累积，供监督视图消费
     onSupervisionLog: (data) => {
       setLiveLogs(prev => [data as unknown as SupervisionLog, ...prev].slice(0, 100));

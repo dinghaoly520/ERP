@@ -44,7 +44,7 @@ import { Prisma, AiBidderStatus } from '@prisma/client';
 import { classifyUserAgent } from '../common/session-device.util';
 import { pendingBondReturnWhere } from './bond-pending.util';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
-import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
+import { recomputeAllExpertsProgress } from './score-recalculate.helper';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
@@ -4700,6 +4700,12 @@ export class BidService {
       return tx.expertDispute.findUnique({ where: { id: disputeId } });
     });
 
+    // 终审补（P1-6）：废标联动后口径收缩——全体专家 progress 重算 + WS 里程碑
+    if (invalidateTarget) {
+      await this.recomputeExpertsAfterValidityChange(projectId);
+      this.gateway?.notifyBidValidity?.(projectId, { supplierId: invalidateTarget.id, failCount: 0, totalCount: 0, status: 'invalid' });
+    }
+
     // 通知专家异议裁决结果（fire-and-forget）
     try {
       const expert = await this.prisma.bidExpert.findUnique({ where: { id: dispute.expertId }, select: { userId: true } });
@@ -4792,7 +4798,21 @@ export class BidService {
       // 形成「已签字的法定文件与废标事实并存」的矛盾并绕过 spec §10 闭环不可更正语义。
       await this.invalidateEvaluationResultsAndPacket(tx, projectId, supplier.supplierName);
     });
+    // 终审补（P1-6）：host 侧废标写入后口径收缩——全体正选专家 progress 重算
+    // （投票翻转路径在 ExpertService.submitScores 内同款）+ WS 里程碑（专家端置灰与进度即时更新）
+    await this.recomputeExpertsAfterValidityChange(projectId);
+    this.gateway?.notifyBidValidity?.(projectId, { supplierId, failCount: 0, totalCount: 0, status: 'invalid' });
     return { invalidated: true };
+  }
+
+  /** 终审补（P1-6）：废标状态变更（host 侧处置）后全体正选专家按可评集合重算 progress。
+   *  不在此重算则未评分该家的专家存量 progress 永卡 N-1/N，报告确认闸（getReport/confirmReport）连锁卡死 */
+  private async recomputeExpertsAfterValidityChange(projectId: string) {
+    try {
+      await recomputeAllExpertsProgress(this.prisma, projectId);
+    } catch (e) {
+      this.logger.error('废标状态变更后全体专家进度重算失败（不阻塞主流程）', e instanceof Error ? e.message : String(e));
+    }
   }
 
   /** B1: 撤销手动废标（恢复 bidValidity='valid'） */
@@ -4828,6 +4848,8 @@ export class BidService {
     this.gateway?.notifyBidValidity?.(projectId, {
       supplierId, failCount: 0, totalCount: 0, status: 'revoked',
     });
+    // 终审补（P1-6）：恢复有效后口径扩回——专家分母回收该家，progress 重算
+    await this.recomputeExpertsAfterValidityChange(projectId);
 
     return { revoked: true };
   }
@@ -6021,6 +6043,8 @@ export class BidService {
       totalCount: rec.totalCount,
       status: 'revoked',
     });
+    // 终审补（P1-6）：恢复有效后口径扩回——专家分母回收该家，progress 重算
+    await this.recomputeExpertsAfterValidityChange(projectId);
 
     // 监督日志：复核撤销废标
     await this.prisma.bidSupervisionLog.create({
