@@ -57,8 +57,6 @@ const PAGE_SIZE = 8;
 
 export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [panel, setPanel] = useState<'registration' | 'changes'>('registration');
-  // 文件窗口预览（2026-10-09）：查看文件/附件不再新开标签页
-  const [filePreview, setFilePreview] = useState<FilePreviewTarget>(null);
   // 通知直达预选（2026-09-30）：event detail supplierId → sessionStorage → 打开时预选该供应商
   const [preselectId, setPreselectId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -137,8 +135,6 @@ export function ReviewCenterModal({ open, onClose }: { open: boolean; onClose: (
       {/* 审核历史窗口（admin，全流程记录） */}
       {myRole === 'admin' && <ApprovalHistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />}
 
-      {/* 文件窗口预览（2026-10-09）：查看文件/附件在弹窗内渲染，不再新开标签页 */}
-      <FilePreviewModal target={filePreview} onClose={() => setFilePreview(null)} />
     </Modal>
   );
 }
@@ -240,6 +236,8 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   // 操作区待上传附件
   const [pendingAtts, setPendingAtts] = useState<Array<{ id: string; name: string; size: number }>>([]);
   const [attUploading, setAttUploading] = useState(false);
+  // 文件窗口预览（2026-10-09）：查看文件/附件在弹窗内渲染，不再新开标签页
+  const [filePreview, setFilePreview] = useState<FilePreviewTarget>(null);
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗选中项初始化重置，符合模态惯例 */
   useEffect(() => {
     if (!selected) { setHistory(null); setFull(null); setReason(''); setAttachments({}); return; }
@@ -650,6 +648,9 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
           </div>
         )}
       </div>
+
+      {/* 文件窗口预览（2026-10-09）：查看文件/附件在弹窗内渲染，不再新开标签页 */}
+      <FilePreviewModal target={filePreview} onClose={() => setFilePreview(null)} />
     </div>
   );
 }

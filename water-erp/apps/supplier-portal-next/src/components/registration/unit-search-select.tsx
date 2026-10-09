@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { SASAC_UNITS } from "@/lib/data/sasac-units";
@@ -8,7 +8,16 @@ import { SASAC_UNITS } from "@/lib/data/sasac-units";
 /**
  * 集团单位选择器（供应商门户版，2026-09-17）：62 家全级次企业名单 + 首行搜索。
  * 与 :3005 同款交互；面板遵循 sp 注册页 neumorphic 语言（reg-inp 内凹、瓷片凸起、无外框线）。
+ *
+ * 2026-10-09 泛化为 RegSearchSelect：体制类型/国民经济行业（GB/T 4754 门类分组）复用
+ * 同一交互与样式（用户裁定「与归属公司处保持一致」）。UnitSearchSelect 保留为薄包装。
  */
+export interface RegSelectOption {
+  label: string;
+  /** 可选分组头（如 GB/T 4754 门类「E 建筑业」）；同组连续渲染，参与标题但不参与过滤高亮 */
+  group?: string;
+}
+
 export function UnitSearchSelect({
   value,
   onChange,
@@ -18,6 +27,33 @@ export function UnitSearchSelect({
   onChange: (name: string) => void;
   placeholder?: string;
 }) {
+  return (
+    <RegSearchSelect
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      searchPlaceholder="搜索公司…"
+      ariaLabel="选择归属公司"
+      options={SASAC_UNITS.map((u) => ({ label: u.name }))}
+    />
+  );
+}
+
+export function RegSearchSelect({
+  value,
+  onChange,
+  placeholder = "请选择…",
+  searchPlaceholder = "搜索…",
+  ariaLabel = "搜索选择",
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  ariaLabel?: string;
+  options: RegSelectOption[];
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -25,9 +61,8 @@ export function UnitSearchSelect({
   const searchRef = useRef<HTMLInputElement>(null);
   const [rect, setRect] = useState<{ top: number; left: number; width: number; flip: boolean } | null>(null);
 
-  const options = SASAC_UNITS.map((u) => u.name);
   const text = (q || "").trim().toLowerCase();
-  const filtered = options.filter((o) => !text || o.toLowerCase().includes(text));
+  const filtered = options.filter((o) => !text || o.label.toLowerCase().includes(text));
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +117,7 @@ export function UnitSearchSelect({
         style={{ height: 52, borderRadius: 14, padding: "0 16px", background: open ? "oklch(0.985 0.01 252)" : "var(--surface, oklch(0.965 0.012 252))", border: "none", outline: "none", fontSize: 15, cursor: "pointer", transition: "box-shadow .2s" }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="选择归属公司"
+        aria-label={ariaLabel}
       >
         <span className="truncate" style={{ color: value ? "var(--reg-ink, #1e293b)" : "oklch(0.62 0.03 258)" }}>{value || placeholder}</span>
         <ChevronDown size={15} strokeWidth={2} className="shrink-0 transition-transform duration-200" style={{ color: "oklch(0.62 0.03 258)", transform: open ? "rotate(180deg)" : undefined }} />
@@ -109,7 +144,7 @@ export function UnitSearchSelect({
             </div>
           </div>
           {/* 当前值：白瓷片凸起 + 品牌蓝（全站激活语义） */}
-          {value && filtered.includes(value) ? (
+          {value && filtered.some((o) => o.label === value) ? (
             <button type="button" role="option" aria-selected onClick={() => pick(value)}
               className="uss-shadow-plate flex w-full items-center justify-between"
               style={{ borderRadius: 10, padding: "7px 10px", marginBottom: 3, background: "#ffffff", color: "var(--sp-primary, #064ea2)", fontSize: 12.5, fontWeight: 700, textAlign: "left", cursor: "pointer" }}>
@@ -117,15 +152,22 @@ export function UnitSearchSelect({
               <Check size={12} strokeWidth={2.6} className="shrink-0" />
             </button>
           ) : null}
-          {/* 其余选项：平伏，hover 抬起 */}
-          {filtered.filter((o) => o !== value).map((o) => (
-            <button key={o} type="button" role="option" aria-selected={false} onClick={() => pick(o)}
-              className="unit-opt w-full truncate"
-              style={{ borderRadius: 10, padding: "7px 10px", fontSize: 12.5, color: "var(--reg-ink, #1e293b)", textAlign: "left", cursor: "pointer", background: "transparent", border: "none", outline: "none", transition: "background .15s" }}>
-              {o}
-            </button>
+          {/* 其余选项：平伏，hover 抬起；带分组头的先渲染门类标签（不可点） */}
+          {filtered.filter((o) => o.label !== value).map((o, i, arr) => (
+            <Fragment key={o.label}>
+              {o.group && o.group !== arr[i - 1]?.group && (
+                <div style={{ padding: "6px 10px 2px", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", color: "oklch(0.58 0.03 258)" }}>
+                  {o.group}
+                </div>
+              )}
+              <button type="button" role="option" aria-selected={false} onClick={() => pick(o.label)}
+                className="unit-opt w-full truncate"
+                style={{ borderRadius: 10, padding: "7px 10px", fontSize: 12.5, color: "var(--reg-ink, #1e293b)", textAlign: "left", cursor: "pointer", background: "transparent", border: "none", outline: "none", transition: "background .15s" }}>
+                {o.label}
+              </button>
+            </Fragment>
           ))}
-          {filtered.length === 0 && <div style={{ padding: "10px 0", textAlign: "center", fontSize: 11, color: "oklch(0.62 0.03 258)" }}>无匹配公司</div>}
+          {filtered.length === 0 && <div style={{ padding: "10px 0", textAlign: "center", fontSize: 11, color: "oklch(0.62 0.03 258)" }}>无匹配选项</div>}
           <style>{`.unit-opt:hover { background: rgba(6, 78, 162, 0.06); }`}</style>
         </div>,
         document.body,

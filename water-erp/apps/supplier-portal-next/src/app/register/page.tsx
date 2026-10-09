@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Download, ImagePlus, Info, KeyRound, Mail, Paperclip, Plus, ShieldCheck, Tags, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Download, Eye, ImagePlus, Info, KeyRound, Mail, Paperclip, Plus, ShieldCheck, Tags, Trash2, Upload, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { authApi } from "@/lib/api/auth";
 import { uploadRegistrationFile, type RegistrationUploadCredentials } from "@/lib/api/upload";
@@ -21,11 +21,13 @@ import { getErrorMessage, getRegistrationDraftKey } from "@/lib/registration-val
 import { replaceObjectUrlPreview, revokeObjectUrlPreview } from "@/lib/object-url-preview";
 import { RegisterAgreement } from "@/components/register-agreement";
 import { BusinessTagField } from "@/components/registration/business-tag-field";
-import { UnitSearchSelect } from "@/components/registration/unit-search-select";
+import { RegSearchSelect, UnitSearchSelect } from "@/components/registration/unit-search-select";
 import { PasswordField } from "@/components/registration/password-field";
 import { RegistrationField, RegistrationSection, RegistrationShell, type RegistrationStep } from "@/components/registration/registration-shell";
 import { SpSwitch } from "@/components/ui";
 import { ENTERPRISE_TYPES, INDUSTRY_GROUPS, COMPANY_PROFILE_MAX, QUAL_TYPE_OPTIONS } from "@/constants/supplier";
+import { FilePreviewModal, type FilePreviewTarget } from "@/components/registration/file-preview-modal";
+import { formatCNYCaps, shiftDecimal } from "@/lib/currency-caps";
 import "@/styles/pages/register2.css";
 
 interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
@@ -49,14 +51,18 @@ const QUAL_TYPES = QUAL_TYPE_OPTIONS.filter((t) => t !== "营业执照");
 const REG_SESSION_KEY = "register:reg-session";
 
 /* 多文件上传（附加材料 / 业绩证明） */
-function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
+function MultiFiles({ value, onChange, label = "上传附件", credentials, onPreview }: {
   value: { name: string; url: string }[];
   onChange: (v: { name: string; url: string }[]) => void;
   label?: string;
   credentials: RegistrationUploadCredentials;
+  /** 窗口预览回调（2026-10-09）：注册页未登录无法回看服务器文件，预览基于本地 File 副本 */
+  onPreview?: (p: { src: string; name: string }) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
+  useEffect(() => () => { Object.values(localPreviews).forEach((u) => URL.revokeObjectURL(u)); }, [localPreviews]);
 
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -67,6 +73,7 @@ function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
     try {
       const asset: FileAsset = await uploadRegistrationFile(file, "qualification", credentials);
       onChange([...value, { name: asset.originalName || file.name, url: asset.url }]);
+      if (onPreview) setLocalPreviews((m) => ({ ...m, [asset.url]: URL.createObjectURL(file) }));
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "上传失败，请重试"));
     } finally {
@@ -80,6 +87,12 @@ function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
         <span key={`${f.url}-${i}`} className="reg-file-chip">
           <Paperclip size={11} />
           <span>{f.name}</span>
+          {onPreview && localPreviews[f.url] && (
+            <button type="button" className="reg-file-x" aria-label={`预览 ${f.name}`} title="窗口预览"
+              onClick={() => onPreview({ src: localPreviews[f.url], name: f.name })}>
+              <Eye size={11} />
+            </button>
+          )}
           <button type="button" className="reg-file-x" aria-label="移除附件" onClick={() => onChange(value.filter((_, j) => j !== i))}>
             <X size={11} />
           </button>
@@ -95,13 +108,16 @@ function MultiFiles({ value, onChange, label = "上传附件", credentials }: {
 }
 
 /* 单文件上传按钮（资质主文件） */
-function SingleFile({ url, onPicked, credentials }: {
+function SingleFile({ url, onPicked, credentials, onPreview }: {
   url: string;
   onPicked: (a: FileAsset | null) => void;
   credentials: RegistrationUploadCredentials;
+  onPreview?: (p: { src: string; name: string }) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [localPreview, setLocalPreview] = useState<{ src: string; name: string } | null>(null);
+  useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview.src); }, [localPreview]);
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -110,6 +126,7 @@ function SingleFile({ url, onPicked, credentials }: {
     setBusy(true);
     try {
       onPicked(await uploadRegistrationFile(file, "qualification", credentials));
+      if (onPreview) setLocalPreview({ src: URL.createObjectURL(file), name: file.name });
     } catch (error: unknown) {
       onPicked(null);
       toast.error(getErrorMessage(error, "上传失败，请重试"));
@@ -119,10 +136,19 @@ function SingleFile({ url, onPicked, credentials }: {
   }
   return (
     <>
-      <button type="button" className="reg-btn reg-btn--file" disabled={busy} onClick={() => inputRef.current?.click()}>
-        <Upload size={13} />
-        {busy ? "上传中…" : url ? "已上传 · 重新上传" : "上传文件"}
-      </button>
+      <span className="inline-flex items-center gap-1.5">
+        <button type="button" className="reg-btn reg-btn--file" disabled={busy} onClick={() => inputRef.current?.click()}>
+          <Upload size={13} />
+          {busy ? "上传中…" : url ? "已上传 · 重新上传" : "上传文件"}
+        </button>
+        {onPreview && (
+          <button type="button" className="reg-btn reg-btn--file" disabled={busy || !localPreview}
+            title={localPreview ? "窗口预览" : "重新上传后可预览（注册完成前服务器文件需登录查看）"}
+            onClick={() => localPreview && onPreview(localPreview)}>
+            <Eye size={13} /> 预览
+          </button>
+        )}
+      </span>
       <input ref={inputRef} type="file" hidden accept=".pdf,.jpg,.jpeg,.png" onChange={pick} />
     </>
   );
@@ -150,7 +176,10 @@ export default function RegisterPage() {
   const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
   const logoPreviewUrlRef = useRef("");
   // 法定代表人身份证扫描件（2026-09-29）：必传支撑材料，随资质列表落库（type=法定代表人身份证）
-  const [legalIdFile, setLegalIdFile] = useState("");
+  // 身份证正反面（2026-10-09）：正面=人像面（fileUrl 落库），反面=国徽面（attachments 落库，审核端两条均可见）
+  const [legalIdFront, setLegalIdFront] = useState("");
+  const [legalIdBack, setLegalIdBack] = useState("");
+  const [filePreview, setFilePreview] = useState<FilePreviewTarget>(null);
   // 业务标签：以标签库选择为主（自创标签提交后进入待审核，审核通过入池）
   const [tags, setTags] = useState<string[]>([]);
   const [tagOptions, setTagOptions] = useState<{ id: string; name: string }[]>([]);
@@ -183,9 +212,9 @@ export default function RegisterPage() {
     step,
     registrationPhone,
     basic, tags, contacts, banks, quals, perfs,
-    legalIdFile,
+    legalIdFront, legalIdBack,
     belongCompany, // 步骤 0 必填（B1-3，2026-09-30）：漏存会导致恢复后静默丢失、须自查重选
-  }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs, legalIdFile, belongCompany]);
+  }), [step, registrationPhone, basic, tags, contacts, banks, quals, perfs, legalIdFront, legalIdBack, belongCompany]);
   const recoverableDraftKey = getRegistrationDraftKey(user?.id);
   // SUP-P2-07：游客（未登录）也启用本机草稿——固定匿名键；登录态切回时既有隐私清理
   // effect 会移除匿名草稿。此前 enabled 仅登录用户可享，页头注释与恢复横幅承诺的
@@ -242,7 +271,10 @@ export default function RegisterPage() {
     setBanks(d.banks?.length ? d.banks.map((b: BankRow) => ({ ...b })) : []);
     setQuals(d.quals?.length ? d.quals.map((q: QualRow) => ({ ...q, attachments: q.attachments ?? [] })) : quals);
     setPerfs(d.perfs?.length ? d.perfs.map((p: PerfRow) => ({ ...p, proofFiles: p.proofFiles ?? [], paymentProofs: p.paymentProofs ?? [] })) : []);
-    if (d.legalIdFile) setLegalIdFile(d.legalIdFile);
+    if (d.legalIdFront) setLegalIdFront(d.legalIdFront);
+    if (d.legalIdBack) setLegalIdBack(d.legalIdBack);
+    const legacyLegalId = (d as { legalIdFile?: string }).legalIdFile; // 旧草稿兼容：单文件视为正面
+    if (!d.legalIdFront && legacyLegalId) setLegalIdFront(legacyLegalId);
     if (d.belongCompany) setBelongCompany(d.belongCompany); // B1-3：归属公司一并恢复
     const recoveredStep = Math.min(Number(d.step) || 0, STEPS.length - 1);
     setStep(recoveredStep);
@@ -373,13 +405,15 @@ export default function RegisterPage() {
       if (!basic.registeredAddress.trim()) e.registeredAddress = "请输入注册地址";
       if (!basic.establishedDate) e.establishedDate = "请选择企业注册成立日期";
       if (!basic.industry) e.industry = "请选择所属的国民经济行业";
-      if (!basic.registeredCapital.trim()) e.registeredCapital = "请输入注册资金";
+      if (!basic.registeredCapital.trim()) e.registeredCapital = "请输入注册资金（万元，数字）";
+      else if (!/^\d+(\.\d{1,2})?$/.test(basic.registeredCapital.trim()) || Number(basic.registeredCapital) <= 0) e.registeredCapital = "注册资金须为正数字（最多两位小数）";
       if (basic.companyProfile.length > COMPANY_PROFILE_MAX) e.companyProfile = `企业简介不能超过 ${COMPANY_PROFILE_MAX} 字`;
       if (!basic.businessScope.trim()) e.businessScope = "请输入主要经营业务范围";
       if (!basic.legalPerson.trim()) e.legalPerson = "请输入法定代表人姓名";
       if (!basic.legalPersonIdCard.trim()) e.legalPersonIdCard = "请输入法定代表人身份证号";
       else if (!/^\d{17}[\dXx]$/.test(basic.legalPersonIdCard.trim())) e.legalPersonIdCard = "请输入18位身份证号";
-      if (!legalIdFile) e.legalIdFile = "请上传法定代表人身份证扫描件";
+      if (!legalIdFront) e.legalIdFront = "请上传法定代表人身份证正面（人像面）";
+      if (!legalIdBack) e.legalIdBack = "请上传法定代表人身份证反面（国徽面）";
       if (basic.legalPersonPhone && !/^1[3-9]\d{9}$/.test(basic.legalPersonPhone.trim())) e.legalPersonPhone = "法人电话须为11位手机号";
       if (basic.companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(basic.companyEmail.trim())) e.companyEmail = "公司邮箱格式不正确";
       const normalizedTags = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
@@ -516,7 +550,7 @@ export default function RegisterPage() {
         country: basic.country.trim() || undefined,
         region: basic.region.trim() || undefined,
         detailedAddress: basic.detailedAddress.trim() || undefined,
-        registeredCapital: basic.registeredCapital.trim() || undefined,
+        registeredCapital: basic.registeredCapital.trim() ? `${basic.registeredCapital.trim()}万元` : undefined, // 数字入参 + 单位拼接（DTO 为自由文本）
         industry: basic.industry.trim() || undefined,
         establishedDate: basic.establishedDate || undefined,
         companyProfile: basic.companyProfile.trim() || undefined,
@@ -532,7 +566,8 @@ export default function RegisterPage() {
           })),
         qualifications: [
           // 法人身份证扫描件（2026-09-29 必传）：作为一条材料随资质列表落库，审核端按材料清单直接可见
-          { type: "法定代表人身份证", name: `${basic.legalPerson.trim()}·身份证扫描件`, fileUrl: legalIdFile },
+          { type: "法定代表人身份证", name: `${basic.legalPerson.trim()}·身份证扫描件（人像面）`, fileUrl: legalIdFront,
+            attachments: legalIdBack ? [{ name: `${basic.legalPerson.trim()}·身份证国徽面（反面）`, url: legalIdBack }] : undefined },
           ...quals.filter((q, i) => i === 0 || q.type || q.name.trim() || q.fileUrl || q.validFrom || q.validTo || q.attachments.length > 0).map((q) => ({
             type: q.type, name: q.name.trim(), fileUrl: q.fileUrl,
             attachments: q.attachments.length ? q.attachments : undefined,
@@ -732,20 +767,14 @@ export default function RegisterPage() {
                   {item("country", "国别", inp(basic.country, (s) => setBasic((b) => ({ ...b, country: s })), "中国"))}
                   {item("region", "所属行政区域", inp(basic.region, (s) => setBasic((b) => ({ ...b, region: s })), "如：四川省/成都市/双流区"))}
                   {item("enterpriseType", "公司体制类型", (
-                    <select className="reg-sel" value={basic.enterpriseType} onChange={(e) => setBasic((b) => ({ ...b, enterpriseType: e.target.value }))}>
-                      <option value="" disabled>请选择</option>
-                      {ENTERPRISE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <RegSearchSelect value={basic.enterpriseType} onChange={(v) => setBasic((b) => ({ ...b, enterpriseType: v }))}
+                      placeholder="请选择公司体制类型" searchPlaceholder="搜索体制类型…" ariaLabel="选择公司体制类型"
+                      options={ENTERPRISE_TYPES.map((t) => ({ label: t }))} />
                   ), true)}
                   {item("industry", "所属的国民经济行业", (
-                    <select className="reg-sel" value={basic.industry} onChange={(e) => setBasic((b) => ({ ...b, industry: e.target.value }))}>
-                      <option value="" disabled>请选择国民经济行业大类（GB/T 4754）</option>
-                      {INDUSTRY_GROUPS.map((g) => (
-                        <optgroup key={g.category} label={g.category}>
-                          {g.items.map((it) => <option key={it} value={it}>{it}</option>)}
-                        </optgroup>
-                      ))}
-                    </select>
+                    <RegSearchSelect value={basic.industry} onChange={(v) => setBasic((b) => ({ ...b, industry: v }))}
+                      placeholder="请选择国民经济行业大类（GB/T 4754）" searchPlaceholder="搜索行业（如：土木）…" ariaLabel="选择国民经济行业"
+                      options={INDUSTRY_GROUPS.flatMap((g) => g.items.map((it) => ({ label: it, group: g.category })))} />
                   ), true)}
                   {item("registeredAddress", "注册地址", inp(basic.registeredAddress, (s) => setBasic((b) => ({ ...b, registeredAddress: s })), "营业执照登记地址"), true)}
                   {item("establishedDate", "企业注册成立日期", (
@@ -753,7 +782,28 @@ export default function RegisterPage() {
                       max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => setBasic((b) => ({ ...b, establishedDate: e.target.value }))} />
                   ), true)}
-                  {item("registeredCapital", "注册资金", inp(basic.registeredCapital, (s) => setBasic((b) => ({ ...b, registeredCapital: s })), "如：5000 万元"), true)}
+                  {item("registeredCapital", "注册资金（万元）", (
+                    <div>
+                      <input className="reg-inp" inputMode="decimal" autoComplete="off" value={basic.registeredCapital}
+                        placeholder="请输入数字，如：5000"
+                        aria-describedby="register-registeredCapital-caps"
+                        onChange={(e) => {
+                          // 仅数字 + 首个小数点 + 至多两位小数（用户裁定 2026-10-09）
+                          let v = e.target.value.replace(/[^\d.]/g, "");
+                          const dot = v.indexOf(".");
+                          if (dot >= 0) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
+                          const [i, d] = v.split(".");
+                          v = (i ?? "").slice(0, 12) + (d !== undefined ? "." + d.slice(0, 2) : "");
+                          setBasic((b) => ({ ...b, registeredCapital: v }));
+                        }} />
+                      {basic.registeredCapital && /^\d+(\.\d{1,2})?$/.test(basic.registeredCapital) && Number(basic.registeredCapital) > 0 && (
+                        <p id="register-registeredCapital-caps" className="mt-1 text-[11px] font-semibold"
+                          style={{ color: "var(--sp-primary, #064ea2)" }}>
+                          大写：{formatCNYCaps(shiftDecimal(basic.registeredCapital, 4))}
+                        </p>
+                      )}
+                    </div>
+                  ), true)}
                 </div>
                 {item("detailedAddress", "详细地址", inp(basic.detailedAddress, (s) => setBasic((b) => ({ ...b, detailedAddress: s })), "实际办公/经营详细地址"))}
                 {item("businessScope", "主要经营业务范围", (
@@ -776,14 +826,30 @@ export default function RegisterPage() {
                   {item("legalPersonPhone", "联系电话", inp(basic.legalPersonPhone, (s) => setBasic((b) => ({ ...b, legalPersonPhone: s })), "11位手机号", { maxLength: 11 }))}
                 </div>
                 {/* 身份证扫描件（2026-09-29 必传）：与身份证号配套的主体核验材料，随资质列表落库 */}
-                <div className={`reg-item${errors.legalIdFile ? " has-error" : ""}`}>
-                  <label className="reg-label">身份证扫描件 <i className="not-italic text-danger">*</i></label>
-                  <SingleFile
-                    url={legalIdFile}
-                    credentials={regUploadCredentials()}
-                    onPicked={(a) => setLegalIdFile(a?.url || "")}
-                  />
-                  {errors.legalIdFile && <span className="reg-error-text" role="alert">{errors.legalIdFile}</span>}
+                <div className={`reg-item${errors.legalIdFront || errors.legalIdBack ? " has-error" : ""}`}>
+                  <label className="reg-label">法定代表人身份证（正反面均须上传） <i className="not-italic text-danger">*</i></label>
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                    <div>
+                      <p className="mb-1 text-[11px] font-semibold" style={{ color: "var(--reg-ink, #1e293b)" }}>正面 · 人像面 <i className="not-italic text-danger">*</i></p>
+                      <SingleFile
+                        url={legalIdFront}
+                        credentials={regUploadCredentials()}
+                        onPicked={(a) => setLegalIdFront(a?.url || "")}
+                        onPreview={(t) => setFilePreview(t)}
+                      />
+                      {errors.legalIdFront && <span className="reg-error-text" role="alert">{errors.legalIdFront}</span>}
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[11px] font-semibold" style={{ color: "var(--reg-ink, #1e293b)" }}>反面 · 国徽面 <i className="not-italic text-danger">*</i></p>
+                      <SingleFile
+                        url={legalIdBack}
+                        credentials={regUploadCredentials()}
+                        onPicked={(a) => setLegalIdBack(a?.url || "")}
+                        onPreview={(t) => setFilePreview(t)}
+                      />
+                      {errors.legalIdBack && <span className="reg-error-text" role="alert">{errors.legalIdBack}</span>}
+                    </div>
+                  </div>
                 </div>
           </RegistrationSection>
 
@@ -920,6 +986,7 @@ export default function RegisterPage() {
                           url={q.fileUrl}
                           credentials={regUploadCredentials()}
                           onPicked={(a) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, fileUrl: a?.url || "" } : x)))}
+                          onPreview={(t) => setFilePreview(t)}
                         />
                       </span>
                     </div>
@@ -934,6 +1001,7 @@ export default function RegisterPage() {
                         credentials={regUploadCredentials()}
                         onChange={(v) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, attachments: v } : x)))}
                         label="附加材料"
+                        onPreview={(t) => setFilePreview(t)}
                       />
                     </div>
                     {(i === 0 && errors.license || rowErrText("qual-", i)) && (
@@ -985,6 +1053,7 @@ export default function RegisterPage() {
                         credentials={regUploadCredentials()}
                         onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, proofFiles: v } : x)))}
                         label="上传证明材料"
+                        onPreview={(t) => setFilePreview(t)}
                       />
                       {errors[`perf-${i}-proofFiles`] && <span className="reg-error-text" role="alert">{errors[`perf-${i}-proofFiles`]}</span>}
                     </div>
@@ -996,6 +1065,7 @@ export default function RegisterPage() {
                         credentials={regUploadCredentials()}
                         onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, paymentProofs: v } : x)))}
                         label="上传汇款凭证"
+                        onPreview={(t) => setFilePreview(t)}
                       />
                     </div>
                   </div>
@@ -1024,7 +1094,7 @@ export default function RegisterPage() {
                   <div className="reg-ov-item"><dt>统一社会信用代码</dt><dd className="reg-mono">{basic.creditCode || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>国别 / 行政区域</dt><dd>{basic.country || "未填写"} / {basic.region || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>注册地址</dt><dd>{basic.registeredAddress || "未填写"}{basic.detailedAddress ? `（${basic.detailedAddress}）` : ""}</dd></div>
-                  <div className="reg-ov-item"><dt>注册资金 / 国民经济行业</dt><dd>{basic.registeredCapital || "未填写"} / {basic.industry || "未填写"}</dd></div>
+                  <div className="reg-ov-item"><dt>注册资金 / 国民经济行业</dt><dd>{basic.registeredCapital ? `${basic.registeredCapital}万元` : "未填写"} / {basic.industry || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>体制类型</dt><dd>{basic.enterpriseType || "未填写"}</dd></div>
                   <div className="reg-ov-item"><dt>法人</dt><dd>{basic.legalPerson || "未填写"}{basic.legalPersonPhone ? ` · ${basic.legalPersonPhone}` : ""}</dd></div>
                   <div className="reg-ov-item"><dt>公司邮箱 / 官网</dt><dd>{basic.companyEmail || "未填写"} / {basic.companyWebsite || "未填写"}</dd></div>
@@ -1045,7 +1115,7 @@ export default function RegisterPage() {
               </div>
               <div className="reg-ov-sec">
                 <h4>资质与履历 · 资质/代理证书等材料（{quals.filter((q) => q.name.trim()).length}）</h4>
-                <p className="reg-ov-line">法定代表人身份证扫描件{legalIdFile ? " · 已上传" : " · 未上传"}</p>
+                <p className="reg-ov-line">法定代表人身份证（正/反）{legalIdFront && legalIdBack ? " · 均已上传" : legalIdFront || legalIdBack ? " · 缺一面" : " · 未上传"}</p>
                 {quals.filter((q) => q.name.trim()).map((q, i) => (
                   <p key={i} className="reg-ov-line">{q.type} · {q.name}{q.fileUrl ? " · 已上传" : ""}{q.attachments.length ? ` · 附加 ${q.attachments.length} 份` : ""}</p>
                 ))}
@@ -1064,6 +1134,8 @@ export default function RegisterPage() {
               <RegisterAgreement value={agree} onChange={setAgree} />
             </div>
             {submissionError && <p className="reg-submit-error" role="alert">{submissionError}</p>}
+      {/* 注册全流程文件窗口预览（2026-10-09）：本地 objectURL，图片/PDF 内嵌渲染 */}
+      <FilePreviewModal target={filePreview} onClose={() => setFilePreview(null)} />
     </RegistrationShell>
   );
 }
