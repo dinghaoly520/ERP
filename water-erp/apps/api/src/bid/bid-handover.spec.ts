@@ -241,7 +241,7 @@ describe('completeOpening / assertOpeningDone', () => {
     const prisma = makePrismaMock();
     const svc = await buildService(prisma);
     await setupNormalHandover(prisma);
-    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1' });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
 
     await svc.completeOpening('p1', 'user1');
 
@@ -249,6 +249,19 @@ describe('completeOpening / assertOpeningDone', () => {
     expect(notification.sendToRole).not.toHaveBeenCalled();
     expect(notification.sendToUser).toHaveBeenCalledTimes(1);
     expect(notification.sendToUser).toHaveBeenCalledWith('creator-1', ['in_app'], expect.objectContaining({ type: 'BID_OPENING_HANDED_OVER' }));
+  });
+
+  it('创建人已停用（isActive=false）→ 不发送（同 sendToRole 原 isActive 过滤口径，防死信）', async () => {
+    const prisma = makePrismaMock();
+    const svc = await buildService(prisma);
+    await setupNormalHandover(prisma);
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: false } });
+
+    await svc.completeOpening('p1', 'user1');
+
+    const notification = (svc as any).notificationService;
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
   });
 
   it('创建人不可解析（宿主 PMI 无 createdById）→ 不发送（不回退广播）', async () => {

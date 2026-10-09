@@ -83,7 +83,7 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
     const { scheduler, prisma } = makeScheduler();
     prisma.contract.findMany.mockResolvedValue([{ projectId: 'p1' }]);
     prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', projectCode: 'GK-1', name: '项目一', projectManagementItemId: 'pm1' }]);
-    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1' });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
     prisma.systemConfig.findUnique.mockResolvedValue(null);
     prisma.bidSupplier.count.mockResolvedValue(2);
     prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '乙公司' }]);
@@ -131,7 +131,7 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
       { supplierName: '甲公司' }, { supplierName: '乙公司' }, { supplierName: '丙公司' }, { supplierName: '丁公司' }, { supplierName: '戊公司' },
     ]);
     prisma.projectManagementItem.findUnique.mockImplementation(async ({ where }: any) =>
-      where.id === 'pm1' ? { createdById: 'creator-1' } : { createdById: 'creator-2' },
+      where.id === 'pm1' ? { createdById: 'creator-1', createdBy: { isActive: true } } : { createdById: 'creator-2', createdBy: { isActive: true } },
     );
 
     await scheduler.remindBondReturns();
@@ -154,6 +154,21 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
     const { scheduler, prisma, notification } = makeScheduler();
     prisma.contract.findMany.mockResolvedValue([{ projectId: 'p1' }]);
     prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', projectCode: 'GK-1', name: '项目一', projectManagementItemId: null }]);
+    prisma.systemConfig.findUnique.mockResolvedValue(null);
+    prisma.bidSupplier.count.mockResolvedValue(2);
+
+    await scheduler.remindBondReturns();
+
+    expect(notification.sendToRole).not.toHaveBeenCalled();
+    expect(notification.sendToUser).not.toHaveBeenCalled();
+    expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it('创建人已停用（isActive=false）→ 跳过不发送且不占坑（法定提醒不被死信空耗）', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.contract.findMany.mockResolvedValue([{ projectId: 'p1' }]);
+    prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', projectCode: 'GK-1', name: '项目一', projectManagementItemId: 'pm1' }]);
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: false } });
     prisma.systemConfig.findUnique.mockResolvedValue(null);
     prisma.bidSupplier.count.mockResolvedValue(2);
 

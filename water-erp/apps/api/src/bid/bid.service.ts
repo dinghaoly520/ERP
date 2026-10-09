@@ -31,7 +31,7 @@ import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from 
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
-import { resolveProjectCreatorId } from './bid-project-notify.util';
+import { resolveProjectCreatorId, resolveActiveUserId } from './bid-project-notify.util';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { openField } from '../common/crypto/field-crypto';
 import { parseFlexibleDate } from '../common/parse-date.util';
@@ -1125,7 +1125,10 @@ export class BidService {
         })!;
         await this.notificationService.sendToUser(creatorId, ['in_app'], { type: 'BID_OPENING_HANDED_OVER', ...tpl });
       }
-    } catch { /* 通知失败不阻塞移交 */ }
+    } catch (e) {
+      // 吞错但留痕——「创建人没收到移交通知」排障线索
+      this.logger.warn(`开标移交通知发送失败 project=${id}: ${String(e)}`);
+    }
 
     return {
       status: '开标完成',
@@ -1406,10 +1409,11 @@ export class BidService {
     });
 
     // 通知该项目指派的主持人流标（2026-10-09 串号修复：原按 bid_host 全平台广播；
-    // 开标前流标未指派主持人时无收件人，不发送——不回退广播）
+    // 开标前流标未指派主持人时无收件人，不发送——不回退广播。主持人停用同不发送）
     try {
-      if (project.assignedHostUserId) {
-        await this.notificationService.sendToUser(project.assignedHostUserId, ['in_app'], {
+      const hostId = await resolveActiveUserId(this.prisma, project.assignedHostUserId);
+      if (hostId) {
+        await this.notificationService.sendToUser(hostId, ['in_app'], {
           type: 'BID_ABORTED',
           title: `项目${project.name}已流标`,
           content: `招标方式：${project.procurementMethod}，投标供应商 ${supplierCount} 家`,
@@ -1746,13 +1750,14 @@ export class BidService {
     const updated = txResult.updated;
 
     // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发。
-    // 2026-10-09 串号修复：只发该项目指派主持人（R2 闸门保证推进时必已指派），
+    // 2026-10-09 串号修复：只发该项目指派主持人（R2 闸门保证推进时必已指派；停用不发送），
     // 不再按 bid_host 全平台广播。
     if (isTransitioning) {
       try {
-        if (project.assignedHostUserId) {
+        const hostId = await resolveActiveUserId(this.prisma, project.assignedHostUserId);
+        if (hostId) {
           const tpl = renderNotificationPayload('BID_OPENING_CONFIRMED', { projectName: project.name, projectId: id })!;
-          await this.notificationService.sendToUser(project.assignedHostUserId, ['in_app'], { type: 'BID_OPENING_CONFIRMED', ...tpl });
+          await this.notificationService.sendToUser(hostId, ['in_app'], { type: 'BID_OPENING_CONFIRMED', ...tpl });
         }
       } catch { /* 通知失败不阻塞阶段流转 */ }
 
@@ -2007,17 +2012,18 @@ export class BidService {
       }
     }
 
-    // 通知该项目指派的主持人（2026-10-09 串号修复：原按 bid_host 全平台广播；未指派则不发送）
+    // 通知该项目指派的主持人（2026-10-09 串号修复：原按 bid_host 全平台广播；未指派/停用则不发送）
     try {
       const bp = await this.prisma.bidProject.findUnique({
         where: { id: projectId },
         select: { assignedHostUserId: true },
       });
-      if (bp?.assignedHostUserId) {
+      const hostId = await resolveActiveUserId(this.prisma, bp?.assignedHostUserId);
+      if (hostId) {
         const disputeTpl = renderNotificationPayload('BID_DISPUTE_TIMEOUT', {
           names, timeoutMinutes: session.disputeTimeoutMinutes, projectId,
         })!;
-        await this.notificationService.sendToUser(bp.assignedHostUserId, ['in_app'], { type: 'BID_DISPUTE_TIMEOUT', ...disputeTpl });
+        await this.notificationService.sendToUser(hostId, ['in_app'], { type: 'BID_DISPUTE_TIMEOUT', ...disputeTpl });
       }
     } catch { /* 通知失败不阻塞 */ }
   }
@@ -4535,7 +4541,9 @@ export class BidService {
                 type: 'BOND_REFUND_DUE',
                 title: '响应担保待逐家退还提醒',
                 content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
-                link: `/projects?projectId=${projectId}`,
+                // 深链 ID 空间修正（2026-10-09 复核）：/projects?projectId= 按 PMI id 匹配，
+                // 原传 BidProject id 面板永不定位（旧广播同病，现唯一收件人恰是点击人，必须修）
+                link: project.projectManagementItemId ? `/projects?projectId=${project.projectManagementItemId}` : '/projects',
               });
               await this.prisma.systemConfig.upsert({
                 where: { key: markerKey },

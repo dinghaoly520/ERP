@@ -34,6 +34,7 @@ import { CreateProjectFromInitiationDto } from './dto/create-project-from-initia
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
 import { ScoreStandardValidator } from '../bid/score-standard-validator.service';
+import { resolveActiveUserId } from '../bid/bid-project-notify.util';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
@@ -4109,18 +4110,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
       try {
         const bpList = activeBidProjects.map((bp) => `${bp.name}（${bp.procurementMethod}）`).join('、');
         // 2026-10-09 串号修复：只发各关联项目指派的主持人（原按 bid_host 全平台广播；
-        // 同一主持人多项目去重；未指派的项目无收件人）
-        const hostUserIds = [...new Set(activeBidProjects.map((bp) => bp.assignedHostUserId).filter((u): u is string => !!u))];
+        // 同一主持人多项目去重；未指派/停用不发送）
+        const hostCandidates = [...new Set(activeBidProjects.map((bp) => bp.assignedHostUserId).filter((u): u is string => !!u))];
+        const hostUserIds = (
+          await Promise.all(hostCandidates.map((uid) => resolveActiveUserId(this.prisma, uid)))
+        ).filter((u): u is string => !!u);
         await Promise.allSettled(
           hostUserIds.map((uid) =>
-            this.notificationService
-              .sendToUser(uid, ['in_app'], {
-                type: 'BID_ABORTED',
-                title: `项目终止联动流标：${project.title}`,
-                content: `采购项目「${project.title}」已终止（原因：${reason}），关联招标项目 ${bpList} 已联动流标。`,
-                link: '/bid/archive', // 联动流标覆盖多项目：:3007 归档端（流标项目归属地）
-              })
-              .catch(() => undefined),
+            this.notificationService.sendToUser(uid, ['in_app'], {
+              type: 'BID_ABORTED',
+              title: `项目终止联动流标：${project.title}`,
+              content: `采购项目「${project.title}」已终止（原因：${reason}），关联招标项目 ${bpList} 已联动流标。`,
+              link: '/bid/archive', // 联动流标覆盖多项目：:3007 归档端（流标项目归属地）
+            }),
           ),
         );
         const experts = await this.prisma.bidExpert.findMany({
