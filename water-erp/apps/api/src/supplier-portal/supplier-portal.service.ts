@@ -19,6 +19,7 @@ import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
+import { sealChangeValue, openChangeValue } from '../supplier/change-record-pii';
 import { SignatureService } from '../common/crypto/signature.service';
 import { OID_SM2_ECC, parseCertificate } from '../common/crypto/x509/x509-cert';
 import { TrustStore } from '../common/crypto/x509/trust-store';
@@ -1109,10 +1110,12 @@ export class SupplierPortalService {
   // Change Requests
 
   async listChangeRecords(supplierId: string) {
-    return this.prisma.supplierChangeRecord.findMany({
+    const rows = await this.prisma.supplierChangeRecord.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
     });
+    // 本人自视明文（PII 值密封落库，展示时拆封；等保+密评）
+    return rows.map(r => ({ ...r, oldValue: openChangeValue(r.fieldName, r.oldValue), newValue: openChangeValue(r.fieldName, r.newValue) }));
   }
 
   async createChangeRequest(supplierId: string, userId: string, dto: CreateChangeRequestDto) {
@@ -1134,8 +1137,8 @@ export class SupplierPortalService {
         supplierId,
         fieldName: dto.fieldName,
         fieldLabel: dto.fieldLabel,
-        oldValue,
-        newValue: dto.newValue,
+        oldValue, // PII 字段列值本身已密封（与 newValue 同态落库）
+        newValue: sealChangeValue(dto.fieldName, dto.newValue) as string,
         reason: dto.reason,
         status: 'PENDING',
       },
@@ -3981,7 +3984,8 @@ export class SupplierPortalService {
         supplierId: supplier.id,
         fieldName: 'convertToRegular',
         fieldLabel: '临时转正式',
-        newValue: JSON.stringify({
+        // PII（法人身份证/联系人手机邮箱）在 JSON 内密封落库（等保+密评）；审批应用端拆封
+        newValue: sealChangeValue('convertToRegular', JSON.stringify({
           enterpriseType: dto.enterpriseType,
           legalPerson: dto.legalPerson,
           // B2-4（2026-09-30）：转正采集法人身份证号+扫描件（与正式注册同口径）
@@ -3993,7 +3997,7 @@ export class SupplierPortalService {
           contacts: dto.contacts,
           qualifications: dto.qualifications,
           tags: dto.tags,
-        }),
+        })) as string,
         status: 'PENDING',
       },
     });

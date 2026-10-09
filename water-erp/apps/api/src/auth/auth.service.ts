@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
+import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { NotificationService } from '../notification/notification.service';
 import { forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -44,7 +45,8 @@ export class AuthService {
     // ① 待审核：手机号或用户名已有未激活的 internal_user 申请 → 拦截，提示等待。
     //    待审核期间资料不可修改/不可重复提交（申请已存在，拒绝后才可重新注册）。
     const phonePending = await this.prisma.user.findFirst({
-      where: { phone: dto.phone, role: 'internal_user', isActive: false },
+      // phone 列存国密密文，等值查询走 HMAC-SM3 盲索引
+      where: { phoneIdx: blindIndexPii(dto.phone) ?? undefined, role: 'internal_user', isActive: false },
       select: { id: true },
     });
     if (phonePending) {
@@ -67,7 +69,7 @@ export class AuthService {
       throw new ConflictException({ error: '该用户名已被使用，请更换', code: 'USERNAME_EXISTS' });
     }
     const phoneTaken = await this.prisma.user.findFirst({
-      where: { phone: dto.phone, isActive: true },
+      where: { phoneIdx: blindIndexPii(dto.phone) ?? undefined, isActive: true },
       select: { id: true },
     });
     if (phoneTaken) {
@@ -98,8 +100,9 @@ export class AuthService {
       data: {
         username: dto.username,
         displayName: dto.displayName,
-        email: dto.email,
-        phone: dto.phone,
+        email: sealPii(dto.email) ?? null, // 国密密封（等保+密评）
+        phone: sealPii(dto.phone) ?? null,
+        phoneIdx: blindIndexPii(dto.phone) ?? null,
         company,
         companyId: companyRecord.id,
         officeLocation: dto.officeLocation,
@@ -186,7 +189,7 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    return this.prisma.user.findUnique({
+    const me = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -206,6 +209,9 @@ export class AuthService {
         },
       },
     });
+    if (!me) return null;
+    // 本人自视明文（email/phone 密文列拆封；本人数据本人可见，不入揭示审计）
+    return { ...me, email: openPii(me.email), phone: openPii(me.phone) };
   }
 
   /** 公司名归一化：精确匹配（忽略大小写/空白）→ 去后缀模糊匹配（有限/股份/集团）→ 原样保留 */

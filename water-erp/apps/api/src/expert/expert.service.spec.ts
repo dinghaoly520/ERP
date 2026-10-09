@@ -1,6 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { ExpertService } from './expert.service';
+import { sealPii, openPii } from '../common/crypto/sm-field-crypto';
+
+// PII 密封路径环境自洽（国密 sm1:；spec 间可能互染）
+const EXPERT_SPEC_ORIG_FES = process.env.FIELD_ENC_SECRET;
+beforeAll(() => { process.env.FIELD_ENC_SECRET = 'expert-spec-field-enc-secret'; });
+afterAll(() => { if (EXPERT_SPEC_ORIG_FES !== undefined) process.env.FIELD_ENC_SECRET = EXPERT_SPEC_ORIG_FES; else delete process.env.FIELD_ENC_SECRET; });
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { encryptBuffer } from '../announcement/bid-document.crypto';
@@ -125,18 +131,22 @@ describe('ExpertService', () => {
       prisma.user.update.mockResolvedValue({});
       prisma.expertProfile.upsert.mockResolvedValue({});
       // confirmContact 末尾会调用 getContactCheck 重新读取
-      prisma.user.findUnique.mockResolvedValue({ displayName: '刘苡池', phone: '13800138000', email: 'liu@example.com' });
-      prisma.expertProfile.findUnique.mockResolvedValue({ phone: '13800138000', contactConfirmedAt: new Date('2026-07-23T10:00:00Z') });
+      // PII 密文列 mock（国密密封态；等保+密评）
+      prisma.user.findUnique.mockResolvedValue({ displayName: '刘苡池', phone: sealPii('13800138000'), email: sealPii('liu@example.com') });
+      prisma.expertProfile.findUnique.mockResolvedValue({ phone: sealPii('13800138000'), contactConfirmedAt: new Date('2026-07-23T10:00:00Z') });
 
       const result = await service.confirmContact('user-1', { phone: '13800138000', email: 'liu@example.com' });
 
       expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'user-1' }, data: expect.objectContaining({ phone: '13800138000', email: 'liu@example.com' }) }),
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: expect.objectContaining({ phone: expect.stringMatching(/^sm1:/), email: expect.stringMatching(/^sm1:/), phoneIdx: expect.any(String) }),
+        }),
       );
       expect(prisma.expertProfile.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { userId: 'user-1' },
-          update: expect.objectContaining({ phone: '13800138000', contactConfirmedAt: expect.any(Date) }),
+          update: expect.objectContaining({ phone: expect.stringMatching(/^sm1:/), contactConfirmedAt: expect.any(Date) }), // 国密密封态
         }),
       );
       expect(result.contactConfirmedAt).not.toBeNull();
@@ -564,9 +574,12 @@ describe('ExpertService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'user-1' },
-          data: expect.objectContaining({ displayName: '王工', email: 'wang@test.com' }),
+          // email 国密密封落库（等保+密评）：断言密文态 + roundtrip
+          data: expect.objectContaining({ displayName: '王工', email: expect.stringMatching(/^sm1:/) }),
         }),
       );
+      const written = (prisma.user.update as jest.Mock).mock.calls[0][0].data;
+      expect(openPii(written.email)).toBe('wang@test.com');
     });
 
     it('复审：displayName=null（@IsOptional 放行 null）须跳过——否则非空列写入 null 触发 Prisma 500', async () => {

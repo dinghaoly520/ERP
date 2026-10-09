@@ -6,6 +6,8 @@ import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { portalOrigin } from '@water-erp/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { sealPii, openPii } from '../common/crypto/sm-field-crypto';
+import { maskPhone, maskIdNumber, maskEmail, maskLicenseNo } from '../common/pii-mask';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
@@ -194,7 +196,18 @@ export class ExpertAdminService {
       }
     }
 
-    return { total, page, pageSize, items: users };
+    // 管理端列表默认脱敏（等保+密评）：PII 密文列出口掩码
+    const items = (users as any[]).map(u => ({
+      ...u,
+      email: maskEmail(u.email),
+      expertProfile: u.expertProfile ? {
+        ...u.expertProfile,
+        phone: maskPhone(u.expertProfile.phone),
+        idNumber: maskIdNumber(u.expertProfile.idNumber),
+        licenseNo: maskLicenseNo(u.expertProfile.licenseNo),
+      } : u.expertProfile,
+    }));
+    return { total, page, pageSize, items };
   }
 
   /** 全部专业（去重；公司隔离——下拉只列可见专家的专业） */
@@ -267,7 +280,20 @@ export class ExpertAdminService {
     for (const e of evaluations) gradeCounts[e.overallGrade] = (gradeCounts[e.overallGrade] ?? 0) + 1;
 
     // R6 终审 P2-5：计数/分布按全量算，但响应明细限最近 20 条（几百条评价时详情响应线性膨胀）
-    return { ...user, assignments, evaluations: evaluations.slice(0, 20), statistics: { totalProjects, completedProjects, signedInProjects, evalCount: evaluations.length, gradeCounts } };
+    // 管理端默认脱敏（等保+密评）：明文走 reveal 端点（入 SensitiveAccessLog 审计）
+    return {
+      ...user,
+      email: maskEmail(user.email),
+      expertProfile: user.expertProfile ? {
+        ...user.expertProfile,
+        phone: maskPhone(user.expertProfile.phone),
+        idNumber: maskIdNumber(user.expertProfile.idNumber),
+        licenseNo: maskLicenseNo(user.expertProfile.licenseNo),
+      } : user.expertProfile,
+      assignments,
+      evaluations: evaluations.slice(0, 20),
+      statistics: { totalProjects, completedProjects, signedInProjects, evalCount: evaluations.length, gradeCounts },
+    };
   }
 
   /** 专家参与的评审项目列表（公司隔离） */
@@ -307,8 +333,8 @@ export class ExpertAdminService {
         data: {
           username: dto.username,
           displayName: normalizedName,
-          email: dto.email,
-          passwordHash: hashSync(dto.password?.trim() || dto.idNumber?.trim() || 'expert@2026', 10), // R2：缺省口令=身份证号
+          email: sealPii(dto.email) ?? null, // PII 国密密封（等保+密评）
+          passwordHash: hashSync(dto.password?.trim() || dto.idNumber?.trim() || 'expert@2026', 10), // R2：缺省口令=身份证号（原文哈希，先于密封）
           role: 'bid_expert',
           isActive: true,
           departmentId,
@@ -318,11 +344,11 @@ export class ExpertAdminService {
               specialty: dto.specialty,
               title: dto.title,
               employer: dto.employer,
-              phone: dto.phone,
-              idNumber: dto.idNumber,
+              phone: sealPii(dto.phone) ?? null,
+              idNumber: sealPii(dto.idNumber) ?? null,
               ethnicity: dto.ethnicity,
               education: dto.education,
-              licenseNo: dto.licenseNo,
+              licenseNo: sealPii(dto.licenseNo) ?? null,
               availability: '可用',
               entryStatus: 'PENDING', // CTS A-218 录入后待审核，admin「审核入库」留痕 verifiedBy/At
               notes: dto.notes,
@@ -409,8 +435,8 @@ export class ExpertAdminService {
                 specialty: profile?.specialty ?? '未分类',
                 title: profile?.title ?? '',
                 employer: profile?.employer ?? '',
-                phone: profile?.phone ?? '',
-                idNumber: profile?.idNumber ?? null,
+                phone: sealPii(profile?.phone ?? '') ?? '', // PII 国密密封（等保+密评）
+                idNumber: sealPii(profile?.idNumber ?? null) ?? null,
                 availability: '可用',
                 entryStatus: 'PENDING', // CTS A-218 批量导入同样待审核入库
                 notes: profile?.notes ?? '',
@@ -488,7 +514,7 @@ export class ExpertAdminService {
         where: { id: userId },
         data: {
           ...(dto.displayName && { displayName: dto.displayName }),
-          ...(dto.email !== undefined && { email: dto.email }),
+          ...(dto.email !== undefined && { email: sealPii(dto.email) ?? null }), // PII 国密密封
           ...(departmentId !== undefined && { departmentId }),
         },
       }),
@@ -498,17 +524,17 @@ export class ExpertAdminService {
           ...(dto.specialty && { specialty: dto.specialty }),
           ...(dto.title !== undefined && { title: dto.title }),
           ...(dto.employer !== undefined && { employer: dto.employer }),
-          ...(dto.phone !== undefined && { phone: dto.phone }),
-          ...(dto.idNumber !== undefined && { idNumber: dto.idNumber }),
+          ...(dto.phone !== undefined && { phone: sealPii(dto.phone) ?? null }), // PII 国密密封
+          ...(dto.idNumber !== undefined && { idNumber: sealPii(dto.idNumber) ?? null }),
           ...(dto.ethnicity !== undefined && { ethnicity: dto.ethnicity }),
           ...(dto.education !== undefined && { education: dto.education }),
-          ...(dto.licenseNo !== undefined && { licenseNo: dto.licenseNo }),
+          ...(dto.licenseNo !== undefined && { licenseNo: sealPii(dto.licenseNo) ?? null }),
           ...(dto.availability !== undefined && { availability: dto.availability }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
           ...(dto.regionCode !== undefined && { regionCode: dto.regionCode }),
           ...(dto.expertLevel !== undefined && { expertLevel: dto.expertLevel }),
         },
-        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, ethnicity: dto.ethnicity, education: dto.education, licenseNo: dto.licenseNo, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
+        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: sealPii(dto.phone) ?? null, idNumber: sealPii(dto.idNumber) ?? null, ethnicity: dto.ethnicity, education: dto.education, licenseNo: sealPii(dto.licenseNo) ?? null, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
       }),
     ]);
     await this.auditExpert(operatorId, 'EXPERT_UPDATE', userId, { expertName: user.displayName });
@@ -658,7 +684,7 @@ export class ExpertAdminService {
         isLead: true, expertRole: true, invitationStatus: true,
         reviewGroup: true, dutyRole: true,
         rsvpToken: true, rsvpRespondedAt: true, rsvpExpiresAt: true,
-        user: { select: { expertProfile: { select: { title: true, employer: true } } } },
+        user: { select: { phone: true, expertProfile: { select: { title: true, employer: true, phone: true } } } },
       },
     });
     const confirmed = records.filter(r => r.invitationStatus === 'confirmed').length;
@@ -666,7 +692,7 @@ export class ExpertAdminService {
     const pending = records.filter(r => r.invitationStatus === 'pending').length;
     const candidates = records.filter(r => r.expertRole === '候补' && r.invitationStatus === 'pending');
     return {
-      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, rsvpNo: r.id.slice(-8).toUpperCase() })),
+      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, phone: maskPhone(openPii(r.user?.expertProfile?.phone ?? r.user?.phone ?? null)), rsvpNo: r.id.slice(-8).toUpperCase() })),
       summary: {
         total: records.length,
         confirmed,
@@ -1874,9 +1900,9 @@ export class ExpertAdminService {
       工作单位: u.expertProfile?.employer ?? '',
       所属公司: u.company ?? '',
       部门: u.department?.name ?? '',
-      手机号: u.expertProfile?.phone ?? '',
-      身份证号: u.expertProfile?.idNumber ?? '',
-      邮箱: u.email ?? '',
+      手机号: maskPhone(u.expertProfile?.phone ?? null) ?? '', // 导出脱敏（等保+密评）
+      身份证号: maskIdNumber(u.expertProfile?.idNumber ?? null) ?? '',
+      邮箱: maskEmail(u.email) ?? '',
       状态: u.isActive ? '可用' : '已停用',
       入库时间: u.createdAt.toISOString().slice(0, 10),
     }));

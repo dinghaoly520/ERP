@@ -7,6 +7,7 @@ import * as os from 'os';
 import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { AiService } from '../ai/ai.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
@@ -106,6 +107,15 @@ export class ExpertService {
       },
     });
     if (!user) throw new NotFoundException({ error: '用户不存在', code: 'USER_NOT_FOUND' });
+    // 本人自视明文：专家档案密文列拆封（本人数据本人可见，不入揭示审计）
+    if (user.expertProfile) {
+      user.expertProfile = {
+        ...user.expertProfile,
+        phone: openPii(user.expertProfile.phone),
+        idNumber: openPii(user.expertProfile.idNumber),
+        licenseNo: openPii(user.expertProfile.licenseNo),
+      };
+    }
     const expertRecords = await this.prisma.bidExpert.findMany({
       where: {
         userId,
@@ -118,7 +128,13 @@ export class ExpertService {
       orderBy: { createdAt: 'desc' },
     });
     const { passwordHash, ...safeUser } = user;
-    return { ...safeUser, assignments: expertRecords, averageScore: this.computeAverageScore(expertRecords) };
+    return {
+      ...safeUser,
+      email: openPii(safeUser.email),
+      phone: openPii(safeUser.phone),
+      assignments: expertRecords,
+      averageScore: this.computeAverageScore(expertRecords),
+    };
   }
 
   async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
@@ -127,7 +143,7 @@ export class ExpertService {
     // 显式 400；`!== undefined` 修正后仍放行 null（@IsOptional 只免校验不改值，null 直写非空列会 500）——
     // 收口为 typeof 守卫：字符串才写（空串已被 DTO 拒），null/undefined 一律跳过。
     if (typeof dto.displayName === 'string') data.displayName = dto.displayName;
-    if (typeof dto.email === 'string') data.email = dto.email;
+    if (typeof dto.email === 'string') data.email = sealPii(dto.email) as string;
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -147,7 +163,7 @@ export class ExpertService {
     if (!updated) return null;
     // 剥离密码哈希，避免敏感字段外泄（对齐 getProfile）
     const { passwordHash, ...safeUser } = updated;
-    return safeUser;
+    return { ...safeUser, email: openPii(safeUser.email), phone: openPii(safeUser.phone) };
   }
 
   /* 联系方式确认（首次登录弹窗） */
@@ -164,23 +180,29 @@ export class ExpertService {
     });
     return {
       displayName: user.displayName,
-      phone: ep?.phone || user.phone || '',
-      email: user.email || '',
+      phone: openPii(ep?.phone ?? null) || openPii(user.phone) || '',
+      email: openPii(user.email) || '',
       contactConfirmedAt: ep?.contactConfirmedAt || null,
     };
   }
 
   async confirmContact(userId: string, dto: ConfirmContactDto) {
     const now = new Date();
+    // 联系方式国密密封入库（等保+密评）；User.phone 同步写盲索引
+    const sealedPhone = sealPii(dto.phone) as string;
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
-        data: { phone: dto.phone, ...(dto.email && { email: dto.email }) },
+        data: {
+          phone: sealedPhone,
+          phoneIdx: blindIndexPii(dto.phone) ?? null,
+          ...(dto.email && { email: sealPii(dto.email) as string }),
+        },
       }),
       this.prisma.expertProfile.upsert({
         where: { userId },
-        update: { phone: dto.phone, contactConfirmedAt: now },
-        create: { userId, specialty: '综合', phone: dto.phone, contactConfirmedAt: now },
+        update: { phone: sealedPhone, contactConfirmedAt: now },
+        create: { userId, specialty: '综合', phone: sealedPhone, contactConfirmedAt: now },
       }),
     ]);
     return this.getContactCheck(userId);
