@@ -3953,7 +3953,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 下游联动调查（事务前取数）：关联招标项目 + 公告编号
     const linkedBidProjects = await this.prisma.bidProject.findMany({
       where: { projectManagementItemId: projectId },
-      select: { id: true, name: true, stage: true, projectCode: true, procurementMethod: true },
+      select: { id: true, name: true, stage: true, projectCode: true, procurementMethod: true, assignedHostUserId: true },
     });
     // 非终态（ARCHIVED=不可逆终态、ABORTED=已流标）的才联动流标
     const activeBidProjects = linkedBidProjects.filter((bp) => bp.stage !== 'ARCHIVED' && bp.stage !== 'ABORTED');
@@ -4108,14 +4108,21 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (activeBidProjects.length > 0) {
       try {
         const bpList = activeBidProjects.map((bp) => `${bp.name}（${bp.procurementMethod}）`).join('、');
-        await this.notificationService
-          .sendToRole('bid_host', {
-            type: 'BID_ABORTED',
-            title: `项目终止联动流标：${project.title}`,
-            content: `采购项目「${project.title}」已终止（原因：${reason}），关联招标项目 ${bpList} 已联动流标。`,
-            link: '/bid/archive', // 联动流标覆盖多项目：:3007 归档端（流标项目归属地）
-          })
-          .catch(() => undefined);
+        // 2026-10-09 串号修复：只发各关联项目指派的主持人（原按 bid_host 全平台广播；
+        // 同一主持人多项目去重；未指派的项目无收件人）
+        const hostUserIds = [...new Set(activeBidProjects.map((bp) => bp.assignedHostUserId).filter((u): u is string => !!u))];
+        await Promise.allSettled(
+          hostUserIds.map((uid) =>
+            this.notificationService
+              .sendToUser(uid, ['in_app'], {
+                type: 'BID_ABORTED',
+                title: `项目终止联动流标：${project.title}`,
+                content: `采购项目「${project.title}」已终止（原因：${reason}），关联招标项目 ${bpList} 已联动流标。`,
+                link: '/bid/archive', // 联动流标覆盖多项目：:3007 归档端（流标项目归属地）
+              })
+              .catch(() => undefined),
+          ),
+        );
         const experts = await this.prisma.bidExpert.findMany({
           where: { projectId: { in: activeBidProjects.map((bp) => bp.id) }, expertRole: '正选', invitationStatus: 'confirmed' },
           select: { userId: true },

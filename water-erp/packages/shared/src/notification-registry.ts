@@ -35,6 +35,8 @@ export type NotificationAudience =
   | { kind: 'SUBMITTED_SUPPLIERS' } // 已投递（已提交）供应商
   | { kind: 'CONFIRMED_EXPERTS' } // 已确认正选专家
   | { kind: 'COMPANY_LEADER_STAFF' } // 归属公司 leader+staff（无人回退平台 admin）
+  | { kind: 'PROJECT_CREATOR' } // 项目创建人（=宿主 PMI.createdById；解析失败不发送。2026-10-09 串号修复：ROLE 广播串到别公司账号）
+  | { kind: 'ASSIGNED_HOST' } // 本项目指派的开标主持人（=BidProject.assignedHostUserId；未指派不发送）
   | { kind: 'MANUAL_TARGETS' } // 主持人/操作者手动圈选的群发对象
   | { kind: 'LEGACY'; note: string }; // 收件策略挂起待议（2026-09-26 冻结域，产生点维持现状）
 
@@ -90,7 +92,7 @@ const BID_SPECS: NotificationTypeSpec[] = [
     icon: 'Gavel',
     tone: 'blue',
     actionable: false,
-    audiences: [{ kind: 'ROLE', roles: ['bid_host'] }],
+    audiences: [{ kind: 'ASSIGNED_HOST' }], // 2026-10-09 串号修复：收窄为本项目指派主持人（R2 闸门保证推进时必已指派）
     channels: IN_APP,
     render: ctx => ({
       title: `项目${ctx.projectName}已确定开标`,
@@ -150,7 +152,9 @@ const BID_SPECS: NotificationTypeSpec[] = [
     icon: 'PackageCheck',
     tone: 'green',
     actionable: true,
-    audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }],
+    // 2026-10-09 串号修复：原 ROLE[leader,staff] 全平台广播，串到建设/投资公司账号；
+    // /projects 个人隔离下非创建人也打不开链接。收窄为项目创建人（解析失败不发送）
+    audiences: [{ kind: 'PROJECT_CREATOR' }],
     channels: IN_APP,
     render: ctx => ({
       title: ctx.auto
@@ -197,7 +201,7 @@ const BID_SPECS: NotificationTypeSpec[] = [
     icon: 'Clock',
     tone: 'orange',
     actionable: true,
-    audiences: [{ kind: 'ROLE', roles: ['bid_host'] }],
+    audiences: [{ kind: 'ASSIGNED_HOST' }], // 2026-10-09 串号修复：只发本项目指派主持人（未指派不发送）
     channels: IN_APP,
     render: ctx => ({
       title: '开标异议处理已超时',
@@ -352,7 +356,7 @@ const BID_SPECS: NotificationTypeSpec[] = [
     icon: 'HandCoins',
     tone: 'orange',
     actionable: true,
-    audiences: [{ kind: 'ROLE', roles: ['staff'] }],
+    audiences: [{ kind: 'PROJECT_CREATOR' }], // 2026-10-09 串号修复：退还经办=项目创建人（原 staff 全平台广播）
     channels: IN_APP,
     link: () => '/projects', // 项目管理-合同面板逐家登记退还
   },
@@ -363,7 +367,7 @@ const BID_SPECS: NotificationTypeSpec[] = [
     icon: 'CircleX',
     tone: 'red',
     actionable: false,
-    audiences: [{ kind: 'ROLE', roles: ['bid_host'] }, { kind: 'CONFIRMED_EXPERTS' }],
+    audiences: [{ kind: 'ASSIGNED_HOST' }, { kind: 'CONFIRMED_EXPERTS' }], // 2026-10-09 串号修复：bid_host 全平台广播→本项目指派主持人（未指派不发送）
     channels: IN_APP,
   },
   {

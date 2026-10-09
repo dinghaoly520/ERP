@@ -8,6 +8,7 @@ import { AnnouncementService } from '../announcement/announcement.service';
 import { BidService } from '../bid/bid.service';
 import { nudgeWindowOpen } from '../bid/opening-deadline.util';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
+import { resolveProjectCreatorId } from '../bid/bid-project-notify.util';
 import { BID_DEADLINE_BEFORE_OPENING_MS, renderNotificationPayload } from '@water-erp/shared';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
@@ -297,13 +298,12 @@ export class SchedulerService {
         OR: [{ id: { in: signedProjectIds } }, { stage: 'ARCHIVED' }],
         bondRequired: true,
       },
-      select: { id: true, projectCode: true, name: true },
+      select: { id: true, projectCode: true, name: true, projectManagementItemId: true },
       take: 50,
     });
     if (projects.length === 0) return;
 
-    const toRemind: { id: string; projectCode: string; name: string }[] = [];
-    const pendingNames: string[] = [];
+    let sent = 0;
     for (const p of projects) {
       const marker = await this.prisma.systemConfig.findUnique({ where: { key: `bond_return_reminded:${p.id}` } });
       if (marker) continue;
@@ -313,31 +313,32 @@ export class SchedulerService {
         where: pendingBondReturnWhere({ projectId: p.id }),
       });
       if (pendingCount === 0) continue;
-      toRemind.push(p);
+      // 2026-10-09 串号修复：与定标 hook 同口径——只提醒项目创建人（原聚合后按 staff
+      // 全平台广播，多公司账号下串号）；解析失败跳过且不占坑，明日重扫
+      const creatorId = await resolveProjectCreatorId(this.prisma, p.projectManagementItemId);
+      if (!creatorId) continue;
       const pending = await this.prisma.bidSupplier.findMany({
         where: pendingBondReturnWhere({ projectId: p.id }),
         select: { supplierName: true },
         take: 5,
       });
-      pendingNames.push(...pending.map(s => s.supplierName));
-      await this.prisma.systemConfig.upsert({
-        where: { key: `bond_return_reminded:${p.id}` },
-        update: { value: new Date().toISOString() },
-        create: { key: `bond_return_reminded:${p.id}`, value: new Date().toISOString() },
-      }).catch(() => {});
+      const names = pending.map(s => s.supplierName).join('、');
+      try {
+        await this.notification.sendToUser(creatorId, ['in_app'], {
+          type: 'BOND_REFUND_DUE',
+          title: '响应担保待退还提醒',
+          content: `项目${p.name}（${p.projectCode}）尚有 ${pendingCount} 家供应商响应担保未登记逐家退还（GB/T 43711 7.5.4.4 按约定及时退还）：${names}${pendingCount > 5 ? '…' : ''}。请在项目管理-合同或归档面板逐家登记退还。`,
+          link: '/projects',
+        });
+        await this.prisma.systemConfig.upsert({
+          where: { key: `bond_return_reminded:${p.id}` },
+          update: { value: new Date().toISOString() },
+          create: { key: `bond_return_reminded:${p.id}`, value: new Date().toISOString() },
+        });
+        sent++;
+      } catch { /* 发送失败不占坑——明日重扫重发 */ }
     }
-    if (toRemind.length === 0) return;
-
-    const sample = toRemind.slice(0, 5).map(p => p.projectCode).join('、');
-    const uniqueNames = Array.from(new Set(pendingNames));
-    const nameSample = uniqueNames.slice(0, 5).join('、');
-    void this.notification.sendToRole('staff', {
-      type: 'BOND_REFUND_DUE',
-      title: '响应担保待退还提醒',
-      content: `${toRemind.length} 个已签署/归档项目尚有供应商响应担保未登记逐家退还（GB/T 43711 7.5.4.4 按约定及时退还）：${sample}${toRemind.length > 5 ? '…' : ''}；未退供应商：${nameSample}${uniqueNames.length > 5 ? '…' : ''}。请在项目管理-合同或归档面板逐家登记退还。`,
-      link: '/projects',
-    }).catch(() => {});
-    this.logger.log(`[C4] 响应担保逐家退还提醒已发 ${toRemind.length} 项`);
+    if (sent > 0) this.logger.log(`[C4] 响应担保逐家退还提醒已发 ${sent} 项`);
   }
 
   /** 每周一 01:00 扫描专家退库 / 供应商淘汰候选（仅预警通知，不自动改状态——决策 #3）。 */

@@ -31,6 +31,7 @@ import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from 
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
+import { resolveProjectCreatorId } from './bid-project-notify.util';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { openField } from '../common/crypto/field-crypto';
 import { parseFlexibleDate } from '../common/parse-date.util';
@@ -1110,11 +1111,11 @@ export class BidService {
       handoverAssetId: session.handoverAssetId ?? '',
     });
     this.gateway?.notifySupervisionLog(id, { role: existing.host, action: '完成开标·资料移交', target: project.name, result: `${opts?.auto ? `[自动固化·${opts.trigger ?? '终局'}] ` : ''}开标文件包已生成并移交采购管理工作台`, riskFlag: '无' });
-    const pmLink = project.projectManagementItemId
-      ? `/projects?projectId=${project.projectManagementItemId}&panel=bid-confirm`
-      : '/projects';
-    for (const role of ['leader', 'staff']) {
-      try {
+    // 2026-10-09 串号修复：只发项目创建人（原按 leader/staff 全平台广播，串到建设/投资公司账号；
+    // 且 /projects 个人隔离，非创建人打不开链接）。解析失败不发送（用户裁定）。
+    try {
+      const creatorId = await resolveProjectCreatorId(this.prisma, project.projectManagementItemId);
+      if (creatorId) {
         // 文案/链接走 shared 注册表模板（notification-registry）
         const tpl = renderNotificationPayload('BID_OPENING_HANDED_OVER', {
           projectName: project.name,
@@ -1122,9 +1123,9 @@ export class BidService {
           trigger: opts?.trigger,
           projectManagementItemId: project.projectManagementItemId ?? undefined,
         })!;
-        await this.notificationService.sendToRole(role, { type: 'BID_OPENING_HANDED_OVER', ...tpl });
-      } catch { /* 通知失败不阻塞移交 */ }
-    }
+        await this.notificationService.sendToUser(creatorId, ['in_app'], { type: 'BID_OPENING_HANDED_OVER', ...tpl });
+      }
+    } catch { /* 通知失败不阻塞移交 */ }
 
     return {
       status: '开标完成',
@@ -1371,7 +1372,7 @@ export class BidService {
   async abortBidProject(id: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, name: true, stage: true, procurementMethod: true, _count: { select: { suppliers: true } } },
+      select: { id: true, name: true, stage: true, procurementMethod: true, assignedHostUserId: true, _count: { select: { suppliers: true } } },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
@@ -1404,14 +1405,17 @@ export class BidService {
       return result;
     });
 
-    // 通知 bid_host 流标
+    // 通知该项目指派的主持人流标（2026-10-09 串号修复：原按 bid_host 全平台广播；
+    // 开标前流标未指派主持人时无收件人，不发送——不回退广播）
     try {
-      await this.notificationService.sendToRole('bid_host', {
-        type: 'BID_ABORTED',
-        title: `项目${project.name}已流标`,
-        content: `招标方式：${project.procurementMethod}，投标供应商 ${supplierCount} 家`,
-        link: `/bid/project/${id}`, // :3007 工作区直达（原 /bid?id= 落任务板不定位）
-      });
+      if (project.assignedHostUserId) {
+        await this.notificationService.sendToUser(project.assignedHostUserId, ['in_app'], {
+          type: 'BID_ABORTED',
+          title: `项目${project.name}已流标`,
+          content: `招标方式：${project.procurementMethod}，投标供应商 ${supplierCount} 家`,
+          link: `/bid/project/${id}`, // :3007 工作区直达（原 /bid?id= 落任务板不定位）
+        });
+      }
     } catch { /* 通知失败不阻塞流标 */ }
 
     // 通知已分配的评审专家（N9：仅已确认正选——候补/已婉拒/未确认不再收流标通知）
@@ -1741,11 +1745,15 @@ export class BidService {
 
     const updated = txResult.updated;
 
-    // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发
+    // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发。
+    // 2026-10-09 串号修复：只发该项目指派主持人（R2 闸门保证推进时必已指派），
+    // 不再按 bid_host 全平台广播。
     if (isTransitioning) {
       try {
-        const tpl = renderNotificationPayload('BID_OPENING_CONFIRMED', { projectName: project.name, projectId: id })!;
-        await this.notificationService.sendToRole('bid_host', { type: 'BID_OPENING_CONFIRMED', ...tpl });
+        if (project.assignedHostUserId) {
+          const tpl = renderNotificationPayload('BID_OPENING_CONFIRMED', { projectName: project.name, projectId: id })!;
+          await this.notificationService.sendToUser(project.assignedHostUserId, ['in_app'], { type: 'BID_OPENING_CONFIRMED', ...tpl });
+        }
       } catch { /* 通知失败不阻塞阶段流转 */ }
 
       // 通知所有已投递的供应商——开标已启动，请前往开标大厅
@@ -1999,12 +2007,18 @@ export class BidService {
       }
     }
 
-    // 通知主持人
+    // 通知该项目指派的主持人（2026-10-09 串号修复：原按 bid_host 全平台广播；未指派则不发送）
     try {
-      const disputeTpl = renderNotificationPayload('BID_DISPUTE_TIMEOUT', {
-        names, timeoutMinutes: session.disputeTimeoutMinutes, projectId,
-      })!;
-      await this.notificationService.sendToRole('bid_host', { type: 'BID_DISPUTE_TIMEOUT', ...disputeTpl });
+      const bp = await this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { assignedHostUserId: true },
+      });
+      if (bp?.assignedHostUserId) {
+        const disputeTpl = renderNotificationPayload('BID_DISPUTE_TIMEOUT', {
+          names, timeoutMinutes: session.disputeTimeoutMinutes, projectId,
+        })!;
+        await this.notificationService.sendToUser(bp.assignedHostUserId, ['in_app'], { type: 'BID_DISPUTE_TIMEOUT', ...disputeTpl });
+      }
     } catch { /* 通知失败不阻塞 */ }
   }
 
@@ -4298,7 +4312,7 @@ export class BidService {
   ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { name: true, projectCode: true },
+      select: { name: true, projectCode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
@@ -4513,17 +4527,22 @@ export class BidService {
         if (pending.length > 0) {
           const names = pending.slice(0, 5).map(s => s.supplierName).join('、');
           try {
-            await this.notificationService.sendToRole('staff', {
-              type: 'BOND_REFUND_DUE',
-              title: '响应担保待逐家退还提醒',
-              content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
-              link: `/projects?projectId=${projectId}`,
-            });
-            await this.prisma.systemConfig.upsert({
-              where: { key: markerKey },
-              update: { value: new Date().toISOString() },
-              create: { key: markerKey, value: new Date().toISOString() },
-            });
+            // 2026-10-09 串号修复：退还经办=项目创建人，定向提醒（原按 staff 全平台广播）。
+            // 解析失败不发送也不占坑（marker 仅在成功发送后写入，同「失败不占坑」语义）
+            const creatorId = await resolveProjectCreatorId(this.prisma, project.projectManagementItemId);
+            if (creatorId) {
+              await this.notificationService.sendToUser(creatorId, ['in_app'], {
+                type: 'BOND_REFUND_DUE',
+                title: '响应担保待逐家退还提醒',
+                content: `${project.name}已发出中标通知书，尚有 ${pending.length} 家未中标供应商的响应担保未登记退还（实施条例第57条：合同签订后5日内退还）：${names}${pending.length > 5 ? '…' : ''}。请在项目管理-合同面板逐家登记退还。`,
+                link: `/projects?projectId=${projectId}`,
+              });
+              await this.prisma.systemConfig.upsert({
+                where: { key: markerKey },
+                update: { value: new Date().toISOString() },
+                create: { key: markerKey, value: new Date().toISOString() },
+              });
+            }
           } catch (e) {
             this.logger.warn(`A-105 定标提醒发送失败 project=${projectId}: ${String(e)}`);
           }
