@@ -117,6 +117,14 @@ const KNOWN_ORGANIZATION_FORMS = ['自行招标', '委托招标'];
 function parseBidOpeningTime(raw: string | null | undefined): Date | null {
   return parseFlexibleDate(raw);
 }
+/**
+ * 立项日期字符串 → Date：日期语义按服务器本地时区构造（本地午夜 instant）。
+ * 两处写入共用——裸 new Date('YYYY-MM-DD') 会按 UTC 午夜解析，与本地构造口径混存
+ * 曾致时间轴显示偏移 8 小时（2026-10-09 实录，详见 timeline.service toIso 注释）。
+ */
+function parseInitiationDateInput(raw: string): Date {
+  return new Date(raw.length === 10 ? `${raw}T00:00:00` : raw);
+}
 
 /**
  * 按采购方式选择完整阶段模板，与前端 PROCUREMENT_METHOD_STAGES 保持一致。
@@ -1076,7 +1084,7 @@ ${shortlist}
           activitySchedule: dto.activitySchedule ?? null,
           riskMeasures: dto.riskMeasures ?? null,
           initiationDate: dto.initiationDate
-            ? new Date(dto.initiationDate.length === 10 ? `${dto.initiationDate}T00:00:00` : dto.initiationDate)
+            ? parseInitiationDateInput(dto.initiationDate)
             : null,
           currentStage: firstActiveStage,
           status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
@@ -4198,7 +4206,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     if (dto.initiationDate) {
-      const parsedDate = new Date(dto.initiationDate);
+      const parsedDate = parseInitiationDateInput(dto.initiationDate);
       if (!Number.isNaN(parsedDate.getTime())) {
         updateData.initiationDate = parsedDate;
       }

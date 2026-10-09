@@ -54,14 +54,16 @@ function parseDateRange(raw: string | null | undefined): { start: string | null;
 }
 
 /**
- * Prisma DateTime（timestamp without time zone）→ ISO。
- * DB 裸值的业务语义是本地时刻，但驱动按 UTC epoch 读出；直接 toISOString() 会让前端
- * （按本地解析 ISO）多出时区差（上海 +8h）——立项 00:00 显成 08:00、开标 14:00 显成 22:00。
- * 与 parseDateRange/parseFlexibleDate 的"本地构造"口径对齐：按本地时区折算后输出。
+ * Prisma DateTime（timestamp without time zone）→ ISO：恒等输出。
+ * 驱动按 UTC epoch 读写（写入时把 Date 序列化为 UTC 裸值，读出还原同一时刻），
+ * toISOString() 即正确。此前按「DB 裸值=本地时刻」假设做 −8h 补偿，与写侧的
+ * 本地构造口径（如 new Date('YYYY-MM-DDT00:00:00')）双重折算——立项 2026-10-08
+ * 显示成 10-07 16:00（2026-10-09 实录），且波及开标/截止/签约/归档等全部真实时刻
+ * 节点。旧口径存量数据已随本次修复迁移归一（00:00 裸值行 −8h）。
  */
-function toIsoFromBare(d: Date | null | undefined): string | null {
+function toIso(d: Date | null | undefined): string | null {
   if (!d) return null;
-  return new Date(d.getTime() + d.getTimezoneOffset() * 60000).toISOString();
+  return d.toISOString();
 }
 
 @Injectable()
@@ -114,7 +116,7 @@ export class TimelineService {
         const t = a.publishDate ?? a.createdAt;
         return t < min ? t : min;
       }, hits[0].publishDate ?? hits[0].createdAt);
-      return toIsoFromBare(earliest);
+      return toIso(earliest);
     };
     const bidNoticeIso = publishTimeOf(['BID_NOTICE', 'PREQUAL_NOTICE']);
     const winNoticeIso = publishTimeOf(['WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE']);
@@ -137,10 +139,10 @@ export class TimelineService {
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true },
       });
-      supplierInviteIso = toIsoFromBare(firstRsvp?.createdAt);
+      supplierInviteIso = toIso(firstRsvp?.createdAt);
     }
     // 合同签订兜底：未走合同模块登记（signedAt 空）时取 CONTRACT 阶段完成时刻
-    let contractSignIso = toIsoFromBare(contract?.signedAt);
+    let contractSignIso = toIso(contract?.signedAt);
     let contractSignSource = '合同';
     if (!contractSignIso) {
       const contractStage = await this.prisma.projectManagementStage.findFirst({
@@ -149,7 +151,7 @@ export class TimelineService {
         orderBy: { completedAt: 'desc' },
       });
       if (contractStage) {
-        contractSignIso = toIsoFromBare(contractStage.completedAt);
+        contractSignIso = toIso(contractStage.completedAt);
         contractSignSource = '合同阶段完成';
       }
     }
@@ -159,8 +161,8 @@ export class TimelineService {
 
     // 投标截止 = 开标前 24 小时（口径常量 BID_DEADLINE_BEFORE_OPENING_MS）：
     // BP.deadline 未登记时按开标时间自动推算展示，不再显示「未登记」
-    const openingIso = toIsoFromBare(bp?.openTime) ?? normalizeMaybeDate(item.bidOpeningTime);
-    const deadlineRaw = toIsoFromBare(bp?.deadline);
+    const openingIso = toIso(bp?.openTime) ?? normalizeMaybeDate(item.bidOpeningTime);
+    const deadlineRaw = toIso(bp?.deadline);
     const deadlineIso = deadlineRaw ?? (openingIso
       ? new Date(new Date(openingIso).getTime() - BID_DEADLINE_BEFORE_OPENING_MS).toISOString()
       : null);
@@ -168,7 +170,7 @@ export class TimelineService {
 
     const nodes: TimelineNode[] = [
       // initiationDate 未登记（直建/AI 提取缺失）→ 建档时刻兜底，避免「采购立项 未登记」
-      { key: 'initiation', label: '采购立项', time: toIsoFromBare(item.initiationDate) ?? toIsoFromBare(item.createdAt), source: item.initiationDate ? '项目管理' : '项目建档' },
+      { key: 'initiation', label: '采购立项', time: toIso(item.initiationDate) ?? toIso(item.createdAt), source: item.initiationDate ? '项目管理' : '项目建档' },
       // 公告发布/供应商邀请前置于文件获取（业务时序：先发布公告再获取文件）
       hasPublicAnnouncementStage
         ? { key: 'bidNoticePublish', label: '采购公告发布', time: bidNoticeIso, source: '公告' }
@@ -178,7 +180,7 @@ export class TimelineService {
       { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
       { key: 'winNoticePublish', label: '中标公告发布', time: winNoticeIso, source: '公告' },
       { key: 'contractSign', label: '合同签订', time: contractSignIso, source: contractSignSource },
-      { key: 'archived', label: '归档', time: toIsoFromBare(item.archivedAt), source: '归档' },
+      { key: 'archived', label: '归档', time: toIso(item.archivedAt), source: '归档' },
     ];
 
     // 固定业务顺序：立项→获取→截止→开标→签约→归档，与流程阅读习惯一致；
