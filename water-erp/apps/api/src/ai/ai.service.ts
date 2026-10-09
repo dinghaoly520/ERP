@@ -19,7 +19,7 @@ import type {
 } from './ai.types';
 import { computeRiskFactors, riskLevel, predictDefaultRisk } from './risk-score.compute';
 import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
-import { openPii } from '../common/crypto/sm-field-crypto';
+import { openField } from '../common/crypto/field-crypto';
 
 /*
    AI 辅助评标引擎
@@ -1089,9 +1089,9 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         expiredQualifications: expiredQual,
         // 风险评分可能在解密前被管理端 dashboard 拉取——按 SUCCESS 守卫，
         // 未解密时 bidPrice=null（risk-score.compute 已用 null 兼容缺数据因子）。
-        // 入库已密封（国密 sm1:），这里 openPii 拆封；无 legacy 明文兼容（存量已清除）。
+        // 入库已密封，这里 openField 拆封；旧明文行经 legacy 兼容。
         bidPrice: s.decryptStatus === 'SUCCESS' && sub?.bidPrice
-          ? Number(openPii(sub.bidPrice))
+          ? Number(openField(sub.bidPrice, process.env.KMS_SECRET!))
           : null,
         budget,
         perfCount: perf?.count ?? 0,

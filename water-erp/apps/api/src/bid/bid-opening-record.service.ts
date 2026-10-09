@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
-import { openPii } from '../common/crypto/sm-field-crypto';
+import { openField } from '../common/crypto/field-crypto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { assertPriceMatchesSealed, assertPeriodMatchesSubmitted } from './opening-record-assert.util';
@@ -90,13 +90,13 @@ export class BidOpeningRecordService {
     return {
       canView: true,
       // bidPrice 入库已密封；此处 canView=true 已保证 decryptStatus==='SUCCESS'，安全拆封。
-      // bidPrice 国密密封（sm1:），openPii 拆封；无 legacy 明文兼容（存量已清除）。
+      // 旧明文数据经 openField legacy 兼容原样返回。
       // dual-v2（同口径）：报价改指 decryptedPrice（解密上传经 fieldsCommit 承诺验证落库；
       // 新轨投递 bidPrice 列恒 null，读旧列会显示 null 价 → 主持人按面板录入必撞 409 PRICE_MISMATCH）。
       amount: submission
         ? (submission.envelopeVersion === 'dual-v2'
             ? (submission.decryptedPrice ?? null)
-            : (submission.bidPrice ? openPii(submission.bidPrice) : null))
+            : (submission.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null))
         : null,
       // dual-v2 报价以万元为单位入库（投标表单口径），前端展示须带单位——裸数字会被
       // formatOpeningAmount 当「元」渲染（2026-09-11 实测显示「152.89 元」而非「152.89 万元」）。

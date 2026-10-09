@@ -3,7 +3,7 @@
 // 从 ERP 多表聚合权威源：BidOpeningRecord(唱标) > SupplierBidSubmission(表单) > 标书 OCR
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { openPii } from '../../common/crypto/sm-field-crypto';
+import { openField } from '../../common/crypto/field-crypto';
 import type { SystemData } from '../types';
 
 @Injectable()
@@ -52,9 +52,9 @@ export class SystemDataAggregatorService {
     return {
       // 报价：开标唱标（权威）> 表单提交
       // 本服务仅由 ai-bid-analysis worker 在评标阶段（已开标解密后）调用 → post-decrypt，安全拆封。
-      // bidPrice 入库已密封（国密 sm1:），openPii 还原；无 legacy 明文兼容（存量已清除）。
+      // bidPrice 入库已密封，openField 还原；旧明文行经 legacy 兼容。
       openingAmount: fmtAmount(openingRecord?.amount ?? null),
-      submissionPrice: submission?.bidPrice ? fmtAmount(openPii(submission.bidPrice)) : null,
+      submissionPrice: submission?.bidPrice ? fmtAmount(openField(submission.bidPrice, process.env.KMS_SECRET!)) : null,
       // 工期：开标唱标 > 表单提交
       openingPeriod: openingRecord?.period ?? null,
       submissionPeriod: submission?.deliveryPeriod ?? null,
