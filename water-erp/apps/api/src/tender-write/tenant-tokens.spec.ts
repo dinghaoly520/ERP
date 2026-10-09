@@ -177,3 +177,30 @@ describe('buildTenantPlaceholderReplacements（显式占位符填充，2026-10-0
     expect(plan).toHaveLength(4);
   });
 });
+
+describe('replaceTextAcrossRuns — 自含替换防膨胀（稳健性加固）', () => {
+  it('替换串包含目标串时不逐轮增长（监督人=王先生、徐先生 含子串 王先生）', () => {
+    const xml =
+      '<w:p><w:r><w:t>联系人：王先生、徐先生 监督人另有王先生在岗</w:t></w:r></w:p>';
+    const out = replaceTextAcrossRuns(xml, '王先生', '王先生、徐先生');
+    // 两处「王先生」各替换一次，产物不得再被二次替换
+    expect(out).toBe(
+      '<w:p><w:r><w:t>联系人：王先生、徐先生、徐先生 监督人另有王先生、徐先生在岗</w:t></w:r></w:p>',
+    );
+    expect(out.match(/、徐先生/g)?.length).toBe(3); // 恰好两处替换各带一个，无第三次膨胀
+  });
+
+  it('替换串与目标串相同时原样收敛（不空转产出）', () => {
+    const xml = '<w:p><w:r><w:t>王先生</w:t></w:r></w:p>';
+    const out = replaceTextAcrossRuns(xml, '王先生', '王先生');
+    expect(out).toBe(xml);
+  });
+
+  it('跨 run 命中 + 自含替换串组合也安全', () => {
+    const xml =
+      '<w:p><w:r><w:t>监督：王先生、</w:t></w:r><w:r><w:t>徐先生</w:t></w:r></w:p>';
+    const out = replaceTextAcrossRuns(xml, '王先生、徐先生', '王先生、徐先生、李女士');
+    expect(out).toContain('王先生、徐先生、李女士');
+    expect(out).not.toContain('李女士、李女士');
+  });
+});

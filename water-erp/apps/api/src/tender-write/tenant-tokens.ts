@@ -86,7 +86,27 @@ export function replaceTextAcrossRuns(
   if (!target) return xml;
   const escapedReplacement = escapeXmlText(replacement);
 
-  // 单个目标在全部模板里出现 ≤11 次；200 次上限仅为防意外死循环
+  // 防自含膨胀（稳健性加固）：替换串包含目标串时（如「王先生、徐先生」含「王先生」），
+  // 朴素循环会把替换产物里的目标再次替换、逐轮增长出损坏文本——先统一换成文中
+  // 不存在的哨兵字符，再一次性还原（哨兵不含目标，两阶段都天然收敛）
+  if (escapedReplacement.includes(target)) {
+    let sentinel = '\uE000'; // 私用区字符，正常文档不出现
+    while (xml.includes(sentinel) || escapedReplacement.includes(sentinel)) {
+      sentinel += '\uE000';
+    }
+    const staged = replaceAllOccurrencesOnceAtATime(xml, target, sentinel);
+    return replaceAllOccurrencesOnceAtATime(staged, sentinel, escapedReplacement);
+  }
+
+  return replaceAllOccurrencesOnceAtATime(xml, target, escapedReplacement);
+}
+
+/** 逐次替换全部命中（单目标 ≤11 次；200 次上限仅为防意外死循环） */
+function replaceAllOccurrencesOnceAtATime(
+  xml: string,
+  target: string,
+  escapedReplacement: string,
+): string {
   for (let guard = 0; guard < 200; guard += 1) {
     const segments = collectTextSegments(xml);
     const offsets: number[] = [];
