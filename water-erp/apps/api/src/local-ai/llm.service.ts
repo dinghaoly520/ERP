@@ -14,7 +14,7 @@ import { ConfigService } from '@nestjs/config';
  *  - 收口全部直连 fetch 调用点（announcement-ai / supplier-selection-ai / ai.service.dashboardSummary / assistant DeepSeekProvider）
  *  - 新增 `LlmCallOptions`（model/maxTokens/timeoutMs/retries）—— 位置签名向后兼容
  *  - 新增 `chatMessages()` 多轮对话 API（assistant 用）
- *  - 429/5xx/网络/超时自动重试（LLM_MAX_RETRIES，指数退避，遵守 Retry-After≤8s）；调用方 abort 与 JSON 解析失败不重试
+ *  - 429/5xx/网络/超时/空内容/截断/JSON 解析失败自动重试（LLM_MAX_RETRIES，指数退避，遵守 Retry-After≤8s；解析失败重试系 2026-10-10 增）；调用方 abort 不重试
  *  - 进程内并发信号量（LLM_MAX_CONCURRENCY）：突发并发排队而非打爆上游配额
  */
 
@@ -251,7 +251,7 @@ export class LlmService {
     //  - response_format {'type':'json_object'} + prompt 含 "json" 词 + 格式示例
     //  - 明示禁止 Markdown 代码围栏（v4 系模型偶发包裹围栏/空内容，官方已知问题）
     //  - 空 content / finish_reason=length 截断 → 抛 retryable 错误走 withRetry 重试
-    const content = await this.withRetry(
+    const parsed = await this.withRetry(
       () =>
         this.requestOnce({
           messages: [
@@ -288,11 +288,21 @@ export class LlmService {
             throw e;
           }
           return r.content;
+        }).then((content) => {
+          // 解析失败可重试（2026-10-10 实录：模型偶发输出非法 JSON，阶段合规审查
+          // 自动加载场景直接 503 到用户面前）——预算与传输错误同池（LLM_MAX_RETRIES
+          // 默认 2，最坏 1+2 次有界），系统性坏提示词不会无限烧钱
+          try {
+            return this.parseJson<T>(content);
+          } catch (err) {
+            (err as { retryable?: boolean }).retryable = true;
+            throw err;
+          }
         }),
       options,
       signal,
     );
-    return this.parseJson<T>(content);
+    return parsed;
   }
 
   /** 多轮对话（assistant 等需要完整 messages 历史的场景） */
@@ -497,8 +507,14 @@ export class LlmService {
       }
 
       // 思考模式兜底：content 为空但 reasoning_content 有内容时取后者（官方文档：
-      // 思考模式下仅读 message.content；偶发空 content 属已知问题）
-      if (!response.content.trim() && response.reasoningContent.trim()) {
+      // 思考模式下仅读 message.content；偶发空 content 属已知问题）。
+      // json_object 模式不兜底（2026-10-10）：思维链是散文，喂给 parseJson 必败——
+      // 放行空 content 由 chatJson 的空内容 retryable 分支重试重新生成
+      if (
+        !response.content.trim() &&
+        response.reasoningContent.trim() &&
+        !p.responseFormat
+      ) {
         this.logger.warn(
           'LLM message.content 为空，回退使用 reasoning_content（思考模式）',
         );
