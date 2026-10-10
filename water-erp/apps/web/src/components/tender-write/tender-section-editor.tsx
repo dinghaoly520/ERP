@@ -8,6 +8,7 @@ import type {
 import { TenderFieldActions } from './tender-field-actions';
 import { TenderFieldSampleDialog } from './tender-field-sample-drawer';
 import { ContactPickerDialog } from './contact-picker-dialog';
+import { PurchaserPickerDialog } from './purchaser-picker-dialog';
 import {
   QuotationTableEditor,
   createDefaultQuotationTable,
@@ -1200,8 +1201,10 @@ export function TenderSectionEditor({
         />
       )}
 
+      {/* 联系人按钮 → 采购人选择器（2026-10-10 多人版）：从公司信息维护的采购人条目中单选，
+          选即同时填 联系人/联系电话/联系邮箱；未维护时引导去公司信息管理 */}
       {contactPickerOpen && hasContactFields && (
-        <ContactPickerDialog
+        <PurchaserPickerDialog
           isOpen={contactPickerOpen}
           onSelect={handleContactSelect}
           onClose={() => setContactPickerOpen(false)}
