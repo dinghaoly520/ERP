@@ -11,8 +11,6 @@ import { CompetitiveAnalysisService } from './services/competitive-analysis.serv
 import { DocxGeneratorService } from './services/docx-generator.service';
 import { BidderExtractorService } from './services/bidder-extractor.service';
 import { TenderExtractorService } from './services/tender-extractor.service';
-import { DocumentMetadataExtractorService } from './services/document-metadata-extractor.service';
-import { CacheService } from './services/cache.service';
 import { PriceAnalyzerService } from './services/price-analyzer.service';
 
 // per-item 核心新服务（Phase 3.2）
@@ -32,8 +30,6 @@ const SERVICES = [
   DocxGeneratorService,
   BidderExtractorService,
   TenderExtractorService,
-  DocumentMetadataExtractorService,
-  CacheService,
   PriceAnalyzerService, // 方案2：被 GenericItemScorer 复用（价格 LLM 分析层）
   // per-item 核心新服务
   ConcordanceVerifierService,

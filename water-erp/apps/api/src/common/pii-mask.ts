@@ -53,34 +53,3 @@ export function maskLicenseNo(value: string | null | undefined): string | null {
   if (v == null) return null;
   return keepEnds(v, 4, 4);
 }
-
-type MaskableField =
-  | 'idNumber'
-  | 'idCard'
-  | 'legalPersonIdCard'
-  | 'phone'
-  | 'legalPersonPhone'
-  | 'accountNo'
-  | 'licenseNo'
-  | 'email';
-
-const MASKERS: Record<MaskableField, (v: string | null) => string | null> = {
-  idNumber: maskIdNumber,
-  idCard: maskIdNumber,
-  legalPersonIdCard: maskIdNumber,
-  phone: maskPhone,
-  legalPersonPhone: maskPhone,
-  accountNo: maskBankAccount,
-  licenseNo: maskLicenseNo,
-  email: maskEmail,
-};
-
-/**
- * 按字段名路由的统一脱敏入口。
- * 未知字段名原样返回（不误伤非敏感字段）。
- */
-export function maskContact(field: string, value: string | null | undefined): string | null {
-  const masker = MASKERS[field as MaskableField];
-  if (!masker) return normalize(value) ?? null;
-  return masker(normalize(value) ?? null);
-}

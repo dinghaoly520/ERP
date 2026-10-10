@@ -42,19 +42,6 @@ import * as crypto from 'crypto';
 export const BID_FILE_MUST_BE_PDF_MSG = (role: string) =>
   `投标文件（${role}）必须为 PDF 版式文件（版式转换口径）——请转换后重新加密上传`;
 
-/** A-87：招标文件要点——AiBidAnalysisTask.requirements 的供应商侧扁平视图（分组，不带 id/权重） */
-export interface TenderRequirementSummary {
-  projectName: string;
-  projectType: string;
-  bidDeadline?: string;
-  maxPrice?: number;
-  estimatedCost?: number;
-  priceEvaluationMethod: string;
-  qualification: Array<{ category: string; content: string; isRequired: boolean }>;
-  technical: Array<{ category: string; content: string; isStarred: boolean }>;
-  commercial: Array<{ category: string; content: string; isRequired: boolean }>;
-}
-
 /** 供应商投标提交/草稿共用的可持久化字段 */
 type BidSubmissionData = {
   bidPrice?: string;

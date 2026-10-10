@@ -23,10 +23,6 @@ export class ExecuteReviewDto {
   objectKey: string;
 }
 
-export class UploadReviewDocDto {
-  // File is handled by multer interceptor, no DTO fields needed
-}
-
 export class ExtractRulesDto {
   @ApiProperty()
   @IsString()

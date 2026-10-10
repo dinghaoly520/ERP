@@ -141,6 +141,3 @@ export type InternalBiddingAnswers = {
   quotationLetter: string; // 文本模式时使用
   quotationLetterTable?: TableData; // 表格模式时使用
 };
-
-// Invited bidding uses the same structure as internal bidding
-export type InvitedBiddingAnswers = InternalBiddingAnswers;

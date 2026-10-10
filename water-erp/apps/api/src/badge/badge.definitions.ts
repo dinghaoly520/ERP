@@ -50,7 +50,6 @@ export const BADGE_DEFINITIONS = [
   },
 ] as const;
 
-export type BadgeCode = (typeof BADGE_DEFINITIONS)[number]['code'];
 export type BadgeLevel = 'bronze' | 'silver' | 'gold' | 'platinum';
 
 export const LEVEL_ORDER: BadgeLevel[] = ['bronze', 'silver', 'gold', 'platinum'];
@@ -70,27 +69,4 @@ export function resolveLevel(value: number, thresholds: Record<string, number>):
     if (t != null && value >= t) result = level;
   }
   return result;
-}
-
-/** 返回下一等级 + 还差多少 */
-export function nextLevel(
-  value: number,
-  thresholds: Record<string, number>,
-): { level: BadgeLevel; remaining: number; progressPct: number } | null {
-  for (const level of LEVEL_ORDER) {
-    const t = thresholds[level];
-    if (t != null && value < t) {
-      // 找到当前 level 的下限（上一级阈值）
-      const idx = LEVEL_ORDER.indexOf(level);
-      const prevT = idx > 0 ? thresholds[LEVEL_ORDER[idx - 1]] : 0;
-      const span = t - (prevT ?? 0);
-      const done = value - (prevT ?? 0);
-      return {
-        level,
-        remaining: t - value,
-        progressPct: span > 0 ? Math.min(100, Math.round((done / span) * 100)) : 0,
-      };
-    }
-  }
-  return null;
 }

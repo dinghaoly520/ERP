@@ -1,10 +1,4 @@
 import * as JSZip from 'jszip';
-import { Document, Paragraph, TextRun, Packer } from 'docx';
-
-interface DocxPart {
-  type: 'normal' | 'deleted' | 'inserted';
-  text: string;
-}
 
 interface RunSegment {
   start: number;
@@ -12,70 +6,6 @@ interface RunSegment {
   text: string;
   propertiesXml: string;
   runXml: string;
-}
-
-function parseHtmlToParts(html: string): DocxPart[] {
-  const parts: DocxPart[] = [];
-  const regex =
-    /(<del[^>]*>([\s\S]*?)<\/del>)|(<ins[^>]*>([\s\S]*?)<\/ins>)|([^<]+)/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(html)) !== null) {
-    if (match[1]) {
-      parts.push({ type: 'deleted', text: match[2] });
-    } else if (match[3]) {
-      parts.push({ type: 'inserted', text: match[4] });
-    } else if (match[5]) {
-      parts.push({ type: 'normal', text: match[5] });
-    }
-  }
-
-  return parts;
-}
-
-export async function generateDocxFromContent(
-  content: string,
-  documentName: string,
-): Promise<Buffer> {
-  const lines = content.split('\n');
-  const paragraphs: Paragraph[] = [];
-
-  for (const line of lines) {
-    const parts = parseHtmlToParts(line);
-    const runs: TextRun[] = [];
-
-    for (const part of parts) {
-      if (part.type === 'deleted') {
-        runs.push(
-          new TextRun({
-            text: part.text,
-            strike: true,
-            color: '999999',
-          }),
-        );
-      } else if (part.type === 'inserted') {
-        runs.push(
-          new TextRun({
-            text: part.text,
-            color: 'FF0000',
-            bold: true,
-          }),
-        );
-      } else {
-        runs.push(new TextRun({ text: part.text }));
-      }
-    }
-
-    paragraphs.push(
-      new Paragraph({ children: runs.length > 0 ? runs : [new TextRun('')] }),
-    );
-  }
-
-  const doc = new Document({
-    sections: [{ children: paragraphs }],
-  });
-
-  return Packer.toBuffer(doc);
 }
 
 export async function modifyDocxBuffer(

@@ -14,12 +14,6 @@ export interface StageComplianceCheckpoint {
   regulationRef: string;
 }
 
-export interface StageComplianceRules {
-  stageKey: string;
-  stageName: string;
-  checkpoints: StageComplianceCheckpoint[];
-}
-
 /**
  * 采购需求阶段（PROCUREMENT_DEMAND）审查要点
  *

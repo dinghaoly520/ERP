@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 
 /** C3 非招标方式三类（CTS-EBS01 A-199：变更为非招标方式后记录其他交易方式和成交结果） */
 export const NON_TENDER_METHODS = ['竞争性谈判', '询价', '单一来源'] as const;
-export type NonTenderMethod = (typeof NON_TENDER_METHODS)[number];
 
 export interface RegisterNonTenderDealDto {
   method: string;

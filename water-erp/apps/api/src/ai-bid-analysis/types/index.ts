@@ -160,18 +160,6 @@ export interface QualificationResult {
   criticalIssues: string[];
 }
 
-export interface BidderScores {
-  qualification: QualificationResult;
-  response: {
-    score: number;
-    deviationAnalysis: DeviationAnalysis;
-    summary: string;
-  };
-  technical: TechnicalScore;
-  commercial: CommercialScore;
-  price: PriceScore;
-}
-
 export type FraudRuleCode =
   | 'PRICE_CONCENTRATION_HIGH'
   | 'PRICE_CONCENTRATION_MEDIUM'
@@ -230,16 +218,6 @@ export interface FraudIndicators {
     lowCount: number;
     totalCount: number;
   };
-}
-
-export interface PriceAnalysis {
-  lowest: { bidderId: string; name: string; price: number; };
-  highest: { bidderId: string; name: string; price: number; };
-  average: number;
-  spread: number;
-  variance: number;
-  stdDev: number;
-  dispersionRate: number;
 }
 
 export interface TenderRequirements {

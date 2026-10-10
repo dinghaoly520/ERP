@@ -5,7 +5,6 @@ import {
   normalizeCompetitiveNegotiationTemplateXml,
   buildSingleSourceReplacementPlan,
   renderTemplateXml,
-  renderCompetitiveNegotiationXml,
 } from './tender-write.template';
 
 describe('tender-write template helpers', () => {
@@ -252,43 +251,6 @@ describe('single-source tender template helpers', () => {
     expect(result).toBe(splitXml);
   });
 
-  it('renders competitive negotiation with split placeholders', () => {
-    const splitXml = `<w:p><w:r><w:t>{{</w:t></w:r><w:r><w:t>项目名称</w:t></w:r><w:r><w:t>}}</w:t></w:r></w:p>`;
-
-    const result = renderCompetitiveNegotiationXml(splitXml, {
-      项目名称: '谈判采购项目',
-    });
-
-    expect(result).toContain('谈判采购项目');
-    expect(result).not.toContain('{{项目名称}}');
-  });
-
-  it('replaces embedded placeholders preserving surrounding text', () => {
-    // Test case: "最高限价{{356864}}元" should become "最高限价356864元"
-    const embeddedXml = `<w:p><w:r><w:t>最高限价{{356864}}元</w:t></w:r></w:p>`;
-
-    const result = renderCompetitiveNegotiationXml(embeddedXml, {
-      356864: '500000',
-    });
-
-    expect(result).toContain('最高限价500000元');
-    expect(result).not.toContain('{{356864}}');
-    expect(result).toContain('<w:r>');
-    expect(result).toContain('</w:r>');
-  });
-
-  it('replaces standalone placeholder with braces', () => {
-    // Test case: "{{项目名称}}" should be fully replaced
-    const standaloneXml = `<w:p><w:r><w:t>{{项目名称}}</w:t></w:r></w:p>`;
-
-    const result = renderCompetitiveNegotiationXml(standaloneXml, {
-      项目名称: '测试项目名称',
-    });
-
-    expect(result).toContain('测试项目名称');
-    expect(result).not.toContain('{{');
-    expect(result).not.toContain('}}');
-  });
 
   it('adds the fixed submission requirements heading when the field is enabled', () => {
     const plan = buildCompetitiveNegotiationReplacementPlan({

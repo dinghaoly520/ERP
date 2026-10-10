@@ -6,9 +6,6 @@
 /** 公钥格式校验失败（以专家侧字面量为基准） */
 export const ERR_PUBLIC_KEY_INVALID = 'SM2_PUBLIC_KEY_INVALID';
 
-/** 专家侧（expert.service.ts）别名——与主常量同值 */
-export const ERR_PUBLIC_KEY_INVALID_EXPERT = ERR_PUBLIC_KEY_INVALID;
-
 /**
  * 供应商侧（supplier-portal.service.ts）别名——先于专家侧落地的对外字面量，
  * 与专家侧不同值；为不破坏既有对外契约保留原字面量不变，

@@ -144,66 +144,6 @@ export function findAnchorIndex(
   return -1;
 }
 
-export function applyTextChange(
-  documentContent: string,
-  suggestion: StructuredSuggestion,
-): { content: string; success: boolean } {
-  const { operation } = suggestion;
-
-  if (operation === 'manual') {
-    return { content: documentContent, success: false };
-  }
-
-  if (operation === 'replace') {
-    const { originalText, replacementText } = suggestion;
-    if (!originalText) return { content: documentContent, success: false };
-
-    const idx = findOriginalTextIndex(originalText, documentContent);
-    if (idx < 0) return { content: documentContent, success: false };
-
-    const before = documentContent.slice(0, idx);
-    const after = documentContent.slice(idx + originalText.length);
-    const content = `${before}<del>${originalText}</del><ins style="color:red">${replacementText || ''}</ins>${after}`;
-    return { content, success: true };
-  }
-
-  if (operation === 'delete') {
-    const { originalText } = suggestion;
-    if (!originalText) return { content: documentContent, success: false };
-
-    const idx = findOriginalTextIndex(originalText, documentContent);
-    if (idx < 0) return { content: documentContent, success: false };
-
-    const before = documentContent.slice(0, idx);
-    const after = documentContent.slice(idx + originalText.length);
-    const content = `${before}<del>${originalText}</del>${after}`;
-    return { content, success: true };
-  }
-
-  if (operation === 'insert') {
-    const { anchor, replacementText } = suggestion;
-    if (!replacementText) return { content: documentContent, success: false };
-
-    if (anchor) {
-      const idx = findAnchorIndex(anchor, documentContent);
-      if (idx < 0) return { content: documentContent, success: false };
-
-      const before = documentContent.slice(0, idx);
-      const after = documentContent.slice(idx);
-      const content = `${before}<ins style="color:red">${replacementText}</ins>${after}`;
-      return { content, success: true };
-    }
-
-    return {
-      content:
-        documentContent + `<ins style="color:red">${replacementText}</ins>`,
-      success: true,
-    };
-  }
-
-  return { content: documentContent, success: false };
-}
-
 function editDistance(a: string, b: string): number {
   const m = a.length;
   const n = b.length;

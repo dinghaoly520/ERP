@@ -176,7 +176,6 @@ export class CatalogItemAdminDto {
   @IsDateString()
   validUntil?: string | null;
 }
-
 export class UpdateCatalogItemAdminDto extends CatalogItemAdminDto {}
 
 export class CatalogStatusDto {

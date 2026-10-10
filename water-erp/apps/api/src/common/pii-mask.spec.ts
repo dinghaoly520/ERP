@@ -4,7 +4,6 @@ import {
   maskEmail,
   maskBankAccount,
   maskLicenseNo,
-  maskContact,
 } from './pii-mask';
 
 describe('pii-mask（出口脱敏规则）', () => {
@@ -67,26 +66,6 @@ describe('pii-mask（出口脱敏规则）', () => {
     });
     it('短证号全 *', () => {
       expect(maskLicenseNo('A1234567')).toBe('********');
-    });
-  });
-
-  describe('maskContact（按字段名路由的统一入口）', () => {
-    it('idNumber/idCard/legalPersonIdCard → 身份证规则', () => {
-      expect(maskContact('idNumber', '51102319900101123X')).toBe('5110**********123X');
-      expect(maskContact('idCard', '51102319900101123X')).toBe('5110**********123X');
-      expect(maskContact('legalPersonIdCard', '51102319900101123X')).toBe('5110**********123X');
-    });
-    it('phone/legalPersonPhone → 手机规则', () => {
-      expect(maskContact('phone', '13812345678')).toBe('138****5678');
-      expect(maskContact('legalPersonPhone', '13812345678')).toBe('138****5678');
-    });
-    it('accountNo → 银行规则；licenseNo → 证号规则；email → 邮箱规则', () => {
-      expect(maskContact('accountNo', '6222020200112233445')).toBe('6222***********3445');
-      expect(maskContact('licenseNo', '川A123456789')).toBe('川A12***6789');
-      expect(maskContact('email', 'zhangsan@example.com')).toBe('z***@example.com');
-    });
-    it('未知字段名原样返回（不误伤非敏感字段）', () => {
-      expect(maskContact('employer', '四川省水利院')).toBe('四川省水利院');
     });
   });
 });

@@ -111,19 +111,3 @@ export function detectPricePattern(prices: number[]): PricePattern {
 
   return { hasPattern: false, patternType: 'none' };
 }
-
-/**
- * 检测报价异常值（基于标准差倍数）
- * 仅在投标单位 >= 4 家时才有参考意义，否则不检测。
- */
-export function detectPriceOutliers(prices: number[], threshold = 2): number[] {
-  if (prices.length < 4) return [];
-
-  const stats = calculatePriceStatistics(prices);
-  if (!stats) return [];
-
-  const { mean, stdDev } = stats;
-  if (stdDev === 0) return [];
-
-  return prices.filter(p => Math.abs(p - mean) > threshold * stdDev);
-}

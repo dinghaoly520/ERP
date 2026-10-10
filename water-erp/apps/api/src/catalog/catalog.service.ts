@@ -18,9 +18,6 @@ const EMBED_TOP_K = 10;
 /** validateEnum 越界哨兵：品类 id / SELECT 选项不在合法集合时返回它，调用方据此判 null。 */
 const ENUM_INVALID = '__INVALID_SENTINEL__';
 
-/** 供应商目录供货申请类型 */
-export type CatalogApplicationType = 'NEW_ITEM' | 'JOIN_EXISTING' | 'UPDATE_QUOTE';
-
 export interface CatalogItemView {
   id: string;
   code: string;

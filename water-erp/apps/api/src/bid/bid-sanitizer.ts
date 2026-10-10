@@ -33,10 +33,3 @@ export function sanitizeForBidHost<T extends Record<string, unknown>>(obj: T): T
   }
   return result as T;
 }
-
-/**
- * 对数组做字段去敏
- */
-export function sanitizeListForBidHost<T extends Record<string, unknown>>(list: T[]): T[] {
-  return list.map(sanitizeForBidHost);
-}
