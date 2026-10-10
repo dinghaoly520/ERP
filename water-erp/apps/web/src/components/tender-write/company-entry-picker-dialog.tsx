@@ -12,7 +12,7 @@ import { getCompanyInfoOnce } from "@/lib/api/company-info";
  * - kind="supervision"：选中回调整块方案（写入监督四字段）
  * 条目维护归公司信息管理页（leader），此处只读选择；空态引导去维护。
  */
-type SupervisionProfileValue = { label: string; department: string; address: string; contact: string; phone: string };
+type SupervisionProfileValue = { department: string; address: string; contact: string; phone: string };
 
 export function CompanyEntryPickerDialog({
   isOpen,
@@ -47,14 +47,14 @@ export function CompanyEntryPickerDialog({
         setItems(
           (ci.supervisionProfiles ?? []).map((p) => {
             const value: SupervisionProfileValue = {
-              label: p.label,
               department: p.department ?? "",
               address: p.address ?? "",
               contact: p.contact ?? "",
               phone: p.phone ?? "",
             };
-            const parts = [p.department || `${p.label}`, p.contact, p.phone].filter(Boolean);
-            return { id: p.id, label: p.label, isDefault: p.isDefault, line: parts.join(" · "), raw: value };
+            // 以监督人为条目标识（2026-10-10 用户裁定：无方案名称列）；副行展示部门与电话
+            const parts = [p.department, p.phone].filter(Boolean);
+            return { id: p.id, label: p.contact || "监督方案", isDefault: p.isDefault, line: parts.join(" · "), raw: value };
           }),
         );
       }

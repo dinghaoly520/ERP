@@ -441,32 +441,29 @@ export default function CompanyInfoPage() {
       <EntryListCard
         icon={ShieldAlert}
         title="监督方案"
-        hint="可维护多套监督举报信息（如纪检监察部 / 审计部）、单默认——默认者进入编写时预填「监督信息」四字段，编写时可点「监督方案」按钮改选整块。"
+        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段，编写时可点「监督方案」按钮改选整块。"
         fields={[
-          { key: 'label', label: '方案名称', placeholder: '如：纪检监察部' },
+          { key: 'contact', label: '监督人（标识，必填）', placeholder: '多人顿号分隔，如：王先生、徐先生' },
           { key: 'department', label: '监督部门', placeholder: '留空 = 公司名称 + 纪检监察部' },
           { key: 'address', label: '监督地址', placeholder: '地址' },
-          { key: 'contact', label: '监督人', placeholder: '多人顿号分隔' },
           { key: 'phone', label: '监督电话', placeholder: '电话' },
         ]}
         entries={supervisions}
         onReload={reloadEntries}
         onCreate={async (v, firstDefault) => {
           await createSupervision({
-            label: v.label,
+            contact: v.contact,
             department: v.department || null,
             address: v.address || null,
-            contact: v.contact || null,
             phone: v.phone || null,
             isDefault: firstDefault,
           });
         }}
         onUpdate={async (id, v) => {
           await updateSupervision(id, {
-            label: v.label,
+            contact: v.contact,
             department: v.department || null,
             address: v.address || null,
-            contact: v.contact || null,
             phone: v.phone || null,
           });
         }}

@@ -66,7 +66,6 @@ model CompanySupervision {
   id         String   @id @default(cuid())
   companyId  String
   company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  label      String // 辨识名（如「纪检监察部」「审计部」）
   department String?
   address    String?
   contact    String?

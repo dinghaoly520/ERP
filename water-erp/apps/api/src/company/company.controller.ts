@@ -61,12 +61,9 @@ export class PlaceBodyDto {
   isDefault?: boolean;
 }
 
-/** 监督信息方案条目（2026-10-10 多条目版）：整块监督举报信息，编写时「监督方案」按钮选择 */
+/** 监督信息方案条目（2026-10-10 多条目版）：整块监督举报信息，编写时「监督方案」按钮选择；
+ *  无独立名称（用户裁定删除），以「监督人」为条目标识（必填） */
 export class SupervisionBodyDto {
-  @IsString()
-  @MaxLength(50)
-  label?: string;
-
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -302,15 +299,14 @@ export class CompanyController {
 
   @Post('my-info/supervisions')
   @Roles('leader', 'admin')
-  @ApiOperation({ summary: '新增监督方案条目（设为默认时自动取消其他默认）' })
+  @ApiOperation({ summary: '新增监督方案条目（监督人为必填标识；设为默认时自动取消其他默认）' })
   async addSupervision(@CurrentUser() user: AuthenticatedUser, @Body() dto: SupervisionBodyDto) {
     const companyId = await this.resolveOwnCompanyId(user);
-    const label = dto.label?.trim();
-    if (!label) {
-      throw new BadRequestException({ error: '方案名称不能为空', code: 'SUPERVISION_LABEL_REQUIRED' });
+    const contact = dto.contact?.trim();
+    if (!contact) {
+      throw new BadRequestException({ error: '监督人不能为空（条目以监督人为标识）', code: 'SUPERVISION_CONTACT_REQUIRED' });
     }
     return this.entryMutation(companyId, 'companySupervision', null, {
-      label,
       department: normalizeOptional(dto.department),
       address: normalizeOptional(dto.address),
       contact: normalizeOptional(dto.contact),
@@ -329,7 +325,6 @@ export class CompanyController {
   ) {
     const companyId = await this.resolveOwnCompanyId(user);
     return this.entryMutation(companyId, 'companySupervision', pid, {
-      ...(dto.label !== undefined && { label: dto.label.trim() }),
       ...(dto.department !== undefined && { department: normalizeOptional(dto.department) }),
       ...(dto.address !== undefined && { address: normalizeOptional(dto.address) }),
       ...(dto.contact !== undefined && { contact: normalizeOptional(dto.contact) }),

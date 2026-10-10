@@ -50,10 +50,9 @@ export type CompanyPlaceEntry = {
   updatedAt: string;
 };
 
-/** 监督方案条目：整块监督举报信息 */
+/** 监督方案条目：整块监督举报信息（无独立名称，以监督人为标识） */
 export type CompanySupervisionEntry = {
   id: string;
-  label: string;
   department: string | null;
   address: string | null;
   contact: string | null;
@@ -189,12 +188,12 @@ export async function deletePlace(id: string): Promise<{ id: string }> {
   return removed;
 }
 
-export async function createSupervision(body: { label: string; department?: string | null; address?: string | null; contact?: string | null; phone?: string | null; isDefault?: boolean }): Promise<CompanySupervisionEntry> {
+export async function createSupervision(body: { contact: string; department?: string | null; address?: string | null; phone?: string | null; isDefault?: boolean }): Promise<CompanySupervisionEntry> {
   const created = await request<CompanySupervisionEntry>('/my-info/supervisions', { method: 'POST', body: JSON.stringify(body) });
   invalidateCompanyInfoCache();
   return created;
 }
-export async function updateSupervision(id: string, body: { label?: string; department?: string | null; address?: string | null; contact?: string | null; phone?: string | null; isDefault?: boolean }): Promise<CompanySupervisionEntry> {
+export async function updateSupervision(id: string, body: { department?: string | null; address?: string | null; contact?: string | null; phone?: string | null; isDefault?: boolean }): Promise<CompanySupervisionEntry> {
   const updated = await request<CompanySupervisionEntry>(`/my-info/supervisions/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
   invalidateCompanyInfoCache();
   return updated;
