@@ -757,8 +757,8 @@ export function ProjectDetailPanel({
   }, [item.id, selectedStage.stageKey, selectedStage.status, isStepAnalysisStage]);
 
   // 阶段合规审查（C4 前端接线 2026-10-09）：LLM 对照合规规则（/admin/compliance-rules 维护的审查要点）
-  // 逐项核查当前阶段。后端按指纹缓存（文件/名单变更自动失效），重跑传 force；首次调用即 LLM 生成，
-  // 故不随挂载自动触发，由用户点「开始审查」——与步骤分析的自动加载策略不同。
+  // 逐项核查当前阶段。后端按指纹缓存（文件/名单变更自动失效）——已完成阶段随挂载/切换自动加载：
+  // 首访该阶段状态触发一次 LLM 生成（~30s），此后一律指纹缓存秒回；「重新审查」按钮传 force 重跑。
   const complianceSeqRef = useRef(0);
   const [complianceAudit, setComplianceAudit] = useState<ComplianceAuditResponse | null>(null);
   const [complianceLoading, setComplianceLoading] = useState(false);
@@ -795,10 +795,11 @@ export function ProjectDetailPanel({
     setStepAnalysisError(null);
     // 切换阶段回到默认 Tab：文件分析在前（用户更关注阶段文件内容）
     setStepAnalysisTab('file');
-    // 阶段合规审查：清空上一阶段结果（后端缓存留存，回到该阶段重新点按钮即指纹秒回）
+    // 阶段合规审查：清态后自动加载（已完成阶段；force=false 优先吃指纹缓存）
     resetComplianceAudit();
+    loadComplianceAudit(false);
     loadStepAnalysis();
-  }, [loadStepAnalysis, resetComplianceAudit]);
+  }, [loadStepAnalysis, loadComplianceAudit, resetComplianceAudit]);
 
   /** 完成链主体（markStageCompleted 与 03 完成向导确认共用）：updateStage + 推进 + 豁免对话框。
    *  返回结果供向导前台反馈（面板错误区在向导 overlay 后面，向导须自行 toast）。 */
