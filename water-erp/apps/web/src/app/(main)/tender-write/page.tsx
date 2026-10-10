@@ -29,6 +29,12 @@ import { createTenderHistory } from "@/lib/api/tender-history";
 import { exportTenderDocument } from "@/lib/api/tender-write";
 import { findContactByName } from "@/lib/api/contacts";
 import {
+  getCompanyInfoOnce,
+  pickDefaultPlace,
+  pickDefaultPurchaser,
+  pickDefaultSupervision,
+} from "@/lib/api/company-info";
+import {
   COMPETITIVE_NEGOTIATION_SECTIONS,
   createEmptyCompetitiveNegotiationDraft,
   createEmptySingleSourceDraft,
@@ -149,6 +155,42 @@ export default function TenderWritePage() {
     setDrafts(cached.drafts);
     // 默认进入谈判采购，有缓存则恢复
     setSelectedType(cached.selectedType || "COMPETITIVE_NEGOTIATION");
+    // 公司信息联动（2026-10-10，多人版）：进入采购文件编写时，「联系方式/监督举报/开标地点」
+    // 块的空缺字段预填本公司维护值（公司信息管理页维护），只填空缺不覆盖已缓存内容。
+    // 联系人块取默认采购人条目（条目优先、旧单值字段兜底；公司未维护则一律不填，
+    // 预览按空值占位处理——不显示编造信息）；部分字段仅特定采购方式有（如询比无开标地点），
+    // 未定义的字段自然跳过；取不到公司信息静默。
+    void getCompanyInfoOnce().then((ci) => {
+      if (!ci) return;
+      const purchaser = pickDefaultPurchaser(ci);
+      const place = pickDefaultPlace(ci);
+      const supervision = pickDefaultSupervision(ci);
+      setDrafts((prev) => {
+        const fillCompany = <T extends object>(d: T): T => {
+          const next = { ...(d as Record<string, string>) };
+          const fill = (key: string, v: string | null | undefined) => {
+            if (v && v.trim() && !next[key]?.trim()) next[key] = v;
+          };
+          fill('contactName', purchaser?.name ?? null);
+          fill('contactPhone', purchaser?.phone ?? null);
+          fill('contactEmail', purchaser?.email ?? null);
+          fill('contactAddress', ci.purchaserAddress);
+          fill('bidOpeningPlace', place);
+          fill('supervisionDepartment', supervision?.department ?? null);
+          fill('supervisionAddress', supervision?.address ?? null);
+          fill('supervisionContact', supervision?.contact ?? null);
+          fill('supervisionPhone', supervision?.phone ?? null);
+          return next as T;
+        };
+        return {
+          COMPETITIVE_NEGOTIATION: fillCompany(prev.COMPETITIVE_NEGOTIATION),
+          SINGLE_SOURCE: fillCompany(prev.SINGLE_SOURCE),
+          INQUIRY_PURCHASE: fillCompany(prev.INQUIRY_PURCHASE),
+          INTERNAL_BIDDING: fillCompany(prev.INTERNAL_BIDDING),
+          INVITED_BIDDING: fillCompany(prev.INVITED_BIDDING),
+        };
+      });
+    });
   }, []);
 
   useEffect(() => {

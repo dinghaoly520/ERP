@@ -49,6 +49,19 @@ export const TENDER_DOCUMENT_TYPES: TenderDocumentTypeMeta[] = [
   },
 ];
 
+/**
+ * 监督信息字段（2026-10-09）：采购文件「监督举报」块占位符化的表单项（与公告侧同款
+ * 语义：表单值优先、留空回退统一默认值；监督人经「监督人」按钮从本公司联系人多选）。
+ * 仅用于有监督举报块的采购方式（谈判/竞价/邀请招标）；直接采购/询比模板无监督块不加。
+ */
+const SUPERVISION_TENDER_FIELDS: TenderSectionConfig["fields"] = [
+  // 监督人置顶（2026-10-10 用户裁定）：先选人再补部门/地址/电话
+  { key: "supervisionContact", label: "监督人", placeholder: "点右侧「监督人」按钮从本公司联系人多选，或直接输入" },
+  { key: "supervisionDepartment", label: "监督部门", placeholder: "留空默认「当前公司名 + 纪检监察部」" },
+  { key: "supervisionAddress", label: "监督地址", placeholder: "留空使用模板默认地址" },
+  { key: "supervisionPhone", label: "监督电话", placeholder: "留空使用模板默认电话", type: "tel" },
+];
+
 export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
   {
     key: "cover",
@@ -114,9 +127,12 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
         placeholder: "选择日期时间",
         aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
       },
+      { key: "bidOpeningPlace", label: "开标地点", placeholder: "留空使用模板默认地点" },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
+      ...SUPERVISION_TENDER_FIELDS,
     ],
   },
   {
@@ -213,6 +229,12 @@ export function createEmptyCompetitiveNegotiationDraft(): CompetitiveNegotiation
     contactName: "",
     contactPhone: "",
     contactEmail: "",
+    bidOpeningPlace: "",
+    contactAddress: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
     contractSubcontracting: "",
     contractSubcontractingType: "",
     siteSurvey: "",
@@ -258,7 +280,9 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
         placeholder: "选择日期时间",
         aiPrompt: "生成开标时间。规则：从今天起往后推3-5个工作日（跳过周六日）。格式为'YYYY年MM月DD日HH:MM'（如2026年05月28日09:00），只输出一个具体时间，不要其他说明。",
       },
+      { key: "bidOpeningPlace", label: "开标地点", placeholder: "留空使用模板默认地点" },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
     ],
@@ -338,6 +362,8 @@ export function createEmptySingleSourceDraft(): SingleSourceDraft {
     contactName: "",
     contactEmail: "",
     contactPhone: "",
+    bidOpeningPlace: "",
+    contactAddress: "",
     serviceContent: "",
     serviceContentType: "",
     procurementContent: "",
@@ -411,6 +437,7 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
         aiPrompt: "生成开标时间。规则：从'采购文件获取时间'的结束日期往后推1-3个工作日（跳过周六日），取该工作日的上午09:30。格式为'YYYY年MM月DD日HH:MM'（如2026年03月30日09:30），只输出该日期时间，不要其他说明。",
       },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
     ],
@@ -450,6 +477,7 @@ export function createEmptyInquiryPurchaseDraft(): InquiryPurchaseDraft {
     contactName: "",
     contactEmail: "",
     contactPhone: "",
+    contactAddress: "",
     quotationLetter: "",
     quotationLetterType: "table", // 报价表优先表格模式
   };
@@ -545,9 +573,12 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         placeholder: "选择日期时间",
         aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
       },
+      { key: "bidOpeningPlace", label: "开标地点", placeholder: "留空使用模板默认地点" },
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
+      ...SUPERVISION_TENDER_FIELDS,
     ],
   },
   {
@@ -791,6 +822,12 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     contactName: "",
     contactPhone: "",
     contactEmail: "",
+    bidOpeningPlace: "",
+    contactAddress: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
     responseDepositType: "",
     responseDepositAmount: "",
     responseDepositForm: "",

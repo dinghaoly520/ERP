@@ -102,6 +102,9 @@ describe('single-source tender template helpers', () => {
         replacementText: '13800000000',
         highlight: false,
       },
+      // 开标地点/联系人地址（占位符化）：留空即空（2026-10-10 用户裁定）
+      { targetText: '开标地点', replacementText: '', highlight: false },
+      { targetText: '联系人地址', replacementText: '', highlight: false },
       {
         targetText: '服务内容',
         replacementText: '负责现场检修、调试与技术交底。',

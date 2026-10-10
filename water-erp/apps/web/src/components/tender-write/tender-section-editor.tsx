@@ -8,6 +8,8 @@ import type {
 import { TenderFieldActions } from './tender-field-actions';
 import { TenderFieldSampleDialog } from './tender-field-sample-drawer';
 import { ContactPickerDialog } from './contact-picker-dialog';
+import { PurchaserPickerDialog } from './purchaser-picker-dialog';
+import { CompanyEntryPickerDialog } from './company-entry-picker-dialog';
 import {
   QuotationTableEditor,
   createDefaultQuotationTable,
@@ -259,6 +261,10 @@ export function TenderSectionEditor({
   >({});
 
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  // 监督人多选（2026-10-09）：采购文件监督举报块的「监督人」字段——本公司联系人多选
+  const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
+  // 开标地点（2026-10-10 多条目版）：公司信息维护条目单选
+  const [placePickerOpen, setPlacePickerOpen] = useState(false);
 
   const [activeFieldKey, setActiveFieldKey] = useState<TenderFieldKey | null>(null);
   const [recentFieldKey, setRecentFieldKey] = useState<TenderFieldKey | null>(null);
@@ -390,6 +396,29 @@ export function TenderSectionEditor({
     onChange('contactPhone', contact.phone);
   };
 
+  // 监督人多选确认（2026-10-09）：姓名顿号拼接进 supervisionContact（清空选择=清空字段）
+  const handleSupervisorConfirm = (contacts: { name: string; email: string; phone: string }[]) => {
+    onChange('supervisionContact', contacts.map((c) => c.name).join('、'));
+  };
+
+  // 开标地点条目选择（2026-10-10）：整地址写入「开标地点」
+  const handlePlaceSelect = (address: string) => {
+    onChange('bidOpeningPlace', address);
+  };
+
+  // 监督方案条目选择（2026-10-10）：整块带入监督四字段（部门留空=导出按「公司名+纪检监察部」拼）
+  const handleSupervisionProfileSelect = (profile: {
+    department: string;
+    address: string;
+    contact: string;
+    phone: string;
+  }) => {
+    onChange('supervisionDepartment', profile.department);
+    onChange('supervisionAddress', profile.address);
+    onChange('supervisionContact', profile.contact);
+    onChange('supervisionPhone', profile.phone);
+  };
+
   // 保存人工输入的样本
   const saveManualSample = async (fieldKey: TenderFieldKey, content: string) => {
     if (!content.trim()) return;
@@ -445,6 +474,7 @@ export function TenderSectionEditor({
   const hasContactFields = section.fields.some(
     (f) => f.key === 'contactName' || f.key === 'contactEmail' || f.key === 'contactPhone',
   );
+  const hasSupervisionField = section.fields.some((f) => f.key === 'supervisionContact');
 
   // Handle date input - listen for change and track for double-click
   const lastDateValueRef = useRef<Record<string, { value: string; time: number }>>({});
@@ -1035,6 +1065,8 @@ export function TenderSectionEditor({
                       isFavorite={isFavorite}
                       isGenerating={isGenerating}
                       isContactField={field.key === 'contactName'}
+                      isSupervisionContactField={field.key === 'supervisionContact'}
+                      isPlaceField={field.key === 'bidOpeningPlace'}
                       onSampleOpen={() =>
                         handleSampleOpenLocal(field.key, field.label)
                       }
@@ -1050,6 +1082,8 @@ export function TenderSectionEditor({
                         )
                       }
                       onContactOpen={() => setContactPickerOpen(true)}
+                      onSupervisorOpen={() => setSupervisorPickerOpen(true)}
+                      onPlaceOpen={() => setPlacePickerOpen(true)}
                       onSupplierSelect={field.key === 'supplierName' && onOpenSupplierSelect ? () => onOpenSupplierSelect() : undefined}
                     />
                     <span
@@ -1190,11 +1224,38 @@ export function TenderSectionEditor({
         />
       )}
 
+      {/* 联系人按钮 → 采购人选择器（2026-10-10 多人版）：从公司信息维护的采购人条目中单选，
+          选即同时填 联系人/联系电话/联系邮箱；未维护时引导去公司信息管理 */}
       {contactPickerOpen && hasContactFields && (
-        <ContactPickerDialog
+        <PurchaserPickerDialog
           isOpen={contactPickerOpen}
           onSelect={handleContactSelect}
           onClose={() => setContactPickerOpen(false)}
+        />
+      )}
+
+      {/* 开标地点条目选择（2026-10-10）：公司信息维护条目单选 */}
+      {placePickerOpen && (
+        <CompanyEntryPickerDialog
+          isOpen={placePickerOpen}
+          kind="place"
+          onSelectPlace={handlePlaceSelect}
+          onClose={() => setPlacePickerOpen(false)}
+        />
+      )}
+
+      {/* 监督人多选（2026-10-09）：本公司联系人（已按公司隔离）多选，顿号拼接 */}
+      {supervisorPickerOpen && hasSupervisionField && (
+        <ContactPickerDialog
+          isOpen={supervisorPickerOpen}
+          onSelect={() => undefined}
+          onClose={() => setSupervisorPickerOpen(false)}
+          multiple
+          selectedNames={String((draft as Record<string, string | undefined>).supervisionContact ?? '')
+            .split(/[、,，]/)
+            .map((s) => s.trim())
+            .filter(Boolean)}
+          onConfirmMultiple={handleSupervisorConfirm}
         />
       )}
     </>

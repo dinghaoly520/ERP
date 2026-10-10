@@ -19,6 +19,17 @@ model Company {
   code      String?  @unique // 公司编码（项目编号前缀段，如 四川水发勘测设计研究有限公司=SWHI）
   createdAt DateTime @default(now())
 
+  // ── 公司信息管理（2026-10-10）：开标/监督/采购人维护值，采购文件与公告编写按登录人公司预填 ──
+  bidOpeningAddress  String? // 开标地点（采购文件「递交/开标地点」、公告「开标地点」）
+  supervisionDept    String? // 监督部门（留空时导出按「公司名+纪检监察部」拼）
+  supervisionAddress String? // 监督地址
+  supervisionContact String? // 监督联系人（多人顿号拼接）
+  supervisionPhone   String? // 监督电话
+  purchaserAddress   String? // 采购人地址
+  purchaserContact   String? // 采购人联系人
+  purchaserPhone     String? // 采购人电话
+  purchaserEmail     String? // 采购人邮箱
+
   users               User[]
   suppliers           Supplier[]              @relation("SupplierCompany")
   pmItems             ProjectManagementItem[]
@@ -27,8 +38,59 @@ model Company {
   bidProjects         BidProject[]
   announcements       Announcement[]
   contacts            Contact[]
+  purchasers          CompanyPurchaser[]
+  places              CompanyPlace[]
+  supervisionProfiles CompanySupervision[]
 
   @@map("companies")
+}
+
+/// 开标地点条目（2026-10-10 多条目版）：公司信息管理维护多个地点、单默认——
+/// 采购文件编写「开标地点」按钮选择，默认条目用于进入页预填
+model CompanyPlace {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // 无名称列（2026-10-10 用户裁定：地点只有一个地址）：条目即以地址标识（必填）
+  address   String // 写入文档的完整地址
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+/// 监督信息方案条目（2026-10-10 多条目版）：整块监督举报信息（部门/地址/监督人/电话）、
+/// 单默认——编写时「监督方案」按钮选择，默认方案用于进入页预填
+model CompanySupervision {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department String?
+  address    String?
+  contact    String?
+  phone      String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+/// 采购人条目（2026-10-10 多人版）：公司信息管理维护多条、单默认——
+/// 采购文件编写时「联系人」按钮从条目中选择，默认条目用于进入页预填
+model CompanyPurchaser {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String?
+  email     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
 }
 
 model Department {

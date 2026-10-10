@@ -12,6 +12,7 @@ import type {
 import type { TableData, TableCell } from './quotation-table-editor';
 import { createDefaultQuotationTable } from './quotation-table-editor';
 import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
+import { useCompanyInfo } from '@/lib/api/company-info';
 
 const CHINESE_NUMBERS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const CHINESE_TENS = ['', '十', '二十', '三十'];
@@ -29,6 +30,26 @@ const OwnerCompanyContext = createContext(OWNER_COMPANY_FALLBACK);
 function OwnerCompanyName() {
   const company = useContext(OwnerCompanyContext);
   return <>{company}</>;
+}
+
+/**
+ * 公司信息联动（2026-10-10）：开标/递交/谈判地点与采购人通讯地址——本公司维护值
+ * （公司信息管理页）优先，未维护沿用模板默认串；导出端 applyTenantTokens 同口径替换。
+ * 自包含取数（模块级单例请求），不改各预览子组件签名。
+ */
+function CompanyOpeningAddress({ fallback }: { fallback: string }) {
+  const ci = useCompanyInfo();
+  return <>{ci?.bidOpeningAddress || fallback}</>;
+}
+
+function CompanyPurchaserAddress({ fallback }: { fallback: string }) {
+  const ci = useCompanyInfo();
+  return <>{ci?.purchaserAddress || fallback}</>;
+}
+
+/** 子组件内直接取当前用户公司名（监督部门兜底「{公司}纪检监察部」等拼值用） */
+function useOwnerCompany() {
+  return useContext(OwnerCompanyContext);
 }
 
 function numberToChinese(num: number): string {
@@ -484,7 +505,7 @@ function CompetitiveNegotiationPreview({
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>开标时间：<PreviewValue value={draft.responseDeadline} placeholder="{{开标时间}}" fieldKey="responseDeadline" onValueChange={onValueChange} />。</p>
-              <p className="mt-2">地　　点：成都市天府新区红莲街三段383号 B栋3楼。</p>
+              <p className="mt-2">地　　点：<PreviewValue value={draft.bidOpeningPlace} placeholder="{{开标地点}}" fieldKey="bidOpeningPlace" onValueChange={onValueChange} />。</p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -492,10 +513,10 @@ function CompetitiveNegotiationPreview({
               五、监督举报
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>监督部门：<OwnerCompanyName />纪检监察部</p>
-              <p>地　　址：四川省成都市天府新区红莲街三段383号</p>
-              <p>联 系 人：王先生、徐先生</p>
-              <p>电　　话：028-81753276</p>
+              <p>监督部门：<PreviewValue value={draft.supervisionDepartment} placeholder="{{监督部门}}" fieldKey="supervisionDepartment" onValueChange={onValueChange} /></p>
+              <p>地　　址：<PreviewValue value={draft.supervisionAddress} placeholder="{{监督地址}}" fieldKey="supervisionAddress" onValueChange={onValueChange} /></p>
+              <p>联 系 人：<PreviewValue value={draft.supervisionContact} placeholder="{{监督人}}" fieldKey="supervisionContact" onValueChange={onValueChange} /></p>
+              <p>电　　话：<PreviewValue value={draft.supervisionPhone} placeholder="{{监督电话}}" fieldKey="supervisionPhone" onValueChange={onValueChange} /></p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -504,7 +525,7 @@ function CompetitiveNegotiationPreview({
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>采 购 人：<OwnerCompanyName /></p>
-              <p>地　　址：成都市天府新区红莲街三段383号</p>
+              <p>地　　址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
               <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
               <p>电　　话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} /></p>
               <p>邮　　箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} /></p>
@@ -600,7 +621,7 @@ function CompetitiveNegotiationPreview({
                       <br />联系部门：<OwnerCompanyName />采购中心
                       <br />联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
                       <br />联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
-                      <br />通讯地址：四川省成都市天府新区红莲街三段383号
+                      <br />通讯地址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} />
                       <br />电子邮箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} />
                     </td>
                   </tr>
@@ -835,7 +856,7 @@ function SingleSourcePreview({
                       采购文件领取地点
                     </td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
-                      四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼
+                      <CompanyOpeningAddress fallback="四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼" />
                     </td>
                   </tr>
                   <tr>
@@ -859,7 +880,7 @@ function SingleSourcePreview({
                 1．开标时间：<PreviewValue value={draft.submissionAndNegotiationTime} placeholder="{{开标时间}}" fieldKey="submissionAndNegotiationTime" onValueChange={onValueChange} />。
               </p>
               <p>
-                2．递交和谈判地点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼。响应文件必须在开标时间前送达谈判地点。逾期送达的响应文件不予接收。
+                2．递交和谈判地点：<PreviewValue value={draft.bidOpeningPlace} placeholder="{{开标地点}}" fieldKey="bidOpeningPlace" onValueChange={onValueChange} />。响应文件必须在开标时间前送达谈判地点。逾期送达的响应文件不予接收。
               </p>
               <p>3．届时请参加报价的法定代表人或授权代表出席。</p>
             </div>
@@ -870,7 +891,7 @@ function SingleSourcePreview({
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>采 购 人：<OwnerCompanyName /></p>
-              <p>地　　址：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座</p>
+              <p>地　　址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
               <p>
                 联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
               </p>
@@ -937,7 +958,7 @@ function SingleSourcePreview({
                       <br />
                       联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
                       <br />
-                      地址：四川省成都市双流区正兴街道红莲街三段 383 号四川省水利发展集团有限公司 B 座。
+                      地址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} />。
                     </td>
                   </tr>
                   <tr>
@@ -951,7 +972,7 @@ function SingleSourcePreview({
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">7</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">谈判地点</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                      四川省成都市双流区正兴街道红莲街三段 383 号四川省水利发展集团有限公司 B 座3楼采购中心开标会议室。
+                      <PreviewValue value={draft.bidOpeningPlace} placeholder="{{开标地点}}" fieldKey="bidOpeningPlace" onValueChange={onValueChange} />。
                     </td>
                   </tr>
                   <tr>
@@ -1206,7 +1227,7 @@ function InquiryPurchasePreview({
             </div>
             <div className="mt-3 space-y-2 pl-4 text-sm leading-7 text-[color:var(--foreground)]">
               <p>
-                地　　址：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼
+                地　　址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} />
               </p>
               <p>
                 联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} />
@@ -1387,7 +1408,7 @@ function InternalBiddingPreview({
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
-              <p>2.地　　点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋</p>
+              <p>2.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
               <p>3.方　　式：邮箱发送/现场获取。</p>
               <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
@@ -1398,7 +1419,7 @@ function InternalBiddingPreview({
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{开标时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
-              <p className="mt-2">地　　点：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋。</p>
+              <p className="mt-2">地　　点：<PreviewValue value={draft.bidOpeningPlace} placeholder="{{开标地点}}" fieldKey="bidOpeningPlace" onValueChange={onValueChange} />。</p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -1414,10 +1435,10 @@ function InternalBiddingPreview({
               六、监督举报
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>监督部门：<OwnerCompanyName />纪检监察部</p>
-              <p>地　　址：四川省成都市天府新区红莲街三段383号</p>
-              <p>联 系 人：王先生、徐先生</p>
-              <p>电　　话：028-81753276</p>
+              <p>监督部门：<PreviewValue value={draft.supervisionDepartment} placeholder="{{监督部门}}" fieldKey="supervisionDepartment" onValueChange={onValueChange} /></p>
+              <p>地　　址：<PreviewValue value={draft.supervisionAddress} placeholder="{{监督地址}}" fieldKey="supervisionAddress" onValueChange={onValueChange} /></p>
+              <p>联 系 人：<PreviewValue value={draft.supervisionContact} placeholder="{{监督人}}" fieldKey="supervisionContact" onValueChange={onValueChange} /></p>
+              <p>电　　话：<PreviewValue value={draft.supervisionPhone} placeholder="{{监督电话}}" fieldKey="supervisionPhone" onValueChange={onValueChange} /></p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -1426,7 +1447,7 @@ function InternalBiddingPreview({
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>{T.buyer}：<OwnerCompanyName /></p>
-              <p>地　　址：成都市天府新区红莲街三段383号</p>
+              <p>地　　址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
               <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
               <p>电　　话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} /></p>
               <p>邮　　箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} /></p>
@@ -1569,9 +1590,9 @@ function InternalBiddingPreview({
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm" colSpan={2}>联系方式</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
                       接受询问和异议的联系方式：
-                      <br />联系部门：四川水发勘测设计有限公司采购中心
+                      <br />联系部门：<OwnerCompanyName />采购中心
                       <br />联系电话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} />
-                      <br />通讯地址：四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋
+                      <br />通讯地址：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} />
                       <br />电子邮箱：<PreviewValue value={draft.contactEmail} placeholder="{{联系邮箱}}" fieldKey="contactEmail" onValueChange={onValueChange} />
                     </td>
                   </tr>

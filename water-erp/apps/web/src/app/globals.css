@@ -8984,7 +8984,9 @@ a {
 
 /* ══════════════════════════════════════════════════════════════════
    主按钮 — .neu-btn-primary
-   品牌蓝实心，用于主要操作（提交、确认、新建）
+   品牌浅染底 + 深品牌蓝字（2026-10-10 用户裁定：按钮禁止纯蓝色底）。
+   主操作权重靠 深色粗字 + 品牌色染 + 略强于 soft 的方向性双影 表达，
+   三态完整：默认凸起 → hover 染色加深抬升 → active 内凹
    ══════════════════════════════════════════════════════════════════ */
 .neu-btn-primary {
   display: inline-flex;
@@ -8995,37 +8997,39 @@ a {
   padding: 0 28px;
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
-  background: var(--neu-brand);
+  color: var(--neu-brand-deep);
+  background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0));
   border: none;
   border-radius: 9px;
   cursor: pointer;
   box-shadow:
-    3px 3px 6px oklch(0.5 0.08 258 / 0.25),
-    -2px -2px 5px oklch(1 0 0 / 0.5);
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 5px oklch(0.5 0.08 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 .neu-btn-primary:hover {
-  background: var(--neu-brand-deep);
+  background: color-mix(in oklch, var(--neu-brand) 15%, oklch(1 0 0));
   transform: translateY(-1px);
   box-shadow:
-    4px 4px 10px oklch(0.45 0.08 258 / 0.28),
-    -2px -2px 6px oklch(1 0 0 / 0.55);
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 7px oklch(0.5 0.08 258 / 0.18),
+    -2px -2px 5px oklch(1 0 0 / 0.95);
 }
 .neu-btn-primary:active {
   transform: translateY(0);
   box-shadow:
-    inset 2px 2px 5px oklch(0.35 0.08 258 / 0.35),
-    inset -2px -2px 5px oklch(1 0 0 / 0.25);
+    inset 2px 2px 5px oklch(0.5 0.08 258 / 0.18),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
 }
 .neu-btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
   box-shadow:
-    2px 2px 4px oklch(0.5 0.05 258 / 0.15),
-    -1px -1px 3px oklch(1 0 0 / 0.4);
+    2px 2px 4px oklch(0.5 0.05 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.6);
 }
 
 /* 语义色变体 —— 用于发布/通过等成功语义的主按钮 */
@@ -9035,11 +9039,13 @@ a {
 .neu-btn-primary.is-success:hover {
   background: oklch(0.52 0.14 164);
 }
+/* 危险变体：与主按钮同语言——浅染底 + 深色字（纯色实心底禁用的同一裁定） */
 .neu-btn-primary.is-danger {
-  background: oklch(0.58 0.17 27);
+  color: oklch(0.48 0.16 27);
+  background: color-mix(in oklch, var(--danger) 10%, oklch(1 0 0));
 }
 .neu-btn-primary.is-danger:hover {
-  background: oklch(0.5 0.18 27);
+  background: color-mix(in oklch, var(--danger) 16%, oklch(1 0 0));
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -9120,8 +9126,8 @@ a {
 .neu-btn-soft.is-warning { color: var(--warning); }
 .neu-btn-primary.is-warning { color: var(--warning); border-color: color-mix(in oklch, var(--warning) 30%, transparent); }
 .neu-btn-soft.is-warning:hover { background: oklch(0.95 0.05 83 / 0.5); }
-.neu-btn-soft.is-primary { color: #fff; background: var(--neu-brand); }
-.neu-btn-soft.is-primary:hover { color: #fff; background: var(--neu-brand-deep); }
+.neu-btn-soft.is-primary { color: var(--neu-brand-deep); background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0)); }
+.neu-btn-soft.is-primary:hover { background: color-mix(in oklch, var(--neu-brand) 15%, oklch(1 0 0)); }
 .neu-btn-soft.is-primary:disabled { opacity: 0.5; }
 
 /* 白瓷变体（2026-09-21）：纯白凸起瓷片——返回/导航类次要按钮（返回供应商库/返回专家库）。
@@ -9204,9 +9210,49 @@ a {
 }
 .neu-btn-xs.is-success { color: var(--success); }
 .neu-btn-xs.is-success:hover { background: oklch(0.96 0.05 164 / 0.4); }
+.neu-btn-xs.is-primary { color: var(--neu-brand-deep); }
+.neu-btn-xs.is-primary:hover { background: oklch(0.96 0.04 251 / 0.4); }
 .neu-btn-xs.is-danger { color: var(--danger); }
 .neu-btn-xs.is-danger:hover { background: oklch(0.96 0.05 27 / 0.4); }
 .neu-btn-xs.is-warning { color: var(--warning); }
+
+/* ── 浮动新建钮（FAB）— .fab-create：与主按钮同语言（品牌浅染底 + 深品牌色图标，
+      无纯色实心底）；替代旧内联蓝色渐变（B1/H3/H4 红牌债一并清偿） ── */
+.fab-create {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 40;
+  display: flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9999px;
+  color: var(--neu-brand-deep);
+  background: color-mix(in oklch, var(--neu-brand) 12%, oklch(1 0 0));
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 8px oklch(0.5 0.08 258 / 0.16),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+  transition: all 0.25s ease;
+}
+.fab-create:hover {
+  background: color-mix(in oklch, var(--neu-brand) 16%, oklch(1 0 0));
+  transform: translateY(-2px) scale(1.04);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.5 0.08 258 / 0.2),
+    -2px -2px 6px oklch(1 0 0 / 0.95);
+}
+.fab-create:active {
+  transform: scale(0.96);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.5 0.08 258 / 0.18),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
 .neu-btn-xs:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -10206,7 +10252,8 @@ select.workbench-input {
   }
   .neu-btn-primary:hover,
   .neu-card:hover,
-  .flow-back:hover {
+  .flow-back:hover,
+  .fab-create:hover {
     transform: none !important;
   }
 }

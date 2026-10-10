@@ -1,9 +1,6 @@
 import {
   applyTenantTokens,
   buildTenantPlaceholderReplacements,
-  DEFAULT_SUPERVISION_ADDRESS,
-  DEFAULT_SUPERVISION_CONTACT,
-  DEFAULT_SUPERVISION_PHONE,
   replaceTextAcrossRuns,
   TENANT_OWNER_COMPANY_TOKEN,
 } from './tenant-tokens';
@@ -157,12 +154,12 @@ describe('buildTenantPlaceholderReplacements（显式占位符填充，2026-10-0
     });
   });
 
-  it('监督块留空回退统一默认值（部门 = {公司}纪检监察部）', () => {
+  it('监督块留空即空（2026-10-10 用户裁定：未维护不编造，不再拼「公司名+纪检监察部」）', () => {
     const plan = buildTenantPlaceholderReplacements('甲公司');
-    expect(plan).toContainEqual({ targetText: '监督部门', replacementText: '甲公司纪检监察部', highlight: false });
-    expect(plan).toContainEqual({ targetText: '监督地址', replacementText: DEFAULT_SUPERVISION_ADDRESS, highlight: false });
-    expect(plan).toContainEqual({ targetText: '监督人', replacementText: DEFAULT_SUPERVISION_CONTACT, highlight: false });
-    expect(plan).toContainEqual({ targetText: '监督电话', replacementText: DEFAULT_SUPERVISION_PHONE, highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督部门', replacementText: '', highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督地址', replacementText: '', highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督人', replacementText: '', highlight: false });
+    expect(plan).toContainEqual({ targetText: '监督电话', replacementText: '', highlight: false });
   });
 
   it('表单监督值优先于默认值', () => {

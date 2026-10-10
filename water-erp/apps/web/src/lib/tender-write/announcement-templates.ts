@@ -43,13 +43,6 @@ export function getAnnouncementLabel(
   return `${tenderLabel}公告`;
 }
 
-// ─── 监督信息（2026-10-09：公告监督块由模板写死改为表单可编辑）───
-// 模板原固定值——预览兜底与导出端 tenant-tokens 的兜底口径保持一致；
-// 监督人经「监督人」按钮从本公司联系人（已按公司隔离）多选，顿号拼接
-export const DEFAULT_SUPERVISION_ADDRESS =
-  "四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼";
-export const DEFAULT_SUPERVISION_CONTACT = "王先生、徐先生";
-export const DEFAULT_SUPERVISION_PHONE = "028-81753276";
 
 export const SUPERVISION_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {

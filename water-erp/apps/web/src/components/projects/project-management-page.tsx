@@ -2,7 +2,7 @@
 
 import { AlertCircle, Ban, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
@@ -112,15 +112,26 @@ export function ProjectManagementPage() {
     setPortalReady(true);
   }, []);
 
+  // 详情面板是 #app-main 内 absolute inset-0 的覆盖层：开面板须把滚动容器归零
+  //（否则面板从视口外开始）；关面板要回到开之前的列表位置——先存 scrollTop 再清零，
+  // 关闭时还原。ref 存且仅在「未保存」时写入，防 id→id 直切详情时把原位置覆盖成 0。
+  const savedScrollTopRef = useRef<number | null>(null);
   useEffect(() => {
     const scrollContainer = document.querySelector('[data-app-shell-scroll="true"]');
     if (!(scrollContainer instanceof HTMLElement)) return;
 
     if (selectedItemId) {
+      if (savedScrollTopRef.current === null) {
+        savedScrollTopRef.current = scrollContainer.scrollTop;
+      }
       scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
       scrollContainer.style.overflowY = 'hidden';
     } else {
       scrollContainer.style.overflowY = '';
+      if (savedScrollTopRef.current !== null) {
+        scrollContainer.scrollTop = savedScrollTopRef.current;
+        savedScrollTopRef.current = null;
+      }
     }
     return () => { scrollContainer.style.overflowY = ''; };
   }, [selectedItemId]);
@@ -541,18 +552,15 @@ export function ProjectManagementPage() {
         onDismissError={() => setDrawerErrorMessage(null)}
       />
 
-      {/* 浮动新建按钮 */}
+      {/* 浮动新建按钮（.fab-create：类化浅染底，替代旧内联蓝色渐变） */}
       <button
         type="button"
         onClick={() => setShowCreateDialog(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
-        style={{
-          background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))',
-          boxShadow: '0 4px 16px oklch(0.4 0.1 258 / 0.3), 0 0 0 1px oklch(1 0 0 / 0.2)',
-        }}
+        className="fab-create"
         title="新建项目"
+        aria-label="新建项目"
       >
-        <Plus size={24} className="text-white" />
+        <Plus size={24} strokeWidth={2} />
       </button>
     </>
   );

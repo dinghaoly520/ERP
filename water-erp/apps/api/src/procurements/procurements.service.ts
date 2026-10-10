@@ -545,7 +545,7 @@ export class ProcurementsService {
     });
 
     if (!round) {
-      throw new NotFoundException(`Procurement round ${id} not found`);
+      throw new NotFoundException(`采购轮次不存在或已被删除（id：${id}）`);
     }
 
     this.checkOwnership(round, user, companyFilter);
@@ -674,7 +674,7 @@ export class ProcurementsService {
     });
 
     if (!existing) {
-      throw new NotFoundException(`Procurement round ${id} not found`);
+      throw new NotFoundException(`采购轮次不存在或已被删除（id：${id}）`);
     }
 
     this.checkOwnership(existing, user, companyFilter);
@@ -735,7 +735,7 @@ export class ProcurementsService {
     });
 
     if (!existing) {
-      throw new NotFoundException(`Procurement round ${id} not found`);
+      throw new NotFoundException(`采购轮次不存在或已被删除（id：${id}）`);
     }
 
     this.checkOwnership(existing, user, companyFilter);
@@ -752,7 +752,7 @@ export class ProcurementsService {
     });
 
     if (!existing) {
-      throw new NotFoundException(`Procurement round ${id} not found`);
+      throw new NotFoundException(`采购轮次不存在或已被删除（id：${id}）`);
     }
 
     this.checkOwnership(existing, user, companyFilter);
@@ -769,7 +769,7 @@ export class ProcurementsService {
     });
 
     if (!existing) {
-      throw new NotFoundException(`Procurement round ${id} not found`);
+      throw new NotFoundException(`采购轮次不存在或已被删除（id：${id}）`);
     }
 
     this.checkOwnership(existing, user, companyFilter);

@@ -14,6 +14,7 @@ export const INTERNAL_BIDDING_TEMPLATE_FILE =
   '模板文件/竞价采购文件模板.docx';
 export const INVITED_BIDDING_TEMPLATE_FILE = '模板文件/邀请招标文件模板.docx';
 
+
 // Chinese number mapping for date formatting
 const CHINESE_NUMBERS = [
   '〇',
@@ -695,6 +696,9 @@ export function buildCompetitiveNegotiationReplacementPlan(
       targetText: '开标时间',
       ...buildReplacement('开标时间', answers.responseDeadline),
     },
+    // 开标地点/联系人地址（2026-10-09 占位符化）：留空即空（2026-10-10 用户裁定：未维护不编造）
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.bidOpeningPlace ?? '', true) },
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     {
       targetText: '联系人',
       ...buildReplacement('联系人', answers.contactName),
@@ -826,6 +830,9 @@ export function buildSingleSourceReplacementPlan(
       targetText: '联系电话',
       ...buildReplacement('联系电话', answers.contactPhone),
     },
+    // 开标地点/联系人地址（占位符化）：留空即空
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.bidOpeningPlace ?? '', true) },
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     // 服务内容: 选择"不包含"时导出为空字符串并删除该行
     {
       targetText: '服务内容',
@@ -923,6 +930,8 @@ export function buildInquiryPurchaseReplacementPlan(
       targetText: '开标时间',
       ...buildReplacement('开标时间', answers.bidOpeningTime),
     },
+    // 联系人地址（占位符化）：留空即空（询比无开标地点占位符）
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     {
       targetText: '联系人',
       ...buildReplacement('联系人', answers.contactName),
@@ -1157,6 +1166,9 @@ export function buildInternalBiddingReplacementPlan(
       targetText: '开标时间',
       ...buildReplacement('开标时间', answers.responseSubmissionTime),
     },
+    // 开标地点/联系人地址（占位符化）：留空即空（竞价/邀请招标共用本计划）
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.bidOpeningPlace ?? '', true) },
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     {
       targetText: '联系人',
       ...buildReplacement('联系人', answers.contactName),

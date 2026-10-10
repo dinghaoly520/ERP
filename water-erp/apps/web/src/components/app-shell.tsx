@@ -25,6 +25,7 @@ import { Bell,
   Megaphone,
   MessageSquare,
   ShoppingBag,
+  Landmark,
   House,
   ChevronDown,
   ChevronsLeft,
@@ -106,6 +107,9 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "supplier-repo", label: "供应商管理", href: "/supplier/repository", icon: Building2, meta: "资源池管理" },
       { key: "expert-repo", label: "专家管理", href: "/expert/repository", icon: Users, meta: "专家资源" },
+      // 公司信息管理（2026-10-10）：leader 维护本公司开标/监督/采购人信息，
+      // 采购文件与公告编写按登录人公司自动带入；admin 经账号管理弹窗维护全量公司
+      { key: "company-info", label: "公司信息管理", href: "/company-info", icon: Landmark, meta: "开标/监督/采购人", roles: ["leader"] },
     ],
   },
   {

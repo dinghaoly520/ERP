@@ -24,6 +24,9 @@ export type CompetitiveNegotiationAnswers = {
   documentAcquireTime: string;
   responseDeadline: string;
   responseDeadlineType: string;
+  // 开标地点/联系人地址（2026-10-09 占位符化）：选填，留空回退模板原值
+  bidOpeningPlace?: string;
+  contactAddress?: string;
   contactName: string;
   contactPhone: string;
   contactEmail: string;
@@ -61,6 +64,8 @@ export type SingleSourceAnswers = {
   documentAcquireTime: string;
   documentPrice: string;
   submissionAndNegotiationTime: string;
+  bidOpeningPlace?: string;
+  contactAddress?: string;
   contactName: string;
   contactEmail: string;
   contactPhone: string;
@@ -82,6 +87,7 @@ export type InquiryPurchaseAnswers = {
   priceLimit: string;
   documentAcquireTime: string;
   bidOpeningTime: string;
+  contactAddress?: string;
   contactName: string;
   contactEmail: string;
   contactPhone: string;
@@ -104,6 +110,8 @@ export type InternalBiddingAnswers = {
   documentAcquireTime: string;
   documentPrice: string;
   responseSubmissionTime: string;
+  bidOpeningPlace?: string;
+  contactAddress?: string;
   contactName: string;
   contactPhone: string;
   contactEmail: string;

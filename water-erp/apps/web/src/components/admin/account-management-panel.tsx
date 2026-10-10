@@ -322,9 +322,9 @@ export function AccountManagementPanel() {
           </div>
 
           <div className="page-hero__right">
-            {/* 单位管理（2026-10-09）：单位=账号归属容器，语义相邻留在本页弹窗；
-                合规规则/系统健康已迁侧栏「系统管理」组独立页 */}
-            <button type="button" onClick={() => setToolView("companies")} className="neu-btn-xs" title="公司主数据与归属管理">单位管理</button>
+            {/* 公司信息管理（原「单位管理」，2026-10-10 更名增强：弹窗内可维护全量公司的开标/监督/采购人信息）；
+                合规规则/系统健康已迁侧栏「系统管理」组独立页（2026-10-09 迁出），本页不再重复入口 */}
+            <button type="button" onClick={() => setToolView("companies")} className="neu-btn-xs" title="公司信息与业绩维护（全部公司）">公司信息管理</button>
             <button
               type="button"
               onClick={refresh}

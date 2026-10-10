@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react';
+import { BookOpen, MapPin, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
 
 // Fields that should not show favorite/sample/AI actions
@@ -10,11 +10,13 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   'contactName',
   'contactEmail',
   'contactPhone',
-  // 监督信息（2026-10-09）：非 AI/样本语义，操作入口只有「监督人」多选按钮
+  // 监督信息/地点地址（2026-10-09）：非 AI/样本语义，操作入口只有「监督人」多选按钮
   'supervisionDepartment',
   'supervisionAddress',
   'supervisionContact',
   'supervisionPhone',
+  'bidOpeningPlace',
+  'contactAddress',
 ]);
 
 // Fields that should hide actions when type is "date"
@@ -38,12 +40,14 @@ export function TenderFieldActions({
   isGenerating,
   isContactField,
   isSupervisionContactField,
+  isPlaceField,
   fieldTypeValue,
   onSampleOpen,
   onFavoriteToggle,
   onAiGenerate,
   onContactOpen,
   onSupervisorOpen,
+  onPlaceOpen,
   onSupplierSelect,
   aiOverride,
 }: {
@@ -54,6 +58,8 @@ export function TenderFieldActions({
   isContactField?: boolean;
   /** 监督人字段（supervisionContact）专属：显示「监督人」多选按钮（2026-10-09） */
   isSupervisionContactField?: boolean;
+  /** 开标地点字段专属：从公司维护地点条目选择（2026-10-10） */
+  isPlaceField?: boolean;
   fieldTypeValue?: string; // For composite fields: "date", "text", or "table"
   onSampleOpen: () => void;
   onFavoriteToggle: () => void;
@@ -61,6 +67,8 @@ export function TenderFieldActions({
   onContactOpen?: () => void;
   /** 打开联系人选择器（多选模式）填监督人 */
   onSupervisorOpen?: () => void;
+  /** 打开公司维护的开标地点条目选择器 */
+  onPlaceOpen?: () => void;
   onSupplierSelect?: () => void;
   /** AI 按钮语义覆写（如「拟定供应商名称」的核对供应商——不做内容优化） */
   aiOverride?: { title: string; label: string; onClick: () => void; busy?: boolean };
@@ -83,6 +91,7 @@ export function TenderFieldActions({
 
   return (
     <div className="flex items-center gap-1.5">
+      {/* 联系人按钮（2026-10-10 与监督人按钮同款设计：图标+文字标签） */}
       {isContactField && onContactOpen && (
         <button
           type="button"
@@ -90,10 +99,27 @@ export function TenderFieldActions({
           aria-label="选择联系人"
           title="选择联系人"
           {...bindTooltip('contact')}
-          className="tender-action-chip text-[rgba(96,139,239,1)]"
+          className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
         >
-          <Users size={14} />
-          {showTooltip === 'contact' && <ActionTooltip>联系人</ActionTooltip>}
+          <Users size={14} className="text-[rgba(76,111,189,1)]" />
+          联系人
+          {showTooltip === 'contact' && <ActionTooltip>选择联系人</ActionTooltip>}
+        </button>
+      )}
+
+      {/* 开标地点（2026-10-10）：从公司维护的地点条目中单选 */}
+      {isPlaceField && onPlaceOpen && (
+        <button
+          type="button"
+          onClick={onPlaceOpen}
+          aria-label="选择开标地点"
+          title="从公司维护的开标地点条目中选择"
+          {...bindTooltip('place')}
+          className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
+        >
+          <MapPin size={14} className="text-[rgba(76,111,189,1)]" />
+          地点
+          {showTooltip === 'place' && <ActionTooltip>地点条目选择</ActionTooltip>}
         </button>
       )}
 

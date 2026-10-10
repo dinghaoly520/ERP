@@ -88,3 +88,78 @@ describe('HttpExceptionFilter — operation-log 补记', () => {
     expect(Object.keys(host2._res.json.mock.calls[0][0]).sort()).toEqual(['code', 'error', 'path', 'statusCode', 'timestamp']);
   });
 });
+
+describe('HttpExceptionFilter — 报错信息中文化（2026-10-10 禁英文）', () => {
+  let filter: HttpExceptionFilter;
+  let oplog: any;
+
+  const makeHost = (reqOver: any = {}) => {
+    const base: any = { method: 'GET', url: '/api/x', headers: {}, socket: {} };
+    const merged = { ...base, ...reqOver };
+    if (merged.path === undefined) merged.path = merged.url.split('?')[0];
+    const req: any = merged;
+    const res: any = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
+    return { switchToHttp: () => ({ getResponse: () => res, getRequest: () => req }), _req: req, _res: res } as any;
+  };
+
+  beforeEach(async () => {
+    oplog = { create: jest.fn().mockResolvedValue(undefined) };
+    const mod: TestingModule = await Test.createTestingModule({
+      providers: [HttpExceptionFilter, { provide: OperationLogService, useValue: oplog }],
+    }).compile();
+    filter = mod.get(HttpExceptionFilter);
+  });
+
+  const bodyOf = (host: any) => host._res.json.mock.calls[0][0];
+
+  it('框架默认英文（Forbidden resource / Unauthorized / Not Found）→ 中文映射', () => {
+    const cases: Array<[any, string]> = [
+      [new HttpException('Forbidden resource', HttpStatus.FORBIDDEN), '无权访问该功能，请联系管理员开通权限'],
+      [new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED), '未登录或登录已过期，请重新登录'],
+      [new HttpException('Not Found', HttpStatus.NOT_FOUND), '请求的接口不存在'],
+    ];
+    for (const [exc, zh] of cases) {
+      const host = makeHost();
+      filter.catch(exc, host);
+      expect(bodyOf(host).error).toBe(zh);
+    }
+  });
+
+  it('class-validator 英文校验数组 → 中文（字段名保留代码标识）', () => {
+    const host = makeHost();
+    filter.catch(
+      new BadRequestException([
+        'property contactName must be a string',
+        'password must be longer than or equal to 6 characters',
+      ]),
+      host,
+    );
+    expect(bodyOf(host).error).toBe('参数「contactName」应为文本；参数「password」长度不足（最少 6 字）');
+    expect(bodyOf(host).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('未映射英文消息（如 Template not found: /x）→ 按状态码中文兜底，英文不外露', () => {
+    const host = makeHost();
+    filter.catch(new HttpException('Template not found: /x.docx', HttpStatus.NOT_FOUND), host);
+    expect(bodyOf(host).error).toBe('请求的资源不存在或已被删除');
+  });
+
+  it('英文裸 Error（500 路径）→ 通用中文，原文只进日志', () => {
+    const host = makeHost();
+    filter.catch(new Error('KMS_SECRET is not configured'), host);
+    expect(bodyOf(host).statusCode).toBe(500);
+    expect(bodyOf(host).error).toBe('服务器内部错误，请稍后重试或联系管理员');
+  });
+
+  it('中文业务消息原样透传（不误伤）', () => {
+    const host = makeHost();
+    filter.catch(new BadRequestException({ code: 'X', error: '名称不能为空' }), host);
+    expect(bodyOf(host).error).toBe('名称不能为空');
+  });
+
+  it('中英混排（含中文即透传，技术词保留）', () => {
+    const host = makeHost();
+    filter.catch(new BadRequestException('DEEPSEEK_API_KEY 未配置，请在 .env 中设置'), host);
+    expect(bodyOf(host).error).toBe('DEEPSEEK_API_KEY 未配置，请在 .env 中设置');
+  });
+});

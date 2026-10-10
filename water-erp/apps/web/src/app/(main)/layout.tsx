@@ -32,6 +32,8 @@ const routeToKey: Record<string, string> = {
   "/notice": "notice",
   "/clar-notice": "clar-notice",
   "/notifications": "notifications",
+  // 公司信息管理（资源管理组，leader）
+  "/company-info": "company-info",
   // 供应商管理
   "/supplier/approval": "supplier-approval",
   "/supplier/repository": "supplier-repo",
@@ -70,6 +72,7 @@ const routeToModule: Record<string, string> = {
   "/notice": "公告发布中心",
   "/clar-notice": "澄清说明",
   "/notifications": "通知中心",
+  "/company-info": "公司信息管理",
   "/supplier": "供应商管理",
   "/expert": "专家管理",
   "/mall-management": "集中目录管理",

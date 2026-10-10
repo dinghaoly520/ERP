@@ -245,7 +245,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     const task = await this.prisma.extractionTask.findUnique({
       where: { id: taskId },
     });
-    if (!task) throw new NotFoundException('Extraction task not found');
+    if (!task) throw new NotFoundException('提取任务不存在或已被删除');
     return task;
   }
 
@@ -459,12 +459,12 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     const task = await this.prisma.reviewTask.findUnique({ where: { id } });
-    if (!task) throw new NotFoundException('Task not found');
+    if (!task) throw new NotFoundException('任务不存在或已被删除');
     if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
       throw new ForbiddenException('无权操作此任务');
     }
     if (task.status !== 'running' && task.status !== 'pending') {
-      throw new BadRequestException('Task is not running');
+      throw new BadRequestException('任务不在运行中，无法执行该操作');
     }
     this.activeReviews.get(id)?.abort();
     return this.prisma.reviewTask.update({
@@ -481,7 +481,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     const task = await this.prisma.reviewTask.findUnique({ where: { id } });
-    if (!task) throw new NotFoundException('Task not found');
+    if (!task) throw new NotFoundException('任务不存在或已被删除');
     if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
       throw new ForbiddenException('无权删除此任务');
     }
@@ -543,7 +543,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     const task = await this.prisma.reviewTask.findUnique({ where: { id } });
-    if (!task) throw new NotFoundException('Task not found');
+    if (!task) throw new NotFoundException('任务不存在或已被删除');
     if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
       throw new ForbiddenException('无权查看此任务');
     }
@@ -559,8 +559,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     const task = await this.prisma.reviewTask.findUnique({ where: { id } });
-    if (!task) throw new NotFoundException('Task not found');
-    if (!task.results) throw new BadRequestException('Task has no results');
+    if (!task) throw new NotFoundException('任务不存在或已被删除');
+    if (!task.results) throw new BadRequestException('任务暂无结果');
     if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
       throw new ForbiddenException('无权操作此任务');
     }
@@ -619,7 +619,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     }
 
     if (!updated || !foundIssue)
-      throw new BadRequestException('Issue not found');
+      throw new BadRequestException('问题记录不存在或已被删除');
 
     const previousStatus = foundIssue.status;
     foundIssue.status = dto.action === 'accept' ? 'accepted' : 'rejected';
@@ -848,8 +848,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   ) {
     try {
       const task = await this.prisma.reviewTask.findUnique({ where: { id } });
-      if (!task) throw new NotFoundException('Task not found');
-      if (!task.objectKey) throw new BadRequestException('No document file');
+      if (!task) throw new NotFoundException('任务不存在或已被删除');
+      if (!task.objectKey) throw new BadRequestException('任务未关联文档文件');
       if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
         throw new ForbiddenException('无权下载此任务文档');
       }
