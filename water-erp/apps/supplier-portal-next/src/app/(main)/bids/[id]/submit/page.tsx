@@ -260,6 +260,23 @@ function BidSubmitInner() {
     biz: { ...EMPTY_SPLIT_CATS.biz },
     other: { ...EMPTY_SPLIT_CATS.other },
   });
+  // B4（第四波）：拆分模式三分类本地持久化——刷新/崩溃后文件引用（asset 元数据，可序列化）
+  // 不再全丢须重新加密上传；提交成功即清（见 handleSubmit 成功分支）
+  const SPLIT_STORAGE_KEY = `sp:splitCats:${projectId}`;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SPLIT_STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as Record<SplitKey, SplitCategory>;
+        if (saved?.tech && saved?.biz && saved?.other) setSplitCats(saved);
+      }
+    } catch { /* 损坏即忽略，走空态 */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(SPLIT_STORAGE_KEY, JSON.stringify(splitCats)); } catch { /* 满/隐私模式忽略 */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitCats]);
 
   const [autoSaveReady, setAutoSaveReady] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
@@ -761,6 +778,7 @@ function BidSubmitInner() {
       const submitted = await supplierApi.submitBid(projectId, payload);
       draft.clearDraft();
       clearDeks();
+      try { localStorage.removeItem(SPLIT_STORAGE_KEY); } catch { /* B4：提交成功清本地三分类（防下次误带旧引用） */ }
       // W11-①（A-101）：双信封轨投递成功后自动签回执（U盾私钥 SM2 签 canonical，服务端验签存档）
       // 失败不阻塞投递结果——提示可稍后在「我的投标」补签
       const session = ukeySessionRef.current; // 使用 ref 读取最新会话，避免解锁后同一闭包中的 useState 仍为旧值。
@@ -818,6 +836,11 @@ function BidSubmitInner() {
               )}
               {canSubmit && (
                 <BAlert type="warning" className="mb-5" title={`投标截止：${project.deadline ? dayjs(project.deadline).format("YYYY年MM月DD日 HH:mm") : "--"}，请在截止前完成提交。`} />
+              )}
+              {/* B7（第四波）：证书有效期前置指引——CERT_EXPIRED 旧实现在提交最后一步才炸；有效期数据在平台/U盾侧，
+                  前端不持——以指引代替预检（U盾管理/自有档案面板可见剩余天数） */}
+              {canSubmit && dualReady && (
+                <BAlert type="info" className="mb-5" title="投递前请确认 U盾证书在有效期内：临期/过期证书将在投递最后一步被拒收（CERT_EXPIRED），请在 U盾管理查看剩余天数并及时换绑。" />
               )}
               {canSubmit && dualReady && (
                 <BAlert type="success" className="mb-5" title="双层加密信封投递：文件将双层加密上传，报价等唱标字段密封至开标时揭示。提交时需插入 U盾并输入证书口令完成签名。" />

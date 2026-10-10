@@ -90,7 +90,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, recordErro
       try {
         // B1-2（2026-09-30）：C_inner 密文下载带本 tab token——cookie 被他 tab 登录覆盖后
         // 裸 cookie 会 403/串主体，密封核验误判 unavailable
-        const res = await fetch(f.downloadUrl, { credentials: "include", headers: authedHeaders() });
+        const res = await fetch(f.downloadUrl, { credentials: "include", headers: authedHeaders(), signal: AbortSignal.timeout(60_000) }); // B5（第四波）：总超时防悬挂
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const bytes = new Uint8Array(await res.arrayBuffer());
         const digest = await sha256Hex(bytes);
@@ -140,6 +140,16 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, recordErro
       setPkgError({ code: code ?? "", error: msg ?? "获取解密包失败" });
     }
   }, [isOpening, submitted, projectId, verifySeals]);
+
+  // A5（第四波）：开标记录拉取失败自愈——错误态下 10s 轮询触发重拉（ref 持有回调防引用
+  // 不稳定重置计时），网络恢复即自动回到正常卡，不再依赖手动点「重新加载」干等
+  const onRetryRef = useRef(onRetry);
+  onRetryRef.current = onRetry;
+  useEffect(() => {
+    if (!recordError || submitted) return;
+    const t = setInterval(() => { onRetryRef.current?.(); }, 10_000);
+    return () => clearInterval(t);
+  }, [recordError, submitted]);
 
   useEffect(() => {
     const active = isOpening && submitted && isDualTrack !== false;
@@ -192,7 +202,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, recordErro
         const cached = cachedInnerRef.current[f.role];
         let bytes: Uint8Array | null = cached && cached.assetId === f.assetId ? cached.bytes : null;
         if (!bytes) {
-          const res = await fetch(f.downloadUrl, { credentials: "include", headers: authedHeaders() });
+          const res = await fetch(f.downloadUrl, { credentials: "include", headers: authedHeaders(), signal: AbortSignal.timeout(60_000) }); // B5（第四波）：总超时防悬挂
           if (!res.ok) throw new Error(`解密包下载失败（HTTP ${res.status}）`);
           bytes = new Uint8Array(await res.arrayBuffer());
         }
@@ -325,7 +335,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, recordErro
   if (!submitted) return null;
 
   return (
-    <div className="sp-module decrypt-card">
+    <div className="sp-module decrypt-card" data-sp-busy={decrypting || reuploadBusy ? "1" : undefined}>
       <div className="sp-module-header">
         <h2 className="sp-module-title">解密我的投标</h2>
         <span className="sp-module-title !text-xs !font-medium !text-muted-foreground">双层信封 · 每 10 秒自动刷新</span>
@@ -410,6 +420,8 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, recordErro
                     {reuploadProgress !== null && <span className="pkg-hint">双层加密中 {Math.round(reuploadProgress)}%</span>}
                   </div>
                   <div className="pkg-hint mt-1">以原信封为底仅覆盖所选角色，唱标字段密封件逐字保留（开标期防改价）；补传后解密状态重置为待解密，等待主持人重新触发。</div>
+                  {/* B3（第四波）：SHA-256 明文锚点一致性是唯一恢复通道的前提——明示保留原始文件 */}
+                  <div className="pkg-hint mt-1 !text-[var(--sp-danger,#b42318)]">补传须使用与原投递<b>完全相同</b>的文件（服务端按 SHA-256 明文锚点校验一致性）——请务必保留原始投标文件，丢失原件将无法补传。</div>
                 </details>
                   </div>
                 </div>

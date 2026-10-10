@@ -136,7 +136,21 @@ export function showSessionReplacedOverlay(message?: string) {
     onSecondary: goToLogin,
   });
   // 长时间无操作也强制回登录页（被顶下线 = 会话已不可用）
-  window.setTimeout(goToLogin, 20000);
+  scheduleGoToLogin();
+}
+
+/** C11（第四波）：硬跳让位进行中的关键操作——解密/重传等标记 data-sp-busy 的操作未完成时
+ *  暂缓跳转（遮罩常驻已阻断误操作，跳转只为清理会话），每 5s 复查、最多宽限 2 分钟 */
+function scheduleGoToLogin() {
+  const start = Date.now();
+  const tryGo = () => {
+    if (document.querySelector('[data-sp-busy="1"]') && Date.now() - start < 120_000) {
+      window.setTimeout(tryGo, 5_000);
+      return;
+    }
+    goToLogin();
+  };
+  window.setTimeout(tryGo, 20_000);
 }
 
 /** 账号被冻结：仅提示，回登录页 */

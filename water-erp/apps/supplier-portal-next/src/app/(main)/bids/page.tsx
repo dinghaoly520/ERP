@@ -327,7 +327,9 @@ export default function BidListPage() {
                     </div>
                     <div className={`row-deadline ${isSubmitStage(p.stage) ? "submit-deadline" : ""}`}>
                       <small>投递截止</small>
-                      <strong>{dayjs(p.deadline).format("MM-DD HH:mm")}</strong>
+                      <strong className={p.deadline && new Date(p.deadline).getTime() < Date.now() && isSubmitStage(p.stage) ? "line-through opacity-60" : ""}>
+                        {dayjs(p.deadline).format("MM-DD HH:mm")}
+                      </strong>
                       <CountdownTimer deadline={p.deadline} />
                     </div>
                     <Link

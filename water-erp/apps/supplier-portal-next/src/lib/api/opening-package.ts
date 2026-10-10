@@ -63,11 +63,13 @@ export async function decryptUpload(projectId: string, form: FormData): Promise<
   // 开发环境直连 API origin（同 upload.ts 口径：Next dev 代理对 1.5MB+ 请求体截断）。
   // SUP-P2-01：不再剥 /api 前缀——UPLOAD_BASE==="/api"（同源部署）时去掉前缀会打到
   // Next 自身路由 404 HTML；直连 origin 与同源 /api 两种形态下完整拼接均正确。
+  // B5（第四波）：补总超时（120s——上传体可达数十 MB，过短误杀慢链路；旧实现无超时=连接悬挂永久转圈）
   const res = await fetch(`${UPLOAD_BASE}/supplier-portal/bid-submissions/${projectId}/decrypt-upload`, {
     method: "POST",
     credentials: "include",
     headers: supplierHeaders(),
     body: form,
+    signal: AbortSignal.timeout(120_000),
   });
   await throwIfNotOk(res, "解密上传失败");
   return res.json();
@@ -82,6 +84,7 @@ export async function reuploadDual(projectId: string, form: FormData): Promise<u
     credentials: "include",
     headers: supplierHeaders(),
     body: form,
+    signal: AbortSignal.timeout(120_000), // B5（第四波）：同上，总超时防悬挂
   });
   await throwIfNotOk(res, "重新密封补传失败");
   return res.json();
