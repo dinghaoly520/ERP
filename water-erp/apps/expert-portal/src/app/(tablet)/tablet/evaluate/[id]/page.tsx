@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle, Clock, Lock, Check, CheckCircle, Clipboard, Gavel, Sparkles, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Lock, Check, CheckCircle, Clipboard, Gavel, Sparkles, ShieldAlert, UserRound } from 'lucide-react';
 import { api, listMemos } from '@/lib/api';
 import { HelpTip } from '@/components/help-tip';
 import { SigninCamera } from '@/components/signin-camera';
@@ -188,8 +188,9 @@ export default function TabletEvaluatePage() {
       toast.warning('评标室口令已轮换，请向主持人获取新口令后重新验证进入');
       loadProject();
     },
-    onScoringReopened: () => {
-      toast.info('评审确认已被重开，评分已解锁');
+    onScoringReopened: (d) => {
+      // A2（第四波）：定向重开他人时不提示本人「已解锁」（对齐桌面端口径）
+      if (!d.expertId) toast.info('评审确认已被重开，评分已解锁');
       loadProject();
     },
     onScoresSubmitted: () => {
@@ -656,7 +657,7 @@ export default function TabletEvaluatePage() {
     if (!hostLocked && !signInPending && !roomGatePendingHere) return;
     const t = setInterval(() => loadProject(undefined, true), 10_000);
     return () => clearInterval(t);
-  }, [hostLocked, signInPending, loadProject]);
+  }, [hostLocked, signInPending, roomGatePendingHere, loadProject]); // B9（第四波）：deps 补口令门态——停用/启用口令后轮询即时启停
 
   // ── 评标室口令门（2026-09-20 spec §4 · 2026-09-22 平板补齐）──
   // 与桌面端同源：口令启用且本人未验 → 整个打分工作位置于口令输入之后；
@@ -692,6 +693,23 @@ export default function TabletEvaluatePage() {
     return (
       <div className="flex h-64 items-center justify-center text-[var(--muted-foreground)]">
         加载中…
+      </div>
+    );
+  }
+
+  // B8（第四波）：候补专家待命卡——正选缺席被递补前不参与评审，提前明示而非走到核验步才 403
+  if (meRecord && meRecord.expertRole !== '正选') {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-6">
+        <div className="neu-card-static w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[oklch(0.985_0.005_258)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+            <UserRound size={30} strokeWidth={1.5} className="text-[var(--accent)]" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">候补评审专家 · 待命</h2>
+          <p className="mx-auto mt-3 max-w-xs text-xs leading-relaxed text-[var(--muted-foreground)]">
+            您是本项目<b>候补</b>评审专家——正选专家全员到场期间不参与评审，请在评标区待命并保持通讯畅通；正选缺席被递补转正后本页自动解锁。
+          </p>
+        </div>
       </div>
     );
   }

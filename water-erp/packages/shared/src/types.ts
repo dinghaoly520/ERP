@@ -116,6 +116,8 @@ export interface BidExpert {
   id: string;
   expertName: string;
   major: string;
+  /** 正选/候补（API myExpertRecord 全行展开实发；第四波 B8 平板候补待命卡判定用） */
+  expertRole?: string;
   signedIn: boolean;
   phoneMasked?: string | null;
   avoidanceConfirmed: boolean;
