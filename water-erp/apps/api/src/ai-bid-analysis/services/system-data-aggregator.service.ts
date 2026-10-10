@@ -19,7 +19,7 @@ export class SystemDataAggregatorService {
       },
     });
     if (!bs) {
-      throw new NotFoundException(`BidSupplier ${bidSupplierId} not found`);
+      throw new NotFoundException(`投标供应商不存在或已被删除（id：${bidSupplierId}）`);
     }
 
     // 开标唱标记录（权威：报价/工期）—— bidSupplierId 可空，按它匹配

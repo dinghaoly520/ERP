@@ -25,7 +25,7 @@ export async function createKnowledgeBase(data: {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     console.error('Create knowledge base error:', res.status, errorData);
-    throw new Error(errorData.message || 'Failed to create knowledge base');
+    throw await toApiError(res, '创建知识库失败');
   }
   return res.json();
 }
@@ -51,7 +51,7 @@ export async function deleteKnowledgeBase(id: string): Promise<void> {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     console.error('Delete knowledge base error:', res.status, errorData);
-    throw new Error(errorData.message || 'Failed to delete knowledge base');
+    throw await toApiError(res, '删除知识库失败');
   }
 }
 
@@ -69,7 +69,7 @@ export async function uploadKnowledgeFile(
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     console.error('Upload file error:', res.status, errorData);
-    throw new Error(errorData.message || 'Failed to upload file');
+    throw await toApiError(res, '上传文件失败');
   }
   return res.json();
 }

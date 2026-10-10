@@ -48,7 +48,7 @@ export async function createFieldSample(payload: {
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error('Failed to create field sample');
+    throw new Error('创建样本失败');
   }
   return response.json();
 }
@@ -64,7 +64,7 @@ export async function updateFieldSample(
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error('Failed to update field sample');
+    throw new Error('更新样本失败');
   }
   return response.json();
 }
@@ -81,7 +81,7 @@ export async function toggleFieldSampleFavorite(
     },
   );
   if (!response.ok) {
-    throw new Error('Failed to toggle favorite');
+    throw new Error('收藏操作失败');
   }
   return response.json();
 }
@@ -93,7 +93,7 @@ export async function deleteFieldSample(id: string): Promise<void> {
     headers: { 'X-Portal': 'web' },
   });
   if (!response.ok) {
-    throw new Error('Failed to delete field sample');
+    throw new Error('删除样本失败');
   }
 }
 

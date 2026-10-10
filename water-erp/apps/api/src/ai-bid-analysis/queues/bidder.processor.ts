@@ -72,7 +72,7 @@ export class BidderProcessor extends WorkerHost {
         },
       });
       if (!bidderResult) {
-        throw new Error(`BidderResult ${bidderResultId} not found`);
+        throw new Error(`投标分析结果不存在或已被删除（id：${bidderResultId}）`);
       }
 
       const bidSupplierId = bidderResult.bidSupplierId;

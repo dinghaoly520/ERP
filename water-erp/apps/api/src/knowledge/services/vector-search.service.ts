@@ -30,7 +30,7 @@ export class VectorSearchService {
     // Validate all values are finite numbers to prevent SQL injection
     for (const val of vector) {
       if (!Number.isFinite(val)) {
-        throw new Error('Invalid embedding vector: contains non-finite values');
+        throw new Error('向量数据异常（含非有限值），请重新生成后再试');
       }
     }
     return `[${vector.map((v) => v.toFixed(6)).join(',')}]`;

@@ -40,6 +40,88 @@ function prismaErrorToMessage(e: Prisma.PrismaClientKnownRequestError): { status
   }
 }
 
+/** 含中日韩统一表意字符（中文）即视为已本地化消息，出口原样透传 */
+const HAS_CJK = /[一-鿿]/;
+
+/**
+ * Nest/express 框架默认英文文案 → 中文（2026-10-10 用户裁定：报错信息不允许出现英文）。
+ * 未带自定义 message 的内置异常（ForbiddenException() 等）会带这些默认串到达过滤器。
+ */
+const FRAMEWORK_DEFAULT_ZH: Record<string, string> = {
+  'Forbidden resource': '无权访问该功能，请联系管理员开通权限',
+  'Forbidden Resource': '无权访问该功能，请联系管理员开通权限',
+  'Forbidden Exception': '无权访问该功能，请联系管理员开通权限',
+  Unauthorized: '未登录或登录已过期，请重新登录',
+  'Unauthorized Exception': '未登录或登录已过期，请重新登录',
+  'Not Found': '请求的接口不存在',
+  'Not Found Exception': '请求的接口不存在',
+  'Bad Request': '请求参数有误，请检查后重试',
+  'Bad Request Exception': '请求参数有误，请检查后重试',
+  'Validation failed': '请求参数校验失败，请检查后重试',
+  Conflict: '请求冲突，请刷新后重试',
+  'Conflict Exception': '请求冲突，请刷新后重试',
+  Gone: '资源已失效，请刷新后重试',
+  'Request Timeout': '请求超时，请重试',
+  'Payload Too Large': '上传内容超出大小限制',
+  'Unsupported Media Type': '不支持的文件类型',
+  'Unprocessable Entity': '请求参数无法处理，请检查后重试',
+  'Too Many Requests': '操作过于频繁，请稍候再试',
+  'Method Not Allowed': '请求方法不被允许',
+  'Service Unavailable': '服务暂不可用，请稍后重试',
+  'Gateway Timeout': '网关超时，请稍后重试',
+  'Internal Server Error': '服务器内部错误，请稍后重试',
+};
+
+/** 消息既非中文、又无框架默认映射时按状态码兜底中文——英文外露的最后闸门 */
+function statusFallbackZh(status: number): string {
+  if (status === 401) return '未登录或登录已过期，请重新登录';
+  if (status === 403) return '无权访问该功能';
+  if (status === 404) return '请求的资源不存在或已被删除';
+  if (status === 409) return '请求冲突，请刷新后重试';
+  if (status === 413) return '上传内容超出大小限制';
+  if (status === 422) return '请求参数无法处理，请检查后重试';
+  if (status === 429) return '操作过于频繁，请稍候再试';
+  if (status >= 500) return '服务器内部错误，请稍后重试或联系管理员';
+  if (status >= 400) return '请求参数有误，请检查后重试';
+  return '请求处理失败，请稍后重试';
+}
+
+/** class-validator 英文校验消息 → 中文（ValidationPipe 未配自定义 message，出口统一翻译） */
+const VALIDATION_RULES: Array<[RegExp, string]> = [
+  [/must be a valid email address|must be an email/i, '应为有效邮箱'],
+  [/must be a valid (ISO ?8601 )?date/i, '应为有效日期'],
+  [/must be an integer/i, '应为整数'],
+  [/must be a boolean/i, '应为布尔值'],
+  [/must be a number string|must be a number/i, '应为数字'],
+  [/must be a string/i, '应为文本'],
+  [/must be an array/i, '应为列表'],
+  [/must be an object/i, '应为对象'],
+  [/must be one of the following values/i, '不在允许的取值范围内'],
+  [/must be longer than or equal to (\d+) characters?/i, '长度不足（最少 $1 字）'],
+  [/must be shorter than or equal to (\d+) characters?/i, '超出长度上限（最多 $1 字）'],
+  [/must contain no more than (\d+) characters?/i, '超出长度上限（最多 $1 字）'],
+  [/must contain at least (\d+) characters?/i, '长度不足（最少 $1 字）'],
+  [/should not be empty|must be defined|should be defined/i, '不能为空'],
+  [/each value in|each element/i, '存在不合法的取值'],
+  [/is not valid/i, '格式不正确'],
+  [/is invalid/i, '格式不正确'],
+];
+
+/** 单条校验消息翻译："property contactName must be a string" → "参数「contactName」应为文本" */
+function translateValidationMessage(raw: string): string {
+  const m = raw.match(/^(?:property\s+)?([A-Za-z][\w.]*)\s+([\s\S]*)$/);
+  const prop = m?.[1];
+  let body = (m?.[2] ?? raw).trim();
+  for (const [re, zh] of VALIDATION_RULES) {
+    if (re.test(body)) {
+      body = body.replace(re, zh);
+      break;
+    }
+  }
+  if (!HAS_CJK.test(body)) body = '取值不合法';
+  return prop ? `参数「${prop}」${body}` : body;
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -103,7 +185,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         // 注意必须先于下方 object 分支判断 —— typeof 数组 === 'object'，
         // 否则数组被当 nested 对象吞掉，只剩 exception.message（'Bad Request Exception'）
         } else if (Array.isArray(obj.message)) {
-          message = (obj.message as unknown[]).map(String).join('; ');
+          // 校验消息逐条翻译成中文（2026-10-10 报错禁英文：ValidationPipe 无自定义 message）
+          message = (obj.message as unknown[]).map((v) => translateValidationMessage(String(v))).join('；');
           code = 'VALIDATION_ERROR';
         // NestJS nests custom objects into message: { message: { code, error }, error: 'Bad Request' }
         } else if (typeof obj.message === 'object' && obj.message !== null) {
@@ -153,6 +236,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     if (status < 500) {
       this.logger.warn(`${request.method} ${request.url} ${status} - ${message}`);
+    }
+
+    // ── 英文兜底闸（2026-10-10 用户裁定：报错信息不允许出现英文）──
+    // 含中文的业务消息原样透传；框架默认英文串按映射翻译；
+    // 其余无中文消息（英文抛出点/技术串/哨兵码）按状态码给中文——原文已在上方日志留痕
+    if (!HAS_CJK.test(message)) {
+      message = FRAMEWORK_DEFAULT_ZH[message.trim()] ?? statusFallbackZh(status);
     }
 
     response.status(status).json({

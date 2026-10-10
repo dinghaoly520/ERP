@@ -42,7 +42,7 @@ export class TenderSampleService {
     });
 
     if (!existing) {
-      throw new NotFoundException(`TenderFieldSample with id ${id} not found`);
+      throw new NotFoundException(`样本不存在或已被删除（id：${id}）`);
     }
 
     return this.prisma.tenderFieldSample.update({
@@ -60,7 +60,7 @@ export class TenderSampleService {
     });
 
     if (!existing) {
-      throw new NotFoundException(`TenderFieldSample with id ${id} not found`);
+      throw new NotFoundException(`样本不存在或已被删除（id：${id}）`);
     }
 
     await this.prisma.tenderFieldSample.delete({ where: { id } });
@@ -73,7 +73,7 @@ export class TenderSampleService {
     });
 
     if (!existing) {
-      throw new NotFoundException(`TenderFieldSample with id ${id} not found`);
+      throw new NotFoundException(`样本不存在或已被删除（id：${id}）`);
     }
 
     return this.prisma.tenderFieldSample.update({

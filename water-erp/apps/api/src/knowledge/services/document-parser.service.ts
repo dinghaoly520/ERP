@@ -44,7 +44,7 @@ export class DocumentParserService {
     if (isPdf) return this.parsePdf(buffer);
     if (isImage) return this.parseImage(buffer, mimeType, fileName || 'image');
     if (isText) return this.parseText(buffer);
-    throw new Error(`Unsupported file type: ${mimeType} (${fileName})`);
+    throw new Error(`不支持的文件类型：${fileName ?? ''}（${mimeType}）`);
   }
 
   /**
