@@ -1679,6 +1679,9 @@ export class SupplierPortalService {
         roundMode: true,
         currentRoundNo: true,
         _count: { select: { suppliers: true } },
+        // C9（第四波验收根修）：解密窗口时点下发——供应商大厅倒计时数据源
+        // （此前 select 无此字段，前端读 openingSession 恒 undefined=死功能）
+        openingSession: { select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true } },
       },
     });
     // 影子项目（自定义抽取）不对供应商可见

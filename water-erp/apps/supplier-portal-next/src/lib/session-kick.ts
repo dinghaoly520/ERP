@@ -144,7 +144,7 @@ export function showSessionReplacedOverlay(message?: string) {
 function scheduleGoToLogin() {
   const start = Date.now();
   const tryGo = () => {
-    if (document.querySelector('[data-sp-busy="1"]') && Date.now() - start < 120_000) {
+    if (document.querySelector('[data-sp-busy="1"]') && Date.now() - start < 300_000) { // 验收补：与 B6「大文件需数分钟」对齐
       window.setTimeout(tryGo, 5_000);
       return;
     }

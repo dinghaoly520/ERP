@@ -11,6 +11,8 @@ function ensureOverlay() {
   if (overlayEl) return;
   overlayEl = document.createElement("div");
   overlayEl.setAttribute("role", "alert");
+  // 验收补（C11）：遮罩自身即 busy 标记——session-kick 据此让位（覆盖提交页等未打标调用方）
+  overlayEl.setAttribute("data-sp-busy", "1");
   overlayEl.style.cssText =
     "position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,23,42,.55);color:#fff;font-size:14px;font-weight:600;letter-spacing:.02em";
   overlayEl.innerHTML =

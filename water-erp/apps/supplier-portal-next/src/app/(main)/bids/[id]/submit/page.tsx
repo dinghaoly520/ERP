@@ -262,21 +262,28 @@ function BidSubmitInner() {
   });
   // B4（第四波）：拆分模式三分类本地持久化——刷新/崩溃后文件引用（asset 元数据，可序列化）
   // 不再全丢须重新加密上传；提交成功即清（见 handleSubmit 成功分支）
-  const SPLIT_STORAGE_KEY = `sp:splitCats:${projectId}`;
+  // 验收补（B4a）：键按用户隔离（同页草稿/DEK 键均 :userId 域——共用浏览器不得回填他人文件引用）；
+  // profile 未就绪（id 未知）不读不写，避免 'anon' 键串档
+  const splitStorageKey = profile?.id ? `sp:splitCats:${projectId}:${profile.id}` : null;
   useEffect(() => {
+    if (!splitStorageKey) return;
     try {
-      const raw = localStorage.getItem(SPLIT_STORAGE_KEY);
+      const raw = localStorage.getItem(splitStorageKey);
       if (raw) {
         const saved = JSON.parse(raw) as Record<SplitKey, SplitCategory>;
         if (saved?.tech && saved?.biz && saved?.other) setSplitCats(saved);
       }
     } catch { /* 损坏即忽略，走空态 */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [splitStorageKey]);
   useEffect(() => {
-    try { localStorage.setItem(SPLIT_STORAGE_KEY, JSON.stringify(splitCats)); } catch { /* 满/隐私模式忽略 */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splitCats]);
+    if (!splitStorageKey) return;
+    // 验收补（B4b）：剥离瞬态（uploading/progress）——上传中断电/刷新后恢复的 uploading:true
+    // 曾把该分类上传按钮永久禁死（无复位路径），恰与 B4 要救的场景自相矛盾
+    try {
+      localStorage.setItem(splitStorageKey, JSON.stringify(splitCats, (k, v) =>
+        k === 'uploading' || k === 'progress' ? undefined : v));
+    } catch { /* 满/隐私模式忽略 */ }
+  }, [splitCats, splitStorageKey]);
 
   const [autoSaveReady, setAutoSaveReady] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
@@ -778,7 +785,7 @@ function BidSubmitInner() {
       const submitted = await supplierApi.submitBid(projectId, payload);
       draft.clearDraft();
       clearDeks();
-      try { localStorage.removeItem(SPLIT_STORAGE_KEY); } catch { /* B4：提交成功清本地三分类（防下次误带旧引用） */ }
+      try { if (splitStorageKey) localStorage.removeItem(splitStorageKey); } catch { /* B4：提交成功清本地三分类（防下次误带旧引用） */ }
       // W11-①（A-101）：双信封轨投递成功后自动签回执（U盾私钥 SM2 签 canonical，服务端验签存档）
       // 失败不阻塞投递结果——提示可稍后在「我的投标」补签
       const session = ukeySessionRef.current; // 使用 ref 读取最新会话，避免解锁后同一闭包中的 useState 仍为旧值。

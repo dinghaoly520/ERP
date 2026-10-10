@@ -69,7 +69,7 @@ export async function decryptUpload(projectId: string, form: FormData): Promise<
     credentials: "include",
     headers: supplierHeaders(),
     body: form,
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(300_000), // 验收补：50MB 慢链路（~0.3MB/s）需 ~170s，120s 误杀合法推进中的上传
   });
   await throwIfNotOk(res, "解密上传失败");
   return res.json();
@@ -84,7 +84,7 @@ export async function reuploadDual(projectId: string, form: FormData): Promise<u
     credentials: "include",
     headers: supplierHeaders(),
     body: form,
-    signal: AbortSignal.timeout(120_000), // B5（第四波）：同上，总超时防悬挂
+    signal: AbortSignal.timeout(300_000), // B5（第四波）：总超时防悬挂（300s 容慢链路）
   });
   await throwIfNotOk(res, "重新密封补传失败");
   return res.json();

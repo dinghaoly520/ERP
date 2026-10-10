@@ -180,6 +180,11 @@ export default function TabletEvaluatePage() {
     // EXP-P3-06：WS 重连补拉——断连窗口错过的草稿/提交等事件经全量刷新补偿
     onReconnected: () => { loadProject(); },
     // P2-9/10/11（中断审查）：延期/口令轮换/重开确认广播——陈旧锁定态自动解锁，不再须 F5
+    // 验收补（B8）：候补转正/互换即时刷新——桌面端靠 role_changed 里程碑，平板此前未注册，
+    // 「本页自动解锁」承诺在签到后被换角色场景失效（轮询三条件均不满足）
+    onExpertPresence: (d) => {
+      if (d.milestone === 'role_changed') loadProject(undefined, true);
+    },
     onEvaluationExtended: (d) => {
       toast.success(`评标时限已延长 ${d.extendHours} 小时，截止时间已更新`);
       loadProject();
