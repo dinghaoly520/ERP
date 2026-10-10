@@ -77,6 +77,9 @@ const AWARD_LETTER_MIME_TYPES = new Set([
 
 @Injectable()
 export class BidService {
+  /** P2-5（第四波）：开标主持人操作权 TTL——超时未刷新即可被他人接管（惰性判定） */
+  private static readonly ACTIVE_HOST_TTL_MS = 15 * 60 * 1000;
+
   constructor(
     private prisma: PrismaService,
     private gbCode: GbCodeService,
@@ -2688,9 +2691,19 @@ export class BidService {
   /** 注册主持人为当前操作者（并发检测）。原子抢占——与 releaseActiveHost 同模式。 */
   async claimActiveHost(projectId: string, userId: string, userName: string): Promise<{ claimed: boolean; existingHost?: string }> {
     // #10: 原子 updateMany 防止 TOCTOU 竞态（旧实现 findUnique+update 可并发双抢）
+    // P2-5（第四波）：操作权 TTL——他人占用超时（activeHostClaimedAt 早于 now-15min）视同已释放，
+    // 会话死亡残留不再恒占（惰性判定免 cron）。存量行无戳（null）保守不视为过期（旧行为保持，
+    // 避免升级即全量放行）；本人重复 claim 幂等刷新时戳。
     const res = await this.prisma.bidOpeningSession.updateMany({
-      where: { projectId, OR: [{ activeHostId: null }, { activeHostId: userId }] },
-      data: { activeHostId: userId, activeHostName: userName },
+      where: {
+        projectId,
+        OR: [
+          { activeHostId: null },
+          { activeHostId: userId },
+          { activeHostClaimedAt: { lt: new Date(Date.now() - BidService.ACTIVE_HOST_TTL_MS) } },
+        ],
+      },
+      data: { activeHostId: userId, activeHostName: userName, activeHostClaimedAt: new Date() },
     });
     if (res.count > 0) return { claimed: true };
     // 被他人占用 → 回读占用者
@@ -2704,7 +2717,7 @@ export class BidService {
   async releaseActiveHost(projectId: string, userId: string): Promise<void> {
     await this.prisma.bidOpeningSession.updateMany({
       where: { projectId, activeHostId: userId },
-      data: { activeHostId: null, activeHostName: null },
+      data: { activeHostId: null, activeHostName: null, activeHostClaimedAt: null },
     });
   }
 
