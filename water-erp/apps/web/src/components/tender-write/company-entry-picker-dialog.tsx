@@ -41,7 +41,7 @@ export function CompanyEntryPickerDialog({
       }
       if (kind === "place") {
         setItems(
-          (ci.places ?? []).map((p) => ({ id: p.id, label: p.label, isDefault: p.isDefault, line: p.address })),
+          (ci.places ?? []).map((p) => ({ id: p.id, label: p.address, isDefault: p.isDefault, line: '' })),
         );
       } else {
         setItems(

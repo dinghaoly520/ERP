@@ -40,10 +40,9 @@ export type CompanyInfo = {
   supervisionProfiles: CompanySupervisionEntry[];
 };
 
-/** 开标地点条目：label 辨识名，address 为写入文档的完整地址 */
+/** 开标地点条目（无名称列：地点只有一个地址，条目即以地址标识） */
 export type CompanyPlaceEntry = {
   id: string;
-  label: string;
   address: string;
   isDefault: boolean;
   createdAt: string;
@@ -172,12 +171,12 @@ export function pickDefaultPurchaser(
 
 // ── 开标地点 / 监督方案 条目（2026-10-10 多条目版，与采购人同款模式） ──
 
-export async function createPlace(body: { label: string; address: string; isDefault?: boolean }): Promise<CompanyPlaceEntry> {
+export async function createPlace(body: { address: string; isDefault?: boolean }): Promise<CompanyPlaceEntry> {
   const created = await request<CompanyPlaceEntry>('/my-info/places', { method: 'POST', body: JSON.stringify(body) });
   invalidateCompanyInfoCache();
   return created;
 }
-export async function updatePlace(id: string, body: { label?: string; address?: string; isDefault?: boolean }): Promise<CompanyPlaceEntry> {
+export async function updatePlace(id: string, body: { address?: string; isDefault?: boolean }): Promise<CompanyPlaceEntry> {
   const updated = await request<CompanyPlaceEntry>(`/my-info/places/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
   invalidateCompanyInfoCache();
   return updated;

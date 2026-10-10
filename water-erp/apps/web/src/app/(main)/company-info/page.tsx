@@ -418,16 +418,15 @@ export default function CompanyInfoPage() {
         title="开标地点"
         hint="可维护多个开标地点、单默认——默认者进入编写时预填「开标地点」字段，编写时可点「地点」按钮改选。"
         fields={[
-          { key: 'label', label: '名称', placeholder: '如：集团B座3楼开标室' },
           { key: 'address', label: '地址（写入文档）', placeholder: '完整地址' },
         ]}
         entries={places}
         onReload={reloadEntries}
         onCreate={async (v, firstDefault) => {
-          await createPlace({ label: v.label, address: v.address, isDefault: firstDefault });
+          await createPlace({ address: v.address, isDefault: firstDefault });
         }}
         onUpdate={async (id, v) => {
-          await updatePlace(id, { label: v.label, address: v.address });
+          await updatePlace(id, { address: v.address });
         }}
         onSetDefault={async (row) => {
           await updatePlace(row.id, { isDefault: true });

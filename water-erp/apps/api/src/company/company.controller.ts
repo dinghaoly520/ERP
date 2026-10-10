@@ -49,10 +49,6 @@ export class PurchaserBodyDto {
 /** 开标地点条目（2026-10-10 多条目版）：编写时「开标地点」按钮选择 */
 export class PlaceBodyDto {
   @IsString()
-  @MaxLength(50)
-  label?: string;
-
-  @IsString()
   @MaxLength(200)
   address?: string;
 
@@ -61,7 +57,7 @@ export class PlaceBodyDto {
   isDefault?: boolean;
 }
 
-/** 监督举报条目（2026-10-10 多条目版）：整块监督举报信息，编写时「监督方案」按钮选择；
+/** 监督举报条目（2026-10-10 多条目版）：整块监督举报信息，编写时「监督举报」按钮选择；
  *  无独立名称（用户裁定删除），以「监督人」为条目标识（必填） */
 export class SupervisionBodyDto {
   @IsOptional()
@@ -266,13 +262,11 @@ export class CompanyController {
   @ApiOperation({ summary: '新增开标地点条目（设为默认时自动取消其他默认）' })
   async addPlace(@CurrentUser() user: AuthenticatedUser, @Body() dto: PlaceBodyDto) {
     const companyId = await this.resolveOwnCompanyId(user);
-    const label = dto.label?.trim();
     const address = dto.address?.trim();
-    if (!label || !address) {
-      throw new BadRequestException({ error: '地点名称与地址不能为空', code: 'PLACE_REQUIRED' });
+    if (!address) {
+      throw new BadRequestException({ error: '地点地址不能为空', code: 'PLACE_REQUIRED' });
     }
     return this.entryMutation(companyId, 'companyPlace', null, {
-      label,
       address,
       isDefault: dto.isDefault ?? false,
     });
@@ -284,7 +278,6 @@ export class CompanyController {
   async updatePlace(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string, @Body() dto: PlaceBodyDto) {
     const companyId = await this.resolveOwnCompanyId(user);
     return this.entryMutation(companyId, 'companyPlace', pid, {
-      ...(dto.label !== undefined && { label: dto.label.trim() }),
       ...(dto.address !== undefined && { address: dto.address.trim() }),
       ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
     });

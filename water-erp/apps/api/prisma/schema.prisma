@@ -51,7 +51,7 @@ model CompanyPlace {
   id        String   @id @default(cuid())
   companyId String
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  label     String // 辨识名（如「集团B座3楼开标室」）
+  // 无名称列（2026-10-10 用户裁定：地点只有一个地址）：条目即以地址标识（必填）
   address   String // 写入文档的完整地址
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
