@@ -14,12 +14,6 @@ import type { TemplateReplacement } from './tender-write.template';
 /** 平台主公司名——模板内作为「采购人」固定串出现，导出时替换为当前用户公司 */
 export const TENANT_OWNER_COMPANY_TOKEN = '四川水发勘测设计研究有限公司';
 
-/** 监督块统一兜底值（模板占位符化后表单留空时的导出/预览共用口径） */
-export const DEFAULT_SUPERVISION_ADDRESS =
-  '四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼';
-export const DEFAULT_SUPERVISION_CONTACT = '王先生、徐先生';
-export const DEFAULT_SUPERVISION_PHONE = '028-81753276';
-
 export interface SupervisionTokens {
   /** 监督部门（公告表单可改；缺省时由公司名兜底拼出「{公司}纪检监察部」） */
   department?: string;
@@ -173,14 +167,16 @@ export function buildTenantPlaceholderReplacements(
   includeCompany = true,
 ): TemplateReplacement[] {
   const company = ownerCompanyName?.trim() || TENANT_OWNER_COMPANY_TOKEN;
+  // 监督块留空即空（2026-10-10 用户裁定）：未维护不编造——不再拼「公司名+纪检监察部」、
+  // 不再回退模板原值（王先生等）；「采购人名称」仍取登录公司（真实归属，非编造）
   return [
     ...(includeCompany
       ? [{ targetText: '采购人名称', replacementText: company, highlight: false }]
       : []),
-    { targetText: '监督部门', replacementText: supervision?.department?.trim() || `${company}纪检监察部`, highlight: false },
-    { targetText: '监督地址', replacementText: supervision?.address?.trim() || DEFAULT_SUPERVISION_ADDRESS, highlight: false },
-    { targetText: '监督人', replacementText: supervision?.contact?.trim() || DEFAULT_SUPERVISION_CONTACT, highlight: false },
-    { targetText: '监督电话', replacementText: supervision?.phone?.trim() || DEFAULT_SUPERVISION_PHONE, highlight: false },
+    { targetText: '监督部门', replacementText: supervision?.department?.trim() ?? '', highlight: false },
+    { targetText: '监督地址', replacementText: supervision?.address?.trim() ?? '', highlight: false },
+    { targetText: '监督人', replacementText: supervision?.contact?.trim() ?? '', highlight: false },
+    { targetText: '监督电话', replacementText: supervision?.phone?.trim() ?? '', highlight: false },
   ];
 }
 

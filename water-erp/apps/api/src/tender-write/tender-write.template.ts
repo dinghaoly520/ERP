@@ -14,29 +14,6 @@ export const INTERNAL_BIDDING_TEMPLATE_FILE =
   '模板文件/竞价采购文件模板.docx';
 export const INVITED_BIDDING_TEMPLATE_FILE = '模板文件/邀请招标文件模板.docx';
 
-/**
- * 开标地点/联系人地址兜底值（2026-10-09 占位符化）：模板固定地址串已转为
- * {{开标地点}}/{{联系人地址}} 占位符，表单留空时按各采购方式的模板原值回填；
- * 与 web 端 tender-preview-document 预览兜底口径保持一致（询比无开标地点占位符）。
- */
-export const BID_OPENING_PLACE_DEFAULTS: Record<string, string> = {
-  COMPETITIVE_NEGOTIATION: '成都市天府新区红莲街三段383号 B栋3楼',
-  SINGLE_SOURCE:
-    '四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼',
-  INTERNAL_BIDDING:
-    '四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋',
-  INVITED_BIDDING:
-    '四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B栋',
-};
-export const CONTACT_ADDRESS_DEFAULTS: Record<string, string> = {
-  COMPETITIVE_NEGOTIATION: '成都市天府新区红莲街三段383号',
-  SINGLE_SOURCE:
-    '四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座',
-  INQUIRY_PURCHASE:
-    '四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼',
-  INTERNAL_BIDDING: '成都市天府新区红莲街三段383号',
-  INVITED_BIDDING: '成都市天府新区红莲街三段383号',
-};
 
 // Chinese number mapping for date formatting
 const CHINESE_NUMBERS = [
@@ -719,21 +696,9 @@ export function buildCompetitiveNegotiationReplacementPlan(
       targetText: '开标时间',
       ...buildReplacement('开标时间', answers.responseDeadline),
     },
-    // 开标地点/联系人地址（2026-10-09 占位符化）：表单值优先，留空回退模板原值
-    {
-      targetText: '开标地点',
-      ...buildReplacement(
-        '开标地点',
-        answers.bidOpeningPlace || BID_OPENING_PLACE_DEFAULTS.COMPETITIVE_NEGOTIATION,
-      ),
-    },
-    {
-      targetText: '联系人地址',
-      ...buildReplacement(
-        '联系人地址',
-        answers.contactAddress || CONTACT_ADDRESS_DEFAULTS.COMPETITIVE_NEGOTIATION,
-      ),
-    },
+    // 开标地点/联系人地址（2026-10-09 占位符化）：留空即空（2026-10-10 用户裁定：未维护不编造）
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.bidOpeningPlace ?? '', true) },
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     {
       targetText: '联系人',
       ...buildReplacement('联系人', answers.contactName),
@@ -865,21 +830,9 @@ export function buildSingleSourceReplacementPlan(
       targetText: '联系电话',
       ...buildReplacement('联系电话', answers.contactPhone),
     },
-    // 开标地点/联系人地址（2026-10-09 占位符化）：表单值优先，留空回退模板原值
-    {
-      targetText: '开标地点',
-      ...buildReplacement(
-        '开标地点',
-        answers.bidOpeningPlace || BID_OPENING_PLACE_DEFAULTS.SINGLE_SOURCE,
-      ),
-    },
-    {
-      targetText: '联系人地址',
-      ...buildReplacement(
-        '联系人地址',
-        answers.contactAddress || CONTACT_ADDRESS_DEFAULTS.SINGLE_SOURCE,
-      ),
-    },
+    // 开标地点/联系人地址（占位符化）：留空即空
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.bidOpeningPlace ?? '', true) },
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     // 服务内容: 选择"不包含"时导出为空字符串并删除该行
     {
       targetText: '服务内容',
@@ -977,14 +930,8 @@ export function buildInquiryPurchaseReplacementPlan(
       targetText: '开标时间',
       ...buildReplacement('开标时间', answers.bidOpeningTime),
     },
-    // 联系人地址（2026-10-09 占位符化）：表单值优先，留空回退模板原值（询比无开标地点占位符）
-    {
-      targetText: '联系人地址',
-      ...buildReplacement(
-        '联系人地址',
-        answers.contactAddress || CONTACT_ADDRESS_DEFAULTS.INQUIRY_PURCHASE,
-      ),
-    },
+    // 联系人地址（占位符化）：留空即空（询比无开标地点占位符）
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     {
       targetText: '联系人',
       ...buildReplacement('联系人', answers.contactName),
@@ -1219,22 +1166,9 @@ export function buildInternalBiddingReplacementPlan(
       targetText: '开标时间',
       ...buildReplacement('开标时间', answers.responseSubmissionTime),
     },
-    // 开标地点/联系人地址（2026-10-09 占位符化）：表单值优先，留空回退模板原值
-    // （竞价/邀请招标共用本计划，两者模板原值相同）
-    {
-      targetText: '开标地点',
-      ...buildReplacement(
-        '开标地点',
-        answers.bidOpeningPlace || BID_OPENING_PLACE_DEFAULTS.INTERNAL_BIDDING,
-      ),
-    },
-    {
-      targetText: '联系人地址',
-      ...buildReplacement(
-        '联系人地址',
-        answers.contactAddress || CONTACT_ADDRESS_DEFAULTS.INTERNAL_BIDDING,
-      ),
-    },
+    // 开标地点/联系人地址（占位符化）：留空即空（竞价/邀请招标共用本计划）
+    { targetText: '开标地点', ...buildReplacement('开标地点', answers.bidOpeningPlace ?? '', true) },
+    { targetText: '联系人地址', ...buildReplacement('联系人地址', answers.contactAddress ?? '', true) },
     {
       targetText: '联系人',
       ...buildReplacement('联系人', answers.contactName),

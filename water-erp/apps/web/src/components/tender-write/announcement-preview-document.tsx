@@ -9,11 +9,6 @@ import type {
   AnnouncementFieldKey,
 } from "../../lib/types/announcement";
 import type { TenderDocumentType } from "../../lib/types/tender-write";
-import {
-  DEFAULT_SUPERVISION_ADDRESS,
-  DEFAULT_SUPERVISION_CONTACT,
-  DEFAULT_SUPERVISION_PHONE,
-} from "../../lib/tender-write/announcement-templates";
 import { useCompanyInfo } from "@/lib/api/company-info";
 
 /**
@@ -365,10 +360,10 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           七、监督举报
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>监督部门：{PV(draft.supervisionDepartment || cd.supervisionDept || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>监督部门：{PV(draft.supervisionDepartment || cd?.supervisionDept || '', "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd?.supervisionAddress || '', "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd?.supervisionContact || '', "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd?.supervisionPhone || '', "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
@@ -486,10 +481,10 @@ function SingleSourceAnnouncementPreview({
           七、监督举报
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>{PV(draft.supervisionDepartment || cd.supervisionDept || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || DEFAULT_SUPERVISION_CONTACT, "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>{PV(draft.supervisionDepartment || cd?.supervisionDept || '', "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd?.supervisionAddress || '', "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd?.supervisionContact || '', "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd?.supervisionPhone || '', "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
@@ -563,10 +558,10 @@ function FailedBidAnnouncementPreview({
         {/* 六 */}
         <div>
           <p>六、监督举报</p>
-          <p>{PV(draft.supervisionDepartment || cd.supervisionDept || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>{PV(draft.supervisionDepartment || cd?.supervisionDept || '', "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd?.supervisionAddress || '', "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd?.supervisionContact || '', "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd?.supervisionPhone || '', "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
@@ -735,10 +730,10 @@ function WinningBidAnnouncementPreview({
         {/* 八 */}
         <div>
           <p>八、监督举报</p>
-          <p>{PV(draft.supervisionDepartment || cd.supervisionDept || company, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>{PV(draft.supervisionDepartment || cd?.supervisionDept || '', "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd?.supervisionAddress || '', "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd?.supervisionContact || '', "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd?.supervisionPhone || '', "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 

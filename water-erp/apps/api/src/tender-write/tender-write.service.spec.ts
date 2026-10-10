@@ -102,19 +102,9 @@ describe('single-source tender template helpers', () => {
         replacementText: '13800000000',
         highlight: false,
       },
-      // 开标地点/联系人地址（2026-10-09 占位符化）：表单值优先，留空回退模板原值
-      {
-        targetText: '开标地点',
-        replacementText:
-          '四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座3楼',
-        highlight: false,
-      },
-      {
-        targetText: '联系人地址',
-        replacementText:
-          '四川省成都市双流区正兴街道红莲街三段383号四川省水利发展集团有限公司B座',
-        highlight: false,
-      },
+      // 开标地点/联系人地址（占位符化）：留空即空（2026-10-10 用户裁定）
+      { targetText: '开标地点', replacementText: '', highlight: false },
+      { targetText: '联系人地址', replacementText: '', highlight: false },
       {
         targetText: '服务内容',
         replacementText: '负责现场检修、调试与技术交底。',
