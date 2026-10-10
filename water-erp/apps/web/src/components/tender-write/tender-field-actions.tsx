@@ -85,6 +85,7 @@ export function TenderFieldActions({
 
   return (
     <div className="flex items-center gap-1.5">
+      {/* 联系人按钮（2026-10-10 与监督人按钮同款设计：图标+文字标签） */}
       {isContactField && onContactOpen && (
         <button
           type="button"
@@ -92,10 +93,11 @@ export function TenderFieldActions({
           aria-label="选择联系人"
           title="选择联系人"
           {...bindTooltip('contact')}
-          className="tender-action-chip text-[rgba(96,139,239,1)]"
+          className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
         >
-          <Users size={14} />
-          {showTooltip === 'contact' && <ActionTooltip>联系人</ActionTooltip>}
+          <Users size={14} className="text-[rgba(76,111,189,1)]" />
+          联系人
+          {showTooltip === 'contact' && <ActionTooltip>选择联系人</ActionTooltip>}
         </button>
       )}
 
