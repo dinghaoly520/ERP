@@ -279,6 +279,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
   // 双信封 v2（T17）：归因裁决（§5.5）
   const openAdjudge = (s: { id: string; supplierName: string }, mode: AdjudgeMode) => {
+    // C2（第四波）：行级禁用后防切换竞态——提交中不开新对话框（完成回调会 setAdjudgeTarget(null)
+    // 清掉新开的框）；提交期间其余按钮已可点（仅目标行禁用）
+    if (adjudgeSubmitting) return;
     setAdjudgeTarget({ id: s.id, name: s.supplierName, mode });
   };
 
@@ -344,7 +347,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   // Derived data
   const decryptProgress = useMemo(() => {
     if (!project) return { total: 0, success: 0, running: 0, pending: 0, danger: 0, pct: 0 };
-    const suppliers = project.suppliers;
+    // A1（第四波）：进度环只计参标家（已投递）——与 dualOuterPending/legacyPending 同口径；
+    // 旧全名册口径在受邀未投满时把从未投标的家计成「待处理」，恒显虚高进度
+    const suppliers = project.suppliers.filter(s => s.submitStatus === '已提交');
     const statuses = suppliers.map(s => s.decryptStatus);
     const total = suppliers.length;
     const success = statuses.filter(s => s === 'SUCCESS').length;
@@ -358,8 +363,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   // dualOuterPending：外层待解（§5.2 批量候选）
   const dualOuterPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
     s.envelopeVersion === 'dual-v2' && !s.outerDecryptedAt && s.submitStatus === '已提交'), [project]);
-  // legacyPending：旧轨批量解密候选（主持端代解密仍走 decryptSupplier；与既有 decryptProgress.pending
-  // 口径一致——仅 PENDING 计数展示与入列，DANGER/RUNNING 行不入批量）
+  // legacyPending：旧轨批量解密候选（主持端代解密仍走 decryptSupplier；与 decryptProgress/
+  // dualOuterPending 三处同口径=参标家（已投递），仅 PENDING 计数展示与入列，DANGER/RUNNING 行不入批量）
   const legacyPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
     s.envelopeVersion !== 'dual-v2'
     && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER' && s.decryptStatus !== 'RUNNING'
@@ -944,7 +949,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   {canHost && (
                   <button
                     type="button"
-                    disabled={adjudgeSubmitting}
+                    disabled={adjudgeSubmitting && adjudgeTarget?.id === s.id}
                     onClick={() => openAdjudge(s, 'unknown')}
                     className="neu-btn-soft is-warning !h-[28px] text-[11px] disabled:opacity-50"
                   >
@@ -1098,7 +1103,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         ) : (
                         <>
                         {/* 旧轨：主持端代解密（dual-v2 行改用「解外层」） */}
-                        {!!session && canHost && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
+                        {/* C1（第四波）：窗口过期即收口解密入口（后端恒 403）——过期处置走定性/裁决通道 */}
+                        {!!session && canHost && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && remaining > 0 && (
                           <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting || !!session.pausedAt}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                             {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
@@ -1106,7 +1112,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </button>
                         )}
                         {/* T17：双信封 v2——管理方解外层（§5.2；幂等，重复调用返回 skipped） */}
-                        {isDual && !outerDone && canAct && canHost && (
+                        {isDual && !outerDone && canAct && canHost && remaining > 0 && (
                           <button type="button" onClick={() => handleDecryptOuter(s.id)} disabled={isOuterDecrypting || bulkOuterDecrypting}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                             {isOuterDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
@@ -1171,7 +1177,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         )}
                         {/* T17：归因裁决入口（UNKNOWN 家 / 窗口关闭后的未归因候选；裁决即落终局） */}
                         {canHost && isDual && !isSuccess && (attribution === 'UNKNOWN' || (!attribution && windowExpired)) && (
-                          <button type="button" disabled={adjudgeSubmitting}
+                          <button type="button" disabled={adjudgeSubmitting && adjudgeTarget?.id === s.id}
                             onClick={() => openAdjudge(s, 'unknown')}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[oklch(0.46_0.11_65)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
                             <Gavel size={12} strokeWidth={1.5} /> 裁决
@@ -1179,7 +1185,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         )}
                         {/* T15 纠错通道：BIDDER→PLATFORM 改判（撤销判定更正为撤回） */}
                         {canHost && isDual && isDanger && attribution === 'BIDDER' && (
-                          <button type="button" disabled={adjudgeSubmitting}
+                          <button type="button" disabled={adjudgeSubmitting && adjudgeTarget?.id === s.id}
                             onClick={() => openAdjudge(s, 'rejudge')}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--warning)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
                             <Gavel size={12} strokeWidth={1.5} /> 改判平台责任
@@ -1187,7 +1193,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         )}
                         {/* T13 硬前置：平台责任家重置解密机会（窗口须开，关闭时隐藏——需先延长窗口） */}
                         {canHost && isDual && isDanger && attribution === 'PLATFORM' && canAct && !windowExpired && (
-                          <button type="button" disabled={adjudgeSubmitting}
+                          <button type="button" disabled={adjudgeSubmitting && adjudgeTarget?.id === s.id}
                             onClick={() => openAdjudge(s, 'reset')}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--success)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
                             <RotateCcw size={12} strokeWidth={1.5} /> 重置解密机会
