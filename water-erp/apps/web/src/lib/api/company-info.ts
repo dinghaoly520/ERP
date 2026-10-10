@@ -32,8 +32,35 @@ export type CompanyInfo = {
   purchaserContact: string | null;
   purchaserPhone: string | null;
   purchaserEmail: string | null;
-  /** 多人版采购人条目（默认在前；无人维护时为空数组） */
+    /** 多人版采购人条目（默认在前；无人维护时为空数组） */
   purchasers: CompanyPurchaserEntry[];
+  /** 开标地点条目（2026-10-10 多条目版；默认在前） */
+  places: CompanyPlaceEntry[];
+  /** 监督方案条目（2026-10-10 多条目版；默认在前） */
+  supervisionProfiles: CompanySupervisionEntry[];
+};
+
+/** 开标地点条目：label 辨识名，address 为写入文档的完整地址 */
+export type CompanyPlaceEntry = {
+  id: string;
+  label: string;
+  address: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 监督方案条目：整块监督举报信息 */
+export type CompanySupervisionEntry = {
+  id: string;
+  label: string;
+  department: string | null;
+  address: string | null;
+  contact: string | null;
+  phone: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type CompanyInfoPayload = Partial<Omit<CompanyInfo, 'id' | 'code'>>;
@@ -140,6 +167,72 @@ export function pickDefaultPurchaser(
   if (entry) return { name: entry.name, phone: entry.phone ?? '', email: entry.email ?? '' };
   if (ci.purchaserContact) {
     return { name: ci.purchaserContact, phone: ci.purchaserPhone ?? '', email: ci.purchaserEmail ?? '' };
+  }
+  return null;
+}
+
+// ── 开标地点 / 监督方案 条目（2026-10-10 多条目版，与采购人同款模式） ──
+
+export async function createPlace(body: { label: string; address: string; isDefault?: boolean }): Promise<CompanyPlaceEntry> {
+  const created = await request<CompanyPlaceEntry>('/my-info/places', { method: 'POST', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return created;
+}
+export async function updatePlace(id: string, body: { label?: string; address?: string; isDefault?: boolean }): Promise<CompanyPlaceEntry> {
+  const updated = await request<CompanyPlaceEntry>(`/my-info/places/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return updated;
+}
+export async function deletePlace(id: string): Promise<{ id: string }> {
+  const removed = await request<{ id: string }>(`/my-info/places/${id}`, { method: 'DELETE' });
+  invalidateCompanyInfoCache();
+  return removed;
+}
+
+export async function createSupervision(body: { label: string; department?: string | null; address?: string | null; contact?: string | null; phone?: string | null; isDefault?: boolean }): Promise<CompanySupervisionEntry> {
+  const created = await request<CompanySupervisionEntry>('/my-info/supervisions', { method: 'POST', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return created;
+}
+export async function updateSupervision(id: string, body: { label?: string; department?: string | null; address?: string | null; contact?: string | null; phone?: string | null; isDefault?: boolean }): Promise<CompanySupervisionEntry> {
+  const updated = await request<CompanySupervisionEntry>(`/my-info/supervisions/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return updated;
+}
+export async function deleteSupervision(id: string): Promise<{ id: string }> {
+  const removed = await request<{ id: string }>(`/my-info/supervisions/${id}`, { method: 'DELETE' });
+  invalidateCompanyInfoCache();
+  return removed;
+}
+
+/** 预填口径：默认地点条目优先（服务端排序默认在前），无条目回退旧单值字段，再无则 null（不预填） */
+export function pickDefaultPlace(ci: CompanyInfo | null | undefined): string | null {
+  if (!ci) return null;
+  const entry = ci.places?.find((x) => x.isDefault) ?? ci.places?.[0];
+  return entry?.address ?? ci.bidOpeningAddress ?? null;
+}
+
+/** 预填口径：默认监督方案优先，无条目回退旧单值字段（均为空则 null，不预填） */
+export function pickDefaultSupervision(
+  ci: CompanyInfo | null | undefined,
+): { department: string; address: string; contact: string; phone: string } | null {
+  if (!ci) return null;
+  const e = ci.supervisionProfiles?.find((x) => x.isDefault) ?? ci.supervisionProfiles?.[0];
+  if (e) {
+    return {
+      department: e.department ?? '',
+      address: e.address ?? '',
+      contact: e.contact ?? '',
+      phone: e.phone ?? '',
+    };
+  }
+  if (ci.supervisionDept || ci.supervisionAddress || ci.supervisionContact || ci.supervisionPhone) {
+    return {
+      department: ci.supervisionDept ?? '',
+      address: ci.supervisionAddress ?? '',
+      contact: ci.supervisionContact ?? '',
+      phone: ci.supervisionPhone ?? '',
+    };
   }
   return null;
 }
