@@ -535,6 +535,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
 
   const openRecordEntry = async (s: { id: string; supplierName: string }, reentry = false) => {
     if (!projectId) return;
+    if (recordEntryLoading) return; // C2（第四波补）：行级禁用后防弹窗目标切换竞态（同 openAdjudge 款）
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry });
     setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '', amountUnit: null, bondCompliance: null, fieldConfig: [], customFields: {} });
     setBidBondAssetId(null);
@@ -903,14 +904,15 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <div className="flex items-center gap-2">
             {/* 阶段流转（开放投递/确定开标）已归 :3005 采购管理工作台，本页仅执行开标 */}
             {/* T17：双信封 v2——管理方解外层（§5.2；批量逐家串行，返回明细聚合） */}
-            {!!session && canHost && project.stage === 'OPENING' && dualOuterPending.length > 0 && (
+            {/* C1（第四波补）：批量解密同受窗口闸——过期后隐藏（后端恒 403），处置走延长窗口/定性通道 */}
+            {!!session && canHost && project.stage === 'OPENING' && remaining > 0 && dualOuterPending.length > 0 && (
               <button type="button" onClick={handleBulkDecryptOuter} disabled={bulkOuterDecrypting || !!session.pausedAt}
                 className="neu-btn-soft is-warning disabled:opacity-50">
                 <Unlock size={13} /> {bulkOuterDecrypting ? '批量解外层中...' : session.pausedAt ? '开标已暂停' : `全部解外层 (${dualOuterPending.length})`}
               </button>
             )}
             {/* 旧轨批量解密（dual-v2 行由「解外层」承载） */}
-            {!!session && canHost && project.stage === 'OPENING' && legacyPending.length > 0 && (
+            {!!session && canHost && project.stage === 'OPENING' && remaining > 0 && legacyPending.length > 0 && (
               <button type="button" onClick={handleBulkDecrypt} disabled={bulkDecrypting || !!session.pausedAt}
                 className="neu-btn-soft is-warning disabled:opacity-50">
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : session.pausedAt ? '开标已暂停' : `全部解密 (${legacyPending.length})`}
@@ -1127,13 +1129,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         )}
                         {isSuccess && project.stage === 'OPENING' && (
                           !record ? (
-                            <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
+                            <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading && recordEntry?.bidSupplierId === s.id}
                               className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                               <Volume2 size={12} strokeWidth={1.5} /> 唱标
                             </button>
                           ) : record.confirmStatus === '待供应商确认' ? (
                             <>
-                              <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading}
+                              <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading && recordEntry?.bidSupplierId === s.id}
                                 className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
                                 <PencilLine size={12} strokeWidth={1.5} /> 重录唱标
                               </button>
