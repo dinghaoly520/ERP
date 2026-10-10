@@ -6,7 +6,7 @@ import { Loader2, MapPin, ShieldAlert, X } from "lucide-react";
 import { getCompanyInfoOnce } from "@/lib/api/company-info";
 
 /**
- * 公司条目选择器（2026-10-10 多条目版）：开标地点 / 监督方案——
+ * 公司条目选择器（2026-10-10 多条目版）：开标地点 / 监督举报——
  * 从公司信息管理维护的条目中单选（默认条目置顶标徽）。
  * - kind="place"：选中回调整条地址（写入「开标地点」字段）
  * - kind="supervision"：选中回调整块方案（写入监督四字段）
@@ -77,7 +77,7 @@ export function CompanyEntryPickerDialog({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
               {kind === "place" ? <MapPin size={14} /> : <ShieldAlert size={14} />}
-              {kind === "place" ? "选择开标地点" : "选择监督方案"}
+              {kind === "place" ? "选择开标地点" : "选择监督举报"}
             </div>
             <button type="button" onClick={onClose} className="neu-btn-xs" aria-label="关闭">
               <X size={14} />

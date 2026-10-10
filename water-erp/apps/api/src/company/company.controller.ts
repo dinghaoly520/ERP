@@ -61,7 +61,7 @@ export class PlaceBodyDto {
   isDefault?: boolean;
 }
 
-/** 监督信息方案条目（2026-10-10 多条目版）：整块监督举报信息，编写时「监督方案」按钮选择；
+/** 监督举报条目（2026-10-10 多条目版）：整块监督举报信息，编写时「监督方案」按钮选择；
  *  无独立名称（用户裁定删除），以「监督人」为条目标识（必填） */
 export class SupervisionBodyDto {
   @IsOptional()
@@ -299,7 +299,7 @@ export class CompanyController {
 
   @Post('my-info/supervisions')
   @Roles('leader', 'admin')
-  @ApiOperation({ summary: '新增监督方案条目（监督人为必填标识；设为默认时自动取消其他默认）' })
+  @ApiOperation({ summary: '新增监督举报条目（监督人为必填标识；设为默认时自动取消其他默认）' })
   async addSupervision(@CurrentUser() user: AuthenticatedUser, @Body() dto: SupervisionBodyDto) {
     const companyId = await this.resolveOwnCompanyId(user);
     const contact = dto.contact?.trim();
@@ -317,7 +317,7 @@ export class CompanyController {
 
   @Patch('my-info/supervisions/:pid')
   @Roles('leader', 'admin')
-  @ApiOperation({ summary: '编辑监督方案条目（设为默认时自动取消其他默认）' })
+  @ApiOperation({ summary: '编辑监督举报条目（设为默认时自动取消其他默认）' })
   async updateSupervision(
     @CurrentUser() user: AuthenticatedUser,
     @Param('pid') pid: string,
@@ -335,7 +335,7 @@ export class CompanyController {
 
   @Delete('my-info/supervisions/:pid')
   @Roles('leader', 'admin')
-  @ApiOperation({ summary: '删除监督方案条目' })
+  @ApiOperation({ summary: '删除监督举报条目' })
   async deleteSupervision(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string) {
     return this.entryDelete(await this.resolveOwnCompanyId(user), 'companySupervision', pid);
   }

@@ -62,7 +62,7 @@ export function TenderFieldActions({
   isSupervisionContactField?: boolean;
   /** 开标地点字段专属：从公司维护地点条目选择（2026-10-10） */
   isPlaceField?: boolean;
-  /** 监督部门字段专属：整块改选公司监督方案（2026-10-10） */
+  /** 监督部门字段专属：整块改选公司监督举报（2026-10-10） */
   isSupervisionProfileField?: boolean;
   fieldTypeValue?: string; // For composite fields: "date", "text", or "table"
   onSampleOpen: () => void;
@@ -73,7 +73,7 @@ export function TenderFieldActions({
   onSupervisorOpen?: () => void;
   /** 打开公司维护的开标地点条目选择器 */
   onPlaceOpen?: () => void;
-  /** 打开公司维护的监督方案条目选择器（整块填充监督四字段） */
+  /** 打开公司维护的监督举报条目选择器（整块填充监督四字段） */
   onSupervisionProfileOpen?: () => void;
   onSupplierSelect?: () => void;
   /** AI 按钮语义覆写（如「拟定供应商名称」的核对供应商——不做内容优化） */
@@ -134,14 +134,14 @@ export function TenderFieldActions({
         <button
           type="button"
           onClick={onSupervisionProfileOpen}
-          aria-label="选择监督方案"
+          aria-label="选择监督举报"
           title="整块带入公司维护的监督方案（部门/地址/监督人/电话）"
           {...bindTooltip('supervisionProfile')}
           className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
         >
           <ShieldAlert size={14} className="text-[rgba(76,111,189,1)]" />
           监督方案
-          {showTooltip === 'supervisionProfile' && <ActionTooltip>整块带入监督方案</ActionTooltip>}
+          {showTooltip === 'supervisionProfile' && <ActionTooltip>整块带入监督举报</ActionTooltip>}
         </button>
       )}
 

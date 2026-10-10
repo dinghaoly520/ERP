@@ -36,7 +36,7 @@ import {
 /* ═══════════════════════════════════════════════════════════════
    公司信息管理（2026-10-10，条目化）
    leader 维护：基本信息（名称/简称/采购人地址）+ 三类条目列表——
-   采购人 / 开标地点 / 监督方案（均为多条目、单默认）。
+   采购人 / 开标地点 / 监督举报（均为多条目、单默认）。
    默认条目用于采购文件编写进入预填；编写时可点对应按钮改选其他条目。
    ═══════════════════════════════════════════════════════════════ */
 
@@ -45,7 +45,7 @@ type EntryLike = { id: string; isDefault: boolean } & Record<string, string | bo
 type EntryCardField = { key: string; label: string; placeholder: string; type?: string };
 
 /**
- * 通用条目卡片（采购人/开标地点/监督方案三处同构）：行内编辑即时保存（独立 CRUD），
+ * 通用条目卡片（采购人/开标地点/监督举报三处同构）：行内编辑即时保存（独立 CRUD），
  * 默认单选（设默认自动取消其他），首条自动设默认（预填需要落点）。
  */
 function EntryListCard({
@@ -336,7 +336,7 @@ export default function CompanyInfoPage() {
             <div>
               <div className="page-hero__title">公司信息管理</div>
               <div className="page-hero__sub">
-                维护本公司的开标地点、监督方案与采购人条目——采购文件编写自动带入默认条目，编写时可改选
+                维护本公司的开标地点、监督举报与采购人条目——采购文件编写自动带入默认条目，编写时可改选
               </div>
             </div>
           </div>
@@ -437,11 +437,11 @@ export default function CompanyInfoPage() {
         }}
       />
 
-      {/* ══════ 监督方案条目 ══════ */}
+      {/* ══════ 监督举报条目 ══════ */}
       <EntryListCard
         icon={ShieldAlert}
-        title="监督方案"
-        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段，编写时可点「监督方案」按钮改选整块。"
+        title="监督举报"
+        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段，编写时可点「监督举报」按钮改选整块。"
         fields={[
           { key: 'contact', label: '监督人（标识，必填）', placeholder: '多人顿号分隔，如：王先生、徐先生' },
           { key: 'department', label: '监督部门', placeholder: '留空 = 公司名称 + 纪检监察部' },
