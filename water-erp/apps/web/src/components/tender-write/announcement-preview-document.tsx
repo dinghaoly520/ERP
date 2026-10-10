@@ -14,6 +14,29 @@ import {
   DEFAULT_SUPERVISION_CONTACT,
   DEFAULT_SUPERVISION_PHONE,
 } from "../../lib/tender-write/announcement-templates";
+import { useCompanyInfo } from "@/lib/api/company-info";
+
+/**
+ * 公司信息联动（2026-10-10）：开标地点与监督块的公司维护值（公司信息管理页维护）
+ * 优先于模板默认串展示——公告表单未填/未预填时预览即体现本公司口径，
+ * 导出端 applyTenantTokens 同口径替换。
+ */
+function useCompanyDefaults() {
+  const ci = useCompanyInfo();
+  return {
+    openingAddress: ci?.bidOpeningAddress ?? null,
+    supervisionAddress: ci?.supervisionAddress ?? null,
+    supervisionContact: ci?.supervisionContact ?? null,
+    supervisionPhone: ci?.supervisionPhone ?? null,
+    supervisionDept: ci?.supervisionDept ?? null,
+  };
+}
+
+/** 开标/采购地点：公司维护值优先，未维护沿用模板默认串 */
+function OpeningPlace({ fallback }: { fallback: string }) {
+  const d = useCompanyDefaults();
+  return <>{d.openingAddress || fallback}</>;
+}
 
 /** 平台主公司名——当前用户公司未知时的预览兜底（与导出端模板原值口径一致） */
 const OWNER_COMPANY_FALLBACK = "四川水发勘测设计研究有限公司";
@@ -219,6 +242,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
 
   // 当前用户公司（2026-10-09）：模板固定公司名改为按登录账号公司展示；未知时按平台主公司兜底
   const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
+  const cd = useCompanyDefaults();
 
   const docLabel =
     tenderType === "INQUIRY_PURCHASE"
@@ -318,7 +342,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           <p>
             开标时间：{PV(formatDateToChinese(draft.bidOpeningTime), "{{开标时间}}", "bidOpeningTime")}。
           </p>
-          <p>开标地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座采购中心</p>
+          <p>开标地点：<OpeningPlace fallback="四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座采购中心" /></p>
         </div>
       </div>
 
@@ -341,10 +365,10 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           七、监督举报
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>监督部门：{PV(draft.supervisionDepartment || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>监督部门：{PV(draft.supervisionDepartment || cd.supervisionDept || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
@@ -373,6 +397,7 @@ function SingleSourceAnnouncementPreview({
   );
 
   const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
+  const cd = useCompanyDefaults();
 
   return (
     <div className="mx-auto max-w-[72ch] space-y-5">
@@ -451,7 +476,7 @@ function SingleSourceAnnouncementPreview({
           <p>
             采购时间：{PV(formatDateToChinese(draft.procurementTime), "{{采购时间}}", "procurementTime")}
           </p>
-          <p>采购地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心</p>
+          <p>采购地点：<OpeningPlace fallback="四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心" /></p>
         </div>
       </div>
 
@@ -461,10 +486,10 @@ function SingleSourceAnnouncementPreview({
           七、监督举报
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>{PV(draft.supervisionDepartment || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || DEFAULT_SUPERVISION_CONTACT, "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>{PV(draft.supervisionDepartment || cd.supervisionDept || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || DEFAULT_SUPERVISION_CONTACT, "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
@@ -493,6 +518,7 @@ function FailedBidAnnouncementPreview({
   );
 
   const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
+  const cd = useCompanyDefaults();
 
   return (
     <div className="mx-auto max-w-[72ch] space-y-5">
@@ -521,7 +547,7 @@ function FailedBidAnnouncementPreview({
             三、开标时间：{PV(formatDateToChinese(draft.bidOpeningTime), "{{开标时间}}", "bidOpeningTime")}
           </p>
           <p>
-            {"    "}开标地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心
+            {"    "}开标地点：<OpeningPlace fallback="四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心" />
           </p>
         </div>
 
@@ -537,10 +563,10 @@ function FailedBidAnnouncementPreview({
         {/* 六 */}
         <div>
           <p>六、监督举报</p>
-          <p>{PV(draft.supervisionDepartment || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>{PV(draft.supervisionDepartment || cd.supervisionDept || `${company}纪检监察部`, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 
@@ -569,6 +595,7 @@ function WinningBidAnnouncementPreview({
   );
 
   const company = companyName?.trim() || OWNER_COMPANY_FALLBACK;
+  const cd = useCompanyDefaults();
 
   // Build dynamic bidder rows from draft
   const rankLabels = ["第一名", "第二名", "第三名", "第四名", "第五名", "第六名", "第七名", "第八名", "第九名", "第十名"];
@@ -622,7 +649,7 @@ function WinningBidAnnouncementPreview({
           <p>
             四、开标时间：{PV(formatDateToChinese(draft.bidOpeningTime), "{{开标时间}}", "bidOpeningTime")}
           </p>
-          <p>开标地点：四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心</p>
+          <p>开标地点：<OpeningPlace fallback="四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座3楼采购中心" /></p>
         </div>
 
         {/* 五、中标候选人 */}
@@ -708,10 +735,10 @@ function WinningBidAnnouncementPreview({
         {/* 八 */}
         <div>
           <p>八、监督举报</p>
-          <p>{PV(draft.supervisionDepartment || company, "{{监督部门}}", "supervisionDepartment")}</p>
-          <p>地址：{PV(draft.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
-          <p>联系人：{PV(draft.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
-          <p>监督电话：{PV(draft.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
+          <p>{PV(draft.supervisionDepartment || cd.supervisionDept || company, "{{监督部门}}", "supervisionDepartment")}</p>
+          <p>地址：{PV(draft.supervisionAddress || cd.supervisionAddress || DEFAULT_SUPERVISION_ADDRESS, "{{监督地址}}", "supervisionAddress")}</p>
+          <p>联系人：{PV(draft.supervisionContact || cd.supervisionContact || "王先生、徐先生", "{{监督人}}", "supervisionContact")}</p>
+          <p>监督电话：{PV(draft.supervisionPhone || cd.supervisionPhone || DEFAULT_SUPERVISION_PHONE, "{{监督电话}}", "supervisionPhone")}</p>
         </div>
       </div>
 

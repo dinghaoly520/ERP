@@ -2,7 +2,27 @@ import { BadRequestException, Body, Controller, Get, Param, Patch } from '@nestj
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { INTERNAL_ROLES } from '../auth/auth-scope';
+import type { AuthenticatedUser } from '../auth/auth.types';
+
+/** 公司信息管理（2026-10-10）可维护字段：开标地点 + 监督块四项 + 采购人四项（名称/简称单列处理） */
+const COMPANY_INFO_FIELDS = [
+  'bidOpeningAddress',
+  'supervisionDept',
+  'supervisionAddress',
+  'supervisionContact',
+  'supervisionPhone',
+  'purchaserAddress',
+  'purchaserContact',
+  'purchaserPhone',
+  'purchaserEmail',
+] as const;
+
+type CompanyInfoBody = {
+  name?: string;
+  shortName?: string | null;
+} & Partial<Record<(typeof COMPANY_INFO_FIELDS)[number], string | null>>;
 
 /** 公司主数据（admin 公司选择器 / 公司维度统计用） */
 @ApiTags('公司')
@@ -47,7 +67,14 @@ export class CompanyController {
   async management() {
     const [companies, roleCounts, pmCounts, amountAgg] = await Promise.all([
       this.prisma.company.findMany({
-        select: { id: true, name: true, shortName: true, code: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          code: true,
+          createdAt: true,
+          ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
+        },
         orderBy: { name: 'asc' },
       }),
       // 账号口径拆分（对齐 list() 2026-09-26 先例）：专家库公司隔离后专家也挂 companyId，
@@ -94,11 +121,51 @@ export class CompanyController {
     }));
   }
 
-  /** D4：单位主数据维护（改名同步唯一约束校验；仅 admin） */
+  /** 公司信息管理（2026-10-10）：登录人本公司信息——公司信息管理页数据源，
+      亦是采购文件编写/公告编写按登录人公司预填监督/采购人/开标信息的取数口径 */
+  @Get('my-info')
+  @ApiOperation({ summary: '本公司信息（按登录人 companyId 解析）' })
+  async myInfo(@CurrentUser() user: AuthenticatedUser) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    return this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true, name: true, shortName: true, code: true, createdAt: true,
+        ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
+      },
+    });
+  }
+
+  /** 公司信息管理页保存：维护本公司 名称/简称 + 开标/监督/采购人信息 */
+  @Patch('my-info')
+  @ApiOperation({ summary: '维护本公司信息（名称/简称 + 开标地点 + 监督块 + 采购人）' })
+  async updateMyInfo(@CurrentUser() user: AuthenticatedUser, @Body() body: CompanyInfoBody) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    return this.updateCompany(companyId, body);
+  }
+
+  /** D4：单位主数据维护（改名同步唯一约束校验；仅 admin）——2026-10-10 起同表单可维护公司信息字段 */
   @Patch(':id')
   @Roles('admin')
-  @ApiOperation({ summary: '编辑单位（名称/简称；A-205 单位信息维护）' })
-  async update(@Param('id') id: string, @Body() body: { name?: string; shortName?: string | null }) {
+  @ApiOperation({ summary: '编辑单位（名称/简称/公司信息；A-205 单位信息维护）' })
+  async update(@Param('id') id: string, @Body() body: CompanyInfoBody) {
+    return this.updateCompany(id, body);
+  }
+
+  /** 登录人 → 本公司 id（未归属公司的账号不可用公司信息管理） */
+  private async resolveOwnCompanyId(user: AuthenticatedUser): Promise<string> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { companyId: true },
+    });
+    if (!u?.companyId) {
+      throw new BadRequestException({ error: '当前账号未归属公司，无法维护公司信息', code: 'NO_COMPANY' });
+    }
+    return u.companyId;
+  }
+
+  /** 共享更新：名称唯一校验 + 信息字段 trim→null 归一（空串存 null，导出预填按空值回退默认） */
+  private async updateCompany(id: string, body: CompanyInfoBody) {
     const exists = await this.prisma.company.findUnique({ where: { id } });
     if (!exists) throw new BadRequestException({ error: '单位不存在', code: 'NOT_FOUND' });
     const name = body.name?.trim();
@@ -106,13 +173,22 @@ export class CompanyController {
       const dup = await this.prisma.company.findUnique({ where: { name } });
       if (dup) throw new BadRequestException({ error: '已存在同名单位（主数据唯一）', code: 'DUPLICATE_NAME' });
     }
+    const info: Record<string, string | null> = {};
+    for (const f of COMPANY_INFO_FIELDS) {
+      const v = body[f];
+      if (v !== undefined) info[f] = typeof v === 'string' ? v.trim() || null : null;
+    }
     return this.prisma.company.update({
       where: { id },
       data: {
         ...(name && { name }),
         ...(body.shortName !== undefined && { shortName: body.shortName?.trim() || null }),
+        ...info,
       },
-      select: { id: true, name: true, shortName: true },
+      select: {
+        id: true, name: true, shortName: true, code: true,
+        ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
+      },
     });
   }
 }

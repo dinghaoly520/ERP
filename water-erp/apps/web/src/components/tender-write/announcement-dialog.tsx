@@ -42,6 +42,7 @@ import { ContactPickerDialog } from "./contact-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
 import { findContactByName } from "@/lib/api/contacts";
 import { fetchCurrentUser } from "@/lib/api/auth";
+import { getCompanyInfoOnce, type CompanyInfo } from "@/lib/api/company-info";
 import { exportAnnouncementDocument, importWinningBidFromPdf } from "@/lib/api/announcement";
 import { checkSupplierChange, updateProjectExtractedInfo } from "@/lib/api/project-management";
 import { getSupplierList } from "@/lib/api/supplier";
@@ -538,6 +539,8 @@ export function AnnouncementDialog({
   const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
   // 当前用户公司名（预览公司名与监督部门默认值用）——取不到时预览按平台主公司口径展示
   const [companyName, setCompanyName] = useState<string | null>(null);
+  // 本公司维护信息（2026-10-10 联动）：监督块与采购人联系方式空缺时预填
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   useEffect(() => {
     let alive = true;
     fetchCurrentUser()
@@ -547,6 +550,9 @@ export function AnnouncementDialog({
       .catch(() => {
         /* 取不到不影响编写——预览回退平台主公司口径 */
       });
+    void getCompanyInfoOnce().then((ci) => {
+      if (alive) setCompanyInfo(ci);
+    });
     return () => {
       alive = false;
     };
@@ -625,6 +631,44 @@ export function AnnouncementDialog({
       setDraft((prev) => (prev ? ({ ...prev, ...patch } as AnnouncementDraft) : prev));
     }
   }, [isOpen, draft, fields, project, tenderDraft]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // ★ 公司信息联动（2026-10-10）：监督块与「联系方式」块的空缺字段预填本公司维护值
+  // （公司信息管理页维护），只填空缺不覆盖已填内容——采购文件侧带入的值优先级更高，
+  // 用户手动修改后不再触发。填完即静默，不产生额外 patch 循环。
+  /* eslint-disable react-hooks/set-state-in-effect -- 空缺字段一次性预填 */
+  useEffect(() => {
+    if (!isOpen || !draft || !companyInfo) return;
+    const rec = draft as Record<string, string>;
+    const patch: Record<string, string> = {};
+    const wanted = (key: string) =>
+      fields.some((f) => f.key === key) && !rec[key]?.trim() && !patch[key]?.trim();
+
+    if (wanted('supervisionDepartment') && companyInfo.supervisionDept) {
+      patch.supervisionDepartment = companyInfo.supervisionDept;
+    }
+    if (wanted('supervisionAddress') && companyInfo.supervisionAddress) {
+      patch.supervisionAddress = companyInfo.supervisionAddress;
+    }
+    if (wanted('supervisionContact') && companyInfo.supervisionContact) {
+      patch.supervisionContact = companyInfo.supervisionContact;
+    }
+    if (wanted('supervisionPhone') && companyInfo.supervisionPhone) {
+      patch.supervisionPhone = companyInfo.supervisionPhone;
+    }
+    if (wanted('contactName') && companyInfo.purchaserContact) {
+      patch.contactName = companyInfo.purchaserContact;
+    }
+    if (wanted('contactPhone') && companyInfo.purchaserPhone) {
+      patch.contactPhone = companyInfo.purchaserPhone;
+    }
+    if (wanted('contactEmail') && companyInfo.purchaserEmail) {
+      patch.contactEmail = companyInfo.purchaserEmail;
+    }
+    if (Object.keys(patch).length > 0) {
+      setDraft((prev) => (prev ? ({ ...prev, ...patch } as AnnouncementDraft) : prev));
+    }
+  }, [isOpen, draft, fields, companyInfo]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const dialogTitle = useMemo(() => {

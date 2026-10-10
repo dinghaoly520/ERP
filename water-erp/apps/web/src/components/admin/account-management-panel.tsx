@@ -324,8 +324,9 @@ export function AccountManagementPanel() {
 
           <div className="page-hero__right">
             {/* 三个 admin 工具入口（2026-09-28 审计补 UI 入口；2026-10-09 由独立页迁为窗口展示，
-                原 /admin/{companies,compliance-rules,health} 页面已删——本按钮是其唯一入口） */}
-            <button type="button" onClick={() => setToolView("companies")} className="neu-btn-xs" title="公司主数据与归属管理">单位管理</button>
+                原 /admin/{companies,compliance-rules,health} 页面已删——本按钮是其唯一入口；
+                2026-10-10 更名「公司信息管理」，弹窗内可维护全量公司的开标/监督/采购人信息） */}
+            <button type="button" onClick={() => setToolView("companies")} className="neu-btn-xs" title="公司信息与业绩维护（全部公司）">公司信息管理</button>
             <button type="button" onClick={() => setToolView("rules")} className="neu-btn-xs" title="合规规则维护">合规规则</button>
             <button type="button" onClick={() => setToolView("health")} className="neu-btn-xs" title="系统健康自声明数据包">系统健康</button>
             <button

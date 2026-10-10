@@ -19,6 +19,17 @@ model Company {
   code      String?  @unique // 公司编码（项目编号前缀段，如 四川水发勘测设计研究有限公司=SWHI）
   createdAt DateTime @default(now())
 
+  // ── 公司信息管理（2026-10-10）：开标/监督/采购人维护值，采购文件与公告编写按登录人公司预填 ──
+  bidOpeningAddress  String? // 开标地点（采购文件「递交/开标地点」、公告「开标地点」）
+  supervisionDept    String? // 监督部门（留空时导出按「公司名+纪检监察部」拼）
+  supervisionAddress String? // 监督地址
+  supervisionContact String? // 监督联系人（多人顿号拼接）
+  supervisionPhone   String? // 监督电话
+  purchaserAddress   String? // 采购人地址
+  purchaserContact   String? // 采购人联系人
+  purchaserPhone     String? // 采购人电话
+  purchaserEmail     String? // 采购人邮箱
+
   users               User[]
   suppliers           Supplier[]              @relation("SupplierCompany")
   pmItems             ProjectManagementItem[]
