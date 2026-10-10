@@ -263,9 +263,8 @@ export function TenderSectionEditor({
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   // 监督人多选（2026-10-09）：采购文件监督举报块的「监督人」字段——本公司联系人多选
   const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
-  // 开标地点 / 监督举报（2026-10-10 多条目版）：公司信息维护条目单选
+  // 开标地点（2026-10-10 多条目版）：公司信息维护条目单选
   const [placePickerOpen, setPlacePickerOpen] = useState(false);
-  const [supervisionProfilePickerOpen, setSupervisionProfilePickerOpen] = useState(false);
 
   const [activeFieldKey, setActiveFieldKey] = useState<TenderFieldKey | null>(null);
   const [recentFieldKey, setRecentFieldKey] = useState<TenderFieldKey | null>(null);
@@ -1068,7 +1067,6 @@ export function TenderSectionEditor({
                       isContactField={field.key === 'contactName'}
                       isSupervisionContactField={field.key === 'supervisionContact'}
                       isPlaceField={field.key === 'bidOpeningPlace'}
-                      isSupervisionProfileField={field.key === 'supervisionDepartment'}
                       onSampleOpen={() =>
                         handleSampleOpenLocal(field.key, field.label)
                       }
@@ -1086,7 +1084,6 @@ export function TenderSectionEditor({
                       onContactOpen={() => setContactPickerOpen(true)}
                       onSupervisorOpen={() => setSupervisorPickerOpen(true)}
                       onPlaceOpen={() => setPlacePickerOpen(true)}
-                      onSupervisionProfileOpen={() => setSupervisionProfilePickerOpen(true)}
                       onSupplierSelect={field.key === 'supplierName' && onOpenSupplierSelect ? () => onOpenSupplierSelect() : undefined}
                     />
                     <span
@@ -1237,17 +1234,13 @@ export function TenderSectionEditor({
         />
       )}
 
-      {/* 开标地点 / 监督方案条目选择（2026-10-10）：公司信息维护条目单选 */}
-      {(placePickerOpen || supervisionProfilePickerOpen) && (
+      {/* 开标地点条目选择（2026-10-10）：公司信息维护条目单选 */}
+      {placePickerOpen && (
         <CompanyEntryPickerDialog
-          isOpen={placePickerOpen || supervisionProfilePickerOpen}
-          kind={placePickerOpen ? 'place' : 'supervision'}
+          isOpen={placePickerOpen}
+          kind="place"
           onSelectPlace={handlePlaceSelect}
-          onSelectSupervision={handleSupervisionProfileSelect}
-          onClose={() => {
-            setPlacePickerOpen(false);
-            setSupervisionProfilePickerOpen(false);
-          }}
+          onClose={() => setPlacePickerOpen(false)}
         />
       )}
 

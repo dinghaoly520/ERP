@@ -453,7 +453,7 @@ export default function CompanyInfoPage() {
       <EntryListCard
         icon={ShieldAlert}
         title="监督举报"
-        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段，编写时可点「监督举报」按钮改选整块；不设默认则不预填。"
+        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段；不设默认则不预填。"
         fields={[
           { key: 'contact', label: '监督人（标识，必填）', placeholder: '多人顿号分隔，如：王先生、徐先生' },
           { key: 'department', label: '监督部门', placeholder: '留空 = 公司名称 + 纪检监察部' },
