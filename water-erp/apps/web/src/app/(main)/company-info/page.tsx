@@ -75,6 +75,13 @@ function EntryListCard({
   const [busy, setBusy] = useState<string | null>(null);
   const [newRow, setNewRow] = useState<Record<string, string>>({});
 
+  // 输入框按字段数等分整行（2026-10-10 用户裁定）：字面量查表保证 Tailwind JIT 可编译；移动端单列
+  const evenGridClass =
+    fields.length <= 1 ? 'md:grid-cols-1'
+    : fields.length === 2 ? 'md:grid-cols-2'
+    : fields.length === 3 ? 'md:grid-cols-3'
+    : 'md:grid-cols-4';
+
   useEffect(() => {
     setDrafts(
       Object.fromEntries(
@@ -162,7 +169,7 @@ function EntryListCard({
                   {entry.isDefault ? <UserRoundCheck size={13} /> : <UserRound size={13} />}
                   {entry.isDefault ? '默认' : '设默认'}
                 </button>
-                <div className="grid flex-1 grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-5">
+                <div className={`grid flex-1 grid-cols-1 gap-2 ${evenGridClass}`}>
                   {fields.map((f) => (
                     <input
                       key={f.key}
@@ -204,7 +211,7 @@ function EntryListCard({
 
         {/* 新增行 */}
         <div className="grid grid-cols-1 items-center gap-2 rounded-[12px] border border-dashed border-[rgba(96,139,239,0.4)] px-3 py-2 md:grid-cols-[1fr_auto]">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-5">
+          <div className={`grid grid-cols-1 gap-2 ${evenGridClass}`}>
             {fields.map((f) => (
               <input
                 key={f.key}
