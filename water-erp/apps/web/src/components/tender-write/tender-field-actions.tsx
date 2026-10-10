@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react';
+import { BookOpen, MapPin, Search, ShieldAlert, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
 
 // Fields that should not show favorite/sample/AI actions
@@ -40,12 +40,16 @@ export function TenderFieldActions({
   isGenerating,
   isContactField,
   isSupervisionContactField,
+  isPlaceField,
+  isSupervisionProfileField,
   fieldTypeValue,
   onSampleOpen,
   onFavoriteToggle,
   onAiGenerate,
   onContactOpen,
   onSupervisorOpen,
+  onPlaceOpen,
+  onSupervisionProfileOpen,
   onSupplierSelect,
   aiOverride,
 }: {
@@ -56,6 +60,10 @@ export function TenderFieldActions({
   isContactField?: boolean;
   /** 监督人字段（supervisionContact）专属：显示「监督人」多选按钮（2026-10-09） */
   isSupervisionContactField?: boolean;
+  /** 开标地点字段专属：从公司维护地点条目选择（2026-10-10） */
+  isPlaceField?: boolean;
+  /** 监督部门字段专属：整块改选公司监督方案（2026-10-10） */
+  isSupervisionProfileField?: boolean;
   fieldTypeValue?: string; // For composite fields: "date", "text", or "table"
   onSampleOpen: () => void;
   onFavoriteToggle: () => void;
@@ -63,6 +71,10 @@ export function TenderFieldActions({
   onContactOpen?: () => void;
   /** 打开联系人选择器（多选模式）填监督人 */
   onSupervisorOpen?: () => void;
+  /** 打开公司维护的开标地点条目选择器 */
+  onPlaceOpen?: () => void;
+  /** 打开公司维护的监督方案条目选择器（整块填充监督四字段） */
+  onSupervisionProfileOpen?: () => void;
   onSupplierSelect?: () => void;
   /** AI 按钮语义覆写（如「拟定供应商名称」的核对供应商——不做内容优化） */
   aiOverride?: { title: string; label: string; onClick: () => void; busy?: boolean };
@@ -98,6 +110,38 @@ export function TenderFieldActions({
           <Users size={14} className="text-[rgba(76,111,189,1)]" />
           联系人
           {showTooltip === 'contact' && <ActionTooltip>选择联系人</ActionTooltip>}
+        </button>
+      )}
+
+      {/* 开标地点（2026-10-10）：从公司维护的地点条目中单选 */}
+      {isPlaceField && onPlaceOpen && (
+        <button
+          type="button"
+          onClick={onPlaceOpen}
+          aria-label="选择开标地点"
+          title="从公司维护的开标地点条目中选择"
+          {...bindTooltip('place')}
+          className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
+        >
+          <MapPin size={14} className="text-[rgba(76,111,189,1)]" />
+          地点
+          {showTooltip === 'place' && <ActionTooltip>地点条目选择</ActionTooltip>}
+        </button>
+      )}
+
+      {/* 监督方案（2026-10-10）：整块改选公司维护的监督方案条目 */}
+      {isSupervisionProfileField && onSupervisionProfileOpen && (
+        <button
+          type="button"
+          onClick={onSupervisionProfileOpen}
+          aria-label="选择监督方案"
+          title="整块带入公司维护的监督方案（部门/地址/监督人/电话）"
+          {...bindTooltip('supervisionProfile')}
+          className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
+        >
+          <ShieldAlert size={14} className="text-[rgba(76,111,189,1)]" />
+          监督方案
+          {showTooltip === 'supervisionProfile' && <ActionTooltip>整块带入监督方案</ActionTooltip>}
         </button>
       )}
 

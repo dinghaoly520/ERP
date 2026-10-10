@@ -9,6 +9,7 @@ import { TenderFieldActions } from './tender-field-actions';
 import { TenderFieldSampleDialog } from './tender-field-sample-drawer';
 import { ContactPickerDialog } from './contact-picker-dialog';
 import { PurchaserPickerDialog } from './purchaser-picker-dialog';
+import { CompanyEntryPickerDialog } from './company-entry-picker-dialog';
 import {
   QuotationTableEditor,
   createDefaultQuotationTable,
@@ -262,6 +263,9 @@ export function TenderSectionEditor({
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   // 监督人多选（2026-10-09）：采购文件监督举报块的「监督人」字段——本公司联系人多选
   const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
+  // 开标地点 / 监督方案（2026-10-10 多条目版）：公司信息维护条目单选
+  const [placePickerOpen, setPlacePickerOpen] = useState(false);
+  const [supervisionProfilePickerOpen, setSupervisionProfilePickerOpen] = useState(false);
 
   const [activeFieldKey, setActiveFieldKey] = useState<TenderFieldKey | null>(null);
   const [recentFieldKey, setRecentFieldKey] = useState<TenderFieldKey | null>(null);
@@ -396,6 +400,24 @@ export function TenderSectionEditor({
   // 监督人多选确认（2026-10-09）：姓名顿号拼接进 supervisionContact（清空选择=清空字段）
   const handleSupervisorConfirm = (contacts: { name: string; email: string; phone: string }[]) => {
     onChange('supervisionContact', contacts.map((c) => c.name).join('、'));
+  };
+
+  // 开标地点条目选择（2026-10-10）：整地址写入「开标地点」
+  const handlePlaceSelect = (address: string) => {
+    onChange('bidOpeningPlace', address);
+  };
+
+  // 监督方案条目选择（2026-10-10）：整块带入监督四字段（部门留空=导出按「公司名+纪检监察部」拼）
+  const handleSupervisionProfileSelect = (profile: {
+    department: string;
+    address: string;
+    contact: string;
+    phone: string;
+  }) => {
+    onChange('supervisionDepartment', profile.department);
+    onChange('supervisionAddress', profile.address);
+    onChange('supervisionContact', profile.contact);
+    onChange('supervisionPhone', profile.phone);
   };
 
   // 保存人工输入的样本
@@ -1045,6 +1067,8 @@ export function TenderSectionEditor({
                       isGenerating={isGenerating}
                       isContactField={field.key === 'contactName'}
                       isSupervisionContactField={field.key === 'supervisionContact'}
+                      isPlaceField={field.key === 'bidOpeningPlace'}
+                      isSupervisionProfileField={field.key === 'supervisionDepartment'}
                       onSampleOpen={() =>
                         handleSampleOpenLocal(field.key, field.label)
                       }
@@ -1061,6 +1085,8 @@ export function TenderSectionEditor({
                       }
                       onContactOpen={() => setContactPickerOpen(true)}
                       onSupervisorOpen={() => setSupervisorPickerOpen(true)}
+                      onPlaceOpen={() => setPlacePickerOpen(true)}
+                      onSupervisionProfileOpen={() => setSupervisionProfilePickerOpen(true)}
                       onSupplierSelect={field.key === 'supplierName' && onOpenSupplierSelect ? () => onOpenSupplierSelect() : undefined}
                     />
                     <span
@@ -1208,6 +1234,20 @@ export function TenderSectionEditor({
           isOpen={contactPickerOpen}
           onSelect={handleContactSelect}
           onClose={() => setContactPickerOpen(false)}
+        />
+      )}
+
+      {/* 开标地点 / 监督方案条目选择（2026-10-10）：公司信息维护条目单选 */}
+      {(placePickerOpen || supervisionProfilePickerOpen) && (
+        <CompanyEntryPickerDialog
+          isOpen={placePickerOpen || supervisionProfilePickerOpen}
+          kind={placePickerOpen ? 'place' : 'supervision'}
+          onSelectPlace={handlePlaceSelect}
+          onSelectSupervision={handleSupervisionProfileSelect}
+          onClose={() => {
+            setPlacePickerOpen(false);
+            setSupervisionProfilePickerOpen(false);
+          }}
         />
       )}
 

@@ -28,7 +28,12 @@ import type { ImportAutofillFieldResult } from "@/lib/types/tender-write-import"
 import { createTenderHistory } from "@/lib/api/tender-history";
 import { exportTenderDocument } from "@/lib/api/tender-write";
 import { findContactByName } from "@/lib/api/contacts";
-import { getCompanyInfoOnce, pickDefaultPurchaser } from "@/lib/api/company-info";
+import {
+  getCompanyInfoOnce,
+  pickDefaultPlace,
+  pickDefaultPurchaser,
+  pickDefaultSupervision,
+} from "@/lib/api/company-info";
 import {
   COMPETITIVE_NEGOTIATION_SECTIONS,
   createEmptyCompetitiveNegotiationDraft,
@@ -158,6 +163,8 @@ export default function TenderWritePage() {
     void getCompanyInfoOnce().then((ci) => {
       if (!ci) return;
       const purchaser = pickDefaultPurchaser(ci);
+      const place = pickDefaultPlace(ci);
+      const supervision = pickDefaultSupervision(ci);
       setDrafts((prev) => {
         const fillCompany = <T extends object>(d: T): T => {
           const next = { ...(d as Record<string, string>) };
@@ -168,11 +175,11 @@ export default function TenderWritePage() {
           fill('contactPhone', purchaser?.phone ?? null);
           fill('contactEmail', purchaser?.email ?? null);
           fill('contactAddress', ci.purchaserAddress);
-          fill('bidOpeningPlace', ci.bidOpeningAddress);
-          fill('supervisionDepartment', ci.supervisionDept);
-          fill('supervisionAddress', ci.supervisionAddress);
-          fill('supervisionContact', ci.supervisionContact);
-          fill('supervisionPhone', ci.supervisionPhone);
+          fill('bidOpeningPlace', place);
+          fill('supervisionDepartment', supervision?.department ?? null);
+          fill('supervisionAddress', supervision?.address ?? null);
+          fill('supervisionContact', supervision?.contact ?? null);
+          fill('supervisionPhone', supervision?.phone ?? null);
           return next as T;
         };
         return {
