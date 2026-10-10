@@ -28,6 +28,8 @@ function makePrisma() {
     user: { findUnique: jest.fn() },
     company: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     projectManagementItem: { groupBy: jest.fn() },
+    // 采购人条目（2026-10-10 多人版）：my-info 附带查询
+    companyPurchaser: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
   };
 }
 
@@ -143,6 +145,13 @@ describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
   const user = { sub: 'u1', username: 'a', role: 'leader' } as never;
 
   function makePurchaserPrisma() {
+    const txStub = {
+      companyPurchaser: {
+        create: jest.fn().mockResolvedValue({ id: 'p2' }),
+        updateMany: jest.fn(),
+        update: jest.fn().mockResolvedValue({ id: 'p1' }),
+      },
+    };
     return {
       user: { findUnique: jest.fn().mockResolvedValue({ companyId: 'co-1' }) },
       company: { findUnique: jest.fn().mockResolvedValue(COMPANY_ROW), findMany: jest.fn(), update: jest.fn() },
@@ -155,13 +164,8 @@ describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
         updateMany: jest.fn(),
         delete: jest.fn(),
       },
-      $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn({
-        companyPurchaser: {
-          create: jest.fn().mockResolvedValue({ id: 'p2' }),
-          updateMany: jest.fn(),
-          update: jest.fn().mockResolvedValue({ id: 'p1' }),
-        },
-      })),
+      $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn(txStub)),
+      __txStub: txStub,
     };
   }
 
@@ -180,10 +184,8 @@ describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
     const prisma = makePurchaserPrisma();
     const ctrl = new CompanyController(prisma as never);
     await ctrl.addPurchaser(user, { name: ' 李四 ', phone: ' ', email: null, isDefault: true });
-    const tx = (prisma.$transaction as jest.Mock).mock.results[0].value;
-    // @ts-expect-line 测试桩
+    const tx = (prisma as { __txStub: { companyPurchaser: { updateMany: jest.Mock; create: jest.Mock } } }).__txStub;
     expect(tx.companyPurchaser.updateMany).toHaveBeenCalledWith({ where: { companyId: 'co-1' }, data: { isDefault: false } });
-    // @ts-expect-line 测试桩
     expect(tx.companyPurchaser.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ name: '李四', phone: null, isDefault: true }),
     });
