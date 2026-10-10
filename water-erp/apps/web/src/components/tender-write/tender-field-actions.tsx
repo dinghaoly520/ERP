@@ -10,11 +10,13 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   'contactName',
   'contactEmail',
   'contactPhone',
-  // 监督信息（2026-10-09）：非 AI/样本语义，操作入口只有「监督人」多选按钮
+  // 监督信息/地点地址（2026-10-09）：非 AI/样本语义，操作入口只有「监督人」多选按钮
   'supervisionDepartment',
   'supervisionAddress',
   'supervisionContact',
   'supervisionPhone',
+  'bidOpeningPlace',
+  'contactAddress',
 ]);
 
 // Fields that should hide actions when type is "date"

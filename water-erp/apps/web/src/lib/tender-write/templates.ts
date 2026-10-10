@@ -49,6 +49,18 @@ export const TENDER_DOCUMENT_TYPES: TenderDocumentTypeMeta[] = [
   },
 ];
 
+/**
+ * 监督信息字段（2026-10-09）：采购文件「监督举报」块占位符化的表单项（与公告侧同款
+ * 语义：表单值优先、留空回退统一默认值；监督人经「监督人」按钮从本公司联系人多选）。
+ * 仅用于有监督举报块的采购方式（谈判/竞价/邀请招标）；直接采购/询比模板无监督块不加。
+ */
+const SUPERVISION_TENDER_FIELDS: TenderSectionConfig["fields"] = [
+  { key: "supervisionDepartment", label: "监督部门", placeholder: "留空默认「当前公司名 + 纪检监察部」" },
+  { key: "supervisionAddress", label: "监督地址", placeholder: "留空使用模板默认地址" },
+  { key: "supervisionContact", label: "监督人", placeholder: "点右侧「监督人」按钮从本公司联系人多选，或直接输入" },
+  { key: "supervisionPhone", label: "监督电话", placeholder: "留空使用模板默认电话", type: "tel" },
+];
+
 export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
   {
     key: "cover",
@@ -117,6 +129,9 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
+      { key: "bidOpeningPlace", label: "开标地点", placeholder: "留空使用模板默认地点" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
+      ...SUPERVISION_TENDER_FIELDS,
     ],
   },
   {
@@ -213,6 +228,12 @@ export function createEmptyCompetitiveNegotiationDraft(): CompetitiveNegotiation
     contactName: "",
     contactPhone: "",
     contactEmail: "",
+    bidOpeningPlace: "",
+    contactAddress: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
     contractSubcontracting: "",
     contractSubcontractingType: "",
     siteSurvey: "",
@@ -261,6 +282,8 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
+      { key: "bidOpeningPlace", label: "开标地点", placeholder: "留空使用模板默认地点" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
     ],
   },
   {
@@ -338,6 +361,8 @@ export function createEmptySingleSourceDraft(): SingleSourceDraft {
     contactName: "",
     contactEmail: "",
     contactPhone: "",
+    bidOpeningPlace: "",
+    contactAddress: "",
     serviceContent: "",
     serviceContentType: "",
     procurementContent: "",
@@ -413,6 +438,7 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
     ],
   },
   {
@@ -450,6 +476,7 @@ export function createEmptyInquiryPurchaseDraft(): InquiryPurchaseDraft {
     contactName: "",
     contactEmail: "",
     contactPhone: "",
+    contactAddress: "",
     quotationLetter: "",
     quotationLetterType: "table", // 报价表优先表格模式
   };
@@ -548,6 +575,9 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
       { key: "contactName", label: "联系人", placeholder: "请输入联系人" },
       { key: "contactPhone", label: "联系电话", placeholder: "请输入联系电话", type: "tel", aiPrompt: "生成联系电话。只输出纯数字号码（如028-81753276或13812345678），不要添加'联系电话：'、'电话：'等任何前缀或说明文字。" },
       { key: "contactEmail", label: "联系邮箱", placeholder: "请输入联系邮箱", type: "email", aiPrompt: "生成联系邮箱。只输出纯邮箱地址（如example@company.com），不要添加'联系邮箱：'、'邮箱：'等任何前缀或说明文字。" },
+      { key: "bidOpeningPlace", label: "开标地点", placeholder: "留空使用模板默认地点" },
+      { key: "contactAddress", label: "联系人地址", placeholder: "留空使用模板默认地址" },
+      ...SUPERVISION_TENDER_FIELDS,
     ],
   },
   {
@@ -791,6 +821,12 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     contactName: "",
     contactPhone: "",
     contactEmail: "",
+    bidOpeningPlace: "",
+    contactAddress: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
     responseDepositType: "",
     responseDepositAmount: "",
     responseDepositForm: "",

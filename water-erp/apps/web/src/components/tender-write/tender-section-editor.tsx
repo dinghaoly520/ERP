@@ -259,6 +259,8 @@ export function TenderSectionEditor({
   >({});
 
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  // 监督人多选（2026-10-09）：采购文件监督举报块的「监督人」字段——本公司联系人多选
+  const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
 
   const [activeFieldKey, setActiveFieldKey] = useState<TenderFieldKey | null>(null);
   const [recentFieldKey, setRecentFieldKey] = useState<TenderFieldKey | null>(null);
@@ -390,6 +392,11 @@ export function TenderSectionEditor({
     onChange('contactPhone', contact.phone);
   };
 
+  // 监督人多选确认（2026-10-09）：姓名顿号拼接进 supervisionContact（清空选择=清空字段）
+  const handleSupervisorConfirm = (contacts: { name: string; email: string; phone: string }[]) => {
+    onChange('supervisionContact', contacts.map((c) => c.name).join('、'));
+  };
+
   // 保存人工输入的样本
   const saveManualSample = async (fieldKey: TenderFieldKey, content: string) => {
     if (!content.trim()) return;
@@ -445,6 +452,7 @@ export function TenderSectionEditor({
   const hasContactFields = section.fields.some(
     (f) => f.key === 'contactName' || f.key === 'contactEmail' || f.key === 'contactPhone',
   );
+  const hasSupervisionField = section.fields.some((f) => f.key === 'supervisionContact');
 
   // Handle date input - listen for change and track for double-click
   const lastDateValueRef = useRef<Record<string, { value: string; time: number }>>({});
@@ -1035,6 +1043,7 @@ export function TenderSectionEditor({
                       isFavorite={isFavorite}
                       isGenerating={isGenerating}
                       isContactField={field.key === 'contactName'}
+                      isSupervisionContactField={field.key === 'supervisionContact'}
                       onSampleOpen={() =>
                         handleSampleOpenLocal(field.key, field.label)
                       }
@@ -1050,6 +1059,7 @@ export function TenderSectionEditor({
                         )
                       }
                       onContactOpen={() => setContactPickerOpen(true)}
+                      onSupervisorOpen={() => setSupervisorPickerOpen(true)}
                       onSupplierSelect={field.key === 'supplierName' && onOpenSupplierSelect ? () => onOpenSupplierSelect() : undefined}
                     />
                     <span
@@ -1195,6 +1205,21 @@ export function TenderSectionEditor({
           isOpen={contactPickerOpen}
           onSelect={handleContactSelect}
           onClose={() => setContactPickerOpen(false)}
+        />
+      )}
+
+      {/* 监督人多选（2026-10-09）：本公司联系人（已按公司隔离）多选，顿号拼接 */}
+      {supervisorPickerOpen && hasSupervisionField && (
+        <ContactPickerDialog
+          isOpen={supervisorPickerOpen}
+          onSelect={() => undefined}
+          onClose={() => setSupervisorPickerOpen(false)}
+          multiple
+          selectedNames={String((draft as Record<string, string | undefined>).supervisionContact ?? '')
+            .split(/[、,，]/)
+            .map((s) => s.trim())
+            .filter(Boolean)}
+          onConfirmMultiple={handleSupervisorConfirm}
         />
       )}
     </>
