@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -23,6 +24,32 @@ type CompanyInfoBody = {
   name?: string;
   shortName?: string | null;
 } & Partial<Record<(typeof COMPANY_INFO_FIELDS)[number], string | null>>;
+
+/** 采购人条目（2026-10-10 多人版）：多条信息、单默认——编写时「联系人」按钮选择 */
+export class PurchaserBodyDto {
+  @IsString()
+  @MaxLength(50)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string | null;
+
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(100)
+  email?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+}
+
+/** trim → null 归一（与公司信息字段同口径：空串入库 null，预填按空值回退默认） */
+function normalizeOptional(v: string | null | undefined): string | null {
+  return typeof v === 'string' ? v.trim() || null : null;
+}
 
 /** 公司主数据（admin 公司选择器 / 公司维度统计用） */
 @ApiTags('公司')
@@ -138,7 +165,82 @@ export class CompanyController {
     if (!company) {
       throw new BadRequestException({ error: '所属公司不存在（可能已被删除），请联系管理员处理', code: 'COMPANY_NOT_FOUND' });
     }
-    return company;
+    // 采购人条目（2026-10-10 多人版）：默认在前、同位次按创建时间——预填取首个
+    const purchasers = await this.prisma.companyPurchaser.findMany({
+      where: { companyId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+    return { ...company, purchasers };
+  }
+
+  // ── 采购人条目维护（2026-10-10 多人版）：leader/admin，本公司范围 ──
+
+  @Post('my-info/purchasers')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '新增采购人条目（设为默认时自动取消其他默认）' })
+  async addPurchaser(@CurrentUser() user: AuthenticatedUser, @Body() dto: PurchaserBodyDto) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    const name = dto.name?.trim();
+    if (!name) {
+      throw new BadRequestException({ error: '采购人姓名不能为空', code: 'PURCHASER_NAME_REQUIRED' });
+    }
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isDefault) {
+        await tx.companyPurchaser.updateMany({ where: { companyId }, data: { isDefault: false } });
+      }
+      return tx.companyPurchaser.create({
+        data: {
+          companyId,
+          name,
+          phone: normalizeOptional(dto.phone),
+          email: normalizeOptional(dto.email),
+          isDefault: dto.isDefault ?? false,
+        },
+      });
+    });
+  }
+
+  @Patch('my-info/purchasers/:pid')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '编辑采购人条目（设为默认时自动取消其他默认）' })
+  async updatePurchaser(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('pid') pid: string,
+    @Body() dto: PurchaserBodyDto,
+  ) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    const existing = await this.prisma.companyPurchaser.findUnique({ where: { id: pid } });
+    // 越权与不存在统一 404（不泄露其他公司条目存在性）
+    if (!existing || existing.companyId !== companyId) {
+      throw new NotFoundException('采购人条目不存在');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isDefault) {
+        await tx.companyPurchaser.updateMany({ where: { companyId }, data: { isDefault: false } });
+      }
+      return tx.companyPurchaser.update({
+        where: { id: pid },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name.trim() }),
+          ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
+          ...(dto.email !== undefined && { email: normalizeOptional(dto.email) }),
+          ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
+        },
+      });
+    });
+  }
+
+  @Delete('my-info/purchasers/:pid')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '删除采购人条目' })
+  async deletePurchaser(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    const existing = await this.prisma.companyPurchaser.findUnique({ where: { id: pid } });
+    if (!existing || existing.companyId !== companyId) {
+      throw new NotFoundException('采购人条目不存在');
+    }
+    await this.prisma.companyPurchaser.delete({ where: { id: pid } });
+    return { id: pid };
   }
 
   /** 公司信息管理页保存：维护本公司 名称/简称 + 开标/监督/采购人信息。

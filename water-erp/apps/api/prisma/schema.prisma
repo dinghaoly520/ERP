@@ -38,8 +38,25 @@ model Company {
   bidProjects         BidProject[]
   announcements       Announcement[]
   contacts            Contact[]
+  purchasers          CompanyPurchaser[]
 
   @@map("companies")
+}
+
+/// 采购人条目（2026-10-10 多人版）：公司信息管理维护多条、单默认——
+/// 采购文件编写时「联系人」按钮从条目中选择，默认条目用于进入页预填
+model CompanyPurchaser {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String?
+  email     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
 }
 
 model Department {

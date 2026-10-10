@@ -138,3 +138,78 @@ describe('CompanyController my-info（公司信息管理）', () => {
     });
   });
 });
+
+describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
+  const user = { sub: 'u1', username: 'a', role: 'leader' } as never;
+
+  function makePurchaserPrisma() {
+    return {
+      user: { findUnique: jest.fn().mockResolvedValue({ companyId: 'co-1' }) },
+      company: { findUnique: jest.fn().mockResolvedValue(COMPANY_ROW), findMany: jest.fn(), update: jest.fn() },
+      projectManagementItem: { groupBy: jest.fn() },
+      companyPurchaser: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'p1', name: '张三', isDefault: true }]),
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+        delete: jest.fn(),
+      },
+      $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn({
+        companyPurchaser: {
+          create: jest.fn().mockResolvedValue({ id: 'p2' }),
+          updateMany: jest.fn(),
+          update: jest.fn().mockResolvedValue({ id: 'p1' }),
+        },
+      })),
+    };
+  }
+
+  it('my-info 附带采购人条目列表', async () => {
+    const prisma = makePurchaserPrisma();
+    const ctrl = new CompanyController(prisma as never);
+    const out = await ctrl.myInfo(user);
+    expect(prisma.companyPurchaser.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'co-1' },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+    expect(out.purchasers).toHaveLength(1);
+  });
+
+  it('新增默认采购人：事务内先清其他默认', async () => {
+    const prisma = makePurchaserPrisma();
+    const ctrl = new CompanyController(prisma as never);
+    await ctrl.addPurchaser(user, { name: ' 李四 ', phone: ' ', email: null, isDefault: true });
+    const tx = (prisma.$transaction as jest.Mock).mock.results[0].value;
+    // @ts-expect-line 测试桩
+    expect(tx.companyPurchaser.updateMany).toHaveBeenCalledWith({ where: { companyId: 'co-1' }, data: { isDefault: false } });
+    // @ts-expect-line 测试桩
+    expect(tx.companyPurchaser.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: '李四', phone: null, isDefault: true }),
+    });
+  });
+
+  it('新增空名 → 400 PURCHASER_NAME_REQUIRED', async () => {
+    const prisma = makePurchaserPrisma();
+    const ctrl = new CompanyController(prisma as never);
+    await expect(ctrl.addPurchaser(user, { name: '  ' })).rejects.toMatchObject({
+      response: { code: 'PURCHASER_NAME_REQUIRED' },
+    });
+  });
+
+  it('跨公司条目编辑 → 404（不泄露存在性）', async () => {
+    const prisma = makePurchaserPrisma();
+    (prisma.companyPurchaser.findUnique as jest.Mock).mockResolvedValue({ id: 'px', companyId: 'co-2' });
+    const ctrl = new CompanyController(prisma as never);
+    await expect(ctrl.updatePurchaser(user, 'px', { name: 'x' })).rejects.toThrow('采购人条目不存在');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('删除本公司条目正常；越权 404', async () => {
+    const prisma = makePurchaserPrisma();
+    (prisma.companyPurchaser.findUnique as jest.Mock).mockResolvedValue({ id: 'p1', companyId: 'co-1' });
+    const ctrl = new CompanyController(prisma as never);
+    await ctrl.deletePurchaser(user, 'p1');
+    expect(prisma.companyPurchaser.delete).toHaveBeenCalledWith({ where: { id: 'p1' } });
+  });
+});
