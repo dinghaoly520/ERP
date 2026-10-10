@@ -3,6 +3,8 @@ dist/
 .next/
 *.docx
 *.pptx
+# 采购公告/文件模板是 API 运行时必需资源，不可被上面两条吞掉（2026-10-10 局域网克隆缺模板事故教训）
+!water-erp/apps/api/模板文件/*模板.docx
 .env
 .env*
 !.env.example
