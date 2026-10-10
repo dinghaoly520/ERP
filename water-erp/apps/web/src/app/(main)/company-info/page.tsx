@@ -66,9 +66,9 @@ function EntryListCard({
   fields: EntryCardField[];
   entries: EntryLike[];
   onReload: () => Promise<void>;
-  onCreate: (values: Record<string, string>, firstAutoDefault: boolean) => Promise<void>;
+  onCreate: (values: Record<string, string>) => Promise<void>;
   onUpdate: (id: string, values: Record<string, string>) => Promise<void>;
-  onSetDefault: (row: EntryLike) => Promise<void>;
+  onSetDefault: (row: EntryLike, isDefault: boolean) => Promise<void>;
   onRemove: (row: EntryLike) => Promise<void>;
 }) {
   const [drafts, setDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -103,7 +103,7 @@ function EntryListCard({
     }
     setBusy('__new__');
     try {
-      await onCreate(newRow, entries.length === 0);
+      await onCreate(newRow);
       setNewRow({});
       await onReload();
       toast.success('条目已添加');
@@ -160,10 +160,16 @@ function EntryListCard({
                 <button
                   type="button"
                   onClick={() =>
-                    void runRow(entry.id, () => onSetDefault(entry), `已设「${String(entry[fields[0].key] ?? '')}」为默认`)
+                    void runRow(
+                      entry.id,
+                      () => onSetDefault(entry, !entry.isDefault),
+                      entry.isDefault
+                        ? `已取消「${String(entry[fields[0].key] ?? '')}」的默认`
+                        : `已设「${String(entry[fields[0].key] ?? '')}」为默认`,
+                    )
                   }
-                  disabled={rowDisabled || entry.isDefault}
-                  title={entry.isDefault ? '当前默认（进入编写时预填此项）' : '设为默认'}
+                  disabled={rowDisabled}
+                  title={entry.isDefault ? '当前默认（点击取消默认；取消后编写不再预填此项）' : '设为默认'}
                   className={`neu-btn-xs shrink-0 ${entry.isDefault ? 'is-primary' : ''}`}
                 >
                   {entry.isDefault ? <UserRoundCheck size={13} /> : <UserRound size={13} />}
@@ -423,20 +429,20 @@ export default function CompanyInfoPage() {
       <EntryListCard
         icon={MapPin}
         title="开标地点"
-        hint="可维护多个开标地点、单默认——默认者进入编写时预填「开标地点」字段，编写时可点「地点」按钮改选。"
+        hint="可维护多个开标地点、单默认——默认者进入编写时预填「开标地点」字段，编写时可点「地点」按钮改选；不设默认则不预填。"
         fields={[
           { key: 'address', label: '地址（写入文档）', placeholder: '完整地址' },
         ]}
         entries={places}
         onReload={reloadEntries}
-        onCreate={async (v, firstDefault) => {
-          await createPlace({ address: v.address, isDefault: firstDefault });
+        onCreate={async (v) => {
+          await createPlace({ address: v.address });
         }}
         onUpdate={async (id, v) => {
           await updatePlace(id, { address: v.address });
         }}
-        onSetDefault={async (row) => {
-          await updatePlace(row.id, { isDefault: true });
+        onSetDefault={async (row, isDefault) => {
+          await updatePlace(row.id, { isDefault });
         }}
         onRemove={async (row) => {
           await deletePlace(row.id);
@@ -447,7 +453,7 @@ export default function CompanyInfoPage() {
       <EntryListCard
         icon={ShieldAlert}
         title="监督举报"
-        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段，编写时可点「监督举报」按钮改选整块。"
+        hint="可维护多套监督举报信息（以监督人为标识）、单默认——默认者进入编写时预填「监督信息」四字段，编写时可点「监督举报」按钮改选整块；不设默认则不预填。"
         fields={[
           { key: 'contact', label: '监督人（标识，必填）', placeholder: '多人顿号分隔，如：王先生、徐先生' },
           { key: 'department', label: '监督部门', placeholder: '留空 = 公司名称 + 纪检监察部' },
@@ -456,13 +462,12 @@ export default function CompanyInfoPage() {
         ]}
         entries={supervisions}
         onReload={reloadEntries}
-        onCreate={async (v, firstDefault) => {
+        onCreate={async (v) => {
           await createSupervision({
             contact: v.contact,
             department: v.department || null,
             address: v.address || null,
             phone: v.phone || null,
-            isDefault: firstDefault,
           });
         }}
         onUpdate={async (id, v) => {
@@ -473,8 +478,8 @@ export default function CompanyInfoPage() {
             phone: v.phone || null,
           });
         }}
-        onSetDefault={async (row) => {
-          await updateSupervision(row.id, { isDefault: true });
+        onSetDefault={async (row, isDefault) => {
+          await updateSupervision(row.id, { isDefault });
         }}
         onRemove={async (row) => {
           await deleteSupervision(row.id);
@@ -485,7 +490,7 @@ export default function CompanyInfoPage() {
       <EntryListCard
         icon={UserRound}
         title="采购人"
-        hint="可维护多位采购人、单默认——默认者进入编写时预填联系人三字段，编写时可点「联系人」按钮改选。"
+        hint="可维护多位采购人、单默认——默认者进入编写时预填联系人三字段，编写时可点「联系人」按钮改选；不设默认则不预填。"
         fields={[
           { key: 'name', label: '姓名', placeholder: '姓名（必填）' },
           { key: 'phone', label: '联系电话', placeholder: '电话', type: 'tel' },
@@ -493,14 +498,14 @@ export default function CompanyInfoPage() {
         ]}
         entries={purchasers}
         onReload={reloadEntries}
-        onCreate={async (v, firstDefault) => {
-          await createPurchaser({ name: v.name, phone: v.phone || null, email: v.email || null, isDefault: firstDefault });
+        onCreate={async (v) => {
+          await createPurchaser({ name: v.name, phone: v.phone || null, email: v.email || null });
         }}
         onUpdate={async (id, v) => {
           await updatePurchaser(id, { name: v.name, phone: v.phone || null, email: v.email || null });
         }}
-        onSetDefault={async (row) => {
-          await updatePurchaser(row.id, { isDefault: true });
+        onSetDefault={async (row, isDefault) => {
+          await updatePurchaser(row.id, { isDefault });
         }}
         onRemove={async (row) => {
           await deletePurchaser(row.id);

@@ -206,8 +206,11 @@ export async function deleteSupervision(id: string): Promise<{ id: string }> {
 /** 预填口径：默认地点条目优先（服务端排序默认在前），无条目回退旧单值字段，再无则 null（不预填） */
 export function pickDefaultPlace(ci: CompanyInfo | null | undefined): string | null {
   if (!ci) return null;
-  const entry = ci.places?.find((x) => x.isDefault) ?? ci.places?.[0];
-  return entry?.address ?? ci.bidOpeningAddress ?? null;
+  // 只认显式默认（可不设）；有条目但未设默认→不预填
+  const entry = ci.places?.find((x) => x.isDefault) ?? null;
+  if (entry) return entry.address;
+  if (ci.places?.length) return null;
+  return ci.bidOpeningAddress ?? null;
 }
 
 /** 预填口径：默认监督方案优先，无条目回退旧单值字段（均为空则 null，不预填） */
@@ -215,7 +218,8 @@ export function pickDefaultSupervision(
   ci: CompanyInfo | null | undefined,
 ): { department: string; address: string; contact: string; phone: string } | null {
   if (!ci) return null;
-  const e = ci.supervisionProfiles?.find((x) => x.isDefault) ?? ci.supervisionProfiles?.[0];
+  // 只认显式默认（可不设）；有条目但未设默认→不预填
+  const e = ci.supervisionProfiles?.find((x) => x.isDefault) ?? null;
   if (e) {
     return {
       department: e.department ?? '',
@@ -224,6 +228,7 @@ export function pickDefaultSupervision(
       phone: e.phone ?? '',
     };
   }
+  if (ci.supervisionProfiles?.length) return null;
   if (ci.supervisionDept || ci.supervisionAddress || ci.supervisionContact || ci.supervisionPhone) {
     return {
       department: ci.supervisionDept ?? '',
