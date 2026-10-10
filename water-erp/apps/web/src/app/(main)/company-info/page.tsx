@@ -160,13 +160,19 @@ export default function CompanyInfoPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <button onClick={() => void load()} className="neu-btn-xs" title="刷新">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <button onClick={() => void save()} disabled={saving} className="neu-btn-primary">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saving ? '保存中...' : '保存'}
-            </button>
+            {/* cgzxui：并排主次按钮用 .neu-btn-group 统一 38px 等高（primary 44px 与他钮
+                不齐平是反模式）；!w-auto 覆写组默认 width:100%（hero 右区按内容收窄）。
+                disabled 态走类内建样式（:disabled opacity/cursor），无需附加类名 */}
+            <div className="neu-btn-group !w-auto">
+              <button type="button" onClick={() => void load()} className="neu-btn-soft" title="重新加载本公司信息">
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                刷新
+              </button>
+              <button type="button" onClick={() => void save()} disabled={saving} className="neu-btn-primary">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {saving ? '保存中...' : '保存'}
+              </button>
+            </div>
           </div>
         </div>
         <div className="page-hero__divider" />
@@ -243,13 +249,6 @@ export default function CompanyInfoPage() {
         </div>
       ))}
 
-      {/* 底部保存（滚动到表单底部时无需回滚页头） */}
-      <div className="flex justify-end gap-3">
-        <button onClick={() => void save()} disabled={saving} className="neu-btn-primary">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          {saving ? '保存中...' : '保存'}
-        </button>
-      </div>
     </div>
   );
 }
