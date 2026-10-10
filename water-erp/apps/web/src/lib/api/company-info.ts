@@ -40,9 +40,14 @@ export function fetchMyCompanyInfo(): Promise<CompanyInfo> {
   return request<CompanyInfo>('/my-info');
 }
 
-/** 保存本公司信息（仅提交有值字段；空串服务端归一为 null） */
-export function updateMyCompanyInfo(payload: CompanyInfoPayload): Promise<CompanyInfo> {
-  return request<CompanyInfo>('/my-info', { method: 'PATCH', body: JSON.stringify(payload) });
+/** 保存本公司信息（仅提交有值字段；空串服务端归一为 null）；成功后作废会话级缓存 */
+export async function updateMyCompanyInfo(payload: CompanyInfoPayload): Promise<CompanyInfo> {
+  const saved = await request<CompanyInfo>('/my-info', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  invalidateCompanyInfoCache();
+  return saved;
 }
 
 /**
@@ -55,6 +60,11 @@ let companyInfoPromise: Promise<CompanyInfo | null> | null = null;
 export function getCompanyInfoOnce(): Promise<CompanyInfo | null> {
   companyInfoPromise ??= fetchMyCompanyInfo().catch(() => null);
   return companyInfoPromise;
+}
+
+/** 保存成功后作废单例——同会话的预填/预览（编写对话框、预览文档）下次取到新值 */
+function invalidateCompanyInfoCache() {
+  companyInfoPromise = null;
 }
 
 /** 组件内取本公司维护信息（null=未取到，渲染层按模板默认值回退） */

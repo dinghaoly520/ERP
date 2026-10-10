@@ -127,17 +127,24 @@ export class CompanyController {
   @ApiOperation({ summary: '本公司信息（按登录人 companyId 解析）' })
   async myInfo(@CurrentUser() user: AuthenticatedUser) {
     const companyId = await this.resolveOwnCompanyId(user);
-    return this.prisma.company.findUnique({
+    const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
         id: true, name: true, shortName: true, code: true, createdAt: true,
         ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
       },
     });
+    // companyId 悬空兜底（公司主数据被删后账号未清理）：给可读错误而非 null
+    if (!company) {
+      throw new BadRequestException({ error: '所属公司不存在（可能已被删除），请联系管理员处理', code: 'COMPANY_NOT_FOUND' });
+    }
+    return company;
   }
 
-  /** 公司信息管理页保存：维护本公司 名称/简称 + 开标/监督/采购人信息 */
+  /** 公司信息管理页保存：维护本公司 名称/简称 + 开标/监督/采购人信息。
+      维护权限 = leader/admin（staff/bid_host 只读预填，侧栏亦不展示入口） */
   @Patch('my-info')
+  @Roles('leader', 'admin')
   @ApiOperation({ summary: '维护本公司信息（名称/简称 + 开标地点 + 监督块 + 采购人）' })
   async updateMyInfo(@CurrentUser() user: AuthenticatedUser, @Body() body: CompanyInfoBody) {
     const companyId = await this.resolveOwnCompanyId(user);
@@ -178,17 +185,25 @@ export class CompanyController {
       const v = body[f];
       if (v !== undefined) info[f] = typeof v === 'string' ? v.trim() || null : null;
     }
-    return this.prisma.company.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(body.shortName !== undefined && { shortName: body.shortName?.trim() || null }),
-        ...info,
-      },
-      select: {
-        id: true, name: true, shortName: true, code: true,
-        ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
-      },
-    });
+    try {
+      return await this.prisma.company.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(body.shortName !== undefined && { shortName: body.shortName?.trim() || null }),
+          ...info,
+        },
+        select: {
+          id: true, name: true, shortName: true, code: true,
+          ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
+        },
+      });
+    } catch (e) {
+      // 唯一约束兜底（check-then-update 的并发窗口）：撞名给友好错误而非原始 P2002
+      if ((e as { code?: string })?.code === 'P2002') {
+        throw new BadRequestException({ error: '已存在同名单位（主数据唯一）', code: 'DUPLICATE_NAME' });
+      }
+      throw e;
+    }
   }
 }

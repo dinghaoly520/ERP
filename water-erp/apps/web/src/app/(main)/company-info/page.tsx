@@ -78,12 +78,16 @@ export default function CompanyInfoPage() {
     setError(null);
     try {
       const data = await fetchMyCompanyInfo();
+      if (!data) throw new Error('所属公司数据异常，请联系管理员处理');
       setInfo(data);
-      setForm(
-        Object.fromEntries(
+      // name/shortName 不在 ALL_FIELDS（基本信息节无 fields 配置），此处一并初始化
+      setForm({
+        name: data.name ?? '',
+        shortName: data.shortName ?? '',
+        ...Object.fromEntries(
           ALL_FIELDS.map((k) => [k, ((data as Record<string, unknown>)[k] as string | null) ?? '']),
         ),
-      );
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {
