@@ -49,6 +49,12 @@ import type {
 } from './tender-write.types';
 import { AiService } from '../ai/ai.service';
 import { OcrService } from '../local-ai/ocr.service';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  applyTenantTokens,
+  buildTenantPlaceholderReplacements,
+  type SupervisionTokens,
+} from './tenant-tokens';
 import { parseUploadedFile } from './import-autofill.file-parser';
 import {
   buildImportAutofillSystemPrompt,
@@ -75,7 +81,45 @@ export class TenderWriteService {
   constructor(
     private readonly aiService: AiService,
     private readonly ocrService: OcrService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  /**
+   * 当前用户公司名（导出租户替换兜底用）：User.company 展示快照优先，缺失回退
+   * Company 主数据；未归属公司的账号返回 null——模板固定串保持原样，等同旧行为。
+   */
+  private async resolveOwnerCompanyName(
+    user?: { sub?: string },
+  ): Promise<string | null> {
+    if (!user?.sub) return null;
+    const u = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { company: true, companyId: true },
+    });
+    if (u?.company?.trim()) return u.company.trim();
+    if (!u?.companyId) return null;
+    const company = await this.prisma.company.findUnique({
+      where: { id: u.companyId },
+      select: { name: true },
+    });
+    return company?.name ?? null;
+  }
+
+  /** 草稿中的监督块四字段 → 租户替换令牌（未填字段不替换，保留模板原样） */
+  private supervisionFromDraft(
+    draft: Record<string, unknown> | undefined,
+  ): SupervisionTokens {
+    const pick = (key: string): string | undefined => {
+      const v = draft?.[key];
+      return typeof v === 'string' ? v : undefined;
+    };
+    return {
+      department: pick('supervisionDepartment'),
+      address: pick('supervisionAddress'),
+      contact: pick('supervisionContact'),
+      phone: pick('supervisionPhone'),
+    };
+  }
 
   private resolveTemplatePath(
     documentType: ExportTenderWriteDto['documentType'],
@@ -119,7 +163,7 @@ export class TenderWriteService {
     return buildStandardFileName({ code: projectCode, name: trimmedName, docType: typeLabel });
   }
 
-  async exportDocument(dto: ExportTenderWriteDto) {
+  async exportDocument(dto: ExportTenderWriteDto, user?: { sub?: string }) {
     const templatePath = this.resolveTemplatePath(dto.documentType);
     const exists = await fs
       .access(templatePath)
@@ -140,40 +184,53 @@ export class TenderWriteService {
       );
     }
 
+    // 显式占位符填充（2026-10-09 二期）：{{采购人名称}}/{{监督X}} 按当前用户公司与答案填入
+    const ownerCompanyName = await this.resolveOwnerCompanyName(user);
+    const tenantPlan = buildTenantPlaceholderReplacements(
+      ownerCompanyName,
+      this.supervisionFromDraft(dto.answers as Record<string, unknown>),
+    );
+
     let updatedXml: string;
 
     if (dto.documentType === 'SINGLE_SOURCE') {
-      updatedXml = renderTemplateXml(
-        documentXml,
-        buildSingleSourceReplacementPlan(dto.answers as SingleSourceAnswers),
-      );
+      updatedXml = renderTemplateXml(documentXml, [
+        ...buildSingleSourceReplacementPlan(dto.answers as SingleSourceAnswers),
+        ...tenantPlan,
+      ]);
     } else if (dto.documentType === 'INQUIRY_PURCHASE') {
-      updatedXml = renderTemplateXml(
-        documentXml,
-        buildInquiryPurchaseReplacementPlan(
+      updatedXml = renderTemplateXml(documentXml, [
+        ...buildInquiryPurchaseReplacementPlan(
           dto.answers as InquiryPurchaseAnswers,
         ),
-      );
+        ...tenantPlan,
+      ]);
     } else if (
       dto.documentType === 'INTERNAL_BIDDING' ||
       dto.documentType === 'INVITED_BIDDING'
     ) {
-      updatedXml = renderTemplateXml(
-        documentXml,
-        buildInternalBiddingReplacementPlan(
+      updatedXml = renderTemplateXml(documentXml, [
+        ...buildInternalBiddingReplacementPlan(
           dto.answers as InternalBiddingAnswers,
         ),
-      );
+        ...tenantPlan,
+      ]);
     } else {
-      updatedXml = renderTemplateXml(
-        documentXml,
-        buildCompetitiveNegotiationReplacementPlan(
+      updatedXml = renderTemplateXml(documentXml, [
+        ...buildCompetitiveNegotiationReplacementPlan(
           dto.answers as CompetitiveNegotiationAnswers,
         ),
-      );
+        ...tenantPlan,
+      ]);
     }
 
-    zip.file('word/document.xml', updatedXml);
+    // 安全网（2026-10-09 二期）：占位符化后正常不再命中；重导入带固定串的旧式模板仍兜住
+    const tenantedXml = applyTenantTokens(
+      updatedXml,
+      ownerCompanyName,
+      this.supervisionFromDraft(dto.answers as Record<string, unknown>),
+    );
+    zip.file('word/document.xml', tenantedXml);
 
     return {
       buffer: await zip.generateAsync({ type: 'nodebuffer' }),
@@ -266,7 +323,7 @@ export class TenderWriteService {
     };
   }
 
-  async exportAnnouncement(dto: ExportAnnouncementDto) {
+  async exportAnnouncement(dto: ExportAnnouncementDto, user?: { sub?: string }) {
     const { tenderType, category, draft } = dto;
 
     // GB/T 43711（7.3）：谈判采购通过定向邀请（≥3 家）组织，不发布采购公告——
@@ -369,12 +426,26 @@ export class TenderWriteService {
       xmlToRender = this.adjustWinningBidTableRows(xmlToRender, draft as Record<string, string>);
     }
 
-    const updatedXml = renderTemplateXml(xmlToRender, replacementPlan);
+    // 显式占位符填充（2026-10-09 二期）：公司名/监督块按当前用户公司与公告草稿填入
+    const ownerCompanyName = await this.resolveOwnerCompanyName(user);
+    const updatedXml = renderTemplateXml(xmlToRender, [
+      ...replacementPlan,
+      ...buildTenantPlaceholderReplacements(
+        ownerCompanyName,
+        this.supervisionFromDraft(dto.draft),
+      ),
+    ]);
     // 公告模板标题段为「{{项目名称}}采购」——项目名以「采购」结尾时拼出「采购采购」
     // （如「便携式全液压岩心钻机（800型）采购」）。渲染后全文归一；公告正文不存在
     // 合法的连续「采购采购」，采购文件导出走另一路径（144-166 行）不受影响。
     const normalizedXml = updatedXml.replace(/采购采购+/g, '采购');
-    zip.file('word/document.xml', normalizedXml);
+    // 安全网（2026-10-09 二期）：占位符化后正常不再命中；重导入带固定串的旧式模板仍兜住
+    const tenantedXml = applyTenantTokens(
+      normalizedXml,
+      ownerCompanyName,
+      this.supervisionFromDraft(dto.draft),
+    );
+    zip.file('word/document.xml', tenantedXml);
 
     // 统一命名：{项目编号}-{项目名称}-{公告类型}-{YYYYMMDD}.docx
     const projectName = (draft as Record<string, string>).projectName?.trim();
@@ -394,12 +465,15 @@ export class TenderWriteService {
    * 生成公告 docx（复用 exportAnnouncement）并用 mammoth 提取公告全文文本。
    * 供项目管理「公告制作与发布」向导调用：正文用全文、docx 上传到 PUBLIC_ANNOUNCEMENT 阶段。
    */
-  async buildAnnouncementWithContent(dto: ExportAnnouncementDto): Promise<{
+  async buildAnnouncementWithContent(
+    dto: ExportAnnouncementDto,
+    user?: { sub?: string },
+  ): Promise<{
     buffer: Buffer;
     fileName: string;
     textContent: string;
   }> {
-    const { buffer, fileName } = await this.exportAnnouncement(dto);
+    const { buffer, fileName } = await this.exportAnnouncement(dto, user);
     let textContent = '';
     try {
       const mammothResult = await mammoth.extractRawText({ buffer });
@@ -770,7 +844,10 @@ export class TenderWriteService {
   /**
    * Generate a 中标通知书 DOCX from the notification letter template.
    */
-  async exportNotificationLetter(dto: ExportNotificationLetterDto) {
+  async exportNotificationLetter(
+    dto: ExportNotificationLetterDto,
+    user?: { sub?: string },
+  ) {
     const templatePath = path.resolve(
       PROJECT_ROOT,
       NOTIFICATION_LETTER_TEMPLATE_FILE,
@@ -796,8 +873,15 @@ export class TenderWriteService {
     }
 
     const replacementPlan = buildNotificationLetterPlan(dto);
-    const updatedXml = renderTemplateXml(documentXml, replacementPlan);
-    zip.file('word/document.xml', updatedXml);
+    // 显式占位符填充（2026-10-09 二期）：{{采购人名称}}（落款公司）按当前用户公司
+    const ownerCompanyName = await this.resolveOwnerCompanyName(user);
+    const updatedXml = renderTemplateXml(documentXml, [
+      ...replacementPlan,
+      ...buildTenantPlaceholderReplacements(ownerCompanyName),
+    ]);
+    // 安全网（2026-10-09 二期）：占位符化后正常不再命中；旧式模板仍兜住
+    const tenantedXml = applyTenantTokens(updatedXml, ownerCompanyName);
+    zip.file('word/document.xml', tenantedXml);
 
     // 统一命名：{项目编号}-{项目名称}-中标通知书-{YYYYMMDD}.docx
     const fileName = buildStandardFileName({
@@ -816,7 +900,7 @@ export class TenderWriteService {
    * 生成《直接采购备案表》docx（集团采购管理办法 附件6）——项目管理 09 步骤
    * 「备案表编写」弹窗消费：渲染模板后由前端上传到 DIRECT_PURCHASE_FILING 阶段。
    */
-  async buildDirectFiling(dto: ExportDirectFilingDto) {
+  async buildDirectFiling(dto: ExportDirectFilingDto, user?: { sub?: string }) {
     const templatePath = path.resolve(PROJECT_ROOT, DIRECT_FILING_TEMPLATE_FILE);
 
     const exists = await fs
@@ -834,8 +918,16 @@ export class TenderWriteService {
       throw new NotFoundException('Invalid DOCX template: missing word/document.xml');
     }
 
-    const updatedXml = renderTemplateXml(documentXml, buildDirectFilingPlan(dto));
-    zip.file('word/document.xml', updatedXml);
+    // 显式占位符填充（2026-10-09 二期）：备案表 {{采购人名称}} 由其自身计划填
+    // （purchaserName），此处只补监督占位符、跳过公司项防先到先得覆盖
+    const ownerCompanyName = await this.resolveOwnerCompanyName(user);
+    const updatedXml = renderTemplateXml(documentXml, [
+      ...buildDirectFilingPlan(dto),
+      ...buildTenantPlaceholderReplacements(ownerCompanyName, undefined, false),
+    ]);
+    // 安全网（2026-10-09 二期）：占位符化后正常不再命中；旧式模板仍兜住
+    const tenantedXml = applyTenantTokens(updatedXml, ownerCompanyName);
+    zip.file('word/document.xml', tenantedXml);
 
     // 统一命名：{项目编号}-{项目名称}-直接采购备案表-{YYYYMMDD}.docx
     const fileName = buildStandardFileName({

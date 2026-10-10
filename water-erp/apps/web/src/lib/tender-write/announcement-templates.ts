@@ -43,6 +43,38 @@ export function getAnnouncementLabel(
   return `${tenderLabel}公告`;
 }
 
+// ─── 监督信息（2026-10-09：公告监督块由模板写死改为表单可编辑）───
+// 模板原固定值——预览兜底与导出端 tenant-tokens 的兜底口径保持一致；
+// 监督人经「监督人」按钮从本公司联系人（已按公司隔离）多选，顿号拼接
+export const DEFAULT_SUPERVISION_ADDRESS =
+  "四川省成都市双流区红莲街三段383号四川省水利发展集团有限公司B座9楼";
+export const DEFAULT_SUPERVISION_CONTACT = "王先生、徐先生";
+export const DEFAULT_SUPERVISION_PHONE = "028-81753276";
+
+export const SUPERVISION_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
+  {
+    key: "supervisionDepartment",
+    label: "监督部门",
+    placeholder: "留空默认「当前公司名 + 纪检监察部」",
+  },
+  {
+    key: "supervisionAddress",
+    label: "监督地址",
+    placeholder: "留空使用模板默认地址",
+  },
+  {
+    key: "supervisionContact",
+    label: "监督人",
+    placeholder: "点右侧「监督人」按钮从本公司联系人多选，或直接输入",
+  },
+  {
+    key: "supervisionPhone",
+    label: "监督电话",
+    placeholder: "留空使用模板默认电话",
+    type: "tel",
+  },
+];
+
 // ─── 邀请招标公告 / 竞价采购公告 字段配置 ───
 
 export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
@@ -138,6 +170,7 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     type: "email",
     autoFill: "contactEmail",
   },
+  ...SUPERVISION_ANNOUNCEMENT_FIELDS,
   {
     key: "signatureDate",
     label: "落款日期",
@@ -214,6 +247,7 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     placeholder: "选择日期时间",
     type: "datetime-local",
   },
+  ...SUPERVISION_ANNOUNCEMENT_FIELDS,
   {
     key: "signatureDate",
     label: "落款日期",
@@ -258,6 +292,7 @@ export const FAILED_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     multiline: true,
     aiPrompt: "根据项目信息生成流标公告中的开标结果公示信息。说明流标原因，如：有效投标不足法定家数、所有投标超过最高限价、投标人资格不符等。要求简明扼要。不要使用#、*等符号，不要出现空行。",
   },
+  ...SUPERVISION_ANNOUNCEMENT_FIELDS,
   {
     key: "signatureDate",
     label: "落款日期",
@@ -332,6 +367,7 @@ export const WINNING_BID_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
     placeholder: "发布后自动生成",
     autoFill: "objection",
   },
+  ...SUPERVISION_ANNOUNCEMENT_FIELDS,
   {
     key: "signatureDate",
     label: "落款日期",
@@ -380,6 +416,10 @@ export function createEmptyInvitedBiddingAnnouncementDraft(): InvitedBiddingAnno
     contactName: "",
     contactPhone: "",
     contactEmail: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
     signatureDate: "",
   };
 }
@@ -401,6 +441,10 @@ export function createEmptySingleSourceAnnouncementDraft(): SingleSourceAnnounce
     announcementEnd: "",
     announcementDays: "",
     procurementTime: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
     signatureDate: "",
   };
 }
@@ -412,6 +456,10 @@ export function createEmptyFailedBidAnnouncementDraft(): FailedBidAnnouncementDr
     bidOpeningTime: "",
     bidOpeningTimeType: "",
     resultInfo: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
     signatureDate: "",
   };
 }
@@ -435,6 +483,10 @@ export function createEmptyWinningBidAnnouncementDraft(): WinningBidAnnouncement
     signatureDate: "",
     publicityPeriod: "",
     objection: "",
+    supervisionDepartment: "",
+    supervisionAddress: "",
+    supervisionContact: "",
+    supervisionPhone: "",
   };
 }
 

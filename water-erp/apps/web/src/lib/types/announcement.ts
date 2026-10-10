@@ -40,6 +40,16 @@ export const ANNOUNCEMENT_AVAILABILITY: Record<
   SINGLE_SOURCE: ["procurement_document", "failed_bid", "winning_bid"],
 };
 
+/**
+ * 监督信息字段键（2026-10-09）：公告监督块（监督部门/地址/监督人/监督电话）由模板
+ * 写死改为公告编写表单可编辑——三类公告通用，导出时经租户令牌替换注入 docx。
+ */
+export type SupervisionFieldKey =
+  | "supervisionDepartment"
+  | "supervisionAddress"
+  | "supervisionContact"
+  | "supervisionPhone";
+
 // ─── 采购文件公告 (邀请招标) ───
 
 export type InvitedBiddingAnnouncementFieldKey =
@@ -57,6 +67,7 @@ export type InvitedBiddingAnnouncementFieldKey =
   | "contactName"
   | "contactPhone"
   | "contactEmail"
+  | SupervisionFieldKey
   | "signatureDate";
 
 export type InvitedBiddingAnnouncementDraft = Record<
@@ -85,6 +96,7 @@ export type SingleSourceAnnouncementFieldKey =
   | "announcementEnd"
   | "announcementDays"
   | "procurementTime"
+  | SupervisionFieldKey
   | "signatureDate";
 
 export type SingleSourceAnnouncementDraft = Record<
@@ -100,6 +112,7 @@ export type FailedBidAnnouncementFieldKey =
   | "bidOpeningTime"
   | "bidOpeningTimeType"
   | "resultInfo"
+  | SupervisionFieldKey
   | "signatureDate";
 
 export type FailedBidAnnouncementDraft = Record<
@@ -126,7 +139,8 @@ export type WinningBidAnnouncementFieldKey =
   | "bidder3Price"
   | "signatureDate"
   | "publicityPeriod"
-  | "objection";
+  | "objection"
+  | SupervisionFieldKey;
 
 export type WinningBidAnnouncementDraft = Record<
   WinningBidAnnouncementFieldKey,

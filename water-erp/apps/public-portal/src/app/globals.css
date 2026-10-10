@@ -2978,12 +2978,12 @@ a.group:hover::after {
    无需 overflow:hidden，不裁切子元素（搜索框/按钮）阴影。
    静止时 <FluidHeader /> 画布透明，色斑显出流动；鼠标交互时 WebGL 涟漪叠于其上。 */
 .flow-header-bg {
-  background-color: #dfe9f7;  /* ice-blue aurora base — was #e2f5f6 (cyan) */
+  background-color: #ffffff;  /* pure white — was #dfe9f7 (ice-blue), #e2f5f6 (cyan) */
   isolation: isolate;
   box-shadow: 0 2px 16px -4px oklch(0.40 0.06 258 / 0.10), 0 1px 4px oklch(0.40 0.06 258 / 0.05);
 }
-/* 顶栏背景已改为纯平冰蓝（无光晕层、无漂移）——
-   移除 ::before/::after 蓝色 aurora 色斑，彻底消除"栏内扫过的蓝色光条"。 */
+/* 顶栏背景现为纯白（无光晕层、无漂移）——
+   历程：cyan #e2f5f6 → 冰蓝 #dfe9f7 → 纯白；::before/::after aurora 色斑已移除。 */
 
 /* ── 页脚：玻璃雾化 — 与顶栏同语汇，首尾通透呼应 ──
    浅青玻璃面 + 顶缘内高光 + 顶部外阴影（浮起感）；

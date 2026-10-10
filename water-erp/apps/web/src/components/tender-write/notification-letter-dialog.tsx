@@ -32,6 +32,7 @@ import { aiIdentifyField } from "@/lib/api/project-management";
 import { getBidProjectDetail, getPublicityStatus, deliverAwardLetter } from "@/lib/api/bid";
 import type { FieldCandidate, ProjectManagementItem } from "@/lib/types/project-management";
 import { ContactPickerDialog } from "./contact-picker-dialog";
+import { fetchCurrentUser } from "@/lib/api/auth";
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -142,6 +143,21 @@ export function NotificationLetterDialog({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  // 当前用户公司名（2026-10-09）：中标通知书落款公司名按登录账号公司展示（导出端同步替换）
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchCurrentUser()
+      .then((u) => {
+        if (alive) setCompanyName(u.company?.trim() || null);
+      })
+      .catch(() => {
+        /* 取不到回退平台主公司口径 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [projectOptions, setProjectOptions] = useState<ProjectAttribution[]>([]);
   const [projectSearch, setProjectSearch] = useState("");
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
@@ -791,7 +807,7 @@ export function NotificationLetterDialog({
               <div className="min-h-0 flex-1 overflow-y-auto tender-scroll">
                 <div className="mx-3 my-2 px-2 py-2">
                   {previewMode === "letter" ? (
-                    <NotificationPreview draft={draft} />
+                    <NotificationPreview draft={draft} companyName={companyName ?? undefined} />
                   ) : (
                     <LedgerPreview draft={draft} />
                   )}
@@ -846,7 +862,7 @@ function toChineseDate(dateStr: string): string {
   return dateStr;
 }
 
-function NotificationPreview({ draft }: { draft: NotificationLetterDraft }) {
+function NotificationPreview({ draft, companyName }: { draft: NotificationLetterDraft; companyName?: string }) {
   return (
     <div className="space-y-5 text-sm leading-7 text-[color:var(--foreground)]">
       <h3 className="text-center text-lg font-semibold tracking-wide">中标通知书</h3>
@@ -870,7 +886,7 @@ function NotificationPreview({ draft }: { draft: NotificationLetterDraft }) {
         <p>电子邮箱：<PreviewField value={draft.contactEmail} placeholder="联系邮箱" /></p>
       </div>
       <div className="pt-8 text-right">
-        <p>四川水发勘测设计研究有限公司</p>
+        <p>{companyName ?? "四川水发勘测设计研究有限公司"}</p>
         <p><PreviewField value={toChineseDate(draft.signatureDate)} placeholder="落款日期" /></p>
       </div>
     </div>

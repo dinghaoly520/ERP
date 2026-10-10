@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Search, ShieldCheck, Sparkles, Star, Users } from 'lucide-react';
+import { BookOpen, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
 
 // Fields that should not show favorite/sample/AI actions
@@ -10,6 +10,11 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
   'contactName',
   'contactEmail',
   'contactPhone',
+  // 监督信息（2026-10-09）：非 AI/样本语义，操作入口只有「监督人」多选按钮
+  'supervisionDepartment',
+  'supervisionAddress',
+  'supervisionContact',
+  'supervisionPhone',
 ]);
 
 // Fields that should hide actions when type is "date"
@@ -32,11 +37,13 @@ export function TenderFieldActions({
   isFavorite,
   isGenerating,
   isContactField,
+  isSupervisionContactField,
   fieldTypeValue,
   onSampleOpen,
   onFavoriteToggle,
   onAiGenerate,
   onContactOpen,
+  onSupervisorOpen,
   onSupplierSelect,
   aiOverride,
 }: {
@@ -45,11 +52,15 @@ export function TenderFieldActions({
   isFavorite: boolean;
   isGenerating: boolean;
   isContactField?: boolean;
+  /** 监督人字段（supervisionContact）专属：显示「监督人」多选按钮（2026-10-09） */
+  isSupervisionContactField?: boolean;
   fieldTypeValue?: string; // For composite fields: "date", "text", or "table"
   onSampleOpen: () => void;
   onFavoriteToggle: () => void;
   onAiGenerate: () => void;
   onContactOpen?: () => void;
+  /** 打开联系人选择器（多选模式）填监督人 */
+  onSupervisorOpen?: () => void;
   onSupplierSelect?: () => void;
   /** AI 按钮语义覆写（如「拟定供应商名称」的核对供应商——不做内容优化） */
   aiOverride?: { title: string; label: string; onClick: () => void; busy?: boolean };
@@ -83,6 +94,22 @@ export function TenderFieldActions({
         >
           <Users size={14} />
           {showTooltip === 'contact' && <ActionTooltip>联系人</ActionTooltip>}
+        </button>
+      )}
+
+      {/* 监督人多选（2026-10-09）：公告监督块「联系人」行——从本公司联系人多选，顿号拼接 */}
+      {isSupervisionContactField && onSupervisorOpen && (
+        <button
+          type="button"
+          onClick={onSupervisorOpen}
+          aria-label="选择监督人"
+          title="从本公司联系人中多选监督人"
+          {...bindTooltip('supervisor')}
+          className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
+        >
+          <UserCheck size={14} className="text-[rgba(76,111,189,1)]" />
+          监督人
+          {showTooltip === 'supervisor' && <ActionTooltip>监督人多选</ActionTooltip>}
         </button>
       )}
 

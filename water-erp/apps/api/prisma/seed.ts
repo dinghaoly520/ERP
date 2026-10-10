@@ -704,6 +704,14 @@ async function main() {
       }
       await prisma.bidProject.update({ where: { id: b.id }, data: { companyId: cid, companyName: cname } });
     }
+    // 4) 外部联系人（Contact）：快照无公司归属——统一归设计院本部（联系人公司隔离
+    //    2026-10-09，与迁移 20261009100000 回填同口径；后续新增由 contacts 链路自操作人快照）
+    const contactBackfill = await prisma.contact.updateMany({
+      where: { companyId: null },
+      data: { companyId: sjy.id, companyName: sjy.name },
+    });
+    console.log(`    联系人归属重建：${contactBackfill.count} 条 → 设计院本部`);
+
     console.log(`▶ 公司归属重建: User ${userLinked}/${users.length} 挂靠；业务表全量归属（无主种子归设计院）`);
   }
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import type {
   ReadyTenderDocumentType,
   ReadyTenderDraft,
@@ -31,6 +32,21 @@ export function TenderPreviewPane({
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // 当前用户公司名（2026-10-09）：预览固定公司名按登录账号公司展示；取不到回退平台主公司
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchCurrentUser()
+      .then((u) => {
+        if (alive) setCompanyName(u.company?.trim() || null);
+      })
+      .catch(() => {
+        /* 取不到不影响预览——回退平台主公司口径 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -127,6 +143,7 @@ export function TenderPreviewPane({
             activeSectionKey={activeSectionKey}
             onSectionClick={onSectionClick}
             onValueChange={onValueChange}
+            companyName={companyName ?? undefined}
           />
         </div>
       </div>

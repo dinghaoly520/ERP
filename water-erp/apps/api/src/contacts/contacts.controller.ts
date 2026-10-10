@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ContactsService } from './contacts.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateContactDto, UpdateContactDto } from './dto/contacts.dto';
 
 @Controller('contacts')
@@ -18,37 +19,41 @@ export class ContactsController {
 
   @Post()
   @Roles('leader', 'admin', 'staff')
-  create(@Body() dto: CreateContactDto) {
-    return this.contactsService.create(dto);
+  create(@Body() dto: CreateContactDto, @CurrentUser() user: { sub?: string }) {
+    return this.contactsService.create(dto, user);
   }
 
   @Get()
   @Roles('leader', 'admin', 'staff')
-  findMany() {
-    return this.contactsService.findMany();
+  findMany(@CurrentUser() user: { sub?: string }) {
+    return this.contactsService.findMany(user);
   }
 
   @Get('by-name')
   @Roles('leader', 'admin', 'staff')
-  findByName(@Query('name') name: string) {
-    return this.contactsService.findByName(name);
+  findByName(@Query('name') name: string, @CurrentUser() user: { sub?: string }) {
+    return this.contactsService.findByName(name, user);
   }
 
   @Get(':id')
   @Roles('leader', 'admin', 'staff')
-  findOne(@Param('id') id: string) {
-    return this.contactsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: { sub?: string }) {
+    return this.contactsService.findOne(id, user);
   }
 
   @Put(':id')
   @Roles('leader', 'admin', 'staff')
-  update(@Param('id') id: string, @Body() dto: UpdateContactDto) {
-    return this.contactsService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateContactDto,
+    @CurrentUser() user: { sub?: string },
+  ) {
+    return this.contactsService.update(id, dto, user);
   }
 
   @Delete(':id')
   @Roles('leader', 'admin', 'staff')
-  delete(@Param('id') id: string) {
-    return this.contactsService.delete(id);
+  delete(@Param('id') id: string, @CurrentUser() user: { sub?: string }) {
+    return this.contactsService.delete(id, user);
   }
 }
