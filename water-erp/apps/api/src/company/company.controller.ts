@@ -46,6 +46,52 @@ export class PurchaserBodyDto {
   isDefault?: boolean;
 }
 
+/** 开标地点条目（2026-10-10 多条目版）：编写时「开标地点」按钮选择 */
+export class PlaceBodyDto {
+  @IsString()
+  @MaxLength(50)
+  label?: string;
+
+  @IsString()
+  @MaxLength(200)
+  address?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+}
+
+/** 监督信息方案条目（2026-10-10 多条目版）：整块监督举报信息，编写时「监督方案」按钮选择 */
+export class SupervisionBodyDto {
+  @IsString()
+  @MaxLength(50)
+  label?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  department?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  address?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  contact?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+}
+
 /** trim → null 归一（与公司信息字段同口径：空串入库 null，预填按空值回退默认） */
 function normalizeOptional(v: string | null | undefined): string | null {
   return typeof v === 'string' ? v.trim() || null : null;
@@ -165,15 +211,17 @@ export class CompanyController {
     if (!company) {
       throw new BadRequestException({ error: '所属公司不存在（可能已被删除），请联系管理员处理', code: 'COMPANY_NOT_FOUND' });
     }
-    // 采购人条目（2026-10-10 多人版）：默认在前、同位次按创建时间——预填取首个
-    const purchasers = await this.prisma.companyPurchaser.findMany({
-      where: { companyId },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-    });
-    return { ...company, purchasers };
+    // 条目类（2026-10-10 多条目版）：默认在前、同位次按创建时间——预填取首个
+    const entryOrder = [{ isDefault: 'desc' as const }, { createdAt: 'asc' as const }];
+    const [purchasers, places, supervisionProfiles] = await Promise.all([
+      this.prisma.companyPurchaser.findMany({ where: { companyId }, orderBy: entryOrder }),
+      this.prisma.companyPlace.findMany({ where: { companyId }, orderBy: entryOrder }),
+      this.prisma.companySupervision.findMany({ where: { companyId }, orderBy: entryOrder }),
+    ]);
+    return { ...company, purchasers, places, supervisionProfiles };
   }
 
-  // ── 采购人条目维护（2026-10-10 多人版）：leader/admin，本公司范围 ──
+  // ── 条目类维护（2026-10-10 多条目版）：采购人 / 开标地点 / 监督方案——同构 CRUD，leader/admin，本公司范围 ──
 
   @Post('my-info/purchasers')
   @Roles('leader', 'admin')
@@ -184,19 +232,11 @@ export class CompanyController {
     if (!name) {
       throw new BadRequestException({ error: '采购人姓名不能为空', code: 'PURCHASER_NAME_REQUIRED' });
     }
-    return this.prisma.$transaction(async (tx) => {
-      if (dto.isDefault) {
-        await tx.companyPurchaser.updateMany({ where: { companyId }, data: { isDefault: false } });
-      }
-      return tx.companyPurchaser.create({
-        data: {
-          companyId,
-          name,
-          phone: normalizeOptional(dto.phone),
-          email: normalizeOptional(dto.email),
-          isDefault: dto.isDefault ?? false,
-        },
-      });
+    return this.entryMutation(companyId, 'companyPurchaser', null, {
+      name,
+      phone: normalizeOptional(dto.phone),
+      email: normalizeOptional(dto.email),
+      isDefault: dto.isDefault ?? false,
     });
   }
 
@@ -209,24 +249,11 @@ export class CompanyController {
     @Body() dto: PurchaserBodyDto,
   ) {
     const companyId = await this.resolveOwnCompanyId(user);
-    const existing = await this.prisma.companyPurchaser.findUnique({ where: { id: pid } });
-    // 越权与不存在统一 404（不泄露其他公司条目存在性）
-    if (!existing || existing.companyId !== companyId) {
-      throw new NotFoundException('采购人条目不存在');
-    }
-    return this.prisma.$transaction(async (tx) => {
-      if (dto.isDefault) {
-        await tx.companyPurchaser.updateMany({ where: { companyId }, data: { isDefault: false } });
-      }
-      return tx.companyPurchaser.update({
-        where: { id: pid },
-        data: {
-          ...(dto.name !== undefined && { name: dto.name.trim() }),
-          ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
-          ...(dto.email !== undefined && { email: normalizeOptional(dto.email) }),
-          ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
-        },
-      });
+    return this.entryMutation(companyId, 'companyPurchaser', pid, {
+      ...(dto.name !== undefined && { name: dto.name.trim() }),
+      ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
+      ...(dto.email !== undefined && { email: normalizeOptional(dto.email) }),
+      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
     });
   }
 
@@ -234,12 +261,137 @@ export class CompanyController {
   @Roles('leader', 'admin')
   @ApiOperation({ summary: '删除采购人条目' })
   async deletePurchaser(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string) {
+    return this.entryDelete(await this.resolveOwnCompanyId(user), 'companyPurchaser', pid);
+  }
+
+  @Post('my-info/places')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '新增开标地点条目（设为默认时自动取消其他默认）' })
+  async addPlace(@CurrentUser() user: AuthenticatedUser, @Body() dto: PlaceBodyDto) {
     const companyId = await this.resolveOwnCompanyId(user);
-    const existing = await this.prisma.companyPurchaser.findUnique({ where: { id: pid } });
-    if (!existing || existing.companyId !== companyId) {
-      throw new NotFoundException('采购人条目不存在');
+    const label = dto.label?.trim();
+    const address = dto.address?.trim();
+    if (!label || !address) {
+      throw new BadRequestException({ error: '地点名称与地址不能为空', code: 'PLACE_REQUIRED' });
     }
-    await this.prisma.companyPurchaser.delete({ where: { id: pid } });
+    return this.entryMutation(companyId, 'companyPlace', null, {
+      label,
+      address,
+      isDefault: dto.isDefault ?? false,
+    });
+  }
+
+  @Patch('my-info/places/:pid')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '编辑开标地点条目（设为默认时自动取消其他默认）' })
+  async updatePlace(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string, @Body() dto: PlaceBodyDto) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    return this.entryMutation(companyId, 'companyPlace', pid, {
+      ...(dto.label !== undefined && { label: dto.label.trim() }),
+      ...(dto.address !== undefined && { address: dto.address.trim() }),
+      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
+    });
+  }
+
+  @Delete('my-info/places/:pid')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '删除开标地点条目' })
+  async deletePlace(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string) {
+    return this.entryDelete(await this.resolveOwnCompanyId(user), 'companyPlace', pid);
+  }
+
+  @Post('my-info/supervisions')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '新增监督方案条目（设为默认时自动取消其他默认）' })
+  async addSupervision(@CurrentUser() user: AuthenticatedUser, @Body() dto: SupervisionBodyDto) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    const label = dto.label?.trim();
+    if (!label) {
+      throw new BadRequestException({ error: '方案名称不能为空', code: 'SUPERVISION_LABEL_REQUIRED' });
+    }
+    return this.entryMutation(companyId, 'companySupervision', null, {
+      label,
+      department: normalizeOptional(dto.department),
+      address: normalizeOptional(dto.address),
+      contact: normalizeOptional(dto.contact),
+      phone: normalizeOptional(dto.phone),
+      isDefault: dto.isDefault ?? false,
+    });
+  }
+
+  @Patch('my-info/supervisions/:pid')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '编辑监督方案条目（设为默认时自动取消其他默认）' })
+  async updateSupervision(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('pid') pid: string,
+    @Body() dto: SupervisionBodyDto,
+  ) {
+    const companyId = await this.resolveOwnCompanyId(user);
+    return this.entryMutation(companyId, 'companySupervision', pid, {
+      ...(dto.label !== undefined && { label: dto.label.trim() }),
+      ...(dto.department !== undefined && { department: normalizeOptional(dto.department) }),
+      ...(dto.address !== undefined && { address: normalizeOptional(dto.address) }),
+      ...(dto.contact !== undefined && { contact: normalizeOptional(dto.contact) }),
+      ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
+      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
+    });
+  }
+
+  @Delete('my-info/supervisions/:pid')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '删除监督方案条目' })
+  async deleteSupervision(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string) {
+    return this.entryDelete(await this.resolveOwnCompanyId(user), 'companySupervision', pid);
+  }
+
+  /** 条目类共用写路径：归属校验（越权与不存在统一 404）→ 默认互斥清位 → 事务写 */
+  private async entryMutation(
+    companyId: string,
+    model: 'companyPurchaser' | 'companyPlace' | 'companySupervision',
+    pid: string | null,
+    data: Record<string, unknown>,
+  ) {
+    type EntryDelegate = {
+      findUnique(args: { where: { id: string } }): Promise<{ companyId: string } | null>;
+      updateMany(args: unknown): Promise<unknown>;
+      create(args: unknown): Promise<unknown>;
+      update(args: unknown): Promise<unknown>;
+      delete(args: unknown): Promise<unknown>;
+    };
+    const delegateOf = (source: object): EntryDelegate =>
+      (source as unknown as Record<string, EntryDelegate>)[model];
+    if (pid) {
+      const existing = await delegateOf(this.prisma).findUnique({ where: { id: pid } });
+      if (!existing || existing.companyId !== companyId) {
+        throw new NotFoundException('条目不存在');
+      }
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const delegate = delegateOf(tx);
+      if (data.isDefault === true) {
+        await delegate.updateMany({ where: { companyId }, data: { isDefault: false } });
+      }
+      if (!pid) return delegate.create({ data: { ...data, companyId } });
+      return delegate.update({ where: { id: pid }, data });
+    });
+  }
+
+  private async entryDelete(
+    companyId: string,
+    model: 'companyPurchaser' | 'companyPlace' | 'companySupervision',
+    pid: string,
+  ) {
+    type EntryDelegate = {
+      findUnique(args: { where: { id: string } }): Promise<{ companyId: string } | null>;
+      delete(args: unknown): Promise<unknown>;
+    };
+    const delegate = (this.prisma as unknown as Record<string, EntryDelegate>)[model];
+    const existing = await delegate.findUnique({ where: { id: pid } });
+    if (!existing || existing.companyId !== companyId) {
+      throw new NotFoundException('条目不存在');
+    }
+    await delegate.delete({ where: { id: pid } });
     return { id: pid };
   }
 

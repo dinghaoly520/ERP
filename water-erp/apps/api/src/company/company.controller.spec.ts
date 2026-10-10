@@ -28,8 +28,10 @@ function makePrisma() {
     user: { findUnique: jest.fn() },
     company: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     projectManagementItem: { groupBy: jest.fn() },
-    // 采购人条目（2026-10-10 多人版）：my-info 附带查询
+    // 条目类（2026-10-10 多条目版）：my-info 附带查询
     companyPurchaser: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
+    companyPlace: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
+    companySupervision: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
   };
 }
 
@@ -151,6 +153,8 @@ describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
         updateMany: jest.fn(),
         update: jest.fn().mockResolvedValue({ id: 'p1' }),
       },
+      companyPlace: { create: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+      companySupervision: { create: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
     };
     return {
       user: { findUnique: jest.fn().mockResolvedValue({ companyId: 'co-1' }) },
@@ -164,6 +168,8 @@ describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
         updateMany: jest.fn(),
         delete: jest.fn(),
       },
+      companyPlace: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
+      companySupervision: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
       $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn(txStub)),
       __txStub: txStub,
     };
@@ -203,7 +209,7 @@ describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
     const prisma = makePurchaserPrisma();
     (prisma.companyPurchaser.findUnique as jest.Mock).mockResolvedValue({ id: 'px', companyId: 'co-2' });
     const ctrl = new CompanyController(prisma as never);
-    await expect(ctrl.updatePurchaser(user, 'px', { name: 'x' })).rejects.toThrow('采购人条目不存在');
+    await expect(ctrl.updatePurchaser(user, 'px', { name: 'x' })).rejects.toThrow('条目不存在');
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
