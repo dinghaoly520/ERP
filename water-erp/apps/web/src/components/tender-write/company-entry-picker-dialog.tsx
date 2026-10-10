@@ -54,7 +54,7 @@ export function CompanyEntryPickerDialog({
             };
             // 以监督人为条目标识（2026-10-10 用户裁定：无方案名称列）；副行展示部门与电话
             const parts = [p.department, p.phone].filter(Boolean);
-            return { id: p.id, label: p.contact || "监督方案", isDefault: p.isDefault, line: parts.join(" · "), raw: value };
+            return { id: p.id, label: p.contact || "监督举报", isDefault: p.isDefault, line: parts.join(" · "), raw: value };
           }),
         );
       }
@@ -98,7 +98,7 @@ export function CompanyEntryPickerDialog({
           ) : (items ?? []).length === 0 ? (
             <div className="rounded-[12px] border border-dashed border-[var(--border)] px-4 py-6 text-center">
               <div className="text-sm text-[color:var(--foreground)]">
-                本公司暂未维护{kind === "place" ? "开标地点" : "监督方案"}条目
+                本公司暂未维护{kind === "place" ? "开标地点" : "监督举报"}条目
               </div>
               <div className="mt-1 text-xs leading-5 text-[color:var(--muted-foreground)]">
                 请到 公司信息管理（侧栏 → 资源管理）由负责人维护条目后，此处即可选择

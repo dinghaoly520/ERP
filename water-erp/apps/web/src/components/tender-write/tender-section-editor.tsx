@@ -263,7 +263,7 @@ export function TenderSectionEditor({
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   // 监督人多选（2026-10-09）：采购文件监督举报块的「监督人」字段——本公司联系人多选
   const [supervisorPickerOpen, setSupervisorPickerOpen] = useState(false);
-  // 开标地点 / 监督方案（2026-10-10 多条目版）：公司信息维护条目单选
+  // 开标地点 / 监督举报（2026-10-10 多条目版）：公司信息维护条目单选
   const [placePickerOpen, setPlacePickerOpen] = useState(false);
   const [supervisionProfilePickerOpen, setSupervisionProfilePickerOpen] = useState(false);
 
