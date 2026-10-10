@@ -7,12 +7,23 @@ import {
   Gavel,
   Loader2,
   MapPin,
+  Plus,
   RefreshCw,
   Save,
   ShieldAlert,
+  Trash2,
   UserRound,
+  UserRoundCheck,
 } from 'lucide-react';
-import { fetchMyCompanyInfo, updateMyCompanyInfo, type CompanyInfo } from '@/lib/api/company-info';
+import {
+  createPurchaser,
+  deletePurchaser,
+  fetchMyCompanyInfo,
+  updateMyCompanyInfo,
+  updatePurchaser,
+  type CompanyInfo,
+  type CompanyPurchaserEntry,
+} from '@/lib/api/company-info';
 
 /* ═══════════════════════════════════════════════════════════════
    公司信息管理（2026-10-10）
@@ -50,18 +61,8 @@ const SECTIONS: Array<{
       { key: 'supervisionContact', label: '监督人', placeholder: '多人以顿号分隔，例如：王先生、徐先生', wide: true },
     ],
   },
-  {
-    key: 'purchaser',
-    icon: UserRound,
-    title: '采购人信息',
-    hint: '公告「联系方式」块与采购文件联系人字段自动带入（联系人亦可在编写时从本公司联系人库重选）。',
-    fields: [
-      { key: 'purchaserContact', label: '联系人', placeholder: '例如：张三' },
-      { key: 'purchaserPhone', label: '联系电话', placeholder: '例如：028-XXXXXXXX', type: 'tel' },
-      { key: 'purchaserEmail', label: '电子邮箱', placeholder: '例如：cgzx@example.com', type: 'email' },
-      { key: 'purchaserAddress', label: '地址', placeholder: '例如：四川省成都市双流区红莲街三段383号', wide: true },
-    ],
-  },
+  // 采购人信息节（2026-10-10 多人版）拆为专属卡片：地址随统一保存，
+  // 联系人升级为多条目列表（增删改/单默认），见下方 PurchaserCard
 ];
 
 const ALL_FIELDS = SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
@@ -72,6 +73,92 @@ export default function CompanyInfoPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 采购人条目（2026-10-10 多人版）：列表行内编辑即时保存（走独立 CRUD 端点，不随「保存」）
+  const [purchasers, setPurchasers] = useState<CompanyPurchaserEntry[]>([]);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [newRow, setNewRow] = useState({ name: '', phone: '', email: '' });
+
+  const refreshPurchasers = useCallback(async () => {
+    try {
+      const data = await fetchMyCompanyInfo();
+      setPurchasers(data.purchasers ?? []);
+    } catch {
+      /* 刷新失败不打断页面，下次操作自然重试 */
+    }
+  }, []);
+
+  // 行内编辑草稿：随服务端列表同步（保存/刷新后重置为已保存值）
+  const [rowDrafts, setRowDrafts] = useState<Record<string, { name: string; phone: string; email: string }>>({});
+  useEffect(() => {
+    setRowDrafts(
+      Object.fromEntries(
+        purchasers.map((p) => [p.id, { name: p.name, phone: p.phone ?? '', email: p.email ?? '' }]),
+      ),
+    );
+  }, [purchasers]);
+
+  const addPurchaser = async () => {
+    if (!newRow.name.trim()) {
+      toast.error('采购人姓名不能为空');
+      return;
+    }
+    setRowBusy('__new__');
+    try {
+      await createPurchaser({
+        name: newRow.name,
+        phone: newRow.phone || null,
+        email: newRow.email || null,
+        // 首条自动设默认（无人维护时预填需要落点）
+        isDefault: purchasers.length === 0,
+      });
+      setNewRow({ name: '', phone: '', email: '' });
+      await refreshPurchasers();
+      toast.success('采购人已添加');
+    } catch (e) {
+      toast.error((e as Error).message || '添加失败');
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const savePurchaserRow = async (row: CompanyPurchaserEntry, patch: { name?: string; phone?: string | null; email?: string | null }) => {
+    setRowBusy(row.id);
+    try {
+      await updatePurchaser(row.id, patch);
+      await refreshPurchasers();
+    } catch (e) {
+      toast.error((e as Error).message || '保存失败');
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const setRowDefault = async (row: CompanyPurchaserEntry) => {
+    if (row.isDefault) return;
+    setRowBusy(row.id);
+    try {
+      await updatePurchaser(row.id, { isDefault: true });
+      await refreshPurchasers();
+      toast.success(`已设「${row.name}」为默认采购人`);
+    } catch (e) {
+      toast.error((e as Error).message || '设置失败');
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const removePurchaser = async (row: CompanyPurchaserEntry) => {
+    setRowBusy(row.id);
+    try {
+      await deletePurchaser(row.id);
+      await refreshPurchasers();
+      toast.success('采购人已删除');
+    } catch (e) {
+      toast.error((e as Error).message || '删除失败');
+    } finally {
+      setRowBusy(null);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,10 +167,12 @@ export default function CompanyInfoPage() {
       const data = await fetchMyCompanyInfo();
       if (!data) throw new Error('所属公司数据异常，请联系管理员处理');
       setInfo(data);
-      // name/shortName 不在 ALL_FIELDS（基本信息节无 fields 配置），此处一并初始化
+      setPurchasers(data.purchasers ?? []);
+      // name/shortName/purchaserAddress 不在 ALL_FIELDS（基本信息节与采购人卡片单独处理），此处一并初始化
       setForm({
         name: data.name ?? '',
         shortName: data.shortName ?? '',
+        purchaserAddress: data.purchaserAddress ?? '',
         ...Object.fromEntries(
           ALL_FIELDS.map((k) => [k, ((data as Record<string, unknown>)[k] as string | null) ?? '']),
         ),
@@ -106,7 +195,7 @@ export default function CompanyInfoPage() {
     setSaving(true);
     try {
       const payload = Object.fromEntries(
-        ALL_FIELDS.concat('name', 'shortName').map((k) => [k, form[k] ?? '']),
+        ALL_FIELDS.concat('name', 'shortName', 'purchaserAddress').map((k) => [k, form[k] ?? '']),
       );
       const saved = await updateMyCompanyInfo(payload);
       setInfo(saved);
@@ -224,7 +313,7 @@ export default function CompanyInfoPage() {
         </div>
       </div>
 
-      {/* ══════ 开标地点 / 监督信息 / 采购人信息 ══════ */}
+      {/* ══════ 开标地点 / 监督信息 ══════ */}
       {SECTIONS.map((section) => (
         <div key={section.key} className="neu-card p-5">
           <div className="mb-3 flex items-center gap-2">
@@ -248,6 +337,148 @@ export default function CompanyInfoPage() {
           </div>
         </div>
       ))}
+
+      {/* ══════ 采购人信息（2026-10-10 多人版）：地址随「保存」，联系人为多条目即时维护 ══════ */}
+      <div className="neu-card p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <UserRound size={14} className="text-[var(--accent)]" />
+          <span className="text-sm font-semibold text-[var(--foreground)]">采购人信息</span>
+        </div>
+        <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+          可维护多位采购人（默认者用于进入编写时的预填）；编写采购文件时点「联系人」按钮即可从条目中改选。地址随上方「保存」提交。
+        </p>
+
+        <label className="mb-4 block">
+          <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">采购人地址</span>
+          <input
+            type="text"
+            value={form.purchaserAddress ?? ''}
+            onChange={(e) => set('purchaserAddress', e.target.value)}
+            placeholder="例如：四川省成都市双流区红莲街三段383号"
+            className="workbench-input w-full"
+          />
+        </label>
+
+        {/* 条目列表：行内编辑即时保存（独立 CRUD），默认单选 */}
+        <div className="space-y-2">
+          {purchasers.length === 0 && (
+            <div className="rounded-[12px] border border-dashed border-[var(--border)] px-4 py-5 text-center text-xs text-[var(--muted-foreground)]">
+              暂无采购人条目——未维护时编写页不预填联系人，可先在下方添加
+            </div>
+          )}
+          {purchasers.map((p) => {
+            const draft = rowDrafts[p.id] ?? { name: p.name, phone: p.phone ?? '', email: p.email ?? '' };
+            const dirty =
+              draft.name !== p.name || draft.phone !== (p.phone ?? '') || draft.email !== (p.email ?? '');
+            const rowDisabled = rowBusy === p.id;
+            return (
+              <div
+                key={p.id}
+                className={`grid grid-cols-1 items-center gap-2 rounded-[12px] border px-3 py-2 md:grid-cols-[auto_1fr_1fr_1fr_auto_auto] ${
+                  p.isDefault ? 'border-[rgba(76,111,189,0.45)] bg-[rgba(96,139,239,0.06)]' : 'border-[var(--border)]'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => void setRowDefault(p)}
+                  disabled={rowDisabled || p.isDefault}
+                  title={p.isDefault ? '当前默认（进入编写时预填此人）' : '设为默认采购人'}
+                  className={`neu-btn-xs ${p.isDefault ? 'is-primary' : ''}`}
+                >
+                  {p.isDefault ? <UserRoundCheck size={13} /> : <UserRound size={13} />}
+                  {p.isDefault ? '默认' : '设默认'}
+                </button>
+                <input
+                  type="text"
+                  value={draft.name}
+                  disabled={rowDisabled}
+                  onChange={(e) => setRowDrafts((prev) => ({ ...prev, [p.id]: { ...draft, name: e.target.value } }))}
+                  placeholder="姓名"
+                  className="workbench-input w-full"
+                />
+                <input
+                  type="tel"
+                  value={draft.phone}
+                  disabled={rowDisabled}
+                  onChange={(e) => setRowDrafts((prev) => ({ ...prev, [p.id]: { ...draft, phone: e.target.value } }))}
+                  placeholder="联系电话"
+                  className="workbench-input w-full"
+                />
+                <input
+                  type="email"
+                  value={draft.email}
+                  disabled={rowDisabled}
+                  onChange={(e) => setRowDrafts((prev) => ({ ...prev, [p.id]: { ...draft, email: e.target.value } }))}
+                  placeholder="电子邮箱"
+                  className="workbench-input w-full"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    void savePurchaserRow(p, {
+                      name: draft.name.trim(),
+                      phone: draft.phone || null,
+                      email: draft.email || null,
+                    })
+                  }
+                  disabled={rowDisabled || !dirty || !draft.name.trim()}
+                  className="neu-btn-xs is-primary"
+                  title="保存本行修改"
+                >
+                  {rowDisabled ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                  保存
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void removePurchaser(p)}
+                  disabled={rowDisabled}
+                  className="neu-btn-xs is-danger"
+                  title="删除采购人"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* 新增行 */}
+          <div className="grid grid-cols-1 items-center gap-2 rounded-[12px] border border-dashed border-[rgba(96,139,239,0.4)] px-3 py-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+            <input
+              type="text"
+              value={newRow.name}
+              disabled={rowBusy === '__new__'}
+              onChange={(e) => setNewRow((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="姓名（必填）"
+              className="workbench-input w-full"
+            />
+            <input
+              type="tel"
+              value={newRow.phone}
+              disabled={rowBusy === '__new__'}
+              onChange={(e) => setNewRow((prev) => ({ ...prev, phone: e.target.value }))}
+              placeholder="联系电话"
+              className="workbench-input w-full"
+            />
+            <input
+              type="email"
+              value={newRow.email}
+              disabled={rowBusy === '__new__'}
+              onChange={(e) => setNewRow((prev) => ({ ...prev, email: e.target.value }))}
+              placeholder="电子邮箱"
+              className="workbench-input w-full"
+            />
+            <button
+              type="button"
+              onClick={() => void addPurchaser()}
+              disabled={rowBusy === '__new__' || !newRow.name.trim()}
+              className="neu-btn-soft"
+            >
+              {rowBusy === '__new__' ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              添加
+            </button>
+          </div>
+        </div>
+      </div>
 
     </div>
   );

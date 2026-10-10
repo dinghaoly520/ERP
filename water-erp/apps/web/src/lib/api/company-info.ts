@@ -6,6 +6,17 @@ import { apiFetch } from '@/lib/api/api-fetch';
  * 采购文件编写与公告编写以此预填监督块、采购人联系方式与开标地点。
  */
 
+/** 采购人条目（2026-10-10 多人版）：多条信息、单默认——编写时「联系人」按钮选择 */
+export type CompanyPurchaserEntry = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CompanyInfo = {
   id: string;
   name: string;
@@ -17,9 +28,12 @@ export type CompanyInfo = {
   supervisionContact: string | null;
   supervisionPhone: string | null;
   purchaserAddress: string | null;
+  /** @deprecated 多人版改用 purchasers（保留为存量兜底，公司信息管理页不再维护） */
   purchaserContact: string | null;
   purchaserPhone: string | null;
   purchaserEmail: string | null;
+  /** 多人版采购人条目（默认在前；无人维护时为空数组） */
+  purchasers: CompanyPurchaserEntry[];
 };
 
 export type CompanyInfoPayload = Partial<Omit<CompanyInfo, 'id' | 'code'>>;
@@ -80,4 +94,52 @@ export function useCompanyInfo(): CompanyInfo | null {
     };
   }, []);
   return info;
+}
+
+// ── 采购人条目（2026-10-10 多人版）：leader 在公司信息管理维护，编写时选择 ──
+
+export async function createPurchaser(body: {
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  isDefault?: boolean;
+}): Promise<CompanyPurchaserEntry> {
+  const created = await request<CompanyPurchaserEntry>('/my-info/purchasers', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  invalidateCompanyInfoCache();
+  return created;
+}
+
+void 0;
+export async function updatePurchaser(
+  id: string,
+  body: { name?: string; phone?: string | null; email?: string | null; isDefault?: boolean },
+): Promise<CompanyPurchaserEntry> {
+  const updated = await request<CompanyPurchaserEntry>(`/my-info/purchasers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  invalidateCompanyInfoCache();
+  return updated;
+}
+
+export async function deletePurchaser(id: string): Promise<{ id: string }> {
+  const removed = await request<{ id: string }>(`/my-info/purchasers/${id}`, { method: 'DELETE' });
+  invalidateCompanyInfoCache();
+  return removed;
+}
+
+/** 预填取数口径：默认条目优先（服务端排序已保证默认在前），无条目回退旧单值字段，再无则 null（不预填） */
+export function pickDefaultPurchaser(
+  ci: CompanyInfo | null | undefined,
+): { name: string; phone: string; email: string } | null {
+  if (!ci) return null;
+  const entry = ci.purchasers?.find((p) => p.isDefault) ?? ci.purchasers?.[0];
+  if (entry) return { name: entry.name, phone: entry.phone ?? '', email: entry.email ?? '' };
+  if (ci.purchaserContact) {
+    return { name: ci.purchaserContact, phone: ci.purchaserPhone ?? '', email: ci.purchaserEmail ?? '' };
+  }
+  return null;
 }
