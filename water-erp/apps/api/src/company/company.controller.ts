@@ -27,6 +27,8 @@ type CompanyInfoBody = {
 
 /** 采购人条目（2026-10-10 多人版）：多条信息、单默认——编写时「联系人」按钮选择 */
 export class PurchaserBodyDto {
+  // PATCH 局部更新（如仅设默认）不携带本字段——必须 @IsOptional；创建必填由控制器校验兜底
+  @IsOptional()
   @IsString()
   @MaxLength(50)
   name?: string;
@@ -48,6 +50,8 @@ export class PurchaserBodyDto {
 
 /** 开标地点条目（2026-10-10 多条目版）：编写时「开标地点」按钮选择 */
 export class PlaceBodyDto {
+  // PATCH 局部更新（如仅设默认）不携带本字段——必须 @IsOptional；创建必填由控制器校验兜底
+  @IsOptional()
   @IsString()
   @MaxLength(200)
   address?: string;
@@ -70,6 +74,8 @@ export class SupervisionBodyDto {
   @MaxLength(200)
   address?: string | null;
 
+  @IsOptional()
+  // PATCH 局部更新（如仅设默认）不携带本字段——必须 @IsOptional；创建必填由控制器校验兜底
   @IsOptional()
   @IsString()
   @MaxLength(200)
