@@ -55,9 +55,10 @@ export const TENDER_DOCUMENT_TYPES: TenderDocumentTypeMeta[] = [
  * 仅用于有监督举报块的采购方式（谈判/竞价/邀请招标）；直接采购/询比模板无监督块不加。
  */
 const SUPERVISION_TENDER_FIELDS: TenderSectionConfig["fields"] = [
+  // 监督人置顶（2026-10-10 用户裁定）：先选人再补部门/地址/电话
+  { key: "supervisionContact", label: "监督人", placeholder: "点右侧「监督人」按钮从本公司联系人多选，或直接输入" },
   { key: "supervisionDepartment", label: "监督部门", placeholder: "留空默认「当前公司名 + 纪检监察部」" },
   { key: "supervisionAddress", label: "监督地址", placeholder: "留空使用模板默认地址" },
-  { key: "supervisionContact", label: "监督人", placeholder: "点右侧「监督人」按钮从本公司联系人多选，或直接输入" },
   { key: "supervisionPhone", label: "监督电话", placeholder: "留空使用模板默认电话", type: "tel" },
 ];
 
