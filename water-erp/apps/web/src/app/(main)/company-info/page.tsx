@@ -107,6 +107,21 @@ function EntryListCard({
     }
   };
 
+  /** 行操作统一路径（2026-10-10 修复）：成功后必须刷新列表——否则设默认后徽标不迁移、
+      界面看似未生效；busy 锁行防重复点击，失败就地报错 */
+  const runRow = async (id: string, action: () => Promise<void>, successMessage?: string) => {
+    setBusy(id);
+    try {
+      await action();
+      await onReload();
+      if (successMessage) toast.success(successMessage);
+    } catch (e) {
+      toast.error((e as Error).message || '操作失败');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="neu-card p-5">
       <div className="mb-3 flex items-center gap-2">
@@ -137,7 +152,9 @@ function EntryListCard({
               <div className="flex items-center gap-1.5 md:col-span-3">
                 <button
                   type="button"
-                  onClick={() => void onSetDefault(entry)}
+                  onClick={() =>
+                    void runRow(entry.id, () => onSetDefault(entry), `已设「${String(entry[fields[0].key] ?? '')}」为默认`)
+                  }
                   disabled={rowDisabled || entry.isDefault}
                   title={entry.isDefault ? '当前默认（进入编写时预填此项）' : '设为默认'}
                   className={`neu-btn-xs shrink-0 ${entry.isDefault ? 'is-primary' : ''}`}
@@ -163,7 +180,7 @@ function EntryListCard({
               <div className="flex items-center justify-end gap-1">
                 <button
                   type="button"
-                  onClick={() => void onUpdate(entry.id, draft)}
+                  onClick={() => void runRow(entry.id, () => onUpdate(entry.id, draft), '已保存')}
                   disabled={rowDisabled || !dirty || !(draft[fields[0].key] ?? '').trim()}
                   className="neu-btn-xs is-primary"
                   title="保存本行修改"
@@ -171,7 +188,13 @@ function EntryListCard({
                   {rowDisabled ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                   保存
                 </button>
-                <button type="button" onClick={() => void onRemove(entry)} disabled={rowDisabled} className="neu-btn-xs is-danger" title="删除条目">
+                <button
+                  type="button"
+                  onClick={() => void runRow(entry.id, () => onRemove(entry), '已删除')}
+                  disabled={rowDisabled}
+                  className="neu-btn-xs is-danger"
+                  title="删除条目"
+                >
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -408,7 +431,6 @@ export default function CompanyInfoPage() {
         }}
         onSetDefault={async (row) => {
           await updatePlace(row.id, { isDefault: true });
-          toast.success('已设为默认开标地点');
         }}
         onRemove={async (row) => {
           await deletePlace(row.id);
@@ -450,7 +472,6 @@ export default function CompanyInfoPage() {
         }}
         onSetDefault={async (row) => {
           await updateSupervision(row.id, { isDefault: true });
-          toast.success('已设为默认监督方案');
         }}
         onRemove={async (row) => {
           await deleteSupervision(row.id);
@@ -477,7 +498,6 @@ export default function CompanyInfoPage() {
         }}
         onSetDefault={async (row) => {
           await updatePurchaser(row.id, { isDefault: true });
-          toast.success(`已设「${row.name}」为默认采购人`);
         }}
         onRemove={async (row) => {
           await deletePurchaser(row.id);
