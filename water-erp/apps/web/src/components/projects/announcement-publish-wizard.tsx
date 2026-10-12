@@ -104,6 +104,34 @@ function buildCanonicalMeta(
     put('qualification', d.qualificationRequirements || project?.supplierRequirements);
   }
 
+  // 采购文件下载时间公共解析（两采购方式分支共用）：
+  // downloadPeriod = 区间文本（门户芯片展示）；downloadDeadline = 止点
+  // （后端 B-009 校验 parseFlexibleDate 取单点，勿把区间写进此键——2026-10-12 拆分）
+  const putDownloadPeriod = (startIso?: string, endIso?: string) => {
+    if (startIso && endIso) {
+      put('downloadPeriod', `${toChineseDateTime(startIso)} 至 ${toChineseDateTime(endIso)}`);
+      put('downloadDeadline', toChineseDateTime(endIso));
+    } else if (endIso) {
+      put('downloadDeadline', toChineseDateTime(endIso));
+    }
+  };
+  // 兜底：项目「采购文件获取时间」区间原文（中文格式不一，统一归一化为「X 至 Y」）
+  const putAcquireFromProject = (): boolean => {
+    const at = project?.documentAcquireTime;
+    if (!at) return false;
+    const sepMatch = at.match(/至|-|~/);
+    const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
+    if (sepIdx > 0) {
+      putDownloadPeriod(
+        toDatetimeLocalValue(at.slice(0, sepIdx).trim()),
+        toDatetimeLocalValue(at.slice(sepIdx + 1).trim()),
+      );
+    } else {
+      put('downloadDeadline', toChineseDateTime(toDatetimeLocalValue(at)));
+    }
+    return true;
+  };
+
   if (isSingleSource) {
     // ── A3（GB/T 43711 7.2.2.3）：直接采购理由（论证意见）入 canonical meta，随公告同步 BidProject.directSourcingReason ──
     put('directSourcingReason', d.argumentOpinion);
@@ -116,37 +144,16 @@ function buildCanonicalMeta(
     }
     put('openTime', procurementTime);
     put('deadline', subtractHours(procurementTime, DEADLINE_HOURS_BEFORE_OPENING));
-    // 采购文件下载时间 = 公示时间（起止区间）：优先 draft 公示起止，兜底项目 documentAcquireTime。
-    // downloadPeriod = 区间文本（门户芯片展示）；downloadDeadline = 止点（后端 B-009 校验
-    // parseFlexibleDate 取单点，勿把区间写进此键——2026-10-12 拆分）
-    const putDownloadPeriod = (startIso?: string, endIso?: string) => {
-      if (startIso && endIso) {
-        put('downloadPeriod', `${toChineseDateTime(startIso)} 至 ${toChineseDateTime(endIso)}`);
-        put('downloadDeadline', toChineseDateTime(endIso));
-      } else if (endIso) {
-        put('downloadDeadline', toChineseDateTime(endIso));
-      }
-    };
+    // 采购文件下载时间：优先 draft 公示起止，兜底项目 documentAcquireTime
     if (d.announcementStart && d.announcementEnd) {
       putDownloadPeriod(d.announcementStart, d.announcementEnd);
-    } else if (project?.documentAcquireTime) {
-      const at = project.documentAcquireTime;
-      const sepMatch = at.match(/至|-|~/);
-      const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
-      if (sepIdx > 0) {
-        const startRaw = at.slice(0, sepIdx).trim();
-        const endRaw = at.slice(sepIdx + 1).trim();
-        putDownloadPeriod(toDatetimeLocalValue(startRaw), toDatetimeLocalValue(endRaw));
-      } else {
-        put('downloadDeadline', toChineseDateTime(toDatetimeLocalValue(at)));
-      }
-    } else if (d.announcementEnd || d.announcementStart) {
+    } else if (!putAcquireFromProject() && (d.announcementEnd || d.announcementStart)) {
       putDownloadPeriod(undefined, d.announcementEnd || d.announcementStart);
     }
   } else {
     // ── 其他采购方式：开标时间 = 开标时间/采购时间；投标截止 = 开标前 24h
     //    （BID_DEADLINE_BEFORE_OPENING_MS，与关键时间卡同口径），推导失败才回退公示止；
-    //    采购文件下载时间 = 公示起止区间（downloadPeriod 展示 + downloadDeadline 止点）──
+    //    采购文件下载时间 = 公示起止区间，兜底项目 documentAcquireTime ──
     // 开标来源序：draft 开标时间 → 项目开标时间 → 采购时间（procurementTime 是直接采购
     // 语义字段且可能存着过期推导值——2026-10-12 实录：它先于 bidOpeningTime 被取用，
     // 截止被算成开标−48h / 回退公示止）
@@ -157,11 +164,9 @@ function buildCanonicalMeta(
       ? hoursBeforeOpenTime(openingIso, DEADLINE_HOURS_BEFORE_OPENING)
       : d.announcementEnd);
     if (d.announcementStart && d.announcementEnd) {
-      put('downloadPeriod', `${toChineseDateTime(d.announcementStart)} 至 ${toChineseDateTime(d.announcementEnd)}`);
-      put('downloadDeadline', toChineseDateTime(d.announcementEnd));
-    } else if (project?.documentAcquireTime) {
-      // 兜底：项目「采购文件获取时间」原文即区间文本
-      put('downloadPeriod', project.documentAcquireTime);
+      putDownloadPeriod(d.announcementStart, d.announcementEnd);
+    } else {
+      putAcquireFromProject();
     }
   }
   put('contact', contact);
@@ -971,15 +976,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         ...(finalDraft as Record<string, unknown>),
         ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE'),
       };
-      // 采购文件下载时间芯片与 handlePublish 同口径（非直接采购：区间入 downloadPeriod、
-      // 止点入 downloadDeadline；直接采购的 downloadPeriod/downloadDeadline 已由
-      // buildCanonicalMeta 按公示区间算好，勿覆盖）
+      // 采购文件下载时间芯片与 handlePublish 同口径：有公示起止才覆盖
+      // （buildCanonicalMeta 已按公示起止→项目获取时间区间兜底——公示起止为空的
+      // 旧草稿场景 2026-10-12 实录：只写止点会丢区间）
       if (tenderType !== 'SINGLE_SOURCE' && effectiveAnnouncementEnd) {
         const dlStartPreview = (finalDraft as Record<string, string>).announcementStart || '';
         if (dlStartPreview) {
           displayMeta.downloadPeriod = `${toChineseDateTime(dlStartPreview)} 至 ${toChineseDateTime(effectiveAnnouncementEnd)}`;
+          displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+        } else if (!displayMeta.downloadDeadline) {
+          displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
         }
-        displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
       }
       if (category === 'winning_bid') {
         const draftPeriod = (finalDraft as Record<string, string>).publicityPeriod?.trim();
@@ -1111,15 +1118,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           : bidSubmissionDeadline.trim();
         meta.deadline = derivedSubmissionDeadline || effectiveAnnouncementEnd;
         // 采购文件下载时间：区间入 downloadPeriod（两门户芯片按裸字符串渲染），
-        // 止点入 downloadDeadline（后端 B-009 校验 parseFlexibleDate 取单点，勿写区间）
+        // 止点入 downloadDeadline（后端 B-009 校验 parseFlexibleDate 取单点，勿写区间）。
+        // 有公示起止才覆盖——canonical 已兜底项目获取时间区间（公示起止为空的旧草稿
+        // 只落止点会丢区间，2026-10-12 实录）
         const dlStart = (finalDraft as Record<string, string>).announcementStart || '';
         if (dlStart && effectiveAnnouncementEnd) {
           meta.downloadPeriod = `${toChineseDateTime(dlStart)} 至 ${toChineseDateTime(effectiveAnnouncementEnd)}`;
           meta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
-        } else if (effectiveAnnouncementEnd) {
+        } else if (effectiveAnnouncementEnd && !meta.downloadDeadline) {
           meta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
-        } else if (project?.documentAcquireTime) {
-          meta.downloadPeriod = project.documentAcquireTime;
         }
       }
       // 下载方式已删除（统一免费下载）——保留 'free' 写入以兼容旧元数据消费方
@@ -2223,7 +2230,8 @@ function PortalAnnouncementPreview({
                         style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08)' }}
                       >
                         <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
-                        <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{portalFormatMetaValue(f, meta[f.key])}</span>
+                        {/* 采购文件下载时间：区间（downloadPeriod）优先，止点（downloadDeadline）兜底——与四门户芯片同口径 */}
+                        <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{portalFormatMetaValue(f, f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key])}</span>
                       </span>
                     );
                   })}
