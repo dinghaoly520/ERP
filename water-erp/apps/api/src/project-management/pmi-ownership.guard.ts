@@ -3,8 +3,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CompanyScopeService } from '../company/company-scope';
 
 /** 只读分析类 POST 端点后缀：仅产出/刷新缓存的分析内容，不落业务字段。
- *  详情面板挂载即调 /analyze——只读视野（leader/admin）也必须放行，否则页面打不开。 */
-const READ_ONLY_POST_SUFFIXES = ['/analyze', '/analyze-step', '/refresh-summary'];
+ *  详情面板挂载即调 /analyze——只读视野（leader/admin）也必须放行，否则页面打不开。
+ *  parse-announcement-fields 同性质：读采购文件 + AI 提取公告字段，无任何写库
+ *  （2026-10-12 补录——公告向导智能填入对非创建人只读视野误 403）。 */
+const READ_ONLY_POST_SUFFIXES = ['/analyze', '/analyze-step', '/refresh-summary', '/parse-announcement-fields'];
 
 /**
  * 项目管理访问守卫（2026-08-20 拍板 1C；2026-10-10 读写分级修订）：

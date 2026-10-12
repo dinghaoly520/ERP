@@ -7568,7 +7568,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async parseAnnouncementFields(projectId: string): Promise<{ fields: Record<string, string>; extractedText: string } | null> {
     const stage = await this.prisma.projectManagementStage.findFirst({
       where: { projectManagementItemId: projectId, stageKey: 'TENDER_DOCUMENT' },
-      include: { attachments: true },
+      // 最新上传优先（与 extractTenderFields 同口径）
+      include: { attachments: { orderBy: { createdAt: 'desc' } } },
     });
     if (!stage) return null;
     const docxAttachment = stage.attachments.find((a) =>
@@ -7597,7 +7598,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const fields: Record<string, string> = {};
     try {
       const aiResponse = await this.aiService.chatJson<Record<string, string>>(
-        '你是采购公告字段提取助手。从招标文件原文中提取以下字段，输出严格的 JSON 对象（key 为字段名，value 为提取值）。只包含能提取到的字段，不确定的字段不要输出。字段：projectName(项目名称)、projectOverview(项目概况/采购内容简介)、maxPriceNumeric(预算金额/最高限价)、contactName(联系人)、contactPhone(联系电话)、contactEmail(联系邮箱)、qualificationRequirements(供应商资格要求)、bidOpeningTime(开标时间)。',
+        '你是采购公告字段提取助手。从招标文件原文中提取以下字段，输出严格的 JSON 对象（key 为字段名，value 为提取值）。只包含能提取到的字段，不确定的字段不要输出。字段：projectName(项目名称)、projectOverview(项目概况/采购内容简介)、maxPriceNumeric(预算金额/最高限价)、contactName(联系人)、contactPhone(联系电话)、contactEmail(联系邮箱)、qualificationRequirements(供应商资格要求)、bidOpeningTime(开标时间)。' +
+        '注意：bidOpeningTime 必须是「开标」的时刻，严禁把「投标/响应文件递交截止时间」「递交及截止时间」当作开标时间（采购文件中两者常同时出现且相差24小时）——优先取明确标注「开标时间」的字段值。',
         extractedText,
         0.1,
       );
@@ -7608,6 +7610,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     } catch (e) {
       this.logger.warn(`parseAnnouncementFields: AI 提取失败 ${(e as Error).message}`);
+    }
+
+    // 开标时间权威覆盖：PMI 项目基本信息已有规则引擎从同一采购文件提取的开标时间
+    // （extractTenderFields，含 AI 归一化），AI 提取偶发把「递交截止」（=开标−24h，
+    // 同文出现）误当开标时间（2026-10-12 实录：公告草稿被灌入开标−24h 值）——
+    // 有项目值时直接覆盖 AI 结果，杜绝时间漂移
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { bidOpeningTime: true },
+    });
+    if (item?.bidOpeningTime?.trim()) {
+      fields.bidOpeningTime = item.bidOpeningTime.trim();
     }
 
     return { fields, extractedText };
