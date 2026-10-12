@@ -271,14 +271,6 @@ export function getTenderRequirements(bidProjectId: string) {
   );
 }
 
-/** 通用项目更新 */
-export function updateBidProject(
-  bidProjectId: string,
-  data: { name?: string; budget?: number },
-) {
-  return api.patch<BidProjectDetail>(`/bid/projects/${bidProjectId}`, data);
-}
-
 /* ── 评分模板（整套评分标准 + 得分点的保存 / 复用）── */
 
 export interface ScoreTemplateRef {
@@ -350,11 +342,6 @@ export function cancelSupplierNudge(bidProjectId: string) {
   return api.post<{ ok: boolean }>(`/bid/projects/${bidProjectId}/supplier-nudge/cancel`, {});
 }
 
-/** 通知开标时间变更（向全部投标供应商 + 评标专家）*/
-export function notifyBidScheduleChange(bidProjectId: string, openTime: string) {
-  return api.post<{ reached: number }>(`/bid/projects/${bidProjectId}/notify-schedule-change`, { openTime });
-}
-
 /* ── 开标决策通知（按时/延时开标确认弹窗）：按配置渠道与文案通知供应商与专家 ── */
 
 export interface OpeningDecisionNotifyPayload {
@@ -397,20 +384,10 @@ export function abortBidProject(bidProjectId: string, reason?: string) {
   return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/abort`, reason ? { reason } : {});
 }
 
-/** 手动废标：把指定投标供应商置为 bidValidity='invalid'（B1） */
-export function invalidateBid(bidProjectId: string, bidSupplierId: string, reason: string) {
-  return api.post<{ invalidated: boolean }>(`/bid/projects/${bidProjectId}/invalidate-bid/${bidSupplierId}`, { reason });
-}
-
 /** A1: 公示状态查询 */
 /** D2（4.1.5.2）：档案移交登记（清单快照+签收留痕） */
 export function registerArchiveTransfer(projectId: string, data: { receivedByName: string; note?: string; confirm?: boolean }) {
   return api.post(`/bid/projects/${projectId}/archive-transfer`, data);
-}
-
-/** D3（8.2/8.3）：监管数据时间线（监督+审计+操作日志聚合） */
-export function getRegulatoryTimeline(projectId: string) {
-  return api.get<{ project: { name: string; projectCode: string }; entries: Array<{ at: string; source: string; actor: string; action: string; detail: string; risk?: string }>; counts: { supervision: number; audit: number; operation: number } }>(`/bid/projects/${projectId}/regulatory-timeline`);
 }
 
 /** D3：监管数据包导出（JSON 下载） */
@@ -794,11 +771,6 @@ export function setOpeningFieldConfig(
   body: { fields: OpeningFieldDef[] } | { fromTemplateId: string },
 ) {
   return api.put<{ fields: OpeningFieldDef[] }>(`/bid/projects/${projectId}/opening-field-config`, body);
-}
-
-/** A-113：开标记录模板的唱标字段应用到项目（POST 专用写径，与 PUT 复用同一阶段闸/校验） */
-export function applyOpeningTemplate(templateId: string, projectId: string) {
-  return api.post<{ fields: OpeningFieldDef[] }>(`/work-templates/${templateId}/apply/${projectId}`, {});
 }
 
 /** 通用工作模板（A-115）：kind=opening_record 开标记录（content.fields 唱标字段 + 既有 content.columns 导出列）｜evaluation 评标 */

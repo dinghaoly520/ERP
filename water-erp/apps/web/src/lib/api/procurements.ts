@@ -33,10 +33,6 @@ export async function fetchProcurements(params: {
   return api.get<ProcurementsListResponse>(`/procurements?${query.toString()}`);
 }
 
-export async function fetchProcurementById(id: string) {
-  return api.get(`/procurements/${id}`);
-}
-
 /** 按采购单位（创建人所属公司）全量分组计数——「按采购单位规整」chip 的全量口径（与列表同 where，免分页失真） */
 export async function fetchLedgerCompanyCounts(params: {
   startDate?: string; endDate?: string; procurementMethod?: string;
@@ -71,38 +67,6 @@ export async function fetchLedgerStats(
 
 export async function fetchProcurementMethods(): Promise<string[]> {
   return api.get<string[]>('/procurements/methods');
-}
-
-export async function createProcurement(data: {
-  projectName: string;
-  procurementDate?: string;
-  procurementMethod: string;
-  departmentName?: string;
-  budgetAmount?: number;
-  controlAmount?: number;
-  supplierNames?: string[];
-  awardedSupplierName?: string;
-  awardAmount?: number;
-  resultStatus?: ResultStatusKey;
-  resultText?: string;
-}) {
-  return api.post('/procurements', data);
-}
-
-export async function updateProcurement(id: string, data: Partial<{
-  projectName: string;
-  procurementDate: string;
-  procurementMethod: string;
-  departmentName: string;
-  budgetAmount: number;
-  controlAmount: number;
-  supplierNames: string[];
-  awardedSupplierName: string;
-  awardAmount: number;
-  resultStatus: ResultStatusKey;
-  resultText: string;
-}>) {
-  return api.put(`/procurements/${id}`, data);
 }
 
 export async function moveProcurementToRecycleBin(id: string) {

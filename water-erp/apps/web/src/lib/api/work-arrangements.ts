@@ -6,7 +6,6 @@ import type {
   WorkArrangementRecurrence,
   WorkArrangementScope,
   WorkArrangementStatus,
-  WorkArrangementSummary,
   WorkArrangementTemplate,
   WorkArrangementType,
   WorkArrangementUrgency,
@@ -56,18 +55,6 @@ export type WorkArrangementPayload = {
   reflectionSummary?: string | null;
 };
 
-export type WorkArrangementTemplatePayload = {
-  name: string;
-  title: string;
-  description?: string;
-  type: WorkArrangementType;
-  urgency: WorkArrangementUrgency;
-  estimatedMinutes?: number | null;
-  isAllDay?: boolean;
-  customTags?: string[];
-  recurrence?: WorkArrangementRecurrence;
-};
-
 export async function fetchWorkArrangements(query: WorkArrangementQuery = {}) {
   const params = new URLSearchParams();
   if (query.keyword) params.set('keyword', query.keyword);
@@ -110,25 +97,6 @@ export async function refreshWorkArrangementDailyPlan(date?: string) {
   });
 
   return parseJsonResponse<WorkArrangementDailyPlan>(response);
-}
-
-export async function fetchWorkArrangementGreeting() {
-  const response = await apiFetch(`${API_BASE}/work-arrangements/greeting`, {
-    credentials: 'include',
-    cache: 'no-store',
-  });
-
-  return parseJsonResponse<{ greeting: string }>(response);
-}
-
-export async function fetchWorkArrangementSummary(date?: string) {
-  const suffix = date ? `?date=${encodeURIComponent(date)}` : '';
-  const response = await apiFetch(`${API_BASE}/work-arrangements/summary${suffix}`, {
-    credentials: 'include',
-    cache: 'no-store',
-  });
-
-  return parseJsonResponse<WorkArrangementSummary>(response);
 }
 
 export async function createWorkArrangement(payload: WorkArrangementPayload) {
@@ -197,42 +165,6 @@ export async function fetchWorkArrangementTemplates() {
   });
 
   return parseJsonResponse<WorkArrangementTemplate[]>(response);
-}
-
-export async function createWorkArrangementTemplate(
-  payload: WorkArrangementTemplatePayload,
-) {
-  const response = await apiFetch(`${API_BASE}/work-arrangements/templates`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  return parseJsonResponse<WorkArrangementTemplate>(response);
-}
-
-export async function updateWorkArrangementTemplate(
-  id: string,
-  payload: Partial<WorkArrangementTemplatePayload>,
-) {
-  const response = await apiFetch(`${API_BASE}/work-arrangements/templates/${id}`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  return parseJsonResponse<WorkArrangementTemplate>(response);
-}
-
-export async function deleteWorkArrangementTemplate(id: string) {
-  const response = await apiFetch(`${API_BASE}/work-arrangements/templates/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-
-  return parseJsonResponse<{ success: true }>(response);
 }
 
 export type WorkPortrait = {

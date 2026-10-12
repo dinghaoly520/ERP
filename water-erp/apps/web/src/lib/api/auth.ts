@@ -55,16 +55,6 @@ export type DepartmentItem = {
   code: string | null;
 };
 
-export type UpdateProfileInput = {
-  displayName?: string;
-  email?: string | null;
-  departmentId?: string | null;
-  phone?: string | null;
-  officeLocation?: string | null;
-  company?: string | null;
-  avatar?: string | null;
-};
-
 export async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const fallbackMessage = "请求失败，请稍后重试。";
@@ -436,17 +426,6 @@ export async function logout() {
   return result;
 }
 
-export async function updateMyProfile(
-  payload: UpdateProfileInput,
-): Promise<AuthUser> {
-  return requestJson<AuthUser>(`${API_BASE}/auth/me`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-}
-
 export async function fetchDepartments(): Promise<DepartmentItem[]> {
   return requestJson<DepartmentItem[]>(`${API_BASE}/auth/departments`, {
     credentials: 'include',
@@ -489,11 +468,6 @@ export async function checkRegistrationCode(phone: string, code: string): Promis
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, code }),
   });
-}
-
-/** 已知公司列表（注册下拉建议）*/
-export async function fetchRegistrationCompanies(): Promise<string[]> {
-  return requestJson<string[]>(`${API_BASE}/auth/companies`, { cache: "no-store" });
 }
 
 // ── 注册审核 ──

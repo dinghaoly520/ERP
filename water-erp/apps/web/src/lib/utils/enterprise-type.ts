@@ -69,10 +69,3 @@ export function normalizeEnterpriseType(raw: string | undefined | null): string 
   return stripped;
 }
 
-/** 简版：仅截断资质后缀，不做类型合并。用于悬停 title 等保留原文场景。 */
-export function trimQualifications(raw: string | undefined | null): string {
-  if (!raw) return '—';
-  const idx = raw.indexOf('） ');
-  if (idx > 0) return raw.slice(0, idx + 1);
-  return raw;
-}

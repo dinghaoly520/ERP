@@ -30,9 +30,6 @@ export const WORKBENCH_PROFILES: readonly WorkbenchProfile[] = [
   },
 ];
 
-/** 密码审批等管理功能提示用的管理员账号（种子 admin） */
-export const ADMIN_USERNAME = 'Swhi-CGZX-admin';
-
 export function getWorkbenchProfile(username?: string | null): WorkbenchProfile | undefined {
   return WORKBENCH_PROFILES.find((p) => p.username === username);
 }

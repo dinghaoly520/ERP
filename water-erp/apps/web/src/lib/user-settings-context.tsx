@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { fetchUserSettings, updateUserSettings as apiUpdateSettings, type UserSettings } from "@/lib/api/user-settings";
 
 type Theme = "light" | "dark" | "system";
-type HomePage = "dashboard" | "procurements" | "projects" | "work-arrangements";
 
 interface UserSettingsContextValue {
   settings: UserSettings | null;
@@ -141,12 +140,3 @@ export function UserSettingsProvider({ children }: UserSettingsProviderProps) {
   );
 }
 
-// Utility function to get default home page (can be called outside React components)
-export async function getDefaultHomePage(): Promise<HomePage> {
-  try {
-    const settings = await fetchUserSettings();
-    return settings.defaultHomePage as HomePage;
-  } catch {
-    return "work-arrangements";
-  }
-}

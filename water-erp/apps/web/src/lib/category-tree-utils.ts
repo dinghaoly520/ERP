@@ -26,18 +26,6 @@ export interface AttributeTemplate {
   sortOrder: number;
 }
 
-export function flattenTree(tree: CategoryNode[]): CategoryNode[] {
-  const result: CategoryNode[] = [];
-  const walk = (nodes: CategoryNode[]) => {
-    for (const node of nodes) {
-      result.push(node);
-      if (node.children?.length) walk(node.children);
-    }
-  };
-  walk(tree);
-  return result;
-}
-
 export function findNode(tree: CategoryNode[], id: number): CategoryNode | null {
   for (const node of tree) {
     if (node.id === id) return node;
@@ -61,8 +49,4 @@ export function getNodePath(tree: CategoryNode[], id: number): CategoryNode[] {
   };
   walk(tree, []);
   return path;
-}
-
-export function getLeafNodes(tree: CategoryNode[]): CategoryNode[] {
-  return flattenTree(tree).filter(n => n.isLeaf);
 }

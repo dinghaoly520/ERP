@@ -53,22 +53,6 @@ export async function createFieldSample(payload: {
   return response.json();
 }
 
-export async function updateFieldSample(
-  id: string,
-  payload: { content?: string; isFavorite?: boolean },
-): Promise<TenderFieldSample> {
-  const response = await apiFetch(`${API_BASE}/tender-sample/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    throw new Error('更新样本失败');
-  }
-  return response.json();
-}
-
 export async function toggleFieldSampleFavorite(
   id: string,
 ): Promise<TenderFieldSample> {

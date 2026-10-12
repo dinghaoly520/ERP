@@ -47,20 +47,6 @@ export async function fetchTenderHistory(
   return response.json();
 }
 
-export async function fetchTenderHistoryDetail(
-  id: string,
-): Promise<TenderHistoryRecord> {
-  const response = await apiFetch(`${API_BASE}/tender-history/${id}`, {
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    throw new Error('获取历史记录详情失败');
-  }
-
-  return response.json();
-}
-
 export async function deleteTenderHistory(id: string): Promise<void> {
   const response = await apiFetch(`${API_BASE}/tender-history/${id}`, {
     method: 'DELETE',

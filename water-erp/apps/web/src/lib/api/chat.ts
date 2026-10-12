@@ -17,25 +17,6 @@ export interface ChatUser {
   isOnline: boolean;
 }
 
-export interface Conversation {
-  peerId: string;
-  peer: {
-    id: string;
-    displayName: string;
-    role: string;
-    avatar: string | null;
-    department: { name: string } | null;
-  };
-  lastMessage: {
-    id: string;
-    type: string;
-    content: string;
-    senderId: string;
-    createdAt: string;
-  } | null;
-  unreadCount: number;
-}
-
 export interface ChatMessage {
   id: string;
   senderId: string;
@@ -75,10 +56,6 @@ export interface UploadedFile {
 
 export function fetchChatUsers(): Promise<ChatUser[]> {
   return api.get<ChatUser[]>('/chat/users');
-}
-
-export function fetchConversations(): Promise<Conversation[]> {
-  return api.get<Conversation[]>('/chat/conversations');
 }
 
 export function fetchMessages(
@@ -132,11 +109,3 @@ export function getChatSocket(): Socket {
   return socket;
 }
 
-/** 测试/重置时用（普通使用不需要调） */
-export function __resetChatSocketForTest() {
-  if (socket) {
-    socket.removeAllListeners();
-    socket.disconnect();
-    socket = null;
-  }
-}

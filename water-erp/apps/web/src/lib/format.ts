@@ -4,29 +4,6 @@
  * 新代码一律引用本模块；存量按"高可见不一致处"渐进收敛。
  */
 
-/** 日期 → `YYYY-MM-DD`（本地时区；无效值回退 `—`）。
- *  注：zh-CN toLocaleDateString 实际输出斜杠分隔（2026/09/28），与全站短横线口径不符——
- *  故手动拼装（四审 P2 修正） */
-export function formatDateCN(value: string | Date | null | undefined): string {
-  if (!value) return '—';
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-/** 日期时间 → `YYYY-MM-DD HH:mm`（zh-CN 口径） */
-export function formatDateTimeCN(value: string | Date | null | undefined): string {
-  if (!value) return '—';
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${formatDateCN(d)} ${hh}:${mm}`;
-}
-
 /** 金额（元）→ 万元显示：≥1 万显示 `N.NN万`，不足 1 万显示 `N元`（统一两位小数） */
 export function formatWan(
   amount: number | string | null | undefined,

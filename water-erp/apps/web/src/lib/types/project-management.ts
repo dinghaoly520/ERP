@@ -252,14 +252,6 @@ export type FieldCandidate = {
 };
 
 // Helper functions
-export function needsInitiationStage(_method: ProcurementMethod): boolean {
-  return true; // 所有采购方式均需要立项
-}
-
-export function needsPublicAnnouncementStage(method: ProcurementMethod): boolean {
-  return ['竞价采购', '直接采购', '邀请招标', '询比采购'].includes(method);
-}
-
 export function getStagesForMethod(method: ProcurementMethod): StageConfig[] {
   return PROCUREMENT_METHOD_STAGES[method] || PROCUREMENT_METHOD_STAGES['谈判采购'];
 }

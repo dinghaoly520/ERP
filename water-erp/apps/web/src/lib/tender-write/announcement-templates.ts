@@ -6,7 +6,6 @@ import type {
   AnnouncementFieldConfig,
   AnnouncementFieldKey,
   InvitedBiddingAnnouncementDraft,
-  InternalBiddingAnnouncementDraft,
   SingleSourceAnnouncementDraft,
   FailedBidAnnouncementDraft,
   WinningBidAnnouncementDraft,
@@ -415,10 +414,6 @@ export function createEmptyInvitedBiddingAnnouncementDraft(): InvitedBiddingAnno
     supervisionPhone: "",
     signatureDate: "",
   };
-}
-
-export function createEmptyInternalBiddingAnnouncementDraft(): InternalBiddingAnnouncementDraft {
-  return createEmptyInvitedBiddingAnnouncementDraft();
 }
 
 export function createEmptySingleSourceAnnouncementDraft(): SingleSourceAnnouncementDraft {
