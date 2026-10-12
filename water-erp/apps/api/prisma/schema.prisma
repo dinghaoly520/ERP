@@ -2021,6 +2021,10 @@ model FileAsset {
   authTag         String? // Track C: AES-GCM authTag (base64)
   sealedPath      String? // Layer B: 密文存储路径（不覆盖原明文）
   clientEncrypted Boolean  @default(false) // E2EE: 客户端加密标记（上传时已是密文）
+  // 通用服务端密封（2026-10-12 密文评估 P1-1）：qualification/profile 等类目上传时
+  // 服务端 AES-256-GCM 密封落 MinIO，DEK 经 KMS_SECRET 包裹后存此列（wrapKey base64）。
+  // 与旧轨密封（密钥挂 SupplierBidSubmission 行）互斥——新轨资产自持密钥，不依赖业务行。
+  sealedKey       String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

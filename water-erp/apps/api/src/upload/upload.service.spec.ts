@@ -679,4 +679,89 @@ describe('UploadService — download permission', () => {
       expect(minioClient.getObject).not.toHaveBeenCalled();
     });
   });
+
+  describe('通用服务端密封（2026-10-12 密文评估 P1-1）', () => {
+    const plain = Buffer.from('%PDF-1.7\nqualification-proof');
+    const sealFile = {
+      mimetype: 'application/pdf', originalname: 'license.pdf', buffer: plain, size: plain.length,
+    } as Express.Multer.File;
+
+    let prevKms: string | undefined;
+    let prevSealSwitch: string | undefined;
+
+    beforeEach(() => {
+      prevKms = process.env.KMS_SECRET;
+      prevSealSwitch = process.env.UPLOAD_SERVER_SEAL;
+      process.env.KMS_SECRET = 'unit-test-kms-secret-0123456789abcdef';
+      delete process.env.UPLOAD_SERVER_SEAL;
+      prisma.fileAsset.create.mockImplementation(({ data }: any) => ({ id: 'fa-new', ...data, createdAt: new Date() }));
+      jest.spyOn(minioClient, 'putObject').mockClear().mockResolvedValue({} as any);
+    });
+    afterEach(() => {
+      if (prevKms === undefined) delete process.env.KMS_SECRET; else process.env.KMS_SECRET = prevKms;
+      if (prevSealSwitch === undefined) delete process.env.UPLOAD_SERVER_SEAL; else process.env.UPLOAD_SERVER_SEAL = prevSealSwitch;
+    });
+
+    it('qualification 类目上传：MinIO 落密文、encrypted/sealedKey 落库、KMS 包裹可解回原文', async () => {
+      await service.upload(sealFile, 'qualification', 'u-1');
+
+      const putArgs = (minioClient.putObject as jest.Mock).mock.calls[0];
+      const stored: Buffer = putArgs[2];
+      expect(stored.equals(plain)).toBe(false); // 落的是密文
+      const created = prisma.fileAsset.create.mock.calls[0][0].data;
+      expect(created.encrypted).toBe(true);
+      expect(created.clientEncrypted).toBe(false);
+      expect(typeof created.sealedKey).toBe('string');
+      // 端到端回读：unwrap DEK → 解密 == 原文（保证下载分支必然可还原）
+      const { unwrapKey } = await import('../common/crypto/envelope-crypto');
+      const { decryptBuffer } = await import('../announcement/bid-document.crypto');
+      const rawKey = unwrapKey(created.sealedKey, 'unit-test-kms-secret-0123456789abcdef');
+      expect(decryptBuffer(stored, rawKey).equals(plain)).toBe(true);
+    });
+
+    it.each(['announcement', 'bid_document'])('%s 类目不密封（公开级/投标轨排除）', async (category) => {
+      await service.upload(sealFile, category, 'u-1');
+      const stored: Buffer = (minioClient.putObject as jest.Mock).mock.calls[0][2];
+      expect(stored.equals(plain)).toBe(true); // 原文直存
+      expect(prisma.fileAsset.create.mock.calls[0][0].data.sealedKey).toBeUndefined();
+    });
+
+    it('UPLOAD_SERVER_SEAL=false 运维逃生口：明文直存', async () => {
+      process.env.UPLOAD_SERVER_SEAL = 'false';
+      await service.upload(sealFile, 'qualification', 'u-1');
+      const stored: Buffer = (minioClient.putObject as jest.Mock).mock.calls[0][2];
+      expect(stored.equals(plain)).toBe(true);
+      expect(prisma.fileAsset.create.mock.calls[0][0].data.sealedKey).toBeUndefined();
+    });
+
+    it('sealedKey 资产下载走通用解密分支（读 sealedPath||key + 解密流 + Content-Length）', async () => {
+      const { encryptBuffer } = await import('../announcement/bid-document.crypto');
+      const { wrapKey } = await import('../common/crypto/envelope-crypto');
+      const sealed = encryptBuffer(plain);
+      const genericSealedAsset = {
+        ...asset, id: 'fa-gseal', key: 'uploads/2026-10-12/ab.pdf', category: 'qualification',
+        uploaderId: 'u-1', clientEncrypted: false, sealedPath: null, size: plain.length,
+        sealedKey: wrapKey(sealed.decryptKey, 'unit-test-kms-secret-0123456789abcdef'),
+      };
+      prisma.fileAsset.findUnique.mockResolvedValue(genericSealedAsset);
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue(null);
+      (minioClient.getObject as jest.Mock)
+        .mockClear()
+        .mockResolvedValue({ pipe: jest.fn(() => ({ pipe: jest.fn() })) } as any);
+
+      await service.streamFile('fa-gseal', { sub: 'u-1', role: 'supplier' }, res);
+
+      // 密文读点 = asset.key（新上传无 sealedPath）；不查 submission（密钥自持）
+      expect(minioClient.getObject).toHaveBeenCalledWith(expect.anything(), 'uploads/2026-10-12/ab.pdf');
+      expect(prisma.supplierBidSubmission.findFirst).not.toHaveBeenCalled();
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Length', String(plain.length));
+    });
+
+    it('KMS 未配置时降级明文不抛错（dev 形态；生产由启动守卫拦截）', async () => {
+      delete process.env.KMS_SECRET;
+      await expect(service.upload(sealFile, 'qualification', 'u-1')).resolves.toBeTruthy();
+      const stored: Buffer = (minioClient.putObject as jest.Mock).mock.calls[0][2];
+      expect(stored.equals(plain)).toBe(true);
+    });
+  });
 });

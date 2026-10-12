@@ -371,6 +371,7 @@ OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
 FIELD_ENC_SECRET=...               # 敏感字段国密加密主密钥（PII sm1: SM4-CBC+HMAC-SM3，等保+密评 2026-10；生产缺失/<32 拒绝启动；dev 回退固定钥；FIELD_ENC_SECRET_OLD 轮转旧钥）
 BID_DUAL_ENVELOPE=true            # 双信封新轨总开关（=false 全局退回旧轨 KMS 信封投递；默认开，灰度/应急双向可退）
+UPLOAD_SERVER_SEAL=true            # 通用上传服务端密封（2026-10-12）：qualification/profile/general/contract_document/framework_document/performance_report 类目 AES-GCM 密文落 MinIO、DEK 经 KMS 包裹挂 FileAsset.sealedKey；false=应急明文回退；存量补封/密钥轮转见 scripts/seal-existing-uploads.ts 与 docs/crypto-key-rotation-runbook.md
 TRUSTED_CA_DIR=...                 # X.509 链校验信任锚目录（PEM/DER；空=跳过链闸，mock 兼容期默认空；真 CA 根证书落此即启用，apps/api/src/common/crypto/x509/）
 CERT_CHAIN_ENFORCE=true            # 链闸失败语义：默认拒绝；false=告警放行（灰度）
 CERT_POP_REQUIRED=false            # mock 轨（无 rawCert）PoP 强制开关；rawCert 轨恒强制

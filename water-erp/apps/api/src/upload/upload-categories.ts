@@ -45,6 +45,29 @@ export const UPLOAD_CATEGORIES = new Set<string>([
   'ai_bid_report',                  // AI 投标分析报告（worker 生成，回流包引用件）
 ]);
 
+/**
+ * 通用上传服务端密封类目（2026-10-12 密文评估 P1-1）：PII/业务文档落 MinIO 前服务端
+ * AES-256-GCM 密封（密文存 asset.key，DEK 经 KMS_SECRET 包裹落 FileAsset.sealedKey）。
+ *
+ * 排除口径（勿扩入，扩入前先审计直读消费方）：
+ * - 投标轨：bid_document / bid_inner_ciphertext / bid_decrypted / commercial / technical
+ *   —— 信封、供应商传标、开评标相关（2026-10-12 用户裁定不动）
+ * - 开评标留痕/监督证据：EVIDENCE_PROTECTED_CATEGORIES + supervision_push_* +
+ *   clarification_reply + ai_bid_report（worker/归档链路按密文哈希/直读消费）
+ * - announcement：公告附件为公开级（mandatory），公开门户直读 fa.key
+ * - expert_memo_ink：走 presigned URL 直连 MinIO，绕过 streamFile 解密层
+ * - procurement_document / prequal_document：喂给招标文件/资格预审再加密管线
+ *   （bid-document.service 直读源对象），后续接入需先改其为解密感知
+ */
+export const UPLOAD_SERVER_SEAL_CATEGORIES: ReadonlySet<string> = new Set([
+  'qualification',       // 供应商资质文件（营业执照/许可证扫描——PII 主要盲区）
+  'profile',             // 个人/企业资料（证件扫描等）
+  'general',             // 兜底类门户上传
+  'contract_document',   // 合同草稿/签署版/履约证明
+  'framework_document',  // 框架协议
+  'performance_report',  // 采购质效报告
+]);
+
 const SUPPLIER_UPLOAD_CATEGORIES = new Set([
   'general',
   'qualification',

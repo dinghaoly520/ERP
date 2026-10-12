@@ -5,9 +5,9 @@ import { fileCategoryDefaults } from '@water-erp/shared';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
 import { BID_FILE_ROLES } from '@water-erp/shared';
 import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
-import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
-import { createDecryptStream } from '../announcement/bid-document.crypto';
-import { UPLOAD_CATEGORIES } from './upload-categories';
+import { unwrapKey, wrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
+import { createDecryptStream, encryptBuffer } from '../announcement/bid-document.crypto';
+import { UPLOAD_CATEGORIES, UPLOAD_SERVER_SEAL_CATEGORIES } from './upload-categories';
 import { matchesFileContentPolicy, PDF_WORD_IMAGE_MIME_TYPES } from './file-content-policy';
 import { CompanyScopeService } from '../company/company-scope';
 
@@ -43,6 +43,22 @@ export const EVIDENCE_PROTECTED_CATEGORIES: readonly string[] = [
   'supervision_push_voucher',   // A-153：离线凭证物证
   'ai_bid_report',              // AI 投标分析报告（worker 生成；回流包 aiAnalysis 引用件，防删致引用悬空）
 ];
+
+let sealFallbackWarned = false;
+/** 是否对该上传做服务端密封（E2EE 客户端已密文的不重复密封；UPLOAD_SERVER_SEAL=false 为运维逃生口；
+ *  dev 未配 KMS_SECRET 时降级明文并告警一次——生产由启动守卫兜底，不会静默走到这里） */
+export function shouldServerSeal(category: string, clientEncrypted: boolean): boolean {
+  if (clientEncrypted) return false;
+  if (process.env.UPLOAD_SERVER_SEAL === 'false') return false;
+  if (!process.env.KMS_SECRET) {
+    if (!sealFallbackWarned) {
+      sealFallbackWarned = true;
+      console.warn('[upload] KMS_SECRET 未配置，通用上传密封降级为明文存储（生产环境启动守卫会拒绝启动）');
+    }
+    return false;
+  }
+  return UPLOAD_SERVER_SEAL_CATEGORIES.has(category);
+}
 
 @Injectable()
 export class UploadService implements OnModuleInit {
@@ -156,11 +172,24 @@ export class UploadService implements OnModuleInit {
     // sha256: 客户端提供原文哈希则用它；否则计算密文哈希
     const sha256 = clientPlaintextSha256 || this.computeSha256(buffer);
 
+    // 通用服务端密封（2026-10-12 密文评估 P1-1）：PII/业务文档类目密文落 MinIO——
+    // DB 侧 PII 已 sm1 密封，但证件/资质扫描件原件此前明文躺在对象存储（攻击面不对称）。
+    // 密文存 asset.key（服务端密封无明文对象阶段）；DEK 经 KMS 包裹落 sealedKey 列；
+    // sha256 保持原文指纹（与 E2EE clientPlaintextSha256 同语义）。
+    const serverSeal = shouldServerSeal(category, clientEncrypted);
+    let sealedKey: string | null = null;
+    let storedBuffer = buffer;
+    if (serverSeal) {
+      const sealed = encryptBuffer(buffer);
+      sealedKey = wrapKey(sealed.decryptKey, process.env.KMS_SECRET!);
+      storedBuffer = sealed.ciphertext;
+    }
+
     // 写入 MinIO 对象存储
-    await minioClient.putObject(MINIO_BUCKET, key, buffer, buffer.length, {
+    await minioClient.putObject(MINIO_BUCKET, key, storedBuffer, storedBuffer.length, {
       'Content-Type': mimeType,
     });
-    this.logger.log(`File stored in MinIO: ${key} (${buffer.length} bytes, ${mimeType})${clientEncrypted ? ' [E2EE]' : ''}`);
+    this.logger.log(`File stored in MinIO: ${key} (${storedBuffer.length} bytes, ${mimeType})${clientEncrypted ? ' [E2EE]' : ''}${serverSeal ? ' [SEALED]' : ''}`);
 
     // 持久化文件元数据到数据库
     const asset = await this.prisma.fileAsset.create({
@@ -173,6 +202,7 @@ export class UploadService implements OnModuleInit {
         category,
         uploaderId: userId,
         clientEncrypted, // E2EE 标记持久化
+        ...(serverSeal ? { encrypted: true, sealedKey } : {}),
         // A2（表 B.1）：按类目默认分级（递交件=应保密/权益域、采购文件=可公开、内部件=应保密）
         ...fileCategoryDefaults(category),
       },
@@ -261,6 +291,25 @@ export class UploadService implements OnModuleInit {
       res.setHeader(
         'Content-Disposition',
         `inline; filename="${encodeURIComponent(asset.originalName.replace(/\.enc$/, ''))}"`,
+      );
+      cipherStream.pipe(decryptStream).pipe(res);
+      return;
+    }
+
+    // 通用服务端密封资产（2026-10-12 密文评估 P1-1）：qualification/profile 等类目
+    // 上传时服务端 AES-256-GCM 密封——密文存 asset.key（或存量迁移后的 sealedPath），
+    // DEK 经 KMS 包裹落 FileAsset.sealedKey（资产自持密钥）。置于旧轨分支之前：
+    // 旧轨密封资产密钥挂 submission 行、sealedKey 恒 null，不落此分支。
+    if (asset.sealedKey && !asset.clientEncrypted) {
+      const rawKey = isWrappedKey(asset.sealedKey) ? unwrapKey(asset.sealedKey, process.env.KMS_SECRET!) : asset.sealedKey;
+      const cipherStream = await minioClient.getObject(MINIO_BUCKET, asset.sealedPath || asset.key);
+      const decryptStream = createDecryptStream(rawKey);
+      res.setHeader('Content-Type', asset.mimeType);
+      // GCM 密文与明文等长（tag 在密钥串内），size=明文长度可安全作 Content-Length
+      res.setHeader('Content-Length', String(asset.size));
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${encodeURIComponent(asset.originalName)}"`,
       );
       cipherStream.pipe(decryptStream).pipe(res);
       return;
@@ -736,9 +785,13 @@ export class UploadService implements OnModuleInit {
       throw new ConflictException({ error: '该文件已被投标文件引用，不可删除', code: 'FILE_REFERENCED' });
     }
 
-    // 先删对象，再删元数据；任一失败抛错以暴露问题
+    // 先删对象，再删元数据；任一失败抛错以暴露问题。
+    // sealedPath 副本（存量迁移密封）best-effort 一并清理——S3 DELETE 幂等，缺对象不抛错
     await minioClient.removeObject(MINIO_BUCKET, key);
-    this.logger.log(`File removed from MinIO: ${key} (by ${user?.sub ?? 'system'})`);
+    if (asset.sealedPath) {
+      await minioClient.removeObject(MINIO_BUCKET, asset.sealedPath).catch(() => undefined);
+    }
+    this.logger.log(`File removed from MinIO: ${key}${asset.sealedPath ? ` (+${asset.sealedPath})` : ''} (by ${user?.sub ?? 'system'})`);
 
     await this.prisma.fileAsset.delete({ where: { key } });
     return { deleted: true, key };
