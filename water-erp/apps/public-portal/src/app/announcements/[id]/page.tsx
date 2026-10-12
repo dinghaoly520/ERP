@@ -109,7 +109,8 @@ export default function AnnouncementDetailPage() {
                         <span key={f.key} className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5"
                           style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08)' }}>
                           <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
-                          <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{formatMetaValue(f, meta[f.key])}</span>
+                          {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
+                          <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{formatMetaValue(f, f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key])}</span>
                         </span>
                       );
                     })}

@@ -222,7 +222,8 @@ export default function AnnouncementDetailPage() {
                   {metaFields.short.map((f) => (
                     <span key={f.key} className="meta-chip">
                       <span className="meta-chip-label" style={{ color: metaLabelColor(f) }}>{f.label}</span>
-                      <span className="meta-chip-value">{fmtMeta(f, metaFields.meta[f.key])}</span>
+                      {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
+                      <span className="meta-chip-value">{fmtMeta(f, f.key === 'downloadDeadline' ? (metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline) : metaFields.meta[f.key])}</span>
                     </span>
                   ))}
                 </div>

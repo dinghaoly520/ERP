@@ -147,6 +147,27 @@ describe('TimelineService（B3 A-204）', () => {
     expect(opening?.timeEnd).toBeUndefined(); // 非区间节点无终点
   });
 
+  it('纯日期区间（无时分）不被次段年份误读成时分——"10月10日-2026年10月14日"回归', async () => {
+    // 2026-10-12 实录：旧正则时分组冒号可选，\D+ 跨段吞位把次段年份 2026 的
+    // "20""26" 当成 20:26 → 单点 2026-10-10 20:26，区间终点丢失
+    const prisma = mk(
+      {
+        id: 'pmi-1',
+        initiationDate: new Date('2026-03-18T00:00:00Z'),
+        documentAcquireTime: '2026年10月10日-2026年10月14日',
+        bidOpeningTime: null,
+        archivedAt: null,
+      },
+      { deadline: null, openTime: null },
+      null,
+    );
+    const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
+    const acquire = nodes.find(n => n.key === 'documentAcquire');
+    // 本地零点 → ISO 为 UTC 前一日 16:00（前端渲染时转回本地 10-10/10-14 00:00）
+    expect(acquire?.time).toBe('2026-10-09T16:00:00.000Z'); // 起点零点，不是 20:26
+    expect(acquire?.timeEnd).toBe('2026-10-13T16:00:00.000Z'); // 终点恢复成区间
+  });
+
   it('上传同步的单点 documentAcquireTime（无区间）→ timeEnd 为 null', async () => {
     const prisma = mk(
       {

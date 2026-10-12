@@ -697,6 +697,21 @@ export class ProjectManagementService {
   }
 
   /**
+   * 失效 /tmp 采购文件文本缓存（extractTenderFields 优先读它）。
+   * 采购文件内容一旦变更（编辑器保存/段落保存/文本替换/删除附件）必须调用，
+   * 否则左栏「AI 提取」继续读旧文本、提出旧的开标时间/获取时间/项目概况
+   * （2026-10-12 实录：编辑器 saveAttachmentHtml 只清了 DB extractedText，
+   *  /tmp 缓存未清 → 提取恒命中三天前的旧文本）。
+   */
+  private async invalidateTenderTextCache(projectId: string) {
+    try {
+      await unlink(getTenderTextCachePath(projectId));
+    } catch {
+      /* 缓存不存在即无事可做 */
+    }
+  }
+
+  /**
    * 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime。
    * 用于上传时解析失败、用户手动触发重新提取的场景。
    */
@@ -716,7 +731,8 @@ export class ProjectManagementService {
     } catch {
       const stage = await this.prisma.projectManagementStage.findFirst({
         where: { projectManagementItemId: itemId, stageKey: 'TENDER_DOCUMENT' },
-        include: { attachments: true },
+        // 最新上传优先：多次上传采购文件主文件时，find 取到的应是最新一份
+        include: { attachments: { orderBy: { createdAt: 'desc' } } },
       });
       if (!stage) throw new NotFoundException({ error: '未找到采购文件阶段', code: 'NOT_FOUND' });
 
@@ -814,7 +830,8 @@ export class ProjectManagementService {
     } catch {
       const stage = await this.prisma.projectManagementStage.findFirst({
         where: { projectManagementItemId: itemId, stageKey: 'TENDER_DOCUMENT' },
-        include: { attachments: true },
+        // 最新上传优先：多次上传采购文件主文件时，find 取到的应是最新一份
+        include: { attachments: { orderBy: { createdAt: 'desc' } } },
       });
       const tenderFile = stage?.attachments.find(
         (a) => isTenderMainFile(a.fileName),
@@ -5829,6 +5846,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       where: { id: attachmentId },
       select: {
         id: true,
+        fileName: true,
         projectManagementItemId: true,
         objectKey: true,
         projectManagementStageId: true,
@@ -5866,6 +5884,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
         select: { stageKey: true, id: true },
       });
       if (stage) {
+        // 删除的是采购文件主文件——/tmp 文本缓存一并失效（防止提取继续读已删内容）
+        if (stage.stageKey === 'TENDER_DOCUMENT' && isTenderMainFile(attachment.fileName)) {
+          await this.invalidateTenderTextCache(projectId);
+        }
         const cachePath = getStageAnalysisCachePath(projectId, stage.stageKey);
         try {
           const cachedRaw = await readFile(cachePath, 'utf8');
@@ -6436,7 +6458,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '纠正语序不通顺或语法小错误，以及将不合适的用词调整为更正式、更准确的表达。' +
         '不得添加、删除或改写任何实质性内容，不得改变段落结构，不得增加任何解释或说明。' +
         '直接输出修正后的文本。';
-      const result = await this.aiService.chat(systemPrompt, text, 0.2);
+      // 预算上限：v4-flash 为推理模型，默认 180s 超时×2 重试会让左栏「AI 提取」
+      // 转圈十几分钟无反馈；此处收紧为 60s×1 重试（输出 ≤500 字，2048 token 充裕）
+      const result = await this.aiService.chat(systemPrompt, text, 0.2, undefined, undefined, {
+        maxTokens: 2048, timeoutMs: 60_000, retries: 1,
+      });
       if (result && result.trim().length >= text.length * 0.6) {
         return result.trim();
       }
@@ -6458,7 +6484,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '从以下采购文件文本中提取"开标时间"（开标/递交响应文件/谈判开始的具体日期时间，字段名可能是"开标时间""递交和谈判时间""投标截止时间"等），' +
         '必须保留日期与时分（如09:00、14:00）。只输出一个日期时间（如"2026年9月20日14:00"），不要其他说明。' +
         '如果文本中没有该信息，输出"无"。';
-      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1);
+      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1, undefined, undefined, {
+        maxTokens: 512, timeoutMs: 30_000, retries: 1,
+      });
       const cleaned = result?.trim();
       if (cleaned && cleaned !== '无' && /\d{4}年/.test(cleaned)) {
         return cleaned;
@@ -6477,7 +6505,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '规则：① 保留原文的日期与时分；② 若原文只有日期没有具体时分，按线索补全：含"下午/午后"补 14:00、含"上午"补 9:00、无线索默认补 9:00；' +
         '③ 把"X时X分""X点X分"统一为"H:MM"；④ 直接输出规范化结果，不要解释、引号或前后缀。' +
         '示例：输入"2026年7月25日"→"2026年7月25日9:00"；输入"2026.7.25 下午两点"→"2026年7月25日14:00"；输入"2026-07-25 14:00"→"2026年7月25日14:00"。';
-      const result = await this.aiService.chat(systemPrompt, text, 0.2);
+      const result = await this.aiService.chat(systemPrompt, text, 0.2, undefined, undefined, {
+        maxTokens: 512, timeoutMs: 30_000, retries: 1,
+      });
       const cleaned = result?.trim().replace(/^["'"，。.\s]+|["'"，。.\s]+$/g, '');
       if (cleaned && /\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}/.test(cleaned)) {
         return cleaned.replace(/\s+/g, '');
@@ -6502,7 +6532,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '示例：输入"2026年03月23日09:00至2026年03月26日15:00"→"2026年3月23日9:00-2026年3月26日15:00"；' +
         '输入"2026年8月1日至2026年8月5日"→"2026年8月1日-2026年8月5日"；' +
         '输入"自发布之日起至2026.8.5"→"2026年8月5日"。';
-      const result = await this.aiService.chat(systemPrompt, text, 0.0);
+      const result = await this.aiService.chat(systemPrompt, text, 0.0, undefined, undefined, {
+        maxTokens: 512, timeoutMs: 30_000, retries: 1,
+      });
       const cleaned = result?.trim().replace(/^["'"，。.\s]+|["'"，。.\s]+$/g, '');
       if (cleaned && /\d{4}年\d{1,2}月\d{1,2}日/.test(cleaned)) {
         return cleaned;
@@ -6520,7 +6552,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '从以下采购文件文本中提取"采购文件获取时间"（供应商可获取/下载/领取采购文件的时间段或截止时间），' +
         '必须保留时分（如09:00、15:00）。只输出时间（如"2026年3月23日9:00-2026年3月26日15:00"或"2026年3月25日17:00前"），不要其他说明。' +
         '如果文本中没有获取时间信息，输出"无"。';
-      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1);
+      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1, undefined, undefined, {
+        maxTokens: 512, timeoutMs: 30_000, retries: 1,
+      });
       const cleaned = result?.trim();
       if (cleaned && cleaned !== '无' && /\d{4}年/.test(cleaned)) {
         return cleaned;
@@ -6554,7 +6588,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
             '严格排除："投标人资格要求""供应商资格条件""技术规格要求""商务条款""评审办法"以及任何对投标方的资质/业绩门槛。' +
             '只输出提取到的实质内容原文（控制在100-500字），不要保留章节编号、不要输出"项目概况"标题本身、不要添加解释或评价。' +
             '如果文本中没有项目概况内容，输出"无"。';
-      const result = await this.aiService.chat(systemPrompt, text.slice(0, 8000), 0.2);
+      // 预算上限：8k 字输入对推理型模型属重负载，默认 180s×2 重试会让「AI 提取项目概况」
+      // 长时间转圈无反馈；60s×1 重试 + 2048 token（输出 100-500 字，思维链另有余量）
+      const result = await this.aiService.chat(systemPrompt, text.slice(0, 8000), 0.2, undefined, undefined, {
+        maxTokens: 2048, timeoutMs: 60_000, retries: 1,
+      });
       const cleaned = result?.trim();
       if (cleaned && cleaned !== '无' && cleaned.length >= 20) {
         return cleaned;
@@ -7045,6 +7083,17 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await this.prisma.attachment.delete({ where: { id: oldAttachment.id } });
     try { await unlink(filePath); } catch {}
 
+    // 采购文件主文件段落内容已变——失效 /tmp 文本缓存（同 saveAttachmentHtml 口径）
+    if (oldAttachment.projectManagementStageId) {
+      const stage = await this.prisma.projectManagementStage.findUnique({
+        where: { id: oldAttachment.projectManagementStageId },
+        select: { stageKey: true },
+      });
+      if (stage?.stageKey === 'TENDER_DOCUMENT' && isTenderMainFile(oldAttachment.fileName)) {
+        await this.invalidateTenderTextCache(projectId);
+      }
+    }
+
     this.logger.log(
       `附件替换成功：${oldAttachment.id} → ${newAttachment.id}, stage=${oldAttachment.projectManagementStageId}`,
     );
@@ -7147,6 +7196,20 @@ ${JSON.stringify(algorithmResult, null, 2)}
         where: { id: createdAttachment.id },
         data: { projectManagementStageId: oldAttachment.projectManagementStageId },
       });
+    }
+
+    // 采购文件被文本替换——旧或新文件名命中主文件判定即失效 /tmp 文本缓存
+    if (oldAttachment.projectManagementStageId) {
+      const stage = await this.prisma.projectManagementStage.findUnique({
+        where: { id: oldAttachment.projectManagementStageId },
+        select: { stageKey: true },
+      });
+      if (
+        stage?.stageKey === 'TENDER_DOCUMENT' &&
+        (isTenderMainFile(oldAttachment.fileName) || isTenderMainFile(fileName))
+      ) {
+        await this.invalidateTenderTextCache(projectId);
+      }
     }
 
     return { success: true };
@@ -7441,6 +7504,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 清理旧物理文件（patcher 路径已在归档步骤复制到 tender-doc-versions/）
     try { await unlink(oldPath); } catch {}
 
+    // 采购文件主文件内容已整体替换——失效 /tmp 文本缓存。
+    // （上面 extractedText 置空只覆盖 DB 懒缓存；/tmp 缓存不清，
+    //  左栏「AI 提取」仍命中旧文本，提出旧的开标时间/获取时间/项目概况）
+    if (oldAttachment.projectManagementStageId) {
+      const stage = await this.prisma.projectManagementStage.findUnique({
+        where: { id: oldAttachment.projectManagementStageId },
+        select: { stageKey: true },
+      });
+      if (stage?.stageKey === 'TENDER_DOCUMENT' && isTenderMainFile(oldAttachment.fileName)) {
+        await this.invalidateTenderTextCache(projectId);
+      }
+    }
+
     this.logger.log(
       `HTML 附件保存成功（${usePatcher ? 'patcher' : 'legacy'}）：${oldAttachment.id}`,
     );
@@ -7492,7 +7568,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async parseAnnouncementFields(projectId: string): Promise<{ fields: Record<string, string>; extractedText: string } | null> {
     const stage = await this.prisma.projectManagementStage.findFirst({
       where: { projectManagementItemId: projectId, stageKey: 'TENDER_DOCUMENT' },
-      include: { attachments: true },
+      // 最新上传优先（与 extractTenderFields 同口径）
+      include: { attachments: { orderBy: { createdAt: 'desc' } } },
     });
     if (!stage) return null;
     const docxAttachment = stage.attachments.find((a) =>
@@ -7521,7 +7598,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const fields: Record<string, string> = {};
     try {
       const aiResponse = await this.aiService.chatJson<Record<string, string>>(
-        '你是采购公告字段提取助手。从招标文件原文中提取以下字段，输出严格的 JSON 对象（key 为字段名，value 为提取值）。只包含能提取到的字段，不确定的字段不要输出。字段：projectName(项目名称)、projectOverview(项目概况/采购内容简介)、maxPriceNumeric(预算金额/最高限价)、contactName(联系人)、contactPhone(联系电话)、contactEmail(联系邮箱)、qualificationRequirements(供应商资格要求)、bidOpeningTime(开标时间)。',
+        '你是采购公告字段提取助手。从招标文件原文中提取以下字段，输出严格的 JSON 对象（key 为字段名，value 为提取值）。只包含能提取到的字段，不确定的字段不要输出。字段：projectName(项目名称)、projectOverview(项目概况/采购内容简介)、maxPriceNumeric(预算金额/最高限价)、contactName(联系人)、contactPhone(联系电话)、contactEmail(联系邮箱)、qualificationRequirements(供应商资格要求)、bidOpeningTime(开标时间)。' +
+        '注意：bidOpeningTime 必须是「开标」的时刻，严禁把「投标/响应文件递交截止时间」「递交及截止时间」当作开标时间（采购文件中两者常同时出现且相差24小时）——优先取明确标注「开标时间」的字段值。',
         extractedText,
         0.1,
       );
@@ -7532,6 +7610,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     } catch (e) {
       this.logger.warn(`parseAnnouncementFields: AI 提取失败 ${(e as Error).message}`);
+    }
+
+    // 开标时间权威覆盖：PMI 项目基本信息已有规则引擎从同一采购文件提取的开标时间
+    // （extractTenderFields，含 AI 归一化），AI 提取偶发把「递交截止」（=开标−24h，
+    // 同文出现）误当开标时间（2026-10-12 实录：公告草稿被灌入开标−24h 值）——
+    // 有项目值时直接覆盖 AI 结果，杜绝时间漂移
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { bidOpeningTime: true },
+    });
+    if (item?.bidOpeningTime?.trim()) {
+      fields.bidOpeningTime = item.bidOpeningTime.trim();
     }
 
     return { fields, extractedText };

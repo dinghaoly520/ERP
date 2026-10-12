@@ -223,7 +223,8 @@ function renderMeta(ann: AnnouncementListItem) {
             {shortFields.map(f => {
               // 对象/数组展平：WIN_NOTICE 的 metadata.winner 是对象（供应商名+报价等），
               // 直接渲染对象会抛 "Objects are not valid as a React child" 崩溃页面。
-              let raw = meta[f.key];
+              // 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先
+              let raw = f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key];
               if (f.key === 'amount' && !raw && meta.winner?.price != null) raw = meta.winner.price;
               if (raw && typeof raw === 'object') {
                 raw = Array.isArray(raw)

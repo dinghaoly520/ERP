@@ -83,7 +83,8 @@ function MetaBlock({ ann }: { ann: AnnouncementListItem }) {
         {shortFields.length > 0 && (
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {shortFields.map(f => {
-              let raw = meta[f.key];
+              // 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先
+              let raw = f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key];
               if (f.key === 'amount' && !raw && meta.winner?.price != null) raw = meta.winner.price;
               if (raw && typeof raw === 'object') {
                 raw = Array.isArray(raw)

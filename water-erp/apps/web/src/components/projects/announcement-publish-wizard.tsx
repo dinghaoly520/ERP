@@ -104,6 +104,34 @@ function buildCanonicalMeta(
     put('qualification', d.qualificationRequirements || project?.supplierRequirements);
   }
 
+  // 采购文件下载时间公共解析（两采购方式分支共用）：
+  // downloadPeriod = 区间文本（门户芯片展示）；downloadDeadline = 止点
+  // （后端 B-009 校验 parseFlexibleDate 取单点，勿把区间写进此键——2026-10-12 拆分）
+  const putDownloadPeriod = (startIso?: string, endIso?: string) => {
+    if (startIso && endIso) {
+      put('downloadPeriod', `${toChineseDateTime(startIso)} 至 ${toChineseDateTime(endIso)}`);
+      put('downloadDeadline', toChineseDateTime(endIso));
+    } else if (endIso) {
+      put('downloadDeadline', toChineseDateTime(endIso));
+    }
+  };
+  // 兜底：项目「采购文件获取时间」区间原文（中文格式不一，统一归一化为「X 至 Y」）
+  const putAcquireFromProject = (): boolean => {
+    const at = project?.documentAcquireTime;
+    if (!at) return false;
+    const sepMatch = at.match(/至|-|~/);
+    const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
+    if (sepIdx > 0) {
+      putDownloadPeriod(
+        toDatetimeLocalValue(at.slice(0, sepIdx).trim()),
+        toDatetimeLocalValue(at.slice(sepIdx + 1).trim()),
+      );
+    } else {
+      put('downloadDeadline', toChineseDateTime(toDatetimeLocalValue(at)));
+    }
+    return true;
+  };
+
   if (isSingleSource) {
     // ── A3（GB/T 43711 7.2.2.3）：直接采购理由（论证意见）入 canonical meta，随公告同步 BidProject.directSourcingReason ──
     put('directSourcingReason', d.argumentOpinion);
@@ -116,27 +144,30 @@ function buildCanonicalMeta(
     }
     put('openTime', procurementTime);
     put('deadline', subtractHours(procurementTime, DEADLINE_HOURS_BEFORE_OPENING));
-    // 采购文件下载时间 = 公示时间（起止区间）：优先 draft 公示起止，兜底项目 documentAcquireTime
+    // 采购文件下载时间：优先 draft 公示起止，兜底项目 documentAcquireTime
     if (d.announcementStart && d.announcementEnd) {
-      put('downloadDeadline', `${toChineseDateTime(d.announcementStart)} 至 ${toChineseDateTime(d.announcementEnd)}`);
-    } else if (project?.documentAcquireTime) {
-      const at = project.documentAcquireTime;
-      const sepMatch = at.match(/至|-|~/);
-      const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
-      if (sepIdx > 0) {
-        const startRaw = at.slice(0, sepIdx).trim();
-        const endRaw = at.slice(sepIdx + 1).trim();
-        put('downloadDeadline', `${toChineseDateTime(toDatetimeLocalValue(startRaw))} 至 ${toChineseDateTime(toDatetimeLocalValue(endRaw))}`);
-      } else {
-        put('downloadDeadline', toChineseDateTime(toDatetimeLocalValue(at)));
-      }
-    } else if (d.announcementEnd || d.announcementStart) {
-      put('downloadDeadline', toChineseDateTime(d.announcementEnd || d.announcementStart));
+      putDownloadPeriod(d.announcementStart, d.announcementEnd);
+    } else if (!putAcquireFromProject() && (d.announcementEnd || d.announcementStart)) {
+      putDownloadPeriod(undefined, d.announcementEnd || d.announcementStart);
     }
   } else {
-    // ── 其他采购方式：投标截止 = 公示期限止；开标时间 = 开标时间或采购时间 ──
-    put('deadline', d.announcementEnd);
-    put('openTime', d.bidOpeningTime || d.procurementTime);
+    // ── 其他采购方式：开标时间 = 开标时间/采购时间；投标截止 = 开标前 24h
+    //    （BID_DEADLINE_BEFORE_OPENING_MS，与关键时间卡同口径），推导失败才回退公示止；
+    //    采购文件下载时间 = 公示起止区间，兜底项目 documentAcquireTime ──
+    // 开标来源序：draft 开标时间 → 项目开标时间 → 采购时间（procurementTime 是直接采购
+    // 语义字段且可能存着过期推导值——2026-10-12 实录：它先于 bidOpeningTime 被取用，
+    // 截止被算成开标−48h / 回退公示止）
+    const openingRaw = d.bidOpeningTime || project?.bidOpeningTime || d.procurementTime || '';
+    const openingIso = toDatetimeLocalValue(openingRaw);
+    put('openTime', openingIso || d.bidOpeningTime || d.procurementTime);
+    put('deadline', openingIso
+      ? hoursBeforeOpenTime(openingIso, DEADLINE_HOURS_BEFORE_OPENING)
+      : d.announcementEnd);
+    if (d.announcementStart && d.announcementEnd) {
+      putDownloadPeriod(d.announcementStart, d.announcementEnd);
+    } else {
+      putAcquireFromProject();
+    }
   }
   put('contact', contact);
   return out;
@@ -284,11 +315,11 @@ function toDateInputValue(text: string): string {
   return text;
 }
 
-/** 中文日期时间 "2026年3月26日15:00" → YYYY-MM-DDTHH:MM（datetime-local input 格式） */
+/** 中文日期时间 "2026年3月26日15:00" / "2026年10月20日14时00分00秒" → YYYY-MM-DDTHH:MM（datetime-local 格式） */
 function toDatetimeLocalValue(text: string): string {
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) return text;
-  // 匹配 "2026年03月26日15:00" 或 "2026年3月26日15:00"
-  const m = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+  // 匹配 "2026年03月26日15:00"、"2026年3月26日 15:00" 或公告模板长格式 "2026年10月20日14时00分（00秒）"
+  const m = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2})\s*[:时]\s*(\d{2})\s*分?/);
   if (m) {
     return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}T${m[4].padStart(2, '0')}:${m[5]}`;
   }
@@ -645,9 +676,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
     // 标书投递截止时间 = 开标时间前 DEADLINE_HOURS_BEFORE_OPENING 小时（源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS）
     if (!isSingleSource) {
-      const openTime = (filledDraft as Record<string, string>).procurementTime?.trim()
-        || (filledDraft as Record<string, string>).bidOpeningTime?.trim()
+      const openTime = (filledDraft as Record<string, string>).bidOpeningTime?.trim()
         || project.bidOpeningTime?.trim()
+        || (filledDraft as Record<string, string>).procurementTime?.trim()
         || '';
       const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
       if (openTimeIso) {
@@ -945,10 +976,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         ...(finalDraft as Record<string, unknown>),
         ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE'),
       };
-      // 采购文件下载时间芯片与 handlePublish 同口径（非直接采购：=公示期限止的中文可读格式；
-      // 直接采购的 downloadDeadline 已由 buildCanonicalMeta 按公示区间算好，勿覆盖）
+      // 采购文件下载时间芯片与 handlePublish 同口径：有公示起止才覆盖
+      // （buildCanonicalMeta 已按公示起止→项目获取时间区间兜底——公示起止为空的
+      // 旧草稿场景 2026-10-12 实录：只写止点会丢区间）
       if (tenderType !== 'SINGLE_SOURCE' && effectiveAnnouncementEnd) {
-        displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+        const dlStartPreview = (finalDraft as Record<string, string>).announcementStart || '';
+        if (dlStartPreview) {
+          displayMeta.downloadPeriod = `${toChineseDateTime(dlStartPreview)} 至 ${toChineseDateTime(effectiveAnnouncementEnd)}`;
+          displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+        } else if (!displayMeta.downloadDeadline) {
+          displayMeta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+        }
       }
       if (category === 'winning_bid') {
         const draftPeriod = (finalDraft as Record<string, string>).publicityPeriod?.trim();
@@ -1069,18 +1107,27 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 直接采购：deadline/downloadDeadline 已在 buildCanonicalMeta 中按「采购时间前24h / 公示区间」算好，勿覆盖
       if (tenderType !== 'SINGLE_SOURCE') {
         const drPub = draft as Record<string, string>;
-        const openTimeRaw = drPub.procurementTime?.trim()
-          || drPub.bidOpeningTime?.trim()
+        // 开标来源序与 buildCanonicalMeta 同口径：draft 开标时间 → 项目开标时间 → 采购时间
+        const openTimeRaw = drPub.bidOpeningTime?.trim()
           || project?.bidOpeningTime?.trim()
+          || drPub.procurementTime?.trim()
           || '';
         const openTimeIsoPub = openTimeRaw ? toDatetimeLocalValue(openTimeRaw) : '';
         const derivedSubmissionDeadline = openTimeIsoPub
           ? hoursBeforeOpenTime(openTimeIsoPub, DEADLINE_HOURS_BEFORE_OPENING)
           : bidSubmissionDeadline.trim();
         meta.deadline = derivedSubmissionDeadline || effectiveAnnouncementEnd;
-        // 采购文件下载时间=公示期限（止）：落中文可读格式（两门户详情芯片按裸字符串渲染，
-        // 此前直写 ISO 串会显「2026-09-26T23:59」）；后端 parseFlexibleDate 兼容中文解析
-        if (effectiveAnnouncementEnd) meta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+        // 采购文件下载时间：区间入 downloadPeriod（两门户芯片按裸字符串渲染），
+        // 止点入 downloadDeadline（后端 B-009 校验 parseFlexibleDate 取单点，勿写区间）。
+        // 有公示起止才覆盖——canonical 已兜底项目获取时间区间（公示起止为空的旧草稿
+        // 只落止点会丢区间，2026-10-12 实录）
+        const dlStart = (finalDraft as Record<string, string>).announcementStart || '';
+        if (dlStart && effectiveAnnouncementEnd) {
+          meta.downloadPeriod = `${toChineseDateTime(dlStart)} 至 ${toChineseDateTime(effectiveAnnouncementEnd)}`;
+          meta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+        } else if (effectiveAnnouncementEnd && !meta.downloadDeadline) {
+          meta.downloadDeadline = toChineseDateTime(effectiveAnnouncementEnd);
+        }
       }
       // 下载方式已删除（统一免费下载）——保留 'free' 写入以兼容旧元数据消费方
       if (category === 'procurement_document' && officialTender) {
@@ -1661,7 +1708,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 const dr = (draft ?? {}) as Record<string, string>;
                 const pubStart = dr.announcementStart || '';
                 const pubEnd = announcementEndDate || dr.announcementEnd || '';
-                const openTime = dr.procurementTime || dr.bidOpeningTime || '';
+                // 来源序与 buildCanonicalMeta 同口径（procurementTime 可能存过期推导值）
+                const openTime = dr.bidOpeningTime || project?.bidOpeningTime || dr.procurementTime || '';
                 const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
                 // 标书投递截止 = 开标时间前 DEADLINE_HOURS_BEFORE_OPENING 小时，由开标时间直接推导（不再单独编辑）
                 const submissionDeadline = openTimeIso
@@ -2182,7 +2230,8 @@ function PortalAnnouncementPreview({
                         style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08)' }}
                       >
                         <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
-                        <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{portalFormatMetaValue(f, meta[f.key])}</span>
+                        {/* 采购文件下载时间：区间（downloadPeriod）优先，止点（downloadDeadline）兜底——与四门户芯片同口径 */}
+                        <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{portalFormatMetaValue(f, f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key])}</span>
                       </span>
                     );
                   })}

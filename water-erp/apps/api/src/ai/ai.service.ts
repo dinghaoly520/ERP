@@ -41,9 +41,18 @@ export class AiService {
     return this.llm.chatJson<T>(systemPrompt, userPrompt, temperature);
   }
 
-  /** 便捷方法 —— 直接调用 LLM chat（纯文本输出） */
-  async chat(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<string> {
-    return this.llm.chat(systemPrompt, userPrompt, temperature);
+  /** 便捷方法 —— 直接调用 LLM chat（纯文本输出）。
+   *  第 4-6 参与 LlmService.chat 同形（signal/seed/options），
+   *  供调用方收紧超时/重试/token 预算（如项目基本信息 AI 提取的 60s 上限）。 */
+  async chat(
+    systemPrompt: string,
+    userPrompt: string,
+    temperature = 0.3,
+    signal?: AbortSignal,
+    seed?: number,
+    options?: { maxTokens?: number; timeoutMs?: number; retries?: number },
+  ): Promise<string> {
+    return this.llm.chat(systemPrompt, userPrompt, temperature, signal, seed, options);
   }
 
   /**
