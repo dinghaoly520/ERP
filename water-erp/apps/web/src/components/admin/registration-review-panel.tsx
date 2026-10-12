@@ -102,17 +102,13 @@ function ConfirmDialog({
   );
 }
 
-/** 申请人识别块：头像字 + 姓名/用户名 + 公司·部门 */
+/** 申请人识别块：头像字 + 姓名/用户名（公司/部门在表格独立列展示，2026-10-12） */
 function Applicant({
   displayName,
   username,
-  company,
-  department,
 }: {
   displayName: string;
   username: string;
-  company?: string | null;
-  department?: string | null;
 }) {
   return (
     <div className="flex items-center gap-2.5">
@@ -124,12 +120,18 @@ function Applicant({
           {displayName}
           <span className="ml-2 text-xs font-normal text-[var(--muted-foreground)]">{username}</span>
         </div>
-        <div className="truncate text-xs text-[var(--muted-foreground)]">
-          {company}
-          {department ? ` · ${department}` : ""}
-        </div>
       </div>
     </div>
+  );
+}
+
+/** 公司/部门双行列（与「联系方式」列同构：主行公司、副行部门） */
+function OrgCell({ company, department }: { company?: string | null; department?: string | null }) {
+  return (
+    <td>
+      <div className="max-w-[16rem] truncate text-sm text-[var(--foreground)]" title={company ?? undefined}>{company || "—"}</div>
+      <div className="max-w-[16rem] truncate text-xs text-[var(--muted-foreground)]" title={department ?? undefined}>{department || "—"}</div>
+    </td>
   );
 }
 
@@ -298,6 +300,7 @@ export function RegistrationReviewPanel({
           <div className="space-y-3">
             <p className="text-xs leading-6 text-[var(--muted-foreground)]">
               申请人 <span className="font-medium text-[var(--foreground)]">{confirm.user.displayName}</span>
+              （{[confirm.user.company, confirm.user.departmentName].filter(Boolean).join(" · ") || "未填写公司/部门"}）
               {confirm.user.requestedRole ? (
                 <> 自报 <span className="font-medium text-[var(--foreground)]">{ROLE_LABEL[confirm.user.requestedRole]}</span></>
               ) : null}
@@ -359,10 +362,11 @@ export function RegistrationReviewPanel({
         ) : (
           <div className="neu-table-card">
             <div className="overflow-x-auto">
-              <table className="neu-table w-full min-w-[860px]">
+              <table className="neu-table w-full min-w-[1020px]">
                 <thead>
                   <tr>
                     <th>申请人</th>
+                    <th>公司 / 部门</th>
                     <th>申请权限</th>
                     <th>联系方式</th>
                     <th>办公位置</th>
@@ -374,8 +378,9 @@ export function RegistrationReviewPanel({
                   {pending.map((u) => (
                     <tr key={u.id}>
                       <td>
-                        <Applicant displayName={u.displayName} username={u.username} company={u.company} department={u.departmentName} />
+                        <Applicant displayName={u.displayName} username={u.username} />
                       </td>
+                      <OrgCell company={u.company} department={u.departmentName} />
                       <td>
                         <Pill tone="accent">{u.requestedRole ? ROLE_LABEL[u.requestedRole] : "—"}</Pill>
                       </td>
@@ -426,10 +431,11 @@ export function RegistrationReviewPanel({
         ) : (
           <div className="neu-table-card">
             <div className="overflow-x-auto">
-              <table className="neu-table w-full min-w-[860px]">
+              <table className="neu-table w-full min-w-[1020px]">
                 <thead>
                   <tr>
                     <th>申请人</th>
+                    <th>公司 / 部门</th>
                     <th>申请权限</th>
                     <th>审核结果</th>
                     <th>审核人</th>
@@ -441,8 +447,9 @@ export function RegistrationReviewPanel({
                   {reviews.map((r) => (
                     <tr key={r.id}>
                       <td>
-                        <Applicant displayName={r.displayName} username={r.username} company={r.company} department={r.department} />
+                        <Applicant displayName={r.displayName} username={r.username} />
                       </td>
+                      <OrgCell company={r.company} department={r.department} />
                       <td className="text-sm text-[var(--muted-foreground)]">
                         {r.requestedRole ? ROLE_LABEL[r.requestedRole] : "—"}
                       </td>

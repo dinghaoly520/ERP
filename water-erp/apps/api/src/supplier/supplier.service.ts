@@ -795,7 +795,9 @@ export class SupplierService {
         ),
         contacts: ((s as any).contacts ?? []).map((c: { name: string; phone: string; isPrimary: boolean }) => ({
           name: c.name,
-          phone: maskPhone(openPiiForMask(c.phone)), // 管理端出口脱敏（等保+密评）
+          // 遴选/邀请场景明文出口（2026-10-12 用户裁定）：对比面板用于敲定邀请名单并电话联系，
+          // 此处无点击揭示机制，掩码即不可见；存储仍密封
+          phone: openPiiForMask(c.phone),
           isPrimary: c.isPrimary,
         })),
         evaluation: evals.length > 0 ? { level: evals[0].finalGrade || '', count: evals.length } : undefined,

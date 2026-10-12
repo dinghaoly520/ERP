@@ -702,7 +702,8 @@ export class ExpertAdminService {
     const pending = records.filter(r => r.invitationStatus === 'pending').length;
     const candidates = records.filter(r => r.expertRole === '候补' && r.invitationStatus === 'pending');
     return {
-      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, phone: maskPhone(openPiiForMask(r.user?.expertProfile?.phone ?? r.user?.phone ?? null)), rsvpNo: r.id.slice(-8).toUpperCase() })),
+      // 抽取通知/RSVP 跟进明文出口（2026-10-12 用户裁定）：主持人逐一致电确认到场，掩码+逐行点击揭示不便；存储仍密封
+      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, phone: openPiiForMask(r.user?.expertProfile?.phone ?? r.user?.phone ?? null), rsvpNo: r.id.slice(-8).toUpperCase() })),
       summary: {
         total: records.length,
         confirmed,

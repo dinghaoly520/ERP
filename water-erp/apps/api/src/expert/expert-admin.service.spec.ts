@@ -10,6 +10,7 @@ import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
 import { CompanyScopeService } from '../company/company-scope';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
+import { sealPii } from '../common/crypto/sm-field-crypto';
 
 describe('ExpertAdminService', () => {
   let service: ExpertAdminService;
@@ -552,6 +553,23 @@ describe('ExpertAdminService', () => {
       await service.getProjectInvitations('p1');
       expect((service as any).autoPromoteCandidate).toHaveBeenCalledWith('p1');
       expect((service as any).autoPromoteCandidate).toHaveBeenCalledTimes(1);
+    });
+
+    it('getProjectInvitations 手机号明文出口（2026-10-12 用户裁定：抽取通知场景不走掩码）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
+      const sealedPhone = sealPii('13812345678')!;
+      prisma.bidExpert.findMany
+        .mockResolvedValueOnce([]) // 过期查询：无过期
+        .mockResolvedValue([
+          {
+            id: 'be-88112233', userId: 'u1', expertName: '张三', major: '水工结构',
+            isLead: false, expertRole: '正选', invitationStatus: 'confirmed',
+            reviewGroup: null, dutyRole: null, rsvpToken: null, rsvpRespondedAt: null, rsvpExpiresAt: null,
+            user: { phone: null, expertProfile: { title: '高工', employer: '某设计院', phone: sealedPhone } },
+          },
+        ]);
+      const res = await service.getProjectInvitations('p1');
+      expect(res.experts[0].phone).toBe('13812345678'); // 落库密封 → 出口明文
     });
 
     it('过期行全是候补时不递补（避免误替换仍待命的正选）', async () => {

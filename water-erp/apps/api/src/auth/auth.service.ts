@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
-import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
+import { sealPii, openPii, openPiiForMask, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { NotificationService } from '../notification/notification.service';
 import { forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -426,7 +426,10 @@ export class AuthService {
     });
   }
 
-  /** 待审核注册用户列表（internal_user + 未激活） */
+  /** 待审核注册用户列表（internal_user + 未激活）。
+   *  phone/email 落库为国密密封密文（sm1:）——审批场景出口直接拆封明文（2026-10-12
+   *  用户裁定：加密仅用于存储与浏览类点击揭示留痕，审批/申请/通知场景明文便于操作；
+   *  此前裸出密文导致审核页联系方式列显示 sm1: 乱码）。 */
   async listPendingRegistrations() {
     return this.prisma.user.findMany({
       where: { role: 'internal_user', isActive: false },
@@ -443,14 +446,23 @@ export class AuthService {
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
-    });
+    }).then(rows => rows.map(r => ({
+      ...r,
+      // 宽容拆封：密封则拆、旧明文直通——单行坏数据不 500 整表
+      phone: openPiiForMask(r.phone),
+      email: openPiiForMask(r.email),
+    })));
   }
 
-  /** 审核历史（只读） */
+  /** 审核历史（只读）。phone/email 为落库密封快照，出口拆封明文（审批场景，2026-10-12 用户裁定） */
   async listRegistrationReviews() {
     return this.prisma.registrationReview.findMany({
       orderBy: { reviewedAt: 'desc' },
-    });
+    }).then(rows => rows.map(r => ({
+      ...r,
+      phone: openPiiForMask(r.phone) ?? '',
+      email: openPiiForMask(r.email),
+    })));
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

@@ -4,7 +4,6 @@ import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { sealPii, openPii, openPiiForMask, blindIndexPii } from '../common/crypto/sm-field-crypto';
-import { maskPhone, maskEmail } from '../common/pii-mask';
 import { PASSWORD_PATTERN } from '../common/validators/password-strength';
 import { VerificationService } from '../verification/verification.service';
 import { NotificationService } from '../notification/notification.service';
@@ -105,7 +104,9 @@ export class PasswordRequestsService {
       },
     }).then(rows => rows.map(r => ({
       ...r,
-      user: r.user ? { ...r.user, email: maskEmail(openPiiForMask(r.user.email)), phone: maskPhone(openPiiForMask(r.user.phone)) } : r.user, // PII 出口掩码（等保+密评）
+      // 审批场景明文出口（2026-10-12 用户裁定）：审批人须核对/联系申请人，掩码不便；
+      // 存储仍密封，浏览类展示才走掩码+点击揭示留痕
+      user: r.user ? { ...r.user, email: openPiiForMask(r.user.email), phone: openPiiForMask(r.user.phone) } : r.user,
     })));
   }
 
@@ -138,7 +139,8 @@ export class PasswordRequestsService {
       ...r,
       // applicantContact 密文落库，审批操作必需明文（联系申请人发临时密码）——此处拆封；低频管理端
       applicantContact: openPii(r.applicantContact) ?? r.applicantContact,
-      matchedUser: r.matchedUser ? { ...r.matchedUser, email: maskEmail(openPiiForMask(r.matchedUser.email)), phone: maskPhone(openPiiForMask(r.matchedUser.phone)) } : r.matchedUser,
+      // matchedUser 同口径明文（2026-10-12 用户裁定）：审批人核对账号联系方式
+      matchedUser: r.matchedUser ? { ...r.matchedUser, email: openPiiForMask(r.matchedUser.email), phone: openPiiForMask(r.matchedUser.phone) } : r.matchedUser,
     })));
   }
 
@@ -393,7 +395,7 @@ export class PasswordRequestsService {
       orderBy: { requestedAt: 'asc' },
       select: {
         id: true,
-        payload: true, // email/phone 值已密封落库——返回前掩码
+        payload: true, // email/phone 值密封落库——出口拆封明文（审批核对需要）
         status: true,
         requestedAt: true,
         decisionNote: true,
@@ -407,14 +409,15 @@ export class PasswordRequestsService {
         },
       },
     }).then(rows => rows.map(r => {
-      // PII 出口掩码（等保+密评）：payload 内 email/phone 与 user 现值均掩码
+      // 审批场景明文出口（2026-10-12 用户裁定）：审批人须逐字段核对旧值/新值，
+      // 掩码使「138****5678 → 139****1234」无从判断真实变更；存储仍密封
       const payload = { ...((r.payload ?? {}) as Record<string, string | null>) };
-      if (typeof payload.email === 'string' && payload.email) payload.email = maskEmail(openPiiForMask(payload.email));
-      if (typeof payload.phone === 'string' && payload.phone) payload.phone = maskPhone(openPiiForMask(payload.phone));
+      if (typeof payload.email === 'string' && payload.email) payload.email = openPiiForMask(payload.email);
+      if (typeof payload.phone === 'string' && payload.phone) payload.phone = openPiiForMask(payload.phone);
       return {
         ...r,
         payload,
-        user: r.user ? { ...r.user, email: maskEmail(openPiiForMask(r.user.email)), phone: maskPhone(openPiiForMask(r.user.phone)) } : r.user,
+        user: r.user ? { ...r.user, email: openPiiForMask(r.user.email), phone: openPiiForMask(r.user.phone) } : r.user,
       };
     }));
   }

@@ -6,7 +6,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, revealExpertField } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { StepTrack } from '@/components/step-track';
@@ -176,37 +176,13 @@ export function ExpertExtractPage({
   const [candidateNotifiedIds, setCandidateNotifiedIds] = useState<string[]>([]);
   // 工作人员代为操作的专家 userId 集合（确认参加/无法参加）
   const [staffActionIds, setStaffActionIds] = useState<Set<string>>(new Set());
-  // PII 明文揭示（等保+密评）：RSVP 列表手机号默认掩码；「明文」走 reveal 端点（SensitiveAccessLog 留痕）
-  const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({});
-  const [revealingPhone, setRevealingPhone] = useState<string | null>(null);
-  const phoneCell = (userId: string, masked?: string | null) => {
-    const shown = revealedPhones[userId] ?? masked;
-    return (
-      <span className="inline-flex items-center justify-center gap-1">
-        <span className="font-mono">{shown || '—'}</span>
-        {masked ? (
-          <button
-            onClick={async () => {
-              if (revealedPhones[userId]) { setRevealedPhones(prev => { const n: Record<string, string> = { ...prev }; delete n[userId]; return n; }); return; }
-              setRevealingPhone(userId);
-              try {
-                const r = await revealExpertField(userId, 'phone');
-                const v = r.value;
-                if (v) { setRevealedPhones(prev => ({ ...prev, [userId]: v })); toast.success('已揭示（本次揭示已留审计日志）'); }
-                else toast.error('该专家暂无联系方式');
-              } catch (err: any) { toast.error(err?.message || '揭示失败'); }
-              setRevealingPhone(null);
-            }}
-            disabled={revealingPhone === userId}
-            className="neu-btn-xs is-ghost !px-2 !py-0.5 !text-[10px] shrink-0"
-            title="揭示明文（写入审计日志）"
-          >
-            {revealingPhone === userId ? '…' : revealedPhones[userId] ? '复原' : '明文'}
-          </button>
-        ) : null}
-      </span>
-    );
-  };
+  // 抽取通知/RSVP 手机号直接明文（2026-10-12 用户裁定）：后端 getProjectInvitations/
+  // 候选池已拆封明文出口（存储仍密封）；主持人逐一致电场景不再逐行点击揭示
+  const phoneCell = (_userId: string, phone?: string | null) => (
+    <span className="inline-flex items-center justify-center gap-1">
+      <span className="font-mono">{phone || '—'}</span>
+    </span>
+  );
   // 步骤5 组长选定/切换（从 DB isLead 恢复，关闭页面重进不丢失）
   const [step5LeaderId, setStep5LeaderId] = useState<string | null>(null);
   const [selectingLeader, setSelectingLeader] = useState(false);
