@@ -70,13 +70,16 @@ export function CompaniesModal({
   /** 编辑窗口目标公司（2026-10-12：行内展开改嵌套弹窗） */
   const [editing, setEditing] = useState<CompanyRow | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (): Promise<CompanyRow[]> => {
     setLoading(true);
     setError(null);
     try {
-      setRows(await api<CompanyRow[]>("/management"));
+      const rows = await api<CompanyRow[]>("/management");
+      setRows(rows);
+      return rows;
     } catch (e) {
       setError((e as Error).message);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -84,11 +87,19 @@ export function CompaniesModal({
 
   useEffect(() => { void reload(); }, [reload]);
 
-  /** 编辑窗口内任一保存 → 刷新台账/KPI 并向上冒泡（公司名/条目计数变化） */
+  /** 基本信息保存（改名/简称）→ 刷新台账/KPI + 同步编辑中公司对象（弹窗标题不陈旧）+ 冒泡账号刷新 */
   const handleEditChanged = useCallback(() => {
-    void reload();
+    void (async () => {
+      const rows = await reload();
+      setEditing((prev) => (prev ? rows.find((r) => r.id === prev.id) ?? prev : prev));
+    })();
     onChanged?.();
   }, [reload, onChanged]);
+
+  /** 条目增删改 → 仅刷新台账（公司列「N 条目」计数），不触发账号表单刷新 */
+  const handleCountsChanged = useCallback(() => {
+    void reload();
+  }, [reload]);
 
   const totals = {
     office: rows.reduce((s, r) => s + r.officeUsers, 0),
@@ -196,12 +207,13 @@ export function CompaniesModal({
         </div>
       </section>
 
-      {/* 编辑窗口（2026-10-12）：嵌套 Modal——ESC 只关顶层；窗口内任一保存联动刷新台账/KPI */}
+      {/* 编辑窗口（2026-10-12）：嵌套 Modal——ESC 只关顶层；基本信息保存联动台账+账号表单，条目操作仅联动台账计数 */}
       {editing && (
         <CompanyEditDialog
           company={editing}
           onClose={() => setEditing(null)}
           onChanged={handleEditChanged}
+          onCountsChanged={handleCountsChanged}
         />
       )}
     </Modal>

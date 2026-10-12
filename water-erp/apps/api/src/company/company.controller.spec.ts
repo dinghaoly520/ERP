@@ -408,4 +408,21 @@ describe('CompanyController admin 按公司条目维护（2026-10-12 编辑窗�
       response: { code: 'SUPERVISION_CONTACT_REQUIRED' },
     });
   });
+
+  it('更新不允许把标识字段清空（纵深防御：UI 拦空值，此处拦直连 API 绕过）', async () => {
+    const prisma = makeAdminEntryPrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.adminUpdatePurchaser('co-1', 'p1', { name: '  ' })).rejects.toMatchObject({
+      response: { code: 'PURCHASER_NAME_REQUIRED' },
+    });
+    await expect(ctrl.adminUpdatePlace('co-1', 'px', { address: '' })).rejects.toMatchObject({
+      response: { code: 'PLACE_REQUIRED' },
+    });
+    await expect(ctrl.adminUpdateSupervision('co-1', 'px', { contact: ' ' })).rejects.toMatchObject({
+      response: { code: 'SUPERVISION_CONTACT_REQUIRED' },
+    });
+    // 三个 build*Update 在校验前即抛出，不应触达事务
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
 });

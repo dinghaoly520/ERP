@@ -31,11 +31,14 @@ export function CompanyEditDialog({
   company,
   onClose,
   onChanged,
+  onCountsChanged,
 }: {
   company: { id: string; name: string; shortName: string | null; code: string | null };
   onClose: () => void;
-  /** 任一保存可能影响台账（公司名/条目计数）——调用方刷新 /management 并向上冒泡 */
+  /** 基本信息保存（公司改名/简称）——调用方刷新台账并向上冒泡（账号表单公司选项集联动） */
   onChanged?: () => void;
+  /** 条目增删改——仅影响台账「N 条目」计数，调用方刷新 /management 即可，不冒泡账号刷新 */
+  onCountsChanged?: () => void;
 }) {
   const [info, setInfo] = useState<CompanyInfo | null>(null);
   const [form, setForm] = useState({ name: company.name, shortName: company.shortName ?? '', purchaserAddress: '' });
@@ -85,16 +88,16 @@ export function CompanyEditDialog({
     }
   };
 
-  /** 条目 CRUD 后刷新本窗口条目并通知外层（台账公司列「N 条目」计数联动） */
+  /** 条目 CRUD 后刷新本窗口条目并通知外层（仅台账「N 条目」计数联动，不动账号表单） */
   const reloadEntries = useCallback(async () => {
     try {
       const data = await fetchCompanyInfoById(company.id);
       setInfo(data);
-      onChanged?.();
+      onCountsChanged?.();
     } catch {
       /* 刷新失败不打断窗口，下次操作自然重试 */
     }
-  }, [company.id, onChanged]);
+  }, [company.id, onCountsChanged]);
 
   const cid = company.id;
 

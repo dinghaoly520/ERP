@@ -497,8 +497,12 @@ export class CompanyController {
     };
   }
 
-  /** 条目更新载荷（PATCH 局部更新：仅携带出现的字段） */
+  /** 条目更新载荷（PATCH 局部更新：仅携带出现的字段；标识字段不允许清空——纵深防御，
+   *  UI 已禁用空值保存，此处拦直连 API 绕过，防空名默认条目让编写页预填空值） */
   private buildPurchaserUpdate(dto: PurchaserBodyDto) {
+    if (dto.name !== undefined && !dto.name.trim()) {
+      throw new BadRequestException({ error: '采购人姓名不能为空', code: 'PURCHASER_NAME_REQUIRED' });
+    }
     return {
       ...(dto.name !== undefined && { name: dto.name.trim() }),
       ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
@@ -516,6 +520,9 @@ export class CompanyController {
   }
 
   private buildPlaceUpdate(dto: PlaceBodyDto) {
+    if (dto.address !== undefined && !dto.address.trim()) {
+      throw new BadRequestException({ error: '地点地址不能为空', code: 'PLACE_REQUIRED' });
+    }
     return {
       ...(dto.address !== undefined && { address: dto.address.trim() }),
       ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
@@ -537,6 +544,10 @@ export class CompanyController {
   }
 
   private buildSupervisionUpdate(dto: SupervisionBodyDto) {
+    // contact 可空（与 name/address 不同）：null=清空标识字段，同样拒绝
+    if (dto.contact !== undefined && (dto.contact === null || !dto.contact.trim())) {
+      throw new BadRequestException({ error: '监督人不能为空（条目以监督人为标识）', code: 'SUPERVISION_CONTACT_REQUIRED' });
+    }
     return {
       ...(dto.department !== undefined && { department: normalizeOptional(dto.department) }),
       ...(dto.address !== undefined && { address: normalizeOptional(dto.address) }),
