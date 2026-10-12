@@ -1,3 +1,4 @@
+import { withCryptoOverlay } from './crypto-overlay'
 /* =================================================================
    双层加密信封 v2 — 前端加密编排（纯函数核心，无 axios/上传依赖）
 
@@ -165,6 +166,7 @@ export async function buildEnvelope(input: BuildEnvelopeInput): Promise<{ envelo
  * 唱标字段密封件（sealedFields/fieldsCommit）逐字保留旧值——服务端 FIELDS_COMMIT_CHANGED 闸门
  * 拒收任何变更；files 其余角色条目保留，仅覆盖补传角色。
  */
+/** B6（第四波）重传重加密同样套冻结遮罩（大文件分钟级） */
 export async function reencryptDualFile(
   file: File,
   role: EnvelopeRole,
@@ -175,7 +177,7 @@ export async function reencryptDualFile(
   prevEnvelope: DualEnvelope,
   onProgress?: (pct: number) => void,
 ): Promise<{ file: File; envelope: DualEnvelope; signature: string; plainSha256: string }> {
-  const sealed = await sealFileForRole(file, role, certPublicKey, admin.publicKey, onProgress)
+  const sealed = await withCryptoOverlay(() => sealFileForRole(file, role, certPublicKey, admin.publicKey, onProgress))
   const envelope: DualEnvelope = {
     ...prevEnvelope,
     certSn,

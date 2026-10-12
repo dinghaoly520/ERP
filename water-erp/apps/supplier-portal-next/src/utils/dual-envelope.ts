@@ -6,6 +6,7 @@
 import type { EnvelopeFileEntry, EnvelopeRole } from '@water-erp/ukey'
 import { uploadFile, type FileAssetResponse } from '@/lib/api/upload'
 import { sealFileForRole, type AdminCertRef, type DualCertRef } from './dual-envelope-core'
+import { withCryptoOverlay } from './crypto-overlay'
 
 export * from './dual-envelope-core'
 
@@ -29,7 +30,9 @@ export async function encryptAndUploadFile(
   onProgress?: (pct: number) => void,
 ): Promise<DualUploadResult> {
   // 0-50：哈希+双层加密（SM4 同步阻塞，进度仅在真实阶段推进）
-  const sealed = await sealFileForRole(file, role, cert.publicKey, admin.publicKey, (p) => onProgress?.(p * 0.5))
+  // B6（第四波）：同步冻结段套全屏遮罩（双 rAF 先落屏）——大文件防误判死机刷新重来
+  const sealed = await withCryptoOverlay(() =>
+    sealFileForRole(file, role, cert.publicKey, admin.publicKey, (p) => onProgress?.(p * 0.5)))
   // 50-100：真实上传进度
   const upload = await uploadFile(
     sealed.file,

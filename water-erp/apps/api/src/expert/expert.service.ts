@@ -472,11 +472,18 @@ export class ExpertService {
       return { verified: true };
     }
     // 失败：计数 + 爆破锁定 + 高风险留痕（监督日志 + admin 通知）
-    const attempts = expert.roomAttempts + 1;
+    // C5（第四波）：锁定期已过 → 计数清零重新起算并清过期锁标记——旧实现从旧值累加，
+    // 过期后再错 1 次即重锁，与「锁定 N 分钟」文案语义不符
+    const lockExpired = !!expert.roomLockedUntil && expert.roomLockedUntil <= new Date();
+    const attempts = (lockExpired ? 0 : expert.roomAttempts) + 1;
     const locked = attempts >= ROOM_CODE_MAX_ATTEMPTS;
     await this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { roomAttempts: attempts, ...(locked ? { roomLockedUntil: new Date(Date.now() + ROOM_CODE_LOCK_MINUTES * 60_000) } : {}) },
+      data: {
+        roomAttempts: attempts,
+        ...(lockExpired && !locked ? { roomLockedUntil: null } : {}),
+        ...(locked ? { roomLockedUntil: new Date(Date.now() + ROOM_CODE_LOCK_MINUTES * 60_000) } : {}),
+      },
     });
     await this.prisma.bidSupervisionLog.create({
       data: {

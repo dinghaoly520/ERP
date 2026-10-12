@@ -161,6 +161,12 @@ function BidDetailInner() {
   const [activeServerCertSn, setActiveServerCertSn] = useState("");
 
   const isApproved = profile?.status === "APPROVED";
+  // C12（第四波）：截止跨过后 canSubmit/阶段文案 30s 自动重算（旧实现不定时重算，页面停显「可投标」误导）
+  const [, forceDeadlineTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => forceDeadlineTick((v) => v + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
   // 截止预检走服务器标准时钟（本地时钟可篡改；未同步时 serverNowMs 退化本地时间，后端仍有截止闸门兜底）
   const canSubmit = !!project && isApproved
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)

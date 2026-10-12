@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import { CloudOff, KeyRound, Lock, MessageSquareOff, ShieldCheck, User, Wifi } from "lucide-react";
+import { CloudOff, Clock, KeyRound, Lock, MessageSquareOff, ShieldCheck, User, Wifi } from "lucide-react";
 import { openUkey } from "@/utils/ukey-factory";
 import { useUkeyPresence } from "@/utils/use-ukey-presence";
 import type { UKeyAdapter } from "@water-erp/ukey";
@@ -404,6 +404,15 @@ export default function OpeningHallPage() {
             <div className="head">
               <span className="name">{project?.name || "加载中…"}</span>
               <div className="meta">
+                {/* C9（第四波）：解密窗口剩余倒计时——数据源同端 getProject.openingSession（旧实现不显示，供应商只能干等窗口状态） */}
+                {isOpening && (project as any)?.openingSession?.decryptWindowEnd && (
+                  <span className="presence">
+                    <Clock size={14} strokeWidth={2} />
+                    {new Date((project as any).openingSession.decryptWindowEnd).getTime() <= Date.now()
+                      ? "解密窗口已结束"
+                      : `解密窗口剩余 ${Math.max(0, Math.ceil((new Date((project as any).openingSession.decryptWindowEnd).getTime() - Date.now()) / 60000))} 分钟`}
+                  </span>
+                )}
                 {/* 在线数：图标 + 等宽数字，左对齐（开标阶段状态由签到按钮/阶段提示条/聊天禁言条表达，不再单设徽标） */}
                 <span className="presence">
                   <User size={14} strokeWidth={2} />

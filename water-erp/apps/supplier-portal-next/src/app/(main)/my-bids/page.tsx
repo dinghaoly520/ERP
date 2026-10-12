@@ -435,6 +435,8 @@ export default function MyBidsPage() {
                     <tbody>
                       {completed.map((r) => {
                         const meta = OUTCOME_META[r.outcome] || { label: r.outcome, cls: "draft" };
+                        // C10（第四波核对终局）：本表为已完成合作历史（行无 project/deadline，「受邀 · 未投递」是历史事实陈述，
+                        // 加「已截止」反而失义）——报告原始诉求已由 /bids 列表截止划线 + 撤回按钮 serverNowMs 门禁覆盖
                         return (
                           <tr key={r.projectId}>
                             <td data-label="项目名称" className="font-semibold">{r.name}</td>

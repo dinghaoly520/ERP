@@ -5756,3 +5756,42 @@ describe('BidService — resolveExpertDispute 废标联动重算', () => {
     expect((service as any).gateway.notifyBidValidity).not.toHaveBeenCalled();
   });
 });
+
+/* ── B1/P2-5（第四波）：claimActiveHost TTL 惰性过期——会话死亡后标记残留、他人 claim 恒失败 ── */
+describe('BidService — claimActiveHost TTL 过期可接管', () => {
+  let service: any;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidOpeningSession: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUnique: jest.fn().mockResolvedValue({ activeHostId: 'u-other', activeHostName: '旧主持' }),
+      },
+    };
+    const { BidService } = jest.requireActual('./bid.service');
+    service = Object.create(BidService.prototype);
+    service.prisma = prisma;
+  });
+
+  it('where 含 TTL 谓词（他人占用且 activeHostClaimedAt 超时 → 可抢占）+ 命中即接管写新戳', async () => {
+    const r = await service.claimActiveHost('p1', 'u-new', '新主持');
+    expect(r.claimed).toBe(true);
+    // TTL 条件必须进 where（结构断言——SQL 语义单测极限，行为验证归 e2e）
+    expect(prisma.bidOpeningSession.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        OR: expect.arrayContaining([
+          expect.objectContaining({ activeHostClaimedAt: expect.objectContaining({ lt: expect.any(Date) }) }),
+        ]),
+      }),
+      data: expect.objectContaining({ activeHostClaimedAt: expect.any(Date) }),
+    }));
+  });
+
+  it('他人占用且未命中（TTL 内/存量无戳）→ claimed:false 带占用者名（现状保持）', async () => {
+    prisma.bidOpeningSession.updateMany.mockResolvedValue({ count: 0 });
+    const r = await service.claimActiveHost('p1', 'u-new', '新主持');
+    expect(r.claimed).toBe(false);
+    expect(r.existingHost).toBe('旧主持');
+  });
+});

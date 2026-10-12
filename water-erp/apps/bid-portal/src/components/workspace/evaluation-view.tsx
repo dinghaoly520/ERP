@@ -777,15 +777,20 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
       {/* E2: 评标截止时间展示 */}
       {stage === 'EVALUATING' && project?.evaluationDeadline && (() => {
-        const remaining = Math.ceil((new Date(project.evaluationDeadline).getTime() - Date.now()) / MS_PER_HOUR);
-        const expired = remaining <= 0;
+        // C3（第四波）：剩余时间分级显示——小时向上取整在临截止时段误导（「剩余约 1 小时」实为 3 分钟）；
+        // >1h 显小时，≤1h 显分钟
+        const remainingMs = new Date(project.evaluationDeadline).getTime() - Date.now();
+        const expired = remainingMs <= 0;
+        const remainingText = remainingMs > 3_600_000
+          ? `约 ${Math.ceil(remainingMs / 3_600_000)} 小时`
+          : `约 ${Math.ceil(remainingMs / 60_000)} 分钟`;
         return (
           <div className="eval-deadline-bar mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold"
             data-expired={expired ? 'true' : 'false'}>
             <div className="flex min-w-0 items-center gap-2">
               <Clock size={13} className={expired ? 'text-[var(--danger)]' : 'text-[var(--accent)]'} />
               <span className={expired ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}>
-                {expired ? `评标已超时（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）` : `评标时限剩余约 ${remaining} 小时（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）`}
+                {expired ? `评标已超时（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）` : `评标时限剩余${remainingText}（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）`}
               </span>
             </div>
             {canApproveExtend && (

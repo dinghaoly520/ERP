@@ -15,6 +15,8 @@ import { LlmService } from './llm.service';
 interface ResponseSpec {
   status?: number;
   content?: string;
+  /** 思考型模型思维链（message.reasoning_content） */
+  reasoningContent?: string;
   rawBody?: string;
   retryAfter?: string;
 }
@@ -69,7 +71,16 @@ class HttpsMock {
   private deliver(req: any, cb: (res: any) => void, spec: ResponseSpec) {
     const raw =
       spec.rawBody ??
-      JSON.stringify({ choices: [{ message: { content: spec.content ?? '' } }] });
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: spec.content ?? '',
+              ...(spec.reasoningContent ? { reasoning_content: spec.reasoningContent } : {}),
+            },
+          },
+        ],
+      });
     const res = new EventEmitter() as any;
     res.statusCode = spec.status ?? 200;
     res.headers = spec.retryAfter ? { 'retry-after': spec.retryAfter } : {};
@@ -153,9 +164,35 @@ describe('LlmService', () => {
     expect(httpsMock.request).toHaveBeenCalledTimes(1);
   });
 
-  it('chatJson 解析失败不重试', async () => {
+  it('chatJson 解析失败重试耗尽后抛（1+2 次）', async () => {
     httpsMock = new HttpsMock(() => okRes('不是 JSON'));
     await expect(service.chatJson('s', 'u')).rejects.toThrow('无法解析为 JSON');
+    expect(httpsMock.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('chatJson 解析失败重试后成功', async () => {
+    httpsMock = new HttpsMock((i) => (i === 0 ? okRes('不是 JSON') : okRes('{"a":1}')));
+    await expect(service.chatJson<{ a: number }>('s', 'u')).resolves.toEqual({ a: 1 });
+    expect(httpsMock.request).toHaveBeenCalledTimes(2);
+  });
+
+  it('chatJson 空 content + reasoning_content：不吞思维链散文，按空内容重试', async () => {
+    httpsMock = new HttpsMock((i) =>
+      i === 0
+        ? { status: 200, content: '', reasoningContent: '这是一段思维链散文，不是 JSON' }
+        : okRes('{"a":1}'),
+    );
+    await expect(service.chatJson<{ a: number }>('s', 'u')).resolves.toEqual({ a: 1 });
+    expect(httpsMock.request).toHaveBeenCalledTimes(2);
+  });
+
+  it('chat（散文模式）空 content + reasoning_content 仍回退思维链文本', async () => {
+    httpsMock = new HttpsMock(() => ({
+      status: 200,
+      content: '',
+      reasoningContent: 'fallback prose',
+    }));
+    await expect(service.chat('s', 'u')).resolves.toBe('fallback prose');
     expect(httpsMock.request).toHaveBeenCalledTimes(1);
   });
 

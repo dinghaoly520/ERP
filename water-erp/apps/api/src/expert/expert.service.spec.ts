@@ -235,9 +235,11 @@ describe('ExpertService', () => {
     it('P1-5（中断审查）：回避申报变更后重算本专家 progress（分母即时收缩，不再依赖下次提交）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: ['s-old'] });
-      prisma.bidSupplier.findMany
-        .mockResolvedValueOnce([{ supplierName: '丙公司' }])                       // 回避名单名称（监督日志）
-        .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);           // 重算分母（c 即将回避）
+      // A3（第四波）：按 where 分形派发（旧 mockResolvedValueOnce 链焊死两次调用次序——生产两查询 where 不同形、无真实耦合）
+      prisma.bidSupplier.findMany.mockImplementation((a: any) =>
+        a.where?.id
+          ? Promise.resolve([{ supplierName: '丙公司' }])                          // 回避名单名称（where.id.in）
+          : Promise.resolve([{ id: 'a' }, { id: 'b' }, { id: 'c' }]));            // 重算分母（where.decryptStatus；c 即将回避）
       prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]);
       prisma.bidScoreRecord.count.mockResolvedValue(4);                            // a、b 各 2 项已评
       prisma.bidScoreRecord.findMany.mockResolvedValue([{ score: 10 }, { score: 20 }, { score: 30 }, { score: 40 }]);
@@ -3021,5 +3023,42 @@ describe('P1-8 verificationMissingList（纯函数：核验缺失项人话清单
       signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
       confidentialityAgreed: true, disciplineAgreed: true,
     })).toBe('');
+  });
+});
+
+/* ── C5（第四波）：口令爆破锁过期后计数清零——旧实现从旧值累加，过期后再错 1 次即重锁，与「锁 N 分钟」文案不符 ── */
+describe('ExpertService — verifyRoomCode 锁过期计数清零', () => {
+  let svc: any;
+  let prisma: any;
+
+  beforeEach(() => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', roomCode: 'ABCD2345', name: 'P', projectCode: 'GK-1' }) },
+      bidExpert: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const { ExpertService } = jest.requireActual('./expert.service');
+    svc = Object.create(ExpertService.prototype);
+    svc.prisma = prisma;
+    svc.notificationService = { create: jest.fn().mockResolvedValue({}) };
+  });
+
+  it('锁已过期后再输错 → 计数从 1 重新起算且清除过期锁标记（旧行为=第 4 次即再锁 10 分钟）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', expertName: '王', roomAttempts: 3, roomLockedUntil: new Date(Date.now() - 60_000) });
+    // 错误口令按既有契约抛 400 ROOM_CODE_INVALID（计数与清零断言看 update 载荷）
+    await expect(svc.verifyRoomCode('u1', 'p1', 'WRONG1'))
+      .rejects.toMatchObject({ response: { code: 'ROOM_CODE_INVALID' } });
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: expect.objectContaining({ roomAttempts: 1, roomLockedUntil: null }),
+    });
+  });
+
+  it('锁未过期 → 409 ROOM_CODE_LOCKED（负向守卫，现状已对）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', expertName: '王', roomAttempts: 3, roomLockedUntil: new Date(Date.now() + 60_000) });
+    await expect(svc.verifyRoomCode('u1', 'p1', 'WRONG1'))
+      .rejects.toMatchObject({ response: { code: 'ROOM_CODE_LOCKED' } });
+    expect(prisma.bidExpert.update).not.toHaveBeenCalled();
   });
 });

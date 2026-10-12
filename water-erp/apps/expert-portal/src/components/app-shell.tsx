@@ -24,6 +24,7 @@ const navGroups: NavGroup[] = [
     items: [
       { key: 'workbench', label: '工作台', caption: '评审总览', path: '/', icon: LayoutDashboard },
       { key: 'projects', label: '评审项目', caption: '项目列表', path: '/projects', icon: ClipboardList },
+      { key: 'tasks', label: '评审待办', caption: '待办事项', path: '/tasks', icon: ClipboardCheck }, // C6（第四波）：tasks 页既有，侧栏补入口
     ],
   },
   {
