@@ -24,15 +24,25 @@ const COMPANY_INFO_COLUMNS = [
 ];
 
 function makePrisma() {
-  return {
+  const prisma = {
     user: { findUnique: jest.fn() },
     company: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
-    projectManagementItem: { groupBy: jest.fn() },
+    projectManagementItem: {
+      groupBy: jest.fn(),
+      // 改码联动（2026-10-12 方案2）：在办项目编号链重写
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue(null),
+      update: jest.fn(),
+    },
+    projectManagementStage: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+    announcement: { updateMany: jest.fn() },
     // 条目类（2026-10-10 多条目版）：my-info 附带查询
     companyPurchaser: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
     companyPlace: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
     companySupervision: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn() },
   };
+  // $transaction 直通自身（updateCompany 事务包裹后，tx 即整个 mock 对象）
+  return Object.assign(prisma, { $transaction: jest.fn((fn: (tx: typeof prisma) => unknown) => fn(prisma)) });
 }
 
 const COMPANY_ROW = {
@@ -140,6 +150,193 @@ describe('CompanyController my-info（公司信息管理）', () => {
     await expect(ctrl.update('co-gone', { name: '乙公司' })).rejects.toMatchObject({
       response: { code: 'NOT_FOUND' },
     });
+  });
+});
+
+describe('CompanyController 公司编码维护（2026-10-12 leader 放开）', () => {
+  const user = { sub: 'u1', username: 'a', role: 'leader' } as never;
+
+  /** 按 id 查=本公司 JIA；按 code 查=可注入撞码行（默认无冲突） */
+  function makeCodePrisma(dupRow: object | null = null) {
+    const prisma = makePrisma();
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ companyId: 'co-1' });
+    (prisma.company.findUnique as jest.Mock).mockImplementation(({ where }) =>
+      where.id ? COMPANY_ROW : dupRow,
+    );
+    (prisma.company.update as jest.Mock).mockImplementation(({ data }) => ({ ...COMPANY_ROW, ...data }));
+    return prisma;
+  }
+
+  it('改码归一：trim + 自动大写（"  swhi  " → 存 SWHI）', async () => {
+    const prisma = makeCodePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await ctrl.updateMyInfo(user, { code: '  swhi  ' });
+
+    const data = (prisma.company.update as jest.Mock).mock.calls[0][0].data;
+    expect(data.code).toBe('SWHI');
+    // 查重用归一后的值
+    expect(prisma.company.findUnique).toHaveBeenCalledWith({ where: { code: 'SWHI' } });
+  });
+
+  it('编码清空（空白）→ 存 null（项目编号前缀回退 SW）', async () => {
+    const prisma = makeCodePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await ctrl.updateMyInfo(user, { code: '   ' });
+
+    const data = (prisma.company.update as jest.Mock).mock.calls[0][0].data;
+    expect(data.code).toBeNull();
+  });
+
+  it('撞码前置校验：编码被他司占用 → DUPLICATE_CODE 且不落库', async () => {
+    const prisma = makeCodePrisma({ id: 'co-2', code: 'SFJS' });
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.updateMyInfo(user, { code: 'SFJS' })).rejects.toMatchObject({
+      response: { code: 'DUPLICATE_CODE' },
+    });
+    expect(prisma.company.update).not.toHaveBeenCalled();
+  });
+
+  it('编码格式非法（含中文/空格等）→ INVALID_CODE', async () => {
+    const prisma = makeCodePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.updateMyInfo(user, { code: '四 川!' })).rejects.toMatchObject({
+      response: { code: 'INVALID_CODE' },
+    });
+    expect(prisma.company.update).not.toHaveBeenCalled();
+  });
+
+  it('编码含连字符 → INVALID_CODE（编码=项目编号首段 XX-XX-XXXXXXXXXX，分段符不可入编码）', async () => {
+    const prisma = makeCodePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.updateMyInfo(user, { code: 'SW-HI' })).rejects.toMatchObject({
+      response: { code: 'INVALID_CODE' },
+    });
+    expect(prisma.company.update).not.toHaveBeenCalled();
+  });
+
+  it('P2002 并发兜底按冲突列分流：code 列冲突 → DUPLICATE_CODE（非误报撞名）', async () => {
+    const prisma = makeCodePrisma();
+    (prisma.company.update as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002', meta: { target: ['code'] } }),
+    );
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.update('co-1', { code: 'SFJS' })).rejects.toMatchObject({
+      response: { code: 'DUPLICATE_CODE' },
+    });
+  });
+
+  it('P2002 联动写撞项目编号（projectCode/stageCode 列）→ CASCADE_CODE_CLASH 而非误报单位撞码', async () => {
+    const prisma = makeCodePrisma();
+    (prisma.projectManagementItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pm1', title: '项目A', projectCode: 'JIA-XB-2026100901' },
+    ]);
+    (prisma.projectManagementItem.update as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002', meta: { target: ['projectCode'] } }),
+    );
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.updateMyInfo(user, { code: 'NEW' })).rejects.toMatchObject({
+      response: { code: 'CASCADE_CODE_CLASH' },
+    });
+  });
+});
+
+describe('CompanyController 改码联动在办项目编号（2026-10-12 方案2）', () => {
+  const user = { sub: 'u1', username: 'a', role: 'leader' } as never;
+
+  /** 改码场景基座：本公司 JIA → NEW；可注入在办项目与其阶段码 */
+  function makeCascadePrisma(
+    actives = [{ id: 'pm1', title: '项目A', projectCode: 'JIA-XB-2026100901' }],
+    stages = [{ id: 's1', stageCode: 'JIA-XB-2026100901-GG-R1' }],
+  ) {
+    const prisma = makePrisma();
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ companyId: 'co-1' });
+    (prisma.company.findUnique as jest.Mock).mockImplementation(({ where }) =>
+      where.id ? COMPANY_ROW : null,
+    );
+    (prisma.company.update as jest.Mock).mockImplementation(({ data }) => ({ ...COMPANY_ROW, ...data }));
+    (prisma.projectManagementItem.findMany as jest.Mock).mockResolvedValue(actives);
+    (prisma.projectManagementStage.findMany as jest.Mock).mockResolvedValue(stages);
+    (prisma.announcement.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    return prisma;
+  }
+
+  it('改码联动：在办项目编号首段替换 + 阶段码前缀替换 + 公告关联码跟随（同事务）', async () => {
+    const prisma = makeCascadePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    const out = await ctrl.updateMyInfo(user, { code: 'NEW' });
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
+      where: { id: 'pm1' },
+      data: { projectCode: 'NEW-XB-2026100901' },
+    });
+    expect(prisma.projectManagementStage.update).toHaveBeenCalledWith({
+      where: { id: 's1' },
+      data: { stageCode: 'NEW-XB-2026100901-GG-R1' },
+    });
+    expect(prisma.announcement.updateMany).toHaveBeenCalledWith({
+      where: { relatedProjectCode: 'JIA-XB-2026100901' },
+      data: { relatedProjectCode: 'NEW-XB-2026100901' },
+    });
+    expect(out.codeCascade.renamed).toEqual([
+      { title: '项目A', from: 'JIA-XB-2026100901', to: 'NEW-XB-2026100901' },
+    ]);
+  });
+
+  it('仅扫在办项目：findMany 锁定 status=ACTIVE 且编号非空', async () => {
+    const prisma = makeCascadePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await ctrl.updateMyInfo(user, { code: 'NEW' });
+
+    expect(prisma.projectManagementItem.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'co-1', status: 'ACTIVE', projectCode: { not: null } },
+      select: { id: true, title: true, projectCode: true },
+    });
+  });
+
+  it('清空编码（存 null）不联动：不扫项目、编号链原样', async () => {
+    const prisma = makeCascadePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    const out = await ctrl.updateMyInfo(user, { code: '   ' });
+
+    expect(prisma.projectManagementItem.findMany).not.toHaveBeenCalled();
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+    expect(out.codeCascade.renamed).toEqual([]);
+  });
+
+  it('新编号撞他司项目 → 跳过该保留原编号，保存仍成功并在 skipped 报告', async () => {
+    const prisma = makeCascadePrisma();
+    (prisma.projectManagementItem.findUnique as jest.Mock).mockResolvedValue({ id: 'pm-other' });
+    const ctrl = new CompanyController(prisma as never);
+
+    const out = await ctrl.updateMyInfo(user, { code: 'NEW' });
+
+    expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
+    expect(prisma.announcement.updateMany).not.toHaveBeenCalled();
+    expect(out.codeCascade.renamed).toEqual([]);
+    expect(out.codeCascade.skipped).toEqual([
+      expect.objectContaining({ from: 'JIA-XB-2026100901', to: 'NEW-XB-2026100901' }),
+    ]);
+  });
+
+  it('编码与现值相同 → 不触发联动', async () => {
+    const prisma = makeCascadePrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    const out = await ctrl.updateMyInfo(user, { code: 'JIA' });
+
+    expect(prisma.projectManagementItem.findMany).not.toHaveBeenCalled();
+    expect(out.codeCascade.renamed).toEqual([]);
   });
 });
 

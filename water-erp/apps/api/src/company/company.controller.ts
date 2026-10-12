@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -23,6 +24,8 @@ const COMPANY_INFO_FIELDS = [
 type CompanyInfoBody = {
   name?: string;
   shortName?: string | null;
+  // 公司编码（2026-10-12 leader 放开维护）：项目编号前缀段，全局唯一，空=清除（前缀回退 SW）
+  code?: string | null;
 } & Partial<Record<(typeof COMPANY_INFO_FIELDS)[number], string | null>>;
 
 /** 采购人条目（2026-10-10 多人版）：多条信息、单默认——编写时「联系人」按钮选择 */
@@ -557,20 +560,20 @@ export class CompanyController {
     };
   }
 
-  /** 公司信息管理页保存：维护本公司 名称/简称 + 开标/监督/采购人信息。
+  /** 公司信息管理页保存：维护本公司 名称/简称/编码 + 开标/监督/采购人信息。
       维护权限 = leader/admin（staff/bid_host 只读预填，侧栏亦不展示入口） */
   @Patch('my-info')
   @Roles('leader', 'admin')
-  @ApiOperation({ summary: '维护本公司信息（名称/简称 + 开标地点 + 监督块 + 采购人）' })
+  @ApiOperation({ summary: '维护本公司信息（名称/简称/编码 + 开标地点 + 监督块 + 采购人）' })
   async updateMyInfo(@CurrentUser() user: AuthenticatedUser, @Body() body: CompanyInfoBody) {
     const companyId = await this.resolveOwnCompanyId(user);
     return this.updateCompany(companyId, body);
   }
 
-  /** D4：单位主数据维护（改名同步唯一约束校验；仅 admin）——2026-10-10 起同表单可维护公司信息字段 */
+  /** D4：单位主数据维护（改名/改码同步唯一约束校验；仅 admin）——2026-10-10 起同表单可维护公司信息字段 */
   @Patch(':id')
   @Roles('admin')
-  @ApiOperation({ summary: '编辑单位（名称/简称/公司信息；A-205 单位信息维护）' })
+  @ApiOperation({ summary: '编辑单位（名称/简称/编码/公司信息；A-205 单位信息维护）' })
   async update(@Param('id') id: string, @Body() body: CompanyInfoBody) {
     return this.updateCompany(id, body);
   }
@@ -587,7 +590,7 @@ export class CompanyController {
     return u.companyId;
   }
 
-  /** 共享更新：名称唯一校验 + 信息字段 trim→null 归一（空串存 null，导出预填按空值回退默认） */
+  /** 共享更新：名称/编码唯一校验 + 信息字段 trim→null 归一（空串存 null，导出预填按空值回退默认） */
   private async updateCompany(id: string, body: CompanyInfoBody) {
     const exists = await this.prisma.company.findUnique({ where: { id } });
     if (!exists) throw new BadRequestException({ error: '单位不存在', code: 'NOT_FOUND' });
@@ -596,30 +599,109 @@ export class CompanyController {
       const dup = await this.prisma.company.findUnique({ where: { name } });
       if (dup) throw new BadRequestException({ error: '已存在同名单位（主数据唯一）', code: 'DUPLICATE_NAME' });
     }
+    // 编码归一（2026-10-12）：trim + 大写（消费端 project-code.util 本就大写，存时归一防 'swhi'/'SWHI' 并存）；空串=清除。
+    // 仅大写字母/数字、禁连字符——编码即项目编号首段（XX-XX-XXXXXXXXXX 分段口径），'-' 是分段符不可入编码
+    const code = body.code === undefined ? undefined : body.code?.trim().toUpperCase() || null;
+    if (code && !/^[A-Z0-9]{1,20}$/.test(code)) {
+      throw new BadRequestException({ error: '公司编码仅支持大写字母与数字，长度 ≤20（编码为项目编号首段，不可含连字符）', code: 'INVALID_CODE' });
+    }
+    if (code && code !== exists.code) {
+      const dup = await this.prisma.company.findUnique({ where: { code } });
+      if (dup) throw new BadRequestException({ error: '已存在同编码单位（编码全局唯一）', code: 'DUPLICATE_CODE' });
+    }
     const info: Record<string, string | null> = {};
     for (const f of COMPANY_INFO_FIELDS) {
       const v = body[f];
       if (v !== undefined) info[f] = typeof v === 'string' ? v.trim() || null : null;
     }
     try {
-      return await this.prisma.company.update({
-        where: { id },
-        data: {
-          ...(name && { name }),
-          ...(body.shortName !== undefined && { shortName: body.shortName?.trim() || null }),
-          ...info,
+      // 公司落库与改码联动同事务（2026-10-12 方案2）：联动失败整体回滚，不留半改状态；
+      // timeout 放宽至 15s——多在办项目串行重写编号链，默认 5s 在大公司场景可能不够
+      const { company, codeCascade } = await this.prisma.$transaction(
+        async (tx) => {
+          const updated = await tx.company.update({
+            where: { id },
+            data: {
+              ...(name && { name }),
+              ...(body.shortName !== undefined && { shortName: body.shortName?.trim() || null }),
+              ...(code !== undefined && { code }),
+              ...info,
+            },
+            select: {
+              id: true, name: true, shortName: true, code: true,
+              ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
+            },
+          });
+          const cascade =
+            code && code !== exists.code
+              ? await this.cascadeProjectCodes(tx, id, code)
+              : { renamed: [], skipped: [] as Array<{ title: string; from: string; to: string; reason: string }> };
+          return { company: updated, codeCascade: cascade };
         },
-        select: {
-          id: true, name: true, shortName: true, code: true,
-          ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
-        },
-      });
+        { timeout: 15_000 },
+      );
+      return { ...company, codeCascade };
     } catch (e) {
-      // 唯一约束兜底（check-then-update 的并发窗口）：撞名给友好错误而非原始 P2002
+      // 唯一约束兜底（check-then-update 的并发窗口）：按 P2002 冲突列分流友好错误。
+      // 判序：项目编号/阶段码（联动写撞号）先于编码列——'projectCode' 也含 'code'，笼统 includes 会误报单位撞码
       if ((e as { code?: string })?.code === 'P2002') {
-        throw new BadRequestException({ error: '已存在同名单位（主数据唯一）', code: 'DUPLICATE_NAME' });
+        const target = (e as { meta?: { target?: unknown } }).meta?.target;
+        const targets = (Array.isArray(target) ? target.map(String) : target !== undefined ? [String(target)] : [])
+          .map(t => t.toLowerCase());
+        throw new BadRequestException(
+          targets.some(t => t.includes('projectcode') || t.includes('stagecode'))
+            ? { error: '项目编号联动撞号（并发冲突），请重试', code: 'CASCADE_CODE_CLASH' }
+            : targets.some(t => t.includes('code'))
+              ? { error: '已存在同编码单位（编码全局唯一）', code: 'DUPLICATE_CODE' }
+              : { error: '已存在同名单位（主数据唯一）', code: 'DUPLICATE_NAME' },
+        );
       }
       throw e;
     }
+  }
+
+  /** 改码联动（2026-10-12 方案2，用户裁定）：改公司编码同步重写本公司在办（ACTIVE）项目编号链——
+      编号首段替换为新编码（两段式旧编号顺势补成三段，对齐「首段=公司编码」法则）、
+      阶段码随前缀走、公告关联码跟随；新编号撞他司项目则跳过保留原编号（skipped 报告，不阻断保存）。
+      调用方保证：已在事务内执行、newCode 非空且 ≠ 现值 */
+  private async cascadeProjectCodes(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    newCode: string,
+  ): Promise<{
+    renamed: Array<{ title: string; from: string; to: string }>;
+    skipped: Array<{ title: string; from: string; to: string; reason: string }>;
+  }> {
+    const renamed: Array<{ title: string; from: string; to: string }> = [];
+    const skipped: Array<{ title: string; from: string; to: string; reason: string }> = [];
+    const actives = await tx.projectManagementItem.findMany({
+      where: { companyId, status: 'ACTIVE', projectCode: { not: null } },
+      select: { id: true, title: true, projectCode: true },
+    });
+    for (const p of actives) {
+      const old = p.projectCode!;
+      if (!old.includes('-')) continue; // 无分段的历史异常数据不动
+      const next = `${newCode}-${old.slice(old.indexOf('-') + 1)}`;
+      if (next === old) continue;
+      const clash = await tx.projectManagementItem.findUnique({ where: { projectCode: next }, select: { id: true } });
+      if (clash) {
+        skipped.push({ title: p.title, from: old, to: next, reason: '目标编号已被其他项目占用' });
+        continue;
+      }
+      await tx.projectManagementItem.update({ where: { id: p.id }, data: { projectCode: next } });
+      const stages = await tx.projectManagementStage.findMany({
+        where: { projectManagementItemId: p.id, stageCode: { startsWith: `${old}-` } },
+        select: { id: true, stageCode: true },
+      });
+      for (const s of stages) {
+        await tx.projectManagementStage.update({
+          where: { id: s.id },
+          data: { stageCode: next + s.stageCode!.slice(old.length) },
+        });
+      }
+      await tx.announcement.updateMany({ where: { relatedProjectCode: old }, data: { relatedProjectCode: next } });
+      renamed.push({ title: p.title, from: old, to: next });
+    }
+    return { renamed, skipped };
   }
 }

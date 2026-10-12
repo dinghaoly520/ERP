@@ -38,6 +38,11 @@ export type CompanyInfo = {
   places: CompanyPlaceEntry[];
   /** 监督方案条目（2026-10-10 多条目版；默认在前） */
   supervisionProfiles: CompanySupervisionEntry[];
+  /** 改码联动报告（2026-10-12 方案2）：改公司编码时随响应返回——在办项目编号链同步重写；未触发时为空 */
+  codeCascade?: {
+    renamed: Array<{ title: string; from: string; to: string }>;
+    skipped: Array<{ title: string; from: string; to: string; reason: string }>;
+  };
 };
 
 /** 开标地点条目（无名称列：地点只有一个地址，条目即以地址标识） */
@@ -61,7 +66,8 @@ export type CompanySupervisionEntry = {
   updatedAt: string;
 };
 
-export type CompanyInfoPayload = Partial<Omit<CompanyInfo, 'id' | 'code'>>;
+/** 保存载荷（2026-10-12 起含 code：leader 可维护公司编码，服务端 trim+大写归一、全局查重） */
+export type CompanyInfoPayload = Partial<Omit<CompanyInfo, 'id'>>;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await apiFetch(`/api/companies${path}`, {

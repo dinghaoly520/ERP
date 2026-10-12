@@ -63,6 +63,7 @@ export default function CompanyInfoPage() {
       setForm({
         name: data.name ?? '',
         shortName: data.shortName ?? '',
+        code: data.code ?? '',
         purchaserAddress: data.purchaserAddress ?? '',
       });
     } catch (e) {
@@ -85,10 +86,21 @@ export default function CompanyInfoPage() {
       const saved = await updateMyCompanyInfo({
         name: form.name,
         shortName: form.shortName,
+        code: form.code,
         purchaserAddress: form.purchaserAddress,
       });
       setInfo(saved);
-      toast.success('公司信息已保存，后续采购文件与公告编写将按此带入');
+      // 改码联动报告（2026-10-12 方案2）：编码变化时后端同步重写在办项目编号链
+      const renamed = saved.codeCascade?.renamed?.length ?? 0;
+      const skipped = saved.codeCascade?.skipped?.length ?? 0;
+      if (renamed > 0 || skipped > 0) {
+        toast.success(`公司信息已保存，已联动更新 ${renamed} 个在办项目编号`);
+        if (skipped > 0) {
+          toast.warning(`另有 ${skipped} 个在办项目因目标编号被占用未跟随，已保留原编号`);
+        }
+      } else {
+        toast.success('公司信息已保存，后续采购文件与公告编写将按此带入');
+      }
     } catch (e) {
       toast.error((e as Error).message || '保存失败');
     } finally {
@@ -172,6 +184,7 @@ export default function CompanyInfoPage() {
         </div>
         <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
           公司名称用于采购文件「采购人」落款与公告发布方展示（留空沿用模板默认）；采购人地址预填「联系人地址」字段。改名即时生效于新项目归属快照。
+          公司编码为项目编号首段（编号格式 公司编码-方式前缀-日期序号，全局唯一，大写字母/数字，≤20 字符；留空回退 SW）——修改将同步更新本公司在办项目编号（含阶段码与公告关联码）；归档/回收项目不动，目标编号被占用时该项目保留原编号。
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <label className="block">
@@ -200,11 +213,11 @@ export default function CompanyInfoPage() {
             <span className="mb-1 block text-xs font-medium text-[var(--muted-foreground)]">公司编码</span>
             <input
               type="text"
-              value={info?.code ?? ''}
-              disabled
-              placeholder="—"
-              className="workbench-input w-full font-mono disabled:opacity-60"
-              title="公司编码（项目编号前缀段）由主数据维护，此处只读"
+              value={form.code ?? ''}
+              onChange={(e) => set('code', e.target.value)}
+              placeholder="例如：SWHI（留空回退 SW）"
+              className="workbench-input w-full font-mono"
+              title="项目编号首段（编号格式：公司编码-方式前缀-日期序号，全局唯一）；修改将同步更新本公司在办项目编号，归档/回收项目不动。大写字母/数字，≤20 字符"
             />
           </label>
         </div>
