@@ -4,7 +4,6 @@
 
 /* ── 用户 & 认证 ── */
 
-export type AppRole = 'admin' | 'bid_host' | 'bid_expert' | 'supplier' | 'mall';
 export type SupplierStatus = 'PENDING' | 'RETURNED' | 'APPROVED' | 'REJECTED' | 'DISABLED' | 'BLACKLIST';
 export type ChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED' | 'ABORTED';
@@ -50,8 +49,6 @@ export interface BidRequirementReview {
 }
 export type AnnouncementType = 'BID_NOTICE' | 'WIN_NOTICE' | 'POLICY' | 'PLATFORM';
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
-export type DecryptStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'DANGER';
-export type ConfirmStatus = 'PENDING' | 'CONFIRMED' | 'EXCEPTION';
 
 export interface User {
   id: string;
@@ -599,55 +596,6 @@ export interface Notification {
   link?: string;
   createdAt: string;
 }
-
-/* ── 文件资产 ── */
-
-export interface FileAsset {
-  id: string;
-  key: string;
-  url: string;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  category: string;
-  sha256: string;
-  createdAt: string;
-}
-
-/* ── 驾驶舱统计 ── */
-
-export interface DashboardStats {
-  totalProjects: number;
-  activeProjects: number;
-  totalSuppliers: number;
-  approvedSuppliers: number;
-  totalExperts: number;
-  totalAnnouncements: number;
-  stageDistribution: Record<string, number>;
-  recentActivity: BidSupervisionLog[];
-}
-
-export interface BidEvaluationResultView {
-  supplierId: string;
-  supplierName: string;
-  totalScore: number;
-  averageScore: number;
-  rank: number;
-  recommended: boolean;
-  disqualified?: boolean;
-  generatedAt: string;
-}
-
-/* ── 专家异议披露（评审报告维度） ── */
-
-export interface DisputeDetail {
-  requirementId: string;
-  content: string;
-  note: string;
-}
-
-// supplierId → category(大写) → DisputeDetail[]
-export type DisputesBySupplier = Record<string, Record<string, DisputeDetail[]>>;
 
 /* ── 辅助评标对比视图 ── */
 

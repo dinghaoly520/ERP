@@ -2,26 +2,6 @@
  * B4（GB/T 43711 附录 D）：框架协议采购共享常量与校验。
  */
 
-export const FA_ENTRY_MODE_LABELS = {
-  closed: '封闭式竞争入围',
-  open: '开放式资格审查',
-} as const;
-
-/** D.2.2 第一阶段约定要素分类（表 D.1） */
-export const FA_VARIANT_LABELS = {
-  supplier_only: '定商',
-  supplier_price: '定商定价',
-  supplier_price_qty: '定商定价定量',
-} as const;
-
-export const FA_STATUS_LABELS = {
-  drafting: '草拟',
-  entry: '入围登记中',
-  active: '生效中',
-  expired: '已到期',
-  terminated: '已终止',
-} as const;
-
 /**
  * D.2.6 淘汰比例校验（规范性）：
  * 一次价格竞争：淘汰参与供应商数宜 ≥50%；

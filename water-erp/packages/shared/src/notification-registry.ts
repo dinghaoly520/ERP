@@ -562,16 +562,6 @@ export const NOTIFICATION_REGISTRY_MAP: Record<string, NotificationTypeSpec> = O
   NOTIFICATION_REGISTRY.map(s => [s.code, s]),
 );
 
-export function getNotificationSpec(type: string): NotificationTypeSpec | undefined {
-  return NOTIFICATION_REGISTRY_MAP[type];
-}
-
-/** 类型是否仍在产生（deprecated = 仅存量显示） */
-export function isNotificationTypeActive(type: string): boolean {
-  const spec = NOTIFICATION_REGISTRY_MAP[type];
-  return !!spec && !spec.deprecated;
-}
-
 /** 按注册表渲染通知载荷（bid 域模板收口入口；无 render 的类型返回 null，由调用点自拟文案） */
 export function renderNotificationPayload(
   type: string,
@@ -582,36 +572,4 @@ export function renderNotificationPayload(
   const out: { title: string; content: string; link?: string } | null = spec.render ? spec.render(ctx) : null;
   if (out && spec.link) out.link = spec.link(ctx);
   return out;
-}
-
-/** 角色 → 通知中心可见业务域（2026-09-26 用户裁定：admin 只显示账号相关通知；
- *  其余域对 admin 隐藏（Tab 也不出现）。leader/staff=全部业务域；未列角色=全量保底）。 */
-export const NOTIFICATION_ROLE_DOMAINS: Record<string, NotificationDomain[] | undefined> = {
-  admin: ['account'],
-};
-
-/** 按角色过滤 Tab 定义（:3005 通知中心/工作台共用）。 */
-export function notificationDomainTabsForRole(role?: string | null) {
-  const allowed = role ? NOTIFICATION_ROLE_DOMAINS[role] : undefined;
-  if (!allowed) return NOTIFICATION_DOMAIN_TABS;
-  return NOTIFICATION_DOMAIN_TABS.filter(t => t.domains.some(d => allowed.includes(d)));
-}
-
-/* ── 业务域分组（:3005 通知中心 Tab 派生源） ──
- * 多个业务域可并到一个 Tab（如 expert 并入开评标），Tab 数量与现版一致；
- * key 供前端路由/筛选参数复用。 */
-export const NOTIFICATION_DOMAIN_TABS: { key: string; label: string; domains: NotificationDomain[] }[] = [
-  { key: 'supplier', label: '供应商', domains: ['supplier'] },
-  { key: 'bid', label: '开评标', domains: ['bid', 'expert'] },
-  { key: 'account', label: '账号', domains: ['account', 'system'] },
-  { key: 'archive', label: '归档', domains: ['archive'] },
-  { key: 'contract', label: '合同履约', domains: ['contract'] },
-  { key: 'ann', label: '公告与目录', domains: ['announcement', 'catalog'] },
-];
-
-/** 某 Tab key → 该 Tab 包含的全部类型 code 列表 */
-export function notificationTypesForTab(tabKey: string): string[] {
-  const tab = NOTIFICATION_DOMAIN_TABS.find(t => t.key === tabKey);
-  if (!tab) return [];
-  return NOTIFICATION_REGISTRY.filter(s => tab.domains.includes(s.domain)).map(s => s.code);
 }

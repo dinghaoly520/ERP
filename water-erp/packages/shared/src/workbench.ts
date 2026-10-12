@@ -3,30 +3,6 @@
  * 原先各门户各存一份 `lib/workbench.ts`（字节相同），集中到此消除重复，避免分叉漂移。
  */
 
-export const workbenchTheme = {
-  primary: '#064ea2',
-  primaryBright: '#0b63ce',
-  primarySoft: '#eff6ff',
-  cyan: '#0891b2',
-  cyanSoft: '#ecfeff',
-  success: '#11a874',
-  successSoft: '#f0fdf4',
-  warning: '#f5a623',
-  warningSoft: '#fff7ed',
-  danger: '#e74c3c',
-  dangerSoft: '#fef2f2',
-  purple: '#7c3aed',
-  purpleSoft: '#f5f3ff',
-  text: '#18243a',
-  heading: '#0f2f57',
-  muted: '#5a6d8a',
-  faint: '#8a96aa',
-  border: '#e5ecf4',
-  borderStrong: '#cfe0f5',
-  surface: '#ffffff',
-  page: '#f7fbff',
-} as const;
-
 export type WorkbenchTone = 'blue' | 'cyan' | 'green' | 'orange' | 'red' | 'purple' | 'gray';
 
 export const statusTone: Record<WorkbenchTone, { color: string; bg: string; border: string; gradient: string }> = {
@@ -65,11 +41,4 @@ export function formatDate(value?: string | Date | null): string {
 export function percent(part: number, total: number): number {
   if (!total) return 0;
   return Math.max(0, Math.min(100, Math.round((part / total) * 100)));
-}
-
-export function completionTone(value: number): WorkbenchTone {
-  if (value >= 80) return 'green';
-  if (value >= 50) return 'cyan';
-  if (value > 0) return 'orange';
-  return 'gray';
 }
