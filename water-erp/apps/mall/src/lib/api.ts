@@ -14,5 +14,3 @@ export const api = createApiClient({
     }
   },
 });
-
-export { ApiError } from '@water-erp/client';

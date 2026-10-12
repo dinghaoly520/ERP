@@ -4,17 +4,6 @@ export const CHART_PALETTE = [
   '#3b82f6', '#06b6d4', '#818cf8',
 ];
 
-/** 柱状图渐变色 —— 替代纯色以提升科技感 */
-export const BAR_GRADIENT = {
-  type: 'linear' as const,
-  x: 0, y: 0, x2: 0, y2: 1,
-  colorStops: [
-    { offset: 0, color: 'rgba(37, 99, 235, 0.9)' },
-    { offset: 0.6, color: 'rgba(37, 99, 235, 0.7)' },
-    { offset: 1, color: 'rgba(8, 145, 178, 0.4)' },
-  ],
-};
-
 /** 全局基础配置 —— 与后端 option 合并（后端优先） */
 export const BASE_OPTION = {
   animationDuration: 600,

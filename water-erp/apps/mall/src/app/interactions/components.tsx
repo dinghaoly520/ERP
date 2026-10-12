@@ -4,38 +4,6 @@ import { motion } from 'framer-motion';
 import { useCountUp } from './hooks';
 
 /**
- * 骨架屏 - 匹配表格行布局
- */
-export function Skeleton({
-  rows = 4,
-  cols = 6,
-  className = '',
-}: {
-  rows?: number;
-  cols?: number;
-  className?: string;
-}) {
-  return (
-    <div className={`w-full ${className}`} role="status" aria-label="加载中">
-      {Array.from({ length: rows }).map((_, r) => (
-        <div
-          key={r}
-          className="flex gap-3 border-b border-[#eef3f8] px-4 py-4 last:border-0"
-        >
-          {Array.from({ length: cols }).map((_, c) => (
-            <div
-              key={c}
-              className="h-4 animate-skeleton rounded bg-[#e8edf5]"
-              style={{ flex: c === 0 ? 2 : 1 }}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
  * 统一空状态
  * icon 支持 ReactNode（推荐 Lucide 图标）或字符串（兼容旧 emoji 调用）
  */
@@ -108,22 +76,6 @@ export function AnimatedBadge({
 }
 
 /**
- * 页面级入场过渡包装器
- */
-export function PageTransition({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/**
  * 顺序入场容器
  */
 export function StaggerContainer({
@@ -170,21 +122,5 @@ export function StaggerItem({
     >
       {children}
     </motion.div>
-  );
-}
-
-/**
- * 迷你进度条
- */
-export function MiniProgressBar({ className = '' }: { className?: string }) {
-  return (
-    <div className={`h-0.5 w-full overflow-hidden rounded-full bg-[#e1e9f4] ${className}`}>
-      <motion.div
-        className="h-full rounded-full bg-[#5b9bd5]"
-        initial={{ width: '0%' }}
-        animate={{ width: '100%' }}
-        transition={{ duration: 3, ease: 'easeInOut' }}
-      />
-    </div>
   );
 }

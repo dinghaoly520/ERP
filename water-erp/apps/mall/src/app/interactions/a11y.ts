@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 // ─────────────────────────────────────────────
 // useFocusTrap — 弹窗焦点锁定 + 归还
@@ -108,24 +108,6 @@ export function useDismissable(opts: {
 }
 
 // ─────────────────────────────────────────────
-// useReducedMotion — 尊重 prefers-reduced-motion
-// ─────────────────────────────────────────────
-
-export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduced(mql.matches);
-    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, []);
-
-  return reduced;
-}
-
-// ─────────────────────────────────────────────
 // useGlobalHotkey — 全局快捷键
 // ─────────────────────────────────────────────
 
@@ -158,49 +140,4 @@ export function useGlobalHotkey(
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [key, ignoreInputs, withMeta, preventDefault]);
-}
-
-// ─────────────────────────────────────────────
-// useRovingIndex — 方向键导航（roving tabindex）
-// ─────────────────────────────────────────────
-
-export function useRovingIndex(count: number, opts: { onActivate?: (index: number) => void } = {}) {
-  const { onActivate } = opts;
-  const [activeIndex, setActiveIndex] = useState(0);
-  const onActivateRef = useRef(onActivate);
-  useEffect(() => { onActivateRef.current = onActivate; });
-
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (count === 0) return;
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setActiveIndex((i) => (i + 1) % count);
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setActiveIndex((i) => (i - 1 + count) % count);
-          break;
-        case 'Home':
-          e.preventDefault();
-          setActiveIndex(0);
-          break;
-        case 'End':
-          e.preventDefault();
-          setActiveIndex(count - 1);
-          break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          onActivateRef.current?.(activeIndex);
-          break;
-      }
-    },
-    [count, activeIndex],
-  );
-
-  const tabIndex = (index: number) => (index === activeIndex ? 0 : -1);
-
-  return { activeIndex, setActiveIndex, onKeyDown, tabIndex };
 }
