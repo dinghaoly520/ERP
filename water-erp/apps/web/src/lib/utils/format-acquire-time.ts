@@ -20,17 +20,20 @@ export function fmtAcquireTime(v: string | null | undefined): string | null {
   return `${fmt(parts[0])}-${fmt(parts[1])}`;
 }
 
-/** ISO 起止（时间轴接口的 time/timeEnd）→ 固定中文格式；同日仍显完整两段，保持全局一致 */
+/** ISO 起止（时间轴接口的 time/timeEnd）→ 固定中文格式；同日仍显完整两段，保持全局一致。
+ *  双端均为零点（纯日期区间，无时分语义）时省略时分，避免「10月10日0:00-10月14日0:00」噪音。 */
 export function fmtAcquireRangeISO(time: string, timeEnd: string): string {
-  const fmt = (iso: string) => {
+  const parse = (iso: string) => {
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (Number.isNaN(d.getTime())) return null;
+    return { date: `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`, hasTime: d.getHours() !== 0 || d.getMinutes() !== 0, hm: `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` };
   };
-  const s = fmt(time);
-  const e = fmt(timeEnd);
-  if (!s || !e) return `${s || e}`;
-  return `${s}-${e}`;
+  const s = parse(time);
+  const e = parse(timeEnd);
+  if (!s) return e ? e.date : '';
+  if (!e) return s.date;
+  if (!s.hasTime && !e.hasTime) return `${s.date}-${e.date}`;
+  return `${s.date}${s.hm}-${e.date}${e.hm}`;
 }
 
 /* ── 时间点选择器（datetime-local）与中文存库格式的互转 ──

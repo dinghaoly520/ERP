@@ -40,10 +40,12 @@ function normalizeMaybeDate(raw: string | null | undefined): string | null {
  * 区间文本（"2026年03月23日09:00至2026年03月26日15:00"）→ 起止时刻。
  * 逐段匹配所有"年月日(时分)"片段：首段=起点、末段=终点（同段/单点文本 → 终点 null）。
  * 终点片段缺少年份（如"至03月26日15:00"）时无法独立成 Date，退化为单点。
+ * 冒号必须出现（(\d{1,2}):(\d{2})）：可选冒号时纯日期区间"10月10日-2026年10月14日"
+ * 会被 \D+ 跨段吞位，把次段年份 2026 的"20""26"误当 20:26 时分（2026-10-12 实录）。
  */
 function parseDateRange(raw: string | null | undefined): { start: string | null; end: string | null } {
   if (!raw) return { start: null, end: null };
-  const re = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):?(\d{2}))?/g;
+  const re = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/g;
   const parts: Date[] = [];
   for (const m of raw.matchAll(re)) {
     const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0));
