@@ -41,7 +41,6 @@ const routeToKey: Record<string, string> = {
   "/supplier/qualification-alerts": "supplier-repo",
   "/supplier": "supplier-approval",
   // 专家管理
-  "/expert/entry": "expert-entry",
   "/expert/repository": "expert-repo",
   "/expert/extract": "expert-extract",
   "/expert": "expert-entry",

@@ -20,11 +20,6 @@ export type TemporaryRegistrationValidationContext = {
   agreeAgreement: boolean;
 };
 
-export type TemporaryRegistrationValidationResult = {
-  step: number;
-  errors: Record<string, string>;
-};
-
 export function validateLoginCredentials(username: string, password: string): string | null {
   if (!username.trim()) return "请输入用户名";
   if (!password) return "请输入密码";
@@ -82,18 +77,6 @@ export function validateTemporaryRegistrationStep(
   }
 
   return errors;
-}
-
-export function firstInvalidTemporaryRegistrationStep(
-  form: TemporaryRegistrationForm,
-  tags: string[],
-  context: TemporaryRegistrationValidationContext,
-): TemporaryRegistrationValidationResult | null {
-  for (let step = 0; step < 4; step += 1) {
-    const errors = validateTemporaryRegistrationStep(step, form, tags, context);
-    if (Object.keys(errors).length > 0) return { step, errors };
-  }
-  return null;
 }
 
 export function getErrorMessage(error: unknown, fallback: string): string {

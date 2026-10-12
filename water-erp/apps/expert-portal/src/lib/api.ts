@@ -149,17 +149,6 @@ export async function createMemo(
   return api.post<ExpertMemo>(`/expert/projects/${projectId}/memos`, fd);
 }
 
-export async function updateMemo(
-  projectId: string,
-  memoId: string,
-  contentText: string,
-): Promise<ExpertMemo> {
-  return api.patch<ExpertMemo>(
-    `/expert/projects/${projectId}/memos/${memoId}`,
-    { contentText },
-  );
-}
-
 export async function deleteMemo(
   projectId: string,
   memoId: string,
