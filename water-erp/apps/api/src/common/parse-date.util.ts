@@ -14,8 +14,9 @@ export function parseFlexibleDate(raw: string | null | undefined): Date | null {
   if (!Number.isNaN(direct.getTime())) return direct;
 
   // 中文 / 分隔符混合：2026年03月23日09:00 → 2026, 03, 23, 09, 00
-  // 时分段的冒号必须出现：可选冒号会把后续日期的年份 2026 误读成 "20""26" 时分
-  const m = raw.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/);
+  // 时分分隔符：半角冒号或「时…分」（公告模板长格式"14时00分00秒"——此前解析不了，
+  // 时间被丢成零点：BidProject.openTime 曾因此落 10-20 00:00 而非 14:00）
+  const m = raw.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})[:时](\d{2})分?)?/);
   if (!m) return null;
   const dt = new Date(
     Number(m[1]),
