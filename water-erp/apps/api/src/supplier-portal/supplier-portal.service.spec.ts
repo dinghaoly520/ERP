@@ -1092,9 +1092,12 @@ describe('SupplierPortalService', () => {
       const select = prisma.bidProject.findUnique.mock.calls[0][0].select;
       expect(select.clarifications).toBeDefined();
       expect(select._count).toEqual({ select: { suppliers: true } });
-      for (const f of ['suppliers', 'openingRecords', 'openingSession', 'experts', 'scoreItems', 'supervisionLogs', 'archiveItems']) {
+      for (const f of ['suppliers', 'openingRecords', 'experts', 'scoreItems', 'supervisionLogs', 'archiveItems']) {
         expect(select[f]).toBeUndefined();
       }
+      // C9（第四波验收根修）：解密窗口时点有意下发——供应商大厅倒计时数据源；
+      // 但仅限三字段白名单，openingSession 其余字段（主持人/口令/会话元数据）仍不得暴露
+      expect(select.openingSession).toEqual({ select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true } });
     });
   });
 
