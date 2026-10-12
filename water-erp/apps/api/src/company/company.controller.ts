@@ -137,7 +137,7 @@ export class CompanyController {
   @Get('management')
   @ApiOperation({ summary: '单位管理视图（A-205~207）：主数据 + 账号/项目业绩聚合' })
   async management() {
-    const [companies, roleCounts, pmCounts, amountAgg] = await Promise.all([
+    const [companies, roleCounts, pmCounts, awardedAgg, entryCounts] = await Promise.all([
       this.prisma.company.findMany({
         select: {
           id: true,
@@ -152,19 +152,27 @@ export class CompanyController {
       // 账号口径拆分（对齐 list() 2026-09-26 先例）：专家库公司隔离后专家也挂 companyId，
       // 单一 users 计数会把「在编 15 + 专家 187」误读成 202 个在编——按角色分组
       this.prisma.user.groupBy({ by: ['companyId', 'role'], _count: true }),
-      // 项目口径（对齐 companyCounts 先例）：ACTIVE=在办、ARCHIVED=已完成（RECYCLED/TERMINATED 不计），
-      // 此前的 pmItems 裸计数把回收站条目也计入立项数
-      this.prisma.projectManagementItem.groupBy({
-        by: ['companyId', 'status'],
-        where: { companyId: { not: null }, status: { in: ['ACTIVE', 'ARCHIVED'] } },
-        _count: { _all: true },
-      }),
-      // 业绩聚合：合同额合计（Decimal 求和在 DB 侧算）
+      // 在办项目口径（对齐进度页）：PMI ACTIVE；RECYCLED/TERMINATED 不计
       this.prisma.projectManagementItem.groupBy({
         by: ['companyId'],
-        where: { companyId: { not: null }, contractAmount: { not: null } },
-        _sum: { contractAmount: true },
+        where: { companyId: { not: null }, status: 'ACTIVE' },
+        _count: { _all: true },
       }),
+      // 业绩聚合（2026-10-12 口径修订）：已归档/合同额改与采购台账「已完成」同源——
+      // ProcurementRound AWARDED（不含回收站）。此前读 PMI ARCHIVED/contractAmount，
+      // 手工录入台账的已成交轮次（sourceType=MANUAL）全被漏计，KPI 恒 0/￥0。
+      this.prisma.procurementRound.groupBy({
+        by: ['companyId'],
+        where: { companyId: { not: null }, resultStatus: 'AWARDED', isRecycled: false },
+        _count: { _all: true },
+        _sum: { awardAmount: true },
+      }),
+      // 条目计数（2026-10-12）：台账公司列「采购人 N · 地点 N · 监督 N」小字，条目维护入口可见性
+      Promise.all([
+        this.prisma.companyPurchaser.groupBy({ by: ['companyId'], _count: { _all: true } }),
+        this.prisma.companyPlace.groupBy({ by: ['companyId'], _count: { _all: true } }),
+        this.prisma.companySupervision.groupBy({ by: ['companyId'], _count: { _all: true } }),
+      ]),
     ]);
     const byCompany = new Map<string, { office: number; expert: number }>();
     for (const g of roleCounts) {
@@ -174,22 +182,26 @@ export class CompanyController {
       if (g.role === 'bid_expert') rec.expert += g._count;
       byCompany.set(g.companyId, rec);
     }
-    const pmByCompany = new Map<string, { active: number; archived: number }>();
-    for (const g of pmCounts) {
-      if (!g.companyId) continue;
-      const rec = pmByCompany.get(g.companyId) ?? { active: 0, archived: 0 };
-      if (g.status === 'ACTIVE') rec.active += g._count._all;
-      if (g.status === 'ARCHIVED') rec.archived += g._count._all;
-      pmByCompany.set(g.companyId, rec);
-    }
-    const amountMap = new Map(amountAgg.map(g => [g.companyId, Number(g._sum.contractAmount ?? 0)]));
+    const activeMap = new Map(pmCounts.map(g => [g.companyId as string, g._count._all]));
+    const awardedMap = new Map(
+      awardedAgg.map(g => [
+        g.companyId as string,
+        { archived: g._count._all, contract: Number(g._sum.awardAmount ?? 0) },
+      ]),
+    );
+    const [purchaserCounts, placeCounts, supervisionCounts] = entryCounts;
+    const countOf = (rows: Array<{ companyId: string | null; _count: { _all: number } }>, id: string) =>
+      rows.find(g => g.companyId === id)?._count._all ?? 0;
     return companies.map(c => ({
       ...c,
       officeUsers: byCompany.get(c.id)?.office ?? 0,
       expertUsers: byCompany.get(c.id)?.expert ?? 0,
-      activeProjects: pmByCompany.get(c.id)?.active ?? 0,
-      archivedCount: pmByCompany.get(c.id)?.archived ?? 0,
-      contractTotal: amountMap.get(c.id) ?? 0,
+      activeProjects: activeMap.get(c.id) ?? 0,
+      archivedCount: awardedMap.get(c.id)?.archived ?? 0,
+      contractTotal: awardedMap.get(c.id)?.contract ?? 0,
+      purchaserCount: countOf(purchaserCounts, c.id),
+      placeCount: countOf(placeCounts, c.id),
+      supervisionCount: countOf(supervisionCounts, c.id),
     }));
   }
 
@@ -226,17 +238,12 @@ export class CompanyController {
   @Roles('leader', 'admin')
   @ApiOperation({ summary: '新增采购人条目（设为默认时自动取消其他默认）' })
   async addPurchaser(@CurrentUser() user: AuthenticatedUser, @Body() dto: PurchaserBodyDto) {
-    const companyId = await this.resolveOwnCompanyId(user);
-    const name = dto.name?.trim();
-    if (!name) {
-      throw new BadRequestException({ error: '采购人姓名不能为空', code: 'PURCHASER_NAME_REQUIRED' });
-    }
-    return this.entryMutation(companyId, 'companyPurchaser', null, {
-      name,
-      phone: normalizeOptional(dto.phone),
-      email: normalizeOptional(dto.email),
-      isDefault: dto.isDefault ?? false,
-    });
+    return this.entryMutation(
+      await this.resolveOwnCompanyId(user),
+      'companyPurchaser',
+      null,
+      this.buildPurchaserCreate(dto),
+    );
   }
 
   @Patch('my-info/purchasers/:pid')
@@ -247,13 +254,12 @@ export class CompanyController {
     @Param('pid') pid: string,
     @Body() dto: PurchaserBodyDto,
   ) {
-    const companyId = await this.resolveOwnCompanyId(user);
-    return this.entryMutation(companyId, 'companyPurchaser', pid, {
-      ...(dto.name !== undefined && { name: dto.name.trim() }),
-      ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
-      ...(dto.email !== undefined && { email: normalizeOptional(dto.email) }),
-      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
-    });
+    return this.entryMutation(
+      await this.resolveOwnCompanyId(user),
+      'companyPurchaser',
+      pid,
+      this.buildPurchaserUpdate(dto),
+    );
   }
 
   @Delete('my-info/purchasers/:pid')
@@ -267,26 +273,24 @@ export class CompanyController {
   @Roles('leader', 'admin')
   @ApiOperation({ summary: '新增开标地点条目（设为默认时自动取消其他默认）' })
   async addPlace(@CurrentUser() user: AuthenticatedUser, @Body() dto: PlaceBodyDto) {
-    const companyId = await this.resolveOwnCompanyId(user);
-    const address = dto.address?.trim();
-    if (!address) {
-      throw new BadRequestException({ error: '地点地址不能为空', code: 'PLACE_REQUIRED' });
-    }
-    return this.entryMutation(companyId, 'companyPlace', null, {
-      address,
-      isDefault: dto.isDefault ?? false,
-    });
+    return this.entryMutation(
+      await this.resolveOwnCompanyId(user),
+      'companyPlace',
+      null,
+      this.buildPlaceCreate(dto),
+    );
   }
 
   @Patch('my-info/places/:pid')
   @Roles('leader', 'admin')
   @ApiOperation({ summary: '编辑开标地点条目（设为默认时自动取消其他默认）' })
   async updatePlace(@CurrentUser() user: AuthenticatedUser, @Param('pid') pid: string, @Body() dto: PlaceBodyDto) {
-    const companyId = await this.resolveOwnCompanyId(user);
-    return this.entryMutation(companyId, 'companyPlace', pid, {
-      ...(dto.address !== undefined && { address: dto.address.trim() }),
-      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
-    });
+    return this.entryMutation(
+      await this.resolveOwnCompanyId(user),
+      'companyPlace',
+      pid,
+      this.buildPlaceUpdate(dto),
+    );
   }
 
   @Delete('my-info/places/:pid')
@@ -300,18 +304,12 @@ export class CompanyController {
   @Roles('leader', 'admin')
   @ApiOperation({ summary: '新增监督举报条目（监督人为必填标识；设为默认时自动取消其他默认）' })
   async addSupervision(@CurrentUser() user: AuthenticatedUser, @Body() dto: SupervisionBodyDto) {
-    const companyId = await this.resolveOwnCompanyId(user);
-    const contact = dto.contact?.trim();
-    if (!contact) {
-      throw new BadRequestException({ error: '监督人不能为空（条目以监督人为标识）', code: 'SUPERVISION_CONTACT_REQUIRED' });
-    }
-    return this.entryMutation(companyId, 'companySupervision', null, {
-      department: normalizeOptional(dto.department),
-      address: normalizeOptional(dto.address),
-      contact: normalizeOptional(dto.contact),
-      phone: normalizeOptional(dto.phone),
-      isDefault: dto.isDefault ?? false,
-    });
+    return this.entryMutation(
+      await this.resolveOwnCompanyId(user),
+      'companySupervision',
+      null,
+      this.buildSupervisionCreate(dto),
+    );
   }
 
   @Patch('my-info/supervisions/:pid')
@@ -322,14 +320,12 @@ export class CompanyController {
     @Param('pid') pid: string,
     @Body() dto: SupervisionBodyDto,
   ) {
-    const companyId = await this.resolveOwnCompanyId(user);
-    return this.entryMutation(companyId, 'companySupervision', pid, {
-      ...(dto.department !== undefined && { department: normalizeOptional(dto.department) }),
-      ...(dto.address !== undefined && { address: normalizeOptional(dto.address) }),
-      ...(dto.contact !== undefined && { contact: normalizeOptional(dto.contact) }),
-      ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
-      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
-    });
+    return this.entryMutation(
+      await this.resolveOwnCompanyId(user),
+      'companySupervision',
+      pid,
+      this.buildSupervisionUpdate(dto),
+    );
   }
 
   @Delete('my-info/supervisions/:pid')
@@ -387,6 +383,167 @@ export class CompanyController {
     }
     await delegate.delete({ where: { id: pid } });
     return { id: pid };
+  }
+
+  // ── admin 按公司条目维护（2026-10-12）：账号管理「公司信息管理」编辑窗口数据面——
+  //    与 my-info 版同一套校验/写路径（build*Create/Update + entryMutation/entryDelete），
+  //    差异仅在目标公司来自路径参数（admin 维护全量公司）而非登录人归属。──
+
+  @Get(':id/info')
+  @Roles('admin')
+  @ApiOperation({ summary: '指定公司信息 + 三类条目（admin 编辑窗口数据源）' })
+  async companyInfoById(@Param('id') id: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id },
+      select: {
+        id: true, name: true, shortName: true, code: true, createdAt: true,
+        ...Object.fromEntries(COMPANY_INFO_FIELDS.map(f => [f, true])),
+      },
+    });
+    if (!company) throw new NotFoundException('公司不存在');
+    // 条目排序与 my-info 同口径：默认在前、同位次按创建时间
+    const entryOrder = [{ isDefault: 'desc' as const }, { createdAt: 'asc' as const }];
+    const [purchasers, places, supervisionProfiles] = await Promise.all([
+      this.prisma.companyPurchaser.findMany({ where: { companyId: id }, orderBy: entryOrder }),
+      this.prisma.companyPlace.findMany({ where: { companyId: id }, orderBy: entryOrder }),
+      this.prisma.companySupervision.findMany({ where: { companyId: id }, orderBy: entryOrder }),
+    ]);
+    return { ...company, purchasers, places, supervisionProfiles };
+  }
+
+  @Post(':id/purchasers')
+  @Roles('admin')
+  @ApiOperation({ summary: '为指定公司新增采购人条目（admin 编辑窗口）' })
+  async adminAddPurchaser(@Param('id') id: string, @Body() dto: PurchaserBodyDto) {
+    await this.assertCompanyExists(id);
+    return this.entryMutation(id, 'companyPurchaser', null, this.buildPurchaserCreate(dto));
+  }
+
+  @Patch(':id/purchasers/:pid')
+  @Roles('admin')
+  @ApiOperation({ summary: '编辑指定公司采购人条目（admin 编辑窗口）' })
+  async adminUpdatePurchaser(@Param('id') id: string, @Param('pid') pid: string, @Body() dto: PurchaserBodyDto) {
+    return this.entryMutation(id, 'companyPurchaser', pid, this.buildPurchaserUpdate(dto));
+  }
+
+  @Delete(':id/purchasers/:pid')
+  @Roles('admin')
+  @ApiOperation({ summary: '删除指定公司采购人条目（admin 编辑窗口）' })
+  async adminDeletePurchaser(@Param('id') id: string, @Param('pid') pid: string) {
+    return this.entryDelete(id, 'companyPurchaser', pid);
+  }
+
+  @Post(':id/places')
+  @Roles('admin')
+  @ApiOperation({ summary: '为指定公司新增开标地点条目（admin 编辑窗口）' })
+  async adminAddPlace(@Param('id') id: string, @Body() dto: PlaceBodyDto) {
+    await this.assertCompanyExists(id);
+    return this.entryMutation(id, 'companyPlace', null, this.buildPlaceCreate(dto));
+  }
+
+  @Patch(':id/places/:pid')
+  @Roles('admin')
+  @ApiOperation({ summary: '编辑指定公司开标地点条目（admin 编辑窗口）' })
+  async adminUpdatePlace(@Param('id') id: string, @Param('pid') pid: string, @Body() dto: PlaceBodyDto) {
+    return this.entryMutation(id, 'companyPlace', pid, this.buildPlaceUpdate(dto));
+  }
+
+  @Delete(':id/places/:pid')
+  @Roles('admin')
+  @ApiOperation({ summary: '删除指定公司开标地点条目（admin 编辑窗口）' })
+  async adminDeletePlace(@Param('id') id: string, @Param('pid') pid: string) {
+    return this.entryDelete(id, 'companyPlace', pid);
+  }
+
+  @Post(':id/supervisions')
+  @Roles('admin')
+  @ApiOperation({ summary: '为指定公司新增监督举报条目（admin 编辑窗口）' })
+  async adminAddSupervision(@Param('id') id: string, @Body() dto: SupervisionBodyDto) {
+    await this.assertCompanyExists(id);
+    return this.entryMutation(id, 'companySupervision', null, this.buildSupervisionCreate(dto));
+  }
+
+  @Patch(':id/supervisions/:pid')
+  @Roles('admin')
+  @ApiOperation({ summary: '编辑指定公司监督举报条目（admin 编辑窗口）' })
+  async adminUpdateSupervision(@Param('id') id: string, @Param('pid') pid: string, @Body() dto: SupervisionBodyDto) {
+    return this.entryMutation(id, 'companySupervision', pid, this.buildSupervisionUpdate(dto));
+  }
+
+  @Delete(':id/supervisions/:pid')
+  @Roles('admin')
+  @ApiOperation({ summary: '删除指定公司监督举报条目（admin 编辑窗口）' })
+  async adminDeleteSupervision(@Param('id') id: string, @Param('pid') pid: string) {
+    return this.entryDelete(id, 'companySupervision', pid);
+  }
+
+  /** 路径公司存在性闸（admin 创建路径用；编辑/删除由条目归属校验兜底 404） */
+  private async assertCompanyExists(id: string) {
+    const exists = await this.prisma.company.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new NotFoundException('公司不存在');
+  }
+
+  /** 条目创建载荷（my-info 与 admin 版共用）：必填校验 + trim→null 归一 */
+  private buildPurchaserCreate(dto: PurchaserBodyDto) {
+    const name = dto.name?.trim();
+    if (!name) {
+      throw new BadRequestException({ error: '采购人姓名不能为空', code: 'PURCHASER_NAME_REQUIRED' });
+    }
+    return {
+      name,
+      phone: normalizeOptional(dto.phone),
+      email: normalizeOptional(dto.email),
+      isDefault: dto.isDefault ?? false,
+    };
+  }
+
+  /** 条目更新载荷（PATCH 局部更新：仅携带出现的字段） */
+  private buildPurchaserUpdate(dto: PurchaserBodyDto) {
+    return {
+      ...(dto.name !== undefined && { name: dto.name.trim() }),
+      ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
+      ...(dto.email !== undefined && { email: normalizeOptional(dto.email) }),
+      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
+    };
+  }
+
+  private buildPlaceCreate(dto: PlaceBodyDto) {
+    const address = dto.address?.trim();
+    if (!address) {
+      throw new BadRequestException({ error: '地点地址不能为空', code: 'PLACE_REQUIRED' });
+    }
+    return { address, isDefault: dto.isDefault ?? false };
+  }
+
+  private buildPlaceUpdate(dto: PlaceBodyDto) {
+    return {
+      ...(dto.address !== undefined && { address: dto.address.trim() }),
+      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
+    };
+  }
+
+  private buildSupervisionCreate(dto: SupervisionBodyDto) {
+    const contact = dto.contact?.trim();
+    if (!contact) {
+      throw new BadRequestException({ error: '监督人不能为空（条目以监督人为标识）', code: 'SUPERVISION_CONTACT_REQUIRED' });
+    }
+    return {
+      department: normalizeOptional(dto.department),
+      address: normalizeOptional(dto.address),
+      contact: normalizeOptional(dto.contact),
+      phone: normalizeOptional(dto.phone),
+      isDefault: dto.isDefault ?? false,
+    };
+  }
+
+  private buildSupervisionUpdate(dto: SupervisionBodyDto) {
+    return {
+      ...(dto.department !== undefined && { department: normalizeOptional(dto.department) }),
+      ...(dto.address !== undefined && { address: normalizeOptional(dto.address) }),
+      ...(dto.contact !== undefined && { contact: normalizeOptional(dto.contact) }),
+      ...(dto.phone !== undefined && { phone: normalizeOptional(dto.phone) }),
+      ...(dto.isDefault !== undefined && { isDefault: dto.isDefault }),
+    };
   }
 
   /** 公司信息管理页保存：维护本公司 名称/简称 + 开标/监督/采购人信息。

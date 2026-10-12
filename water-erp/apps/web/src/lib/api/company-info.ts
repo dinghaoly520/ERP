@@ -239,3 +239,88 @@ export function pickDefaultSupervision(
   }
   return null;
 }
+
+// ── admin 按公司维护（2026-10-12 编辑窗口）：账号管理「公司信息管理」弹窗用——
+//    端点与 my-info 版同构，目标公司来自路径参数；动到本公司时同步作废会话单例
+//    （admin 本人的编写预填取数与 leader 侧同源，改完即生效）。──
+
+/** 指定公司信息 + 三类条目（admin 编辑窗口数据源） */
+export function fetchCompanyInfoById(companyId: string): Promise<CompanyInfo> {
+  return request<CompanyInfo>(`/${companyId}/info`);
+}
+
+/** 保存指定公司基本信息（名称/简称/采购人地址；名称全局唯一服务端校验） */
+export async function updateCompanyById(companyId: string, payload: CompanyInfoPayload): Promise<CompanyInfo> {
+  const saved = await request<CompanyInfo>(`/${companyId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  invalidateCompanyInfoCache();
+  return saved;
+}
+
+export async function createCompanyPurchaser(
+  companyId: string,
+  body: { name: string; phone?: string | null; email?: string | null; isDefault?: boolean },
+): Promise<CompanyPurchaserEntry> {
+  const created = await request<CompanyPurchaserEntry>(`/${companyId}/purchasers`, { method: 'POST', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return created;
+}
+export async function updateCompanyPurchaser(
+  companyId: string,
+  id: string,
+  body: { name?: string; phone?: string | null; email?: string | null; isDefault?: boolean },
+): Promise<CompanyPurchaserEntry> {
+  const updated = await request<CompanyPurchaserEntry>(`/${companyId}/purchasers/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return updated;
+}
+export async function deleteCompanyPurchaser(companyId: string, id: string): Promise<{ id: string }> {
+  const removed = await request<{ id: string }>(`/${companyId}/purchasers/${id}`, { method: 'DELETE' });
+  invalidateCompanyInfoCache();
+  return removed;
+}
+
+export async function createCompanyPlace(
+  companyId: string,
+  body: { address: string; isDefault?: boolean },
+): Promise<CompanyPlaceEntry> {
+  const created = await request<CompanyPlaceEntry>(`/${companyId}/places`, { method: 'POST', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return created;
+}
+export async function updateCompanyPlace(
+  companyId: string,
+  id: string,
+  body: { address?: string; isDefault?: boolean },
+): Promise<CompanyPlaceEntry> {
+  const updated = await request<CompanyPlaceEntry>(`/${companyId}/places/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return updated;
+}
+export async function deleteCompanyPlace(companyId: string, id: string): Promise<{ id: string }> {
+  const removed = await request<{ id: string }>(`/${companyId}/places/${id}`, { method: 'DELETE' });
+  invalidateCompanyInfoCache();
+  return removed;
+}
+
+export async function createCompanySupervision(
+  companyId: string,
+  body: { contact: string; department?: string | null; address?: string | null; phone?: string | null; isDefault?: boolean },
+): Promise<CompanySupervisionEntry> {
+  const created = await request<CompanySupervisionEntry>(`/${companyId}/supervisions`, { method: 'POST', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return created;
+}
+export async function updateCompanySupervision(
+  companyId: string,
+  id: string,
+  body: { department?: string | null; address?: string | null; contact?: string | null; phone?: string | null; isDefault?: boolean },
+): Promise<CompanySupervisionEntry> {
+  const updated = await request<CompanySupervisionEntry>(`/${companyId}/supervisions/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  invalidateCompanyInfoCache();
+  return updated;
+}
+export async function deleteCompanySupervision(companyId: string, id: string): Promise<{ id: string }> {
+  const removed = await request<{ id: string }>(`/${companyId}/supervisions/${id}`, { method: 'DELETE' });
+  invalidateCompanyInfoCache();
+  return removed;
+}

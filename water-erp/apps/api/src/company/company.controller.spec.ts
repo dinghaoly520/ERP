@@ -221,3 +221,191 @@ describe('CompanyController 采购人条目（2026-10-10 多人版）', () => {
     expect(prisma.companyPurchaser.delete).toHaveBeenCalledWith({ where: { id: 'p1' } });
   });
 });
+
+describe('CompanyController management（KPI 台账口径 · 2026-10-12 修订）', () => {
+  function makeManagementPrisma() {
+    const entryDelegate = () => ({
+      groupBy: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      delete: jest.fn(),
+    });
+    return {
+      user: { findUnique: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
+      company: {
+        findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([COMPANY_ROW]),
+        update: jest.fn(),
+      },
+      projectManagementItem: {
+        groupBy: jest.fn().mockResolvedValue([{ companyId: 'co-1', _count: { _all: 19 } }]),
+      },
+      procurementRound: {
+        groupBy: jest.fn().mockResolvedValue([
+          { companyId: 'co-1', _count: { _all: 4 }, _sum: { awardAmount: 7499900 } },
+        ]),
+      },
+      companyPurchaser: { ...entryDelegate(), groupBy: jest.fn().mockResolvedValue([{ companyId: 'co-1', _count: { _all: 2 } }]) },
+      companyPlace: entryDelegate(),
+      companySupervision: entryDelegate(),
+    };
+  }
+
+  it('已归档/合同额按台账 AWARDED 轮次聚合（剔除回收站），在办仍走 PMI ACTIVE', async () => {
+    const prisma = makeManagementPrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    const [row] = await ctrl.management();
+
+    expect(prisma.procurementRound.groupBy).toHaveBeenCalledWith({
+      by: ['companyId'],
+      where: { companyId: { not: null }, resultStatus: 'AWARDED', isRecycled: false },
+      _count: { _all: true },
+      _sum: { awardAmount: true },
+    });
+    expect(prisma.projectManagementItem.groupBy).toHaveBeenCalledWith({
+      by: ['companyId'],
+      where: { companyId: { not: null }, status: 'ACTIVE' },
+      _count: { _all: true },
+    });
+    expect(row).toMatchObject({ activeProjects: 19, archivedCount: 4, contractTotal: 7499900 });
+  });
+
+  it('无 AWARDED 轮次的公司归零（不再恒读 PMI ARCHIVED）', async () => {
+    const prisma = makeManagementPrisma();
+    (prisma.procurementRound.groupBy as jest.Mock).mockResolvedValue([
+      { companyId: 'co-2', _count: { _all: 1 }, _sum: { awardAmount: 100 } },
+    ]);
+    const ctrl = new CompanyController(prisma as never);
+
+    const [row] = await ctrl.management();
+    expect(row).toMatchObject({ archivedCount: 0, contractTotal: 0 });
+  });
+
+  it('附带三类条目计数（台账公司列「采购人 N · 地点 N · 监督 N」）', async () => {
+    const prisma = makeManagementPrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    const [row] = await ctrl.management();
+    expect(row).toMatchObject({ purchaserCount: 2, placeCount: 0, supervisionCount: 0 });
+  });
+});
+
+describe('CompanyController admin 按公司条目维护（2026-10-12 编辑窗口）', () => {
+  function makeAdminEntryPrisma() {
+    const txStub = {
+      companyPurchaser: {
+        create: jest.fn().mockResolvedValue({ id: 'p2' }),
+        updateMany: jest.fn(),
+        update: jest.fn().mockResolvedValue({ id: 'p1' }),
+      },
+      companyPlace: { create: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+      companySupervision: { create: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+    };
+    const entryDelegate = () => ({
+      groupBy: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      delete: jest.fn(),
+    });
+    return {
+      user: { findUnique: jest.fn() },
+      company: { findUnique: jest.fn().mockResolvedValue(COMPANY_ROW), findMany: jest.fn(), update: jest.fn() },
+      projectManagementItem: { groupBy: jest.fn() },
+      procurementRound: { groupBy: jest.fn() },
+      companyPurchaser: { ...entryDelegate(), findMany: jest.fn().mockResolvedValue([{ id: 'p1', name: '张三', isDefault: true }]) },
+      companyPlace: entryDelegate(),
+      companySupervision: entryDelegate(),
+      $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn(txStub)),
+      __txStub: txStub,
+    };
+  }
+
+  it('admin 条目端点权限元数据 = 仅 admin', () => {
+    const reflector = new Reflector();
+    for (const fn of [
+      CompanyController.prototype.companyInfoById,
+      CompanyController.prototype.adminAddPurchaser,
+      CompanyController.prototype.adminUpdatePurchaser,
+      CompanyController.prototype.adminDeletePurchaser,
+      CompanyController.prototype.adminAddPlace,
+      CompanyController.prototype.adminUpdatePlace,
+      CompanyController.prototype.adminDeletePlace,
+      CompanyController.prototype.adminAddSupervision,
+      CompanyController.prototype.adminUpdateSupervision,
+      CompanyController.prototype.adminDeleteSupervision,
+    ]) {
+      expect(reflector.get<string[]>(ROLES_KEY, fn)).toEqual(['admin']);
+    }
+  });
+
+  it('companyInfoById 返回公司 + 三类条目；公司不存在 → 404', async () => {
+    const prisma = makeAdminEntryPrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    const out = await ctrl.companyInfoById('co-1');
+    expect(out).toMatchObject({ id: 'co-1', name: '甲公司' });
+    expect(out.purchasers).toHaveLength(1);
+    expect(prisma.companyPurchaser.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'co-1' },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    (prisma.company.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(ctrl.companyInfoById('co-gone')).rejects.toThrow('公司不存在');
+  });
+
+  it('adminAddPurchaser：公司存在性闸 + 与 my-info 同套校验/写路径', async () => {
+    const prisma = makeAdminEntryPrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await ctrl.adminAddPurchaser('co-1', { name: ' 李四 ', isDefault: true });
+    const tx = (prisma as { __txStub: { companyPurchaser: { updateMany: jest.Mock; create: jest.Mock } } }).__txStub;
+    expect(tx.companyPurchaser.updateMany).toHaveBeenCalledWith({ where: { companyId: 'co-1' }, data: { isDefault: false } });
+    expect(tx.companyPurchaser.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: '李四', isDefault: true, companyId: 'co-1' }),
+    });
+    // 不解析登录人公司——admin 面向路径公司
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('adminAddPurchaser 公司不存在 → 404；空名 → 400 PURCHASER_NAME_REQUIRED', async () => {
+    const prisma = makeAdminEntryPrisma();
+    (prisma.company.findUnique as jest.Mock).mockResolvedValueOnce(null);
+    const ctrl = new CompanyController(prisma as never);
+    await expect(ctrl.adminAddPurchaser('co-gone', { name: 'x' })).rejects.toThrow('公司不存在');
+
+    await expect(ctrl.adminAddPurchaser('co-1', { name: '  ' })).rejects.toMatchObject({
+      response: { code: 'PURCHASER_NAME_REQUIRED' },
+    });
+  });
+
+  it('adminUpdatePurchaser 跨公司条目 → 404（不泄露存在性）；越权条目删除同口径', async () => {
+    const prisma = makeAdminEntryPrisma();
+    (prisma.companyPurchaser.findUnique as jest.Mock).mockResolvedValue({ id: 'px', companyId: 'co-2' });
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.adminUpdatePurchaser('co-1', 'px', { name: 'x' })).rejects.toThrow('条目不存在');
+    await expect(ctrl.adminDeletePurchaser('co-1', 'px')).rejects.toThrow('条目不存在');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.companyPurchaser.delete).not.toHaveBeenCalled();
+  });
+
+  it('adminAddPlace / adminAddSupervision 必填校验与 my-info 同码', async () => {
+    const prisma = makeAdminEntryPrisma();
+    const ctrl = new CompanyController(prisma as never);
+
+    await expect(ctrl.adminAddPlace('co-1', { address: ' ' })).rejects.toMatchObject({
+      response: { code: 'PLACE_REQUIRED' },
+    });
+    await expect(ctrl.adminAddSupervision('co-1', {})).rejects.toMatchObject({
+      response: { code: 'SUPERVISION_CONTACT_REQUIRED' },
+    });
+  });
+});
