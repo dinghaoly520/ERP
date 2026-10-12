@@ -74,8 +74,9 @@ const minio = new Client({
   endPoint: process.env.MINIO_ENDPOINT || 'localhost',
   port: Number(process.env.MINIO_PORT || 9000),
   useSSL: process.env.MINIO_USE_SSL === 'true',
-  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+  // 默认值与 src/upload/minio.client.ts 对齐（漏配 env 时行为一致，勿各写各的）
+  accessKey: process.env.MINIO_ACCESS_KEY || 'water_erp_minio',
+  secretKey: process.env.MINIO_SECRET_KEY || 'water_erp_minio_dev',
 });
 const BUCKET = process.env.MINIO_BUCKET || 'water-erp';
 
