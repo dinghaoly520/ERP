@@ -67,30 +67,3 @@ export async function fetchDashboardAnalysis(
 ): Promise<DashboardAnalysisResult> {
   return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', payload);
 }
-
-export type ReferenceBudgetPayload = {
-  projectTitle: string;
-  procurementMethod?: string;
-  procurementCategory?: string;
-  requesterDepartment?: string;
-  projectReason?: string;
-  historicalProjects?: Array<{
-    projectName: string;
-    procurementMethod: string;
-    departmentName: string;
-    budgetAmount: number;
-    awardAmount: number | null;
-    procurementDate: string | null;
-  }>;
-};
-
-export type ReferenceBudgetResult = {
-  referenceBudget: number;
-  reasoning: string;
-};
-
-export async function fetchReferenceBudget(
-  payload: ReferenceBudgetPayload,
-): Promise<ReferenceBudgetResult> {
-  return api.post<ReferenceBudgetResult>('/ai/reference-budget', payload);
-}
