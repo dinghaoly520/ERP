@@ -3,8 +3,9 @@ import { Transform, TransformCallback } from 'stream';
 
 /* =================================================================
    招标文件加密工具 — AES-256-GCM
-   每个文档独立密钥；密文存 MinIO，密钥(hex)存 BidDocument.decryptKey。
-   格式：key:iv:authTag（均为 hex）
+   每个文档独立密钥；密文存 MinIO。DEK（key:iv:authTag hex）写入方经
+   wrapKey(KMS_SECRET) 包裹后存 BidDocument.decryptKey（bid-document.service.ts
+   写侧）；读端 isWrappedKey 分流——包裹 blob 走 unwrapKey，旧明文 hex 直读（存量兼容）。
    ================================================================= */
 
 const ALGO = 'aes-256-gcm';

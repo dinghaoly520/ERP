@@ -119,8 +119,20 @@ export function isSealedFieldSm(value: string | null | undefined): boolean {
 
 /* ── env 便捷层：服务层调用入口，密钥来自环境变量 ── */
 
+let devFallbackWarned = false;
 function activeSecret(): string {
-  return process.env.FIELD_ENC_SECRET || DEV_FALLBACK_SECRET;
+  const configured = process.env.FIELD_ENC_SECRET;
+  if (configured) return configured;
+  // 回退开发钥时无条件告警一次（2026-10-12 密文评估 P2-8）：此前静默回退，
+  // NODE_ENV 误配未设的生产/预发实例会用公开的 dev 钥密封而不自知
+  if (!devFallbackWarned) {
+    devFallbackWarned = true;
+    console.warn(
+      '[sm-field-crypto] FIELD_ENC_SECRET 未配置，正在使用开发回退钥——仅限本地开发。' +
+        '若本实例面向真实数据请立即配置（生产环境启动守卫会拒绝启动，但该守卫依赖 NODE_ENV 正确设置）。',
+    );
+  }
+  return DEV_FALLBACK_SECRET;
 }
 
 /** 密封（用 FIELD_ENC_SECRET；未配置回退 dev 钥） */

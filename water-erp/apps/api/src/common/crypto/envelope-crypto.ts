@@ -49,6 +49,19 @@ export function wrapKey(dek: string, kmsSecret: string): string {
  * @param kmsSecret 主密钥（来自环境变量 KMS_SECRET）
  * @returns "hexkey:hexiv:hextag" 格式的原始 DEK
  */
+/**
+ * 生产启动守卫（2026-10-12 密文评估 P2-7）：KMS_SECRET 缺失时拒绝启动。
+ * 此前仅在 wrapKey/unwrapKey 运行时抛错——首单投标投递/招标文件上传才发现，
+ * 启动期发现优于业务时发现（口径对齐 sm-field-crypto 的 FIELD_ENC 守卫；
+ * 不强制最小长度——存量生产钥长度未知，只要求非空）。
+ */
+export function assertKmsSecretForProduction(): void {
+  if (process.env.NODE_ENV !== 'production') return;
+  if (!process.env.KMS_SECRET) {
+    throw new Error('KMS_SECRET 未配置，生产环境拒绝启动（投标信封/招标文件/通用上传密封主密钥）');
+  }
+}
+
 export function unwrapKey(wrappedBlob: string, kmsSecret: string): string {
   if (!kmsSecret) throw new Error('KMS_SECRET is not configured');
   if (!wrappedBlob) throw new Error('wrappedBlob is empty');
