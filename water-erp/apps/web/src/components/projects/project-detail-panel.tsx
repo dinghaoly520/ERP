@@ -27,7 +27,7 @@ import {
 import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
 import { isPassFailCategory } from '@water-erp/shared';
 import { getProjectParticipants } from '@/lib/api/announcement';
-import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
+import { fmtAcquireTime, zhToDatetimeLocal, zhRangeToDatetimeLocal, datetimeLocalToZh } from '@/lib/utils/format-acquire-time';
 import {
   PROCUREMENT_METHODS,
   PROCUREMENT_CATEGORY_OPTIONS,
@@ -1067,6 +1067,17 @@ export function ProjectDetailPanel({
     if (field === 'biddingUnits' && value) {
       value = value.split(/[、,]/).join('\n');
     }
+    // 开标时间：时间点选择态——中文文本 → datetime-local
+    if (field === 'bidOpeningTime') {
+      setEditValues((prev) => ({ ...prev, bidOpeningTime: zhToDatetimeLocal(value) ?? '' }));
+      return;
+    }
+    // 采购文件获取时间：区间选择态——起止各自转 datetime-local，以 ~ 拼接为内部态
+    if (field === 'documentAcquireTime') {
+      const { start, end } = zhRangeToDatetimeLocal(value);
+      setEditValues((prev) => ({ ...prev, documentAcquireTime: [start, end].filter(Boolean).join('~') }));
+      return;
+    }
     setEditValues((prev) => ({
       ...prev,
       [field]: value,
@@ -1096,6 +1107,15 @@ export function ProjectDetailPanel({
       payload[field] = value.trim();
     } else if (field === 'initiationDate') {
       payload[field] = value || null;
+    } else if (field === 'bidOpeningTime') {
+      // 选择器值 → 中文存库格式（与 AI 归一化同口径）；未选则清空
+      payload[field] = datetimeLocalToZh(editValues.bidOpeningTime);
+    } else if (field === 'documentAcquireTime') {
+      // 起止选择器 → 区间中文文本「起-止」；只选起点为单点，全空为 null
+      const [s, e] = (editValues.documentAcquireTime || '').split('~');
+      const startZh = datetimeLocalToZh(s);
+      const endZh = datetimeLocalToZh(e);
+      payload[field] = startZh ? (endZh ? `${startZh}-${endZh}` : startZh) : null;
     } else {
       payload[field] = value || null;
     }
@@ -1691,7 +1711,7 @@ export function ProjectDetailPanel({
                     <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <input type="text" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年8月15日" autoFocus />
+                        <input type="datetime-local" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('bidOpeningTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
@@ -1705,7 +1725,9 @@ export function ProjectDetailPanel({
                     <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <input type="text" value={editValues.documentAcquireTime} onChange={(e) => setEditValues((prev) => ({ ...prev, documentAcquireTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年3月23日9:00-3月26日15:00" autoFocus />
+                        <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[0] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${e.target.value}~${parts[1] ?? ''}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setEditingField(null); }} />
+                        <span className="text-xs text-[color:var(--muted-foreground)]">—</span>
+                        <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[1] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${parts[0] ?? ''}~${e.target.value}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('documentAcquireTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('documentAcquireTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
