@@ -29,6 +29,7 @@ import { StageComplianceConfigService } from './stage-compliance-config.service'
 import { ArchiveFlowService } from '../archive/archive-flow.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CompanyScopeService } from '../company/company-scope';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
@@ -236,6 +237,7 @@ export class ProjectManagementService {
     private readonly stageCompliance: StageComplianceConfigService,
     private readonly notificationService: NotificationService,
     private readonly scoreStandardValidator: ScoreStandardValidator,
+    private readonly companyScope: CompanyScopeService, // 末位追加（2026-10-10 leader 公司视野）：构造器 12 参，三个 spec 按位同步
   ) {}
 
   /** 按公司分组项目计数（2026-09-26 公司下拉语境化）：ARCHIVED=已完成、ACTIVE=进行中（RECYCLED/TERMINATED 不计） */
@@ -253,14 +255,20 @@ export class ProjectManagementService {
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
     const where: Record<string, unknown> = {};
 
-    // 项目可见性（拍板 1C，2026-08-24 确认保留）：非 admin 仅见本人创建的项目；admin 全量。
-    // 隔离是硬性要求，不做全员可见。user=undefined 属鉴权异常，返回空集不泄露数据。
-    if (user?.role !== 'admin') {
+    // 项目可见性（拍板 1C，2026-08-24；2026-10-10 修订）：staff 仅见本人创建的项目；
+    // leader 见本公司全部项目（用户裁定：leader 在 :3005 项目管理看公司全量）；
+    // admin 全量 + ?companyId= 切换单公司。user=undefined 属鉴权异常，返回空集不泄露数据。
+    if (user?.role === 'leader') {
+      // leader 公司视野：与数据库/台账等页同口径（resolveScope 强制本人公司，传参忽略）
+      Object.assign(where, this.companyScope.filter(await this.companyScope.resolveScope(user)));
+    } else if (user?.role === 'admin') {
+      if (query.companyId && query.companyId !== 'all') {
+        // admin 公司视图（公司级数据隔离，2026-09-17）：不传/'all' = 全部。
+        // 非法 id 自然得到空集，与 resolveScope 语义一致，无需前置存在性校验。
+        where.companyId = query.companyId;
+      }
+    } else {
       where.createdById = user?.sub ?? '__no_user__';
-    } else if (query.companyId && query.companyId !== 'all') {
-      // admin 公司视图（公司级数据隔离，2026-09-17）：?companyId= 切换单公司；不传/'all' = 全部。
-      // 非法 id 自然得到空集，与 resolveScope 语义一致，无需前置存在性校验。
-      where.companyId = query.companyId;
     }
 
     if (query.keyword) {
@@ -307,6 +315,17 @@ export class ProjectManagementService {
       createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
       terminatedByName: item.terminatedBy?.displayName || item.terminatedBy?.username || null,
     }));
+  }
+
+  /** 项目管理权（2026-10-10 读写分级）：仅创建人可管理（修改/终止/回收/恢复/彻底删除）；
+   *  leader 本公司与 admin 全量均为只读视野（PmiOwnershipGuard 同口径，服务端第二道闸）。 */
+  private assertCanManageProject(
+    user: AuthenticatedUser | undefined,
+    project: { createdById: string | null },
+    deniedMessage: string,
+  ): void {
+    if (!user || project.createdById === user.sub) return;
+    throw new ForbiddenException(deniedMessage);
   }
 
   /** 按采购方式构建评标办法+公式默认值 */
@@ -3918,10 +3937,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    // 仅创建人或 admin 可终止
-    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
-      throw new ForbiddenException('只能终止本人创建的项目。');
-    }
+    // 仅创建人可终止（2026-10-10 读写分级：leader/admin 对他人项目只读）
+    this.assertCanManageProject(user, project, '仅项目创建人可终止该项目。');
 
     if (project.status !== PROJECT_MANAGEMENT_STATUS.ACTIVE) {
       throw new BadRequestException('仅进行中的项目可以终止。');
@@ -5721,10 +5738,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    // Only the creator or admin can move a project to recycle bin
-    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
-      throw new ForbiddenException('只能将本人创建的项目移至回收站。');
-    }
+    // Creator-only (2026-10-10 读写分级：leader/admin 对他人项目只读)
+    this.assertCanManageProject(user, project, '仅项目创建人可将项目移至回收站。');
 
     if (project.status === PROJECT_MANAGEMENT_STATUS.RECYCLED) {
       return project;
@@ -5746,10 +5761,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    // Only the creator or admin can restore a project
-    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
-      throw new ForbiddenException('只能恢复本人创建的项目。');
-    }
+    // Creator-only (2026-10-10 读写分级：leader/admin 对他人项目只读)
+    this.assertCanManageProject(user, project, '仅项目创建人可恢复该项目。');
 
     if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
       throw new BadRequestException('只有回收站中的项目可以恢复。');
@@ -5771,10 +5784,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    // Only the creator or admin can permanently delete a project
-    if (user && user.role !== 'admin' && project.createdById !== user.sub) {
-      throw new ForbiddenException('只能彻底删除本人创建的项目。');
-    }
+    // Creator-only (2026-10-10 读写分级：leader/admin 对他人项目只读)
+    this.assertCanManageProject(user, project, '仅项目创建人可彻底删除该项目。');
 
     if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
       throw new BadRequestException('请先将项目移入回收站后再彻底删除。');

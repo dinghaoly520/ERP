@@ -222,12 +222,11 @@ export function ProjectManagementPage() {
     ?? terminatedItems.find((item) => item.id === selectedItemId)
     ?? null;
 
-  /** Whether the current user is allowed to modify (recycle/restore/delete) a given project */
+  /** 是否可管理（修改/终止/回收站）：仅项目创建人（2026-10-10 读写分级）。
+   *  leader 本公司 / admin 全量为只读视野——列表可见但操作按钮不渲染（后端 PmiOwnershipGuard 同口径硬闸）。 */
   const canModifyProject = (project: { createdById?: string | null }) => {
     if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    if (project.createdById === currentUser.id) return true;
-    return false;
+    return project.createdById === currentUser.id;
   };
 
   const handleMoveToRecycleBin = async (projectId: string) => {

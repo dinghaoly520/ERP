@@ -61,8 +61,9 @@ export function AwardResultPanel({ startDate, endDate }: { startDate?: string; e
   const [detail, setDetail] = useState<ProjectManagementItem | null>(null);
 
   // R6-6④（2026-09-30 审计 B1）：随页头日期筛选联动——此前零参全量拉，
-  // 切日期/公司后其余面板全变、这两块不变；companyId 暂不传（该接口按创建人隔离，
-  // 与页头公司视野语义不同，传了反而更矛盾——待后端支持公司过滤后再接）
+  // 切日期/公司后其余面板全变、这两块不变；companyId 暂不传（staff 视角该接口按创建人隔离，
+  // 与页头公司视野语义不同，传了反而更矛盾——待后端支持公司过滤后再接；
+  // leader 视角 2026-10-10 起后端已强制本人公司，天然与页头一致）
   useEffect(() => {
     fetchProjectManagementList()
       .then((all) => {

@@ -6,8 +6,9 @@ import { ScoreStandardValidator } from '../bid/score-standard-validator.service'
  *  口径：办法=none 免校验（BP 缺失按 PMI 采购方式推导）；否则须有该轮 BidProject
  *  且评分标准完整（复用 ScoreStandardValidator，与发布/启动评标同口径）。 */
 describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
-  // 构造器 11 参：prisma, gbCode, ai, llm, documentParser, storage, archiveScope,
-  // archiveFlow, stageCompliance, notificationService, scoreStandardValidator（2026-09-24 新增末位）
+  // 构造器 12 参：prisma, gbCode, ai, llm, documentParser, storage, archiveScope,
+  // archiveFlow, stageCompliance, notificationService, scoreStandardValidator（2026-09-24 新增末位）,
+  // companyScope（2026-10-10 leader 公司视野新增末位）
   const mkService = (
     prisma: Record<string, any>,
     validator?: Partial<ScoreStandardValidator>,
@@ -24,6 +25,7 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
       {} as never,
       {} as never,
       (validator ?? { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) }) as never,
+      {} as never,
     );
 
   /** 全量放行链 mock：TENDER_DOCUMENT IN_PROGRESS → 完成推进 PUBLIC_ANNOUNCEMENT */
@@ -268,7 +270,7 @@ describe('listBidProjectRefs（只读解析，不创建）', () => {
   const mkService = (prisma: Record<string, any>) =>
     new ProjectManagementService(
       prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never,
-      {} as never, {} as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
     );
 
   it('findMany 按 pmiId 查、按 round 升序直返（无创建路径）', async () => {

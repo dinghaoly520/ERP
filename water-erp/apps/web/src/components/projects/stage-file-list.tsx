@@ -108,6 +108,7 @@ export function StageFileList({
   onDeleted,
   onEdit,
   frozenAttachmentIds,
+  readOnly = false,
 }: {
   files: ProjectManagementAttachment[];
   projectId: string;
@@ -115,6 +116,8 @@ export function StageFileList({
   onEdit?: (attachmentId: string, fileName: string) => void;
   /** 冻结附件 id 集（2026-09-27）：已完成 03 阶段的正式盖章版——编辑/删除禁用（服务端硬闸同步） */
   frozenAttachmentIds?: string[];
+  /** 只读（2026-10-10 读写分级）：归档/终止/非创建人——隐藏编辑与删除，仅保留查看/下载 */
+  readOnly?: boolean;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -207,7 +210,7 @@ export function StageFileList({
               >
                 <Download size={13} />
               </button>
-              {file.id && isDocx(file.fileName) && onEdit && (
+              {file.id && isDocx(file.fileName) && onEdit && !readOnly && (
                 <button
                   type="button"
                   onClick={() => onEdit(file.id!, file.fileName)}
@@ -218,7 +221,7 @@ export function StageFileList({
                   <Pencil size={13} />
                 </button>
               )}
-              {file.id && (
+              {file.id && !readOnly && (
                 confirmDeleteId === file.id ? (
                   <div className="flex items-center gap-1">
                     <button

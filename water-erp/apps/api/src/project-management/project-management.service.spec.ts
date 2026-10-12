@@ -453,6 +453,10 @@ describe('ProjectManagementService', () => {
       { getRules: async (k: string) => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
       {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
       { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } as never, // scoreStandardValidator（2026-09-24 评分标准闸）
+      {
+        resolveScope: async () => ({ all: false, companyId: 'co-test' }),
+        filter: (s: { all: boolean; companyId: string }) => (s.all ? {} : { companyId: s.companyId }),
+      } as never, // companyScope（2026-10-10 leader 公司视野）
     );
     return {
       service,
@@ -1408,6 +1412,41 @@ describe('ProjectManagementService', () => {
       expect(keys).not.toContain('PUBLIC_ANNOUNCEMENT');
       const completed = new Set(stages.filter((x) => x.status === 'COMPLETED').map((x) => x.stageKey));
       expect(completed.has('SUPPLIER_INVITATION')).toBe(true);
+    });
+  });
+
+  describe('list 项目可见性（2026-10-10：staff 本人、leader 本公司、admin 全量）', () => {
+    it('leader → where 注入本人 companyId（resolveScope 口径），query.companyId 传参忽略', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+
+      await service.list({ companyId: 'co-evil' } as never, { sub: 'leader-1', username: 'l', role: 'leader' });
+
+      const where = prisma.projectManagementItem.findMany.mock.calls[0][0].where;
+      expect(where.companyId).toBe('co-test'); // makeService 的 companyScope mock 固定本人公司
+      expect(where.createdById).toBeUndefined();
+    });
+
+    it('staff → where.createdById = 本人（个人隔离不变）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+
+      await service.list({}, { sub: 'staff-1', username: 's', role: 'staff' });
+
+      expect(prisma.projectManagementItem.findMany.mock.calls[0][0].where).toMatchObject({
+        createdById: 'staff-1',
+      });
+    });
+
+    it('user=undefined → 永假哨兵，不泄露数据', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+
+      await service.list({}, undefined);
+
+      expect(prisma.projectManagementItem.findMany.mock.calls[0][0].where).toMatchObject({
+        createdById: '__no_user__',
+      });
     });
   });
 

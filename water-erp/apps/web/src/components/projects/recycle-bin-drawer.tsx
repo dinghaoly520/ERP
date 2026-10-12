@@ -63,7 +63,8 @@ export function RecycleBinDrawer({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                {items.length > 0 ? (
+                {/* 一键删除仅当全部条目可管理（创建人）时可用——leader/admin 只读视野含他人项目，逐条按钮已按 canModify 隐藏 */}
+                {items.length > 0 && items.every((item) => canModify(item)) ? (
                   <button
                     type="button"
                     onClick={() => setShowDeleteAllConfirm(true)}

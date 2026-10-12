@@ -378,6 +378,10 @@ export function ProjectDetailPanel({
 
   // 只读模式（已完成归档 / 已终止）：允许查看全部内容，禁止一切编辑/推进/上传操作
   const readOnly = item.status === 'ARCHIVED' || item.status === 'TERMINATED';
+  // 操作禁用（2026-10-10 读写分级）：归档/终止只读 ∪ 非创建人只读——leader 本公司 / admin 全量
+  // 可见但不可改（后端 PmiOwnershipGuard 同口径：写端点仅创建人）。展示类逻辑（时间线着色/
+  // 归档横幅）仍用 readOnly，避免把 Viewer 误标成「全部已完成」。
+  const actionsDisabled = readOnly || !canModify;
 
   // 父组件重新渲染后同步本地镜像
   useEffect(() => {
@@ -471,7 +475,7 @@ export function ProjectDetailPanel({
   const stageProcessing = uploading || analysisLoading;
   const canCompleteStage =
     isCurrentStage && selectedStage.status !== 'COMPLETED' && !stageLocked && !stageProcessing;
-  const canArchive = archiveStepState === 'READY';
+  const canArchive = archiveStepState === 'READY' && canModify;
 
 	const heroVisual = STAGE_HERO_VISUAL[selectedStage.stageKey] ?? { Icon: UploadCloud, colorVar: 'var(--accent)' };
 	const stepPosition = useMemo(() => {
@@ -587,11 +591,11 @@ export function ProjectDetailPanel({
   // 深链自动弹开标确认面板（一次性：触发后即清标记，关闭后不复发）
   const autoOpenedBidConfirm = useRef(false);
   useEffect(() => {
-    if (autoOpenBidConfirm && !autoOpenedBidConfirm.current) {
+    if (autoOpenBidConfirm && canModify && !autoOpenedBidConfirm.current) {
       autoOpenedBidConfirm.current = true;
       setBidConfirmOpen(true);
     }
-  }, [autoOpenBidConfirm]);
+  }, [autoOpenBidConfirm, canModify]);
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
   const [contractStageOpen, setContractStageOpen] = useState(false);
   // 09 直接采购备案表编写弹窗（2026-09-28，附件6）
@@ -806,7 +810,7 @@ export function ProjectDetailPanel({
   };
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
-    if (readOnly) { toast.info('项目已归档，仅供查看'); return; }
+    if (actionsDisabled) { toast.info('只读模式，仅供查看'); return; }
     if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
     // 03 采购文件完成向导（2026-09-26 用户裁定：强制且不可豁免）——先选/传正式盖章版采购文件，
     // 再左预览右配置对照确认评分标准，确认后才落完成。原「评分标准 incomplete 前置拦截」
@@ -851,7 +855,7 @@ export function ProjectDetailPanel({
   };
 
   const uploadStageFiles = async () => {
-    if (readOnly) return; // 已归档只读
+    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     if (isLockedByBid(selectedStage.stageKey)) { toast.warning('开标已确认，文件不可上传'); return; }
     if (selectedFiles.length === 0) {
       setErrorMessage('请先选择要上传的文件。');
@@ -945,7 +949,7 @@ export function ProjectDetailPanel({
   };
 
   const archiveProject = async () => {
-    if (readOnly) return;
+    if (actionsDisabled) return;
     // Show confirmation dialog first
     setShowArchiveConfirm(true);
   };
@@ -1018,7 +1022,7 @@ export function ProjectDetailPanel({
   };
 
   const handleStartEdit = (field: string, currentValue: string | number | null | undefined) => {
-    if (readOnly) return; // 已归档只读
+    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     if (isBidLocked) { toast.warning('开标已确认，项目基本信息不可修改'); return; }
     setEditingField(field);
     let value = currentValue != null ? String(currentValue) : '';
@@ -1077,7 +1081,7 @@ export function ProjectDetailPanel({
   };
 
   const handleAiExtractTender = async (field: string) => {
-    if (readOnly) return; // 已归档只读
+    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     const tenderStage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
     const hasTenderFile = tenderStage?.attachments?.some((a) => isTenderMainFile(a.fileName));
     if (!hasTenderFile) {
@@ -1104,7 +1108,7 @@ export function ProjectDetailPanel({
   // AI 提取并优化"申请立项事由 / 对供方的主要要求"：直接持久化结果并刷新，
   // 不再进入编辑态让用户确认——AI 输出即终值，用户想微调可点字段右侧铅笔。
   const handleAiOptimizeInitiation = async () => {
-    if (readOnly) return; // 已归档只读
+    if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     setAiExtracting('initiation');
     try {
       const res = await optimizeInitiationFields(item.id);
@@ -1186,7 +1190,7 @@ export function ProjectDetailPanel({
     <>
       <div className="pm-detail-overlay absolute inset-0 z-[120] rounded-[24px] bg-[var(--background)]/60 backdrop-blur-[3px]" />
 
-      <section className={`absolute inset-0 z-[121] overflow-y-auto rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]${readOnly ? ' pm-archived-readonly' : ''}`}>
+      <section className={`absolute inset-0 z-[121] overflow-y-auto rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]${actionsDisabled ? ' pm-archived-readonly' : ''}`}>
         {/* page-hero: 标题 + 简报 + 流程 */}
         <div className="page-hero">
           {/* B3（A-204）时间信息轴 */}
@@ -1218,12 +1222,12 @@ export function ProjectDetailPanel({
               </div>
             </div>
             <div className="page-hero__right">
-              {!readOnly && canModify && (
+              {!actionsDisabled && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft">
                   <Ban size={16} />项目终止
                 </button>
               )}
-              {!readOnly && canModify && (
+              {!actionsDisabled && (
                 <button type="button" onClick={() => void moveToRecycleBin()} disabled={submitting || uploading} className="neu-btn-soft is-danger">
                   <Recycle size={16} />移至回收站
                 </button>
@@ -1260,7 +1264,7 @@ export function ProjectDetailPanel({
                 </div>
               )}
             </div>
-          ) : readOnly && (
+          ) : readOnly ? (
             <div className="flex items-center gap-3 rounded-[14px] px-4 py-3"
               style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--accent)]"
@@ -1271,6 +1275,20 @@ export function ProjectDetailPanel({
                 <div className="text-[13px] font-bold text-[color:var(--foreground)]">项目已归档 · 只读查看</div>
                 <div className="text-[11px] leading-5 text-[var(--muted-foreground)]">
                   本项目已完成归档{item.archivedAt ? `（归档于 ${new Date(item.archivedAt).toLocaleDateString('zh-CN')}）` : ''}，全部内容仅供查阅：资料不可编辑、阶段不可推进、附件不可上传。
+                </div>
+              </div>
+            </div>
+          ) : !canModify && (
+            <div className="flex items-center gap-3 rounded-[14px] px-4 py-3"
+              style={{ background: 'color-mix(in oklch, var(--accent) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--accent)]"
+                style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)' }}>
+                <Shield size={15} strokeWidth={1.9} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-bold text-[color:var(--foreground)]">只读视野 · 本项目由他人创建</div>
+                <div className="text-[11px] leading-5 text-[var(--muted-foreground)]">
+                  {item.createdByName ? `创建人：${item.createdByName}。` : ''}全部内容仅供查阅：资料不可编辑、阶段不可推进、附件不可上传，修改与删除由创建人操作。
                 </div>
               </div>
             </div>
@@ -1326,8 +1344,8 @@ export function ProjectDetailPanel({
               activeStageKey={selectedStage.stageKey}
               activeRound={selectedRound}
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
-              onStageAction={readOnly ? undefined : (stageKey, round) => {
-                if (readOnly) { toast.info('项目已归档，仅供查看'); return; }
+              onStageAction={actionsDisabled ? undefined : (stageKey, round) => {
+                if (actionsDisabled) { toast.info('只读模式，仅供查看'); return; }
                 // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身与后置（定标）入口必须可进
                 //（阶段推进后 status=IN_PROGRESS 即 isBidLocked=true，旧守卫把面板唯一入口拦死）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
@@ -1355,8 +1373,8 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               onArchive={() => void archiveProject()}
               canArchive={canArchive}
-              onOpenScoreStandard={(round) => setScorePanelRound(round)}
-              onReopenStage={readOnly ? undefined : async (stageKey, round) => {
+              onOpenScoreStandard={actionsDisabled ? undefined : (round) => setScorePanelRound(round)}
+              onReopenStage={actionsDisabled ? undefined : async (stageKey, round) => {
                 // 开标锁定（2026-09-24）：按时开标后前置步骤不可重开（后端同款 409 硬闸，此处先拦给出友好提示）
                 if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定，不可重开'); return; }
                 try {
@@ -1619,7 +1637,7 @@ export function ProjectDetailPanel({
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender('projectOverview')} disabled={aiExtracting === 'projectOverview' || readOnly} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'projectOverview' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender('projectOverview')} disabled={aiExtracting === 'projectOverview' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'projectOverview' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'projectOverview' ? (
                       <div className="mt-1 flex items-start gap-2">
                         <textarea value={editValues.projectOverview} onChange={(e) => setEditValues((prev) => ({ ...prev, projectOverview: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[100px]" autoFocus />
@@ -1633,7 +1651,7 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || readOnly} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="text" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年8月15日" autoFocus />
@@ -1647,7 +1665,7 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || readOnly} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime' || actionsDisabled} className="neu-btn-xs is-info ai-inline-btn !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="text" value={editValues.documentAcquireTime} onChange={(e) => setEditValues((prev) => ({ ...prev, documentAcquireTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年3月23日9:00-3月26日15:00" autoFocus />
@@ -1674,7 +1692,7 @@ export function ProjectDetailPanel({
                   <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{item.procurementMethod === '谈判采购' ? '供应商邀请' : '供应商参与'}</span>
                 </div>
                 <BiddingUnitsField
-                  readOnly={readOnly}
+                  readOnly={actionsDisabled}
                   label={item.procurementMethod === '谈判采购' ? '邀请的供应商' : '参与的供应商'}
                   value={participantNames ?? (extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
                   isEditing={editingField === 'invitedSuppliers'}
@@ -1696,7 +1714,7 @@ export function ProjectDetailPanel({
                   <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">专家评审</span>
                 </div>
                 <ExpertInfoField
-                  readOnly={readOnly}
+                  readOnly={actionsDisabled}
                   value={extractedInfoOverride?.expertInfo ?? item.expertInfo}
                   isEditing={editingField === 'expertInfo'}
                   editValue={editValues.expertInfo}
@@ -1820,6 +1838,8 @@ export function ProjectDetailPanel({
                       ? '请点击流程卡「合同订立」发起结构化合同（校验→内审→签署→公告→履行台账→验收）；亦可直接上传合同文件。'
                     : selectedStage.stageKey === 'DIRECT_PURCHASE_FILING' && isCurrentStage
                       ? '请点击流程卡「备案表编写」按附件6生成直接采购备案表（自动填入项目与合同信息），完成后即可归档。'
+                    : !canModify
+                      ? '只读视野：本项目由他人创建，内容仅供查阅。'
                     : readOnly
                       ? '项目已归档，本阶段材料仅供查阅。'
                     : selectedStage.status === 'COMPLETED'
@@ -1927,6 +1947,7 @@ export function ProjectDetailPanel({
                     ? [selectedStage.officialTenderAttachmentId]
                     : undefined
                 }
+                readOnly={actionsDisabled}
                 onDeleted={async (deletedObjectKey) => {
                   // 判断被删文件是否"采购文件"（信息来源），而非审批表/公告/合同等附件
                   const deletedFile = selectedStage.attachments.find((a) => a.objectKey === deletedObjectKey);
@@ -1964,18 +1985,18 @@ export function ProjectDetailPanel({
                     setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) });
                   }
                 }}
-                onEdit={readOnly ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
+                onEdit={actionsDisabled ? undefined : (attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
               />
 
               {/* 上传区 —— cgzxui 内凹底（已归档：整体禁用） */}
               <div className="rounded-xl p-4" style={{background:"color-mix(in oklch,var(--muted) 25%,transparent)",boxShadow:"inset 1px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 2px oklch(1 0 0 / 0.5)"}}>
-                <label className={`flex cursor-pointer items-center justify-center gap-3 rounded-lg px-4 py-3 transition ${stageLocked || readOnly ? 'cursor-not-allowed opacity-40' : 'bg-[oklch(1_0_0/0.5)] hover:bg-[oklch(1_0_0/0.75)]'}`} style={stageLocked || readOnly ? {} : {boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)"}}>
+                <label className={`flex cursor-pointer items-center justify-center gap-3 rounded-lg px-4 py-3 transition ${stageLocked || actionsDisabled ? 'cursor-not-allowed opacity-40' : 'bg-[oklch(1_0_0/0.5)] hover:bg-[oklch(1_0_0/0.75)]'}`} style={stageLocked || actionsDisabled ? {} : {boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)"}}>
                   <UploadCloud size={20} className="shrink-0 text-[color:var(--muted-foreground)]" />
                   <div className="min-w-0 text-left">
                     <span className="text-sm font-medium text-[color:var(--foreground)]">{selectedFiles.length > 0 ? `已选择 ${selectedFiles.length} 个文件` : '选取文件（支持多选）'}</span>
                     <span className="mt-0.5 block text-xs text-[color:var(--muted-foreground)]">{selectedFiles.length > 0 ? '点击重新选择' : '点击浏览或拖拽文件到此区域'}</span>
                   </div>
-                  <input ref={fileInputRef} type="file" multiple disabled={stageLocked || readOnly} onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} className="sr-only" />
+                  <input ref={fileInputRef} type="file" multiple disabled={stageLocked || actionsDisabled} onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} className="sr-only" />
                 </label>
 
                 {selectedFiles.length > 0 && (
@@ -1988,7 +2009,7 @@ export function ProjectDetailPanel({
                   </div>
                 )}
 
-                {!readOnly && (
+                {!actionsDisabled && (
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button type="button" onClick={() => void uploadStageFiles()} disabled={uploading || selectedFiles.length === 0 || stageLocked} className="neu-btn-primary">
                     {uploading ? (<><Loader2 size={15} className="animate-spin" />上传中…</>) : (<><UploadCloud size={15} />{selectedStage.status === 'COMPLETED' ? '补充材料' : '上传所选文件'}</>)}

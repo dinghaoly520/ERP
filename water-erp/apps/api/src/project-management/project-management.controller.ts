@@ -36,7 +36,7 @@ import { CompanyScopeService } from '../company/company-scope';
 import { PmiOwnershipGuard } from './pmi-ownership.guard';
 
 @Roles('leader', 'admin', 'staff')
-@UseGuards(PmiOwnershipGuard) // 个人隔离：:id 端点仅创建人（admin 全量）可访问
+@UseGuards(PmiOwnershipGuard) // 读写分级（2026-10-10）：读=创建人+本公司 leader+admin；写=仅创建人
 @Controller('project-management')
 export class ProjectManagementController {
   constructor(
