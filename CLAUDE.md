@@ -27,6 +27,7 @@ Run workspace commands from `water-erp/`.
 | **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **开标+评标全过程执行终端（现场）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）+ 评标管理（启动评标/评分矩阵/生成结果/异议裁决/澄清答疑）+ 评标签字包（打印·手写签字·回传登记）+ 评标回流包。评标前准备与评标后归档归 :3005 |
 | **水叮当助手** | `apps/assistant` | Next.js 16 App Router | 3008 | AI assistant chatbot — public, no login required |
 | **大屏** | `apps/bigscreen` | Next.js 16 | 3010 | Data-viz big-screen dashboard. Started by `pnpm dev` (one of 9 apps); can also run standalone via `pnpm dev:bigscreen`. Port is hardcoded (not in `packages/config/ports.ts`). |
+| **移动驾驶舱** | `apps/mobile-portal` | Next.js 16 App Router | 3011 | :3005 驾驶舱三页（数据库/台账/进展）的**手机端只读门户**（2026-10-13）。cgzxui 视觉体系、底部 Tab 导航、Modal 下钻改底部弹层；专用演示账号 `admin`/`admin123`（role=admin，全部公司视角）；会话复用 `token_web` 命名空间（`X-Portal: web` + `X-Web-Token`，后端零代码改动）；不在 `urls.ts` 角色路由表内，直接访问 `http://<host>:3011`。spec：`docs/superpowers/specs/2026-10-13-mobile-portal-3011-design.md` |
 
 ### Shared Packages
 
@@ -165,7 +166,7 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all (9 portals — includes bigscreen + ai-bid worker, 2026-09-10)
+# Start all (10 portals — includes bigscreen + mobile-portal + ai-bid worker)
 pnpm dev
 
 # Start individual apps
@@ -178,6 +179,7 @@ pnpm dev:expert      # :3006 专家门户
 pnpm dev:bid         # :3007 开评标管理端
 pnpm dev:assistant   # :3008 水叮当助手
 pnpm dev:bigscreen   # :3010 大屏（已在 pnpm dev 内，也可单独启动）
+pnpm dev:mobile      # :3011 移动驾驶舱（数据库/台账/进展 手机端只读，已在 pnpm dev 内）
 
 # AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
 pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bid-analysis-worker.js（dist 镜像 src，无 dist/src 层）
