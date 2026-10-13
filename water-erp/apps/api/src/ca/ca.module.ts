@@ -7,6 +7,8 @@ import { CaVerificationService } from './ca-verification.service';
 import { CaChallengeService } from './ca-challenge.service';
 import { CaEvidenceService } from './ca-evidence.service';
 import { CaOperationService } from './ca-operation.service';
+import { CaAuthController } from './ca-auth.controller';
+import { AuthModule } from '../auth/auth.module';
 import { TrustStore } from '../common/crypto/x509/trust-store';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -37,6 +39,8 @@ export function loadCaConfig(): CaEnvConfig {
 }
 
 @Module({
+  imports: [AuthModule],
+  controllers: [CaAuthController],
   providers: [
     {
       provide: SccaGatewayClient,
