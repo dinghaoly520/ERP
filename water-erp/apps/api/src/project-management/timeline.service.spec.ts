@@ -81,7 +81,7 @@ describe('TimelineService（B3 A-204）', () => {
     expect(sign.source).toBe('合同阶段完成');
   });
 
-  it('公告发布时间（2026-09-16）：采购/中标公告取关联公告的最早 publishDate', async () => {
+  it('公告发布时间（2026-10-13 改口径）：采购/中标公告取关联公告的最后一次 publishDate（重发后以末次为准）', async () => {
     const prisma = mk(
       { id: 'pmi-1', projectCode: 'SWHI-TP-2026090901', initiationDate: new Date('2026-09-01T00:00:00Z'), documentAcquireTime: null, bidOpeningTime: null, archivedAt: null },
       null, null, null,
@@ -95,9 +95,9 @@ describe('TimelineService（B3 A-204）', () => {
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
     const bid = nodes.find(n => n.key === 'bidNoticePublish')!;
     const win = nodes.find(n => n.key === 'winNoticePublish')!;
-    expect(bid.time).toMatch(/^2026-09-10/);
+    expect(bid.time).toMatch(/^2026-09-12/); // 两次 BID_NOTICE，取末次（9/12）而非首发布（9/10）
     expect(bid.source).toBe('公告');
-    expect(win.time).toMatch(/^2026-09-20/); // 预成交(9/20)早于成交(9/25)
+    expect(win.time).toMatch(/^2026-09-25/); // 成交(9/25)晚于预成交(9/20)，取末次
     expect(prisma.announcement.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ status: 'PUBLISHED' }),
     }));

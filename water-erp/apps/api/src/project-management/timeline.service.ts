@@ -12,7 +12,7 @@ import { parseFlexibleDate } from '../common/parse-date.util';
  * 之前），阅读割裂；缺值节点原地灰显占位（前端「未登记」）。
  * 兜底：采购立项 initiationDate 缺 → PMI.createdAt（建档即立项下限）；
  * 合同签订 Contract.signedAt 缺 → CONTRACT 阶段 completedAt（阶段完成≈签订完成）。
- * 公告发布：取项目关联公告的最早发布时刻——采购公告=BID_NOTICE/PREQUAL_NOTICE，
+ * 公告发布：取项目关联公告的最后一次发布时刻——采购公告=BID_NOTICE/PREQUAL_NOTICE，
  * 中标公告=WIN_BID_NOTICE/PRE_WIN_NOTICE/WIN_NOTICE；关联口径与 syncBidProject 一致
  * （relatedProjectCode 兼容 PMI 编码与 BidProject 编码两个编码空间）。
  */
@@ -111,14 +111,16 @@ export class TimelineService {
           select: { type: true, publishDate: true, createdAt: true },
         })
       : [];
+    // 发布时刻取「最后一次」（2026-10-13 用户裁定）：多次发布/重发时，末次才是当前
+    // 生效公告的时点（此前取最早，重发后时间轴仍停在首发布）。采购/中标公告同口径。
     const publishTimeOf = (types: string[]): string | null => {
       const hits = published.filter((a) => types.includes(a.type));
       if (hits.length === 0) return null;
-      const earliest = hits.reduce((min, a) => {
+      const latest = hits.reduce((max, a) => {
         const t = a.publishDate ?? a.createdAt;
-        return t < min ? t : min;
+        return t > max ? t : max;
       }, hits[0].publishDate ?? hits[0].createdAt);
-      return toIso(earliest);
+      return toIso(latest);
     };
     const bidNoticeIso = publishTimeOf(['BID_NOTICE', 'PREQUAL_NOTICE']);
     const winNoticeIso = publishTimeOf(['WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE']);
