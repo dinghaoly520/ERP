@@ -227,16 +227,15 @@ export default function ExpertRepositoryPage() {
                 <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">平均等级</th>
                 <th className="text-center">最近评价</th>
-                <th className="text-center">入库状态</th>
-                <th className="text-center">状态</th>
+                <th className="text-center" title="入库状态为主（待审核/在库/暂停/退库，CTS A-218/222）；在库时副示可用性（可用/评审中/已停用）">状态</th>
                 <th className="text-center">操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={batchMode ? 12 : 11} rows={5} />
+                <TableSkeleton cols={batchMode ? 11 : 10} rows={5} />
               ) : errored ? (
-                <tr><td colSpan={batchMode ? 12 : 11} className="px-4 py-16">
+                <tr><td colSpan={batchMode ? 11 : 10} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
                     <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
@@ -244,7 +243,7 @@ export default function ExpertRepositoryPage() {
                   </div>
                 </td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={batchMode ? 12 : 11} className="px-4 py-16">
+                <tr><td colSpan={batchMode ? 11 : 10} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><UsersRound size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无专家</p>
@@ -304,16 +303,28 @@ export default function ExpertRepositoryPage() {
                         <span className="text-xs text-[var(--muted-foreground)]">—</span>
                       )}
                     </td>
-                    <td className="text-center" title={e.expertProfile?.statusNote ?? undefined}>
-                      {(() => {
-                        const es = (e.expertProfile?.entryStatus ?? 'ACTIVE');
-                        if (es === 'PENDING') return <StatusBadge tone="orange">待审核</StatusBadge>;
-                        if (es === 'SUSPENDED') return <StatusBadge tone="gray">暂停</StatusBadge>;
-                        if (es === 'RETIRED') return <StatusBadge tone="red">已退库</StatusBadge>;
-                        return <StatusBadge tone="green">在库</StatusBadge>;
-                      })()}
-                    </td>
-                    <td className="text-center">{!e.isActive ? <StatusBadge tone="gray">已停用</StatusBadge> : e.expertProfile?.availability === '占用' ? <StatusBadge tone="orange">评审中</StatusBadge> : e.expertProfile?.availability === '停用' ? <StatusBadge tone="gray">已停用</StatusBadge> : <StatusBadge tone="green">可用</StatusBadge>}</td>
+                    {(() => {
+                      // 单列状态：入库状态为主语义（待审核/在库/暂停/退库，CTS A-218/222）；
+                      // 仅在库时副示可用性——异常态下可用性无意义，消除「已退库+可用」矛盾并排与双「已停用」重复
+                      const es = (e.expertProfile?.entryStatus ?? 'ACTIVE');
+                      const note = e.expertProfile?.statusNote ?? undefined;
+                      if (es === 'PENDING') return <td className="text-center" title={note}><StatusBadge tone="orange">待审核</StatusBadge></td>;
+                      if (es === 'SUSPENDED') return <td className="text-center" title={note}><StatusBadge tone="gray">暂停</StatusBadge></td>;
+                      if (es === 'RETIRED') return <td className="text-center" title={note}><StatusBadge tone="red">已退库</StatusBadge></td>;
+                      const avail = !e.isActive || e.expertProfile?.availability === '停用'
+                        ? { tone: 'gray' as const, label: '已停用' }
+                        : e.expertProfile?.availability === '占用'
+                          ? { tone: 'orange' as const, label: '评审中' }
+                          : { tone: 'green' as const, label: '可用' };
+                      return (
+                        <td className="text-center" title={`入库状态：在库 · 可用性：${avail.label}${note ? ` · ${note}` : ''}`}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <StatusBadge tone={avail.tone}>{avail.label}</StatusBadge>
+                            <span className="text-[11px] text-[var(--muted-foreground)]">在库</span>
+                          </div>
+                        </td>
+                      );
+                    })()}
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
                         <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
