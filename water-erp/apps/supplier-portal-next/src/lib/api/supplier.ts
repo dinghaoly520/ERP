@@ -55,6 +55,21 @@ export const supplierApi = {
     return api.delete<any>(`/supplier-portal/profile/cert/${certId}`);
   },
 
+  // ── SCCA CA 绑定链（阶段1：/api/auth/ca + /api/ca）──
+  caReauth(data: { password: string; action: string; targetBindingId?: string; expectedActiveBindingId?: string }) {
+    return api.post<{ credentialProofId: string; operationDigest: string; expiresAt: string }>('/auth/ca/reauth', data);
+  },
+  caBindChallenge(credentialProofId: string) {
+    return api.post<{ challengeId: string; operationId: string; toSign: string; expiresAt: string; purpose: string; expectedActiveBindingId: string | null }>(
+      '/ca/bind-challenge', { credentialProofId });
+  },
+  caBind(data: { credentialScheme: string; challengeId: string; signP7: string; credentialProofId: string; signCertPem: string; encCertPem: string; expectedActiveBindingId?: string | null }) {
+    return api.post<any>('/ca/bind', data);
+  },
+  caCapabilities() {
+    return api.get<any>('/ca/capabilities', { silent: true });
+  },
+
   // Contacts
   listContacts() {
     return api.get<any[]>("/supplier-portal/contacts");

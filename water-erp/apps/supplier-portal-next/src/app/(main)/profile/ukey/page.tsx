@@ -31,6 +31,7 @@ import { CaSelftestDialog } from "@/components/profile/ca-selftest-dialog";
 import { SpPageHero } from "@/components/sp-page-hero";
 import "@/styles/pages/ukey.css";
 import "@/styles/pages/shared.css"; // 卡片三件套/骨架屏基座（2026-09-02 去重抽出，跨页共用）
+import { CaBindingWizard } from '@/components/ca-binding-wizard';
 
 /** 绑定成功后在浏览器缓存证书公开信息（无任何私钥），供投标提交页恢复 certSn 参考 */
 const BOUND_KEY = "supplier_ukey_bound";
@@ -296,6 +297,11 @@ export default function UkeyManagePage() {
   return (
     <>
       <SpPageHero icon={KeyRound} title="U盾管理" sub="投标加密证书与U盾管理" />
+
+      {/* ═══ SCCA CA 证书绑定（阶段1：真 CA 双证绑定——独立于 legacy mock 轨）═══ */}
+      <div className="mb-6">
+        <CaBindingWizard onBound={() => { refreshServerCerts(); fetchProfile(); }} />
+      </div>
 
       {/* ═══ KPI 概览行：介质 / 驱动 / 生效证书 / 绑定记录 ═══ */}
       <div className="ukey-kpi-row">
