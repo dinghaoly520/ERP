@@ -1,0 +1,168 @@
+import { toApiError } from '@water-erp/client';
+import { apiFetch } from './api-fetch';
+const API_BASE = '/api';
+
+export type DashboardData = {
+  range: {
+    startDate: string | null;
+    endDate: string | null;
+  };
+  summary: {
+    totalCount: number;
+    completedCount: number;
+    abnormalCount: number;
+    totalBudget: number;
+    totalBudgetLabel: string;
+    awardedBudget: number;
+    awardedBudgetLabel: string;
+    pendingBudget: number;
+    pendingBudgetLabel: string;
+    totalAward: number;
+    totalAwardLabel: string;
+    totalSavings: number;
+    totalSavingsLabel: string;
+  };
+  trendSeries: Array<{
+    date: string;
+    label: string;
+    count: number;
+    amount: number;
+    /** 立项节点数（按项目立项日落桶） */
+    initiated: number;
+    /** 归档节点数（已成交轮次按完成时点落桶） */
+    archived: number;
+    /** 在执行净值（累计立项 − 累计归档） */
+    active: number;
+    projects: Array<{
+      name: string;
+      date: string;
+      department: string;
+      method: string;
+      budgetLabel: string;
+      awardLabel: string;
+      status: string;
+    }>;
+  }>;
+  departmentStats: Array<{
+    name: string;
+    amount: number;
+    amountLabel: string;
+    completedRate: number;
+    topMethod: string;
+    projects: Array<{
+      name: string;
+      date: string;
+      method: string;
+      budgetLabel: string;
+      awardLabel: string;
+      status: string;
+    }>;
+  }>;
+  methodStats: Array<{
+    name: string;
+    count: number;
+    amount: number;
+    amountLabel: string;
+    share: number;
+    projects: Array<{
+      name: string;
+      date: string;
+      department: string;
+      budgetLabel: string;
+      awardLabel: string;
+      status: string;
+    }>;
+  }>;
+  attachmentProgress: Array<{
+    label: string;
+    rate: number;
+  }>;
+  supplierStats: Array<{
+    name: string;
+    participatedCount: number;
+    winCount: number;
+    awardAmount: number;
+    awardAmountLabel: string;
+    hitRate: number;
+    topMethod: string;
+    topDepartment: string;
+    tags: string[];
+    recentProcurements: Array<{
+      project: string;
+      date: string;
+      method: string;
+      department: string;
+      budgetLabel: string;
+      result: string;
+    }>;
+    winProjects: Array<{
+      project: string;
+      date: string;
+      method: string;
+      department: string;
+      awardAmountLabel: string;
+    }>;
+  }>;
+  resultStats: Array<{
+    label: string;
+    count: number;
+    amount: number;
+    amountLabel: string;
+    accent: string;
+  }>;
+  nonAwardReasons: Array<{
+    label: string;
+    count: number;
+    detail: string;
+    projects: Array<{
+      name: string;
+      date: string;
+      department: string;
+      budgetLabel: string;
+      reason: string;
+    }>;
+  }>;
+  savingsRanking: Array<{
+    project: string;
+    department: string;
+    controlAmount: number;
+    awardAmount: number;
+    savings: number;
+    savingsRate: number;
+    controlAmountLabel: string;
+    awardAmountLabel: string;
+    savingsLabel: string;
+    method: string;
+    date: string;
+    projectCode: string | null;
+    awardedSupplierName: string | null;
+    participantCount: number;
+  }>;
+  riskProjects: Array<{
+    project: string;
+    department: string;
+    reason: string;
+    pendingDays: number;
+    severity: string;
+  }>;
+};
+
+export async function fetchDashboardData(
+  startDate?: string,
+  endDate?: string,
+  companyId?: string, // 仅 admin 生效：公司选择器
+): Promise<DashboardData> {
+  const params = new URLSearchParams();
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  if (companyId && companyId !== 'all') params.set('companyId', companyId);
+
+  const url = `${API_BASE}/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
+
+  const response = await apiFetch(url, { credentials: 'include' });
+  if (!response.ok) {
+    throw await toApiError(response, '加载仪表盘数据失败');
+  }
+
+  return response.json();
+}
