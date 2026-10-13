@@ -20,6 +20,8 @@ import { IsString, MinLength, MaxLength, IsOptional, IsIn } from 'class-validato
 
 export class CaBindChallengeDto {
   @IsString() @MinLength(10) @MaxLength(128) credentialProofId!: string;
+  @IsString() @MinLength(50) @MaxLength(90000) signCertPem!: string;
+  @IsString() @MinLength(50) @MaxLength(90000) encCertPem!: string;
 }
 
 export class CaBindDto {
@@ -94,16 +96,24 @@ export class CaBindingController {
 
     await this.eligibilityService.assertBindEligible(supplier.id, userId);
 
-    // 资格通过 → 服务端从 capabilities 取当前 ACTIVE 证书指纹（不信任客户端传入）
+    // C1 修复：原子消费近期密码重证凭据（userId+action 校验）——失败即拒
+    const proofOk = await this.challengeService.consumeProof(dto.credentialProofId, userId, 'bind');
+    if (!proofOk) {
+      throw new ForbiddenException({ error: '密码验证已失效，请重新验证', code: 'REAUTH_REQUIRED' });
+    }
+
+    // I11 修复：待绑双证指纹（签名+加密）都入签名上下文——签名承诺覆盖双证集合
+    const signDer = normalizeToDer(dto.signCertPem);
+    const encDer = normalizeToDer(dto.encCertPem);
+    const signSha = createHash('sha256').update(signDer).digest('hex');
+    const encSha = createHash('sha256').update(encDer).digest('hex');
+
     const active = await this.prisma.supplierCert.findFirst({
       where: { supplierId: supplier.id, bindingStatus: 'ACTIVE' },
-      include: { signingCaCertificate: true },
     });
-    const signSha = active?.signingCaCertificate?.sha256Fingerprint ?? '';
-    // 新双证指纹由绑定提交时传入——挑战覆盖旧 activeBindingId + caCredentialRevision
     const ch = await this.challengeService.createBound({
       userId, sid: sid ?? '', purpose: active ? 'replace' : 'bind',
-      signCertSha256: signSha || 'new-bind',
+      signCertSha256: signSha, encCertSha256: encSha,
     });
     return {
       challengeId: ch.challengeId,
@@ -159,6 +169,17 @@ export class CaBindingController {
     const claimed = await this.challengeService.claimAndConsume(
       dto.challengeId, actualPurpose as 'bind' | 'replace', `${userId}:${sid ?? ''}`);
     if (!claimed) throw new ConflictException({ error: '挑战已消费或已过期', code: 'CA_CHALLENGE_USED' });
+
+    // I11 第二半：已签上下文承诺的加密证指纹必须与本次提交一致（双证集合不可替换）
+    try {
+      const ctx: { encCertSha256?: string } = JSON.parse(claimed.toSign);
+      if (ctx.encCertSha256 && ctx.encCertSha256 !== encSha) {
+        throw new BadRequestException({ error: '加密证书与签名上下文不符', code: 'CA_CERT_MISMATCH' });
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException({ error: '绑定上下文异常', code: 'CA_CHALLENGE_INVALID' });
+    }
 
     // 验签
     const verification = await this.verificationService.verifySignature({

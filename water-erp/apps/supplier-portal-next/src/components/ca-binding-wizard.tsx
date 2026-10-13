@@ -93,7 +93,7 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
     setError('');
     setStep('challenge');
     try {
-      const res = await supplierApi.caBindChallenge(proofRef.current);
+      const res = await supplierApi.caBindChallenge(proofRef.current, cert.sign.pem, cert.enc.pem);
       if (actionId !== actionIdRef.current) return;
       setChallenge({ challengeId: res.challengeId, toSign: res.toSign });
       setStep('awaiting-pin');

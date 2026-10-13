@@ -11,7 +11,16 @@ class MockRedis {
   }
   async expire(key: string, _s: number): Promise<number> { return 1; }
   async eval(script: string, _n: number, ...args: string[]): Promise<unknown> {
-    const key = args[0]!, purpose = args[1]!, bindingKey = args[2]!;
+    const key = args[0]!;
+    if (script.includes('HGETALL')) {
+      // CONSUME_PROOF_LUA：userId+action 校验 → DEL
+      const data = this.store.get(key);
+      if (!data) return null;
+      if (data['userId'] !== args[1] || data['action'] !== args[2]) return 'MISMATCH';
+      this.store.delete(key);
+      return 'CONSUMED';
+    }
+    const purpose = args[1]!, bindingKey = args[2]!;
     const data = this.store.get(key);
     if (!data) return null;
     if (data['state'] !== 'READY') return 'ALREADY_CLAIMED';
@@ -63,6 +72,36 @@ describe('CaChallengeService（一次性挑战原子消费）', () => {
   test('不存在的挑战 → null', async () => {
     const r = await svc.claimAndConsume('nonexistent', 'bind', 'u1:s1');
     expect(r).toBeNull();
+  });
+
+  describe('C1 修复：凭据证明存/消费', () => {
+    test('storeProof → consumeProof 成功（userId+action 匹配）', async () => {
+      await svc.storeProof({ proofId: 'p1', userId: 'u1', sid: 's1', action: 'bind' });
+      const ok = await svc.consumeProof('p1', 'u1', 'bind');
+      expect(ok).toBe(true);
+    });
+
+    test('consumeProof 一次性——二次消费失败', async () => {
+      await svc.storeProof({ proofId: 'p2', userId: 'u1', sid: 's1', action: 'bind' });
+      expect(await svc.consumeProof('p2', 'u1', 'bind')).toBe(true);
+      expect(await svc.consumeProof('p2', 'u1', 'bind')).toBe(false);
+    });
+
+    test('consumeProof userId 不符 → 拒绝且不消费', async () => {
+      await svc.storeProof({ proofId: 'p3', userId: 'u1', sid: 's1', action: 'bind' });
+      expect(await svc.consumeProof('p3', 'u2', 'bind')).toBe(false);
+      // 未被消费——正确用户仍可消费
+      expect(await svc.consumeProof('p3', 'u1', 'bind')).toBe(true);
+    });
+
+    test('consumeProof action 不符 → 拒绝', async () => {
+      await svc.storeProof({ proofId: 'p4', userId: 'u1', sid: 's1', action: 'bind' });
+      expect(await svc.consumeProof('p4', 'u1', 'revoke')).toBe(false);
+    });
+
+    test('consumeProof 不存在/过期 → false', async () => {
+      expect(await svc.consumeProof('nonexistent', 'u1', 'bind')).toBe(false);
+    });
   });
 
   test('绑定挑战 toSign 含双证指纹', async () => {

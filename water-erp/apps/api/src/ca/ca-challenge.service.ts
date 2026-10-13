@@ -19,6 +19,18 @@ return s[4]
 `;
 
 const CHALLENGE_TTL_SECONDS = 120;
+const PROOF_TTL_SECONDS = 300;
+
+// 凭据证明原子消费：比对 userId+action，通过即 DEL（一次性，C1 修复）
+const CONSUME_PROOF_LUA = [
+  "local v = redis.call('HGETALL', KEYS[1])",
+  "if not next(v) then return nil end",
+  "local h = {}",
+  "for i = 1, #v, 2 do h[v[i]] = v[i+1] end",
+  "if h['userId'] ~= ARGV[1] or h['action'] ~= ARGV[2] then return 'MISMATCH' end",
+  "redis.call('DEL', KEYS[1])",
+  "return 'CONSUMED'",
+].join('\n');
 
 export interface ChallengePayload {
   challengeId: string;
@@ -28,6 +40,21 @@ export interface ChallengePayload {
 
 export class CaChallengeService {
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
+
+  /** 存储近期密码重证凭据（C1 修复：reauth 签发后落 Redis，300s TTL） */
+  async storeProof(p: { proofId: string; userId: string; sid: string; action: string }): Promise<void> {
+    const proofKey = 'ca:credential-proof:v1:' + p.proofId;
+    await this.redis.hset(proofKey,
+      'userId', p.userId, 'sid', p.sid, 'action', p.action, 'createdAt', String(Date.now()));
+    await this.redis.expire(proofKey, PROOF_TTL_SECONDS);
+  }
+
+  /** 原子消费凭据证明（一次性；userId+action 不符→null；缺失/过期→null） */
+  async consumeProof(proofId: string, userId: string, action: string): Promise<boolean> {
+    const result = await this.redis.eval(CONSUME_PROOF_LUA, 1,
+      'ca:credential-proof:v1:' + proofId, userId, action);
+    return result === 'CONSUMED';
+  }
 
   /** 登录挑战：匿名 cookie hash + 证书指纹绑定 */
   async createLogin(p: { portal: string; browserCookieHash: string; signCertSha256: string }): Promise<ChallengePayload> {

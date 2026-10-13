@@ -236,8 +236,10 @@ export class CaAuthController {
     const valid = user.passwordHash ? compareSync(dto.password, user.passwordHash) : false;
     if (!valid) throw new UnauthorizedException({ error: '密码错误', code: 'REAUTH_FAILED' });
 
-    // 签发一次性凭据证明（300s TTL）
+    // 签发一次性凭据证明（C1 修复：落 Redis 300s TTL——bind-challenge 消费时原子校验）
     const proofId = `ca-proof-${Date.now()}-${randomBytes(8).toString('hex')}`;
+    const sid = (req as any).user?.sid ?? '';
+    await this.challengeService.storeProof({ proofId, userId: user.id, sid, action: dto.action });
     const operationDigest = createHash('sha256')
       .update(JSON.stringify({ action: dto.action, target: dto.targetBindingId, ts: Date.now() }))
       .digest('hex');

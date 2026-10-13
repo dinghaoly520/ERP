@@ -59,9 +59,9 @@ export const supplierApi = {
   caReauth(data: { password: string; action: string; targetBindingId?: string; expectedActiveBindingId?: string }) {
     return api.post<{ credentialProofId: string; operationDigest: string; expiresAt: string }>('/auth/ca/reauth', data);
   },
-  caBindChallenge(credentialProofId: string) {
+  caBindChallenge(credentialProofId: string, signCertPem: string, encCertPem: string) {
     return api.post<{ challengeId: string; operationId: string; toSign: string; expiresAt: string; purpose: string; expectedActiveBindingId: string | null }>(
-      '/ca/bind-challenge', { credentialProofId });
+      '/ca/bind-challenge', { credentialProofId, signCertPem, encCertPem });
   },
   caBind(data: { credentialScheme: string; challengeId: string; signP7: string; credentialProofId: string; signCertPem: string; encCertPem: string; expectedActiveBindingId?: string | null }) {
     return api.post<any>('/ca/bind', data);
