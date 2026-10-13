@@ -4,3 +4,6 @@ export * from './sm-crypto-layer';
 export * from './ca-selftest';
 export * from './mock-ukey';
 export * from './vendor-ukey';
+export * from './scca-transport';
+export * from './scca-ukey';
+// scca-fixture 仅测试用——不导出到公共 API
