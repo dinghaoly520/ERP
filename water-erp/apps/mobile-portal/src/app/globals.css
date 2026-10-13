@@ -1,0 +1,470 @@
+/* ══ cgzxui 令牌与基底（移植自 apps/web/src/app/globals.css，体系同源 :3005/:3002）══ */
+@import "tailwindcss";
+
+:root {
+  --background: oklch(0.975 0.01 248);
+  --foreground: oklch(0.29 0.03 248);
+  --muted: oklch(0.935 0.013 244);
+  --muted-foreground: oklch(0.55 0.028 244);
+  --surface: color-mix(in oklch, white 82%, #dce9ff 18%);
+  --surface-strong: color-mix(in oklch, white 72%, #d6e5ff 28%);
+  --surface-contrast: color-mix(in oklch, white 62%, #d2e1ff 38%);
+  --border: color-mix(in oklch, #bfd0eb 70%, white 30%);
+  --card: color-mix(in oklch, white 85%, #dce9ff 15%);
+  --accent: oklch(0.63 0.128 247);
+  --accent-strong: oklch(0.56 0.153 251);
+  --accent-soft: oklch(0.905 0.04 243);
+  --success: oklch(0.71 0.112 164);
+  --warning: oklch(0.78 0.122 83);
+  --danger: oklch(0.66 0.175 27);
+  --gold: oklch(0.8 0.114 84);
+  --gold-soft: oklch(0.93 0.03 90);
+  --success-soft: color-mix(in oklch, var(--success) 12%, transparent);
+  --warning-soft: color-mix(in oklch, var(--warning) 14%, transparent);
+  --danger-soft: color-mix(in oklch, var(--danger) 12%, transparent);
+  --accent-tint: color-mix(in oklch, var(--accent) 7%, transparent);
+  --accent-tint-strong: color-mix(in oklch, var(--accent) 13%, transparent);
+  /* 采购进度阶段色 — 每阶段唯一，驱动左栏图标、右栏hero、流程卡片文字 */
+  --stage-demand: oklch(0.52 0.13 248);
+  --stage-demand-soft: color-mix(in oklch, var(--stage-demand) 12%, transparent);
+  --stage-initiation: oklch(0.56 0.11 168);
+  --stage-initiation-soft: color-mix(in oklch, var(--stage-initiation) 12%, transparent);
+  --stage-tender: oklch(0.55 0.16 250);
+  --stage-tender-soft: color-mix(in oklch, var(--stage-tender) 12%, transparent);
+  --stage-supplier: oklch(0.60 0.14 78);
+  --stage-supplier-soft: color-mix(in oklch, var(--stage-supplier) 12%, transparent);
+  --stage-announce: oklch(0.58 0.12 188);
+  --stage-announce-soft: color-mix(in oklch, var(--stage-announce) 8%, transparent);
+  --stage-expert: oklch(0.58 0.14 285);
+  --stage-expert-soft: color-mix(in oklch, var(--stage-expert) 12%, transparent);
+  --stage-evaluation: oklch(0.64 0.14 44);
+  --stage-evaluation-soft: color-mix(in oklch, var(--stage-evaluation) 12%, transparent);
+  --stage-award: oklch(0.57 0.15 24);
+  --stage-award-soft: color-mix(in oklch, var(--stage-award) 10%, transparent);
+  --stage-contract: oklch(0.50 0.10 228);
+  --stage-contract-soft: color-mix(in oklch, var(--stage-contract) 12%, transparent);
+  /* 09 直接采购备案表（2026-09-28）：青灰蓝，与合同同族但可区分 */
+  --stage-filing: oklch(0.46 0.09 205);
+  --stage-filing-soft: color-mix(in oklch, var(--stage-filing) 12%, transparent);
+  --stage-default: var(--muted-foreground);
+  --stage-default-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
+  --shadow-soft: 0 16px 34px rgba(50, 83, 141, 0.08);
+  --shadow-panel: 0 24px 64px rgba(34, 62, 110, 0.12);
+  --shadow-focus: 0 0 0 4px rgba(136, 172, 255, 0.12);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  height: 100%;
+}
+
+body {
+  position: relative;
+  min-width: 320px;
+  height: 100%;
+  color: var(--foreground);
+  background:
+    radial-gradient(circle at 14% 12%, rgba(118, 165, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 84% 16%, rgba(242, 201, 132, 0.12), transparent 18%),
+    radial-gradient(circle at 76% 82%, rgba(120, 209, 186, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(240, 245, 252, 0.98));
+  font-family:
+    var(--font-body),
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: auto;
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(52px);
+  opacity: 0.32;
+  mix-blend-mode: screen;
+}
+
+body::before {
+  top: 8%;
+  left: -6%;
+  width: 34rem;
+  height: 34rem;
+  background:
+    radial-gradient(circle, rgba(104, 149, 245, 0.1), transparent 58%),
+    radial-gradient(circle at 68% 34%, rgba(255, 203, 132, 0.07), transparent 26%);
+  animation: atmosphereFloat 24s var(--ease-out-quint) infinite;
+}
+
+body::after {
+  right: -10%;
+  bottom: -8%;
+  width: 40rem;
+  height: 40rem;
+  background:
+    radial-gradient(circle, rgba(96, 189, 168, 0.08), transparent 56%),
+    radial-gradient(circle at 32% 28%, rgba(125, 166, 255, 0.09), transparent 24%);
+  animation: atmosphereFloatAlt 28s var(--ease-out-quint) infinite;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+  }
+}
+
+::selection {
+  background: color-mix(in oklch, var(--accent) 28%, white 72%);
+}
+
+/* ── ambient-grid 背景网格 ── */
+.ambient-grid {
+  position: relative;
+  isolation: isolate;
+}
+
+.ambient-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(115, 143, 193, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(115, 143, 193, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.34), transparent 86%);
+  pointer-events: none;
+}
+
+.ambient-grid::after {
+  content: "";
+  position: absolute;
+  inset: 5% -12% auto;
+  height: 420px;
+  background:
+    radial-gradient(circle at 18% 40%, rgba(123, 168, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 82% 28%, rgba(255, 203, 132, 0.05), transparent 22%),
+    radial-gradient(circle at 62% 84%, rgba(126, 216, 194, 0.04), transparent 20%);
+  filter: blur(24px);
+  animation: ambientDrift 18s var(--ease-out-quint) infinite;
+  pointer-events: none;
+}
+
+/* ── 氛围动画 keyframes ── */
+@keyframes ambientDrift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(6px, 8px, 0) scale(1.02);
+    opacity: 1;
+  }
+}
+
+@keyframes atmosphereFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(48px, 26px, 0) scale(1.08);
+  }
+}
+
+@keyframes atmosphereFloatAlt {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-44px, -30px, 0) scale(1.06);
+  }
+}
+
+
+/* ── flow-page / flow-glow（cgzxui 画布与水彩光晕）── */
+.flow-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  /* cgzxui 画布底色：不透明的浅冷白，作为 glow 水彩光晕的色彩承载面，
+     覆盖 body 自带渐变，使 .flow-glow 成为唯一色彩源（与 public-portal 一致） */
+  background: oklch(0.975 0.012 258);
+}
+
+/* （已删 .flow-backdrop：组件 2026-09-29 清理，样式同步移除）*/
+
+/* ── cgzxui 水彩光晕（移植自 public-portal :3002 的 .flow-glow）
+   浅彩水彩光晕 = fixed pastel blooms，是玻璃面板背后模糊掉的色彩来源。
+   oklch 色彩空间 + 方向性定位（左上蓝 / 右上青 / 左下紫 / 右下黄 / 底部蓝），
+   配合 glow-drift 缓慢漂移，是 cgzxui 背景的视觉灵魂。 ── */
+.flow-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 460px at 6% 6%, oklch(0.82 0.09 258 / 0.5), transparent 68%),
+    radial-gradient(circle 420px at 94% 16%, oklch(0.84 0.08 175 / 0.45), transparent 68%),
+    radial-gradient(circle 440px at 14% 64%, oklch(0.85 0.06 300 / 0.4), transparent 68%),
+    radial-gradient(circle 380px at 86% 78%, oklch(0.88 0.06 60 / 0.4), transparent 68%),
+    radial-gradient(circle 360px at 50% 100%, oklch(0.8 0.07 210 / 0.36), transparent 68%);
+  animation: glow-drift 26s ease-in-out infinite alternate;
+}
+@keyframes glow-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
+
+/* ── 新拟态阴影令牌 ── */
+  --neu-dark-soft: oklch(0.45 0.08 258);
+  --neu-brand: var(--accent-strong);
+  --neu-brand-deep: oklch(0.42 0.16 251);
+  --neu-raised-bg: #edf2f8;
+  --neu-raised-bg-hover: #e4eaf3;
+  --neu-link-bg: #dce3ee;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   主按钮 — .neu-btn-primary
+
+/* ── neu-btn-primary（主按钮：默认凸起→hover 抬升→active 内凹）── */
+.neu-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 28px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--neu-brand-deep);
+  background: color-mix(in oklch, var(--neu-brand) 10%, oklch(1 0 0));
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 5px oklch(0.5 0.08 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.neu-btn-primary:hover {
+  background: color-mix(in oklch, var(--neu-brand) 15%, oklch(1 0 0));
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 7px oklch(0.5 0.08 258 / 0.18),
+    -2px -2px 5px oklch(1 0 0 / 0.95);
+}
+.neu-btn-primary:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.5 0.08 258 / 0.18),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+.neu-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow:
+    2px 2px 4px oklch(0.5 0.05 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.6);
+}
+
+
+/* ── neu-btn-soft（次按钮）── */
+.neu-btn-soft {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--neu-raised-bg);
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+.neu-btn-soft:hover {
+  color: var(--accent-strong);
+  background: var(--neu-raised-bg-hover);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.neu-btn-soft:active {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+/* ── neu-card-static（玻璃静态卡）── */
+.neu-card-static {
+  background: oklch(1 0 0 / 0.6);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  border: 1.5px solid oklch(0.55 0.08 258 / 0.3);
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 6px oklch(1 0 0 / 0.8);
+}
+
+/* ── neu-section-heading ── */
+.neu-section-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+}
+
+/* ── wb-panel-header / wb-panel-body ── */
+.wb-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  flex-shrink: 0;
+}
+
+.wb-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   移动门户专属（:3011）—— 底部 Tab / 筛选 chip / 底部弹层 / 安全区
+   ══════════════════════════════════════════════════════════════════ */
+html { -webkit-tap-highlight-color: transparent; }
+body { overscroll-behavior-y: none; }
+
+/* 底部 Tab 栏：毛玻璃 + 顶部发丝线 + 刘海屏安全区 */
+.m-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+  background: color-mix(in oklch, var(--background) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.m-tab-item {
+  flex: 1;
+  min-height: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  transition: color 0.2s var(--ease-out-quart);
+}
+.m-tab-item[data-active="true"] { color: var(--accent); }
+.m-tab-item:active { transform: scale(0.96); }
+
+/* 筛选 chip：触摸友好（36px 高 + 上下留白 ≈44px 热区） */
+.m-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, white 55%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  transition: all 0.2s var(--ease-out-quart);
+}
+.m-chip[data-active="true"] {
+  border-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+.m-chip:active { transform: scale(0.96); }
+
+/* 底部弹层面板：圆角把手 + 上滑入场 + 安全区 */
+@keyframes m-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.m-sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 78dvh;
+  overflow-y: auto;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  background: var(--surface-strong);
+  box-shadow: 0 -18px 48px rgba(34, 62, 110, 0.18);
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  animation: m-sheet-up 0.28s var(--ease-out-quint);
+}

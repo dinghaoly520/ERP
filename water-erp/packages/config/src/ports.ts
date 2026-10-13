@@ -10,6 +10,7 @@ export const PORTS = {
   bid: 3007,       // 开评标管理端
   assistant: 3008, // 水叮当智能助手
   bigscreen: 3010,  // 大屏
+  mobile: 3011,   // 移动驾驶舱（:3005 数据库/台账/进展 的手机端只读门户）
 } as const;
 
 export type AppName = keyof typeof PORTS;
