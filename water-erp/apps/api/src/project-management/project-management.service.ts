@@ -5019,7 +5019,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const filesBlock = attachments.length > 0
       ? attachments.map((a) => {
           const c = summaryByKey.get(a.objectKey) ?? summaryByKey.get(a.fileName);
-          const summary = c?.contentSummary?.trim();
+          // 旧/异常缓存可能存非字符串摘要——typeof 守卫，绝不因缓存形状让分析 500
+          const summary = typeof c?.contentSummary === 'string' ? c.contentSummary.trim() : '';
           return `- ${a.fileName}：${summary ? summary.slice(0, 300) : '（未生成内容摘要，不得据此判断文件内容）'}`;
         }).join('\n')
       : '（本阶段未上传任何材料）';
