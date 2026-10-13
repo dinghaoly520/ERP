@@ -96,7 +96,11 @@ export class CaVerificationService {
         return this.fail('CA_FINGERPRINT_MISMATCH', 'P7 签名者 serial ≠ 期望证书');
       }
       // 2b: P7 embeddedCerts 含 expectedSignCert.sha256
-      if (!p7.embeddedCerts.some(c => c.sha256 === input.expectedSignCert!.sha256.toLowerCase())) {
+      const matchFound = p7.embeddedCerts.some(c => c.sha256 === input.expectedSignCert!.sha256.toLowerCase());
+      if (!matchFound) {
+        console.error('[CA-DEBUG] 2b 指纹不匹配：',
+          'expected=', input.expectedSignCert!.sha256,
+          'embedded=', p7.embeddedCerts.map(c => c.sha256));
         return this.fail('CA_FINGERPRINT_MISMATCH', 'P7 证书集不含期望证书指纹');
       }
     }

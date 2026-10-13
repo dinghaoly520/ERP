@@ -119,7 +119,7 @@ export class CaAuthController {
     const bh = caCookieHash(cookieValue);
 
     const ch = await this.challengeService.createLogin({
-      portal, browserCookieHash: bh, signCertPem: dto.signCertPem,
+      portal, browserCookieHash: bh, signCertSha256: certSha,
     });
 
     return {

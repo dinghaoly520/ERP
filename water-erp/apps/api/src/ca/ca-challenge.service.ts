@@ -30,8 +30,8 @@ export class CaChallengeService {
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   /** 登录挑战：匿名 cookie hash + 证书指纹绑定 */
-  async createLogin(p: { portal: string; browserCookieHash: string; signCertPem: string }): Promise<ChallengePayload> {
-    const certSha = createHash('sha256').update(p.signCertPem.replace(/\s+/g, '')).digest('hex');
+  async createLogin(p: { portal: string; browserCookieHash: string; signCertSha256: string }): Promise<ChallengePayload> {
+    const certSha = p.signCertSha256; // controller 已用 normalizeToDer 正确计算——此处不再重复哈希
     const nonce = randomBytes(32).toString('hex');
     const challengeId = `ca-ch-${Date.now()}-${randomBytes(8).toString('hex')}`;
     const expiresAt = new Date(Date.now() + CHALLENGE_TTL_SECONDS * 1000);
@@ -43,7 +43,7 @@ export class CaChallengeService {
     const bindingKey = `${p.portal}:${p.browserCookieHash}`;
     await this.redis.hset(`ca:challenge:v1:${challengeId}`,
       'state', 'READY', 'purpose', 'ca-login', 'bindingKey', bindingKey,
-      'toSign', toSign, 'payload', JSON.stringify({ portal: p.portal, signCertPem: p.signCertPem }));
+      'toSign', toSign, 'payload', JSON.stringify({ portal: p.portal }));
     await this.redis.expire(`ca:challenge:v1:${challengeId}`, CHALLENGE_TTL_SECONDS);
     return { challengeId, toSign, expiresAt };
   }
