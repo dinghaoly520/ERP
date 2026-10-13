@@ -11,6 +11,8 @@ import { CaAuthController } from './ca-auth.controller';
 import { CaBindingController } from './ca-binding.controller';
 import { CaEligibilityService } from './ca-eligibility.service';
 import { AuthModule } from '../auth/auth.module';
+import { JwtModule } from '@nestjs/jwt';
+import { getJwtSecret } from '../common/jwt-secret.helper';
 import { TrustStore } from '../common/crypto/x509/trust-store';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -41,7 +43,7 @@ export function loadCaConfig(): CaEnvConfig {
 }
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, JwtModule.register({ secret: getJwtSecret(), signOptions: { expiresIn: '7d' } })],
   controllers: [CaAuthController, CaBindingController],
   providers: [
     {

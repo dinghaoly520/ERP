@@ -18,6 +18,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { JwtService } from '@nestjs/jwt';
 import { AuthService } from '../auth/auth.service';
 import { CaChallengeService } from './ca-challenge.service';
 import { CaVerificationService, normalizeToDer } from './ca-verification.service';
@@ -75,6 +76,7 @@ const CA_COOKIE_OPTS = {
 export class CaAuthController {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
     private readonly authService: AuthService,
     private readonly challengeService: CaChallengeService,
     private readonly verificationService: CaVerificationService,
@@ -192,8 +194,10 @@ export class CaAuthController {
     }
 
     // 共享登录收尾：会话轮换 + cookie 写入 + 审计（复用 AuthService）
+    // I8 修复：sessionMeta 附 caLoginChallengeId——result 端点凭它恢复已成功会话
     const device = buildSessionMeta((req.headers['user-agent'] as string) ?? null, getClientIp(req));
-    const result = await this.authService.rotatePortalSession(user.id, user.username, user.role, device);
+    const sessionMeta = { ...(device as object), caLoginChallengeId: dto.challengeId };
+    const result = await this.authService.rotatePortalSession(user.id, user.username, user.role, sessionMeta);
 
     // 写 cookie + 清匿名 cookie
     const cookiePortal = portalForRole(user.role) || 'supplier';
@@ -223,11 +227,23 @@ export class CaAuthController {
     @Body() dto: CaResultDto,
     @Req() req: Request,
   ) {
+    // I8 修复：凭 portal cookie 的当前会话恢复已成功的 CA 登录响应（不轮换 SID）
     const portal = 'supplier';
-    const cookieValue = (req.cookies as Record<string, string>)?.[caCookieName(portal)];
-    if (!cookieValue) return { status: 'unconfirmed' };
-    // TODO：sessionMeta.caLoginChallengeId 匹配——阶段1 试点先用简化实现
-    return { status: 'unconfirmed', message: '请重新发起 CA 登录' };
+    const token = (req.cookies as Record<string, string>)?.[cookieNameForPortal(portal)];
+    if (!token) return { status: 'unconfirmed', message: '未找到当前会话，请重新发起 CA 登录' };
+    const payload = await this.jwt.verifyAsync<{ sub?: string; sid?: string }>(token).catch(() => null);
+    if (!payload?.sub || !payload?.sid) return { status: 'unconfirmed', message: '会话无效，请重新发起 CA 登录' };
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user || user.webSessionId !== payload.sid) {
+      return { status: 'unconfirmed', message: '会话已被替换，请重新发起 CA 登录' };
+    }
+    const meta = (user.sessionMeta ?? {}) as Record<string, unknown>;
+    if (meta.caLoginChallengeId !== dto.challengeId) {
+      return { status: 'unconfirmed', message: '本次挑战无已确认的登录结果' };
+    }
+    // 不轮换 SID——重新签发同 sid 的 token（保留当前会话）
+    const access_token = this.authService.issueToken(user.id, user.username, user.role, payload.sid);
+    return { status: 'confirmed', access_token, role: user.role, username: user.username };
   }
 
   @Post('reauth')
