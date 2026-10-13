@@ -2433,7 +2433,7 @@ export class ExpertAdminService {
       : '';
 
     const fallback = () => ({
-      requiredSpecialties: [{ specialty: poolSpecs[0] || '水利工程', count: 2, reason: 'AI 不可用，给出通用默认，请手动调整' }],
+      requiredSpecialties: [{ specialty: poolSpecs[0] || '水利工程', specialties: [poolSpecs[0] || '水利工程'], count: 2, reason: 'AI 不可用，给出通用默认，请手动调整' }],
       totalExperts: 3,
       analysis: 'AI 暂不可用，已给出默认专业与人数，请手动调整后再抽取。',
       engine: 'rules' as const,
@@ -2441,16 +2441,16 @@ export class ExpertAdminService {
 
     try {
       const raw = await this.llm.chat(
-        '你是招标采购评审专家抽取助手。判断评审所需专业时：首先抓住"采购标的的技术学科归属"定核心技术专业，然后判断是否涉及设备/机械（需要设备或机电专业评估），最后补充造价、法律等辅助专业。每个项目至少应包含核心技术专业，设备类采购还需包含设备/机械类专业，不可偏废。每专业建议人数 1-2 人（不超过 2，即使席位多也不堆给一个专业）。',
+        '你是招标采购评审专家抽取助手。判断评审所需专业时：首先抓住"采购标的的技术学科归属"定核心技术专业，然后判断是否涉及设备/机械（需要设备或机电专业评估），最后补充造价、法律等辅助专业。每个项目至少应包含核心技术专业，设备类采购还需包含设备/机械类专业，不可偏废。每个席位组建议 1-2 人（不超过 2，即使席位多也不堆给一个组）。相近专业（同一技术学科、评审可互替）必须合并为一个席位组：写入该组 specialties 数组（1-4 个，主专业放首位），不得拆成多行。',
         `请阅读以下项目信息，推断评审专家抽取需求。严格以 JSON 返回（不要 markdown 包裹，直接输出纯 JSON 对象）：
-{"requiredSpecialties":[{"specialty":"专业名","count":建议人数,"reason":"为何需要该专业(30字内，须点明采购标的与该专业的对应关系)"}],"totalExperts":评审专家总数,"analysis":"推断依据说明(100字内)"}
+{"requiredSpecialties":[{"specialty":"主专业名","specialties":["主专业名","相近专业1","相近专业2"],"count":建议人数,"reason":"为何需要该席位组(30字内，须点明采购标的与该专业的对应关系)"}],"totalExperts":评审专家总数,"analysis":"推断依据说明(100字内)"}
 
 要求：
 1. 必须包含采购标的的核心技术学科专业（如钻机/岩心→地质，水泵/闸门→水利工程）；
 2. 设备/机械类采购还需包含设备/机械相关专业；
-3. 每专业 count 建议 1-2 人（严禁超过 2）；
-4. totalExperts 等于各专业 count 之和；
-5. specialty 必须使用【专家库现有专业】里的原词，不得自创。
+3. 每席位组 count 建议 1-2 人（严禁超过 2）；
+4. totalExperts 等于各席位组 count 之和；
+5. specialties 数组内每个专业（含 specialty）必须使用【专家库现有专业】里的原词，不得自创；相近专业（学科相同/相近、评审可互替，如"水利工程"与"水利水电工程"）合并进同一组的 specialties，互不相近的专业不得混入同一组。
 项目信息：
 ${context}${poolHint}`,
         0.3,
@@ -2458,12 +2458,27 @@ ${context}${poolHint}`,
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return fallback();
       const parsed = JSON.parse(jsonMatch[0]);
-      const specialties: { specialty: string; count: number; reason: string }[] = Array.isArray(parsed.requiredSpecialties) && parsed.requiredSpecialties.length
-        ? parsed.requiredSpecialties.map((s: any) => ({
-            specialty: String(s.specialty || '水利工程'),
-            count: Math.max(1, Math.min(10, Number(s.count) || 1)),
-            reason: String(s.reason || ''),
-          }))
+      // 行内专业逐项对专家库白名单纠偏（原词→词缀包含），对不上的丢弃；整行无有效专业时弃行
+      const matchPool = (sp: string): string => {
+        const t = sp.trim();
+        if (!t) return '';
+        if (poolSpecs.includes(t)) return t;
+        return poolSpecs.find(x => x.includes(t) || t.includes(x)) || '';
+      };
+      const specialties: { specialty: string; specialties: string[]; count: number; reason: string }[] = Array.isArray(parsed.requiredSpecialties) && parsed.requiredSpecialties.length
+        ? parsed.requiredSpecialties
+            .map((s: any) => {
+              const primary = matchPool(String(s.specialty || ''));
+              const list = [...new Set((Array.isArray(s.specialties) ? s.specialties : []).map((x: any) => matchPool(String(x || ''))).filter(Boolean))];
+              const finalSpecs = [...new Set(primary ? [primary, ...list] : list)];
+              return {
+                specialty: finalSpecs[0] || '',
+                specialties: finalSpecs,
+                count: Math.max(1, Math.min(10, Number(s.count) || 1)),
+                reason: String(s.reason || ''),
+              };
+            })
+            .filter((s: { specialty: string }) => s.specialty)
         : fallback().requiredSpecialties;
       const totalExperts = Math.max(1, Math.min(20, Number(parsed.totalExperts) || specialties.reduce((a: number, s: any) => a + s.count, 0) || 3));
       return {
@@ -2504,7 +2519,7 @@ ${context}${poolHint}`,
       suggestedName: '自定义抽取项目',
       projectBackground: combined.slice(0, 300),
       procurementType: '公开招标',
-      requiredSpecialties: [{ specialty: '水利工程', count: 2, reason: '未能从文件明确推断，给出通用默认，请手动调整' }],
+      requiredSpecialties: [{ specialty: '水利工程', specialties: ['水利工程'], count: 2, reason: '未能从文件明确推断，给出通用默认，请手动调整' }],
       totalExperts: 3,
       analysis: 'AI 暂不可用，已给出默认专业与人数，请手动调整后再抽取。',
       engine: 'rules' as const,
@@ -2512,10 +2527,11 @@ ${context}${poolHint}`,
 
     try {
       const raw = await this.llm.chat(
-        '你是招标采购评审专家抽取助手。用户会提供一份或多份项目相关文件（可能是招标公告、采购需求、项目背景等）。你需要【理解项目背景与采购内容】，推断该项目评审需要哪些专业的专家、各专业建议人数，以及评审专家总数。文件里未必直接写明专业和人数，你要根据项目性质、采购内容、技术要求自行推理。专业请用水发/水利采购常见表述（如水利工程、机电设备及安装、造价咨询、工程造价、信息技术、法律、财务等）。',
+        '你是招标采购评审专家抽取助手。用户会提供一份或多份项目相关文件（可能是招标公告、采购需求、项目背景等）。你需要【理解项目背景与采购内容】，推断该项目评审需要哪些专业的专家、各专业建议人数，以及评审专家总数。文件里未必直接写明专业和人数，你要根据项目性质、采购内容、技术要求自行推理。专业请用水发/水利采购常见表述（如水利工程、机电设备及安装、造价咨询、工程造价、信息技术、法律、财务等）。相近专业（同一技术学科、评审可互替）必须合并为一个席位组：写入该组 specialties 数组（1-4 个，主专业放首位），不得拆成多行。',
         `请阅读以下项目文件内容，推断评审专家抽取需求。严格以 JSON 返回（不要 markdown 包裹，直接输出纯 JSON 对象）：
-{"suggestedName":"建议的项目名称(简短)","projectBackground":"项目背景与采购内容概述(100字内)","procurementType":"推断的采购方式(如公开招标/邀请招标/竞争性谈判等)","requiredSpecialties":[{"specialty":"专业名","count":建议人数,"reason":"为何需要该专业(30字内)"}],"totalExperts":评审专家总数,"analysis":"推断依据说明(100字内)"}
+{"suggestedName":"建议的项目名称(简短)","projectBackground":"项目背景与采购内容概述(100字内)","procurementType":"推断的采购方式(如公开招标/邀请招标/竞争性谈判等)","requiredSpecialties":[{"specialty":"主专业名","specialties":["主专业名","相近专业1","相近专业2"],"count":建议人数,"reason":"为何需要该席位组(30字内)"}],"totalExperts":评审专家总数,"analysis":"推断依据说明(100字内)"}
 
+要求：互不相近的专业不得混入同一 specialties 组。
 文件内容：
 ${combined}`,
         0.2,
@@ -2524,11 +2540,19 @@ ${combined}`,
       if (!jsonMatch) return fallback();
       const parsed = JSON.parse(jsonMatch[0]);
       const specialties = Array.isArray(parsed.requiredSpecialties) && parsed.requiredSpecialties.length
-        ? parsed.requiredSpecialties.map((s: any) => ({
-            specialty: String(s.specialty || '水利工程'),
-            count: Math.max(1, Math.min(10, Number(s.count) || 1)),
-            reason: String(s.reason || ''),
-          }))
+        ? parsed.requiredSpecialties
+            .map((s: any) => {
+              const primary = String(s.specialty || '').trim();
+              const list = [...new Set((Array.isArray(s.specialties) ? s.specialties : []).map((x: any) => String(x || '').trim()).filter(Boolean))];
+              const finalSpecs = [...new Set(primary ? [primary, ...list.filter(x => x !== primary)] : list)];
+              return {
+                specialty: finalSpecs[0] || '水利工程',
+                specialties: finalSpecs,
+                count: Math.max(1, Math.min(10, Number(s.count) || 1)),
+                reason: String(s.reason || ''),
+              };
+            })
+            .filter((s: { specialty: string }) => s.specialty)
         : fallback().requiredSpecialties;
       const totalExperts = Math.max(1, Math.min(20, Number(parsed.totalExperts) || specialties.reduce((a: number, s: any) => a + s.count, 0) || 3));
       return {

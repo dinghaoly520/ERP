@@ -2,8 +2,13 @@ import { IsString, IsNotEmpty, IsOptional, IsInt, IsArray, Min, Max, ValidateNes
 import { Type } from 'class-transformer';
 
 export class SpecialtyQuotaDto {
-  @IsString()
-  specialty!: string;
+  /** @deprecated 单专业写法（2026-10-13 前唯一形态）：多选配额留空、改传 specialties */
+  @IsOptional() @IsString()
+  specialty?: string;
+
+  /** 多选专业（2026-10-13）：相近专业并桶，行内候选池=所选专业并集；空数组/缺省=不限专业 */
+  @IsOptional() @IsArray() @IsString({ each: true })
+  specialties?: string[];
 
   @IsInt() @Min(1)
   count!: number;
@@ -15,9 +20,13 @@ export class SpecialtyQuotaDto {
   @IsOptional() @IsString()
   employer?: string;
 
-  /** 公司主数据限定（2026-09-24 抽取配置「公司」下拉）：该配额仅从该公司专家库抽取；空=按池不限定 */
+  /** @deprecated 单公司写法：多选配额改传 companyIds */
   @IsOptional() @IsString()
   companyId?: string;
+
+  /** 多选公司（2026-10-13）：该配额从所选公司并集的专家库抽取；空=按池不限定（scope 默认） */
+  @IsOptional() @IsArray() @IsString({ each: true })
+  companyIds?: string[];
 
   /** 部门限定（真部门 Department.name）：配额在公司内进一步按专家所属部门过滤 */
   @IsOptional() @IsString()

@@ -144,6 +144,60 @@ describe('ExpertExtractionService', () => {
       expect(where.expertProfile).not.toHaveProperty('expertLevel');
     });
 
+    // 多选配额（2026-10-13）：specialties/companyIds 并集池
+    const setupMulti = () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '测试项目', procurementMethod: '公开招标',
+        scope: '水利枢纽施工', qualification: '', qualityRequirement: '', riskNote: '', budget: null,
+        suppliers: [],
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', displayName: '甲', isActive: true, companyId: 'c1', expertProfile: { specialty: '水利工程', availability: '可用', entryStatus: 'ACTIVE', title: '高级工程师', employer: 'A院' }, bidExperts: [], _count: { bidExperts: 3 } },
+        { id: 'u2', displayName: '乙', isActive: true, companyId: 'c1', expertProfile: { specialty: '水利水电工程', availability: '可用', entryStatus: 'ACTIVE', title: '工程师', employer: 'B院' }, bidExperts: [], _count: { bidExperts: 1 } },
+        { id: 'u3', displayName: '丙', isActive: true, companyId: 'c2', expertProfile: { specialty: '水利水电工程', availability: '可用', entryStatus: 'ACTIVE', title: '工程师', employer: 'C院' }, bidExperts: [], _count: { bidExperts: 2 } },
+        { id: 'u4', displayName: '丁', isActive: true, companyId: 'c3', expertProfile: { specialty: '造价咨询', availability: '可用', entryStatus: 'ACTIVE', title: '工程师', employer: 'D公司' }, bidExperts: [], _count: { bidExperts: 0 } },
+      ]);
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      extractionAi.analyzeAndScore.mockResolvedValue({ analysis: 'ok', requiredSpecialties: [], scoredExperts: [] });
+    };
+
+    it('多选专业：一行相近专业并桶，候选池=专业并集（跨专业抽满），requiredSpecialties 原样带数组', async () => {
+      setupMulti();
+      const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialties: ['水利工程', '水利水电工程'], count: 3 },
+      ] } as any);
+      const names = res.selected.map(s => s.name);
+      // 并集池=水利工程(甲) + 水利水电工程(乙/丙)，3 席抽满跨专业跨公司（丁=造价咨询不在池内）
+      expect(res.selected).toHaveLength(3);
+      expect(names).toEqual(expect.arrayContaining(['甲', '乙', '丙']));
+      expect(names).not.toContain('丁');
+      expect(res.requiredSpecialties[0].specialties).toEqual(['水利工程', '水利水电工程']);
+    });
+
+    it('多选公司：行内公司并集放行（c1+c2 均可抽），白名单 where 注入 companyId in', async () => {
+      setupMulti();
+      const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialties: ['水利水电工程'], count: 2, companyIds: ['c1', 'c2'] },
+      ] } as any);
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ companyId: { in: ['c1', 'c2'] } }),
+      }));
+      const names = res.selected.map(s => s.name);
+      expect(names).toEqual(expect.arrayContaining(['乙', '丙']));
+      expect(names).not.toContain('丁');
+    });
+
+    it('旧单值 specialty/companyId 兼容：归一化为单元素数组，行为与单选时代一致', async () => {
+      setupMulti();
+      const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialty: '水利水电工程', count: 1, companyId: 'c2' },
+      ] } as any);
+      expect(res.selected.map(s => s.name)).toEqual(['丙']);
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ companyId: { in: ['c2'] } }),
+      }));
+    });
+
     it('A-129：多配额区域/等级不一致 → 并集过滤（regionCode in 合并 + expertLevel in 并集），返回 quotaFiltersApplied 说明', async () => {
       setupA129();
       const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [

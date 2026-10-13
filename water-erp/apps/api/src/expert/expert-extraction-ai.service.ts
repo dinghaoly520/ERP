@@ -51,14 +51,18 @@ export interface ExtractionCandidate {
 }
 
 export interface LlmSpecialtyQuota {
+  /** 主专业（= specialties 首位镜像；单选时代的字符串字段，展示/兼容用，流程读 specialties） */
   specialty: string;
+  /** 多选专业（2026-10-13）：相近专业并桶，行内候选池=并集；空数组=不限专业 */
+  specialties: string[];
   count: number;
   reason: string;
   /** 公司限定：仅从工作单位匹配该公司的专家中抽取（需求方代表「公司→部门→专业」） */
   employer?: string;
-  /** 公司主数据限定（2026-09-24 抽取配置「公司」）：配额仅从该公司的专家库抽取；空=按池不限定 */
+  /** 主公司（= companyIds 首位镜像，兼容单选时代字段） */
   companyId?: string;
-  /** 部门限定（真部门 Department.name）：公司内进一步按专家所属部门过滤 */
+  /** 多选公司（2026-10-13）：配额从所选公司并集的专家库抽取；空=按池不限定 */
+  companyIds: string[];
   department?: string;
   /** 行政区域代码（GB/T 2260）：配额候选限定区域（A-129 可选过滤，未填不过滤） */
   regionCode?: string;
@@ -190,11 +194,22 @@ export class ExpertExtractionAiService {
 
       const requiredSpecialties: LlmSpecialtyQuota[] = Array.isArray(parsed.requiredSpecialties)
         ? parsed.requiredSpecialties
-            .map((q: any) => ({
-              specialty: String(q.specialty || '').slice(0, 50),
-              count: Math.max(0, Math.round(Number(q.count) || 0)),
-              reason: String(q.reason || '').slice(0, 200),
-            }))
+            .map((q: any) => {
+              // LLM 行可能带 specialties 相近专业组（有则逐项截长、去重），否则回落单专业
+              const primary = String(q.specialty || '').slice(0, 50);
+              const list = [...new Set(
+                (Array.isArray(q.specialties) ? [primary, ...q.specialties.map((s: any) => String(s || ''))] : [primary])
+                  .map(s => s.slice(0, 50).trim())
+                  .filter(Boolean),
+              )];
+              return {
+                specialty: list[0] ?? '',
+                specialties: list,
+                count: Math.max(0, Math.round(Number(q.count) || 0)),
+                reason: String(q.reason || '').slice(0, 200),
+                companyIds: [] as string[],
+              };
+            })
             .filter((q: LlmSpecialtyQuota) => q.specialty && q.count > 0)
         : [];
 

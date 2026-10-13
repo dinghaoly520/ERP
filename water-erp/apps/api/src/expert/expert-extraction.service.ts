@@ -35,7 +35,21 @@ export class ExpertExtractionService {
     // 公司级数据隔离（2026-09-24）：候选池默认收窄到操作人视野（admin 全库、非 admin 本公司库）；
     // 抽取配置「公司」下拉显式选了公司时按所选公司取池（默认本公司，用户拍板可跨公司选其他公司专家）
     const scope = await this.companyScope.resolveScope(operator);
-    const quotaCompanyIds = [...new Set((dto.manualQuotas ?? []).map(q => (q.companyId ?? '').trim()).filter(Boolean))];
+    // 多选配额归一化（2026-10-13）：specialties/companyIds 数组优先，旧单值 specialty/companyId
+    // 包成单元素数组；specialties 空=「不选择」（不限专业桶），companyIds 空=按池 scope 不限定。
+    // 归一化后 specialty/companyId 仅作首位镜像（展示/employer 行兼容），流程一律读数组。
+    const normList = (arr: string[] | undefined, single: string | undefined): string[] => {
+      const l = (arr ?? []).map(s => (s || '').trim()).filter(Boolean);
+      if (l.length) return [...new Set(l)];
+      const s = (single ?? '').trim();
+      return s ? [s] : [];
+    };
+    const quotaRows: LlmSpecialtyQuota[] = (dto.manualQuotas ?? []).map(q => {
+      const specs = normList(q.specialties, q.specialty);
+      const cids = normList(q.companyIds, q.companyId);
+      return { ...q, specialty: specs[0] ?? '', specialties: specs, companyId: cids[0] ?? '', companyIds: cids, reason: q.reason ?? '' };
+    });
+    const quotaCompanyIds = [...new Set(quotaRows.flatMap(q => q.companyIds))];
     const companyFilter = quotaCompanyIds.length
       ? { companyId: { in: quotaCompanyIds } }
       : this.companyScope.filter(scope);
@@ -61,7 +75,7 @@ export class ExpertExtractionService {
 
     // A-129：配额区域/等级可选过滤——未填不过滤；候选池为全配额共享，多配额不同值取并集
     // （交集会把只满足某一配额的专家整体饿死），并集语义在返回 quotaFiltersApplied 中说明
-    const quotaRows = dto.manualQuotas ?? [];
+    // quotaRows 已在入口归一化（多选数组），此处仅消费
     const regionCodes = [...new Set(quotaRows.map(q => q.regionCode?.trim()).filter((v): v is string => !!v))];
     const expertLevels = [...new Set(
       quotaRows.flatMap(q => (q.expertLevel ?? '').split(',').map(s => s.trim()).filter(v => /^[A-E]$/.test(v))),
@@ -227,11 +241,11 @@ export class ExpertExtractionService {
         candidates,
         totalNeeded,
         extractMode,
-        dto.manualQuotas?.length ? dto.manualQuotas.filter(q => !q.employer).map(q => `${q.specialty || '不限专业'}×${q.count}`).join('、') : undefined,
+        quotaRows.length ? quotaRows.filter(q => !q.employer).map(q => `${q.specialties.join('、') || '不限专业'}×${q.count}`).join('、') : undefined,
       );
       analysis = llm.analysis;
-      requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department, regionCode: q.regionCode, expertLevel: q.expertLevel, companyId: q.companyId }))
+      requiredSpecialties = quotaRows.length
+        ? quotaRows.map(q => ({ ...q, reason: q.reason ?? '' }))
         : llm.requiredSpecialties;
       for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
     } catch (err) {
@@ -240,8 +254,8 @@ export class ExpertExtractionService {
       this.extractionAi.recordFallback();
       const errMsg = (err as Error)?.message ?? String(err);
       new Logger(ExpertExtractionService.name).warn(`抽取 AI 降级规则引擎: ${errMsg}`);
-      requiredSpecialties = dto.manualQuotas?.length
-        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer, department: q.department, regionCode: q.regionCode, expertLevel: q.expertLevel, companyId: q.companyId }))
+      requiredSpecialties = quotaRows.length
+        ? quotaRows.map(q => ({ ...q, reason: q.reason ?? '' }))
         : this.ruleComposition(candidates, totalNeeded);
       const isTimeout = errMsg.includes('超时') || errMsg.includes('timed out');
       const is503 = errMsg.includes('503') || errMsg.includes('Service Unavailable');
@@ -284,13 +298,23 @@ export class ExpertExtractionService {
       ? candidates.filter(c => c.evaluationLevel !== 'D' && c.evaluationLevel !== 'E')
       : candidates;
 
-    // 按专业分组
-    const groups = new Map<string, typeof candidates>();
+    // 按专业分组：候选分给首个命中的配额组（精确→词缀包含；行内多专业=相近专业并桶，
+    // 命中任一即入组）；未命中任何配额的候选不进专业组（仅「不限专业」行可抽到）
+    const matchQuotaIdx = (fit: string, qs: LlmSpecialtyQuota[]): number => {
+      const f = (fit || '').trim();
+      if (!f) return -1;
+      const exact = qs.findIndex(q => q.specialties.includes(f));
+      if (exact >= 0) return exact;
+      return qs.findIndex(q => q.specialties.some(sp => sp && (f.includes(sp) || sp.includes(f))));
+    };
+    const groups = new Map<number, typeof candidates>();
     for (const c of drawPool) {
       const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
-      const key = this.matchGroupKey(fit, quotas);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(c);
+      const gi = matchQuotaIdx(fit, quotas);
+      if (gi >= 0) {
+        if (!groups.has(gi)) groups.set(gi, []);
+        groups.get(gi)!.push(c);
+      }
     }
 
     // 模式驱动抽取
@@ -298,11 +322,11 @@ export class ExpertExtractionService {
     const shortages: { specialty: string; needed: number; available: number }[] = [];
     const usedIds = new Set<string>();
 
-    for (const q of quotas) {
-      const anySpecialty = !(q.specialty || '').trim(); // 「不选择」=不限专业
-      const qc = (q.companyId || '').trim(); // 抽取配置「公司」：该配额仅在该公司库内抽
-      const inCompany = (c: any) => !qc || c.companyId === qc;
-      const quotaLabel = anySpecialty ? '不限专业' : q.specialty;
+    quotas.forEach((q, qi) => {
+      const anySpecialty = q.specialties.length === 0; // 「不选择」=不限专业
+      const qcIds = q.companyIds; // 抽取配置「公司」（可多选）：该配额仅从所选公司并集的库内抽
+      const inCompany = (c: any) => qcIds.length === 0 || qcIds.includes(c.companyId ?? '');
+      const quotaLabel = anySpecialty ? '不限专业' : q.specialties.join('、');
       let pool: any[];
       if (anySpecialty) {
         // 不限专业：从全池（含 D/E 补齐语义天然成立）未被占用且符合公司的候选中抽
@@ -313,14 +337,14 @@ export class ExpertExtractionService {
         }
       } else {
         // 优先从 A/B/C 池（drawPool）抽；不够时从 D/E 补齐（凑人优先于等级门槛）
-        const group = (groups.get(q.specialty) || []).filter(c => !usedIds.has(c.id) && inCompany(c));
+        const group = (groups.get(qi) || []).filter(c => !usedIds.has(c.id) && inCompany(c));
         pool = group;
         if (pool.length < q.count) {
-          // 从全池（含 D/E）补齐同专业未被占用的候选
+          // 从全池（含 D/E）补齐本配额组（行内任一相近专业）未被占用的候选
           const fallback = candidates.filter(c => {
             if (usedIds.has(c.id) || pool.some(p => p.id === c.id) || !inCompany(c)) return false;
             const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
-            return this.matchGroupKey(fit, quotas) === q.specialty;
+            return matchQuotaIdx(fit, quotas) === qi;
           });
           pool = [...pool, ...fallback];
         }
@@ -329,28 +353,29 @@ export class ExpertExtractionService {
       else if (pool.length < q.count) shortages.push({ specialty: quotaLabel, needed: q.count, available: pool.length });
 
       const drawn = this.drawByMode(pool, Math.min(q.count, pool.length), extractMode, scoreMap);
-      for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, anySpecialty ? (c.specialty || '不限专业') : q.specialty, '正选', scoreMap)); }
-    }
+      for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, anySpecialty ? (c.specialty || '不限专业') : quotaLabel, '正选', scoreMap)); }
+    });
 
     // 部门限定配额抽取（需求方代表）：按工作单位匹配部门，专业可选作附加过滤
     // 记录每笔部门配额抽取出的专家实际专业，供 requiredSpecialties 显示「专业·需求方代表」
     const employerDrawnSpecs = new Map<string, string[]>();
     for (const q of employerQuotas) {
       const emp = q.employer!.trim();
-      const specFilter = (q.specialty || '').trim();
+      const specFilters = q.specialties; // 专业附加过滤（可多选）：命中任一即通过
+      const specLabel = specFilters.join('、');
       const deptFilter = (q.department || '').trim(); // 真部门（Department.name）过滤，公司内进一步收窄
       const pool = drawPool.filter(c => {
         if (usedIds.has(c.id)) return false;
         const ce = (c.employer || '').trim();
         if (!ce || !(ce === emp || ce.includes(emp) || emp.includes(ce))) return false;
         if (deptFilter && (c.department || '').trim() !== deptFilter) return false;
-        if (specFilter) {
+        if (specFilters.length) {
           const cs = (c.specialty || '').trim();
-          if (!(cs === specFilter || cs.includes(specFilter) || specFilter.includes(cs))) return false;
+          if (!specFilters.some(sf => cs === sf || cs.includes(sf) || sf.includes(cs))) return false;
         }
         return true;
       });
-      const label = specFilter ? `${emp}·${specFilter}` : emp;
+      const label = specLabel ? `${emp}·${specLabel}` : emp;
       if (pool.length === 0) shortages.push({ specialty: label, needed: q.count, available: 0 });
       else if (pool.length < q.count) shortages.push({ specialty: label, needed: q.count, available: pool.length });
       const drawn = this.drawByMode(pool, Math.min(q.count, pool.length), extractMode, scoreMap);
@@ -359,7 +384,7 @@ export class ExpertExtractionService {
       // 部门限定配额 = 需求方代表（采购人代表），选中结果打标供确认时持久化
       for (const c of drawn) {
         usedIds.add(c.id);
-        const sel = this.toSelection(c, specFilter || c.specialty, '正选', scoreMap);
+        const sel = this.toSelection(c, specLabel || c.specialty, '正选', scoreMap);
         (sel as any).isPurchaserRepresentative = true;
         selected.push(sel);
       }
@@ -367,18 +392,19 @@ export class ExpertExtractionService {
 
     // 候补：每个专业配额各抽 1 位候补（放宽到全部候选含 D/E，作后备用）
     const alternativeList: ReturnType<typeof this.toSelection>[] = [];
-    for (const q of quotas) {
+    quotas.forEach((q, qi) => {
+      const quotaLabel = q.specialties.length === 0 ? '不限专业' : q.specialties.join('、');
       const group = candidates.filter(c => {
         if (usedIds.has(c.id)) return false;
         const fit = scoreMap.get(c.id)?.fitSpecialty || c.specialty;
-        return this.matchGroupKey(fit, quotas) === q.specialty;
+        return matchQuotaIdx(fit, quotas) === qi;
       });
-      if (group.length === 0) continue;
+      if (group.length === 0) return;
       const alt = extractMode === 'random'
         ? this.fairShuffle(group).slice(0, 1)
         : this.drawByMode(group, 1, 'merit_best', scoreMap);
-      for (const c of alt) { usedIds.add(c.id); alternativeList.push(this.toSelection(c, q.specialty, '候补', scoreMap)); }
-    }
+      for (const c of alt) { usedIds.add(c.id); alternativeList.push(this.toSelection(c, quotaLabel, '候补', scoreMap)); }
+    });
 
     return {
       engine,
@@ -388,10 +414,10 @@ export class ExpertExtractionService {
       requiredSpecialties: [
         ...quotas,
         ...employerQuotas.map(q => {
-          const filterSpec = (q.specialty || '').trim();
+          const filterSpec = q.specialties.join('、');
           const drawnSpecs = employerDrawnSpecs.get(q.employer!.trim()) || [];
           const specLabel = filterSpec || (drawnSpecs.length > 0 ? [...new Set(drawnSpecs)].join('、') + '·需求方代表' : '需求方代表');
-          return { ...q, specialty: specLabel, reason: q.reason || `需求方代表：从「${q.employer}」抽取` };
+          return { ...q, specialty: specLabel, specialties: filterSpec ? q.specialties : [...new Set(drawnSpecs)], reason: q.reason || `需求方代表：从「${q.employer}」抽取` };
         }),
       ],
       eligiblePool: eligible.length,
@@ -648,13 +674,6 @@ export class ExpertExtractionService {
   }
 
   /** 把 fitSpecialty 映射到配额中存在的专业组（模糊匹配） */
-  private matchGroupKey(fitSpecialty: string, quotas: LlmSpecialtyQuota[]): string {
-    const exact = quotas.find(q => q.specialty === fitSpecialty);
-    if (exact) return exact.specialty;
-    const partial = quotas.find(q => q.specialty && (fitSpecialty.includes(q.specialty) || q.specialty.includes(fitSpecialty)));
-    return partial ? partial.specialty : fitSpecialty; // 无匹配时保留专家自身专业，不强行塞入第一个配额组
-  }
-
   /** 模式驱动抽样 */
   private drawByMode(
     group: any[],
@@ -700,7 +719,7 @@ export class ExpertExtractionService {
     for (const [specialty, n] of sorted) {
       if (remaining <= 0) break;
       const take = Math.min(remaining, Math.max(1, Math.round(totalNeeded * (n / candidates.length))));
-      quotas.push({ specialty, count: Math.min(take, remaining), reason: `候选库中该专业人数较多（${n} 人）` });
+      quotas.push({ specialty, specialties: [specialty], companyIds: [], count: Math.min(take, remaining), reason: `候选库中该专业人数较多（${n} 人）` });
       remaining -= take;
     }
     if (remaining > 0 && quotas.length) quotas[0].count += remaining;
@@ -793,27 +812,26 @@ export class ExpertExtractionService {
     const available = [...new Set(candidates.map(c => (c.specialty || '').trim()).filter(Boolean))];
     if (available.length === 0 || quotas.length === 0) return quotas;
     const normAvailable = available.map(a => ({ raw: a, norm: this.normalizeSpecialty(a) }));
+    const matchOne = (sp: string): string => {
+      const nq = this.normalizeSpecialty(sp);
+      const hit = normAvailable.find(a => a.norm === nq) ?? normAvailable.find(a => a.norm.includes(nq) || nq.includes(a.norm));
+      return hit ? hit.raw : sp; // 严格配额：候选库无此专业时保留原配额名，draw 阶段该组为空将报短缺
+    };
     const merged = new Map<string, LlmSpecialtyQuota>();
     for (const q of quotas) {
-      const name = (q.specialty || '').trim();
-      if (!name) { // 「不选择」=不限专业桶，直通保留（多条并入同一桶）
+      if (q.specialties.length === 0) { // 「不选择」=不限专业桶，直通保留（多条并入同一桶）
         const ex = merged.get('');
         if (ex) ex.count += q.count; else merged.set('', { ...q });
         continue;
       }
-      const nq = this.normalizeSpecialty(name);
-      const hit = normAvailable.find(a => a.norm === nq) ?? normAvailable.find(a => a.norm.includes(nq) || nq.includes(a.norm));
-      if (!hit) {
-        // 严格配额：候选库无此专业时保留原配额名，不合并、不重分配——draw 阶段该组为空将报短缺
-        merged.set(name, { ...q });
-        continue;
-      }
-      const ex = merged.get(hit.raw);
+      // 行内逐专业白名单纠偏（能对上候选库的换成库内原词），相同专业集合的行并桶累加席数
+      const specs = [...new Set(q.specialties.map(matchOne))];
+      const key = specs.join('、');
+      const ex = merged.get(key);
       if (ex) ex.count += q.count;
-      else merged.set(hit.raw, { ...q, specialty: hit.raw });
+      else merged.set(key, { ...q, specialties: specs, specialty: specs[0] });
     }
-    const list = [...merged.values()];
-    return list;
+    return [...merged.values()];
   }
 
   /** 语义召回：用「项目需求」与「专家专长(专业+职称+单位)」的向量相似度对匹配分微调（最高 +8）。
@@ -854,7 +872,7 @@ export class ExpertExtractionService {
 
   /** 归一化配额：使 count 之和 = totalNeeded */
   private normalizeQuotas(quotas: LlmSpecialtyQuota[], totalNeeded: number): LlmSpecialtyQuota[] {
-    if (quotas.length === 0) return [{ specialty: '综合', count: totalNeeded, reason: '未指定专业构成' }];
+    if (quotas.length === 0) return [{ specialty: '综合', specialties: ['综合'], companyIds: [], count: totalNeeded, reason: '未指定专业构成' }];
     const sum = quotas.reduce((s, q) => s + q.count, 0);
     if (sum === totalNeeded) return quotas;
     if (sum === 0) { quotas[0].count = totalNeeded; return quotas; }
