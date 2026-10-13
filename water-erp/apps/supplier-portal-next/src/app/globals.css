@@ -13781,3 +13781,16 @@ main.reg { align-items: flex-start; }
 .lp-ca-divider::before, .lp-ca-divider::after {
   content: ''; flex: 1; height: 1px; background: currentColor;
 }
+
+/* ═══ SCCA CA（2026-10-14）：证书卡内凹展示盒 + 绑定成功内高光盒 ═══ */
+.ca-carved-box {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+.ca-bound-box {
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ca-carved-box, .ca-bound-box { box-shadow: none; }
+}

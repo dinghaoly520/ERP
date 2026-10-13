@@ -79,7 +79,7 @@ function CertCard({ icon: Icon, title, serialHex, subject, notAfter }: {
           <div className="text-[11px] text-[var(--fg-3)]">{certCn(subject ?? undefined)}</div>
         </div>
       </div>
-      <div className="flex flex-col gap-1.5 rounded-[10px] bg-[var(--success-soft)] px-3 py-2.5" style={{ boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.5)" }}>
+      <div className="ca-carved-box flex flex-col gap-1.5 rounded-[10px] bg-[var(--success-soft)] px-3 py-2.5">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--fg-3)]">证书序列号</span>
         <span className="font-mono text-xs text-[var(--fg)] break-all">{serialHex ?? "未绑定"}</span>
       </div>

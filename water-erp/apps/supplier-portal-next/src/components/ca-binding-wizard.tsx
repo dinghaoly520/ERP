@@ -164,7 +164,7 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
       {loadingBound && <div className="py-2 text-sm text-[var(--fg-3)]">查询绑定状态…</div>}
 
       {!loadingBound && bound && step !== 'success' && (
-        <div className="rounded-xl bg-[var(--success-soft)] p-4" style={{ boxShadow: "inset 0 1px 0 oklch(1 0 0 / 0.5)" }}>
+        <div className="ca-bound-box rounded-xl bg-[var(--success-soft)] p-4">
           <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[var(--success)]">
             <ShieldCheck size={15} strokeWidth={1.9} />
             已绑定 SCCA CA 证书
