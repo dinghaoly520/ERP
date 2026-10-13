@@ -8,6 +8,8 @@ import { CaChallengeService } from './ca-challenge.service';
 import { CaEvidenceService } from './ca-evidence.service';
 import { CaOperationService } from './ca-operation.service';
 import { CaAuthController } from './ca-auth.controller';
+import { CaBindingController } from './ca-binding.controller';
+import { CaEligibilityService } from './ca-eligibility.service';
 import { AuthModule } from '../auth/auth.module';
 import { TrustStore } from '../common/crypto/x509/trust-store';
 import * as fs from 'fs';
@@ -40,7 +42,7 @@ export function loadCaConfig(): CaEnvConfig {
 
 @Module({
   imports: [AuthModule],
-  controllers: [CaAuthController],
+  controllers: [CaAuthController, CaBindingController],
   providers: [
     {
       provide: SccaGatewayClient,
@@ -77,7 +79,9 @@ export function loadCaConfig(): CaEnvConfig {
     CaChallengeService,
     CaEvidenceService,
     CaOperationService,
+    CaEligibilityService,
   ],
-  exports: [CaVerificationService, CaChallengeService, CaEvidenceService, CaOperationService, SccaGatewayClient],
+  exports: [CaVerificationService, CaChallengeService, CaEvidenceService, CaOperationService,
+    CaEligibilityService, SccaGatewayClient],
 })
 export class CaModule {}
