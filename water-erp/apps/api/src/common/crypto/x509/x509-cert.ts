@@ -27,6 +27,19 @@ const DN_ATTR: Record<string, string> = {
   '1.2.840.113549.1.9.1': 'emailAddress',
 };
 
+// RFC 5280 KeyUsage 位映射（BIT STRING 首字节=unused bits，后续逐位）
+const KEY_USAGE_BITS = [
+  'DigitalSignature',    // bit 0
+  'NonRepudiation',      // bit 1 (contentCommitment)
+  'KeyEncipherment',     // bit 2
+  'DataEncipherment',    // bit 3
+  'KeyAgreement',        // bit 4
+  'KeyCertSign',         // bit 5
+  'CRLSign',             // bit 6
+  'EncipherOnly',        // bit 7 (仅 KeyAgreement 时有意义)
+  'DecipherOnly',        // bit 8 (仅 KeyAgreement 时有意义)
+] as const;
+
 export interface ParsedX509 {
   /** 完整 DER 原文 */
   raw: Buffer;
@@ -38,6 +51,14 @@ export interface ParsedX509 {
   sigAlgOid: string;
   /** 主体公钥算法 OID */
   spkiAlgOid: string;
+  /** SPKI 曲线 OID（SM2=1.2.156.10197.1.301；RSA=null） */
+  curveOid: string | null;
+  /** KeyUsage（RFC 5280 位表映射） */
+  keyUsage: string[];
+  /** ExtendedKeyUsage（仅 2.5.29.37 标准 EKU OID） */
+  extendedKeyUsage: string[];
+  /** 未识别扩展 OID（私有扩展——ITRUSKMC 2.16.156.1.6.10.2 等） */
+  unknownExtensionOids: string[];
   /** 颁发者 DN（openssl 顺序：C=…, O=…, CN=…） */
   issuerDn: string;
   subjectDn: string;
@@ -92,6 +113,22 @@ function findTbsChild(tbsChildren: DerNode[], tag: number): DerNode | undefined 
   return tbsChildren.find((n) => n.tag === tag);
 }
 
+/** KeyUsage BIT STRING → 位表数组（RFC 5280 §4.2.1.3） */
+function parseKeyUsageBits(bitStringNode: DerNode): string[] {
+  const bytes = bitStringNode.value; // 含首字节 unused bits
+  if (!bytes || bytes.length < 1) return [];
+  const unusedBits = bytes[0];
+  const data = bytes.subarray(1);
+  const usages: string[] = [];
+  const totalBits = data.length * 8 - unusedBits;
+  for (let bit = 0; bit < Math.min(totalBits, KEY_USAGE_BITS.length); bit++) {
+    const byteIdx = bit >> 3;
+    const bitMask = 0x80 >> (bit & 7);
+    if (data[byteIdx]! & bitMask) usages.push(KEY_USAGE_BITS[bit]);
+  }
+  return usages;
+}
+
 /** 解析 X.509 v3 证书（DER） */
 export function parseCertificate(der: Buffer): ParsedX509 {
   const cert = parseDer(der);
@@ -104,24 +141,31 @@ export function parseCertificate(der: Buffer): ParsedX509 {
   // [0] EXPLICIT version 可选（v3 必有，兼容缺失的 v1）
   let idx = 0;
   if (tbsChildren[0]?.tag === 0xa0) idx = 1;
-  const serialNode = tbsChildren[idx++];
-  const sigAlgInner = tbsChildren[idx++];
-  const issuerNode = tbsChildren[idx++];
-  const validityNode = tbsChildren[idx++];
-  const subjectNode = tbsChildren[idx++];
-  const spkiNode = tbsChildren[idx++];
+  const serialNode = tbsChildren[idx++]!;
+  const sigAlgInner = tbsChildren[idx++]!;
+  const issuerNode = tbsChildren[idx++]!;
+  const validityNode = tbsChildren[idx++]!;
+  const subjectNode = tbsChildren[idx++]!;
+  const spkiNode = tbsChildren[idx++]!;
   if (!serialNode || !sigAlgInner || !issuerNode || !validityNode || !subjectNode || !spkiNode) {
     throw new Error('TBSCertificate 字段缺失');
   }
 
-  const sigAlgOid = readOid(parseChildren(sigAlgNode)[0]);
+  const sigAlgOid = readOid(parseChildren(sigAlgNode)[0]!);
 
   const [nb, na] = parseChildren(validityNode);
   if (!nb || !na) throw new Error('Validity 字段缺失');
 
+  // SPKI: AlgorithmIdentifier SEQUENCE { OID, params(OID|NULL|absent) } + BIT STRING
   const [spkiAlg, spkiBits] = parseChildren(spkiNode);
   if (!spkiAlg || !spkiBits || spkiBits.tag !== 0x03) throw new Error('SPKI 结构非法');
-  const spkiAlgOid = readOid(parseChildren(spkiAlg)[0]);
+  const spkiAlgChildren = parseChildren(spkiAlg);
+  const spkiAlgOid = readOid(spkiAlgChildren[0]!);
+  // 曲线 OID：AlgorithmIdentifier 第二个元素（OID=显式命名曲线；NULL/absent=无）
+  let curveOid: string | null = null;
+  if (spkiAlgChildren.length > 1 && spkiAlgChildren[1]!.tag === 0x06) {
+    curveOid = readOid(spkiAlgChildren[1]!);
+  }
   const keyBytes = spkiBits.value.subarray(1); // 首字节=unused bits（须 0）
   if (spkiBits.value[0] !== 0x00 || keyBytes.length !== 65 || keyBytes[0] !== 0x04) {
     throw new Error(`SM2 公钥点非法（unusedBits=${spkiBits.value[0]}，len=${keyBytes.length}）`);
@@ -130,19 +174,41 @@ export function parseCertificate(der: Buffer): ParsedX509 {
   const subjectDn = renderDn(subjectNode);
   const cnMatch = /(?:^|,)\s*cn\s*=\s*([^,]*)/i.exec(subjectDn);
 
-  // extensions [3]（可选）→ BasicConstraints(2.5.29.19) cA
+  // extensions [3]（可选）→ 解析全部扩展
   let isCa = false;
+  const keyUsage: string[] = [];
+  const extendedKeyUsage: string[] = [];
+  const unknownExtensionOids: string[] = [];
   const extNode = findTbsChild(tbsChildren, 0xa3);
   if (extNode) {
-    for (const ext of parseChildren(parseChildren(extNode)[0])) {
+    for (const ext of parseChildren(parseChildren(extNode)[0]!)) {
       const fields = parseChildren(ext);
-      if (readOid(fields[0]) !== '2.5.29.19') continue;
-      // fields: extnID, [critical], extnValue(OCTET STRING，内容=DER BasicConstraints)
+      const extOid = readOid(fields[0]!);
       const octet = fields.find((f) => f.tag === 0x04);
       if (!octet) break;
-      const bc = parseChildren(parseDer(octet.value));
-      if (bc[0]?.tag === 0x01 && bc[0].value.length === 1 && bc[0].value[0] !== 0x00) isCa = true;
-      break;
+
+      switch (extOid) {
+        case '2.5.29.19': { // BasicConstraints
+          const bc = parseChildren(parseDer(octet.value));
+          if (bc[0]?.tag === 0x01 && bc[0].value.length === 1 && bc[0].value[0] !== 0x00) isCa = true;
+          break;
+        }
+        case '2.5.29.15': { // KeyUsage——内层即 BIT STRING（primitive，不套 SEQUENCE）
+          const kuNode = parseDer(octet.value); // 根节点=B BIT STRING
+          if (kuNode.tag === 0x03) keyUsage.push(...parseKeyUsageBits(kuNode));
+          break;
+        }
+        case '2.5.29.37': { // ExtendedKeyUsage（SEQUENCE OF OID）
+          for (const e of parseChildren(parseDer(octet.value))) {
+            if (e.tag === 0x06) extendedKeyUsage.push(readOid(e));
+          }
+          break;
+        }
+        default: {
+          // 未识别扩展——收集 OID（ITRUSKMC/证书策略/AIA/CRL 等，后续按需细化）
+          unknownExtensionOids.push(extOid);
+        }
+      }
     }
   }
 
@@ -154,6 +220,10 @@ export function parseCertificate(der: Buffer): ParsedX509 {
     serialHex: readIntegerHex(serialNode).toUpperCase(),
     sigAlgOid,
     spkiAlgOid,
+    curveOid,
+    keyUsage,
+    extendedKeyUsage,
+    unknownExtensionOids,
     issuerDn: renderDn(issuerNode),
     subjectDn,
     cn: cnMatch ? cnMatch[1].trim() : null,
