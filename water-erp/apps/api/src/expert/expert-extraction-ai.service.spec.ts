@@ -72,6 +72,22 @@ describe('ExpertExtractionAiService', () => {
       expect(res.scoredExperts).toHaveLength(1);
       expect(res.scoredExperts[0].id).toBe('realB'); // e1 → 第二个候选，绝不能错位
     });
+
+    it('LLM 行带 specialties 相近专业组时应去重保序透传；缺省时回落单专业数组', async () => {
+      llm.chat.mockResolvedValue(JSON.stringify({
+        analysis: 'ok',
+        requiredSpecialties: [
+          { specialty: '水利工程', specialties: ['水利工程', '水利水电工程', '水利工程'], count: 2, reason: 'r' },
+          { specialty: '地质', count: 1, reason: 'r2' },
+        ],
+        scoredExperts: [],
+      }));
+      const res = await service.analyzeAndScore(project, candidates, 3);
+      expect(res.requiredSpecialties[0].specialties).toEqual(['水利工程', '水利水电工程']); // 去重、主专业首位
+      expect(res.requiredSpecialties[0].specialty).toBe('水利工程');
+      expect(res.requiredSpecialties[1].specialties).toEqual(['地质']); // 无数组 → 单值包数组
+      expect(res.requiredSpecialties.every(q => Array.isArray(q.companyIds))).toBe(true);
+    });
   });
 
   describe('generateNotification — 占位符兜底与缓存', () => {

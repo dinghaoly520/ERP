@@ -187,6 +187,19 @@ describe('ExpertExtractionService', () => {
       expect(names).not.toContain('丁');
     });
 
+    it('两行专业集合相同 → reconcile 并桶累加席数（requiredSpecialties 单行、标签为专业组）', async () => {
+      setupMulti();
+      const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
+        { specialties: ['水利水电工程'], count: 1 },
+        { specialties: ['水利水电工程', '水利水电工程'], count: 1 }, // 同集合（含重复项）→ 并桶
+      ] } as any);
+      const normal = res.requiredSpecialties.filter(q => !q.employer);
+      expect(normal).toHaveLength(1);
+      expect(normal[0].count).toBe(2);
+      expect(normal[0].specialties).toEqual(['水利水电工程']);
+      expect(res.selected.map(s => s.name).sort()).toEqual(['丙', '乙']); // 乙/丙 均为该专业，随机抽 2 → 恰为两人
+    });
+
     it('旧单值 specialty/companyId 兼容：归一化为单元素数组，行为与单选时代一致', async () => {
       setupMulti();
       const res = await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [
