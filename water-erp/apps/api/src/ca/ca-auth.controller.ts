@@ -10,7 +10,7 @@
 
    设计依据：附录 §4.2 B 契约 + 计划 Task7。
    ================================================================= */
-import { Controller, Get, Post, Body, Req, Res, HttpCode, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Res, HttpCode, HttpStatus, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -104,6 +104,7 @@ export class CaAuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    assertAllowedOrigin(req);
     // 解析证书提取指纹
     const der = normalizeToDer(dto.signCertPem);
     const cert = parseCertificate(der);
@@ -141,6 +142,7 @@ export class CaAuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    assertAllowedOrigin(req);
     const portal = 'supplier';
     const cookieValue = (req.cookies as Record<string, string>)?.[caCookieName(portal)];
     if (!cookieValue) throw new UnauthorizedException({ error: '会话已过期，请重新发起', code: 'CA_CHALLENGE_EXPIRED' });
@@ -183,6 +185,10 @@ export class CaAuthController {
     const supplier = binding.supplier;
     if (supplier.status !== 'APPROVED') {
       throw new UnauthorizedException({ error: '供应商账号未审核通过', code: 'ACCOUNT_PENDING' });
+    }
+    // I4 修复：临时供应商有效期检查（与绑定侧 eligibility 对齐）
+    if (supplier.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
+      throw new UnauthorizedException({ error: '临时供应商有效期已过，请联系采购中心', code: 'TEMPORARY_EXPIRED' });
     }
 
     // 共享登录收尾：会话轮换 + cookie 写入 + 审计（复用 AuthService）
@@ -248,6 +254,21 @@ export class CaAuthController {
 }
 
 // ─── 内部工具 ───
+/** I5 修复：JSON 写请求 Origin 校验（CA_ALLOWED_ORIGINS 逗号分隔；未配置时 dev 放行 localhost/局域网） */
+function assertAllowedOrigin(req: Request): void {
+  const origin = req.headers['origin'] as string | undefined;
+  if (!origin) {
+    throw new UnauthorizedException({ error: '缺少 Origin 头', code: 'ORIGIN_REQUIRED' });
+  }
+  const configured = (process.env.CA_ALLOWED_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean);
+  const allowlist = configured.length > 0 ? configured : ['http://localhost:3004', 'http://127.0.0.1:3004', /^http:\/\/192\.168\./.source];
+  const allowed = allowlist.some(p => {
+    try { return new RegExp('^' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$').test(origin); } catch { return origin === p; }
+  });
+  if (!allowed) {
+    throw new ForbiddenException({ error: '请求来源不被允许', code: 'ORIGIN_DENIED' });
+  }
+}
 function extractFingerprintFromToSign(toSign: string): string | null {
   try {
     const json = JSON.parse(toSign.replace(/^LOGONDATA:/, ''));

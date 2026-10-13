@@ -54,7 +54,7 @@ describe('CaAuthController（接线验证——逻辑归 Task5 单测）', () =>
     );
     // mockPrisma.caCertificate.findUnique 返回 null → CA_CERT_NOT_BOUND
     const mockRes = { cookie: () => {}, clearCookie: () => {} };
-    const mockReq = { cookies: { ca_browser_supplier: 'test' }, headers: {} };
+    const mockReq = { cookies: { ca_browser_supplier: 'test' }, headers: { origin: 'http://localhost:3004' } };
     try {
       await ctrl2.login({ challengeId: 'ch1', signP7: 'P7DATA' }, mockReq as any, mockRes as any);
       fail('should have thrown');

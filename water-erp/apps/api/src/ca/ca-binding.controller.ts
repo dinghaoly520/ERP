@@ -155,11 +155,14 @@ export class CaBindingController {
       throw new BadRequestException({ error: '加密证书 KeyUsage 缺 KeyEncipherment', code: 'CA_ALG_UNSUPPORTED' });
     }
 
-    // 身份核对：签名证 DN 的 SN/OU=NO.1: === Supplier.creditCode
+    // I10 修复：身份核对 fail-closed——企业账号绑定证书必须携带 18 位识别号且与 creditCode 一致；
+    // DN 无识别号不再放行（个人证书/无号证书不得绑定企业供应商账号）
     const dnIdNumber = extractDnIdNumber(signCert.subjectDn);
-    if (dnIdNumber && supplier.creditCode && dnIdNumber !== supplier.creditCode) {
+    if (!dnIdNumber || (supplier.creditCode && dnIdNumber !== supplier.creditCode)) {
       throw new BadRequestException({
-        error: `证书主体识别号(${dnIdNumber})与账号统一社会信用代码(${supplier.creditCode})不一致`,
+        error: dnIdNumber
+          ? `证书主体识别号(${dnIdNumber})与账号统一社会信用代码(${supplier.creditCode})不一致`
+          : '证书主体缺少机构识别号（SN/OU=NO.1），无法绑定企业账号',
         code: 'CA_IDENTITY_MISMATCH',
       });
     }
