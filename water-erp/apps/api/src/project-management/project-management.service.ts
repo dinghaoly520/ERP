@@ -4928,8 +4928,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
-   * 步骤分析：为 SUPPLIER_INVITATION / EXPERT_SELECTION 生成「抽取过程 + 最终名单」叙述段落。
-   * 数据源：item.invitedSuppliers / item.expertInfo（不依赖文件）。
+   * 步骤分析：为指定阶段生成「过程综述 + 关键事实」叙述段落（2026-10-13 起覆盖全部 8 阶段，
+   * 并兼并原「阶段合规审查」的展示职责——本面板仅此一个分析视图）。
+   * 数据源按阶段取真实链路：名单类取 RSVP/专家快照、评标定标取 BidProject、其余取 PMI 字段+附件。
    */
   /** 步骤分析阶段元数据：每阶段的分析要点（按各阶段实际情况定制） */
   private static readonly STAGE_ANALYSIS_META: Record<string, { label: string; focus: string }> = {
