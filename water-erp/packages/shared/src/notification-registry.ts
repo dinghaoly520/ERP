@@ -543,6 +543,15 @@ const SYSTEM_SPECS: NotificationTypeSpec[] = [
   // 历史类型：代码已不产生，仅为存量数据显示
   { code: 'SELECTION_NOTIFY', label: '候选名单通知', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
   { code: 'CLARIFICATION', label: '澄清答疑', domain: 'bid', icon: 'MessageCircle', tone: 'purple', actionable: true, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
+  // 评标现场安全预警（2026-10-13 补登记：产生点直写小写 'security'——口令连错锁定/
+  // 跨项目双活跃拦截/冒名登录线索，notifyAdmins 发平台 admin 核实；处置=查看后线下核实，
+  // 不设 actionable 维持既有待阅分段）
+  { code: 'security', label: '评标安全预警', domain: 'bid', icon: 'ShieldAlert', tone: 'red', actionable: false, audiences: [{ kind: 'ROLE', roles: ['admin'] }], channels: IN_APP },
+  // 存量幽灵类型（2026-10-13 通知中心中文化盘点：DB 有行、代码无产生点）——仅为存量显示
+  { code: 'BID_EVALUATION_RESULT', label: '评标结果', domain: 'bid', icon: 'ClipboardCheck', tone: 'green', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
+  { code: 'BID_OPENING', label: '开标通知', domain: 'bid', icon: 'Gavel', tone: 'blue', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
+  { code: 'BID_REMINDER', label: '投标提醒', domain: 'bid', icon: 'Clock', tone: 'orange', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
+  { code: 'PRICE_REVIEW', label: '价格审批', domain: 'catalog', icon: 'Tag', tone: 'orange', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
 ];
 
 /** 全量注册表（代码顺序 = 域顺序：bid → expert → supplier → account → archive → announcement → catalog → system） */

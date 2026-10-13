@@ -125,7 +125,8 @@ export const NOTIFICATION_LABEL: Record<string, string> = Object.fromEntries(
 );
 
 export function getNotificationLabel(type: string): string {
-  return NOTIFICATION_LABEL[type] ?? type;
+  // 未知类型兜底中文（2026-10-13 通知中心禁英文）：未登记类型不再原样透出代码
+  return NOTIFICATION_LABEL[type] ?? '其他通知';
 }
 
 export const NOTIFICATION_META_DEFAULT: NotificationMeta = { icon: 'Bell', tone: 'gray', actionable: false };

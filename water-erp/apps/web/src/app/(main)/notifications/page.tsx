@@ -272,7 +272,8 @@ export default function NotificationsPage() {
             <thead>
               <tr>
                 <th>时间</th>
-                <th>类型</th>
+                {/* 类型列定宽（2026-10-13）：六字标签（账号安全反馈/评标安全预警）不再被挤压换行 */}
+                <th style={{ width: 118 }}>类型</th>
                 <th style={{ textAlign: 'left' }}>消息内容</th>
                 <th style={{ width: 56, textAlign: 'center' }}>状态</th>
                 <th style={{ textAlign: 'center' }}>操作</th>
@@ -625,7 +626,7 @@ function NotifTypeBadge({ type }: { type: string }) {
   const meta = getNotificationMeta(type);
   const colorVar = TONE_VAR[meta.tone] ?? TONE_VAR.gray;
   return (
-    <span className="inline-flex items-center rounded-[6px] px-2 py-0.5 text-[11px] font-semibold"
+    <span className="inline-flex items-center whitespace-nowrap rounded-[6px] px-2 py-0.5 text-[11px] font-semibold"
       style={{ color: colorVar, background: `color-mix(in oklch, ${colorVar} 9%, transparent)` }}>
       {getNotificationLabel(type)}
     </span>
