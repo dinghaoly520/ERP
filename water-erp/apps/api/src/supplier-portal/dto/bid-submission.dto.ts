@@ -51,4 +51,9 @@ export class SubmitBidDto extends SaveBidDraftDto {
   @IsOptional() @IsString() @MaxLength(128) fileHash?: string;
   /** 旧轨代解密授权（办法第30条留痕）：服务层递交闸门要求 ===true——缺装饰器被剥落后闸门协议层不可满足 */
   @IsOptional() @IsBoolean() hostDecryptAuthorized?: boolean;
+
+  // ── SCCA dual-v3 轨（阶段2，2026-10-14）──
+  @IsOptional() @IsString() @MaxLength(128) operationId?: string;
+  @IsOptional() @IsString() @MaxLength(64) signatureFormat?: string; // 'scca-pkcs7-base64'
+  @IsOptional() @IsString() @MaxLength(262144) signP7?: string;
 }

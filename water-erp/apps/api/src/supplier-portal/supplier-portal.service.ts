@@ -3,6 +3,7 @@ import { parseAmountToYuan } from '@water-erp/shared';
 import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CaVerificationService } from '../ca/ca-verification.service';
 import { NotificationService } from '../notification/notification.service';
 import { encryptPasswordVault } from '../auth/password-vault.util';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -59,7 +60,17 @@ type BidSubmissionData = {
   // 前端完整/拆分模型字段（BidSubmit.vue）。由 normalizeBidFileAssets 归一到三角色契约。
   fullBidFileAssetId?: string;
   coverLetterFileAssetId?: string;
-  splitFiles?: { tech?: any; biz?: any; other?: any };
+  // SCCA dual-v3（阶段2）
+  operationId?: string;
+  signatureFormat?: string;
+  signP7?: string;
+  baseRevision?: number;
+  splitFiles?: { tech?: any; biz?: any; other?: any
+  // SCCA dual-v3（阶段2）
+  operationId?: string;
+  signatureFormat?: string;
+  signP7?: string;
+  baseRevision?: number;};
   // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
   clientDeks?: Record<string, string>;
   // 双信封 v2（dual-v2 新轨）：客户端密封信封（version/certSn/adminCertId/files/sealedFields/fieldsCommit）
@@ -177,6 +188,7 @@ export class SupplierPortalService {
     @Optional() private readonly gateway?: BidGateway,
     @Optional() @Inject(forwardRef(() => NotificationService))
     private readonly notifications?: NotificationService,
+    @Optional() private readonly caVerificationService?: CaVerificationService,
   ) {}
 
   /**
@@ -1913,6 +1925,12 @@ export class SupplierPortalService {
       data.bidBondAssetId,
     ]);
 
+    // ── SCCA dual-v3 轨（阶段2，2026-10-14）──
+    // operationId+signP7 → CaVerificationService 验签 → CAS 版本快照 + outbox
+    if (data.operationId && data.signatureFormat === 'scca-pkcs7-base64' && data.signP7) {
+      return this.submitBidV3(supplierId, projectId, data);
+    }
+
     // 双信封 v2 新轨开关：默认开；BID_DUAL_ENVELOPE=false 全局退回旧轨（灰度/应急双向可退）
     const dualOn = process.env.BID_DUAL_ENVELOPE !== 'false';
     const envelope = data.envelope;
@@ -2315,6 +2333,105 @@ export class SupplierPortalService {
    * signedAt → bidSupplier 重置 decryptStatus PENDING / decryptError null → 监督日志「新轨补传（供应商端双层重封）」。
    * 自动重解密：decrypt-outer / decrypt-upload 的幂等管线落地后自然覆盖，本端点不重复触发。
    */
+  /** dual-v3 投递（Task4）：P7 验签 → CAS 版本快照 → outbox */
+  private async submitBidV3(supplierId: string, projectId: string, data: BidSubmissionData) {
+    const op = await this.prisma.caOperation.findUnique({ where: { id: data.operationId! } });
+    if (!op || op.subjectId !== supplierId) {
+      throw new BadRequestException({ error: '操作不存在或非本人', code: 'OPERATION_INVALID' });
+    }
+    if (op.purpose !== 'submit') {
+      throw new BadRequestException({ error: `purpose='${op.purpose}' 非 submit`, code: 'PURPOSE_MISMATCH' });
+    }
+
+    // 从冻结的 payload 中取出 envelope
+    const payload = op.result as { canonical?: string; canonicalSha256?: string } | null;
+    if (!payload?.canonical) {
+      throw new BadRequestException({ error: '操作尚未冻结信封载荷', code: 'OPERATION_PAYLOAD_REQUIRED' });
+    }
+    const envelope = JSON.parse(payload.canonical);
+
+    // 查 ACTIVE CA 绑定
+    const binding = await this.prisma.supplierCert.findFirst({
+      where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
+      include: { signingCaCertificate: true },
+    });
+    if (!binding?.signingCaCertificate) {
+      throw new BadRequestException({ error: '未绑定 SCCA CA 证书', code: 'CA_NOT_BOUND' });
+    }
+
+    // CA 验签在事务外
+    const verification = await this.caVerificationService!.verifySignature({
+      p7B64: data.signP7!,
+      expectedToSign: payload.canonical,
+      purpose: 'bind',
+      expectedSignCert: {
+        serialHex: binding.signingCaCertificate.serialHex,
+        sha256: binding.signingCaCertificate.sha256Fingerprint,
+      },
+    });
+    if (!verification.ok) {
+      throw new BadRequestException({ error: `P7 验签失败: ${verification.code}`, code: verification.code });
+    }
+
+    // 事务：CAS + 版本快照 + 落库
+    const result = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.supplierBidSubmission.findUnique({
+        where: { supplierId_projectId: { supplierId, projectId } },
+      });
+      if (existing?.status === 'submitted') {
+        throw new BadRequestException({ error: '已提交过标书', code: 'ALREADY_SUBMITTED' });
+      }
+
+      // 获取或创建 submission
+      let sub = existing;
+      if (!sub) {
+        sub = await tx.supplierBidSubmission.create({
+          data: { supplierId, projectId, status: 'submitted', submittedAt: new Date() } as any,
+        });
+      } else {
+        await tx.supplierBidSubmission.update({
+          where: { id: sub.id },
+          data: { status: 'submitted', submittedAt: new Date() } as any,
+        });
+      }
+
+      // CAS：baseRevision 必须匹配
+      const baseRevision = data.baseRevision ?? sub.revision;
+      if (baseRevision !== sub.revision) {
+        throw new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });
+      }
+
+      const newRev = sub.revision + 1;
+      // 版本快照
+      await tx.submissionVersion.create({
+        data: {
+          submissionId: sub.id, revision: newRev,
+          envelope: envelope, envelopeHash: payload.canonicalSha256!,
+          operationId: data.operationId!,
+        },
+      });
+      // 更新当前行
+      await tx.supplierBidSubmission.update({
+        where: { id: sub.id },
+        data: {
+          revision: newRev,
+          envelope, envelopeVersion: 'dual-v3',
+        },
+      });
+      // Outbox
+      await tx.outbox.create({
+        data: { topic: 'bid.submitted.v3', payload: { submissionId: sub.id, revision: newRev, operationId: data.operationId! } as any },
+      });
+      // 推进 operation
+      await tx.caOperation.update({
+        where: { id: data.operationId! },
+        data: { status: 'COMMITTED', result: { success: true, submissionId: sub.id, revision: newRev } as any },
+      });
+      return { submissionId: sub.id, revision: newRev };
+    });
+    return result;
+  }
+
   async reuploadDualEnvelope(
     supplierId: string,
     projectId: string,
