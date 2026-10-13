@@ -178,6 +178,75 @@ export class SchedulerService {
    *  30 天/7 天两档 + 已过期补发；expiryNotifyStage 幂等推进（每证书最多 2 条通知）。
    *  expiresAt null（长期——存量介质/旧中间件实例证书）不入候选。
    *  换证重绑时 bindCert 会重置 expiryNotifyStage=0，新绑定生命周期重新起算。 */
+  /** SCCA CA 双证到期扫描（阶段1 Task11）：签名证+加密证各自独立提醒，CaExpiryReminder 幂等 */
+  @Cron('20 8 * * *') // 比旧扫描晚 5 分钟，避免同时跑
+  async scanCaCertExpiry() {
+    const DAY_MS = 24 * 3600 * 1000;
+    const now = Date.now();
+    // 查所有 ACTIVE SCCA 绑定的双证（分页）
+    const PAGE_SIZE = 200;
+    let skip = 0;
+    let hasMore = true;
+    let notified = 0;
+    while (hasMore) {
+      const bindings = await this.prisma.supplierCert.findMany({
+        where: {
+          bindingStatus: 'ACTIVE',
+          credentialScheme: 'scca-pkcs7',
+          signingCaCertificateId: { not: null },
+        },
+        select: {
+          id: true, supplierId: true,
+          signingCaCertificate: { select: { id: true, notAfter: true, subjectDisplay: true } },
+          encryptionCaCertificate: { select: { id: true, notAfter: true, subjectDisplay: true } },
+        },
+        skip, take: PAGE_SIZE,
+      });
+      if (bindings.length < PAGE_SIZE) hasMore = false;
+      skip += PAGE_SIZE;
+      for (const b of bindings) {
+        // 双证各自独立提醒
+        for (const usage of ['signing', 'encryption'] as const) {
+          const cert = usage === 'signing' ? b.signingCaCertificate : b.encryptionCaCertificate;
+          if (!cert?.notAfter) continue;
+          const daysLeft = Math.floor((cert.notAfter.getTime() - now) / DAY_MS);
+          const stage = daysLeft <= 0 ? 3 : daysLeft <= 7 ? 2 : daysLeft <= 30 ? 1 : 0;
+          if (stage === 0) continue; // 不需要提醒
+          // CaExpiryReminder 幂等（唯一键 bindingId+certificateId+usage+stage）
+          try {
+            await this.prisma.caExpiryReminder.create({
+              data: { bindingId: b.id, certificateId: cert.id, usage, stage },
+            });
+            // 唯一键冲突 = 已提醒过，跳过
+          } catch { continue; }
+          // 发通知
+          const supplier = await this.prisma.supplier.findUnique({
+            where: { id: b.supplierId },
+            select: { userId: true, name: true },
+          });
+          if (supplier?.userId) {
+            const label = usage === 'signing' ? '签名证书' : '加密证书';
+            const msg = daysLeft <= 0
+              ? '您的' + label + '已过期，请尽快联系四川CA更换'
+              : '您的' + label + '将在 ' + daysLeft + ' 天后过期，请及时更换';
+            void this.notification
+              .sendToUser(supplier.userId, ['in_app'], {
+                type: 'CA_CERT_EXPIRY',
+                title: label + '到期提醒',
+                content: msg,
+                link: '/profile/ukey',
+              })
+              .catch(() => undefined);
+            notified++;
+          }
+        }
+      }
+    }
+    if (notified > 0) {
+      console.log();
+    }
+  }
+
   @Cron('15 8 * * *')
   async scanSupplierCertExpiry() {
     const DAY_MS = 24 * 3600 * 1000;
