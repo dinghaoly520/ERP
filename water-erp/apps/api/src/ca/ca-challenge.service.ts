@@ -70,6 +70,11 @@ export class CaChallengeService {
     return { challengeId, toSign, expiresAt };
   }
 
+  /** 只读取挑战 purpose（供 claim 用创建时的实际值——bind/replace 同族不同名） */
+  async getPurpose(challengeId: string): Promise<string | null> {
+    return this.redis.hget(`ca:challenge:v1:${challengeId}`, 'purpose');
+  }
+
   /** 原子消费：READY → CONSUMED（一次性）。失败/超时后不可复用。 */
   async claimAndConsume(
     challengeId: string, purpose: ChallengePurpose, bindingKey: string,

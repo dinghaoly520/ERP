@@ -154,8 +154,10 @@ export class CaBindingController {
       });
     }
 
-    // 消费挑战
-    const claimed = await this.challengeService.claimAndConsume(dto.challengeId, 'bind', `${userId}:${sid ?? ''}`);
+    // 消费挑战——purpose 用创建时的实际值（首绑 bind/换绑 replace 同族，硬编码会 MISMATCH）
+    const actualPurpose = (await this.challengeService.getPurpose(dto.challengeId)) ?? 'bind';
+    const claimed = await this.challengeService.claimAndConsume(
+      dto.challengeId, actualPurpose as 'bind' | 'replace', `${userId}:${sid ?? ''}`);
     if (!claimed) throw new ConflictException({ error: '挑战已消费或已过期', code: 'CA_CHALLENGE_USED' });
 
     // 验签
@@ -241,12 +243,16 @@ export class CaBindingController {
       return binding;
     }, { timeout: 15000 });
 
-    // 证据记录
-    await this.evidenceService.record({
-      requestId: `bind-${Date.now()}`, purpose: 'bind',
-      p7B64: dto.signP7, toSign: claimed.toSign,
-      outcome: verification, actorUserId: userId, subjectId: supplier.id, bindingId: result.id,
-    });
+    // 证据记录——失败不阻断已成功的绑定响应（绑定已落库，证据可补）
+    try {
+      await this.evidenceService.record({
+        requestId: `bind-${Date.now()}`, purpose: actualPurpose,
+        p7B64: dto.signP7, toSign: claimed.toSign,
+        outcome: verification, actorUserId: userId, subjectId: supplier.id, bindingId: result.id,
+      });
+    } catch (e) {
+      console.error('[CA] 绑定证据记录失败（绑定已成功）:', (e as Error).message);
+    }
 
     return { cert: { id: result.id, credentialScheme: 'scca-pkcs7' }, evidenceId: `evi-${Date.now()}` };
   }
