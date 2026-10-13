@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import { TriangleAlert, Check, X, Upload, Plus, Trash2, FolderPlus, CircleCheck,
-  ArrowLeft, CircleX, Info, KeyRound,
+  ArrowLeft, CircleX, Info,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { bidApi } from "@/lib/api/bid";
@@ -19,11 +19,7 @@ import {
   generateDEK, encryptFile, formatDEK, computePlaintextHash, packageEncryptedFile,
   type ClientDek,
 } from "@/utils/bid-crypto";
-import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@water-erp/ukey";
 import { serverNowMs, syncServerClock , formatBidPrice } from "@water-erp/shared";
-import { openUkey } from "@/utils/ukey-factory";
-import { useUkeyPresence } from "@/utils/use-ukey-presence";
-import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
 import "@/styles/pages/bids.css";
 import "@/styles/pages/shared.css"; // 跨页面共用的卡片与骨架屏样式。
 
@@ -139,11 +135,6 @@ const EMPTY_SPLIT_CATS: Record<SplitKey, SplitCategory> = {
   other: { label: "其他材料", description: "补充说明、认证证书、授权函等", files: [], uploading: false, progress: null },
 };
 
-/** A-89 版式强制：标书角色明文必须 PDF（版式文件口径，加密锚点即 PDF 哈希）——Office 原生格式拒收；
- *  zip/rar 整包与 bond 凭证（扫描件）不在此列；仅约束双信封新轨，旧轨不动。 */
-const OFFICE_EXT = /\.(docx?|xlsx?)$/i;
-const PDF_ONLY_ROLES = new Set<EnvelopeRole>(["technical", "business", "coverLetter"]);
-
 const DRAFT_PREFIX = "supplier_draft:";
 
 /** 读取本地草稿的存储时间戳（与 useAutoSave 的落盘格式一致；挂载期同步可读） */
@@ -199,53 +190,6 @@ function BidSubmitInner() {
   const [clientDeks, setClientDeks] = useState<Record<string, ClientDek>>({});
   // E2EE: 加密阶段指示器（UPLOADING 时显示进度条，ENCRYPTING 时显示「正在加密…」）
   const [encrypting, setEncrypting] = useState<Record<string, boolean>>({});
-
-  // 双信封 v2（dual-v2 新轨）状态
-  // 双层加密密封条目缓存：assetId → { role, entry{sha256,kself,kadmin}, certPublicKey }（全部公开信息，无私钥）
-  // certPublicKey 记录上传时所用证书公钥——提交前与签名证书比对，拦截换证窗口期 kself/签名错位
-  const [dualEntries, setDualEntries] = useState<Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry; certPublicKey: string }>>({});
-  const DUAL_STORAGE_KEY = `supplier_dual:bidsubmit:${projectId}:${profile?.userId || ''}`;
-  const dualKeyRef = useRef(DUAL_STORAGE_KEY);
-  dualKeyRef.current = DUAL_STORAGE_KEY;
-  // 管理方加密证书（getAdminCert，惰性缓存）
-  const adminCertRef = useRef<AdminCertRef | null>(null);
-  // U盾会话（仅内存持有介质实例与所选证书，口令不落任何持久存储）
-  const [ukeyAdapter, setUkeyAdapter] = useState<UKeyAdapter | null>(null);
-  const [ukeyCertSn, setUkeyCertSn] = useState("");
-  const [ukeyCertPublicKey, setUkeyCertPublicKey] = useState("");
-  const [ukeyPassword, setUkeyPassword] = useState("");
-  const [ukeyOpening, setUkeyOpening] = useState(false);
-  const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
-  const ukeyPresent = useUkeyPresence(ukeyDialogVisible); // 严格模式:弹窗开着时轮询U盾在场
-  const pendingSubmitRef = useRef(false);
-  /** U盾会话快照 ref——解锁后同一事件闭包内立即 doSubmit，useState 异步更新会读到空值（Vue ref 语义的 React 等价物） */
-  const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string; certPublicKey: string } | null>(null);
-  /** 是否已绑定 U盾证书（profile.sm2PublicKey 由 bindCert 回填）→ 走双层加密新轨；否则保留传统 E2EE 旧轨 */
-  const dualReady = !!profile?.sm2PublicKey;
-  /** 前端文件分类 → 信封角色（与服务端 normalizeBidFileAssets 的契约镜像） */
-  const ROLE_BY_CAT: Record<string, EnvelopeRole> = {
-    full: "technical", "split-tech": "technical", "split-biz": "business",
-    "split-other": "coverLetter", coverLetter: "coverLetter",
-  };
-  /** 本地缓存的绑定证书序列号（U盾管理页绑定成功后写入；仅公开信息） */
-  function boundCertSn(): string {
-    try {
-      const raw = localStorage.getItem("supplier_ukey_bound");
-      return raw ? (JSON.parse(raw)?.certSn ?? "") : "";
-    } catch { return ""; }
-  }
-  async function getAdminCertCached(): Promise<AdminCertRef> {
-    if (adminCertRef.current) return adminCertRef.current;
-    const c: any = await supplierApi.getAdminCert();
-    adminCertRef.current = c;
-    return c;
-  }
-  function persistDual(next: Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry; certPublicKey: string }>) {
-    try { localStorage.setItem(dualKeyRef.current, JSON.stringify(next)); } catch { /* ignore */ }
-  }
-  function setDualEntriesAndPersist(updater: (prev: Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry; certPublicKey: string }>) => Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry; certPublicKey: string }>) {
-    setDualEntries((prev) => { const next = updater(prev); persistDual(next); return next; });
-  }
 
   const [existingSubmission, setExistingSubmission] = useState<any>(null);
   const [fullBidMeta, setFullBidMeta] = useState<FileAssetResponse | null>(null);
@@ -309,20 +253,15 @@ function BidSubmitInner() {
   function persistDeks(next: Record<string, ClientDek>) {
     try { localStorage.setItem(dekKeyRef.current, JSON.stringify(next)); } catch { /* ignore */ }
   }
-  // Restore clientDeks / dualEntries from localStorage on mount
+  // Restore clientDeks from localStorage on mount
   function restoreDeks() {
     try {
       const raw = localStorage.getItem(dekKeyRef.current);
       if (raw) setClientDeks(JSON.parse(raw));
     } catch { /* ignore */ }
-    try {
-      const raw = localStorage.getItem(dualKeyRef.current);
-      if (raw) setDualEntries(JSON.parse(raw));
-    } catch { /* ignore */ }
   }
   function clearDeks() {
     try { localStorage.removeItem(dekKeyRef.current); } catch { /* ignore */ }
-    try { localStorage.removeItem(dualKeyRef.current); } catch { /* ignore */ }
   }
 
   function backToDetail() {
@@ -349,26 +288,7 @@ function BidSubmitInner() {
   ): Promise<FileAssetResponse> {
     setEncrypting((prev) => ({ ...prev, [catKey]: true }));
     try {
-      if (dualReady) {
-        // 新轨：M → C_inner(SM4/DEK_S) → C_outer(SM4/DEK_A) → 上传，entry 入信封缓存
-        const role = ROLE_BY_CAT[catKey];
-        if (!role) throw new Error("未知文件类别，无法双层密封");
-        // A-89：标书角色明文必须 PDF（锚点=PDF 明文哈希）——Office 原生格式在加密前拦截并给转换指引
-        if (PDF_ONLY_ROLES.has(role) && OFFICE_EXT.test(file.name)) {
-          toast.error(`「${file.name}」为 Office 格式——投标文件须为 PDF 版式文件，请先用 Office/WPS「另存为 PDF」后上传（加密锚点以 PDF 为准）`);
-          throw new Error("BID_FILE_MUST_BE_PDF");
-        }
-        const admin = await getAdminCertCached();
-        const res = await encryptAndUploadFile(
-          file, role,
-          { certSn: boundCertSn(), publicKey: profile.sm2PublicKey },
-          admin, onProgress,
-        );
-        setDualEntriesAndPersist((prev) => ({ ...prev, [res.assetId]: { role: res.role, entry: res.entry, certPublicKey: profile.sm2PublicKey } }));
-        return res.upload;
-      }
-      // 旧轨（未绑定 U盾证书）：E2EE 加密，行为不变
-      // 1. 计算原文哈希
+      // E2EE 旧轨：1. 计算原文哈希
       const plaintextSha256 = await computePlaintextHash(file);
       // 2. 生成 DEK
       const { rawKey, keyHex, iv } = await generateDEK();
@@ -398,7 +318,7 @@ function BidSubmitInner() {
       const res = await uploadEncryptedFile(file, "full", (pct) => setFullBidProgress(pct));
       updateForm({ fullBidFileAssetId: res.id });
       setFullBidMeta({ ...res, originalName: file.name, size: file.size } as FileAssetResponse);
-      toast.success(dualReady ? "文件已双层加密上传" : "文件加密上传成功");
+      toast.success("文件加密上传成功");
     } catch { /* API 层已全局错误 toast */ }
     finally { setFullBidProgress(null); }
   }
@@ -415,7 +335,7 @@ function BidSubmitInner() {
         ...prev,
         [catKey]: { ...prev[catKey], files: [...prev[catKey].files, { id: res.id, name: file.name, size: file.size }] },
       }));
-      toast.success(dualReady ? "文件已双层加密上传" : "文件加密上传成功");
+      toast.success("文件加密上传成功");
     } catch { /* API 层已全局错误 toast */ }
     finally {
       setSplitCats((prev) => ({ ...prev, [catKey]: { ...prev[catKey], uploading: false, progress: null } }));
@@ -434,24 +354,10 @@ function BidSubmitInner() {
     if (file.size > maxUploadSize) { toast.error(`文件不能超过${maxUploadSizeMB}MB`); return; }
     setBondUploadProgress(0);
     try {
-      if (dualReady) {
-        // 新轨：保证金凭证同双层密封（服务端 bondRequired 时逐角色参检）
-        const admin = await getAdminCertCached();
-        const res = await encryptAndUploadFile(
-          file, "bond",
-          { certSn: boundCertSn(), publicKey: profile.sm2PublicKey },
-          admin, (pct) => setBondUploadProgress(pct),
-        );
-        setDualEntriesAndPersist((prev) => ({ ...prev, [res.assetId]: { role: res.role, entry: res.entry, certPublicKey: profile.sm2PublicKey } }));
-        updateForm({ bidBondAssetId: res.assetId });
-        setBondFileMeta(res.upload);
-        toast.success("保证金凭证已双层加密上传");
-      } else {
-        const res = await uploadFile(file, "bid_document", (pct) => setBondUploadProgress(pct));
-        updateForm({ bidBondAssetId: res.id });
-        setBondFileMeta(res);
-        toast.success("文件上传成功");
-      }
+      const res = await uploadFile(file, "bid_document", (pct) => setBondUploadProgress(pct));
+      updateForm({ bidBondAssetId: res.id });
+      setBondFileMeta(res);
+      toast.success("文件上传成功");
     } catch { /* API 层已全局错误 toast */ }
     finally { setBondUploadProgress(null); }
   }
@@ -464,7 +370,7 @@ function BidSubmitInner() {
       const res = await uploadEncryptedFile(file, "coverLetter", (pct) => setCoverLetterProgress(pct));
       updateForm({ coverLetterFileAssetId: res.id });
       setCoverLetterMeta({ ...res, originalName: file.name, size: file.size } as FileAssetResponse);
-      toast.success(dualReady ? "投标函已双层加密上传" : "投标函文件加密上传成功");
+      toast.success("投标函文件加密上传成功");
     } catch { /* API 层已全局错误 toast */ }
     finally { setCoverLetterProgress(null); }
   }
@@ -504,10 +410,7 @@ function BidSubmitInner() {
           // 草稿/已提交记录读取失败须提示，否则用户以为没填过、重填后被 ALREADY_SUBMITTED 拦截。
           toast.warning("无法读取已保存的草稿/已提交记录；若您已提交过，请勿重复提交");
         }
-        restoreDeks(); // E2EE: restore DEKs / dual entries from previous session
-        // 预热管理方加密证书（新轨上传/提交需要；失败在上传时按需重试并报错）
-        // SUP-P3-10：用 effect 内已加载的 prof——闭包里的 profile 是首渲染的 null，恒假死条件
-        if (prof?.sm2PublicKey) getAdminCertCached().catch(() => {});
+        restoreDeks(); // E2EE: restore DEKs from previous session
         const ts = readDraftTs(draftKeyRef.current);
         if (draftApiRef.current.restoreDraft() && ts && (!subLocal || ts > new Date(subLocal.updatedAt).getTime())) {
           setRecoveryTs(ts);
@@ -567,95 +470,6 @@ function BidSubmitInner() {
     && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
     && new Date(project.deadline).getTime() > nowMs;
   const formDisabled = !canSubmit || existingSubmission?.status === "submitted";
-  /** 未绑定 U盾且处于可投递状态时显示绑盾引导；已递交记录继续展示。 */
-  const legacyRetired = canSubmit && !dualReady && existingSubmission?.status !== "submitted";
-
-  // 构建 clientDeks 映射（根据当前表单中的 assetId 查找 DEK）
-  // 双信封 v2：按服务端声明口径收集本次提交的已声明资产
-  // （镜像 normalizeBidFileAssets：full→technical；split tech→technical / biz→business /
-  //  other→coverLetter（仅 coverLetterFileAssetId 未用时的首个）；投标函与 bond 单独参检）
-  function collectDeclaredAssetIds(): string[] {
-    const ids: string[] = [];
-    if (submissionMode === "full") {
-      if (form.fullBidFileAssetId) ids.push(form.fullBidFileAssetId);
-    } else {
-      const first = (v: FileEntry[] | undefined) => v?.[0]?.id;
-      const t = first(splitCats.tech.files); if (t) ids.push(t);
-      const b = first(splitCats.biz.files); if (b) ids.push(b);
-      if (!form.coverLetterFileAssetId) { const o = first(splitCats.other.files); if (o) ids.push(o); }
-    }
-    if (form.coverLetterFileAssetId) ids.push(form.coverLetterFileAssetId);
-    if (project?.bondRequired && form.bidBondAssetId) ids.push(form.bidBondAssetId);
-    return ids;
-  }
-
-  /** 已声明资产 → 信封条目（缺条目时由提交前校验拦截，防 ENVELOPE_INCOMPLETE 拒收） */
-  function collectDeclaredEntries(): Partial<Record<EnvelopeRole, EnvelopeFileEntry>> {
-    const out: Partial<Record<EnvelopeRole, EnvelopeFileEntry>> = {};
-    for (const id of collectDeclaredAssetIds()) {
-      const e = dualEntries[id];
-      if (e) out[e.role] = e.entry;
-    }
-    return out;
-  }
-
-  /** 组装 dual-v2 信封 + 供应商证书签名 */
-  async function buildDualEnvelope() {
-    const session = ukeySessionRef.current;
-    if (!session) throw new Error("U盾未解锁，请先插入 U盾并输入证书口令");
-    // 换证窗口期拦截——条目缺失或上传时所用证书公钥 ≠ 当前签名证书公钥，
-    // 存在使用旧证书公钥加密的 kself 时，签名校验通过仍可能在开标时解密失败，
-    // 一律要求重新加密上传，不提交。
-    const changed = collectDeclaredAssetIds().filter((id) => {
-      const rec = dualEntries[id];
-      return !rec || rec.certPublicKey !== session.certPublicKey;
-    });
-    if (changed.length > 0) {
-      throw new Error("U盾证书已更换或文件密封件缺失（可能在其他浏览器上传），请重新加密上传投标文件后再提交");
-    }
-    const admin = await getAdminCertCached();
-    return buildEnvelope({
-      entries: collectDeclaredEntries(),
-      fields: {
-        price: form.bidPrice,
-        deliveryPeriod: form.deliveryPeriod,
-        qualityCommitment: form.qualityCommitment || "",
-      },
-      ukey: session.adapter,
-      certSn: session.certSn,
-      certPublicKey: session.certPublicKey,
-      adminCertId: admin.adminCertId,
-    });
-  }
-
-  // U盾会话（提交时开锁，仅内存持有；口令不持久化）
-  async function handleUkeyOpen() {
-    if (!ukeyPassword) { toast.warning("请输入证书口令"); return; }
-    setUkeyOpening(true);
-    try {
-      const uk = (await openUkey(ukeyPassword)).adapter;
-      const certs = await uk.listCertificates();
-      // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底按公钥匹配 profile.sm2PublicKey
-      const profilePub = profile?.sm2PublicKey;
-      // 【防错签】服务端 ACTIVE 绑定证书优先（共用浏览器下 supplier_ukey_bound 可能是前一供应商的）
-      const serverCerts: any = await supplierApi.listMyCerts().catch(() => []);
-      const activeCertSn = Array.isArray(serverCerts) ? serverCerts.find((c: any) => c.bindingStatus === "ACTIVE")?.certSn : undefined;
-      const cert = certs.find((c) => c.certSn === activeCertSn) || certs.find((c) => c.publicKey === profilePub) || certs.find((c) => c.certSn === boundCertSn());
-      if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
-      setUkeyAdapter(uk);
-      setUkeyCertSn(cert.certSn);
-      setUkeyCertPublicKey(cert.publicKey);
-      ukeySessionRef.current = { adapter: uk, certSn: cert.certSn, certPublicKey: cert.publicKey };
-      setUkeyPassword("");
-      setUkeyDialogVisible(false);
-      toast.success(`U盾已解锁（${cert.certSn}）`);
-      if (pendingSubmitRef.current) { pendingSubmitRef.current = false; await doSubmit(); }
-    } catch (e: any) {
-      toast.error(e?.message || "U盾解锁失败");
-    } finally {
-      setUkeyOpening(false);
-    }
-  }
 
   function buildClientDeksPayload(): Record<string, string> {
     const result: Record<string, string> = {};
@@ -717,9 +531,8 @@ function BidSubmitInner() {
         other: { ...EMPTY_SPLIT_CATS.other },
       });
       setClientDeks({});
-      setDualEntries({});
       draft.clearDraft(); // 本地自动草稿缓存（localStorage）
-      clearDeks(); // E2EE DEK / 双层信封条目缓存（localStorage）
+      clearDeks(); // E2EE DEK 缓存（localStorage）
       draft.markClean(); // 离开守卫复位
       toast.success("草稿已删除");
     } catch { /* API 层已全局错误 toast（服务端 error 文案，如 DRAFT_NOT_FOUND/DRAFT_NOT_DELETABLE） */ }
@@ -742,8 +555,7 @@ function BidSubmitInner() {
     }
     const items = [
       { label: "供应商资质", detail: isApproved ? "已入库，可投标" : "未通过审核，无法投标", ok: isApproved, required: true },
-      { label: "U盾证书", detail: dualReady ? (ukeyAdapter ? `已解锁（${ukeyCertSn}）` : "已绑定，提交时校验证书口令") : "未绑定（请先绑定 U盾）", ok: true, required: false },
-      { label: "投标报价", detail: dualReady ? "密封进双层信封（开标时揭示）" : (form.bidPrice ? formatBidPrice(form.bidPrice, { prefix: "", unitHint: "万元" }) : "未填写"), ok: !!form.bidPrice, required: true },
+      { label: "投标报价", detail: form.bidPrice ? formatBidPrice(form.bidPrice, { prefix: "", unitHint: "万元" }) : "未填写", ok: !!form.bidPrice, required: true },
       { label: "交货工期", detail: form.deliveryPeriod || "未填写", ok: !!form.deliveryPeriod, required: true },
       { label: "质量承诺", detail: form.qualityCommitment || "未填写", ok: !!form.qualityCommitment, required: false },
       { label: submissionMode === "full" ? "完整标书文件" : "拆分标书文件", detail: fileDetail, ok: fileOk, required: true },
@@ -759,62 +571,23 @@ function BidSubmitInner() {
 
   async function confirmSubmit() {
     setSubmitDialogVisible(false);
-    // 新轨：需 U盾签名——未开锁先弹口令对话框，开锁成功后继续提交
-    if (dualReady && !ukeyAdapter) {
-      pendingSubmitRef.current = true;
-      setUkeyDialogVisible(true);
-      return;
-    }
     await doSubmit();
   }
 
   async function doSubmit() {
     setSubmitting(true);
     try {
+      // 旧轨：E2EE DEK 上传
       const payload = buildPayload();
-      if (dualReady) {
-        // 新轨：报价只经 sealedFields 密封上送——顶层 payload 剔除明文 bidPrice
-        delete payload.bidPrice;
-        const { envelope, signature } = await buildDualEnvelope();
-        payload.envelope = envelope;
-        payload.signature = signature;
-      } else {
-        // 旧轨：E2EE DEK 上传（envelope 不传即旧行为）
-        payload.clientDeks = buildClientDeksPayload();
-      }
-      const submitted = await supplierApi.submitBid(projectId, payload);
+      await supplierApi.submitBid(projectId, payload);
       draft.clearDraft();
       clearDeks();
       try { if (splitStorageKey) localStorage.removeItem(splitStorageKey); } catch { /* B4：提交成功清本地三分类（防下次误带旧引用） */ }
-      // W11-①（A-101）：双信封轨投递成功后自动签回执（U盾私钥 SM2 签 canonical，服务端验签存档）
-      // 失败不阻塞投递结果——提示可稍后在「我的投标」补签
-      const session = ukeySessionRef.current; // 使用 ref 读取最新会话，避免解锁后同一闭包中的 useState 仍为旧值。
-      if (dualReady && session?.adapter && session?.certSn && submitted?.id) {
-        try {
-          const { canonical } = await supplierApi.getReceiptPayload(submitted.id);
-          const signature = await session.adapter.sign(session.certSn, canonical);
-          await supplierApi.signReceiptSignature(submitted.id, signature);
-          toast.success("投标回执已签署存档（SM2 防抵赖）");
-        } catch (e: unknown) {
-          toast.error("回执签署未完成：" + ((e as Error)?.message || "可稍后补签"));
-        }
-      }
-      // U盾保管提示仅在双层加密轨展示
-      toast.success(dualReady
-        ? "标书提交成功！请妥善保管 U盾备份文件，开标解密与唱标核对需要。"
-        : "标书提交成功！");
+      toast.success("标书提交成功！");
       router.push("/my-bids");
     } catch (err: any) {
-      const code = err?.data?.code;
-      if (dualReady && code === "ADMIN_CERT_CHANGED") {
-        // 管理方证书轮换——页面级缓存失效并重拉；
-        // 已上传条目的 kadmin 仍加密于旧管理方公钥，必须整体重传（不能自动重试同批次）
-        adminCertRef.current = null;
-        try { await getAdminCertCached(); } catch { /* 下次上传再拉 */ }
-        toast.error("管理方加密证书已轮换，请重新加密上传全部投标文件后再提交");
-      }
-      // 其余错误（ALREADY_SUBMITTED 等）由 API 层全局 toast；信封组装错误（throw Error）给出 message
-      else if (!(err?.status) && err?.message && !String(err?.message).includes("Request failed")) {
+      // 信封组装等本地错误（throw Error）给出 message；其余（ALREADY_SUBMITTED 等）由 API 层全局 toast
+      if (!(err?.status) && err?.message && !String(err?.message).includes("Request failed")) {
         toast.error(err.message);
       }
     } finally { setSubmitting(false); }
@@ -844,14 +617,6 @@ function BidSubmitInner() {
               {canSubmit && (
                 <BAlert type="warning" className="mb-5" title={`投标截止：${project.deadline ? dayjs(project.deadline).format("YYYY年MM月DD日 HH:mm") : "--"}，请在截止前完成提交。`} />
               )}
-              {/* B7（第四波）：证书有效期前置指引——CERT_EXPIRED 旧实现在提交最后一步才炸；有效期数据在平台/U盾侧，
-                  前端不持——以指引代替预检（U盾管理/自有档案面板可见剩余天数） */}
-              {canSubmit && dualReady && (
-                <BAlert type="info" className="mb-5" title="投递前请确认 U盾证书在有效期内：临期/过期证书将在投递最后一步被拒收（CERT_EXPIRED），请在 U盾管理查看剩余天数并及时换绑。" />
-              )}
-              {canSubmit && dualReady && (
-                <BAlert type="success" className="mb-5" title="双层加密信封投递：文件将双层加密上传，报价等唱标字段密封至开标时揭示。提交时需插入 U盾并输入证书口令完成签名。" />
-              )}
               {showRecovery && (
                 <BAlert
                   type="success"
@@ -867,23 +632,6 @@ function BidSubmitInner() {
 
               <SpPageHero title={project.name} />
 
-              {/* 未绑定 U盾时显示绑盾引导；投递采用双信封流程。 */}
-              {legacyRetired && (
-                <div className="neu-card detail-card">
-                  <div className="card-header">
-                    <span className="card-title">投标须使用 U盾数字证书</span>
-                  </div>
-                  <BAlert type="warning" title="双信封加密投递为唯一投递通道，传统加密通道已停止受理。">
-                    投标文件须以双层 SM4 加密上传，报价等唱标字段经 SM2 证书签名密封，开标时解密揭示。
-                  </BAlert>
-                  <div className="mt-5 flex flex-col items-start gap-3">
-                    <SpButton variant="primary" icon={KeyRound} onClick={() => router.push("/profile/ukey")}>前往绑定 U盾</SpButton>
-                    <span className="file-hint">绑定后本页自动切换为双信封投递。</span>
-                    <span className="file-hint">已保存的草稿字段（报价/工期等）在绑定后可直接回读；已上传的加密文件需重新上传。</span>
-                  </div>
-                </div>
-              )}
-              {!legacyRetired && (
               <div className="neu-card detail-card">
                 <div className="card-header">
                   <span className="card-title">标书信息</span>
@@ -1081,7 +829,6 @@ function BidSubmitInner() {
                   </div>
                 )}
               </div>
-              )}
             </>
           ) : null}
         </>
@@ -1127,38 +874,6 @@ function BidSubmitInner() {
         <p className="text-sm leading-relaxed text-[var(--fg-2)]">
           将删除服务器端保存的草稿并清空当前表单，操作不可恢复。已正式提交的标书不可删除（撤回请在「我的投标」中操作）。
         </p>
-      </SpDialog>
-
-      {/* U盾口令对话框（dual-v2 提交签名） */}
-      <SpDialog
-        open={ukeyDialogVisible}
-        onClose={() => setUkeyDialogVisible(false)}
-        title="证书口令验证"
-        subtitle="提交双层加密标书需解锁 U盾证书"
-        icon={KeyRound}
-        width={420}
-        footer={
-          <>
-            <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} disabled={ukeyPresent === false} onClick={handleUkeyOpen}>解锁并提交</SpButton>
-          </>
-        }
-      >
-        {ukeyPresent === false ? (
-          <p className="text-[13px] text-warning">未检测到 U盾——请插入 U盾后重试（插入后自动恢复）</p>
-        ) : (
-        <>
-        <label className="reg-label">证书口令</label>
-        <SpInput
-          type="password"
-          value={ukeyPassword}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUkeyPassword(e.target.value)}
-          placeholder="输入证书口令"
-          onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleUkeyOpen(); }}
-        />
-        <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>
-        </>
-        )}
       </SpDialog>
     </div>
   );

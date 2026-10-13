@@ -117,11 +117,11 @@ export const bidApi = {
     );
   },
 
-  /** 提交签名答复（服务端重算 canonical + SM2 验签 + 落库） */
+  /** 提交答复（U盾签名随 mock U盾轨下线；certSn/signature 可选，dual-v3 阶段恢复签名） */
   submitClarificationReply(
     projectId: string,
     cid: string,
-    body: { reply: string; attachmentIds: string[]; certSn: string; signature: string },
+    body: { reply: string; attachmentIds: string[]; certSn?: string; signature?: string },
   ) {
     return api.post<SupplierBidClarification>(
       `/supplier-portal/projects/${projectId}/bid-clarifications/${cid}/reply`,
