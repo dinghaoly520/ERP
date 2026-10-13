@@ -29,7 +29,7 @@ describe('CaChallengeService（一次性挑战原子消费）', () => {
   beforeEach(() => { redis = new MockRedis(); svc = new CaChallengeService(redis as any); });
 
   test('登录挑战 toSign 以 LOGONDATA: 开头且含 challengeId/nonce', async () => {
-    const ch = await svc.createLogin({ portal: 'supplier', browserCookieHash: 'bh1', signCertPem: 'PEM-CONTENT' });
+    const ch = await svc.createLogin({ portal: 'supplier', browserCookieHash: 'bh1', signCertSha256: 'aa'.repeat(32) });
     expect(ch.toSign).toMatch(/^LOGONDATA:/);
     expect(ch.toSign).toContain(ch.challengeId);
     expect(ch.toSign).toContain('"nonce"');
