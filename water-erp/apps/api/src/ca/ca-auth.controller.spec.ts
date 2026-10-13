@@ -24,6 +24,7 @@ const mockRedis = {
 describe('CaAuthController（接线验证——逻辑归 Task5 单测）', () => {
   const controller = new CaAuthController(
     mockPrisma as any,
+    { verifyAsync: async () => null } as any, // JwtService（I8 新增注入）
     mockAuthService as any,
     new CaChallengeService(mockRedis as any),
     {} as CaVerificationService,  // challenge/login 不在此测——e2e 用 overrideProvider
@@ -46,6 +47,7 @@ describe('CaAuthController（接线验证——逻辑归 Task5 单测）', () =>
     };
     const ctrl2 = new CaAuthController(
       mockPrisma as any,
+      { verifyAsync: async () => null } as any,
       mockAuthService as any,
       new CaChallengeService(redis2 as any),
       { verifySignature: async () => ({ ok: true, statusCoverage: ['chain'], signerSerialHex: 'x' }) } as any,
