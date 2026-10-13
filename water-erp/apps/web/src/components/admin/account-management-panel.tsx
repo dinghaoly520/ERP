@@ -527,10 +527,10 @@ export function AccountManagementPanel() {
                           type="button"
                           onClick={() => setFormState({ mode: "edit", account })}
                           className="inline-flex h-8 items-center gap-1 rounded-[10px] border border-white/60 bg-white/62 px-2.5 text-xs font-medium text-[color:var(--foreground)] transition hover:bg-white/85"
-                          title="修改信息 / 权限"
+                          title="修改资料 / 权限"
                         >
                           <Pencil size={13} strokeWidth={1.9} />
-                          权限
+                          资料
                         </button>
                         <button
                           type="button"
