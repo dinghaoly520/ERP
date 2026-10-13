@@ -273,10 +273,10 @@ export function SupervisionPushBlock({ bidProjectId, isAdmin }: Props) {
           />
         </div>
         <div>
-          <div className="mb-1.5 text-xs font-semibold text-[var(--foreground)]">Bearer Token</div>
+          <div className="mb-1.5 text-xs font-semibold text-[var(--foreground)]">鉴权令牌</div>
           <input
             className="workbench-input w-full"
-            placeholder={cfg?.authToken ? '已配置——留空保持现有 Token' : '未配置（可选）'}
+            placeholder={cfg?.authToken ? '已配置——留空保持现有令牌' : '未配置（可选）'}
             value={cfgForm.authToken}
             onChange={(e) => setCfgForm({ ...cfgForm, authToken: e.target.value })}
           />
