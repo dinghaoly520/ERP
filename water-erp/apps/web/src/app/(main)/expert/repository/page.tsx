@@ -296,7 +296,10 @@ export default function ExpertRepositoryPage() {
                     </td>
                     <td className="text-center">
                       {e.latestEval ? (
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.latestEval.level] ?? 'var(--muted-foreground)' }}>{e.latestEval.level}</span>
+                        <div className="flex items-center justify-center gap-1.5" title={`最近评价等级 ${e.latestEval.level}（${LEVEL_LABEL[e.latestEval.level] ?? ''}）`}>
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.latestEval.level] ?? 'var(--muted-foreground)' }}>{e.latestEval.level}</span>
+                          <span className="text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[e.latestEval.level] ?? '—'}</span>
+                        </div>
                       ) : (
                         <span className="text-xs text-[var(--muted-foreground)]">—</span>
                       )}

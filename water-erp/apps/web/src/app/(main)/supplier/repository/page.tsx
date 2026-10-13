@@ -324,7 +324,10 @@ export default function SupplierRepositoryPage() {
                   </td>
                   <td className="text-center">
                     {s._latestEvalLevel ? (
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._latestEvalLevel] ?? 'var(--muted-foreground)' }}>{s._latestEvalLevel}</span>
+                      <div className="flex items-center justify-center gap-1.5" title={`最近评价等级 ${s._latestEvalLevel}（${LEVEL_LABEL[s._latestEvalLevel] ?? ''}）`}>
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._latestEvalLevel] ?? 'var(--muted-foreground)' }}>{s._latestEvalLevel}</span>
+                        <span className="text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[s._latestEvalLevel] ?? '—'}</span>
+                      </div>
                     ) : (
                       <span className="text-sm text-[var(--muted-foreground)]">—</span>
                     )}
