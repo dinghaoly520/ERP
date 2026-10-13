@@ -9,7 +9,7 @@ import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supp
 import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
-import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL } from '@water-erp/shared';
+import { LEVEL_LABEL, LEVEL_COLOR, SUPPLIER_STATUS_LABEL, getNotificationLabel, getNotificationChannelLabel } from '@water-erp/shared';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, CalendarDays, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign } from 'lucide-react';
@@ -1208,7 +1208,7 @@ export default function SupplierDetailPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <StatusBadge tone="blue">{c.type}</StatusBadge>
+                        <StatusBadge tone="blue">{getNotificationLabel(c.type)}</StatusBadge>
                         {!c.isRead && <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />}
                       </div>
                       <h4 className="text-sm font-semibold text-[var(--foreground)] mt-1.5">{c.title}</h4>
@@ -1216,7 +1216,7 @@ export default function SupplierDetailPage() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-[10px] text-[var(--muted-foreground)]/70">{new Date(c.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                      {c.channels.length > 0 && <div className="text-[10px] text-[var(--muted-foreground)]/60 mt-0.5">{c.channels.join(' · ')}</div>}
+                      {c.channels.length > 0 && <div className="text-[10px] text-[var(--muted-foreground)]/60 mt-0.5" title={`投递通道：${c.channels.map(getNotificationChannelLabel).join('、')}`}>{c.channels.map(getNotificationChannelLabel).join(' · ')}</div>}
                     </div>
                   </div>
                 </div>

@@ -419,7 +419,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
                             }
                             title={lp.responseSnippet ?? undefined}
                           >
-                            {PUSH_STATUS_LABELS[lp.status] ?? lp.status} · {lp.channel} · {formatDateTime(lp.createdAt)}
+                            {PUSH_STATUS_LABELS[lp.status] ?? lp.status} · {channelTitle(lp.channel as PushChannelCode)} · {formatDateTime(lp.createdAt)}
                           </span>
                         ) : '未推送'}
                       </td>
@@ -623,7 +623,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
               {(ledger?.logs ?? []).map((l) => (
                 <tr key={l.id}>
                   <td className="!py-2 tabular-nums text-[var(--muted-foreground)]">{formatDateTime(l.createdAt)}</td>
-                  <td className="!py-2">{l.channel}</td>
+                  <td className="!py-2">{channelTitle(l.channel as PushChannelCode)}</td>
                   <td className="!py-2">{ITEM_TYPE_LABELS[l.itemType as PushItemType] ?? l.itemType}</td>
                   <td className="!py-2 max-w-[220px] truncate" title={l.itemId}>{l.itemId}</td>
                   <td className="!py-2 tabular-nums">{l.attemptNo}</td>

@@ -129,6 +129,19 @@ export function getNotificationLabel(type: string): string {
   return NOTIFICATION_LABEL[type] ?? '其他通知';
 }
 
+/** 通知投递通道中文（NotificationDeliveryLog.channel，值域=NotificationChannelKind）。
+ *  同口径禁英文兜底：未登记通道不再原样透出代码。 */
+export const NOTIFICATION_CHANNEL_LABEL: Record<string, string> = {
+  in_app: '站内',
+  email: '邮件',
+  sms: '短信',
+  phone: '电话',
+};
+
+export function getNotificationChannelLabel(channel: string): string {
+  return NOTIFICATION_CHANNEL_LABEL[channel] ?? '其他';
+}
+
 export const NOTIFICATION_META_DEFAULT: NotificationMeta = { icon: 'Bell', tone: 'gray', actionable: false };
 
 export function getNotificationMeta(type: string): NotificationMeta {
