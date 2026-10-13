@@ -158,7 +158,6 @@ export function ExpertExtractPage({
   const [demandRepSearch, setDemandRepSearch] = useState('');
   const [demandRepResults, setDemandRepResults] = useState<ExpertListItem[]>([]);
   const [demandRepSearching, setDemandRepSearching] = useState(false);
-  const [employers, setEmployers] = useState<string[]>([]); // 公司列表（专家工作单位去重）
   const [employerSpecs, setEmployerSpecs] = useState<Map<string, string[]>>(new Map()); // 公司 → 该公司专家的可选专业
   // 公司→真部门映射（User.department）+ 公司→部门→专业映射（公司→部门→专业三级级联）
   const [companyDepartments, setCompanyDepartments] = useState<Map<string, string[]>>(new Map());
@@ -663,7 +662,6 @@ export function ExpertExtractPage({
           if (sp) compDeptSpecs.get(key)!.add(sp);
         }
       }
-      setEmployers([...empSpecs.keys()].sort());
       setEmployerSpecs(new Map([...empSpecs.entries()].map(([k, v]) => [k, [...v].sort()])));
       setCompanyDepartments(new Map([...compDepts.entries()].map(([k, v]) => [k, [...v].sort()])));
       setCompanyDeptSpecs(new Map([...compDeptSpecs.entries()].map(([k, v]) => [k, [...v].sort()])));
@@ -2157,10 +2155,15 @@ export function ExpertExtractPage({
                   {demandRepMode === 'department' && (
                     <div className="space-y-2">
                       <div className="flex gap-2">
-                        <select value={demandRepCompany} onChange={e => { setDemandRepCompany(e.target.value); setDemandRepDept(''); setDemandRepDeptSpecialty(''); }} className="neu-input text-sm flex-1" title="抽取公司：仅抽取该公司专家">
-                          <option value="">选择公司</option>
-                          {employers.map(emp => <option key={emp} value={emp}>{emp}</option>)}
-                        </select>
+                        <QuotaMultiSelect
+                          single
+                          className="flex-1 min-w-0"
+                          options={companies.map(c => ({ value: c.name, label: c.name }))}
+                          selected={demandRepCompany ? [demandRepCompany] : []}
+                          onChange={list => { setDemandRepCompany(list[0] ?? ''); setDemandRepDept(''); setDemandRepDeptSpecialty(''); }}
+                          placeholder="选择公司"
+                          title="抽取公司：默认本公司，可选其他公司（公司主数据，附搜索）"
+                        />
                         <select value={demandRepDept} onChange={e => { setDemandRepDept(e.target.value); setDemandRepDeptSpecialty(''); }} disabled={!demandRepCompany} className="neu-input text-sm flex-1 disabled:opacity-50">
                           <option value="">选择部门</option>
                           {(companyDepartments.get(demandRepCompany) || []).map(d => <option key={d} value={d}>{d}</option>)}
@@ -2174,6 +2177,12 @@ export function ExpertExtractPage({
                         <div className="flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-2.5 py-1.5">
                           <Info size={11} strokeWidth={2} className="mt-px shrink-0 text-[var(--muted-foreground)]" />
                           <p className="text-[10px] leading-4 text-[var(--muted-foreground)]">本次抽取仅限「{demandRepCompany}」的专家；需求方（业主）代表{demandRepDept ? `将从「${demandRepDept}」` : '将从全公司'}{demandRepDeptSpecialty ? `·「${demandRepDeptSpecialty}」` : ''}中抽取 1 名。</p>
+                        </div>
+                      )}
+                      {demandRepCompany && (companyDepartments.get(demandRepCompany) || []).length === 0 && (
+                        <div className="flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1.5">
+                          <AlertTriangle size={11} strokeWidth={2} className="mt-px shrink-0 text-[var(--warning)]" />
+                          <p className="text-[10px] leading-4 text-[color-mix(in_oklch,var(--warning)_85%,black)]">「{demandRepCompany}」专家库内暂无专家，部门下拉为空；如需按部门抽取，请先在专家库为该公司录入专家。</p>
                         </div>
                       )}
                       {!demandRepCompany && (
