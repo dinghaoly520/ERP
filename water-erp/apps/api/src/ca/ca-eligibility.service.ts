@@ -43,17 +43,23 @@ export class CaEligibilityService {
 
     // ── 在途门禁（解绑共用）：raw SQL 扫描（Json 字段/新列不走 typed where）──
     const affectedItems: EligibilityResult['affectedItems'] = [];
-    const pending = await this.prisma.$queryRaw<Array<{ id: string; projectId: string; receiptSignature: unknown; confirmSignature: unknown }>>`
-      SELECT "id", "projectId", "receiptSignature", "confirmSignature"
-      FROM "SupplierBidSubmission"
+    // ① 待签回执（SupplierBidSubmission.receiptSignature Json 空）
+    const pendingReceipts = await this.prisma.$queryRaw<Array<{ id: string; projectId: string }>>`
+      SELECT "id", "projectId" FROM "SupplierBidSubmission"
       WHERE "supplierId" = ${supplierId} AND "status" = 'submitted'
+        AND "receiptSignature" IS NULL
       LIMIT 20`;
-    for (const r of pending) {
-      if (!r.receiptSignature) {
-        affectedItems.push({ projectId: r.projectId, submissionId: r.id, action: 'receipt', reason: '回执未签署' });
-      } else if (!r.confirmSignature) {
-        affectedItems.push({ projectId: r.projectId, submissionId: r.id, action: 'opening-confirm', reason: '开标确认未完成' });
-      }
+    for (const r of pendingReceipts) {
+      affectedItems.push({ projectId: r.projectId, submissionId: r.id, action: 'receipt', reason: '回执未签署' });
+    }
+    // ② 开标确认未闭环（BidOpeningRecord.confirmSignature 空，经 BidSupplier 关联到供应商）
+    const pendingConfirms = await this.prisma.$queryRaw<Array<{ id: string; projectId: string }>>`
+      SELECT b."projectId", b."bidSupplierId" as id FROM "BidOpeningRecord" b
+      JOIN "BidSupplier" bs ON bs.id = b."bidSupplierId"
+      WHERE bs."supplierId" = ${supplierId} AND b."confirmSignature" IS NULL
+      LIMIT 20`;
+    for (const r of pendingConfirms) {
+      affectedItems.push({ projectId: r.projectId, submissionId: r.id, action: 'opening-confirm', reason: '开标确认未完成' });
     }
 
     if (affectedItems.length > 0) {
