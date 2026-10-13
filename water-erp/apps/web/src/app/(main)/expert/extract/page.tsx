@@ -1304,12 +1304,13 @@ export function ExpertExtractPage({
   const openReModal = async () => {
     if (!invitationData || !pid) return;
     const allMain = invitationData.experts.filter(e => e.expertRole === '正选');
-    const confirmedCount = allMain.filter(e => e.invitationStatus === 'confirmed').length;
-    const shortfall = totalSeats - confirmedCount;
-    if (shortfall <= 0) { toast.warning('专家组已满员'); return; }
-    if (!allMain.some(e => e.invitationStatus === 'declined')) {
-      toast.warning('没有需要补选的专家（若有待回复成员可等其回复后再补）'); return;
+    // 补选人数 = 当时已拒绝(declined)的正选专家数（等额补选）；已确认参加(confirmed)与
+    // 未确认(pending/待回复)的成员不参与本次补选人数——待回复者仍可能确认，不应提前占位补选。
+    const declinedCount = allMain.filter(e => e.invitationStatus === 'declined').length;
+    if (declinedCount <= 0) {
+      toast.warning('没有需要补选的专家（已确认参加与待回复的成员不参与本次补选）'); return;
     }
+    const shortfall = declinedCount;
     const roundNo = reHistory.length + 1;
     // 如果用户上次手动调整过配额，且该配额池仍有专家 → 直接抽取
     if (lastReQuotasRef.current.length > 0) {
