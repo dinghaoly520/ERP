@@ -1392,7 +1392,6 @@ model BusinessTag {
   createdBySupplier Supplier? @relation("BusinessTagCreator", fields: [createdBySupplierId], references: [id], onDelete: SetNull)
   reviewedBy        User?     @relation("BusinessTagReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
-  caCredentialRevision Int @default(0) // SCCA CA：每次绑定/换绑/解绑递增（主体锁+CAS）
 
   @@index([status])
 }
@@ -1423,6 +1422,7 @@ model Supplier {
   id                   String         @id @default(cuid())
   userId               String         @unique
   supplierNo           String         @unique // 供应商编号（SUP-000001，由 PG 序列 supplier_no_seq 生成）
+  caCredentialRevision Int       @default(0) // SCCA CA：绑定/换绑/解绑递增（主体锁+CAS）
   name                 String
   normalizedName       String
   creditCode           String?        @unique

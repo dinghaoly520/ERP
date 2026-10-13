@@ -64,7 +64,7 @@ export class CaBindingController {
     return {
       provider: isCa ? 'scca' : 'none',
       credentialScheme: activeBinding?.credentialScheme ?? 'legacy-raw-sm2',
-      caCredentialRevision: (supplier as any).caCredentialRevision ?? 0,
+      caCredentialRevision: supplier.caCredentialRevision,
       activeBinding: activeBinding ? {
         id: activeBinding.id,
         kind: isCa ? 'ca' : 'legacy',
@@ -227,14 +227,16 @@ export class CaBindingController {
           credentialScheme: 'scca-pkcs7',
           signingCaCertificateId: signCaCert.id,
           encryptionCaCertificateId: encCaCert.id,
-          bindingRevision: ((supplier as any).caCredentialRevision ?? 0) + 1,
+          bindingRevision: (supplier.caCredentialRevision) + 1,
           createdBy: userId,
           bindingStatus: 'ACTIVE',
         },
       });
 
-      // revision++（raw SQL——pnpm workspace Prisma client 生成缓存未含此列，schema-drift 记忆在册）
-      await tx.$executeRawUnsafe('UPDATE "Supplier" SET "caCredentialRevision" = "caCredentialRevision" + 1 WHERE id = $1', supplier.id);
+      await tx.supplier.update({
+        where: { id: supplier.id },
+        data: { caCredentialRevision: { increment: 1 } },
+      });
 
       return binding;
     }, { timeout: 15000 });
