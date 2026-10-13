@@ -9,13 +9,18 @@ import { apiFetch } from '@/lib/api/api-fetch';
  * B3 项目时间信息轴（CTS-EBS01 A-204）：十类节点横向条
  * （立项/公告发布·供应商邀请/获取文件/截止/开标/评标结束/中标公告/流标公告/签约/归档）。
  * 固定业务顺序，缺值灰显占位。挂在项目详情 page-hero 顶部；台账详情同款复用。
+ * 刷新契约：调用方传 refreshKey（详情面板在任一写操作后推进），组件即时重拉；
+ * 不传则维持挂载时拉取一次（台账详情等只读场景）。
  */
 
 type TimelineNode = { key: string; label: string; time: string | null; timeEnd?: string | null; source: string };
 
-export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
+export function ProjectTimelineStrip({ pmiId, refreshKey = 0 }: { pmiId: string; refreshKey?: string | number }) {
   const [nodes, setNodes] = useState<TimelineNode[] | null>(null);
 
+  // 拉取时机：挂载 / pmiId 变化 / refreshKey 推进——详情面板内任一信息更新（阶段推进、
+  // 上传、AI 提取、公告、合同…）后即时重拉，不再是挂载时的死快照。刷新失败保留已有
+  // 节点（仅首拉失败落空态），避免瞬时故障把整条轴打成「未登记」。
   useEffect(() => {
     let alive = true;
     apiFetch(`/api/project-management/${pmiId}/timeline`, {
@@ -24,9 +29,9 @@ export function ProjectTimelineStrip({ pmiId }: { pmiId: string }) {
     })
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('加载失败'))))
       .then((data: TimelineNode[]) => { if (alive) setNodes(data); })
-      .catch(() => { if (alive) setNodes([]); });
+      .catch(() => { if (alive) setNodes(prev => prev ?? []); });
     return () => { alive = false; };
-  }, [pmiId]);
+  }, [pmiId, refreshKey]);
 
   if (nodes === null) return null;
 

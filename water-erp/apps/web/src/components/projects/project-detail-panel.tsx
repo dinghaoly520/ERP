@@ -383,6 +383,15 @@ export function ProjectDetailPanel({
   // 归档横幅）仍用 readOnly，避免把 Viewer 误标成「全部已完成」。
   const actionsDisabled = readOnly || !canModify;
 
+  // 时间轴即时刷新（2026-10-13）：面板内任一写操作（阶段推进/上传/AI 提取/公告/合同…）
+  // 都以 onUpdated 收尾——包一层推进 timelineVersion，驱动 page-hero 的时间信息轴重拉。
+  // 各调用点在调 onUpdated 前 DB 写已完成，故先推进再回流，列表刷新失败也不影响时间轴拿新值。
+  const [timelineVersion, setTimelineVersion] = useState(0);
+  const handleUpdated = useCallback(async () => {
+    setTimelineVersion(v => v + 1);
+    await onUpdated();
+  }, [onUpdated]);
+
   // 父组件重新渲染后同步本地镜像
   useEffect(() => {
     if (tenderFileJustDeletedRef.current) {
@@ -784,7 +793,7 @@ export function ProjectDetailPanel({
         round: stage.round ?? 1, // 多轮项目按被点行的轮次落行（2026-09-24 I-1）
         ...(stage.stageKey === 'SUPPLIER_INVITATION' ? { confirmedThreshold: confirmThreshold } : {}),
       });
-      await onUpdated();
+      await handleUpdated();
 
       // Auto-advance to the next stage; useEffect on selectedStageKey triggers analysis
       if (nextStageKey) {
@@ -839,7 +848,7 @@ export function ProjectDetailPanel({
         waiveArchiveGate: true,
         note: waiveNote.trim(),
       });
-      await onUpdated();
+      await handleUpdated();
       if (waiveTarget.nextStageKey) setSelectedStageKey(waiveTarget.nextStageKey);
       setWaiveTarget(null);
       setWaiveNote('');
@@ -913,7 +922,7 @@ export function ProjectDetailPanel({
       setAnalysisLoading(true);
 
       // 后台异步刷新父组件数据（不阻塞后续分析）
-      onUpdated().catch(() => {});
+      handleUpdated().catch(() => {});
 
       // 2. Load analysis directly (not via useEffect) to avoid race conditions
       setAnalysisError(null);
@@ -957,7 +966,7 @@ export function ProjectDetailPanel({
     setErrorMessage(null);
     try {
       await completeProjectManagementItem(item.id);
-      await onUpdated();
+      await handleUpdated();
       toast.success('项目已归档至「已完成」列表，可在项目管理页面查看');
       onClose();
     } catch (error) {
@@ -973,7 +982,7 @@ export function ProjectDetailPanel({
     setErrorMessage(null);
     try {
       await completeProjectManagementItem(item.id, true);
-      await onUpdated();
+      await handleUpdated();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '归档失败。');
     } finally {
@@ -1091,7 +1100,7 @@ export function ProjectDetailPanel({
         if (Object.keys(next).length === 0) return null;
         return next;
       });
-      await onUpdated();
+      await handleUpdated();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '保存失败。');
     }
@@ -1111,7 +1120,7 @@ export function ProjectDetailPanel({
       const val = result[field];
       if (val) {
         // 成功：静默更新左侧，不弹窗
-        await onUpdated();
+        await handleUpdated();
       } else {
         setAiResult({ type: 'error', message: '未能提取到该字段信息，请检查采购文件内容。' });
       }
@@ -1140,7 +1149,7 @@ export function ProjectDetailPanel({
         projectReason: pr || localItem.projectReason || '',
         supplierRequirements: sr || localItem.supplierRequirements || '',
       });
-      await onUpdated();
+      await handleUpdated();
     } catch (e) {
       setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取并优化失败' });
     } finally {
@@ -1211,7 +1220,7 @@ export function ProjectDetailPanel({
         {/* page-hero: 标题 + 简报 + 流程 */}
         <div className="page-hero">
           {/* B3（A-204）时间信息轴 */}
-          <ProjectTimelineStrip pmiId={item.id} />
+          <ProjectTimelineStrip pmiId={item.id} refreshKey={timelineVersion} />
           <div style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)', paddingTop: '0.75rem', marginBottom: '0.75rem' }} />
           {/* row 1: 标题 + meta + 操作按钮 */}
           <div className="page-hero__row">
@@ -1399,7 +1408,7 @@ export function ProjectDetailPanel({
                   // 重开后选中该步骤并回到编辑视图；分析缓存按 stageKey 键控、附件未动——分析内容保留
                   setSelectedStageKey(stageKey);
                   setSelectedRound(round);
-                  await onUpdated();
+                  await handleUpdated();
                 } catch (e) {
                   setErrorMessage(e instanceof Error ? e.message : '重开步骤失败');
                 }
@@ -1998,7 +2007,7 @@ export function ProjectDetailPanel({
                     setAnalysis(null);
                   }
 
-                  await onUpdated();
+                  await handleUpdated();
                   // 非采购文件：仅过滤被删文件的 analysis
                   if (!isTenderDoc && analysis) {
                     setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) });
@@ -2271,7 +2280,7 @@ export function ProjectDetailPanel({
           projectTitle={item.title}
           project={item}
           onAttachmentUploaded={(result) => handleStageAttachmentChanged('TENDER_DOCUMENT', result)}
-          onUpdated={onUpdated}
+          onUpdated={handleUpdated}
         />
       )}
 
@@ -2285,7 +2294,7 @@ export function ProjectDetailPanel({
           onClose={() => setEditingFile(null)}
           onFileReplaced={async () => {
             if (editingFile) handleStageAttachmentChanged(editingFile.stageKey);
-            await onUpdated();
+            await handleUpdated();
           }}
         />
       )}
@@ -2316,7 +2325,7 @@ export function ProjectDetailPanel({
         isOpen={announcementPublishOpen}
         onClose={() => { setAnnouncementPublishOpen(false); setAnnouncementCategory('procurement_document'); }}
         project={item}
-        onPublished={onUpdated}
+        onPublished={handleUpdated}
         initialCategory={announcementCategory}
         onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
       />
@@ -2435,7 +2444,7 @@ export function ProjectDetailPanel({
         isOpen={awardFileMakerOpen}
         onClose={() => setAwardFileMakerOpen(false)}
         project={item}
-        onPublished={onUpdated}
+        onPublished={handleUpdated}
       />
 
       {/* C2/C3/C4：合同订立·履行·验收（GB/T 43711 7.5.4/7.6） */}
@@ -2443,7 +2452,7 @@ export function ProjectDetailPanel({
         open={contractStageOpen}
         onClose={() => setContractStageOpen(false)}
         item={{ id: item.id, projectCode: item.projectCode || `PMI-${item.id.slice(-6)}`, awardedSupplier: item.awardedSupplier, contractAmount: item.contractAmount }}
-        onUpdated={onUpdated}
+        onUpdated={handleUpdated}
       />
 
       {/* 09 直接采购备案表编写（附件6，2026-09-28）：生成后自动上传到本步骤附件 */}
