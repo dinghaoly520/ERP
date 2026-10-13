@@ -90,8 +90,9 @@ export class CaVerificationService {
 
     // ── ② 三方指纹 ──
     if (input.expectedSignCert) {
-      // 2a: P7 signer serial === expectedSignCert.serialHex
-      if (signer.serialHex !== input.expectedSignCert.serialHex.toLowerCase().replace(/^0+(?=.)/, '')) {
+      // 2a: P7 signer serial === expectedSignCert.serialHex（空=跳过——登录场景仅传 sha256）
+      const expectedSerial = input.expectedSignCert.serialHex?.toLowerCase().replace(/^0+(?=.)/, '');
+      if (expectedSerial && signer.serialHex !== expectedSerial) {
         return this.fail('CA_FINGERPRINT_MISMATCH', 'P7 签名者 serial ≠ 期望证书');
       }
       // 2b: P7 embeddedCerts 含 expectedSignCert.sha256
