@@ -21,7 +21,7 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
   const [selected, setSelected] = useState<SccaDualCert | null>(null);
   const [error, setError] = useState('');
   const [challenge, setChallenge] = useState<{ challengeId: string; toSign: string } | null>(null);
-  const [bound, setBound] = useState<{ signingSerial?: string; encryptionSerial?: string; notAfter?: string } | null>(null);
+  const [bound, setBound] = useState<{ id?: string; signingSerial?: string; encryptionSerial?: string; notAfter?: string } | null>(null);
   const [loadingBound, setLoadingBound] = useState(true);
   const proofRef = useRef<string>('');
   const actionIdRef = useRef(0);
@@ -35,6 +35,7 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
         if (!alive) return;
         if (caps?.provider === 'scca' && caps?.activeBinding?.kind === 'ca') {
           setBound({
+            id: caps.activeBinding.id,
             signingSerial: caps.activeBinding.signingCert?.serialHex,
             encryptionSerial: caps.activeBinding.encryptionCert?.serialHex,
             notAfter: caps.activeBinding.signingCert?.notAfter,
@@ -123,7 +124,7 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
         credentialProofId: proofRef.current,
         signCertPem: selected.sign.pem,
         encCertPem: selected.enc.pem,
-        expectedActiveBindingId: null,
+        expectedActiveBindingId: bound?.id ?? null,
       });
       if (actionId !== actionIdRef.current) return;
       setStep('success');

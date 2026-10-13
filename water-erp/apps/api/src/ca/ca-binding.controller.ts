@@ -240,11 +240,21 @@ export class CaBindingController {
         data: { bindingStatus: 'REVOKED', revokedAt: new Date() },
       });
 
-      // 新行
+      // C2 修复：CAS 复核——当前 ACTIVE 绑定必须与客户端预期一致（首绑均 null，换绑传旧 id）
+      const currentActive = await tx.supplierCert.findFirst({
+        where: { supplierId: supplier.id, bindingStatus: 'ACTIVE' },
+        select: { id: true },
+      });
+      if ((currentActive?.id ?? null) !== (dto.expectedActiveBindingId ?? null)) {
+        throw new ConflictException({ error: '绑定状态已变化，请刷新后重试', code: 'CA_BINDING_CHANGED' });
+      }
+
+      // 新行——I7 修复：certSn 用按行唯一命名空间（legacy 序列号命名空间留给 legacy 行；
+      // CA 行经 signingCaCertificateId 定位；合同 E.77 的可空化随阶段 2 读端收窄后落地）
       const binding = await tx.supplierCert.create({
         data: {
           supplierId: supplier.id,
-          certSn: signCert.serialHex.toLowerCase(), // 用 X.509 serial（新 CA 行不占旧 certSn 命名空间）
+          certSn: 'ca-' + require('crypto').randomUUID(),
           certDn: signCert.subjectDn,
           publicKey: signCert.publicKeyHex,
           credentialScheme: 'scca-pkcs7',
