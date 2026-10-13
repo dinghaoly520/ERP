@@ -1,7 +1,6 @@
 packages:
   - apps/*
   - packages/*
-  - '!apps/web-erp-old'
 
 onlyBuiltDependencies:
   - '@nestjs/core'
