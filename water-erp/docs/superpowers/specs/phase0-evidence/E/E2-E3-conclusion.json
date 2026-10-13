@@ -1,0 +1,9 @@
+{ "testId": "E2/E3", "status": "PASS", "ts": "2026-10-13",
+  "signCert": { "serialHex": "4eb04e332bcf5e7e16cedf998cbd88eda62015e2", "sha256": "8dcdbaca9c0fcfe8c56a312cdc0dbbeb9e5a05d49f5340cabf3557c13e60426e",
+    "keyUsage": "DigitalSignature+NonRepudiation", "curve": "SM2", "sigAlg": "SM2-with-SM3", "valid": "2026-10-09→2027-10-09" },
+  "encCert": { "serialHex": "32c7e5941645e082d6ee28cf013313834e0cffb3", "sha256": "b9e1048f9bf5be2df1bb54fd8f92eeddc77f0bfba7af64863bb47a3365a3e70a",
+    "keyUsage": "KeyEncipherment+DataEncipherment+KeyAgreement", "ext": "2.16.156.1.6.10.2=ITRUSKMC（密钥管理标记）" },
+  "E3": "同主体/同有效期/同 AKI(63:09:1C:B7…)/同 issuer(SCEGB CA)/异序列号——双证同容器配对成立；KeyUsage 硬隔离",
+  "兼容组合矩阵": "SM2 曲线 × SM3withSM2（证书）/ SM3+SM2（P7 签名者）= 同族合法组合，无跨组合",
+  "仓库 parseCertificate": "双证 PASS（serial/DN/有效期/publicKeyHex）；缺口=KeyUsage/EKU/曲线参数/AIA/CRL——按附录 §6.1 改造清单记录",
+  "状态源": "OCSP=https://topca.scca.com.cn:8085/ocsp；CRL=http://topca.scca.com.cn/public/itruscrl?CA=74ED…；中间证=http://topca.scca.com.cn/cacert/scegb_sm2.crt" }

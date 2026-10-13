@@ -1,0 +1,13 @@
+{ "testId": "G0", "status": "PASS", "ts": "2026-10-12T15:10:00+08:00",
+  "calls": ["P0-GW-001", "P0-GW-002"],
+  "observed": {
+    "P0-GW-001": { "http": 200, "result_code": "9998", "result_msg": "签名证书中级证书验证失败，请检查!", "success": false, "latencyMs": 308 },
+    "P0-GW-002": { "http": 401, "result_code": "1003", "result_msg": "参数签名值错误", "latencyMs": 170 }
+  },
+  "conclusion": "凭据有效确证：正常鉴权到达业务层（证书链校验类业务错 9998）；负对照被 401/1003 鉴权类错误拒绝且错误类别可区分——网关强制 HMAC 鉴权。",
+  "bonusFindings": [
+    "verifyPkcs7 包含签名证书链校验（至少中级 CA）——openssl 自签 P7 恰好死在链校验，主方案 §10.3『证书验证范围』首个行为证据",
+    "错误契约两级：业务错=HTTP 200 + result_code!=0 + success:false；鉴权错=HTTP 401 + result_code=1003——G3 失败归因（区分验签/鉴权/限流）将无歧义",
+    "响应含 JAR 文档外的 success 布尔字段——SccaGatewayClient 契约需纳入"
+  ],
+  "evidence": ["G/G0-0a.json", "G/G0-0b.json"] }

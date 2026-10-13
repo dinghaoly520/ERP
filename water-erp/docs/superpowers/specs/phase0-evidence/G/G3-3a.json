@@ -1,0 +1,21 @@
+{
+  "callNo": "P0-GW-003",
+  "cmd": "verify",
+  "ts": "2026-10-13T02:24:30.480Z",
+  "url": "http://testmicrosrv.scca.com.cn:9527/signgw-service/api/signature/verifyPkcs7",
+  "opType": "登录签名",
+  "requestId": "p0-g3-a",
+  "inputDigest": {
+    "toSignBytes": 34,
+    "toSignSha256": "07e9daa08fc33b2cb750411bcea8c91f7b27a40a7b6d8b6c87ca54acf4ec0851",
+    "p7Bytes": 1900,
+    "p7Sha256": "fcb0839d0a587c53e2d4fa331b77d6f302ebbbe27ebdfadd04a3085c919af3e8",
+    "certBytes": null
+  },
+  "signatureSent": "valid",
+  "httpStatus": 200,
+  "latencyMs": 342,
+  "respBytes": 1955,
+  "respTruncated": false,
+  "body": "{\"result_code\":0,\"result_msg\":\"操作成功\",\"body\":{\"serialNumber\":\"4eb04e332bcf5e7e16cedf998cbd88eda62015e2\",\"issueDN\":\"C=CN, O=Sichuan Digital Certificate Authority Management Center, OU=SM2 Certificate System, CN=SCEGB CA\",\"certCN\":\"供应商测试企业01\",\"certDN\":\"C=CN, O=Sichuan Digital Certificate Authority Management Center, OU=SCEGB CA SM2, OU=PN:01@XM20250916, OU=ID3:Organizational, OU=NO.3:1, OU=NO.1:500999202610091118, SN=500999202610091118, CN=供应商测试企业01\",\"certBase64\":\"MIIEJDCCA8igAwIBAgIUTrBOMyvPXn4Wzt+ZjL2I7aYgFeIwDAYIKoEcz1UBg3UFADCBgzELMAkGA1UEBhMCQ04xQDA+BgNVBAoMN1NpY2h1YW4gRGlnaXRhbCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkgTWFuYWdlbWVudCBDZW50ZXIxHzAdBgNVBAsMFlNNMiBDZXJ0aWZpY2F0ZSBTeXN0ZW0xETAPBgNVBAMMCFNDRUdCIENBMB4XDTI2MTAwOTAzMTk0NVoXDTI3MTAwOTAzMTk0NVowggEQMQswCQYDVQQGEwJDTjFAMD4GA1UECgw3U2ljaHVhbiBEaWdpdGFsIENlcnRpZmljYXRlIEF1dGhvcml0eSBNYW5hZ2VtZW50IENlbnRlcjEVMBMGA1UECwwMU0NFR0IgQ0EgU00yMRkwFwYDVQQLDBBQTjowMUBYTTIwMjUwOTE2MRswGQYDVQQLDBJJRDM6T3JnYW5pemF0aW9uYWwxDzANBgNVBAsMBk5PLjM6MTEgMB4GA1UECwwXTk8uMTo1MDA5OTkyMDI2MTAwOTExMTgxGzAZBgNVBAQMEjUwMDk5OTIwMjYxMDA5MTExODEgMB4GA1UEAwwX5L6b5bqU5ZWG5rWL6K+V5LyB5LiaMDEwWTATBgcqhkjOPQIBBggqgRzPVQGCLQNCAASWIy8TTzk/7ERAhZ0TdjOhNHJCTXb+J7j28TI2WsdrF//zgGZLPTZMes38mpnrMOk6N7P6ADzpWLZABknAbHAoo4IBhjCCAYIwDAYDVR0TAQH/BAIwADAOBgNVHQ8BAf8EBAMCBsAwegYIKwYBBQUHAQEEbjBsMC8GCCsGAQUFBzABhiNodHRwczovL3RvcGNhLnNjY2EuY29tLmNuOjgwODUvb2NzcDA5BggrBgEFBQcwAoYtaHR0cDovL3RvcGNhLnNjY2EuY29tLmNuL2NhY2VydC9zY2VnYl9zbTIuY3J0MGUGA1UdHwReMFwwWqBYoFaGVGh0dHA6Ly90b3BjYS5zY2NhLmNvbS5jbi9wdWJsaWMvaXRydXNjcmw/Q0E9NzRFRDk0M0Y1QjY4QTlFNEREQUFFQzQ0RTI3MEFDN0MyNzYwNTZGQzAfBgNVHSMEGDAWgBRjCRy3YI0WOn3f5PrAVYjMI9x9uzAdBgNVHQ4EFgQUQvL30d2cbKi9VhodrFxCvzjRFTgwPwYDVR0gBDgwNjA0BggqgRyG8AYCAzAoMCYGCCsGAQUFBwIBFhpodHRwOi8vd3d3LnNjY2EuY29tLmNuL2NwczAMBggqgRzPVQGDdQUAA0gAMEUCIQC7zzc5mKpYxLy+HTARcRWjPPSRxjWd2sTKKiY2ob28UgIgQlkwCbh4kFc7SuAFSjGXwtM9+RJ4Mp9OihG3e6WnUb8=\",\"timestamp\":\"\"},\"success\":true}"
+}

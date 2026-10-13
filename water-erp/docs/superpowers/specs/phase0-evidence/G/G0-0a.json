@@ -1,0 +1,21 @@
+{
+  "callNo": "P0-GW-001",
+  "cmd": "verify",
+  "ts": "2026-10-12T07:03:41.492Z",
+  "url": "http://testmicrosrv.scca.com.cn:9527/signgw-service/api/signature/verifyPkcs7",
+  "opType": "登录签名",
+  "requestId": "p0-g0-a",
+  "inputDigest": {
+    "toSignBytes": 34,
+    "toSignSha256": "07e9daa08fc33b2cb750411bcea8c91f7b27a40a7b6d8b6c87ca54acf4ec0851",
+    "p7Bytes": 1920,
+    "p7Sha256": "7bb3f541f3afaa4e88cd78db982cd0deff68a9827a59b8badef0e692fe2fb01d",
+    "certBytes": null
+  },
+  "signatureSent": "valid",
+  "httpStatus": 200,
+  "latencyMs": 308,
+  "respBytes": 113,
+  "respTruncated": false,
+  "body": "{\"result_code\":9998,\"result_msg\":\"签名证书中级证书验证失败，请检查!\",\"body\":null,\"success\":false}"
+}

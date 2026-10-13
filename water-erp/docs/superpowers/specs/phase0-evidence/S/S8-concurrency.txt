@@ -1,0 +1,14 @@
+42ms  已连接，立即连发两帧（不等第一帧响应）…
+43ms  两帧已发出
+43ms  收到帧 （含action字段=undefined）: {
+    "retCode": 0,
+    "retMsg": "成功",
+    "retValue": "1.3.8.806"
+}
+
+181ms  收到帧 （含action字段=undefined）: {
+    "retCode": 0,
+    "retMsg": "成功",
+    "retValue": "供应商测试企业01||4095ECE8-17DA-A115-821A-FE661C4C6478"
+}
+

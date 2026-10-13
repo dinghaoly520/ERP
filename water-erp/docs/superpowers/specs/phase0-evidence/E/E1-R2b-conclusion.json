@@ -1,0 +1,4 @@
+{ "testId": "E1-R2b", "status": "PASS", "ts": "2026-10-13",
+  "conclusion": "CertData=JAR 从 DER 本地解析（真证书实证）：certSN='500999202610091118'=DN 的 SN/OU=NO.1 值（厂商业务号），orgNumberOrPersonNumber=同值（18位机构号）、hexSerialNumber=X.509 serial、projectName='01@XM20250916'（出自 OU=PN）、certificateType='Organizational'、issueName='SCEGB CA'",
+  "三套编号体系": "证书助手 81600002557（展示号）/ 厂商 certSN 500999202610091118（业务号=绑定主键候选）/ X.509 serial 4eb0…（跨发行者查冲突用）",
+  "源A待补": "网关原生响应字段=G3-3a 成功样本（进行中）" }

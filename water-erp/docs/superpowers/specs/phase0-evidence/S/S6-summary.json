@@ -1,0 +1,12 @@
+{
+  "W": "{\"iv\":\"fedcba9876543210fedcba9876543210\",\"k\":\"0123456789abcdef0123456789abcdef\"}",
+  "sizes": {
+    "C1a": 459,
+    "C1b": 460,
+    "C1c": 459
+  },
+  "allDifferent": true,
+  "roundtrip1": true,
+  "W2": "{\"iv\":\"8c09b72f0846fe1484db32962d366eba\",\"k\":\"2b7623d6182e67eb607c8a517e131477\"}",
+  "roundtrip2": true
+}

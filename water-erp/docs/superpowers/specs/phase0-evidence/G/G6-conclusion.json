@@ -1,0 +1,4 @@
+{ "testId": "G6", "status": "INCONCLUSIVE→能力阻断", "ts": "2026-10-13", "calls": ["P0-GW-014","P0-GW-015"],
+  "observed": "双证 certValidate 均 HTTP 403 / result_code=1105『权限验证错误』——与 1003(鉴权)/9998(业务) 区分清晰，判定为 demo appId 未开通该接口权限（非报文错误）",
+  "C6": "证书状态在线查询未证明→按能力矩阵口径：状态检查覆盖未证明，相关能力（吊销/冻结在线判定）继续阻断；厂商索取清单第 4 条升级（开通权限或提供等效接口）",
+  "备选来源": "证书扩展已带 OCSP(https://topca.scca.com.cn:8085/ocsp) 与 CRL(http://topca.scca.com.cn/public/itruscrl?CA=74ED…) 及中间证 URL——阶段 1 可评估 ERP 直连 OCSP/CRL 作为状态源（设计变更项，须主方案确认）" }

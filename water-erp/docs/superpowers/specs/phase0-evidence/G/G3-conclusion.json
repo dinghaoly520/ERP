@@ -1,0 +1,5 @@
+{ "testId": "G3", "status": "PASS（判决成立）", "ts": "2026-10-13", "calls": ["P0-GW-003","P0-GW-004","P0-GW-005","P0-GW-006"],
+  "verdict": "World B——网关不比对 toSign：3a 过(0)、3b 改1字节 过(0)、3c 换全文 过(0)、3a' 复验过(0)——失败原因排除法成立（负对照 401/1003 与业务错 9998 可区分，见 G0）",
+  "C1_implication": "本地 attached-P7 原文比对是唯一原文绑定（非纵深防御）——主方案 P0-1 消解路径成立且必要：网关担密码学有效性+证书链+可信证书回传，ERP 担 toSign↔P7 内嵌内容字节比对+指纹三方一致",
+  "三方指纹": "响应 body.serialNumber(4eb0…) == P7 签名者 sid == 本地所选证书——三方闭环完成",
+  "源A_响应契约": "body={serialNumber,issueDN,certCN,certDN,certBase64,timestamp:''}——无 requestId 回显、timestamp 恒空串（可信时间戳未提供实锤）；身份字段(18位机构号)在 certDN/OU=NO.1/SN 内，须从网关返回的 certBase64 解析（可信源）" }
