@@ -233,9 +233,9 @@ export default function ExpertRepositoryPage() {
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={batchMode ? 11 : 10} rows={5} />
+                <TableSkeleton cols={batchMode ? 12 : 11} rows={5} />
               ) : errored ? (
-                <tr><td colSpan={batchMode ? 11 : 10} className="px-4 py-16">
+                <tr><td colSpan={batchMode ? 12 : 11} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
                     <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
@@ -243,7 +243,7 @@ export default function ExpertRepositoryPage() {
                   </div>
                 </td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={batchMode ? 11 : 10} className="px-4 py-16">
+                <tr><td colSpan={batchMode ? 12 : 11} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><UsersRound size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无专家</p>
