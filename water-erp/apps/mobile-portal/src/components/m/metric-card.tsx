@@ -1,0 +1,30 @@
+const TONE_COLOR: Record<string, string> = {
+  default: "var(--foreground)",
+  accent: "var(--accent)",
+  success: "var(--success)",
+  warning: "var(--warning)",
+  danger: "var(--danger)",
+};
+
+/** 移动端指标卡——标签 + 大数字（等宽数字）+ 可选副注 */
+export function MetricCard({
+  label,
+  value,
+  sub,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: keyof typeof TONE_COLOR;
+}) {
+  return (
+    <div className="rounded-[14px] border border-[var(--border)] bg-white/62 px-3 py-2.5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</div>
+      <div className="mt-1 text-[17px] font-black leading-none tabular-nums tracking-[-0.02em]" style={{ color: TONE_COLOR[tone] }}>
+        {value}
+      </div>
+      {sub ? <div className="mt-1 truncate text-[10px] text-[var(--muted-foreground)]">{sub}</div> : null}
+    </div>
+  );
+}
