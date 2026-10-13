@@ -46,7 +46,7 @@ async function main() {
       role: 'supplier',
       isActive: true,
       // 密码用 bcrypt hash 'SCCA-Pilot@2026'
-      passwordHash: '$2b$10$Wgp7xQEp7vSTLmL0GhyFceYpOWpHqmTZ0OR5uWn5VS5d1ErvGKiOy',
+      passwordHash: '$2b$10$H33RgQHcZ2tpFc1uSG1ZYuW.gQq4Bh/Py5A.q0GX.ef065bOewooK',
       displayName: PILOT_NAME,
     },
     update: { isActive: true, displayName: PILOT_NAME },
