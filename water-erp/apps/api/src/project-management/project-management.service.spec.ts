@@ -1,5 +1,6 @@
 import type { Express } from 'express';
 import { BadRequestException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { ProjectManagementService } from './project-management.service';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
@@ -383,7 +384,10 @@ describe('ProjectManagementService', () => {
     const aiService = {
       analyzeProjectDetail: jest.fn(),
       chat: jest.fn(),
-      auditStageCompliance: jest.fn(),
+    };
+    // 合规审查要点 mock：默认空要点（走两段式），用例可覆写注入真实要点（2026-10-13 并入步骤分析）
+    const stageCompliance = {
+      getRules: async (_stageKey: string) => ({ checkpoints: [], source: 'builtin' as const }),
     };
     const documentParser = {
       parse: jest.fn().mockResolvedValue(''),
@@ -450,7 +454,7 @@ describe('ProjectManagementService', () => {
       storage as never,
       archiveScope as never, // archiveScope（DA/T103 归档范围闸门，测试可覆写缺失清单）
       { onTerminalAttachmentUploaded: async () => undefined } as never, // archiveFlow
-      { getRules: async (k: string) => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
+      stageCompliance as never, // 合规审查要点（2026-10-13 并入步骤分析，默认空要点走两段式）
       {} as never, // notificationService（2026-09-21 对方项目终止特性新增依赖）
       { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } as never, // scoreStandardValidator（2026-09-24 评分标准闸）
       {
@@ -462,6 +466,7 @@ describe('ProjectManagementService', () => {
       service,
       prisma,
       aiService,
+      stageCompliance,
       documentParser,
       archiveScope,
       readFileMock,
@@ -898,6 +903,51 @@ describe('ProjectManagementService', () => {
       expect(result).toEqual({ content: '抽取过程段落。\n\n最终名单段落。', empty: false });
       expect((aiService as any).chat).toHaveBeenCalledTimes(1);
       expect((await import('node:fs/promises')).writeFile).toHaveBeenCalled();
+    });
+
+    it('injects compliance checkpoints into prompt and cache fingerprint（要点并入步骤分析）', async () => {
+      const { service, prisma, aiService, stageCompliance, readFileMock, writeFileMock } = makeService();
+      const checkpoints = [
+        {
+          name: '回避原则',
+          dimension: '抽取合规',
+          criteria: '与供应商存在利害关系的专家应当回避',
+          regulationRef: '《招标投标法》第三十七条',
+        },
+      ];
+      (aiService as any).chat = jest.fn().mockResolvedValue('过程段。\n\n名单段。\n\n合规核对段。');
+      (stageCompliance as any).getRules = async () => ({ checkpoints, source: 'db' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01',
+        title: '岩土勘察项目',
+        procurementMethod: '公开招标',
+        projectReason: '',
+        supplierRequirements: '',
+        currentStage: 'EXPERT_SELECTION',
+        invitedSuppliers: null,
+        expertInfo: '张三|地质部|岩土工程|高级工程师|组长',
+        projectOverview: '岩土工程勘察',
+        stages: [{ status: 'COMPLETED', attachments: [] }],
+      });
+      readFileMock.mockRejectedValueOnce(new Error('no cache'));
+
+      const result = await service.analyzeStep('pm-01', 'EXPERT_SELECTION');
+
+      expect(result).toEqual({ content: '过程段。\n\n名单段。\n\n合规核对段。', empty: false });
+      const [systemPrompt, userPrompt] = (aiService as any).chat.mock.calls[0];
+      // 三段式指令 + 要点入 prompt（名称与法规依据都可见）
+      expect(systemPrompt).toContain('三段自然语言段落');
+      expect(systemPrompt).toContain('合规审查要点');
+      expect(userPrompt).toContain('回避原则');
+      expect(userPrompt).toContain('《招标投标法》第三十七条');
+      // fingerprint 覆盖规则 → 规则库变更即失效缓存（fingerprint = sha256(数据|rules:要点JSON) 前 16 hex）
+      const rosterRaw = '张三|地质部|岩土工程|高级工程师|组长';
+      const expectedFp = createHash('sha256')
+        .update(`${rosterRaw}|rules:${JSON.stringify(checkpoints)}`)
+        .digest('hex')
+        .slice(0, 16);
+      const cached = JSON.parse(writeFileMock.mock.calls[0][1] as string);
+      expect(cached.fingerprint).toBe(expectedFp);
     });
   });
 

@@ -339,15 +339,6 @@ export class ProjectManagementController {
     return this.projectManagementService.refreshProjectAnalysis(id);
   }
 
-  @Post(':id/audit-compliance')
-  auditStageCompliance(
-    @Param('id') id: string,
-    @Query('stageKey') stageKey?: string,
-    @Query('force') force?: string,
-  ) {
-    return this.projectManagementService.auditStageCompliance(id, stageKey, force === 'true');
-  }
-
   @Post(':id/recycle')
   moveToRecycleBin(
     @Param('id') id: string,

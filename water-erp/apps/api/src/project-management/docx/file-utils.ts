@@ -79,15 +79,6 @@ import { basename, extname, join, resolve } from 'node:path';
     );
   }
 
-  export function getComplianceCachePath(projectId: string, stageKey: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `compliance-${projectId}-${stageKey.toLowerCase()}.json`,
-    );
-  }
-
   export function getStepAnalysisCachePath(projectId: string, stageKey: string) {
     return resolve(
       process.cwd(),

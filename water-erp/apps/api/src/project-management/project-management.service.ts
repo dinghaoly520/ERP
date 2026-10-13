@@ -14,7 +14,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
 import { htmlToDocxChildren } from './docx/html-to-docx.converter';
-import { getTenderTextCachePath, isLabelLine, isTenderMainFile, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getComplianceCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff } from './docx/file-utils';
+import { getTenderTextCachePath, isLabelLine, isTenderMainFile, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff } from './docx/file-utils';
 import { parseArchiveTxt } from './docx/archive-txt-parser';
 import { decodeXmlText, extractPlainText, applyTextToParagraphXml } from './docx/paragraph-xml';
 import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText } from './docx/field-extractor';
@@ -4790,143 +4790,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return { summary };
   }
 
-  async auditStageCompliance(projectId: string, stageKey?: string, force = false) {
-    const project = await this.prisma.projectManagementItem.findUnique({
-      where: { id: projectId },
-      include: {
-        stages: {
-          orderBy: { stageOrder: 'asc' },
-          include: { attachments: true },
-        },
-      },
-    });
-
-    if (!project) {
-      throw new NotFoundException('未找到对应项目。');
-    }
-
-    const targetStage = stageKey
-      ? project.stages.find((s) => s.stageKey === stageKey) ?? project.stages[0]
-      : project.stages[0];
-
-    if (!targetStage) {
-      throw new NotFoundException('未找到项目阶段。');
-    }
-
-    // 检查合规审查缓存：指纹匹配时直接返回
-    const complianceCachePath = getComplianceCachePath(projectId, targetStage.stageKey);
-
-    // 步骤分析 fingerprint（供应商邀请/专家抽取）：名单变更 → 合规缓存失效
-    let stepFingerprint = '';
-    if (targetStage.stageKey === 'SUPPLIER_INVITATION' || targetStage.stageKey === 'EXPERT_SELECTION') {
-      const rosterRaw = targetStage.stageKey === 'EXPERT_SELECTION'
-        ? (project.expertInfo ?? '').trim()
-        : (project.invitedSuppliers ?? '').trim();
-      if (rosterRaw) {
-        stepFingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
-      }
-    }
-    const fingerprint = buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments) + (stepFingerprint ? `|step:${stepFingerprint}` : '');
-    if (!force) {
-      try {
-        const cached = JSON.parse(await readFile(complianceCachePath, 'utf8')) as {
-          fingerprint?: string;
-          results?: unknown;
-          summary?: string;
-        };
-        if (cached.fingerprint === fingerprint && cached.results && cached.summary) {
-          // 兜底：历史缓存可能含 U+FFFD 乱码（修复前写入），返回前剔除，绝不让 � 落到前端
-          const strip = (s: string) => s.replace(/�/g, '').replace(/[\uDC00-\uDFFF]/g, '');
-          const results = Array.isArray(cached.results)
-            ? cached.results.map((r: any) => ({
-                ...r,
-                evidence: strip(String(r?.evidence ?? '')),
-                suggestion: strip(String(r?.suggestion ?? '')),
-              }))
-            : cached.results;
-          return { results, summary: strip(cached.summary) };
-        }
-      } catch {
-        // 缓存不存在或无效，继续调用 AI
-      }
-    }
-
-    // 加载该阶段的合规审查规则
-    // C4：DB 覆盖层优先，空则回退内置表（消费口径不变，仍为 checkpoints 数组）
-    const { checkpoints } = await this.stageCompliance.getRules(targetStage.stageKey);
-
-    // 收集当前阶段的文件分析结果（如果有缓存）
-    const stageFiles: Array<{ fileName: string; stageMatch: string; contentSummary: string }> = [];
-    if (targetStage.attachments.length > 0) {
-      const cachePath = getStageAnalysisCachePath(projectId, targetStage.stageKey);
-      try {
-        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
-          files?: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>;
-        };
-        if (Array.isArray(cached.files)) {
-          stageFiles.push(...cached.files.map(f => ({
-            fileName: f.fileName,
-            stageMatch: f.stageMatch,
-            contentSummary: f.contentSummary,
-          })));
-        }
-      } catch {
-        // 无缓存时使用附件列表
-        stageFiles.push(...targetStage.attachments.map(a => ({
-          fileName: a.fileName,
-          stageMatch: '未分析',
-          contentSummary: '暂未进行AI文件分析',
-        })));
-      }
-    }
-
-    // 步骤分析内容（供应商邀请/专家抽取阶段，从缓存读取，作为合规审查补充上下文）
-    let stepAnalysisContent: string | undefined;
-    if (targetStage.stageKey === 'SUPPLIER_INVITATION' || targetStage.stageKey === 'EXPERT_SELECTION') {
-      try {
-        const stepCache = JSON.parse(await readFile(getStepAnalysisCachePath(projectId, targetStage.stageKey), 'utf8')) as { content?: string };
-        if (stepCache.content?.trim()) {
-          stepAnalysisContent = stepCache.content.trim();
-        }
-      } catch {
-        // 步骤分析未生成/缓存不存在，跳过
-      }
-    }
-
-    const result = await this.aiService.auditStageCompliance({
-      stageKey: targetStage.stageKey,
-      stageName: targetStage.stageName,
-      checkpoints,
-      project: {
-        title: project.title,
-        requesterName: project.requesterName,
-        requesterDepartment: project.requesterDepartment,
-        procurementMethod: project.procurementMethod || '',
-        procurementCategory: project.procurementCategory || '',
-        currentStage: project.currentStage || '',
-        projectReason: project.projectReason || '',
-        supplierRequirements: project.supplierRequirements || '',
-        budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
-        contractAmount: project.contractAmount ? Number(project.contractAmount) : undefined,
-        awardedSupplier: project.awardedSupplier || undefined,
-        expertInfo: project.expertInfo || undefined,
-        biddingUnits: project.biddingUnits || undefined,
-      },
-      files: stageFiles,
-      stepAnalysis: stepAnalysisContent,
-    });
-
-    // 写入合规审查缓存（含指纹）
-    await mkdir(getUploadDir(), { recursive: true });
-    await writeFile(
-      complianceCachePath,
-      JSON.stringify({ fingerprint, results: result.results, summary: result.summary }, null, 2),
-      'utf8',
-    );
-
-    return result;
-  }
-
   /**
    * 步骤分析：为指定阶段生成「过程综述 + 关键事实」叙述段落（2026-10-13 起覆盖全部 8 阶段，
    * 并兼并原「阶段合规审查」的展示职责——本面板仅此一个分析视图）。
@@ -5061,8 +4924,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return { content: '', empty: true };
     }
 
-    // fingerprint = 阶段数据原文 hash（数据变更即失效）
-    const fingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
+    // 合规审查要点（2026-10-13 并入步骤分析，用户裁定）：原「阶段合规审查」区块下线后，
+    // 规则库（DB 覆盖层 → 内置表兜底）改由步骤分析消费——第三段对照核对
+    const { checkpoints } = await this.stageCompliance.getRules(stageKey);
+
+    // fingerprint = 阶段数据原文 + 审查要点 hash（数据或规则任一变更即失效；
+    // 要点并入 fingerprint 使本次改版后旧两段式缓存自然失效重生成）
+    const fingerprint = createHash('sha256')
+      .update(`${rosterRaw}|rules:${JSON.stringify(checkpoints)}`)
+      .digest('hex')
+      .slice(0, 16);
 
     // 读缓存
     const cachePath = getStepAnalysisCachePath(projectId, stageKey);
@@ -5077,17 +4948,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // 构建 LLM prompt（阶段要点由元数据字典驱动）
+    // 构建 LLM prompt（阶段要点由元数据字典驱动；有合规要点时追加第三段核对要求）
+    const hasCheckpoints = checkpoints.length > 0;
+    const checkpointsText = checkpoints
+      .map((c, i) => `${i + 1}. 【${c.dimension}】${c.name}：${c.criteria}（依据：${c.regulationRef}）`)
+      .join('\n');
+
     const systemPrompt = [
       '你是四川省水利发展集团有限公司招采ERP的 AI 采购步骤分析助手。请根据提供的项目信息与本阶段实际数据，',
       `生成一段描述「${meta.label}」步骤开展情况的分析文字。本阶段分析要点：${meta.focus}。`,
       '',
       '输出要求：',
-      '1. 分为两段自然语言段落（用空行分隔），不要使用标题、编号或 Markdown 格式。',
+      `1. 分为${hasCheckpoints ? '三' : '两'}段自然语言段落（用空行分隔），不要使用标题、编号或 Markdown 格式。`,
       `2. 第一段「过程综述」：围绕${meta.label}阶段的实际数据描述该步骤如何开展（${isExpert ? '专家抽取涵盖专业配额/随机抽取或智能抽取/回避原则/需求方代表等' : '结合提供的项目字段、时间、状态与材料事实'}）。`,
       '3. 第二段直接逐项陈述关键对象与结果，首词即事实本身——严禁任何引导句开头（如「关键事实如下：」「本阶段关键事实包括：」「主要情况：」等），也不得输出「、」等残留列表符（名单类逐家说明：供应商含确认状态，专家含姓名/部门/专业/职称；结果类含成交供应商与金额等）。',
-      '4. 只描述提供数据中的事实，不得编造未提供的内容。',
-      '5. 总字数控制在 200-400 字。',
+      ...(hasCheckpoints ? [
+        '4. 第三段对照「合规审查要点」逐项核对：只点名存在疑点、材料缺失或与要点冲突的项，说明问题并各给一句整改建议（括注对应法规依据简称）；全部未见异常时用一句话概括已核对 N 项要点未见异常。本段同样严禁引导句开头；信息不足以印证的要点按「未见相关材料」如实点名，不得推定满足。',
+      ] : []),
+      `${hasCheckpoints ? '5' : '4'}. 只描述提供数据中的事实，不得编造未提供的内容。`,
+      `${hasCheckpoints ? '6' : '5'}. 总字数控制在 ${hasCheckpoints ? '250-500' : '200-400'} 字。`,
     ].join('\n');
 
     // 解析专家名单（pipe 分隔 → 可读文本）
@@ -5111,6 +4990,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       '',
       `=== 最终名单数据 ===`,
       rosterText,
+      ...(hasCheckpoints ? ['', '=== 合规审查要点（第三段逐项核对用） ===', checkpointsText] : []),
     ].join('\n');
 
     let content = await this.aiService.chat(systemPrompt, userPrompt, 0.4);
