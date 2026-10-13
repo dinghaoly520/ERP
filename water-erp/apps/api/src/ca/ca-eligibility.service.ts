@@ -66,8 +66,8 @@ export class CaEligibilityService {
       throw new ConflictException({
         error: `存在在途业务（${affectedItems.length} 项待办），须先完成后再切换证书`,
         code: 'CERT_DEPENDENCIES_PENDING',
-        // details 白名单：HttpExceptionFilter 需扩展（Task 8 内）
-      });
+        affectedItems, // I6 修复：附到响应体（filter details 白名单已扩）
+      } as any);
     }
   }
 }

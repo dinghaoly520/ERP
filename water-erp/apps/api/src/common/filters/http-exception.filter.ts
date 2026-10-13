@@ -181,6 +181,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
           message = obj.error;
           if (Array.isArray(obj.itemIds)) extra.itemIds = obj.itemIds;
           if (Array.isArray(obj.items)) extra.items = obj.items;
+          // I6 修复（SCCA 阶段1）：CA 资格/在途门禁的阻塞清单与受限动作白名单透传
+          if (Array.isArray(obj.affectedItems)) extra.affectedItems = obj.affectedItems;
+          if (Array.isArray(obj.allowedActions)) extra.allowedActions = obj.allowedActions;
+          if (typeof obj.expectedFingerprint === 'string') extra.expectedFingerprint = obj.expectedFingerprint;
         // class-validator 校验错误数组：{ message: string[], error: 'Bad Request' }
         // 注意必须先于下方 object 分支判断 —— typeof 数组 === 'object'，
         // 否则数组被当 nested 对象吞掉，只剩 exception.message（'Bad Request Exception'）
