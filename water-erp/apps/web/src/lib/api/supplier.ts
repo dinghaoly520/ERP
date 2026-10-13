@@ -335,9 +335,24 @@ export function getQualifications(id: string) {
   return api.get<SupplierQualification[]>(`/supplier/${id}/qualifications`);
 }
 
-// 评价记录列表
+// 评价记录列表（关联项目附项目名）
 export function getSupplierEvaluations(id: string) {
   return api.get<SupplierEvaluation[]>(`/supplier/${id}/evaluations`);
+}
+
+// 供应商真实参评项目（BidSupplier 实数据 + 评标结果对照；评价「关联项目」下拉数据源）
+export interface SupplierEvaluationProject {
+  projectId: string;
+  project: { id: string; name: string; stage: string; procurementMethod: string; openTime: string; deadline: string };
+  downloadStatus: string;
+  submitStatus: string;
+  decryptStatus: string;
+  confirmStatus: string;
+  result: { rank: number; recommended: boolean; disqualified: boolean; bidPrice: number | null; generatedAt: string } | null;
+}
+
+export function getSupplierEvaluationProjects(id: string) {
+  return api.get<SupplierEvaluationProject[]>(`/supplier/${id}/evaluation-projects`);
 }
 
 // 发起评价

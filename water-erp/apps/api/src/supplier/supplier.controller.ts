@@ -600,9 +600,16 @@ export class SupplierController {
     return this.supplierService.deleteQualification(id, qid);
   }
 
+  @Get(':id/evaluation-projects')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '供应商真实参评项目列表（BidSupplier 实数据 + 评标结果对照；评价「关联项目」下拉数据源）' })
+  async listEvaluationProjects(@Param('id') id: string) {
+    return this.supplierService.listEvaluationProjects(id);
+  }
+
   @Get(':id/evaluations')
   @Roles('admin', 'leader', 'staff') // 补角色白名单，防 bid_expert/mall 读他企评价
-  @ApiOperation({ summary: '评价记录列表' })
+  @ApiOperation({ summary: '评价记录列表（关联项目附项目名）' })
   async listEvaluations(@Param('id') id: string) {
     return this.supplierService.listEvaluations(id);
   }

@@ -547,6 +547,8 @@ export interface SupplierEvaluation {
   comment?: string;
   createdAt: string;
   evaluator?: { id: string; displayName: string };
+  /** 关联项目（裸列手工补齐：listEvaluations 附带；null=通用评价/项目已删） */
+  project?: { id: string; name: string; stage?: string } | null;
 }
 
 export interface SupplierChangeRecord {

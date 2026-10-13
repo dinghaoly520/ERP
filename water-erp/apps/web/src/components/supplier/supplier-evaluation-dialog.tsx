@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { getSupplierEvaluationAnalysis, getSupplierEvaluations, createEvaluation } from '@/lib/api/supplier';
-import type { DimensionAnalysis, EvaluationAnalysisResult } from '@/lib/api/supplier';
+import { getSupplierEvaluationAnalysis, getSupplierEvaluations, createEvaluation, getSupplierEvaluationProjects } from '@/lib/api/supplier';
+import type { DimensionAnalysis, EvaluationAnalysisResult, SupplierEvaluationProject } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation } from '@/lib/types';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { Sparkles, Loader2, Brain } from 'lucide-react';
-import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
+import { LEVEL_LABEL, LEVEL_COLOR, STAGE_LABEL } from '@water-erp/shared';
 
 const GRADES = ['A', 'B', 'C', 'D', 'E'] as const;
 
@@ -62,12 +62,21 @@ export function SupplierEvaluationDialog({
   const [aiResult, setAiResult] = useState<EvaluationAnalysisResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  // 关联项目（真实参评，独立端点实时拉取；''=不关联·通用评价）
+  const [projectId, setProjectId] = useState('');
+  const [evalProjects, setEvalProjects] = useState<SupplierEvaluationProject[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
 
-  // supplier 变化时重置 + 拉历史
+  // supplier 变化时重置 + 拉历史 + 拉真实参评项目
   useEffect(() => {
-    if (!supplier) { setHistory([]); setGrades(DEFAULTS); setEvidence({}); setComment(''); setAiResult(null); setAiError(''); return; }
-    setGrades(DEFAULTS); setEvidence({}); setComment(''); setAiResult(null); setAiError('');
+    if (!supplier) { setHistory([]); setGrades(DEFAULTS); setEvidence({}); setComment(''); setAiResult(null); setAiError(''); setProjectId(''); setEvalProjects([]); return; }
+    setGrades(DEFAULTS); setEvidence({}); setComment(''); setAiResult(null); setAiError(''); setProjectId('');
     getSupplierEvaluations(supplier.id).then(setHistory).catch(() => setHistory([]));
+    setProjectsLoading(true);
+    getSupplierEvaluationProjects(supplier.id)
+      .then(setEvalProjects)
+      .catch(() => setEvalProjects([]))
+      .finally(() => setProjectsLoading(false));
   }, [supplier]);
 
   if (!supplier) return null;
@@ -110,7 +119,7 @@ export function SupplierEvaluationDialog({
     if (!hasAnyGrade) { toast.error('请至少为各维度选择等级后再提交'); return; }
     setSaving(true);
     try {
-      await createEvaluation(supplier.id, { ...grades, comment: comment || undefined, evidence });
+      await createEvaluation(supplier.id, { ...grades, projectId: projectId || undefined, comment: comment || undefined, evidence });
       toast.success('评价已提交');
       setHistory(await getSupplierEvaluations(supplier.id));
       onSubmitted?.();
@@ -135,6 +144,30 @@ export function SupplierEvaluationDialog({
         </div>
       }
     >
+      {/* 关联项目（真实参评；可选——不关联即通用评价） */}
+      <div>
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
+          关联项目 <span className="text-[10px] font-normal">（可选：项目关联评价将校验该供应商的真实参评记录）</span>
+        </span>
+        {projectsLoading ? (
+          <div className="flex items-center gap-2 py-1.5 text-xs text-[var(--muted-foreground)]">
+            <Loader2 size={12} className="animate-spin" /> 正在载入该供应商的真实参评项目…
+          </div>
+        ) : evalProjects.length === 0 ? (
+          <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_6%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">该供应商暂无投标参评项目，本次将作为通用评价提交</div>
+        ) : (
+          <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm w-full">
+            <option value="">不关联（通用评价）</option>
+            {evalProjects.map(p => (
+              <option key={p.projectId} value={p.projectId}>
+                {p.project.name}（{STAGE_LABEL[p.project.stage] ?? p.project.stage} · {p.submitStatus}
+                {p.result ? ` · 第${p.result.rank}名${p.result.recommended ? ' · 中标候选' : p.result.disqualified ? ' · 废标' : ''}` : ''}）
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
       {/* AI 状态栏 */}
       <div className="flex items-center gap-3 rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -253,6 +286,14 @@ export function SupplierEvaluationDialog({
                     <div className="flex items-center gap-2">
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[fg] }}>{fg}</span>
                       <StatusBadge tone={tone}>{LEVEL_LABEL[fg]}</StatusBadge>
+                      {ev.project?.name && (
+                        <span
+                          className="max-w-[180px] truncate rounded-md bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]"
+                          title={ev.project.stage ? `关联项目（${STAGE_LABEL[ev.project.stage] ?? ev.project.stage}）` : '关联项目'}
+                        >
+                          {ev.project.name}
+                        </span>
+                      )}
                       <span className="text-[var(--muted-foreground)]">{ev.evaluator?.displayName || '—'}</span>
                       <span className="ml-auto text-[var(--muted-foreground)]">{new Date(ev.createdAt).toLocaleDateString('zh-CN')}</span>
                     </div>

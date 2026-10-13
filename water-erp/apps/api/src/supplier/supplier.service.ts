@@ -2243,12 +2243,63 @@ export class SupplierService {
   }
 
   async listEvaluations(supplierId: string) {
-    return this.prisma.supplierEvaluation.findMany({
+    const evaluations = await this.prisma.supplierEvaluation.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
       include: {
         evaluator: { select: { id: true, displayName: true } },
       },
+    });
+    // SupplierEvaluation.projectId 为裸列（无 @relation），手工补项目名供前端历史展示
+    const projectIds = [...new Set(evaluations.map(e => e.projectId).filter((p): p is string => !!p))];
+    const projects = projectIds.length > 0
+      ? await this.prisma.bidProject.findMany({ where: { id: { in: projectIds } }, select: { id: true, name: true, stage: true } })
+      : [];
+    const projectById = new Map(projects.map(p => [p.id, p]));
+    return evaluations.map(e => ({ ...e, project: e.projectId ? projectById.get(e.projectId) ?? null : null }));
+  }
+
+  /**
+   * 供应商真实参评项目列表（BidSupplier 实数据 + 评标结果对照；评价「关联项目」下拉数据源）。
+   * 评标结果按 BidSupplier.id 匹配（与 generateEvaluationResults 写入口径一致）。
+   */
+  async listEvaluationProjects(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true } });
+    if (!supplier) throw new NotFoundException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    const bids = await this.prisma.bidSupplier.findMany({
+      where: { supplierId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, projectId: true, downloadStatus: true, submitStatus: true, decryptStatus: true, confirmStatus: true,
+        project: { select: { id: true, name: true, stage: true, procurementMethod: true, openTime: true, deadline: true } },
+      },
+    });
+    const results = bids.length > 0
+      ? await this.prisma.bidEvaluationResult.findMany({
+        where: { supplierId: { in: bids.map(b => b.id) } },
+        select: { supplierId: true, rank: true, recommended: true, disqualified: true, bidPrice: true, generatedAt: true },
+      })
+      : [];
+    const resultByBid = new Map(results.map(r => [r.supplierId, r]));
+    return bids.map(b => {
+      const r = resultByBid.get(b.id);
+      return {
+        projectId: b.projectId,
+        project: b.project,
+        downloadStatus: b.downloadStatus,
+        submitStatus: b.submitStatus,
+        decryptStatus: b.decryptStatus,
+        confirmStatus: b.confirmStatus,
+        result: r
+          ? {
+            rank: r.rank,
+            recommended: r.recommended,
+            disqualified: r.disqualified,
+            bidPrice: r.bidPrice != null ? Number(r.bidPrice) : null,
+            generatedAt: r.generatedAt,
+          }
+          : null,
+      };
     });
   }
 
@@ -2268,6 +2319,15 @@ export class SupplierService {
     }
     if (supplier.status !== 'APPROVED') {
       throw new BadRequestException({ error: '只能评价已入库供应商', code: 'INVALID_STATUS' });
+    }
+
+    // 关联项目校验：projectId 非空时项目须真实存在、且该供应商确实参与过（有 BidSupplier 记录），
+    // 防虚构项目/未参与项目写评价污染画像、淘汰预警与统计下游（对齐专家评价 EXPERT_NOT_ON_PROJECT 口径）。
+    if (dto.projectId) {
+      const project = await this.prisma.bidProject.findUnique({ where: { id: dto.projectId }, select: { id: true } });
+      if (!project) throw new BadRequestException({ error: '评价关联的项目不存在', code: 'PROJECT_NOT_FOUND' });
+      const bid = await this.prisma.bidSupplier.findFirst({ where: { projectId: dto.projectId, supplierId }, select: { id: true } });
+      if (!bid) throw new BadRequestException({ error: '该供应商未参与此项目，不能对其发起项目关联评价', code: 'SUPPLIER_NOT_ON_PROJECT' });
     }
 
     // 同一评价人对同一供应商（+同一项目）已评价过则拒绝，防刷分触发误淘汰。
