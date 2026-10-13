@@ -67,16 +67,20 @@ export function SupplierEvaluationDialog({
   const [evalProjects, setEvalProjects] = useState<SupplierEvaluationProject[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
 
-  // supplier 变化时重置 + 拉历史 + 拉真实参评项目
+  // supplier 变化时重置 + 拉历史 + 拉真实参评项目（取消保护：防前一请求后到盖旧数据进新对象下拉）
   useEffect(() => {
     if (!supplier) { setHistory([]); setGrades(DEFAULTS); setEvidence({}); setComment(''); setAiResult(null); setAiError(''); setProjectId(''); setEvalProjects([]); return; }
     setGrades(DEFAULTS); setEvidence({}); setComment(''); setAiResult(null); setAiError(''); setProjectId('');
-    getSupplierEvaluations(supplier.id).then(setHistory).catch(() => setHistory([]));
+    let cancelled = false;
+    getSupplierEvaluations(supplier.id)
+      .then(list => { if (!cancelled) setHistory(list); })
+      .catch(() => { if (!cancelled) setHistory([]); });
     setProjectsLoading(true);
     getSupplierEvaluationProjects(supplier.id)
-      .then(setEvalProjects)
-      .catch(() => setEvalProjects([]))
-      .finally(() => setProjectsLoading(false));
+      .then(list => { if (!cancelled) setEvalProjects(list); })
+      .catch(() => { if (!cancelled) setEvalProjects([]); })
+      .finally(() => { if (!cancelled) setProjectsLoading(false); });
+    return () => { cancelled = true; };
   }, [supplier]);
 
   if (!supplier) return null;

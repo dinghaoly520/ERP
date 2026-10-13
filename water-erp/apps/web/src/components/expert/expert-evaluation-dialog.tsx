@@ -92,8 +92,15 @@ export function ExpertEvaluationDialog({
     setAiEngine('ai');
     setProjects([]);
     setProjectsError('');
+    setProjectsLoading(true);
     setResultOpen(false);
-    loadProjects(expert.id);
+    // 取消保护：快速切换专家时，前一请求后到不得把旧数据盖进新对象的下拉
+    let cancelled = false;
+    getEvaluationProjects(expert.id)
+      .then(list => { if (!cancelled) setProjects(list); })
+      .catch((e: { message?: string }) => { if (!cancelled) setProjectsError(e?.message || '参评项目加载失败'); })
+      .finally(() => { if (!cancelled) setProjectsLoading(false); });
+    return () => { cancelled = true; };
   }, [expert]);
 
   if (!expert) return null;
