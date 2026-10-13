@@ -4,6 +4,7 @@
    登录场景 subjectId 初始 null → COMMITTED 时写入。
    ================================================================= */
 import { PrismaClient } from '@prisma/client';
+import { ConflictException } from '@nestjs/common';
 import { CA_OP_STATUS } from './ca-operation';
 
 export class CaOperationService {
@@ -37,6 +38,18 @@ export class CaOperationService {
         result: result as any,
         ...(subjectId !== undefined ? { subjectId } : {}),
       },
+    });
+  }
+
+  /** Task3：冻结签名原文到 operation（PREPARED/VERIFYING 阶段可覆盖，COMMITTED 后不可变） */
+  async attachPayload(id: string, canonical: string, sha256: string): Promise<void> {
+    const op = await this.prisma.caOperation.findUnique({ where: { id } });
+    if (!op || op.status === 'COMMITTED') {
+      throw new ConflictException({ error: '操作不存在或已提交', code: 'OPERATION_STATE_INVALID' });
+    }
+    await this.prisma.caOperation.update({
+      where: { id },
+      data: { result: { canonical, canonicalSha256: sha256 } as any, status: 'PAYLOAD_READY' },
     });
   }
 
