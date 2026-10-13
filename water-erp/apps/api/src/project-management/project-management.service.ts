@@ -4791,20 +4791,24 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
-   * 步骤分析：为指定阶段生成「过程综述 + 关键事实」叙述段落（2026-10-13 起覆盖全部 8 阶段，
-   * 并兼并原「阶段合规审查」的展示职责——本面板仅此一个分析视图）。
-   * 数据源按阶段取真实链路：名单类取 RSVP/专家快照、评标定标取 BidProject、其余取 PMI 字段+附件。
+   * 步骤分析：为指定阶段生成「过程综述 + 关键事实 + 合规核对」叙述段落（2026-10-13 起覆盖
+   * 全部阶段键——含公告公示/直接采购备案，并兼并原「阶段合规审查」的展示职责）。
+   * 数据面（充分性要求）：①各阶段结构化事实（名单/评审/成交，各取真实链路）②按钮窗口留痕
+   * （阶段备注含豁免理由、正式文件选择、抽取方式审计、公告发布、多轮记录）③阶段材料内容摘要
+   * （文件分析缓存，未分析降级文件名）——审批充分性由第三段对照审查要点核材料判定。
    */
   /** 步骤分析阶段元数据：每阶段的分析要点（按各阶段实际情况定制） */
   private static readonly STAGE_ANALYSIS_META: Record<string, { label: string; focus: string }> = {
     PROCUREMENT_DEMAND: { label: '采购需求', focus: '需求来源与内容（需求申请要点、提出部门与经办人、预算规模与资金性质）' },
     INITIATION: { label: '采购立项', focus: '立项事由与审批（立项依据、供方要求、预算审定）' },
     TENDER_DOCUMENT: { label: '采购文件', focus: '采购文件编制（文件构成、资格与评审要点、采购组织形式与计价方式）' },
+    PUBLIC_ANNOUNCEMENT: { label: '采购公告公示', focus: '公告发布与公示（公告类型与发布时间、公示期、参与供应商情况）' },
     SUPPLIER_INVITATION: { label: '供应商邀请', focus: '邀请过程与名单（选取方式、逐家确认状态）' },
     EXPERT_SELECTION: { label: '专家抽取', focus: '抽取过程与名单（配额/随机/回避原则、专家信息）' },
-    BID_EVALUATION: { label: '开标评标', focus: '开评标过程（开标时间、参评供应商与评审结果）' },
+    BID_EVALUATION: { label: '开标评标', focus: '开评标过程（开标时间、参评供应商、多轮报价与评审结果）' },
     AWARD_DECISION: { label: '定标', focus: '定标结果（成交供应商、成交金额、定标依据）' },
     CONTRACT: { label: '合同', focus: '合同签订（合同编号、合同金额、与定标结果一致性）' },
+    DIRECT_PURCHASE_FILING: { label: '直接采购备案表', focus: '直接采购备案（直接采购理由、备案要件与审批齐全性）' },
   };
 
   async analyzeStep(projectId: string, stageKey: string, forceRefresh = false): Promise<{ content: string; empty: boolean }> {
@@ -4813,27 +4817,72 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('未知的项目阶段。');
     }
 
+    // 全轮次阶段行（多轮谈判一轮一行）：完成判定、备注/豁免理由、正式文件选择留痕都挂在行上
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      include: { stages: { where: { stageKey }, select: { status: true, attachments: { select: { fileName: true } } } } },
+      include: {
+        stages: {
+          where: { stageKey },
+          orderBy: { round: 'asc' },
+          select: {
+            status: true, round: true, note: true, completedAt: true,
+            officialTenderConfirmedAt: true, officialTenderAttachment: { select: { fileName: true } },
+            attachments: { select: { fileName: true, objectKey: true } },
+          },
+        },
+      },
     });
 
     if (!project) {
       throw new NotFoundException('未找到对应项目。');
     }
+    const stageRows = project.stages;
+    const stageRow = stageRows[stageRows.length - 1]; // 最新轮次行为完成判定行
     // 步骤分析仅对已完成阶段开放（与前端闸门一致，防直调 API 绕过）：进行中/待解锁数据未定型
-    if (project.stages[0]?.status !== 'COMPLETED') {
+    if (!stageRow || stageRow.status !== 'COMPLETED') {
       return { content: '', empty: true };
     }
-    const attachmentNames = (project.stages[0]?.attachments ?? []).map((a) => a.fileName);
+    const attachments = stageRow.attachments ?? [];
+    const fmtTime = (d: Date) => d.toISOString().slice(0, 16).replace('T', ' ');
+
+    /* ── 按钮窗口留痕（2026-10-13 充分性要求）：弹窗/面板里的行为、选择与结果 ── */
+    const traceParts: string[] = [];
+    const roundStatus: Record<string, string> = { NOT_STARTED: '未开始', IN_PROGRESS: '进行中', COMPLETED: '已完成' };
+    if (stageRows.length > 1) {
+      traceParts.push(`轮次记录：${stageRows.map(s => `第${s.round}轮${roundStatus[s.status] ?? s.status}${s.note?.trim() ? `（备注：${s.note.trim().slice(0, 120)}）` : ''}`).join('；')}`);
+    }
+    // 阶段备注 = updateStage 落列的说明文字，归档豁免理由（waiveArchiveGate）也经此留痕
+    if (stageRow.note?.trim()) traceParts.push(`阶段备注（含豁免理由）：${stageRow.note.trim().slice(0, 300)}`);
+    if (stageRow.completedAt) traceParts.push(`本阶段完成时间：${fmtTime(stageRow.completedAt)}`);
+    if (stageRow.officialTenderConfirmedAt) {
+      traceParts.push(`正式盖章版采购文件：${stageRow.officialTenderAttachment?.fileName ?? '（原附件已删除）'}（确认于 ${fmtTime(stageRow.officialTenderConfirmedAt)}）`);
+    }
 
     // 按阶段构建分析数据（各取真实链路）
     const isExpert = stageKey === 'EXPERT_SELECTION';
-    let rosterRaw = '';
+    const parts: string[] = [];
+    let expertRosterRaw = '';
     const stageContext = `当前阶段：${meta.label}（${stageKey}）。采购方式：${project.procurementMethod || '未知'}。`;
 
     if (isExpert) {
-      rosterRaw = (project.expertInfo ?? '').trim();
+      expertRosterRaw = (project.expertInfo ?? '').trim();
+      // 抽取行为留痕：最近一次确认审计（方式/候选池/命中数；resourceId 是 BidProject id 空间）
+      const bpIds = await this.prisma.bidProject.findMany({
+        where: { projectManagementItemId: projectId },
+        select: { id: true },
+      });
+      const audit = bpIds.length > 0
+        ? await this.prisma.auditLog.findFirst({
+            where: { action: 'EXPERT_EXTRACTION_CONFIRMED', resourceId: { in: bpIds.map((b) => b.id) } },
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true, details: true },
+          })
+        : null;
+      if (audit) {
+        const d = (audit.details ?? {}) as { extractMode?: string | null; poolUserIds?: unknown[]; drawnUserIds?: unknown[] };
+        const modeLabel: Record<string, string> = { specialty_match: '专业匹配', random: '随机抽取', merit_best: '择优抽取' };
+        traceParts.push(`抽取确认：${fmtTime(audit.createdAt)}，方式=${d.extractMode ? (modeLabel[d.extractMode] ?? d.extractMode) : '未记录'}，候选池 ${d.poolUserIds?.length ?? 0} 人、正选命中 ${d.drawnUserIds?.length ?? 0} 人`);
+      }
     } else if (stageKey === 'SUPPLIER_INVITATION') {
       // 供应商邀请：invitedSuppliers 快照字段由邀请通知发送时累计写入（ai.service 2026-09-01 补链）；
       // 存量/直改数据可能仍空 → 兜底改用 InvitationRsvp 真实链路数据（通知名单 + 逐家确认状态，
@@ -4847,10 +4896,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
         orderBy: { createdAt: 'asc' },
         select: { supplierName: true, status: true, note: true },
       });
-      const statusLabel: Record<string, string> = { ACCEPTED: '已确认参加', DECLINED: '已放弃', PENDING: '待确认' };
-      rosterRaw = rsvps
-        .map((r) => `${r.supplierName}（${statusLabel[r.status] ?? r.status}${r.note ? `；备注：${r.note}` : ''}）`)
-        .join('、');
+      const rsvpLabel: Record<string, string> = { ACCEPTED: '已确认参加', DECLINED: '已放弃', PENDING: '待确认' };
+      if (rsvps.length > 0) {
+        parts.push(`邀请与回执：${rsvps.map((r) => `${r.supplierName}（${rsvpLabel[r.status] ?? r.status}${r.note ? `；备注：${r.note}` : ''}）`).join('、')}`);
+      } else if (project.invitedSuppliers?.trim()) {
+        parts.push(`邀请名单（快照）：${project.invitedSuppliers.trim().slice(0, 300)}`);
+      }
     } else if (stageKey === 'BID_EVALUATION' || stageKey === 'AWARD_DECISION') {
       // 开评标/定标：BidProject 及其评审/成交数据
       const bp = await this.prisma.bidProject.findFirst({
@@ -4860,25 +4911,36 @@ ${JSON.stringify(algorithmResult, null, 2)}
           id: true, stage: true, openTime: true, deadline: true, evaluationMethod: true,
         },
       });
-      const parts: string[] = [];
       if (bp) {
         const stageLabel: Record<string, string> = { DOWNLOAD: '标书下载', SUBMIT: '投标递交', OPENING: '开标中', EVALUATING: '评标中', ARCHIVED: '已归档' };
         parts.push(`招标项目当前状态：${stageLabel[bp.stage] ?? bp.stage}`);
-        if (bp.openTime) parts.push(`开标时间：${bp.openTime.toISOString().slice(0, 16).replace('T', ' ')}`);
-        if (bp.deadline) parts.push(`截标时间：${bp.deadline.toISOString().slice(0, 16).replace('T', ' ')}`);
+        if (bp.openTime) parts.push(`开标时间：${fmtTime(bp.openTime)}`);
+        if (bp.deadline) parts.push(`截标时间：${fmtTime(bp.deadline)}`);
         if (bp.evaluationMethod) parts.push(`评标办法：${bp.evaluationMethod}`);
-        // 参评供应商 + 评审得分排名（按分数降序）
-        const [bidSuppliers, evalResults] = await Promise.all([
+        // 参评供应商 + 评审得分排名（按分数降序）+ 多轮报价（谈判/竞价，最近一轮）
+        const [bidSuppliers, evalResults, roundRows] = await Promise.all([
           this.prisma.bidSupplier.findMany({ where: { projectId: bp.id }, select: { supplierName: true } }),
           this.prisma.bidEvaluationResult.findMany({
             where: { projectId: bp.id },
             orderBy: { totalScore: 'desc' },
             select: { supplierName: true, totalScore: true, averageScore: true, bidPrice: true },
           }),
+          this.prisma.bidRound.findMany({
+            where: { projectId: bp.id },
+            orderBy: { roundNo: 'desc' },
+            take: 1,
+            include: { quotes: { include: { bidSupplier: { select: { supplierName: true } } } } },
+          }),
         ]);
         if (bidSuppliers.length > 0) parts.push(`参评供应商：${bidSuppliers.map((s) => s.supplierName).join('、')}`);
         if (evalResults.length > 0) {
           parts.push(`评审结果（按总分降序）：${evalResults.map((r) => `${r.supplierName} ${Number(r.totalScore)}分${r.bidPrice != null ? `/报价${Number(r.bidPrice).toLocaleString('zh-CN')}元` : ''}`).join('、')}`);
+        }
+        const latestRound = roundRows[0];
+        if (latestRound) {
+          const roundTypeLabel: Record<string, string> = { negotiation: '谈判', final_quote: '最终报价', sealed_auction: '密封竞价' };
+          const opened = latestRound.quotes.filter((q) => q.status === 'opened');
+          parts.push(`多轮报价：进行至第${latestRound.roundNo}轮（${roundTypeLabel[latestRound.roundType] ?? latestRound.roundType}）${opened.length > 0 ? `，本轮已开封报价：${opened.map((q) => `${q.bidSupplier?.supplierName ?? '—'} ${Number(q.quotePrice).toLocaleString('zh-CN')}元`).join('、')}` : ''}`);
         }
       }
       if (stageKey === 'AWARD_DECISION') {
@@ -4886,10 +4948,28 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (project.contractAmount) parts.push(`成交金额：${Number(project.contractAmount).toLocaleString('zh-CN')} 元`);
         if (project.biddingUnits) parts.push(`中标单位：${project.biddingUnits}`);
       }
-      rosterRaw = parts.join('；');
+    } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
+      // 公告公示：本项目编号关联的全部公告（发布行为与公示期留痕）+ 参与供应商快照
+      if (project.projectCode) {
+        const anns = await this.prisma.announcement.findMany({
+          where: { relatedProjectCode: project.projectCode },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: { title: true, type: true, status: true, publishDate: true, publicityEnd: true },
+        });
+        const annTypeLabel: Record<string, string> = {
+          BID_NOTICE: '招标公告', ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '预成交公示',
+          WIN_NOTICE: '成交公告', CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履约结果公告',
+          FAILED_BID_NOTICE: '流标公告', WIN_BID_NOTICE: '中标公告', CLARIFY_NOTICE: '澄清修改公告',
+        };
+        if (anns.length > 0) {
+          parts.push(`已发布公告：${anns.map((a) => `《${a.title}》（${annTypeLabel[a.type] ?? a.type}/${a.status}${a.publishDate ? `，${fmtTime(a.publishDate)}发布` : ''}${a.publicityEnd ? `，公示至${fmtTime(a.publicityEnd)}` : ''}）`).join('；')}`);
+        }
+      }
+      if (project.invitedSuppliers?.trim()) parts.push(`登记的参与供应商：${project.invitedSuppliers.trim().slice(0, 300)}`);
+      if (project.projectOverview) parts.push(`采购概况：${project.projectOverview.slice(0, 300)}`);
     } else {
-      // 需求/立项/采购文件/合同：以 PMI 阶段相关字段 + 阶段附件文件名构成
-      const parts: string[] = [];
+      // 需求/立项/采购文件/合同/直接采购备案：以 PMI 阶段相关字段构成
       if (stageKey === 'PROCUREMENT_DEMAND') {
         if (project.demandProcurementTitle) parts.push(`需求事项：${project.demandProcurementTitle}`);
         if (project.demandRequesterName || project.demandDepartment) parts.push(`需求提出：${project.demandRequesterName ?? ''}${project.demandDepartment ? `（${project.demandDepartment}）` : ''}`);
@@ -4911,16 +4991,43 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (project.contractAmount) parts.push(`合同金额：${Number(project.contractAmount).toLocaleString('zh-CN')} 元`);
         if (project.awardedSupplier) parts.push(`签约供应商：${project.awardedSupplier}`);
       }
+      if (stageKey === 'DIRECT_PURCHASE_FILING') {
+        const bp = await this.prisma.bidProject.findFirst({
+          where: { projectManagementItemId: projectId },
+          orderBy: { createdAt: 'desc' },
+          select: { directSourcingReason: true },
+        });
+        if (bp?.directSourcingReason) parts.push(`直接采购理由：${bp.directSourcingReason.slice(0, 300)}`);
+      }
       if (project.budgetAmount && stageKey !== 'PROCUREMENT_DEMAND') parts.push(`预算金额：${Number(project.budgetAmount).toLocaleString('zh-CN')} 元`);
-      rosterRaw = parts.join('；');
     }
 
-    // 附件清单并入（各阶段通用事实材料）
-    if (attachmentNames.length > 0) {
-      rosterRaw += `${rosterRaw ? '；' : ''}本阶段归档材料：${attachmentNames.join('、')}`;
+    /* ── 阶段材料内容摘要（审批充分性的证据面）：读文件分析缓存（上传时自动生成）；
+       未分析/缺缓存时降级为文件名并显式标注——绝不臆造文件内容 ── */
+    const summaryByKey = new Map<string, { contentSummary?: string }>();
+    try {
+      const fileCache = JSON.parse(await readFile(getStageAnalysisCachePath(projectId, stageKey), 'utf8')) as {
+        files?: Array<{ objectKey?: string; fileName?: string; contentSummary?: string }>;
+      };
+      for (const f of fileCache.files ?? []) {
+        const key = f.objectKey ?? f.fileName;
+        if (key) summaryByKey.set(key, f);
+      }
+    } catch {
+      // 文件分析缓存不存在 → 走文件名降级
     }
+    const filesBlock = attachments.length > 0
+      ? attachments.map((a) => {
+          const c = summaryByKey.get(a.objectKey) ?? summaryByKey.get(a.fileName);
+          const summary = c?.contentSummary?.trim();
+          return `- ${a.fileName}：${summary ? summary.slice(0, 300) : '（未生成内容摘要，不得据此判断文件内容）'}`;
+        }).join('\n')
+      : '（本阶段未上传任何材料）';
 
-    if (!rosterRaw) {
+    const traceRaw = traceParts.join('；');
+    const stageFacts = isExpert ? expertRosterRaw : parts.join('；');
+    // 空数据判定放宽：无结构化字段但有材料/留痕（如纯上传审批件的阶段）同样可分析
+    if (!stageFacts && !traceRaw && attachments.length === 0) {
       return { content: '', empty: true };
     }
 
@@ -4928,10 +5035,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 规则库（DB 覆盖层 → 内置表兜底）改由步骤分析消费——第三段对照核对
     const { checkpoints } = await this.stageCompliance.getRules(stageKey);
 
-    // fingerprint = 阶段数据原文 + 审查要点 hash（数据或规则任一变更即失效；
-    // 要点并入 fingerprint 使本次改版后旧两段式缓存自然失效重生成）
+    // fingerprint = 过程数据 + 操作留痕 + 材料摘要 + 审查要点（任一变更即失效；
+    // 各维并入 fingerprint 使本次扩面后旧缓存自然失效重生成）
     const fingerprint = createHash('sha256')
-      .update(`${rosterRaw}|rules:${JSON.stringify(checkpoints)}`)
+      .update([stageFacts, traceRaw, filesBlock, `rules:${JSON.stringify(checkpoints)}`].filter(Boolean).join('\n|--|\n'))
       .digest('hex')
       .slice(0, 16);
 
@@ -4960,25 +5067,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
       '',
       '输出要求：',
       `1. 分为${hasCheckpoints ? '三' : '两'}段自然语言段落（用空行分隔），不要使用标题、编号或 Markdown 格式。`,
-      `2. 第一段「过程综述」：围绕${meta.label}阶段的实际数据描述该步骤如何开展（${isExpert ? '专家抽取涵盖专业配额/随机抽取或智能抽取/回避原则/需求方代表等' : '结合提供的项目字段、时间、状态与材料事实'}）。`,
+      `2. 第一段「过程综述」：围绕${meta.label}阶段的实际数据与操作留痕描述该步骤如何开展（${isExpert ? '专家抽取涵盖专业配额/随机抽取或智能抽取/回避原则/需求方代表等' : '结合提供的项目字段、时间、状态、操作留痕与材料事实'}）。`,
       '3. 第二段直接逐项陈述关键对象与结果，首词即事实本身——严禁任何引导句开头（如「关键事实如下：」「本阶段关键事实包括：」「主要情况：」等），也不得输出「、」等残留列表符（名单类逐家说明：供应商含确认状态，专家含姓名/部门/专业/职称；结果类含成交供应商与金额等）。',
       ...(hasCheckpoints ? [
-        '4. 第三段对照「合规审查要点」逐项核对：只点名存在疑点、材料缺失或与要点冲突的项，说明问题并各给一句整改建议（括注对应法规依据简称）；全部未见异常时用一句话概括已核对 N 项要点未见异常。本段同样严禁引导句开头；信息不足以印证的要点按「未见相关材料」如实点名，不得推定满足。',
+        '4. 第三段对照「合规审查要点」逐项核对，并评估本阶段材料（重点审批文件）的充分性：依据「本阶段材料」的内容摘要判断审批链是否覆盖该阶段要点——谁提出、谁审核批准、金额是否在相应审批权限内、签章与日期是否可辨。只点名存在疑点、材料缺失或与要点冲突的项，各给一句整改建议（括注法规依据简称）；全部正常时用一句话概括已核对 N 项要点及材料未见异常。本段同样严禁引导句开头；「未生成内容摘要」的文件不得臆造内容，信息不足以印证的要点按「未见相关材料」如实点名，不得推定满足。',
       ] : []),
       `${hasCheckpoints ? '5' : '4'}. 只描述提供数据中的事实，不得编造未提供的内容。`,
-      `${hasCheckpoints ? '6' : '5'}. 总字数控制在 ${hasCheckpoints ? '250-500' : '200-400'} 字。`,
+      `${hasCheckpoints ? '6' : '5'}. 总字数控制在 ${hasCheckpoints ? '300-600' : '200-400'} 字。`,
     ].join('\n');
 
     // 解析专家名单（pipe 分隔 → 可读文本）
     let rosterText: string;
     if (isExpert) {
-      const experts = rosterRaw.split('\n').filter(l => l.trim()).map(line => {
+      const experts = expertRosterRaw.split('\n').filter(l => l.trim()).map(line => {
         const p = line.split('|');
         return { name: p[0]?.trim() ?? '', dept: p[1]?.trim() ?? '', spec: p[2]?.trim() ?? '', title: p[3]?.trim() ?? '', role: p[4]?.trim() ?? '' };
       });
       rosterText = experts.map(e => `${e.name}（${e.dept}/${e.spec}/${e.title}${e.role ? '/' + e.role : ''}）`).join('、');
     } else {
-      rosterText = rosterRaw;
+      rosterText = stageFacts;
     }
 
     const userPrompt = [
@@ -4988,8 +5095,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
       `立项事由：${project.projectReason || '未提供'}`,
       `供应商要求：${project.supplierRequirements || '未提供'}`,
       '',
-      `=== 最终名单数据 ===`,
-      rosterText,
+      '=== 本阶段过程数据与操作留痕 ===',
+      [rosterText, traceRaw].filter(Boolean).join('\n') || '（无结构化过程数据，仅材料与留痕）',
+      '',
+      '=== 本阶段材料（审批/归档文件及内容摘要） ===',
+      filesBlock,
       ...(hasCheckpoints ? ['', '=== 合规审查要点（第三段逐项核对用） ===', checkpointsText] : []),
     ].join('\n');
 

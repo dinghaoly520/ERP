@@ -432,6 +432,24 @@ describe('ProjectManagementService', () => {
       procurementRound: {
         create: jest.fn(),
       },
+      // analyzeStep 数据面（2026-10-13 扩面）：默认空结果，各用例按需覆写
+      bidProject: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      invitationRsvp: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      auditLog: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      announcement: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      bidRound: { findMany: jest.fn().mockResolvedValue([]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+      bidEvaluationResult: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn(async (callback: (tx: any) => unknown) =>
         callback(prisma as any),
       ),
@@ -856,8 +874,28 @@ describe('ProjectManagementService', () => {
   describe('analyzeStep', () => {
     it('throws BadRequest for unsupported stageKey', async () => {
       const { service } = makeService();
-      // STAGE_ANALYSIS_META 已覆盖全部八个阶段（含 TENDER_DOCUMENT），未知键才走 400 分支
+      // STAGE_ANALYSIS_META 覆盖全部阶段键（含公告公示/直接采购备案），未知键才走 400 分支
       await expect(service.analyzeStep('pm-01', 'NOT_A_STAGE')).rejects.toThrow(BadRequestException);
+    });
+
+    it('accepts PUBLIC_ANNOUNCEMENT stage（公告公示阶段不再 400）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01',
+        title: '测试项目',
+        procurementMethod: '询比采购',
+        projectCode: 'SW-XB-2026010101',
+        projectReason: '',
+        supplierRequirements: '',
+        currentStage: 'PUBLIC_ANNOUNCEMENT',
+        invitedSuppliers: null,
+        expertInfo: null,
+        projectOverview: null,
+        stages: [{ status: 'COMPLETED', attachments: [] }],
+      });
+      // 无公告、无参与供应商、无材料 → 空态而非报错
+      const result = await service.analyzeStep('pm-01', 'PUBLIC_ANNOUNCEMENT');
+      expect(result).toEqual({ content: '', empty: true });
     });
 
     it('returns empty when roster is null', async () => {
@@ -940,13 +978,62 @@ describe('ProjectManagementService', () => {
       expect(systemPrompt).toContain('合规审查要点');
       expect(userPrompt).toContain('回避原则');
       expect(userPrompt).toContain('《招标投标法》第三十七条');
-      // fingerprint 覆盖规则 → 规则库变更即失效缓存（fingerprint = sha256(数据|rules:要点JSON) 前 16 hex）
-      const rosterRaw = '张三|地质部|岩土工程|高级工程师|组长';
+      // fingerprint 覆盖规则与材料 → 规则库/材料变更即失效缓存
+      //（fingerprint = sha256(过程数据|--|留痕|--|材料摘要|--|rules:要点JSON) 前 16 hex，空维过滤）
+      const stageFacts = '张三|地质部|岩土工程|高级工程师|组长';
       const expectedFp = createHash('sha256')
-        .update(`${rosterRaw}|rules:${JSON.stringify(checkpoints)}`)
+        .update([stageFacts, '', '（本阶段未上传任何材料）', `rules:${JSON.stringify(checkpoints)}`].filter(Boolean).join('\n|--|\n'))
         .digest('hex')
         .slice(0, 16);
       const cached = JSON.parse(writeFileMock.mock.calls[0][1] as string);
+      expect(cached.fingerprint).toBe(expectedFp);
+    });
+
+    it('feeds stage file-analysis summaries into prompt and fingerprint（审批文件内容作证据）', async () => {
+      const { service, prisma, aiService, stageCompliance, readFileMock, writeFileMock } = makeService();
+      const checkpoints = [{ name: '立项审批', dimension: '审批合规', criteria: '立项须经相应权限审批并留痕', regulationRef: '《采购管理办法》第三章' }];
+      (aiService as any).chat = jest.fn().mockResolvedValue('过程段。\n\n事实段。\n\n合规核对段。');
+      (stageCompliance as any).getRules = async () => ({ checkpoints, source: 'db' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01',
+        title: '岩土勘察项目',
+        procurementMethod: '公开招标',
+        projectReason: '某工程勘察',
+        supplierRequirements: '',
+        currentStage: 'INITIATION',
+        invitedSuppliers: null,
+        expertInfo: null,
+        projectOverview: '岩土工程勘察',
+        stages: [{
+          status: 'COMPLETED',
+          note: ' 立项审批表已归档，豁免预算批复（流标重招） ', // 留痕：阶段备注（含豁免理由）
+          completedAt: new Date('2026-10-01T08:00:00Z'),
+          attachments: [{ fileName: '立项审批表.docx', objectKey: 'pm/approval.docx' }],
+        }],
+      });
+      // 第 1 次 readFile = 文件分析缓存（命中内容摘要）；第 2 次 = 步骤分析缓存（无）
+      readFileMock
+        .mockResolvedValueOnce(JSON.stringify({
+          files: [{ objectKey: 'pm/approval.docx', fileName: '立项审批表.docx', contentSummary: '载明经分管领导批准，预算金额 380,000 元，签章齐全' }],
+        }))
+        .mockRejectedValueOnce(new Error('no cache'));
+
+      const result = await service.analyzeStep('pm-01', 'INITIATION');
+
+      expect(result.empty).toBe(false);
+      const [systemPrompt, userPrompt] = (aiService as any).chat.mock.calls[0];
+      // 审批充分性指令 + 材料摘要 + 备注留痕都进入 prompt
+      expect(systemPrompt).toContain('充分性');
+      expect(userPrompt).toContain('立项审批表.docx：载明经分管领导批准');
+      expect(userPrompt).toContain('阶段备注（含豁免理由）：立项审批表已归档');
+      // fingerprint 含材料摘要与备注 → 材料/留痕变更即失效
+      const filesBlock = '- 立项审批表.docx：载明经分管领导批准，预算金额 380,000 元，签章齐全';
+      const traceRaw = '阶段备注（含豁免理由）：立项审批表已归档，豁免预算批复（流标重招）；本阶段完成时间：2026-10-01 08:00';
+      const cached = JSON.parse(writeFileMock.mock.calls[0][1] as string);
+      const expectedFp = createHash('sha256')
+        .update(['立项事由：某工程勘察', traceRaw, filesBlock, `rules:${JSON.stringify(checkpoints)}`].join('\n|--|\n'))
+        .digest('hex')
+        .slice(0, 16);
       expect(cached.fingerprint).toBe(expectedFp);
     });
   });
