@@ -55,7 +55,13 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
     } catch (e: any) {
       if (actionId !== actionIdRef.current) return;
       setStep('failed');
-      setError(e instanceof ApiError ? (e.message || '密码验证失败') : (e?.message ?? '操作失败'));
+      const apiErr = e instanceof ApiError ? e : null;
+      const data = (e as any)?.data;
+      if (apiErr && data?.code === 'SESSION_REPLACED') {
+        setError('登录已过期（账号在其他设备登录）——请刷新页面重新登录后再试');
+      } else {
+        setError(apiErr ? (apiErr.message || '密码验证失败') : (e?.message ?? '操作失败'));
+      }
     }
   }, [password]);
 
