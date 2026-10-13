@@ -455,7 +455,7 @@ describe('ExpertAdminService', () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', rsvpToken: 'tok-1' });
     };
 
-    it('无 {RSVP_LINK} 占位符时追加「确认链接（2小时内有效）」（默认 TTL，不再写死 15分钟）', async () => {
+    it('无 {RSVP_LINK} 占位符时追加「确认链接（15分钟内有效）」（默认 TTL=0.25h，分钟感知标签不漏 "0.25"）', async () => {
       delete process.env.EXPERT_RSVP_TTL_HOURS;
       setupNotify();
 
@@ -463,8 +463,9 @@ describe('ExpertAdminService', () => {
 
       expect(notification.sendToUser).toHaveBeenCalledTimes(1);
       const content = notification.sendToUser.mock.calls[0][2].content;
-      expect(content).toContain('确认链接（2小时内有效）');
-      expect(content).not.toContain('15分钟');
+      expect(content).toContain('确认链接（15分钟内有效）');
+      expect(content).not.toContain('0.25'); // 标签已按分钟归一，不得露出小时小数
+      expect(content).not.toContain('2小时');
     });
 
     it('EXPERT_RSVP_TTL_HOURS=6 时追加文案同步为「6小时内有效」', async () => {
@@ -478,7 +479,7 @@ describe('ExpertAdminService', () => {
     });
   });
 
-  describe('N6 收尾：rsvpTtlMs 真单源（非法 env 回退 2 小时）', () => {
+  describe('N6 收尾：rsvpTtlMs 真单源（非法 env 回退 15 分钟）', () => {
     // rsvpTtlMs 是类字段，实例化时取 env——须在编译模块前置 env（外层 beforeEach 已编译默认实例）
     const buildSvc = async () => {
       const mod = await Test.createTestingModule({
@@ -502,10 +503,10 @@ describe('ExpertAdminService', () => {
       delete process.env.EXPERT_RSVP_TTL_HOURS;
     });
 
-    it.each(['abc', '0'])('EXPERT_RSVP_TTL_HOURS=%s → rsvpTtlMs 回退 2 小时（7200000ms）', async (v) => {
+    it.each(['abc', '0'])('EXPERT_RSVP_TTL_HOURS=%s → rsvpTtlMs 回退 15 分钟（900000ms）', async (v) => {
       process.env.EXPERT_RSVP_TTL_HOURS = v;
       const svc = await buildSvc();
-      expect(svc['rsvpTtlMs']).toBe(2 * 60 * 60 * 1000);
+      expect(svc['rsvpTtlMs']).toBe(15 * 60 * 1000);
     });
 
     it('EXPERT_RSVP_TTL_HOURS=6 → rsvpTtlMs=6 小时（与文案同源）', async () => {

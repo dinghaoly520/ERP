@@ -41,11 +41,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
-import { rsvpTtlHours } from './expert-extraction-ai.service';
+import { rsvpTtlLabel } from './expert-extraction-ai.service';
 
 /**
- * N6：RSVP 过期文案与实际 TTL 同源（EXPERT_RSVP_TTL_HOURS，默认 2 小时）。
- * rsvpTtlHours 定义在 expert-extraction-ai.service（无环依赖方向），此处复用之。
+ * N6：RSVP 过期文案与实际 TTL 同源（EXPERT_RSVP_TTL_HOURS，默认 0.25 小时=15 分钟）。
+ * rsvpTtlLabel 定义在 expert-extraction-ai.service（无环依赖方向），此处复用之。
  */
 @ApiTags('专家评审')
 @Controller('expert')
@@ -144,7 +144,7 @@ export class ExpertController {
     return this.expertAdminService.declineInvitation(projectId, userId);
   }
 
-  /* 免登录 RSVP（token 链接，TTL=EXPERT_RSVP_TTL_HOURS 小时，默认 2） */
+  /* 免登录 RSVP（token 链接，TTL=EXPERT_RSVP_TTL_HOURS，默认 0.25 小时=15 分钟） */
   @Public()
   @Get('rsvp/verify')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -209,7 +209,7 @@ export class ExpertController {
     const be = await this.prisma.bidExpert.findUnique({ where: { rsvpToken: t } });
     if (!be) throw new BadRequestException({ error: '邀请链接无效', code: 'RSVP_NOT_FOUND' });
     if (be.rsvpExpiresAt && new Date(be.rsvpExpiresAt).getTime() < Date.now()) {
-      throw new BadRequestException({ error: `邀请链接已过期（${rsvpTtlHours()}小时），请联系采购方`, code: 'RSVP_EXPIRED' });
+      throw new BadRequestException({ error: `邀请链接已过期（${rsvpTtlLabel()}），请联系采购方`, code: 'RSVP_EXPIRED' });
     }
     if (be.invitationStatus !== 'pending') {
       throw new BadRequestException({ error: '您已回复过此邀请', code: 'ALREADY_RESPONDED' });

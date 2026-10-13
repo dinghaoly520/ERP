@@ -92,14 +92,14 @@ describe('ExpertController', () => {
       delete process.env.EXPERT_RSVP_TTL_HOURS;
     });
 
-    it('N6：RSVP_EXPIRED 文案用环境变量小时数（默认 2 小时）', async () => {
+    it('N6：RSVP_EXPIRED 文案用环境变量时长（默认 15 分钟）', async () => {
       delete process.env.EXPERT_RSVP_TTL_HOURS;
       prisma.bidExpert.findUnique.mockResolvedValue({
         id: 'be-1', projectId: 'p1', rsvpToken: 't',
         rsvpExpiresAt: new Date(Date.now() - 1000), invitationStatus: 'pending',
       });
       await expect(controller.rsvpRespond('t', { status: 'confirmed' })).rejects.toMatchObject({
-        response: { error: expect.stringContaining('2小时') },
+        response: { error: expect.stringContaining('15分钟') },
       });
     });
 
