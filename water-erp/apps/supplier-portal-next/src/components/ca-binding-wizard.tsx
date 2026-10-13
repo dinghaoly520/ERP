@@ -5,7 +5,7 @@
          PIN 解锁 → 盾内签挑战 → bind 提交 → 刷新能力投影
    ================================================================= */
 'use client';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import * as scca from '@/utils/scca-ukey';
 import type { SccaDualCert } from '@water-erp/ukey';
 import { supplierApi } from '@/lib/api/supplier';
@@ -21,8 +21,30 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
   const [selected, setSelected] = useState<SccaDualCert | null>(null);
   const [error, setError] = useState('');
   const [challenge, setChallenge] = useState<{ challengeId: string; toSign: string } | null>(null);
+  const [bound, setBound] = useState<{ signingSerial?: string; encryptionSerial?: string; notAfter?: string } | null>(null);
+  const [loadingBound, setLoadingBound] = useState(true);
   const proofRef = useRef<string>('');
   const actionIdRef = useRef(0);
+
+  // 挂载时查服务端绑定状态（能力投影——已绑定则显示详情而非「开始绑定」）
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const caps = await supplierApi.caCapabilities();
+        if (!alive) return;
+        if (caps?.provider === 'scca' && caps?.activeBinding?.kind === 'ca') {
+          setBound({
+            signingSerial: caps.activeBinding.signingCert?.serialHex,
+            encryptionSerial: caps.activeBinding.encryptionCert?.serialHex,
+            notAfter: caps.activeBinding.signingCert?.notAfter,
+          });
+        }
+      } catch { /* 查询失败保持未绑定视图 */ }
+      if (alive) setLoadingBound(false);
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const start = useCallback(async () => {
     const actionId = ++actionIdRef.current;
@@ -105,6 +127,7 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
       });
       if (actionId !== actionIdRef.current) return;
       setStep('success');
+      setBound({ signingSerial: selected.sign.pem ? '（刚绑定）' : '' });
       onBound?.();
     } catch (e: any) {
       if (actionId !== actionIdRef.current) return;
@@ -127,7 +150,24 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
       <h3 className="mb-1 text-base font-semibold text-gray-900">SCCA CA 证书绑定</h3>
       <p className="mb-3 text-xs text-gray-500">绑定四川CA 双证（签名证+加密证）后，可用 CA 证书登录与投标</p>
 
-      {step === 'idle' && (
+      {loadingBound && <p className="text-sm text-gray-400">查询绑定状态…</p>}
+      {!loadingBound && bound && step !== 'success' && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+          <p className="mb-1 text-sm font-medium text-green-700">✅ 已绑定 SCCA CA 证书</p>
+          {bound.signingSerial && bound.signingSerial !== '（刚绑定）' && (
+            <p className="text-xs text-gray-600">
+              签名证 {bound.signingSerial.slice(0, 12)}…{bound.signingSerial.slice(-4)}
+              {bound.encryptionSerial ? ' · 加密证 ' + bound.encryptionSerial.slice(0, 12) + '…' : ''}
+              {bound.notAfter ? ' · 有效期至 ' + new Date(bound.notAfter).toLocaleDateString('zh-CN') : ''}
+            </p>
+          )}
+          <button onClick={start}
+            className="mt-2 rounded-lg border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100">
+            更换证书（换绑）
+          </button>
+        </div>
+      )}
+      {!loadingBound && !bound && step === 'idle' && (
         <button onClick={start}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
           开始绑定
