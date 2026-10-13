@@ -11,6 +11,7 @@ import { useAuth, type LoginResult } from "@/lib/auth-context";
 import { authApi } from "@/lib/api/auth";
 import { getErrorMessage, validateLoginCredentials } from "@/lib/registration-validation";
 import { PasswordResetRequestDialog } from "@/components/auth/password-reset-request-dialog";
+import { CaLoginCard } from '@/components/ca-login-card';
 
 /**
  * 品牌蓝 · 新拟态登录卡（lp-* 样式移植自 Vue Login.vue）。
@@ -229,6 +230,10 @@ function LoginForm() {
               {loading ? "登录中…" : "登 录"}
             </button>
           </form>
+
+          {/* CA 证书登录入口（阶段1 Task10） */}
+          <div className="lp-ca-divider"><span>或使用以下方式登录</span></div>
+          <CaLoginCard />
 
           {/* 待审核拦截提示 + 审核进度查询（A4 闭环） */}
           {(pendingInfo || showQuery) && (

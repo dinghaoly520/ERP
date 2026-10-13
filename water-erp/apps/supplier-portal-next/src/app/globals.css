@@ -13772,3 +13772,12 @@ main.reg { align-items: flex-start; }
   to { opacity: 1; transform: translateX(-50%); }
 }
 @media (prefers-reduced-motion: reduce) { .help-tip__bubble { animation: none; } }
+
+/* CA 登录分隔线（阶段1 Task10） */
+.lp-ca-divider {
+  display: flex; align-items: center; gap: 12px; margin: 16px 0 8px;
+  color: var(--lp-border, #d1d5db); font-size: 12px;
+}
+.lp-ca-divider::before, .lp-ca-divider::after {
+  content: ''; flex: 1; height: 1px; background: currentColor;
+}
