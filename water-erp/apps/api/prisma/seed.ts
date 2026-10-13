@@ -562,6 +562,20 @@ async function main() {
     },
   });
 
+  // ═══ 移动驾驶舱门户（:3011）演示账号：admin/admin123，role=admin（全部公司视角）═══
+  console.log('▶ 创建移动驾驶舱演示账号（admin / admin123）');
+  await prisma.user.upsert({
+    where: { username_role: { username: 'admin', role: 'admin' } },
+    update: { passwordHash: hashSync('admin123', 10), isActive: true, displayName: '移动驾驶舱管理员' },
+    create: {
+      username: 'admin',
+      displayName: '移动驾驶舱管理员',
+      role: 'admin',
+      isActive: true,
+      passwordHash: hashSync('admin123', 10),
+    },
+  });
+
   // ═══ R6: 回填现有 BidProject 指派给「陈源远」bid_host（避免 :3007 硬分流后种子项目不可见）═══
   console.log('▶ 回填 BidProject 主持人指派（→ 陈源远 bid_host）');
   const chenBidHost = await prisma.user.findFirst({
