@@ -223,7 +223,7 @@ export default function ExpertRepositoryPage() {
                 <SortableTh label="职称" field="expertProfile.title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">工作单位</th>
                 <th className="text-center">部门</th>
-                <th className="text-center">参评项目</th>
+                <th className="text-center" title="参评次数（签到出席）/ 受邀次数（分配项目总数）">参评/受邀</th>
                 <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">平均等级</th>
                 <th className="text-center">最近评价</th>
@@ -269,7 +269,20 @@ export default function ExpertRepositoryPage() {
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.title || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.employer || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.department?.name || '—'}</td>
-                    <td className="text-center"><span className="text-sm font-semibold text-[var(--foreground)] tabular-nums">{e.bidExperts.length}</span></td>
+                    <td className="text-center">
+                      {(() => {
+                        const invited = e.bidExperts.length;
+                        const participated = e.bidExperts.filter(b => b.signedIn).length;
+                        return (
+                          <span
+                            className="text-sm font-semibold text-[var(--foreground)] tabular-nums"
+                            title={`参评 ${participated} 次（签到出席）/ 受邀 ${invited} 次`}
+                          >
+                            {participated} / {invited}
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{e._count.expertEvaluations}</td>
                     <td className="text-center">
                       {e.avgGrade ? (
