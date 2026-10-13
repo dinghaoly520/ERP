@@ -5,16 +5,20 @@ import { parseFlexibleDate } from '../common/parse-date.util';
 
 /**
  * B3 项目时间信息轴（CTS-EBS01 A-204：项目相关时间信息的建立和维护）。
- * 聚合 PMI / BidProject / Contract / Announcement 四域八类时间节点：
- * 采购立项 · 采购文件获取 · 采购公告发布 · 投标截止 · 开标 · 中标公告发布 · 合同签订 · 归档。
+ * 聚合 PMI / BidProject / BidSignPacket / Contract / Announcement 五域十类时间节点：
+ * 采购立项 · 采购文件获取 · 采购公告发布 · 投标截止 · 开标 · 评标结束 · 中标公告发布 ·
+ * 流标公告发布 · 合同签订 · 归档。
  * 输出：固定业务顺序——此前有值节点按时间升序，
  * 时间压缩/回填场景下「归档」会插进中间（实测 6/23 归档排在 9/7 文件获取
  * 之前），阅读割裂；缺值节点原地灰显占位（前端「未登记」）。
  * 兜底：采购立项 initiationDate 缺 → PMI.createdAt（建档即立项下限）；
  * 合同签订 Contract.signedAt 缺 → CONTRACT 阶段 completedAt（阶段完成≈签订完成）。
  * 公告发布：取项目关联公告的最后一次发布时刻——采购公告=BID_NOTICE/PREQUAL_NOTICE，
- * 中标公告=WIN_BID_NOTICE/PRE_WIN_NOTICE/WIN_NOTICE；关联口径与 syncBidProject 一致
- * （relatedProjectCode 兼容 PMI 编码与 BidProject 编码两个编码空间）。
+ * 中标公告=WIN_BID_NOTICE/PRE_WIN_NOTICE/WIN_NOTICE，流标公告=FAILED_BID_NOTICE；
+ * 关联口径与 syncBidProject 一致（relatedProjectCode 兼容 PMI 编码与 BidProject 编码两个编码空间）。
+ * 评标结束（2026-10-13 用户裁定）= :3007 生成评标回流包（发回 :3005）的时刻：
+ * BidSignPacket.handoverFileAssetId 置位即回流包已生成，时刻取该 FileAsset.createdAt
+ * （packet 表无回流时间戳列；多轮采购取 generatedAt 最新且已回流的包）。
  */
 
 export interface TimelineNode {
@@ -91,6 +95,21 @@ export class TimelineService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // 评标结束 = :3007 回流包生成时刻（handoverFileAssetId → FileAsset.createdAt）
+    const handoverPacket = await this.prisma.bidSignPacket.findFirst({
+      where: { project: { projectManagementItemId: pmiId }, handoverFileAssetId: { not: null } },
+      orderBy: { generatedAt: 'desc' },
+      select: { handoverFileAssetId: true },
+    });
+    let evaluationEndIso: string | null = null;
+    if (handoverPacket?.handoverFileAssetId) {
+      const handoverAsset = await this.prisma.fileAsset.findUnique({
+        where: { id: handoverPacket.handoverFileAssetId },
+        select: { createdAt: true },
+      });
+      evaluationEndIso = toIso(handoverAsset?.createdAt ?? null);
+    }
+
     // 公告发布时间：采购公告/中标公告的发布时刻记录进时间轴。
     // 关联口径与 announcement.syncBidProject 一致——relatedProjectCode 既可能是
     // PMI 编码，也可能是 BidProject 编码（公告直建项目后回写），两侧都查；
@@ -124,6 +143,7 @@ export class TimelineService {
     };
     const bidNoticeIso = publishTimeOf(['BID_NOTICE', 'PREQUAL_NOTICE']);
     const winNoticeIso = publishTimeOf(['WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE']);
+    const failedNoticeIso = publishTimeOf(['FAILED_BID_NOTICE']);
 
     // 无「采购公告公示」步骤的流程（谈判采购/直接采购，阶段模板不含 PUBLIC_ANNOUNCEMENT）：
     // 第三节点语义切换为「供应商邀请」——时间取项目 InvitationRsvp 最早一批的 createdAt
@@ -182,7 +202,11 @@ export class TimelineService {
       { key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' },
       { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
       { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
+      // 评标结束：取 :3007 评标回流包生成（发回）时刻；未回流（评标中/未启动）→ 未登记
+      { key: 'evaluationEnd', label: '评标结束', time: evaluationEndIso, source: '评标回流包' },
       { key: 'winNoticePublish', label: '中标公告发布', time: winNoticeIso, source: '公告' },
+      // 流标公告发布：与中标公告互斥的结果公告分支（发布后 BidProject 置 ABORTED）
+      { key: 'failedNoticePublish', label: '流标公告发布', time: failedNoticeIso, source: '公告' },
       { key: 'contractSign', label: '合同签订', time: contractSignIso, source: contractSignSource },
       { key: 'archived', label: '归档', time: toIso(item.archivedAt), source: '归档' },
     ];

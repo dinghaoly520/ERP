@@ -6,8 +6,9 @@ import { fmtAcquireRangeISO } from '@/lib/utils/format-acquire-time';
 import { apiFetch } from '@/lib/api/api-fetch';
 
 /**
- * B3 项目时间信息轴（CTS-EBS01 A-204）：六类节点横向条（立项/获取文件/截标/开标/签约/归档）。
- * 有值节点按时间升序排前，缺值灰显垫底。挂在项目详情 page-hero 顶部。
+ * B3 项目时间信息轴（CTS-EBS01 A-204）：十类节点横向条
+ * （立项/公告发布·供应商邀请/获取文件/截止/开标/评标结束/中标公告/流标公告/签约/归档）。
+ * 固定业务顺序，缺值灰显占位。挂在项目详情 page-hero 顶部；台账详情同款复用。
  */
 
 type TimelineNode = { key: string; label: string; time: string | null; timeEnd?: string | null; source: string };

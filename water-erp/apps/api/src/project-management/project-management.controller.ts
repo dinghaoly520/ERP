@@ -282,7 +282,7 @@ export class ProjectManagementController {
     );
   }
 
-  /** B3（A-204）：项目时间信息轴——六类节点聚合（立项/获取文件/截标/开标/签约/归档） */
+  /** B3（A-204）：项目时间信息轴——十类节点聚合（立项/公告发布/获取文件/截止/开标/评标结束/中标·流标公告/签约/归档） */
   @Get(':id/timeline')
   getTimeline(@Param('id') id: string) {
     return this.timelineService.getTimeline(id);

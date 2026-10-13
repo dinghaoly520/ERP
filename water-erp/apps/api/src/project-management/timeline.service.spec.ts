@@ -3,10 +3,13 @@ import { TimelineService } from './timeline.service';
 
 /** B3 项目时间信息轴（CTS-EBS01 A-204）：聚合各域时间节点，有值升序、缺值垫底 */
 describe('TimelineService（B3 A-204）', () => {
-  const mk = (pmi: any, bp: any = null, contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; firstRsvp?: any } = {}) => ({
+  const mk = (pmi: any, bp: any = null, contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; firstRsvp?: any; handoverPacket?: any; handoverAsset?: any } = {}) => ({
     projectManagementItem: { findUnique: jest.fn().mockResolvedValue(pmi) },
     bidProject: { findFirst: jest.fn().mockResolvedValue(bp), findMany: jest.fn().mockResolvedValue([]) },
     contract: { findFirst: jest.fn().mockResolvedValue(contract) },
+    // 评标结束（2026-10-13）：回流包 packet → FileAsset.createdAt
+    bidSignPacket: { findFirst: jest.fn().mockResolvedValue(opts.handoverPacket ?? null) },
+    fileAsset: { findUnique: jest.fn().mockResolvedValue(opts.handoverAsset ?? null) },
     // findFirst 两用：PUBLIC_ANNOUNCEMENT 存在性（默认有→走公告分支）与 CONTRACT 兜底（stage）
     projectManagementStage: { findFirst: jest.fn().mockImplementation((args: any) =>
       args?.where?.stageKey === 'PUBLIC_ANNOUNCEMENT'
@@ -32,8 +35,8 @@ describe('TimelineService（B3 A-204）', () => {
     );
     const nodes = await new TimelineService(prisma as any).getTimeline('pmi-1');
     expect(nodes.map(n => n.key)).toEqual([
-      'initiation', 'bidNoticePublish', 'documentAcquire', 'bidDeadline', 'bidOpening',
-      'winNoticePublish', 'contractSign', 'archived',
+      'initiation', 'bidNoticePublish', 'documentAcquire', 'bidDeadline', 'bidOpening', 'evaluationEnd',
+      'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived',
     ]);
     expect(nodes.every(n => n.label && n.source)).toBe(true);
   });
@@ -61,7 +64,7 @@ describe('TimelineService（B3 A-204）', () => {
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe('按开标时间推算（前24小时）');
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - 24 * 3600 * 1000).getTime());
-    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'winNoticePublish', 'contractSign', 'archived']);
+    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'evaluationEnd', 'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived']);
   });
 
   it('兜底：立项缺 initiationDate → 建档时刻；合同缺 Contract 记录 → CONTRACT 阶段完成时刻', async () => {
@@ -122,6 +125,44 @@ describe('TimelineService（B3 A-204）', () => {
   it('项目不存在 → 404', async () => {
     const prisma = mk(null);
     await expect(new TimelineService(prisma as any).getTimeline('nope')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('评标结束（2026-10-13）= :3007 回流包生成时刻（handoverFileAssetId → FileAsset.createdAt）；未回流 → 未登记', async () => {
+    const base = { id: 'pmi-5', projectCode: 'SWHI-YQ-2026090703', initiationDate: new Date('2026-09-01T00:00:00Z'), documentAcquireTime: null, bidOpeningTime: null, archivedAt: null };
+    const withHandover = mk(base, null, null, null, [], {
+      handoverPacket: { handoverFileAssetId: 'asset-h1' },
+      handoverAsset: { createdAt: new Date('2026-09-15T09:30:00Z') },
+    });
+    let nodes = await new TimelineService(withHandover as any).getTimeline('pmi-5');
+    let ev = nodes.find(n => n.key === 'evaluationEnd')!;
+    expect(ev.label).toBe('评标结束');
+    expect(ev.time).toMatch(/^2026-09-15T09:30/);
+    expect(ev.source).toBe('评标回流包');
+    // 查询口径：仅取已回流（handoverFileAssetId 非空）的签字包，多轮取最新
+    expect(withHandover.bidSignPacket.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ handoverFileAssetId: { not: null } }),
+      orderBy: { generatedAt: 'desc' },
+    }));
+
+    const noHandover = mk(base);
+    nodes = await new TimelineService(noHandover as any).getTimeline('pmi-5');
+    expect(nodes.find(n => n.key === 'evaluationEnd')!.time).toBeNull();
+  });
+
+  it('流标公告发布（2026-10-13）= FAILED_BID_NOTICE 的最后一次发布时刻', async () => {
+    const prisma = mk(
+      { id: 'pmi-6', projectCode: 'SWHI-JJ-2026090707', initiationDate: new Date('2026-09-01T00:00:00Z'), documentAcquireTime: null, bidOpeningTime: null, archivedAt: null },
+      null, null, null,
+      [
+        { type: 'FAILED_BID_NOTICE', publishDate: new Date('2026-09-18T10:00:00Z'), createdAt: new Date('2026-09-18T10:00:00Z') },
+        { type: 'FAILED_BID_NOTICE', publishDate: new Date('2026-09-20T10:00:00Z'), createdAt: new Date('2026-09-20T10:00:00Z') },
+      ],
+    );
+    const nodes = await new TimelineService(prisma as any).getTimeline('pmi-6');
+    const failed = nodes.find(n => n.key === 'failedNoticePublish')!;
+    expect(failed.label).toBe('流标公告发布');
+    expect(failed.time).toMatch(/^2026-09-20/); // 两次流标公告取末次
+    expect(failed.source).toBe('公告');
   });
 
   it('AI 提取的中文时间可解析：documentAcquireTime 区间文本起止、bidOpeningTime 中文时刻', async () => {
