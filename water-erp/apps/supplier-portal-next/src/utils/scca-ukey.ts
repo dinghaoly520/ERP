@@ -51,3 +51,11 @@ export async function unwrapSccaKey(container: string, p7B64: string): Promise<s
   const adapter = await getAdapter();
   return adapter.unwrapKey(container, p7B64);
 }
+
+/** 干净 base64（TextEncoder 分块——与适配器同口径；供自检明文比对） */
+export function b64Of(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return btoa(bin);
+}

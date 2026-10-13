@@ -1,287 +1,171 @@
-"use client";
+/* =================================================================
+   ca-selftest-dialog — SCCA 连接与加解密自检（cgzxui 化 2026-10-14）
+   本机链四步：连接探测 → 双证枚举 → P7 签名（盾内）→ 密钥封装往返
+   触发方式：trigger prop 渲染入口按钮（页面用 neu-btn-soft）。
+   mock 轨 raw SM2 六项自检已随全面适配删除。
+   ================================================================= */
+'use client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Usb, ShieldCheck, LoaderCircle, X, Check, TriangleAlert, KeyRound } from 'lucide-react';
+import * as scca from '@/utils/scca-ukey';
+import type { SccaDualCert } from '@water-erp/ukey';
+import { SpDialog } from '@/components/ui';
 
-/**
- * CA及签章测试弹窗 — Tab1「CA加解密测试」，对齐大平台（金格/CA厂商）检测清单。
- * 六项自检走 @water-erp/ukey runCaSelfTest（纯逻辑层，契约由
- * apps/api ukey-ca-selftest.spec.ts 锁定）：私钥侧（签名/解密）必须经介质
- * adapter——页面已解锁则复用同一会话（检测运算顺带给厂商会话续活），
- * 未解锁时弹窗内联 key密码 走 openUkey 初始化（vendor 重新 unlock 幂等）。「选择CA类型」下拉读 CA_PROVIDERS 注册表
- * （接新厂家只动注册表，本弹窗零改动）；切换类型须重新初始化。
- * 「CA签章测试」（可视化签章）2026-09-17 裁定暂不做，tab 占位已撤
- * （重启该专项时加回 tab 位即可，路线图要点见 memory ca-seal-shelved）。
- */
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { CheckCircle2, CircleDashed, Loader2, RotateCw, ShieldCheck, XCircle } from "lucide-react";
-import {
-  runCaSelfTest,
-  type CaSelfTestItemKey,
-  type CertInfo,
-  type VendorUKeyAdapter,
-} from "@water-erp/ukey";
-import { CA_PROVIDERS, openUkey, type CaProvider } from "@/utils/ukey-factory";
-import { extractCn, isOwnCert } from "@/utils/ukey-cert-match";
-import { SpButton, SpDialog, SpInput, SpSelect } from "@/components/ui";
+type ItemStatus = 'pending' | 'running' | 'pass' | 'fail';
+interface SelftestItem { key: string; label: string; status: ItemStatus; detail: string }
 
-const ITEM_ORDER: CaSelfTestItemKey[] = [
-  "sign",
-  "verify",
-  "pubEncrypt",
-  "privDecrypt",
-  "sm4Encrypt",
-  "sm4Decrypt",
-];
+const WRAP_JSON = '{"iv":"fedcba9876543210fedcba9876543210","k":"0123456789abcdef0123456789abcdef"}';
+const SIGN_TEXT = 'SCCA-selftest-' + '水发集团连接自检';
 
-type ItemState =
-  | { status: "pending" }
-  | { status: "running" }
-  | { status: "pass"; detail: string; ms: number }
-  | { status: "fail"; detail: string; ms: number }
-  | { status: "skipped"; detail: string };
-
-const PENDING_ALL: Record<CaSelfTestItemKey, ItemState> = Object.fromEntries(
-  ITEM_ORDER.map((k) => [k, { status: "pending" } as ItemState]),
-) as Record<CaSelfTestItemKey, ItemState>;
-
-const LABELS: Record<CaSelfTestItemKey, string> = {
-  sign: "对数据签名进行检测",
-  verify: "对签名数据验签进行检测",
-  pubEncrypt: "对公钥加密消息进行检测",
-  privDecrypt: "对私钥解密进行检测",
-  sm4Encrypt: "对文件对称加密进行检测",
-  sm4Decrypt: "对文件对称解密进行检测",
-};
-
-export function CaSelftestDialog({
-  open,
-  onClose,
-  ukey,
-  companyName,
-}: {
-  open: boolean;
-  onClose: () => void;
-  /** 页面已解锁的介质（可空——空则弹窗内自行初始化） */
-  ukey: VendorUKeyAdapter | null;
-  companyName: string;
+export function CaSelftestDialog({ trigger, onRefresh }: {
+  trigger: React.ReactNode;
+  onRefresh?: () => void;
 }) {
-  const [providerId, setProviderId] = useState<string>(CA_PROVIDERS[0].id);
-  const [adapter, setAdapter] = useState<VendorUKeyAdapter | null>(null);
-  const [certs, setCerts] = useState<CertInfo[]>([]);
-  const [certSn, setCertSn] = useState("");
-  const [pin, setPin] = useState("");
-  const [initializing, setInitializing] = useState(false);
-  const [items, setItems] = useState<Record<CaSelfTestItemKey, ItemState>>(PENDING_ALL);
+  const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [pin, setPin] = useState('');
+  const [needPin, setNeedPin] = useState(false);
+  const [certs, setCerts] = useState<SccaDualCert[]>([]);
+  const [selected, setSelected] = useState<SccaDualCert | null>(null);
+  const [items, setItems] = useState<SelftestItem[]>([
+    { key: 'connect', label: '本机连接（证书助手）', status: 'pending', detail: 'wss://localhost:36171' },
+    { key: 'enumerate', label: '双证枚举', status: 'pending', detail: '签名证 + 加密证' },
+    { key: 'sign', label: '盾内 P7 签名', status: 'pending', detail: 'SM2/SM3 attached 签名' },
+    { key: 'wrap', label: '密钥封装往返', status: 'pending', detail: 'GM/T 0010 信封 wrap/unwrap 比对' },
+  ]);
+  const actionIdRef = useRef(0);
 
-  const selectedCert = useMemo(() => certs.find((c) => c.certSn === certSn) ?? null, [certs, certSn]);
-  const provider: CaProvider = useMemo(
-    () => CA_PROVIDERS.find((p) => p.id === providerId) ?? CA_PROVIDERS[0],
-    [providerId],
-  );
+  const setItem = useCallback((key: string, patch: Partial<SelftestItem>) => {
+    setItems(prev => prev.map(i => (i.key === key ? { ...i, ...patch } : i)));
+  }, []);
 
-  /* 默认选中：按注册表顺序探测首个在线轨；全不在线取首项（初始化时如实报错） */
-  async function defaultProviderId(): Promise<string> {
-    for (const p of CA_PROVIDERS) {
-      if (await p.probe()) return p.id;
-    }
-    return CA_PROVIDERS[0].id;
-  }
-
-  /* 开弹窗即复位；页面已解锁则直接枚举证书，否则探测默认 CA 类型 */
-  useEffect(() => {
-    if (!open) return;
-    setItems(PENDING_ALL);
-    setRunning(false);
-    setFinished(false);
-    setPin("");
-    setCertSn("");
-    setCerts([]);
-    if (ukey) {
-      setAdapter(ukey);
-      setProviderId("local-sm2");
-      // P3（2026-09-30 第二轮审计）：共享解锁会话路径补异常兜底——解锁成功与会话失效之间
-      // 拔盾/TTL 到期时 listCertificates 抛错，此前 unhandled rejection 静默失败、弹窗停在
-      // 「请先初始化CA」无任何提示（handleInit 路径本就有 catch）
-      void enumerate(ukey).catch(() => toast.error("枚举证书失败：U盾可能已拔出或会话过期，请重新初始化"));
-    } else {
-      setAdapter(null);
-      void defaultProviderId().then(setProviderId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  /* 切换 CA 类型：介质/会话按轨隔离，须重新初始化（口令一并清空） */
-  function handleProviderChange(id: string) {
-    if (id === providerId) return;
-    setProviderId(id);
-    setAdapter(null);
-    setCerts([]);
-    setCertSn("");
-    setPin("");
-    setItems(PENDING_ALL);
-    setFinished(false);
-  }
-
-  async function enumerate(target: VendorUKeyAdapter) {
-    const list = await target.listCertificates();
-    setCerts(list);
-    // 默认选本企业证书（与 U盾 卡片同口径），无本企业证则选首张
-    const own = list.find((c) => isOwnCert(c.certDn, companyName));
-    setCertSn((own ?? list[0])?.certSn ?? "");
-    return list;
-  }
-
-  async function handleInit() {
-    setInitializing(true);
-    try {
-      if (adapter) {
-        await enumerate(adapter);
-        toast.success("已重新枚举证书");
-        return;
-      }
-      if (!pin) { toast.warning("请输入证书口令（key密码）"); return; }
-      const opened = await openUkey(pin, providerId);
-      setAdapter(opened.adapter);
-      setPin(""); // 口令用完即清，不残留
-      const list = await enumerate(opened.adapter);
-      if (list.length === 0) toast.warning("介质内未检测到证书");
-      else toast.success(`CA 初始化成功（${list.length} 张证书）`);
-    } catch (e: any) {
-      toast.error(e?.message || "初始化失败");
-    } finally { setInitializing(false); }
-  }
-
-  async function startTest() {
-    if (!adapter || !selectedCert) { toast.warning("没有选择CA证书！"); return; }
-    setItems(PENDING_ALL);
-    setFinished(false);
+  const run = useCallback(async () => {
+    const actionId = ++actionIdRef.current;
     setRunning(true);
+    setItems(prev => prev.map(i => ({ ...i, status: 'pending' as ItemStatus, detail: i.detail })));
+
+    // ① 连接
+    setItem('connect', { status: 'running' });
+    const online = await scca.probeScca();
+    if (actionId !== actionIdRef.current) return;
+    if (!online) { setItem('connect', { status: 'fail', detail: '证书助手未启动或被浏览器拦截' }); setRunning(false); return; }
+    setItem('connect', { status: 'pass', detail: '证书助手在线' });
+
+    // ② 枚举
+    setItem('enumerate', { status: 'running' });
+    let list: SccaDualCert[] = [];
     try {
-      const final = await runCaSelfTest(adapter, selectedCert, (r) => {
-        setItems((prev) => ({ ...prev, [r.key]: r }));
-      });
-      setRunning(false);
-      setFinished(true);
-      const passCount = final.filter((r) => r.status === "pass").length;
-      if (passCount === final.length) toast.success(`CA自检 ${passCount}/${final.length} 项全部通过`);
-      else toast.warning(`CA自检 ${passCount}/${final.length} 项通过，存在未通过项`);
+      list = await scca.listSccaCerts();
     } catch (e: any) {
+      if (actionId !== actionIdRef.current) return;
+      setItem('enumerate', { status: 'fail', detail: e?.message ?? '枚举失败' });
+      setRunning(false); return;
+    }
+    if (actionId !== actionIdRef.current) return;
+    if (!list.length) { setItem('enumerate', { status: 'fail', detail: '未找到证书' }); setRunning(false); return; }
+    setCerts(list);
+    setItem('enumerate', { status: 'pass', detail: `${list.length} 个容器（双证同容器）` });
+
+    // ③④ 需要 PIN——弹 PIN 输入
+    setSelected(list[0]!);
+    setNeedPin(true);
+  }, [setItem]);
+
+  const finishWithPin = useCallback(async () => {
+    if (!pin || !selected) return;
+    const actionId = ++actionIdRef.current;
+    setNeedPin(false);
+    setPin('');
+    try {
+      await scca.loginScca(selected.container, pin);
+      // ③ 签名
+      setItem('sign', { status: 'running' });
+      const p7 = await scca.signSccaP7(selected.container, SIGN_TEXT);
+      if (actionId !== actionIdRef.current) return;
+      if (!p7 || p7.length < 100) { setItem('sign', { status: 'fail', detail: '签名值异常' }); setRunning(false); return; }
+      setItem('sign', { status: 'pass', detail: `${p7.length} 字符 P7（GM/T 0010 格式，签名真伪以服务端验签为准）` });
+
+      // ④ 封装往返
+      setItem('wrap', { status: 'running' });
+      const wrapped = await scca.wrapSccaKey(selected.enc.pem, WRAP_JSON);
+      const unwrapped = await scca.unwrapSccaKey(selected.container, wrapped);
+      if (actionId !== actionIdRef.current) return;
+      // unwrap 返回 base64 明文——与 WRAP_JSON 的 base64 比对
+      const expected = (await import('@/utils/scca-ukey')).b64Of(WRAP_JSON);
+      if (unwrapped === expected) {
+        setItem('wrap', { status: 'pass', detail: '密文可解且明文一致（接收方=加密证书）' });
+      } else {
+        setItem('wrap', { status: 'fail', detail: '往返明文不一致' });
+      }
+    } catch (e: any) {
+      if (actionId !== actionIdRef.current) return;
+      setItem('sign', { status: 'fail', detail: e?.message ?? '签名失败' });
+      setItem('wrap', { status: 'fail', detail: '未执行（签名失败）' });
+    } finally {
       setRunning(false);
-      toast.error(e?.message || "检测执行异常");
     }
-  }
+  }, [pin, selected, setItem]);
 
-  const passCount = ITEM_ORDER.filter((k) => items[k].status === "pass").length;
-
-  function statusTag(k: CaSelfTestItemKey) {
-    const s = items[k];
-    switch (s.status) {
-      case "pass": return <span className="ukey-tag ukey-tag--success">通过</span>;
-      case "fail": return <span className="ukey-tag ukey-tag--danger">未通过</span>;
-      case "skipped": return <span className="ukey-tag ukey-tag--warning">未执行</span>;
-      case "running": return <span className="ukey-tag ukey-tag--info">检测中</span>;
-      default: return <span className="ukey-tag ukey-tag--info">未检测</span>;
-    }
-  }
-
-  function statusIcon(k: CaSelfTestItemKey) {
-    const s = items[k];
-    if (s.status === "running") return <Loader2 size={15} strokeWidth={1.85} className="shrink-0 animate-spin text-brand" />;
-    if (s.status === "pass") return <CheckCircle2 size={15} strokeWidth={1.85} className="shrink-0 text-success" />;
-    if (s.status === "fail") return <XCircle size={15} strokeWidth={1.85} className="shrink-0 text-danger" />;
-    return <CircleDashed size={15} strokeWidth={1.85} className="shrink-0 text-muted-foreground" />;
-  }
+  const close = useCallback(() => {
+    actionIdRef.current++;
+    setOpen(false);
+    setNeedPin(false);
+    setPin('');
+    onRefresh?.();
+  }, [onRefresh]);
 
   return (
-    <SpDialog
-      open={open}
-      onClose={onClose}
-      title="CA及签章测试"
-      width={620}
-      footer={
-        /* 单按钮形变：初始「开始检测」，跑完一轮后变为「重新检测」（图标随之换）；
-           切换CA类型/重开弹窗复位回「开始检测」 */
-        finished ? (
-          <SpButton variant="primary" icon={RotateCw} disabled={!adapter || !selectedCert || running} onClick={() => void startTest()}>重新检测</SpButton>
-        ) : (
-          <SpButton variant="primary" icon={ShieldCheck} loading={running} disabled={!adapter || !selectedCert} onClick={() => void startTest()}>开始检测</SpButton>
-        )
-      }
-    >
-      <div className="ca-form">
-        <div className="ca-form-row">
-          <label>选择CA类型</label>
-          <SpSelect value={provider.id} onChange={(e) => handleProviderChange(e.target.value)} disabled={running}>
-            {CA_PROVIDERS.map((p) => (
-              <option key={p.id} value={p.id}>{p.label}</option>
-            ))}
-          </SpSelect>
-          <span className="ca-hint">SM2 / SM3 / SM4</span>
+    <>
+      <span onClick={() => { setOpen(true); void run(); }}>{trigger}</span>
+
+      <SpDialog open={open} onClose={close} title="CA 连接与加解密自检" width={520}>
+        <div className="flex flex-col gap-2">
+          {items.map(item => (
+            <div key={item.key} className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm
+              [box-shadow:inset_0_1px_0_oklch(1_0_0/0.6),2px_2px_4px_oklch(0.55_0.03_258/0.08)]">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[var(--brand-soft)] text-[var(--brand)]">
+                {item.key === 'connect' && <Usb size={14} strokeWidth={1.9} />}
+                {item.key === 'enumerate' && <KeyRound size={14} strokeWidth={1.9} />}
+                {(item.key === 'sign' || item.key === 'wrap') && <ShieldCheck size={14} strokeWidth={1.9} />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-[var(--ink)]">{item.label}</div>
+                <div className="truncate text-xs text-[var(--fg-3)]">{item.detail}</div>
+              </div>
+              {item.status === 'pending' && <span className="text-xs text-[var(--fg-3)]">待测</span>}
+              {item.status === 'running' && <LoaderCircle size={15} className="animate-spin text-[var(--brand)]" strokeWidth={1.9} />}
+              {item.status === 'pass' && <Check size={15} className="text-[var(--success)]" strokeWidth={2.2} />}
+              {item.status === 'fail' && <X size={15} className="text-[var(--danger)]" strokeWidth={2.2} />}
+            </div>
+          ))}
         </div>
-        <div className="ca-form-row">
-          <label>选择CA证书</label>
-          <SpSelect value={certSn} onChange={(e) => setCertSn(e.target.value)} disabled={!adapter || running}>
-            {certs.length === 0 ? (
-              <option value="">{adapter ? "介质内无证书" : "请先初始化CA"}</option>
-            ) : (
-              certs.map((c) => (
-                <option key={c.certSn} value={c.certSn}>
-                  {c.certSn} · {extractCn(c.certDn) || c.certDn}
-                  {companyName && !isOwnCert(c.certDn, companyName) ? "（其他单位）" : ""}
-                </option>
-              ))
-            )}
-          </SpSelect>
-          {adapter ? (
-            <span className="ca-hint text-success">已初始化{ukey ? "（共享U盾解锁会话）" : ""}</span>
-          ) : (
-            <SpButton icon={ShieldCheck} loading={initializing} onClick={() => void handleInit()}>初始化CA</SpButton>
-          )}
-        </div>
-        {!adapter && (
-          <div className="ca-form-row">
-            <label>key密码</label>
-            <SpInput
-              type="password"
-              placeholder="输入证书口令（PIN）"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void handleInit(); }}
-            />
-            <span className="ca-hint">初始化后口令即清</span>
+
+        {needPin && (
+          <div className="mt-4">
+            <div className="mb-2 flex items-center gap-2 text-sm text-[var(--fg-2)]">
+              <TriangleAlert size={14} className="text-[var(--warning)]" strokeWidth={1.9} />
+              签名与封装需解锁 U盾——请输入 PIN：
+            </div>
+            <div className="flex items-center gap-3">
+              <input type="password" value={pin} autoFocus
+                onChange={e => setPin(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') finishWithPin(); }}
+                className="neu-input flex-1 font-mono"
+                placeholder="PIN 码" autoComplete="one-time-code" />
+              <button onClick={finishWithPin} disabled={!pin} className="neu-btn-primary !h-[38px] px-4">继续</button>
+            </div>
           </div>
         )}
-      </div>
 
-      <div className="ca-check-list">
-        {ITEM_ORDER.map((k) => {
-          const s = items[k];
-          return (
-            <div key={k} className="ca-check-row">
-              {statusIcon(k)}
-              <div className="ca-check-main">
-                <span className="ca-check-label">{LABELS[k]}</span>
-                {s.status !== "pending" && s.status !== "running" && (
-                  <span className="ca-check-detail">
-                    {s.detail}
-                    {s.status !== "skipped" && ` · ${s.ms}ms`}
-                  </span>
-                )}
-              </div>
-              {statusTag(k)}
-            </div>
-          );
-        })}
-      </div>
-
-      {finished && (
-        <div className={`ca-summary ${passCount === ITEM_ORDER.length ? "is-ok" : "is-bad"}`}>
-          {passCount === ITEM_ORDER.length
-            ? "全部 6 项通过——介质签名/解密与浏览器密码层链路正常，可用于双信封投标。"
-            : `通过 ${passCount}/6 项——未通过项详见上方说明；介质或驱动异常时请联系 CA 服务机构。`}
+        <div className="mt-4 flex items-start gap-2 rounded-[10px] bg-[var(--warning-soft)] px-3 py-2.5 text-xs text-[var(--warning)]">
+          <TriangleAlert size={13} className="mt-0.5 shrink-0" strokeWidth={1.9} />
+          <span>自检覆盖本机链（连接/枚举/盾内签名/密钥封装往返）。签名真伪与证书可信状态由服务端在登录/绑定时验证——自检通过不代表服务端验签通过。</span>
         </div>
-      )}
-    </SpDialog>
+
+        <div className="mt-4 flex justify-end">
+          <button onClick={close} disabled={running} className="neu-btn-soft !h-9 justify-center px-4">关闭</button>
+        </div>
+      </SpDialog>
+    </>
   );
 }

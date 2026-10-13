@@ -1,11 +1,12 @@
 /* =================================================================
-   ca-binding-wizard — SCCA CA 双证绑定向导（阶段1 Task10 补全）
-
+   ca-binding-wizard — SCCA CA 双证绑定向导（cgzxui 化 2026-10-14）
    流程：近期密码验证(reauth) → 探测/枚举盾内双证 → bind-challenge →
          PIN 解锁 → 盾内签挑战 → bind 提交 → 刷新能力投影
+   视觉：.neu-card + .neu-btn-soft/primary 三态 + .neu-input + 凸起选择行
    ================================================================= */
 'use client';
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Usb, ShieldCheck, KeyRound, LoaderCircle, ChevronRight, X, RefreshCw } from 'lucide-react';
 import * as scca from '@/utils/scca-ukey';
 import type { SccaDualCert } from '@water-erp/ukey';
 import { supplierApi } from '@/lib/api/supplier';
@@ -26,7 +27,7 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
   const proofRef = useRef<string>('');
   const actionIdRef = useRef(0);
 
-  // 挂载时查服务端绑定状态（能力投影——已绑定则显示详情而非「开始绑定」）
+  // 挂载时查服务端绑定状态（已绑定→详情+换绑入口）
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -47,11 +48,11 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
     return () => { alive = false; };
   }, []);
 
-  const start = useCallback(async () => {
-    const actionId = ++actionIdRef.current;
+  const start = useCallback(() => {
+    actionIdRef.current++;
     setError('');
-    setStep('reauth');
     setPassword('');
+    setStep('reauth');
   }, []);
 
   const submitReauth = useCallback(async () => {
@@ -59,13 +60,11 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
     const actionId = ++actionIdRef.current;
     setError('');
     try {
-      // 近期密码重证
       const proof = await supplierApi.caReauth({ password, action: 'bind' });
       if (actionId !== actionIdRef.current) return;
       proofRef.current = proof.credentialProofId;
       setPassword('');
 
-      // 探测盾
       setStep('probing');
       const online = await scca.probeScca();
       if (actionId !== actionIdRef.current) return;
@@ -111,12 +110,10 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
     setStep('submitting');
     setError('');
     try {
-      // 盾内登录 + 签挑战
       await scca.loginScca(selected.container, pin);
       const signP7 = await scca.signSccaP7(selected.container, challenge.toSign);
       setPin('');
 
-      // 提交绑定（双证 PEM + P7 证明）
       const result = await supplierApi.caBind({
         credentialScheme: 'scca-pkcs7',
         challengeId: challenge.challengeId,
@@ -128,15 +125,16 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
       });
       if (actionId !== actionIdRef.current) return;
       setStep('success');
-      setBound({ signingSerial: selected.sign.pem ? '（刚绑定）' : '' });
+      setBound({ signingSerial: '（刚绑定）' });
       onBound?.();
+      void result;
     } catch (e: any) {
       if (actionId !== actionIdRef.current) return;
       setPin('');
       setStep('failed');
       setError(e instanceof ApiError ? (e.message || '绑定失败') : (e?.message ?? '绑定失败'));
     }
-  }, [selected, challenge, pin, onBound]);
+  }, [selected, challenge, pin, bound, onBound]);
 
   const cancel = useCallback(() => {
     actionIdRef.current++;
@@ -146,96 +144,152 @@ export function CaBindingWizard({ onBound }: { onBound?: () => void }) {
     setError('');
   }, []);
 
-  return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5" data-testid="ca-binding-wizard">
-      <h3 className="mb-1 text-base font-semibold text-gray-900">SCCA CA 证书绑定</h3>
-      <p className="mb-3 text-xs text-gray-500">绑定四川CA 双证（签名证+加密证）后，可用 CA 证书登录与投标</p>
+  const certName = (c: SccaDualCert) => {
+    const m = /CN=([^,]+)/.exec(c.displayName);
+    return m ? m[1] : c.displayName;
+  };
 
-      {loadingBound && <p className="text-sm text-gray-400">查询绑定状态…</p>}
+  return (
+    <div className="neu-card p-5" data-testid="ca-binding-wizard">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[var(--brand-soft)] text-[var(--brand)]">
+          <ShieldCheck size={14} strokeWidth={1.9} />
+        </span>
+        <div>
+          <div className="text-sm font-semibold text-[var(--ink)]">SCCA CA 证书绑定</div>
+          <div className="text-[11px] text-[var(--fg-3)]">四川CA 双证（签名证 + 加密证）——绑定后可用 CA 证书登录</div>
+        </div>
+      </div>
+
+      {loadingBound && <div className="py-2 text-sm text-[var(--fg-3)]">查询绑定状态…</div>}
+
       {!loadingBound && bound && step !== 'success' && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-          <p className="mb-1 text-sm font-medium text-green-700">✅ 已绑定 SCCA CA 证书</p>
+        <div className="rounded-xl bg-[var(--success-soft)] p-4" style={{ boxShadow: "inset 0 1px 0 oklch(1 0 0 / 0.5)" }}>
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[var(--success)]">
+            <ShieldCheck size={15} strokeWidth={1.9} />
+            已绑定 SCCA CA 证书
+          </div>
           {bound.signingSerial && bound.signingSerial !== '（刚绑定）' && (
-            <p className="text-xs text-gray-600">
-              签名证 {bound.signingSerial.slice(0, 12)}…{bound.signingSerial.slice(-4)}
-              {bound.encryptionSerial ? ' · 加密证 ' + bound.encryptionSerial.slice(0, 12) + '…' : ''}
-              {bound.notAfter ? ' · 有效期至 ' + new Date(bound.notAfter).toLocaleDateString('zh-CN') : ''}
-            </p>
+            <div className="text-xs text-[var(--fg-2)]">
+              签名证 <span className="font-mono">{bound.signingSerial.slice(0, 12)}…{bound.signingSerial.slice(-4)}</span>
+              {bound.encryptionSerial ? <> · 加密证 <span className="font-mono">{bound.encryptionSerial.slice(0, 12)}…</span></> : null}
+              {bound.notAfter ? <> · 有效期至 {new Date(bound.notAfter).toLocaleDateString('zh-CN')}</> : null}
+            </div>
           )}
-          <button onClick={start}
-            className="mt-2 rounded-lg border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100">
+          <button onClick={start} className="neu-btn-xs mt-3 justify-center gap-1.5">
+            <RefreshCw size={12} strokeWidth={1.9} />
             更换证书（换绑）
           </button>
         </div>
       )}
+
       {!loadingBound && !bound && step === 'idle' && (
-        <button onClick={start}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={start} className="neu-btn-soft w-full justify-center gap-2">
+          <Usb size={15} strokeWidth={1.9} />
           开始绑定
         </button>
       )}
 
       {step === 'reauth' && (
         <div>
-          <p className="mb-2 text-sm text-gray-600">请输入登录密码验证身份：</p>
+          <div className="mb-2 text-sm text-[var(--fg-2)]">请输入登录密码验证身份：</div>
           <input type="password" value={password} autoFocus
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') submitReauth(); }}
-            className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            placeholder="登录密码" />
-          <div className="flex gap-2">
+            className="neu-input mb-3 font-mono"
+            placeholder="登录密码" autoComplete="current-password" />
+          <div className="neu-btn-group w-full">
             <button onClick={submitReauth} disabled={!password}
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+              className="neu-btn-primary flex-1 justify-center gap-2 disabled:opacity-50">
+              <KeyRound size={15} strokeWidth={1.9} />
               验证并继续
             </button>
-            <button onClick={cancel} className="rounded-lg border px-4 py-2 text-sm text-gray-600">取消</button>
+            <button onClick={cancel} className="neu-btn-soft justify-center">取消</button>
           </div>
         </div>
       )}
 
-      {step === 'probing' && <p className="text-sm text-gray-500">正在检测 U盾…</p>}
+      {step === 'probing' && (
+        <div className="flex items-center gap-2.5 py-2 text-sm text-[var(--fg-2)]">
+          <LoaderCircle size={15} className="animate-spin" strokeWidth={1.9} />
+          正在检测 U盾…
+        </div>
+      )}
 
       {step === 'select-cert' && (
         <div>
-          <p className="mb-2 text-sm text-gray-600">选择证书（签名证+加密证同容器）：</p>
-          {certs.map(c => (
-            <button key={c.container} onClick={() => selectCert(c)}
-              className="mb-2 w-full rounded-lg border bg-white px-3 py-2 text-left text-sm hover:bg-gray-50">
-              <span className="font-medium">{c.displayName}</span>
-              <span className="ml-2 text-xs text-gray-400">{c.container.slice(0, 12)}…</span>
-            </button>
-          ))}
-          <button onClick={cancel} className="mt-2 text-xs text-gray-400 hover:text-gray-600">取消</button>
+          <div className="mb-2 text-sm text-[var(--fg-2)]">选择证书（签名证+加密证同容器）：</div>
+          <div className="flex flex-col gap-2">
+            {certs.map(c => (
+              <button key={c.container} onClick={() => selectCert(c)}
+                className="group flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm text-[var(--fg)]
+                  transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
+                  [box-shadow:inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_4px_oklch(0.55_0.03_258/0.1),-1px_-1px_3px_oklch(1_0_0/0.85)]
+                  hover:-translate-y-px hover:[box-shadow:inset_0_1px_0_oklch(1_0_0/0.8),3px_3px_6px_oklch(0.55_0.03_258/0.14),-2px_-2px_5px_oklch(1_0_0/0.9)]
+                  active:translate-y-0 active:[box-shadow:inset_2px_2px_5px_oklch(0.55_0.03_258/0.15),inset_-2px_-2px_5px_oklch(1_0_0/0.5)]
+                  motion-reduce:transition-none">
+                <span className="truncate font-medium">{certName(c)}</span>
+                <span className="flex items-center gap-1.5 text-xs text-[var(--fg-3)]">
+                  <span className="font-mono">{c.container.slice(0, 12)}…</span>
+                  <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </button>
+            ))}
+          </div>
+          <button onClick={cancel} className="mt-3 text-xs text-[var(--fg-3)] transition-colors hover:text-[var(--fg)]">取消</button>
         </div>
       )}
 
-      {step === 'challenge' && <p className="text-sm text-gray-500">正在获取绑定挑战…</p>}
+      {step === 'challenge' && (
+        <div className="flex items-center gap-2.5 py-2 text-sm text-[var(--fg-2)]">
+          <LoaderCircle size={15} className="animate-spin" strokeWidth={1.9} />
+          正在获取绑定挑战…
+        </div>
+      )}
 
       {step === 'awaiting-pin' && (
         <div>
-          <p className="mb-2 text-sm text-gray-600">请输入 U盾 PIN：</p>
+          <div className="mb-2 text-sm text-[var(--fg-2)]">请输入 U盾 PIN：</div>
           <input type="password" value={pin} autoFocus
             onChange={e => setPin(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') submitPin(); }}
-            className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            placeholder="PIN 码" />
-          <div className="flex gap-2">
+            className="neu-input mb-3 font-mono"
+            placeholder="PIN 码" autoComplete="one-time-code" />
+          <div className="neu-btn-group w-full">
             <button onClick={submitPin} disabled={!pin}
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+              className="neu-btn-primary flex-1 justify-center gap-2 disabled:opacity-50">
+              <ShieldCheck size={15} strokeWidth={1.9} />
               签名并绑定
             </button>
-            <button onClick={cancel} className="rounded-lg border px-4 py-2 text-sm text-gray-600">取消</button>
+            <button onClick={cancel} className="neu-btn-soft justify-center">取消</button>
           </div>
         </div>
       )}
 
-      {step === 'submitting' && <p className="text-sm text-gray-500">正在验证签名并写入绑定…</p>}
-      {step === 'success' && <p className="text-sm font-medium text-green-600">✅ 绑定成功！可使用 CA 证书登录了</p>}
+      {step === 'submitting' && (
+        <div className="flex items-center gap-2.5 py-2 text-sm text-[var(--fg-2)]">
+          <LoaderCircle size={15} className="animate-spin" strokeWidth={1.9} />
+          正在验证签名并写入绑定…
+        </div>
+      )}
+
+      {step === 'success' && (
+        <div className="flex items-center gap-2 py-2 text-sm font-medium text-[var(--success)]">
+          <ShieldCheck size={15} strokeWidth={1.9} />
+          绑定成功！可使用 CA 证书登录了
+        </div>
+      )}
+
       {step === 'failed' && (
         <div>
-          <p className="mb-2 text-sm text-red-600">{error}</p>
-          <button onClick={start} className="text-sm text-blue-600 hover:underline">重试</button>
-          <button onClick={cancel} className="ml-3 text-xs text-gray-400">返回</button>
+          <div className="mb-3 flex items-start gap-2 rounded-[10px] bg-[var(--danger-soft)] px-3 py-2.5 text-sm text-[var(--danger)]">
+            <X size={15} className="mt-0.5 shrink-0" strokeWidth={1.9} />
+            <span>{error}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={start} className="neu-btn-xs justify-center">重试</button>
+            <button onClick={cancel} className="text-xs text-[var(--fg-3)] transition-colors hover:text-[var(--fg)]">返回</button>
+          </div>
         </div>
       )}
     </div>
