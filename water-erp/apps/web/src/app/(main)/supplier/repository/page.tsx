@@ -275,7 +275,7 @@ export default function SupplierRepositoryPage() {
                   <th className="text-center" style={{ width: 96 }}>平均等级</th>
                   <th className="text-center" style={{ width: 96 }}>最近评价</th>
                   <th className="text-center" style={{ width: 96 }}>入库时间</th>
-                  <th className="text-center" style={{ width: 100 }}>状态</th>
+                  <th className="text-center" style={{ width: 148 }} title="入库状态为主（与专家库状态列同款结构）；副字为该状态的业务含义">状态</th>
                   <th className="text-center" style={{ width: 240 }}>操作</th>
             </tr>
           </thead>
@@ -333,7 +333,26 @@ export default function SupplierRepositoryPage() {
                     )}
                   </td>
                   <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
-                  <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
+                  <td className="text-center">
+                    {(() => {
+                      // 与专家库状态列同款：主徽章（入库状态）+ 副字（该状态的业务含义），悬停给口径
+                      const STATUS_HINT: Record<string, string> = {
+                        PENDING: '注册资料待审',
+                        RETURNED: '资料补正中',
+                        APPROVED: '可参与投标',
+                        REJECTED: '注册被拒',
+                        DISABLED: '暂停合作',
+                        BLACKLIST: '禁止合作',
+                      };
+                      const hint = STATUS_HINT[s.status] ?? '';
+                      return (
+                        <div className="flex items-center justify-center gap-1.5" title={`入库状态：${statusLabel}${hint ? ` · ${hint}` : ''}`}>
+                          <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
+                          {hint && <span className="text-[11px] text-[var(--muted-foreground)]">{hint}</span>}
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td onClick={e => e.stopPropagation()}>
                     <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
                       {s.status === 'APPROVED' && (
