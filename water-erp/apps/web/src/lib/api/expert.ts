@@ -259,6 +259,71 @@ export function aiSuggestEvaluation(expertUserId: string) {
   }>('/expert-admin/evaluations/ai-suggest', { expertUserId });
 }
 
+/* 履职评价·关联项目（真实参评）与评标结果窗口 */
+
+/** 专家真实参评项目（BidExpert 分配实数据，非虚构项目） */
+export interface ExpertEvaluationProject {
+  projectId: string;
+  project: { id: string; name: string; stage: string; procurementMethod: string; openTime: string };
+  expertRole: string; // 正选 | 候补
+  invitationStatus: string;
+  signedIn: boolean;
+  isLead: boolean;
+  progress: number;
+  reportConfirmed: boolean;
+  reviewGroup: string | null;
+  dutyRole: string | null;
+  scoreCount: number;
+  memoCount: number;
+  resultsGenerated: boolean;
+}
+
+export function getEvaluationProjects(expertId: string) {
+  return api.get<ExpertEvaluationProject[]>(`/expert-admin/${expertId}/evaluation-projects`);
+}
+
+/** 关联项目评标结果窗口数据：官方结果 ∪ 该专家已评分供应商，附委员会均分对照与行为统计 */
+export interface EvaluationProjectDetail {
+  project: { id: string; name: string; stage: string; procurementMethod: string; openTime: string; deadline: string; evaluationDeadline: string | null };
+  assignment: {
+    expertName: string; major: string; expertRole: string; invitationStatus: string;
+    signedIn: boolean; identityVerified: boolean; avoidanceConfirmed: boolean; confidentialityAgreed: boolean;
+    disciplineAgreed: boolean; roomVerifiedAt: string | null; progress: number; totalScore: number;
+    reportConfirmed: boolean; reportConfirmedAt: string | null; signStatus: string;
+    dissentingOpinion: string | null; isLead: boolean; reviewGroup: string | null; dutyRole: string | null; createdAt: string;
+  };
+  committee: { size: number; signedIn: number; scored: number };
+  resultsGenerated: boolean;
+  generatedAt: string | null;
+  rows: {
+    supplierId: string; supplierName: string; rank: number | null;
+    expertScore: number | null; committeeMean: number | null; deviation: number | null;
+    officialTotal: number | null; officialAverage: number | null;
+    recommended: boolean | null; disqualified: boolean | null; bidPrice: number | null;
+  }[];
+  scoreStats: {
+    itemCount: number; supplierCount: number; meanItemDeviation: number | null; deviationSamples: number;
+    extremeSupplierCount: number; editCount: number; firstScoredAt: string | null; lastScoredAt: string | null;
+  };
+}
+
+export function getEvaluationProjectDetail(expertId: string, projectId: string) {
+  return api.get<EvaluationProjectDetail>(`/expert-admin/${expertId}/evaluation-projects/${projectId}`);
+}
+
+/** AI 专家行为分析（该项目打分偏离/极值/修改/合规 + 历史履职；LLM 输出、规则兜底） */
+export interface ExpertBehaviorAnalysis {
+  engine: 'ai' | 'rules';
+  riskLevel: '正常' | '关注' | '预警';
+  findings: string[];
+  analysis: string;
+  suggestion: string;
+}
+
+export function analyzeExpertBehavior(expertId: string, projectId: string) {
+  return api.post<ExpertBehaviorAnalysis>(`/expert-admin/${expertId}/behavior-analysis/${projectId}`, {});
+}
+
 /* 采购项目（抽取页选择用） */
 
 export interface BidProjectOption {

@@ -347,6 +347,24 @@ export class ExpertAdminController {
     return this.expertAdminService.getExpertEvaluations(id, req.user);
   }
 
+  @Get(':id/evaluation-projects')
+  @ApiOperation({ summary: '专家真实参评项目列表（BidExpert 分配 + 评标结果有无；公司隔离）' })
+  listEvaluationProjects(@Param('id') id: string, @Request() req: any = {}) {
+    return this.expertAdminService.listEvaluationProjects(id, req.user);
+  }
+
+  @Get(':id/evaluation-projects/:projectId')
+  @ApiOperation({ summary: '关联项目评标结果与该专家评分对照（履职评价弹窗窗口数据；公司隔离）' })
+  getEvaluationProjectDetail(@Param('id') id: string, @Param('projectId') projectId: string, @Request() req: any = {}) {
+    return this.expertAdminService.getEvaluationProjectDetail(id, projectId, req.user);
+  }
+
+  @Post(':id/behavior-analysis/:projectId')
+  @ApiOperation({ summary: 'AI 专家行为分析（该项目打分偏离/极值/修改/合规 + 历史履职；LLM+规则兜底；公司隔离）' })
+  analyzeExpertBehavior(@Param('id') id: string, @Param('projectId') projectId: string, @Request() req: any = {}) {
+    return this.expertAdminService.analyzeExpertBehavior(id, projectId, req.user);
+  }
+
   @Post(':id/violation')
   @ApiOperation({ summary: '记录专家违规（公司隔离）' })
   recordViolation(@Param('id') id: string, @Body() dto: RecordViolationDto, @Request() req: any) {

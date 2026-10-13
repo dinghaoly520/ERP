@@ -2021,6 +2021,252 @@ export class ExpertAdminService {
     });
   }
 
+  /* ── 履职评价·关联项目（真实参评）与 AI 行为分析 ── */
+
+  /**
+   * 专家真实参评项目列表（BidExpert 分配实数据 + 评标结果有无；公司隔离）。
+   * 履职评价弹窗「关联项目」下拉数据源——保证只列出该专家真实被分配/参评的项目。
+   */
+  async listEvaluationProjects(expertUserId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(expertUserId, actor);
+    const assignments = await this.prisma.bidExpert.findMany({
+      where: { userId: expertUserId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        projectId: true, expertRole: true, invitationStatus: true, signedIn: true, isLead: true,
+        progress: true, reportConfirmed: true, reviewGroup: true, dutyRole: true,
+        project: { select: { id: true, name: true, stage: true, procurementMethod: true, openTime: true } },
+        _count: { select: { scoreRecords: true, expertMemos: true } },
+      },
+    });
+    const projectIds = [...new Set(assignments.map(a => a.projectId))];
+    const generated = new Set(
+      projectIds.length > 0
+        ? (await this.prisma.bidEvaluationResult.groupBy({ by: ['projectId'], where: { projectId: { in: projectIds } } })).map(g => g.projectId)
+        : [],
+    );
+    return assignments.map(a => ({
+      projectId: a.projectId,
+      project: a.project,
+      expertRole: a.expertRole,
+      invitationStatus: a.invitationStatus,
+      signedIn: a.signedIn,
+      isLead: a.isLead,
+      progress: a.progress,
+      reportConfirmed: a.reportConfirmed,
+      reviewGroup: a.reviewGroup,
+      dutyRole: a.dutyRole,
+      scoreCount: a._count.scoreRecords,
+      memoCount: a._count.expertMemos,
+      resultsGenerated: generated.has(a.projectId),
+    }));
+  }
+
+  /**
+   * 关联项目评标结果与该专家评分对照（履职评价弹窗「评标结果」窗口数据；公司隔离）。
+   * 行集 = 官方评标结果 ∪ 该专家已评分供应商（评标中未生成结果也能对照委员会均分）；
+   * 委员会口径与 generateEvaluationResults 同源：正选专家。
+   */
+  async getEvaluationProjectDetail(expertUserId: string, projectId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(expertUserId, actor);
+    const assignment = await this.prisma.bidExpert.findFirst({
+      where: { userId: expertUserId, projectId },
+      select: {
+        id: true, expertName: true, major: true, expertRole: true, invitationStatus: true,
+        signedIn: true, identityVerified: true, avoidanceConfirmed: true, confidentialityAgreed: true,
+        disciplineAgreed: true, roomVerifiedAt: true, progress: true, totalScore: true,
+        reportConfirmed: true, reportConfirmedAt: true, signStatus: true,
+        dissentingOpinion: true, isLead: true, reviewGroup: true, dutyRole: true, createdAt: true,
+        project: { select: { id: true, name: true, stage: true, procurementMethod: true, openTime: true, deadline: true, evaluationDeadline: true } },
+      },
+    });
+    if (!assignment) throw new NotFoundException({ error: '该专家未参与此项目', code: 'EXPERT_NOT_ON_PROJECT' });
+    const { project, ...assign } = assignment;
+
+    const [committee, records, results, editCount] = await Promise.all([
+      this.prisma.bidExpert.findMany({ where: { projectId, expertRole: '正选' }, select: { id: true, signedIn: true } }),
+      this.prisma.bidScoreRecord.findMany({
+        where: { expert: { projectId, expertRole: '正选' } },
+        select: { expertId: true, supplierId: true, scoreItemId: true, score: true, createdAt: true, updatedAt: true },
+      }),
+      this.prisma.bidEvaluationResult.findMany({ where: { projectId }, orderBy: { rank: 'asc' } }),
+      this.prisma.bidScoreRecordHistory.count({ where: { expertId: assignment.id, action: 'update' } }),
+    ]);
+
+    // 每位专家 × 供应商总分（该专家对该供应商全部评分项之和）
+    const sumsByExpert = new Map<string, Map<string, number>>();
+    for (const r of records) {
+      const m = sumsByExpert.get(r.expertId) ?? new Map<string, number>();
+      m.set(r.supplierId, (m.get(r.supplierId) ?? 0) + Number(r.score));
+      sumsByExpert.set(r.expertId, m);
+    }
+    const expertSums = sumsByExpert.get(assignment.id) ?? new Map<string, number>();
+    const supplierIds = new Set<string>([...expertSums.keys(), ...results.map(r => r.supplierId)]);
+    for (const m of sumsByExpert.values()) for (const sid of m.keys()) supplierIds.add(sid);
+
+    let extremeSupplierCount = 0;
+    const committeeMean = new Map<string, number>();
+    for (const sid of supplierIds) {
+      const vals: number[] = [];
+      for (const m of sumsByExpert.values()) {
+        const v = m.get(sid);
+        if (v != null) vals.push(v);
+      }
+      if (vals.length === 0) continue;
+      committeeMean.set(sid, Math.round((vals.reduce((s, x) => s + x, 0) / vals.length) * 10) / 10);
+      const mine = expertSums.get(sid);
+      if (mine == null || vals.length < 2) continue;
+      // 唯一极值才算（并列最高/最低属正常趋同，不计）
+      const mx = Math.max(...vals), mn = Math.min(...vals);
+      if ((mine === mx && vals.filter(v => v === mx).length === 1) || (mine === mn && vals.filter(v => v === mn).length === 1)) {
+        extremeSupplierCount += 1;
+      }
+    }
+
+    // 供应商名称：结果行自带；其余（评标中、结果未生成）回查 BidSupplier
+    const nameById = new Map(results.map(r => [r.supplierId, r.supplierName]));
+    const missing = [...supplierIds].filter(sid => !nameById.has(sid));
+    if (missing.length > 0) {
+      const suppliers = await this.prisma.bidSupplier.findMany({ where: { id: { in: missing } }, select: { id: true, supplierName: true } });
+      for (const s of suppliers) nameById.set(s.id, s.supplierName);
+    }
+
+    const resultBySupplier = new Map(results.map(r => [r.supplierId, r]));
+    const orderedIds = [...results.map(r => r.supplierId), ...[...supplierIds].filter(sid => !resultBySupplier.has(sid))];
+    const rows = orderedIds.map(sid => {
+      const official = resultBySupplier.get(sid);
+      const expertScore = expertSums.has(sid) ? Math.round(expertSums.get(sid)! * 10) / 10 : null;
+      // 偏差基准：官方评标均分优先（已生成结果），否则委员会实时均分
+      const base = official ? Number(official.averageScore) : committeeMean.get(sid) ?? null;
+      return {
+        supplierId: sid,
+        supplierName: nameById.get(sid) ?? sid,
+        rank: official?.rank ?? null,
+        expertScore,
+        committeeMean: committeeMean.get(sid) ?? null,
+        deviation: expertScore != null && base != null ? Math.round((expertScore - base) * 10) / 10 : null,
+        officialTotal: official ? Number(official.totalScore) : null,
+        officialAverage: official ? Number(official.averageScore) : null,
+        recommended: official?.recommended ?? null,
+        disqualified: official?.disqualified ?? null,
+        bidPrice: official?.bidPrice != null ? Number(official.bidPrice) : null,
+      };
+    });
+
+    // 项目内逐评分项平均绝对偏离（与画像/风险简报同 util 口径：同组 ≥2 人）
+    const deviations = computeExpertMeanDeviations(
+      records.map(r => ({ expertId: r.expertId, scoreItemId: r.scoreItemId, supplierId: r.supplierId, score: Number(r.score) })),
+    );
+    const mineDeviation = deviations.find(d => d.expertId === assignment.id);
+    const expertRecords = records.filter(r => r.expertId === assignment.id);
+
+    return {
+      project,
+      assignment: { ...assign, totalScore: Number(assign.totalScore) },
+      committee: {
+        size: committee.length,
+        signedIn: committee.filter(c => c.signedIn).length,
+        scored: sumsByExpert.size,
+      },
+      resultsGenerated: results.length > 0,
+      generatedAt: results.length > 0 ? results[0].generatedAt : null,
+      rows,
+      scoreStats: {
+        itemCount: expertRecords.length,
+        supplierCount: expertSums.size,
+        meanItemDeviation: mineDeviation?.meanDeviation ?? null,
+        deviationSamples: mineDeviation?.sampleCount ?? 0,
+        extremeSupplierCount,
+        editCount,
+        firstScoredAt: expertRecords.length > 0
+          ? expertRecords.reduce((min, r) => (r.createdAt < min ? r.createdAt : min), expertRecords[0].createdAt)
+          : null,
+        lastScoredAt: expertRecords.length > 0
+          ? expertRecords.reduce((max, r) => (r.updatedAt > max ? r.updatedAt : max), expertRecords[0].updatedAt)
+          : null,
+      },
+    };
+  }
+
+  /**
+   * AI 专家行为分析（公司隔离）：该项目打分偏离/极值倾向/修改记录/流程合规/不同意见 + 历史履职，
+   * LLM 输出结构化结论，不可用时按阈值规则兜底（engine 标识）。只读无副作用，不入审计。
+   */
+  async analyzeExpertBehavior(expertUserId: string, projectId: string, actor?: AuthenticatedUser) {
+    if (actor) await this.assertExpertInScope(expertUserId, actor);
+    // scope 已验，内层不重复传 actor
+    const detail = await this.getEvaluationProjectDetail(expertUserId, projectId);
+    const user = await this.prisma.user.findUnique({ where: { id: expertUserId }, select: { displayName: true } });
+    const [recentEvals, violationCount] = await Promise.all([
+      this.prisma.expertEvaluation.findMany({
+        where: { expertUserId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { overallGrade: true },
+      }),
+      this.prisma.auditLog.count({ where: { action: 'EXPERT_VIOLATION_RECORDED', resourceId: expertUserId } }),
+    ]);
+    const { assignment, project, scoreStats: s, committee, rows } = detail;
+    const scoredRows = rows.filter(r => r.expertScore != null);
+    const scoreLines = scoredRows.length > 0
+      ? scoredRows.map(r => `${r.supplierName}：该专家 ${r.expertScore} 分 / 委员会均分 ${r.committeeMean ?? '—'}（偏离 ${r.deviation != null ? (r.deviation > 0 ? '+' : '') + r.deviation : '—'}）${r.disqualified ? '【废标】' : r.rank ? `【第${r.rank}名】` : ''}`).join('；')
+      : '该项目暂无该专家的评分记录';
+
+    // 规则兜底：阈值化事实发现（LLM 不可用时使用，与 aiSuggestEvaluation 同模式）
+    const ruleFallback = () => {
+      const findings: string[] = [];
+      if (!assignment.signedIn) findings.push('签到记录缺失');
+      if (assignment.invitationStatus === 'declined') findings.push('曾拒绝参评邀请');
+      if (s.meanItemDeviation != null && s.meanItemDeviation >= 10) findings.push(`逐项评分平均偏离 ${s.meanItemDeviation} 分（显著高于评审共识）`);
+      else if (s.meanItemDeviation != null && s.meanItemDeviation >= 5) findings.push(`逐项评分平均偏离 ${s.meanItemDeviation} 分，存在一定个人倾向`);
+      if (s.extremeSupplierCount >= 2) findings.push(`对 ${s.extremeSupplierCount} 家供应商打出委员会唯一最高/最低分`);
+      if (s.editCount >= 10) findings.push(`评分修改 ${s.editCount} 次，高于常规修订频次`);
+      if (assignment.dissentingOpinion) findings.push('对评标结论提交了书面不同意见');
+      if (s.itemCount > 0 && !assignment.reportConfirmed) findings.push('评分已提交但评标报告尚未确认');
+      if (violationCount > 0) findings.push(`历史违规记录 ${violationCount} 条`);
+      const riskLevel =
+        (s.meanItemDeviation != null && s.meanItemDeviation >= 10) || s.extremeSupplierCount >= 2
+          ? '预警'
+          : findings.length > 0 ? '关注' : '正常';
+      return {
+        engine: 'rules' as const,
+        riskLevel,
+        findings: findings.length > 0 ? findings : ['评分行为与评审共识一致，流程合规记录完整'],
+        analysis: `规则简报：${assignment.signedIn ? '已签到' : '未签到'}，${s.itemCount > 0 ? `完成 ${s.itemCount} 项评分` : '无评分记录'}${s.meanItemDeviation != null ? `，逐项平均偏离 ${s.meanItemDeviation} 分` : ''}${s.editCount > 0 ? `，修改 ${s.editCount} 次` : ''}${assignment.reportConfirmed ? '，报告已确认' : ''}。AI 暂不可用，以上为阈值规则结论，建议人工复核。`,
+        suggestion: riskLevel === '预警'
+          ? '建议核对其评分依据与客观分差距，必要时开展约谈并留存记录'
+          : riskLevel === '关注'
+            ? '建议留存本次评分留痕，持续观察后续项目表现'
+            : '可正常参与后续评标项目',
+      };
+    };
+
+    try {
+      const raw = await this.llm.chat(
+        '你是评标专家行为审计助手。根据该专家在指定项目的评标行为数据（评分偏离、极值倾向、修改记录、流程合规、不同意见）与历史履职情况输出行为分析。客观中立、只依据给定数据、不臆测动机；有积极表现也应指出。',
+        `专家：${user?.displayName ?? expertUserId}（${assignment.major || '专业未填写'}${assignment.isLead ? '，评标组长' : ''}）。\n项目：${project.name}（${project.procurementMethod}，当前阶段 ${project.stage}）。\n委员会：正选 ${committee.size} 人、已签到 ${committee.signedIn} 人、已提交评分 ${committee.scored} 人。\n该专家参与情况：邀请${assignment.invitationStatus === 'confirmed' ? '已确认' : assignment.invitationStatus}、${assignment.signedIn ? '已签到' : '未签到'}、回避确认${assignment.avoidanceConfirmed ? '√' : '×'}、保密承诺${assignment.confidentialityAgreed ? '√' : '×'}、纪律确认${assignment.disciplineAgreed ? '√' : '×'}、报告确认${assignment.reportConfirmed ? '√' : '×'}${assignment.dissentingOpinion ? '、提交书面不同意见' : ''}。\n打分统计：${s.itemCount} 项评分（${s.supplierCount} 家供应商），逐项平均绝对偏离 ${s.meanItemDeviation ?? '无共识组数据'} 分（同组≥2人项），唯一极值供应商 ${s.extremeSupplierCount} 家，评分修改 ${s.editCount} 次。\n分供应商对照：${scoreLines}。\n历史履职：近 ${recentEvals.length} 次综合等级 ${recentEvals.map(e => e.overallGrade).join('、') || '无'}；违规记录 ${violationCount} 条。\n\n请严格以 JSON 格式返回（不要markdown包裹，直接输出纯JSON对象）：\n{"riskLevel":"正常|关注|预警","findings":["事实性发现，逐条"],"analysis":"综合行为分析（200字内）","suggestion":"管理建议（80字内）"}`,
+        0.3,
+      );
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return ruleFallback();
+      const parsed = JSON.parse(jsonMatch[0]);
+      const levels = new Set(['正常', '关注', '预警']);
+      const findings = Array.isArray(parsed.findings)
+        ? parsed.findings.filter((f: unknown) => typeof f === 'string').slice(0, 8)
+        : [];
+      return {
+        engine: 'ai' as const,
+        riskLevel: levels.has(parsed.riskLevel) ? parsed.riskLevel : '关注',
+        findings: findings.length > 0 ? findings : ['未返回结构化发现，请阅读综合分析'],
+        analysis: ((parsed.analysis as string) ?? '').slice(0, 500) || 'AI 未返回分析文字',
+        suggestion: ((parsed.suggestion as string) ?? '').slice(0, 200) || '—',
+      };
+    } catch (err) {
+      new Logger(ExpertAdminService.name).warn(`专家行为分析降级（LLM 不可用），返回规则兜底: ${(err as Error)?.message ?? err}`);
+      return ruleFallback();
+    }
+  }
+
   /** AI 采纳率（基于 BidScoreDelta：专家分 vs AI 建议分；公司隔离） */
   async getAiAdoptionRate(expertId?: string, user?: AuthenticatedUser) {
     const f = await this.expertScopeFilter(user);
