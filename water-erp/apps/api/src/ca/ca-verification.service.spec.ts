@@ -150,6 +150,34 @@ describe('CaVerificationService（World B 本地比对 + 三方指纹 + 算法�
     });
   });
 
+  describe('I3 修复：网关回传证书指纹', () => {
+    test('网关回传证书 sha256 ≠ 期望 → CA_FINGERPRINT_MISMATCH', async () => {
+      // mock 网关回传「另一张合法证书」（真加密证 DER——解析通过但指纹≠期望签名证）
+      const encPem = fs.readFileSync(path.join(__dirname, '..', '..', 'test', 'fixtures', 'scca', 'S2-enc-cert.b64'), 'utf-8');
+      const encDer = Buffer.from(encPem.match(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/)![1].replace(/\s+/g, ''), 'base64');
+      const otherCertB64 = encDer.toString('base64');
+      const gw = makeMockGateway({ certBase64: otherCertB64 });
+      const svc = makeService(gw);
+      const r = await svc.verifySignature({
+        p7B64: V1_P7, expectedToSign: V1_TXT, purpose: 'ca-login',
+        expectedSignCert: { serialHex: SIGN_SERIAL, sha256: SIGN_SHA },
+      });
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('CA_FINGERPRINT_MISMATCH');
+    });
+
+    test('网关回传证书解析失败 → CA_CERT_CHAIN（fail-closed 不再静默）', async () => {
+      const gw = makeMockGateway({ certBase64: '!!!not-base64!!!' });
+      const svc = makeService(gw);
+      const r = await svc.verifySignature({
+        p7B64: V1_P7, expectedToSign: V1_TXT, purpose: 'ca-login',
+        expectedSignCert: { serialHex: SIGN_SERIAL, sha256: SIGN_SHA },
+      });
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('CA_CERT_CHAIN');
+    });
+  });
+
   describe('证书有效期与用途（网关回传 certBase64 时触发）', () => {
     test('certBase64=null 时跳过（仅网关+本地比对）', async () => {
       const svc = makeService(makeMockGateway({ certBase64: null }));

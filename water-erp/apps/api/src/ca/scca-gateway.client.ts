@@ -57,6 +57,22 @@ export class SccaGatewayClient {
         body,
         signal: ctl.signal,
       });
+      // I2 修复：先判 HTTP 状态——5xx 反代错误≠业务失败；401/403 仍尝试解析 body 的
+      // result_code 保留真实错误码（实测契约：401 伴随 body result_code=1003）
+      if (!res.ok) {
+        clearTimeout(timer);
+        let bodyCode = -1;
+        try {
+          const bodyText = await res.text();
+          const j = JSON.parse(bodyText);
+          if (typeof j?.result_code === 'number') bodyCode = j.result_code;
+        } catch { /* 非 JSON 反代错误体——用 HTTP 状态兜底 */ }
+        const kind: GwErrorKind = res.status === 401 ? 'AUTH'
+          : res.status === 403 ? 'PERMISSION'
+          : res.status >= 500 ? 'UNAVAILABLE'
+          : 'MALFORMED_RESPONSE';
+        return this.err(kind, bodyCode !== -1 ? bodyCode : -res.status, 'HTTP ' + res.status);
+      }
 
       // 按字节流式限读（256KiB）
       const reader = res.body!.getReader();

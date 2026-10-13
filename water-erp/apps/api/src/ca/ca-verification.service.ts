@@ -129,25 +129,43 @@ export class CaVerificationService {
       }
     }
 
-    // ── ④ 网关回传证书解析（有效期/KeyUsage/链）──
-    const statusCoverage: string[] = ['chain']; // 网关已验链（G0 实证 9998）
+    // ── ④ 网关回传证书解析（I3：指纹比对 + fail-closed；I1：本地链校验落地）──
+    const statusCoverage: string[] = []; // 仅在实际执行过的检查才记入（不再凭空写 'chain'）
     if (gwResult.certBase64) {
+      let cert;
       try {
         const certDer = normalizeToDer(gwResult.certBase64);
-        const cert = parseCertificate(certDer);
-        // 有效期
-        const now = new Date();
-        if (now < cert.notBefore || now > cert.notAfter) {
-          return this.fail('CA_CERT_EXPIRED', `证书有效期 ${cert.notBefore.toISOString()} → ${cert.notAfter.toISOString()}`);
+        cert = parseCertificate(certDer);
+        // I3 修复：网关回传证书 sha256 必须与期望指纹一致（三方闭环的第三边）
+        if (input.expectedSignCert?.sha256) {
+          const { createHash } = require('crypto');
+          const gwSha = createHash('sha256').update(certDer).digest('hex');
+          if (gwSha !== input.expectedSignCert.sha256.toLowerCase()) {
+            return this.fail('CA_FINGERPRINT_MISMATCH', '网关回传证书 ≠ 期望签名证书');
+          }
         }
-        statusCoverage.push('validity');
-        // KeyUsage（登录/绑定需 DigitalSignature）
-        if (!cert.keyUsage.includes('DigitalSignature')) {
-          return this.fail('CA_ALG_UNSUPPORTED', '证书 KeyUsage 缺 DigitalSignature');
-        }
-        statusCoverage.push('usage');
+      } catch (e) {
+        // I3 修复：解析失败不再静默放行——无法验证的证书视为链失败（fail-closed）
+        return this.fail('CA_CERT_CHAIN', '网关回传证书解析失败');
+      }
+      // 有效期
+      const now = new Date();
+      if (now < cert.notBefore || now > cert.notAfter) {
+        return this.fail('CA_CERT_EXPIRED', `证书有效期 ${cert.notBefore.toISOString()} → ${cert.notAfter.toISOString()}`);
+      }
+      statusCoverage.push('validity');
+      // KeyUsage（登录/绑定需 DigitalSignature）
+      if (!cert.keyUsage.includes('DigitalSignature')) {
+        return this.fail('CA_ALG_UNSUPPORTED', '证书 KeyUsage 缺 DigitalSignature');
+      }
+      statusCoverage.push('usage');
+      // I1 修复：本地信任锚链校验（中级证 scegb_sm2 已入 TRUSTED_CA_DIR）——
+      // 网关已验链（9998 行为），本地再加一层独立锚校验；本地锚缺失时跳过但不称已覆盖
+      try {
+        const chainResult = this.trustStore.verifyChain(cert as any, now);
+        if (chainResult && chainResult.ok !== false) statusCoverage.push('chain');
       } catch {
-        // 证书解析失败不阻断主流程（网关已验过）——记录但继续
+        // 本地链校验器异常——不声称 chain 覆盖（网关侧仍已验过，不阻断）
       }
     }
 

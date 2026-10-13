@@ -110,6 +110,19 @@ describe('SccaGatewayClient（T3 字节等价实现）', () => {
     expect(body).not.toContain('signedData');
   });
 
+  test('⑥b I2 修复：HTTP 503 + HTML body → UNAVAILABLE（非 MALFORMED/REJECTED）', async () => {
+    mockResponse = { status: 503, body: '<html>Bad Gateway</html>' };
+    const r = await CLIENT.verifyPkcs7(INPUT);
+    expect(r.errorKind).toBe('UNAVAILABLE');
+  });
+
+  test('⑥c I2 修复：HTTP 401/403 状态映射', async () => {
+    mockResponse = { status: 401, body: '' };
+    expect((await CLIENT.verifyPkcs7(INPUT)).errorKind).toBe('AUTH');
+    mockResponse = { status: 403, body: '' };
+    expect((await CLIENT.verifyPkcs7(INPUT)).errorKind).toBe('PERMISSION');
+  });
+
   test('⑥ 网络异常→UNAVAILABLE', async () => {
     globalThis.fetch = (async () => { throw new TypeError('fetch failed'); }) as typeof fetch;
     const r = await CLIENT.verifyPkcs7(INPUT);
