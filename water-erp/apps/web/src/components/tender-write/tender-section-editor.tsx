@@ -7,7 +7,6 @@ import type {
 } from '@/lib/types/tender-write';
 import { TenderFieldActions } from './tender-field-actions';
 import { TenderFieldSampleDialog } from './tender-field-sample-drawer';
-import { ContactPickerDialog } from './contact-picker-dialog';
 import { PurchaserPickerDialog } from './purchaser-picker-dialog';
 import { CompanyEntryPickerDialog } from './company-entry-picker-dialog';
 import {
@@ -396,18 +395,14 @@ export function TenderSectionEditor({
     onChange('contactPhone', contact.phone);
   };
 
-  // 监督人多选确认（2026-10-09）：姓名顿号拼接进 supervisionContact（清空选择=清空字段）
-  const handleSupervisorConfirm = (contacts: { name: string; email: string; phone: string }[]) => {
-    onChange('supervisionContact', contacts.map((c) => c.name).join('、'));
-  };
-
   // 开标地点条目选择（2026-10-10）：整地址写入「开标地点」
   const handlePlaceSelect = (address: string) => {
     onChange('bidOpeningPlace', address);
   };
 
-  // 监督方案条目选择（2026-10-10）：整块带入监督四字段（部门留空=导出按「公司名+纪检监察部」拼）
-  const handleSupervisionProfileSelect = (profile: {
+  // 监督人条目选择（2026-10-13）：从公司维护的监督举报条目中选择——监督人即条目标识，
+  // 选中整块关联填入监督四字段（部门/地址/监督人/电话）
+  const handleSupervisionSelect = (profile: {
     department: string;
     address: string;
     contact: string;
@@ -474,7 +469,6 @@ export function TenderSectionEditor({
   const hasContactFields = section.fields.some(
     (f) => f.key === 'contactName' || f.key === 'contactEmail' || f.key === 'contactPhone',
   );
-  const hasSupervisionField = section.fields.some((f) => f.key === 'supervisionContact');
 
   // Handle date input - listen for change and track for double-click
   const lastDateValueRef = useRef<Record<string, { value: string; time: number }>>({});
@@ -1234,30 +1228,20 @@ export function TenderSectionEditor({
         />
       )}
 
-      {/* 开标地点条目选择（2026-10-10）：公司信息维护条目单选 */}
-      {placePickerOpen && (
+      {/* 条目选择（公司信息维护）：开标地点单地址；监督人=监督举报条目（整块关联四字段） */}
+      {(placePickerOpen || supervisorPickerOpen) && (
         <CompanyEntryPickerDialog
-          isOpen={placePickerOpen}
-          kind="place"
+          isOpen={placePickerOpen || supervisorPickerOpen}
+          kind={placePickerOpen ? 'place' : 'supervision'}
           onSelectPlace={handlePlaceSelect}
-          onClose={() => setPlacePickerOpen(false)}
+          onSelectSupervision={handleSupervisionSelect}
+          onClose={() => {
+            setPlacePickerOpen(false);
+            setSupervisorPickerOpen(false);
+          }}
         />
       )}
 
-      {/* 监督人多选（2026-10-09）：本公司联系人（已按公司隔离）多选，顿号拼接 */}
-      {supervisorPickerOpen && hasSupervisionField && (
-        <ContactPickerDialog
-          isOpen={supervisorPickerOpen}
-          onSelect={() => undefined}
-          onClose={() => setSupervisorPickerOpen(false)}
-          multiple
-          selectedNames={String((draft as Record<string, string | undefined>).supervisionContact ?? '')
-            .split(/[、,，]/)
-            .map((s) => s.trim())
-            .filter(Boolean)}
-          onConfirmMultiple={handleSupervisorConfirm}
-        />
-      )}
     </>
   );
 }

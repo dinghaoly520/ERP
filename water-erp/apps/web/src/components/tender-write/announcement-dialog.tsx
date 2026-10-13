@@ -39,6 +39,7 @@ import { AnnouncementPreviewDocument } from "./announcement-preview-document";
 import { TenderFieldActions } from "./tender-field-actions";
 import { TenderFieldSampleDialog } from "./tender-field-sample-drawer";
 import { ContactPickerDialog } from "./contact-picker-dialog";
+import { CompanyEntryPickerDialog } from "./company-entry-picker-dialog";
 import { createFieldSample, generateFieldContent } from "@/lib/api/tender-sample";
 import { findContactByName } from "@/lib/api/contacts";
 import { fetchCurrentUser } from "@/lib/api/auth";
@@ -1058,9 +1059,18 @@ export function AnnouncementDialog({
     handleFieldChange("contactPhone", contact.phone);
   };
 
-  // 监督人多选确认（2026-10-09）：选中联系人姓名顿号拼接进 supervisionContact（清空选择=清空字段）
-  const handleSupervisorConfirm = (contacts: { name: string; email: string; phone: string }[]) => {
-    handleFieldChange("supervisionContact", contacts.map((c) => c.name).join("、"));
+  // 监督人条目选择（2026-10-13）：从公司维护的监督举报条目中选择——监督人即条目标识，
+  // 选中整块关联填入监督四字段（部门/地址/监督人/电话）
+  const handleSupervisionSelect = (profile: {
+    department: string;
+    address: string;
+    contact: string;
+    phone: string;
+  }) => {
+    handleFieldChange("supervisionDepartment", profile.department);
+    handleFieldChange("supervisionAddress", profile.address);
+    handleFieldChange("supervisionContact", profile.contact);
+    handleFieldChange("supervisionPhone", profile.phone);
   };
 
   // ★ 拟定供应商核对（2026-09-11）：重新解析采购文件提取当前供应商名（纯公司名），
@@ -1534,18 +1544,13 @@ export function AnnouncementDialog({
         />
       )}
 
-      {/* 监督人多选（2026-10-09）：本公司联系人（已按公司隔离）多选，顿号拼接 */}
+      {/* 监督人=监督举报条目选择（2026-10-13）：整块关联填入监督四字段 */}
       {supervisorPickerOpen && (
-        <ContactPickerDialog
+        <CompanyEntryPickerDialog
           isOpen={supervisorPickerOpen}
-          onSelect={() => undefined}
+          kind="supervision"
+          onSelectSupervision={handleSupervisionSelect}
           onClose={() => setSupervisorPickerOpen(false)}
-          multiple
-          selectedNames={(draftRecord.supervisionContact || "")
-            .split(/[、,，]/)
-            .map((s) => s.trim())
-            .filter(Boolean)}
-          onConfirmMultiple={handleSupervisorConfirm}
         />
       )}
 
