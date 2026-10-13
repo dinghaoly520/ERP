@@ -147,6 +147,14 @@ describe('TimelineService（B3 A-204）', () => {
     const noHandover = mk(base);
     nodes = await new TimelineService(noHandover as any).getTimeline('pmi-5');
     expect(nodes.find(n => n.key === 'evaluationEnd')!.time).toBeNull();
+
+    // 边界：packet 置位但资产行已删（FileAsset 清理）→ 不抛错、未登记
+    const orphanAsset = mk(base, null, null, null, [], {
+      handoverPacket: { handoverFileAssetId: 'asset-gone' },
+      handoverAsset: null,
+    });
+    nodes = await new TimelineService(orphanAsset as any).getTimeline('pmi-5');
+    expect(nodes.find(n => n.key === 'evaluationEnd')!.time).toBeNull();
   });
 
   it('流标公告发布（2026-10-13）= FAILED_BID_NOTICE 的最后一次发布时刻', async () => {
