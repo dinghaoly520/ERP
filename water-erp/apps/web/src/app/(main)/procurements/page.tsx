@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { SasacExtractModal } from "@/components/procurements/sasac-extract-modal";
+import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import {
@@ -561,6 +562,15 @@ function LedgerRow({
                     <span className="ml-1 text-[color:var(--foreground)]">{item.archivedAt}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 项目时间轴（2026-10-13）：台账详情记录八类时间节点，与项目管理详情同源同款
+                （立项/公告发布·供应商邀请/文件获取/截止/开标/中标公告/签约/归档，
+                公告发布为最后一次发布口径）；条目自带「时间轴」前缀标签，失败静默灰显占位 */}
+            {item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && (
+              <div className="mt-2.5">
+                <ProjectTimelineStrip pmiId={item.projectManagementId} />
               </div>
             )}
 
