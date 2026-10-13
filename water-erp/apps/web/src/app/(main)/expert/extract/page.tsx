@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
+import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send } from 'lucide-react';
 import { STAGE_LABEL } from '@water-erp/shared';
@@ -30,7 +31,43 @@ function QuotaFiltersAppliedHint({ filters }: { filters?: ExtractionPreview['quo
   return <p className="text-[11px] text-[var(--muted-foreground)] mt-2">已启用档案过滤：{parts.join(' · ')}{filters.note ? `（${filters.note}）` : ''}</p>;
 }
 
-interface SpecialtyQuota { specialty: string; count: number; employer?: string; regionCode?: string; expertLevel?: string; companyId?: string }
+/** 配额行（2026-10-13 多选化）：specialties=相近专业并桶（空=专业不限）；companyIds=公司并集（空=按池 scope） */
+interface SpecialtyQuota { specialties: string[]; count: number; employer?: string; regionCode?: string; expertLevel?: string; companyIds?: string[] }
+
+/** 行内非空专业列表（trim 后） */
+const quotaSpecsOf = (q: SpecialtyQuota) => (q.specialties ?? []).map(s => s.trim()).filter(Boolean);
+/** 行是否已选专业（false=专业不限） */
+const quotaFilled = (q: SpecialtyQuota) => quotaSpecsOf(q).length > 0;
+/** 行展示名：顿号连接专业组 */
+const quotaLabel = (q: SpecialtyQuota) => quotaSpecsOf(q).join('、');
+/** 旧 shape（specialty/companyId 单值，localStorage 会话/历史缓存）→ 数组 coerce */
+const coerceQuota = (q: Omit<SpecialtyQuota, 'specialties' | 'companyIds'> & { specialty?: string; companyId?: string; specialties?: unknown; companyIds?: unknown }): SpecialtyQuota => ({
+  ...q,
+  specialties: Array.isArray(q.specialties) ? q.specialties.filter(s => typeof s === 'string' && s.trim()) : (q.specialty ? [q.specialty] : []),
+  companyIds: Array.isArray(q.companyIds) ? q.companyIds.filter(s => typeof s === 'string' && s.trim()) : (q.companyId ? [q.companyId] : []),
+});
+
+/** AI 专业 → 库内专业对齐（原词→词缀包含），对不上返回 '' */
+const mkMatchSpec = (specs: string[]) => (sp: string): string => {
+  const t = sp.trim();
+  if (!t) return '';
+  if (specs.includes(t)) return t;
+  return specs.find(x => x.includes(t) || t.includes(x)) || '';
+};
+
+/** AI 返回行（specialty 单值兜底 + specialties 相近组）→ 多选配额行：逐专业库内纠偏，相同专业组并桶累加席数 */
+const aiRowsToQuotas = (rows: { specialty?: string; specialties?: string[]; count: number }[], matchSpec: (sp: string) => string): SpecialtyQuota[] => {
+  const merged = new Map<string, SpecialtyQuota>();
+  for (const s of rows) {
+    const list = [...new Set([...(s.specialties ?? []).map(matchSpec), matchSpec(s.specialty ?? '')].filter(Boolean))];
+    if (!list.length) continue;
+    const key = list.join('、');
+    const ex = merged.get(key);
+    if (ex) ex.count += Math.max(1, s.count);
+    else merged.set(key, { specialties: list, count: Math.max(1, s.count) });
+  }
+  return [...merged.values()];
+};
 
 type ExtractMode = 'specialty_match' | 'random' | 'merit_best' | 'manual';
 type ApiExtractMode = Exclude<ExtractMode, 'manual'>;
@@ -56,7 +93,7 @@ export function ExpertExtractPage({
     preview: ExtractionPreview;
     selected: ExtractionSelected[];
     alternatives: ExtractionSelected[];
-    quotas: { specialty: string; count: number }[];
+    quotas: { specialties: string[]; count: number }[];
     pid: string;
     notifyMessage: string;
   } | null;
@@ -110,7 +147,7 @@ export function ExpertExtractPage({
   const [altExtracting, setAltExtracting] = useState(false);
   const [altNotified, setAltNotified] = useState(false);
   const [altNotifying, setAltNotifying] = useState(false);
-  const [quotas, setQuotas] = useState<SpecialtyQuota[]>([{ specialty: '', count: 2 }]);
+  const [quotas, setQuotas] = useState<SpecialtyQuota[]>([{ specialties: [], count: 2 }]);
   // 需求方代表配置
   const [needDemandRep, setNeedDemandRep] = useState(false);
   const [demandRepMode, setDemandRepMode] = useState<'designated' | 'department' | null>(null);
@@ -247,7 +284,7 @@ export function ExpertExtractPage({
   // 原始正选专家组 userId 集合（步骤2确认入的，不受补选覆盖），步骤4仅展示此集合内专家
   const originalConfirmedIdsRef = useRef<Set<string>>(new Set());
   // 上次补选用户确认的专业配额（跳过 configuring 直接抽取，直到该专业池空）
-  const lastReQuotasRef = useRef<{ specialty: string; count: number }[]>([]);
+  const lastReQuotasRef = useRef<{ specialties: string[]; count: number; companyIds?: string[] }[]>([]);
   // AI 配额缓存：按可分配席位数 key，记录已生成的配额结果（切回同一席位数时直接恢复，不走 AI）
   const quotaCacheRef = useRef<Map<number, SpecialtyQuota[]>>(new Map());
   // 由调用方传入的 defaultPid 在一次匹配成功后标记为已消费，避免后续 deps 变化重复触发
@@ -323,7 +360,7 @@ export function ExpertExtractPage({
       if (snap.pid !== pid || !snap.preview) return;
       modalLocalRestoredRef.current = true;
       if (snap.extractMode) setExtractMode(snap.extractMode);
-      if (snap.quotas?.length) setQuotas(snap.quotas);
+      if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
       if (snap.selectedExperts?.length) {
         // 分离需求方代表：旧快照不含 demandRepPersons，需求方代表混在 selectedExperts 中
         const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表');
@@ -443,7 +480,7 @@ export function ExpertExtractPage({
       const snap = JSON.parse(raw);
       if (snap.pid) { restoredPidRef.current = snap.pid; setPid(snap.pid); }
       if (snap.extractMode) setExtractMode(snap.extractMode);
-      if (snap.quotas?.length) setQuotas(snap.quotas);
+      if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
       if (snap.selectedExperts?.length) {
         const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表');
         const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
@@ -558,26 +595,14 @@ export function ExpertExtractPage({
   useEffect(() => {
     if (!pid || !pd || specs.length === 0) return;
     // 已有用户手动填写的专业 → 不覆盖（含 localStorage 恢复及用户主动选择）
-    if (quotas.some(q => q.specialty.trim())) return;
+    if (quotas.some(quotaFilled)) return;
     let cancelled = false;
     (async () => {
       try {
         const res = await analyzeProjectSpecialties(pid);
         if (cancelled) return;
         if (!res.requiredSpecialties?.length) return;
-        const matchSpec = (sp: string): string => {
-          const t = sp.trim();
-          if (!t) return '';
-          if (specs.includes(t)) return t;
-          return specs.find(x => x.includes(t) || t.includes(x)) || '';
-        };
-        const merged = new Map<string, number>();
-        for (const s of res.requiredSpecialties) {
-          const key = matchSpec(s.specialty);
-          if (!key) continue;
-          merged.set(key, (merged.get(key) ?? 0) + Math.max(1, s.count));
-        }
-        const newQuotas = Array.from(merged.entries()).map(([specialty, count]) => ({ specialty, count }));
+        const newQuotas = aiRowsToQuotas(res.requiredSpecialties, mkMatchSpec(specs));
         if (newQuotas.length > 0 && !cancelled) {
           setQuotas(clampToExpertSeats(newQuotas));
         }
@@ -764,8 +789,8 @@ export function ExpertExtractPage({
   // 配额适配 expertSeats：少→裁减；多→均分到已有专业（新专业由 AI 推荐决定，此处不增减专业）
   const clampToExpertSeats = (list: SpecialtyQuota[], target = expertSeats): SpecialtyQuota[] => {
     if (list.length === 0) return list;
-    const filled = list.filter(q => q.specialty.trim());
-    const empties = list.filter(q => !q.specialty.trim());
+    const filled = list.filter(quotaFilled);
+    const empties = list.filter(q => !quotaFilled(q));
     if (filled.length === 0) return list;
     const sum = filled.reduce((s, q) => s + q.count, 0);
     if (sum === target) return list;
@@ -800,8 +825,8 @@ export function ExpertExtractPage({
   // 配额缩减（仅减少，由 clampToExpertSeats 内在消减分支驱动；不丢用户所选专业）
   const trimQuotas = (list: SpecialtyQuota[], target: number): SpecialtyQuota[] => {
     if (list.length === 0) return list;
-    const filled = list.filter(q => q.specialty.trim());
-    const empties = list.filter(q => !q.specialty.trim());
+    const filled = list.filter(quotaFilled);
+    const empties = list.filter(q => !quotaFilled(q));
     if (filled.length === 0) return list;
     const sum = filled.reduce((s, q) => s + q.count, 0);
     if (sum <= target) return list;
@@ -840,7 +865,7 @@ export function ExpertExtractPage({
       } else {
         setQuotas(prevQ => clampToExpertSeats(prevQ));
       }
-    } else if (expertSeats > prev && pid && quotas.some(q => q.specialty.trim())) {
+    } else if (expertSeats > prev && pid && quotas.some(quotaFilled)) {
       // 增加：缓存命中直接恢复；未命中则防抖 600ms 后 AI 推荐
       const cached = quotaCacheRef.current.get(expertSeats);
       if (cached) {
@@ -861,7 +886,7 @@ export function ExpertExtractPage({
   // 专业配额增删改：始终在专业间调配席位，总和恒 = expertSeats（"一定要分配满"）
   const addQ = () => setQuotas(p => {
     const sum = p.reduce((s, q) => s + q.count, 0);
-    const next = [...p, { specialty: '', count: 1, companyId: myCompanyId || undefined } as SpecialtyQuota]; // 新配额默认本公司
+    const next = [...p, { specialties: [], count: 1, companyIds: myCompanyId ? [myCompanyId] : [] } as SpecialtyQuota]; // 新配额默认本公司
     // 总和已满 → 从 count 最大的现有专业借 1 席给新专业；未满 → 直接占 1 席（向 expertSeats 靠拢）
     if (sum >= expertSeats) {
       let donor = 0; for (let i = 1; i < p.length; i++) if (p[i].count > p[donor].count) donor = i;
@@ -878,7 +903,7 @@ export function ExpertExtractPage({
     next[target] = { ...next[target], count: next[target].count + removedCount };
     return next;
   });
-  const upQ = (i: number, f: keyof SpecialtyQuota, v: string | number) => setQuotas(p => p.map((q, x) => x === i ? { ...q, [f]: v } : q));
+  const upQ = (i: number, f: keyof SpecialtyQuota, v: string | number | string[]) => setQuotas(p => p.map((q, x) => x === i ? { ...q, [f]: v } : q));
   // 加/减某专业人数：未满 expertSeats 时向其靠拢；已满则在专业间调配（加=从最大专业借，减=补到最小专业）
   const adjustQuota = (idx: number, delta: 1 | -1) => setQuotas(p => {
     const sum = p.reduce((s, q) => s + q.count, 0);
@@ -912,20 +937,9 @@ export function ExpertExtractPage({
     try {
       const res = await analyzeProjectSpecialties(pid);
       if (!res.requiredSpecialties?.length) { toast.warning('未能生成专业配额，请手动配置', { id: 'ai-quota' }); return; }
-      // 与专家库已有专业对齐：仅保留能匹配库内专业的项（命中词缀包含关系），库内无对应专业的丢弃
-      const matchSpec = (sp: string): string => {
-        const t = sp.trim();
-        if (!t) return '';
-        if (specs.includes(t)) return t;
-        return specs.find(x => x.includes(t) || t.includes(x)) || '';
-      };
-      const merged = new Map<string, number>();
-      for (const s of res.requiredSpecialties) {
-        const key = matchSpec(s.specialty);
-        if (!key) continue;
-        merged.set(key, (merged.get(key) ?? 0) + Math.max(1, s.count));
-      }
-      const newQuotas = Array.from(merged.entries()).map(([specialty, count]) => ({ specialty, count }));
+      // 与专家库已有专业对齐：仅保留能匹配库内专业的项（命中词缀包含关系），库内无对应专业的丢弃；
+      // AI 按相近专业并桶返回 specialties 组，整组保留为多选配额行
+      const newQuotas = aiRowsToQuotas(res.requiredSpecialties, mkMatchSpec(specs));
       if (newQuotas.length > 0) {
         const clamped = clampToExpertSeats(newQuotas);
         quotaCacheRef.current.set(expertSeats, clamped);
@@ -949,9 +963,9 @@ export function ExpertExtractPage({
     const newFixed = next ? demandRepCount : 0;
     const newExpert = Math.max(0, totalSeats - newFixed);
     setQuotas(prev => {
-      const filled = prev.filter(q => q.specialty.trim());
-      const empties = prev.filter(q => !q.specialty.trim());
-      const list = filled.length ? filled : [{ specialty: '', count: 1 } as SpecialtyQuota];
+      const filled = prev.filter(quotaFilled);
+      const empties = prev.filter(q => !quotaFilled(q));
+      const list = filled.length ? filled : [{ specialties: [], count: 1 } as SpecialtyQuota];
       let sum = list.reduce((s, q) => s + q.count, 0);
       let target = Math.max(newExpert, list.length);
       if (target < sum) {
@@ -971,9 +985,9 @@ export function ExpertExtractPage({
     setDemandRepPersons(prev => prev.slice(0, n));
     const newExpert = Math.max(0, totalSeats - n);
     setQuotas(prev => {
-      const filled = prev.filter(q => q.specialty.trim());
-      const empties = prev.filter(q => !q.specialty.trim());
-      const list = filled.length ? filled : [{ specialty: '', count: 1 } as SpecialtyQuota];
+      const filled = prev.filter(quotaFilled);
+      const empties = prev.filter(q => !quotaFilled(q));
+      const list = filled.length ? filled : [{ specialties: [], count: 1 } as SpecialtyQuota];
       let sum = list.reduce((s, q) => s + q.count, 0);
       const target = Math.max(newExpert, list.length);
       if (target < sum) {
@@ -986,8 +1000,8 @@ export function ExpertExtractPage({
       return [...list, ...empties];
     });
   };
-  const qt = quotas.reduce((s, q) => s + (q.specialty ? q.count : 0), 0);
-  const qp = extractMode === 'specialty_match' ? quotas.filter(q => q.specialty.trim()).map(q => ({ specialty: q.specialty, count: q.count })) : undefined;
+  const qt = quotas.reduce((s, q) => s + (quotaFilled(q) ? q.count : 0), 0);
+  const qp = extractMode === 'specialty_match' ? quotas.filter(quotaFilled).map(q => ({ specialties: quotaSpecsOf(q), count: q.count })) : undefined;
   const et = extractMode === 'specialty_match' ? Math.max(qt, 1) : tn;
 
   // 候选池去重：补选弹窗打开时基于 reDraft，否则基于初始抽取
@@ -1053,21 +1067,9 @@ export function ExpertExtractPage({
         background: analysis.projectBackground || analysis.analysis || '',
       });
       // 预填抽取配置：专业配额 + 总人数 + 专业匹配模式
-      // 生成专业先向库内专业对齐（精确→包含匹配），库内无匹配则丢弃
-      const matchSpec = (sp: string): string => {
-        const t = sp.trim();
-        if (!t) return '';
-        if (specs.includes(t)) return t;
-        return specs.find(x => x.includes(t) || t.includes(x)) || '';
-      };
-      const merged = new Map<string, number>();
-      for (const s of analysis.requiredSpecialties) {
-        const key = matchSpec(s.specialty);
-        if (!key) continue;
-        merged.set(key, (merged.get(key) ?? 0) + Math.max(1, s.count));
-      }
-      const q = Array.from(merged.entries()).map(([specialty, count]) => ({ specialty, count }));
-      setQuotas(clampToExpertSeats(q.length ? q : [{ specialty: '', count: expertSeats }]));
+      // 生成专业先向库内专业对齐（精确→包含匹配），库内无匹配则丢弃；AI 相近专业组整组保留
+      const q = aiRowsToQuotas(analysis.requiredSpecialties, mkMatchSpec(specs));
+      setQuotas(clampToExpertSeats(q.length ? q : [{ specialties: [], count: expertSeats }]));
       setTn(Math.max(analysis.totalExperts || 3, 1));
       setExtractMode('random');
       setPid(res.projectId); // 触发 [pid] effect 加载影子项目详情（留在步骤1，展开配置区）
@@ -1081,7 +1083,7 @@ export function ExpertExtractPage({
 
   const run = async () => {
     if (!pid) { setError('请选择采购项目'); return; }
-    if (extractMode !== 'manual' && !quotas.some(q => q.specialty.trim())) { setError('请至少选择一个专业'); return; }
+    if (extractMode !== 'manual' && !quotas.some(quotaFilled)) { setError('请至少选择一个专业'); return; }
     if (extractMode !== 'manual' && !seatsBalanced) { setError(`专业配额合计须等于可分配席位 ${expertSeats} 席（当前 ${quotaSum} 席）`); return; }
     if (needDemandRep) {
       if (demandRepMode === 'designated' && demandRepPersons.length !== demandRepCount) { setError(`请指定 ${demandRepCount} 名需求方（业主）代表（已选 ${demandRepPersons.length} 名）`); return; }
@@ -1104,14 +1106,14 @@ export function ExpertExtractPage({
 
     // 组装抽取配额：专业可空=「不选择」（不限专业桶，2026-09-24）；公司=配额所选（默认本公司，可跨公司）；
     // 部门需求方代表走 employer 限定配额；区域/等级档案过滤已随 UI 下线不再发送
-    const manualQuotas: { specialty: string; count: number; companyId?: string }[] = [];
+    const manualQuotas: { specialties: string[]; count: number; companyIds?: string[] }[] = [];
     for (const qq of quotas) manualQuotas.push({
-      specialty: qq.specialty, count: qq.count,
-      ...((qq.companyId || myCompanyId) ? { companyId: qq.companyId || myCompanyId } : {}),
+      specialties: quotaSpecsOf(qq), count: qq.count, // 空=专业不限（不限专业桶）
+      companyIds: qq.companyIds?.length ? qq.companyIds : (myCompanyId ? [myCompanyId] : []), // 空=不限公司（按池 scope）
     });
-    const regularQuotaCount = manualQuotas.length; // 候补 = 每个专业 1 位
+    const regularQuotaCount = manualQuotas.length; // 候补 = 每个配额组 1 位
     const allQuotas = (needDemandRep && demandRepMode === 'department')
-      ? [...manualQuotas, { specialty: demandRepDeptSpecialty || '', count: demandRepCount, employer: demandRepCompany, department: demandRepDept }]
+      ? [...manualQuotas, { specialties: demandRepDeptSpecialty ? [demandRepDeptSpecialty] : [], count: demandRepCount, employer: demandRepCompany, department: demandRepDept }]
       : manualQuotas;
     const totalNeeded = allQuotas.reduce((s, q) => s + q.count, 0);
 
@@ -1146,7 +1148,7 @@ export function ExpertExtractPage({
 
   /** 抽取配置公司白名单：各配额所选公司（默认本公司）的去重集合，确认抽取时随 payload 递交（跨公司放行依据） */
   const extractionCompanyIds = (extraQuotas: SpecialtyQuota[] = []): string[] | undefined => {
-    const ids = [...new Set([...quotas, ...extraQuotas].map(q => (q.companyId || myCompanyId || '').trim()).filter(Boolean))];
+    const ids = [...new Set([...quotas, ...extraQuotas].flatMap(q => (q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : [])).map(c => c.trim())).filter(Boolean))];
     return ids.length ? ids : undefined;
   };
 
@@ -1315,9 +1317,10 @@ export function ExpertExtractPage({
     if (lastReQuotasRef.current.length > 0) {
       const shortages: string[] = [];
       for (const q of lastReQuotasRef.current) {
-        const pc = pool.get(q.specialty) ?? 0;
-        const invited = invitationData.experts.filter(e => e.major === q.specialty).length;
-        if (pc - invited < q.count) shortages.push(`${q.specialty}（池${pc}人/已邀${invited}人/需${q.count}人）`);
+        const list = quotaSpecsOf(q);
+        const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
+        const invited = invitationData.experts.filter(e => list.includes(e.major ?? '')).length;
+        if (pc - invited < q.count) shortages.push(`${quotaLabel(q)}（池${pc}人/已邀${invited}人/需${q.count}人）`);
       }
       if (shortages.length === 0) {
         const totalNeeded = lastReQuotasRef.current.reduce((s, q) => s + q.count, 0);
@@ -1341,11 +1344,10 @@ export function ExpertExtractPage({
       const aiRes = await analyzeProjectSpecialties(pid);
       let quotas: SpecialtyQuota[] = [];
       let declinedDemandRepIds: any[] = [];
-      let reEmployerQuotas: { specialty: string; count: number; employer?: string; companyId?: string }[] = [];
+      let reEmployerQuotas: { specialties: string[]; count: number; employer?: string }[] = [];
       if (aiRes?.requiredSpecialties?.length) {
-        const matchSpec = (sp: string): string => { const t = sp.trim(); if (!t) return ''; if (specs.includes(t)) return t; return specs.find(x => x.includes(t) || t.includes(x)) || ''; };
-        const merged = new Map<string, number>();
-        for (const s of aiRes.requiredSpecialties) { const key = matchSpec(s.specialty); if (key) merged.set(key, (merged.get(key) ?? 0) + Math.max(1, s.count)); }
+        // AI 推荐行（相近专业组）→ 多选配额行，按席位数降序供补满
+        const aiRows = aiRowsToQuotas(aiRes.requiredSpecialties, mkMatchSpec(specs)).sort((a, b) => b.count - a.count);
         let remaining = shortfall;
         // 需求方代表补选：按原配置的部门+专业生成 employer 限定配额，而非用专家真实专业
         declinedDemandRepIds = allMain.filter(e => e.invitationStatus === 'declined' && demandRepIdSet.has(e.userId));
@@ -1355,7 +1357,7 @@ export function ExpertExtractPage({
         reEmployerQuotas = [];
         if (declinedDemandRepIds.length > 0 && demandRepMode === 'department' && demandRepDept) {
           reEmployerQuotas.push({
-            specialty: demandRepDeptSpecialty || '',
+            specialties: demandRepDeptSpecialty ? [demandRepDeptSpecialty] : [],
             count: declinedDemandRepIds.length,
             employer: demandRepDept,
           });
@@ -1371,22 +1373,23 @@ export function ExpertExtractPage({
         for (const [spec, cnt] of declinedCounts) {
           if (remaining <= 0) break;
           const take = Math.min(cnt, remaining);
-          quotas.push({ specialty: spec, count: take });
+          quotas.push({ specialties: [spec], count: take });
           remaining -= take;
         }
-        // 再按 AI 推荐专业补满剩余席位
-        for (const [spec, count] of Array.from(merged.entries()).sort((a, b) => b[1] - a[1])) {
+        // 再按 AI 推荐席位组补满剩余席位（专业重叠的组跳过，避免同专业双份配额）
+        for (const row of aiRows) {
           if (remaining <= 0) break;
-          if (quotas.some(q => q.specialty === spec)) continue; // 已在 declined 中分配
-          const take = Math.min(count, remaining);
-          quotas.push({ specialty: spec, count: take });
+          if (quotas.some(q => q.specialties.some(sp => row.specialties.includes(sp)))) continue; // 已在 declined 中分配
+          const take = Math.min(row.count, remaining);
+          quotas.push({ specialties: row.specialties, count: take });
           remaining -= take;
         }
       }
-      // 过滤掉库内已无可抽专家的专业，仅保留池内有人的专业
+      // 过滤掉库内已无可抽专家的配额组（行内任一专业池有余量即保留），仅保留池内有人的组
       quotas = quotas.filter(q => {
-        const pc = pool.get(q.specialty) ?? 0;
-        const invited = invitationData.experts.filter(e => e.major === q.specialty).length;
+        const list = quotaSpecsOf(q);
+        const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
+        const invited = invitationData.experts.filter(e => list.includes(e.major ?? '')).length;
         return pc - invited > 0;
       });
       if (quotas.length === 0) {
@@ -1395,11 +1398,11 @@ export function ExpertExtractPage({
         return;
       }
       // 库内还有专家 → 直接抽取，不再弹配置对话框
-      const allReQuotas = [...quotas, ...reEmployerQuotas];
+      const allReQuotas: SpecialtyQuota[] = [...quotas, ...reEmployerQuotas];
       const totalNeeded = allReQuotas.reduce((s, q) => s + q.count, 0);
       const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
-      const manualQuotas = allReQuotas.map(q => ({ specialty: q.specialty, count: q.count, employer: q.employer, companyId: q.companyId }));
-      updateDraft({ quotas: allReQuotas.map(q => ({ specialty: q.specialty, count: q.count })) });
+      const manualQuotas = allReQuotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count, employer: q.employer, companyIds: q.companyIds }));
+      updateDraft({ quotas: allReQuotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count })) });
       const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(quotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
       // 分离部门抽取的需求方代表（末尾 reEmployerQuotas 总人数）
@@ -1415,7 +1418,7 @@ export function ExpertExtractPage({
       }
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
       // 记住本次配额（下次补选直接用）——仅普通专业，需求方代表配额由 demandRepDept 驱动
-      lastReQuotasRef.current = quotas.map(q => ({ specialty: q.specialty, count: q.count }));
+      lastReQuotasRef.current = quotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count }));
     } catch (e: any) {
       toast.error(e?.message || 'AI 分析失败');
       setReDraft(null);
@@ -1425,20 +1428,21 @@ export function ExpertExtractPage({
   /** 弹窗配置阶段 → 开始抽取：用户调整配额后触发 previewExtraction */
   const extractReDraft = async () => {
     if (!reDraft || !pid || !invitationData) return;
-    const quotas = reDraft.quotas.filter(q => q.specialty.trim() && q.count > 0);
+    const quotas = reDraft.quotas.filter(quotaFilled).filter(q => q.count > 0);
     if (quotas.length === 0) { toast.warning('请至少配置一个专业'); return; }
-    // 检查池
+    // 检查池（行内多专业=并集池）
     const shortages: string[] = [];
     for (const q of quotas) {
-      const pc = pool.get(q.specialty) ?? 0;
-      const invited = invitationData.experts.filter(e => e.major === q.specialty).length;
-      if (pc - invited < q.count) shortages.push(`${q.specialty}（池内${pc}人，已邀请${invited}人，需补${q.count}人）`);
+      const list = quotaSpecsOf(q);
+      const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
+      const invited = invitationData.experts.filter(e => list.includes(e.major ?? '')).length;
+      if (pc - invited < q.count) shortages.push(`${quotaLabel(q)}（池内${pc}人，已邀请${invited}人，需补${q.count}人）`);
     }
-    if (shortages.length > 0) { setReShortfallSpecs(quotas.map(q => q.specialty)); toast.warning(shortages.join('；')); return; }
+    if (shortages.length > 0) { setReShortfallSpecs(quotas.map(quotaLabel)); toast.warning(shortages.join('；')); return; }
     setReShortfallSpecs([]);
     const totalNeeded = quotas.reduce((s, q) => s + q.count, 0);
     const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
-    const manualQuotas: { specialty: string; count: number }[] = quotas.map(q => ({ specialty: q.specialty, count: q.count }));
+    const manualQuotas: { specialties: string[]; count: number }[] = quotas.map(q => ({ specialties: quotaSpecsOf(q), count: q.count }));
     updateDraft({ phase: 'extracting' });
     try {
       const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(manualQuotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
@@ -1446,7 +1450,7 @@ export function ExpertExtractPage({
       updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
       // 记住本次用户确认的配额（下次补选直接用，不再询问）
-      lastReQuotasRef.current = quotas.filter(q => q.specialty.trim() && q.count > 0).map(q => ({ specialty: q.specialty, count: q.count, companyId: q.companyId }));
+      lastReQuotasRef.current = quotas.filter(quotaFilled).filter(q => q.count > 0).map(q => ({ specialties: quotaSpecsOf(q), count: q.count, companyIds: q.companyIds }));
     } catch (e: any) {
       toast.error(e?.message || '补选抽取失败');
       updateDraft({ phase: 'configuring' });
@@ -1559,37 +1563,40 @@ export function ExpertExtractPage({
     });
   };
 
-  /** 步骤6：按步骤1专业配额抽候补（每专业1人），池空自动换专业，排除所有已邀请专家 */
+  /** 步骤6：按步骤1专业配额抽候补（每配额组1人，多选组=相近专业并集池），池空自动换专业，排除所有已邀请专家 */
   const extractAlternates = async () => {
     if (!pid || !invitationData) return;
     const allInvited = new Set(invitationData.experts.map(e => e.userId));
-    const quotaSpecs = quotas.filter(q => q.specialty.trim()).map(q => q.specialty);
-    if (quotaSpecs.length === 0) { toast.warning('无专业配额，无法抽取候补'); return; }
+    const quotaRows = quotas.filter(quotaFilled);
+    const quotaSpecs = quotaRows.flatMap(quotaSpecsOf); // 扁平化专业清单（fallback 换专业用）
+    if (quotaRows.length === 0) { toast.warning('无专业配额，无法抽取候补'); return; }
     const mainExperts = invitationData.experts.filter(e => e.expertRole === '正选');
     setAltExtracting(true);
     try {
-      const manualQuotas: { specialty: string; count: number }[] = [];
+      const manualQuotas: { specialties: string[]; count: number }[] = [];
       const usedSpecs = new Set<string>();
-      for (const spec of quotaSpecs) {
-        let target = spec;
-        const pc = pool.get(target) ?? 0;
-        const invited = mainExperts.filter(e => e.major === target).length;
+      for (const row of quotaRows) {
+        const list = quotaSpecsOf(row);
+        const pc = list.reduce((n, sp) => n + (pool.get(sp) ?? 0), 0);
+        const invited = mainExperts.filter(e => list.includes(e.major ?? '')).length;
+        let target: string[] | null = list;
         if (pc - invited < 1) {
-          // 一级 fallback：配额表内其他专业
+          // 一级 fallback：配额表内其他专业（逐个换到有余量的专业）
+          target = null;
           for (const s of quotaSpecs) {
-            if (!usedSpecs.has(s) && s !== target) { const sp = pool.get(s) ?? 0; const si = mainExperts.filter(e => e.major === s).length; if (sp - si > 0) { target = s; break; } }
+            if (!usedSpecs.has(s) && !list.includes(s)) { const sp = pool.get(s) ?? 0; const si = mainExperts.filter(e => e.major === s).length; if (sp - si > 0) { target = [s]; break; } }
           }
           // 二级 fallback：全库按人数降序（排除职工代表/需求方代表等非专业角色）
-          if (target === spec) {
+          if (!target) {
             for (const s of [...specs].sort((a, b) => (pool.get(b) ?? 0) - (pool.get(a) ?? 0))) {
-              if (!usedSpecs.has(s) && !['职工代表', '需求方代表'].includes(s)) { const sp = pool.get(s) ?? 0; const si = mainExperts.filter(e => e.major === s).length; if (sp - si > 0) { target = s; break; } }
+              if (!usedSpecs.has(s) && !['职工代表', '需求方代表'].includes(s)) { const sp = pool.get(s) ?? 0; const si = mainExperts.filter(e => e.major === s).length; if (sp - si > 0) { target = [s]; break; } }
             }
           }
           // 两级都找不到 → 跳过（避免 previewExtraction 部分失败导致人数不对）
-          if (target === spec) continue;
+          if (!target) continue;
         }
-        usedSpecs.add(target);
-        manualQuotas.push({ specialty: target, count: 1 });
+        target.forEach(s => usedSpecs.add(s));
+        manualQuotas.push({ specialties: target, count: 1 });
       }
       const totalNeeded = manualQuotas.length;
       const excludedIds = [...allInvited];
@@ -1983,7 +1990,7 @@ export function ExpertExtractPage({
                           <div className="space-y-1">
                             {[...analysis.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map((s, i) => (
                               <div key={i} className="flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-3 py-1.5 text-xs">
-                                <span className="font-bold text-[var(--foreground)]">{s.specialty}</span>
+                                <span className="font-bold text-[var(--foreground)]">{s.specialties?.length ? s.specialties.join('、') : s.specialty}</span>
                                 <span className="rounded bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-1.5 py-0.5 font-bold text-[var(--accent)]">{s.count} 人</span>
                                 {s.reason && <span className="min-w-0 flex-1 truncate text-[var(--muted-foreground)]">{s.reason}</span>}
                               </div>
@@ -2208,7 +2215,7 @@ export function ExpertExtractPage({
                   {/* 信息条：一行说清两个下拉的语义 */}
                   <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] px-2.5 py-1.5">
                     <Info size={11} strokeWidth={2} className="mt-px shrink-0 text-[var(--muted-foreground)]" />
-                    <p className="text-[10px] leading-4 text-[var(--muted-foreground)]">公司默认为本公司，可改选其他公司抽取其专家；专业可选「专业不限」＝不限专业抽取。</p>
+                    <p className="text-[10px] leading-4 text-[var(--muted-foreground)]">公司/专业均支持多选：候选池=所选相近专业并集 ∩ 所选公司并集；清空专业＝「专业不限」、清空公司＝不限公司。</p>
                   </div>
 
                   {/* 配额行：公司色标 + 公司（短名）/ 专业 + 席位步进 + 删除 */}
@@ -2216,19 +2223,34 @@ export function ExpertExtractPage({
                     {quotas
                       .map((q, idx) => ({ q, idx }))
                       .sort((a, b) => {
-                        const ca = a.q.specialty ? (pool.get(a.q.specialty) ?? 0) : -1;
-                        const cb = b.q.specialty ? (pool.get(b.q.specialty) ?? 0) : -1;
+                        // 行内专业池人数取最大值（多选并桶），未选专业排末尾
+                        const ca = Math.max(-1, ...quotaSpecsOf(a.q).map(sp => pool.get(sp) ?? 0));
+                        const cb = Math.max(-1, ...quotaSpecsOf(b.q).map(sp => pool.get(sp) ?? 0));
                         return cb - ca; // 库内人数降序，未选专业排末尾
                       })
                       .map(({ q, idx }) => {
-                        const qc = companies.find(c => c.id === (q.companyId || myCompanyId));
+                        const qcIds = q.companyIds?.length ? q.companyIds : (myCompanyId ? [myCompanyId] : []);
+                        const qc = companies.find(c => c.id === qcIds[0]);
+                        const qcNames = qcIds.map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join('、');
                         return (
                           <div key={idx} className="group flex flex-wrap items-center gap-2 rounded-[11px] bg-[color-mix(in_oklch,var(--muted-foreground)_4%,transparent)] px-2 py-1.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)] transition-colors hover:bg-[color-mix(in_oklch,var(--muted-foreground)_7%,transparent)]">
-                            <span className="h-8 w-1 shrink-0 self-center rounded-full" style={{ backgroundColor: companyColor(qc?.name ?? '') }} title={qc?.name} />
-                            <select value={q.companyId || myCompanyId} onChange={e => upQ(idx, 'companyId', e.target.value)} title={`公司：本配额仅从该公司的专家库抽取（${qc?.name ?? ''}）`} className="neu-input text-sm min-w-[210px] flex-[1.4] shrink-0">
-                              {companies.map(c => <option key={c.id} value={c.id} title={c.id === myCompanyId ? `${c.name}（本公司）` : c.name}>{c.name}</option>)}
-                            </select>
-                            <select value={q.specialty} onChange={e => upQ(idx, 'specialty', e.target.value)} className="neu-input text-sm min-w-[150px] flex-1 min-w-0" title="专业：可选「专业不限」＝不限专业抽取"><option value="">专业不限</option>{[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
+                            <span className="h-8 w-1 shrink-0 self-center rounded-full" style={{ backgroundColor: companyColor(qc?.name ?? '') }} title={qcNames} />
+                            <QuotaMultiSelect
+                              className="min-w-[210px] flex-[1.4] shrink-0"
+                              options={companies.map(c => ({ value: c.id, label: c.id === myCompanyId ? `${c.name}（本公司）` : c.name }))}
+                              selected={qcIds}
+                              onChange={list => upQ(idx, 'companyIds', list)}
+                              placeholder="不限公司"
+                              title={`公司（可多选）：本配额从所选公司并集的专家库抽取（${qcNames || '不限'}）`}
+                            />
+                            <QuotaMultiSelect
+                              className="min-w-[150px] flex-1"
+                              options={[...specs].sort((a,b) => (pool.get(b)||0) - (pool.get(a)||0)).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
+                              selected={quotaSpecsOf(q)}
+                              onChange={list => upQ(idx, 'specialties', list)}
+                              placeholder="专业不限"
+                              title="专业（可多选，相近专业并桶）：候选池=所选专业并集，命中任一即入池；清空=专业不限"
+                            />
                             <div className="ml-auto flex shrink-0 items-center gap-1">
                               <button onClick={() => adjustQuota(idx, -1)} className="neu-btn-xs" aria-label="减 1 席">−</button>
                               <span className="min-w-[40px] rounded-[7px] bg-[color-mix(in_oklch,var(--background)_75%,transparent)] px-1 py-1 text-center text-[13px] font-extrabold leading-none tabular-nums text-[var(--foreground)]">{q.count}<span className="ml-0.5 text-[9px] font-semibold text-[var(--muted-foreground)]">席</span></span>
@@ -2259,7 +2281,7 @@ export function ExpertExtractPage({
                     onClick={() => {
                       if (m !== extractMode) {
                         setExtractMode(m);
-                        if (quotas.some(q => q.specialty.trim())) toast.info(`已切换至「${MODE_LABELS[m]}」模式，专业配额已保留`);
+                        if (quotas.some(quotaFilled)) toast.info(`已切换至「${MODE_LABELS[m]}」模式，专业配额已保留`);
                       }
                     }}
                     title={MODE_DESCS[m]}
@@ -2309,7 +2331,7 @@ export function ExpertExtractPage({
                     <span className={`inline-flex items-center rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5)] ${preview.engine === 'deepseek' ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]'}`}>{preview.engine === 'deepseek' ? 'AI' : '规则'}</span>
                   </div>
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{preview.analysis}</p>
-                  {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-3">{[...preview.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map(q => <span key={q.specialty} className="neu-tab-count">{q.specialty} × {q.count}</span>)}</div>}
+                  {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-3">{[...preview.requiredSpecialties].sort((a,b)=>(quotaOrderMap.get(a.specialty)??999)-(quotaOrderMap.get(b.specialty)??999)).map((q, i) => <span key={`${q.specialty}-${i}`} className="neu-tab-count">{q.specialties?.length ? q.specialties.join('、') : q.specialty} × {q.count}</span>)}</div>}
                   <QuotaFiltersAppliedHint filters={preview.quotaFiltersApplied} />
                 </div>
 
@@ -3106,10 +3128,14 @@ export function ExpertExtractPage({
               <div className="space-y-2">
                 {reDraft.quotas.map((q, qi) => (
                 <div key={qi} className="flex items-center gap-2">
-                  <select value={q.specialty} onChange={e => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, specialty: e.target.value } : x) })} className="neu-input text-sm flex-1">
-                    <option value="">选择专业</option>
-                    {[...specs].sort((a,b) => (pool.get(b)??0) - (pool.get(a)??0)).map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}
-                  </select>
+                  <QuotaMultiSelect
+                    className="flex-1"
+                    options={[...specs].sort((a,b) => (pool.get(b)??0) - (pool.get(a)??0)).map(s => ({ value: s, label: s, hint: pool.has(s) ? `${pool.get(s)}人·库内` : undefined }))}
+                    selected={quotaSpecsOf(q)}
+                    onChange={list => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, specialties: list } : x) })}
+                    placeholder="选择专业"
+                    title="专业（可多选，相近专业并桶）"
+                  />
                   <div className="flex items-center gap-1">
                     <button onClick={() => updateDraft({ quotas: reDraft.quotas.map((x, i) => i === qi ? { ...x, count: x.count > 0 ? x.count - 1 : 0 } : x) })} className="neu-btn-xs">−</button>
                     <span className="w-8 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span>
@@ -3118,7 +3144,7 @@ export function ExpertExtractPage({
                   <button onClick={() => updateDraft({ quotas: reDraft.quotas.filter((_, i) => i !== qi) })} className="neu-btn-xs is-danger">×</button>
                 </div>
                 ))}
-                <button onClick={() => updateDraft({ quotas: [...reDraft.quotas, { specialty: '', count: 1 }] })} className="neu-btn-xs"><Plus size={12} />添加专业</button>
+                <button onClick={() => updateDraft({ quotas: [...reDraft.quotas, { specialties: [], count: 1 }] })} className="neu-btn-xs"><Plus size={12} />添加专业</button>
               </div>
               {reShortfallSpecs.length > 0 && (
                 <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)] flex items-center gap-2">
@@ -3126,7 +3152,7 @@ export function ExpertExtractPage({
                 </div>
               )}
               <div className="flex justify-end pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                <button onClick={extractReDraft} disabled={!reDraft.quotas.some(q => q.specialty.trim() && q.count > 0)} className="neu-btn-soft is-info">
+                <button onClick={extractReDraft} disabled={!reDraft.quotas.some(q => quotaFilled(q) && q.count > 0)} className="neu-btn-soft is-info">
                   <Search size={14} className="inline mr-1" />开始抽取
                 </button>
               </div>

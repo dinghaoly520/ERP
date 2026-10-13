@@ -77,7 +77,7 @@ export interface ExtractionPreview {
   model: string;
   extractMode: 'specialty_match' | 'random' | 'merit_best';
   analysis: string;
-  requiredSpecialties: { specialty: string; count: number; reason: string }[];
+  requiredSpecialties: { specialty: string; specialties?: string[]; count: number; reason: string }[];
   eligiblePool: number;
   candidatePool: CandidatePoolItem[];
   selected: ExtractionSelected[];
@@ -152,7 +152,8 @@ export function previewExtraction(data: {
   extractMode?: 'specialty_match' | 'random' | 'merit_best';
   /** @deprecated 兼容旧UI，优先用 extractMode */
   mode?: 'weighted' | 'fair';
-  manualQuotas?: { specialty: string; count: number; employer?: string; department?: string; regionCode?: string; expertLevel?: string; companyId?: string }[];
+  /** 多选配额（2026-10-13）：specialties/companyIds 数组；旧单值 specialty/companyId 仍受支持（后端归一化） */
+  manualQuotas?: { specialty?: string; specialties?: string[]; count: number; employer?: string; department?: string; regionCode?: string; expertLevel?: string; companyId?: string; companyIds?: string[] }[];
   excludedUserIds?: string[];
   /** 公司限定：本次抽取的全部候选仅限该公司专家 */
   employer?: string;
@@ -179,7 +180,7 @@ export interface ExtractionFileAnalysis {
   suggestedName: string;
   projectBackground: string;
   procurementType: string;
-  requiredSpecialties: { specialty: string; count: number; reason: string }[];
+  requiredSpecialties: { specialty: string; specialties?: string[]; count: number; reason: string }[];
   totalExperts: number;
   analysis: string;
   engine: 'ai' | 'rules';
@@ -190,7 +191,7 @@ export function analyzeExtractionFiles(fileIds: string[]) {
 
 /** 已有项目 AI 推断专业配额（仅分析不抽取，用于预填配额） */
 export interface ProjectSpecialtyAnalysis {
-  requiredSpecialties: { specialty: string; count: number; reason: string }[];
+  requiredSpecialties: { specialty: string; specialties?: string[]; count: number; reason: string }[];
   totalExperts: number;
   analysis: string;
   engine: 'ai' | 'rules';
