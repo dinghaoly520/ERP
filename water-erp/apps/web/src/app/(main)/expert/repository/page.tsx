@@ -384,7 +384,7 @@ export default function ExpertRepositoryPage() {
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><UsersRound size={17} /></div>
-            <div><div className="page-hero__title">专家库</div><div className="page-hero__sub">评审专家目录、专业分类与启停管理，支持按专业和姓名筛选</div></div>
+            <div><div className="page-hero__title">专家管理</div><div className="page-hero__sub">评审专家目录、专业分类与启停管理，支持按专业和姓名筛选</div></div>
           </div>
           <div className="page-hero__right">
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="experts" />

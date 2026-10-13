@@ -395,7 +395,7 @@ export default function SupplierRepositoryPage() {
           <div className="page-hero__left">
             <div className="page-hero__icon"><Building2 size={17} /></div>
             <div>
-              <div className="page-hero__title">供应商库</div>
+              <div className="page-hero__title">供应商管理</div>
               <div className="page-hero__sub">全量供应商目录与状态维护</div>
             </div>
           </div>
