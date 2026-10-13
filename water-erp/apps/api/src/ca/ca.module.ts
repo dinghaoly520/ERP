@@ -10,6 +10,7 @@ import { CaOperationService } from './ca-operation.service';
 import { CaAuthController } from './ca-auth.controller';
 import { CaBindingController } from './ca-binding.controller';
 import { CaBidOperationController } from './ca-bid-operation.controller';
+import { EncryptedAssetController } from './encrypted-asset.controller';
 import { CaEligibilityService } from './ca-eligibility.service';
 import { AuthModule } from '../auth/auth.module';
 import { JwtModule } from '@nestjs/jwt';
@@ -45,7 +46,7 @@ export function loadCaConfig(): CaEnvConfig {
 
 @Module({
   imports: [AuthModule, JwtModule.register({ secret: getJwtSecret(), signOptions: { expiresIn: '7d' } })],
-  controllers: [CaAuthController, CaBindingController, CaBidOperationController],
+  controllers: [CaAuthController, CaBindingController, CaBidOperationController, EncryptedAssetController],
   providers: [
     {
       provide: SccaGatewayClient,
