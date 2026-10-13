@@ -3,15 +3,10 @@
    登录=匿名 cookie 绑定；绑定/自检=userId+sid 绑定。
    ================================================================= */
 import { createHash, randomBytes } from 'crypto';
+import { Inject, Injectable } from '@nestjs/common';
+import Redis from 'ioredis';
 
 export type ChallengePurpose = 'ca-login' | 'bind' | 'replace' | 'revoke' | 'self-test';
-
-interface IRedisLike {
-  hset(key: string, ...kv: string[]): Promise<number>;
-  expire(key: string, seconds: number): Promise<number>;
-  eval(script: string, numKeys: number, ...args: string[]): Promise<unknown>;
-  del(key: string): Promise<number>;
-}
 
 // Lua：原子比对 purpose+bindingKey → CONSUMED（失败不回 READY）
 const CLAIM_LUA = `
@@ -32,7 +27,7 @@ export interface ChallengePayload {
 }
 
 export class CaChallengeService {
-  constructor(private readonly redis: IRedisLike) {}
+  constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   /** 登录挑战：匿名 cookie hash + 证书指纹绑定 */
   async createLogin(p: { portal: string; browserCookieHash: string; signCertPem: string }): Promise<ChallengePayload> {
