@@ -4034,8 +4034,24 @@ export class SupplierPortalService {
     } else {
       throw new BadRequestException({ error: '当前开标记录不可确认（仅待供应商确认状态可操作）', code: 'RECORD_NOT_CONFIRMABLE' });
     }
-    const v2 = await this.buildOpeningConfirmV2(supplierId, projectId, purpose, record);
-    return { payload: JSON.parse(v2.canonical), canonical: v2.canonical, recordSnapshot: v2.recordSnapshot, openingRecordHash: v2.openingRecordHash };
+    // 轨道分派（2026-10-14 e2e 修复）：dual-v3 行返 v2（金额出签）；
+    // legacy/dual-v2 行返 v1（历史证据格式——旧轨 SM2 提交分支按 v1 重算）
+    const trackSub = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+      select: { envelopeVersion: true },
+    });
+    if (trackSub?.envelopeVersion === 'dual-v3') {
+      const v2 = await this.buildOpeningConfirmV2(supplierId, projectId, purpose, record);
+      return { payload: JSON.parse(v2.canonical), canonical: v2.canonical, recordSnapshot: v2.recordSnapshot, openingRecordHash: v2.openingRecordHash };
+    }
+    const v1canonical = buildOpeningConfirmCanonical({
+      purpose, projectId, supplierId,
+      bidSupplierId: bidSupplier.id, recordId: record.id,
+      supplierName: record.supplierName,
+      amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
+      bondStatus: record.bondStatus, decryptResult: record.decryptResult,
+    });
+    return { payload: JSON.parse(v1canonical), canonical: v1canonical };
   }
 
   /**
@@ -4948,10 +4964,21 @@ export class SupplierPortalService {
   ) {
     await this.assertReplyable(projectId, cid, supplierId);
     const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
-    const canonical = buildClarificationReplyCanonicalV2({
-      clarificationId: cid, projectId, supplierId,
-      reply: dto.reply, attachments, replyRevision: 0,
+    // 轨道分派（2026-10-14 e2e 修复）：dual-v3 行返 v2 canonical（reply 摘要出签）；
+    // legacy/dual-v2 行返 v1（历史证据格式——旧轨 SM2 提交分支按 v1 重算，两者必须同源）
+    const trackSub = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+      select: { envelopeVersion: true },
     });
+    const canonical = trackSub?.envelopeVersion === 'dual-v3'
+      ? buildClarificationReplyCanonicalV2({
+          clarificationId: cid, projectId, supplierId,
+          reply: dto.reply, attachments, replyRevision: 0,
+        })
+      : buildClarificationReplyCanonical({
+          clarificationId: cid, projectId, supplierId,
+          reply: dto.reply, attachments, certSn: dto.certSn ?? '',
+        });
     return { payload: canonical, canonical };
   }
 

@@ -535,7 +535,6 @@ export class BidController {
     return this.bidService.completeOpening(id, userId);
   }
 
-  @Post('projects/:id/decrypt-all')
   @Post('projects/:id/rerun-ai-analysis')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '重新触发 AI 辅助分析（B8/15.5）——清除旧结果并重新入队' })

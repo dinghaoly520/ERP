@@ -23,7 +23,7 @@ const mkPrisma = () => ({
     findUnique: jest.fn().mockResolvedValue({ id: 'clar-1', status: '已回复', replySignature: {} }),
   },
   bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) },
-  supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(null) }, // 默认无投递行（legacy）
+  supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(null) }, // 默认无投递行（legacy）——v2 用例覆写
   fileAsset: { findMany: jest.fn().mockResolvedValue(ATTACHMENTS) },
   supplierCert: { findFirst: jest.fn() },
   caOperation: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
@@ -87,6 +87,7 @@ describe('澄清答复 P7 强签（dual-v3 Task8）', () => {
   });
 
   test('canonical v2：reply 摘要+附件排序去重入签（乱序/重复 id 归一）', async () => {
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ envelopeVersion: 'dual-v3' });
     const svc = mkService(prisma);
     const { payload } = await svc.getClarificationReplyPayload('proj-1', 'clar-1', 'sup-1', { sub: 'user-1' }, {
       reply: REPLY,

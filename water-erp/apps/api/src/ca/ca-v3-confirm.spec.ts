@@ -101,6 +101,7 @@ describe('开标确认 P7 强签（dual-v3 Task7）', () => {
   });
 
   test('canonical v2：无金额明文/无 amountUnit 字面量，含 openingRecordHash 与 revision', async () => {
+    mockPrisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 1, envelopeVersion: 'dual-v3' });
     const svc = mkService();
     const result = await svc.getOpeningConfirmPayload('sup-1', 'proj-1');
     expect(result.canonical).not.toContain('153.95');
