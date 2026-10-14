@@ -12,9 +12,11 @@ const quoteSource = readFileSync(
   "utf8",
 );
 
-test("round-quote deadlines use the synchronized server clock", () => {
-  // 旧 legacy 提交页（完整标书/拆分）已整体移除（2026-10-14 代解密清除）——
-  // 投标截止倒计时由详情页 serverNow 驱动；本契约对象收敛为报价轮次页
+test("submission and round-quote deadlines use the synchronized server clock", () => {
+  // 投递页已恢复（SCCA 内核）——截止判断仍走 serverNowMs 同步时钟
+  assert.match(submissionSource, /serverNowMs\(\)/);
+  assert.doesNotMatch(submissionSource, /new Date\(project\.deadline\) > new Date\(\)/);
+  assert.doesNotMatch(submissionSource, /d > new Date\(\)/);
   assert.match(quoteSource, /serverNowMs\(\)/);
   assert.doesNotMatch(quoteSource, /new Date\(\) > new Date\(r\.deadline\)/);
 });
