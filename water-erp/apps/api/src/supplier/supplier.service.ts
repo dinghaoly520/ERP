@@ -1572,44 +1572,47 @@ export class SupplierService {
 
     const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);
 
-    // 附件：新引用集校验 + claim；旧附件不在此集合内的清理。
-    const newAssetIds = await this.collectCorrectionAssetIds(dto, supplier.id);
-
-    const claimed = await this.prisma.supplier.updateMany({
-      where: { id: supplier.id, status: 'RETURNED' }, // 乐观锁：仅 RETURNED 可补正
-      data: {
-        name: dto.name,
-        normalizedName: dto.name.trim().toLowerCase(),
-        enterpriseType: dto.enterpriseType,
-        legalPerson: dto.legalPerson,
-        legalPersonIdCard: sealPii(dto.legalPersonIdCard || null) ?? null,
-        legalPersonPhone: sealPii(dto.legalPersonPhone || null) ?? null,
-        legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? null,
-        registeredAddress: dto.registeredAddress,
-        detailedAddress: dto.detailedAddress || null,
-        businessScope: dto.businessScope,
-        logoUrl: dto.logoUrl || null,
-        country: dto.country || null,
-        region: dto.region || null,
-        registeredCapital: dto.registeredCapital || null,
-        industry: dto.industry || null,
-        establishedDate: dto.establishedDate ? new Date(dto.establishedDate) : null,
-        companyProfile: dto.companyProfile || null,
-        companyEmail: dto.companyEmail || null,
-        companyWebsite: dto.companyWebsite || null,
-        tags: dto.tags,
-        companyId: companyRef.id,
-        companyName: companyRef.name,
-        status: 'PENDING', // reviewStage 保留 = 回到被退回的那一级
-      },
-    });
-    if (claimed.count === 0) {
-      throw new BadRequestException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
-    }
-
-    await this.verificationService.consumeRegistrationSession(dto.token);
+    // 附件：keepIds=DTO 引用的全部资产 id（已认领旧附件 + 未认领新附件）——清理旧附件的保留白名单；
+    // claimIds=其中仍无主的子集——事务内 claim。两集合拆开是防「保留的旧附件被当垃圾清理」：
+    // register 提交即 claim（uploaderId=userId）、return() 不清附件，补正保留的旧附件必然已认领，
+    // 若把 claimIds 当 keepIds 用，保留中的旧附件会落入 notIn 反集被 MinIO+DB 双删（不可逆）。
+    const { keepIds, claimIds } = await this.collectCorrectionAssetIds(dto, supplier.id);
 
     await this.prisma.$transaction(async (tx) => {
+      // 乐观锁认领：仅 RETURNED 可补正。认领（置 PENDING + 主档覆写）、子表重建、附件 claim
+      // 同一事务——任一步失败整体回滚，不留「PENDING 半态 + 旧子表」的中间状态。
+      const claimed = await tx.supplier.updateMany({
+        where: { id: supplier.id, status: 'RETURNED' },
+        data: {
+          name: dto.name,
+          normalizedName: dto.name.trim().toLowerCase(),
+          enterpriseType: dto.enterpriseType,
+          legalPerson: dto.legalPerson,
+          legalPersonIdCard: sealPii(dto.legalPersonIdCard || null) ?? null,
+          legalPersonPhone: sealPii(dto.legalPersonPhone || null) ?? null,
+          legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? null,
+          registeredAddress: dto.registeredAddress,
+          detailedAddress: dto.detailedAddress || null,
+          businessScope: dto.businessScope,
+          logoUrl: dto.logoUrl || null,
+          country: dto.country || null,
+          region: dto.region || null,
+          registeredCapital: dto.registeredCapital || null,
+          industry: dto.industry || null,
+          establishedDate: dto.establishedDate ? new Date(dto.establishedDate) : null,
+          companyProfile: dto.companyProfile || null,
+          companyEmail: dto.companyEmail || null,
+          companyWebsite: dto.companyWebsite || null,
+          tags: dto.tags,
+          companyId: companyRef.id,
+          companyName: companyRef.name,
+          status: 'PENDING', // reviewStage 保留 = 回到被退回的那一级
+        },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+      }
+
       await tx.supplierContact.deleteMany({ where: { supplierId: supplier.id } });
       await tx.supplierQualification.deleteMany({ where: { supplierId: supplier.id } });
       await tx.supplierBankAccount.deleteMany({ where: { supplierId: supplier.id } });
@@ -1623,19 +1626,23 @@ export class SupplierService {
           performances: dto.performances?.length ? { create: dto.performances.map((p) => ({ projectName: p.projectName, clientName: p.clientName || null, contractAmount: p.contractAmount || null, signDate: p.signDate ? new Date(p.signDate) : undefined, description: p.description || null, proofFiles: p.proofFiles ?? [] })) } : undefined,
         },
       });
-      if (newAssetIds.length) {
+      if (claimIds.length) {
         const claimedAssets = await tx.fileAsset.updateMany({
-          where: { id: { in: newAssetIds }, uploaderId: null },
+          where: { id: { in: claimIds }, uploaderId: null },
           data: { uploaderId: supplier.userId },
         });
-        if (claimedAssets.count !== newAssetIds.length) {
+        if (claimedAssets.count !== claimIds.length) {
           throw new ConflictException({ error: '注册附件已被其他申请占用，请重新上传', code: 'REGISTRATION_ASSET_ALREADY_CLAIMED' });
         }
       }
     });
 
-    // 清理被替换的旧附件（best-effort）
-    await this.deleteStaleCorrectionAssets(supplier.id, supplier.userId, newAssetIds);
+    // 事务成功后才消费一次性补正 token（同 registerTemporary 口径）：事务失败已整体回滚、
+    // 状态仍 RETURNED、token 未烧——用户可凭原 token 修正后原样重试。
+    await this.verificationService.consumeRegistrationSession(dto.token);
+
+    // 清理被替换的旧附件（best-effort；keepIds=全部引用集，保留的旧附件不在清理范围）
+    await this.deleteStaleCorrectionAssets(supplier.id, supplier.userId, keepIds);
 
     const stage = supplier.reviewStage ?? 'STAFF';
     await this.notifyStageApprovers(stage, supplier.companyId, {
@@ -1649,26 +1656,28 @@ export class SupplierService {
     return { success: true };
   }
 
-  /** 收集补正提交的附件 FileAsset id（校验属于该申请既有 user，或新 uploaderId=null 待 claim）。 */
-  private async collectCorrectionAssetIds(dto: CorrectionSubmitDto, supplierId: string): Promise<string[]> {
+  /** 收集补正提交的附件 FileAsset id，按用途拆两集合：
+   *  - keepIds：DTO 引用的全部资产 id（**含已认领的旧附件**）——deleteStaleCorrectionAssets
+   *    的保留白名单（旧附件经 register 已 claim 到本 user，引用保留即不清理）；
+   *  - claimIds：其中仍 uploaderId=null 的子集——事务内 claim（已有主的不重复 claim）。
+   *  URL 解析失败的（外部/伪造地址）→ 400（与 register 同口径：先逐条判无效再去重——
+   *  同一文件被多项资质引用是合法场景，按未去重计数比对会误伤）。 */
+  private async collectCorrectionAssetIds(dto: CorrectionSubmitDto, supplierId: string): Promise<{ keepIds: string[]; claimIds: string[] }> {
     const urls: string[] = [
       ...(dto.logoUrl ? [dto.logoUrl] : []),
       ...(dto.qualifications ?? []).flatMap((q) => [q.fileUrl, ...((q as any).attachments ?? []).map((a: any) => a.url)]),
       ...((dto.performances ?? []).flatMap((p) => (p.proofFiles ?? []).map((f) => f.url))),
     ];
-    // 解析失败的 URL（外部/伪造地址）→ 400（与 register 同口径：先逐条判无效，再去重——
-    // 同一文件被多项资质引用是合法场景，按未去重计数比对会误伤）
     const parsed = urls.map((u) => registrationAssetIdFromUrl(u));
     if (parsed.some((id) => !id)) {
       throw new BadRequestException({ error: '注册附件必须通过本页上传，不接受外部或伪造文件地址', code: 'REGISTRATION_ASSET_URL_INVALID' });
     }
-    const ids = [...new Set(parsed)] as string[];
-    // 只 claim 仍无主的新资产；已有主（该 user）的旧资产保持引用不重复 claim。
+    const keepIds = [...new Set(parsed)] as string[];
     const unclaimed = await this.prisma.fileAsset.findMany({
-      where: { id: { in: ids }, uploaderId: null },
+      where: { id: { in: keepIds }, uploaderId: null },
       select: { id: true },
     });
-    return unclaimed.map((a) => a.id);
+    return { keepIds, claimIds: unclaimed.map((a) => a.id) };
   }
 
   private async deleteStaleCorrectionAssets(supplierId: string, userId: string, keepIds: string[]) {
