@@ -1444,6 +1444,18 @@ export class SupplierService {
     return supplier;
   }
 
+  /** submit 专用：仅按 creditCode 匹配 RETURNED 申请。creditCode 锁定不可改 + token 已证主联系人
+   *  手机控制权，信用代码即身份锚；公司名是补正中的**可改**字段（spec §5，同步 normalizedName）——
+   *  若按提交名匹配，改名后提交会 CORRECTION_NOT_FOUND 死循环。含主联系人（手机比对仍要）。
+   *  request/verify/draft 三端点保持 name+creditCode 双因子不变（那是防枚举身份链）。 */
+  private async findByCreditCodeReturned(creditCode: string) {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { creditCode: creditCode.trim(), status: 'RETURNED' },
+      include: { contacts: { where: { isPrimary: true }, take: 1 } },
+    });
+    return supplier;
+  }
+
   async requestCorrection(name: string, creditCode: string, clientIp: string) {
     const supplier = await this.findReturnedSupplier(name, creditCode);
     if (!supplier || supplier.contacts.length === 0) {
@@ -1537,7 +1549,8 @@ export class SupplierService {
 
   async submitCorrection(dto: CorrectionSubmitDto) {
     const { phone } = await this.verificationService.assertRegistrationSession(dto.token);
-    const supplier = await this.findReturnedSupplier(dto.name, dto.creditCode);
+    // 匹配仅按 creditCode（锁定不可改=身份锚）：公司名在补正中可改，按提交名匹配会让改名后提交死循环
+    const supplier = await this.findByCreditCodeReturned(dto.creditCode);
     if (!supplier || supplier.contacts.length === 0) {
       throw new BadRequestException({ error: '未找到待补正的注册申请', code: 'CORRECTION_NOT_FOUND' });
     }

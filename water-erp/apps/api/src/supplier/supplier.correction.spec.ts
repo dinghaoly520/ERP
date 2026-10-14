@@ -113,8 +113,12 @@ describe('SupplierService 补正回填（request/verify/draft/submit）', () => 
 
     prisma = {
       supplier: {
+        // request/verify/draft 按 name+creditCode 双因子匹配；submit 按 creditCode 单因子（公司名可改）
         findFirst: jest.fn(async ({ where }: any) =>
-          dbSuppliers.find((s) => s.name === where.name && s.creditCode === where.creditCode && s.status === where.status) ?? null),
+          dbSuppliers.find((s) =>
+            (where.name === undefined || s.name === where.name)
+            && s.creditCode === where.creditCode
+            && s.status === where.status) ?? null),
         findUnique: jest.fn(async ({ where }: any) => (where.id === fullSupplier.id ? fullSupplier : null)),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         update: jest.fn().mockResolvedValue({}),
@@ -369,6 +373,23 @@ describe('SupplierService 补正回填（request/verify/draft/submit）', () => 
 
     // 实际删除仅真被替换的 asset-stale；保留中的 asset-1 不删（防不可逆误删主路径）
     expect(fileAssetDeleteMany).toHaveBeenCalledWith({ where: { id: { in: ['asset-stale'] } } });
+  });
+
+  it('submit（评审修复3）：补正中改公司名 → 仅按 creditCode 匹配成功，name/normalizedName 更新落库', async () => {
+    const res = await service.submitCorrection({ ...submitDto, name: '测试公司更名后' });
+
+    expect(res).toEqual({ success: true });
+
+    // 匹配 where 只含 creditCode+status（不含 name）——改名后提交不因名字对不上而 CORRECTION_NOT_FOUND
+    expect(prisma.supplier.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { creditCode: '91510000MA62K5XX0X', status: 'RETURNED' },
+    }));
+
+    // 可改字段 name 随提交更新（同步 normalizedName）
+    expect(prisma.supplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 's1', status: 'RETURNED' },
+      data: expect.objectContaining({ name: '测试公司更名后', normalizedName: '测试公司更名后' }),
+    }));
   });
 
   it('submit：token 手机与主联系人手机不一致 → 400 CORRECTION_PHONE_MISMATCH', async () => {
