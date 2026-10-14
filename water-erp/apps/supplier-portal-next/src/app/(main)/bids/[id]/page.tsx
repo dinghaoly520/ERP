@@ -286,7 +286,7 @@ function BidDetailInner() {
       toast.warning("只有已入库供应商可以提交标书");
       return;
     }
-    // 投递页承载 SCCA 投递卡（旧 legacy 表单已整体移除）
+    // 投递页 = 旧版表单 UI + SCCA dual-v3 内核（2026-10-14 用户裁定：恢复旧前端设计、后端走 SCCA）
     router.push(`/bids/${projectId}/submit`);
   }
 

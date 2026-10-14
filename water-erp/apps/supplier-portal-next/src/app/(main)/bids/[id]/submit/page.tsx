@@ -4,14 +4,16 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dayjs from "dayjs";
-import { TriangleAlert, Check, X, Upload, Plus, Trash2, CircleCheck,
+import { TriangleAlert, Check, X, Upload, Plus, Trash2, FolderPlus, CircleCheck,
   ArrowLeft, CircleX, Info, KeyRound,
 } from "lucide-react";
+import { api } from "@/lib/api";
 import { bidApi } from "@/lib/api/bid";
 import { supplierApi } from "@/lib/api/supplier";
+import { useAutoSave } from "@/hooks/use-auto-save";
 import { useLeaveGuard } from "@/hooks/use-leave-guard";
 import { SpPageHero } from "@/components/sp-page-hero";
-import { SpButton, SpInput, SpDialog, LoadingBlock } from "@/components/ui";
+import { SpButton, SpInput, SpDialog, SpProgress, LoadingBlock } from "@/components/ui";
 import { serverNowMs, syncServerClock, formatBidPrice } from "@water-erp/shared";
 import * as scca from "@/utils/scca-ukey";
 import { encryptAndUploadV3, nextRevisionContext } from "@/utils/dual-v3-client";
@@ -116,11 +118,29 @@ interface BidForm {
 }
 const EMPTY_FORM: BidForm = { bidPrice: "", deliveryPeriod: "", qualityCommitment: "" };
 
+const DRAFT_PREFIX = "supplier_draft:";
+
+/** 读取本地草稿的存储时间戳（与 useAutoSave 的落盘格式一致；挂载期同步可读） */
+function readDraftTs(key: string): number | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed.ts === "number" ? parsed.ts : null;
+  } catch {
+    return null;
+  }
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+// X-P2-04（2026-09-29）：本地「≥10000 视为元」启发式裸 ÷10000 已删——表单口径为万元
+// （placeholder「如：1260」），≥1 亿元（≥10000 万元）报价会被折成「1.20 万元」差一万倍，
+// 违反「万元↔元桥接只准经 shared format-bid.ts」铁律。改用 shared formatBidPrice(unitHint='万元')。
 
 /** SCCA 投递上下文（capabilities + 状态 + 管理证装配；未就绪时 sccaReason 给指引） */
 interface SccaContext {
@@ -128,39 +148,6 @@ interface SccaContext {
   signingBindingId: string;
   signingCertFingerprint: string;
   adminCert: { adminCertId: string; publicKey: string };
-}
-
-/** 临时诊断面板（真盾验收排障——捕获 window error/unhandledrejection/console.error 完整栈，
- *  屏显供截图；验收完成后整块移除） */
-function ErrorCaptureOverlay() {
-  const [errs, setErrs] = useState<string[]>([]);
-  useEffect(() => {
-    const push = (title: string, detail: unknown) => {
-      const e = detail as { message?: string; stack?: string; reason?: { message?: string; stack?: string } } | undefined;
-      const msg = e?.message ?? (typeof detail === "string" ? detail : JSON.stringify(detail));
-      const stack = e?.stack ?? e?.reason?.stack ?? "";
-      setErrs((prev) => [...prev.slice(-4), `${title}: ${msg}\n${stack}`]);
-    };
-    const onErr = (ev: ErrorEvent) => push("window.error", ev.error ?? ev.message);
-    const onRej = (ev: PromiseRejectionEvent) => push("unhandledrejection", ev.reason);
-    const origConsoleError = console.error.bind(console);
-    console.error = (...args: unknown[]) => { push("console.error", args[0]); origConsoleError(...args); };
-    window.addEventListener("error", onErr);
-    window.addEventListener("unhandledrejection", onRej);
-    return () => {
-      window.removeEventListener("error", onErr);
-      window.removeEventListener("unhandledrejection", onRej);
-      console.error = origConsoleError;
-    };
-  }, []);
-  if (errs.length === 0) return null;
-  return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, maxHeight: "45vh", overflow: "auto",
-      background: "rgba(120,10,10,0.95)", color: "#fff", fontSize: 11, fontFamily: "monospace", padding: "8px 12px", whiteSpace: "pre-wrap" }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>诊断捕获（截图发给开发）：</div>
-      {errs.map((e, i) => <div key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.3)", paddingTop: 4, marginTop: 4 }}>{e}</div>)}
-    </div>
-  );
 }
 
 function BidSubmitInner() {
@@ -177,7 +164,8 @@ function BidSubmitInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitNote, setSubmitNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [project, setProject] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [nowMs, setNowMs] = useState(() => serverNowMs());
@@ -188,7 +176,7 @@ function BidSubmitInner() {
   const [form, setForm] = useState<BidForm>(EMPTY_FORM);
   const updateForm = (patch: Partial<BidForm>) => setForm((prev) => ({ ...prev, ...patch }));
 
-  // 本地暂存文件（dual-v3：提交时统一双层加密）
+  // dual-v3：文件本地暂存（选择不上传——提交时统一双层加密，明文文件不落任何存储）
   const [fullBidFile, setFullBidFile] = useState<File | null>(null);
   const [splitCats, setSplitCats] = useState<Record<SplitKey, SplitCat>>({
     tech: { ...EMPTY_SPLIT_CATS.tech },
@@ -207,23 +195,45 @@ function BidSubmitInner() {
   // SCCA 上下文（capabilities 门控）
   const [sccaCtx, setSccaCtx] = useState<SccaContext | null>(null);
   const [sccaReason, setSccaReason] = useState<string | null>(null);
+  const [sccaNeedBind, setSccaNeedBind] = useState(false);
 
+  // 提交阶段进度（旧版「选择即上传」进度条在 dual-v3 下的等价物——加密上传统一发生在提交时）
+  const [submitNote, setSubmitNote] = useState("");
+  const [submitProgress, setSubmitProgress] = useState<number | null>(null);
+
+  const [autoSaveReady, setAutoSaveReady] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryTs, setRecoveryTs] = useState<number | null>(null);
   const [submitDialogVisible, setSubmitDialogVisible] = useState(false);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
-  const isApproved = profile?.status === "APPROVED";
-  const canSubmit = !!project && isApproved
-    && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
-    && new Date(project.deadline).getTime() > nowMs;
-  const formDisabled = !canSubmit || existingSubmission?.status === "submitted" || submitting;
+  // 文字字段本地草稿（dual-v3 文件不落草稿——刷新即丢，离开守卫兜底）
+  const draftKey = `bidsubmit:${projectId}:${profile?.userId || ''}`;
+  const draft = useAutoSave(draftKey, form, { enabled: autoSaveReady });
+  // SUP-P1-04（2026-09-29）：draftKey 首渲染时 profile 尚为 null（userId 段为空）——
+  // 挂载 effect 闭包若直读 draftKey / draft 实例，会与 useAutoSave 内部（key 变化后
+  // 重跑）写入的带 userId 键永不相交，恢复横幅成不可达死 UI。经 ref 取最新键与最新实例。
+  const draftKeyRef = useRef(draftKey); draftKeyRef.current = draftKey;
+  const draftApiRef = useRef(draft); draftApiRef.current = draft;
 
-  // 离开守卫：任何已填字段或已暂存文件（无草稿机制——刷新/离开即丢失，须确认）
-  const dirty = !!(form.bidPrice || form.deliveryPeriod || form.qualityCommitment
+  // 离开守卫：文字草稿脏 + 任何已暂存文件（v3 无文件草稿——离开即丢失，须确认）
+  const dirty = !!(draft.dirty || pin
     || fullBidFile || splitCats.tech.file || splitCats.biz.file || splitCats.other.file
-    || coverLetterFile || bondFile || pin);
+    || coverLetterFile || bondFile);
   useLeaveGuard(dirty, "当前有未提交的投标内容，离开后会丢失。确定离开吗？");
 
   function backToDetail() {
     router.push(fromList ? `/bids/${projectId}?from=list` : `/bids/${projectId}`);
+  }
+
+  function acceptRecovery() {
+    const d = draft.restoreDraft() as Partial<BidForm> | null;
+    if (d) setForm((prev) => ({ ...prev, ...d }));
+    setShowRecovery(false);
+  }
+  function discardRecovery() {
+    draft.clearDraft();
+    setShowRecovery(false);
   }
 
   // ── 本地暂存（选择文件即暂存，不上传） ──
@@ -244,66 +254,86 @@ function BidSubmitInner() {
     setBondFile(file);
   }
 
-  // 初始加载：项目 + 供应商档案 + 已有投递记录 + SCCA 上下文装配
+  /** SCCA 上下文装配（capabilities 门控：dual-v3 开放 + ACTIVE CA 绑定 + 管理证） */
+  async function loadSccaContext() {
+    setSccaReason(null);
+    setSccaNeedBind(false);
+    try {
+      const [caps, status, adminCert] = await Promise.all([
+        supplierApi.caCapabilities(),
+        supplierApi.getStatus(),
+        supplierApi.getAdminCert(),
+      ]);
+      const allowed = Array.isArray((caps as any)?.allowedEnvelopeVersions)
+        && (caps as any).allowedEnvelopeVersions.includes("dual-v3");
+      const binding = (caps as any)?.activeBinding;
+      const fingerprint: unknown = binding?.signingCert?.sha256Fingerprint;
+      if (!allowed) {
+        setSccaReason("平台尚未开放新轨投递通道，请联系管理员");
+      } else if (!binding || binding.kind !== "ca" || typeof fingerprint !== "string") {
+        setSccaReason("请先在「证书与U盾」页绑定 SCCA CA 证书后再投递");
+        setSccaNeedBind(true);
+      } else if (!(status as any)?.id) {
+        setSccaReason("供应商身份信息获取失败，请刷新重试");
+      } else {
+        setSccaCtx({
+          supplierId: (status as any).id,
+          signingBindingId: binding.id ?? "",
+          signingCertFingerprint: fingerprint,
+          adminCert: { adminCertId: adminCert.adminCertId, publicKey: adminCert.publicKey },
+        });
+      }
+    } catch {
+      setSccaReason("CA 能力查询失败，请刷新重试");
+    }
+  }
+
+  // 初始加载：项目 + 供应商档案 + 已有草稿/提交记录 + 本地草稿恢复提示 + SCCA 上下文
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let subLocal: any = null;
       try {
-        const [p, prof, sub] = await Promise.all([
-          bidApi.getProject(projectId),
-          supplierApi.getProfile(),
-          supplierApi.getBidSubmission(projectId).catch(() => null),
-        ]);
+        const [p, prof] = await Promise.all([bidApi.getProject(projectId), supplierApi.getProfile()]);
         if (cancelled) return;
         setProject(p);
         setProfile(prof);
         if (p && !["DOWNLOAD", "SUBMIT"].includes(p.stage)) {
           toast.warning("该项目当前不在投标阶段");
-          router.push(`/bids/${projectId}`);
+          router.push(`/bids/${projectId}`); // 草稿保存后的跳转保留原逻辑
           return;
         }
-        if (sub) {
-          setExistingSubmission(sub);
-          // 文本字段回填（legacy 草稿/记录的报价等仍可用；文件引用不可恢复——v3 加密重新选）
-          setForm({
-            bidPrice: sub.bidPrice || "",
-            deliveryPeriod: sub.deliveryPeriod || "",
-            qualityCommitment: sub.qualityCommitment || "",
-          });
-        }
-        // SCCA 上下文（capabilities 门控：allowedEnvelopeVersions 含 dual-v3 + ACTIVE CA 绑定）
         try {
-          const [caps, status, adminCert] = await Promise.all([
-            supplierApi.caCapabilities(),
-            supplierApi.getStatus(),
-            supplierApi.getAdminCert(),
-          ]);
+          const sub: any = await supplierApi.getBidSubmission(projectId);
           if (cancelled) return;
-          const allowed = Array.isArray((caps as any)?.allowedEnvelopeVersions)
-            && (caps as any).allowedEnvelopeVersions.includes("dual-v3");
-          const binding = (caps as any)?.activeBinding;
-          const fingerprint: unknown = binding?.signingCert?.sha256Fingerprint;
-          if (!allowed) {
-            setSccaReason("平台尚未开放 dual-v3 投递通道（灰度中），请联系管理员");
-          } else if (!binding || binding.kind !== "ca" || typeof fingerprint !== "string") {
-            setSccaReason("请先在「证书与U盾」页绑定 SCCA CA 证书后再投递");
-          } else if (!(status as any)?.id) {
-            setSccaReason("供应商身份信息获取失败，请刷新重试");
-          } else {
-            setSccaCtx({
-              supplierId: (status as any).id,
-              signingBindingId: binding.id ?? "",
-              signingCertFingerprint: fingerprint,
-              adminCert: { adminCertId: adminCert.adminCertId, publicKey: adminCert.publicKey },
+          if (sub) {
+            subLocal = sub;
+            setExistingSubmission(sub);
+            // 文本字段回填（dual-v3 文件不落草稿——文件需重新选择）
+            setForm({
+              bidPrice: sub.bidPrice || "",
+              deliveryPeriod: sub.deliveryPeriod || "",
+              qualityCommitment: sub.qualityCommitment || "",
             });
           }
         } catch {
-          setSccaReason("CA 能力查询失败，请刷新重试");
+          // 草稿/已提交记录读取失败须提示，否则用户以为没填过、重填后被 ALREADY_SUBMITTED 拦截。
+          toast.warning("无法读取已保存的草稿/已提交记录；若您已提交过，请勿重复提交");
         }
+        const ts = readDraftTs(draftKeyRef.current);
+        if (draftApiRef.current.restoreDraft() && ts && (!subLocal || ts > new Date(subLocal.updatedAt).getTime())) {
+          setRecoveryTs(ts);
+          setShowRecovery(true);
+        }
+        await loadSccaContext();
       } catch {
         if (!cancelled) setError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setAutoSaveReady(true);
+          draft.markClean();
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -334,11 +364,59 @@ function BidSubmitInner() {
           });
         }
       } catch { /* ignore */ }
+      await loadSccaContext();
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
+  }
+
+  const isApproved = profile?.status === "APPROVED";
+  const canSubmit = !!project && isApproved
+    && ["DOWNLOAD", "SUBMIT"].includes(project.stage)
+    && new Date(project.deadline).getTime() > nowMs;
+  const formDisabled = !canSubmit || existingSubmission?.status === "submitted" || submitting;
+
+  async function saveDraft() {
+    setSaving(true);
+    try {
+      // dual-v3：服务端草稿仅存文字字段（文件在提交时才加密上传，无 assetId 可引用）
+      await supplierApi.saveBidDraft(projectId, {
+        bidPrice: form.bidPrice,
+        deliveryPeriod: form.deliveryPeriod,
+        qualityCommitment: form.qualityCommitment,
+      });
+      toast.success("草稿已保存");
+      // 首次保存后进入草稿状态，使删除草稿按钮立即可用。
+      if (existingSubmission?.status !== "submitted") {
+        setExistingSubmission({ ...(existingSubmission ?? {}), status: "draft" });
+      }
+    } catch { /* API 层已全局错误 toast */ }
+    finally { setSaving(false); }
+  }
+
+  // A-88：删除未递交的投标草稿（服务端草稿行 + 表单/本地缓存一并清；已提交须走撤回）
+  async function confirmDeleteDraft() {
+    setDeleteDialogVisible(false);
+    setDeleting(true);
+    try {
+      await api.delete(`/supplier-portal/bid-submissions/${projectId}/draft`);
+      setExistingSubmission(null); // 回读 submission 置空（「草稿」徽标消失）
+      setForm(EMPTY_FORM); // 清空表单各字段
+      setFullBidFile(null);
+      setCoverLetterFile(null);
+      setBondFile(null);
+      setSplitCats({
+        tech: { ...EMPTY_SPLIT_CATS.tech },
+        biz: { ...EMPTY_SPLIT_CATS.biz },
+        other: { ...EMPTY_SPLIT_CATS.other },
+      });
+      draft.clearDraft(); // 本地自动草稿缓存（localStorage）
+      draft.markClean(); // 离开守卫复位
+      toast.success("草稿已删除");
+    } catch { /* API 层已全局错误 toast（服务端 error 文案，如 DRAFT_NOT_FOUND/DRAFT_NOT_DELETABLE） */ }
+    finally { setDeleting(false); }
   }
 
   const preflightItems = (() => {
@@ -352,6 +430,7 @@ function BidSubmitInner() {
     } else {
       const total = (splitCats.tech.file ? 1 : 0) + (splitCats.biz.file ? 1 : 0) + (splitCats.other.file ? 1 : 0);
       fileOk = total > 0;
+      // SUP-P1-01：明示参检口径——信封/评分管道只取每类第 1 个文件
       fileDetail = fileOk ? `已选择 ${total} 类文件（每类仅第 1 个参检）` : "未选择任何文件";
     }
     const items = [
@@ -376,7 +455,7 @@ function BidSubmitInner() {
     await doSubmit();
   }
 
-  /** dual-v3 投递管线：本地暂存 → 双层加密+暂存上传 → prepare → 盾 P7 签名 → submit v3 */
+  /** dual-v3 投递管线：本地暂存 → 双层加密+暂存上传（逐文件进度）→ prepare → 盾 P7 签名 → submit v3 */
   async function doSubmit() {
     if (!sccaCtx) return;
     setSubmitting(true);
@@ -404,18 +483,22 @@ function BidSubmitInner() {
       if (project?.bondRequired && bondFile) roleFiles.push({ role: "bond", file: bondFile });
 
       // ③ 双层加密 + 暂存上传 + 信封组装（信封 revision=当前+1——服务端按 ===newRev 硬校验）
-      setSubmitNote("正在双层加密并暂存密文…");
       const fields: V3Fields = {
         price: form.bidPrice, amountUnit: "万元", currency: "CNY",
         deliveryPeriod: form.deliveryPeriod, qualityCommitment: form.qualityCommitment,
       };
       const baseRevision = (existingSubmission as any)?.revision ?? 0;
+      let fileIdx = 0;
       const { envelope } = await encryptAndUploadV3(
         projectId, roleFiles, fields, encCertPem, {
           wrapKeyToEncCert: (pem, json) => scca.wrapSccaKey(pem, json),
         }, sccaCtx.adminCert, {
-          uploadOuter: (role, blob, filename) => supplierApi.caUploadEncryptedOuter(projectId, blob, filename)
-            .then((r) => ({ fileAssetId: r.fileAssetId, outerSha256: r.outerSha256, outerBytes: r.outerBytes })),
+          uploadOuter: (role, blob, filename) => {
+            const idx = ++fileIdx;
+            setSubmitNote(`正在双层加密并上传标书文件 ${idx}/${roleFiles.length}…`);
+            setSubmitProgress(0);
+            return supplierApi.caUploadEncryptedOuter(projectId, blob, filename, (pct) => setSubmitProgress(pct));
+          },
         },
         nextRevisionContext({
           supplierId: sccaCtx.supplierId,
@@ -427,6 +510,7 @@ function BidSubmitInner() {
       );
 
       // ④ 冻结签名原文 → 盾 P7 签名
+      setSubmitProgress(null);
       setSubmitNote("盾签名信封原文（P7）…");
       const prep = await supplierApi.caPrepare(projectId, "submit");
       const frozen = await supplierApi.caSigningPayload(projectId, prep.operationId, envelope);
@@ -440,7 +524,8 @@ function BidSubmitInner() {
         signP7,
         baseRevision,
       });
-      toast.success("标书提交成功（dual-v3 双信封 + 盾 P7 签名）！");
+      draft.clearDraft();
+      toast.success("标书提交成功！");
       router.push("/my-bids");
     } catch (err: any) {
       // 信封组装/盾操作等本地错误（无 status）给 message；API 错误由全局 toast
@@ -450,12 +535,13 @@ function BidSubmitInner() {
     } finally {
       setSubmitting(false);
       setSubmitNote("");
+      setSubmitProgress(null);
+      setPin(""); // PIN 用后即焚，绝不缓存
     }
   }
 
   return (
     <div className="page-container">
-      <ErrorCaptureOverlay />
       {loading ? (
         <LoadingBlock />
       ) : (
@@ -478,15 +564,41 @@ function BidSubmitInner() {
               {canSubmit && (
                 <BAlert type="warning" className="mb-5" title={`投标截止：${project.deadline ? dayjs(project.deadline).format("YYYY年MM月DD日 HH:mm") : "--"}，请在截止前完成提交。`} />
               )}
+              {showRecovery && (
+                <BAlert
+                  type="success"
+                  className="mb-5"
+                  title={`检测到本地草稿${recoveryTs ? "（" + dayjs(recoveryTs).format("HH:mm") + "）" : ""}，是否恢复？`}
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <SpButton variant="xs" onClick={acceptRecovery}>恢复草稿</SpButton>
+                    <SpButton variant="xs" onClick={discardRecovery}>丢弃</SpButton>
+                    <span className="text-xs text-[var(--fg-3)]">草稿仅含报价等文字信息，标书文件需重新选择</span>
+                  </div>
+                </BAlert>
+              )}
               {sccaReason && canSubmit && (
                 <BAlert type="error" className="mb-5" title={sccaReason}>
-                  <div className="mt-1 text-xs">本页投递采用 SCCA CA 双层信封（dual-v3）：标书文件由平台与贵司 U盾双层加密，信封由盾 P7 签名。</div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
+                    <span>投递需绑定 SCCA CA 证书：标书文件由贵司 U盾双层加密，开标时由贵司解密，信封由盾签名后递交。</span>
+                    {sccaNeedBind && <SpButton variant="xs" onClick={() => router.push("/profile/ukey")}>前往绑定</SpButton>}
+                  </div>
                 </BAlert>
               )}
 
               <SpPageHero title={project.name} />
-              <div className="b-form-card">
-                <div className="b-form-section">
+
+              <div className="neu-card detail-card">
+                <div className="card-header">
+                  <span className="card-title">标书信息</span>
+                  {existingSubmission && (
+                    <span className={`b-tag ${existingSubmission.status === "draft" ? "b-tag--info" : "b-tag--success"}`}>
+                      {existingSubmission.status === "draft" ? "草稿" : "已提交"}
+                    </span>
+                  )}
+                </div>
+
+                <div className={`b-form${formDisabled ? " is-disabled" : ""}`}>
                   <div className="b-form-item">
                     <label className="b-required">投标报价</label>
                     <div className="b-form-content">
@@ -521,6 +633,7 @@ function BidSubmitInner() {
                     <label className="b-required">提交方式</label>
                     <div className="b-form-content">
                       <div className="mode-selector">
+                        {/* SUP-P3-01：切换时清另一模式残留——完整/拆分互斥，避免残留文件被信封漏带 */}
                         <button type="button" className={`neu-tab mode-tab ${submissionMode === "full" ? "active is-active" : ""}`} onClick={() => { if (submissionMode !== "full") { setSubmissionMode("full"); setSplitCats({ tech: { ...EMPTY_SPLIT_CATS.tech }, biz: { ...EMPTY_SPLIT_CATS.biz }, other: { ...EMPTY_SPLIT_CATS.other } }); } }}>完整标书</button>
                         <button type="button" className={`neu-tab mode-tab ${submissionMode === "split" ? "active is-active" : ""}`} onClick={() => { if (submissionMode !== "split") { setSubmissionMode("split"); setFullBidFile(null); } }}>拆分文件</button>
                       </div>
@@ -533,7 +646,7 @@ function BidSubmitInner() {
                       <label className="b-required">标书文件</label>
                       <div className="b-form-content">
                         <div className="file-area">
-                          <UploadZone accept=".pdf,.zip,.rar" disabled={formDisabled} onFile={handleFullBidStage} label="选择完整标书" />
+                          <UploadZone accept=".pdf,.zip,.rar" disabled={formDisabled} onFile={handleFullBidStage} label="上传完整标书" />
                           <span className="file-hint">PDF/ZIP（Office 请先转 PDF），≤{maxUploadSizeMB}MB · 提交时由 U盾双层加密</span>
                           {fullBidFile && (
                             <span className="file-chip">
@@ -546,7 +659,8 @@ function BidSubmitInner() {
                     </div>
                   )}
 
-                  {/* 拆分文件：三个分类——每类仅第一个文件参检（与后端 normalize 口径一致） */}
+                  {/* 拆分文件：三个分类——每类仅第一个文件参检（collectDeclaredAssetIds/normalizeBidFileAssets
+                      同口径取每类首个），达 1 个即停加并明示，消除多文件静默丢弃（SUP-P1-01） */}
                   {submissionMode === "split" && SPLIT_KEYS.map((cat) => (
                     <div className="b-form-item" key={cat}>
                       <label className={cat === "tech" ? "b-required" : undefined}>{splitCats[cat].label}</label>
@@ -559,7 +673,8 @@ function BidSubmitInner() {
                               onFile={(f) => handleSplitStage(cat, f)}
                             />
                             <span className="file-hint">
-                              {splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB · 每类仅第 1 个文件参检
+                              {splitCats[cat].description} · PDF/ZIP（Office 请先转 PDF） · ≤{maxUploadSizeMB}MB
+                              {splitCats[cat].file ? " · 每类仅第一个文件参与评审与密封，多文件请合并后重新选择" : " · 每类仅第一个文件参检"}
                             </span>
                           </div>
                           {splitCats[cat].file && (
@@ -584,7 +699,7 @@ function BidSubmitInner() {
                       <label className="b-required">保证金凭证</label>
                       <div className="b-form-content">
                         <div className="file-area">
-                          <UploadZone accept=".pdf,.jpg,.png" disabled={formDisabled} onFile={handleBondStage} label="选择保证金缴纳凭证" />
+                          <UploadZone accept=".pdf,.jpg,.png" disabled={formDisabled} onFile={handleBondStage} label="上传保证金缴纳凭证" />
                           <span className="file-hint">银行回单/保函，PDF/JPG ≤{maxUploadSizeMB}MB · 提交时随信封加密</span>
                           {bondFile && (
                             <span className="file-chip">
@@ -602,7 +717,7 @@ function BidSubmitInner() {
                     <label>投标函</label>
                     <div className="b-form-content">
                       <div className="file-area">
-                        <UploadZone accept=".pdf" disabled={formDisabled} onFile={handleCoverLetterStage} label="选择投标函文件" />
+                        <UploadZone accept=".pdf" disabled={formDisabled} onFile={handleCoverLetterStage} label="上传投标函文件" />
                         <span className="file-hint">PDF（Office 请先转 PDF），≤{maxUploadSizeMB}MB · 选填</span>
                         {coverLetterFile && (
                           <span className="file-chip">
@@ -617,30 +732,29 @@ function BidSubmitInner() {
 
                 {canSubmit && existingSubmission?.status !== "submitted" && (
                   <div className="submit-actions">
-                    {/* U盾 PIN（提交时盾签名用——绝不缓存/落盘） */}
-                    <div className="b-inp-group" style={{ width: 220 }}>
-                      <KeyRound size={13} strokeWidth={1.75} className="ml-2 shrink-0 text-[var(--fg-3)]" />
-                      <input
-                        type="password"
-                        value={pin}
-                        disabled={formDisabled}
-                        autoComplete="off"
-                        onChange={(e) => setPin(e.target.value)}
-                        placeholder="U盾 PIN"
-                        className="w-full bg-transparent px-2 py-1.5 text-sm outline-none"
-                      />
-                    </div>
+                    {submitting && (
+                      <div className="flex items-center gap-3">
+                        {submitProgress !== null && <div className="w-[160px]"><SpProgress value={submitProgress} /></div>}
+                        <span className="auto-save-hint">{submitNote}</span>
+                      </div>
+                    )}
+                    {draft.lastSavedAt && dayjs(draft.lastSavedAt).isValid() && (
+                      <span className="auto-save-hint">已自动保存 {dayjs(draft.lastSavedAt).format("HH:mm")}</span>
+                    )}
+                    <SpButton loading={saving} icon={FolderPlus} onClick={saveDraft}>保存草稿</SpButton>
+                    {existingSubmission?.status === "draft" && (
+                      <SpButton danger loading={deleting} icon={Trash2} onClick={() => setDeleteDialogVisible(true)}>删除草稿</SpButton>
+                    )}
                     <SpButton
                       variant="primary"
                       loading={submitting}
                       icon={CircleCheck}
                       disabled={!sccaCtx}
                       onClick={() => setSubmitDialogVisible(true)}
-                      title="标书文件由 U盾双层加密，开标时供应商自解；信封由盾 P7 签名"
+                      title="标书文件由贵司 U盾双层加密，开标时由贵司解密；提交时需输入 U盾 PIN 完成盾签名"
                     >
                       {submitting ? "提交中..." : "正式提交标书"}
                     </SpButton>
-                    {submitNote && <span className="auto-save-hint">{submitNote}</span>}
                   </div>
                 )}
               </div>
@@ -649,7 +763,7 @@ function BidSubmitInner() {
         </>
       )}
 
-      {/* 提交前检查弹窗 */}
+      {/* 提交前检查弹窗（含 U盾 PIN——提交时盾签名用，用后即焚） */}
       <SpDialog open={submitDialogVisible} onClose={() => setSubmitDialogVisible(false)} title="提交前检查" width={500}
         footer={
           <>
@@ -671,15 +785,46 @@ function BidSubmitInner() {
             </div>
           ))}
         </div>
+        {/* U盾 PIN 输入（在确认弹窗内输入——主表单与旧版一致，PIN 只在真正提交时出现） */}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="text-xs text-[var(--fg-2)]">U盾 PIN（提交时用于盾签名，不缓存）</span>
+          <div className="b-inp-group w-[220px]">
+            <KeyRound size={13} strokeWidth={1.75} className="ml-2 shrink-0 text-[var(--fg-3)]" />
+            <input
+              type="password"
+              value={pin}
+              autoComplete="off"
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="请输入 U盾 PIN"
+              className="w-full bg-transparent px-2 py-1.5 text-sm outline-none"
+            />
+          </div>
+        </div>
         {!canConfirm
           ? <BAlert type="error" className="mt-4" title="存在未通过的必填项，请完善后重新提交" />
           : <BAlert type="success" className="mt-4" title="检查通过——确认后开始双层加密与盾签名（请勿关闭页面）" />}
+      </SpDialog>
+
+      {/* A-88：删除草稿确认 */}
+      <SpDialog open={deleteDialogVisible} onClose={() => setDeleteDialogVisible(false)} title="删除草稿" width={420}
+        icon={Trash2}
+        footer={
+          <>
+            <SpButton variant="soft" onClick={() => setDeleteDialogVisible(false)}>取消</SpButton>
+            <SpButton variant="primary" danger onClick={confirmDeleteDraft}>确认删除</SpButton>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-[var(--fg-2)]">
+          将删除服务器端保存的草稿并清空当前表单，操作不可恢复。已正式提交的标书不可删除（撤回请在「我的投标」中操作）。
+        </p>
       </SpDialog>
     </div>
   );
 }
 
-/** 提交标书（SCCA dual-v3：本地暂存 → 提交时双层加密+盾 P7 签名；useSearchParams 需 Suspense 包裹） */
+/** 提交标书（旧版表单 UI + SCCA dual-v3 内核：本地暂存 → 提交时双层加密+盾 P7 签名；
+ *  文字字段本地草稿自动保存 + 离开守卫；useSearchParams 需 Suspense 包裹） */
 export default function BidSubmitPage() {
   return (
     <Suspense fallback={<LoadingBlock />}>

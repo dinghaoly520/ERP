@@ -116,8 +116,8 @@ export const supplierApi = {
       xhr.send(fd);
     });
   },
-  /** C_outer 密文暂存（Task5 端点）——multipart，服务端实算 outerSha256 */
-  caUploadEncryptedOuter(projectId: string, blob: Blob, filename: string): Promise<{ fileAssetId: string; outerSha256: string; outerBytes: number; expiresAt: string }> {
+  /** C_outer 密文暂存（Task5 端点）——multipart，服务端实算 outerSha256；onProgress 供投递页逐文件进度条 */
+  caUploadEncryptedOuter(projectId: string, blob: Blob, filename: string, onProgress?: (pct: number) => void): Promise<{ fileAssetId: string; outerSha256: string; outerBytes: number; expiresAt: string }> {
     return new Promise((resolve, reject) => {
       const fd = new FormData();
       fd.append('file', blob, filename);
@@ -126,6 +126,11 @@ export const supplierApi = {
       xhr.withCredentials = true;
       xhr.setRequestHeader('X-Portal', 'supplier');
       xhr.timeout = 180000;
+      if (onProgress) {
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) onProgress(Math.round((ev.loaded / ev.total) * 100));
+        };
+      }
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
