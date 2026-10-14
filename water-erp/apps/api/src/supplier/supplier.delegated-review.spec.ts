@@ -164,6 +164,19 @@ describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的
       auditLog: { create: jest.fn().mockResolvedValue(undefined) },
       fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
       supplierApprovalRecord: { create: jest.fn().mockResolvedValue(undefined) },
+      // Task 3 驳回数据最小化：reject() 末尾 purgeRejectedSupplier 走 $transaction 清洗——
+      // 事务回调直通外层 mock，补齐清洗用到的子表 deleteMany / supplier.update / user.update / 审批快照 findMany
+      $transaction: jest.fn(async (fn: any) => fn({
+        ...prisma,
+        supplier: { ...prisma.supplier, update: jest.fn().mockResolvedValue({}) },
+        supplierContact: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierQualification: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierBankAccount: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierPerformance: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierClassificationLink: { deleteMany: jest.fn().mockResolvedValue({}) },
+        user: { ...prisma.user, update: jest.fn().mockResolvedValue({}) },
+        supplierApprovalRecord: { ...prisma.supplierApprovalRecord, findMany: jest.fn().mockResolvedValue([]) },
+      })),
     };
     const module = await Test.createTestingModule({
       providers: [
