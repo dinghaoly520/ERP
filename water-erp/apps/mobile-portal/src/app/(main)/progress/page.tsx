@@ -169,7 +169,7 @@ export default function ProgressPage() {
             saveFilters("progress", { companyId: e.target.value });
           }}
           aria-label="公司筛选"
-          className="m-input mb-3 !h-10 w-full !text-[13px] font-medium"
+          className="m-input mb-3 h-10 w-full text-[13px] font-medium"
         >
           <option value="all">全部公司</option>
           {companies.map((c) => (

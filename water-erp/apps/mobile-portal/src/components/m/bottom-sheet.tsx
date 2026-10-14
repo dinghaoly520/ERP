@@ -68,7 +68,7 @@ export function BottomSheet({
             type="button"
             onClick={() => setClosing(true)}
             aria-label="关闭"
-            className="neu-btn-soft !h-9 !w-9 shrink-0 !rounded-[11px] !p-0 active:scale-95"
+            className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
           >
             <X size={15} />
           </button>

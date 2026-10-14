@@ -253,7 +253,7 @@ export default function LedgerPage() {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="搜索项目名称 / 编号"
-          className="m-input !h-11 w-full !text-[14px] pl-10"
+          className="m-input h-11 w-full text-[14px] pl-10"
         />
         {searchInput ? (
           <button
@@ -319,7 +319,7 @@ export default function LedgerPage() {
             })
           }
           aria-label="公司筛选"
-          className="m-input mb-3 !h-10 w-full !text-[13px] font-medium"
+          className="m-input mb-3 h-10 w-full text-[13px] font-medium"
         >
           <option value="all">全部公司</option>
           {companies.map((c) => (

@@ -153,6 +153,7 @@ a {
   background: color-mix(in oklch, var(--accent) 28%, white 72%);
 }
 
+@layer components {
 /* ── ambient-grid 背景网格 ── */
 .ambient-grid {
   position: relative;
@@ -219,6 +220,10 @@ a {
 }
 
 
+
+}
+
+@layer components {
 /* ── flow-page / flow-glow（cgzxui 画布与水彩光晕）── */
 .flow-page {
   position: relative;
@@ -569,4 +574,5 @@ select.m-input { appearance: auto; }
   .m-input,
   .m-step,
   .m-tab-item { transition: none; }
+}
 }

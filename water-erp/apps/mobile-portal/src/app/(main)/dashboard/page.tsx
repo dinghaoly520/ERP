@@ -363,7 +363,7 @@ export default function DashboardPage() {
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
               aria-label="开始日期"
-              className="m-input !h-10 min-w-0 flex-1 !px-2 !text-[13px] tabular-nums"
+              className="m-input h-10 min-w-0 flex-1 px-2 text-[13px] tabular-nums"
             />
             <span className="shrink-0 text-xs text-[var(--muted-foreground)]">至</span>
             <input
@@ -371,12 +371,12 @@ export default function DashboardPage() {
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
               aria-label="结束日期"
-              className="m-input !h-10 min-w-0 flex-1 !px-2 !text-[13px] tabular-nums"
+              className="m-input h-10 min-w-0 flex-1 px-2 text-[13px] tabular-nums"
             />
             <button
               type="button"
               onClick={() => setCustomApplied({ startDate: customStart || undefined, endDate: customEnd || undefined })}
-              className="neu-btn-soft h-10 shrink-0 !rounded-[9px] !px-3 text-xs"
+              className="neu-btn-soft h-10 shrink-0 rounded-[9px] px-3 text-xs"
             >
               应用
             </button>
@@ -390,7 +390,7 @@ export default function DashboardPage() {
               saveFilters("dashboard", { rangeKey, companyId: e.target.value } satisfies DashboardSavedFilters);
             }}
             aria-label="公司筛选"
-            className="m-input mb-0 !h-10 w-full !text-[13px] font-medium"
+            className="m-input mb-0 h-10 w-full text-[13px] font-medium"
           >
             <option value="all">全部公司</option>
             {companies.map((c) => (
@@ -760,7 +760,7 @@ export default function DashboardPage() {
             title="AI 综合分析"
             index={9}
             right={
-              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft !h-8 !rounded-[9px] !px-2.5 !text-[11px]">
+              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[11px]">
                 {aiOpen ? "收起" : "展开"}
               </button>
             }
@@ -775,7 +775,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={runAnalysis}
                     disabled={aiLoading || !data}
-                    className="neu-btn-primary !h-9 !rounded-[10px] !px-3.5 text-xs disabled:opacity-60"
+                    className="neu-btn-primary h-9 rounded-[10px] px-3.5 text-xs disabled:opacity-60"
                   >
                     {aiLoading ? (
                       <>

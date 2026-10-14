@@ -68,7 +68,7 @@ export default function LoginPage() {
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               placeholder="请输入账号"
-              className="m-input !h-12 w-full pl-10"
+              className="m-input h-12 w-full pl-10"
             />
           </div>
 
@@ -84,7 +84,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               placeholder="请输入密码"
-              className="m-input !h-12 w-full pl-10 pr-11"
+              className="m-input h-12 w-full pl-10 pr-11"
             />
             <button
               type="button"

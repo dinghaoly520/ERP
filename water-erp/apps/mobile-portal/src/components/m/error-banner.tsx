@@ -9,7 +9,7 @@ export function ErrorBanner({ message, onRetry }: { message: string; onRetry: ()
       <button
         type="button"
         onClick={onRetry}
-        className="neu-btn-soft is-danger !h-8 shrink-0 !rounded-[9px] !px-2.5 !text-[11px] active:scale-95"
+        className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[11px] active:scale-95"
       >
         <RotateCw size={11} /> 重试
       </button>
