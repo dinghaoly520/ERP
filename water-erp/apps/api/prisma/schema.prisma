@@ -1554,6 +1554,7 @@ model SupplierContact {
   name          String
   gender        String? // 性别（男/女）
   phone         String // 联系电话（存国密密文）
+  phoneIdx      String? // 联系电话 HMAC-SM3 盲索引（2026-10-14：主联系人全局唯一 + 额外联系人供应商内唯一 的应用层查重锚点）
   idCard        String? // 联系人身份证号（注册必填，存量数据可空；存国密密文）
   idCardIdx     String? // 联系人身份证号 HMAC-SM3 盲索引（加密后等值冲突校验）
   email         String?
@@ -1568,6 +1569,7 @@ model SupplierContact {
 
   @@index([supplierId])
   @@index([idCardIdx]) // 国密加密后等值冲突校验（盲索引）
+  @@index([phoneIdx]) // 联系人手机号查重（盲索引，应用层唯一性校验，非 DB 唯一约束——跨表口径）
 }
 
 // ── 供应商自有档案（:3004 我的合同/框架协议页自建留存：线下历史合同、自有履约证明等）──

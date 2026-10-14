@@ -27,6 +27,7 @@ import * as XLSX from 'xlsx';
 import { createHash } from 'crypto';
 import { registrationAssetIdFromUrl, registrationUploadNamespace } from '../upload/registration-upload';
 import { sealPii, openPii, blindIndexPii } from '../common/crypto/sm-field-crypto';
+import { assertContactPhonesUnique, assertContactsArrayPhonesUnique } from './contact-phone-unique';
 import { isSealedFieldSm, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { openChangeValue, maskChangeValue } from './change-record-pii';
@@ -311,6 +312,10 @@ export class SupplierService {
       }
     }
 
+    // 联系人手机号供应商内去重（2026-10-14）：注册时供应商未建档，数组内查重即可；
+    // 主联系人手机号全局唯一已由上方 User.phoneIdx 查重覆盖。
+    assertContactsArrayPhonesUnique(dto.contacts);
+
     const registrationAssetRequirements = (() => {
       if (isInternalImport) return [];
 
@@ -437,6 +442,7 @@ export class SupplierService {
               name: c.name,
               gender: c.gender || null,
               phone: sealPii(c.phone) as string, // PII 国密密封（等保+密评）
+              phoneIdx: blindIndexPii(c.phone) ?? null, // 联系人手机号盲索引（2026-10-14 唯一性查重）
               idCard: sealPii(c.idCard) ?? null,
               idCardIdx: blindIndexPii(c.idCard) ?? null,
               email: sealPii(c.email) ?? null,
@@ -714,7 +720,7 @@ export class SupplierService {
           companyId: companyRef.id,
           companyName: companyRef.name,
           invitation: { connect: { id: inv.id } },
-          contacts: { create: [{ name: dto.displayName, phone: sealPii(dto.phone) as string, email: sealPii(dto.email || null) ?? null, isPrimary: true, position: '联系人' }] },
+          contacts: { create: [{ name: dto.displayName, phone: sealPii(dto.phone) as string, phoneIdx: blindIndexPii(dto.phone) ?? null, email: sealPii(dto.email || null) ?? null, isPrimary: true, position: '联系人' }] },
         },
         include: { contacts: true },
       });
@@ -2182,11 +2188,17 @@ export class SupplierService {
             data: { isPrimary: false },
           });
         }
+        // 联系人手机号唯一性（2026-10-14）：主联系人全局唯一 + 额外联系人供应商内唯一
+        await assertContactPhonesUnique(tx, {
+          supplierId: change.supplierId,
+          contacts: contacts.map((c: any) => ({ phone: String(c.phone ?? '').trim(), isPrimary: !!c.isPrimary })),
+        });
         await tx.supplierContact.createMany({
           data: contacts.map((c: any) => ({
             supplierId: change.supplierId,
             name: String(c.name).trim(),
             phone: sealPii(String(c.phone).trim()) as string, // PII 国密密封（等保+密评）
+            phoneIdx: blindIndexPii(String(c.phone).trim()) ?? null, // 联系人手机号盲索引
             email: c.email ? sealPii(String(c.email).trim()) as string : null,
             isPrimary: !!c.isPrimary,
             position: c.position ? String(c.position).trim() : null,
