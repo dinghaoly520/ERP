@@ -16,6 +16,7 @@ import { buildClarificationReplyCanonical, buildClarificationReplyCanonicalV2 } 
 import { buildOpeningConfirmCanonical, buildOpeningConfirmCanonicalV2, computeOpeningRecordHash } from './opening-confirm-signature.util';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
+import { resolveEnvelopeVersion } from './envelope-version.util';
 import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
@@ -2762,8 +2763,9 @@ export class SupplierPortalService {
     if (!submission || submission.status !== 'submitted') {
       throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
     }
-    const isV3 = submission.envelopeVersion === 'dual-v3';
-    if (submission.envelopeVersion !== 'dual-v2' && !isV3) {
+    const track = resolveEnvelopeVersion(submission); // Task13：读端统一分派
+    const isV3 = track === 'dual-v3';
+    if (track === 'legacy') {
       throw new BadRequestException({ error: '该供应商走旧轨（单层）加密，无解密包', code: 'NOT_DUAL_TRACK' });
     }
     if (!submission.outerDecryptedAt || !submission.innerAssets) {
@@ -2907,8 +2909,9 @@ export class SupplierPortalService {
     if (!submission || submission.status !== 'submitted') {
       throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
     }
-    const isV3 = submission.envelopeVersion === 'dual-v3';
-    if (submission.envelopeVersion !== 'dual-v2' && !isV3) {
+    const track = resolveEnvelopeVersion(submission); // Task13：读端统一分派
+    const isV3 = track === 'dual-v3';
+    if (track === 'legacy') {
       throw new BadRequestException({ error: '该供应商走旧轨（单层）加密，请走主持端解密通道', code: 'NOT_DUAL_TRACK' });
     }
     if (!submission.outerDecryptedAt || !submission.innerAssets) {

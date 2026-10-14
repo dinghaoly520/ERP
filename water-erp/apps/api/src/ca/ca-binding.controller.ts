@@ -9,6 +9,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { v3Enabled } from '../supplier-portal/envelope-version.util';
 import { CaChallengeService } from './ca-challenge.service';
 import { CaVerificationService, normalizeToDer } from './ca-verification.service';
 import { CaEvidenceService } from './ca-evidence.service';
@@ -78,7 +79,8 @@ export class CaBindingController {
           : null,
       } : null,
       allowedActions: isCa ? ['self-test', 'sign'] : [],
-      allowedEnvelopeVersions: isCa ? ['dual-v2', 'dual-v3'] : ['dual-v2'],
+      // Task13：v3 灰度开关——未开启时前端只组装 dual-v2（服务端投递链 v3 仍可用，仅前端投影收窄）
+      allowedEnvelopeVersions: isCa && v3Enabled() ? ['dual-v2', 'dual-v3'] : ['dual-v2'],
       disabledReasons: isCa ? [] : ['未绑定 SCCA CA 证书'],
     };
   }
