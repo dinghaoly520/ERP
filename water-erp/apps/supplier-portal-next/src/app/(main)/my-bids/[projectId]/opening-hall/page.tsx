@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { CaOpeningDecryptCard } from "@/components/ca-opening-decrypt-card";
+import { CaBidReuploadCard } from "@/components/ca-bid-reupload-card";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import { CloudOff, Clock, Lock, MessageSquareOff, User, Wifi } from "lucide-react";
@@ -441,14 +443,15 @@ export default function OpeningHallPage() {
           </div>
         </section>
 
-        {/* ═══ 双信封 v2 供应商侧解密卡已随 mock U盾轨下线（2026-10-13）═══
-              old clientDeks 投递由主持端代解密；dual-v3（SCCA，阶段 2）落地后在此恢复自助解密 */}
-        {isOpening && !!record?.submitted && (
-          <section className="hall-card">
-            <div className="hall-card__body">
-              <div className="stage-hint">双信封开标解密随 dual-v3（阶段 2）开放；当前走服务端代解密。</div>
-            </div>
-          </section>
+        {/* ═══ dual-v3 供应商自助解密卡（阶段2 Task12，2026-10-14）═══
+              取包→盾 unwrapKey→SM4 内层解密→P7 解密证明→decrypt-upload；
+              旧轨（无信封）家仍走主持端代解密——按 mySubmission.envelopeVersion 分流 */}
+        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+          <CaOpeningDecryptCard projectId={projectId} onDecrypted={() => refresh()} />
+        )}
+        {/* ═══ dual-v3 解密异常补传卡（阶段2.5 T3）：DANGER 终局恢复通道 ═══ */}
+        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && String(decryptStatus).toUpperCase() === 'DANGER' && (
+          <CaBidReuploadCard projectId={projectId} onReuploaded={() => refresh()} />
         )}
 
         {/* 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），

@@ -1,12 +1,12 @@
 /* =================================================================
    CaEvidenceService — 验签证据不可变记录（CaVerificationRecord）
    ================================================================= */
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { createHash } from 'crypto';
 import type { VerificationOutcome } from './ca-verification.service';
 
 export class CaEvidenceService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async record(input: {
     requestId: string;

@@ -1,4 +1,4 @@
-import { IsBoolean, IsObject, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, Min, IsObject, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 /**
@@ -49,6 +49,21 @@ export class SubmitBidDto extends SaveBidDraftDto {
   @IsOptional() @IsString() @MaxLength(4096) signature?: string;
   /** 旧轨 SM2 抗抵赖签名对：服务层 signature+fileHash 联合触发验签——缺装饰器被剥落后验签静默跳过（SHA-256 hex=64） */
   @IsOptional() @IsString() @MaxLength(128) fileHash?: string;
-  /** 旧轨代解密授权（办法第30条留痕）：服务层递交闸门要求 ===true——缺装饰器被剥落后闸门协议层不可满足 */
-  @IsOptional() @IsBoolean() hostDecryptAuthorized?: boolean;
+
+  // ── SCCA dual-v3 轨（阶段2，2026-10-14）──
+  @IsOptional() @IsString() @MaxLength(128) operationId?: string;
+  @IsOptional() @IsString() @MaxLength(64) signatureFormat?: string; // 'scca-pkcs7-base64'
+  @IsOptional() @IsString() @MaxLength(262144) signP7?: string;
+  /** CAS 基线版本（服务端现值不符→409）——缺装饰器会被 whitelist 剥落致 CAS 死码（评审 I1） */
+  @IsOptional() @IsInt() @Min(0) baseRevision?: number;
+}
+
+/** 回执签名提交（Task6）：旧轨 SM2 hex（空=免签 unsigned-legacy）或 dual-v3 P7 强签 */
+export class SignReceiptDto {
+  /** 旧轨 SM2 签名 hex；SCCA 全面适配后空=免签（向后兼容） */
+  @IsOptional() @IsString() @MaxLength(512) signature?: string;
+  // ── SCCA dual-v3（阶段2 Task6）──
+  @IsOptional() @IsString() @MaxLength(128) operationId?: string;
+  @IsOptional() @IsString() @MaxLength(64) signatureFormat?: string; // 'scca-pkcs7-base64'
+  @IsOptional() @IsString() @MaxLength(262144) signP7?: string;
 }

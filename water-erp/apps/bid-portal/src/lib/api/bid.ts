@@ -54,12 +54,6 @@ export function startOpening(projectId: string, body: {
   return api.post<BidProjectDetail>(`/bid/projects/${projectId}/open`, body);
 }
 
-/* ── 解密 ── */
-
-export function decryptBid(projectId: string, supplierId: string) {
-  return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, {});
-}
-
 /* ── 双信封 v2：解外层 / 归因裁决（§5.2/§5.5，admin·bid_host）── */
 
 /** decrypt-outer 单家明细（单家路径直接返回该明细；批量路径以 details 数组聚合） */
@@ -141,10 +135,6 @@ export interface ResealResult {
   failed: Array<{ role: string; label: string; code: string; error: string }>;
   decrypted: boolean;
   message: string;
-}
-
-export function resealBidFiles(projectId: string, supplierId: string) {
-  return api.post<ResealResult>(`/bid/projects/${projectId}/suppliers/${supplierId}/reseal`, {});
 }
 
 /* ── 唱标与异议 ── */

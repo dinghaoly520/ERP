@@ -7,6 +7,7 @@ import { compareSync, hashSync } from 'bcryptjs';
 import { encryptPasswordVault } from './password-vault.util';
 import { sealPii, openPii, openPiiForMask, blindIndexPii } from '../common/crypto/sm-field-crypto';
 import { NotificationService } from '../notification/notification.service';
+import { NotificationGateway } from '../notification/notification.gateway';
 import { forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { VerificationService } from '../verification/verification.service';
@@ -38,6 +39,10 @@ export class AuthService {
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
     @Optional() @Inject(forwardRef(() => NotificationService))
     private readonly notifications?: NotificationService,
+    // 会话轮换驱逐（2026-10-14）：rotatePortalSession 后断开旧 WS 通知订阅，防被踢页签
+    // REST 全 401 却仍收推送弹窗（「通知可见、消息中心拉不到」悖论）
+    @Optional() @Inject(forwardRef(() => NotificationGateway))
+    private readonly notificationGateway?: NotificationGateway,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -539,6 +544,9 @@ export class AuthService {
       // 供主持人工位视图/解锁弹窗展示「当前在线设备」（2026-09-22）
       data: { webSessionId: sid, ...(sessionMeta !== undefined ? { sessionMeta } : {}) },
     });
+    // 轮换即驱逐该账号全部既有 WS 通知订阅（2026-10-14）：此刻被断开的都是旧会话页签
+    // （新会话在登录响应后才连 WS，带新 sid 正常入房；旧页签重连握手 sid 对账被拒）
+    this.notificationGateway?.evictUser(userId);
     return this.issueToken(userId, username, role, sid);
   }
 

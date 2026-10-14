@@ -1981,8 +1981,10 @@ model SupplierBidSubmission {
   // W11-①（CTS A-101）：投标回执 SM2 签名（防抵赖）——{ payload, signature, algorithm, verifiedAt }
   receiptSignature      Json?
   receiptSignedAt       DateTime?
-  envelopeVersion       String? // 'dual-v2' | null(旧轨)
-  hostDecryptAuthorized Boolean   @default(false) // P1-1：旧轨投递时投标人勾选「同意平台在开标环节代解密」的授权记录（办法第30条留痕；新轨供应商自解无需）
+  envelopeVersion       String? // 'dual-v2' | 'dual-v3' | null(旧轨)
+  revision             Int      @default(0) // 当前活跃版本号（0=旧轨无版本管理；v3 每次提交/补传递增）
+  versions             SubmissionVersion[]
+
   decryptedPrice        String? // 解密上传后经 fieldsCommit 验证的报价
   outerDecryptedAt      DateTime?
   packageFetchedAt      DateTime?
@@ -2075,11 +2077,15 @@ model BidFileBackup {
   size             Int
   receiptNo        String? // 回执号 TB-yyyymmdd-NNN
   backupSource     String   @default("submission") // submission | reconcile
-  cryptoVersion    String   @default("envelope-v1") // AES-256-GCM + wrapKey(salt water-erp-envelope-salt-v1)
+  cryptoVersion    String   @default("envelope-v1") // AES-256-GCM + wrapKey(salt water-erp-envelope-salt-v1) | dual-envelope-v2 | dual-envelope-v3
+  // ── dual-v3（阶段2.5 T0）：版本维度——supplierId+projectId 与 submission 一一对应，
+  //    自然键 [projectId,supplierId,fileRole,revision] 等价 submissionId+revision+role；
+  //    v2 存量行 revision=0 零回填共存
+  revision         Int      @default(0)
   submittedAt      DateTime
   createdAt        DateTime @default(now())
 
-  @@unique([supplierId, projectId, fileRole])
+  @@unique([projectId, supplierId, fileRole, revision])
   @@index([projectId, supplierId])
 }
 
@@ -4026,4 +4032,55 @@ model CaExpiryReminder {
   notifiedAt    DateTime?
 
   @@unique([bindingId, certificateId, usage, stage])
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// SCCA 阶段2 dual-v3（2026-10-14）
+// ═══════════════════════════════════════════════════════════════
+
+/// dual-v3 不可变提交版本快照（附录 §5.D——CAS 基准+历史信封事实源）
+model SubmissionVersion {
+  id            String   @id @default(cuid())
+  submissionId  String
+  revision      Int
+  envelope      Json
+  envelopeHash  String   // sha256(canonicalJson(envelope))
+  submittedAt   DateTime @default(now())
+  operationId   String?
+  submission    SupplierBidSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, revision])
+  @@index([submissionId, revision, submittedAt])
+}
+
+/// 解密执行槽（附录 §5.D——submissionId+revision+phase 唯一 + fence CAS）
+model DecryptExecution {
+  id            String    @id @default(cuid())
+  submissionId  String
+  revision      Int
+  phase         String    // 'outer' | 'inner'
+  attemptId     String
+  fence         Int       @default(0)
+  leaseUntil    DateTime?
+  status        String    @default("RUNNING") // RUNNING | SUCCESS | FAILED
+
+  @@unique([submissionId, revision, phase])
+}
+
+/// 事务性 outbox（附录 §5.D——通知/AI 启动/autoHandover 走 outbox 而非事务内直发）
+model Outbox {
+  id          String    @id @default(cuid())
+  topic       String
+  payload     Json
+  status      String    @default("PENDING") // PENDING | DISPATCHING | SENT | FAILED
+  publishedAt DateTime?
+  // ── dual-v3（阶段2.5 T0）：消费退避——attempts≥5 封顶 FAILED
+  attempts    Int       @default(0)
+  lastError   String?
+  // 终审 I-2：DISPATCHING 崩溃残留恢复——claim 时落 claimedAt，>5min 滞留可重占
+  claimedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, topic])
 }

@@ -7,4 +7,8 @@ export class OpeningConfirmDto {
   @IsString()
   @MaxLength(512)
   signature?: string;
+  // ── SCCA dual-v3（阶段2 Task7）──
+  @IsOptional() @IsString() @MaxLength(128) operationId?: string;
+  @IsOptional() @IsString() @MaxLength(64) signatureFormat?: string; // 'scca-pkcs7-base64'
+  @IsOptional() @IsString() @MaxLength(262144) signP7?: string;
 }

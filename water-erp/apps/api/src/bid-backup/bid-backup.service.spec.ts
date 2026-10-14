@@ -24,7 +24,7 @@ describe('BidBackupService', () => {
     jest.clearAllMocks();
     delete process.env.BID_BACKUP_ENABLED;
     prisma = {
-      bidFileBackup: { upsert: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      bidFileBackup: { upsert: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() },
       fileAsset: { findUnique: jest.fn() },
       bidSupplier: { findFirst: jest.fn() },
@@ -96,7 +96,7 @@ describe('BidBackupService', () => {
         projectId: 'p1', supplierId: 's1', receiptNo: 'TB-1', submittedAt: new Date('2026-01-01'), backupSource: 'submission',
       });
       expect(prisma.bidFileBackup.upsert).toHaveBeenCalledWith({
-        where: { supplierId_projectId_fileRole: { supplierId: 's1', projectId: 'p1', fileRole: 'technical' } },
+        where: { projectId_supplierId_fileRole_revision: { supplierId: 's1', projectId: 'p1', fileRole: 'technical', revision: 0 } },
         update: expect.objectContaining({ backupKey: 'bk', wrappedDek: 'wd', ciphertextSha256: 'csha', backupSource: 'submission', cryptoVersion: 'envelope-v1' }),
         create: expect.objectContaining({ projectId: 'p1', supplierId: 's1', fileRole: 'technical', backupKey: 'bk', wrappedDek: 'wd' }),
       });
@@ -121,7 +121,7 @@ describe('BidBackupService', () => {
         technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null,
         technicalSealedKey: 'wd', businessSealedKey: null, coverLetterSealedKey: null,
       }]);
-      prisma.bidFileBackup.findUnique.mockResolvedValue(null); // 无备份
+      prisma.bidFileBackup.findFirst.mockResolvedValue(null); // 无备份（T0 起核验走 findFirst 最新版）
       prisma.fileAsset.findUnique.mockResolvedValue({ id: 'a1', sealedPath: 'sealed/p1/s1/bid.enc', sha256: 'psha' });
       (minioClient.getObject as jest.Mock).mockResolvedValue(fakeStream(ciphertext));
       (minioClient.putObject as jest.Mock).mockResolvedValue({});
@@ -142,7 +142,7 @@ describe('BidBackupService', () => {
         technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null,
         technicalSealedKey: 'wd', businessSealedKey: null, coverLetterSealedKey: null,
       }]);
-      prisma.bidFileBackup.findUnique.mockResolvedValue({ id: 'b1' }); // 已有
+      prisma.bidFileBackup.findFirst.mockResolvedValue({ id: 'b1' }); // 已有（T0 起存在性查 findFirst）
       await expect(service.reconcileMissing()).resolves.toBe(0);
       expect(minioClient.getObject).not.toHaveBeenCalled();
     });
@@ -153,7 +153,7 @@ describe('BidBackupService', () => {
         technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null,
         technicalSealedKey: 'wd', businessSealedKey: null, coverLetterSealedKey: null,
       }]);
-      prisma.bidFileBackup.findUnique.mockResolvedValue(null);
+      prisma.bidFileBackup.findFirst.mockResolvedValue(null);
       prisma.fileAsset.findUnique.mockResolvedValue({ id: 'a1', sealedPath: 'sealed/x.enc', sha256: 'p' });
       (minioClient.getObject as jest.Mock).mockRejectedValue(new Error('read fail'));
       await expect(service.reconcileMissing()).resolves.toBe(0);
@@ -173,7 +173,7 @@ describe('BidBackupService', () => {
       const cipher = Buffer.from('same-cipher');
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({ technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null });
       prisma.bidSupplier.findFirst.mockResolvedValue({ receiptNo: 'TB-1' });
-      prisma.bidFileBackup.findUnique.mockResolvedValue({ ciphertextSha256: sha(cipher), backupKey: 'bk', sealedPath: 'sp', backupSource: 'submission', submittedAt: new Date() });
+      prisma.bidFileBackup.findFirst.mockResolvedValue({ ciphertextSha256: sha(cipher), backupKey: 'bk', sealedPath: 'sp', backupSource: 'submission', submittedAt: new Date() });
       (minioClient.getObject as jest.Mock).mockResolvedValue(fakeStream(cipher));
       const r = await service.verify('p1', 's1', 'actor1');
       expect(r.overall).toBe('consistent');
@@ -186,7 +186,7 @@ describe('BidBackupService', () => {
       const sealedBuf = Buffer.from('TAMPERED');
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({ technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null });
       prisma.bidSupplier.findFirst.mockResolvedValue(null);
-      prisma.bidFileBackup.findUnique.mockResolvedValue({ ciphertextSha256: sha(backupBuf), backupKey: 'bk', sealedPath: 'sp', backupSource: 'submission', submittedAt: new Date() });
+      prisma.bidFileBackup.findFirst.mockResolvedValue({ ciphertextSha256: sha(backupBuf), backupKey: 'bk', sealedPath: 'sp', backupSource: 'submission', submittedAt: new Date() });
       (minioClient.getObject as jest.Mock)
         .mockResolvedValueOnce(fakeStream(backupBuf))
         .mockResolvedValueOnce(fakeStream(sealedBuf));
@@ -198,10 +198,58 @@ describe('BidBackupService', () => {
     it('期望文件缺备份行 → 该文件 missing，overall=missing', async () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({ technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null });
       prisma.bidSupplier.findFirst.mockResolvedValue(null);
-      prisma.bidFileBackup.findUnique.mockResolvedValue(null);
+      prisma.bidFileBackup.findFirst.mockResolvedValue(null);
       const r = await service.verify('p1', 's1');
       expect(r.overall).toBe('missing');
       expect(r.perFile[0].status).toBe('missing');
     });
+  });
+});
+
+describe('verify v3 分派（阶段2.5 T5）', () => {
+  const V3_ENV = { files: { technical: { assetId: 'fa-1', plainSha256: 'p'.repeat(64) } } };
+  const mkV3 = (over: any = {}) => ({
+    prisma: {
+      supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(over.sub ?? { id: 's1', envelopeVersion: 'dual-v3', envelope: V3_ENV }) },
+      submissionVersion: { findUnique: jest.fn().mockResolvedValue(over.snapshot ?? { envelope: V3_ENV }) },
+      bidFileBackup: { findFirst: jest.fn().mockResolvedValue(over.backup ?? { ciphertextSha256: 'CS', plaintextSha256: 'p'.repeat(64), backupKey: 'bk', sealedPath: 'sp', backupSource: 'submission', submittedAt: new Date() }) },
+      bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    },
+    svc: null as any,
+  });
+  const boot = (m: any) => {
+    const { BidBackupService } = require('./bid-backup.service');
+    m.svc = new BidBackupService(m.prisma) as any;
+    // getObject 双读（backupKey/sealedPath 同字节）——哈希自证闭环
+    const crypto = require('crypto');
+    const buf = Buffer.from('mirror-cipher');
+    const sha = crypto.createHash('sha256').update(buf).digest('hex');
+    m.prisma.bidFileBackup.findFirst.mockImplementation(async () => null);
+    (minioClient.getObject as jest.Mock).mockImplementation(async () => require('stream').Readable.from([buf]));
+    m._sha = sha;
+    return m;
+  };
+
+  test('v3：expected 角色来自信封快照（资产列全 null 不再恒 missing）+ 哈希一致 → consistent', async () => {
+    const m = boot(mkV3());
+    m.prisma.bidFileBackup.findFirst.mockResolvedValue({ ciphertextSha256: m._sha, plaintextSha256: 'p'.repeat(64), backupKey: 'bk', sealedPath: 'sp', backupSource: 'submission', submittedAt: new Date() });
+    const r = await m.svc.verify('p1', 's1');
+    expect(r.overall).toBe('consistent');
+    expect(m.prisma.submissionVersion.findUnique).toHaveBeenCalled();
+    expect(r.perFile).toEqual([expect.objectContaining({ fileRole: 'technical', status: 'consistent' })]);
+  });
+
+  test('v3：备份 plaintextSha256 与快照锚点不符 → tampered', async () => {
+    const m = boot(mkV3({ backup: null }));
+    m.prisma.bidFileBackup.findFirst.mockResolvedValue({ ciphertextSha256: m._sha, plaintextSha256: 'x'.repeat(64), backupKey: 'bk', sealedPath: 'sp', backupSource: 'submission', submittedAt: new Date() });
+    const r = await m.svc.verify('p1', 's1');
+    expect(r.overall).toBe('tampered');
+  });
+
+  test('v3：快照缺失 → 该文件 missing（不误判 consistent）', async () => {
+    const m = boot(mkV3({ snapshot: null }));
+    const r = await m.svc.verify('p1', 's1');
+    expect(r.overall).toBe('missing');
   });
 });

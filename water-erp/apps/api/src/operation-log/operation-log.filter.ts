@@ -32,6 +32,9 @@ export const DEFAULT_EXCLUDE_PATHS: ExcludePattern[] = [
   { method: 'GET', path: '/api/bid/projects/dashboard' }, // 30s 轮询开标任务板（:3007 O5，2026-08-28）；该路径无写端点，方法限定保持风格一致
   { method: 'GET', path: /^\/api\/bid\/projects\/[^/]+\/expert-verification$/ }, // 30s 轮询核验矩阵（:3007，2026-09-18 身份核验设计 §4.5）；纯只读展示端点
   { method: 'GET', path: '/api/operation-log' }, // :3005 操作日志查询页翻页/筛选自查询（只读浏览非业务动作，2026-09-16）；前缀覆盖 /archive 归档清单与 verify（均 GET），日志页浏览自身不入日志防审计噪音
+  // ── dual-v3（评审修复）：解密上传 multipart 含 fieldsJson+nonce——nonce 为唱标承诺随机数，
+  //    开标窗口内属敏感负载，请求体入 OperationLog 泄露面不必要（行为本身已有监督日志/审计双留痕）──
+  { method: 'POST', path: /^\/api\/supplier-portal\/bid-submissions\/[^/]+\/decrypt-upload$/ },
 ];
 
 /**

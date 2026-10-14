@@ -12,7 +12,7 @@ import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
-import { SaveBidDraftDto, SubmitBidDto } from './dto/bid-submission.dto';
+import { SaveBidDraftDto, SubmitBidDto, SignReceiptDto } from './dto/bid-submission.dto';
 import { OpeningConfirmDto } from './dto/opening-confirm.dto';
 import { SubmitQuoteDto } from './dto/submit-quote.dto';
 import type { EnvelopeRole } from '@water-erp/ukey';
@@ -63,11 +63,11 @@ export class SupplierPortalController {
     return this.portalService.getReceiptPayloadFor(submissionId, supplierId);
   }
 
-  /** W11-①（A-101）：提交回执 SM2 签名（服务端验签存档，幂等） */
+  /** W11-①（A-101）：提交回执签名（服务端验签存档，幂等；dual-v3 P7 强签走 operationId+signP7） */
   @Post('bid-submissions/:submissionId/receipt-signature')
-  async signReceipt(@Param('submissionId') submissionId: string, @Body() body: { signature: string }, @Request() req: any) {
+  async signReceipt(@Param('submissionId') submissionId: string, @Body() body: SignReceiptDto, @Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.signSubmissionReceipt(submissionId, supplierId, body?.signature ?? '');
+    return this.portalService.signSubmissionReceipt(submissionId, supplierId, body?.signature ?? '', body);
   }
 
   /** W11-①（A-101）：回执重验签——对存档签名负载只读复验，供核验面板显示结论徽标 */
@@ -540,6 +540,26 @@ export class SupplierPortalController {
     return this.portalService.getOpeningPackage(supplierId, projectId);
   }
 
+  /** dual-v3 补传锚点下发（阶段2.5 T1）——roles 明文哈希+sealedFields 自版本快照 */
+  /** dual-v3 补传（阶段2.5 T2）：六闸+CAS 版本推进+解密状态重置 */
+  @Post('bid-submissions/:projectId/reupload-v3')
+  @Roles('supplier')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async reuploadV3(@Param('projectId') projectId: string, @Body() body: { operationId?: string; signatureFormat?: string; signP7?: string; baseRevision?: number }, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    if (!body?.operationId || body?.signatureFormat !== 'scca-pkcs7-base64' || !body?.signP7) {
+      throw new BadRequestException({ error: 'dual-v3 补传须携带 operationId+signP7（scca-pkcs7-base64）', code: 'BAD_PARAMS' });
+    }
+    return this.portalService.reuploadBidV3(supplierId, projectId, {
+      operationId: body.operationId, signatureFormat: body.signatureFormat, signP7: body.signP7, baseRevision: body.baseRevision,
+    });
+  }
+  @Get('bid-submissions/:projectId/reupload-context')
+  async getReuploadContext(@Param('projectId') projectId: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getReuploadContext(supplierId, projectId);
+  }
+
   /** 解密上传：各角色解密明文（file_* 四文件 optional）+ F+nonce 承诺（fieldsJson/nonce）——服务端双闸校验 */
   @Post('bid-submissions/:projectId/decrypt-upload')
   @Throttle({ default: { ttl: 60000, limit: 5 } }) // 与 reupload-dual 使用相同的请求频率限制。
@@ -572,7 +592,12 @@ export class SupplierPortalController {
       const f = (uploaded as any)?.[field]?.[0] as Express.Multer.File | undefined;
       if (f) files[role] = f.buffer;
     }
-    return this.portalService.decryptUpload(supplierId, projectId, files, body?.fieldsJson ?? '', body?.nonce ?? '');
+    // dual-v3（Task9）：multipart body 附带 P7 解密证明（operationId/signP7/signatureFormat）
+    return this.portalService.decryptUpload(supplierId, projectId, files, body?.fieldsJson ?? '', body?.nonce ?? '', {
+      operationId: (body as any)?.operationId,
+      signatureFormat: (body as any)?.signatureFormat,
+      signP7: (body as any)?.signP7,
+    });
   }
 
   // 开标确认（供应商侧）
@@ -604,7 +629,7 @@ export class SupplierPortalController {
     @Body() dto: OpeningConfirmDto,
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.confirmOpening(supplierId, projectId, dto.signature ?? "");
+    return this.portalService.confirmOpening(supplierId, projectId, dto.signature ?? "", dto);
   }
 
   @Post('bid-submissions/:projectId/opening-dispute')

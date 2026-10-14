@@ -9,6 +9,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { v3Enabled } from '../supplier-portal/envelope-version.util';
 import { CaChallengeService } from './ca-challenge.service';
 import { CaVerificationService, normalizeToDer } from './ca-verification.service';
 import { CaEvidenceService } from './ca-evidence.service';
@@ -58,7 +59,7 @@ export class CaBindingController {
     const activeBinding = await this.prisma.supplierCert.findFirst({
       where: { supplierId: supplier.id, bindingStatus: 'ACTIVE' },
       include: {
-        signingCaCertificate: { select: { serialHex: true, subjectDisplay: true, notAfter: true } },
+        signingCaCertificate: { select: { serialHex: true, subjectDisplay: true, notAfter: true, sha256Fingerprint: true } },
         encryptionCaCertificate: { select: { serialHex: true, subjectDisplay: true, notAfter: true } },
       },
     });
@@ -71,14 +72,15 @@ export class CaBindingController {
         id: activeBinding.id,
         kind: isCa ? 'ca' : 'legacy',
         signingCert: activeBinding.signingCaCertificate
-          ? { serialHex: activeBinding.signingCaCertificate.serialHex, subject: activeBinding.signingCaCertificate.subjectDisplay, notAfter: activeBinding.signingCaCertificate.notAfter }
+          ? { serialHex: activeBinding.signingCaCertificate.serialHex, subject: activeBinding.signingCaCertificate.subjectDisplay, notAfter: activeBinding.signingCaCertificate.notAfter, sha256Fingerprint: activeBinding.signingCaCertificate.sha256Fingerprint }
           : null,
         encryptionCert: activeBinding.encryptionCaCertificate
           ? { serialHex: activeBinding.encryptionCaCertificate.serialHex, subject: activeBinding.encryptionCaCertificate.subjectDisplay, notAfter: activeBinding.encryptionCaCertificate.notAfter }
           : null,
       } : null,
       allowedActions: isCa ? ['self-test', 'sign'] : [],
-      allowedEnvelopeVersions: isCa ? ['dual-v2', 'dual-v3'] : ['dual-v2'],
+      // Task13：v3 灰度开关——未开启时前端只组装 dual-v2（服务端投递链 v3 仍可用，仅前端投影收窄）
+      allowedEnvelopeVersions: isCa && v3Enabled() ? ['dual-v2', 'dual-v3'] : ['dual-v2'],
       disabledReasons: isCa ? [] : ['未绑定 SCCA CA 证书'],
     };
   }
@@ -298,8 +300,19 @@ export class CaBindingController {
     const userId = (req as any).user?.sub;
     const op = await this.operationService.findById(id);
     if (!op) return { status: 'NOT_FOUND' };
-    // 主体归属校验（登录操作 subjectId 可能 null——跳过）
-    if (op.subjectId && op.subjectId !== userId) {
+    // 主体归属校验（登录操作 subjectId 可能 null——跳过）。
+    // 阶段2.5 T8 修复：投递链 op 的 subjectId=supplier.id（供应商域）——对 supplier
+    // 主体按 supplier.findUnique(userId).id 比对（原 User id 直比恒 403）
+    let subjectId = op.subjectId;
+    if (subjectId && op.subjectType === 'supplier') {
+      const supplier = await this.prisma.supplier.findUnique({ where: { userId }, select: { id: true } });
+      if (supplier && subjectId !== supplier.id) {
+        throw new ForbiddenException({ error: '无权访问', code: 'FORBIDDEN' });
+      }
+      if (!supplier && subjectId !== userId) {
+        throw new ForbiddenException({ error: '无权访问', code: 'FORBIDDEN' });
+      }
+    } else if (subjectId && subjectId !== userId) {
       throw new ForbiddenException({ error: '无权访问', code: 'FORBIDDEN' });
     }
     return { status: op.status, result: op.result, evidenceId: null };

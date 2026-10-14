@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { CaBidSubmitSection } from "@/components/ca-bid-submit-section";
 import Link from "next/link";
 import { toast } from "sonner";
 import dayjs from "dayjs";
@@ -548,6 +549,18 @@ function BidDetailInner() {
                   </div>
                 )}
               </div>
+
+              {/* ═══ dual-v3 投递卡（阶段2 · I5 评审修复：挂载点）═══
+                    capabilities 门控（CA_SUPPLIER_V3_ENABLED + ACTIVE SCCA 绑定）内置于 Section；
+                    未开 v3/未绑盾渲染 null——旧轨用户不受影响 */}
+              {['DOWNLOAD', 'SUBMIT'].includes(project.stage) && submission?.status !== 'submitted' && (
+                <CaBidSubmitSection
+                  projectId={projectId}
+                  submissionId={submission?.id ?? ''}
+                  revision={(submission as any)?.revision ?? 0}
+                  onSubmitted={reloadSubmission}
+                />
+              )}
 
               {/* ═══ 招标文件 + 书面交流 ═══
                   B2-1（2026-09-30）：不再按 isListMode 隐藏——「项目机会」列表与工作台均

@@ -202,25 +202,33 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidProject.delete({ where: { id: tmpId } }).catch(() => {});
   });
 
-  it('供应商通过供应商门户提交投标（SUBMIT 阶段，真实路径）', async () => {
-    // 真实投标统一走供应商门户（管理员代投路径已移除）
-    // P1-1：旧轨投递闸门要求显式代解密授权（hostDecryptAuthorized === true，办法第30条留痕）
+  it('legacy 投递通道已关闭：旧轨提交 → 400 LEGACY_TRACK_CLOSED（2026-10-14 用户裁定）', async () => {
     await request(app.getHttpServer())
       .post(`/api/supplier-portal/bid-submissions/${createdProjectId}/submit`)
       .set('Cookie', supplierCookie)
       .set('X-Portal', 'supplier')
       .send({ bidPrice: '100', hostDecryptAuthorized: true })
-      .expect(201);
+      .expect(400)
+      .expect((r) => expect(r.body.code).toBe('LEGACY_TRACK_CLOSED'));
+  });
 
-    // 投标后管理端可见该供应商，取 BidSupplier.id 供后续解密
-    const res = await request(app.getHttpServer())
-      .get(`/api/bid/projects/${createdProjectId}/suppliers`)
-      .set('Cookie', adminCookie)
-      .set('X-Portal', 'web')
-      .expect(200);
-    const supplier = (res.body as any[]).find((s: any) => s.supplierName);
-    expect(supplier).toBeDefined();
-    createdSupplierId = supplier.id;
+  it('供应商通过供应商门户提交投标（SUBMIT 阶段，真实路径）', async () => {
+    // legacy 代解密剪除后（2026-10-14）：真实投递仅 dual 轨——本文件为生命周期用例，
+    // 直接建行模拟已投递（开标/唱标链路不依赖投递加密链，bid-v3.e2e-spec 已覆盖真投递）
+    const sup = await prisma.supplier.findFirst({ where: { userId: (await prisma.user.findUnique({ where: { username_role: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } } }))!.id } });
+    // 名册行随投递事务创建（v3 同款）——建行版同自建名册
+    const supplierRow = await prisma.bidSupplier.findFirst({ where: { projectId: createdProjectId, supplierId: sup!.id } });
+    createdSupplierId = supplierRow?.id
+      ?? (await prisma.bidSupplier.create({ data: { projectId: createdProjectId, supplierId: sup!.id, supplierName: '重庆蜀通岩土工程有限公司', downloadStatus: '已下载', submitStatus: '未递交' } })).id;
+    const existingSub = await prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId: sup!.id, projectId: createdProjectId } },
+    });
+    if (existingSub) {
+      await prisma.supplierBidSubmission.update({ where: { id: existingSub.id }, data: { status: 'submitted', submittedAt: new Date(), serverSubmittedAt: new Date() } });
+    } else {
+      await prisma.supplierBidSubmission.create({ data: { supplierId: sup!.id, projectId: createdProjectId, status: 'submitted', submittedAt: new Date(), serverSubmittedAt: new Date() } });
+    }
+    await prisma.bidSupplier.update({ where: { id: createdSupplierId }, data: { submitStatus: '已提交' } });
   });
 
   it('管理员可启动开标 SUBMIT → OPENING', async () => {
@@ -244,22 +252,13 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(201);
   });
 
-  it('空 body 解密供应商不应触发校验错误（开标记录字段可选，201）', async () => {
-    // A-109a 解密 quorum 闸门：须 ≥3 家「已签到且已递交」（公开招标）方可进入解密；
-    // 真实路由为 :3007 开标大厅签到，e2e 用 prisma 直接回填签到态
-    await prisma.bidSupplier.updateMany({
-      where: { projectId: createdProjectId, submitStatus: '已提交', checkInAt: null },
-      data: { checkInAt: new Date() },
-    });
-    // 开标记录字段（amount/period/qualityTarget/bondStatus）为可选：
-    // 不提供时仅推进解密状态，不创建开标记录，且不得返回 400 校验错误
-    // /decrypt 属 BID_EXCLUSIVE（:3007 现场动作）→ 主持会话；项目已经 makeOpeningReady 指派陈源远
+  it('主持端代解密端点已移除：/decrypt/:supplierId → 404（2026-10-14 用户裁定剪除）', async () => {
     return request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/decrypt/${createdSupplierId}`)
       .set('Cookie', bidHostCookie)
       .set('X-Portal', 'bid')
       .send({})
-      .expect(201);
+      .expect(404);
   });
 
   it('管理员可启动评标 OPENING → EVALUATING', async () => {

@@ -7,7 +7,7 @@ import {
   unwrapDekJson,
   verifyEnvelopeMsg,
 } from '@water-erp/ukey';
-import type { DualEnvelope, EnvelopeRole, SealedFields } from '@water-erp/ukey';
+import type { DualEnvelope, EnvelopeRole, SealedFields, DualV3FileEntry } from '@water-erp/ukey';
 import { SignatureService } from './signature.service';
 
 /* =================================================================
@@ -68,6 +68,27 @@ export class DualEnvelopeService {
       const dek = unwrapDekJson(Buffer.from(wrapDekHex, 'hex').toString('utf8'));
       if (!dek?.keyHex || !dek?.ivHex) throw new Error('bad dek');
       const cInnerHex = sm4Decrypt(dek.keyHex, dek.ivHex, outerBuf.toString('hex')); // 密文损坏抛错
+      if (!cInnerHex) throw new Error('sm4 decrypt empty');
+      return Buffer.from(cInnerHex, 'hex');
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException(OUTER_FAILED);
+    }
+  }
+
+  /**
+   * dual-v3 剥外层（Task10）：kadmin 为对象形态（V3KeyWrapSM2{format,adminCertId,value}），
+   * SM2 解 kadmin.value → DEK_A → SM4 解 C_outer → C_inner。与 decryptOuterFile 同原语，
+   * 差异仅 kadmin 取值路径（v2=裸 hex 字符串，v3=对象.value）。
+   */
+  async decryptOuterFileV3(entry: DualV3FileEntry, outerBuf: Buffer, adminPrivateKey: string): Promise<Buffer> {
+    if (!entry?.kadmin?.value) throw new BadRequestException(OUTER_FAILED);
+    try {
+      const wrapDekHex = sm2DecryptHex(adminPrivateKey, entry.kadmin.value);
+      if (!wrapDekHex) throw new Error('sm2 decrypt failed');
+      const dek = unwrapDekJson(Buffer.from(wrapDekHex, 'hex').toString('utf8'));
+      if (!dek?.keyHex || !dek?.ivHex) throw new Error('bad dek');
+      const cInnerHex = sm4Decrypt(dek.keyHex, dek.ivHex, outerBuf.toString('hex'));
       if (!cInnerHex) throw new Error('sm4 decrypt empty');
       return Buffer.from(cInnerHex, 'hex');
     } catch (e) {

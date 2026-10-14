@@ -3,6 +3,7 @@ import {
   openFieldSm,
   blindIndex,
   fieldKeyId,
+  activeFieldKeyId,
   isSealedFieldSm,
   sealPii,
   openPii,
@@ -103,6 +104,19 @@ describe('sm-field-crypto (SM4-CBC + HMAC-SM3, sm1:keyId: 格式)', () => {
       expect(fieldKeyId(SECRET)).toMatch(/^[0-9a-f]{8}$/);
       expect(fieldKeyId(SECRET)).toBe(fieldKeyId(SECRET));
       expect(fieldKeyId(OLD_SECRET)).not.toBe(fieldKeyId(SECRET));
+    });
+
+    it('activeFieldKeyId ≠ 空串指纹——未配置时是 dev 回退钥真 id（孤儿误判教训）', () => {
+      const prev = process.env.FIELD_ENC_SECRET;
+      delete process.env.FIELD_ENC_SECRET;
+      try {
+        // 2026-10-14 实录：巡检脚本曾用 fieldKeyId(env||'') 得空串指纹 4950e36b，
+        // 而回退钥真 id 是 d8ded1a4 → 正常密文被误报「孤儿 keyId」
+        expect(activeFieldKeyId()).toBe(fieldKeyId('dev-only-field-enc-secret-do-not-use-in-production'));
+        expect(activeFieldKeyId()).not.toBe(fieldKeyId(''));
+      } finally {
+        if (prev !== undefined) process.env.FIELD_ENC_SECRET = prev;
+      }
     });
   });
 
