@@ -377,9 +377,15 @@ function BidSubmitInner() {
 
   // 初始加载：项目 + 供应商档案 + 已有草稿/提交记录 + 本地草稿恢复提示
   useEffect(() => {
+    // 旧 legacy 投递页已整体下线（2026-10-14 代解密清除）——SCCA 真盾投递走项目详情页
+    // 内嵌投递卡；直敲旧 URL 一律弹回详情页
+    useEffect(() => {
+      toast.info("旧投标表单已下线——请使用项目页的「SCCA CA 投标投递（双层信封）」卡片");
+      router.replace(`/bids/${projectId}`);
+    }, [projectId, router]);
     let cancelled = false;
+    let subLocal: any = null;
     (async () => {
-      let subLocal: any = null;
       try {
         const [p, prof] = await Promise.all([bidApi.getProject(projectId), supplierApi.getProfile()]);
         if (cancelled) return;

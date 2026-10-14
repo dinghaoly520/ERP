@@ -287,7 +287,8 @@ function BidDetailInner() {
       toast.warning("只有已入库供应商可以提交标书");
       return;
     }
-    router.push(isListMode ? `/bids/${projectId}/submit?from=list` : `/bids/${projectId}/submit`);
+    // 旧 legacy 投递页已下线（代解密清除，2026-10-14）——投递走本页 SCCA CA 投递卡
+    document.getElementById("scca-submit-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   // ══ A-101 回执展示与核验（U盾签署随 mock U盾轨下线，dual-v3 阶段恢复；服务端重验签为只读）══
@@ -554,12 +555,14 @@ function BidDetailInner() {
                     capabilities 门控（CA_SUPPLIER_V3_ENABLED + ACTIVE SCCA 绑定）内置于 Section；
                     未开 v3/未绑盾渲染 null——旧轨用户不受影响 */}
               {['DOWNLOAD', 'SUBMIT'].includes(project.stage) && submission?.status !== 'submitted' && (
-                <CaBidSubmitSection
-                  projectId={projectId}
-                  submissionId={submission?.id ?? ''}
-                  revision={(submission as any)?.revision ?? 0}
-                  onSubmitted={reloadSubmission}
-                />
+                <div id="scca-submit-card">
+                  <CaBidSubmitSection
+                    projectId={projectId}
+                    submissionId={submission?.id ?? ''}
+                    revision={(submission as any)?.revision ?? 0}
+                    onSubmitted={reloadSubmission}
+                  />
+                </div>
               )}
 
               {/* ═══ 招标文件 + 书面交流 ═══
