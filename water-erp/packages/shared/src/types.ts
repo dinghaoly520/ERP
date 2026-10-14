@@ -403,6 +403,10 @@ export interface Supplier {
   status: SupplierStatus;
   /** 三级注册审批当前级（2026-09-29）：STAFF/LEADER/ADMIN；null=非注册审批流程（已入库/被拒/存量） */
   reviewStage?: string | null;
+  /** 临时供应商（凭邀请码注册）；到期为时间态判定（status 不变），到期后登录导流续期、业务写操作拦截 */
+  isTemporary?: boolean;
+  /** 临时供应商有效期截止（取注册/续期邀请码的 expiresAt）；null=正式供应商 */
+  temporaryExpiresAt?: string | null;
   classificationId?: string;
   rejectReason?: string;
   returnReason?: string;

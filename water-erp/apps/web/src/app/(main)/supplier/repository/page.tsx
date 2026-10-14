@@ -304,6 +304,23 @@ export default function SupplierRepositoryPage() {
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{s.name[0]}</div>
                       <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors" title={s.name}>{s.name}</span>
+                      {s.isTemporary && (() => {
+                        // 临时身份标注（2026-10-14 用户裁定）：到期为时间态判定（status 仍 APPROVED），
+                        // 到期后登录被导流续期面板、业务写操作已拦截——库内必须显式注明，防误当正式供应商使用
+                        const exp = s.temporaryExpiresAt ? new Date(s.temporaryExpiresAt) : null;
+                        const expired = !!exp && exp.getTime() < Date.now();
+                        const date = exp ? exp.toLocaleDateString('zh-CN') : '—';
+                        return (
+                          <span
+                            className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold border ${expired ? 'text-[#e74c3c] bg-[#fef2f2] border-[#fecaca]' : 'text-[#b45309] bg-[#fffbeb] border-[#fde68a]'}`}
+                            title={expired
+                              ? `临时供应商已于 ${date} 到期：登录进入续期引导，CA/投标等业务操作已被拦截，可续期或转正`
+                              : `临时供应商 · 有效期至 ${date}（凭邀请码注册，到期需续期或转正）`}
+                          >
+                            {expired ? `已到期（${date} 止）` : `临时 · 至 ${date}`}
+                          </span>
+                        );
+                      })()}
                       <button onClick={e => { e.stopPropagation(); handleToggleFav(s.id); }} className="text-[var(--muted-foreground)]/30 hover:text-[var(--warning)] transition" title={favIds.has(s.id) ? '取消收藏' : '收藏'} aria-label={favIds.has(s.id) ? '取消收藏' : '收藏'}>
                         <Star size={13} fill={favIds.has(s.id) ? 'var(--warning)' : 'none'} stroke={favIds.has(s.id) ? 'var(--warning)' : 'currentColor'} />
                       </button>
@@ -344,11 +361,13 @@ export default function SupplierRepositoryPage() {
                         DISABLED: '暂停合作',
                         BLACKLIST: '禁止合作',
                       };
-                      const hint = STATUS_HINT[s.status] ?? '';
+                      let hint = STATUS_HINT[s.status] ?? '';
+                      const tempExpired = s.isTemporary && s.temporaryExpiresAt && new Date(s.temporaryExpiresAt).getTime() < Date.now();
+                      if (tempExpired) hint = '临时身份已到期（续期/转正前不可参与投标）';
                       return (
                         <div className="flex items-center justify-center gap-1.5" title={`入库状态：${statusLabel}${hint ? ` · ${hint}` : ''}`}>
                           <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
-                          {hint && <span className="text-[11px] text-[var(--muted-foreground)]">{hint}</span>}
+                          {hint && <span className={`text-[11px] ${tempExpired ? 'font-bold text-[#e74c3c]' : 'text-[var(--muted-foreground)]'}`}>{hint}</span>}
                         </div>
                       );
                     })()}
