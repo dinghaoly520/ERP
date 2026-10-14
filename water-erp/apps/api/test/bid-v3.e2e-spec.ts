@@ -12,6 +12,7 @@ import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { CaVerificationService } from '../src/ca/ca-verification.service';
+import { OutboxDispatchService } from '../src/scheduler/outbox-dispatch.service';
 import { hashSync } from 'bcryptjs';
 import { canonicalJson, computeV3FieldsCommit, sha256Hex } from '@water-erp/ukey';
 import type { V3Fields } from '@water-erp/ukey';
@@ -287,6 +288,105 @@ describe('dual-v3 全链 (e2e)', () => {
     expect((res.body.receiptSignature as any)?.algorithm).toBe('unsigned-legacy');
     await prisma.supplierBidSubmission.delete({ where: { id: legacy.id } });
     await prisma.bidProject.delete({ where: { id: legacyProj.id } }).catch(() => {});
+  });
+
+  it('⑨ 补传链：DANGER→reupload-context→重封（reuseNonce/锚点同版）→reupload-v3→rev2+备份→重解 SUCCESS', async () => {
+    const PLAIN2 = Buffer.from('e2e-v3-reupload-plain');
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-V3-R-${Date.now()}`, name: 'v3补传链测试', stage: 'SUBMIT', procurementMethod: '直接采购',
+        openTime: new Date(Date.now() + 3600_000), deadline: new Date(Date.now() + 24 * 3600_000) },
+    });
+    await prisma.bidSupplier.create({ data: { projectId: proj.id, supplierId, supplierName: 'e2e-v3供应商', submitStatus: '未递交' } });
+    const mkEnvFor = async (assetId: string, rev: number) => ({
+      version: 'dual-v3', canonicalVersion: 'erp-json-v1', provider: 'scca',
+      context: { projectId: proj.id, supplierId, submissionId: '', revision: rev, signingBindingId: 'e2e-b', signingCertFingerprint: 'f'.repeat(64) },
+      files: { technical: { assetId, plainSha256: await sha256Hex(PLAIN2), plainBytes: PLAIN2.length,
+        innerSha256: 'd'.repeat(64), innerBytes: 64, outerSha256: 'f'.repeat(64), outerBytes: 80,
+        kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: FP, value: P7VAL },
+        kadmin: { format: 'sm2-c1c3c2-hex', adminCertId: 'ac-e2e', value: '04' + 'ab'.repeat(32) } } },
+      sealedFields: { cipherFormat: 'sm4-cbc-pkcs7-hex', cipher: 'aa', cipherSha256: 'c'.repeat(64), cipherBytes: 1,
+        kself: { format: 'scca-pkcs7-base64', recipientCertFingerprint: FP, value: P7VAL } },
+      fieldsCommit,
+    });
+    // 首投 rev1
+    const up1 = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/encrypted-assets`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier').attach('file', PLAIN2, { filename: 'a.outer' }).expect(200);
+    const p1 = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/prepare`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier').send({ action: 'submit' }).expect(200);
+    const env1 = await mkEnvFor(up1.body.fileAssetId, 1);
+    await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/${p1.body.operationId}/signing-payload`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier').send({ envelope: env1 }).expect(200);
+    const s1 = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/submit`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier')
+      .send({ operationId: p1.body.operationId, signatureFormat: 'scca-pkcs7-base64', signP7: B64('e2e-r-p7'), baseRevision: 0 }).expect(201);
+    const subId = s1.body.submissionId;
+    // 开标态 + 外层已解 → 坏明文 DANGER
+    await prisma.bidSupplier.updateMany({ where: { projectId: proj.id, supplierId }, data: { checkInAt: new Date() } });
+    await prisma.bidProject.update({ where: { id: proj.id }, data: { stage: 'OPENING' } });
+    await prisma.bidOpeningSession.create({ data: { projectId: proj.id, host: '陈源远', decryptWindowStart: new Date(), decryptWindowEnd: new Date(Date.now() + 3600_000) } });
+    const innerA = await prisma.fileAsset.create({ data: { key: `bid-inner-e2e/r-${Date.now()}.inner`, originalName: 't.inner', mimeType: 'application/octet-stream', size: 64, sha256: 'd'.repeat(64), category: 'bid_inner_ciphertext', clientEncrypted: false, encrypted: true } });
+    await prisma.supplierBidSubmission.update({ where: { id: subId }, data: { outerDecryptedAt: new Date(), innerAssets: { technical: innerA.id } as any } });
+    await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/decrypt-upload`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier')
+      .field('fieldsJson', canonicalJson(FIELDS)).field('nonce', NONCE)
+      .attach('file_technical', Buffer.from('tampered!'), { filename: 't.plain' })
+      .expect(201).expect((r) => expect(r.body.decryptStatus).toBe('DANGER'));
+    // 补传：锚点下发 → 重封（同 plain/fieldsCommit，新 assetId，ctx rev2）
+    const rc = await request(app.getHttpServer()).get(`/api/supplier-portal/bid-submissions/${proj.id}/reupload-context`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier').expect(200);
+    expect(rc.body.baseRevision).toBe(1);
+    expect(rc.body.fieldsCommit).toBe(fieldsCommit);
+    const up2 = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/encrypted-assets`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier').attach('file', PLAIN2, { filename: 'a2.outer' }).expect(200);
+    const p2 = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/prepare`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier').send({ action: 'reupload' }).expect(200);
+    const env2 = await mkEnvFor(up2.body.fileAssetId, 2);
+    (env2.files.technical as any).outerSha256 = up2.body.outerSha256; // staged 实算对齐
+    await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/${p2.body.operationId}/signing-payload`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier').send({ envelope: env2 }).expect(200);
+    const ru = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/reupload-v3`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier')
+      .send({ operationId: p2.body.operationId, signatureFormat: 'scca-pkcs7-base64', signP7: B64('e2e-ru-p7'), baseRevision: 1 }).expect(201);
+    expect(ru.body.revision).toBe(2);
+    const roster = await prisma.bidSupplier.findFirst({ where: { projectId: proj.id, supplierId } });
+    expect(roster?.decryptStatus).toBe('PENDING');
+    const bk2 = await prisma.bidFileBackup.findFirst({ where: { projectId: proj.id, supplierId, fileRole: 'technical', revision: 2 } });
+    expect(bk2?.cryptoVersion).toBe('dual-envelope-v3');
+    // 重解：外层重解（DB 模拟）→ 正确明文 SUCCESS
+    const innerB = await prisma.fileAsset.create({ data: { key: `bid-inner-e2e/r2-${Date.now()}.inner`, originalName: 't.inner', mimeType: 'application/octet-stream', size: 64, sha256: 'd'.repeat(64), category: 'bid_inner_ciphertext', clientEncrypted: false, encrypted: true } });
+    await prisma.supplierBidSubmission.update({ where: { id: subId }, data: { outerDecryptedAt: new Date(), innerAssets: { technical: innerB.id } as any } });
+    await prisma.bidSupplier.updateMany({ where: { projectId: proj.id, supplierId }, data: { decryptStatus: 'PENDING' } });
+    await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/decrypt-upload`)
+      .set('Cookie', cookie).set('X-Portal', 'supplier')
+      .field('fieldsJson', canonicalJson(FIELDS)).field('nonce', NONCE)
+      .attach('file_technical', PLAIN2, { filename: 't.plain' })
+      .expect(201).expect((r) => expect(r.body.decryptStatus).toBe('SUCCESS'));
+    // 清场（本项目前缀）
+    await prisma.bidSupervisionLog.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.supplierBidSubmission.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidOpeningRecord.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidSupplier.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidOpeningSession.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.decryptExecution.deleteMany({ where: { submissionId: subId } }).catch(() => {});
+    await prisma.outbox.deleteMany({ where: { topic: 'bid.submitted.v3', payload: { path: ['projectId'], equals: proj.id } as any } }).catch(() => {});
+    await prisma.fileAsset.deleteMany({ where: { OR: [{ key: { startsWith: `v3-staging/${proj.id}/` } }, { key: { startsWith: 'bid-inner-e2e/' } }] } }).catch(() => {});
+    await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
+  });
+
+  it('⑩ Outbox：dispatchOnce→通知主持人→SENT（恰一条）', async () => {
+    // 自建确定性 PENDING 事件（③ 的事件可能已被 EVERY_30_SECONDS cron 自动消费——不依赖时序）
+    const me = await prisma.user.findUnique({ where: { username_role: { username: USER, role: 'supplier' } } });
+    await prisma.bidProject.update({ where: { id: projectId }, data: { assignedHostUserId: me!.id } }).catch(() => {});
+    const ob = await prisma.outbox.create({ data: { topic: 'bid.submitted.v3', payload: { projectId, submissionId: 'e2e-evt', revision: 99, operationId: 'e2e-evt' } as any } });
+    const dispatcher = app.get(OutboxDispatchService);
+    const r = await dispatcher.dispatchOnce();
+    expect(r.sent).toBeGreaterThanOrEqual(1);
+    const evt = await prisma.outbox.findUnique({ where: { id: ob.id } });
+    expect(evt?.status).toBe('SENT');
+    expect(evt?.publishedAt).toBeTruthy();
+    const notice = await prisma.notification.findFirst({ where: { userId: me!.id, type: 'BID_SUBMITTED_V3' } });
+    expect(notice?.link).toBe('/bid');
+    await prisma.notification.deleteMany({ where: { userId: me!.id, type: 'BID_SUBMITTED_V3' } }).catch(() => {});
   });
 
   afterAll(async () => {
