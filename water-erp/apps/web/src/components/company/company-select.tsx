@@ -141,12 +141,14 @@ export function CompanySelect({
   // 外点 / ESC / 滚动 / 变更尺寸 → 关闭
   useEffect(() => {
     if (!open) return;
+    // 关闭即清搜索词（与 SearchSelect 同语义）——否则重开面板残留上次过滤
+    const close = () => { setOpen(false); setQ(""); };
     const onDoc = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (!popRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false);
+      if (!popRef.current?.contains(t) && !btnRef.current?.contains(t)) close();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    const onAway = () => setOpen(false);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    const onAway = close;
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", onAway);
