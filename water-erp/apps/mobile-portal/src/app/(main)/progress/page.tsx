@@ -207,8 +207,7 @@ export default function ProgressPage() {
           </div>
 
           {/* ── 执行态势（阶段分布）── */}
-          <SectionCard icon={BarChart3} title="执行态势 · 阶段分布">
-            index={0}
+          <SectionCard icon={BarChart3} title="执行态势 · 阶段分布" index={0}>
             {stats.stageDistribution.length ? (
               <div className="space-y-2">
                 {stats.stageDistribution.map((d, i) => {
@@ -230,8 +229,7 @@ export default function ProgressPage() {
           </SectionCard>
 
           {/* ── 进度洞察（AI）── */}
-          <SectionCard icon={Sparkles} title="进度洞察">
-            index={1}
+          <SectionCard icon={Sparkles} index={1} title="进度洞察">
             {insights ? (
               <div className="space-y-2">
                 {insights.overview ? (
@@ -270,8 +268,7 @@ export default function ProgressPage() {
           </SectionCard>
 
           {/* ── 项目清单 ── */}
-          <SectionCard title="项目清单" right={<span className="shrink-0 text-[10px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>}>
-            index={2}
+          <SectionCard title="项目清单" right={<span className="shrink-0 text-[10px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>} index={2}>
             {stats.projects.length ? (
               <div className="space-y-2">
                 {stats.projects.map((p) => {
