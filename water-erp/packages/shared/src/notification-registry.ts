@@ -541,7 +541,7 @@ const SYSTEM_SPECS: NotificationTypeSpec[] = [
   // legacy 垃圾桶：5 处产生点语义各异（资格预审结果/定时任务/bid），拆解归入具体类型待其余域解冻
   { code: 'SYSTEM', label: '系统通知', domain: 'system', icon: 'Bell', tone: 'gray', actionable: false, audiences: LEGACY('catch-all，待拆解'), channels: IN_APP },
   // 历史类型：代码已不产生，仅为存量数据显示
-  { code: 'SELECTION_NOTIFY', label: '候选名单通知', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: false, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
+  { code: 'SELECTION_NOTIFY', label: '候选名单通知', domain: 'supplier', icon: 'Share2', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-14 更正：供应商邀请向导（:3005 /supplier/selection → POST /supplier/notify）活跃产生中，此前误标 deprecated；收件=逐家选定供应商账号
   { code: 'CLARIFICATION', label: '澄清答疑', domain: 'bid', icon: 'MessageCircle', tone: 'purple', actionable: true, audiences: LEGACY('历史类型'), channels: IN_APP, deprecated: true },
   // 评标现场安全预警（2026-10-13 补登记：产生点直写小写 'security'——口令连错锁定/
   // 跨项目双活跃拦截/冒名登录线索，notifyAdmins 发平台 admin 核实；处置=查看后线下核实，
