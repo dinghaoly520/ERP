@@ -604,7 +604,7 @@ export class SupplierPortalController {
     @Body() dto: OpeningConfirmDto,
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.confirmOpening(supplierId, projectId, dto.signature ?? "");
+    return this.portalService.confirmOpening(supplierId, projectId, dto.signature ?? "", dto);
   }
 
   @Post('bid-submissions/:projectId/opening-dispute')

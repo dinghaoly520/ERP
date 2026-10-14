@@ -791,12 +791,14 @@ describe('SupplierPortalService', () => {
 
       const result = await service.getOpeningConfirmPayload('supplier-1', 'project-1');
 
+      // Task7（dual-v3）：canonical v2——金额明文出签，改由 openingRecordHash 钉内容
       expect(result.canonical).toContain('"purpose":"confirm"');
+      expect(result.canonical).not.toContain('980000');
       expect(result.payload).toMatchObject({
-        v: 1, purpose: 'confirm', projectId: 'project-1', supplierId: 'supplier-1',
-        bidSupplierId: 'bs-1', recordId: 'r-1',
-        openingRecord: { amount: '980000', period: '120 日历天', qualityTarget: '合格', bondStatus: '已缴纳', decryptResult: 'SUCCESS' },
+        version: 2, purpose: 'confirm', recordId: 'r-1',
       });
+      expect(result.openingRecordHash).toHaveLength(64);
+      expect(result.recordSnapshot).toMatchObject({ amount: '980000', amountUnit: null });
     });
 
     it('getOpeningConfirmPayload：已确认未签名 → purpose=resign（补签入口）', async () => {

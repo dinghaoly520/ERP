@@ -13,7 +13,7 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { buildClarificationReplyCanonical } from './clarification-reply.util';
-import { buildOpeningConfirmCanonical } from './opening-confirm-signature.util';
+import { buildOpeningConfirmCanonical, buildOpeningConfirmCanonicalV2, computeOpeningRecordHash } from './opening-confirm-signature.util';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
@@ -3463,6 +3463,7 @@ export class SupplierPortalService {
   /**
    * 取开标确认待签负载（A-114）：服务端以 DB 为准重建 canonical，不信任客户端传入。
    * 可用条件 = 记录待确认（purpose=confirm，首次确认签名）或已确认且未签名（purpose=resign，补签）。
+   * dual-v3（Task7）：canonical v2——不含金额明文，记录内容经快照哈希（amountUnit 进快照）钉死。
    */
   async getOpeningConfirmPayload(supplierId: string, projectId: string) {
     const { bidSupplier, record } = await this.loadOpeningConfirmContext(supplierId, projectId);
@@ -3474,14 +3475,50 @@ export class SupplierPortalService {
     } else {
       throw new BadRequestException({ error: '当前开标记录不可确认（仅待供应商确认状态可操作）', code: 'RECORD_NOT_CONFIRMABLE' });
     }
-    const canonical = buildOpeningConfirmCanonical({
-      purpose, projectId, supplierId,
-      bidSupplierId: bidSupplier.id, recordId: record.id,
+    const v2 = await this.buildOpeningConfirmV2(supplierId, projectId, purpose, record);
+    return { payload: JSON.parse(v2.canonical), canonical: v2.canonical, recordSnapshot: v2.recordSnapshot, openingRecordHash: v2.openingRecordHash };
+  }
+
+  /**
+   * 私有：v2 canonical 组装（payload 端点与 confirmOpening v3 分支共用——同源重建，防漂移）。
+   * submission/revision=投递版本锚点（Task0 revision 列）；session/record 无版本列，revision 恒 0
+   * 占位（内容完整性由 openingRecordHash 承担）。
+   */
+  private async buildOpeningConfirmV2(
+    supplierId: string,
+    projectId: string,
+    purpose: 'confirm' | 'resign',
+    record: { id: string; supplierName: string; amount: string; amountUnit?: string | null; period: string; qualityTarget: string; bondStatus: string; decryptResult: string; customFields?: unknown },
+  ) {
+    const [submission, session] = await Promise.all([
+      this.prisma.supplierBidSubmission.findUnique({
+        where: { supplierId_projectId: { supplierId, projectId } },
+        select: { id: true, revision: true },
+      }),
+      this.prisma.bidOpeningSession.findUnique({ where: { projectId }, select: { id: true } }),
+    ]);
+    const recordSnapshot = {
       supplierName: record.supplierName,
-      amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
-      bondStatus: record.bondStatus, decryptResult: record.decryptResult,
+      amount: record.amount,
+      amountUnit: record.amountUnit ?? null, // 万元/元单位歧义在快照内钉死（2026-09-14 铁律）
+      period: record.period,
+      qualityTarget: record.qualityTarget,
+      bondStatus: record.bondStatus,
+      decryptResult: record.decryptResult,
+      customFields: record.customFields ?? null,
+    };
+    const openingRecordHash = computeOpeningRecordHash(recordSnapshot);
+    const canonical = buildOpeningConfirmCanonicalV2({
+      purpose,
+      recordId: record.id,
+      recordRevision: 0,
+      submissionId: submission?.id ?? null,
+      revision: submission?.revision ?? 0,
+      openingSessionId: session?.id ?? null,
+      sessionRevision: 0,
+      openingRecordHash,
     });
-    return { payload: JSON.parse(canonical), canonical };
+    return { canonical, recordSnapshot, openingRecordHash };
   }
 
   /**
@@ -3489,10 +3526,17 @@ export class SupplierPortalService {
    * - confirm（待确认态）：原确认事务（记录态+confirmedAt+bidSupplier CONFIRMED+监督日志）+ 追加
    *   签名归档；WS notifyOpeningConfirmed 与 autoHandoverIfDone 保留。
    * - resign（已确认未签名）：不进状态机——仅回填签名证据+监督日志；无 WS、无 autoHandover；幂等。
-   * 两分支验签前置（服务端重算 canonical → SM2/SM3），失败 400 OPENING_CONFIRM_SIGNATURE_INVALID。
+   * dual-v3（Task7）：operationId+signP7 走 CaVerificationService P7 验签（canonical v2——金额不进签，
+   * 快照哈希钉内容）；两分支验签前置，失败 400 OPENING_CONFIRM_SIGNATURE_INVALID。
+   * 旧轨保持 v1 canonical 重建 + SM2 验签（空签名=unsigned-legacy，SCCA 全面适配口径）。
    * Wave 5-1 状态门不变：仅待确认态可确认（异议已处理-退回/已异议态不得翻回确认）。
    */
-  async confirmOpening(supplierId: string, projectId: string, signature: string) {
+  async confirmOpening(
+    supplierId: string,
+    projectId: string,
+    signature: string,
+    v3?: { operationId?: string; signatureFormat?: string; signP7?: string },
+  ) {
     const { bidSupplier, record, cert } = await this.loadOpeningConfirmContext(supplierId, projectId);
     let purpose: 'confirm' | 'resign';
     if (SupplierPortalService.OPENING_PENDING_CONFIRM.includes(record.confirmStatus)) {
@@ -3509,29 +3553,77 @@ export class SupplierPortalService {
       return { success: true, alreadySigned: true };
     }
 
-    const canonical = buildOpeningConfirmCanonical({
-      purpose, projectId, supplierId,
-      bidSupplierId: bidSupplier.id, recordId: record.id,
-      supplierName: record.supplierName,
-      amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
-      bondStatus: record.bondStatus, decryptResult: record.decryptResult,
-    });
-    // SCCA 全面适配（2026-10-14）：旧轨免签——signature 空则跳过验签（unsigned-legacy）
-    if (signature && !cert) {
-      throw new BadRequestException({ error: '未找到有效绑定证书，无法验签开标确认', code: 'SM2_PUBLIC_KEY_MISSING' });
+    let confirmSignature: Prisma.InputJsonValue;
+
+    if (v3?.operationId && v3?.signatureFormat === 'scca-pkcs7-base64' && v3?.signP7) {
+      // ── SCCA dual-v3 轨（Task7）：canonical v2 + P7 验签 ──
+      const op = await this.prisma.caOperation.findUnique({ where: { id: v3.operationId } });
+      if (!op || op.subjectId !== supplierId) {
+        throw new BadRequestException({ error: '操作不存在或非本人', code: 'OPERATION_INVALID' });
+      }
+      if (op.purpose !== 'opening-confirm') {
+        throw new BadRequestException({ error: `purpose='${op.purpose}' 非 opening-confirm`, code: 'PURPOSE_MISMATCH' });
+      }
+      const binding = await this.prisma.supplierCert.findFirst({
+        where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
+        include: { signingCaCertificate: true },
+      });
+      if (!binding?.signingCaCertificate) {
+        throw new BadRequestException({ error: '未绑定 SCCA CA 证书', code: 'CA_NOT_BOUND' });
+      }
+      const v2 = await this.buildOpeningConfirmV2(supplierId, projectId, purpose, record);
+      const verification = await this.caVerificationService!.verifySignature({
+        p7B64: v3.signP7,
+        expectedToSign: v2.canonical,
+        purpose: 'bind',
+        expectedSignCert: {
+          serialHex: binding.signingCaCertificate.serialHex,
+          sha256: binding.signingCaCertificate.sha256Fingerprint,
+        },
+      });
+      if (!verification.ok) {
+        throw new BadRequestException({ error: `开标确认 P7 验签失败: ${verification.code}`, code: 'OPENING_CONFIRM_SIGNATURE_INVALID' });
+      }
+      confirmSignature = {
+        payload: JSON.parse(v2.canonical),
+        signature: v3.signP7,
+        algorithm: 'scca-pkcs7-base64',
+        verifiedAt: new Date().toISOString(),
+        certSn: binding.certSn,
+        certPublicKey: binding.publicKey, // D4 签时快照
+        openingRecordHash: v2.openingRecordHash,
+        recordRevision: 0,
+      };
+      await this.prisma.caOperation.update({
+        where: { id: v3.operationId },
+        data: { status: 'COMMITTED', result: { success: true, projectId, recordId: record.id, purpose } as any },
+      });
+    } else {
+      // ── 旧轨：v1 canonical 重建 + SM2 验签（空=unsigned-legacy）──
+      const canonical = buildOpeningConfirmCanonical({
+        purpose, projectId, supplierId,
+        bidSupplierId: bidSupplier.id, recordId: record.id,
+        supplierName: record.supplierName,
+        amount: record.amount, period: record.period, qualityTarget: record.qualityTarget,
+        bondStatus: record.bondStatus, decryptResult: record.decryptResult,
+      });
+      // SCCA 全面适配（2026-10-14）：旧轨免签——signature 空则跳过验签（unsigned-legacy）
+      if (signature && !cert) {
+        throw new BadRequestException({ error: '未找到有效绑定证书，无法验签开标确认', code: 'SM2_PUBLIC_KEY_MISSING' });
+      }
+      if (signature && !this.signatureService.verify(canonical, signature, cert!.publicKey)) {
+        throw new BadRequestException({ error: '开标确认电子签名验证失败（SM2）', code: 'OPENING_CONFIRM_SIGNATURE_INVALID' });
+      }
+      // D4 签时快照：certSn+certPublicKey 随证据存档（换绑/撤销/过期不影响事后复验）
+      confirmSignature = {
+        payload: JSON.parse(canonical),
+        signature: signature || null,
+        algorithm: signature ? 'SM2/SM3' : 'unsigned-legacy',
+        verifiedAt: signature ? new Date().toISOString() : null,
+        certSn: signature ? cert!.certSn : null,
+        certPublicKey: signature ? cert!.publicKey : null,
+      };
     }
-    if (signature && !this.signatureService.verify(canonical, signature, cert!.publicKey)) {
-      throw new BadRequestException({ error: '开标确认电子签名验证失败（SM2）', code: 'OPENING_CONFIRM_SIGNATURE_INVALID' });
-    }
-    // D4 签时快照：certSn+certPublicKey 随证据存档（换绑/撤销/过期不影响事后复验）
-    const confirmSignature = {
-      payload: JSON.parse(canonical),
-      signature: signature || null,
-      algorithm: signature ? 'SM2/SM3' : 'unsigned-legacy',
-      verifiedAt: signature ? new Date().toISOString() : null,
-      certSn: signature ? cert!.certSn : null,
-      certPublicKey: signature ? cert!.publicKey : null,
-    };
 
     if (purpose === 'confirm') {
       await this.prisma.$transaction(async (tx) => {
