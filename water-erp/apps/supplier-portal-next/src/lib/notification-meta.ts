@@ -39,7 +39,7 @@ const META: Record<string, NotificationMeta> = {
   HALL_MESSAGE: { label: "会场消息", group: "project", tone: "accent", actionable: true, actionLabel: "进入开标大厅" }, // 点开即阅，无 resolvedAt 闭环，不入 todo 组
   PROJECT_TERMINATED: { label: "项目终止", group: "project", tone: "danger" },
   PASSWORD_RESET_APPROVED: { label: "密码重置结果", group: "approval", tone: "info" },
-  SELECTION_NOTIFY: { label: "候选名单通知", group: "project", tone: "accent" }, // 历史类型，存量行展示用
+  SELECTION_NOTIFY: { label: "采购邀请", group: "todo", tone: "accent", actionable: true, actionLabel: "查看邀请并确认" }, // 2026-10-14：邀请待回执——进待办组，按钮直达回执页（外链）；回执后服务端消音离开待办
   BID_ABORTED: { label: "项目终止", group: "project", tone: "danger" },
   BID_AWARD_RESULT: { label: "定标结果", group: "project", tone: "info" }, // P1-6：法45条未中标人定向结果通知
   ANNOUNCEMENT_PUBLISHED: { label: "公告发布", group: "project", tone: "info" },

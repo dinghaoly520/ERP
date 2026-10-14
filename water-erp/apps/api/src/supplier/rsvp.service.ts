@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectManagementService } from '../project-management/project-management.service';
+import { NotificationService } from '../notification/notification.service';
 import { verifyRsvpToken } from './rsvp-token.util';
 
 export type RsvpStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
@@ -24,6 +25,7 @@ export class RsvpService {
   constructor(
     private prisma: PrismaService,
     private projectManagement: ProjectManagementService,
+    private notification: NotificationService,
   ) {}
 
   private parseSummary(raw: string): Record<string, string> {
@@ -132,6 +134,19 @@ export class RsvpService {
           this.logger.warn(`RSVP 事务后懒创建 BidProject 失败 pmi=${row.projectId}: ${err?.message ?? err}`);
         }
       }
+    }
+
+    // 邀请待办消音（2026-10-14 闭环）：回执即办结——按供应商账号 + SELECTION_NOTIFY +
+    // link 含本 token 精确圈定该次邀请的站内通知（重发批次复用同 token 一并消音），
+    // 不误伤其他项目邀请；失败不阻断回执结果（消音仅影响待办展示）
+    try {
+      const supplierUser = await this.prisma.supplier.findUnique({
+        where: { id: row.supplierId },
+        select: { userId: true },
+      });
+      await this.notification.resolveByLinkToken(supplierUser?.userId, 'SELECTION_NOTIFY', token);
+    } catch (err: any) {
+      this.logger.warn(`RSVP 回执后邀请待办消音失败 token=${token}: ${err?.message ?? err}`);
     }
 
     return { success: true, status: updated.status as RsvpStatus, respondedAt: updated.respondedAt!.toISOString(), rsvpNo: updated.id.slice(-8).toUpperCase() };

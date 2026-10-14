@@ -299,6 +299,18 @@ export class NotificationService {
     });
   }
 
+  /**
+   * 按 link 含 token 精确消音（2026-10-14 邀请回执闭环）：RSVP 短链 token 每家每邀请唯一，
+   * contains 圈定该次邀请的站内通知（重发批次复用同 token 一并消音），不误伤其他项目邀请。
+   */
+  async resolveByLinkToken(userId: string | null | undefined, type: string, token: string) {
+    if (!userId || !token) return;
+    return this.prisma.notification.updateMany({
+      where: { userId, type, resolvedAt: null, link: { contains: token } },
+      data: { resolvedAt: new Date() },
+    });
+  }
+
   async getUnreadCount(userId: string) {
     return this.prisma.notification.count({
       where: { userId, isRead: false },

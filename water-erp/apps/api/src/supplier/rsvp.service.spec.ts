@@ -6,6 +6,7 @@ import { RsvpService } from './rsvp.service';
 describe('RsvpService.respond（P0-1）', () => {
   let service: RsvpService;
   let prisma: any;
+  let notification: any;
   const futureDate = new Date(Date.now() + 3600_000);
   const baseRow = {
     id: 'rsvp1', token: 't1', projectId: 'PMI-ID', supplierId: 's1',
@@ -17,9 +18,11 @@ describe('RsvpService.respond（P0-1）', () => {
       invitationRsvp: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({ id: 'rsvp1', status: 'ACCEPTED', respondedAt: new Date() }) },
       bidProject: { findFirst: jest.fn() },
       bidSupplier: { upsert: jest.fn().mockResolvedValue({}) },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier' }) },
       $transaction: jest.fn().mockImplementation(async (fn: any) => fn(prisma)),
     };
-    service = new RsvpService(prisma, { ensureBidProject: jest.fn().mockResolvedValue({}) } as any);
+    notification = { resolveByLinkToken: jest.fn().mockResolvedValue({ count: 1 }) };
+    service = new RsvpService(prisma, { ensureBidProject: jest.fn().mockResolvedValue({}) } as any, notification as any);
   });
 
   it('ACCEPTED：以 rsvp.projectId（PMI id）解析 BidProject 后用真实项目 id upsert 候选', async () => {
@@ -68,6 +71,22 @@ describe('RsvpService.respond（P0-1）', () => {
     await service.respond('t1', { status: 'DECLINED' });
 
     expect(prisma.bidSupplier.upsert).not.toHaveBeenCalled();
+  });
+
+  it('回执后邀请待办消音（2026-10-14）：按供应商账号 + token 圈定 SELECTION_NOTIFY 置 resolvedAt；消音失败不阻断回执', async () => {
+    prisma.invitationRsvp.findUnique.mockResolvedValue(baseRow);
+
+    await service.respond('t1', { status: 'DECLINED' });
+
+    expect(prisma.supplier.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 's1' }, select: { userId: true } }),
+    );
+    expect(notification.resolveByLinkToken).toHaveBeenCalledWith('u-supplier', 'SELECTION_NOTIFY', 't1');
+
+    // 消音抛错 → 回执仍成功（仅 warn 日志）
+    notification.resolveByLinkToken.mockRejectedValue(new Error('db down'));
+    const r = await service.respond('t1', { status: 'DECLINED' });
+    expect(r.success).toBe(true);
   });
 
   it('不存在/过期的 token 语义保留', async () => {
