@@ -285,9 +285,15 @@ export class SupplierService {
     }
 
     // 法定代表人身份证号查重（软约束：同一法人身份证号不允许重复注册）
+    // F1（2026-10-14）：存量 REJECTED 壳（驳回清洗功能上线前被驳回、数据未清洗）的
+    // legalPersonIdCardIdx 仍残存——查重须自排除壳自身，否则壳重开被自己的旧数据拦死。
+    // 存量壳补清洗脚本：apps/api/scripts/purge-existing-rejected-suppliers.ts
     if (dto.legalPersonIdCard) {
       const existingLegal = await this.prisma.supplier.findFirst({
-        where: { legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? undefined }, // 密文列等值查重走盲索引
+        where: {
+          legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? undefined, // 密文列等值查重走盲索引
+          ...(existingSupplier ? { NOT: { id: existingSupplier.id } } : {}),
+        },
         select: { id: true },
       });
       if (existingLegal) {
@@ -296,19 +302,30 @@ export class SupplierService {
     }
 
     // 手机号唯一绑定（2026-10-14）：主联系人手机号 = 短信验证手机号，盲索引查重（User.phoneIdx 唯一约束双保险）
+    // F1：存量壳的 User 行 phoneIdx 未清洗仍残存——自排除壳自身 User。
     const registerPhoneIdx = blindIndexPii(dto.registrationPhone.trim());
     if (registerPhoneIdx) {
-      const existingPhone = await this.prisma.user.findFirst({ where: { phoneIdx: registerPhoneIdx }, select: { id: true } });
+      const existingPhone = await this.prisma.user.findFirst({
+        where: {
+          phoneIdx: registerPhoneIdx,
+          ...(existingSupplier ? { NOT: { id: existingSupplier.userId } } : {}),
+        },
+        select: { id: true },
+      });
       if (existingPhone) {
         throw new BadRequestException({ error: '该手机号已绑定其他供应商账号，请更换', code: 'DUPLICATE_PHONE' });
       }
     }
 
     // 联系人身份证号查重（软约束：同一联系人身份证号不允许重复注册）
+    // F1：存量壳的联系人子表未清洗仍残存——自排除壳自身的联系人行。
     const contactIdCards = dto.contacts.map(c => c.idCard?.trim()).filter((x): x is string => !!x);
     if (contactIdCards.length > 0) {
       const existingContact = await this.prisma.supplierContact.findFirst({
-        where: { idCardIdx: { in: contactIdCards.map(c => blindIndexPii(c)).filter((x): x is string => !!x) } },
+        where: {
+          idCardIdx: { in: contactIdCards.map(c => blindIndexPii(c)).filter((x): x is string => !!x) },
+          ...(existingSupplier ? { NOT: { supplierId: existingSupplier.id } } : {}),
+        },
         select: { id: true },
       });
       if (existingContact) {
@@ -465,6 +482,16 @@ export class SupplierService {
     const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
       if (existingSupplier) {
         // —— 壳重开分支：复用原 User+Supplier 行 ——
+        // F4（2026-10-14）：乐观锁认领（对齐 submitCorrection 模式）——校验读与事务写之间壳可能被
+        // 并发流转（如补正重提/他处重开），where 带 REJECTED 保证并发下仅一方成功，防 TOCTOU。
+        const claimed = await tx.supplier.updateMany({
+          where: { id: existingSupplier.id, status: 'REJECTED' },
+          data: { status: 'PENDING' },
+        });
+        if (claimed.count === 0) {
+          throw new BadRequestException({ error: '该信用代码的申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+        }
+
         const user = await tx.user.update({
           where: { id: existingSupplier.userId },
           data: {
