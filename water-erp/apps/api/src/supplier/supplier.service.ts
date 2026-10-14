@@ -263,21 +263,23 @@ export class SupplierService {
     const creditCode = dto.creditCode.trim();
     const username = creditCode;
 
-    // 检查信用代码是否重复
-    const existingCreditCode = await this.prisma.supplier.findUnique({
+    // 信用代码命中：REJECTED 壳（驳回数据最小化留壳，2026-10-14）→ 走壳重开复用原行；其余状态仍硬拦截。
+    const existingSupplier = await this.prisma.supplier.findUnique({
       where: { creditCode },
     });
-    if (existingCreditCode) {
+    if (existingSupplier && existingSupplier.status !== 'REJECTED') {
       throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
     }
 
     // 公司名允许重复，不再按名称查重；唯一标识由统一社会信用代码（creditCode）承担（上方已查重）
 
-    // 检查用户名（统一社会信用代码）是否被非供应商角色占用（信用代码唯一性已由上方校验）
+    // 检查用户名（统一社会信用代码）是否被非供应商角色占用（信用代码唯一性已由上方校验）。
+    // 壳重开例外：驳回清洗（purgeRejectedSupplier）保留 username/role，壳自身残存的 User 行会命中
+    // 本查重——命中的正是 existingSupplier.userId 时放行，事务内复用该行原位覆盖。
     const existingUser = await this.prisma.user.findFirst({
       where: { username, role: 'supplier' },
     });
-    if (existingUser) {
+    if (existingUser && existingUser.id !== existingSupplier?.userId) {
       throw new BadRequestException({ error: '该统一社会信用代码已被注册为登录账号', code: 'DUPLICATE_USERNAME' });
     }
 
@@ -382,8 +384,137 @@ export class SupplierService {
 
     const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);
 
-    // 创建用户和供应商 — 事务保证原子性
+    // 供应商写字段公共映射（正常创建与 REJECTED 壳重开两分支共用；含联系人 phoneIdx 盲索引）
+    const supplierWriteData = {
+      name: dto.name,
+      normalizedName: dto.name.trim().toLowerCase(),
+      creditCode: dto.creditCode,
+      subjectCode: buildSubjectCode(dto.creditCode), // A1（B.4.2）：B+统一社会信用代码
+      enterpriseType: dto.enterpriseType,
+      legalPerson: dto.legalPerson,
+      legalPersonIdCard: sealPii(dto.legalPersonIdCard || null) ?? null, // PII 国密密封（等保+密评）
+      legalPersonPhone: sealPii(dto.legalPersonPhone || null) ?? null,
+      legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? null,
+      registeredAddress: dto.registeredAddress,
+      detailedAddress: dto.detailedAddress || null,
+      businessScope: dto.businessScope,
+      logoUrl: dto.logoUrl || null,
+      organizationCode: dto.creditCode.trim(), // 机构代码 = 统一社会信用代码
+      country: dto.country || null,
+      region: dto.region || null,
+      registeredCapital: dto.registeredCapital || null,
+      industry: dto.industry || null,
+      establishedDate: dto.establishedDate ? new Date(dto.establishedDate) : null,
+      companyProfile: dto.companyProfile || null,
+      companyEmail: dto.companyEmail || null,
+      companyWebsite: dto.companyWebsite || null,
+      tags: dto.tags,
+      companyId: companyRef.id,
+      companyName: companyRef.name,
+      contacts: {
+        create: dto.contacts.map(c => ({
+          name: c.name,
+          gender: c.gender || null,
+          phone: sealPii(c.phone) as string, // PII 国密密封（等保+密评）
+          phoneIdx: blindIndexPii(c.phone) ?? null, // 联系人手机号盲索引（2026-10-14 唯一性查重）
+          idCard: sealPii(c.idCard) ?? null,
+          idCardIdx: blindIndexPii(c.idCard) ?? null,
+          email: sealPii(c.email) ?? null,
+          isPrimary: c.isPrimary,
+          position: c.position,
+        })),
+      },
+      qualifications: {
+        create: dto.qualifications.map(q => ({
+          type: q.type,
+          name: q.name,
+          fileUrl: q.fileUrl,
+          attachments: (q as any).attachments ?? undefined,
+          validFrom: q.validFrom ? new Date(q.validFrom) : undefined,
+          validTo: q.validTo ? new Date(q.validTo) : undefined,
+        })),
+      },
+      bankAccounts: dto.bankAccounts?.length ? {
+        create: dto.bankAccounts.map(b => ({
+          accountName: b.accountName,
+          bankName: b.bankName,
+          bankBranch: b.bankBranch || null,
+          accountNo: sealPii(b.accountNo) as string, // 银行账号国密密封（等保+密评）
+          isDefault: b.isDefault ?? false,
+        })),
+      } : undefined,
+      performances: dto.performances?.length ? {
+        create: dto.performances.map(p => ({
+          projectName: p.projectName,
+          clientName: p.clientName || null,
+          contractAmount: p.contractAmount || null,
+          signDate: p.signDate ? new Date(p.signDate) : undefined,
+          description: p.description || null,
+          proofFiles: p.proofFiles ?? [],
+        })),
+      } : undefined,
+    };
+
+    // 业务标签：库内标签直接用；非库标签自动创建 PENDING 自创标签，采购端审核通过后入池可选（事务外预算，两分支共用）
+    const submittedTags = (dto.tags || []).map((t) => t.trim()).filter(Boolean);
+
+    // 创建/重开用户与供应商 — 事务保证原子性。
+    // REJECTED 壳重开（2026-10-14）：被驳回公司以同一信用代码重新注册时，复用原 User+Supplier 行
+    // 原位覆盖（supplierNo 不变、SupplierApprovalRecord 留痕链延续），视同新申请从首级 STAFF 重新走审。
     const { user, supplier, customTags } = await this.prisma.$transaction(async (tx) => {
+      if (existingSupplier) {
+        // —— 壳重开分支：复用原 User+Supplier 行 ——
+        const user = await tx.user.update({
+          where: { id: existingSupplier.userId },
+          data: {
+            displayName: dto.displayName,
+            email: sealPii(dto.email) ?? null, // PII 国密密封（等保+密评）
+            passwordHash: hashSync(dto.password, 10),
+            passwordVault: encryptPasswordVault(dto.password) ?? null,
+            isActive: false, // 待审核后激活（phone/phoneIdx 不动：正式注册本就不写账号手机号，purge 已置 null）
+          },
+        });
+
+        if (registrationAssetIds.length > 0) {
+          const claimed = await tx.fileAsset.updateMany({
+            where: { id: { in: registrationAssetIds }, uploaderId: null },
+            data: { uploaderId: user.id },
+          });
+          if (claimed.count !== registrationAssetIds.length) {
+            throw new ConflictException({ error: '注册附件已被其他申请占用，请重新上传', code: 'REGISTRATION_ASSET_ALREADY_CLAIMED' });
+          }
+        }
+
+        // 删旧子表再按新申请重建（purge 已删空，防御性重删——联系人手机号有供应商内唯一 DB 约束）
+        await tx.supplierContact.deleteMany({ where: { supplierId: existingSupplier.id } });
+        await tx.supplierQualification.deleteMany({ where: { supplierId: existingSupplier.id } });
+        await tx.supplierBankAccount.deleteMany({ where: { supplierId: existingSupplier.id } });
+        await tx.supplierPerformance.deleteMany({ where: { supplierId: existingSupplier.id } });
+
+        const supplier = await tx.supplier.update({
+          where: { id: existingSupplier.id },
+          data: {
+            ...supplierWriteData,
+            status: 'PENDING',
+            reviewStage: 'STAFF', // 三级注册审批（2026-09-29）：壳重开从首级 STAFF 起走
+            rejectReason: null,
+            returnReason: null,
+            urgedAt: null,
+            isTemporary: false,
+            temporaryExpiresAt: null,
+          },
+          include: {
+            contacts: true,
+            qualifications: true,
+            bankAccounts: true,
+            performances: true,
+          },
+        });
+        const customTags = await this.persistRegistrationTags(tx, submittedTags, supplier.id);
+        return { user, supplier, customTags };
+      }
+
+      // —— 正常创建分支 ——
       const user = await tx.user.create({
         data: {
           username, // = 机构代码
@@ -409,77 +540,11 @@ export class SupplierService {
       const supplierNo = await this.generateSupplierNo(tx);
       const supplier = await tx.supplier.create({
         data: {
+          ...supplierWriteData,
           userId: user.id,
           // 三级注册审批（2026-09-29）：新注册从首级 STAFF 起走
           reviewStage: 'STAFF',
           supplierNo,
-          name: dto.name,
-          normalizedName: dto.name.trim().toLowerCase(),
-          creditCode: dto.creditCode,
-          subjectCode: buildSubjectCode(dto.creditCode), // A1（B.4.2）：B+统一社会信用代码
-          enterpriseType: dto.enterpriseType,
-          legalPerson: dto.legalPerson,
-          legalPersonIdCard: sealPii(dto.legalPersonIdCard || null) ?? null, // PII 国密密封（等保+密评）
-          legalPersonPhone: sealPii(dto.legalPersonPhone || null) ?? null,
-          legalPersonIdCardIdx: blindIndexPii(dto.legalPersonIdCard) ?? null,
-          registeredAddress: dto.registeredAddress,
-          detailedAddress: dto.detailedAddress || null,
-          businessScope: dto.businessScope,
-          logoUrl: dto.logoUrl || null,
-          organizationCode: dto.creditCode.trim(), // 机构代码 = 统一社会信用代码
-          country: dto.country || null,
-          region: dto.region || null,
-          registeredCapital: dto.registeredCapital || null,
-          industry: dto.industry || null,
-          establishedDate: dto.establishedDate ? new Date(dto.establishedDate) : null,
-          companyProfile: dto.companyProfile || null,
-          companyEmail: dto.companyEmail || null,
-          companyWebsite: dto.companyWebsite || null,
-          tags: dto.tags,
-          companyId: companyRef.id,
-          companyName: companyRef.name,
-          contacts: {
-            create: dto.contacts.map(c => ({
-              name: c.name,
-              gender: c.gender || null,
-              phone: sealPii(c.phone) as string, // PII 国密密封（等保+密评）
-              phoneIdx: blindIndexPii(c.phone) ?? null, // 联系人手机号盲索引（2026-10-14 唯一性查重）
-              idCard: sealPii(c.idCard) ?? null,
-              idCardIdx: blindIndexPii(c.idCard) ?? null,
-              email: sealPii(c.email) ?? null,
-              isPrimary: c.isPrimary,
-              position: c.position,
-            })),
-          },
-          qualifications: {
-            create: dto.qualifications.map(q => ({
-              type: q.type,
-              name: q.name,
-              fileUrl: q.fileUrl,
-              attachments: (q as any).attachments ?? undefined,
-              validFrom: q.validFrom ? new Date(q.validFrom) : undefined,
-              validTo: q.validTo ? new Date(q.validTo) : undefined,
-            })),
-          },
-          bankAccounts: dto.bankAccounts?.length ? {
-            create: dto.bankAccounts.map(b => ({
-              accountName: b.accountName,
-              bankName: b.bankName,
-              bankBranch: b.bankBranch || null,
-              accountNo: sealPii(b.accountNo) as string, // 银行账号国密密封（等保+密评）
-              isDefault: b.isDefault ?? false,
-            })),
-          } : undefined,
-          performances: dto.performances?.length ? {
-            create: dto.performances.map(p => ({
-              projectName: p.projectName,
-              clientName: p.clientName || null,
-              contractAmount: p.contractAmount || null,
-              signDate: p.signDate ? new Date(p.signDate) : undefined,
-              description: p.description || null,
-              proofFiles: p.proofFiles ?? [],
-            })),
-          } : undefined,
         },
         include: {
           contacts: true,
@@ -489,20 +554,7 @@ export class SupplierService {
         },
       });
 
-      // 业务标签：库内标签直接用；非库标签自动创建 PENDING 自创标签，采购端审核通过后入池可选
-      const submittedTags = (dto.tags || []).map((t) => t.trim()).filter(Boolean);
-      const customTags: string[] = [];
-      for (const t of submittedTags) {
-        const persistedTag = await tx.businessTag.upsert({
-          where: { name: t },
-          create: { name: t, status: 'PENDING', source: 'supplier_register', createdBySupplierId: supplier.id },
-          update: {},
-        });
-        if (persistedTag.createdBySupplierId === supplier.id) {
-          customTags.push(t);
-        }
-      }
-
+      const customTags = await this.persistRegistrationTags(tx, submittedTags, supplier.id);
       return { user, supplier, customTags };
     });
 
@@ -530,6 +582,23 @@ export class SupplierService {
     }
 
     return { user: safeUser, supplier };
+  }
+
+  /** 注册业务标签持久化（正常创建与 REJECTED 壳重开两分支共用）：
+   *  库内标签直接用；非库标签自动创建 PENDING 自创标签，采购端审核通过后入池可选。 */
+  private async persistRegistrationTags(tx: Prisma.TransactionClient, submittedTags: string[], supplierId: string): Promise<string[]> {
+    const customTags: string[] = [];
+    for (const t of submittedTags) {
+      const persistedTag = await tx.businessTag.upsert({
+        where: { name: t },
+        create: { name: t, status: 'PENDING', source: 'supplier_register', createdBySupplierId: supplierId },
+        update: {},
+      });
+      if (persistedTag.createdBySupplierId === supplierId) {
+        customTags.push(t);
+      }
+    }
+    return customTags;
   }
 
   

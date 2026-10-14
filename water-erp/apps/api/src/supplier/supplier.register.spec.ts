@@ -195,6 +195,68 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
     expect(verification.verifyRegistrationCode).not.toHaveBeenCalled();
   });
 
+  describe('register — REJECTED 壳重开（2026-10-14）', () => {
+    it('信用代码命中 REJECTED 壳 → 复用原行 update（不抛 DUPLICATE_CREDIT_CODE）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      // tx 内 update 需要返回含子表的 supplier
+      const txUpdate = jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', contacts: [], qualifications: [], bankAccounts: [], performances: [] });
+      prisma.$transaction = jest.fn(async (fn: any) => fn({
+        ...prisma,
+        $queryRaw: jest.fn().mockResolvedValue([{ max: 1 }]),
+        supplier: { ...prisma.supplier, update: txUpdate, create: jest.fn() },
+        supplierContact: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierQualification: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierBankAccount: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierPerformance: { deleteMany: jest.fn().mockResolvedValue({}) },
+        user: { ...prisma.user, update: jest.fn().mockResolvedValue({ id: 'u1' }) },
+        fileAsset: { updateMany: claimAssets },
+      }));
+      await expect(service.register({ ...validDto })).resolves.toBeTruthy();
+      expect(txUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF', rejectReason: null }),
+      }));
+    });
+
+    it('信用代码命中非 REJECTED（PENDING）→ 仍硬拦截 DUPLICATE_CREDIT_CODE', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'PENDING', supplierNo: 'SUP-000001' });
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'DUPLICATE_CREDIT_CODE' } });
+    });
+
+    it('壳重开：壳自身残存 User 行持有同用户名 → 放行复用（不抛 DUPLICATE_USERNAME）', async () => {
+      // 驳回清洗（purgeRejectedSupplier）保留 username/role，壳的 User 行仍持有同用户名 → username 查重命中壳自身须放行
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      // user.findFirst 同被 username 查重与 DUPLICATE_PHONE 查重复用——按 where.phoneIdx 区分：手机号查重不命中
+      prisma.user.findFirst.mockImplementation(async ({ where }: any) =>
+        where?.phoneIdx !== undefined ? null : { id: 'u1', username: '91510000MA62K5XX0X', role: 'supplier' });
+      const txUpdate = jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', contacts: [], qualifications: [], bankAccounts: [], performances: [] });
+      prisma.$transaction = jest.fn(async (fn: any) => fn({
+        ...prisma,
+        $queryRaw: jest.fn().mockResolvedValue([{ max: 1 }]),
+        supplier: { ...prisma.supplier, update: txUpdate, create: jest.fn() },
+        supplierContact: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierQualification: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierBankAccount: { deleteMany: jest.fn().mockResolvedValue({}) },
+        supplierPerformance: { deleteMany: jest.fn().mockResolvedValue({}) },
+        user: { ...prisma.user, update: jest.fn().mockResolvedValue({ id: 'u1' }) },
+        fileAsset: { updateMany: claimAssets },
+      }));
+      await expect(service.register({ ...validDto })).resolves.toBeTruthy();
+      expect(txUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF', rejectReason: null }),
+      }));
+    });
+
+    it('壳重开：同用户名被其他账号占用（非壳自身 User）→ 仍硬拦截 DUPLICATE_USERNAME', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });
+      prisma.user.findFirst.mockResolvedValue({ id: 'u-other', username: '91510000MA62K5XX0X', role: 'supplier' });
+      await expect(service.register({ ...validDto }))
+        .rejects.toMatchObject({ response: { code: 'DUPLICATE_USERNAME' } });
+    });
+  });
+
   describe('checkDuplicate — 信用代码状态感知', () => {
     it('信用代码命中 REJECTED → creditCode=true 且 creditCodeStatus=REJECTED（可重注册）', async () => {
       prisma.supplier.findFirst.mockResolvedValue({ id: 's-rej', status: 'REJECTED' });
