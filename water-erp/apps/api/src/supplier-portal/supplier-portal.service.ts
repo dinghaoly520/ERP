@@ -2453,6 +2453,183 @@ export class SupplierPortalService {
   }
 
   /**
+   * dual-v3 补传（阶段2.5 T2）：解密异常恢复走版本推进——新信封六闸全过后
+   * CAS 推进 revision+1（SubmissionVersion 链即审计链，不撤回）。
+   * 六闸：阶段门/op 门/context 交叉/明文锚点（vs 版本快照）/改价（fieldsCommit vs 快照）/
+   * 角色保全 + 新 assetId 归属 + 外层实算交叉（staged 资产 sha==entry.outerSha256）。
+   * 事务：CAS → SubmissionVersion(rev+1) → submission（信封换新+outerDecryptedAt/innerAssets
+   * 重置——解密链按新版本重跑）→ bidSupplier 重置 PENDING → 监督日志 → op CAS commit。
+   * DecryptExecution 新 revision 自然开新槽（唯一键含 revision）；旧 C_inner（对象键含旧
+   * revision）留存为证据不清理。
+   */
+  async reuploadBidV3(
+    supplierId: string,
+    projectId: string,
+    data: { operationId: string; signatureFormat: string; signP7: string; baseRevision?: number },
+  ) {
+    // ── ① 阶段门 + 投递行 ──
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '仅开标阶段可补传投标文件', code: 'PROJECT_NOT_OPENING' });
+    }
+    const submission = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+    });
+    if (!submission || submission.status !== 'submitted') {
+      throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
+    }
+    if (submission.envelopeVersion !== 'dual-v3') {
+      throw new BadRequestException({ error: '该供应商非 dual-v3 轨，请走对应补传通道', code: 'NOT_DUAL_TRACK' });
+    }
+
+    // ── ② op 门（purpose/status/归属）+ 冻结信封 ──
+    const op = await this.prisma.caOperation.findUnique({ where: { id: data.operationId } });
+    if (!op || op.subjectId !== supplierId) {
+      throw new BadRequestException({ error: '操作不存在或非本人', code: 'OPERATION_INVALID' });
+    }
+    if (op.purpose !== 'reupload') {
+      throw new BadRequestException({ error: `purpose='${op.purpose}' 非 reupload`, code: 'PURPOSE_MISMATCH' });
+    }
+    if (op.status !== 'PAYLOAD_READY') {
+      throw new ConflictException({ error: '操作已提交或已失效，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+    }
+    const payload = op.result as { canonical?: string; canonicalSha256?: string } | null;
+    if (!payload?.canonical) {
+      throw new BadRequestException({ error: '操作尚未冻结信封载荷', code: 'OPERATION_PAYLOAD_REQUIRED' });
+    }
+    const envelope = JSON.parse(payload.canonical) as DualV3Envelope;
+    const ctx = envelope.context ?? ({} as Record<string, unknown>);
+
+    // ── ③ context 交叉（revision=当前+1=即将分配的新版本）+ 归属 ──
+    const newRev = submission.revision + 1;
+    if (ctx.projectId !== projectId || ctx.supplierId !== supplierId || ctx.revision !== newRev
+      || (typeof ctx.submissionId === 'string' && ctx.submissionId && ctx.submissionId !== submission.id)) {
+      throw new BadRequestException({ error: '信封 context 与补传上下文不符（projectId/supplierId/revision/submissionId）', code: 'ENVELOPE_CONTEXT_MISMATCH' });
+    }
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId }, select: { id: true, name: true, userId: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+    const newAssetIds = (Object.values(envelope.files ?? {}) as Array<{ assetId?: string } | undefined>)
+      .map((e) => e?.assetId).filter((v): v is string => !!v);
+    if (newAssetIds.length > 0) {
+      const assets = await this.prisma.fileAsset.findMany({
+        where: { id: { in: newAssetIds } }, select: { id: true, uploaderId: true, sha256: true },
+      });
+      const byId = new Map(assets.map((a) => [a.id, a]));
+      for (const id of newAssetIds) {
+        const a = byId.get(id);
+        if (!a) throw new BadRequestException({ error: `暂存资产不存在: ${id}`, code: 'FILE_NOT_OWNED' });
+        if (a.uploaderId !== supplier.userId) {
+          throw new BadRequestException({ error: '投标文件无权使用（暂存资产非本司上传）', code: 'FILE_NOT_OWNED' });
+        }
+      }
+    }
+
+    // ── ④ P7 验签（事务外，冻结 canonical） ──
+    const binding = await this.prisma.supplierCert.findFirst({
+      where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
+      include: { signingCaCertificate: true },
+    });
+    if (!binding?.signingCaCertificate) {
+      throw new BadRequestException({ error: '未绑定 SCCA CA 证书', code: 'CA_NOT_BOUND' });
+    }
+    const verification = await this.caVerificationService!.verifySignature({
+      p7B64: data.signP7,
+      expectedToSign: payload.canonical,
+      purpose: 'bind',
+      expectedSignCert: {
+        serialHex: binding.signingCaCertificate.serialHex,
+        sha256: binding.signingCaCertificate.sha256Fingerprint,
+      },
+    });
+    if (!verification.ok) {
+      throw new BadRequestException({ error: `补传 P7 验签失败: ${verification.code}`, code: verification.code });
+    }
+
+    // ── ⑤ 锚点闸（全部 vs 版本快照——签名覆盖的历史版本，非当前行） ──
+    const snapshot = await this.prisma.submissionVersion.findUnique({
+      where: { submissionId_revision: { submissionId: submission.id, revision: submission.revision } },
+    });
+    if (!snapshot) {
+      throw new BadRequestException({ error: '版本快照缺失，无法校验补传', code: 'VERSION_SNAPSHOT_MISSING' });
+    }
+    const oldEnv = snapshot.envelope as unknown as DualV3Envelope;
+    if (envelope.fieldsCommit !== oldEnv.fieldsCommit) {
+      throw new BadRequestException({ error: '唱标字段密封件不得变更（补传仅恢复文件，明文哈希锚点与承诺须与原版一致）', code: 'FIELDS_COMMIT_CHANGED' });
+    }
+    type V3Entry = NonNullable<DualV3Envelope['files'][keyof DualV3Envelope['files']]>;
+    for (const [role, oldEntry] of Object.entries(oldEnv.files ?? {}) as Array<[string, V3Entry]>) {
+      const newEntry = (envelope.files ?? {})[role as keyof typeof envelope.files] as V3Entry | undefined;
+      if (!newEntry) {
+        throw new BadRequestException({ error: `新信封丢失 ${role} 密封件（角色保全闸）`, code: 'ROLE_LOST' });
+      }
+      if (newEntry.plainSha256 !== oldEntry.plainSha256) {
+        throw new BadRequestException({ error: `${role} 文件明文 SHA-256 与原版快照不一致（密文可重封、明文不可替换）`, code: 'PLAIN_HASH_MISMATCH' });
+      }
+    }
+    for (const [role, newEntry] of Object.entries(envelope.files ?? {}) as Array<[string, V3Entry]>) {
+      const staged = await this.prisma.fileAsset.findUnique({ where: { id: newEntry.assetId }, select: { sha256: true } });
+      if (!staged || staged.sha256 !== newEntry.outerSha256) {
+        throw new BadRequestException({ error: `${role} 外层密文哈希与暂存资产实算值不符（疑似调包或截断）`, code: 'OUTER_HASH_MISMATCH' });
+      }
+    }
+
+    // ── ⑥ 事务：CAS → 版本快照 → 状态重置 → op commit ──
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const baseRevision = data.baseRevision ?? submission.revision;
+        if (baseRevision !== submission.revision) {
+          throw new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });
+        }
+        await tx.submissionVersion.create({
+          data: {
+            submissionId: submission.id, revision: newRev,
+            envelope: envelope as any, envelopeHash: payload.canonicalSha256!,
+            operationId: data.operationId,
+          },
+        });
+        await tx.supplierBidSubmission.update({
+          where: { id: submission.id },
+          data: {
+            revision: newRev,
+            envelope: envelope as any,
+            // T12 钉死口径（v2 同款）：换新 C_outer 后必须重置解外层标记+归属链——
+            // 否则 decryptOuterOneV3 幂等跳过旧标记，新 C_outer 永不重解
+            outerDecryptedAt: null,
+            innerAssets: Prisma.DbNull,
+          },
+        });
+        await tx.bidSupplier.updateMany({
+          where: { projectId, supplierId },
+          data: { decryptStatus: 'PENDING', decryptError: null, decryptedAt: null },
+        });
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: new Date(), role: '供应商', target: supplier.name,
+            action: 'v3 补传（版本推进）',
+            result: `revision ${submission.revision}→${newRev}（明文哈希锚点与承诺一致，信封已重签，待重新解外层）`,
+            riskFlag: '高风险',
+          },
+        });
+        const commit = await tx.caOperation.updateMany({
+          where: { id: data.operationId, status: 'PAYLOAD_READY' },
+          data: { status: 'COMMITTED', result: { success: true, submissionId: submission.id, revision: newRev } as any },
+        });
+        if (commit.count === 0) {
+          throw new ConflictException({ error: '操作已被提交，请重新发起', code: 'OPERATION_NOT_COMMITTABLE' });
+        }
+        return { submissionId: submission.id, revision: newRev };
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });
+      }
+      throw err;
+    }
+  }
+
+  /**
    * 新轨补传（双信封 v2 · ）：dual-v2 解密异常恢复走供应商端双层重封。
    * 与旧轨 reuploadBidFile 的本质差异：C_outer 是客户端双层加密产物（C_inner=SM4(DEK_S) → C_outer=SM4(DEK_A)），
    * 服务端无任何一把 DEK 明文，KMS 重封管线不可用——重新双层加密由供应商客户端完成，

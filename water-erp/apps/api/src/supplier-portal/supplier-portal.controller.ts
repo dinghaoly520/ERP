@@ -541,6 +541,19 @@ export class SupplierPortalController {
   }
 
   /** dual-v3 补传锚点下发（阶段2.5 T1）——roles 明文哈希+sealedFields 自版本快照 */
+  /** dual-v3 补传（阶段2.5 T2）：六闸+CAS 版本推进+解密状态重置 */
+  @Post('bid-submissions/:projectId/reupload-v3')
+  @Roles('supplier')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async reuploadV3(@Param('projectId') projectId: string, @Body() body: { operationId?: string; signatureFormat?: string; signP7?: string; baseRevision?: number }, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    if (!body?.operationId || body?.signatureFormat !== 'scca-pkcs7-base64' || !body?.signP7) {
+      throw new BadRequestException({ error: 'dual-v3 补传须携带 operationId+signP7（scca-pkcs7-base64）', code: 'BAD_PARAMS' });
+    }
+    return this.portalService.reuploadBidV3(supplierId, projectId, {
+      operationId: body.operationId, signatureFormat: body.signatureFormat, signP7: body.signP7, baseRevision: body.baseRevision,
+    });
+  }
   @Get('bid-submissions/:projectId/reupload-context')
   async getReuploadContext(@Param('projectId') projectId: string, @Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
