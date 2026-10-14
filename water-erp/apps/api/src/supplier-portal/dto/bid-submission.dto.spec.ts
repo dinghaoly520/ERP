@@ -39,16 +39,15 @@ describe('bid-submission.dto（A-94：whitelist 下字段透传 + 格式校验�
     expect((dto as any).hackerField).toBeUndefined();
   });
 
-  it('SubmitBidDto：envelope/signature/fileHash/hostDecryptAuthorized 透传', async () => {
+  it('SubmitBidDto：envelope/signature/fileHash 透传', async () => {
     const dto = await transform({
       envelope: { version: 'dual-v2', files: {} }, signature: 'MEUCIQ==signature',
-      fileHash: 'a'.repeat(64), hostDecryptAuthorized: true,
+      fileHash: 'a'.repeat(64),
     }, SubmitBidDto) as SubmitBidDto;
     expect(dto.envelope).toEqual({ version: 'dual-v2', files: {} });
     expect(dto.signature).toBe('MEUCIQ==signature');
-    // 旧轨服务层契约字段（fileHash+signature 联合触发 SM2 验签；hostDecryptAuthorized 递交授权闸门）
-    // 缺装饰器会被 whitelist 剥落——前者致验签静默跳过、后者致授权闸门协议层不可满足
+    // 旧轨服务层契约字段（fileHash+signature 联合触发 SM2 验签）
+    // 缺装饰器会被 whitelist 剥落——致验签静默跳过（hostDecryptAuthorized 已随 SCCA v3 代解密清除移除）
     expect(dto.fileHash).toBe('a'.repeat(64));
-    expect(dto.hostDecryptAuthorized).toBe(true);
   });
 });
