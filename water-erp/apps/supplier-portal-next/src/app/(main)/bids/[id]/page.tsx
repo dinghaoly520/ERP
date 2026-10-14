@@ -553,14 +553,7 @@ function BidDetailInner() {
               {/* ═══ dual-v3 投递卡（阶段2 · I5 评审修复：挂载点）═══
                     capabilities 门控（CA_SUPPLIER_V3_ENABLED + ACTIVE SCCA 绑定）内置于 Section；
                     未开 v3/未绑盾渲染 null——旧轨用户不受影响 */}
-              {/* 投递入口唯一=/bids/[id]/submit（SCCA 投递页）；详情页不再内嵌卡片 */}
-              {['DOWNLOAD', 'SUBMIT'].includes(project.stage) && submission?.status !== 'submitted' && (
-                <div className="neu-card">
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    投标提交请使用「提交标书」按钮进入投递页（SCCA CA 双层信封）。
-                  </p>
-                </div>
-              )}
+
 
               {/* ═══ 招标文件 + 书面交流 ═══
                   B2-1（2026-09-30）：不再按 isListMode 隐藏——「项目机会」列表与工作台均
