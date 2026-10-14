@@ -60,17 +60,12 @@ type BidSubmissionData = {
   // 前端完整/拆分模型字段（BidSubmit.vue）。由 normalizeBidFileAssets 归一到三角色契约。
   fullBidFileAssetId?: string;
   coverLetterFileAssetId?: string;
+  splitFiles?: { tech?: any; biz?: any; other?: any };
   // SCCA dual-v3（阶段2）
   operationId?: string;
   signatureFormat?: string;
   signP7?: string;
   baseRevision?: number;
-  splitFiles?: { tech?: any; biz?: any; other?: any
-  // SCCA dual-v3（阶段2）
-  operationId?: string;
-  signatureFormat?: string;
-  signP7?: string;
-  baseRevision?: number;};
   // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
   clientDeks?: Record<string, string>;
   // 双信封 v2（dual-v2 新轨）：客户端密封信封（version/certSn/adminCertId/files/sealedFields/fieldsCommit）
@@ -560,25 +555,110 @@ export class SupplierPortalService {
     }
     await this.findActiveCertForSigning(supplierId, 'verify');
     const envelope = sub.envelope as { fieldsCommit?: string } | null;
+    // dual-v3（Task6，附录 §5.C）：revision/envelopeHash/serverSubmittedAt/receiptNo 进签。
+    // envelopeHash 锚点=当前版本快照（SubmissionVersion），无快照（旧轨/草稿）回退 fileHash。
+    // receiptNo 存 BidSupplier（名册级，投递时生成）——接收时间以服务端 serverSubmittedAt 为准。
+    const receiptNo = (await this.prisma.bidSupplier.findFirst({
+      where: { projectId: sub.projectId, supplierId },
+      select: { receiptNo: true },
+    }))?.receiptNo ?? null;
+    const versionRow = sub.revision > 0
+      ? await this.prisma.submissionVersion.findUnique({
+          where: { submissionId_revision: { submissionId: sub.id, revision: sub.revision } },
+          select: { envelopeHash: true },
+        })
+      : null;
     const payload = {
-      v: 1,
+      version: 1,
+      purpose: 'submission-receipt',
       submissionId: sub.id,
       projectId: sub.projectId,
       supplierId: sub.supplierId,
+      revision: sub.revision,
+      envelopeHash: versionRow?.envelopeHash ?? sub.fileHash ?? null,
+      serverSubmittedAt: (sub.serverSubmittedAt ?? sub.submittedAt ?? sub.createdAt).toISOString(),
+      receiptNo,
+      // 旧轨展示字段保留（核验面板 filesCommit 展示）——客户端签服务端返回的 canonical 全串，
+      // 键集对旧字段无敏感（canonical 由本方法唯一产出）。
       filesCommit: envelope?.fieldsCommit ?? sub.fileHash ?? null,
       receivedAt: sub.createdAt.toISOString(),
     };
     return { payload, canonical: this.canonicalReceiptPayload(payload) };
   }
 
-  /** 提交回执签名：服务端重建负载 → SM2/SM3 验签 → 存档（幂等）。 */
-  async signSubmissionReceipt(submissionId: string, supplierId: string, signature: string) {
+  /** 提交回执签名：服务端重建负载 → 验签 → 存档（幂等）。
+   *  dual-v3（Task6）：operationId+signP7 → CaVerificationService P7 验签（attached-P7
+   *  原文比对=World B 唯一绑定），证据含 certSn/certPublicKey（D4 签时快照）与 revision
+   *  （submissionId+revision 键控幂等——撤回重投 revision 推进后新回执可签）。 */
+  async signSubmissionReceipt(
+    submissionId: string,
+    supplierId: string,
+    signature: string,
+    v3?: { operationId?: string; signatureFormat?: string; signP7?: string },
+  ) {
     const sub = await this.prisma.supplierBidSubmission.findUnique({ where: { id: submissionId } });
     if (!sub || sub.supplierId !== supplierId) {
       throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
     }
-    if (sub.receiptSignature) return sub; // 幂等：已签署直接返回
+    // 幂等：v3 按 submissionId+revision 键控；存量记录（无 revision 字段）维持旧幂等语义
+    const archived = sub.receiptSignature as { revision?: number } | null;
+    if (archived && (archived.revision === undefined || archived.revision === sub.revision)) {
+      return sub;
+    }
     const { payload, canonical } = await this.getReceiptPayloadFor(submissionId, supplierId);
+
+    // ── SCCA dual-v3 轨（Task6）：P7 验签在写库前 ──
+    if (v3?.operationId && v3?.signatureFormat === 'scca-pkcs7-base64' && v3?.signP7) {
+      const op = await this.prisma.caOperation.findUnique({ where: { id: v3.operationId } });
+      if (!op || op.subjectId !== supplierId) {
+        throw new BadRequestException({ error: '操作不存在或非本人', code: 'OPERATION_INVALID' });
+      }
+      if (op.purpose !== 'receipt') {
+        throw new BadRequestException({ error: `purpose='${op.purpose}' 非 receipt`, code: 'PURPOSE_MISMATCH' });
+      }
+      const binding = await this.prisma.supplierCert.findFirst({
+        where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
+        include: { signingCaCertificate: true },
+      });
+      if (!binding?.signingCaCertificate) {
+        throw new BadRequestException({ error: '未绑定 SCCA CA 证书', code: 'CA_NOT_BOUND' });
+      }
+      const verification = await this.caVerificationService!.verifySignature({
+        p7B64: v3.signP7,
+        expectedToSign: canonical,
+        purpose: 'bind',
+        expectedSignCert: {
+          serialHex: binding.signingCaCertificate.serialHex,
+          sha256: binding.signingCaCertificate.sha256Fingerprint,
+        },
+      });
+      if (!verification.ok) {
+        throw new BadRequestException({ error: `回执 P7 验签失败: ${verification.code}`, code: verification.code });
+      }
+      const now = new Date();
+      return this.prisma.$transaction(async (tx) => {
+        const receiptSignature = {
+          payload,
+          signature: v3.signP7!,
+          algorithm: 'scca-pkcs7-base64',
+          verifiedAt: now.toISOString(),
+          certSn: binding.certSn,
+          certPublicKey: binding.publicKey, // D4 签时快照：换绑/撤销/过期均不影响事后复验
+          revision: sub.revision,
+          envelopeHash: payload.envelopeHash,
+        };
+        await tx.supplierBidSubmission.update({
+          where: { id: submissionId },
+          data: { receiptSignature, receiptSignedAt: now },
+        });
+        await tx.caOperation.update({
+          where: { id: v3.operationId! },
+          data: { status: 'COMMITTED', result: { success: true, submissionId, revision: sub.revision } as any },
+        });
+        return { success: true as const, revision: sub.revision, receiptSignature };
+      });
+    }
+
     // SCCA 全面适配（2026-10-14）：旧轨免签——signature 空则跳过验签，证据标记 unsigned-legacy
     // （dual-v3 P7 强签随阶段 2 恢复；SCCA 盾无裸 SM2 原语，空签是当前唯一可行轨）
     let cert: { certSn: string; publicKey: string } | null = null;

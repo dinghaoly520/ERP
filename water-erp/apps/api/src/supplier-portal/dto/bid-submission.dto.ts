@@ -57,3 +57,13 @@ export class SubmitBidDto extends SaveBidDraftDto {
   @IsOptional() @IsString() @MaxLength(64) signatureFormat?: string; // 'scca-pkcs7-base64'
   @IsOptional() @IsString() @MaxLength(262144) signP7?: string;
 }
+
+/** 回执签名提交（Task6）：旧轨 SM2 hex（空=免签 unsigned-legacy）或 dual-v3 P7 强签 */
+export class SignReceiptDto {
+  /** 旧轨 SM2 签名 hex；SCCA 全面适配后空=免签（向后兼容） */
+  @IsOptional() @IsString() @MaxLength(512) signature?: string;
+  // ── SCCA dual-v3（阶段2 Task6）──
+  @IsOptional() @IsString() @MaxLength(128) operationId?: string;
+  @IsOptional() @IsString() @MaxLength(64) signatureFormat?: string; // 'scca-pkcs7-base64'
+  @IsOptional() @IsString() @MaxLength(262144) signP7?: string;
+}

@@ -96,6 +96,9 @@ describe('SupplierPortalService', () => {
 
       supplier: { findUnique: jest.fn(), update: jest.fn() },
       supplierCert: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+      // Task6（dual-v3 回执）：getReceiptPayloadFor 新增查表——版本快照默认查空=旧轨回退
+      submissionVersion: { findUnique: jest.fn().mockResolvedValue(null) },
+      caOperation: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
       adminEncryptionCert: { findFirst: jest.fn() },
       bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
@@ -2849,6 +2852,10 @@ describe('投标回执签名（A-101）', () => {
             : null),
       ),
     },
+    // Task6（dual-v3 回执）：getReceiptPayloadFor 新增查表——默认查空（receiptNo null=旧轨回退）
+    bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
+    submissionVersion: { findUnique: jest.fn().mockResolvedValue(null) },
+    caOperation: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
     ...over.prisma,
   });
 

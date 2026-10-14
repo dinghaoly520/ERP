@@ -12,7 +12,7 @@ import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
-import { SaveBidDraftDto, SubmitBidDto } from './dto/bid-submission.dto';
+import { SaveBidDraftDto, SubmitBidDto, SignReceiptDto } from './dto/bid-submission.dto';
 import { OpeningConfirmDto } from './dto/opening-confirm.dto';
 import { SubmitQuoteDto } from './dto/submit-quote.dto';
 import type { EnvelopeRole } from '@water-erp/ukey';
@@ -63,11 +63,11 @@ export class SupplierPortalController {
     return this.portalService.getReceiptPayloadFor(submissionId, supplierId);
   }
 
-  /** W11-①（A-101）：提交回执 SM2 签名（服务端验签存档，幂等） */
+  /** W11-①（A-101）：提交回执签名（服务端验签存档，幂等；dual-v3 P7 强签走 operationId+signP7） */
   @Post('bid-submissions/:submissionId/receipt-signature')
-  async signReceipt(@Param('submissionId') submissionId: string, @Body() body: { signature: string }, @Request() req: any) {
+  async signReceipt(@Param('submissionId') submissionId: string, @Body() body: SignReceiptDto, @Request() req: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.signSubmissionReceipt(submissionId, supplierId, body?.signature ?? '');
+    return this.portalService.signSubmissionReceipt(submissionId, supplierId, body?.signature ?? '', body);
   }
 
   /** W11-①（A-101）：回执重验签——对存档签名负载只读复验，供核验面板显示结论徽标 */
