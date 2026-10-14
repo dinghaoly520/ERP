@@ -270,17 +270,20 @@ export class CaAuthController {
 }
 
 // ─── 内部工具 ───
-/** I5 修复：JSON 写请求 Origin 校验（CA_ALLOWED_ORIGINS 逗号分隔；未配置时 dev 放行 localhost/局域网） */
-function assertAllowedOrigin(req: Request): void {
+/** I5 修复：JSON 写请求 Origin 校验（CA_ALLOWED_ORIGINS 逗号分隔精确匹配；未配置时 dev 放行 localhost/局域网段）。
+ *  2026-10-14 修正：首版把 /^http:\/\/192\.168\./.source 塞进「字符串转义+全串锚定」管线，
+ *  双重转义后只匹配字面文本——LAN origin（192.168.1.111:3004）必拒。现改为正则直接求值。 */
+export function assertAllowedOrigin(req: Request): void {
   const origin = req.headers['origin'] as string | undefined;
   if (!origin) {
     throw new UnauthorizedException({ error: '缺少 Origin 头', code: 'ORIGIN_REQUIRED' });
   }
   const configured = (process.env.CA_ALLOWED_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean);
-  const allowlist = configured.length > 0 ? configured : ['http://localhost:3004', 'http://127.0.0.1:3004', /^http:\/\/192\.168\./.source];
-  const allowed = allowlist.some(p => {
-    try { return new RegExp('^' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$').test(origin); } catch { return origin === p; }
-  });
+  const allowed = configured.length > 0
+    ? configured.includes(origin)
+    : origin === 'http://localhost:3004' ||
+      origin === 'http://127.0.0.1:3004' ||
+      /^http:\/\/192\.168\.\d{1,3}(\.\d{1,3})?(:\d+)?$/.test(origin);
   if (!allowed) {
     throw new ForbiddenException({ error: '请求来源不被允许', code: 'ORIGIN_DENIED' });
   }
