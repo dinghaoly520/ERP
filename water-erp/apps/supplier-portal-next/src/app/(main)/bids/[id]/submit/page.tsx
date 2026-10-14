@@ -130,6 +130,39 @@ interface SccaContext {
   adminCert: { adminCertId: string; publicKey: string };
 }
 
+/** 临时诊断面板（真盾验收排障——捕获 window error/unhandledrejection/console.error 完整栈，
+ *  屏显供截图；验收完成后整块移除） */
+function ErrorCaptureOverlay() {
+  const [errs, setErrs] = useState<string[]>([]);
+  useEffect(() => {
+    const push = (title: string, detail: unknown) => {
+      const e = detail as { message?: string; stack?: string; reason?: { message?: string; stack?: string } } | undefined;
+      const msg = e?.message ?? (typeof detail === "string" ? detail : JSON.stringify(detail));
+      const stack = e?.stack ?? e?.reason?.stack ?? "";
+      setErrs((prev) => [...prev.slice(-4), `${title}: ${msg}\n${stack}`]);
+    };
+    const onErr = (ev: ErrorEvent) => push("window.error", ev.error ?? ev.message);
+    const onRej = (ev: PromiseRejectionEvent) => push("unhandledrejection", ev.reason);
+    const origConsoleError = console.error.bind(console);
+    console.error = (...args: unknown[]) => { push("console.error", args[0]); origConsoleError(...args); };
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+    return () => {
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+      console.error = origConsoleError;
+    };
+  }, []);
+  if (errs.length === 0) return null;
+  return (
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, maxHeight: "45vh", overflow: "auto",
+      background: "rgba(120,10,10,0.95)", color: "#fff", fontSize: 11, fontFamily: "monospace", padding: "8px 12px", whiteSpace: "pre-wrap" }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>诊断捕获（截图发给开发）：</div>
+      {errs.map((e, i) => <div key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.3)", paddingTop: 4, marginTop: 4 }}>{e}</div>)}
+    </div>
+  );
+}
+
 function BidSubmitInner() {
   const router = useRouter();
   const params = useParams();
@@ -422,6 +455,7 @@ function BidSubmitInner() {
 
   return (
     <div className="page-container">
+      <ErrorCaptureOverlay />
       {loading ? (
         <LoadingBlock />
       ) : (
