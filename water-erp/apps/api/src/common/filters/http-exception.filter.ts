@@ -91,7 +91,7 @@ const VALIDATION_RULES: Array<[RegExp, string]> = [
   [/must be a valid email address|must be an email/i, '应为有效邮箱'],
   [/must be a valid (ISO ?8601 )?date/i, '应为有效日期'],
   [/must be an integer/i, '应为整数'],
-  [/must be a boolean/i, '应为布尔值'],
+  [/must be a boolean( value)?/i, '应为布尔值'],
   [/must be a number string|must be a number/i, '应为数字'],
   [/must be a string/i, '应为文本'],
   [/must be an array/i, '应为列表'],
@@ -107,10 +107,55 @@ const VALIDATION_RULES: Array<[RegExp, string]> = [
   [/is invalid/i, '格式不正确'],
 ];
 
-/** 单条校验消息翻译："property contactName must be a string" → "参数「contactName」应为文本" */
+/** 常见 DTO 字段键 → 中文名（2026-10-14 禁英文补全：校验消息里的 camelCase 键不再透出）。
+ *  未列入的键兜底「该字段」——具体端点应优先在 DTO 校验器上写中文 message。 */
+const FIELD_LABEL_ZH: Record<string, string> = {
+  requesterName: '需求申请人',
+  requesterDepartment: '需求部门',
+  procurementTitle: '采购事项名称',
+  procurementCategory: '采购类别',
+  procurementMethod: '采购方式',
+  procurementOrganizationForm: '采购组织形式',
+  budgetAmount: '预算金额',
+  isAnnualBudget: '年度预算',
+  hasProcurementDemand: '采购需求征集标识',
+  initiationDate: '立项日期',
+  projectReason: '立项事由',
+  supplierRequirements: '供方要求',
+  demandProject: '项目归属',
+  fileName: '文件名',
+  objectKey: '存储键',
+  mimeType: '文件类型',
+  fileSize: '文件大小',
+  username: '用户名',
+  password: '密码',
+  displayName: '姓名',
+  phone: '手机号',
+  email: '邮箱',
+  contactName: '联系人',
+  contactPhone: '联系电话',
+  contactEmail: '联系邮箱',
+  name: '名称',
+  title: '标题',
+  content: '内容',
+  type: '类型',
+  status: '状态',
+  code: '编码',
+  id: '标识',
+  projectId: '项目',
+  supplierId: '供应商',
+  companyId: '公司',
+  userId: '用户',
+  reason: '原因',
+  note: '备注',
+  link: '链接',
+  token: '令牌',
+};
+
+/** 单条校验消息翻译："property contactName must be a string" → "参数「联系人」应为文本" */
 function translateValidationMessage(raw: string): string {
   const m = raw.match(/^(?:property\s+)?([A-Za-z][\w.]*)\s+([\s\S]*)$/);
-  const prop = m?.[1];
+  const propKey = m?.[1];
   let body = (m?.[2] ?? raw).trim();
   for (const [re, zh] of VALIDATION_RULES) {
     if (re.test(body)) {
@@ -119,7 +164,9 @@ function translateValidationMessage(raw: string): string {
     }
   }
   if (!HAS_CJK.test(body)) body = '取值不合法';
-  return prop ? `参数「${prop}」${body}` : body;
+  if (!propKey) return body;
+  const label = FIELD_LABEL_ZH[propKey] ?? FIELD_LABEL_ZH[propKey.split('.')[0]];
+  return `参数「${label ?? '该字段'}」${body}`;
 }
 
 @Catch()

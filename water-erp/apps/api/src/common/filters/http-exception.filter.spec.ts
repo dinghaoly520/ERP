@@ -125,16 +125,17 @@ describe('HttpExceptionFilter — 报错信息中文化（2026-10-10 禁英文�
     }
   });
 
-  it('class-validator 英文校验数组 → 中文（字段名保留代码标识）', () => {
+  it('class-validator 英文校验数组 → 中文（字段名走字典中文化，未收录键兜底「该字段」）', () => {
     const host = makeHost();
     filter.catch(
       new BadRequestException([
         'property contactName must be a string',
         'password must be longer than or equal to 6 characters',
+        'someUnknownFieldX should not be empty',
       ]),
       host,
     );
-    expect(bodyOf(host).error).toBe('参数「contactName」应为文本；参数「password」长度不足（最少 6 字）');
+    expect(bodyOf(host).error).toBe('参数「联系人」应为文本；参数「密码」长度不足（最少 6 字）；参数「该字段」不能为空');
     expect(bodyOf(host).code).toBe('VALIDATION_ERROR');
   });
 

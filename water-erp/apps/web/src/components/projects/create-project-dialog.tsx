@@ -380,12 +380,22 @@ export function CreateProjectDialog({
 
   const handleCreate = async () => {
     if (submittingRef.current) return;
+    // 前置校验（2026-10-14）：必填项空缺即时中文提示——不再等服务端 400 往返
+    //（服务端 DTO 已有中文校验消息，双保险；解析失败/未解析的手填场景最常见的报错源）
+    const precheck = getCurrentProjectFields();
+    if (!String(precheck.requesterName ?? '').trim()) {
+      setErrorMessage('请填写需求申请人。');
+      return;
+    }
+    if (!String(precheck.requesterDepartment ?? '').trim()) {
+      setErrorMessage('请填写需求部门。');
+      return;
+    }
     if (!procurementMethod) {
       setErrorMessage('请选择采购方式。');
       return;
     }
-
-    if (!initiationAttachment && !demandAttachment && !initiationFields.procurementTitle) {
+    if (!String(precheck.procurementTitle ?? '').trim()) {
       setErrorMessage('请填写采购事项名称。');
       return;
     }
