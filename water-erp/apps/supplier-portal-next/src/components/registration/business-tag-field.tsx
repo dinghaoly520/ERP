@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Plus } from "lucide-react";
+import { Check, Plus, Search } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
 export type BusinessTagOption = {
@@ -30,7 +30,14 @@ export function BusinessTagField({
   const errorId = `${fieldId}-error`;
   const [customValue, setCustomValue] = useState("");
   const [localError, setLocalError] = useState("");
+  // 标签池搜索（2026-10-14）：池已回填 100+ 公共词，平铺过长；与体制/行业搜索选择同一产品语言
+  const [filter, setFilter] = useState("");
   const optionNames = useMemo(() => new Set(options.map((option) => option.name)), [options]);
+  const keyword = filter.trim().toLowerCase();
+  const filteredOptions = useMemo(
+    () => (keyword ? options.filter((option) => option.name.toLowerCase().includes(keyword)) : options),
+    [options, keyword],
+  );
   const customTags = value.filter((tag) => !optionNames.has(tag));
   const message = error || localError;
 
@@ -82,8 +89,24 @@ export function BusinessTagField({
       </div>
       <p id={helperId} className="reg-field-helper">请选择 {min} 至 {max} 项，用于采购需求与供应商能力匹配。</p>
 
+      {options.length > 8 && (
+        <div className="reg-tag-search">
+          <Search size={13} aria-hidden="true" />
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="搜索已有标签…"
+            aria-label="搜索已有业务标签"
+            maxLength={20}
+          />
+          {filter && (
+            <button type="button" className="reg-tag-search__clear" aria-label="清空搜索" onClick={() => setFilter("")}>×</button>
+          )}
+        </div>
+      )}
+
       <div className="reg-tagpool" role="group" aria-labelledby={fieldId} aria-describedby={`${helperId}${message ? ` ${errorId}` : ""}`}>
-        {options.map((option) => {
+        {filteredOptions.map((option) => {
           const selected = value.includes(option.name);
           return (
             <button
@@ -98,6 +121,13 @@ export function BusinessTagField({
             </button>
           );
         })}
+        {filteredOptions.length === 0 && (
+          <p className="reg-tagpool__empty">
+            {options.length === 0
+              ? "标签库暂无可选标签——请在下方自行创建，创建后将由采购端审核入池供后续选择。"
+              : "无匹配的已有标签——可在下方自行创建，创建后将由采购端审核入池。"}
+          </p>
+        )}
       </div>
 
       {customTags.length > 0 && (

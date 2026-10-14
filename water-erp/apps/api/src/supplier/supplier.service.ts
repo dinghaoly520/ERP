@@ -2003,6 +2003,15 @@ export class SupplierService {
           if (!Array.isArray(parsed)) throw new Error();
           data.tags = parsed.filter((t: any) => typeof t === 'string' && t.trim()).slice(0, 8);
           if (data.tags.length < 2) throw new BadRequestException({ error: '业务标签至少保留 2 个', code: 'INVALID_TAGS' });
+          // 与注册同语义（2026-10-14）：变更引入的库外标签进待审池（PENDING），审核通过入池供后续选择；
+          // 命中既有记录（含曾被拒）原样保留，不重复进队列。待审在 :3005 审批中心「业务标签」tab 可见。
+          for (const tag of data.tags as string[]) {
+            await tx.businessTag.upsert({
+              where: { name: tag },
+              update: {},
+              create: { name: tag, status: 'PENDING', source: 'supplier_change', createdBySupplierId: change.supplierId },
+            });
+          }
         } catch (e) {
           if (e instanceof BadRequestException) throw e;
           throw new BadRequestException({ error: '业务标签格式不正确', code: 'INVALID_TAGS' });

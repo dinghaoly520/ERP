@@ -39,6 +39,9 @@ import { EmptyState, LoadingBlock, SpButton, SpDialog } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { QualAddPanel, QualCompactCard, QualsTab } from "@/components/profile/qualifications";
+import { BusinessTagField, type BusinessTagOption } from "@/components/registration/business-tag-field";
+import { authApi } from "@/lib/api/auth";
+import "@/styles/pages/register2.css";
 import { ContactPanel, ContactsTab } from "@/components/profile/contacts";
 import { INDUSTRY_GROUPS, COMPANY_PROFILE_MAX, ENTERPRISE_TYPES } from "@/constants/supplier";
 import { summarizeChangeValue } from "@/lib/change-value";
@@ -128,6 +131,8 @@ export default function ProfilePage() {
   const [crOrig, setCrOrig] = useState<Record<string, string>>({});
   const [crReason, setCrReason] = useState("");
   const [crTags, setCrTags] = useState<string[]>([]);
+  // 业务标签池（APPROVED 公共词，2026-10-14）：变更 tags 改选择制——从池中选，无匹配再自创
+  const [tagOptions, setTagOptions] = useState<BusinessTagOption[]>([]);
   const [crOrigQualCount, setCrOrigQualCount] = useState(0);
   const [crOrigContactCount, setCrOrigContactCount] = useState(0);
   const crQualSnapDone = useRef(false);
@@ -306,7 +311,8 @@ export default function ProfilePage() {
     setCrOrig(orig);
     setCrReason("");
     const ptags = p.tags;
-    setCrTags(Array.isArray(ptags) && ptags.length >= 2 ? [...ptags] : ["", ""]);
+    setCrTags(Array.isArray(ptags) && ptags.length >= 2 ? [...ptags] : []);
+    authApi.listBusinessTags().then(setTagOptions).catch(() => setTagOptions([]));
     setCrOrigQualCount(qualsRef.current.length);
     setCrOrigContactCount(contactsRef.current.length);
     crQualSnapDone.current = false;
@@ -329,8 +335,6 @@ export default function ProfilePage() {
   };
 
   const crReset = (k: string) => setCrForm((f) => ({ ...f, [k]: crOrig[k] }));
-  const crAddTag = () => setCrTags((t) => (t.length < 8 ? [...t, ""] : t));
-  const crRemoveTag = (i: number) => setCrTags((t) => (t.length > 2 ? t.filter((_, j) => j !== i) : t));
 
   const crSwitch = (m: CrMode) => {
     setCrMode(m);
@@ -442,6 +446,11 @@ export default function ProfilePage() {
       // B2-4：身份证号格式守卫（18 位；仅在有值/有变更时拦截，存量空值走补填）
       if (crForm.legalPersonIdCard && !/^\d{17}[\dXx]$/.test(crForm.legalPersonIdCard.trim())) {
         toast.warning("法定代表人身份证号须为 18 位"); return;
+      }
+      // 业务标签数量守卫（2026-10-14 选择制后与注册同口径：2~8 个）
+      if (crHasTagsChanges && crTags.filter((t) => t.trim()).length < 2) {
+        toast.warning("业务标签至少选择 2 个");
+        return;
       }
       const changeCount = crFieldChanged.length + (crHasTagsChanges ? 1 : 0);
       const lines = crFieldChanged.map((k) => `${CR_FIELD_LABELS[k]}\n${crOrig[k] || "（空）"} → ${crForm[k] || "（清除）"}`);
@@ -932,26 +941,15 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
-                  {/* 业务标签 */}
+                  {/* 业务标签（2026-10-14 改选择制）：与注册页同一 BusinessTagField——池内选择 + 自创待审 */}
                   <div className="crp-f mb-[17px]">
-                    <div className="crp-fh">
-                      <label>业务标签</label>
-                      <span className="crp-n">{crTags.filter((t) => t.trim()).length}/8</span>
-                      <button type="button" className="neu-btn-xs ml-auto" disabled={crTags.length >= 8} onClick={crAddTag}>+ 添加</button>
-                    </div>
-                    {crTags.map((t, i) => (
-                      <div key={"crtag" + i} className="mt-1.5 flex items-center gap-2">
-                        <span className="crp-fh min-w-6 text-xs font-bold text-muted-foreground">{i + 1}.</span>
-                        <input
-                          className={cn("neu-input flex-1", t.trim() && (!(profile?.tags?.[i]) || t !== profile.tags[i]) && "dirty")}
-                          value={t}
-                          onChange={(e) => { const next = [...crTags]; next[i] = e.target.value; setCrTags(next); }}
-                          placeholder={i === 0 ? "如：办公用品" : i === 1 ? "如：钻机销售" : "标签" + (i + 1)}
-                          maxLength={20}
-                        />
-                        {crTags.length > 2 && <button type="button" className="neu-btn-xs is-danger" onClick={() => crRemoveTag(i)}>删除</button>}
-                      </div>
-                    ))}
+                    <BusinessTagField
+                      value={crTags}
+                      options={tagOptions}
+                      onChange={setCrTags}
+                      min={2}
+                      max={8}
+                    />
                   </div>
                   <div className="crp-f">
                     <label>变更原因</label>

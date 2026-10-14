@@ -109,6 +109,21 @@
 /* ── 业务标签选择制 ── */
 .reg-tagpool { display: flex; flex-wrap: wrap; gap: 8px; }
 .reg-tagpool--custom { margin-top: 8px; }
+.reg-tagpool__empty { margin: 2px 0; font-size: 12px; color: oklch(0.58 0.03 258); }
+/* 标签池搜索行（2026-10-14）：内凹小输入 + 图标，与 UnitSearchSelect 搜索行同语言 */
+.reg-tag-search { position: relative; display: flex; align-items: center; margin: 6px 0 8px; }
+.reg-tag-search svg { position: absolute; left: 12px; color: oklch(0.62 0.03 258); pointer-events: none; }
+.reg-tag-search input {
+  width: 100%; max-width: 320px; height: 36px; padding: 0 30px 0 32px; border: none; border-radius: 10px;
+  font: inherit; font-size: 12.5px; color: var(--reg-ink, #1e293b); background: var(--surface, oklch(0.965 0.012 252));
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85);
+}
+.reg-tag-search input:focus { outline: none; }
+.reg-tag-search__clear {
+  position: absolute; left: calc(min(320px, 100%) - 26px); display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: none; border-radius: 50%; font-size: 13px; line-height: 1; cursor: pointer;
+  color: oklch(0.55 0.03 258); background: oklch(0.93 0.01 252);
+}
 .reg-tagpick {
   display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: none; border-radius: 999px;
   font: inherit; font-size: 13px; font-weight: 600; color: oklch(0.45 0.06 252); cursor: pointer;
