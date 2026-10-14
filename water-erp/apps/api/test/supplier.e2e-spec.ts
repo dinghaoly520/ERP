@@ -20,6 +20,12 @@ async function loginAs(
   return Array.isArray(cookie) ? cookie : cookie ? [cookie] : [];
 }
 
+// 补正全链（文件末尾 describe）会真正触发发码端点 POST /supplier/register/correction/request。
+// 本机 .env 可能是 SMS_PROVIDER=aliyun（真短信）或未配 http 网关 endpoint（发送必失败）——
+// 测试进程显式切 console stub（同 setup-throttle.ts「测试进程自洽」思路，Prisma .env 加载不覆盖已有值）。
+// 仅影响本测试进程；生产 ConsoleSmsProvider 对 NODE_ENV=production 双保险拒用。
+process.env.SMS_PROVIDER = 'console';
+
 describe('Supplier (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -274,5 +280,231 @@ describe('Supplier (e2e)', () => {
     expect(read.body.bidPrice).toBeNull();
     // 未提交的字段不覆盖既有草稿（Prisma undefined 跳过）
     expect(read.body.deliveryPeriod).toBe('90 日历天');
+  });
+
+  // ── 注册驳回/补正全链（2026-10-14 Task 9）：注册 → 退回 → 补正回填 → 重提 → 驳回清洗 → 壳重开 ──
+
+  describe('供应商注册驳回/补正全链 (e2e)', () => {
+    const t = Date.now().toString().slice(-13);
+    const creditCode = `9151${t}X`;
+    const seq = Date.now().toString().slice(-8);
+    // 唯一手机号（User.phoneIdx @@unique 全局唯一）：purge 清 User.phoneIdx + contacts 行后，
+    // 壳重开第二次注册复用同号不撞唯一约束；法人/联系人身份证号同样按运行期唯一化（防上轮残留挡查重）
+    const phone = `139${seq}`;
+    const legalPersonIdCard = `5101041990${seq}`;
+    const contactIdCard = `5101041991${seq}`;
+    const supplierName = 'E2E补正链公司';
+
+    /** 归属公司：专建一家无 staff/leader 的公司——assertStageApprover 在「公司完全无办公账号」时
+     *  回退平台 admin 代审（2026-10-09 方案 A），种子公司均有 staff/leader（admin 审 STAFF 级会被
+     *  403 REVIEW_STAGE_MISMATCH），故退回/驳回两步走 admin 真实审批端点须挂在本测试自建公司下 */
+    let chainCompanyId = '';
+    let adminCookie: string[] = [];
+    let supplierId = '';
+    let chainUserId = '';
+
+    beforeAll(async () => {
+      const company = await prisma.company.create({ data: { name: `E2E补正链链路归属公司${t}` } });
+      chainCompanyId = company.id;
+      adminCookie = await loginAs(app, 'Swhi-CGZX-admin', 'Swhi-CGZX-admin@2026', 'web');
+    });
+
+    afterAll(async () => {
+      // SupplierApprovalRecord.supplierId onDelete: Restrict——先删留痕再删 User（级联 Supplier/联系人/资质/通知）
+      const s = await prisma.supplier.findUnique({ where: { creditCode } }).catch(() => null);
+      if (s) {
+        await prisma.supplierApprovalRecord.deleteMany({ where: { supplierId: s.id } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: s.userId } }).catch(() => {});
+      }
+      if (chainCompanyId) {
+        await prisma.company.deleteMany({ where: { id: chainCompanyId } }).catch(() => {});
+      }
+    });
+
+    /** 注册页附件上传（旧轨 phone+code，SMS_DEBUG_BYPASS 下 123456 非消费校验直过）：
+     *  register() 会校验 fileUrl 指向真实 FileAsset 且 key 落在本手机号注册命名空间内。 */
+    async function uploadLicense(): Promise<string> {
+      const up = await request(app.getHttpServer())
+        .post('/api/upload/registration')
+        .set('X-Portal', 'public')
+        .field('phone', phone)
+        .field('code', '123456')
+        .field('category', 'qualification')
+        .attach('file', Buffer.from('%PDF-1.7\ne2e correction chain license'), {
+          filename: 'license.pdf',
+          contentType: 'application/pdf',
+        })
+        .expect(201);
+      return `/api/upload/files/${up.body.id}`;
+    }
+
+    const registerPayload = (fileUrl: string, name: string) => ({
+      companyId: chainCompanyId,
+      name,
+      creditCode,
+      enterpriseType: '有限责任公司',
+      legalPerson: '赵六',
+      legalPersonIdCard,
+      registeredAddress: '成都市高新区',
+      businessScope: '水利工程',
+      displayName: '赵六',
+      password: 'Test1234',
+      email: 'corr-e2e@test.com',
+      registrationPhone: phone,
+      registrationCode: '123456',
+      contacts: [{ name: '赵六', phone, idCard: contactIdCard, isPrimary: true }],
+      qualifications: [{ type: '营业执照', name: '企业法人营业执照', fileUrl }],
+      tags: ['物资供应', '工程服务'],
+    });
+
+    it('注册 → 退回 → 补正回填 → 重提 → 驳回清洗 → 壳重开', async () => {
+      // 1. 注册：先传营业执照（真实附件轨）再提交 → 201，PENDING / STAFF
+      const fileUrl = await uploadLicense();
+      const reg = await request(app.getHttpServer())
+        .post('/api/supplier/register')
+        .set('X-Portal', 'public')
+        .send(registerPayload(fileUrl, supplierName))
+        .expect(201);
+      supplierId = reg.body.supplier.id;
+      chainUserId = reg.body.user.id;
+      expect(await prisma.supplier.findUnique({ where: { creditCode } })).toMatchObject({
+        status: 'PENDING',
+        reviewStage: 'STAFF',
+      });
+
+      // 2. 退回（真实审批端点：admin 审 STAFF 级，PENDING→RETURNED；退回不重置 reviewStage）
+      const returned = await request(app.getHttpServer())
+        .post(`/api/supplier/${supplierId}/return`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: '资质材料不清晰' })
+        .expect(201);
+      expect(returned.body.status).toBe('RETURNED');
+      expect(returned.body.returnReason).toBe('资质材料不清晰');
+      expect(returned.body.reviewStage).toBe('STAFF');
+
+      // 3. request 补正：向主联系人手机发码（SMS_PROVIDER=console，不打真短信）
+      const req = await request(app.getHttpServer())
+        .post('/api/supplier/register/correction/request')
+        .set('X-Portal', 'public')
+        .send({ name: supplierName, creditCode })
+        .expect(201);
+      expect(req.body.maskedPhone).toBeTruthy();
+
+      // 4. verify 换发一次性补正 token（bypass 码 123456）
+      const verify = await request(app.getHttpServer())
+        .post('/api/supplier/register/correction/verify')
+        .set('X-Portal', 'public')
+        .send({ name: supplierName, creditCode, code: '123456' })
+        .expect(201);
+      const token = verify.body.correctionToken as string;
+      expect(token).toMatch(/^[0-9a-f]{64}$/);
+
+      // 5. draft 回填：退回原因 + 已填资料（PII 解封）完整带回
+      const draft = await request(app.getHttpServer())
+        .get(`/api/supplier/register/correction/draft?token=${token}&name=${encodeURIComponent(supplierName)}&creditCode=${creditCode}`)
+        .set('X-Portal', 'public')
+        .expect(200);
+      expect(draft.body.returnReason).toBe('资质材料不清晰');
+      expect(draft.body.legalPerson).toBe('赵六');
+      expect(draft.body.contacts[0].phone).toBe(phone);
+
+      // 6. submit 重提（改公司简介；fileUrl 复用 register 已认领的旧附件=keepIds 保留不清理）
+      const submit = await request(app.getHttpServer())
+        .post('/api/supplier/register/correction/submit')
+        .set('X-Portal', 'public')
+        .send({
+          token,
+          name: supplierName,
+          creditCode,
+          companyId: chainCompanyId,
+          enterpriseType: '有限责任公司',
+          legalPerson: '赵六',
+          legalPersonIdCard,
+          registeredAddress: '成都市高新区',
+          businessScope: '水利工程',
+          companyProfile: '已补正',
+          contacts: [{ name: '赵六', phone, idCard: contactIdCard, isPrimary: true }],
+          qualifications: [{ type: '营业执照', name: '企业法人营业执照', fileUrl }],
+          tags: ['物资供应', '工程服务'],
+        })
+        .expect(201);
+      expect(submit.body.success).toBe(true);
+      expect(await prisma.supplier.findUnique({ where: { creditCode } })).toMatchObject({
+        status: 'PENDING',
+        reviewStage: 'STAFF', // 补正后回到被退回的那一级
+        companyProfile: '已补正',
+      });
+
+      // 7. 驳回（真实 reject 端点触发 purgeRejectedSupplier 数据最小化清洗）
+      const rejected = await request(app.getHttpServer())
+        .post(`/api/supplier/${supplierId}/reject`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: '材料不实' })
+        .expect(201);
+      expect(rejected.body.status).toBe('REJECTED');
+      expect(rejected.body.rejectReason).toBe('材料不实');
+
+      // 7a. 清洗断言：业务字段置空、子表删空，壳（name/creditCode/supplierNo）保留
+      const shell = await prisma.supplier.findUnique({
+        where: { creditCode },
+        include: { contacts: true, qualifications: true },
+      });
+      expect(shell).not.toBeNull();
+      expect(shell!.status).toBe('REJECTED');
+      expect(shell!.enterpriseType).toBe('');
+      expect(shell!.legalPerson).toBe('');
+      expect(shell!.registeredAddress).toBe('');
+      expect(shell!.businessScope).toBe('');
+      expect(shell!.legalPersonIdCard).toBeNull();
+      expect(shell!.companyProfile).toBeNull();
+      expect(shell!.tags).toEqual([]);
+      expect(shell!.contacts).toHaveLength(0);
+      expect(shell!.qualifications).toHaveLength(0);
+      expect(shell!.name).toBe(supplierName);
+      expect(shell!.creditCode).toBe(creditCode);
+      expect(shell!.supplierNo).toBeTruthy();
+
+      // 7b. User 敏感列清洗：passwordHash=null（登录天然拒绝）、phone/email 置空
+      const shellUser = await prisma.user.findUnique({ where: { id: chainUserId } });
+      expect(shellUser!.passwordHash).toBeNull();
+      expect(shellUser!.phoneIdx).toBeNull();
+      expect(shellUser!.email).toBeNull();
+
+      // 7c. 审批快照最小化：RETURNED + REJECTED 两条留痕均改写为 purged 快照
+      const records = await prisma.supplierApprovalRecord.findMany({ where: { supplierId } });
+      expect(records.length).toBeGreaterThanOrEqual(2);
+      for (const r of records) {
+        expect((r.snapshot as { purged?: boolean }).purged).toBe(true);
+      }
+
+      // 7d. 查重放行：REJECTED 壳命中 creditCodeStatus='REJECTED'（前端判非阻塞、可重注册）
+      const dup = await request(app.getHttpServer())
+        .get(`/api/supplier/register/check-duplicate?creditCode=${creditCode}`)
+        .set('X-Portal', 'public')
+        .expect(200);
+      expect(dup.body.creditCode).toBe(true);
+      expect(dup.body.creditCodeStatus).toBe('REJECTED');
+
+      // 8. 壳重开：purge 已删原附件（DB+MinIO），须重传执照；同信用代码+同手机号再注册 → 201（非 DUPLICATE_CREDIT_CODE）
+      const reopenedFile = await uploadLicense();
+      const reopened = await request(app.getHttpServer())
+        .post('/api/supplier/register')
+        .set('X-Portal', 'public')
+        .send(registerPayload(reopenedFile, `${supplierName}（重开）`))
+        .expect(201);
+      // 复用原 User+Supplier 行原位覆盖（supplierNo 不变），从首级 STAFF 重新起审
+      expect(reopened.body.supplier.id).toBe(supplierId);
+      const reopenedRow = await prisma.supplier.findUnique({ where: { creditCode } });
+      expect(reopenedRow).toMatchObject({
+        status: 'PENDING',
+        reviewStage: 'STAFF',
+        rejectReason: null,
+        returnReason: null,
+        name: `${supplierName}（重开）`,
+        supplierNo: shell!.supplierNo,
+      });
+    });
   });
 });
