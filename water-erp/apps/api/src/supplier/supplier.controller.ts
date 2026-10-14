@@ -152,16 +152,19 @@ export class SupplierController {
     return this.supplierService.getRegisterStatus(req.user.sub);
   }
 
-  // 公开（无需登录）：注册后、审批前，供应商凭统一社会信用代码查询审核进度。
-  // 仅回传 name/status/rejectReason，不泄漏敏感字段；按信用代码精确匹配，不可枚举。
+  // 公开（无需登录）：注册后、审批前，供应商凭统一社会信用代码或企业名称查询审核进度。
+  // 仅回传 name/status/进度标签/RETURNED 补正说明，不泄漏敏感字段；均为精确匹配、不可模糊枚举。
+  // 名称入口（2026-10-14）：唯一命中附 creditCode（公开工商信息，供催促按钮）；同名多条回打码候选。
   @Get('register/status/public')
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 防信用代码枚举爬取
-  @ApiOperation({ summary: '凭信用代码公开查询注册审核进度' })
-  async getRegisterStatusPublic(@Query('creditCode') creditCode?: string) {
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 防信用代码/名称枚举爬取
+  @ApiOperation({ summary: '凭信用代码或企业名称公开查询注册审核进度' })
+  async getRegisterStatusPublic(@Query('creditCode') creditCode?: string, @Query('name') name?: string) {
     const code = (creditCode ?? '').trim();
-    if (!code) throw new BadRequestException({ error: '请提供统一社会信用代码', code: 'MISSING_CREDIT_CODE' });
-    return this.supplierService.getRegisterStatusByCreditCode(code);
+    const companyName = (name ?? '').trim();
+    if (code) return this.supplierService.getRegisterStatusByCreditCode(code);
+    if (companyName) return this.supplierService.getRegisterStatusByName(companyName);
+    throw new BadRequestException({ error: '请提供统一社会信用代码或企业名称', code: 'MISSING_CREDIT_CODE' });
   }
 
   @Post('register/urge-review')

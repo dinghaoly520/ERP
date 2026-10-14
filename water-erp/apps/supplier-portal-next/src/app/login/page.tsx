@@ -56,7 +56,7 @@ function LoginForm() {
   const [showQuery, setShowQuery] = useState(() => params.get("registered") === "1");
   const [queryCode, setQueryCode] = useState("");
   const [querying, setQuerying] = useState(false);
-  const [queryResult, setQueryResult] = useState<{ found: boolean; name?: string | null; status?: string | null; reason?: string | null; reviewedAt?: string | null; reviewedAction?: string | null; urgedAt?: string | null; reviewStage?: string | null; reviewStageLabel?: string | null } | null>(null);
+  const [queryResult, setQueryResult] = useState<{ found: boolean; ambiguous?: boolean; candidates?: Array<{ name: string; creditCodeMasked: string; status: string; reviewStage: string | null }>; creditCode?: string; name?: string | null; status?: string | null; reason?: string | null; reviewedAt?: string | null; reviewedAction?: string | null; urgedAt?: string | null; reviewStage?: string | null; reviewStageLabel?: string | null } | null>(null);
   const [urging, setUrging] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -122,12 +122,14 @@ function LoginForm() {
   }
 
   async function handleQueryStatus() {
-    const code = queryCode.trim();
-    if (!code) { toast.warning("请输入统一社会信用代码"); return; }
+    const raw = queryCode.trim();
+    if (!raw) { toast.warning("请输入统一社会信用代码或企业名称"); return; }
+    // 18 位大写字母数字 = 信用代码精确查询；否则按企业名称查询（2026-10-14）
+    const isCreditCode = /^[0-9A-Z]{18}$/.test(raw.toUpperCase());
     setQuerying(true);
     setQueryResult(null);
     try {
-      setQueryResult(await authApi.getRegisterStatusPublic(code));
+      setQueryResult(await authApi.getRegisterStatusPublic(isCreditCode ? raw.toUpperCase() : undefined, isCreditCode ? undefined : raw));
       setNowMs(Date.now());
     } catch {
       toast.error("查询失败，请稍后重试");
@@ -137,8 +139,9 @@ function LoginForm() {
   }
 
   async function handleUrgeReview() {
-    const code = queryCode.trim();
-    if (!code) { toast.warning("请输入统一社会信用代码后再催促"); return; }
+    // 名称查询命中时用返回的 creditCode 催促；否则用输入的信用代码（2026-10-14）
+    const code = queryResult?.creditCode || queryCode.trim();
+    if (!/^[0-9A-Z]{18}$/.test(code.toUpperCase())) { toast.warning("请先凭统一社会信用代码查询后再催促"); return; }
     setUrging(true);
     try {
       await authApi.urgeReview(code);
@@ -249,7 +252,7 @@ function LoginForm() {
                   value={queryCode}
                   onChange={(e) => setQueryCode(e.target.value)}
                   placeholder="统一社会信用代码（18 位）或企业名称"
-                  maxLength={18}
+                  maxLength={100}
                   onKeyDown={(e) => { if (e.key === "Enter") handleQueryStatus(); }}
                 />
                 <button type="button" className="lp-secondary" disabled={querying} onClick={handleQueryStatus}>
@@ -258,7 +261,15 @@ function LoginForm() {
               </div>
               {queryResult && (
                 <div className="lp-query__result">
-                  {queryResult.found ? (
+                  {queryResult.ambiguous ? (
+                    <>
+                      <span>存在多家同名供应商，请改用统一社会信用代码精确查询：</span>
+                      <span className="lp-query__stage" style={{ display: "block", marginTop: 6 }}>
+                        {(queryResult.candidates ?? []).map((c) =>
+                          `${c.creditCodeMasked}（${STATUS_TEXT[c.status] || c.status}${c.status === "PENDING" && c.reviewStage ? ` · ${REVIEW_STAGE_TEXT[c.reviewStage] || c.reviewStage}` : ""}）`).join("；")}
+                      </span>
+                    </>
+                  ) : queryResult.found ? (
                     <>
                       <strong>{queryResult.name}</strong>
                       <span>，{STATUS_TEXT[queryResult.status as string] || queryResult.status}</span>
@@ -288,7 +299,7 @@ function LoginForm() {
                       )}
                     </>
                   ) : (
-                    <>未查询到该信用代码对应的注册记录，请核对后重试，或先完成注册。</>
+                    <>未查询到该统一社会信用代码/企业名称对应的注册记录，请核对后重试，或先完成注册。</>
                   )}
                 </div>
               )}

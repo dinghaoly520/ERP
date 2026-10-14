@@ -1200,6 +1200,41 @@ export class SupplierService {
       // 不区分「不存在」与「无记录」，避免被用于枚举信用代码是否注册。
       return { found: false as const, name: null, status: null, reason: null, reviewedAt: null, urgedAt: null };
     }
+    return this.buildPublicRegisterStatus(supplier);
+  }
+
+  /** 公开进度查询（按企业名称，2026-10-14）：名称精确匹配，不做模糊检索（防公开端点枚举供应商库）。
+   *  - 唯一命中：与信用代码查询同构返回，另附 creditCode（公开工商信息）供前端「催促审核」按钮复用；
+   *  - 同名多条：ambiguous + 候选列表（信用代码打码 6+8+4），提示改用信用代码精确查询；
+   *  - 零命中：found:false，与信用代码路径口径一致。 */
+  async getRegisterStatusByName(name: string) {
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { name },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, name: true, creditCode: true, status: true, returnReason: true, urgedAt: true, reviewStage: true },
+    });
+    if (suppliers.length === 0) {
+      return { found: false as const, name: null, status: null, reason: null, reviewedAt: null, urgedAt: null };
+    }
+    if (suppliers.length > 1) {
+      return {
+        found: false as const,
+        ambiguous: true as const,
+        candidates: suppliers.slice(0, 5).map((s) => ({
+          name: s.name,
+          creditCodeMasked: s.creditCode ? `${s.creditCode.slice(0, 6)}********${s.creditCode.slice(-4)}` : '—',
+          status: s.status,
+          reviewStage: s.status === 'PENDING' ? (s.reviewStage ?? null) : null,
+        })),
+      };
+    }
+    return { ...(await this.buildPublicRegisterStatus(suppliers[0])), creditCode: suppliers[0].creditCode };
+  }
+
+  /** 公开进度查询的单供应商投影（信用代码/名称两条入口共用）。 */
+  private async buildPublicRegisterStatus(supplier: {
+    id: string; name: string; status: string; returnReason: string | null; urgedAt: Date | null; reviewStage: string | null;
+  }) {
     // 审核时间 = 最近一次审核动作（approve/reject/return）的留痕时间；无留痕则回退 updatedAt（如退回补正）。
     const latest = await this.prisma.supplierApprovalRecord.findFirst({
       where: { supplierId: supplier.id, action: { in: ['APPROVED', 'REJECTED', 'RETURNED'] } },

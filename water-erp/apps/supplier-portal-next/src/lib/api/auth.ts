@@ -125,8 +125,9 @@ export const authApi = {
   },
 
   /** 公开：凭统一社会信用代码查询注册审核进度（无需登录）。 */
-  getRegisterStatusPublic(creditCode: string) {
-    return api.get<any>(`/supplier/register/status/public${qs({ creditCode })}`, { silent: true });
+  /** 二选一：信用代码精确查询，或企业名称查询（唯一命中/同名候选，2026-10-14） */
+  getRegisterStatusPublic(creditCode?: string, name?: string) {
+    return api.get<any>(`/supplier/register/status/public${qs({ creditCode, name })}`, { silent: true });
   },
 
   /** 公开：催促审核（凭信用代码，向归属公司工作人员发站内通知）。 */
