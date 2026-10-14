@@ -151,6 +151,16 @@ export default function ProgressPage() {
 
   const maxStageCount = Math.max(...(stats?.stageDistribution.map((d) => d.count) ?? [1]), 1);
 
+  /* 阶段分布按标准采购流程顺位排（STAGE_META 键序 = 采购需求→立项→文件→邀请→公示→专家→评标→定标→合同） */
+  const STAGE_ORDER = Object.keys(STAGE_META);
+  const sortedStageDistribution = useMemo(
+    () =>
+      [...(stats?.stageDistribution ?? [])].sort(
+        (a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage),
+      ),
+    [stats],
+  );
+
   const { pull, refreshing } = usePullToRefresh(
     useCallback(async () => {
       setRetryTick((t) => t + 1);
@@ -206,11 +216,11 @@ export default function ProgressPage() {
             </span>
           </div>
 
-          {/* ── 执行态势（阶段分布）── */}
+          {/* ── 执行态势（阶段分布，按标准采购流程顺位）── */}
           <SectionCard icon={BarChart3} title="执行态势 · 阶段分布" index={0}>
             {stats.stageDistribution.length ? (
               <div className="space-y-2">
-                {stats.stageDistribution.map((d, i) => {
+                {sortedStageDistribution.map((d, i) => {
                   const meta = getStageMeta(d.stage);
                   return (
                     <div key={i} className="flex items-center gap-2">
@@ -218,7 +228,9 @@ export default function ProgressPage() {
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                         <div className="h-full rounded-full" style={{ width: `${(d.count / maxStageCount) * 100}%`, background: meta.color }} />
                       </div>
-                      <span className="w-6 shrink-0 text-right text-[11px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                      <span className="w-10 shrink-0 text-right text-[11px] font-bold tabular-nums text-[var(--foreground)]">
+                        {d.count} <span className="font-medium text-[var(--muted-foreground)]">项</span>
+                      </span>
                     </div>
                   );
                 })}
