@@ -16,8 +16,9 @@ import { Prisma } from '@prisma/client';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { sha256Hex } from '@water-erp/ukey';
+import { randomUUID } from 'crypto';
 import { DUAL_V2_AMOUNT_UNIT } from './opening-amount-unit.util';
-import type { DualEnvelope, EnvelopeFileEntry, EnvelopeRole } from '@water-erp/ukey';
+import type { DualEnvelope, EnvelopeFileEntry, EnvelopeRole, DualV3Envelope, DualV3FileEntry } from '@water-erp/ukey';
 
 /** 双信封 v2 角色 → 提交记录资产引用列（与 supplier-portal reupload-dual 的 ROLE_ASSET_KEYS 同构，勿漂移） */
 const DUAL_ROLE_ASSET_KEYS = {
@@ -90,7 +91,7 @@ export class BidDecryptService {
     const targets = await this.prisma.supplierBidSubmission.findMany({
       where: {
         projectId,
-        envelopeVersion: 'dual-v2',
+        envelopeVersion: { in: ['dual-v2', 'dual-v3'] },
         OR: [
           { outerDecryptedAt: null },
           { innerAssets: { equals: Prisma.DbNull }, updatedAt: { lt: new Date(Date.now() - 60_000) } },
@@ -137,6 +138,10 @@ export class BidDecryptService {
       where: { supplierId_projectId: { supplierId: submissionSupplierId, projectId } },
     });
     if (!submission) throw new BadRequestException({ error: '供应商无投标提交记录', code: 'NOT_FOUND' });
+    if (submission.envelopeVersion === 'dual-v3') {
+      // dual-v3（Task10）：每角色历史 adminCertId + DecryptExecution fence + 版本键对象键
+      return this.decryptOuterOneV3(projectId, bidSupplierId, actorId, submission, supplierName);
+    }
     if (submission.envelopeVersion !== 'dual-v2') {
       throw new BadRequestException({ error: '该供应商走旧轨（单层）加密，无外层可解', code: 'NOT_DUAL_TRACK' });
     }
@@ -290,6 +295,181 @@ export class BidDecryptService {
   }
 
   /**
+   * dual-v3（Task10，附录 §5.D）：主持端解外层 v3 分支。
+   * 与 v2 的差异：
+   *  - 信封唯一事实源=SubmissionVersion 冻结快照（submission.envelope 仅冗余展示）
+   *  - 每角色独立 kadmin.adminCertId（管理方证书轮转后，历史版本信封仍可解——不再顶层一次）
+   *  - C_outer 完整性闸：读出密文 sha256 == 信封声明 outerSha256（暂存件调包检测）
+   *  - DecryptExecution 槽位（submissionId+revision+phase 唯一）fence CAS：每次尝试 fence+1，
+   *    终局写须持有本 attempt 的 fence——旧 attempt 晚到不得覆盖新 attempt 的终局
+   *  - 对象键含 revision+attempt：`bid-inner/{projectId}/{bidSupplierId}/{role}.{revision}.{attempt}.inner`
+   */
+  private async decryptOuterOneV3(
+    projectId: string,
+    bidSupplierId: string,
+    actorId: string | undefined,
+    submission: { id: string; supplierId: string; revision: number; outerDecryptedAt: Date | null; innerAssets: unknown },
+    supplierName: string,
+  ): Promise<DecryptOuterDetail> {
+    const versionRow = await this.prisma.submissionVersion.findUnique({
+      where: { submissionId_revision: { submissionId: submission.id, revision: submission.revision } },
+    });
+    if (!versionRow) {
+      throw new BadRequestException({ error: '版本快照缺失，无法解外层', code: 'VERSION_SNAPSHOT_MISSING' });
+    }
+    const env = versionRow.envelope as unknown as DualV3Envelope;
+    const roles = (Object.entries(env.files ?? {}) as Array<[EnvelopeRole, DualV3FileEntry]>)
+      .filter(([, entry]) => !!entry);
+    if (roles.length === 0) {
+      throw new BadRequestException({ error: '信封缺失或为空，无法解外层', code: 'ENVELOPE_MISSING' });
+    }
+    if (submission.outerDecryptedAt && submission.innerAssets !== null) {
+      return { supplierId: bidSupplierId, supplierName, skipped: true };
+    }
+    await assertDecryptCheckInQuorum(this.prisma, projectId);
+
+    // ── DecryptExecution 槽位（fence 每尝试 +1；attempt=fence 序号入对象键）──
+    const leaseUntil = new Date(Date.now() + 120_000);
+    const slot = await this.prisma.decryptExecution.upsert({
+      where: { submissionId_revision_phase: { submissionId: submission.id, revision: submission.revision, phase: 'outer' } },
+      create: {
+        submissionId: submission.id, revision: submission.revision, phase: 'outer',
+        attemptId: randomUUID(), fence: 1, leaseUntil, status: 'RUNNING',
+      },
+      update: { fence: { increment: 1 }, attemptId: randomUUID(), leaseUntil, status: 'RUNNING' },
+    });
+    const attempt = slot.fence;
+
+    // ── outerDecryptedAt 抢占（v2 同款互斥；v3 叠加 fence 管版本内多 attempt 隔离）──
+    const claimAt = new Date();
+    const claim = await this.prisma.supplierBidSubmission.updateMany({
+      where: { supplierId: submission.supplierId, projectId, outerDecryptedAt: null },
+      data: { outerDecryptedAt: claimAt },
+    });
+    if (claim.count === 0) {
+      const fresh = await this.prisma.supplierBidSubmission.findUnique({
+        where: { supplierId_projectId: { supplierId: submission.supplierId, projectId } },
+        select: { innerAssets: true, outerDecryptedAt: true, updatedAt: true },
+      });
+      if (!fresh || fresh.innerAssets !== null || fresh.outerDecryptedAt === null
+        || fresh.updatedAt >= new Date(Date.now() - 60_000)) {
+        return { supplierId: bidSupplierId, supplierName, skipped: true };
+      }
+      const takeover = await this.prisma.supplierBidSubmission.updateMany({
+        where: {
+          supplierId: submission.supplierId, projectId,
+          outerDecryptedAt: fresh.outerDecryptedAt,
+          updatedAt: { lt: new Date(Date.now() - 60_000) },
+        },
+        data: { outerDecryptedAt: claimAt },
+      });
+      if (takeover.count === 0) {
+        return { supplierId: bidSupplierId, supplierName, skipped: true };
+      }
+    }
+
+    try {
+      // ── 逐角色：C_outer 读取（entry.assetId=暂存件）→ outerSha256 闸 → 每角色私钥 → 剥外层 ──
+      const written: Array<{ role: EnvelopeRole; objectKey: string; cInner: Buffer }> = [];
+      for (const [role, entry] of roles) {
+        const asset = await this.prisma.fileAsset.findUnique({ where: { id: entry.assetId } });
+        if (!asset) throw new BadRequestException({ error: `投标文件记录缺失: ${entry.assetId}`, code: 'FILE_RECORD_MISSING' });
+        const readKey = asset.sealedPath || asset.key;
+        const cOuter = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, readKey));
+        if ((await sha256Hex(cOuter)) !== entry.outerSha256) {
+          throw new BadRequestException({ error: `${role} 外层密文哈希与信封声明不符（疑似暂存件被调包）`, code: 'OUTER_HASH_MISMATCH' });
+        }
+        let adminPrivateKey: string;
+        try {
+          adminPrivateKey = await this.adminKey.readPrivateKey(entry.kadmin.adminCertId);
+        } catch {
+          throw new BadRequestException({ error: '管理方加密证书私钥不可用（keystore 缺失或未 bootstrap）', code: 'ADMIN_KEY_UNAVAILABLE' });
+        }
+        const cInner = await this.dualEnvelope.decryptOuterFileV3(entry, cOuter, adminPrivateKey);
+        const objectKey = `bid-inner/${projectId}/${bidSupplierId}/${role}.${submission.revision}.${attempt}.inner`;
+        try {
+          await minioClient.putObject(MINIO_BUCKET, objectKey, cInner, cInner.length, {
+            'Content-Type': 'application/octet-stream',
+          });
+        } catch (err) {
+          this.logger.error(`decrypt-outer-v3 MinIO putObject failed: ${objectKey}`, (err as Error).stack);
+          throw new BadRequestException({ error: '文件存储失败，请重试', code: 'STORAGE_FAILED' });
+        }
+        written.push({ role, objectKey, cInner });
+      }
+
+      // ── 短事务终局：fence CAS（旧 attempt 不得写终局）→ C_inner 归属链 + 监督日志 + 审计 ──
+      const innerAssets: Record<string, string> = {};
+      const doneAt = new Date();
+      await this.prisma.$transaction(async (tx) => {
+        const fenceClaim = await tx.decryptExecution.updateMany({
+          where: { id: slot.id, fence: attempt, status: { not: 'SUCCESS' } },
+          data: { status: 'SUCCESS' },
+        });
+        if (fenceClaim.count === 0) {
+          throw new ConflictException({ error: '解外层尝试已被新尝试接管，本次产物作废', code: 'STALE_ATTEMPT' });
+        }
+        for (const w of written) {
+          const asset = await tx.fileAsset.create({
+            data: {
+              key: w.objectKey,
+              originalName: `${w.role}.inner`,
+              mimeType: 'application/octet-stream',
+              size: w.cInner.length,
+              sha256: await sha256Hex(w.cInner),
+              category: 'bid_inner_ciphertext',
+              clientEncrypted: false,
+              encrypted: true,
+              uploaderId: actorId ?? null,
+            },
+          });
+          innerAssets[w.role] = asset.id;
+        }
+        await tx.supplierBidSubmission.update({
+          where: { supplierId_projectId: { supplierId: submission.supplierId, projectId } },
+          data: { innerAssets: innerAssets as unknown as Prisma.InputJsonValue },
+        });
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: doneAt, role: '开标主持人', target: supplierName, action: '管理方解外层（v3）',
+            result: `${written.length} 个角色密封件解外层完成（revision=${submission.revision} attempt=${attempt}，C_inner 已归属，开标前仍不可读）`, riskFlag: '无',
+          },
+        });
+        if (actorId) {
+          await tx.auditLog.create({
+            data: {
+              userId: actorId, action: 'BID_DECRYPT_OUTER_V3', resourceType: `BidSupplier:${bidSupplierId}`,
+              details: { projectId, revision: submission.revision, attempt, roles: written.map(w => w.role), innerAssets },
+            },
+          });
+        }
+      });
+
+      this.gateway?.notifySupervisionLog(projectId, {
+        role: '开标主持人', action: '管理方解外层（v3）', target: supplierName,
+        result: `${written.length} 个角色密封件解外层完成（revision=${submission.revision} attempt=${attempt}）`, riskFlag: '无',
+      });
+
+      return {
+        supplierId: bidSupplierId, supplierName, success: true,
+        roles: written.map(w => w.role), innerAssets,
+      };
+    } catch (e) {
+      // 槽位标 FAILED（仅当仍持有本 attempt 的 fence——勿覆盖新 attempt 状态）
+      await this.prisma.decryptExecution.updateMany({
+        where: { id: slot.id, fence: attempt },
+        data: { status: 'FAILED' },
+      }).catch(() => {});
+      // 失败回滚 outerDecryptedAt（条件更新防覆盖并发补传重置），复原 null 后可直接重试
+      await this.prisma.supplierBidSubmission.updateMany({
+        where: { supplierId: submission.supplierId, projectId, outerDecryptedAt: claimAt },
+        data: { outerDecryptedAt: null },
+      }).catch(() => {});
+      throw e;
+    }
+  }
+
+  /**
    * 4.4: 一键解密窗口内所有待解密供应商
    */
   async decryptAllSuppliers(projectId: string, actorId: string) {
@@ -325,7 +505,8 @@ export class BidDecryptService {
         select: { supplierId: true, envelopeVersion: true },
       });
       for (const sub of subs) {
-        if (sub.envelopeVersion === 'dual-v2') dualV2SupplierIds.add(sub.supplierId);
+        // dual-v3 同理：解密上传走 supplier-portal（主持端旧轨代解密端点对信封新轨恒 400）
+        if (sub.envelopeVersion === 'dual-v2' || sub.envelopeVersion === 'dual-v3') dualV2SupplierIds.add(sub.supplierId);
       }
     }
 
@@ -397,7 +578,7 @@ export class BidDecryptService {
         where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
         select: { envelopeVersion: true },
       });
-      if (envelopeSubmission?.envelopeVersion === 'dual-v2') {
+      if (envelopeSubmission?.envelopeVersion === 'dual-v2' || envelopeSubmission?.envelopeVersion === 'dual-v3') {
         throw new BadRequestException({ error: '新轨项目请走供应商解密', code: 'USE_SUPPLIER_DECRYPT' });
       }
     }
