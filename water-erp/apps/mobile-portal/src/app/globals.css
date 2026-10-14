@@ -399,22 +399,18 @@ a {
 html { -webkit-tap-highlight-color: transparent; }
 body { overscroll-behavior-y: none; }
 
-/* 底部 Tab 栏：毛玻璃 + 顶部发丝线 + 刘海屏安全区 */
+/* 底部 Tab 栏（应用壳 in-flow 钉底——非 fixed，结构性永不被滚动/工具栏/键盘顶走）：
+   纯白实底 + 顶部发丝线 + 轻微方向性上影 + 刘海屏安全区 */
 .m-tabbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 40;
   display: flex;
+  flex-shrink: 0;
   padding-bottom: env(safe-area-inset-bottom);
   /* 横屏刘海安全区（viewport-fit=cover） */
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
   border-top: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
-  background: color-mix(in oklch, var(--background) 88%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: oklch(1 0 0);
+  box-shadow: 0 -6px 16px oklch(0.55 0.03 258 / 0.06);
 }
 .m-tab-item {
   flex: 1;

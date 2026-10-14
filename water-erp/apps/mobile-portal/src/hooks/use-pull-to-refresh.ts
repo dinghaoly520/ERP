@@ -26,7 +26,10 @@ export function usePullToRefresh(onRefresh: () => Promise<void>) {
   useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
       if (refreshingRef.current) return;
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      /* 应用壳内部滚动容器契约：(main) layout 注入 id="m-app-scroll"；
+         无此容器（如登录页 body 滚动）回退 window */
+      const scrollEl = document.getElementById("m-app-scroll");
+      const scrollTop = scrollEl ? scrollEl.scrollTop : window.scrollY || document.documentElement.scrollTop;
       startYRef.current = scrollTop <= 0 ? e.touches[0].clientY : null;
     };
     const onTouchMove = (e: TouchEvent) => {
