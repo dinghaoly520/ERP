@@ -1,45 +1,24 @@
 /**
- * ca-opening-decrypt-card 测试（Task12）
- * 渲染结构 + proof canonical 与服务端公式逐字一致（Task9 后端同式）
+ * ca-opening-decrypt-card 重构后守卫（2026-10-14 用户裁定：按钮→弹窗输 PIN）
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
-import { canonicalJson } from '@water-erp/ukey';
 import { CaOpeningDecryptCard } from '../ca-opening-decrypt-card';
-import { buildDecryptProofCanonical } from '../../utils/dual-v3-client';
 
-test('初始态：PIN 字段掩码 + 禁用按钮 + cgzxui 类', () => {
+test('初始态：仅渲染按钮（无常驻 PIN 输入框——弹窗触发后才出现）', () => {
   const html = renderToStaticMarkup(createElement(CaOpeningDecryptCard, { projectId: 'p1' }));
-  assert.ok(html.includes('data-testid="ca-decrypt-card"'), '卡片容器');
-  assert.ok(html.includes('data-testid="ca-decrypt-pin"'), 'PIN 字段');
-  assert.ok(html.includes('type="password"'), 'PIN 掩码');
-  assert.ok(html.includes('disabled'), 'PIN 空→按钮禁用');
-  assert.ok(!/bg-white|border-gray|shadow-lg/.test(html), '无反模式类');
+  assert.ok(html.includes('取包并解密'), '触发按钮在位');
+  assert.ok(!html.includes('type="password"'), 'PIN 输入不常驻（在 SpDialog 内按需渲染）');
 });
 
-test('buildDecryptProofCanonical：与服务端 Task9 canonicalJson 同构（键序无关）', () => {
-  const input = {
-    openingSessionId: 'sess-1',
-    revision: 1,
-    plainSha256ByRole: { technical: 'a'.repeat(64), business: 'b'.repeat(64) },
-    fieldsCommit: 'f'.repeat(64),
-  };
-  const expected = canonicalJson({
-    version: 1, purpose: 'decrypt-upload',
-    openingSessionId: input.openingSessionId, revision: input.revision,
-    plainSha256ByRole: input.plainSha256ByRole, fieldsCommit: input.fieldsCommit,
-  });
-  assert.equal(buildDecryptProofCanonical(input), expected);
-  // 键序无关：乱序构造同串
-  assert.equal(
-    buildDecryptProofCanonical({
-      fieldsCommit: input.fieldsCommit,
-      plainSha256ByRole: { business: 'b'.repeat(64), technical: 'a'.repeat(64) },
-      revision: 1,
-      openingSessionId: 'sess-1',
-    }),
-    expected,
-  );
+test('组件源码守卫：SpDialog 弹窗模式+证明链接线', () => {
+  const src = readFileSync(new URL('../ca-opening-decrypt-card.tsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('SpDialog'), '弹窗体系（对齐大厅既有交互）');
+  assert.ok(src.includes('buildDecryptProofCanonical'), 'P7 证明链');
+  assert.ok(src.includes('unwrapSccaKey'), '盾解封');
+  assert.ok(src.includes('caDecryptUpload'), '解密上传');
+  assert.ok(!/bg-white|border-gray|shadow-lg/.test(src), 'cgzxui 反模式守卫');
 });

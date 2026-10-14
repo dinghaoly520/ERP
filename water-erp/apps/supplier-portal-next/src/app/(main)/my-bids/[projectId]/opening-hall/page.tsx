@@ -452,7 +452,9 @@ export default function OpeningHallPage() {
         {/* ═══ dual-v3 供应商自助解密卡（阶段2 Task12，2026-10-14）═══
               取包→盾 unwrapKey→SM4 内层解密→P7 解密证明→decrypt-upload；
               旧轨（无信封）家仍走主持端代解密——按 mySubmission.envelopeVersion 分流 */}
-        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+        {/* 成功后卸载：decryptStatus（WS/记录）或 record.decryptResult 任一命中即隐藏（2026-10-14 用户裁定） */}
+        {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3'
+          && String(decryptStatus).toUpperCase() !== 'SUCCESS' && record?.decryptResult !== '解密成功' && (
           <CaOpeningDecryptCard projectId={projectId} onDecrypted={() => refresh()} />
         )}
         {/* ═══ dual-v3 解密异常补传卡（阶段2.5 T3）：DANGER 终局恢复通道 ═══ */}
