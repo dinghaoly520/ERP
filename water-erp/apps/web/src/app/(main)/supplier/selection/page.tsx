@@ -1529,8 +1529,10 @@ export function SupplierSelectionPage({
         // 取已有模板 body，去掉第一行问候语（"XXX 您好！\n\n"），替换链接
         const parts = existingMsg.body.split('\n\n');
         const templateBody = parts.length > 1 ? parts.slice(1).join('\n\n') : existingMsg.body;
+        // 模板 body 里的链接是正选首家的专属回执 URL（占位符已被替换），须整段换成补选各家自己的；
+        // 主机不限写死——邀请链接基址可由 SUPPLIER_PORTAL_URL 覆盖为局域网 IP，localhost 正则会漏替换致错发
         const bodyWithLink = templateBody.replace(/\{rsvpLink\}/g, link).replace(
-          /https?:\/\/localhost:3004\/rsvp\?t=[A-Za-z0-9]+/g, link,
+          /https?:\/\/[^/\s]+\/rsvp\?t=[A-Za-z0-9]+/g, link,
         );
         perSupplier.set(sid, { title: existingMsg.title, body: `${r.name} 您好！\n\n${bodyWithLink}`, phoneScript: buildPhoneScript(r.name, ctx) });
       }

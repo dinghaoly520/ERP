@@ -12,6 +12,8 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [forwardRef(() => AuthModule), PrismaModule],
   controllers: [NotificationController],
   providers: [NotificationService, EmailChannel, SmsChannel, PhoneChannel, NotificationGateway],
-  exports: [NotificationService],
+  // NotificationGateway 导出（2026-10-14）：AuthService.rotatePortalSession 注入 evictUser，
+  // 会话轮换时驱逐旧 WS 订阅（与 AuthModule 双向 forwardRef 已在）
+  exports: [NotificationService, NotificationGateway],
 })
 export class NotificationModule {}

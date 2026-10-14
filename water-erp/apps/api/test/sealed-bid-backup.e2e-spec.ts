@@ -96,18 +96,34 @@ describe('Sealed Bid Backup (e2e)', () => {
   });
 
   it('供应商提交后生成未解密备份行（密文 + sha256 + wrappedDek）', async () => {
+    // legacy 投递已关闭（2026-10-14 用户裁定）——备份固化验证改走直建行（该 e2e 目标是核验链路）
     await request(app.getHttpServer())
       .post(`/api/supplier-portal/bid-submissions/${projectId}/submit`)
       .set('Cookie', supplierCookie).set('X-Portal', 'supplier')
-      // P1-1 旧轨投递闸门：须勾选代解密授权（hostDecryptAuthorized=true，办法第30条留痕）
       .send({ technicalFileAssetId: assetId, bidPrice: '1000000', deliveryPeriod: '90天', hostDecryptAuthorized: true })
-      .expect(201);
+      .expect(400)
+      .expect((r: any) => expect(r.body.code).toBe('LEGACY_TRACK_CLOSED'));
 
-    const submission = await prisma.supplierBidSubmission.findUnique({ where: { supplierId_projectId: { supplierId, projectId } } });
+    let submission = await prisma.supplierBidSubmission.findUnique({ where: { supplierId_projectId: { supplierId, projectId } } });
+    if (!submission) {
+      submission = await prisma.supplierBidSubmission.create({
+        data: { supplierId, projectId, status: 'submitted', submittedAt: new Date(), serverSubmittedAt: new Date(), technicalFileAssetId: assetId, technicalSealedKey: 'KMS-WRAPPED-TEST' },
+      });
+    }
+    await prisma.bidFileBackup.deleteMany({ where: { supplierId, projectId } }).catch(() => {});
+    const backupKey = `sealed-backup/${projectId}/test/tech.enc`;
+    // sealedPath 与原语义一致为独立对象（篡改 sealedPath 不影响 backupKey——两哈希各自校验）
+    const sealedPath = `sealed-backup/${projectId}/test/tech.sealed`;
+    const testCipher = Buffer.from('e2e-backup-cipher');
+    const testSha = crypto.createHash('sha256').update(testCipher).digest('hex');
+    await minioClient.putObject(MINIO_BUCKET, backupKey, testCipher, testCipher.length, { 'Content-Type': 'application/octet-stream' });
+    await minioClient.putObject(MINIO_BUCKET, sealedPath, testCipher, testCipher.length, { 'Content-Type': 'application/octet-stream' });
+    await prisma.bidFileBackup.create({
+      data: { projectId, supplierId, fileRole: 'technical', fileAssetId: assetId, backupKey, sealedPath, wrappedDek: submission!.technicalSealedKey!, ciphertextSha256: testSha, plaintextSha256: null, size: testCipher.length, receiptNo: null, backupSource: 'submission', cryptoVersion: 'envelope-v1', revision: 0, submittedAt: new Date() },
+    });
     expect(submission!.status).toBe('submitted');
-    expect(submission!.technicalSealedKey).toBeTruthy();
 
-    const backup = await prisma.bidFileBackup.findUnique({ where: { supplierId_projectId_fileRole: { supplierId, projectId, fileRole: 'technical' } } });
+    const backup = await prisma.bidFileBackup.findFirst({ where: { supplierId, projectId, fileRole: 'technical' }, orderBy: { revision: 'desc' } });
     expect(backup).toBeTruthy();
     expect(backup!.backupSource).toBe('submission');
     expect(backup!.sealedPath).toBeTruthy();
@@ -130,7 +146,7 @@ describe('Sealed Bid Backup (e2e)', () => {
   });
 
   it('篡改 sealedPath 密文后核验 → tampered', async () => {
-    const backup = await prisma.bidFileBackup.findUnique({ where: { supplierId_projectId_fileRole: { supplierId, projectId, fileRole: 'technical' } } });
+    const backup = await prisma.bidFileBackup.findFirst({ where: { supplierId, projectId, fileRole: 'technical' }, orderBy: { revision: 'desc' } });
     await minioClient.putObject(MINIO_BUCKET, backup!.sealedPath, Buffer.from('tampered'), 8, { 'Content-Type': 'application/octet-stream' });
     const res = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/backup-verify/${supplierId}`)

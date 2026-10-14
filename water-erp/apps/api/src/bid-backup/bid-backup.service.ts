@@ -116,6 +116,11 @@ export class BidBackupService {
       receiptNo: string | null;
       submittedAt: Date;
       backupSource: string;
+      // ── dual-v3（阶段2.5 T4）：版本维度落列（v2 调用缺省 revision=0）。
+      //    submissionId 仅入 meta 不落列——行级经 projectId+supplierId 自然键可解
+      //    （建表注释同口径：不设外键级联，备份独立长存）──
+      submissionId?: string;
+      revision?: number;
       cryptoVersion?: string;
     },
   ): Promise<void> {
@@ -132,12 +137,14 @@ export class BidBackupService {
       backupSource: meta.backupSource,
       cryptoVersion: meta.cryptoVersion ?? CRYPTO_VERSION,
     };
+    // 阶段2.5 T0：唯一键 [projectId,supplierId,fileRole,revision]——v2 调用不传 revision=0（存量语义不变）
+    const revision = (meta as { revision?: number }).revision ?? 0;
     await tx.bidFileBackup.upsert({
       where: {
-        supplierId_projectId_fileRole: { supplierId: meta.supplierId, projectId: meta.projectId, fileRole: staged.fileRole },
+        projectId_supplierId_fileRole_revision: { supplierId: meta.supplierId, projectId: meta.projectId, fileRole: staged.fileRole, revision },
       },
       update: data,
-      create: { projectId: meta.projectId, supplierId: meta.supplierId, fileRole: staged.fileRole, ...data },
+      create: { projectId: meta.projectId, supplierId: meta.supplierId, fileRole: staged.fileRole, revision, ...data },
     });
   }
 
@@ -156,18 +163,37 @@ export class BidBackupService {
       where: { supplierId_projectId: { supplierId, projectId } },
     });
     const receiptNo = await this.lookupReceiptNo(projectId, supplierId);
-    const expected: Array<{ role: BackupFileRole; assetId: string }> = submission
-      ? ([
-          { role: 'technical', assetId: submission.technicalFileAssetId },
-          { role: 'business', assetId: submission.businessFileAssetId },
-          { role: 'coverLetter', assetId: submission.coverLetterAssetId },
-        ].filter(x => !!x.assetId) as Array<{ role: BackupFileRole; assetId: string }>)
-      : [];
+    // ── 阶段2.5 T5：版本分派——v3 投递资产列全 null（信封 files[].assetId 承载），
+    //    expected 角色改自 SubmissionVersion 快照；锚点（plainSha256）同源交叉 ──
+    const isV3 = submission?.envelopeVersion === 'dual-v3';
+    let expected: Array<{ role: BackupFileRole; assetId: string }> = [];
+    let snapshotEnv: { files?: Record<string, { plainSha256?: string }> } | null = null;
+    if (isV3 && submission) {
+      const snap = await this.prisma.submissionVersion.findUnique({
+        where: { submissionId_revision: { submissionId: submission.id, revision: submission.revision ?? 0 } },
+        select: { envelope: true },
+      });
+      if (snap) {
+        snapshotEnv = snap.envelope as { files?: Record<string, { plainSha256?: string }> };
+        expected = (Object.entries(snapshotEnv.files ?? {}) as Array<[string, unknown]>)
+          .filter(([, e]) => !!e)
+          .map(([role]) => ({ role: role as BackupFileRole, assetId: '' }));
+      }
+      // 快照缺失 → expected 空 → overall=missing（不误判 consistent）
+    } else if (submission) {
+      expected = ([
+        { role: 'technical', assetId: submission.technicalFileAssetId },
+        { role: 'business', assetId: submission.businessFileAssetId },
+        { role: 'coverLetter', assetId: submission.coverLetterAssetId },
+      ].filter(x => !!x.assetId) as Array<{ role: BackupFileRole; assetId: string }>);
+    }
 
     const perFile: BackupVerifyFileResult[] = [];
     for (const e of expected) {
-      const backup = await this.prisma.bidFileBackup.findUnique({
-        where: { supplierId_projectId_fileRole: { supplierId, projectId, fileRole: e.role } },
+      // 阶段2.5 T0：核验按最新版本行取（revision 降序首行——v3 多版本时取当前）
+      const backup = await this.prisma.bidFileBackup.findFirst({
+        where: { supplierId, projectId, fileRole: e.role },
+        orderBy: { revision: 'desc' },
       });
       if (!backup) {
         perFile.push({ fileRole: e.role, status: 'missing', backupIntact: null, sealedMatchesBackup: null, recordedSha256: null, backupSha256: null, sealedSha256: null, backupSource: null, submittedAt: null });
@@ -179,7 +205,11 @@ export class BidBackupService {
       try { sealedSha256 = this.computeSha256(await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, backup.sealedPath))); } catch { sealedSha256 = null; }
       const backupIntact = backupSha256 !== null && backupSha256 === backup.ciphertextSha256;
       const sealedMatchesBackup = backupSha256 !== null && sealedSha256 !== null && sealedSha256 === backupSha256;
-      const status: BackupVerifyFileResult['status'] = backupIntact && sealedMatchesBackup ? 'consistent' : 'tampered';
+      // T5：v3 锚点交叉——备份明文哈希须等于信封快照声明值（平台无钥可解 DEK 是设计，
+      // 完整性=密文哈希自证 + 明文锚点与签名覆盖快照一致）
+      const anchorOk = !isV3 || !snapshotEnv
+        || backup.plaintextSha256 === (snapshotEnv.files?.[e.role]?.plainSha256 ?? null);
+      const status: BackupVerifyFileResult['status'] = backupIntact && sealedMatchesBackup && anchorOk ? 'consistent' : 'tampered';
       perFile.push({ fileRole: e.role, status, backupIntact, sealedMatchesBackup, recordedSha256: backup.ciphertextSha256, backupSha256, sealedSha256, backupSource: backup.backupSource, submittedAt: backup.submittedAt });
     }
 
@@ -203,7 +233,11 @@ export class BidBackupService {
     return { projectId, supplierId, receiptNo, overall, perFile };
   }
 
-  /** 每 15 分钟：为已提交但缺备份的记录，从 sealedPath 读密文补齐。仍只碰密文，不解密。 */
+  /**
+   * 每 15 分钟：为已提交但缺备份的记录，从 sealedPath 读密文补齐。仍只碰密文，不解密。
+   * v3 投递天然 no-op：reconcile 候选读资产列/sealedKey（v3 全 null→candidates 空）——
+   * v3 备份由投递/补传事务内固化，无补账路径需求（阶段2.5 T5 裁定）。
+   */
   @Cron('*/15 * * * *')
   async reconcileMissing(): Promise<number> {
     if (!this.enabled) return 0;
@@ -224,8 +258,9 @@ export class BidBackupService {
       ];
       for (const c of candidates) {
         if (!c.assetId || !c.sealedKey) continue; // 无该文件或 legacy 未封标 → 跳过
-        const existing = await this.prisma.bidFileBackup.findUnique({
-          where: { supplierId_projectId_fileRole: { supplierId: sub.supplierId, projectId: sub.projectId, fileRole: c.role } },
+        // 阶段2.5 T0：补账存在性查任意版本（有任一版本即不重复补）
+        const existing = await this.prisma.bidFileBackup.findFirst({
+          where: { supplierId: sub.supplierId, projectId: sub.projectId, fileRole: c.role },
         });
         if (existing) continue;
         try {

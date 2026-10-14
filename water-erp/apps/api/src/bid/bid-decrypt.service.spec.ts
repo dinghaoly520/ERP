@@ -1262,9 +1262,10 @@ describe('BidDecryptService — decryptOuter 主持端解外层 (dual-v2 · Task
     const result: any = await service.decryptOuter('p1', undefined, 'u1');
 
     // 预筛 where 钉死楔感知 OR（outerDecryptedAt null 或 陈旧楔：innerAssets null + updatedAt 停摆 >60s）
+    // Task10（dual-v3）：预筛放宽为 dual-v2|dual-v3 双轨
     expect(prisma.supplierBidSubmission.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
-        envelopeVersion: 'dual-v2',
+        envelopeVersion: { in: ['dual-v2', 'dual-v3'] },
         OR: expect.arrayContaining([
           expect.objectContaining({ outerDecryptedAt: null }),
           expect.objectContaining({ innerAssets: { equals: Prisma.DbNull }, updatedAt: { lt: expect.any(Date) } }),

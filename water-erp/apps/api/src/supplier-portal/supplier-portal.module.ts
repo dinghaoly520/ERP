@@ -1,3 +1,4 @@
+import { CaModule } from '../ca/ca.module';
 import { Module } from '@nestjs/common';
 import { SupplierPortalController } from './supplier-portal.controller';
 import { SupplierPortalService } from './supplier-portal.service';
@@ -17,7 +18,7 @@ import { FrameworkModule } from '../framework/framework.module';
 import { PerformanceModule } from '../performance/performance.module';
 
 @Module({
-  imports: [TenderClarificationModule, AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule, NotificationModule, PrequalModule, FrameworkModule, PerformanceModule],
+  imports: [TenderClarificationModule, AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule, NotificationModule, PrequalModule, FrameworkModule, PerformanceModule, CaModule],
   controllers: [SupplierPortalController, ObjectionController],
   providers: [SupplierPortalService, ObjectionService, SignatureService, DualEnvelopeService],
   exports: [SupplierPortalService, ObjectionService, DualEnvelopeService],
