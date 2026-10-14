@@ -188,7 +188,7 @@ model User {
   assignedBidProjects BidProject[] @relation("BidProjectAssignedHost")
 
   @@unique([username, role])
-  @@index([phoneIdx])
+  @@unique([phoneIdx]) // 2026-10-14：手机号与供应商账号唯一绑定（临时注册/转正防重复）；NULL 互不冲突
 }
 
 // ── 开评标 ──

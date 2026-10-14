@@ -290,6 +290,15 @@ export class SupplierService {
       }
     }
 
+    // 手机号唯一绑定（2026-10-14）：主联系人手机号 = 短信验证手机号，盲索引查重（User.phoneIdx 唯一约束双保险）
+    const registerPhoneIdx = blindIndexPii(dto.registrationPhone.trim());
+    if (registerPhoneIdx) {
+      const existingPhone = await this.prisma.user.findFirst({ where: { phoneIdx: registerPhoneIdx }, select: { id: true } });
+      if (existingPhone) {
+        throw new BadRequestException({ error: '该手机号已绑定其他供应商账号，请更换', code: 'DUPLICATE_PHONE' });
+      }
+    }
+
     // 联系人身份证号查重（软约束：同一联系人身份证号不允许重复注册）
     const contactIdCards = dto.contacts.map(c => c.idCard?.trim()).filter((x): x is string => !!x);
     if (contactIdCards.length > 0) {
@@ -647,8 +656,22 @@ export class SupplierService {
     const existingUser = await this.prisma.user.findFirst({ where: { username, role: 'supplier' } });
     if (existingUser) throw new BadRequestException({ error: '该机构代码已被注册为登录账号，请更换', code: 'DUPLICATE_USERNAME' });
 
-    // 手机验证：字段校验通过后一次性消费短信码——与正式注册同款时序
-    await this.verificationService.verifyRegistrationCode(dto.phone, dto.registrationCode);
+    // 手机号唯一绑定（2026-10-14）：盲索引查重，防临时注册/转正引入重复手机号（User.phoneIdx 唯一约束双保险）
+    const phoneIdx = blindIndexPii(dto.phone);
+    if (phoneIdx) {
+      const existingPhone = await this.prisma.user.findFirst({ where: { phoneIdx }, select: { id: true } });
+      if (existingPhone) throw new BadRequestException({ error: '该手机号已绑定其他供应商账号，请更换', code: 'DUPLICATE_PHONE' });
+    }
+    // 法定代表人身份证号查重（对齐正式注册：同一法人身份证号不允许重复注册）
+    const legalIdCardIdx = blindIndexPii(dto.legalPersonIdCard.trim());
+    if (legalIdCardIdx) {
+      const existingLegal = await this.prisma.supplier.findFirst({ where: { legalPersonIdCardIdx: legalIdCardIdx }, select: { id: true } });
+      if (existingLegal) throw new BadRequestException({ error: '该法定代表人身份证号已用于其他供应商注册', code: 'DUPLICATE_LEGAL_ID_CARD' });
+    }
+
+    // 手机验证：事务前仅非消费校验（防错码进事务）；消费移到事务成功后——事务失败不烧码，
+    // 修复「首次提交失败→重试验证码已过期」的连带（2026-10-14 用户报告）。
+    await this.verificationService.assertRegistrationCodeForUpload(dto.phone, dto.registrationCode);
 
     const companyRef = await this.resolveSupplierCompany(dto.companyId, dto.companyName);
 
@@ -724,6 +747,11 @@ export class SupplierService {
       }
       return { user, supplier, customTags };
     });
+
+    // 事务成功后才消费验证码：失败已回滚、码未烧，用户可原码重试（消费失败仅告警，不阻断成功结果）
+    try {
+      await this.verificationService.verifyRegistrationCode(dto.phone, dto.registrationCode);
+    } catch { /* 数据已落库；验证码残留由 TTL 兜底，不影响本次注册结果 */ }
 
     const expireLabel = inv.expiresAt.toISOString().slice(0, 10);
     // 响应白名单化（同正式注册，2026-10-14）：passwordVault/PII 密文不外发
