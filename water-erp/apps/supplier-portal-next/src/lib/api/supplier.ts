@@ -70,6 +70,42 @@ export const supplierApi = {
     return api.get<any>('/ca/capabilities', { silent: true });
   },
 
+  // ── SCCA dual-v3 投递链（阶段2 Task11：prepare → signing-payload → submit）──
+  caPrepare(projectId: string, action: string, baseRevision?: number) {
+    return api.post<{ operationId: string; canonical: string; expiresAt: string }>(
+      `/supplier-portal/bid-submissions/${projectId}/operations/prepare`,
+      { action, ...(baseRevision !== undefined ? { baseRevision } : {}) },
+    );
+  },
+  caSigningPayload(projectId: string, operationId: string, envelope: unknown) {
+    return api.post<{ canonical: string; canonicalSha256: string; signatureFormat: 'scca-pkcs7-base64' }>(
+      `/supplier-portal/bid-submissions/${projectId}/operations/${operationId}/signing-payload`,
+      { envelope },
+    );
+  },
+  /** C_outer 密文暂存（Task5 端点）——multipart，服务端实算 outerSha256 */
+  caUploadEncryptedOuter(projectId: string, blob: Blob, filename: string): Promise<{ fileAssetId: string; outerSha256: string; outerBytes: number; expiresAt: string }> {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData();
+      fd.append('file', blob, filename);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/supplier-portal/bid-submissions/${projectId}/encrypted-assets`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('X-Portal', 'supplier');
+      xhr.timeout = 180000;
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText)?.error ?? `上传失败(${xhr.status})`)); }
+          catch { reject(new Error(`上传失败(${xhr.status})`)); }
+        }
+      };
+      xhr.onerror = () => reject(new Error('网络异常，密文上传失败'));
+      xhr.send(fd);
+    });
+  },
+
   // Contacts
   listContacts() {
     return api.get<any[]>("/supplier-portal/contacts");
