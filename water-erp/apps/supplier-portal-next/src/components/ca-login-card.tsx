@@ -1,11 +1,13 @@
 /* =================================================================
-   ca-login-card — CA 证书登录卡片（cgzxui 化 2026-10-14）
+   ca-login-card — CA 证书登录流程卡片（2026-10-14 胶囊入口化）
+   入口形态：登录页 lp-foot 胶囊「CA 证书登录」（页面侧）；
+   本组件只在面板展开时挂载——autoStart 即刻探测，onClose 收起。
    流程：探测→枚举→选证→挑战→PIN→签名→登录→remember session
    视觉：.neu-card 玻璃卡 + .neu-btn-soft 三态 + .neu-input 内凹输入
          + --danger-soft 色调警示（无边框/无 bg-* 反模式/无 emoji）
    ================================================================= */
 'use client';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Usb, ShieldCheck, X, ChevronRight, LoaderCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import * as scca from '@/utils/scca-ukey';
@@ -13,7 +15,7 @@ import type { SccaDualCert } from '@water-erp/ukey';
 
 type Step = 'idle' | 'probing' | 'select-cert' | 'challenge' | 'awaiting-pin' | 'verifying' | 'success' | 'failed';
 
-export function CaLoginCard({ redirect }: { redirect?: string }) {
+export function CaLoginCard({ redirect, autoStart, onClose }: { redirect?: string; autoStart?: boolean; onClose?: () => void }) {
   const { login: _pw } = useAuth();
   const [step, setStep] = useState<Step>('idle');
   const [certs, setCerts] = useState<SccaDualCert[]>([]);
@@ -40,6 +42,12 @@ export function CaLoginCard({ redirect }: { redirect?: string }) {
       if (actionId !== actionIdRef.current) return;
       setStep('failed'); setError(e?.message ?? 'U盾探测失败');
     }
+  }, []);
+
+  // 胶囊入口模式：挂载即开跑探测（面板展开 = 用户已点「CA 证书登录」胶囊）
+  useEffect(() => {
+    if (autoStart) startCaLogin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectCert = useCallback(async (cert: SccaDualCert) => {
@@ -104,7 +112,8 @@ export function CaLoginCard({ redirect }: { redirect?: string }) {
     setPin('');
     setStep('idle');
     setError('');
-  }, []);
+    onClose?.();
+  }, [onClose]);
 
   const certName = (c: SccaDualCert) => {
     // DN 内 CN= 企业名提取（展示用；归属以后端校验为准）

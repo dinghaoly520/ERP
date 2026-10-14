@@ -13482,11 +13482,12 @@ main.reg { align-items: flex-start; }
 @media (max-width: 560px) {
   .sp-brand-title { display: none; }
 }
-/* Footer — 辅助操作胶囊（凸起软键，三态完整） */
-.lp-foot { display: flex; justify-content: center; gap: 12px; margin-top: 13px; }
+/* Footer — 辅助操作胶囊（凸起软键，三态完整）。三枚并列（2026-10-14 CA 入口收编）：
+   gap/padding 收窄 + wrap 兜底，396px 内宽下三枚不溢出 */
+.lp-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 13px; }
 .lp-foot-pill {
   display: inline-flex; align-items: center; gap: 7px;
-  min-height: 44px; padding: 0 16px;
+  min-height: 44px; padding: 0 13px;
   border: 0; border-radius: 999px; cursor: pointer;
   font: inherit; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
   color: oklch(0.42 0.11 258);
@@ -13513,6 +13514,14 @@ main.reg { align-items: flex-start; }
   background: oklch(0.955 0.01 258);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.55);
 }
+/* 展开态（CA 面板激活时胶囊保持按下形，压过 hover 抬升） */
+.lp-foot-pill.is-active {
+  transform: none;
+  background: oklch(0.955 0.01 258);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
+/* CA 登录展开面板 — 胶囊入口替代原分隔线+大卡片（2026-10-14） */
+.lp-ca-panel { margin-top: 16px; }
 
 /* 首次使用：同层级双入口，不与登录主按钮竞争 */
 .lp-onboarding { margin-top: 16px; padding-top: 14px; border-top: 1px solid oklch(0.89 0.018 258); }
@@ -13773,14 +13782,7 @@ main.reg { align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) { .help-tip__bubble { animation: none; } }
 
-/* CA 登录分隔线（阶段1 Task10） */
-.lp-ca-divider {
-  display: flex; align-items: center; gap: 12px; margin: 16px 0 8px;
-  color: var(--lp-border, #d1d5db); font-size: 12px;
-}
-.lp-ca-divider::before, .lp-ca-divider::after {
-  content: ''; flex: 1; height: 1px; background: currentColor;
-}
+/* CA 登录分隔线（阶段1 Task10）——2026-10-14 入口收编为 lp-foot 胶囊，分隔线随大卡片一并退役 */
 
 /* ═══ SCCA CA（2026-10-14）：证书卡内凹展示盒 + 绑定成功内高光盒 ═══ */
 .ca-carved-box {

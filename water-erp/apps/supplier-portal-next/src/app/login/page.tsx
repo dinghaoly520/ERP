@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, BellRing, Clock3, Eye, EyeOff, KeyRound, Lock, SearchCheck, ShieldCheck, User } from "lucide-react";
+import { ArrowRight, BellRing, Clock3, Eye, EyeOff, KeyRound, Lock, SearchCheck, ShieldCheck, Usb, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, type LoginResult } from "@/lib/auth-context";
 import { authApi } from "@/lib/api/auth";
@@ -49,6 +49,8 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [pendingInfo, setPendingInfo] = useState<{ code: string } | null>(null);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
+  // CA 证书登录面板（2026-10-14：入口收编为 lp-foot 胶囊，与查询进度/忘记密码并列互斥）
+  const [caOpen, setCaOpen] = useState(false);
   const passwordResetTriggerRef = useRef<HTMLButtonElement>(null);
   const shouldRestorePasswordResetFocusRef = useRef(false);
 
@@ -70,7 +72,16 @@ function LoginForm() {
     setShowPasswordReset(true);
     setShowReactivate(false);
     setShowQuery(false);
+    setCaOpen(false);
     setQueryResult(null);
+  };
+
+  // CA 胶囊：开=收起其他面板，再点=收起自己
+  const toggleCaLogin = () => {
+    setCaOpen((v) => {
+      if (!v) { setShowReactivate(false); setShowQuery(false); setQueryResult(null); }
+      return !v;
+    });
   };
 
   useEffect(() => {
@@ -110,6 +121,7 @@ function LoginForm() {
         toast.error("该账号已被冻结，请联系管理员处理");
       } else if (result === "expired") {
         // 临时权限过期：展开续期面板（凭新邀请码），而非仅弹错让用户死锁
+        setCaOpen(false);
         setShowReactivate(true);
       } else if (result === "pending") {
         setPendingInfo({ code: "ACCOUNT_PENDING" });
@@ -231,9 +243,12 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* CA 证书登录入口（阶段1 Task10） */}
-          <div className="lp-ca-divider"><span>或使用以下方式登录</span></div>
-          <CaLoginCard />
+          {/* CA 证书登录面板（阶段1 Task10；2026-10-14 入口收编为页脚胶囊，展开时挂载即探测） */}
+          {caOpen && (
+            <div className="lp-ca-panel">
+              <CaLoginCard autoStart onClose={() => setCaOpen(false)} />
+            </div>
+          )}
 
           {/* 待审核拦截提示 + 审核进度查询（A4 闭环） */}
           {(pendingInfo || showQuery) && (
@@ -318,8 +333,17 @@ function LoginForm() {
           <div className="lp-foot">
             <button
               type="button"
+              className={`lp-foot-pill${caOpen ? " is-active" : ""}`}
+              aria-expanded={caOpen}
+              onClick={toggleCaLogin}
+            >
+              <Usb size={14} strokeWidth={1.9} aria-hidden="true" />
+              CA 证书登录
+            </button>
+            <button
+              type="button"
               className="lp-foot-pill"
-              onClick={() => { setShowQuery(true); setQueryResult(null); }}
+              onClick={() => { setCaOpen(false); setShowQuery(true); setQueryResult(null); }}
             >
               <SearchCheck size={14} strokeWidth={1.9} aria-hidden="true" />
               查询审核进度
