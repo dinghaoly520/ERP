@@ -220,6 +220,14 @@ describe('SupplierService 补正回填（request/verify/draft/submit）', () => 
 
   // ── getCorrectionDraft ──
 
+  it('draft：token/name/creditCode 任一缺失 → 400 MISSING_CORRECTION_PARAMS（防 hashToken(undefined) crypto 500）', async () => {
+    await expect(service.getCorrectionDraft('', '', ''))
+      .rejects.toMatchObject({ response: { code: 'MISSING_CORRECTION_PARAMS' } });
+    // 守卫先于一切副作用：不触会话校验、不查库
+    expect(verification.assertRegistrationSession).not.toHaveBeenCalled();
+    expect(prisma.supplier.findFirst).not.toHaveBeenCalled();
+  });
+
   it('draft：token 手机==主联系人手机 → 返回解封字段 + 退回原因/当前级', async () => {
     const draft = await service.getCorrectionDraft('corr-token-1', '测试公司', '91510000MA62K5XX0X');
 

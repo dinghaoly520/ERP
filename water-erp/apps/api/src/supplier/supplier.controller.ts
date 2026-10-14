@@ -201,7 +201,10 @@ export class SupplierController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: '退回补正：凭 token 拉取已填资料（解封回填）+ 退回原因' })
-  async getCorrectionDraft(@Query('token') token: string, @Query('name') name: string, @Query('creditCode') creditCode: string) {
+  async getCorrectionDraft(@Query('token') token?: string, @Query('name') name?: string, @Query('creditCode') creditCode?: string) {
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供补正 token、公司名称与统一社会信用代码', code: 'MISSING_CORRECTION_PARAMS' });
+    }
     return this.supplierService.getCorrectionDraft(token, name, creditCode);
   }
 

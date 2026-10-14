@@ -1504,6 +1504,11 @@ export class SupplierService {
   }
 
   async getCorrectionDraft(token: string, name: string, creditCode: string) {
+    // 纵深防御：falsy token 进 assertRegistrationSession 会撞 hashToken(undefined) 的
+    // crypto TypeError → 500（controller 已拦，此处兜住任何未来直调 service 的调用方）
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供补正 token、公司名称与统一社会信用代码', code: 'MISSING_CORRECTION_PARAMS' });
+    }
     const { phone } = await this.verificationService.assertRegistrationSession(token);
     const supplier = await this.findReturnedSupplier(name, creditCode);
     if (!supplier || supplier.contacts.length === 0) {
