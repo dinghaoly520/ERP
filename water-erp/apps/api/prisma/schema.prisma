@@ -1505,7 +1505,8 @@ model Supplier {
 }
 
 // ── 供应商审核历史（不可变留痕）──
-// 记录每次审核操作：申请完整快照、验证人、是否同意、时间、理由。不可删减、不可修改。
+// 记录每次审核操作：申请完整快照、验证人、是否同意、时间、理由。不可删减、不可修改；
+// 例外（2026-10-14）：供应商被驳回后 snapshot 按数据最小化重写为 {purged:true,...}（见 supplier.service purgeRejectedSupplier）。
 model SupplierApprovalRecord {
   id             String   @id @default(cuid())
   supplierId     String

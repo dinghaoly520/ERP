@@ -32,6 +32,7 @@ import { isSealedFieldSm, openPiiForMask } from '../common/crypto/sm-field-crypt
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { openChangeValue, maskChangeValue } from './change-record-pii';
 import { maskPhone, maskIdNumber, maskEmail, maskBankAccount } from '../common/pii-mask';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 // 等级→数值映射（与 expert-admin.service.ts 共享语义，ExpertLevel: A=5 B=4 C=3 D=2 E=1）
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -1683,7 +1684,86 @@ export class SupplierService {
     if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason, stage });
     await this.recordApproval(id, 'REJECTED', userId, reason, stage, attachmentIds);
 
+    await this.purgeRejectedSupplier(id, {
+      userId: supplier.userId,
+      name: supplier.name,
+      creditCode: supplier.creditCode,
+      supplierNo: supplier.supplierNo,
+    });
+
     return result;
+  }
+
+  /**
+   * 驳回数据最小化（2026-10-14）：清洗供应商业务字段、子表、User 敏感列、审批快照与附件。
+   * 留壳（name/creditCode/supplierNo/status=REJECTED/rejectReason/reviewStage）供审计与「壳重开」。
+   */
+  private async purgeRejectedSupplier(
+    supplierId: string,
+    meta: { userId: string; name: string; creditCode: string | null; supplierNo: string },
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      // ① 子表删空
+      await tx.supplierContact.deleteMany({ where: { supplierId } });
+      await tx.supplierQualification.deleteMany({ where: { supplierId } });
+      await tx.supplierBankAccount.deleteMany({ where: { supplierId } });
+      await tx.supplierPerformance.deleteMany({ where: { supplierId } });
+      await tx.supplierClassificationLink.deleteMany({ where: { supplierId } });
+
+      // ② Supplier 业务字段置空（NOT NULL 文本列置 ''；tags 置 []；urgedAt 置 null）
+      await tx.supplier.update({
+        where: { id: supplierId },
+        data: {
+          enterpriseType: '', legalPerson: '', registeredAddress: '', businessScope: '',
+          legalPersonIdCard: null, legalPersonPhone: null, legalPersonIdCardIdx: null,
+          detailedAddress: null, logoUrl: null, organizationCode: null,
+          country: null, region: null, registeredCapital: null, industry: null,
+          companyEmail: null, companyWebsite: null, establishedDate: null,
+          companyProfile: null, classificationId: null, urgedAt: null, tags: [],
+        },
+      });
+
+      // ③ User 敏感列置 null（displayName 为 NOT NULL，置 ''；passwordHash=null 使登录天然拒绝）
+      await tx.user.update({
+        where: { id: meta.userId },
+        data: {
+          displayName: '', email: null, phone: null, phoneIdx: null,
+          passwordHash: null, passwordVault: null,
+        },
+      });
+
+      // ④ 审批快照最小化（全部 SupplierApprovalRecord）
+      const records = await tx.supplierApprovalRecord.findMany({
+        where: { supplierId },
+        select: { id: true, action: true, stage: true, reason: true },
+      });
+      const purgedAt = new Date().toISOString();
+      for (const r of records) {
+        await tx.supplierApprovalRecord.update({
+          where: { id: r.id },
+          data: {
+            snapshot: {
+              purged: true, purgedAt,
+              name: meta.name, creditCode: meta.creditCode, supplierNo: meta.supplierNo,
+              action: r.action, stage: r.stage, reason: r.reason,
+            },
+          },
+        });
+      }
+    });
+
+    // ⑤ 附件：FileAsset 元数据（DB）+ MinIO 对象（best-effort，删除失败不阻断驳回）
+    const assets = await this.prisma.fileAsset.findMany({
+      where: { uploaderId: meta.userId, category: { in: ['qualification', 'general'] } },
+      select: { id: true, key: true, sealedPath: true },
+    });
+    for (const a of assets) {
+      try { await minioClient.removeObject(MINIO_BUCKET, a.key); } catch { /* best-effort */ }
+      if (a.sealedPath) { try { await minioClient.removeObject(MINIO_BUCKET, a.sealedPath); } catch { /* best-effort */ } }
+    }
+    if (assets.length) {
+      await this.prisma.fileAsset.deleteMany({ where: { id: { in: assets.map((a) => a.id) } } });
+    }
   }
 
   async return(id: string, reason: string, userId?: string, attachmentIds: string[] = []) {
