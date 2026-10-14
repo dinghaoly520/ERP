@@ -2575,6 +2575,33 @@ export class SupplierPortalService {
       }
     }
 
+    // ── T4（阶段2.5）：补传重备——新 C_outer 固化 revision=newRev 备份行（版本维度共存） ──
+    const roster = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId }, select: { receiptNo: true },
+    });
+    const reStaged: StagedBackup[] = [];
+    const reStagedKeys: string[] = [];
+    try {
+      type V3EntryR = NonNullable<DualV3Envelope['files'][keyof DualV3Envelope['files']]>;
+      for (const [role, newEntry] of Object.entries(envelope.files ?? {}) as Array<[string, V3EntryR]>) {
+        const stagedAsset = await this.prisma.fileAsset.findUnique({ where: { id: newEntry.assetId }, select: { id: true, key: true } });
+        if (!stagedAsset) continue;
+        const staged = await this.bidBackup.stageBackup({
+          projectId, supplierId,
+          fileRole: role as BackupFileRole,
+          fileAssetId: stagedAsset.id,
+          sealedPath: stagedAsset.key,
+          ciphertext: await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, stagedAsset.key)),
+          wrappedDek: JSON.stringify({ kself: newEntry.kself.value, kadmin: newEntry.kadmin.value, adminCertId: newEntry.kadmin.adminCertId }),
+          plaintextSha256: newEntry.plainSha256,
+        });
+        if (staged) { reStaged.push(staged); reStagedKeys.push(staged.backupKey); }
+      }
+    } catch (err) {
+      for (const k of reStagedKeys) { try { await minioClient.removeObject(MINIO_BUCKET, k); } catch { /* best-effort */ } }
+      throw err;
+    }
+
     // ── ⑥ 事务：CAS → 版本快照 → 状态重置 → op commit ──
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -2612,6 +2639,15 @@ export class SupplierPortalService {
             riskFlag: '高风险',
           },
         });
+        // T4：补传备份固化（事务内——revision 维度新行，与原版共存）
+        for (const staged of reStaged) {
+          await this.bidBackup.persistBackup(tx, staged, {
+            projectId, supplierId, receiptNo: roster?.receiptNo ?? null,
+            submittedAt: new Date(), backupSource: 'submission',
+            cryptoVersion: 'dual-envelope-v3',
+            submissionId: submission.id, revision: newRev,
+          });
+        }
         const commit = await tx.caOperation.updateMany({
           where: { id: data.operationId, status: 'PAYLOAD_READY' },
           data: { status: 'COMMITTED', result: { success: true, submissionId: submission.id, revision: newRev } as any },
@@ -2622,6 +2658,7 @@ export class SupplierPortalService {
         return { submissionId: submission.id, revision: newRev };
       });
     } catch (err: any) {
+      for (const k of reStagedKeys) { try { await minioClient.removeObject(MINIO_BUCKET, k); } catch { /* best-effort */ } }
       if (err?.code === 'P2002') {
         throw new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });
       }
@@ -2716,6 +2753,31 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: `P7 验签失败: ${verification.code}`, code: verification.code });
     }
 
+    // T4（阶段2.5）：未解密备份 staging——C_outer 自暂存对象读取，双钥合账
+    // （kself P7+kadmin+adminCertId——平台无钥可解是设计）；事务内固化，失败清理
+    type V3Entry4 = NonNullable<DualV3Envelope['files'][keyof DualV3Envelope['files']]>;
+    const stagedBackups: StagedBackup[] = [];
+    const newlyStagedKeys: string[] = [];
+    try {
+      for (const [role, entry] of Object.entries(envelope.files ?? {}) as Array<[string, V3Entry4]>) {
+        const stagedAsset = await this.prisma.fileAsset.findUnique({ where: { id: entry.assetId } });
+        if (!stagedAsset) continue;
+        const staged = await this.bidBackup.stageBackup({
+          projectId, supplierId,
+          fileRole: role as BackupFileRole,
+          fileAssetId: stagedAsset.id,
+          sealedPath: stagedAsset.key,
+          ciphertext: await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, stagedAsset.key)),
+          wrappedDek: JSON.stringify({ kself: entry.kself.value, kadmin: entry.kadmin.value, adminCertId: entry.kadmin.adminCertId }),
+          plaintextSha256: entry.plainSha256,
+        });
+        if (staged) { stagedBackups.push(staged); newlyStagedKeys.push(staged.backupKey); }
+      }
+    } catch (err) {
+      for (const k of newlyStagedKeys) { try { await minioClient.removeObject(MINIO_BUCKET, k); } catch { /* best-effort */ } }
+      throw err;
+    }
+
     // 事务：CAS + 版本快照 + 落库（I1：唯一索引冲突映射 409，不裸 500）
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -2772,19 +2834,29 @@ export class SupplierPortalService {
         const existingBidSupplier = await tx.bidSupplier.findFirst({
           where: { projectId, supplierName: supplier.name },
         });
+        let receiptNo = existingBidSupplier?.receiptNo ?? null;
         if (existingBidSupplier) {
           await tx.bidSupplier.update({
             where: { id: existingBidSupplier.id },
             data: { supplierId, submitStatus: '已提交', encryptStatus: '双层信封已验签' },
           });
         } else {
-          const receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
+          receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
           await tx.bidSupplier.create({
             data: {
               projectId, supplierId, supplierName: supplier.name,
               downloadStatus: '已下载', submitStatus: '已提交',
               encryptStatus: '双层信封已验签', receiptNo,
             },
+          });
+        }
+        // T4：未解密备份固化（事务内，幂等 upsert——版本维度键）
+        for (const staged of stagedBackups) {
+          await this.bidBackup.persistBackup(tx, staged, {
+            projectId, supplierId, receiptNo,
+            submittedAt: now, backupSource: 'submission',
+            cryptoVersion: 'dual-envelope-v3',
+            submissionId: sub.id, revision: newRev,
           });
         }
         // Outbox
@@ -2803,6 +2875,7 @@ export class SupplierPortalService {
       });
       return result;
     } catch (err: any) {
+      for (const k of newlyStagedKeys) { try { await minioClient.removeObject(MINIO_BUCKET, k); } catch { /* best-effort */ } }
       // I1：并发撞 SubmissionVersion 唯一索引（submissionId+revision）→ 409 语义，非 P2002 裸 500
       if (err?.code === 'P2002') {
         throw new ConflictException({ error: '版本冲突，请刷新后重试', code: 'REVISION_CONFLICT' });

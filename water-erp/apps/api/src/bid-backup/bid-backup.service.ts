@@ -116,6 +116,11 @@ export class BidBackupService {
       receiptNo: string | null;
       submittedAt: Date;
       backupSource: string;
+      // ── dual-v3（阶段2.5 T4）：版本维度落列（v2 调用缺省 revision=0）。
+      //    submissionId 仅入 meta 不落列——行级经 projectId+supplierId 自然键可解
+      //    （建表注释同口径：不设外键级联，备份独立长存）──
+      submissionId?: string;
+      revision?: number;
       cryptoVersion?: string;
     },
   ): Promise<void> {

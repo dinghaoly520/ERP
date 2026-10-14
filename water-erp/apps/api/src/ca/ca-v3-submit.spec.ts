@@ -6,7 +6,19 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { SupplierPortalService } from '../supplier-portal/supplier-portal.service';
 
+jest.mock('../upload/minio.client', () => ({
+  minioClient: { getObject: jest.fn(), putObject: jest.fn(), removeObject: jest.fn() },
+  MINIO_BUCKET: 'test-bucket',
+}));
+import { Readable } from 'stream';
+import { minioClient } from '../upload/minio.client';
+beforeEach(() => { (minioClient.getObject as jest.Mock).mockReturnValue(Readable.from([Buffer.from('outer-cipher')])); });
+
 const mockVerify = jest.fn();
+const mockBidBackup = {
+  stageBackup: jest.fn().mockImplementation(async (i: any) => ({ backupKey: `bk-${i.fileRole}`, ...i })),
+  persistBackup: jest.fn().mockResolvedValue({}),
+};
 
 const BASE_CTX = { projectId: 'proj-1', supplierId: 'sup-1', submissionId: '', revision: 1, signingBindingId: 'b-1', signingCertFingerprint: 'f'.repeat(64) };
 const mkEnvelope = (over: Record<string, any> = {}) => ({
@@ -35,7 +47,7 @@ const tx = () => ({
 });
 
 const mkSvc = (prisma: any) => new SupplierPortalService(
-  prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+  prisma, {} as any, {} as any, mockBidBackup as any, {} as any, {} as any, {} as any, {} as any, {} as any,
   undefined, undefined, { verifySignature: mockVerify } as any,
 );
 
@@ -60,7 +72,10 @@ describe('submitBidV3（评审修复轮）', () => {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'proj-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 86400000), procurementMethod: '公开招标', projectManagementItemId: null, bondRequired: false }) },
       announcement: { findFirst: jest.fn().mockResolvedValue({ id: 'a-1' }) },
       bidSupplier: { findFirst: jest.fn().mockResolvedValue(null) },
-      fileAsset: { findMany: jest.fn().mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-1' }]) },
+      fileAsset: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-1' }]),
+        findUnique: jest.fn().mockResolvedValue({ id: 'fa-mine', key: 'v3-staging/x.outer' }),
+      },
       tx: t,
       $transaction: async (fn: (x: any) => Promise<any>) => fn(t),
     };
@@ -96,6 +111,18 @@ describe('submitBidV3（评审修复轮）', () => {
       where: { id: 'op-1', status: 'PAYLOAD_READY' },
       data: expect.objectContaining({ status: 'COMMITTED' }),
     }));
+    // T4（阶段2.5）：未解密备份固化——每 role 一条，双钥合账 + 版本维度
+    expect(mockBidBackup.stageBackup).toHaveBeenCalledWith(expect.objectContaining({
+      fileRole: 'technical',
+      sealedPath: expect.any(String),
+      wrappedDek: expect.stringContaining('kadmin'),
+      plaintextSha256: 'p'.repeat(64),
+    }));
+    expect(mockBidBackup.persistBackup).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fileRole: 'technical' }),
+      expect.objectContaining({ cryptoVersion: 'dual-envelope-v3', submissionId: 'sub-1', revision: 1 }),
+    );
   });
 
   test('I1：baseRevision 与服务端不符 → 409 REVISION_CONFLICT（客户端 CAS）', async () => {

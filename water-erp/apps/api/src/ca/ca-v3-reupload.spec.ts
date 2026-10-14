@@ -7,6 +7,18 @@ import { SupplierPortalService } from '../supplier-portal/supplier-portal.servic
 
 const mockVerify = jest.fn().mockResolvedValue({ ok: true, signerSerialHex: 'aa', statusCoverage: ['chain'] });
 
+jest.mock('../upload/minio.client', () => ({
+  minioClient: { getObject: jest.fn(), putObject: jest.fn(), removeObject: jest.fn() },
+  MINIO_BUCKET: 'test-bucket',
+}));
+import { Readable } from 'stream';
+import { minioClient } from '../upload/minio.client';
+beforeEach(() => { (minioClient.getObject as jest.Mock).mockReturnValue(Readable.from([Buffer.from('outer-cipher')])); });
+const mockBidBackup = {
+  stageBackup: jest.fn().mockImplementation(async (i: any) => ({ backupKey: `bk-${i.fileRole}`, ...i })),
+  persistBackup: jest.fn().mockResolvedValue({}),
+};
+
 const ENVELOPE = {
   version: 'dual-v3', canonicalVersion: 'erp-json-v1', provider: 'scca',
   context: { projectId: 'proj-1', supplierId: 'sup-1', submissionId: 'sub-1', revision: 1, signingBindingId: 'b', signingCertFingerprint: 'f'.repeat(64) },
@@ -145,7 +157,7 @@ const mkT2 = (over: Record<string, any> = {}) => {
 };
 
 const mkSvcV = (prisma: any) => new SupplierPortalService(
-  prisma, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+  prisma, {} as any, {} as any, mockBidBackup as any, {} as any, {} as any, {} as any, {} as any, {} as any,
   undefined, undefined, { verifySignature: mockVerify } as any,
 );
 
@@ -176,6 +188,12 @@ describe('reuploadBidV3（T2）', () => {
     expect(prisma.tx.caOperation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'op-r', status: 'PAYLOAD_READY' },
     }));
+    // T4（阶段2.5）：补传重备——revision=2 新备份行（版本维度共存）
+    expect(mockBidBackup.persistBackup).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({}),
+      expect.objectContaining({ cryptoVersion: 'dual-envelope-v3', submissionId: 'sub-1', revision: 2 }),
+    );
   });
 
   test('Review Focus 1 改价闸：fieldsCommit ≠ 快照 → 400 FIELDS_COMMIT_CHANGED', async () => {
