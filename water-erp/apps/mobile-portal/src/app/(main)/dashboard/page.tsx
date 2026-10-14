@@ -79,6 +79,59 @@ function donutPath(cx: number, cy: number, r: number, ir: number, a0: number, a1
   return `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${ir} ${ir} 0 ${large} 0 ${x3} ${y3} Z`;
 }
 
+/* ── 项目规模分桶（移植自 web dashboard-home computeSegments——budgetLabel 字面值解析）── */
+
+type ScaleSegment = { label: string; range: string; min: number; max: number; count: number; amount: number; amountLabel: string; share: number; color: string };
+
+const SCALE_SEGS: Array<Pick<ScaleSegment, "label" | "range" | "min" | "max" | "color">> = [
+  { label: "小额", range: "<10万", min: 0, max: 100000, color: "var(--accent)" },
+  { label: "中小", range: "10-50万", min: 100000, max: 500000, color: "var(--success)" },
+  { label: "中型", range: "50-200万", min: 500000, max: 2000000, color: "var(--warning)" },
+  { label: "大型", range: ">200万", min: 2000000, max: Infinity, color: "var(--danger)" },
+];
+
+/** budgetLabel 字面值（“123.4万”/“1,234,567元”）解析为元数值 */
+function parseBudgetLabel(bs: string): number {
+  if (bs.includes("万")) return parseFloat(bs.replace("万", "").replace(",", "").trim()) * 10000;
+  if (bs.includes("元")) return parseFloat(bs.replace("元", "").replace(/,/g, ""));
+  return 0;
+}
+
+function computeSegments(data: DashboardData | null): ScaleSegment[] {
+  const segs: ScaleSegment[] = SCALE_SEGS.map((s) => ({ ...s, count: 0, amount: 0, amountLabel: "", share: 0 }));
+  (data?.trendSeries ?? []).forEach((ti) =>
+    (ti.projects ?? []).forEach((p) => {
+      const b = parseBudgetLabel(p.budgetLabel);
+      for (const s of segs) {
+        if (b >= s.min && b < s.max) {
+          s.count++;
+          s.amount += b;
+          break;
+        }
+      }
+    }),
+  );
+  const t = segs.reduce((sum, s) => sum + s.count, 0);
+  segs.forEach((s) => {
+    s.share = t > 0 ? Math.round((s.count / t) * 100) : 0;
+    s.amountLabel = s.amount >= 10000 ? `${(s.amount / 10000).toFixed(1)}万` : `${s.amount.toFixed(0)}元`;
+  });
+  return segs;
+}
+
+function segmentProjects(data: DashboardData | null, seg: ScaleSegment) {
+  const out: Array<{ name: string; date: string; department: string; budgetLabel: string; status: string }> = [];
+  (data?.trendSeries ?? []).forEach((ti) =>
+    (ti.projects ?? []).forEach((p) => {
+      const b = parseBudgetLabel(p.budgetLabel);
+      if (b >= seg.min && b < seg.max) {
+        out.push({ name: p.name, date: p.date, department: p.department, budgetLabel: p.budgetLabel, status: p.status });
+      }
+    }),
+  );
+  return out;
+}
+
 /* ── 弹层内的项目行（各下钻共用）── */
 
 function ProjectRow({
@@ -139,6 +192,7 @@ export default function DashboardPage() {
   const [activeReason, setActiveReason] = useState<DashboardData["nonAwardReasons"][number] | null>(null);
   const [activeSaving, setActiveSaving] = useState<DashboardData["savingsRanking"][number] | null>(null);
   const [activeSupplier, setActiveSupplier] = useState<DashboardData["supplierStats"][number] | null>(null);
+  const [activeSeg, setActiveSeg] = useState<ScaleSegment | null>(null);
 
   // AI 综合分析（按需生成）
   const [aiOpen, setAiOpen] = useState(false);
@@ -186,6 +240,8 @@ export default function DashboardPage() {
   const { pull, refreshing } = usePullToRefresh(loadData);
 
   const summary = data?.summary;
+  const scaleSegs = useMemo(() => computeSegments(data), [data]);
+  const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
 
   /* 趋势图几何 */
   const trend = useMemo(() => {
@@ -510,9 +566,42 @@ export default function DashboardPage() {
             )}
           </SectionCard>
 
+          {/* ── 项目规模分析 ── */}
+          <SectionCard
+            icon={BarChart3}
+            title="项目规模分析"
+            index={3}
+            right={<span className="shrink-0 text-[10px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}
+          >
+            {scaleTotal > 0 ? (
+              <div className="space-y-1">
+                {(() => {
+                  const maxSegCount = Math.max(...scaleSegs.map((s) => s.count), 1);
+                  return scaleSegs.map((seg, i) => (
+                    <button key={i} type="button" onClick={() => setActiveSeg(seg)} className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1.5 text-left active:scale-[0.99]">
+                      <span className="w-12 shrink-0 leading-tight">
+                        <span className="block text-[11px] font-semibold text-[var(--foreground)]">{seg.label}</span>
+                        <span className="block text-[10px] text-[var(--muted-foreground)]">{seg.range}</span>
+                      </span>
+                      <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                        <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.count / maxSegCount) * 100}%`, background: seg.color }} />
+                      </span>
+                      <span className="w-11 shrink-0 text-right leading-tight">
+                        <span className="block text-[11px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
+                        <span className="block text-[10px] tabular-nums text-[var(--muted-foreground)]">{seg.share}%</span>
+                      </span>
+                    </button>
+                  ));
+                })()}
+              </div>
+            ) : (
+              <EmptyState text="暂无项目数据" />
+            )}
+          </SectionCard>
+
           {/* ── 结果构成 ── */}
           <SectionCard title="结果构成"
-            index={3}
+            index={4}
           >
             {data.resultStats.length ? (
               <div className="grid grid-cols-3 gap-2">
@@ -534,7 +623,7 @@ export default function DashboardPage() {
           {/* ── 未成交原因分析 ── */}
           {data.nonAwardReasons.length ? (
             <SectionCard icon={AlertCircle} title="未成交原因分析"
-            index={4}
+            index={5}
           >
               <div className="space-y-2">
                 {data.nonAwardReasons.map((r, i) => (
@@ -562,7 +651,7 @@ export default function DashboardPage() {
           <SectionCard
             icon={TrendingUp}
             title="节资率项目排行"
-            index={5}
+            index={6}
             right={
               <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">
                 Top 5
@@ -612,7 +701,7 @@ export default function DashboardPage() {
             <SectionCard
               icon={AlertCircle}
               title="风险项目预警"
-              index={6}
+              index={7}
               right={
                 <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">
                   {data.riskProjects.length} 项
@@ -636,7 +725,7 @@ export default function DashboardPage() {
 
           {/* ── 重点供应商动态 ── */}
           <SectionCard icon={FolderKanban} title="重点供应商动态"
-            index={7}
+            index={8}
           >
             {data.supplierStats.length ? (
               <div className="space-y-2">
@@ -669,7 +758,7 @@ export default function DashboardPage() {
           <SectionCard
             icon={Sparkles}
             title="AI 综合分析"
-            index={8}
+            index={9}
             right={
               <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft !h-8 !rounded-[9px] !px-2.5 !text-[11px]">
                 {aiOpen ? "收起" : "展开"}
@@ -858,6 +947,39 @@ export default function DashboardPage() {
                   ))
                 ) : (
                   <EmptyState text="该方式暂无项目" />
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        open={!!activeSeg}
+        onClose={() => setActiveSeg(null)}
+        title={
+          <span className="flex items-center gap-2">
+            <BarChart3 size={16} className="text-[var(--warning)]" />
+            {activeSeg?.label ?? ""}项目（{activeSeg?.range ?? ""}）
+          </span>
+        }
+      >
+        {activeSeg ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <MetricCard label="项目数" value={String(activeSeg.count)} tone="warning" />
+              <MetricCard label="占比" value={`${activeSeg.share}%`} />
+              <MetricCard label="金额合计" value={activeSeg.amountLabel} />
+            </div>
+            <div>
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">项目列表</div>
+              <div className="space-y-1.5">
+                {segmentProjects(data, activeSeg).length ? (
+                  segmentProjects(data, activeSeg).map((p, i) => (
+                    <ProjectRow key={i} name={p.name} meta={`${p.date} · ${p.department}`} amount={p.budgetLabel} status={p.status} />
+                  ))
+                ) : (
+                  <EmptyState text="该区间暂无项目" />
                 )}
               </div>
             </div>
