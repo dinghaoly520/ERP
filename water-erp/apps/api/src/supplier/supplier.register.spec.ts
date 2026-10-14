@@ -194,4 +194,26 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
 
     expect(verification.verifyRegistrationCode).not.toHaveBeenCalled();
   });
+
+  describe('checkDuplicate — 信用代码状态感知', () => {
+    it('信用代码命中 REJECTED → creditCode=true 且 creditCodeStatus=REJECTED（可重注册）', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-rej', status: 'REJECTED' });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCode).toBe(true);
+      expect(res.creditCodeStatus).toBe('REJECTED');
+    });
+
+    it('信用代码命中 PENDING → creditCodeStatus=PENDING', async () => {
+      prisma.supplier.findFirst.mockResolvedValue({ id: 's-pen', status: 'PENDING' });
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCodeStatus).toBe('PENDING');
+    });
+
+    it('信用代码未命中 → creditCode=false 且 creditCodeStatus=null', async () => {
+      prisma.supplier.findFirst.mockResolvedValue(null);
+      const res = await service.checkDuplicate({ creditCode: '91510000MA62K5XX0X' });
+      expect(res.creditCode).toBe(false);
+      expect(res.creditCodeStatus).toBeNull();
+    });
+  });
 });

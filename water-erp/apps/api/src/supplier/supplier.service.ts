@@ -1374,19 +1374,21 @@ export class SupplierService {
   /** 注册前查重：统一社会信用代码（组织机构代码，硬拦截）、法定代表人身份证号、联系人身份证号（软提示）。
    *  公开端点，只回传「是否重复」布尔值，不回传命中的供应商名称/编号等敏感信息。 */
   async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string }) {
-    const result: { creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean } = {
+    const result: { creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean; creditCodeStatus: string | null } = {
       creditCode: false,
       legalPersonIdCard: false,
       contactIdCard: false,
+      creditCodeStatus: null,
     };
 
     const creditCode = (fields.creditCode ?? '').trim().toUpperCase();
     if (creditCode) {
       const hit = await this.prisma.supplier.findFirst({
         where: { creditCode },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       result.creditCode = !!hit;
+      result.creditCodeStatus = hit?.status ?? null;
     }
 
     const legalPersonIdCard = (fields.legalPersonIdCard ?? '').trim();
