@@ -540,6 +540,13 @@ export class SupplierPortalController {
     return this.portalService.getOpeningPackage(supplierId, projectId);
   }
 
+  /** dual-v3 补传锚点下发（阶段2.5 T1）——roles 明文哈希+sealedFields 自版本快照 */
+  @Get('bid-submissions/:projectId/reupload-context')
+  async getReuploadContext(@Param('projectId') projectId: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getReuploadContext(supplierId, projectId);
+  }
+
   /** 解密上传：各角色解密明文（file_* 四文件 optional）+ F+nonce 承诺（fieldsJson/nonce）——服务端双闸校验 */
   @Post('bid-submissions/:projectId/decrypt-upload')
   @Throttle({ default: { ttl: 60000, limit: 5 } }) // 与 reupload-dual 使用相同的请求频率限制。

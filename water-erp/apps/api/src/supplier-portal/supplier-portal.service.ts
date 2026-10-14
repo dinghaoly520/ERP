@@ -2408,6 +2408,50 @@ export class SupplierPortalService {
     return { deleted: true };
   }
 
+  /* ── dual-v3 补传链（阶段2.5 T1）── */
+
+  /**
+   * 补传锚点下发：roles 明文哈希锚点 + sealedFields（客户端盾复原 fields+nonce 重封）
+   * + fieldsCommit——全部取自 SubmissionVersion 冻结快照（防 submission 行内篡改：
+   * 补传闸比对的是签名覆盖的历史版本，不是当前行）。
+   */
+  async getReuploadContext(supplierId: string, projectId: string) {
+    const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+    if (!member) {
+      throw new ForbiddenException({ error: '未参与该项目，无权获取补传上下文', code: 'NOT_PROJECT_MEMBER' });
+    }
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project || project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '仅开标阶段可补传投标文件', code: 'PROJECT_NOT_OPENING' });
+    }
+    const submission = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+    });
+    if (!submission || submission.status !== 'submitted') {
+      throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
+    }
+    const track = resolveEnvelopeVersion(submission);
+    if (track !== 'dual-v3') {
+      throw new BadRequestException({ error: '该供应商非 dual-v3 轨，请走对应补传通道', code: 'NOT_DUAL_TRACK' });
+    }
+    const versionRow = await this.prisma.submissionVersion.findUnique({
+      where: { submissionId_revision: { submissionId: submission.id, revision: submission.revision } },
+    });
+    if (!versionRow) {
+      throw new BadRequestException({ error: '版本快照缺失，无法获取补传锚点', code: 'VERSION_SNAPSHOT_MISSING' });
+    }
+    const env = versionRow.envelope as unknown as DualV3Envelope;
+    const roles = (Object.entries(env.files ?? {}) as Array<[string, { plainSha256: string; plainBytes: number }]>)
+      .filter(([, e]) => !!e)
+      .map(([role, e]) => ({ role, plainSha256: e.plainSha256, plainBytes: e.plainBytes }));
+    return {
+      baseRevision: submission.revision,
+      fieldsCommit: env.fieldsCommit,
+      roles,
+      sealedFields: env.sealedFields,
+    };
+  }
+
   /**
    * 新轨补传（双信封 v2 · ）：dual-v2 解密异常恢复走供应商端双层重封。
    * 与旧轨 reuploadBidFile 的本质差异：C_outer 是客户端双层加密产物（C_inner=SM4(DEK_S) → C_outer=SM4(DEK_A)），
