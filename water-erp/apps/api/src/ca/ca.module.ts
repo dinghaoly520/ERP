@@ -31,6 +31,19 @@ export interface CaEnvConfig {
 }
 
 export function loadCaConfig(): CaEnvConfig {
+  // 生产启动守卫（同 getJwtSecret 先例）：CA 登录开启但未配 Origin 白名单 → 拒绝启动。
+  // 公网 origin 不在 dev 默认段（localhost/192.168）内，未配置=CA 登录对所有公网用户 403，
+  // 宜启动期报错而非线上排障。2026-10-14 与 assertAllowedOrigin 生产 fail-closed 配套。
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.CA_LOGIN_ENABLED === 'true' &&
+    !(process.env.CA_ALLOWED_ORIGINS ?? '').trim()
+  ) {
+    throw new Error(
+      '生产环境 CA_LOGIN_ENABLED=true 时必须配置 CA_ALLOWED_ORIGINS（如 https://supplier.example.com，逗号分隔），' +
+        '否则 CA 登录对公网用户全部 403。dev 默认放行段（localhost/192.168）不适用于生产。',
+    );
+  }
   const caDir = process.env.TRUSTED_CA_DIR ?? path.join(process.cwd(), '.data', 'trusted-ca');
   return {
     SCCA_GATEWAY_BASE_URL: process.env.SCCA_GATEWAY_BASE_URL ?? '',

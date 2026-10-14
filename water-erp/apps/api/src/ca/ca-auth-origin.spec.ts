@@ -4,6 +4,7 @@
    本 spec 锁定：dev 默认放行局域网段、env 配置后精确匹配覆盖默认。 */
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { assertAllowedOrigin } from './ca-auth.controller';
+import { loadCaConfig } from './ca.module';
 
 const ENV_KEY = 'CA_ALLOWED_ORIGINS';
 
@@ -62,6 +63,68 @@ describe('assertAllowedOrigin（CA 认证 Origin 闸）', () => {
         const err = catchOriginError(() => assertAllowedOrigin(reqWith(origin))) as ForbiddenException;
         expect(err).toBeInstanceOf(ForbiddenException);
         expect(err.getResponse()).toMatchObject({ code: 'ORIGIN_DENIED' });
+      }
+    });
+
+    it('生产环境按列表精确放行（NODE_ENV=production 语义不变）', () => {
+      const savedEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      process.env[ENV_KEY] = 'https://supplier.example.com';
+      try {
+        expect(() => assertAllowedOrigin(reqWith('https://supplier.example.com'))).not.toThrow();
+        const err = catchOriginError(() => assertAllowedOrigin(reqWith('http://192.168.1.111:3004'))) as ForbiddenException;
+        expect(err.getResponse()).toMatchObject({ code: 'ORIGIN_DENIED' });
+      } finally {
+        if (savedEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = savedEnv;
+      }
+    });
+  });
+
+  describe('生产 fail-closed（NODE_ENV=production 且未配置白名单）', () => {
+    it('运行时全拒——含 localhost/192.168 段（纵深防御，常态下先被启动守卫拦住）', () => {
+      const savedEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      delete process.env[ENV_KEY];
+      try {
+        for (const origin of ['http://localhost:3004', 'http://192.168.1.111:3004', 'https://supplier.example.com']) {
+          const err = catchOriginError(() => assertAllowedOrigin(reqWith(origin))) as ForbiddenException;
+          expect(err).toBeInstanceOf(ForbiddenException);
+          expect(err.getResponse()).toMatchObject({ code: 'ORIGIN_NOT_CONFIGURED' });
+        }
+      } finally {
+        if (savedEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = savedEnv;
+      }
+    });
+
+    it('启动守卫：CA 登录开启 + 未配白名单 → loadCaConfig 拒绝启动', () => {
+      const saved = { nodeEnv: process.env.NODE_ENV, login: process.env.CA_LOGIN_ENABLED };
+      process.env.NODE_ENV = 'production';
+      process.env.CA_LOGIN_ENABLED = 'true';
+      delete process.env[ENV_KEY];
+      try {
+        expect(() => loadCaConfig()).toThrow('CA_ALLOWED_ORIGINS');
+      } finally {
+        if (saved.nodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = saved.nodeEnv;
+        if (saved.login === undefined) delete process.env.CA_LOGIN_ENABLED;
+        else process.env.CA_LOGIN_ENABLED = saved.login;
+      }
+    });
+
+    it('启动守卫：dev 环境（NODE_ENV=development）不触发——dev 默认段照常可用', () => {
+      const saved = { nodeEnv: process.env.NODE_ENV, login: process.env.CA_LOGIN_ENABLED };
+      process.env.NODE_ENV = 'development';
+      process.env.CA_LOGIN_ENABLED = 'true';
+      delete process.env[ENV_KEY];
+      try {
+        expect(() => loadCaConfig()).not.toThrow();
+      } finally {
+        if (saved.nodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = saved.nodeEnv;
+        if (saved.login === undefined) delete process.env.CA_LOGIN_ENABLED;
+        else process.env.CA_LOGIN_ENABLED = saved.login;
       }
     });
   });
