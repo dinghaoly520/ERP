@@ -136,6 +136,17 @@ describe('澄清答复 P7 强签（dual-v3 Task8）', () => {
     } as any)).rejects.toThrow(BadRequestException);
   });
 
+  test('T8 op 时序：并发答复失败（count=0）→ op 不烧（留 PAYLOAD_READY 可重试）', async () => {
+    prisma.bidClarification.updateMany.mockResolvedValue({ count: 0 });
+    const svc = mkService(prisma);
+    const { ConflictException } = require('@nestjs/common');
+    await expect(svc.submitClarificationReply('proj-1', 'clar-1', 'sup-1', { sub: 'user-1' }, {
+      reply: REPLY,
+      operationId: 'op-1', signatureFormat: 'scca-pkcs7-base64', signP7: 'MIIxBgQ.',
+    } as any)).rejects.toThrow(ConflictException);
+    expect(prisma.caOperation.updateMany).not.toHaveBeenCalled();
+  });
+
   test('P7 验签失败 → 400 拒收，零落库', async () => {
     mockVerify.mockResolvedValue({ ok: false, code: 'CA_CONTENT_MISMATCH' });
     const svc = mkService(prisma);

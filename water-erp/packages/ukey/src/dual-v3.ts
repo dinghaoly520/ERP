@@ -53,7 +53,7 @@ export interface DualV3SealedFields {
 
 export interface DualV3Envelope {
   version: 'dual-v3';
-  canonicalVersion: 'erp-json-v1';
+  canonicalVersion: 'erp-json-v1'; // 命名留痕（复审 M 项）：冻结哈希用 JSON.stringify（键序敏感）而非 canonicalJson——签名绑定的是冻结文本本身，本字段仅作格式标识
   provider: 'scca';
   context: {
     projectId: string; supplierId: string;

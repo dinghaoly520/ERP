@@ -107,7 +107,9 @@ export class CaBidOperationController {
 
     // 仅 submit/reupload 提交信封；receipt/opening-confirm 在 prepare 冻结
     if (op.purpose === 'submit' || op.purpose === 'reupload') {
-      // I2（评审）：信封冻结单次——已冻结信封再换不同信封覆盖返回 409（防签名原文被替换）
+      // I2（评审）：信封冻结单次——已冻结信封再换不同信封覆盖返回 409（防签名原文被替换）。
+      // M-3 留痕（复审）：读-判-写非原子——并发双签窗内后写可覆盖；兜底=P7 验签针对
+      // 最终 canonical + commit CAS 单次，最坏自伤（对手覆盖自己的操作），可接受
       if ((op.result as any)?.envelopeFrozen) {
         throw new ConflictException({ error: '操作已冻结信封载荷，不可重复提交或替换', code: 'ENVELOPE_ALREADY_FROZEN' });
       }

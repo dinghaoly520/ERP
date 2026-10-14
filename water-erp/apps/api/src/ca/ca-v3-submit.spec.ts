@@ -125,6 +125,16 @@ describe('submitBidV3（评审修复轮）', () => {
     );
   });
 
+  test('T8 名册兜底：存量 null-supplierId 行按 supplierName 命中 → update 不建重复行', async () => {
+    t.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-legacy', supplierId: null, receiptNo: 'TB-EXIST-001' });
+    await call();
+    expect(t.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'bs-legacy' },
+      data: expect.objectContaining({ supplierId: 'sup-1', submitStatus: '已提交' }),
+    }));
+    expect(t.bidSupplier.create).not.toHaveBeenCalled();
+  });
+
   test('I1：baseRevision 与服务端不符 → 409 REVISION_CONFLICT（客户端 CAS）', async () => {
     t.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', revision: 2, status: 'withdrawn' });
     t.supplierBidSubmission.update.mockResolvedValue({});

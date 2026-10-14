@@ -141,6 +141,16 @@ describe('开标确认 P7 强签（dual-v3 Task7）', () => {
     expect(mockVerify).not.toHaveBeenCalled();
   });
 
+  test('T8 op 时序：resign 回填失败 → op 不烧（业务写先于 commit）', async () => {
+    mockPrisma.bidOpeningRecord.findFirst.mockResolvedValue({ ...RECORD, confirmStatus: '供应商已确认', confirmSignature: null });
+    mockPrisma.bidOpeningRecord.update.mockRejectedValueOnce(new Error('db down'));
+    const svc = mkService();
+    await expect(svc.confirmOpening('sup-1', 'proj-1', '', {
+      operationId: 'op-1', signatureFormat: 'scca-pkcs7-base64', signP7: 'MIIxBgQ.',
+    })).rejects.toThrow('db down');
+    expect(mockPrisma.caOperation.updateMany).not.toHaveBeenCalled();
+  });
+
   test('P7 验签失败 → 400 拒收，零落库', async () => {
     mockVerify.mockResolvedValue({ ok: false, code: 'CA_CONTENT_MISMATCH' });
     const svc = mkService();
