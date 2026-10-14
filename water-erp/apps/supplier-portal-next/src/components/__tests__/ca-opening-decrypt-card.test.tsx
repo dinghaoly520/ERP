@@ -14,6 +14,13 @@ test('初始态：仅渲染按钮（无常驻 PIN 输入框——弹窗触发后
   assert.ok(!html.includes('type="password"'), 'PIN 输入不常驻（在 SpDialog 内按需渲染）');
 });
 
+test('done 态：已解密显示禁用按钮（状态可见性优于隐藏）', () => {
+  const html = renderToStaticMarkup(createElement(CaOpeningDecryptCard, { projectId: 'p1', done: true }));
+  assert.ok(html.includes('已解密'), '已解密标签在位');
+  assert.ok(html.includes('disabled'), '不可点击');
+  assert.ok(!html.includes('取包并解密'), '不显示触发按钮');
+});
+
 test('组件源码守卫：SpDialog 弹窗模式+证明链接线', () => {
   const src = readFileSync(new URL('../ca-opening-decrypt-card.tsx', import.meta.url), 'utf8');
   assert.ok(src.includes('SpDialog'), '弹窗体系（对齐大厅既有交互）');

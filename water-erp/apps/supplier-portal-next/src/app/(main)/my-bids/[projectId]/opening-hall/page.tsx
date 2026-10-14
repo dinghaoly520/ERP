@@ -434,10 +434,13 @@ export default function OpeningHallPage() {
               ) : checkedInAt ? (
                 <span className="hall-tag hall-tag--info">已签到 {new Date(checkedInAt).toLocaleTimeString("zh-CN")}</span>
               ) : null}
-              {/* dual-v3 解密（v3 轨未解密时；成功后卸载——按钮族同 SpButton 同尺寸） */}
-              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3'
-                && String(decryptStatus).toUpperCase() !== 'SUCCESS' && record?.decryptResult !== '解密成功' && (
-                <CaOpeningDecryptCard projectId={projectId} onDecrypted={() => refresh()} />
+              {/* dual-v3 解密（v3 轨；已解密→禁用态「已解密」按钮，状态可见不隐藏——2026-10-14 用户裁定） */}
+              {isOpening && (record?.submitted as any)?.envelopeVersion === 'dual-v3' && (
+                <CaOpeningDecryptCard
+                  projectId={projectId}
+                  onDecrypted={() => refresh()}
+                  done={String(decryptStatus).toUpperCase() === 'SUCCESS' || record?.decryptResult === '解密成功'}
+                />
               )}
               {canDispute && (
                 <SpButton warning onClick={() => setDisputeOpen(true)}>

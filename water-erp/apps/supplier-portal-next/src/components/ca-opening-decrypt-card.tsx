@@ -8,7 +8,7 @@
    ================================================================= */
 'use client';
 import { useState } from 'react';
-import { LockOpen, LoaderCircle } from 'lucide-react';
+import { LockOpen, LoaderCircle, CircleCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { supplierApi } from '@/lib/api/supplier';
 import * as scca from '@/utils/scca-ukey';
@@ -31,10 +31,20 @@ async function fetchCInner(url: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-export function CaOpeningDecryptCard({ projectId, onDecrypted }: {
+export function CaOpeningDecryptCard({ projectId, onDecrypted, done }: {
   projectId: string;
   onDecrypted?: (outcome: { decryptStatus: string }) => void;
+  /** 已解密：显示禁用态按钮（状态可见性优于隐藏——2026-10-14 用户裁定） */
+  done?: boolean;
 }) {
+  if (done) {
+    return (
+      <SpButton variant="soft" icon={CircleCheck} disabled
+        className="opacity-60">
+        已解密
+      </SpButton>
+    );
+  }
   const [open, setOpen] = useState(false);
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
