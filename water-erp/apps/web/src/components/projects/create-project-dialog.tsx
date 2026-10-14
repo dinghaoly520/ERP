@@ -25,6 +25,7 @@ import {
 } from '@/lib/types/project-management';
 import { fetchCurrentUser, type AuthUser } from '@/lib/api/auth';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
+import { SearchSelect } from '@/components/workbench/search-select';
 
 type Step = 'upload' | 'compare' | 'review';
 
@@ -104,10 +105,8 @@ export function CreateProjectDialog({
     supplierRequirements: false,
   });
 
-  // Project attribution dropdown
+  // Project attribution（2026-10-14 起选择走 SearchSelect，面板内搜索，无本地过滤态）
   const [projectAttributions, setProjectAttributions] = useState<ProjectAttribution[]>([]);
-  const [showAttributionDropdown, setShowAttributionDropdown] = useState(false);
-  const [attributionSearch, setAttributionSearch] = useState('');
 
   // Auto-proceed to compare step when documents are extracted
   useEffect(() => {
@@ -204,8 +203,6 @@ export function CreateProjectDialog({
     setAnalyzingBudget(false);
     setShowBudgetRationale(false);
     setProjectAttributions([]);
-    setShowAttributionDropdown(false);
-    setAttributionSearch('');
   };
 
   const getCurrentProjectFields = () => {
@@ -315,31 +312,18 @@ export function CreateProjectDialog({
     }
   };
 
-  const filteredAttributions = projectAttributions.filter((attr) =>
-    attr.name.toLowerCase().includes(attributionSearch.toLowerCase()),
-  );
-
-  const handleSelectAttribution = (attr: ProjectAttribution) => {
+  /** 归属选中（SearchSelect onPick）：写 demandFields + 同步比较项
+   *  （demandProject 有自动预选值，不同步则选中值被弹回——见 handleReviewFieldChange 注释）；
+   *  选项带合同号时一并带入 */
+  const handlePickAttribution = (name: string, contractNumber?: string) => {
     setDemandFields((prev) => ({
       ...prev,
-      demandProject: attr.name,
-      demandContractNumber: attr.contractNumber || prev.demandContractNumber,
+      demandProject: name,
+      demandContractNumber: contractNumber || prev.demandContractNumber,
     }));
-    // 同步比较项：demandProject 有自动预选值，不同步则选中值被弹回（见 handleReviewFieldChange 注释）
     setFieldComparisons((prev) =>
-      prev.map((c) => (c.fieldName === 'demandProject' ? { ...c, selectedValue: attr.name } : c)),
+      prev.map((c) => (c.fieldName === 'demandProject' ? { ...c, selectedValue: name } : c)),
     );
-    setAttributionSearch(attr.name);
-    setShowAttributionDropdown(false);
-  };
-
-  const handleAttributionInputChange = (value: string) => {
-    setDemandFields((prev) => ({ ...prev, demandProject: value }));
-    setFieldComparisons((prev) =>
-      prev.map((c) => (c.fieldName === 'demandProject' ? { ...c, selectedValue: value } : c)),
-    );
-    setAttributionSearch(value);
-    setShowAttributionDropdown(true);
   };
 
   const canProceedFromUpload = () => {
@@ -784,45 +768,27 @@ export function CreateProjectDialog({
             ))}
           </select>
         </div>
-        <div className="space-y-2 relative">
+        <div className="space-y-2">
           <label className="text-xs font-semibold text-[color:var(--foreground)]">项目归属</label>
-          <input
-            type="text"
-            value={getSelectedFieldValue('demandProject', demandFields.demandProject || '')}
-            onChange={(e) => handleAttributionInputChange(e.target.value)}
-            onFocus={() => {
-              setAttributionSearch(demandFields.demandProject || '');
-              setShowAttributionDropdown(true);
-            }}
-            onBlur={() => setTimeout(() => setShowAttributionDropdown(false), 200)}
-            placeholder="输入或选择项目归属"
-            className="workbench-input w-full"
+          {/* 归属选择：cgzxui SearchSelect 规范形态（瓷片渐变面板 + sticky 搜索 + 白瓷片激活；
+              携带合同号 meta、使用次数 sub；允许自定义名（原自由输入能力保留）；「其他」兜底列尾 */}
+          <SearchSelect
+            options={[
+              ...projectAttributions.map((a) => ({
+                value: a.name,
+                label: a.name,
+                meta: a.contractNumber ?? undefined,
+                sub: a.usageCount > 0 ? `已使用 ${a.usageCount} 次` : undefined,
+              })),
+              ...(projectAttributions.some((a) => a.name === '其他') ? [] : [{ value: '其他', label: '其他', sub: '通用' }]),
+            ]}
+            value={String(getSelectedFieldValue('demandProject', demandFields.demandProject || ''))}
+            onPick={(o) => handlePickAttribution(o.value, o.meta)}
+            placeholder="选择或搜索项目归属"
+            searchPlaceholder="搜索归属项目…"
+            emptyText="无匹配归属"
+            allowCustom
           />
-          {showAttributionDropdown && (
-            <div className="neu-surface absolute z-10 mt-1 max-h-48 w-full overflow-auto">
-              {filteredAttributions.map((option) => (
-                <button
-                  key={option.name}
-                  type="button"
-                  onClick={() => handleSelectAttribution(option)}
-                  className="w-full px-3 py-2.5 text-left hover:bg-[var(--accent-tint)] flex justify-between items-center transition-colors duration-150"
-                >
-                  <span className="text-sm text-[color:var(--foreground)]">{option.name}</span>
-                  <span className="text-xs text-[color:var(--muted-foreground)]">{option.usageCount}次</span>
-                </button>
-              ))}
-              {!filteredAttributions.some((a) => a.name === '其他') && (
-                <button
-                  type="button"
-                  onClick={() => handleSelectAttribution({ name: '其他', contractNumber: null, usageCount: 0 })}
-                  className="w-full px-3 py-2.5 text-left hover:bg-[var(--accent-tint)] flex justify-between items-center transition-colors duration-150"
-                >
-                  <span className="text-sm text-[color:var(--foreground)]">其他</span>
-                  <span className="text-xs text-[color:var(--muted-foreground)]">通用</span>
-                </button>
-              )}
-            </div>
-          )}
         </div>
         <div className="col-span-3 grid grid-cols-2 gap-x-5">
           <div className="space-y-2">
