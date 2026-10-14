@@ -29,3 +29,27 @@ describe('AuthService.shouldRevokeSession（X-P1-02）', () => {
     await expect(svc.shouldRevokeSession('jwt-bad')).resolves.toBe(false);
   });
 });
+
+describe('AuthService.rotatePortalSession 会话轮换驱逐（2026-10-14）', () => {
+  /**
+   * 单设备互踢配套：轮换 webSessionId 后须立即驱逐该账号全部既有 WS 通知订阅——
+   * 否则被踢页签 REST 全 401 却仍收推送弹窗（「通知可见、消息中心拉不到」悖论）。
+   */
+  const makeRotateService = (gateway?: { evictUser: jest.Mock }) => {
+    const prisma = { user: { update: jest.fn().mockResolvedValue({}) } };
+    const jwt = { sign: jest.fn().mockReturnValue('token') };
+    const svc = new AuthService(prisma as any, jwt as any, {} as any, undefined, undefined, gateway as any);
+    return { svc, prisma, gateway };
+  };
+
+  it('轮换成功 → 通知网关驱逐该用户全部旧订阅', async () => {
+    const { svc, gateway } = makeRotateService({ evictUser: jest.fn() });
+    await svc.rotatePortalSession('u1', '供应商A', 'supplier');
+    expect(gateway!.evictUser).toHaveBeenCalledWith('u1');
+  });
+
+  it('网关未注入（e2e/测试环境 @Optional）→ 不抛错、轮换照常', async () => {
+    const { svc } = makeRotateService(undefined);
+    await expect(svc.rotatePortalSession('u1', '供应商A', 'supplier')).resolves.toMatchObject({ access_token: 'token' });
+  });
+});

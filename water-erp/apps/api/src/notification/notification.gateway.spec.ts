@@ -17,7 +17,7 @@ const TOKENS: Record<string, { sub: string }> = {
 
 function makeGateway() {
   const jwt = { verifyAsync: jest.fn((t: string) => Promise.resolve(TOKENS[t] ?? null)) };
-  const gw = new NotificationGateway(jwt as any);
+  const gw = new NotificationGateway(jwt as any, {} as any);
   const disconnected: boolean[] = [];
   const makeClient = (headers: Record<string, string>) => ({
     id: 'sock-1',
@@ -89,5 +89,72 @@ describe('NotificationGateway 握手门户判别（X-P1-03）', () => {
     const client = makeClient({ origin: 'http://localhost:3004' });
     await gw.handleConnection(client);
     expect(disconnected).toEqual([true]);
+  });
+});
+
+describe('NotificationGateway 会话轮换防护（2026-10-14 单设备互踢配套）', () => {
+  /**
+   * 互踢后旧 token 的 sid 与库中 webSessionId 不一致——REST 侧 AuthGuard 已 401
+   * SESSION_REPLACED，WS 握手须同口径拒绝；否则被踢页签 REST 全挂却仍收推送弹窗，
+   * 出现「通知弹窗可见、消息中心拉不到」悖论（2026-10-14 实录根因）。
+   */
+  const SID = 'sid-live-0000';
+
+  function makeSidGateway(webSessionId: string | null, tokenPayload: Record<string, unknown> | null) {
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue(tokenPayload) };
+    const prisma = { user: { findUnique: jest.fn().mockResolvedValue({ webSessionId }) } };
+    const gw = new NotificationGateway(jwt as any, prisma as any);
+    const disconnected: boolean[] = [];
+    const client = ({
+      id: 'sock-1',
+      handshake: { headers: { origin: 'http://localhost:3004', cookie: 'token_supplier=jwt-x' } },
+      data: {} as any,
+      join: jest.fn(),
+      disconnect: (v: boolean) => disconnected.push(v),
+    }) as any;
+    return { gw, client, disconnected };
+  }
+
+  it('带 sid 且与库中 webSessionId 一致 → 正常入房', async () => {
+    const { gw, client } = makeSidGateway(SID, { sub: 'u-supplier', sid: SID });
+    await gw.handleConnection(client);
+    expect(client.join).toHaveBeenCalledWith('user:u-supplier');
+  });
+
+  it('带 sid 但已被轮换（与库中不一致）→ 拒绝连接不入房', async () => {
+    const { gw, client, disconnected } = makeSidGateway('sid-new', { sub: 'u-supplier', sid: 'sid-old' });
+    await gw.handleConnection(client);
+    expect(client.join).not.toHaveBeenCalled();
+    expect(disconnected).toEqual([true]);
+  });
+
+  it('带 sid 但用户已不存在/会话已清 → 拒绝连接', async () => {
+    const { gw, client, disconnected } = makeSidGateway(null, { sub: 'u-gone', sid: SID });
+    await gw.handleConnection(client);
+    expect(client.join).not.toHaveBeenCalled();
+    expect(disconnected).toEqual([true]);
+  });
+
+  it('无 sid（token_bid/token_mall 等不轮换命名空间）→ 不校验、正常入房', async () => {
+    const { gw, client } = makeSidGateway('whatever', { sub: 'u-host' });
+    await gw.handleConnection(client);
+    expect(client.join).toHaveBeenCalledWith('user:u-host');
+  });
+
+  it('evictUser → 对 user:{id} 房间全体断开（会话轮换时驱逐旧订阅）', () => {
+    const jwt = { verifyAsync: jest.fn() };
+    const gw = new NotificationGateway(jwt as any, {} as any);
+    const disconnectSockets = jest.fn();
+    const inMock = jest.fn(() => ({ disconnectSockets }));
+    (gw as any).server = { in: inMock };
+    gw.evictUser('u-supplier');
+    expect(inMock).toHaveBeenCalledWith('user:u-supplier');
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  it('evictUser 在 server 未就绪（测试环境）→ 静默跳过不抛错', () => {
+    const jwt = { verifyAsync: jest.fn() };
+    const gw = new NotificationGateway(jwt as any, {} as any);
+    expect(() => gw.evictUser('u-supplier')).not.toThrow();
   });
 });
