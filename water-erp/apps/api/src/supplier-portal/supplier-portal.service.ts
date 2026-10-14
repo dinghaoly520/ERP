@@ -12,7 +12,7 @@ import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
-import { buildClarificationReplyCanonical } from './clarification-reply.util';
+import { buildClarificationReplyCanonical, buildClarificationReplyCanonicalV2 } from './clarification-reply.util';
 import { buildOpeningConfirmCanonical, buildOpeningConfirmCanonicalV2, computeOpeningRecordHash } from './opening-confirm-signature.util';
 import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/clarification-reply.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
@@ -4362,61 +4362,115 @@ export class SupplierPortalService {
     return items.map((c) => this.stripReplySignature(c));
   }
 
-  /** 取 canonical 串（无状态、不落库）——前端直接对此串 U盾签名 */
+  /** 取 canonical 串（无状态、不落库）——前端直接对此串 U盾签名。
+   *  dual-v3（Task8）：canonical v2——reply 全文出签（replySha256 摘要），附件排序+去重。 */
   async getClarificationReplyPayload(
     projectId: string, cid: string, supplierId: string,
     user: { sub: string }, dto: ClarificationReplyDraftDto,
   ) {
     await this.assertReplyable(projectId, cid, supplierId);
     const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
-    return {
-      payload: buildClarificationReplyCanonical({
-        clarificationId: cid, projectId, supplierId,
-        reply: dto.reply, attachments, certSn: dto.certSn ?? '',
-      }),
-    };
+    const canonical = buildClarificationReplyCanonicalV2({
+      clarificationId: cid, projectId, supplierId,
+      reply: dto.reply, attachments, replyRevision: 0,
+    });
+    return { payload: canonical, canonical };
   }
 
-  /** 提交签名答复：重算 canonical + SM2 验签 + 落库 + WS 广播 */
+  /** 提交签名答复：重算 canonical + 验签 + 落库 + WS 广播。
+   *  dual-v3（Task8）：operationId+signP7 → CaVerificationService P7 验签（canonical v2——
+   *  reply 摘要入签，附件排序+去重）；证据含 certSn/certPublicKey（D4 快照）+replySha256。
+   *  旧轨：v1 canonical + SM2 验签（空签=免签照走，SCCA 全面适配口径）。 */
   async submitClarificationReply(
     projectId: string, cid: string, supplierId: string,
     user: { sub: string; name?: string; username?: string }, dto: SubmitClarificationReplyDto,
   ) {
     const clar = await this.assertReplyable(projectId, cid, supplierId);
-
-    // SCCA 全面适配（2026-10-14）：旧轨免签——signature/certSn 空则跳过证书校验与验签
-    let cert: { certSn: string; publicKey: string } | null = null;
-    if (dto.signature) {
-      cert = await this.prisma.supplierCert.findFirst({
-        where: { supplierId, certSn: dto.certSn, bindingStatus: 'ACTIVE' },
-      });
-      if (!cert) {
-        throw new BadRequestException({ error: '证书未绑定或已撤销，请先在「U盾管理」绑定有效证书', code: 'CERT_NOT_ACTIVE' });
-      }
-    }
-
     const attachments = await this.loadOwnedAttachments(dto.attachmentIds ?? [], user.sub);
-    const canonical = buildClarificationReplyCanonical({
-      clarificationId: cid, projectId, supplierId,
-      reply: dto.reply, attachments, certSn: dto.certSn ?? '',
-    });
-    if (dto.signature && !this.signatureService.verify(canonical, dto.signature, cert!.publicKey)) {
-      throw new BadRequestException({ error: '电子签名验证失败，请使用绑定证书对最新答复内容重新签名', code: 'CLARIFICATION_REPLY_SIGNATURE_INVALID' });
+
+    let replySignature: Record<string, unknown>;
+    let replyChannel: string;
+
+    if (dto.operationId && dto.signatureFormat === 'scca-pkcs7-base64' && dto.signP7) {
+      // ── SCCA dual-v3 轨（Task8）──
+      const op = await this.prisma.caOperation.findUnique({ where: { id: dto.operationId } });
+      if (!op || op.subjectId !== supplierId) {
+        throw new BadRequestException({ error: '操作不存在或非本人', code: 'OPERATION_INVALID' });
+      }
+      if (op.purpose !== 'clarification') {
+        throw new BadRequestException({ error: `purpose='${op.purpose}' 非 clarification`, code: 'PURPOSE_MISMATCH' });
+      }
+      const binding = await this.prisma.supplierCert.findFirst({
+        where: { supplierId, bindingStatus: 'ACTIVE', credentialScheme: 'scca-pkcs7' },
+        include: { signingCaCertificate: true },
+      });
+      if (!binding?.signingCaCertificate) {
+        throw new BadRequestException({ error: '未绑定 SCCA CA 证书', code: 'CA_NOT_BOUND' });
+      }
+      const canonical = buildClarificationReplyCanonicalV2({
+        clarificationId: cid, projectId, supplierId,
+        reply: dto.reply, attachments, replyRevision: 0,
+      });
+      const verification = await this.caVerificationService!.verifySignature({
+        p7B64: dto.signP7,
+        expectedToSign: canonical,
+        purpose: 'bind',
+        expectedSignCert: {
+          serialHex: binding.signingCaCertificate.serialHex,
+          sha256: binding.signingCaCertificate.sha256Fingerprint,
+        },
+      });
+      if (!verification.ok) {
+        throw new BadRequestException({ error: `澄清答复 P7 验签失败: ${verification.code}`, code: 'CLARIFICATION_REPLY_SIGNATURE_INVALID' });
+      }
+      replySignature = {
+        v: 1, payload: canonical, signature: dto.signP7,
+        algorithm: 'scca-pkcs7-base64', certSn: binding.certSn,
+        certPublicKey: binding.publicKey, // D4 签时快照
+        replySha256: crypto.createHash('sha256').update(dto.reply, 'utf8').digest('hex'),
+        verifiedAt: new Date().toISOString(),
+      };
+      replyChannel = 'online';
+      await this.prisma.caOperation.update({
+        where: { id: dto.operationId },
+        data: { status: 'COMMITTED', result: { success: true, projectId, clarificationId: cid } as any },
+      });
+    } else {
+      // ── 旧轨：v1 canonical + SM2 验签（SCCA 全面适配：空签免验照走）──
+      // SCCA 全面适配（2026-10-14）：旧轨免签——signature/certSn 空则跳过证书校验与验签
+      let cert: { certSn: string; publicKey: string } | null = null;
+      if (dto.signature) {
+        cert = await this.prisma.supplierCert.findFirst({
+          where: { supplierId, certSn: dto.certSn, bindingStatus: 'ACTIVE' },
+        });
+        if (!cert) {
+          throw new BadRequestException({ error: '证书未绑定或已撤销，请先在「U盾管理」绑定有效证书', code: 'CERT_NOT_ACTIVE' });
+        }
+      }
+      const canonical = buildClarificationReplyCanonical({
+        clarificationId: cid, projectId, supplierId,
+        reply: dto.reply, attachments, certSn: dto.certSn ?? '',
+      });
+      if (dto.signature && !this.signatureService.verify(canonical, dto.signature, cert!.publicKey)) {
+        throw new BadRequestException({ error: '电子签名验证失败，请使用绑定证书对最新答复内容重新签名', code: 'CLARIFICATION_REPLY_SIGNATURE_INVALID' });
+      }
+      replySignature = {
+        v: 1, payload: canonical, signature: dto.signature,
+        algorithm: 'SM2/SM3', certSn: dto.certSn, verifiedAt: new Date().toISOString(),
+      };
+      replyChannel = 'online';
     }
 
     // TOCTOU 防护：assertReplyable 断言与写入之间可能插入第二笔
-    // 并发提交——按主键无条件 update 会静默覆盖先到的答复（含 SM2 签名证据）。
+    // 并发提交——按主键无条件 update 会静默覆盖先到的答复（含签名证据）。
     // 改条件 updateMany：仅 status=待回复 可写，count=0 即已被并发答复 → 409。
     const written = await this.prisma.bidClarification.updateMany({
       where: { id: cid, status: '待回复' },
       data: {
         reply: dto.reply,
         status: '已回复',
-        replyChannel: 'online',
-        replySignature: {
-          v: 1, payload: canonical, signature: dto.signature,
-          algorithm: 'SM2/SM3', certSn: dto.certSn, verifiedAt: new Date().toISOString(),
-        },
+        replyChannel,
+        replySignature: replySignature as any,
         replyAttachmentIds: attachments.map((a) => ({ fileAssetId: a.fileAssetId, name: a.name, sha256: a.sha256 })),
         replyByName: user.name ?? user.username ?? null,
       },

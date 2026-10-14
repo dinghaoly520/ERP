@@ -27,4 +27,23 @@ export class SubmitClarificationReplyDto extends ClarificationReplyDraftDto {
   @IsString()
   @Length(1, 512)
   signature?: string;
+
+  // ── SCCA dual-v3（阶段2 Task8）──
+  @ApiProperty({ description: 'dual-v3：prepare 分配的操作 id', required: false })
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  operationId?: string;
+
+  @ApiProperty({ description: "dual-v3：签名格式标识（'scca-pkcs7-base64'）", required: false })
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  signatureFormat?: string;
+
+  @ApiProperty({ description: 'dual-v3：SCCA 盾 P7 签名（base64）', required: false })
+  @IsOptional()
+  @IsString()
+  @Length(1, 262144)
+  signP7?: string;
 }
