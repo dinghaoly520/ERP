@@ -19,7 +19,7 @@ export function MetricCard({
   tone?: keyof typeof TONE_COLOR;
 }) {
   return (
-    <div className="rounded-[14px] border border-[var(--border)] bg-white/62 px-3 py-2.5">
+    <div className="m-tile rounded-[14px] px-3 py-2.5">
       <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</div>
       <div className="mt-1 text-[17px] font-black leading-none tabular-nums tracking-[-0.02em]" style={{ color: TONE_COLOR[tone] }}>
         {value}

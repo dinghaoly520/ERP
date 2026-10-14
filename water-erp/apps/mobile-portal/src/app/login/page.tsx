@@ -60,23 +60,23 @@ export default function LoginPage() {
           <label htmlFor="login-username" className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
             账号
           </label>
-          <div className="mt-2 flex items-center gap-2.5 rounded-[14px] border border-[var(--border)] bg-white/72 px-3.5">
-            <UserRound size={16} className="shrink-0 text-[var(--muted-foreground)]" />
+          <div className="relative mt-2">
+            <UserRound size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
             <input
               id="login-username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               placeholder="请输入账号"
-              className="h-12 min-w-0 flex-1 bg-transparent text-[15px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+              className="m-input !h-12 w-full pl-10"
             />
           </div>
 
           <label htmlFor="login-password" className="mt-4 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
             密码
           </label>
-          <div className="mt-2 flex items-center gap-2.5 rounded-[14px] border border-[var(--border)] bg-white/72 px-3.5">
-            <KeyRound size={16} className="shrink-0 text-[var(--muted-foreground)]" />
+          <div className="relative mt-2">
+            <KeyRound size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
             <input
               id="login-password"
               type={showPassword ? "text" : "password"}
@@ -84,13 +84,13 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               placeholder="请输入密码"
-              className="h-12 min-w-0 flex-1 bg-transparent text-[15px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+              className="m-input !h-12 w-full pl-10 pr-11"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? "隐藏密码" : "显示密码"}
-              className="flex h-9 w-9 items-center justify-center text-[var(--muted-foreground)] active:scale-95"
+              className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-[var(--muted-foreground)] active:scale-95"
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>

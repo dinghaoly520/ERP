@@ -247,16 +247,20 @@ export default function LedgerPage() {
       ) : null}
 
       {/* ── 搜索 ── */}
-      <div className="mb-2.5 flex items-center gap-2.5 rounded-[14px] border border-[var(--border)] bg-white/72 px-3.5">
-        <Search size={16} className="shrink-0 text-[var(--muted-foreground)]" />
+      <div className="relative mb-2.5">
+        <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
         <input
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="搜索项目名称 / 编号"
-          className="h-11 min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+          className="m-input !h-11 w-full !text-[14px] pl-10"
         />
         {searchInput ? (
-          <button type="button" onClick={() => setSearchInput("")} className="shrink-0 text-[11px] font-semibold text-[var(--accent)]">
+          <button
+            type="button"
+            onClick={() => setSearchInput("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[var(--accent)] active:scale-95"
+          >
             清除
           </button>
         ) : null}
@@ -315,7 +319,7 @@ export default function LedgerPage() {
             })
           }
           aria-label="公司筛选"
-          className="mb-3 h-10 w-full rounded-[12px] border border-[var(--border)] bg-white/70 px-3 text-[13px] font-medium text-[var(--foreground)]"
+          className="m-input mb-3 !h-10 w-full !text-[13px] font-medium"
         >
           <option value="all">全部公司</option>
           {companies.map((c) => (
@@ -426,7 +430,7 @@ export default function LedgerPage() {
               {activeItem.contractAmount != null ? <MetricCard label="合同金额" value={fmtAmount(activeItem.contractAmount)} tone="accent" /> : null}
             </div>
 
-            <div className="space-y-0.5 rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-[12px]">
+            <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[12px]">
               <DetailRow label="项目编号" value={activeItem.projectCode} />
               <DetailRow label="采购轮次" value={`第 ${activeItem.roundNo} 轮`} />
               {activeItem.purchaserName ? <DetailRow label="采购单位" value={activeItem.purchaserName} /> : null}
@@ -448,7 +452,7 @@ export default function LedgerPage() {
                 <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">参与供应商（{activeItem.supplierNames.length}）</div>
                 <div className="flex flex-wrap gap-1.5">
                   {activeItem.supplierNames.map((n) => (
-                    <span key={n} className="rounded-full border border-[var(--border)] bg-white/60 px-2.5 py-1 text-[11px] text-[var(--foreground)]">
+                    <span key={n} className="rounded-full bg-[color-mix(in_oklch,white_55%,transparent)] px-2.5 py-1 text-[11px] text-[var(--foreground)]">
                       {n}
                     </span>
                   ))}

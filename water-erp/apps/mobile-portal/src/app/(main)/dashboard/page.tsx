@@ -148,7 +148,7 @@ function ProjectRow({
   extra?: string;
 }) {
   return (
-    <div className="rounded-[10px] border border-[var(--border)] bg-white/55 px-3 py-2.5">
+    <div className="rounded-[10px] m-tile px-3 py-2.5">
       <div className="line-clamp-2 text-[12px] font-semibold leading-snug text-[var(--foreground)]">{name}</div>
       <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
         <span className="min-w-0 flex-1 truncate">{meta}</span>
@@ -363,7 +363,7 @@ export default function DashboardPage() {
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
               aria-label="开始日期"
-              className="h-10 min-w-0 flex-1 rounded-[9px] border border-[var(--border)] bg-white/70 px-2 text-[13px] tabular-nums text-[var(--foreground)]"
+              className="m-input !h-10 min-w-0 flex-1 !px-2 !text-[13px] tabular-nums"
             />
             <span className="shrink-0 text-xs text-[var(--muted-foreground)]">至</span>
             <input
@@ -371,7 +371,7 @@ export default function DashboardPage() {
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
               aria-label="结束日期"
-              className="h-10 min-w-0 flex-1 rounded-[9px] border border-[var(--border)] bg-white/70 px-2 text-[13px] tabular-nums text-[var(--foreground)]"
+              className="m-input !h-10 min-w-0 flex-1 !px-2 !text-[13px] tabular-nums"
             />
             <button
               type="button"
@@ -390,7 +390,7 @@ export default function DashboardPage() {
               saveFilters("dashboard", { rangeKey, companyId: e.target.value } satisfies DashboardSavedFilters);
             }}
             aria-label="公司筛选"
-            className="h-10 w-full rounded-[12px] border border-[var(--border)] bg-white/70 px-3 text-[13px] font-medium text-[var(--foreground)]"
+            className="m-input mb-0 !h-10 w-full !text-[13px] font-medium"
           >
             <option value="all">全部公司</option>
             {companies.map((c) => (
@@ -507,7 +507,7 @@ export default function DashboardPage() {
                     key={idx}
                     type="button"
                     onClick={() => setActiveDept(d)}
-                    className="w-full rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-left active:scale-[0.99]"
+                    className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[var(--foreground)]">{d.name}</span>
@@ -606,7 +606,7 @@ export default function DashboardPage() {
             {data.resultStats.length ? (
               <div className="grid grid-cols-3 gap-2">
                 {data.resultStats.map((r, i) => (
-                  <div key={i} className="rounded-[12px] border border-[var(--border)] bg-white/55 px-2 py-2 text-center">
+                  <div key={i} className="rounded-[12px] m-tile px-2 py-2 text-center">
                     <div className="text-[10px] text-[var(--muted-foreground)]">{r.label}</div>
                     <div className="mt-1 text-[16px] font-black leading-none tabular-nums" style={{ color: r.accent }}>
                       {r.count}
@@ -631,7 +631,7 @@ export default function DashboardPage() {
                     key={i}
                     type="button"
                     onClick={() => setActiveReason(r)}
-                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-left active:scale-[0.99]"
+                    className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                   >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[11px] font-black text-[var(--danger)]">
                       {r.count}
@@ -667,7 +667,7 @@ export default function DashboardPage() {
                       key={idx}
                       type="button"
                       onClick={() => setActiveSaving(item)}
-                      className="flex w-full items-start gap-2.5 rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-left active:scale-[0.99]"
+                      className="flex w-full items-start gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                     >
                       <span className="flex h-8 w-8 shrink-0 flex-col items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)]">
                         <span className="text-[10px] font-black leading-none" style={{ color: rc }}>
@@ -734,7 +734,7 @@ export default function DashboardPage() {
                     key={i}
                     type="button"
                     onClick={() => setActiveSupplier(s)}
-                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-left active:scale-[0.99]"
+                    className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                   >
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[11px] font-bold text-[var(--accent)]">
                       {s.name.slice(0, 2)}
@@ -793,14 +793,14 @@ export default function DashboardPage() {
                 ) : null}
                 {aiResult ? (
                   <div className="space-y-2.5">
-                    <div className="rounded-[12px] border border-[var(--border)] bg-white/60 px-3.5 py-3">
+                    <div className="rounded-[12px] m-tile px-3.5 py-3">
                       <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-[var(--accent)]">
                         <Target size={11} /> 综合研判
                       </div>
                       <p className="text-[13px] font-medium leading-relaxed text-[var(--foreground)]">{aiResult.overview}</p>
                     </div>
                     {aiResult.highlights.length ? (
-                      <div className="rounded-[12px] border border-[var(--border)] bg-white/60 px-3.5 py-3">
+                      <div className="rounded-[12px] m-tile px-3.5 py-3">
                         <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-[var(--success)]">
                           <TrendingUp size={11} /> 核心亮点
                         </div>
@@ -813,7 +813,7 @@ export default function DashboardPage() {
                       </div>
                     ) : null}
                     {aiResult.concerns.length ? (
-                      <div className="rounded-[12px] border border-[var(--border)] bg-white/60 px-3.5 py-3">
+                      <div className="rounded-[12px] m-tile px-3.5 py-3">
                         <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-[var(--warning)]">
                           <AlertCircle size={11} /> 待关注
                         </div>
@@ -826,7 +826,7 @@ export default function DashboardPage() {
                       </div>
                     ) : null}
                     {aiResult.suggestions.length ? (
-                      <div className="rounded-[12px] border border-[var(--border)] bg-white/60 px-3.5 py-3">
+                      <div className="rounded-[12px] m-tile px-3.5 py-3">
                         <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-[var(--accent)]">
                           <Lightbulb size={11} /> 建议方向
                         </div>
@@ -1028,7 +1028,7 @@ export default function DashboardPage() {
               <MetricCard label="节约额" value={activeSaving.savingsLabel} tone="success" />
               <MetricCard label="节资率" value={`${activeSaving.savingsRate}%`} tone="success" />
             </div>
-            <div className="space-y-1 rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-[12px]">
+            <div className="space-y-1 rounded-[12px] m-tile px-3 py-2.5 text-[12px]">
               <div className="flex justify-between gap-3">
                 <span className="text-[var(--muted-foreground)]">采购部门</span>
                 <span className="font-medium text-[var(--foreground)]">{activeSaving.department}</span>

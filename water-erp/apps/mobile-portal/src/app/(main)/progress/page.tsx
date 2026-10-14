@@ -75,15 +75,9 @@ function StageStepper({ project }: { project: ProjectProgress }) {
           <span
             key={s.stageKey}
             title={`${s.stageName}${s.completedAt ? ` · ${s.completedAt.slice(0, 10)}` : ""}`}
-            className="h-1.5 flex-1 rounded-full transition-colors"
-            style={{
-              background: done
-                ? getStageMeta(s.stageKey).color
-                : isCurrent
-                  ? "var(--warning)"
-                  : "color-mix(in oklch, var(--muted-foreground) 18%, transparent)",
-              boxShadow: isCurrent && !done ? "0 0 0 2px color-mix(in oklch, var(--warning) 28%, transparent)" : undefined,
-            }}
+            className="m-step"
+            data-state={done ? "done" : isCurrent ? "current" : "pending"}
+            style={{ "--step-color": getStageMeta(s.stageKey).color } as React.CSSProperties}
           />
         );
       })}
@@ -175,7 +169,7 @@ export default function ProgressPage() {
             saveFilters("progress", { companyId: e.target.value });
           }}
           aria-label="公司筛选"
-          className="mb-3 h-10 w-full rounded-[12px] border border-[var(--border)] bg-white/70 px-3 text-[13px] font-medium text-[var(--foreground)]"
+          className="m-input mb-3 !h-10 w-full !text-[13px] font-medium"
         >
           <option value="all">全部公司</option>
           {companies.map((c) => (
@@ -203,7 +197,7 @@ export default function ProgressPage() {
             <MetricCard label="本月新增" value={String(stats.monthlyAdded)} sub={`上月 ${stats.lastMonthAdded}`} />
             <MetricCard label="本月完成" value={String(stats.monthlyCompleted)} tone="success" sub={`上月 ${stats.lastMonthCompleted}`} />
           </div>
-          <div className="mb-3 flex items-center justify-between rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2 text-[11px]">
+          <div className="mb-3 flex items-center justify-between rounded-[12px] m-tile px-3 py-2 text-[11px]">
             <span className="text-[var(--muted-foreground)]">
               累计完成 <span className="font-bold tabular-nums text-[var(--success)]">{stats.totalCompleted}</span> 项
             </span>
@@ -241,7 +235,7 @@ export default function ProgressPage() {
             {insights ? (
               <div className="space-y-2">
                 {insights.overview ? (
-                  <p className="rounded-[12px] border border-[var(--border)] bg-white/60 px-3 py-2.5 text-[12px] font-medium leading-relaxed text-[var(--foreground)]">
+                  <p className="rounded-[12px] m-tile px-3 py-2.5 text-[12px] font-medium leading-relaxed text-[var(--foreground)]">
                     {insights.overview}
                   </p>
                 ) : null}
@@ -249,8 +243,8 @@ export default function ProgressPage() {
                   insights.insights.map((it, i) => (
                     <div
                       key={i}
-                      className="rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5"
-                      style={{ borderLeft: `3px solid ${URGENCY_COLOR[it.urgency] ?? "var(--accent)"}` }}
+                      className="m-tile rounded-[12px] px-3 py-2.5"
+                      style={{ background: `color-mix(in oklch, ${URGENCY_COLOR[it.urgency] ?? "var(--accent)"} 5%, oklch(0.985 0.005 258))` }}
                     >
                       <div className="flex items-center gap-1.5">
                         <Lightbulb size={11} style={{ color: URGENCY_COLOR[it.urgency] ?? "var(--accent)" }} />
@@ -287,7 +281,7 @@ export default function ProgressPage() {
                       key={p.id}
                       type="button"
                       onClick={() => setActiveProject(p)}
-                      className="w-full rounded-[14px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-left active:scale-[0.99]"
+                      className="w-full rounded-[14px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                     >
                       <div className="flex items-start gap-2">
                         <span className="min-w-0 flex-1 line-clamp-2 text-[12.5px] font-semibold leading-snug text-[var(--foreground)]">{p.title}</span>
@@ -325,7 +319,7 @@ export default function ProgressPage() {
       <BottomSheet open={!!activeProject} onClose={() => setActiveProject(null)} title={<span className="line-clamp-2">{activeProject?.title ?? ""}</span>}>
         {activeProject ? (
           <div className="space-y-3">
-            <div className="space-y-0.5 rounded-[12px] border border-[var(--border)] bg-white/55 px-3 py-2.5 text-[12px]">
+            <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[12px]">
               {activeProject.projectName && activeProject.projectName !== activeProject.title ? (
                 <div className="flex justify-between gap-3 py-1">
                   <span className="text-[var(--muted-foreground)]">关联项目</span>
@@ -374,7 +368,7 @@ export default function ProgressPage() {
                     const isCurrent = s.stageKey === activeProject.currentStage;
                     const done = s.status === "COMPLETED" || s.completedAt;
                     return (
-                      <div key={s.stageKey} className="flex items-center gap-2.5 rounded-[10px] border border-[var(--border)] bg-white/55 px-3 py-2">
+                      <div key={s.stageKey} className="flex items-center gap-2.5 rounded-[10px] m-tile px-3 py-2">
                         <span
                           className="h-2 w-2 shrink-0 rounded-full"
                           style={{

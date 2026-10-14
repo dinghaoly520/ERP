@@ -59,7 +59,7 @@ export function BottomSheet({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-[rgba(20,35,60,0.38)] backdrop-blur-[2px]" onClick={() => setClosing(true)} />
+      <div className="absolute inset-0 bg-[color-mix(in_oklch,var(--background)_62%,transparent)] backdrop-blur-[2px]" onClick={() => setClosing(true)} />
       <div className="m-sheet-panel" data-closing={closing ? "true" : "false"} onAnimationEnd={handleAnimationEnd}>
         <div aria-hidden className="mx-auto mb-2.5 h-1 w-10 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_28%,transparent)]" />
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -68,7 +68,7 @@ export function BottomSheet({
             type="button"
             onClick={() => setClosing(true)}
             aria-label="关闭"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-[var(--border)] bg-white/70 text-[var(--muted-foreground)] active:scale-95"
+            className="neu-btn-soft !h-9 !w-9 shrink-0 !rounded-[11px] !p-0 active:scale-95"
           >
             <X size={15} />
           </button>

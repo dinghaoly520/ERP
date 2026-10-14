@@ -69,7 +69,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           type="button"
           onClick={handleLogout}
           aria-label="退出登录"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-[var(--border)] bg-white/62 text-[var(--muted-foreground)] active:scale-95"
+          className="neu-btn-soft !h-9 !w-9 shrink-0 !rounded-[11px] !p-0 active:scale-95"
         >
           <LogOut size={15} />
         </button>

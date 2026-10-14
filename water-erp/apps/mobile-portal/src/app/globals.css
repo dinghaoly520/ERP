@@ -424,7 +424,7 @@ body { overscroll-behavior-y: none; }
 .m-tab-item[data-active="true"] { color: var(--accent); }
 .m-tab-item:active { transform: scale(0.96); }
 
-/* 筛选 chip：触摸友好（36px 高 + 上下留白 ≈44px 热区） */
+/* 筛选 chip：无边框凸起三态（默认凸起→hover 抬升→active 内凹；触摸友好 36px） */
 .m-chip {
   min-height: 36px;
   padding: 0 14px;
@@ -432,22 +432,97 @@ body { overscroll-behavior-y: none; }
   align-items: center;
   gap: 4px;
   border-radius: 9999px;
-  border: 1px solid var(--border);
-  background: color-mix(in oklch, white 55%, transparent);
+  border: none;
+  background: oklch(0.985 0.005 258);
   font-size: 12px;
   font-weight: 600;
   color: var(--muted-foreground);
   white-space: nowrap;
-  transition: all 0.2s var(--ease-out-quart);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
+  transition: all 0.25s var(--ease-out-quart);
+}
+.m-chip:hover {
+  color: var(--foreground);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.95);
 }
 .m-chip[data-active="true"] {
-  border-color: color-mix(in oklch, var(--accent) 35%, transparent);
-  background: color-mix(in oklch, var(--accent) 10%, transparent);
-  color: var(--accent);
+  color: var(--accent-strong);
+  background: color-mix(in oklch, var(--accent) 10%, oklch(0.985 0.005 258));
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -2px -2px 5px oklch(1 0 0 / 0.55);
 }
 .m-chip:active { transform: scale(0.96); }
 
-/* 底部弹层面板：圆角把手 + 上滑入场 + 安全区 */
+/* 凸起瓷片（web .neu-tile 同配方）：浅实底 + 内高光 + 方向性双影，无边框；
+   data-pressable 的行/卡按下内凹（三态完整） */
+.m-tile {
+  background: oklch(0.985 0.005 258);
+  border: none;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+  transition: box-shadow 0.25s var(--ease-out-quart), transform 0.25s var(--ease-out-quart);
+}
+button.m-tile,
+[data-pressable="true"].m-tile { cursor: pointer; text-align: left; }
+button.m-tile:active,
+[data-pressable="true"].m-tile:active {
+  transform: scale(0.99);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
+
+/* 内凹输入（web .neu-input 移动版）：inset 双影 + focus 环（环无方向性，白名单形态） */
+.m-input {
+  background: oklch(0.965 0.008 258);
+  border: none;
+  border-radius: 12px;
+  height: 44px;
+  padding: 0 0.875rem;
+  color: var(--foreground);
+  font-size: 15px;
+  outline: none;
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -1px -1px 3px oklch(1 0 0 / 0.75);
+  transition: box-shadow 0.2s var(--ease-out-quart);
+}
+.m-input:focus {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -1px -1px 3px oklch(1 0 0 / 0.75),
+    0 0 0 3px color-mix(in oklch, var(--accent) 22%, transparent);
+}
+.m-input::placeholder { color: var(--muted-foreground); }
+select.m-input { appearance: auto; }
+
+/* 进展步进条段：状态类化（done=阶段色 / current=警示+焦点环 / pending=弱化） */
+.m-step {
+  height: 6px;
+  border-radius: 9999px;
+  flex: 1;
+  background: var(--step-color, var(--muted-foreground));
+  transition: background 0.2s var(--ease-out-quart), box-shadow 0.2s var(--ease-out-quart);
+}
+.m-step[data-state="pending"] {
+  background: color-mix(in oklch, var(--muted-foreground) 18%, transparent);
+}
+.m-step[data-state="current"] {
+  background: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--warning) 28%, transparent);
+}
+
+/* 底部弹层面板：圆角把手 + 上滑入场 + 安全区（无边框，方向性上浮影） */
 @keyframes m-sheet-up {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
@@ -461,10 +536,10 @@ body { overscroll-behavior-y: none; }
   overflow-y: auto;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
-  border: 1px solid var(--border);
-  border-bottom: none;
   background: var(--surface-strong);
-  box-shadow: 0 -18px 48px rgba(34, 62, 110, 0.18);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    0 -20px 60px oklch(0.32 0.07 258 / 0.18);
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
   animation: m-sheet-up 0.28s var(--ease-out-quint);
 }
@@ -488,4 +563,10 @@ body { overscroll-behavior-y: none; }
   .m-rise,
   .m-sheet-panel,
   .m-sheet-panel[data-closing="true"] { animation: none; }
+  /* cgzxui 原则 5：装饰性过渡降级（加载 spinner 属功能性反馈，保留） */
+  .m-tile,
+  .m-chip,
+  .m-input,
+  .m-step,
+  .m-tab-item { transition: none; }
 }
