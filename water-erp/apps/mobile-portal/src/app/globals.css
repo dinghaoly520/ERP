@@ -468,3 +468,24 @@ body { overscroll-behavior-y: none; }
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
   animation: m-sheet-up 0.28s var(--ease-out-quint);
 }
+
+/* ══ 体验打磨一轮（2026-10-14 spec）：入场/退场动效 + 减弱动效尊重 ══ */
+@keyframes m-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.m-rise { animation: m-rise 0.36s var(--ease-out-quint) both; }
+
+@keyframes m-sheet-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+.m-sheet-panel[data-closing="true"] {
+  animation: m-sheet-down 0.24s var(--ease-out-quint) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-rise,
+  .m-sheet-panel,
+  .m-sheet-panel[data-closing="true"] { animation: none; }
+}

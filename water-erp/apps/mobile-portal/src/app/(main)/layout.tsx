@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
 import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
+import { AuthProvider } from "@/components/m/auth-context";
 
 const TABS = [
   { href: "/dashboard", label: "数据库", icon: LayoutDashboard },
@@ -74,7 +75,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </button>
       </header>
 
-      <main className="relative z-10 flex-1 px-3.5 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-3.5">{children}</main>
+      <main className="relative z-10 flex-1 px-3.5 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-3.5">
+        <AuthProvider user={user}>{children}</AuthProvider>
+      </main>
 
       <nav className="m-tabbar" aria-label="主导航">
         {TABS.map(({ href, label, icon: Icon }) => (
