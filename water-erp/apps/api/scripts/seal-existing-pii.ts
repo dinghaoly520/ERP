@@ -16,16 +16,22 @@
  * 比对已密封行的内嵌 keyId 与 active keyId，不一致立即告警（防轮转期错钥封存）。
  *
  * 用法：
- *   npx tsx apps/api/scripts/seal-existing-pii.ts           # dry-run（默认，零副作用）
- *   npx tsx apps/api/scripts/seal-existing-pii.ts --execute # 真实密封写库
+ *   npx tsx apps/api/scripts/seal-existing-pii.ts                     # dry-run（默认，零副作用）
+ *   npx tsx apps/api/scripts/seal-existing-pii.ts --execute           # 明文行密封写库
+ *   npx tsx apps/api/scripts/seal-existing-pii.ts --execute --re-seal # 追加：旧钥密文重封为 active 钥
  *
- * 验收判据：execute 后重跑 dry-run 全表「待密封 0」，且
- * recompute-pii-blind-index.ts dry-run 无待重算行。
+ * --re-seal（密钥轮转配套）：对 keyId ≠ active 的已密封行走 openPii（active+OLD
+ * 双钥读窗口）拆封 → sealPii 重封 + 盲索引同步重算。无钥可解的行逐行容错列为
+ * 失败（真孤儿），不中断。轮转标准流程：.env 先配 OLD 再换新 → 重启 API →
+ * 本脚本 --execute --re-seal → recompute-pii-blind-index --execute。
+ *
+ * 验收判据：execute 后重跑 dry-run 全表「待密封 0」且无 --re-seal 待重封，
+ * crypto-health-report.ts 全绿。
  */
 import { PrismaClient } from '@prisma/client';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { sealPii, blindIndexPii, isSealedFieldSm, fieldKeyId } from '../src/common/crypto/sm-field-crypto';
+import { sealPii, openPii, blindIndexPii, isSealedFieldSm, activeFieldKeyId, fieldKeyId } from '../src/common/crypto/sm-field-crypto';
 
 // ── .env 加载（先于任何 crypto 调用——activeSecret 读 FIELD_ENC_SECRET）──
 function loadEnvFile(candidates: string[]): string | null {
@@ -53,6 +59,7 @@ if (!loadedEnv) {
 }
 
 const EXECUTE = process.argv.includes('--execute');
+const RESEAL = process.argv.includes('--re-seal');
 const prisma = new PrismaClient();
 
 /** 与 prisma/seed.ts PII_SEAL_MAP 单一口径——改映射须两处同步 */
@@ -63,7 +70,7 @@ const PII_SEAL_MAP: Record<string, Array<{ field: string; idx?: string }>> = {
   SupplierContact: [{ field: 'phone' }, { field: 'idCard', idx: 'idCardIdx' }, { field: 'email' }],
 };
 
-type FieldStat = { model: string; field: string; sealedSkip: number; pending: number; done: number; failed: number; sampleIds: string[] };
+type FieldStat = { model: string; field: string; sealedSkip: number; pending: number; resealPending: number; done: number; failed: number; sampleIds: string[] };
 const stats: FieldStat[] = [];
 const failedRows: Array<{ model: string; id: string; field: string; error: string }> = [];
 const foreignKeyIds = new Set<string>(); // 已密封行内嵌 keyId（与 active 比对防错钥）
@@ -85,9 +92,9 @@ async function* paginate<T>(
 }
 
 async function main() {
-  const activeKeyId = fieldKeyId(process.env.FIELD_ENC_SECRET || '');
-  console.log(`PII 存量密封回填 ${EXECUTE ? '【EXECUTE·写库】' : '【dry-run·零副作用】'}`);
-  console.log(`active keyId=${activeKeyId}（FIELD_ENC_SECRET ${process.env.FIELD_ENC_SECRET ? '已配置' : '未配置·dev 回退钥'}）\n`);
+  const activeKeyId = activeFieldKeyId(); // 含 dev 回退兜底——勿用 fieldKeyId(env||'')（空串指纹误判教训）
+  console.log(`PII 存量密封回填 ${EXECUTE ? '【EXECUTE·写库】' : '【dry-run·零副作用】'}${RESEAL ? ' +【re-seal】' : ''}`);
+  console.log(`active keyId=${activeKeyId}（FIELD_ENC_SECRET ${process.env.FIELD_ENC_SECRET ? '已配置' : '未配置·dev 回退钥'}）OLD ${process.env.FIELD_ENC_SECRET_OLD ? `keyId=${fieldKeyId(process.env.FIELD_ENC_SECRET_OLD)}` : '未配置'}\n`);
 
   for (const [model, fields] of Object.entries(PII_SEAL_MAP)) {
     const delegate = (prisma as any)[model[0].toLowerCase() + model.slice(1)];
@@ -97,7 +104,7 @@ async function main() {
       return;
     }
     for (const { field, idx } of fields) {
-      const stat: FieldStat = { model, field, sealedSkip: 0, pending: 0, done: 0, failed: 0, sampleIds: [] };
+      const stat: FieldStat = { model, field, sealedSkip: 0, pending: 0, resealPending: 0, done: 0, failed: 0, sampleIds: [] };
       for await (const row of paginate(
         500,
         (cursor) =>
@@ -114,8 +121,27 @@ async function main() {
         const v: string | null = row[field];
         if (v == null || v === '') continue; // null/空串非 PII，种子口径原样保留
         if (isSealedFieldSm(v)) {
+          const kid = v.split(':')[1];
+          foreignKeyIds.add(kid);
+          // --re-seal：非 active 钥的密文重封（active+OLD 双钥窗口拆封）；
+          // 无钥可解（真孤儿）逐行容错列失败，不中断
+          if (RESEAL && kid !== activeKeyId) {
+            stat.resealPending++;
+            if (stat.sampleIds.length < 10) stat.sampleIds.push(row.id);
+            if (!EXECUTE) continue;
+            try {
+              const plain = openPii(v)!;
+              const data: Record<string, string | null> = { [field]: sealPii(plain)! };
+              if (idx) data[idx] = blindIndexPii(plain);
+              await delegate.update({ where: { id: row.id }, data });
+              stat.done++;
+            } catch (e) {
+              stat.failed++;
+              failedRows.push({ model, id: row.id, field, error: `re-seal 失败（无钥可解·孤儿 ${kid}）: ${(e as Error).message}` });
+            }
+            continue;
+          }
           stat.sealedSkip++;
-          foreignKeyIds.add(v.split(':')[1]);
           continue;
         }
         stat.pending++;
@@ -140,11 +166,12 @@ async function main() {
   console.log('扫描结果（按表.列）：');
   let totalPending = 0;
   for (const s of stats) {
-    totalPending += s.pending;
+    totalPending += s.pending + s.resealPending;
     const parts = [`已密封跳过 ${s.sealedSkip}`, `${EXECUTE ? '已密封' : '待密封'} ${s.pending}`];
+    if (RESEAL) parts.push(`${EXECUTE ? '已重封' : '待重封'} ${s.resealPending}`);
     if (EXECUTE) parts.push(`失败 ${s.failed}`);
     console.log(`  ${s.model}.${s.field.padEnd(20)} ${parts.join(' / ')}`);
-    if (!EXECUTE && s.pending > 0) console.log(`    示例行 id: ${s.sampleIds.join(', ')}${s.pending > 10 ? ' …' : ''}`);
+    if (!EXECUTE && (s.pending > 0 || (RESEAL && s.resealPending > 0))) console.log(`    示例行 id: ${s.sampleIds.join(', ')}${s.pending + s.resealPending > 10 ? ' …' : ''}`);
   }
   if (failedRows.length > 0) {
     console.log(`\n失败 ${failedRows.length} 行（不中断，人工核查后重跑即可——幂等）：`);

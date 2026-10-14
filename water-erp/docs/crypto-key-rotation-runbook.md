@@ -26,7 +26,7 @@
 4. **【硬性】重算盲索引**：`npx tsx apps/api/scripts/recompute-pii-blind-index.ts`（dry-run 审阅）→ `--execute`。
    - 原因：盲索引只用 active 钥派生，换钥后存量 `User.phoneIdx` / `Supplier.legalPersonIdCardIdx` / `SupplierContact.idCardIdx` 失配 → **重复手机号可注册、法人身份证可重复入库，且无报错**。
    - 完成判据：重跑 dry-run 零待重算、零失败。
-5. **收尾**：观察一个业务周期后移除 `FIELD_ENC_SECRET_OLD`（移除前旧密文须已全部重封或确认不再读——当前系统**无存量重封工具**，旧密文依赖 OLD 钥长期可读，故 OLD 建议保留至下一轮轮转）。
+5. **收尾**：观察一个业务周期后移除 `FIELD_ENC_SECRET_OLD`（移除前确认旧密文已全部重封——**重封工具已具备（2026-10-14）**：`npx tsx scripts/seal-existing-pii.ts --execute --re-seal` 按 active+OLD 双钥窗口逐行重封并同步盲索引，真孤儿（无钥可解）逐行容错列出）。
 
 > 写侧说明：新写入行自动用新钥密封；存量行保持旧钥密文（读端兼容），无需迁移。
 
@@ -60,6 +60,7 @@
 ```bash
 cd apps/api
 npx jest sm-field-crypto upload.service --silent   # 加解密单元
+npx tsx scripts/crypto-health-report.ts            # 密文体系体检（非零退出码=红灯：明文残留/孤儿 keyId/盲索引失配）
 npx tsx scripts/recompute-pii-blind-index.ts       # 盲索引 dry-run 应零待重算
 # 浏览页抽查：账号列表手机号掩码可见；专家画像「明文」揭示可用
 # 投标链路抽查：供应商回看投标文件可下载（涉 KMS 时）

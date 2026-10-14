@@ -53,6 +53,15 @@ export function fieldKeyId(secret: string): string {
 }
 
 /**
+ * 生效 active 钥（含 dev 回退）的 keyId——运维/巡检脚本的唯一正确取法。
+ * 2026-10-14 教训：`fieldKeyId(process.env.FIELD_ENC_SECRET || '')` 取的是空串
+ * 指纹（4950e36b），与回退钥真 id（d8ded1a4）不符，曾把正常密文误判为孤儿。
+ */
+export function activeFieldKeyId(): string {
+  return fieldKeyId(activeSecret());
+}
+
+/**
  * 密封短字符串字段（SM4-CBC + HMAC-SM3）。
  * 返回 'sm1:<keyId>:<base64(iv‖ct‖mac)>'。null→null、空串→空串。
  * 同一明文每次密封结果不同（随机 IV）。
