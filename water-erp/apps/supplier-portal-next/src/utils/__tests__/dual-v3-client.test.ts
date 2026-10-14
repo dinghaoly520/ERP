@@ -73,7 +73,8 @@ test('encryptAndUploadV3：信封结构/哈希锚点/双密封件/fieldsCommit �
   const restored = new TextDecoder().decode(
     Uint8Array.from(plainFieldsHex.match(/.{2}/g)!.map((h: string) => parseInt(h, 16))),
   );
-  assert.equal(restored, canonicalJson(FIELDS), 'sealedFields 密文可由 DEK_F 还原 canonical fields');
+  // Ruling（Task12）：cipher 内容=canonicalJson({fields, nonce})——供应商解密后可取回 nonce
+  assert.equal(restored, canonicalJson({ fields: FIELDS, nonce: result.nonceHex }), 'sealedFields 密文可由 DEK_F 还原 fields+nonce');
   assert.equal(envelope.sealedFields.kself.format, 'scca-pkcs7-base64');
 });
 

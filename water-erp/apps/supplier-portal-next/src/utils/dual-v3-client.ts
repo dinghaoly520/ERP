@@ -117,9 +117,12 @@ export async function encryptAndUploadV3(
     uploadedAssets.push({ role, fileAssetId: uploaded.fileAssetId });
   }
 
-  // ── sealedFields：canonical fields → SM4（DEK_F）→ 盾 P7 封装 DEK_F ──
+  // ── sealedFields：canonical {fields, nonce} → SM4（DEK_F）→ 盾 P7 封装 DEK_F ──
+  // Ruling（Task12 补）：cipher 须同时携带 nonce——供应商开标解密时从密文反解 nonce，
+  // 方可回传 decrypt-upload 重验 fieldsCommit（服务端对 cipher 零知识，仅比对承诺）。
+  const nonceHex = randomHex(16);
   const dekF = { keyHex: randomHex(16), ivHex: randomHex(16) };
-  const fieldsJson = canonicalJson(fields);
+  const fieldsJson = canonicalJson({ fields, nonce: nonceHex });
   const cipherHex = sm4Encrypt(dekF.keyHex, dekF.ivHex, utf8Hex(fieldsJson));
   const sealedFields: DualV3SealedFields = {
     cipherFormat: 'sm4-cbc-pkcs7-hex',
@@ -134,7 +137,6 @@ export async function encryptAndUploadV3(
   };
 
   // ── fieldsCommit + 信封 ──
-  const nonceHex = randomHex(16);
   const fieldsCommit = await computeV3FieldsCommit(fields, nonceHex);
   const envelope = buildV3Envelope({
     context: { projectId, ...context },
@@ -144,4 +146,22 @@ export async function encryptAndUploadV3(
   });
 
   return { envelope, uploadedAssets, sealedFields, fieldsCommit, nonceHex };
+}
+
+/** decrypt-upload P7 证明 canonical（Task12）——与服务端 Task9 构建逐字一致：
+ *  plainSha256ByRole=各角色明文 sha256（诚实客户端==信封声明值），服务端验签即交叉比对。 */
+export function buildDecryptProofCanonical(input: {
+  openingSessionId: string;
+  revision: number;
+  plainSha256ByRole: Record<string, string>;
+  fieldsCommit: string;
+}): string {
+  return canonicalJson({
+    version: 1,
+    purpose: 'decrypt-upload',
+    openingSessionId: input.openingSessionId,
+    revision: input.revision,
+    plainSha256ByRole: input.plainSha256ByRole,
+    fieldsCommit: input.fieldsCommit,
+  });
 }
