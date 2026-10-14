@@ -214,7 +214,7 @@ export default function LedgerPage() {
       {/* ── 汇总条 ── */}
       {stats ? (
         <div className="neu-card-static mb-3 rounded-[16px] p-3">
-          <div className="grid grid-cols-4 gap-1.5 text-center">
+          <div className="grid grid-cols-2 gap-1.5 text-center min-[360px]:grid-cols-4">
             {[
               { l: "总数", v: stats.totalCount, t: "accent" },
               { l: "已成交", v: stats.awardedCount, t: "success" },
@@ -253,7 +253,7 @@ export default function LedgerPage() {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="搜索项目名称 / 编号"
-          className="m-input h-11 w-full text-[14px] pl-10"
+          className="m-input h-11 w-full pl-10"
         />
         {searchInput ? (
           <button
@@ -319,7 +319,7 @@ export default function LedgerPage() {
             })
           }
           aria-label="公司筛选"
-          className="m-input mb-3 h-10 w-full text-[13px] font-medium"
+          className="m-input mb-3 h-10 w-full font-medium"
         >
           <option value="all">全部公司</option>
           {companies.map((c) => (

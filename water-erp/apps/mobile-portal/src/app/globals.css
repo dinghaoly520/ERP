@@ -408,6 +408,9 @@ body { overscroll-behavior-y: none; }
   z-index: 40;
   display: flex;
   padding-bottom: env(safe-area-inset-bottom);
+  /* 横屏刘海安全区（viewport-fit=cover） */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
   border-top: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
   background: color-mix(in oklch, var(--background) 88%, transparent);
   backdrop-filter: blur(14px);
@@ -495,7 +498,8 @@ button.m-tile:active,
   height: 44px;
   padding: 0 0.875rem;
   color: var(--foreground);
-  font-size: 15px;
+  /* iOS Safari：<16px 字号的输入聚焦时会触发页面自动缩放，必须 ≥16px */
+  font-size: 16px;
   outline: none;
   box-shadow:
     inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
@@ -545,7 +549,7 @@ select.m-input { appearance: auto; }
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.8),
     0 -20px 60px oklch(0.32 0.07 258 / 0.18);
-  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  padding: 12px max(1rem, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
   animation: m-sheet-up 0.28s var(--ease-out-quint);
 }
 

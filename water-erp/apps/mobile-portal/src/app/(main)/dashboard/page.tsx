@@ -363,7 +363,7 @@ export default function DashboardPage() {
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
               aria-label="开始日期"
-              className="m-input h-10 min-w-0 flex-1 px-2 text-[13px] tabular-nums"
+              className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
             />
             <span className="shrink-0 text-xs text-[var(--muted-foreground)]">至</span>
             <input
@@ -371,7 +371,7 @@ export default function DashboardPage() {
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
               aria-label="结束日期"
-              className="m-input h-10 min-w-0 flex-1 px-2 text-[13px] tabular-nums"
+              className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
             />
             <button
               type="button"
@@ -390,7 +390,7 @@ export default function DashboardPage() {
               saveFilters("dashboard", { rangeKey, companyId: e.target.value } satisfies DashboardSavedFilters);
             }}
             aria-label="公司筛选"
-            className="m-input mb-0 h-10 w-full text-[13px] font-medium"
+            className="m-input mb-0 h-10 w-full font-medium"
           >
             <option value="all">全部公司</option>
             {companies.map((c) => (
@@ -604,7 +604,7 @@ export default function DashboardPage() {
             index={4}
           >
             {data.resultStats.length ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5 min-[360px]:gap-2">
                 {data.resultStats.map((r, i) => (
                   <div key={i} className="rounded-[12px] m-tile px-2 py-2 text-center">
                     <div className="text-[10px] text-[var(--muted-foreground)]">{r.label}</div>

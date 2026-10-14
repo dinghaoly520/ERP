@@ -57,7 +57,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flow-page ambient-grid flex min-h-dvh flex-col">
       <div className="flow-glow" aria-hidden />
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2.5 border-b border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[color-mix(in_oklch,var(--background)_86%,transparent)] px-3.5 backdrop-blur-md">
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2.5 border-b border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[color-mix(in_oklch,var(--background)_86%,transparent)] pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))] backdrop-blur-md">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_8px_20px_rgba(69,99,158,0.16)]">
           <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={32} height={32} className="rounded-[8px] object-cover" priority />
         </div>
@@ -75,7 +75,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </button>
       </header>
 
-      <main className="relative z-10 flex-1 px-3.5 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-3.5">
+      <main className="relative z-10 mx-auto w-full max-w-lg px-[max(0.875rem,env(safe-area-inset-left))] pb-[calc(4.75rem+env(safe-area-inset-bottom))] pr-[max(0.875rem,env(safe-area-inset-right))] pt-3.5">
         <AuthProvider user={user}>{children}</AuthProvider>
       </main>
 
