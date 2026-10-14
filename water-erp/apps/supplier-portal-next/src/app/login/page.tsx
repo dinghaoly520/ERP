@@ -285,6 +285,11 @@ function LoginForm() {
                         </span>
                       )}
                       {queryResult.reason && <span className="lp-query__reason">原因：{queryResult.reason}</span>}
+                      {queryResult.status === "RETURNED" && (
+                        <Link href="/register" className="lp-query__correct">
+                          前往注册页补正资料 →
+                        </Link>
+                      )}
                       {/* 仍可催促的状态：未审核/退回/拒绝（APPROVED/DISABLED 无需催促） */}
                       {["PENDING", "RETURNED", "REJECTED"].includes(queryResult.status as string) && (
                         <button

@@ -11917,6 +11917,14 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .lp-query__urge:hover:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), 3px 3px 8px oklch(0.4 0.08 27 / 0.3), -2px -2px 5px oklch(1 0 0 / 0.55); }
 .lp-query__urge:active:not(:disabled) { transform: none; box-shadow: inset 2px 2px 5px oklch(0.35 0.08 27 / 0.4), inset -1px -1px 3px oklch(1 0 0 / 0.25); }
 .lp-query__urge:disabled { cursor: not-allowed; opacity: 0.55; }
+/* RETURNED 退回补正：引导去注册页补正资料的链接（与 lp-query__result 纵排对齐） */
+.lp-query__correct {
+  align-self: flex-start; margin-top: 6px;
+  color: var(--brand, oklch(0.5 0.16 258));
+  font-weight: 700; font-size: 13px;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.lp-query__correct:hover { color: var(--brand-deep, oklch(0.42 0.16 258)); }
 
 @media (prefers-reduced-motion: reduce) {
   .lp-card, .lp-head, .lp-field, .lp-primary, .lp-foot { animation: none; }
